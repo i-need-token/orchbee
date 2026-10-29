@@ -48,16 +48,11 @@ pub(crate) enum MenuLabel {
     MoveTabFirst,
     MoveTabLast,
     SelectTab,
-    DeselectTab,
-    SelectTabRange,
     SelectAllTabs,
     ClearTabSelection,
     PinTab,
     UnpinTab,
     ManageGroups,
-    TabTools,
-    GroupMenu,
-    MoveToNewWindow,
     CreateGroup,
     RenameGroup,
     ChooseGroupColor,
@@ -65,10 +60,6 @@ pub(crate) enum MenuLabel {
     JoinGroup,
     RemoveFromGroup,
     Ungroup,
-    CollapseGroup,
-    ExpandGroup,
-    MoveGroupPrevious,
-    MoveGroupNext,
     RenameTab,
     ResumeTabClose,
     CloseSelectedTabs,
@@ -104,6 +95,12 @@ pub(crate) enum MenuLabel {
     AgentBoard,
     ReleasePointer,
     Detach,
+}
+
+/// Secondary text that ends a row, such as the default launch profile's mark.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum MenuRowNote {
+    DefaultProfile,
 }
 
 /// Why the action owner has withheld a menu action; never inferred from translated text.
@@ -189,6 +186,13 @@ impl Locale {
             (Self::ZhCn, A::Mouse) => "鼠标",
             (Self::EnUs, A::Detach) => "detach",
             (Self::ZhCn, A::Detach) => "分离",
+        }
+    }
+
+    pub(crate) const fn menu_row_note(self, note: MenuRowNote) -> &'static str {
+        match (self, note) {
+            (Self::EnUs, MenuRowNote::DefaultProfile) => "Default",
+            (Self::ZhCn, MenuRowNote::DefaultProfile) => "默认",
         }
     }
 
@@ -338,12 +342,6 @@ impl Locale {
             (Self::ZhCn, TabCreation) => "新建标签页选项",
             (Self::EnUs, NewTabInRecentGroup) => "New Tab in recent group",
             (Self::ZhCn, NewTabInRecentGroup) => "在最近的分组中新建标签页",
-            (Self::EnUs, TabTools) => "Selection and movement",
-            (Self::ZhCn, TabTools) => "选择与移动",
-            (Self::EnUs, GroupMenu) => "Group actions",
-            (Self::ZhCn, GroupMenu) => "分组操作",
-            (Self::EnUs, MoveToNewWindow) => "Move to new window",
-            (Self::ZhCn, MoveToNewWindow) => "移至新窗口",
             (Self::EnUs, ResumeTabClose) => "Resume closing this Tab…",
             (Self::ZhCn, ResumeTabClose) => "继续关闭此标签页…",
             (Self::EnUs, CloseSelectedTabs) => "Close Tab…",
@@ -398,10 +396,6 @@ impl Locale {
             (Self::ZhCn, MoveTabLast) => "将此标签页移至末尾",
             (Self::EnUs, SelectTab) => "Add this Tab to selection",
             (Self::ZhCn, SelectTab) => "将此标签页加入选择",
-            (Self::EnUs, DeselectTab) => "Remove this Tab from selection",
-            (Self::ZhCn, DeselectTab) => "将此标签页移出选择",
-            (Self::EnUs, SelectTabRange) => "Extend selection to this Tab",
-            (Self::ZhCn, SelectTabRange) => "将选择扩展至此标签页",
             (Self::EnUs, SelectAllTabs) => "Select all Tabs",
             (Self::ZhCn, SelectAllTabs) => "选择所有标签页",
             (Self::EnUs, ClearTabSelection) => "Keep only current Tab selected",
@@ -412,8 +406,8 @@ impl Locale {
             (Self::ZhCn, UnpinTab) => "取消固定标签页",
             (Self::EnUs, ManageGroups) => "Add Tab to group",
             (Self::ZhCn, ManageGroups) => "将标签页加入分组",
-            (Self::EnUs, CreateGroup) => "New group for Tab…",
-            (Self::ZhCn, CreateGroup) => "为标签页新建分组…",
+            (Self::EnUs, CreateGroup) => "New group…",
+            (Self::ZhCn, CreateGroup) => "新建分组…",
             (Self::EnUs, RenameTab) => "Rename Tab",
             (Self::EnUs, RenameWorkspace) => "Rename Workspace",
             (Self::EnUs, RenameProject) => "Rename Project",
@@ -422,22 +416,14 @@ impl Locale {
             (Self::ZhCn, RenameWorkspace) => "重命名工作区",
             (Self::ZhCn, RenameProject) => "重命名项目",
             (Self::ZhCn, RenameGroup) => "重命名分组",
-            (Self::EnUs, ChooseGroupColor) => "Group color…",
-            (Self::ZhCn, ChooseGroupColor) => "分组颜色…",
+            (Self::EnUs, ChooseGroupColor) => "Group color",
+            (Self::ZhCn, ChooseGroupColor) => "分组颜色",
             (Self::EnUs, JoinGroup) => "Move Tab to group",
             (Self::ZhCn, JoinGroup) => "将标签页移入分组",
             (Self::EnUs, RemoveFromGroup) => "Remove Tab from group",
             (Self::ZhCn, RemoveFromGroup) => "将标签页移出分组",
             (Self::EnUs, Ungroup) => "Ungroup, keep Tabs",
             (Self::ZhCn, Ungroup) => "解散分组，保留标签页",
-            (Self::EnUs, CollapseGroup) => "Collapse group",
-            (Self::ZhCn, CollapseGroup) => "折叠分组",
-            (Self::EnUs, ExpandGroup) => "Expand group",
-            (Self::ZhCn, ExpandGroup) => "展开分组",
-            (Self::EnUs, MoveGroupPrevious) => "Move group left",
-            (Self::ZhCn, MoveGroupPrevious) => "向左移动分组",
-            (Self::EnUs, MoveGroupNext) => "Move group right",
-            (Self::ZhCn, MoveGroupNext) => "向右移动分组",
             (Self::EnUs, GroupColor(orchbee_workbench_protocol::TabGroupColor::Blue)) => "Blue",
             (Self::ZhCn, GroupColor(orchbee_workbench_protocol::TabGroupColor::Blue)) => "蓝色",
             (Self::EnUs, GroupColor(orchbee_workbench_protocol::TabGroupColor::Cyan)) => "Cyan",

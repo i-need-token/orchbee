@@ -253,10 +253,6 @@ fn dynamic_menu_input_keeps_one_semantic_identity() {
         menu_metadata(MenuAction::MoveTabPrevious).action.identity,
         menu_metadata(MenuAction::MoveTabLast).action.identity
     );
-    assert_eq!(
-        menu_metadata(MenuAction::CollapseGroup).action.identity,
-        menu_metadata(MenuAction::ExpandGroup).action.identity
-    );
 }
 
 #[test]
@@ -273,6 +269,7 @@ fn sidebar_delete_and_tab_close_intents_share_destructive_tone_without_status_ro
             matches!(
                 action,
                 MenuAction::DeleteWorkspace
+                    | MenuAction::ClosePane
                     | MenuAction::CloseSelectedTabs
                     | MenuAction::CloseOtherTabs
                     | MenuAction::CloseTrailingTabs
@@ -471,17 +468,14 @@ fn reused_cross_client_ids_are_present_in_their_owning_catalogs() {
         );
     }
     for id in [
-        "tabs.group.collapsed.set",
         "tabs.group.create",
         "tabs.group.create-with-tab",
-        "tabs.group.move",
         "tabs.group.ungroup",
         "tabs.group.update",
         "tabs.tab.close",
         "tabs.tab.duplicate",
         "tabs.tab.move",
         "tabs.tab.move-to-group",
-        "tabs.tab.move-to-window",
         "tabs.tab.pinned.set",
         "tabs.tab.select",
     ] {

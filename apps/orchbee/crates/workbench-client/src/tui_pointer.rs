@@ -2713,7 +2713,7 @@ impl PointerState {
                 HitResolution::Region(HitTarget::TabCreate(target))
                     if event.button == MouseButton::Right =>
                 {
-                    Some(crate::action_menu::MenuTarget::TabCreate(target.clone()))
+                    Some(crate::action_menu::MenuTarget::TabProfiles(target.clone()))
                 }
                 HitResolution::Region(hit)
                     if hit.sidebar_target().is_some() && event.button == MouseButton::Right =>

@@ -336,7 +336,7 @@ fn wheel_reaches_a_tail_window_using_terminal_rows_and_result_indices() {
             MenuAction::Reload,
             MenuAction::DuplicateTab,
             MenuAction::PinTab,
-            MenuAction::TabTools,
+            MenuAction::Settings,
         ],
         None,
     ));

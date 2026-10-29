@@ -12,25 +12,23 @@ fn tab_group_and_creation_menus_have_distinct_scopes_and_submenu_back_requires_n
     assert_eq!(
         menu.actions,
         &[
-            MenuAction::NewTabToRight,
             MenuAction::RenameTab,
+            MenuAction::PinTab,
             MenuAction::ManageGroups,
             MenuAction::RemoveFromGroup,
-            MenuAction::GroupMenu,
-            MenuAction::DuplicateTab,
-            MenuAction::PinTab,
             MenuAction::CloseSelectedTabs,
             MenuAction::CloseOtherTabs,
-            MenuAction::CloseTrailingTabs,
-            MenuAction::TabTools,
         ]
     );
-    assert!(!menu.actions.contains(&MenuAction::MoveToNewWindow));
     assert_eq!(menu.unavailable.len(), menu.actions.len());
-    assert!(menu.result_separator_before(menu.result_actions, 4));
-    assert!(menu.result_separator_before(menu.result_actions, 5));
-    assert!(menu.result_separator_before(menu.result_actions, 7));
-    assert!(menu.result_separator_before(menu.result_actions, 10));
+    // Sections: name and pin, group membership, closing.
+    for row in 1..menu.actions.len() {
+        assert_eq!(
+            menu.result_separator_before(menu.result_actions, row),
+            matches!(row, 2 | 4),
+            "row {row}"
+        );
+    }
     choose(&mut ui, MenuAction::ManageGroups);
     assert_eq!(
         ui.view().action_menu().unwrap().actions,
@@ -69,9 +67,6 @@ fn tab_group_and_creation_menus_have_distinct_scopes_and_submenu_back_requires_n
             MenuAction::NewTabInGroup,
             MenuAction::RenameGroup,
             MenuAction::ChooseGroupColor,
-            MenuAction::CollapseGroup,
-            MenuAction::MoveGroupPrevious,
-            MenuAction::MoveGroupNext,
             MenuAction::Ungroup,
             MenuAction::CloseGroup
         ]

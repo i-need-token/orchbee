@@ -54,15 +54,6 @@ fn present_action_menu(ui: &mut WorkbenchClientUi) -> MenuToken {
 fn choose(ui: &mut WorkbenchClientUi, action: MenuAction) {
     if !ui.view().action_menu().unwrap().actions.contains(&action) {
         let parent = match action {
-            MenuAction::SelectTab
-            | MenuAction::DeselectTab
-            | MenuAction::SelectTabRange
-            | MenuAction::SelectAllTabs
-            | MenuAction::ClearTabSelection
-            | MenuAction::MoveTabPrevious
-            | MenuAction::MoveTabNext
-            | MenuAction::MoveTabFirst
-            | MenuAction::MoveTabLast => MenuAction::TabTools,
             MenuAction::CreateGroup | MenuAction::JoinGroup(_) => MenuAction::ManageGroups,
             _ => panic!("action must be reachable through its owning menu: {action:?}"),
         };
@@ -181,8 +172,11 @@ fn selected_tab_configuration_menu_marks_exact_set_and_preserves_active_terminal
         .map(|tab| tab.tab_id.clone())
         .collect();
     let desired = ui.state.as_ref().unwrap().desired().cloned();
-    assert!(ui.open_action_menu(MenuTarget::Tab(ids[2].clone()), None, false));
-    choose(&mut ui, MenuAction::SelectTab);
+    // Ctrl+click marks a Tab beside the current one.
+    ui.apply_client_action(ClientAction::TabMenu {
+        action: MenuAction::SelectTab,
+        tab_id: Some(ids[2].clone()),
+    });
     assert_eq!(
         ui.view().selected_tab_ids(),
         vec![ids[0].clone(), ids[2].clone()]
@@ -278,7 +272,7 @@ fn selected_tab_configuration_menu_marks_exact_set_and_preserves_active_terminal
 }
 
 #[test]
-fn tab_group_selected_range_all_clear_and_stale_menu_proof_stay_client_local() {
+fn tab_group_toggle_all_clear_and_stale_menu_proof_stay_client_local() {
     let (mut ui, mailbox, _, snapshot) = ready_snapshot(grouped());
     let ids: Vec<_> = snapshot.terminal_contexts[0]
         .tabs
@@ -286,18 +280,23 @@ fn tab_group_selected_range_all_clear_and_stale_menu_proof_stay_client_local() {
         .map(|tab| tab.tab_id.clone())
         .collect();
     let desired = ui.state.as_ref().unwrap().desired().cloned();
-    for (action, target, expected) in [
-        (MenuAction::SelectTabRange, 2, ids.clone()),
-        (
-            MenuAction::DeselectTab,
-            1,
-            vec![ids[0].clone(), ids[2].clone()],
-        ),
-        (MenuAction::SelectAllTabs, 0, ids.clone()),
-        (MenuAction::ClearTabSelection, 0, vec![ids[0].clone()]),
+    for (action, expected) in [
+        (MenuAction::SelectTab, vec![ids[0].clone(), ids[2].clone()]),
+        (MenuAction::SelectTab, vec![ids[0].clone()]),
+        (MenuAction::SelectAllTabs, ids.clone()),
+        (MenuAction::ClearTabSelection, vec![ids[0].clone()]),
     ] {
-        assert!(ui.open_action_menu(MenuTarget::Tab(ids[target].clone()), None, false));
-        choose(&mut ui, action);
+        if action == MenuAction::SelectTab {
+            // Ctrl+click toggles one Tab beside the current Tab.
+            ui.apply_client_action(ClientAction::TabMenu {
+                action,
+                tab_id: Some(ids[2].clone()),
+            });
+        } else {
+            // The global menu's Tab section marks or clears every Tab.
+            assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+            choose(&mut ui, action);
+        }
         assert_eq!(ui.view().selected_tab_ids(), expected);
         assert_eq!(ui.state.as_ref().unwrap().desired(), desired.as_ref());
         assert!(mailbox.try_recv().unwrap().is_none());
@@ -343,16 +342,15 @@ fn tab_group_selected_range_all_clear_and_stale_menu_proof_stay_client_local() {
 }
 
 #[test]
-fn tab_group_move_menu_uses_local_disclosure_and_keeps_background_target_unselected() {
-    let mut snapshot = grouped();
-    snapshot.terminal_contexts[0].tabs.rotate_left(1);
-    let (mut ui, mailbox, clock, mut snapshot) = ready_snapshot(snapshot);
-    let target = snapshot.terminal_contexts[0].tabs[2].tab_id.clone();
+fn tab_group_move_menu_uses_local_disclosure_and_keeps_the_current_terminal() {
+    let (mut ui, mailbox, clock, mut snapshot) = ready_snapshot(grouped());
+    // The global menu's movement rows act on the current Tab, here left of the folded group.
+    let target = snapshot.terminal_contexts[0].tabs[0].tab_id.clone();
     let group = snapshot.terminal_contexts[0].groups[0].group_id.clone();
     let original = ui.state.as_ref().unwrap().desired().cloned();
     ui.apply_client_action(ClientAction::ToggleTabGroup(group));
-    assert!(ui.open_action_menu(MenuTarget::Tab(target.clone()), None, false));
-    choose(&mut ui, MenuAction::MoveTabPrevious);
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    choose(&mut ui, MenuAction::MoveTabNext);
     let operation = accept_configuration(&mut ui, &mailbox, &clock, &mut snapshot, None);
     assert!(matches!(
         operation,
@@ -361,8 +359,8 @@ fn tab_group_move_menu_uses_local_disclosure_and_keeps_background_target_unselec
             ..
         }
     ));
-    assert_eq!(snapshot.terminal_contexts[0].tabs[0].tab_id, target);
-    assert_eq!(snapshot.terminal_contexts[0].tabs[0].group_id, None);
+    assert_eq!(snapshot.terminal_contexts[0].tabs[2].tab_id, target);
+    assert_eq!(snapshot.terminal_contexts[0].tabs[2].group_id, None);
     assert_eq!(ui.state.as_ref().unwrap().desired(), original.as_ref());
 }
 
@@ -393,8 +391,6 @@ fn tab_group_menus_submit_canonical_operations_and_preserve_selected_terminal() 
     );
     for action in [
         MenuAction::GroupColor(TabGroupColor::Orange),
-        MenuAction::MoveGroupNext,
-        MenuAction::MoveGroupPrevious,
         MenuAction::JoinGroup(0),
         MenuAction::RemoveFromGroup,
         MenuAction::PinTab,
@@ -725,7 +721,7 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
             ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
             ui.apply_client_action(ClientAction::TabMenu {
                 action: MenuAction::SelectAllTabs,
-                tab_id: Some(tab_id.clone()),
+                tab_id: None,
             });
             if width <= 80 {
                 ui.apply_client_action(ClientAction::ToggleTabGroup(group));
@@ -783,11 +779,20 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
             }
             // A low-height admitted menu still scrolls even when the strip is hidden.
             ui.after_close_draw(receipt.take().unwrap());
-            choose(&mut ui, MenuAction::TabTools);
-            // Keyboard traversal scrolls to the final movement row; paint, then pointer invokes it.
-            present_action_menu(&mut ui);
-            let last = ui.view().action_menu().unwrap().actions.len() - 1;
-            for _ in 0..last {
+            ui.cancel_action_menu();
+            assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+            // Keyboard traversal scrolls to the global movement rows; paint, then pointer invokes
+            // one.
+            let target = ui
+                .view()
+                .action_menu()
+                .unwrap()
+                .actions
+                .iter()
+                .position(|action| *action == MenuAction::MoveTabLast)
+                .unwrap();
+            for _ in 0..target {
+                present_action_menu(&mut ui);
                 ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
                     crate::client_view::KeyCode::Down,
                     crate::client_view::Modifiers::NONE,
@@ -811,21 +816,20 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
                     ));
                 })
                 .unwrap();
-            // Without room on either side, the submenu covers the parent's end and still scrolls.
             let hits = hits.finish();
             let (painted_width, painted_height) = (width, height);
             assert!(
                 (0..painted_height).any(|y| (0..painted_width).any(|x| matches!(
                     hits.hit_target_at(x, y),
                     Some(HitTarget::ActionMenuRow { token: painted, row })
-                        if *painted == token && *row == last
+                        if *painted == token && *row == target
                 ))),
-                "last row must be painted: {locale:?} {width}x{height}, selected {}, last {last}, source {source:?}\n{}",
+                "the movement row must be painted: {locale:?} {width}x{height}, selected {}, row {target}, source {source:?}\n{}",
                 selected,
                 rendered_text(terminal.backend().buffer()),
             );
             ui.after_close_draw(receipt.take().unwrap());
-            ui.activate_action_menu_row(&source, token, last);
+            ui.activate_action_menu_row(&source, token, target);
             let action = ui.take_action_menu_action(false).unwrap();
             assert!(matches!(
                 action.intent(),

@@ -1,6 +1,6 @@
 # Native action menus
 
-Menu text consumes `MenuLabel`, captured scope counts and `TabMenuPath` descriptions. The action owner projects these without forwarding launch profiles, concrete target IDs, draw proofs or captured requests; only geometric direction and selected color are needed by the shared label vocabulary. Profile display passes its optional saved name, while the original executable profile remains with its action.
+Menu text consumes `MenuLabel` and captured scope counts. The action owner projects these without forwarding launch profiles, concrete target IDs, draw proofs or captured requests; only geometric direction and selected color are needed by the shared label vocabulary. Profile display passes its optional saved name, while the original executable profile remains with its action.
 
 ## Interaction
 
@@ -34,12 +34,20 @@ successful context frames expose only their actual content, controls and surface
 witnesses in `crates/workbench-client/src/tui_render/action_menu/tests.rs` compare context and global composition, both locales and
 shipped theme families, and the width/height boundaries with and without a reserved reason.
 
-Tab menus follow the GUI sections for creation/grouping, duplication/pinning and close.
-Group assignment uses a submenu; an addressed Tab's Group actions are directly alongside it,
-while selection and movement use a separate submenu.
-Painted group headers and the new-Tab button open distinct menus through the
+A Tab menu holds Rename Tab and Pin Tab or Unpin Tab, then Add Tab to group ▸ and, while a target
+Tab is grouped, Remove Tab from group, then the red close rows: Resume closing this Tab… while its
+interrupted Close can resume, Close Tab… and, when it would close something, Close N other Tabs….
+Add Tab to group ▸ lists the other groups in strip order, then a separated New group…. A group
+header's menu, titled with the group's name and Tab count, holds New Tab in group, Rename group and
+Group color ▸, then Ungroup and the red Close group…; a click on the header already folds the group
+and dragging moves it. Right-clicking the new-Tab button lists the saved launch profiles, the
+default first and marked Default; with a single profile it opens no menu, because a click already
+creates a Tab with the default. These menus open through the
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
-The global menu also exposes the new-Tab submenu for keyboard users.
+A pane menu, titled with the panel's name, holds Split right and Split down, Zoom panel only beside
+another panel and Take control only while another Client holds that panel's size, then the red
+Close panel…; dragging a divider resizes, and keyboard resize and copy mode keep their keys and
+global menu rows. The global menu also exposes the new-Tab submenu for keyboard users.
 The global menu and its new-Tab submenu include a query row. Printable characters and Space edit the
 query directly; Backspace removes the previous grapheme and Ctrl+U clears it. The query is limited
 to 128 UTF-8 bytes, and menu capture keeps typed characters out of the terminal program. Matching
@@ -62,19 +70,21 @@ parent-return, scrolling, narrow-layout and draw-authority rules apply unchanged
 matches Desktop's saved-profile semantics; command catalog IDs and CLI `--profile` retain their
 separate existing catalog authority. Profile resolution, immutable-default and menu/render witnesses
 live in `crates/workbench-client/src/workbench_client/ui/launch_profiles/tests.rs` and the adjacent menu suites.
-Close Workspace…, Remove Worktree… and Tab Close/Resume intents declare `ActionTone::Destructive`;
+Close Workspace…, Remove Worktree…, Close panel… and Tab Close/Resume intents declare `ActionTone::Destructive`;
 the shared metadata and action/row controls resolve that label through `accent-destructive`.
 The Tab Close confirmation uses the same intent tone. Cancel, metadata edits, Dissolve Project,
-Ungroup and color choices remain ordinary; a red palette choice is a value, not destructive intent. Pane Close keeps
-its existing hierarchy. These labels are not error statuses. Disabled rows use `text-disabled` and
+Ungroup and color choices remain ordinary; a red palette choice is a value, not destructive intent.
+These labels are not error statuses. Disabled rows use `text-disabled` and
 acquire no pointer state; enabled intent retains the row's independent focus, provisional, hover and held-press cues. The theme
 owner supplies all shipped and reduced-color values and any required native contrast pair.
-Selection actions provide local toggle/range/all/clear and configure the captured selected set
-when their target belongs to it. [Typed row scope and saved color](#tab-scope-and-current-values)
+Ctrl+click toggles a Tab's selection mark, and the global menu selects all Tabs or keeps only the
+current one; Shift gestures stay with the host terminal, so range selection has no native gesture.
+Tab actions configure the captured selected set when their target belongs to it.
+[Typed row scope and saved color](#tab-scope-and-current-values)
 make the affected set explicit without changing the underlying operation.
 Selection or selected-member changes revoke the menu proof; background metadata actions keep
-the current terminal attached. Menu movement uses GUI group boundaries, including collapsed neighbors.
-Metadata actions preserve the current terminal; the submenu retains its exact addressed Tab.
+the current terminal attached. Moving the current Tab uses GUI group boundaries, including collapsed neighbors.
+Metadata actions preserve the current terminal; a submenu retains its exact addressed Tab.
 
 Recurring menu and prefix actions share one native metadata projection: a stable action identity,
 category and reviewed semantic search aliases. Dynamic group color, group index and parameterized
@@ -168,8 +178,7 @@ selection count visible even at the smallest presentable geometry, while a conte
 the reason without adding footer chrome. The global footer omits the Enter action
 for a disabled or offscreen selection.
 Actions unsupported by the current host are hidden rather than presented as disabled learning
-rows. Consequently, Move Tab to New Window is absent on the native Windows host until that host
-has an implementation; no placeholder or unsupported-host reason row is emitted. Context-relevant
+rows; no placeholder or unsupported-host reason row is emitted. Context-relevant
 actions whose ordinary prerequisites are unmet remain visible with their owner-derived disabled
 reason.
 
@@ -243,44 +252,49 @@ composition mints a fresh menu token and requires a new complete draw; late repl
 cancelled menus or retarget another episode. The [shell layout](tui-shell-layout.md#quick-creation-controls)
 owns the entry geometry and direct Tab-strip create gesture.
 
-Pane menus expose existing split, zoom, keyboard resize, copy, takeover and close actions. Tab menus
-expose create, rename and close. The global menu groups its existing actions under Tab, Panel,
-Workspace and Session sections. Tab includes new-Tab options and Rename. Panel includes directional
-split and move, close, zoom, keyboard resize and copy mode. Workspace includes creation and Worktree
-actions; Session includes Detach. These rows use the current binding registry for their shortcut and
-dispatch the same existing ClientAction as the keyboard. Pane actions and Rename Tab require a focused pane
-and show the localized focused-panel-required reason when none is available. Other global actions
+The global menu groups its existing actions under Tab, Panel, Workspace and Session sections. Tab
+includes new-Tab options, New Tab to right, Duplicate Tab, Rename Tab, moving the current Tab left,
+right, to the start or to the end, Select all Tabs, Keep only current Tab selected and Close Tabs
+to the right…; these act on the current Tab and name the selected set where it applies. Panel
+includes directional split and move, close, zoom, keyboard resize and copy mode. Workspace includes
+creation and Worktree actions; Session includes Detach. A row whose keyboard action has the same
+meaning shows the current binding registry's shortcut and dispatches that same existing
+ClientAction. Pane and Tab actions require a focused pane and show the localized
+focused-panel-required reason when none is available; Close Tabs to the right… shows the
+no-matching-Tabs reason when nothing would close. Other global actions
 follow these sections. Ordinary confirmed Close retains its compatibility behavior; sidebar
 conditional Delete follows the authority admission above. Settings delegates to its existing editor;
 checkout deletion, policy editing and custom or plugin-defined menus are outside this surface.
 
-When the carrier is unavailable, the global menu remains independently available; pane actions and
-Rename Tab show the focused-panel-required reason. Member menus require a live
+When the carrier is unavailable, the global menu remains independently available; pane and
+Tab actions show the focused-panel-required reason. Member menus require a live
 carrier. An observed geometry is required even before the first session state arrives.
 
 ## Tab scope and current values
 
-Across these menus, paths, drag hints, Close and Rename tasks, English user copy uses **Tab** and
+Across these menus, titles, drag hints, Close and Rename tasks, English user copy uses **Tab** and
 Chinese uses **标签页**; a group remains **group** / **分组**. Localization changes no semantic action
 or target identity.
 
-The Tab menu's frame title names the addressed Tab with the strip's shared display name. Each row
+The Tab menu's frame title names the addressed Tab with the strip's shared display name; a group
+menu's title adds the group's Tab count. Each row
 states its own scope, including the selected-set count where it applies: selection marks elsewhere
 never imply that every action uses them. Its submenus cascade as untitled frames beside their
 parent; no scope header, Back button, generic X, footer or selection counter is painted. Left/Esc
 or a click on the parent restore the retained parent selection and require a fresh draw, without
 writing a color or changing terminal focus.
 
-| Action                                                       | Captured scope                                                                                                                  |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| Rename, create to right, move one Tab, selection endpoint    | Addressed Tab, even when other Tabs are selected                                                                                |
-| Duplicate, pin/unpin, assign/remove group, direct Close      | Selected canonical set if the target belongs to it; otherwise the addressed Tab                                                 |
-| Group rename/color/disclosure/movement, ungroup, Close group | Entire group containing the addressed Tab, independently of selection marks                                                     |
-| Other/trailing Close                                         | Existing close resolver's nonempty set; pinned and selected-set protection and the rightmost-selected boundary remain unchanged |
-| Select all or keep only current selected                     | Current Workspace's Client-local marks                                                                                          |
+| Action                                                     | Captured scope                                                                                                                  |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Rename, create to right, move one Tab                      | Addressed Tab, even when other Tabs are selected                                                                                |
+| Duplicate, pin/unpin, assign/remove group, direct Close    | Selected canonical set if the target belongs to it; otherwise the addressed Tab                                                 |
+| New Tab in group, group rename/color, ungroup, Close group | Entire group containing the addressed Tab, independently of selection marks                                                     |
+| Other/trailing Close                                       | Existing close resolver's nonempty set; pinned and selected-set protection and the rightmost-selected boundary remain unchanged |
+| Select all or keep only current selected                   | Current Workspace's Client-local marks                                                                                          |
 
 Single-target rows say **Pin Tab** or **Close Tab**; multi-target rows include the selected count.
-Other/trailing Close rows disappear when their exact set is empty. Relevant owner-derived disabled
+The global menu's Tab rows address the current Tab. Close N other Tabs… disappears when its exact
+set is empty, while the global Close Tabs to the right… stays with its reason. Relevant owner-derived disabled
 reasons remain visible. Counts are `NonZeroUsize` projection facts, never parsed labels or command
 targets. The existing coordinator captures and revalidates source, member/group metadata, marks,
 focus and action availability before any handoff.
@@ -344,12 +358,12 @@ The [native navigator](native-context-selection.md#capturing-navigator)
 consumes menu shortcuts and pointer entries while it owns input. Close it before
 opening a menu; a menu may still open the navigator through its ordinary action.
 
-| Project context at opening                                   | Availability and effect                                                                                                                         |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Current Workspace belongs to the exact Project               | Existing actions retain their own prerequisites; confirmation offers one action without navigation                                              |
+| Project context at opening                                   | Availability and effect                                                                                                                                        |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current Workspace belongs to the exact Project               | Existing actions retain their own prerequisites; confirmation offers one action without navigation                                                             |
 | An ungrouped Workspace, a different Project, or no Workspace | New Workspace ▸, rename and organization-only Dissolve target the exact Project; New Worktree… and Git Worktrees need its admitted derived first-member source |
-| Project or captured Workspace/Directory replaced             | Cancel before confirmation or handoff; never substitute another child                                                                           |
-| Cancel                                                       | Preserve the native origin and caller-owned sidebar focus                                                                                       |
+| Project or captured Workspace/Directory replaced             | Cancel before confirmation or handoff; never substitute another child                                                                                          |
+| Cancel                                                       | Preserve the native origin and caller-owned sidebar focus                                                                                                      |
 
 ## Transitions and cancellation
 

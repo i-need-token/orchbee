@@ -19,8 +19,9 @@ pub enum MenuTarget {
         colors: bool,
     },
     TabGroupChoices(orchbee_workbench_protocol::WorkbenchTabId),
-    TabTools(orchbee_workbench_protocol::WorkbenchTabId),
     TabCreate(DrawnTabCreate),
+    /// The new-Tab button's saved launch profiles, the default first.
+    TabProfiles(DrawnTabCreate),
     Pane(crate::workbench_client::state::PaneRef),
     Tab(orchbee_workbench_protocol::WorkbenchTabId),
     /// Organization actions address the Project directly; terminal actions require a member.
@@ -107,16 +108,11 @@ pub enum MenuAction {
     MoveTabFirst,
     MoveTabLast,
     SelectTab,
-    DeselectTab,
-    SelectTabRange,
     SelectAllTabs,
     ClearTabSelection,
     PinTab,
     UnpinTab,
     ManageGroups,
-    TabTools,
-    GroupMenu,
-    MoveToNewWindow,
     CreateGroup,
     RenameGroup,
     ChooseGroupColor,
@@ -124,10 +120,6 @@ pub enum MenuAction {
     JoinGroup(u16),
     RemoveFromGroup,
     Ungroup,
-    CollapseGroup,
-    ExpandGroup,
-    MoveGroupPrevious,
-    MoveGroupNext,
     RenameTab,
     ResumeTabClose,
     CloseSelectedTabs,
@@ -166,7 +158,7 @@ pub enum MenuAction {
     Detach,
 }
 
-pub(crate) use crate::localization::MenuUnavailable;
+pub(crate) use crate::localization::{MenuRowNote, MenuUnavailable};
 
 impl From<&MenuAction> for crate::localization::MenuLabel {
     fn from(action: &MenuAction) -> Self {
@@ -191,16 +183,11 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::MoveTabFirst => Self::MoveTabFirst,
             MenuAction::MoveTabLast => Self::MoveTabLast,
             MenuAction::SelectTab => Self::SelectTab,
-            MenuAction::DeselectTab => Self::DeselectTab,
-            MenuAction::SelectTabRange => Self::SelectTabRange,
             MenuAction::SelectAllTabs => Self::SelectAllTabs,
             MenuAction::ClearTabSelection => Self::ClearTabSelection,
             MenuAction::PinTab => Self::PinTab,
             MenuAction::UnpinTab => Self::UnpinTab,
             MenuAction::ManageGroups => Self::ManageGroups,
-            MenuAction::TabTools => Self::TabTools,
-            MenuAction::GroupMenu => Self::GroupMenu,
-            MenuAction::MoveToNewWindow => Self::MoveToNewWindow,
             MenuAction::CreateGroup => Self::CreateGroup,
             MenuAction::RenameGroup => Self::RenameGroup,
             MenuAction::ChooseGroupColor => Self::ChooseGroupColor,
@@ -208,10 +195,6 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::JoinGroup(_) => Self::JoinGroup,
             MenuAction::RemoveFromGroup => Self::RemoveFromGroup,
             MenuAction::Ungroup => Self::Ungroup,
-            MenuAction::CollapseGroup => Self::CollapseGroup,
-            MenuAction::ExpandGroup => Self::ExpandGroup,
-            MenuAction::MoveGroupPrevious => Self::MoveGroupPrevious,
-            MenuAction::MoveGroupNext => Self::MoveGroupNext,
             MenuAction::RenameTab => Self::RenameTab,
             MenuAction::ResumeTabClose => Self::ResumeTabClose,
             MenuAction::CloseSelectedTabs => Self::CloseSelectedTabs,
@@ -251,24 +234,11 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
     }
 }
 
-impl From<&MenuTarget> for crate::localization::TabMenuPath {
-    fn from(target: &MenuTarget) -> Self {
-        match target {
-            MenuTarget::TabGroups { colors, .. } => Self::Group { colors: *colors },
-            MenuTarget::TabGroupChoices(_) => Self::Choices,
-            MenuTarget::TabTools(_) => Self::Tools,
-            _ => Self::Other,
-        }
-    }
-}
-
 impl MenuAction {
     pub(crate) const fn submenu(&self) -> bool {
         matches!(
             self,
             Self::ManageGroups
-                | Self::TabTools
-                | Self::GroupMenu
                 | Self::ChooseGroupColor
                 | Self::TabCreation
                 | Self::WorkspaceProjects
@@ -296,8 +266,6 @@ impl MenuAction {
             | Self::MoveTabFirst
             | Self::MoveTabLast
             | Self::SelectTab
-            | Self::DeselectTab
-            | Self::SelectTabRange
             | Self::SelectAllTabs
             | Self::ClearTabSelection
             | Self::PinTab
@@ -310,20 +278,13 @@ impl MenuAction {
             | Self::DuplicateTab
             | Self::UnpinTab
             | Self::ManageGroups
-            | Self::TabTools
-            | Self::GroupMenu
-            | Self::MoveToNewWindow
             | Self::CreateGroup
             | Self::RenameGroup
             | Self::ChooseGroupColor
             | Self::GroupColor(_)
             | Self::JoinGroup(_)
             | Self::RemoveFromGroup
-            | Self::Ungroup
-            | Self::CollapseGroup
-            | Self::ExpandGroup
-            | Self::MoveGroupPrevious
-            | Self::MoveGroupNext => ClientAction::TabMenu {
+            | Self::Ungroup => ClientAction::TabMenu {
                 action: self.clone(),
                 tab_id: None,
             },
@@ -362,26 +323,21 @@ impl MenuAction {
     }
 }
 
+/// Zoom joins only beside another panel; Take control only while another Client holds the size.
 pub(crate) const PANE_ACTIONS: &[MenuAction] = &[
     MenuAction::SplitPanel(PanelDirection::Right),
     MenuAction::SplitPanel(PanelDirection::Down),
     MenuAction::Zoom,
-    MenuAction::Resize,
-    MenuAction::Copy,
     MenuAction::Takeover,
     MenuAction::ClosePane,
 ];
+/// Remove Tab from group, Resume closing and Close other Tabs join only when they apply.
 pub(crate) const TAB_ACTIONS: &[MenuAction] = &[
-    MenuAction::NewTabToRight,
     MenuAction::RenameTab,
-    MenuAction::ManageGroups,
-    MenuAction::MoveToNewWindow,
-    MenuAction::DuplicateTab,
     MenuAction::PinTab,
+    MenuAction::ManageGroups,
     MenuAction::CloseSelectedTabs,
     MenuAction::CloseOtherTabs,
-    MenuAction::CloseTrailingTabs,
-    MenuAction::TabTools,
 ];
 /// Set Directory… is hidden once a directory exists; discovery may add Remove Worktree….
 pub(crate) const WORKSPACE_ACTIONS: &[MenuAction] = &[
@@ -395,9 +351,19 @@ pub(crate) const PROJECT_ACTIONS: &[MenuAction] = &[
     MenuAction::RenameProject,
     MenuAction::DeleteProject,
 ];
+/// The Tab section acts on the current Tab, keeping selection and movement reachable by keyboard.
 pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::TabCreation,
+    MenuAction::NewTabToRight,
+    MenuAction::DuplicateTab,
     MenuAction::RenameTab,
+    MenuAction::MoveTabPrevious,
+    MenuAction::MoveTabNext,
+    MenuAction::MoveTabFirst,
+    MenuAction::MoveTabLast,
+    MenuAction::SelectAllTabs,
+    MenuAction::ClearTabSelection,
+    MenuAction::CloseTrailingTabs,
     MenuAction::SplitPanel(PanelDirection::Up),
     MenuAction::SplitPanel(PanelDirection::Down),
     MenuAction::SplitPanel(PanelDirection::Left),
@@ -522,6 +488,7 @@ pub(crate) struct MenuView<'a> {
     pub(crate) has_parent: bool,
     pub(crate) title: &'a str,
     pub(crate) labels: &'a [Option<String>],
+    pub(crate) notes: &'a [Option<MenuRowNote>],
     pub(crate) tabs: Option<&'a TabMenuPresentation>,
     pub(crate) actions: &'a [MenuAction],
     pub(crate) unavailable: &'a [Option<MenuUnavailable>],
@@ -612,7 +579,17 @@ enum GlobalMenuGroup {
 
 fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
     match action {
-        MenuAction::TabCreation | MenuAction::RenameTab => GlobalMenuGroup::Tab,
+        MenuAction::TabCreation
+        | MenuAction::NewTabToRight
+        | MenuAction::DuplicateTab
+        | MenuAction::RenameTab
+        | MenuAction::MoveTabPrevious
+        | MenuAction::MoveTabNext
+        | MenuAction::MoveTabFirst
+        | MenuAction::MoveTabLast
+        | MenuAction::SelectAllTabs
+        | MenuAction::ClearTabSelection
+        | MenuAction::CloseTrailingTabs => GlobalMenuGroup::Tab,
         MenuAction::SplitPanel(_)
         | MenuAction::Zoom
         | MenuAction::Resize
@@ -675,30 +652,29 @@ fn separator_before(source: &MenuTarget, actions: &[MenuAction], index: usize) -
                 && !matches!(previous, MenuAction::DeleteWorkspace);
     }
     match action {
-        MenuAction::JoinWorkspaceProject(_) | MenuAction::LeaveWorkspaceProject => {
-            return false;
-        }
-        MenuAction::CreateWorkspaceProject => return true,
-        MenuAction::WorkspaceInFolder(_) => {
-            return !matches!(previous, MenuAction::WorkspaceInFolder(_));
-        }
-        MenuAction::OpenWorktreeAt(_) => {
-            return !matches!(previous, MenuAction::OpenWorktreeAt(_));
-        }
-        MenuAction::RenameWorkspace
+        MenuAction::WorkspaceInFolder(_) => !matches!(previous, MenuAction::WorkspaceInFolder(_)),
+        MenuAction::OpenWorktreeAt(_) => !matches!(previous, MenuAction::OpenWorktreeAt(_)),
+        // A Tab menu's close section starts before its first close row.
+        MenuAction::CloseSelectedTabs => !matches!(previous, MenuAction::ResumeTabClose),
+        MenuAction::CreateWorkspaceProject
+        | MenuAction::RenameWorkspace
         | MenuAction::DeleteWorkspace
         | MenuAction::DeleteProject
-        | MenuAction::RemoveWorktree => {
-            return true;
-        }
-        _ => {}
+        | MenuAction::RemoveWorktree
+        | MenuAction::ManageGroups
+        | MenuAction::ResumeTabClose
+        | MenuAction::CreateGroup
+        | MenuAction::Ungroup
+        | MenuAction::NewGroupWithTab
+        | MenuAction::ClosePane => true,
+        _ => false,
     }
-    crate::action_projection::menu_metadata(action.clone()).starts_section(action.clone())
 }
 
 struct Menu {
     source: MenuTarget,
     labels: Vec<Option<String>>,
+    notes: Vec<Option<MenuRowNote>>,
     tabs: Option<TabMenuPresentation>,
     title: String,
     actions: Vec<MenuAction>,
@@ -726,6 +702,7 @@ pub(crate) struct RetainedMenu {
     source: MenuTarget,
     title: String,
     labels: Vec<Option<String>>,
+    notes: Vec<Option<MenuRowNote>>,
     tabs: Option<TabMenuPresentation>,
     actions: Vec<MenuAction>,
     unavailable: Vec<Option<MenuUnavailable>>,
@@ -747,6 +724,7 @@ impl RetainedMenu {
             has_parent,
             title: &self.title,
             labels: &self.labels,
+            notes: &self.notes,
             tabs: self.tabs.as_ref(),
             actions: &self.actions,
             unavailable: &self.unavailable,
@@ -982,6 +960,7 @@ impl ActionMenu {
             source,
             title,
             labels: vec![None; actions.len()],
+            notes: vec![None; actions.len()],
             tabs: None,
             unavailable: vec![None; actions.len()],
             result_actions,
@@ -1040,6 +1019,7 @@ impl ActionMenu {
             source: menu.source.clone(),
             title: menu.title.clone(),
             labels: menu.labels.clone(),
+            notes: menu.notes.clone(),
             tabs: menu.tabs.clone(),
             actions: menu.actions.clone(),
             unavailable: menu.unavailable.clone(),
@@ -1131,6 +1111,32 @@ impl ActionMenu {
         menu.visible_rows = 0;
     }
 
+    /// Row notes are display facts under the same successful-draw fence as row copy.
+    pub(crate) fn set_notes(&mut self, note: impl Fn(&MenuAction) -> Option<MenuRowNote>) {
+        let Some(menu) = &self.menu else {
+            return;
+        };
+        let notes: Vec<_> = menu.actions.iter().map(note).collect();
+        if menu.notes == notes {
+            return;
+        }
+        if self.confirmed.is_some() {
+            self.cancel();
+            return;
+        }
+        let Some(token) = self.allocate() else {
+            self.cancel();
+            return;
+        };
+        let Some(menu) = &mut self.menu else {
+            return;
+        };
+        menu.notes = notes;
+        menu.token = token;
+        menu.drawn = None;
+        menu.visible_rows = 0;
+    }
+
     /// Replaces captured display facts under the same successful-draw fence as row copy.
     pub(crate) fn set_tab_presentation(
         &mut self,
@@ -1177,6 +1183,7 @@ impl ActionMenu {
             has_parent: false,
             title: &menu.title,
             labels: &menu.labels,
+            notes: &menu.notes,
             tabs: menu.tabs.as_ref(),
             actions: &menu.actions,
             unavailable: &menu.unavailable,

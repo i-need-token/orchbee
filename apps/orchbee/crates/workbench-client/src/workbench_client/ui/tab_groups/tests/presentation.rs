@@ -48,6 +48,16 @@ fn cross_group_selection_and_unselected_target_present_the_same_scope_as_close_c
             .unwrap();
         let desired = ui.state.as_ref().unwrap().desired().cloned();
         let marks = ui.state.as_ref().unwrap().selected_tab_ids();
+        // The global menu's Tab section addresses the current Tab, which belongs to the marks.
+        assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+        assert_eq!(
+            row_scope(&ui, MenuAction::DuplicateTab),
+            TabMenuScope::Selected(NonZeroUsize::new(2).unwrap())
+        );
+        for action in [MenuAction::RenameTab, MenuAction::NewTabToRight] {
+            assert_eq!(row_scope(&ui, action), TabMenuScope::Addressed);
+        }
+        ui.cancel_action_menu();
         assert!(ui.open_action_menu(
             MenuTarget::Tab(tabs[target_index].tab_id.clone()),
             None,
@@ -59,16 +69,16 @@ fn cross_group_selection_and_unselected_target_present_the_same_scope_as_close_c
             TabMenuScope::Addressed
         };
         for action in [
-            MenuAction::DuplicateTab,
             MenuAction::PinTab,
             MenuAction::ManageGroups,
             MenuAction::CloseSelectedTabs,
         ] {
             assert_eq!(row_scope(&ui, action), selected);
         }
-        for action in [MenuAction::RenameTab, MenuAction::NewTabToRight] {
-            assert_eq!(row_scope(&ui, action), TabMenuScope::Addressed);
-        }
+        assert_eq!(
+            row_scope(&ui, MenuAction::RenameTab),
+            TabMenuScope::Addressed
+        );
         assert_eq!(ui.state.as_ref().unwrap().desired(), desired.as_ref());
         assert_eq!(ui.state.as_ref().unwrap().selected_tab_ids(), marks);
         choose(&mut ui, MenuAction::CloseSelectedTabs);
@@ -117,6 +127,9 @@ fn relative_close_scope_protects_pinned_tabs_and_starts_after_rightmost_selected
         row_scope(&ui, MenuAction::CloseOtherTabs),
         TabMenuScope::Other(NonZeroUsize::new(2).unwrap())
     );
+    ui.cancel_action_menu();
+    // The global row acts on the current, first Tab.
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
     assert_eq!(
         row_scope(&ui, MenuAction::CloseTrailingTabs),
         TabMenuScope::Trailing(NonZeroUsize::new(1).unwrap())
@@ -128,15 +141,6 @@ fn relative_close_scope_protects_pinned_tabs_and_starts_after_rightmost_selected
         &[(5, "Logs".into())]
     );
     assert!(ui.capture_confirmation_key(ClientKey::Escape));
-    assert!(ui.open_action_menu(MenuTarget::Tab(tabs[4].tab_id.clone()), None, false));
-    assert!(
-        !ui.view()
-            .action_menu()
-            .unwrap()
-            .actions
-            .contains(&MenuAction::CloseTrailingTabs)
-    );
-    ui.cancel_action_menu();
     assert!(mailbox.try_recv().unwrap().is_none());
 
     let mut one = super::super::super::tests::membership::snapshot(1, 1);
@@ -150,10 +154,23 @@ fn relative_close_scope_protects_pinned_tabs_and_starts_after_rightmost_selected
     let view = ui.view();
     let menu = view.action_menu().unwrap();
     assert!(!menu.actions.contains(&MenuAction::CloseOtherTabs));
-    assert!(!menu.actions.contains(&MenuAction::CloseTrailingTabs));
     assert!(
         menu.actions.contains(&MenuAction::CloseSelectedTabs),
         "direct Close still includes a pinned Tab"
+    );
+    ui.cancel_action_menu();
+    // Without a Tab to the right, the global row stays in place with its reason.
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    let view = ui.view();
+    let menu = view.action_menu().unwrap();
+    let row = menu
+        .actions
+        .iter()
+        .position(|action| *action == MenuAction::CloseTrailingTabs)
+        .unwrap();
+    assert_eq!(
+        menu.unavailable[row],
+        Some(crate::action_menu::MenuUnavailable::NoMatchingTabs)
     );
     assert!(mailbox.try_recv().unwrap().is_none());
 }
@@ -169,12 +186,14 @@ fn direct_group_menu_and_saved_color_are_independent_of_cross_group_marks_and_ca
         .unwrap();
     let marks = ui.state.as_ref().unwrap().selected_tab_ids();
     let desired = ui.state.as_ref().unwrap().desired().cloned();
-    assert!(ui.open_action_menu(MenuTarget::Tab(target.clone()), None, false));
-    assert_eq!(
-        row_scope(&ui, MenuAction::GroupMenu),
-        TabMenuScope::Group(NonZeroUsize::new(2).unwrap())
-    );
-    choose(&mut ui, MenuAction::GroupMenu);
+    assert!(ui.open_action_menu(
+        MenuTarget::TabGroups {
+            tab_id: target.clone(),
+            colors: false
+        },
+        None,
+        false
+    ));
     assert_eq!(
         row_scope(&ui, MenuAction::CloseGroup),
         TabMenuScope::Group(NonZeroUsize::new(2).unwrap())

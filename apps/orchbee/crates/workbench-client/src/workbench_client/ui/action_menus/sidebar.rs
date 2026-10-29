@@ -42,7 +42,7 @@ pub(super) fn target(
     state: &WorkbenchClientState,
 ) -> Option<SidebarWorktreeTarget> {
     match (entry, target) {
-        (MenuTarget::Global | MenuTarget::TabCreate(_), _) => None,
+        (MenuTarget::Global | MenuTarget::TabCreate(_) | MenuTarget::TabProfiles(_), _) => None,
         (_, Target::Project { project, .. }) => {
             Some(SidebarWorktreeTarget::Project(project.project_id.clone()))
         }

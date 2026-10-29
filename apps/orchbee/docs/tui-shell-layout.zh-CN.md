@@ -257,8 +257,8 @@ Shell 先绘制终端画布，再为侧栏绘制持久 chrome 背景，并为标
 | 新建工作区行   | 无修饰左键按下启动精确的已绘制动作；在同一个仍暴露的区域内匹配释放后，才将 `ClientAction::RequestQuickWorkspace` 委托给已有创建归属者。不打开表单，直接提交独立 Workspace 与首个 shell；按下时没有副作用。                                                |
 | Project 行 `+` | 针对准确的已绘制 Project 打开同一创建子集，把定向快速 Workspace 放在首位。保留原能力检查和禁用原因，不隐式选择子 Workspace。                                                                                                                              |
 
-右键点击 Tab 顶栏 `+` 打开独立的新建 Tab 菜单（普通 Tab、最近分组或新分组）；
-全局菜单提供键盘入口。它保留同一个精确的 `DrawnTabCreate` context 证明。
+右键点击 Tab 顶栏 `+` 时，若有多个已保存的启动配置则列出它们；全局菜单的新建 Tab 子菜单另外提供
+最近分组和新分组。配置菜单保留同一个精确的 `DrawnTabCreate` context 证明。
 详见 [Tab 菜单](native-tab-groups.zh-CN.md#指针排列与菜单导航)。
 
 身份、几何改变、捕获覆盖、释放鼠标捕获或在控件外释放都会取消 Tab 创建手势。
@@ -577,4 +577,4 @@ F1 包含未读变化、展开折叠及所有 Agent 状态的符号说明。悬�
 
 侧栏图例将展开控件的符号标为“已展开”和“已折叠”。帮助首次成功绘制前使用八行的有界导航估计；绘制后按发布的容量翻页。
 
-<!-- documentation-pairing: english-sha256=bcea7cd4b24b6b89bd3fbc1f0aee8d4fb74d6d206a6cc2d73dd4a9ab9214a336 zh-cn-sha256=a0f16941e68ec61f61b0149fb09272e9ed42240c939e3bba1e8e0dd0d65cb538 -->
+<!-- documentation-pairing: english-sha256=97c5f08d56754a2e2b4cce4d17a6c41a677578dac1b7df9cdc6c59474597817a zh-cn-sha256=6974b10bc558164b53e408c2b0b405e4132e2dfddca732f329833167250c3db5 -->

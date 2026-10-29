@@ -378,26 +378,6 @@ pub(crate) struct MenuActionMetadata {
     pub(crate) tone: ActionTone,
 }
 
-impl MenuActionMetadata {
-    pub(crate) fn starts_section(self, input: MenuAction) -> bool {
-        use MenuAction as A;
-        match self.action.identity {
-            ActionIdentity::BuiltIn(
-                "tabs.tab.duplicate"
-                | "tabs.group.ungroup"
-                | "tabs.group.collapsed.set"
-                | "orchbee.native.tab-tools.open"
-                | "orchbee.native.tab-group.open"
-                | "tabs.group.create-with-tab",
-            ) => true,
-            ActionIdentity::BuiltIn("tabs.tab.close") => input == A::CloseSelectedTabs,
-            ActionIdentity::BuiltIn("workbench.terminal.create") => input == A::NewTabInGroup,
-            ActionIdentity::BuiltIn("tabs.tab.move") => input == A::MoveTabPrevious,
-            ActionIdentity::BuiltIn(_) | ActionIdentity::ConfiguredCommand(_) => false,
-        }
-    }
-}
-
 /// Projects menu discovery metadata. Dynamic color and group indices remain typed `MenuAction`
 /// input and therefore do not mint per-row action identities.
 pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
@@ -407,6 +387,7 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         action,
         A::DeleteWorkspace
             | A::RemoveWorktree
+            | A::ClosePane
             | A::CloseSelectedTabs
             | A::CloseOtherTabs
             | A::CloseTrailingTabs
@@ -440,29 +421,22 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         A::MoveTabPrevious | A::MoveTabNext | A::MoveTabFirst | A::MoveTabLast => {
             built_in("tabs.tab.move", C::Tab, MOVE_TAB)
         }
-        A::SelectTab | A::DeselectTab | A::SelectTabRange => {
-            built_in("tabs.tab.select", C::Tab, SELECT_TAB)
-        }
+        A::SelectTab => built_in("tabs.tab.select", C::Tab, SELECT_TAB),
         A::SelectAllTabs => built_in("orchbee.native.tab-selection.all", C::Tab, SELECT_TAB),
         A::ClearTabSelection => built_in("orchbee.native.tab-selection.clear", C::Tab, SELECT_TAB),
         A::PinTab | A::UnpinTab => built_in("tabs.tab.pinned.set", C::Tab, TAB),
         A::ManageGroups => built_in("orchbee.native.tab-groups.open", C::Tab, ACTIONS),
-        A::TabTools => built_in("orchbee.native.tab-tools.open", C::Tab, ACTIONS),
-        A::GroupMenu => built_in("orchbee.native.tab-group.open", C::Tab, ACTIONS),
         A::ChooseGroupColor => built_in(
             "orchbee.native.tab-group.color-choices.open",
             C::Tab,
             ACTIONS,
         ),
-        A::MoveToNewWindow => built_in("tabs.tab.move-to-window", C::Tab, MOVE_TAB),
         A::CreateGroup => built_in("tabs.group.create", C::Tab, TAB),
         A::RenameGroup | A::GroupColor(_) => built_in("tabs.group.update", C::Tab, TAB),
         A::JoinGroup(_) | A::RemoveFromGroup => {
             built_in("tabs.tab.move-to-group", C::Tab, MOVE_TAB)
         }
         A::Ungroup => built_in("tabs.group.ungroup", C::Tab, TAB),
-        A::CollapseGroup | A::ExpandGroup => built_in("tabs.group.collapsed.set", C::Tab, TAB),
-        A::MoveGroupPrevious | A::MoveGroupNext => built_in("tabs.group.move", C::Tab, MOVE_TAB),
         A::RenameTab => built_in("workbench.tab.title.set", C::Tab, RENAME_TAB),
         A::ResumeTabClose => built_in("orchbee.native.tab-close.resume", C::Tab, CLOSE_TAB),
         A::CloseSelectedTabs | A::CloseOtherTabs | A::CloseTrailingTabs | A::CloseGroup => {

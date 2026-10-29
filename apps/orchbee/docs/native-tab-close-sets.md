@@ -2,8 +2,8 @@
 
 ## Targets and confirmation
 
-Native Tab menus close the selected set, other Tabs or trailing Tabs; group menus close the
-complete canonical group, including collapsed members. `TabStripContextMenu` and the native owner
+Native Tab menus close the selected set or other Tabs, the global menu closes the Tabs trailing the
+current Tab, and group menus close the complete canonical group, including collapsed members. `TabStripContextMenu` and the native owner
 share the target corpus in `packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json`.
 If the menu target is selected, direct Close uses the selected IDs in canonical order; otherwise it
 uses only that target. Other/trailing Close exclude pinned Tabs and the target, protecting the

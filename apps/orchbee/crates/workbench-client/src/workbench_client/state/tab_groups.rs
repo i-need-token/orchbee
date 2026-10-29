@@ -8,7 +8,6 @@ use orchbee_workbench_protocol::{
 
 pub(in crate::workbench_client) enum TabSelectionChange {
     Toggle,
-    Range,
     All,
     Clear,
 }
@@ -18,7 +17,6 @@ pub(super) struct GroupView {
     context: Option<(SessionId, WorkbenchTerminalContextId)>,
     collapsed: Vec<WorkbenchTabGroupId>,
     selected: Vec<WorkbenchTabId>,
-    anchor: Option<WorkbenchTabId>,
     recent: Option<WorkbenchTabGroupId>,
     scroll: Option<StripScroll>,
 }
@@ -52,13 +50,6 @@ impl GroupView {
         self.collapsed
             .retain(|id| cache.groups().iter().any(|group| &group.group_id == id));
         self.selected.retain(|id| cache.tab_index(id).is_some());
-        if self
-            .anchor
-            .as_ref()
-            .is_some_and(|id| cache.tab_index(id).is_none())
-        {
-            self.anchor = None;
-        }
     }
     pub(super) fn collapsed<'a>(&'a self, cache: &ClientContextTabs) -> &'a [WorkbenchTabGroupId] {
         if self.matches(cache) {
@@ -231,7 +222,6 @@ impl WorkbenchClientState {
         self.remember_tab_group();
         self.cancel_duplicate_sequence();
         self.tab_groups.selected.clear();
-        self.tab_groups.anchor = None;
     }
 
     pub(in crate::workbench_client) fn mark_tabs(
@@ -243,7 +233,7 @@ impl WorkbenchClientState {
         if self.setup_blocks_structure() || !self.setup_authority_available() {
             return None;
         }
-        let index = self.cache.tab_index(target)?;
+        self.cache.tab_index(target)?;
         let active = self
             .active()
             .and_then(|active| self.cache.tabs().get(active.index()))
@@ -251,7 +241,6 @@ impl WorkbenchClientState {
         let selected = self.selected_tab_ids();
         self.tab_groups.prepare(&self.cache);
         self.tab_groups.selected = selected;
-        self.tab_groups.anchor = self.tab_groups.anchor.clone().or(active.clone());
         match change {
             TabSelectionChange::All => {
                 self.tab_groups.selected = self
@@ -262,18 +251,6 @@ impl WorkbenchClientState {
                     .collect()
             }
             TabSelectionChange::Clear => self.clear_tab_selection(),
-            TabSelectionChange::Range => {
-                let anchor = self
-                    .tab_groups
-                    .anchor
-                    .as_ref()
-                    .and_then(|id| self.cache.tab_index(id))
-                    .unwrap_or(index);
-                self.tab_groups.selected = self.cache.tabs()[anchor.min(index)..=anchor.max(index)]
-                    .iter()
-                    .map(|tab| tab.tab_id().clone())
-                    .collect();
-            }
             TabSelectionChange::Toggle => {
                 if let Some(index) = self.tab_groups.selected.iter().position(|id| id == target) {
                     if active.as_ref() != Some(target) {

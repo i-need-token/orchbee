@@ -338,6 +338,8 @@ Windows `Ctrl+B F2` 打开[动作菜单](docs/native-action-menus.zh-CN.md)。
 包括空和非当前 Project，不进入子 Workspace；重命名或取消期间仍选中当前终端。
 上下文菜单使用以目标为标题的矩形边框、动作行及可选的禁用原因，不显示 X、页脚提示或选择计数。
 子菜单级联在父菜单旁边；Left、Esc 或点击父菜单返回父菜单。全局动作菜单保留按键发现控件。
+标签页菜单只保留重命名、固定和分组归属，下方是红色关闭行；在右侧新建、复制、选择和移动位于全局动作菜单。
+右键点击新建标签页按钮时，若有多个已保存的启动配置则列出它们。
 鼠标打开的菜单从按下的列开始，位于触发行下方，否则位于其上方，并向左移动以留在视口内；键盘
 打开的行菜单在该行旁边打开。悬停只移动候选，不执行；点击或 Enter 执行，Esc 或外部点击取消。
 Project 的“新建工作区”子菜单提供“新建工作树…”、各 Workspace 的文件夹及其 Git 工作树；Workspace
@@ -947,4 +949,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=9b9feee18b40a4fb1c3acea93b0b38dd98643b222b9c79bf6b5c129a863419e3 zh-cn-sha256=c578cf2654f6b30f28bc8a6ee1b0ddea321357c60244eb43c54f81e7b95bc1dc -->
+<!-- documentation-pairing: english-sha256=bb1acb8636ed043bd4bd9d6963fe4aa4fafe6c79c1870f09b7d4583fa3d00877 zh-cn-sha256=2513f6fe13a3ab8e7de8840ab9a6df803b7aa65583e92d20e879e067cfba0801 -->

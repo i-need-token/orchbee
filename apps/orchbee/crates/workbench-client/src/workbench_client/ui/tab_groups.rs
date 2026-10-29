@@ -5,8 +5,8 @@ use crate::action_menu::{MenuAction, MenuTarget, TabMenuScope};
 use crate::workbench_client::state::workspace_setup::SetupIntent;
 use crate::workbench_client::workbench_projection::ClientTab;
 use orchbee_workbench_protocol::{
-    TabConfiguration, TabGroupColor, TabGroupMoveDirection, WorkbenchTabGroupId,
-    WorkbenchTabGroupLabel, WorkbenchTabId, WorkbenchTabIdSet, WorkbenchTabMoveDirection,
+    TabConfiguration, TabGroupColor, WorkbenchTabGroupId, WorkbenchTabGroupLabel, WorkbenchTabId,
+    WorkbenchTabIdSet, WorkbenchTabMoveDirection,
 };
 use std::num::NonZeroUsize;
 #[cfg(test)]
@@ -17,7 +17,6 @@ pub(super) enum MenuPage {
     Group,
     Colors,
     Choices,
-    Tools,
 }
 
 pub(super) fn menu_actions(
@@ -43,7 +42,7 @@ pub(super) fn menu_actions(
         None => {
             let mut actions = Vec::new();
             for action in crate::action_menu::TAB_ACTIONS {
-                if matches!(action, CloseOtherTabs | CloseTrailingTabs)
+                if *action == CloseOtherTabs
                     && close_tab_ids(state, tab.tab_id(), action.clone())
                         .is_some_and(|ids| ids.is_empty())
                 {
@@ -55,17 +54,12 @@ pub(super) fn menu_actions(
                 actions.push(
                     if *action == PinTab && targets.iter().all(|tab| tab.pinned()) {
                         UnpinTab
-                    } else if *action == SelectTab && selected.contains(tab.tab_id()) {
-                        DeselectTab
                     } else {
                         action.clone()
                     },
                 );
                 if *action == ManageGroups && targets.iter().any(|tab| tab.group().is_some()) {
                     actions.push(RemoveFromGroup);
-                }
-                if *action == ManageGroups && tab.group().is_some() {
-                    actions.push(GroupMenu);
                 }
             }
             actions
@@ -85,56 +79,33 @@ pub(super) fn menu_actions(
         .map(GroupColor)
         .collect(),
         Some(MenuPage::Colors) => Vec::new(),
-        Some(MenuPage::Group) => {
-            let mut actions = Vec::new();
-            if let Some(group) = tab.group() {
-                actions.extend([
-                    NewTabInGroup,
-                    RenameGroup,
-                    ChooseGroupColor,
-                    if state.group_collapsed(&group.group_id) {
-                        ExpandGroup
-                    } else {
-                        CollapseGroup
-                    },
-                    MoveGroupPrevious,
-                    MoveGroupNext,
-                    Ungroup,
-                    CloseGroup,
-                ]);
-            }
-            actions
-        }
+        // A header click folds the group and dragging moves it, so neither is a row.
+        Some(MenuPage::Group) if tab.group().is_some() => vec![
+            NewTabInGroup,
+            RenameGroup,
+            ChooseGroupColor,
+            Ungroup,
+            CloseGroup,
+        ],
+        Some(MenuPage::Group) => Vec::new(),
         Some(MenuPage::Choices) => {
-            let mut actions = vec![CreateGroup];
-            actions.extend(
-                state
-                    .cache()
-                    .groups()
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, group)| tab.group() != Some(*group))
-                    .filter_map(|(index, _)| u16::try_from(index).ok().map(JoinGroup)),
-            );
+            let mut actions: Vec<_> = state
+                .cache()
+                .groups()
+                .iter()
+                .enumerate()
+                .filter(|(_, group)| tab.group() != Some(*group))
+                .filter_map(|(index, _)| u16::try_from(index).ok().map(JoinGroup))
+                .collect();
+            actions.push(CreateGroup);
             actions
-        }
-        Some(MenuPage::Tools) => {
-            vec![
-                if selected.contains(tab.tab_id()) {
-                    DeselectTab
-                } else {
-                    SelectTab
-                },
-                SelectTabRange,
-                SelectAllTabs,
-                ClearTabSelection,
-                MoveTabPrevious,
-                MoveTabNext,
-                MoveTabFirst,
-                MoveTabLast,
-            ]
         }
     }
+}
+
+/// The Tab that the global menu's Tab rows address, as execution resolves it without a target.
+pub(super) fn current_tab(state: &WorkbenchClientState) -> Option<&ClientTab> {
+    state.cache().tabs().get(state.active()?.index())
 }
 
 fn configuration_scope(state: &WorkbenchClientState, target: &WorkbenchTabId) -> TabMenuScope {
@@ -181,8 +152,7 @@ pub(super) fn menu_row(
         }
         DuplicateTab | PinTab | UnpinTab | ManageGroups | CreateGroup | JoinGroup(_)
         | RemoveFromGroup => configuration_scope(state, tab.tab_id()),
-        GroupMenu | RenameGroup | ChooseGroupColor | GroupColor(_) | NewTabInGroup | Ungroup
-        | CollapseGroup | ExpandGroup | MoveGroupPrevious | MoveGroupNext => {
+        RenameGroup | ChooseGroupColor | GroupColor(_) | NewTabInGroup | Ungroup => {
             group_scope(state, tab)?
         }
         SelectAllTabs | ClearTabSelection => TabMenuScope::Workspace,
@@ -467,8 +437,7 @@ impl WorkbenchClientUi {
             return self.request_close_set(&ids);
         }
         let selection_change = match action {
-            SelectTab | DeselectTab => Some(super::super::state::TabSelectionChange::Toggle),
-            SelectTabRange => Some(super::super::state::TabSelectionChange::Range),
+            SelectTab => Some(super::super::state::TabSelectionChange::Toggle),
             SelectAllTabs => Some(super::super::state::TabSelectionChange::All),
             ClearTabSelection => Some(super::super::state::TabSelectionChange::Clear),
             _ => None,
@@ -476,24 +445,16 @@ impl WorkbenchClientUi {
         if let Some(change) = selection_change {
             return self.state.as_mut()?.mark_tabs(&tab_id, change);
         }
-        if matches!(
-            action,
-            ManageGroups | ChooseGroupColor | TabTools | GroupMenu
-        ) {
-            let target = match action {
-                ManageGroups => MenuTarget::TabGroupChoices(tab_id),
-                TabTools => MenuTarget::TabTools(tab_id),
-                _ => MenuTarget::TabGroups {
+        if matches!(action, ManageGroups | ChooseGroupColor) {
+            let target = if action == ManageGroups {
+                MenuTarget::TabGroupChoices(tab_id)
+            } else {
+                MenuTarget::TabGroups {
                     tab_id,
-                    colors: action == ChooseGroupColor,
-                },
+                    colors: true,
+                }
             };
             return self.open_action_menu(target, None, false).then_some(());
-        }
-        if matches!(action, CollapseGroup | ExpandGroup) {
-            let id = tab.group()?.group_id.clone();
-            self.toggle_tab_group(&id);
-            return Some(());
         }
         let selected = WorkbenchTabIdSet::try_from(configuration_tab_ids(state, &tab_id)).ok()?;
         let operation = match action {
@@ -536,14 +497,6 @@ impl WorkbenchClientUi {
                     },
                 }
             }
-            MoveGroupPrevious | MoveGroupNext => TabConfiguration::MoveGroup {
-                group_id: tab.group()?.group_id.clone(),
-                direction: if action == MoveGroupPrevious {
-                    TabGroupMoveDirection::Previous
-                } else {
-                    TabGroupMoveDirection::Next
-                },
-            },
             MoveTabPrevious | MoveTabNext | MoveTabFirst | MoveTabLast => {
                 let adjacent = if action == MoveTabPrevious {
                     index.checked_sub(1)

@@ -15,9 +15,12 @@ mod quick_create;
 mod tab_scope;
 
 #[test]
-fn tab_creation_exposes_saved_profiles_and_cancel_has_no_effect() {
+fn new_tab_button_menu_lists_saved_profiles_default_first_and_cancel_has_no_effect() {
     for cancel in [false, true] {
         let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
+        let create = ui.view().tab_create_target().unwrap();
+        // With only the default profile, the button's own click is the whole choice.
+        assert!(!ui.open_action_menu(MenuTarget::TabProfiles(create.clone()), None, false));
         let profile = orchbee_workbench_protocol::UserLaunchProfile {
             id: "test-shell".into(),
             name: Some("测试 PowerShell".into()),
@@ -29,14 +32,24 @@ fn tab_creation_exposes_saved_profiles_and_cancel_has_no_effect() {
         ui.preferences
             .launch_profiles
             .profiles
-            .push(profile.clone());
+            .insert(0, profile.clone());
         let saved = ui.preferences.clone();
-        let target = MenuTarget::TabCreate(ui.view().tab_create_target().unwrap());
-        assert!(ui.open_action_menu(target, None, false));
+        assert!(ui.open_action_menu(MenuTarget::TabProfiles(create), None, false));
         let view = ui.view();
         let menu = view.action_menu().unwrap();
-        assert!(menu.actions.contains(&MenuAction::NewTab));
-        assert!(menu.actions.iter().any(|action| matches!(action, MenuAction::NewTabWithProfile(profile) if profile.id == "system-default")));
+        assert!(
+            menu.actions
+                .iter()
+                .all(|action| matches!(action, MenuAction::NewTabWithProfile(_)))
+        );
+        assert!(
+            matches!(&menu.actions[0], MenuAction::NewTabWithProfile(first) if first.id == saved.launch_profiles.default_profile_id)
+        );
+        assert_eq!(
+            menu.notes[0],
+            Some(crate::action_menu::MenuRowNote::DefaultProfile)
+        );
+        assert!(menu.notes[1..].iter().all(Option::is_none));
         let row = action_row(
             &ui,
             MenuAction::NewTabWithProfile(Box::new(profile.clone())),
@@ -221,6 +234,21 @@ fn global_menu_groups_existing_tab_panel_workspace_and_client_actions_and_dispat
 
     let expected = [
         (MenuAction::RenameTab, ClientAction::RequestRenameTab),
+        // The Tab section's other rows act on the current Tab, so they name no Tab.
+        (
+            MenuAction::NewTabToRight,
+            ClientAction::TabMenu {
+                action: MenuAction::NewTabToRight,
+                tab_id: None,
+            },
+        ),
+        (
+            MenuAction::DuplicateTab,
+            ClientAction::TabMenu {
+                action: MenuAction::DuplicateTab,
+                tab_id: None,
+            },
+        ),
         (
             MenuAction::SplitPanel(Direction::Up),
             ClientAction::SplitPanel(Direction::Up),
@@ -267,7 +295,7 @@ fn global_menu_groups_existing_tab_panel_workspace_and_client_actions_and_dispat
         let separators = (1..menu.actions.len())
             .filter(|index| menu.result_separator_before(menu.result_actions, *index))
             .collect::<Vec<_>>();
-        assert_eq!(separators, [2, 14, 18, 19]);
+        assert_eq!(separators, [11, 23, 27, 28]);
     }
     ui.cancel_action_menu();
 
@@ -547,7 +575,6 @@ fn hovering_menu_families_keeps_the_active_workspace_tab_and_selection() {
         MenuTarget::Tab(tab.clone()),
         MenuTarget::Pane(pane),
         MenuTarget::TabCreate(create),
-        MenuTarget::TabTools(tab.clone()),
         MenuTarget::TabGroupChoices(tab),
     ] {
         assert!(ui.open_action_menu(target.clone(), Some((7, 4).into()), false));
@@ -1001,9 +1028,9 @@ fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint
     }
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let (mut ui, _, _, _) = tests::move_membership::ready_ui();
-        ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
+        ui.observe_geometry(Geometry::new(120, 60, 8, 16).unwrap());
         assert!(ui.open_action_menu(MenuTarget::Global, None, true));
-        let mut full = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        let mut full = Terminal::new(TestBackend::new(120, 60)).unwrap();
         paint(&mut ui, &mut full, 120, locale);
         for key in [
             crate::client_view::KeyCode::End,
@@ -1115,14 +1142,15 @@ fn hidden_action_injected_after_admission_is_refused_by_the_coordinator() {
     let tab_id = ui.state.as_ref().unwrap().cache().tabs()[0]
         .tab_id()
         .clone();
+    ui.capabilities = crate::tui_capabilities::Capabilities::none();
     assert!(ui.open_action_menu(MenuTarget::Tab(tab_id), None, false));
 
-    // Model a capability disappearing after target admission but before the final query. The
-    // coordinator must not turn a stale, unsupported row into a ClientAction.
+    // Model a row this host cannot run reaching the menu after target admission but before the
+    // final query. The coordinator must not turn it into a ClientAction.
     ui.menus.menu.cancel();
     assert!(ui.menus.menu.open(
         "stale host capability".into(),
-        vec![MenuAction::MoveToNewWindow],
+        vec![MenuAction::Machines],
         None,
     ));
     assert_eq!(ui.take_action_menu_action(false), None);

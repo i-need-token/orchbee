@@ -1016,8 +1016,7 @@ pub fn render_terminal_shell_with_resize<'a>(
         } else {
             let tab_title = |source: &crate::action_menu::MenuTarget| match source {
                 crate::action_menu::MenuTarget::Tab(id)
-                | crate::action_menu::MenuTarget::TabGroupChoices(id)
-                | crate::action_menu::MenuTarget::TabTools(id) => (0..native.tab_count())
+                | crate::action_menu::MenuTarget::TabGroupChoices(id) => (0..native.tab_count())
                     .filter_map(|index| native.tab(index))
                     .find(|tab| tab.tab_id() == id)
                     .map(|tab| tab.display_label(locale)),

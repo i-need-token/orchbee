@@ -54,7 +54,6 @@ fn automatic_and_explicit_tab_headings_share_zero_based_name_owner_without_selec
         for (index, tab) in snapshot.terminal_contexts[0].tabs.iter().enumerate() {
             for target in [
                 MenuTarget::Tab(tab.tab_id.clone()),
-                MenuTarget::TabTools(tab.tab_id.clone()),
                 MenuTarget::TabGroupChoices(tab.tab_id.clone()),
             ] {
                 assert!(
@@ -99,12 +98,16 @@ fn scope_drift_retires(
         .collect();
     let (mut ui, mailbox, _, _) = ready_snapshot(old);
     let desired = ui.state.as_ref().unwrap().desired().cloned();
-    assert!(ui.open_action_menu(MenuTarget::Tab(target.clone()), None, false));
-    if action == MenuAction::CloseGroup {
-        let (token, _, row) = select(&mut ui, MenuAction::GroupMenu);
-        activate_row(&mut ui, token, row);
-        assert!(ui.take_action_menu_action(false).is_none());
-    }
+    // Close group belongs to the group header's menu.
+    let root = if action == MenuAction::CloseGroup {
+        MenuTarget::TabGroups {
+            tab_id: target.clone(),
+            colors: false,
+        }
+    } else {
+        MenuTarget::Tab(target.clone())
+    };
+    assert!(ui.open_action_menu(root.clone(), None, false));
     let (old_token, old_source, old_row) = select(&mut ui, action.clone());
     let old_input = ui.action_menu_input_context().unwrap();
     peer_append(&mut ui, peer.clone());
@@ -126,7 +129,7 @@ fn scope_drift_retires(
     assert!(mailbox.try_recv().unwrap().is_none());
     assert_eq!(ui.state.as_ref().unwrap().desired(), desired.as_ref());
 
-    assert!(ui.open_action_menu(MenuTarget::Tab(target.clone()), None, false));
+    assert!(ui.open_action_menu(root, None, false));
     let fresh_root = ui.view().action_menu().unwrap().token;
     assert_ne!(fresh_root, old_token);
     key(&mut ui, KeyCode::Enter);
@@ -134,11 +137,6 @@ fn scope_drift_retires(
         ui.take_action_menu_action(false).is_none(),
         "a new token still requires paint"
     );
-    if action == MenuAction::CloseGroup {
-        let (token, _, row) = select(&mut ui, MenuAction::GroupMenu);
-        activate_row(&mut ui, token, row);
-        assert!(ui.take_action_menu_action(false).is_none());
-    }
     assert_eq!(
         super::super::super::tab_groups::close_tab_ids(
             ui.state.as_ref().unwrap(),

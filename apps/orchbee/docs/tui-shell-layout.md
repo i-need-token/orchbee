@@ -339,9 +339,9 @@ the existing English and Chinese catalogs.
 | New workspace row | An unmodified left press arms the exact painted action; a matching release inside the still-exposed extent delegates `ClientAction::RequestQuickWorkspace` to the existing creation owner. It submits one independent Workspace and first shell without opening a form. No effect occurs on press.                                                           |
 | Project-row `+`   | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                                       |
 
-Right-clicking the Tab-strip `+` opens the separate new-Tab menu (plain Tab, recent group,
-or new group); the global menu provides its keyboard entry. It retains the same exact
-`DrawnTabCreate` context proof. See [Tab menus](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
+Right-clicking the Tab-strip `+` lists the saved launch profiles when there is more than one; the
+global menu's new-Tab submenu also offers the recent group and a new group. The profile menu
+retains the same exact `DrawnTabCreate` context proof. See [Tab menus](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
 
 Tab-create gestures cancel on changed identity, geometry, covering capture, released pointer
 capture or an outside release. The release packet's remaining bytes, including paste, never

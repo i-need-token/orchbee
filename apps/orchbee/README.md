@@ -381,7 +381,9 @@ its row. Hover moves the candidate without executing it; click or Enter executes
 outside click cancels. Context menus use a rectangular border titled with their target, action rows
 and an optional disabled reason, without X, footer hints or selection counter. Submenus cascade
 beside their parent; Left, Esc or a click on the parent returns to it. The global action menu
-retains its discovery controls.
+retains its discovery controls. A Tab's menu keeps Rename, Pin and group membership above its red
+close rows; New Tab to right, duplication, selection and movement are in the global action menu.
+Right-clicking the new-Tab button lists the saved launch profiles when there is more than one.
 Project Rename opens the editor for that exact Project, including empty and noncurrent Projects,
 without entering a child Workspace. The current terminal stays selected through rename or cancel.
 A Project's New Workspace submenu offers New Worktree…, its Workspaces' folders and its Git

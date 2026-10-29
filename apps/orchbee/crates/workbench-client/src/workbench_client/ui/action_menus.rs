@@ -134,13 +134,38 @@ fn action_availability(
     {
         return ActionAvailability::Hidden;
     }
-    if action == MenuAction::MoveToNewWindow {
-        return ActionAvailability::Hidden;
+    if let (Some(state), Target::Pane { pane, .. }) = (state, target) {
+        // Zoom needs another panel to hide; Take control applies only while another Client
+        // holds the panel's size.
+        let hidden = match action {
+            MenuAction::Zoom => state
+                .cache()
+                .tab_index(pane.anchor().tab_id())
+                .and_then(|index| state.cache().tabs().get(index))
+                .is_none_or(|tab| tab.panel_count() < 2),
+            MenuAction::Takeover => !state.pane_facts().any(|(record, _, mode)| {
+                record == *pane
+                    && matches!(mode, Some(super::super::state::ControllerMode::ReadOnly))
+            }),
+            _ => false,
+        };
+        if hidden {
+            return ActionAvailability::Hidden;
+        }
     }
     if matches!(target, Target::Global)
         && matches!(
             action,
             MenuAction::RenameTab
+                | MenuAction::NewTabToRight
+                | MenuAction::DuplicateTab
+                | MenuAction::MoveTabPrevious
+                | MenuAction::MoveTabNext
+                | MenuAction::MoveTabFirst
+                | MenuAction::MoveTabLast
+                | MenuAction::SelectAllTabs
+                | MenuAction::ClearTabSelection
+                | MenuAction::CloseTrailingTabs
                 | MenuAction::SplitPanel(_)
                 | MenuAction::Zoom
                 | MenuAction::Resize
@@ -180,7 +205,15 @@ fn action_availability(
             _ => ActionAvailability::Disabled(MenuUnavailable::OperationBusy),
         };
     }
-    if let (Some(state), Target::Tab { tab, .. }) = (state, target)
+    let addressed = match (state, target) {
+        (Some(state), Target::Tab { tab, .. }) => Some((state, &**tab)),
+        // The global menu's Tab rows address the current Tab.
+        (Some(state), Target::Global) => {
+            super::tab_groups::current_tab(state).map(|tab| (state, tab))
+        }
+        _ => None,
+    };
+    if let Some((state, tab)) = addressed
         && super::tab_groups::close_tab_ids(state, tab.tab_id(), action.clone())
             .is_some_and(|ids| ids.is_empty())
     {
@@ -634,7 +667,8 @@ impl WorkbenchClientUi {
         let creation_only = matches!(target, MenuTarget::Create(_));
         let entry = target.clone();
         let tab_creation = matches!(target, MenuTarget::TabCreate(_));
-        if let MenuTarget::TabCreate(ref drawn) = target
+        let tab_profiles = matches!(target, MenuTarget::TabProfiles(_));
+        if let MenuTarget::TabCreate(ref drawn) | MenuTarget::TabProfiles(ref drawn) = target
             && self.view().tab_create_target().as_ref() != Some(drawn)
         {
             return false;
@@ -644,7 +678,7 @@ impl WorkbenchClientUi {
                 MenuTarget::Project(project)
             }
             MenuTarget::Create(None) => MenuTarget::Global,
-            MenuTarget::TabCreate(_) => MenuTarget::Global,
+            MenuTarget::TabCreate(_) | MenuTarget::TabProfiles(_) => MenuTarget::Global,
             target => target,
         };
         let live = self.menu_carrier_live();
@@ -656,7 +690,6 @@ impl WorkbenchClientUi {
             MenuTarget::TabGroups { colors: true, .. } => Some(super::tab_groups::MenuPage::Colors),
             MenuTarget::TabGroups { colors: false, .. } => Some(super::tab_groups::MenuPage::Group),
             MenuTarget::TabGroupChoices(_) => Some(super::tab_groups::MenuPage::Choices),
-            MenuTarget::TabTools(_) => Some(super::tab_groups::MenuPage::Tools),
             _ => None,
         };
         let (target, title, mut actions) = match target {
@@ -714,8 +747,7 @@ impl WorkbenchClientUi {
             }
             MenuTarget::Tab(id)
             | MenuTarget::TabGroups { tab_id: id, .. }
-            | MenuTarget::TabGroupChoices(id)
-            | MenuTarget::TabTools(id) => {
+            | MenuTarget::TabGroupChoices(id) => {
                 if !live {
                     return false;
                 }
@@ -812,6 +844,7 @@ impl WorkbenchClientUi {
             MenuTarget::Drawn { .. }
             | MenuTarget::Create(_)
             | MenuTarget::TabCreate(_)
+            | MenuTarget::TabProfiles(_)
             | MenuTarget::WorkspaceCreation(_) => {
                 return false;
             }
@@ -900,6 +933,16 @@ impl WorkbenchClientUi {
                     .map(|profile| MenuAction::NewTabWithProfile(Box::new(profile.clone()))),
             );
         }
+        let profiles = &self.preferences.launch_profiles;
+        if tab_profiles {
+            // A click on the button already opens a Tab with the default, which leads the list.
+            let mut saved: Vec<_> = profiles.profiles.iter().collect();
+            saved.sort_by_key(|profile| profile.id != profiles.default_profile_id);
+            actions = saved
+                .into_iter()
+                .map(|profile| MenuAction::NewTabWithProfile(Box::new(profile.clone())))
+                .collect();
+        }
         actions.retain(|action| {
             !action_availability(
                 self.capabilities,
@@ -911,6 +954,10 @@ impl WorkbenchClientUi {
             )
             .is_hidden()
         });
+        // A single profile is the button's own click, so it opens no menu.
+        if tab_profiles && actions.len() < 2 {
+            return false;
+        }
         let search_children = if matches!(&entry, MenuTarget::Global)
             && let Some(drawn) = self.view().tab_create_target()
         {
@@ -996,12 +1043,18 @@ impl WorkbenchClientUi {
             MenuAction::JoinGroup(index) => state
                 .and_then(|state| state.cache().groups().get(usize::from(index)))
                 .map(|group| group.label.clone()),
-            MenuAction::GroupMenu => match &intent.target {
-                Target::Tab { tab, .. } => tab.group().map(|group| group.label.clone()),
-                _ => None,
-            },
             _ => None,
         });
+        if tab_profiles {
+            self.menus.menu.set_notes(|action| match action {
+                MenuAction::NewTabWithProfile(profile)
+                    if profile.id == profiles.default_profile_id =>
+                {
+                    Some(crate::action_menu::MenuRowNote::DefaultProfile)
+                }
+                _ => None,
+            });
+        }
         if let (Some(state), Target::Tab { tab, .. }) = (state, &intent.target) {
             let Some(scope) = super::tab_groups::menu_scope(state, tab, group_menu) else {
                 self.menus.menu.cancel();
@@ -1022,8 +1075,25 @@ impl WorkbenchClientUi {
             } else if hidden {
                 self.menus.menu.hide_candidate();
             }
-        } else if hidden {
-            self.menus.menu.hide_candidate();
+        } else {
+            if let (Some(state), MenuTarget::Global) = (state, &intent.entry)
+                && let Some(tab) = super::tab_groups::current_tab(state)
+            {
+                // The Tab section names the selected set that the current Tab belongs to.
+                self.menus.menu.set_tab_presentation(
+                    crate::action_menu::TabMenuScope::Addressed,
+                    None,
+                    |action| {
+                        Some(
+                            super::tab_groups::menu_row(state, tab, action)
+                                .unwrap_or(crate::action_menu::TabMenuScope::Addressed),
+                        )
+                    },
+                );
+            }
+            if hidden {
+                self.menus.menu.hide_candidate();
+            }
         }
         self.menus.menu.refresh_availability(|action| {
             visible_unavailable(intent.availability(state, self.menus.sidebar.as_ref(), action))
@@ -1602,13 +1672,10 @@ impl WorkbenchClientUi {
             (Target::Tab { tab, .. }, MenuAction::ManageGroups) => {
                 Some(MenuTarget::TabGroupChoices(tab.tab_id().clone()))
             }
-            (Target::Tab { tab, .. }, MenuAction::TabTools) => {
-                Some(MenuTarget::TabTools(tab.tab_id().clone()))
-            }
-            (Target::Tab { tab, .. }, MenuAction::GroupMenu | MenuAction::ChooseGroupColor) => {
+            (Target::Tab { tab, .. }, MenuAction::ChooseGroupColor) => {
                 Some(MenuTarget::TabGroups {
                     tab_id: tab.tab_id().clone(),
-                    colors: action == MenuAction::ChooseGroupColor,
+                    colors: true,
                 })
             }
             _ => None,

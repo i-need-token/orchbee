@@ -888,6 +888,9 @@ fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_co
                                 tab_id: ids[target].clone(),
                                 colors: false,
                             }
+                        } else if action == MenuAction::CloseTrailingTabs {
+                            // The global row acts on the current, first Tab.
+                            MenuTarget::Global
                         } else {
                             MenuTarget::Tab(ids[target].clone())
                         };
@@ -901,15 +904,18 @@ fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_co
                         .iter()
                         .position(|candidate| *candidate == action)
                         .unwrap();
-                    let (_, hits) = draw(&mut ui, locale, width, height, None);
-                    dispatcher.publish_hit_map(hits);
-                    dispatch(
-                        &mut dispatcher,
-                        &mut view,
-                        &mut ui,
-                        &mut forwarded,
-                        b"\x1b[B".repeat(row).as_slice(),
-                    );
+                    // A searchable menu takes each key only after the previous one is painted.
+                    for _ in 0..row {
+                        let (_, hits) = draw(&mut ui, locale, width, height, None);
+                        dispatcher.publish_hit_map(hits);
+                        dispatch(
+                            &mut dispatcher,
+                            &mut view,
+                            &mut ui,
+                            &mut forwarded,
+                            b"\x1b[B",
+                        );
+                    }
                     let (menu, hits) = draw(&mut ui, locale, width, height, None);
                     let label = {
                         let view = ui.view();

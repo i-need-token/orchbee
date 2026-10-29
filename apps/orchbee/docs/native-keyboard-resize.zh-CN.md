@@ -6,7 +6,7 @@
 
 `ClientView` 拥有模式及纯事件到动作注册表。`InputDispatcher` 拥有解码后的数据包路由；`ClientControl` 拥有异步调整及其唯一变更通道。配置可将 `resize_mode` 和 `resize_pane_left`、`resize_pane_right`、`resize_pane_up`、`resize_pane_down` 绑定到安全直接组合或前缀组合。直接调整使用五个百分点，不进入模式。现有配置及模式外普通方向键的含义保持不变。
 
-窗格动作菜单打开同一个调整模式。工具栏提供四个方向、5%／1% 步长切换、帮助和完成。工具栏替换 Tab 条，Minimal 布局则覆盖内容首行，不改变 Host 几何。方向控件携带绘制时的 Session／context／Tab／焦点／revision 及视口／侧栏；释放时复核全部来源后使用现有键盘调整通道。按下不提交调整。已有提交待定时禁用其他方向控件。键盘输入、失焦、捕获或几何变化取消待定点击；完成退出模式，不取消已经提交的调整。
+全局动作菜单打开同一个调整模式。工具栏提供四个方向、5%／1% 步长切换、帮助和完成。工具栏替换 Tab 条，Minimal 布局则覆盖内容首行，不改变 Host 几何。方向控件携带绘制时的 Session／context／Tab／焦点／revision 及视口／侧栏；释放时复核全部来源后使用现有键盘调整通道。按下不提交调整。已有提交待定时禁用其他方向控件。键盘输入、失焦、捕获或几何变化取消待定点击；完成退出模式，不取消已经提交的调整。
 
 ## 几何与提交
 
@@ -43,4 +43,4 @@
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=b28d3384e52afec3d0699191efe0c15d52385b24957f1aebadffc825372b3e67 zh-cn-sha256=3126042b177cb55acfc28fb0e4ed377495748d06a7c1323cb0f178fa9d436e7b -->
+<!-- documentation-pairing: english-sha256=334e00ad205b67d162267e1c6cd6766a3d2d690be52eb47d9244cec997705a66 zh-cn-sha256=5fc23f0196c32ca39b46d3451fc21d92d8e0dcc27d4c2917933cf0b189bded29 -->

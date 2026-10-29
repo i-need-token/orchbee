@@ -85,7 +85,7 @@ its effect.
 | Workspace/Worktree forms        | Clickable fields, exact choice rows, Cancel/Submit and stage-specific status/hide controls; accepted operations retain their existing completion owner. |
 | Settings                        | Clickable rows, choice arrows, child Confirm/Cancel, page Back and header X; only Save writes.                                                          |
 | Agent board                     | Full-row selection, Open, Refresh and X; Open addresses the selected stable Agent identity.                                                             |
-| Copy and resize modes           | Pane action menus enter them; mode toolbars, copy drag/scroll and resize directions use their existing native owners.                                   |
+| Copy and resize modes           | The global action menu enters them; mode toolbars, copy drag/scroll and resize directions use their existing native owners.                             |
 
 Wheel belongs only to the painted list under the pointer; headings, buttons, frame padding and the backdrop are inert. Lists normalize three rows/choices per notch, bound accumulated work and settle at most one painted viewport per pass; Worktree capacity counts its two-line choices. Reversal drops old-direction work while retaining the first opposite notch. A changed owner/source/geometry cancels backlog. Pending list movement settles before a following keyboard decision, and any resulting native draft token still requires its own successful draw. No scroll path executes a row or changes a setting value.
 

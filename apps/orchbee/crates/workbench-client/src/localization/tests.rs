@@ -48,10 +48,9 @@ fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
     use std::num::NonZeroUsize;
 
     use crate::{
-        action_menu::{MenuAction, MenuTarget, MenuUnavailable, TabMenuScope},
+        action_menu::{MenuAction, MenuUnavailable, TabMenuScope},
         workbench_client::CloseConfirmationKind,
     };
-    use orchbee_workbench_protocol::WorkbenchTabId;
 
     let locale = Locale::ZhCn;
     let count = NonZeroUsize::new(2).unwrap();
@@ -75,26 +74,9 @@ fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
         locale.menu_tab_action(&MenuAction::Ungroup, TabMenuScope::Group(count)),
         "解散分组，保留 2 个标签页"
     );
-    let tab = WorkbenchTabId::parse("00000000000000000000000000000023").unwrap();
     assert_eq!(
-        locale.menu_tab_path(&MenuTarget::Tab(tab.clone()), TabMenuScope::Addressed, ">"),
-        "标签页"
-    );
-    assert_eq!(
-        locale.menu_tab_path(
-            &MenuTarget::Tab(tab.clone()),
-            TabMenuScope::Selected(count),
-            ">"
-        ),
-        "所选 2 个标签页"
-    );
-    assert_eq!(
-        locale.menu_tab_path(
-            &MenuTarget::TabGroupChoices(tab),
-            TabMenuScope::Addressed,
-            ">"
-        ),
-        "标签页 > 加入分组"
+        locale.menu_group_path(TabMenuScope::Group(count)),
+        "分组（2 个标签页）"
     );
     assert_eq!(
         locale.menu_unavailable(MenuUnavailable::NoMatchingTabs, true),

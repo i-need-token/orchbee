@@ -349,6 +349,7 @@ fn saved_launch_rows_localize_names_and_keep_existing_menu_geometry_and_cancel()
         assert_eq!(
             action_label(
                 locale,
+                &crate::action_menu::MenuTarget::Global,
                 &MenuAction::NewTabWithProfile(Box::new(custom.clone())),
                 None,
                 None,

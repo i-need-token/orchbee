@@ -2,7 +2,7 @@
 
 ## 目标与确认
 
-原生标签页菜单可关闭所选集合、其他标签页或右侧标签页；分组菜单关闭完整 canonical 组，包含折叠成员。
+原生标签页菜单可关闭所选集合或其他标签页，全局菜单关闭当前标签页右侧的标签页，分组菜单关闭完整 canonical 组，包含折叠成员。
 `TabStripContextMenu` 与原生 owner 共用
 `packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json` 中的目标语料。
 菜单目标属于选中集合时，直接 Close 按规范顺序使用所选 ID；否则只使用该目标。
@@ -82,4 +82,4 @@ Server 发布 owner 仅在移除关闭 Tab 后其源组变空时删除该组。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=4217626f2c308846369a5688c38fbf1c3820e8898be62e46361bc652ef6f7200 zh-cn-sha256=43a06cff3adea094713c38ccaa560ede1b0bc4da6021b6c0ff19b959c4e752eb -->
+<!-- documentation-pairing: english-sha256=a8e8243acbe7e883f391ed12b8e51f48a122e0da999421e823544000a6ef5731 zh-cn-sha256=4f2d193adfcc7b6bb5612ff6361ef115321fa30b7b386c3fd601e8a7d709b5fe -->

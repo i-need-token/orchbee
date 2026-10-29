@@ -2,7 +2,7 @@
 //! Feature modules own human-facing copy; domain and protocol identifiers stay unchanged.
 
 mod action_menu;
-pub(crate) use action_menu::{ActionSearchAlias, MenuLabel, MenuUnavailable};
+pub(crate) use action_menu::{ActionSearchAlias, MenuLabel, MenuRowNote, MenuUnavailable};
 mod parameters;
 pub use parameters::Notice;
 pub(crate) use parameters::{BackendAction, PanelDirection};
@@ -17,7 +17,7 @@ mod notification;
 mod presentation;
 mod tab_menu;
 pub(crate) use presentation::RecoveryVerb;
-pub(crate) use tab_menu::{TabMenuPath, TabMenuScope};
+pub(crate) use tab_menu::TabMenuScope;
 mod plugins;
 mod shortcut_help;
 pub(crate) use shortcut_help::{ShortcutContext, ShortcutHelpGroup, ShortcutLabel};

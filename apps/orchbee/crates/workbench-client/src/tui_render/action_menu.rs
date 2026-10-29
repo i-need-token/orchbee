@@ -1,7 +1,10 @@
 //! Retained action-menu projection; only a complete successful frame arms input.
 
 use crate::{
-    action_menu::{MenuAction, MenuAnchor, MenuControl, MenuDraw, MenuView, TabMenuScope},
+    action_menu::{
+        MenuAction, MenuAnchor, MenuControl, MenuDraw, MenuRowNote, MenuTarget, MenuView,
+        TabMenuScope,
+    },
     action_projection::menu_binding_action,
     client_view::{
         Binding, Bindings, KeyCode, KeyLabelGlyphs, LabelStyle, Modifiers,
@@ -232,31 +235,35 @@ fn measure<'v>(
         return None;
     }
     let full_project_suffixes = project_suffixes(&menu, usize::MAX, theme.glyphs.ellipsis);
-    let desired = menu
-        .actions
-        .iter()
-        .enumerate()
-        .map(|(index, action)| {
-            let label = action_label(
-                locale,
-                action,
-                menu.labels[index].as_deref(),
-                menu.tabs.map(|tabs| tabs.rows[index]),
-                theme.glyphs.middle_dot,
-                theme.glyphs.disclosure_closed,
-            );
-            marker_width
-                .saturating_add(color_track_width(action, theme))
-                .saturating_add(display_width(&label))
-                .saturating_add(display_width(&full_project_suffixes[index]))
-                .saturating_add(binding_labels[index].as_ref().map_or(0, |binding| {
-                    display_width(binding).saturating_add(usize::from(ROW_BINDING_GAP))
-                }))
-                // The row owns one padding cell beside each frame edge.
-                .saturating_add(2)
-        })
-        .max()
-        .unwrap_or(16);
+    let desired =
+        menu.actions
+            .iter()
+            .enumerate()
+            .map(|(index, action)| {
+                let label = action_label(
+                    locale,
+                    menu.source,
+                    action,
+                    menu.labels[index].as_deref(),
+                    menu.tabs.map(|tabs| tabs.rows[index]),
+                    theme.glyphs.middle_dot,
+                    theme.glyphs.disclosure_closed,
+                );
+                marker_width
+                    .saturating_add(color_track_width(action, theme))
+                    .saturating_add(display_width(&label))
+                    .saturating_add(display_width(&full_project_suffixes[index]))
+                    .saturating_add(
+                        trailing(binding_labels[index].as_deref(), menu.notes[index], locale)
+                            .map_or(0, |(text, _)| {
+                                display_width(text).saturating_add(usize::from(ROW_BINDING_GAP))
+                            }),
+                    )
+                    // The row owns one padding cell beside each frame edge.
+                    .saturating_add(2)
+            })
+            .max()
+            .unwrap_or(16);
     // A group heading starts in the label column of the rows it introduces.
     let desired = (0..result_actions.len())
         .filter_map(|position| menu.result_heading_before(&result_actions, position))
@@ -509,36 +516,43 @@ fn title(measured: &Measured<'_>, area: Rect, locale: Locale, theme: &Theme) -> 
     }
     let legacy = matches!(
         menu.source,
-        crate::action_menu::MenuTarget::Workspace(
-            crate::workbench_client::ClientContextLocation::NoWorkspace
-        )
+        MenuTarget::Workspace(crate::workbench_client::ClientContextLocation::NoWorkspace)
     );
-    Some(if menu.tabs.is_some() {
-        tab_title(
-            menu,
-            locale,
-            theme,
-            usize::from(area.width.saturating_sub(6)),
-        )
-    } else if menu.context_menu && !menu.title.is_empty() {
-        sanitize_terminal_text(menu.title).into_owned()
-    } else if menu.title.is_empty() && legacy {
-        format!(
-            "{} {} {}",
-            locale.menu_title(),
-            theme.glyphs.middle_dot,
-            locale.shell().no_workspace
-        )
-    } else if menu.title.is_empty() {
-        locale.menu_title().to_owned()
-    } else {
-        format!(
-            "{} {} {}",
-            locale.menu_title(),
-            theme.glyphs.middle_dot,
-            sanitize_terminal_text(menu.title)
-        )
-    })
+    Some(
+        if matches!(
+            menu.source,
+            MenuTarget::Tab(_) | MenuTarget::TabGroups { .. }
+        ) {
+            tab_title(
+                menu,
+                locale,
+                theme,
+                usize::from(area.width.saturating_sub(6)),
+            )
+        } else if matches!(menu.source, MenuTarget::TabProfiles(_)) {
+            locale
+                .menu_action(crate::localization::MenuLabel::NewTab)
+                .to_owned()
+        } else if menu.context_menu && !menu.title.is_empty() {
+            sanitize_terminal_text(menu.title).into_owned()
+        } else if menu.title.is_empty() && legacy {
+            format!(
+                "{} {} {}",
+                locale.menu_title(),
+                theme.glyphs.middle_dot,
+                locale.shell().no_workspace
+            )
+        } else if menu.title.is_empty() {
+            locale.menu_title().to_owned()
+        } else {
+            format!(
+                "{} {} {}",
+                locale.menu_title(),
+                theme.glyphs.middle_dot,
+                sanitize_terminal_text(menu.title)
+            )
+        },
+    )
 }
 
 /// The global menu's own controls: its close button, footer action, hints and position.
@@ -812,7 +826,11 @@ fn paint_frame(
                 },
             },
             action,
-            measured.binding_labels[action_index].as_deref(),
+            trailing(
+                measured.binding_labels[action_index].as_deref(),
+                menu.notes[action_index],
+                locale,
+            ),
             &layout.project_suffixes[action_index],
             locale,
             theme,
@@ -885,6 +903,7 @@ fn search_result_actions(
         .filter_map(|(index, action)| {
             let label = action_label(
                 locale,
+                menu.source,
                 action,
                 menu.labels[index].as_deref(),
                 menu.tabs.map(|tabs| tabs.rows[index]),
@@ -908,6 +927,7 @@ fn search_result_actions(
                             .any(|(child_index, action)| {
                                 let label = action_label(
                                     locale,
+                                    &child.source,
                                     action,
                                     child.labels.get(child_index).and_then(Option::as_deref),
                                     None,
@@ -1106,7 +1126,7 @@ fn render_row(
         state: row_state,
     }: Row,
     action: &MenuAction,
-    binding: Option<&str>,
+    trailing: Option<(&str, Role)>,
     project_suffix: &str,
     locale: Locale,
     theme: &Theme,
@@ -1130,8 +1150,8 @@ fn render_row(
     });
     let swatch = checked.map(|rect| Rect::new(rect.right() + 1, row.y, 2, 1));
     let label_left = swatch.map_or(navigation.right(), |rect| rect.right() + 1);
-    let binding_width = binding
-        .map(display_width)
+    let binding_width = trailing
+        .map(|(text, _)| display_width(text))
         .and_then(|width| u16::try_from(width).ok())
         .filter(|width| {
             row.width
@@ -1151,6 +1171,7 @@ fn render_row(
     let label = truncate_display(
         &action_label(
             locale,
+            menu.source,
             action,
             menu.labels[action_index].as_deref(),
             menu.tabs.map(|tabs| tabs.rows[action_index]),
@@ -1168,12 +1189,9 @@ fn render_row(
     if let Some(rect) = swatch {
         bands.push(RowContentBand::explicit(rect));
     }
-    if let (Some(binding), Some(rect)) = (binding, binding_rect) {
-        frame.render_widget(
-            Paragraph::new(binding).style(theme.style(Role::HintKey)),
-            rect,
-        );
-        bands.push(RowContentBand::semantic(rect, Role::HintKey));
+    if let (Some((text, role)), Some(rect)) = (trailing, binding_rect) {
+        frame.render_widget(Paragraph::new(text).style(theme.style(role)), rect);
+        bands.push(RowContentBand::semantic(rect, role));
     }
 
     let enabled = menu.unavailable[action_index].is_none() && !menu.transferring;
@@ -1334,8 +1352,20 @@ fn render_close(
     hits.record_interaction(HitLayer::Overlay, rect, painted, target, spec);
 }
 
+/// A row's trailing text: its shortcut, else its note.
+fn trailing(
+    binding: Option<&str>,
+    note: Option<MenuRowNote>,
+    locale: Locale,
+) -> Option<(&str, Role)> {
+    binding
+        .map(|binding| (binding, Role::HintKey))
+        .or_else(|| note.map(|note| (locale.menu_row_note(note), Role::TextSecondary)))
+}
+
 fn action_label(
     locale: Locale,
+    source: &MenuTarget,
     action: &MenuAction,
     label: Option<&str>,
     scope: Option<TabMenuScope>,
@@ -1348,33 +1378,38 @@ fn action_label(
         MenuAction::JoinWorkspaceProject(_)
             | MenuAction::WorkspaceInFolder(_)
             | MenuAction::OpenWorktreeAt(_)
+            | MenuAction::JoinGroup(_)
     );
     let text = scope.map_or_else(
         || locale.menu_action(action).to_owned(),
         |scope| locale.menu_tab_action(action, scope),
     );
     if let MenuAction::NewTabWithProfile(profile) = action {
-        return format!(
-            "{text} {separator} {}",
-            locale.launch_profile_label(profile.name.as_deref())
-        );
+        let name = locale.launch_profile_label(profile.name.as_deref());
+        // The new-Tab button's own menu lists only the profile each row opens.
+        return if matches!(source, MenuTarget::TabProfiles(_)) {
+            name
+        } else {
+            format!("{text} {separator} {name}")
+        };
     }
     let text = if let Some(label) = label {
-        if choice {
-            if matches!(action, MenuAction::JoinWorkspaceProject(_)) {
-                crate::machine_discovery::display_label(label)
-            } else {
-                sanitize_terminal_text(label).into_owned()
-            }
-        } else {
-            format!(
-                "{text} {separator} {}",
-                sanitize_terminal_text(if label.is_empty() {
-                    locale.shell().unnamed_tab_group
-                } else {
-                    label
-                })
+        let label = if matches!(action, MenuAction::JoinWorkspaceProject(_)) {
+            crate::machine_discovery::display_label(label)
+        } else if label.is_empty()
+            && matches!(
+                action,
+                MenuAction::JoinGroup(_) | MenuAction::NewTabInRecentGroup
             )
+        {
+            locale.shell().unnamed_tab_group.to_owned()
+        } else {
+            sanitize_terminal_text(label).into_owned()
+        };
+        if choice {
+            label
+        } else {
+            format!("{text} {separator} {label}")
         }
     } else {
         text
@@ -1417,19 +1452,20 @@ fn color_track_width(action: &MenuAction, theme: &Theme) -> usize {
     }
 }
 
+/// A Tab menu names its Tab; a group menu names its group and the group's Tab count.
 fn tab_title(menu: &MenuView<'_>, locale: Locale, theme: &Theme, width: usize) -> String {
     let Some(tabs) = menu.tabs else {
         return String::new();
     };
-    let path = locale.menu_tab_path(menu.source, tabs.scope, theme.glyphs.disclosure_closed);
     let name = sanitize_terminal_text(if menu.title.is_empty() {
         locale.shell().unnamed_tab_group
     } else {
         menu.title
     });
-    if matches!(menu.source, crate::action_menu::MenuTarget::Tab(_)) {
+    if matches!(menu.source, MenuTarget::Tab(_)) {
         return truncate_display(&name, width, theme.glyphs.ellipsis);
     }
+    let path = locale.menu_group_path(tabs.scope);
     let separator = format!(" {} ", theme.glyphs.middle_dot);
     let budget = width.saturating_sub(display_width(&path) + display_width(&separator));
     let name = truncate_display(&name, budget, theme.glyphs.ellipsis);

@@ -12,15 +12,6 @@ pub(crate) enum TabMenuScope {
     Workspace,
 }
 
-/// The selected breadcrumb shape, without the menu's concrete target or draw proof.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum TabMenuPath {
-    Group { colors: bool },
-    Choices,
-    Tools,
-    Other,
-}
-
 impl Locale {
     /// Scope is captured owner data, not a count recovered from translated row copy.
     pub(crate) fn menu_tab_action(
@@ -46,10 +37,6 @@ impl Locale {
             (Self::ZhCn, CloseSelectedTabs, Some(n)) => format!("关闭所选 {n} 个标签页…"),
             (Self::EnUs, ManageGroups, Some(n)) => format!("Add selected {n} Tabs to group"),
             (Self::ZhCn, ManageGroups, Some(n)) => format!("将所选 {n} 个标签页加入分组"),
-            (Self::EnUs, CreateGroup, Some(n)) => format!("New group for selected {n} Tabs…"),
-            (Self::ZhCn, CreateGroup, Some(n)) => format!("为所选 {n} 个标签页新建分组…"),
-            (Self::EnUs, JoinGroup, Some(n)) => format!("Move selected {n} Tabs to"),
-            (Self::ZhCn, JoinGroup, Some(n)) => format!("将所选 {n} 个标签页移入"),
             (Self::EnUs, RemoveFromGroup, Some(n)) => {
                 format!("Remove selected {n} Tabs from groups")
             }
@@ -90,41 +77,14 @@ impl Locale {
         }
     }
 
-    /// Purposeful scope/path content; generic menu decoration is not part of this heading.
-    pub(crate) fn menu_tab_path(
-        self,
-        target: impl Into<TabMenuPath>,
-        scope: TabMenuScope,
-        disclosure: &str,
-    ) -> String {
-        let target = target.into();
-        let group = match (self, scope) {
+    /// A group menu's title follows the group's name with its Tab count.
+    pub(crate) fn menu_group_path(self, scope: TabMenuScope) -> String {
+        match (self, scope) {
             (Self::EnUs, TabMenuScope::Group(n)) if n.get() == 1 => "Group (1 Tab)".into(),
             (Self::EnUs, TabMenuScope::Group(n)) => format!("Group ({} Tabs)", n.get()),
             (Self::ZhCn, TabMenuScope::Group(n)) => format!("分组（{} 个标签页）", n.get()),
             (Self::EnUs, _) => "Group".into(),
             (Self::ZhCn, _) => "分组".into(),
-        };
-        match (self, target) {
-            (Self::EnUs, TabMenuPath::Group { colors: true }) => {
-                format!("{group} {disclosure} Color")
-            }
-            (Self::ZhCn, TabMenuPath::Group { colors: true }) => {
-                format!("{group} {disclosure} 颜色")
-            }
-            (_, TabMenuPath::Group { colors: false }) => group,
-            (Self::EnUs, TabMenuPath::Choices) => {
-                format!("Tab {disclosure} Add to group")
-            }
-            (Self::ZhCn, TabMenuPath::Choices) => format!("标签页 {disclosure} 加入分组"),
-            (Self::EnUs, TabMenuPath::Tools) => format!("Tab {disclosure} Select / move"),
-            (Self::ZhCn, TabMenuPath::Tools) => format!("标签页 {disclosure} 选择与移动"),
-            _ => match (self, scope) {
-                (Self::EnUs, TabMenuScope::Selected(n)) => format!("{} selected Tabs", n.get()),
-                (Self::ZhCn, TabMenuScope::Selected(n)) => format!("所选 {} 个标签页", n.get()),
-                (Self::EnUs, _) => "Tab".into(),
-                (Self::ZhCn, _) => "标签页".into(),
-            },
         }
     }
 }

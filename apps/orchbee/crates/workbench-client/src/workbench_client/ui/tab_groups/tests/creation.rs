@@ -101,8 +101,11 @@ fn creation_routes_install_foreground_marks_and_preserve_duplicate_or_removed_ta
         } else {
             source.clone()
         };
-        assert!(ui.open_action_menu(MenuTarget::Tab(marked_target), None, false));
-        choose(&mut ui, MenuAction::SelectTab);
+        // Ctrl+click marks a Tab beside the current one.
+        ui.apply_client_action(ClientAction::TabMenu {
+            action: MenuAction::SelectTab,
+            tab_id: Some(marked_target),
+        });
         let marked = ui.view().selected_tab_ids();
         assert_eq!(marked.len(), 2);
         ui.toggle_tab_group(&group);
@@ -131,24 +134,32 @@ fn creation_routes_install_foreground_marks_and_preserve_duplicate_or_removed_ta
                 }),
             ),
         };
-        let target = if kind == 0 {
-            MenuTarget::TabGroups {
-                tab_id: source.clone(),
-                colors: false,
+        match kind {
+            0 | 1 => {
+                let target = if kind == 0 {
+                    MenuTarget::TabGroups {
+                        tab_id: source.clone(),
+                        colors: false,
+                    }
+                } else {
+                    MenuTarget::TabCreate(ui.view().tab_create_target().unwrap())
+                };
+                assert!(ui.open_action_menu(target, None, false));
+                choose(&mut ui, action);
             }
-        } else if kind == 1 {
-            MenuTarget::TabCreate(ui.view().tab_create_target().unwrap())
-        } else {
-            MenuTarget::Tab(source.clone())
-        };
-        if kind == 3 {
-            // Ordinary creation uses the painted quick-add route, with no background navigation.
-            let target = ui.view().tab_create_target().unwrap();
-            let action = ui.tab_create_action(&target).unwrap();
-            ui.apply_client_action(action);
-        } else {
-            assert!(ui.open_action_menu(target, None, false));
-            choose(&mut ui, action);
+            3 => {
+                // Ordinary creation uses the painted quick-add route, with no background navigation.
+                let target = ui.view().tab_create_target().unwrap();
+                let action = ui.tab_create_action(&target).unwrap();
+                ui.apply_client_action(action);
+            }
+            _ => {
+                // The menus' shared carrier addresses this background Tab, outside the marks.
+                ui.apply_client_action(ClientAction::TabMenu {
+                    action,
+                    tab_id: Some(source.clone()),
+                });
+            }
         }
         assert_eq!(
             ui.state.as_ref().unwrap().desired(),
@@ -341,34 +352,35 @@ fn duplicate_unavailable_snapshot_recovers_by_read_without_replaying_create() {
 }
 
 #[test]
-fn relative_menu_keeps_invoked_target_without_navigation_and_refuses_inside_pinned_prefix() {
-    let mut snapshot = grouped();
-    snapshot.terminal_contexts[0].groups.clear();
-    for (index, tab) in snapshot.terminal_contexts[0].tabs.iter_mut().enumerate() {
-        tab.group_id = None;
-        tab.pinned = index < 2;
+fn relative_creation_keeps_the_current_tab_without_navigation_and_refuses_inside_pinned_prefix() {
+    for pinned in [2, 1] {
+        let mut snapshot = grouped();
+        snapshot.terminal_contexts[0].groups.clear();
+        for (index, tab) in snapshot.terminal_contexts[0].tabs.iter_mut().enumerate() {
+            tab.group_id = None;
+            tab.pinned = index < pinned;
+        }
+        let (mut ui, mailbox, _, _) = ready_snapshot(snapshot);
+        let old = ui.state.as_ref().unwrap().desired().cloned();
+        // The global row acts on the current, first Tab.
+        assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+        choose(&mut ui, MenuAction::NewTabToRight);
+        if pinned == 2 {
+            assert_eq!(
+                ui.view().notice(),
+                Some(WorkbenchClientNotice::CreateOrderConflict)
+            );
+            assert!(mailbox.try_recv().unwrap().is_none());
+        } else {
+            let lease = mailbox
+                .try_recv()
+                .unwrap()
+                .expect("one creation, no navigation command");
+            let QueuedCommand::Create(marker) = lease.record() else {
+                panic!("relative creation")
+            };
+            assert!(!marker.operation().preserves_selection());
+        }
+        assert_eq!(ui.state.as_ref().unwrap().desired(), old.as_ref());
     }
-    let first = snapshot.terminal_contexts[0].tabs[0].tab_id.clone();
-    let last = snapshot.terminal_contexts[0].tabs[1].tab_id.clone();
-    let (mut ui, mailbox, _, _) = ready_snapshot(snapshot);
-    let old = ui.state.as_ref().unwrap().desired().cloned();
-    assert!(ui.open_action_menu(MenuTarget::Tab(first), None, false));
-    choose(&mut ui, MenuAction::NewTabToRight);
-    assert_eq!(
-        ui.view().notice(),
-        Some(WorkbenchClientNotice::CreateOrderConflict)
-    );
-    assert!(mailbox.try_recv().unwrap().is_none());
-    assert_eq!(ui.state.as_ref().unwrap().desired(), old.as_ref());
-    assert!(ui.open_action_menu(MenuTarget::Tab(last.clone()), None, false));
-    choose(&mut ui, MenuAction::NewTabToRight);
-    let lease = mailbox
-        .try_recv()
-        .unwrap()
-        .expect("one creation, no navigation command");
-    let QueuedCommand::Create(marker) = lease.record() else {
-        panic!("relative creation")
-    };
-    assert!(!marker.operation().preserves_selection());
-    assert_eq!(ui.state.as_ref().unwrap().desired(), old.as_ref());
 }
