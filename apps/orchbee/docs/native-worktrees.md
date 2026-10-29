@@ -62,6 +62,11 @@ Header X and Cancel use the current stage's cancellation or hide behavior. Edita
 A Workspace's row menu appends **Remove Worktree…** after Close Workspace… when the
 read-only listing proves that Workspace's exact primary directory is an associated linked,
 non-bare checkout on the same Worker. Project and creation menus do not infer a removal target.
+That directory proof compares spellings without touching the filesystem: POSIX-rooted paths match
+byte for byte; Windows drive paths use `same_windows_path_spelling`, so only separators, trailing
+separators and ASCII case (including the drive letter) may differ. A `\\?\` verbatim prefix,
+dot component, doubled separator, non-ASCII case difference or parent/child path never matches,
+so an uncertain spelling hides the action rather than addressing another directory.
 The destructive action has no default shortcut and never falls back to the selected Client's cwd.
 The confirmation names the Workspace, full checkout path, affected terminal count and retained
 branch. It reuses the existing Worktree modal, action controls, draw authority and capture owner.

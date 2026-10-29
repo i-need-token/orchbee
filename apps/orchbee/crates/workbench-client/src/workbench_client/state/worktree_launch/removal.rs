@@ -31,7 +31,7 @@ impl Removal {
             entry.linked
                 && !entry.checkout.bare
                 && matches!(&entry.checkout.path, WorktreeEntryText::Utf8(path)
-                    if path == directory.path.as_str())
+                    if same_checkout(directory.path.as_str(), path))
                 && entry
                     .workspaces
                     .iter()
@@ -65,6 +65,15 @@ impl Removal {
             terminals,
         })
     }
+}
+
+/// Destructive identity: POSIX-rooted spellings compare byte for byte; Windows drive spellings
+/// use the shared association rule, which leaves verbatim prefixes and dot components unequal.
+pub(super) fn same_checkout(directory: &str, checkout: &str) -> bool {
+    if directory.starts_with('/') || checkout.starts_with('/') {
+        return directory == checkout;
+    }
+    orchbee_workbench_protocol::same_windows_path_spelling(directory, checkout)
 }
 
 fn resumable(op: &Operation) -> bool {

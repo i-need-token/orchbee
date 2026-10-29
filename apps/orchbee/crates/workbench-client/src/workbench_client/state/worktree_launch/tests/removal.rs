@@ -108,6 +108,30 @@ fn removal_requires_the_addressed_workspace_exact_linked_directory_and_associati
 }
 
 #[test]
+fn removal_matches_windows_checkout_spelling_but_never_another_directory() {
+    let checkout = |sidebar: &mut addressed::SidebarDiscovery, value: &str| {
+        sidebar.discovery.entries[1].checkout.path = WorktreeEntryText::Utf8(value.into());
+    };
+    for (value, admitted) in [
+        (r"C:\trees\猫", true),
+        (r"c:\TREES\猫\", true),
+        ("C:/trees/猫/sub", false),
+        ("C:/trees/猫x", false),
+        ("C:/trees", false),
+        (r"\\?\C:\trees\猫", false),
+    ] {
+        let (_, _, mut sidebar) = fixture();
+        checkout(&mut sidebar, value);
+        assert_eq!(Removal::capture(&sidebar).is_some(), admitted, "{value}");
+    }
+    use crate::workbench_client::state::worktree_launch::removal::same_checkout;
+    assert!(same_checkout("/trees/a", "/trees/a"));
+    for other in ["/Trees/a", "/trees/a/", r"\trees\a", "C:/trees/a"] {
+        assert!(!same_checkout("/trees/a", other), "{other}");
+    }
+}
+
+#[test]
 fn removal_waits_for_exact_confirmation_draw_and_never_uses_create_or_open_auto_submit() {
     let (mut launcher, origin, _) = fixture();
     let token = launcher.token().unwrap();

@@ -47,7 +47,12 @@ Resume、删除、信任覆盖和回滚都不会隐式执行。成功进入完�
 
 只读列表证明 Workspace 的确切主目录是同一 Worker 上已关联的 linked、非 bare 检出时，
 其行菜单会在“关闭工作区…”之后追加**移除工作树…**。
-Project 与创建菜单不会推断移除目标。该破坏性动作没有默认快捷键，也绝不回退到当前 Client 的 cwd。
+Project 与创建菜单不会推断移除目标。
+该目录证明只比较拼写、不访问文件系统：以斜杠开头的 POSIX 路径逐字节匹配；
+Windows 盘符路径使用 `same_windows_path_spelling`，只允许分隔符、结尾分隔符与 ASCII 大小写（含盘符）不同。
+`\\?\` verbatim 前缀、点路径段、重复分隔符、非 ASCII 大小写差异或父子路径一律不匹配，
+因此不确定的拼写只会隐藏该动作，而不会指向另一个目录。
+该破坏性动作没有默认快捷键，也绝不回退到当前 Client 的 cwd。
 确认界面显示 Workspace 名称、完整检出路径、受影响终端数量以及保留的分支。
 它复用既有 Worktree 弹层、动作控件、绘制凭证与捕获所有者。
 不带修饰键的 Enter 或匹配的移除按钮只提交一次；提交前按 Esc 或 X 不产生变化。
@@ -167,4 +172,4 @@ Server 重启遵循[现有保留限制](windows-worktrees.zh-CN.md#保留续执�
 
 Windows 原生工作树表单使用反斜杠显示检出路径。这仅是显示投影；选择和操作保留精确的规范路径。
 
-<!-- documentation-pairing: english-sha256=b441b51db4b2675902ab132bdfc79c83582e381fdeb5dd0836bbe26a00e1c70a zh-cn-sha256=dc3209cf05549408d2b2842f34957d75f12b1048a086a83d100ba54ddb668e6b -->
+<!-- documentation-pairing: english-sha256=627c201f62d992d73c8174974e3e1ab5254e4f4ff55b4d021086b05037439089 zh-cn-sha256=ddeab7f59f7c445cbb0f2b04161f197d25fc47229c24147c691f097288c3c9c0 -->
