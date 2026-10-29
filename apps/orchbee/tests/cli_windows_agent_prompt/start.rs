@@ -215,10 +215,10 @@ fn startup_busy_terminal_and_name_conflict_never_type_input() {
 }
 
 #[test]
-fn startup_samples_again_after_process_churn_but_preserves_permanent_host_failure() {
+fn startup_samples_again_after_unavailable_sample_but_preserves_permanent_host_failure() {
     let (output, document) = run(|mut stream| {
         bound_snapshot_reply(&mut stream);
-        process_sample_reply(&mut stream, Err("process-sample-changed"));
+        process_sample_reply(&mut stream, Err("process-sample-unavailable"));
         shell(&mut stream);
         let reservation = reserve(&mut stream);
         shell(&mut stream);

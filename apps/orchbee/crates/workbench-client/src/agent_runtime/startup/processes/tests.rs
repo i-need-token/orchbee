@@ -73,7 +73,7 @@ fn process_info_preserves_only_declared_host_failure_codes() {
         ("limit-exceeded", Some(HostFailure::LimitExceeded)),
         ("missing-resource", Some(HostFailure::MissingResource)),
         ("process-sample-unsupported", Some(HostFailure::Unsupported)),
-        ("process-sample-changed", Some(HostFailure::Changed)),
+        ("process-sample-changed", None),
         ("process-sample-unavailable", Some(HostFailure::Unavailable)),
         ("invalid-field", None),
     ] {

@@ -31,7 +31,6 @@ pub enum HostFailure {
     LimitExceeded,
     MissingResource,
     Unsupported,
-    Changed,
     Unavailable,
 }
 impl HostFailure {
@@ -41,7 +40,6 @@ impl HostFailure {
             Self::LimitExceeded => "limit-exceeded",
             Self::MissingResource => "missing-resource",
             Self::Unsupported => "process-sample-unsupported",
-            Self::Changed => "process-sample-changed",
             Self::Unavailable => "process-sample-unavailable",
         }
     }
@@ -231,7 +229,6 @@ fn decode(
             "limit-exceeded" => HostFailure::LimitExceeded,
             "missing-resource" => HostFailure::MissingResource,
             "process-sample-unsupported" => HostFailure::Unsupported,
-            "process-sample-changed" => HostFailure::Changed,
             "process-sample-unavailable" => HostFailure::Unavailable,
             _ => return Err(Error::Protocol),
         };

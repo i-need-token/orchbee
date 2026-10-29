@@ -118,7 +118,7 @@ impl Failure {
     }
     /// Permit another read only for the Host's changed or temporarily unavailable process sample.
     pub(super) fn transient_sample(&self) -> bool {
-        matches!(self, Self::Process(error) if matches!(error.as_ref(), processes::Error::Host(processes::HostFailure::Changed | processes::HostFailure::Unavailable)))
+        matches!(self, Self::Process(error) if matches!(error.as_ref(), processes::Error::Host(processes::HostFailure::Unavailable)))
     }
 }
 

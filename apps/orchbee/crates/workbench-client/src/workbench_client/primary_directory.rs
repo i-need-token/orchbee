@@ -66,7 +66,6 @@ pub(super) fn decode_root(
                 "limit-exceeded"
                     | "missing-resource"
                     | "process-sample-unsupported"
-                    | "process-sample-changed"
                     | "process-sample-unavailable"
             )
         {

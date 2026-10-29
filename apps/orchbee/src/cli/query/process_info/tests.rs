@@ -33,7 +33,6 @@ fn process_info_preserves_expected_host_failures_with_valid_failure_schema() {
         ("limit-exceeded", Some(HostFailure::LimitExceeded)),
         ("missing-resource", Some(HostFailure::MissingResource)),
         ("process-sample-unsupported", Some(HostFailure::Unsupported)),
-        ("process-sample-changed", Some(HostFailure::Changed)),
         ("process-sample-unavailable", Some(HostFailure::Unavailable)),
         ("invalid-field", None),
     ] {
