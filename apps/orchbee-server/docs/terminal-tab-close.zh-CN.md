@@ -536,9 +536,9 @@ graceful 关闭。该精确物理终端的每个 viewer（包括 Server 采样 v
 - TerminalCoordinator 保留的该 binding 的 Create 仍是同一 Started Host 实例和 Worker
   代次；
 - 该次启动按 Host 启动规则运行的是交互 Shell：PowerShell 只带普通交互参数，`cmd` 只带
-  `/D` 或 `/Q`，POSIX shell 只带交互或登录参数。TerminalCoordinator 保留该次启动派发的 argv：
-  Client launch selection，否则为该次启动偏好快照中的自定义默认程序。默认启动系统 Shell
-  始终满足此条件；
+  `/D` 或 `/Q`，POSIX shell 只带交互或登录参数。TerminalCoordinator 在规划该次启动时根据它派发的
+  argv 作出判断：Client launch selection，否则为该次启动偏好快照中的自定义默认程序。它只保留判断结果，
+  不保留 argv。默认启动系统 Shell 始终满足此条件；
 - 该 binding 是某个 Panel 的主 Presentation，且该 Panel 没有子 Presentation。
 
 因此唯一叶子会关闭整个 Tab，最后一个 Tab 关闭后其 Workspace 留空，与用户发起的 Panel
@@ -566,4 +566,4 @@ Panel、Tab 和 Workspace Close 按规范 Tab／树顺序捕获全部已绑定�
 
 OBWP 61/62 在既有 会话 读取权限下，按原始请求 ID 读取精确保留 Close 账本项，包括空范围及已完成范围。它返回原始目标和 generation，不解析当前布局成员。[CLI 状态与恢复](../../orchbee/docs/native-operation-status.zh-CN.md) 复用既有 generation 围栏恢复准入；读取本身不续期尝试，也不调度清理。
 
-<!-- documentation-pairing: english-sha256=4ab19b50d6d2731af52b15bdc49b2ab8c7d32012f96e41220819601607dd4034 zh-cn-sha256=f39a9a85263322f473d2f94213733e3782a0f9cea937667331d96d9568c49d88 -->
+<!-- documentation-pairing: english-sha256=6420f304fd1137568c0debd312de964a6afb7b339e87fa2436804b1d9c4a53ce zh-cn-sha256=11474186f8e68c81fe2a06623eb963d0312f5f5cfd7b2826cb0a8de079801aef -->

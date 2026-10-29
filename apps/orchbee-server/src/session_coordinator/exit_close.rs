@@ -40,15 +40,10 @@ impl SessionCoordinator {
             retained.phase,
             TerminalPhase::Started { identity, .. } if identity == target.identity
         );
-        let interactive = match (&retained.launch_selection, retained.custom_default) {
-            (Some(launch), _) => interactive_shell_launch(launch.executable(), launch.arguments()),
-            (None, Some(program)) => {
-                interactive_shell_launch(program.executable(), program.arguments())
-            }
-            // A default launch of the System shell the Worker resolved.
-            (None, None) => true,
-        };
-        if !started || retained.worker_generation != target.worker.generation || !interactive {
+        if !started
+            || retained.worker_generation != target.worker.generation
+            || !retained.interactive_shell
+        {
             return false;
         }
         let Some(snapshot) = self
@@ -87,33 +82,6 @@ impl SessionCoordinator {
                 )
             })
     }
-}
-
-/// The Host's interactive Shell launch rule (`interactive_shell.zig`) applied to the retained
-/// Client launch selection or the custom default program the launch's capture dispatched:
-/// PowerShell with only plain interactive flags, `cmd` with only `/D` or `/Q`, and POSIX shells
-/// with only interactive or login flags. Commands, scripts and other programs return false. The
-/// PowerShell startup that Orchbee prepares later is never part of either argv, so its exact
-/// recognition stays with the Host.
-fn interactive_shell_launch(executable: &str, arguments: &[String]) -> bool {
-    let filename = executable.rsplit(['/', '\\']).next().unwrap_or(executable);
-    let name = match filename.split_at_checked(filename.len().saturating_sub(4)) {
-        Some((stem, extension)) if extension.eq_ignore_ascii_case(".exe") => stem,
-        _ => filename,
-    };
-    let flags: &[&str] =
-        if name.eq_ignore_ascii_case("pwsh") || name.eq_ignore_ascii_case("powershell") {
-            &["-NoLogo", "-NoProfile", "-NoExit", "-Login", "-l"]
-        } else if name.eq_ignore_ascii_case("cmd") {
-            &["/D", "/Q"]
-        } else if ["sh", "bash", "zsh", "fish", "dash", "ksh", "csh", "tcsh"].contains(&name) {
-            &["-i", "-l", "-il", "-li", "--login", "--noprofile", "--norc"]
-        } else {
-            return false;
-        };
-    arguments
-        .iter()
-        .all(|argument| flags.iter().any(|flag| argument.eq_ignore_ascii_case(flag)))
 }
 
 /// The Panel whose primary Presentation is the only Presentation and is bound to `binding`.

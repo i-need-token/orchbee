@@ -283,8 +283,8 @@ struct TerminalBinding {
     /// the binding commits.
     profile_provenance: Option<orchbee_client_server_protocol::LaunchProfileProvenance>,
     launch_selection: Option<orchbee_client_server_protocol::LaunchSelection>,
-    /// The custom default program a default launch dispatched from its capture.
-    custom_default: Option<orchbee_capability_node_protocol::DefaultCustomProgram>,
+    /// Whether the dispatched argv runs an interactive Shell, judged when the launch was planned.
+    interactive_shell: bool,
 }
 
 pub(crate) struct RetainedTerminalCreate<'coordinator> {
@@ -294,8 +294,7 @@ pub(crate) struct RetainedTerminalCreate<'coordinator> {
     pub(crate) worker_generation: WorkerGeneration,
     pub(crate) profile_provenance: Option<orchbee_client_server_protocol::LaunchProfileProvenance>,
     pub(crate) launch_selection: Option<orchbee_client_server_protocol::LaunchSelection>,
-    pub(crate) custom_default:
-        Option<&'coordinator orchbee_capability_node_protocol::DefaultCustomProgram>,
+    pub(crate) interactive_shell: bool,
 }
 
 /// Resolution of a binding identity pair against the retained creates. `Absent` is a
@@ -443,7 +442,7 @@ impl TerminalCoordinator {
             worker_generation: binding.authorization.worker_generation(),
             profile_provenance: binding.profile_provenance.clone(),
             launch_selection: binding.launch_selection.clone(),
-            custom_default: binding.custom_default.as_ref(),
+            interactive_shell: binding.interactive_shell,
         })
     }
 
@@ -767,7 +766,7 @@ impl TerminalCoordinator {
         let completion_seal = Arc::new(TerminalCompletionSeal);
         let launch_selection = request.launch().cloned();
         let launch_program = capture.launch_program(launch.as_ref());
-        let custom_default = capture.custom_default(launch.as_ref());
+        let interactive_shell = capture.launches_interactive_shell(launch.as_ref());
         let preferences = capture.preferences(launch.as_ref());
         let command = AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch)
             .with_environment(environment);
@@ -828,7 +827,7 @@ impl TerminalCoordinator {
                 phase: TerminalPhase::Creating,
                 profile_provenance: None,
                 launch_selection,
-                custom_default,
+                interactive_shell,
             },
             launch_program,
             next_identity: identity.checked_add(1),

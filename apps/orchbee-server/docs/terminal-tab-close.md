@@ -646,9 +646,10 @@ current revision only when:
   generation;
 - the launch ran an interactive Shell under the Host launch rule: PowerShell with only plain
   interactive flags, `cmd` with only `/D` or `/Q`, or a POSIX shell with only interactive or login
-  flags. TerminalCoordinator retains the argv the launch dispatched: the Client launch selection,
-  else the custom default program from the launch's preference capture. A default launch of the
-  System shell always qualifies;
+  flags. TerminalCoordinator judges this when it plans the launch, from the argv it dispatches:
+  the Client launch selection, else the custom default program from the launch's preference
+  capture. It retains only the judgment, not the argv. A default launch of the System shell always
+  qualifies;
 - the binding is the primary Presentation of a Panel without child Presentations.
 
 A sole leaf therefore closes its whole Tab, and the last Tab leaves its Workspace empty, exactly
