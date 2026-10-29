@@ -218,8 +218,11 @@ Worker 从不打开共享偏好存储或 `config.toml`。Session 在分发每次
 [启动偏好快照](../../crates/capability-node-protocol/README.zh-CN.md#启动偏好快照)中发送确认的
 滚动历史、终端默认色，以及默认启动时所选配置的命令。因此保存的修改只影响之后的创建；运行中的终端、
 已缓存的启动事实与延迟 Start 保留其快照。设备事实由 Worker 自行解析：显式程序绕过默认 Shell 发现，
-自定义配置使用字面 argv，系统 Shell 使用下述解析器及可选 POSIX 登录模式。`Unavailable` 快照只在
-Host 副作用前拒绝该次创建。`Absent` 快照保留系统 Shell、Host 颜色与 Host 滚动历史大小。
+自定义配置使用字面 argv，系统 Shell 使用下述解析器及可选 POSIX 登录模式。Worker 每一代在向 Server
+注册前只运行一次该解析器，该代的所有默认启动都复用其结果：会话运行期间新安装的 Shell 要到下一个会话
+才成为系统 Shell；移除已解析的 Shell 后，直到下一个会话前的系统 Shell 启动都以 Host 的 typed launch
+failure 失败。`Unavailable` 快照只在 Host 副作用前拒绝该次创建。`Absent` 快照保留系统 Shell、Host 颜色与
+Host 滚动历史大小。
 
 共享 `UserTerminalColors` 解析器按显式应用外观提供 Host 默认浅色／深色，系统保留已有 Host
 基线。显式终端浅色／深色／自定义保持更高优先级。启动适配器只安装这些前景／背景默认色及
@@ -853,4 +856,4 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 启动前后均可用。[所属模型](docs/windows-server-handoff.zh-CN.md) 定义精确票据、截止点、
 回滚及证据边界。公开 Server 状态／端点交接仍需独立集成；传输回执不是最终 CLI 成功。
 
-<!-- documentation-pairing: english-sha256=b4403150deb9a05bb77dddca09d87c7e786b46543ecac5e784914d9cd18b6c1f zh-cn-sha256=a7dda4a3ea3662e916021adf2426019e42d864423bb86f980481d38e22f2c2fd -->
+<!-- documentation-pairing: english-sha256=f03504480a5d5362b13913a6d44b028953383d0f0812340388effe2f66740ca8 zh-cn-sha256=3b1a3ff2167acfee9a8639cfd90997566317ad3dbc77a4770217b7dc0736df34 -->

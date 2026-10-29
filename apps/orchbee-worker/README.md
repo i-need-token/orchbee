@@ -262,8 +262,12 @@ and, for a default launch, the selected profile's command in the
 A saved change therefore reaches only later creations; running terminals, cached launch facts and
 deferred Start keep their capture. The Worker resolves device facts itself: explicit programs
 bypass default-shell discovery, a custom profile uses its literal argv, and the System shell uses
-the resolver below with optional POSIX login. An `Unavailable` capture refuses only that creation
-before Host effects. An `Absent` capture keeps the System shell, Host colors and Host scrollback.
+the resolver below with optional POSIX login. The Worker runs that resolver once per generation,
+before it registers with the Server, and every default launch of the generation reuses the result:
+a shell installed while the Session runs becomes the System shell only in the next Session, and
+removing the resolved shell turns later System-shell launches into the Host's typed launch failure
+until then. An `Unavailable` capture refuses only that creation before Host effects. An `Absent`
+capture keeps the System shell, Host colors and Host scrollback.
 
 The shared `UserTerminalColors` resolver supplies Host-default Light/Dark from explicit application
 appearance, while System keeps the existing Host baseline. Explicit terminal Light/Dark/Custom win.

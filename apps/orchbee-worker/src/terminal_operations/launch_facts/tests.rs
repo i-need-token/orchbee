@@ -9,7 +9,13 @@ use std::num::NonZeroU64;
 #[test]
 fn automatic_and_explicit_launches_reach_real_host_launch_preparation() -> Result<(), Box<dyn Error>>
 {
-    let automatic = resolve_default_interactive_launch()?.executable;
+    // A path no resolver returns: a default launch must use this generation's pinned System shell.
+    let automatic = "C:/pinned/system/pwsh.exe";
+    let system_shell = SystemShell::pinned(orchbee_local_runtime::DefaultInteractiveLaunch {
+        executable: automatic.into(),
+        arguments: Vec::new(),
+        environment: default_launch_environment(),
+    });
     let cwd = AbsoluteCwd::new(std::env::temp_dir().to_str().unwrap())?;
     for (explicit, shared) in [(false, false), (true, false), (false, true), (true, true)] {
         let defaults = shared.then(|| {
@@ -50,15 +56,6 @@ fn automatic_and_explicit_launches_reach_real_host_launch_preparation() -> Resul
             )
             .unwrap()
         });
-        let facts = resolve(
-            Some(&cwd),
-            selection.as_ref(),
-            &environment,
-            plugin.as_ref(),
-            defaults.as_ref(),
-            orchbee_local_runtime::UserTerminalColors::LIGHT,
-            false,
-        )?;
         let n = NonZeroU64::MIN;
         let authorization = TerminalOperationAuthorization::new(
             TerminalId::from_bytes([1; 16])?,
@@ -84,6 +81,12 @@ fn automatic_and_explicit_launches_reach_real_host_launch_preparation() -> Resul
         )
         .with_environment(environment)
         .with_plugin_environment(plugin)?;
+        let facts = resolve(
+            &request,
+            defaults.as_ref(),
+            &system_shell,
+            orchbee_local_runtime::UserTerminalColors::LIGHT,
+        )?;
         let HostOperationAdmission::Dispatch(dispatch) = kernel.admit_launch(request, 100)? else {
             panic!("dispatch")
         };

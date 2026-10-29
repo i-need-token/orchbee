@@ -5,6 +5,7 @@
 use super::{server_transport, unix_milliseconds};
 use crate::{
     agent_drain::AgentDrain,
+    default_interactive_launch::SystemShell,
     host_connection::HostBrokerConnection,
     terminal_authorization::{AuthorizedHostOperationKernel, HostOperationAdmission},
     terminal_host_operation::HostOperationDisposition,
@@ -36,6 +37,7 @@ pub(crate) fn run(
     generation: NonZeroU64,
     cohort: &Cohort,
     runtime: &Path,
+    system_shell: &SystemShell,
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]
     let mut server = server;
@@ -260,7 +262,8 @@ pub(crate) fn run(
                 let _no_host = server_transport::send(&server, None, &result)?;
                 continue;
             }
-            let prepared = super::prepare_or_fail(&mut kernel, &dispatch, Some(runtime), None)?;
+            let prepared =
+                super::prepare_or_fail(&mut kernel, &dispatch, Some(runtime), None, system_shell)?;
             let Some(prepared) = prepared else {
                 let result = super::take_result(&mut kernel)?;
                 let _no_host = server_transport::send(&server, None, &result)?;
@@ -307,6 +310,7 @@ pub(crate) fn run(
                 kernel,
                 super::AdmittedAux {
                     drain: &drain,
+                    system_shell,
                     worktree_slot: &worktree_slot,
                     #[cfg(windows)]
                     mutation_slot: &mutation_slot,

@@ -329,7 +329,14 @@ fn editor_source_launch_reaches_host_capture_with_literal_argv_and_retains_known
             );
             peer.shutdown(std::net::Shutdown::Both).unwrap();
         });
-        let result = run(&server, &mut host, WORKER, NonZeroU64::MIN, &drain);
+        let result = run(
+            &server,
+            &mut host,
+            WORKER,
+            NonZeroU64::MIN,
+            &drain,
+            &SystemShell::resolve(),
+        );
         driver.join().unwrap();
         assert!(result.is_err());
     }
@@ -353,7 +360,14 @@ fn editor_source_missing_viewer_fails_before_host_create_or_lazy_startup() {
         );
         peer.shutdown(std::net::Shutdown::Both).unwrap();
     });
-    let result = run(&server, &mut host, WORKER, NonZeroU64::MIN, &drain);
+    let result = run(
+        &server,
+        &mut host,
+        WORKER,
+        NonZeroU64::MIN,
+        &drain,
+        &SystemShell::resolve(),
+    );
     driver.join().unwrap();
     assert!(result.is_err());
     let fixture = CohortFixture::new();
@@ -369,7 +383,14 @@ fn editor_source_missing_viewer_fails_before_host_create_or_lazy_startup() {
         );
         peer.shutdown(std::net::Shutdown::Both).unwrap();
     });
-    let result = lazy::run(server, WORKER, NonZeroU64::MIN, &cohort, &runtime);
+    let result = lazy::run(
+        server,
+        WORKER,
+        NonZeroU64::MIN,
+        &cohort,
+        &runtime,
+        &SystemShell::resolve(),
+    );
     driver.join().unwrap();
     assert!(result.is_err());
     assert!(
@@ -530,6 +551,7 @@ fn admitted_worker_survives_failed_preparation_then_launches_and_fences_replay()
             AuthorizedHostOperationKernel::new(WORKER, NonZeroU64::MIN).unwrap(),
             AdmittedAux {
                 drain: &drain,
+                system_shell: &SystemShell::resolve(),
                 worktree_slot: &worktrees,
                 mutation_slot: &mutations,
                 plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
@@ -622,7 +644,17 @@ fn lazy_worker_retains_invalid_launch_receipt_and_answers_next_request_without_s
         );
         peer.shutdown(std::net::Shutdown::Both).unwrap();
     });
-    assert!(lazy::run(server, WORKER, NonZeroU64::MIN, &cohort, &runtime).is_err());
+    assert!(
+        lazy::run(
+            server,
+            WORKER,
+            NonZeroU64::MIN,
+            &cohort,
+            &runtime,
+            &SystemShell::resolve()
+        )
+        .is_err()
+    );
     driver.join().unwrap();
     assert!(
         !orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::host_runtime_directory(&runtime)
@@ -740,7 +772,14 @@ fn lazy_handoff_retains_ticket_history_and_worker_identity_without_starting_host
         );
         assert_eq!(peer.read(&mut [0]).unwrap(), 0);
     });
-    let result = lazy::run(server, WORKER, NonZeroU64::MIN, &cohort, &runtime);
+    let result = lazy::run(
+        server,
+        WORKER,
+        NonZeroU64::MIN,
+        &cohort,
+        &runtime,
+        &SystemShell::resolve(),
+    );
     original.join().unwrap();
     next.join().unwrap();
     assert!(
@@ -807,7 +846,14 @@ fn lazy_editor_command_query_echoes_refusals_and_current_resolution_without_star
         }
         peer.shutdown(std::net::Shutdown::Both).unwrap();
     });
-    let result = lazy::run(server, WORKER, NonZeroU64::MIN, &cohort, &runtime);
+    let result = lazy::run(
+        server,
+        WORKER,
+        NonZeroU64::MIN,
+        &cohort,
+        &runtime,
+        &SystemShell::resolve(),
+    );
     driver.join().unwrap();
     assert!(result.is_err());
     assert!(
@@ -840,7 +886,14 @@ fn admitted_editor_command_query_uses_no_host_request_or_terminal_effect() {
         assert_eq!(result.request, request);
         peer.shutdown(std::net::Shutdown::Both).unwrap();
     });
-    let outcome = run(&server, &mut host, WORKER, NonZeroU64::MIN, &drain);
+    let outcome = run(
+        &server,
+        &mut host,
+        WORKER,
+        NonZeroU64::MIN,
+        &drain,
+        &SystemShell::resolve(),
+    );
     driver.join().unwrap();
     assert!(outcome.is_err());
     host_peer

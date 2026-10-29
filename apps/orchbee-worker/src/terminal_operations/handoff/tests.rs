@@ -487,6 +487,7 @@ fn handoff_actual_admitted_loop_preserves_host_and_cached_terminal_binding_on_ne
             kernel,
             super::super::AdmittedAux {
                 drain: &drain,
+                system_shell: &crate::default_interactive_launch::SystemShell::resolve(),
                 worktree_slot: &jobs,
                 mutation_slot: &mutations,
                 plugin_jobs: &plugins,

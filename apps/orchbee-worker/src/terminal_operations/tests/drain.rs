@@ -307,6 +307,7 @@ fn admitted_request_replies_with_host_observed_event() -> TestResult {
         kernel,
         super::super::AdmittedAux {
             drain: &drain,
+            system_shell: &crate::default_interactive_launch::SystemShell::resolve(),
             worktree_slot: &worktree_slot,
             #[cfg(windows)]
             mutation_slot: &crate::worktree_mutation_job::WorktreeMutationSlot::new(

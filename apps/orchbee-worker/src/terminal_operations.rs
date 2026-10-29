@@ -18,6 +18,7 @@ use orchbee_terminal_protocol::CorrelationId;
 
 use crate::{
     agent_drain::AgentDrain,
+    default_interactive_launch::SystemShell,
     host_connection::HostBrokerConnection,
     terminal_authorization::{
         AuthorizedHostDispatch, AuthorizedHostOperation, AuthorizedHostOperationKernel,
@@ -51,6 +52,7 @@ pub(crate) fn run(
     worker_id: WorkerId,
     generation: NonZeroU64,
     drain: &Rc<RefCell<AgentDrain>>,
+    system_shell: &SystemShell,
 ) -> Result<(), Box<dyn Error>> {
     server.set_nonblocking(true)?;
     host.stream().set_nonblocking(true)?;
@@ -70,6 +72,7 @@ pub(crate) fn run(
         kernel,
         AdmittedAux {
             drain,
+            system_shell,
             worktree_slot: &worktree_slot,
             #[cfg(windows)]
             mutation_slot: &mutation_slot,
@@ -88,10 +91,12 @@ pub(crate) fn run(
 }
 
 /// Auxiliary channels admitted alongside the operation kernel: the Agent
-/// drain, the WorktreeJob discovery slot, and the managed session runtime
-/// directory (`None` for unmanaged launches).
+/// drain, this generation's System shell resolution, the WorktreeJob discovery
+/// slot, and the managed session runtime directory (`None` for unmanaged
+/// launches).
 pub(crate) struct AdmittedAux<'a> {
     pub(crate) drain: &'a Rc<RefCell<AgentDrain>>,
+    pub(crate) system_shell: &'a SystemShell,
     pub(crate) worktree_slot: &'a crate::worktree_discovery_job::WorktreeDiscoverySlot,
     #[cfg(windows)]
     pub(crate) mutation_slot: &'a crate::worktree_mutation_job::WorktreeMutationSlot,
@@ -447,8 +452,13 @@ fn run_admitted_with_handoff(
         let observed_colors = host.host_colors.borrow().latest();
         let disposition = match admission {
             HostOperationAdmission::Dispatch(dispatch) => {
-                match prepare_or_fail(&mut kernel, &dispatch, aux.session_runtime, observed_colors)?
-                {
+                match prepare_or_fail(
+                    &mut kernel,
+                    &dispatch,
+                    aux.session_runtime,
+                    observed_colors,
+                    aux.system_shell,
+                )? {
                     Some(prepared) => prepared.execute(
                         &mut kernel,
                         host,
@@ -538,8 +548,9 @@ fn prepare_or_fail(
     dispatch: &AuthorizedHostDispatch,
     session_runtime: Option<&std::path::Path>,
     observed_colors: Option<orchbee_local_runtime::UserTerminalColors>,
+    system_shell: &SystemShell,
 ) -> Result<Option<PreparedHostOperation>, Box<dyn Error>> {
-    match prepare(dispatch, session_runtime, observed_colors) {
+    match prepare(dispatch, session_runtime, observed_colors, system_shell) {
         Ok(prepared) => Ok(Some(prepared)),
         Err(_) => {
             kernel.record_pre_handoff_failure(dispatch, unix_milliseconds())?;
@@ -552,6 +563,7 @@ fn prepare(
     dispatch: &AuthorizedHostDispatch,
     session_runtime: Option<&std::path::Path>,
     observed_colors: Option<orchbee_local_runtime::UserTerminalColors>,
+    system_shell: &SystemShell,
 ) -> Result<PreparedHostOperation, Box<dyn Error>> {
     let correlation = CorrelationId::from_bytes(crate::worker_identity::fresh_identity()?)?;
     match dispatch.operation() {
@@ -586,16 +598,7 @@ fn prepare(
             };
             Ok(PreparedHostOperation::launch(
                 dispatch,
-                launch_facts::resolve(
-                    launch.cwd(),
-                    launch.launch(),
-                    launch.environment(),
-                    launch.plugin_environment(),
-                    preferences,
-                    host_colors,
-                    #[cfg(windows)]
-                    launch.editor_source().is_some(),
-                )?,
+                launch_facts::resolve(launch, preferences, system_shell, host_colors)?,
                 correlation,
                 session_runtime,
                 follows_host,

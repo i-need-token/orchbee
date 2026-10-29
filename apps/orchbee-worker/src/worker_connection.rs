@@ -19,8 +19,8 @@ use orchbee_local_worker_protocol::{
 };
 
 use crate::{
-    agent_drain::AgentDrain, host_connection::HostBrokerConnection, terminal_operations,
-    worker_options::WorkerOptions,
+    agent_drain::AgentDrain, default_interactive_launch::SystemShell,
+    host_connection::HostBrokerConnection, terminal_operations, worker_options::WorkerOptions,
 };
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -72,6 +72,9 @@ pub(crate) fn run(
         if !session.activation_started()? || !session.worker_socket_exists()? {
             return Err(io::Error::other("Session startup is unavailable").into());
         }
+        // Each path resolves the System shell once before registering, so every default launch of
+        // this Worker generation uses that one resolution.
+        let system_shell = SystemShell::resolve();
         let server = connect_to_server(session.worker_socket_path(), cohort.identity())?;
         let generation = server.generation();
         return terminal_operations::run_lazy(
@@ -80,9 +83,11 @@ pub(crate) fn run(
             generation,
             &cohort,
             &runtime,
+            &system_shell,
         );
     }
     let options = WorkerOptions::parse(arguments)?;
+    let system_shell = SystemShell::resolve();
     let server = connect_to_server(&options.server_endpoint, cohort)?;
     // The Agent Drain queue belongs to this admitted Server connection and is
     // created before the Host broker so both paths share one owner.
@@ -96,6 +101,7 @@ pub(crate) fn run(
         server.worker_id,
         server.generation(),
         &drain,
+        &system_shell,
     )
 }
 

@@ -13,28 +13,26 @@ mod powershell;
 #[cfg(unix)]
 use nix::unistd::{Uid, User};
 use orchbee_capability_node_protocol::{
-    AbsoluteCwd, DefaultLaunchProgram, TerminalLaunchPreferences,
+    AbsoluteCwd, AuthorizedTerminalLaunch, DefaultLaunchProgram, TerminalLaunchPreferences,
 };
 use orchbee_terminal_protocol::{
     ColorScheme, CreationId, CursorShape, DeviceAttributes, LaunchEnvironmentEntry, TerminalProfile,
 };
 
 use crate::{
-    default_interactive_launch::{default_launch_environment, resolve_default_interactive_launch},
+    default_interactive_launch::{SystemShell, default_launch_environment},
     terminal_host_launch_adapter::ResolvedTerminalLaunchFacts,
     worker_identity::fresh_identity,
 };
 
 pub(super) fn resolve(
-    explicit_cwd: Option<&AbsoluteCwd>,
-    selection: Option<&orchbee_capability_node_protocol::LaunchSelection>,
-    environment: &orchbee_capability_node_protocol::LaunchEnvironment,
-    plugin_environment: Option<&orchbee_capability_node_protocol::PluginTerminalEnvironment>,
+    launch: &AuthorizedTerminalLaunch,
     preferences: Option<&TerminalLaunchPreferences>,
+    system_shell: &SystemShell,
     host_colors: orchbee_local_runtime::UserTerminalColors,
-    // Windows editor launches keep their literal argument list.
-    #[cfg(windows)] editor_launch: bool,
 ) -> Result<ResolvedTerminalLaunchFacts, Box<dyn Error>> {
+    let selection = launch.launch();
+    let plugin_environment = launch.plugin_environment();
     if plugin_environment.is_some() && (!cfg!(windows) || selection.is_none()) {
         return Err(io::Error::new(
             io::ErrorKind::Unsupported,
@@ -51,33 +49,35 @@ pub(super) fn resolve(
             selection.executable().to_owned(),
             selection.arguments().to_vec(),
         ),
-        // The Session supplies only the selected profile; this device resolves its System shell.
+        // The Session supplies only the selected profile; this Worker generation's single System
+        // shell resolution supplies the shell.
         None => match preferences.and_then(TerminalLaunchPreferences::program) {
             Some(DefaultLaunchProgram::Custom(program)) => (
                 program.executable().to_owned(),
                 program.arguments().to_vec(),
             ),
             Some(&DefaultLaunchProgram::SystemShell { login }) => {
-                let mut launch = resolve_default_interactive_launch()?;
+                let mut launch = system_shell.launch()?;
                 if login {
                     launch.arguments.push("-l".into());
                 }
                 (launch.executable, launch.arguments)
             }
             None => {
-                let launch = resolve_default_interactive_launch()?;
+                let launch = system_shell.launch()?;
                 (launch.executable, launch.arguments)
             }
         },
     };
+    // Windows editor launches keep their literal argument list.
     #[cfg(windows)]
-    let arguments = if editor_launch {
+    let arguments = if launch.editor_source().is_some() {
         arguments
     } else {
         powershell::interactive_arguments(&executable, arguments)
     };
     // An explicit authorized path requires no home-directory lookup or translation.
-    let cwd = match explicit_cwd {
+    let cwd = match launch.cwd() {
         Some(cwd) => cwd.clone(),
         None => {
             let home_path = default_home()?;
@@ -91,7 +91,7 @@ pub(super) fn resolve(
         CreationId::from_bytes(fresh_identity()?)?,
         executable,
         arguments,
-        launch_environment(environment, plugin_environment),
+        launch_environment(launch.environment(), plugin_environment),
         cwd,
         terminal_profile(
             preferences
