@@ -316,5 +316,23 @@ pub(crate) fn truncate_display_start(text: &str, budget: usize, marker: &str) ->
     truncated
 }
 
+/// Like [`truncate_display`], but cuts a path from the middle: the start takes the larger half
+/// of the cells left beside `marker` and the end the rest, so both its first and last folders
+/// stay readable. A wide grapheme that would straddle either half's edge is dropped whole.
+pub(crate) fn truncate_display_middle(text: &str, budget: usize, marker: &str) -> String {
+    if display_width(text) <= budget {
+        return text.to_owned();
+    }
+    let marker_width = display_width(marker);
+    if marker_width > budget {
+        return String::new();
+    }
+    let start = (budget - marker_width).div_ceil(2);
+    // The remaining cells hold the marker and the end; the whole text never fits there.
+    let mut truncated = truncate_display(text, start, "");
+    truncated.push_str(&truncate_display_start(text, budget - start, marker));
+    truncated
+}
+
 #[cfg(test)]
 mod tests;

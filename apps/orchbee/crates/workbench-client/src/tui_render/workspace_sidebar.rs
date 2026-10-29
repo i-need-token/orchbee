@@ -9,6 +9,7 @@ use super::{
     Block, ClientView, Frame, HitLayer, HitMapBuilder, Line, Locale, Paragraph, Rect, Role, Span,
     Theme, display_width, sidebar_text, truncate_display,
 };
+use crate::terminal_text::{sanitize_terminal_text, truncate_display_middle};
 use crate::{
     machine_discovery::display_label,
     machine_picker::{
@@ -54,6 +55,9 @@ impl ProjectedSidebarLines {
 /// How a Workspace's projected lines leave room for trailing cells and a folded status line.
 #[derive(Clone, Copy, Default)]
 struct LineShape {
+    /// Cells only the identity line keeps for the disclosure that follows the name; continuation
+    /// lines use the whole width.
+    disclosure: usize,
     /// Cells the identity line gives a shown unread marker.
     markers: usize,
     /// Cells the identity line keeps free at rest, so a revealed close never re-truncates it.
@@ -215,7 +219,8 @@ fn git_spans(context: &Context<'_>, theme: &Theme, style: SidebarTokenStyle) -> 
     spans
 }
 /// The identity line keeps `shape.reserve` cells free even without metadata, so it truncates
-/// identically at rest and while a close control is revealed.
+/// identically at rest and while a close control is revealed. A folder location is a path and
+/// truncates in the middle; branch and other text truncates at the end.
 fn lines(
     view: &ClientView,
     row: &Row,
@@ -226,6 +231,7 @@ fn lines(
     shape: LineShape,
 ) -> ProjectedSidebarLines {
     let context = Context::new(view, row, locale);
+    let identity_width = width.saturating_sub(shape.disclosure);
     let text_style = |role| theme.workspace_token_style(role, Default::default(), false, false);
     let machine = if view.machines.rows.iter().filter(|m| m.enabled).count() > 1 {
         format!(
@@ -266,6 +272,12 @@ fn lines(
                         display_label(context.value(kind).expect("visible branch")),
                         if context.git_stale { " ?" } else { "  " }
                     ),
+                    // A folder keeps its whole path: the label cap would cut away the end that
+                    // middle truncation keeps.
+                    Kind::Location => {
+                        sanitize_terminal_text(context.value(kind).expect("visible folder"))
+                            .into_owned()
+                    }
                     _ => display_label(context.value(kind).expect("visible value")),
                 };
                 Some((kind, style.expect("visible style"), text))
@@ -290,13 +302,12 @@ fn lines(
             .map(|(_, _, text)| display_width(text))
             .collect();
         let separators = resolved.len().saturating_sub(1) * 3;
-        let mut remaining = width
-            .saturating_sub(if lines.is_empty() {
-                display_width(&identity) + display_width(suffix)
-            } else {
-                0
-            })
-            .saturating_sub(separators + line_slot);
+        let mut remaining = if lines.is_empty() {
+            identity_width.saturating_sub(display_width(&identity) + display_width(suffix))
+        } else {
+            width
+        }
+        .saturating_sub(separators + line_slot);
         let mut budgets = vec![0; resolved.len()];
         // Distribute bounded text cells fairly after the trailing slot is reserved.
         loop {
@@ -325,6 +336,8 @@ fn lines(
                     ),
                     if budgets[i] >= 2 { marker } else { "" }
                 )
+            } else if kind == Kind::Location {
+                truncate_display_middle(&text, budgets[i], theme.glyphs.ellipsis)
             } else {
                 truncate_display(&text, budgets[i], theme.glyphs.ellipsis)
             };
@@ -377,7 +390,7 @@ fn lines(
         .insert(0, Span::styled(identity, text_style(Role::TextSecondary)));
     lines[0] = fit(
         std::mem::take(&mut lines[0]),
-        width.saturating_sub(display_width(suffix) + slots[0]),
+        identity_width.saturating_sub(display_width(suffix) + slots[0]),
         theme.glyphs.ellipsis,
     );
     lines[0].spans.push(Span::styled(
@@ -1454,7 +1467,9 @@ pub(super) fn render(
         let suffix = &annotations[row_index];
         let closeable = source.has_part(&target, SidebarPart::Close);
         let has_disclosure = source.has_part(&target, SidebarPart::Disclosure);
+        // Only the identity line leaves room for the disclosure after the name.
         let text_width = usize::from(tracks.text_width(has_disclosure));
+        let continuation_width = usize::from(tracks.text_width(false));
         let inline = if suffix_rows(suffix, text_width) == 0 {
             suffix.as_str()
         } else {
@@ -1474,9 +1489,10 @@ pub(super) fn render(
                 context,
                 locale,
                 theme,
-                text_width,
+                continuation_width,
                 inline,
                 LineShape {
+                    disclosure: continuation_width - text_width,
                     markers,
                     reserve: if closeable { CLOSE_RESERVE } else { 0 },
                     folded: folded(view, row),
@@ -1510,8 +1526,13 @@ pub(super) fn render(
             text_width,
             continuation_style(view, row, theme),
         );
-        for line in &mut row_lines {
-            *line = fit(std::mem::take(line), text_width, theme.glyphs.ellipsis);
+        for (index, line) in row_lines.iter_mut().enumerate() {
+            let width = if index == 0 {
+                text_width
+            } else {
+                continuation_width
+            };
+            *line = fit(std::mem::take(line), width, theme.glyphs.ellipsis);
         }
         let tracks = if has_disclosure {
             tracks.with_disclosure_after(row_lines.first().map_or(0, Line::width))

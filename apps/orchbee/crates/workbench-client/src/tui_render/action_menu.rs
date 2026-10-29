@@ -1457,7 +1457,8 @@ fn color_track_width(action: &MenuAction, theme: &Theme) -> usize {
     }
 }
 
-/// A Tab menu names its Tab; a group menu names its group and the group's Tab count.
+/// A Tab menu names its Tab; a group menu names its group and the group's Tab count. The name
+/// comes first: a title too wide for both drops the count whole before the name truncates.
 fn tab_title(menu: &MenuView<'_>, locale: Locale, theme: &Theme, width: usize) -> String {
     let Some(tabs) = menu.tabs else {
         return String::new();
@@ -1470,14 +1471,15 @@ fn tab_title(menu: &MenuView<'_>, locale: Locale, theme: &Theme, width: usize) -
     if matches!(menu.source, MenuTarget::Tab(_)) {
         return truncate_display(&name, width, theme.glyphs.ellipsis);
     }
-    let path = locale.menu_group_path(tabs.scope);
-    let separator = format!(" {} ", theme.glyphs.middle_dot);
-    let budget = width.saturating_sub(display_width(&path) + display_width(&separator));
-    let name = truncate_display(&name, budget, theme.glyphs.ellipsis);
-    if name.is_empty() {
-        truncate_display(&path, width, theme.glyphs.ellipsis)
+    let titled = format!(
+        "{name} {} {}",
+        theme.glyphs.middle_dot,
+        locale.menu_group_path(tabs.scope)
+    );
+    if display_width(&titled) <= width {
+        titled
     } else {
-        format!("{name}{separator}{path}")
+        truncate_display(&name, width, theme.glyphs.ellipsis)
     }
 }
 

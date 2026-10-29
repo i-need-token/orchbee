@@ -246,3 +246,35 @@ fn typed_single_and_selected_scopes_paint_explicit_rows_and_title_the_tab() {
         }
     }
 }
+
+#[test]
+fn group_title_drops_its_tab_count_before_truncating_the_name() {
+    let theme = Theme::rgb_test_dark();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let mut menu = ActionMenu::default();
+        assert!(menu.open_for(
+            MenuTarget::TabGroups {
+                tab_id: WorkbenchTabId::parse(&format!("{:032x}", 35)).unwrap(),
+                colors: false
+            },
+            "后端服务".into(),
+            vec![MenuAction::RenameGroup],
+            None
+        ));
+        let scope = TabMenuScope::Group(NonZeroUsize::new(1).unwrap());
+        menu.set_tab_presentation(scope, None, |_| Some(scope));
+        let view = menu.view().unwrap();
+        let count = match locale {
+            Locale::EnUs => "Group (1 Tab)",
+            Locale::ZhCn => "分组（1 个标签页）",
+        };
+        let whole = format!("后端服务 {} {count}", theme.glyphs.middle_dot);
+        let fits = display_width(&whole);
+        assert_eq!(tab_title(&view, locale, &theme, fits), whole);
+        // One cell short drops the count whole; the name truncates only once it alone overflows.
+        for width in [fits - 1, 8] {
+            assert_eq!(tab_title(&view, locale, &theme, width), "后端服务");
+        }
+        assert_eq!(tab_title(&view, locale, &theme, 5), "后端…");
+    }
+}

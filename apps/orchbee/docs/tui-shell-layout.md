@@ -171,6 +171,9 @@ On the identity line they end at the row's trailing edge, where the close contro
 before the unread marker's two cells; on other lines they right-align at the end of the primary
 track. The default layout places them on the identity line and shows the Workspace location on the
 second line: its Git branch, or without one its folder, with a local home folder shortened to `~`.
+Continuation lines, the location included, use the whole primary track whether or not the identity
+line reserves a disclosure. A folder is a path and truncates in the middle, keeping its first and
+last folders; a branch truncates at the end.
 A configured continuation line appears only once one of its values is visible, so a context with
 neither branch nor folder shows one line and pending metadata never reserves a blank row. Branch
 and custom continuation rows align with the Workspace name. A configured `state_icon` paints nothing
@@ -228,7 +231,8 @@ selection or hover surface replaces the current fill until it leaves; Agent stat
 remain in their own cells. Agent continuations retain the same whole-row surface as their identity.
 Project, Recents and eligible Context disclosure use one glyph (`▾`/`▸`, with `v`/`>` ASCII fallbacks) after
 one blank cell following the displayed first-line identity. Text measurement and painting reserve
-these two cells before truncation, using display width for wide glyphs. Identity starts stay fixed.
+these two cells on the identity line before truncation, using display width for wide glyphs; other
+lines never reserve them. Identity starts stay fixed.
 Disclosure and Create appear only while the row or one of its controls is hovered or pressed, or the
 row has keyboard focus; a folded Project, Recents or Workspace keeps its disclosure visible so its
 hidden rows stay discoverable. A resting row publishes no target for a hidden control. Each revealed child is

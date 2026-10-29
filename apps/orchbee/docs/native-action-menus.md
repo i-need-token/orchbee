@@ -279,7 +279,9 @@ Chinese uses **标签页**; a group remains **group** / **分组**. Localization
 or target identity.
 
 The Tab menu's frame title names the addressed Tab with the strip's shared display name; a group
-menu's title adds the group's Tab count. Each row
+menu's title adds the group's Tab count. The group name comes first: a title too wide for the frame
+drops the whole “ · Group (N Tabs)” count, and only a name that still overflows truncates at its
+end. Each row
 states its own scope, including the selected-set count where it applies: selection marks elsewhere
 never imply that every action uses them. Its submenus cascade as untitled frames beside their
 parent; no scope header, Back button, generic X, footer or selection counter is painted. Left/Esc

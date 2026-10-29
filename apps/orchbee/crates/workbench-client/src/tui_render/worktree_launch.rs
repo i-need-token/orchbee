@@ -9,7 +9,7 @@ use super::{
     truncate_display,
 };
 use crate::client_view::{Binding, KeyCode, Modifiers};
-use crate::terminal_text::sanitize_terminal_text;
+use crate::terminal_text::{sanitize_terminal_text, truncate_display_middle};
 use crate::tui_pointer::{
     HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl,
 };
@@ -18,7 +18,6 @@ use crate::workbench_client::{
     WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
 };
 use ratatui::text::{Span, Text};
-use unicode_segmentation::UnicodeSegmentation;
 
 pub(super) fn render(
     frame: &mut Frame<'_>,
@@ -904,26 +903,7 @@ fn native_path(path: &str) -> String {
 }
 
 fn path_text(path: &str, budget: usize, marker: &str) -> String {
-    let clean = native_path(&sanitize_terminal_text(path));
-    if display_width(&clean) <= budget {
-        return clean;
-    }
-    let available = budget.saturating_sub(display_width(marker));
-    let prefix = truncate_display(&clean, available / 2, "");
-    let mut suffix = Vec::new();
-    let mut width = 0;
-    for g in clean.graphemes(true).rev() {
-        let next = width + display_width(g);
-        if next > available - available / 2 {
-            break;
-        }
-        suffix.push(g);
-        width = next;
-    }
-    format!(
-        "{prefix}{marker}{}",
-        suffix.into_iter().rev().collect::<String>()
-    )
+    truncate_display_middle(&native_path(&sanitize_terminal_text(path)), budget, marker)
 }
 
 #[cfg(test)]

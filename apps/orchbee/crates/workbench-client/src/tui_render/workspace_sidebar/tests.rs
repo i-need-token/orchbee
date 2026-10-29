@@ -748,6 +748,62 @@ fn long_branch_and_custom_text_shrink_before_fixed_divergence_counts() {
     assert!(rows.iter().any(|r| r.contains('…')));
 }
 
+#[test]
+fn folder_location_uses_the_whole_row_and_keeps_both_ends_beside_agents() {
+    let mut view = view(120, 40);
+    // Longer than the 80-scalar label cap, so the end survives only if the whole path is kept.
+    let path = "C:/Users/someone/AppData/Local/Temp/orchbee-review-long-directory-0123456789/nested-checkout-folder/checkout";
+    let rows = view
+        .machines
+        .space_rows()
+        .iter()
+        .map(|r| {
+            let mut observed = view.machines.space_checkpoint_row(r).unwrap().clone();
+            observed.git = None;
+            observed.directory.as_mut().unwrap().path =
+                WorkbenchDirectoryPath::parse(path).unwrap();
+            observed
+        })
+        .collect::<Vec<_>>();
+    let target = rows[0].target.clone();
+    view.machines.observe_spaces(vec![(
+        Choice::Local,
+        crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+            crate::machine_spaces::Checkpoint {
+                session_id: SessionId::parse(&id(1)).unwrap(),
+                revision: WorkbenchRevision::new(1),
+                metadata_revision: WorkbenchRevision::new(2),
+                git_requested: true,
+                projects: vec![crate::machine_spaces::ProjectSummary {
+                    project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
+                    label: "Repo".into(),
+                }]
+                .into(),
+                rows: rows.into(),
+            },
+        )),
+    )]);
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        crate::machine_agents::Observation::Ready(crate::machine_agents::test_support::checkpoint(
+            vec![agent_for(target, 23)],
+        )),
+    )]);
+    let (rows, _) = paint(&view, Locale::EnUs, &Theme::rgb_test_dark(), 120, 40);
+    // The Workspace with an Agent and its sibling without one show the same location line.
+    let locations = rows
+        .iter()
+        .filter(|row| row.contains("checkout"))
+        .collect::<Vec<_>>();
+    assert_eq!(locations.len(), 2, "{rows:?}");
+    assert_eq!(locations[0], locations[1], "{rows:?}");
+    assert!(
+        locations[0].trim_start().starts_with("C:/Users/"),
+        "{rows:?}"
+    );
+    assert!(locations[0].contains('…'), "{rows:?}");
+}
+
 fn paint_navigation_buffers(
     view: &ClientView,
     locale: Locale,

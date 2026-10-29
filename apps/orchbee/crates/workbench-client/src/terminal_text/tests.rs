@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use super::{
     display_width, is_forbidden_chrome_scalar, is_forbidden_terminal_scalar, project_terminal_text,
-    sanitize_terminal_symbol, sanitize_terminal_text, truncate_display,
+    sanitize_terminal_symbol, sanitize_terminal_text, truncate_display, truncate_display_middle,
 };
 
 #[test]
@@ -248,6 +248,28 @@ fn truncates_on_grapheme_boundaries_with_a_budgeted_marker() {
         ("", 4, "…", ""),
     ] {
         assert_eq!(truncate_display(text, budget, marker), expected);
+        assert!(display_width(expected) <= budget);
+    }
+}
+
+#[test]
+fn paths_keep_their_start_and_end_around_a_middle_marker() {
+    for (text, budget, marker, expected) in [
+        ("C:\\repo", 10, "…", "C:\\repo"),
+        ("~\\AppData\\Local\\Temp\\o21x", 13, "…", "~\\AppD…p\\o21x"),
+        ("~\\AppData\\Local\\Temp\\o21x", 12, "…", "~\\AppD…\\o21x"),
+        ("~\\工作区\\临时\\目录", 9, "…", "~\\工…目录"),
+        (
+            "~\\e\u{301}\u{301}xyz\\end",
+            6,
+            "…",
+            "~\\e\u{301}\u{301}…nd",
+        ),
+        ("abcdef", 1, "…", "…"),
+        ("abcdef", 1, "..", ""),
+        ("abcdef", 0, "…", ""),
+    ] {
+        assert_eq!(truncate_display_middle(text, budget, marker), expected);
         assert!(display_width(expected) <= budget);
     }
 }
