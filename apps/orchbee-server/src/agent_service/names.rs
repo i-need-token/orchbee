@@ -4,6 +4,7 @@
 
 mod launch;
 mod terminal;
+pub(crate) use launch::{LaunchEvidence, ObservedCommand};
 #[cfg(windows)]
 pub(crate) use terminal::TerminalNameFact;
 #[cfg(not(windows))]

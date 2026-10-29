@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::identity::{
     AgentAttachmentGeneration, AgentHostEpoch, AgentHostTerminalId, AgentName, AgentPresentationId,
-    AgentProviderId, AgentSafeInteger, AgentSessionId, ObapRequestId,
+    AgentProviderId, AgentRunToken, AgentSafeInteger, AgentSessionId, ObapRequestId,
 };
 use crate::model::deserialize_required_nullable;
 use crate::read::AgentUnavailableReason;
@@ -136,11 +136,13 @@ pub enum AgentLaunchOutcome {
     },
     Reserved {
         reservation: AgentLaunchReservation,
+        run_token: AgentRunToken,
     },
     Pending {
         reservation: AgentLaunchReservation,
         #[serde(deserialize_with = "deserialize_required_nullable")]
         candidate_session_id: Option<AgentSessionId>,
+        receipt: AgentLaunchReceipt,
     },
     Completed {
         reservation_id: ObapRequestId,
@@ -155,6 +157,24 @@ pub enum AgentLaunchOutcome {
     },
     Unavailable {
         reason: AgentUnavailableReason,
+    },
+}
+
+/// Shell evidence for the reservation's run token. Only managed PowerShell echoes the token;
+/// other shells stay `awaiting`. Once a phase is observed it never moves back.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "phase",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum AgentLaunchReceipt {
+    Awaiting {},
+    Started {},
+    /// The launched command returned to the prompt; `succeeded` is PowerShell's `$?`.
+    Finished {
+        succeeded: bool,
     },
 }
 

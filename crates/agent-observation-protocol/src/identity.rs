@@ -114,6 +114,9 @@ macro_rules! define_hex_identity {
 }
 
 define_hex_identity!(ObapRequestId);
+// A Server-minted Agent start run; managed PowerShell echoes it in its command markers and
+// exports it to the launched command only.
+define_hex_identity!(AgentRunToken);
 define_hex_identity!(AgentPresentationId);
 define_hex_identity!(AgentHostEpoch);
 define_hex_identity!(AgentHostTerminalId);

@@ -49,8 +49,11 @@ fn launch_policy_rejects_before_preparation_and_failed_preparation_never_reserve
         ),
     ] {
         let service = AgentService::open(AgentPolicy { read, manage }).unwrap();
-        let result = service
-            .execute_launch_prepared(request, || panic!("denied capability must not prepare"));
+        let result = service.execute_launch_prepared(
+            request,
+            || panic!("denied capability must not prepare"),
+            Vec::new,
+        );
         assert_eq!(result.outcome(), &AgentLaunchOutcome::Rejected { reason });
         assert!(service.next_deadline().unwrap().is_none());
     }
@@ -59,7 +62,8 @@ fn launch_policy_rejects_before_preparation_and_failed_preparation_never_reserve
         manage: true,
     })
     .unwrap();
-    let result = service.execute_launch_prepared(request('4'), || Err(PreparedUnavailable));
+    let result =
+        service.execute_launch_prepared(request('4'), || Err(PreparedUnavailable), Vec::new);
     assert!(matches!(
         result.outcome(),
         AgentLaunchOutcome::Unavailable { .. }
@@ -111,12 +115,16 @@ fn competing_launches_commit_one_claim_and_service_timer_releases_it() {
                 let barrier = &barrier;
                 scope.spawn(move || {
                     barrier.wait();
-                    service.execute_launch_prepared(request(seed), || {
-                        service
-                            .snapshot()
-                            .map_err(|_| PreparedUnavailable)?
-                            .ok_or(PreparedUnavailable)
-                    })
+                    service.execute_launch_prepared(
+                        request(seed),
+                        || {
+                            service
+                                .snapshot()
+                                .map_err(|_| PreparedUnavailable)?
+                                .ok_or(PreparedUnavailable)
+                        },
+                        Vec::new,
+                    )
                 })
             })
             .collect();
@@ -195,7 +203,10 @@ fn management_policy_precedes_guarded_preparation_and_preserves_unavailable() {
     ));
     assert!(matches!(
         service
-            .execute_launch_guarded(request, |request| service.fold_launch(request))
+            .execute_launch_guarded(request, |request| service.fold_launch(
+                request,
+                &crate::agent_service::names::LaunchEvidence::fixture()
+            ))
             .outcome(),
         AgentLaunchOutcome::Rejected {
             reason: AgentLaunchRejectionReason::SessionNotFound

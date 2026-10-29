@@ -92,7 +92,8 @@ fn reservation_excludes_stale_sessions_competing_claims_and_alias_interference_u
             &reserve(10, "alpha", &bindings[0], 10000),
             &snapshot,
             &bindings,
-            100
+            100,
+            &super::LaunchEvidence::fixture()
         ),
         Outcome::Reserved { .. }
     ));
@@ -101,7 +102,8 @@ fn reservation_excludes_stale_sessions_competing_claims_and_alias_interference_u
             &reserve(11, "alpha", &bindings[1], 10000),
             &snapshot,
             &bindings,
-            100
+            100,
+            &super::LaunchEvidence::fixture()
         ),
         reject(Rejection::NameInUse)
     );
@@ -110,12 +112,19 @@ fn reservation_excludes_stale_sessions_competing_claims_and_alias_interference_u
             &reserve(11, "beta", &bindings[0], 10000),
             &snapshot,
             &bindings,
-            100
+            100,
+            &super::LaunchEvidence::fixture()
         ),
         reject(Rejection::PresentationBusy)
     );
     assert!(matches!(
-        names.execute_launch(&inspect(10), &snapshot, &bindings, 100),
+        names.execute_launch(
+            &inspect(10),
+            &snapshot,
+            &bindings,
+            100,
+            &super::LaunchEvidence::fixture()
+        ),
         Outcome::Pending {
             candidate_session_id: None,
             ..
@@ -133,18 +142,36 @@ fn reservation_excludes_stale_sessions_competing_claims_and_alias_interference_u
     );
     snapshot.sessions[0].observation.sequence += 1;
     assert_eq!(
-        names.execute_launch(&complete(10), &snapshot, &bindings, 3099),
+        names.execute_launch(
+            &complete(10),
+            &snapshot,
+            &bindings,
+            3099,
+            &super::LaunchEvidence::fixture()
+        ),
         reject(Rejection::NotReady)
     );
     assert!(matches!(
-        names.execute_launch(&complete(10), &snapshot, &bindings, 3100),
+        names.execute_launch(
+            &complete(10),
+            &snapshot,
+            &bindings,
+            3100,
+            &super::LaunchEvidence::fixture()
+        ),
         Outcome::Completed { .. }
     ));
     assert!(names.pending_names().is_empty());
     assert_eq!(names.by_name.get("alpha").unwrap().as_str(), "s1");
     assert_eq!(names.total_bindings(), 1);
     assert_eq!(
-        names.execute_launch(&inspect(10), &snapshot, &bindings, 3100),
+        names.execute_launch(
+            &inspect(10),
+            &snapshot,
+            &bindings,
+            3100,
+            &super::LaunchEvidence::fixture()
+        ),
         reject(Rejection::ReservationNotFound)
     );
 }
@@ -159,6 +186,7 @@ fn expiry_replacement_and_old_cancellation_cannot_leak_or_release_a_new_claim() 
         &snapshot,
         &bindings,
         10,
+        &super::LaunchEvidence::fixture(),
     );
     assert_eq!(names.next_launch_deadline_ms(), Some(1010));
     assert!(matches!(
@@ -166,7 +194,8 @@ fn expiry_replacement_and_old_cancellation_cannot_leak_or_release_a_new_claim() 
             &reserve(11, "alpha", &bindings[0], 1000),
             &snapshot,
             &bindings,
-            1010
+            1010,
+            &super::LaunchEvidence::fixture()
         ),
         Outcome::Reserved { .. }
     ));
@@ -175,7 +204,13 @@ fn expiry_replacement_and_old_cancellation_cannot_leak_or_release_a_new_claim() 
         reservation_id: id(10),
     };
     assert_eq!(
-        names.execute_launch(&cancel, &snapshot, &bindings, 1011),
+        names.execute_launch(
+            &cancel,
+            &snapshot,
+            &bindings,
+            1011,
+            &super::LaunchEvidence::fixture()
+        ),
         reject(Rejection::ReservationNotFound)
     );
     assert_eq!(names.pending_names()[0].reservation_id, id(11));
@@ -192,6 +227,7 @@ fn expiry_replacement_and_old_cancellation_cannot_leak_or_release_a_new_claim() 
         &snapshot,
         &bindings,
         1012,
+        &super::LaunchEvidence::fixture(),
     );
     names.reconcile_launches(&bindings, 1013, true);
     assert!(names.pending_names().is_empty());
@@ -207,17 +243,30 @@ fn candidate_ambiguity_staleness_and_attention_do_not_manufacture_readiness() {
         &snapshot,
         &bindings,
         0,
+        &super::LaunchEvidence::fixture(),
     );
     snapshot.sessions[0].observation.sequence += 1;
     snapshot.sessions[0].observation.freshness = AgentFreshness::Stale;
     assert_eq!(
-        names.execute_launch(&complete(10), &snapshot, &bindings, 3000),
+        names.execute_launch(
+            &complete(10),
+            &snapshot,
+            &bindings,
+            3000,
+            &super::LaunchEvidence::fixture()
+        ),
         reject(Rejection::NotReady)
     );
     snapshot.sessions[0].observation.freshness = AgentFreshness::Fresh;
     snapshot.sessions[0].turn = AgentTurnState::Unknown;
     assert_eq!(
-        names.execute_launch(&complete(10), &snapshot, &bindings, 3000),
+        names.execute_launch(
+            &complete(10),
+            &snapshot,
+            &bindings,
+            3000,
+            &super::LaunchEvidence::fixture()
+        ),
         reject(Rejection::NotReady)
     );
     snapshot.sessions[0].turn = AgentTurnState::Idle;
@@ -229,7 +278,13 @@ fn candidate_ambiguity_staleness_and_attention_do_not_manufacture_readiness() {
             turn_id: None,
         });
     assert_eq!(
-        names.execute_launch(&complete(10), &snapshot, &bindings, 3000),
+        names.execute_launch(
+            &complete(10),
+            &snapshot,
+            &bindings,
+            3000,
+            &super::LaunchEvidence::fixture()
+        ),
         reject(Rejection::NotReady)
     );
     snapshot.sessions[0].pending_requests.clear();
@@ -237,12 +292,24 @@ fn candidate_ambiguity_staleness_and_attention_do_not_manufacture_readiness() {
     other.session_id = OpaqueId::new("s2").unwrap();
     snapshot.sessions.push(other);
     assert_eq!(
-        names.execute_launch(&inspect(10), &snapshot, &bindings, 3000),
+        names.execute_launch(
+            &inspect(10),
+            &snapshot,
+            &bindings,
+            3000,
+            &super::LaunchEvidence::fixture()
+        ),
         reject(Rejection::CandidateAmbiguous)
     );
     snapshot.sessions[1].parent_session_id = Some(OpaqueId::new("s1").unwrap());
     assert!(matches!(
-        names.execute_launch(&inspect(10), &snapshot, &bindings, 3000),
+        names.execute_launch(
+            &inspect(10),
+            &snapshot,
+            &bindings,
+            3000,
+            &super::LaunchEvidence::fixture()
+        ),
         Outcome::Pending {
             candidate_session_id: Some(_),
             ..
@@ -266,7 +333,13 @@ fn managed_readiness_requires_completed_launch_and_dies_with_its_ownership() {
         };
         names.assign(&snapshot, &target, &AgentName::parse("manual").unwrap());
         assert!(matches!(
-            names.execute_launch(&status, &snapshot, &bindings, 0),
+            names.execute_launch(
+                &status,
+                &snapshot,
+                &bindings,
+                0,
+                &super::LaunchEvidence::fixture()
+            ),
             Outcome::Status {
                 management: AgentManagement::Unmanaged {},
                 ..
@@ -279,9 +352,16 @@ fn managed_readiness_requires_completed_launch_and_dies_with_its_ownership() {
             &snapshot,
             &bindings,
             0,
+            &super::LaunchEvidence::fixture(),
         );
         assert!(matches!(
-            names.execute_launch(&status, &snapshot, &bindings, 1),
+            names.execute_launch(
+                &status,
+                &snapshot,
+                &bindings,
+                1,
+                &super::LaunchEvidence::fixture()
+            ),
             Outcome::Status {
                 management: AgentManagement::Pending { blocked: false, .. },
                 ..
@@ -289,12 +369,24 @@ fn managed_readiness_requires_completed_launch_and_dies_with_its_ownership() {
         ));
         snapshot.sessions[0].observation.sequence += 1;
         assert!(matches!(
-            names.execute_launch(&complete(10), &snapshot, &bindings, 3000),
+            names.execute_launch(
+                &complete(10),
+                &snapshot,
+                &bindings,
+                3000,
+                &super::LaunchEvidence::fixture()
+            ),
             Outcome::Completed { .. }
         ));
         names.assign(&snapshot, &target, &AgentName::parse("renamed").unwrap());
         assert!(matches!(
-            names.execute_launch(&status, &snapshot, &bindings, 4000),
+            names.execute_launch(
+                &status,
+                &snapshot,
+                &bindings,
+                4000,
+                &super::LaunchEvidence::fixture()
+            ),
             Outcome::Status {
                 management: AgentManagement::Active { .. },
                 ..
@@ -315,7 +407,13 @@ fn managed_readiness_requires_completed_launch_and_dies_with_its_ownership() {
             _ => unreachable!(),
         }
         assert!(matches!(
-            names.execute_launch(&status, &snapshot, &bindings, 4001),
+            names.execute_launch(
+                &status,
+                &snapshot,
+                &bindings,
+                4001,
+                &super::LaunchEvidence::fixture()
+            ),
             Outcome::Status {
                 management: AgentManagement::Unmanaged {},
                 ..
@@ -324,4 +422,55 @@ fn managed_readiness_requires_completed_launch_and_dies_with_its_ownership() {
         assert!(names.launches.active.is_empty());
         assert!(names.launches.active.is_empty());
     }
+}
+
+/// The receipt follows only its own token on its own Host Terminal, and a finished run never
+/// moves back when the Host later reports an unrelated command.
+#[test]
+fn launch_receipt_latches_its_own_token_on_its_own_terminal() {
+    let bindings = [binding(1), binding(2)];
+    let snapshot = snapshot(&bindings[0]);
+    let mut names = Names::default();
+    let Outcome::Reserved { run_token, .. } = names.execute_launch(
+        &reserve(10, "alpha", &bindings[0], 10000),
+        &snapshot,
+        &bindings,
+        100,
+        &super::LaunchEvidence::fixture(),
+    ) else {
+        panic!("reserved");
+    };
+    let token = u128::from_str_radix(run_token.as_str(), 16)
+        .unwrap()
+        .to_be_bytes();
+    let command = |seed: u8, id: [u8; 16], finished: Option<bool>| super::ObservedCommand {
+        host: binding(seed).host,
+        id,
+        finished,
+    };
+    let mut inspect_with = |commands: Vec<super::ObservedCommand>| {
+        let evidence = super::LaunchEvidence {
+            run_token: None,
+            commands,
+        };
+        match names.execute_launch(&inspect(10), &snapshot, &bindings, 200, &evidence) {
+            Outcome::Pending { receipt, .. } => receipt,
+            other => panic!("{other:?}"),
+        }
+    };
+    let awaiting = AgentLaunchReceipt::Awaiting {};
+    // Another Terminal echoing the same token, or this Terminal echoing another command.
+    assert_eq!(inspect_with(vec![command(2, token, Some(false))]), awaiting);
+    assert_eq!(
+        inspect_with(vec![command(1, [3; 16], Some(false))]),
+        awaiting
+    );
+    assert_eq!(
+        inspect_with(vec![command(1, token, None)]),
+        AgentLaunchReceipt::Started {}
+    );
+    let finished = AgentLaunchReceipt::Finished { succeeded: false };
+    assert_eq!(inspect_with(vec![command(1, token, Some(false))]), finished);
+    assert_eq!(inspect_with(vec![command(1, [3; 16], None)]), finished);
+    assert_eq!(inspect_with(Vec::new()), finished);
 }

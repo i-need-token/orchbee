@@ -236,6 +236,12 @@ generation/sequence 基线。候选必须是存活的根会话、精确附着在
 匹配，而且观察晚于基线（或基线中尚不存在）。零候选表示 pending，多个候选
 明确返回歧义。这是本地观察证据，不是 provider 进程的因果认证。
 
+Reserve 还在 fold 之前用操作系统熵生成运行令牌，并与预留一起保存；无法取得熵时
+Reserve 返回 unavailable。进程采样器从每个被接受的帧中保留最新的 shell 回传命令。
+每个启动请求在叶锁外读取这些命令，fold 只依据本预留所在 Host 终端回传本预留令牌的
+命令锁存回执：awaiting、started，然后是带 PowerShell `$?` 的 finished。阶段不会回退。
+回执是交给 Client 的启动证据，不改变候选、就绪判断或识别等级。
+
 名称和预留共享 512 项容量。名称、预留 presentation、已提交的会话别名各自唯一。
 普通名称赋值不能占用预留名称，也不能改名其预留 presentation 上的会话；释放和
 解析在适用时明确报告 pending-launch。`agent names` 分别投影已提交绑定和待定
@@ -560,4 +566,4 @@ Devin 六组 hook 仅接收 session-identified。身份刷新保留未知或已�
 
 Hermes 仅准入 session-identified。会话启动／重置和 CLI 恢复观察保留规范轮次状态，不制造空闲或完成。
 
-<!-- documentation-pairing: english-sha256=00d3389d08b53b455d624cfa9204098b7a2c63bee216d1469b649cc7bb0e526b zh-cn-sha256=63aaa881a653069dc95fa380d768c02cbf23927af3610fb6c25515b2067bac7a -->
+<!-- documentation-pairing: english-sha256=c191406d5dbba751c6f3f2d8d31134686d5ca4bdd823dddafe76aee5993977a5 zh-cn-sha256=9e4c74a9681ff6039596bf9d526c9b44ce172f647bf13cb332ef66d38faa3c80 -->

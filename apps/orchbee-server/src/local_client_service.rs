@@ -342,9 +342,11 @@ fn handle_candidate_control(
                 .map(orchbee_agent_observation_protocol::AgentResult::Read),
             orchbee_agent_observation_protocol::AgentRequest::Launch(request) => {
                 Ok(orchbee_agent_observation_protocol::AgentResult::Launch(
-                    agents.execute_launch_prepared(request, || {
-                        terminals.prepare_agent_drain_read(agents)
-                    }),
+                    agents.execute_launch_prepared(
+                        request,
+                        || terminals.prepare_agent_drain_read(agents),
+                        || terminals.observed_commands(),
+                    ),
                 ))
             }
             orchbee_agent_observation_protocol::AgentRequest::Names(request) => {

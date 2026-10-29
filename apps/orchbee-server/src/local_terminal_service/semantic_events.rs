@@ -27,6 +27,7 @@ impl LocalTerminalService {
         handle: &crate::worker_obcn_carrier::WorkerRequestHandle,
         target: crate::terminal_coordinator::BindingViewerTarget,
         frame: Option<(u64, u64)>,
+        command: Option<orchbee_terminal_protocol::TerminalObservedCommand>,
         lifecycle: Option<(u64, bool)>,
         started: std::time::Instant,
     ) {
@@ -45,10 +46,18 @@ impl LocalTerminalService {
         coordinator.observe_terminal_projection(
             target,
             frame,
+            command,
             lifecycle,
             started,
             std::time::Instant::now(),
         );
+    }
+    /// Read the coordinator's latest echoed commands; a poisoned lock yields no evidence.
+    pub(crate) fn observed_commands(&self) -> Vec<crate::agent_service::ObservedCommand> {
+        self.coordinator
+            .lock()
+            .map(|coordinator| coordinator.observed_commands())
+            .unwrap_or_default()
     }
     pub(crate) fn capture_event_output(
         &self,

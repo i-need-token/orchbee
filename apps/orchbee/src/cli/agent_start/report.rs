@@ -251,6 +251,7 @@ pub(super) fn domain_failure(error: crate::agent_start::Failure) -> Failure {
         StartFailure::RuntimeAmbiguous => (FailureKind::Rejected, "agent-runtime-ambiguous"),
         StartFailure::ProviderMismatch => (FailureKind::Rejected, "agent-provider-mismatch"),
         StartFailure::AgentExited => (FailureKind::Rejected, "agent-exited"),
+        StartFailure::LaunchFailed => (FailureKind::Rejected, "launch-command-failed"),
         StartFailure::AgentBlocked => (FailureKind::Rejected, "agent-blocked"),
         StartFailure::ReplyNotConfirmed => (FailureKind::OutcomeUnknown, "reply-not-confirmed"),
         StartFailure::InvalidProtocol => (FailureKind::ProtocolInvalid, "launch-protocol-invalid"),

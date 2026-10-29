@@ -4,10 +4,11 @@ use std::collections::BTreeMap;
 
 use orchbee_agent_observation_protocol::{
     AgentAttachmentGeneration, AgentHostEpoch, AgentHostTerminalId, AgentLaunchBinding,
-    AgentLaunchOutcome as Outcome, AgentLaunchRejectionReason as Rejection, AgentLaunchRequest,
-    AgentLaunchReservation, AgentName, AgentProviderId, AgentSafeInteger, AgentSessionId,
-    LAUNCH_SETTLE_MS, MAXIMUM_LAUNCH_TTL_MS, ObapRequestId,
+    AgentLaunchOutcome as Outcome, AgentLaunchReceipt, AgentLaunchRejectionReason as Rejection,
+    AgentLaunchRequest, AgentLaunchReservation, AgentName, AgentProviderId, AgentRunToken,
+    AgentSafeInteger, AgentSessionId, LAUNCH_SETTLE_MS, MAXIMUM_LAUNCH_TTL_MS, ObapRequestId,
 };
+use orchbee_capability_node_protocol::HostTerminalIdentity;
 
 use super::Names;
 use crate::agent::native_observation::Binding;
@@ -31,6 +32,8 @@ struct Managed {
 }
 struct Entry {
     id: ObapRequestId,
+    run_token: AgentRunToken,
+    receipt: AgentLaunchReceipt,
     name: AgentName,
     provider: AgentProviderId,
     binding: Binding,
@@ -73,6 +76,31 @@ fn attached(session: &AgentSessionSnapshot, binding: &Binding) -> bool {
     })
 }
 
+/// The latest shell-echoed command one Host Terminal reported; `finished` is PowerShell's `$?`.
+#[derive(Clone, Debug)]
+pub(crate) struct ObservedCommand {
+    pub(crate) host: HostTerminalIdentity,
+    pub(crate) id: [u8; 16],
+    pub(crate) finished: Option<bool>,
+}
+
+/// Server evidence for one launch transition, gathered outside the names owner: a freshly
+/// minted run token for Reserve and the latest echoed command per Host Terminal for Inspect.
+pub(crate) struct LaunchEvidence {
+    pub(crate) run_token: Option<AgentRunToken>,
+    pub(crate) commands: Vec<ObservedCommand>,
+}
+
+impl LaunchEvidence {
+    #[cfg(test)]
+    pub(crate) fn fixture() -> Self {
+        Self {
+            run_token: AgentRunToken::parse(&"7".repeat(32)).ok(),
+            commands: Vec::new(),
+        }
+    }
+}
+
 fn reject(reason: Rejection) -> Outcome {
     Outcome::Rejected { reason }
 }
@@ -91,6 +119,25 @@ impl Entry {
                     .saturating_sub(now),
             ),
         }
+    }
+
+    /// Latch the run's shell evidence from its own Host Terminal. The Host keeps only the latest
+    /// echoed command, so a later unrelated command never moves a phase back.
+    fn observe(&mut self, commands: &[ObservedCommand]) {
+        let token = u128::from_str_radix(self.run_token.as_str(), 16)
+            .ok()
+            .map(u128::to_be_bytes);
+        let Some(command) = commands
+            .iter()
+            .find(|command| command.host == self.binding.host && Some(command.id) == token)
+        else {
+            return;
+        };
+        self.receipt = match (self.receipt, command.finished) {
+            (AgentLaunchReceipt::Finished { .. }, _) => self.receipt,
+            (_, Some(succeeded)) => AgentLaunchReceipt::Finished { succeeded },
+            (_, None) => AgentLaunchReceipt::Started {},
+        };
     }
 
     fn candidate<'a>(
@@ -238,6 +285,7 @@ impl Names {
         snapshot: &AgentRuntimeSnapshot,
         bindings: &[Binding],
         now_ms: u64,
+        evidence: &LaunchEvidence,
     ) -> Outcome {
         self.reconcile_launches(bindings, now_ms, false);
         self.reconcile_managed(snapshot);
@@ -286,6 +334,11 @@ impl Names {
             };
             // Wire validation guarantees the TTL range. Retain the guard for
             // typed in-process callers, before any authoritative mutation.
+            let Some(run_token) = evidence.run_token.clone() else {
+                return Outcome::Unavailable {
+                    reason: orchbee_agent_observation_protocol::AgentUnavailableReason::RuntimeUnavailable,
+                };
+            };
             let Some(expires_ms) = now
                 .checked_add(ttl_ms.value())
                 .filter(|_| (1..=MAXIMUM_LAUNCH_TTL_MS).contains(&ttl_ms.value()))
@@ -294,6 +347,8 @@ impl Names {
             };
             let entry = Entry {
                 id: request_id.clone(),
+                run_token: run_token.clone(),
+                receipt: AgentLaunchReceipt::Awaiting {},
                 name: name.clone(),
                 provider: provider_id.clone(),
                 binding: binding.clone(),
@@ -313,7 +368,10 @@ impl Names {
             };
             let reservation = entry.view(now);
             self.launches.entries.insert(request_id.clone(), entry);
-            return Outcome::Reserved { reservation };
+            return Outcome::Reserved {
+                reservation,
+                run_token,
+            };
         }
         let reservation_id = match request {
             AgentLaunchRequest::Inspect { reservation_id, .. }
@@ -323,9 +381,11 @@ impl Names {
                 unreachable!("handled above")
             }
         };
-        let Some(entry) = self.launches.entries.get(reservation_id) else {
+        let Some(entry) = self.launches.entries.get_mut(reservation_id) else {
             return reject(Rejection::ReservationNotFound);
         };
+        entry.observe(&evidence.commands);
+        let entry = &*entry;
         if matches!(request, AgentLaunchRequest::Cancel { .. }) {
             self.launches.entries.remove(reservation_id);
             return Outcome::Released {
@@ -343,6 +403,7 @@ impl Names {
                     AgentSessionId::parse(session.session_id.as_str())
                         .expect("canonical session uses the wire identity profile")
                 }),
+                receipt: entry.receipt,
             };
         }
         let AgentLaunchRequest::Complete { session_id, .. } = request else {

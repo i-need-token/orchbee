@@ -277,6 +277,7 @@ fn semantic_events_keep_real_settlement_independent_of_process_refusal_and_rejec
     assert!(coordinator.observe_terminal_projection(
         target.target,
         Some((u64::MAX, 7)),
+        None,
         Some((42, true)),
         started,
         started
@@ -288,6 +289,7 @@ fn semantic_events_keep_real_settlement_independent_of_process_refusal_and_rejec
     assert!(!coordinator.observe_terminal_projection(
         target.target,
         Some((1, 9)),
+        None,
         Some((41, false)),
         started,
         started

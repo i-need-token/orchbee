@@ -305,7 +305,13 @@ fn pending_launch_and_terminal_name_cannot_claim_each_others_name_or_physical_ta
     };
     let physical = facts.iter().map(|f| f.binding.clone()).collect::<Vec<_>>();
     assert!(matches!(
-        names.execute_launch(&reserve, &snapshot, &physical, 0),
+        names.execute_launch(
+            &reserve,
+            &snapshot,
+            &physical,
+            0,
+            &crate::agent_service::names::LaunchEvidence::fixture()
+        ),
         AgentLaunchOutcome::Reserved { .. }
     ));
     assert!(matches!(
@@ -328,7 +334,13 @@ fn pending_launch_and_terminal_name_cannot_claim_each_others_name_or_physical_ta
         *name = AgentName::parse("alpha").unwrap();
     }
     assert!(matches!(
-        names.execute_launch(&next, &snapshot, &physical, 0),
+        names.execute_launch(
+            &next,
+            &snapshot,
+            &physical,
+            0,
+            &crate::agent_service::names::LaunchEvidence::fixture()
+        ),
         AgentLaunchOutcome::Rejected {
             reason: orchbee_agent_observation_protocol::AgentLaunchRejectionReason::NameInUse
         }
@@ -360,7 +372,13 @@ fn physical_name_is_reclaimed_before_launch_without_a_names_read() {
         ttl_ms: AgentSafeInteger::new(10000),
     };
     assert!(matches!(
-        names.execute_launch(&reserve, &snapshot, &[new.binding], 0),
+        names.execute_launch(
+            &reserve,
+            &snapshot,
+            &[new.binding],
+            0,
+            &crate::agent_service::names::LaunchEvidence::fixture()
+        ),
         AgentLaunchOutcome::Reserved { .. }
     ));
     assert!(names.terminal_claim("reuse").is_none());

@@ -110,6 +110,12 @@ impl super::CliText {
                 "The Agent exited before readiness was confirmed. Inspect its terminal output."
             }
             (Locale::ZhCn, "agent-exited") => "智能体在确认就绪前已退出，请检查其终端输出。",
+            (Locale::EnUs, "launch-command-failed") => {
+                "The launch command failed in PowerShell before the Agent started, for example because the provider was not found. Inspect its terminal output."
+            }
+            (Locale::ZhCn, "launch-command-failed") => {
+                "启动命令在 PowerShell 中执行失败，智能体未能启动，例如找不到提供方程序。请检查其终端输出。"
+            }
             (Locale::EnUs, "agent-provider-mismatch" | "agent-runtime-ambiguous") => {
                 "The running Agent does not uniquely match the requested provider."
             }

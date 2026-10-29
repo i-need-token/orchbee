@@ -15,6 +15,7 @@ mod cursor;
 mod launch;
 mod map;
 mod names;
+pub(crate) use names::ObservedCommand;
 #[cfg(windows)]
 pub(crate) use names::TerminalNameFact;
 #[cfg(test)]

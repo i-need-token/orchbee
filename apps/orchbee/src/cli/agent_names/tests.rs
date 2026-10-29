@@ -16,12 +16,12 @@ fn launch_protocol_and_pending_names_match_published_schemas() {
         (
             "reserve",
             json!({"name":"alpha","providerId":"codex","presentationId":id,"hostEpoch":id,"hostTerminalId":id,"ttlMs":10000}),
-            json!({"kind":"reserved","reservation":reservation}),
+            json!({"kind":"reserved","reservation":reservation,"runToken":id}),
         ),
         (
             "inspect",
             json!({"reservationId":id}),
-            json!({"kind":"pending","reservation":reservation,"candidateSessionId":null}),
+            json!({"kind":"pending","reservation":reservation,"candidateSessionId":null,"receipt":{"phase":"finished","succeeded":true}}),
         ),
         (
             "complete",

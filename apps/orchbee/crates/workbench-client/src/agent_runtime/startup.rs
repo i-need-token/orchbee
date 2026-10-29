@@ -2,6 +2,7 @@
 pub(crate) use super::processes::{Selection, interpret};
 pub(crate) use super::{SendVerdict, wait_backoff};
 pub(crate) mod binding;
+pub(crate) mod identity;
 pub(crate) mod observation;
 pub(crate) mod processes;
 pub(crate) mod send;

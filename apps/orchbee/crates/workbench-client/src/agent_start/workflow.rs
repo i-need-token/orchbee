@@ -11,9 +11,10 @@ use crate::local_client::{
     agent::{AgentExchangeError, AgentExchangeFailure},
 };
 use orchbee_agent_observation_protocol::{
-    AgentHostEpoch, AgentHostTerminalId, AgentLaunchOutcome, AgentLaunchRequest,
-    AgentLaunchReservation, AgentLifecycle, AgentObservationFreshness, AgentPresentationId,
-    AgentSafeInteger, AgentSemanticStatus, AgentSessionId, ObapRequestId,
+    AgentHostEpoch, AgentHostTerminalId, AgentLaunchOutcome, AgentLaunchReceipt,
+    AgentLaunchRequest, AgentLaunchReservation, AgentLifecycle, AgentObservationFreshness,
+    AgentPresentationId, AgentProcessIdentity, AgentSafeInteger, AgentSemanticStatus,
+    AgentSessionId, ObapRequestId,
 };
 use orchbee_local_ipc::LocalIo;
 use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessInfo};
@@ -199,16 +200,18 @@ impl Workflow<'_> {
             self.step()?,
             wake,
         )?;
-        let reservation = match outcome {
-            AgentLaunchOutcome::Reserved { reservation }
-                if reservation.reservation_id == reservation_id
-                    && reservation.name == self.request.name
-                    && reservation.provider_id == self.request.provider
-                    && reservation.binding.presentation_id == presentation
-                    && reservation.binding.host_epoch == epoch
-                    && reservation.binding.host_terminal_id == physical =>
+        let (reservation, run_token) = match outcome {
+            AgentLaunchOutcome::Reserved {
+                reservation,
+                run_token,
+            } if reservation.reservation_id == reservation_id
+                && reservation.name == self.request.name
+                && reservation.provider_id == self.request.provider
+                && reservation.binding.presentation_id == presentation
+                && reservation.binding.host_epoch == epoch
+                && reservation.binding.host_terminal_id == physical =>
             {
-                reservation
+                (reservation, run_token)
             }
             outcome @ (AgentLaunchOutcome::Rejected { .. }
             | AgentLaunchOutcome::Unavailable { .. }) => {
@@ -244,6 +247,16 @@ impl Workflow<'_> {
             .then(|| super::command::interactive(self.request.provider.as_str(), powershell))
             .flatten();
         let text = concise.as_deref().unwrap_or(text);
+        // Managed PowerShell strips this exact comment prefix, echoes the run token in its
+        // start and finish markers, and exports it to this command only. Any other PowerShell
+        // reads the prefix as a block comment and runs the command unchanged.
+        let receipted;
+        let text = if managed_powershell(&sample.info) {
+            receipted = format!("<#orchbee-run:{run_token}#> {text}");
+            receipted.as_str()
+        } else {
+            text
+        };
         let receipt = match agent_start_runtime::send::submit_prompt(
             client,
             &terminal.binding,
@@ -277,12 +290,13 @@ impl Workflow<'_> {
         if let Some(progress) = self.progress {
             progress(super::Progress::Observing);
         }
-        self.observe(client, terminal, &reservation, submitted, wake)
+        self.observe(client, snapshot, terminal, &reservation, submitted, wake)
     }
 
     fn observe(
         &mut self,
         client: &mut LocalClient,
+        snapshot: &Snapshot,
         terminal: &PrimaryTerminal,
         reservation: &AgentLaunchReservation,
         submitted: Instant,
@@ -301,14 +315,25 @@ impl Workflow<'_> {
                 wake,
             )
             .map_err(|failure| self.read_failure(failure))?;
-            let (pending, candidate) = match outcome {
+            let (pending, candidate, receipt) = match outcome {
                 AgentLaunchOutcome::Pending {
                     reservation: pending,
                     candidate_session_id,
-                } if same_reservation(reservation, &pending) => (pending, candidate_session_id),
+                    receipt,
+                } if same_reservation(reservation, &pending) => {
+                    (pending, candidate_session_id, receipt)
+                }
                 other => return Err(refusal(other)),
             };
             self.last_observed = Some(pending.clone());
+            // The launched command already returned to the managed PowerShell prompt.
+            if let AgentLaunchReceipt::Finished { succeeded } = receipt {
+                return Err(Failure::Start(if succeeded {
+                    StartFailure::AgentExited
+                } else {
+                    StartFailure::LaunchFailed
+                }));
+            }
             let process = self.sample(client, terminal, wake)?;
             if process.epoch.to_text() != reservation.binding.host_epoch.as_str()
                 || process.info.terminal_id.to_text()
@@ -318,12 +343,31 @@ impl Workflow<'_> {
                 return Err(Failure::Start(StartFailure::BindingChanged));
             }
             let runtime = agent_start_runtime::interpret(&process.info);
+            let identified = agent_start_runtime::identity::read(
+                client,
+                snapshot,
+                &terminal.presentation,
+                reservation.binding.host_terminal_id.as_str(),
+                self.step()?,
+                wake,
+            );
+            let provider = match identified {
+                Some(AgentProcessIdentity::Agent { provider, .. }) => {
+                    if provider.native_provider_id() != self.request.provider.as_str() {
+                        // The Server settled another provider in this Terminal generation.
+                        return Err(Failure::Start(StartFailure::ProviderMismatch));
+                    }
+                    Some(provider.native_provider_id())
+                }
+                // Without a settled Server result, the per-sample selection keeps deciding.
+                _ => runtime.foreground.provider,
+            };
             match runtime.foreground.selection {
                 agent_start_runtime::Selection::Ambiguous => {
                     return Err(Failure::Start(StartFailure::RuntimeAmbiguous));
                 }
                 agent_start_runtime::Selection::AgentChain
-                    if runtime.foreground.provider != Some(self.request.provider.as_str()) =>
+                    if provider != Some(self.request.provider.as_str()) =>
                 {
                     return Err(Failure::Start(StartFailure::ProviderMismatch));
                 }
@@ -378,7 +422,7 @@ impl Workflow<'_> {
                             | AgentSemanticStatus::Interrupted { .. }
                     );
                 if ready
-                    && runtime.foreground.provider == Some(self.request.provider.as_str())
+                    && provider == Some(self.request.provider.as_str())
                     && submitted.elapsed() >= SETTLE
                     && pending.settle_remaining_ms.value() == 0
                 {
@@ -618,6 +662,30 @@ fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure>
         .iter()
         .find(|p| p.pid == sample.root_pid)
         .ok_or_else(refuse)
+}
+
+/// The shell runs the Worker's fixed PowerShell initialization, which carries the run markers.
+fn managed_powershell(sample: &TerminalProcessInfo) -> bool {
+    let interpreted = agent_start_runtime::interpret(sample);
+    interpreted
+        .processes
+        .iter()
+        .find(|p| p.facts.pid == sample.root_pid)
+        .is_some_and(|root| {
+            root.facts.image.as_deref().is_some_and(|image| {
+                matches!(
+                    crate::agent_provider::basename(image).as_str(),
+                    "powershell" | "pwsh"
+                )
+            }) && root
+                .argv
+                .as_deref()
+                .and_then(<[String]>::last)
+                .is_some_and(|script| {
+                    script
+                        == &orchbee_local_runtime::windows_interactive_powershell_initialization()
+                })
+        })
 }
 
 fn interrupted(wake: Option<LocalIo<'_>>) -> Result<(), Failure> {

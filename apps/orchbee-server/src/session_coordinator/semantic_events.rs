@@ -12,6 +12,8 @@ pub(super) struct Observation {
     started: Instant,
     frame: Option<(u64, u64)>,
     lifecycle: Option<(u64, bool)>,
+    /// The Host's latest shell-echoed command from the newest accepted frame.
+    command: Option<orchbee_terminal_protocol::TerminalObservedCommand>,
 }
 pub(super) type Observations = BTreeMap<(String, String), Observation>;
 
@@ -21,6 +23,7 @@ impl SessionCoordinator {
         &mut self,
         target: crate::terminal_coordinator::BindingViewerTarget,
         frame: Option<(u64, u64)>,
+        command: Option<orchbee_terminal_protocol::TerminalObservedCommand>,
         lifecycle: Option<(u64, bool)>,
         started: Instant,
         now: Instant,
@@ -115,6 +118,11 @@ impl SessionCoordinator {
                 );
             }
         }
+        let retained_command = if frame.is_some() {
+            command
+        } else {
+            prior.and_then(|prior| prior.command)
+        };
         let retained_frame = frame.or_else(|| prior.and_then(|prior| prior.frame));
         let retained_lifecycle = lifecycle.or_else(|| prior.and_then(|prior| prior.lifecycle));
         self.terminal_observations.insert(
@@ -124,9 +132,24 @@ impl SessionCoordinator {
                 started,
                 frame: retained_frame,
                 lifecycle: retained_lifecycle,
+                command: retained_command,
             },
         );
         true
+    }
+    /// The latest shell-echoed command per current Host Terminal, for launch receipts.
+    pub(crate) fn observed_commands(&self) -> Vec<crate::agent_service::ObservedCommand> {
+        self.terminal_observations
+            .values()
+            .filter_map(|observed| {
+                let command = observed.command?;
+                Some(crate::agent_service::ObservedCommand {
+                    host: observed.physical.identity,
+                    id: command.id,
+                    finished: command.completed.then_some(command.exit_code == 0),
+                })
+            })
+            .collect()
     }
     pub(crate) fn event_journal(&self) -> Option<orchbee_server::SessionEventJournal> {
         Some(self.workbench.as_ref()?.event_journal())

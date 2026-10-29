@@ -67,6 +67,7 @@
 								"agent-runtime-ambiguous",
 								"agent-provider-mismatch",
 								"agent-exited",
+								"launch-command-failed",
 								"agent-blocked",
 								"cancelled",
 								"signal-finalization-failed",

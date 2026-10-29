@@ -70,7 +70,8 @@ Windows 进程创建／Job 分配调用以及最长一秒的尽力预留释放�
 1. 在准入前校验并引用所有参数。解析并固定主终端，观察 shell 身份，按精确原生绑定预留名称。
 2. 重新核对物理终端、Host epoch 与 shell PID/创建身份。提交一次字面 paste 加 Enter；
    PowerShell 在 Enter 前增加 Right，以完成 paste 处理。
-3. 检查同一预留与终端。Server 排除未变化的旧观察和歧义候选；CLI 还要求运行中的提供方匹配。
+3. 检查同一预留与终端。Server 排除未变化的旧观察和歧义候选；CLI 还要求运行中的提供方匹配，
+   [启动回执](#启动回执)和 Server 识别结果可提前否定这一点。
 4. 仅对固定的 live 会话完成启动：状态新鲜、idle/已完成且无待处理关注，距离提交至少
    3000 毫秒，并经过 Server 的预留稳定期。Server 重新校验后原子绑定名称并移除预留。
 
@@ -86,6 +87,30 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 
 进程样本是预检，不是原子输入租约。用户输入与独立 send 可能竞争。Canonical hook、
 匹配的进程身份和观察基线提供有界本机证据，不是对提供方或新启动会话的因果认证。
+
+## 启动回执
+
+Reserve 同时返回 Server 生成的运行令牌：非零、永不复用的 32 位小写十六进制值。Shell 运行
+Worker 的受管 PowerShell 初始化时，Agent 启动在唯一一次提交的行前加 `<#orchbee-run:<token>#> `。
+经过校验的读取包装器剥离该前缀，只为这条命令导出 `ORCHBEE_RUN_TOKEN`，并在开始和完成标记中
+回传令牌；命令返回时 prompt 删除该变量。其他 PowerShell 把前缀当作注释，命令照常执行；cmd
+不加前缀。
+
+Server 依据其采样器对同一 Host 终端的最新帧锁存每个预留的回执：`awaiting`、`started`，
+然后是带 PowerShell `$?` 的 `finished`。Inspect 以 `receipt` 返回。收到 finished 回执时启动
+立即结束：`$?` 为 false 报告 `launch-command-failed`（例如找不到提供方程序），为 true 报告
+`agent-exited`。没有回执时，3000 毫秒后的空闲 shell 检查仍报告 `agent-exited`。
+
+每次进程采样后，启动流程读取 Server 对所预留终端的识别结果。已稳定的 `agent` 结果若是另一
+提供方，报告 `agent-provider-mismatch`，例如 Cursor 的通用名 `agent` 实际启动了 Grok；若是
+所请求的提供方，则确认该提供方。其他结果、读取失败或终端不符时，仍由逐样本选择决定。
+
+- 每个预留只有一个运行令牌；只有本 Host 终端回传该令牌才能推进其回执，回执阶段不会回退。
+- 前缀不增加输入：仍只提交一行一次，且不重放。
+- 令牌只进入受管包装器执行的那条命令。
+- 回执和识别结果只能让启动提前结束，都不能完成启动，也不会让逐样本证据和 canonical 会话
+  本可完成的启动失败或延迟。
+- `confirmed` 等级和按令牌绑定 hook 属于后续切片；识别结果仍为 `recognized`。
 
 ## Windows 参数边界
 
@@ -142,4 +167,4 @@ Pending 状态携带原始预留及当前 blocked 标志。读取不延长期限
 
 原生表单在检测尚无结果时不预选提供商，也不生成自动名称。已发现的提供商排在手动选项之前；显式选择按提供商身份固定，不随目录更新改变。没有显式选择时，首个发现的提供商成为默认项；检测结束且未发现候选时选择首个手动提供商。启动反馈仅在看板状态行显示一次，结果未确认时引导用户查看终端。只有固定身份的规范关注观察才声明需要输入；进程存在本身不能证明就绪。
 
-<!-- documentation-pairing: english-sha256=3c8ef7d5046df6f19ac365d9a8f232d08e78a1d8d0a58fd538acea8e798db194 zh-cn-sha256=68302d37fc9e62a332a5e7f5c339813e55c5cbfcbe1784c324da9d4b294f462d -->
+<!-- documentation-pairing: english-sha256=588495af266d250a684842591f76606b668780482e912c2f1dd9215059e1677d zh-cn-sha256=f8cc741407649bfb51a06b695429e22ba55f596002eb06a14e08e19538d4e5d0 -->

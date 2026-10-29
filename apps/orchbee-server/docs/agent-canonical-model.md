@@ -282,6 +282,14 @@ pinned generation, provider-matching, and newer than its baseline (or absent fro
 it). Zero candidates means pending; multiple candidates are an explicit ambiguity.
 This is local observation evidence, not causal authentication of a provider process.
 
+Reserve also mints the run token from OS entropy before the fold and stores it with the
+reservation; without entropy Reserve is unavailable. The process sampler keeps the latest
+shell-echoed command from each accepted frame. Each launch request reads those commands
+outside the leaf lock, and the fold latches the receipt only from the reservation's own Host
+Terminal echoing its own token: awaiting, started, then finished with PowerShell's `$?`.
+A phase never moves back. The receipt is launch evidence for the Client; it does not change
+candidates, readiness, or the identity grade.
+
 Names and reservations share the 512-entry capacity. Each name, reserved presentation
 and committed session alias is unique. Normal name assignment cannot claim a reserved
 name or rename a session on its reserved presentation; release and resolution report

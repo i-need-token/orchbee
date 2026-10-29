@@ -413,7 +413,7 @@ fn validate_launch_result(result: &AgentLaunchResult) -> Result<(), AgentContrac
                 }
             }
         }
-        AgentLaunchOutcome::Reserved { reservation } => {
+        AgentLaunchOutcome::Reserved { reservation, .. } => {
             if !matches!(result, AgentLaunchResult::Reserve { .. })
                 || &reservation.reservation_id != result.request_id()
             {

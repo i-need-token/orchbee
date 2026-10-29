@@ -13,6 +13,9 @@ const GENERATION: &str = "55555555555555555555555555555555";
 // `amp` is a shared alias, so only an install root proves the Agent.
 const AMP: &str = r"C:\Users\orchbee\.amp\bin\amp.exe";
 
+const RUN: &str = "99999999999999999999999999999999";
+const SETTLING: &str = r#"{"result":"unknown","reason":"settling"}"#;
+
 fn request(stream: &mut LocalStream) -> AgentLaunchRequest {
     let AgentRequest::Launch(request) = read_agent_request(stream).unwrap() else {
         panic!("launch request");
@@ -50,7 +53,7 @@ fn reserve(stream: &mut LocalStream) -> Value {
         stream,
         &request,
         "reserve",
-        json!({"kind":"reserved","reservation":reservation}),
+        json!({"kind":"reserved","reservation":reservation,"runToken":RUN}),
     );
     reservation
 }
@@ -65,6 +68,34 @@ fn release(stream: &mut LocalStream, reservation: &Value) {
         "cancel",
         json!({"kind":"released","reservationId":reservation["reservationId"]}),
     );
+}
+/// The Server's identity result for the reservation's Terminal, read after each process sample.
+fn identify(stream: &mut LocalStream, reservation: &Value, identity: &str) {
+    use orchbee_workbench_protocol::{
+        PanelAgentAction, PanelAgentOutcome, PanelAgentResult, ProtocolVersion, WorkbenchRequest,
+        WorkbenchResponse, WorkbenchRevision, read_workbench_request, write_workbench_response,
+    };
+    let WorkbenchRequest::PanelAgent(request) = read_workbench_request(stream).unwrap() else {
+        panic!("one Identify after the process sample")
+    };
+    assert!(matches!(&request.action, PanelAgentAction::Identify { .. }));
+    write_workbench_response(
+        stream,
+        &WorkbenchResponse::PanelAgent(PanelAgentResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            session_id: request.session_id,
+            outcome: PanelAgentOutcome::Identified {
+                workbench_revision: WorkbenchRevision::new(1),
+                binding: serde_json::from_value(reservation["binding"].clone()).unwrap(),
+                identity: serde_json::from_str(identity).unwrap(),
+            },
+        }),
+    )
+    .unwrap();
+}
+fn pending(reservation: &Value, candidate: Value, receipt: Value) -> Value {
+    json!({"kind":"pending","reservation":reservation,"candidateSessionId":candidate,"receipt":receipt})
 }
 fn shell(stream: &mut LocalStream) {
     process_reply(stream, vec![process(10, None, "cmd.exe")]);
@@ -168,12 +199,13 @@ fn startup_observation_deadline_keeps_accepted_input_and_pending_reservation() {
             &mut stream,
             &inspect,
             "inspect",
-            json!({"kind":"pending","reservation":reservation,"candidateSessionId":null}),
+            pending(&reservation, Value::Null, json!({"phase":"awaiting"})),
         );
         process_reply(
             &mut stream,
             vec![process(10, None, "cmd.exe"), process(11, Some(10), AMP)],
         );
+        identify(&mut stream, &reservation, SETTLING);
         assert!(matches!(
             request(&mut stream),
             AgentLaunchRequest::Inspect { .. }
@@ -228,7 +260,7 @@ fn startup_samples_again_after_unavailable_sample_but_preserves_permanent_host_f
             &mut stream,
             &inspect,
             "inspect",
-            json!({"kind":"pending","reservation":reservation,"candidateSessionId":null}),
+            pending(&reservation, Value::Null, json!({"phase":"awaiting"})),
         );
         process_sample_reply(&mut stream, Err("process-sample-unavailable"));
         process_reply(
@@ -238,6 +270,7 @@ fn startup_samples_again_after_unavailable_sample_but_preserves_permanent_host_f
                 process(11, Some(10), "claude.exe"),
             ],
         );
+        identify(&mut stream, &reservation, SETTLING);
         release(&mut stream, &reservation);
         assert_closed(&mut stream);
     });
@@ -360,12 +393,17 @@ fn startup_binds_only_ready_matching_agent_and_keeps_unknown_commit_distinct() {
                 &mut stream,
                 &inspect,
                 "inspect",
-                json!({"kind":"pending","reservation":reservation,"candidateSessionId":"sess-alpha"}),
+                pending(
+                    &reservation,
+                    json!("sess-alpha"),
+                    json!({"phase":"awaiting"}),
+                ),
             );
             process_reply(
                 &mut stream,
                 vec![process(10, None, "cmd.exe"), process(11, Some(10), AMP)],
             );
+            identify(&mut stream, &reservation, SETTLING);
             let mut detail = session_detail("sess-alpha");
             detail["snapshot"]["providerId"] = json!("amp");
             detail["snapshot"]["turn"] = json!({"kind":"idle"});
@@ -409,6 +447,60 @@ fn startup_binds_only_ready_matching_agent_and_keeps_unknown_commit_distinct() {
         } else {
             assert_eq!(document["result"]["sessionId"], "sess-alpha");
         }
+    }
+}
+
+/// A settled Server identity naming another provider fails startup even when the per-sample
+/// chain names the requested one; a finished launch receipt reports the shell status at once.
+#[test]
+fn startup_consumes_server_identity_and_finished_launch_receipts() {
+    let cases = [
+        (
+            json!({"phase":"started"}),
+            Some(r#"{"result":"agent","providerId":"grok","grade":"recognized"}"#),
+            "agent-provider-mismatch",
+        ),
+        (
+            json!({"phase":"finished","succeeded":false}),
+            None,
+            "launch-command-failed",
+        ),
+        (
+            json!({"phase":"finished","succeeded":true}),
+            None,
+            "agent-exited",
+        ),
+    ];
+    for (receipt, identity, reason) in cases {
+        let (output, document) = run(move |mut stream| {
+            bound_snapshot_reply(&mut stream);
+            shell(&mut stream);
+            let reservation = reserve(&mut stream);
+            shell(&mut stream);
+            input(&mut stream, accepted());
+            let inspect = request(&mut stream);
+            respond(
+                &mut stream,
+                &inspect,
+                "inspect",
+                pending(&reservation, Value::Null, receipt),
+            );
+            if let Some(identity) = identity {
+                process_reply(
+                    &mut stream,
+                    vec![process(10, None, "cmd.exe"), process(11, Some(10), AMP)],
+                );
+                self::identify(&mut stream, &reservation, identity);
+            }
+            release(&mut stream, &reservation);
+            assert_closed(&mut stream);
+        });
+        assert_eq!(output.status.code(), Some(3), "{reason}");
+        assert_eq!(document["failure"]["details"]["reason"], reason);
+        assert_eq!(
+            document["failure"]["details"]["submission"]["result"]["inputStatus"],
+            "accepted"
+        );
     }
 }
 

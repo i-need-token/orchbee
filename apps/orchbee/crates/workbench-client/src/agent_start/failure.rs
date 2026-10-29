@@ -36,6 +36,9 @@ pub enum StartFailure {
     RuntimeAmbiguous,
     ProviderMismatch,
     AgentExited,
+    /// The launch command returned to the managed PowerShell prompt with `$?` false, for
+    /// example because the provider was not found.
+    LaunchFailed,
     AgentBlocked,
     ReplyNotConfirmed,
     InvalidProtocol,

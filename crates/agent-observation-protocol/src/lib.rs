@@ -37,13 +37,13 @@ pub use frame::{
 pub use identity::{
     AgentAttachmentGeneration, AgentAttentionRequestId, AgentEventId, AgentExecutionLocationId,
     AgentHostEpoch, AgentHostTerminalId, AgentIdentityError, AgentName, AgentPresentationId,
-    AgentProviderId, AgentSafeInteger, AgentSessionId, AgentTurnId, MAXIMUM_SAFE_INTEGER,
-    ObapRequestId,
+    AgentProviderId, AgentRunToken, AgentSafeInteger, AgentSessionId, AgentTurnId,
+    MAXIMUM_SAFE_INTEGER, ObapRequestId,
 };
 pub use launch::{
-    AgentLaunchBinding, AgentLaunchOutcome, AgentLaunchOutcomeEnvelope, AgentLaunchRejectionReason,
-    AgentLaunchRequest, AgentLaunchReservation, AgentLaunchResult, AgentManagement,
-    LAUNCH_SETTLE_MS, MAXIMUM_LAUNCH_TTL_MS,
+    AgentLaunchBinding, AgentLaunchOutcome, AgentLaunchOutcomeEnvelope, AgentLaunchReceipt,
+    AgentLaunchRejectionReason, AgentLaunchRequest, AgentLaunchReservation, AgentLaunchResult,
+    AgentManagement, LAUNCH_SETTLE_MS, MAXIMUM_LAUNCH_TTL_MS,
 };
 pub use model::{
     AgentActivity, AgentAttentionKind, AgentAttentionRequest, AgentCapability,

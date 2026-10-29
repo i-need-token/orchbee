@@ -93,7 +93,8 @@ and [Qoder installation](https://docs.qoder.com/cli/installation).
 2. Recheck the physical terminal, Host epoch and shell PID/creation identity. Submit one
    literal paste plus Enter; PowerShell adds Right before Enter to flush paste handling.
 3. Inspect the same reservation and terminal. The Server excludes unchanged preexisting
-   observations and ambiguous candidates. The CLI also requires the expected running provider.
+   observations and ambiguous candidates. The CLI also requires the expected running provider,
+   which the [launch receipt](#launch-receipt) and the Server identity result can refute early.
 4. Complete only for the pinned live session with fresh idle/completed state and no pending
    attention, at least 3000 ms after submission and the Server's reservation settling period.
    The Server rechecks and atomically binds the name while removing the reservation.
@@ -114,6 +115,37 @@ an unconfirmed mutation still reports outcome unknown.
 A process sample is a preflight, not an atomic input lease. User input and independent sends
 may race. Canonical hooks, matching process identity and observation baselines provide bounded
 local evidence, not causal authentication of a provider or a newly launched session.
+
+## Launch receipt
+
+Reserve also returns a Server-minted run token: a nonzero, never-reused 32-digit lowercase
+hexadecimal value. When the shell runs the Worker's managed PowerShell initialization, Agent
+start prefixes its one submitted line with `<#orchbee-run:<token>#> `. The verified reader
+wrapper strips that prefix, exports the token as `ORCHBEE_RUN_TOKEN` to that command only, and
+echoes it in the start and finish markers; the prompt removes the variable when the command
+returns. Any other PowerShell reads the prefix as a comment and runs the command unchanged; cmd
+receives no prefix.
+
+The Server latches each reservation's receipt from its sampler's latest frame of the same Host
+Terminal: `awaiting`, `started`, then `finished` with PowerShell's `$?`. Inspect returns it as
+`receipt`. A finished receipt ends startup at once: `$?` false reports `launch-command-failed`,
+for example when the provider is not found, and true reports `agent-exited`. Without a receipt,
+the idle-shell check after 3000 ms still reports `agent-exited`.
+
+After each process sample, startup reads the Server's identity result for the reserved Terminal.
+A settled `agent` result naming another provider reports `agent-provider-mismatch`, such as
+Grok answering Cursor's generic `agent` name; one naming the requested provider confirms it.
+Any other result, or a failed or mismatched read, leaves the per-sample selection in charge.
+
+- One reservation has one run token; only its own Host Terminal echoing that token advances its
+  receipt, and a receipt phase never moves back.
+- The prefix never adds input: one line is still submitted once and never replayed.
+- The token reaches only the command the managed wrapper ran.
+- The receipt and the identity result can only end startup early; neither completes it, and
+  neither can fail or delay a startup that the per-sample evidence and canonical session would
+  complete.
+- The `confirmed` grade and hook binding by token belong to later slices; the identity result
+  stays `recognized`.
 
 ## Windows argument boundary
 

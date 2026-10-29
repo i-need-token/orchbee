@@ -479,6 +479,10 @@ pub(super) fn observe(
             &viewer.handle,
             viewer.target,
             version,
+            projection
+                .as_ref()
+                .and_then(|frame| frame.command_observation)
+                .and_then(|observation| observation.command),
             lifecycle,
             started,
         );

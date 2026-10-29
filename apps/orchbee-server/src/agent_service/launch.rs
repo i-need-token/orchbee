@@ -7,20 +7,30 @@ use orchbee_agent_observation_protocol::{
     AgentLaunchResult, AgentUnavailableReason,
 };
 
+use super::names::{LaunchEvidence, ObservedCommand};
 use super::{AgentRuntimeSnapshot, AgentService, PreparedUnavailable};
 
 #[cfg(test)]
 mod tests;
 
 impl AgentService {
+    /// `observed` reads the latest shell-echoed command per Host Terminal outside this owner's
+    /// lock; Reserve also mints the run token here, before any reservation mutation.
     pub(crate) fn execute_launch_prepared(
         &self,
         request: AgentLaunchRequest,
         prepare: impl FnOnce() -> Result<AgentRuntimeSnapshot, PreparedUnavailable>,
+        observed: impl FnOnce() -> Vec<ObservedCommand>,
     ) -> AgentLaunchResult {
         self.execute_launch_guarded(request, |request| {
             prepare()?;
-            self.fold_launch(request)
+            let evidence = LaunchEvidence {
+                run_token: matches!(request, AgentLaunchRequest::Reserve { .. })
+                    .then(mint_run_token)
+                    .flatten(),
+                commands: observed(),
+            };
+            self.fold_launch(request, &evidence)
         })
     }
 
@@ -70,6 +80,7 @@ impl AgentService {
     fn fold_launch(
         &self,
         request: &AgentLaunchRequest,
+        evidence: &LaunchEvidence,
     ) -> Result<AgentLaunchOutcome, PreparedUnavailable> {
         self.with_state(|state| {
             if state.runtime.is_disposed() {
@@ -81,8 +92,20 @@ impl AgentService {
                 state.runtime.snapshot(),
                 state.native.bindings(),
                 now,
+                evidence,
             ))
         })
         .map_err(|_| PreparedUnavailable)?
     }
+}
+
+/// A fresh, never-reused run token from OS entropy; without entropy Reserve is unavailable.
+fn mint_run_token() -> Option<orchbee_agent_observation_protocol::AgentRunToken> {
+    let mut bytes = [0_u8; 16];
+    getrandom::fill(&mut bytes).ok()?;
+    orchbee_agent_observation_protocol::AgentRunToken::parse(&format!(
+        "{:032x}",
+        u128::from_be_bytes(bytes)
+    ))
+    .ok()
 }

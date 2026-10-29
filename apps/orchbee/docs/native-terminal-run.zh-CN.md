@@ -10,7 +10,7 @@
 
 Windows 的 `--wait [--timeout <ms>]` 使用只读 viewer 和受管 PowerShell 集成。总期限默认为 30000 毫秒，包含发现、就绪观察、提交、轮询和清理。集成不受支持或尚未就绪时，在输入前拒绝。调用者须拥有空的可编辑命令行；viewer 不排除并发用户输入。
 
-CLI 生成随机调用 ID，并发送带注释前缀的一次 paste/Enter 请求。经过校验的 PSReadLine 包装器仅剥离精确前缀，将原命令返回 PowerShell，不在新作用域求值。私有 APC 标记在命令开始和完成时回传 ID。无关的 OSC 133 完成不能结束本次等待。Host 只保留最近一次关联调用；缺失或被覆盖的证据可能导致超时，绝不授权重放。这是协作式 Shell 证据，不是针对终端进程的身份认证边界。
+CLI 生成随机调用 ID，并发送带注释前缀的一次 paste/Enter 请求。经过校验的 PSReadLine 包装器仅剥离精确前缀，将原命令返回 PowerShell，不在新作用域求值。私有 APC 标记在命令开始和完成时回传 ID。包装器只为这条命令把 ID 导出为 `ORCHBEE_RUN_TOKEN`，完成时 prompt 删除它。Agent 启动以 Server 生成的运行令牌复用此前缀，见 [Windows Agent 启动](windows-agent-start.zh-CN.md#启动回执)。无关的 OSC 133 完成不能结束本次等待。Host 只保留最近一次关联调用；缺失或被覆盖的证据可能导致超时，绝不授权重放。这是协作式 Shell 证据，不是针对终端进程的身份认证边界。
 
 JSON 使用 `orchbee.terminal.run` v1。`submission` 保留完整输入回执；`completion` 单独包含 `exitCode`、`statusKind: powershell-success` 和物理输出坐标。PowerShell 的 `$? = true` 对应 0，否则为 1；不猜测原生进程退出码。generation 或行原点变化后，输出范围的 `retained` 为 false。`failure` 保留超时、取消和传输事实，不抹去已接受输入或已观察完成；`cleanup` 记录 viewer 清理义务。取消不会停止 Shell 命令。JSON 是恢复格式，脚本工作应在提交前选择它。
 
@@ -24,4 +24,4 @@ Host 重启、generation 变化、历史淘汰或超出所选窗口的间隙会�
 
 解析、游标、线格式解码和 Host 读取批次用例覆盖精确关联、无关完成、无效记录及不重放。Windows 命名管道用例覆盖既有单次 paste/Enter 回执路径。证据来自同作者实现测试，不声称独立审查或穷尽调度证明。帮助、补全适配器、离线 Agent 指南与 schema 同步演进。旧二进制拒绝新选项；既有会话须使用新初始化的受管 PowerShell 才支持关联等待。
 
-<!-- documentation-pairing: english-sha256=4ff6c2d5d95038b9f2a591c951262b982f20946e0800eca2f6fe072ecc681de5 zh-cn-sha256=fb98aa495843959542998dd15b0824a85130bb376af71a5049af6b64d4119162 -->
+<!-- documentation-pairing: english-sha256=2175af01a46695cdf99c2850932e8aaf1ab3c66a8b3265629d302bbef010ed7e zh-cn-sha256=1b31a4a2d2b923b153654af58c76556d2e037ebc4c2a6286738a8fa04812bec8 -->

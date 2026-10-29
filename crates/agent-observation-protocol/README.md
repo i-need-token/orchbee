@@ -70,7 +70,9 @@ The names family additionally accepts `{kind:"presentation", presentationId}`. R
 Launch results are bounded at 1,024 bytes before allocation. Reservations pin a native
 presentation, creation generation, Host epoch and physical terminal. Reserve request IDs
 also identify reservations. TTL is 1–300000 milliseconds; settleRemainingMs is 0–3000.
-Inspect's candidateSessionId is required and nullable. Only the matching operation's
+Inspect's candidateSessionId is required and nullable. Reserved carries a required nonzero
+runToken; Inspect's pending outcome carries a required receipt whose phase is awaiting,
+started, or finished with a boolean succeeded. Only the matching operation's
 success outcome is valid. Names resolve/assign/release explicitly refuse launch-pending.
 Deadline, readiness, baseline observations, exact binding reconciliation and atomic name
 commit remain Server responsibilities in the [canonical model](../../apps/orchbee-server/docs/agent-canonical-model.md).

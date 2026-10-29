@@ -122,6 +122,14 @@
 			"pattern": "^[0-9a-f]{32}$",
 			"$comment": "Request identity: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
 		},
+		"runToken": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			},
+			"$comment": "Server-minted Agent start run token; managed PowerShell echoes it in command markers and exports it to the launched command only."
+		},
 		"cursor": {
 			"type": "string",
 			"pattern": "^v1\\.[A-Za-z0-9_-]{59}\\.[A-Za-z0-9_-]{43}$",
@@ -1579,6 +1587,33 @@
 				}
 			}
 		},
+		"launchReceipt": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["phase"],
+					"additionalProperties": false,
+					"properties": {
+						"phase": {
+							"enum": ["awaiting", "started"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["phase", "succeeded"],
+					"additionalProperties": false,
+					"properties": {
+						"phase": {
+							"const": "finished"
+						},
+						"succeeded": {
+							"type": "boolean"
+						}
+					}
+				}
+			]
+		},
 		"launchReservation": {
 			"type": "object",
 			"required": [
@@ -1685,7 +1720,7 @@
 							"oneOf": [
 								{
 									"type": "object",
-									"required": ["kind", "reservation"],
+									"required": ["kind", "reservation", "runToken"],
 									"additionalProperties": false,
 									"properties": {
 										"kind": {
@@ -1693,6 +1728,9 @@
 										},
 										"reservation": {
 											"$ref": "#/$defs/launchReservation"
+										},
+										"runToken": {
+											"$ref": "#/$defs/runToken"
 										}
 									}
 								},
@@ -1767,7 +1805,7 @@
 							"oneOf": [
 								{
 									"type": "object",
-									"required": ["kind", "reservation", "candidateSessionId"],
+									"required": ["kind", "reservation", "candidateSessionId", "receipt"],
 									"additionalProperties": false,
 									"properties": {
 										"kind": {
@@ -1775,6 +1813,9 @@
 										},
 										"reservation": {
 											"$ref": "#/$defs/launchReservation"
+										},
+										"receipt": {
+											"$ref": "#/$defs/launchReceipt"
 										},
 										"candidateSessionId": {
 											"oneOf": [

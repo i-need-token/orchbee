@@ -61,7 +61,9 @@ names 家族还接受 `{kind:"presentation", presentationId}`。解析、分配�
 
 Launch 结果在分配前限为 1,024 字节。预留固定原生 presentation、creation generation、
 Host epoch 和物理终端。Reserve 请求 ID 同时标识预留。TTL 为 1–300000 毫秒，
-settleRemainingMs 为 0–3000。Inspect 的 candidateSessionId 必须出现且可为 null。
+settleRemainingMs 为 0–3000。Inspect 的 candidateSessionId 必须出现且可为 null。Reserved 必须携带非零
+runToken；Inspect 的 pending 结果必须携带 receipt，其 phase 为 awaiting、started，
+或带布尔值 succeeded 的 finished。
 成功结果必须匹配对应操作。名称 resolve/assign/release 显式拒绝 launch-pending。
 期限、就绪、观察基线、精确绑定核对和名称原子提交仍由 Server 的
 [canonical 模型](../../apps/orchbee-server/docs/agent-canonical-model.zh-CN.md)负责。
@@ -120,4 +122,4 @@ provider 词汇；后续的写入方和采样器复用它，而不是各自维�
 [进程身份提案](../../proposals/agent/agent-process-identity.zh-CN.md)中 Windows 支持矩阵的每一行和
 每个反例；控制台归属和不透明行由 Host 采样器提供。
 
-<!-- documentation-pairing: english-sha256=61bb5893bd17579a89d96899f479576d2df8de443a3b30fcf92c069c6b11bc3c zh-cn-sha256=bbdd6dd6702fc0ff94f2ce08595e530c37cc684f99635e4037105c7aeca2cdf6 -->
+<!-- documentation-pairing: english-sha256=7899e381988fd119585785bda854e4d6f7ac8ff5183e946f15cc44f48d6d58c6 zh-cn-sha256=0072beafc72b587c3cc792504393378a52a85fe6bf800e47fa9f1d0381dc77fe -->

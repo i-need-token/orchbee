@@ -28,8 +28,9 @@ fn launch_wire_correlates_each_operation_and_bounds_its_semantic_fields() {
         json!({"kind":"agent.launch.cancel.request", "requestId":OTHER, "reservationId":ID}),
     ];
     let outcomes = [
-        json!({"kind":"reserved", "reservation":reservation()}),
-        json!({"kind":"pending", "reservation":reservation(), "candidateSessionId":null}),
+        json!({"kind":"reserved", "reservation":reservation(), "runToken":OTHER}),
+        json!({"kind":"pending", "reservation":reservation(), "candidateSessionId":null,
+            "receipt":{"phase":"finished","succeeded":false}}),
         json!({"kind":"completed", "reservationId":ID, "name":"alpha", "sessionId":"s1"}),
         json!({"kind":"released", "reservationId":ID}),
     ];
@@ -66,7 +67,26 @@ fn launch_wire_correlates_each_operation_and_bounds_its_semantic_fields() {
         let mut invalid = reservation();
         invalid[field] = (MAXIMUM_LAUNCH_TTL_MS + 1).into();
         let result = json!({"kind":"agent.launch.reserve.result", "requestId":ID,
-            "result":{"outcome":{"kind":"reserved", "reservation":invalid}}});
+            "result":{"outcome":{"kind":"reserved", "reservation":invalid, "runToken":OTHER}}});
+        assert!(parse_agent_result(&serde_json::to_vec(&result).unwrap()).is_err());
+    }
+    // The run token and receipt are required and closed; a shell status needs its phase.
+    for outcome in [
+        json!({"kind":"reserved", "reservation":reservation()}),
+        json!({"kind":"reserved", "reservation":reservation(), "runToken":"00000000000000000000000000000000"}),
+        json!({"kind":"pending", "reservation":reservation(), "candidateSessionId":null}),
+        json!({"kind":"pending", "reservation":reservation(), "candidateSessionId":null,
+            "receipt":{"phase":"started","succeeded":true}}),
+        json!({"kind":"pending", "reservation":reservation(), "candidateSessionId":null,
+            "receipt":{"phase":"finished"}}),
+    ] {
+        let kind = if outcome["kind"] == "reserved" {
+            "reserve"
+        } else {
+            "inspect"
+        };
+        let result = json!({"kind":format!("agent.launch.{kind}.result"), "requestId":ID,
+            "result":{"outcome":outcome}});
         assert!(parse_agent_result(&serde_json::to_vec(&result).unwrap()).is_err());
     }
     let mut missing = requests[0].clone();

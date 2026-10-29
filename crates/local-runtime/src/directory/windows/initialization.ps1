@@ -10,6 +10,7 @@ if ($null -eq $global:__OrchbeeDirectoryPrompt) {
             $orchbeeStatus = if ($orchbeeSucceeded) { 0 } else { 1 }
             [Console]::Write("$([char]27)]133;D;$orchbeeStatus`a$([char]27)_orchbee.command.v1;finish;$global:__OrchbeeRunId;$orchbeeStatus$([char]27)\")
             $global:__OrchbeeRunId = $null
+            Remove-Item -LiteralPath Env:ORCHBEE_RUN_TOKEN -ErrorAction Ignore
         }
         $loc = $ExecutionContext.SessionState.Path.CurrentLocation
         if ($loc.Provider.Name -eq 'FileSystem') {
