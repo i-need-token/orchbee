@@ -158,7 +158,7 @@ pub enum MenuAction {
     Detach,
 }
 
-pub(crate) use crate::localization::{MenuRowNote, MenuUnavailable};
+pub(crate) use crate::localization::{MenuHeading, MenuRowNote, MenuUnavailable};
 
 impl From<&MenuAction> for crate::localization::MenuLabel {
     fn from(action: &MenuAction) -> Self {
@@ -603,13 +603,6 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         MenuAction::Detach => GlobalMenuGroup::Client,
         _ => GlobalMenuGroup::Other,
     }
-}
-
-/// A labeled group inside a submenu; never a candidate and never an action.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum MenuHeading {
-    Folders,
-    Worktrees,
 }
 
 fn heading_before(

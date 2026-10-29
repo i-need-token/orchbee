@@ -97,6 +97,13 @@ pub(crate) enum MenuLabel {
     Detach,
 }
 
+/// A labeled group inside a submenu; never a candidate and never an action.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum MenuHeading {
+    Folders,
+    Worktrees,
+}
+
 /// Secondary text that ends a row, such as the default launch profile's mark.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum MenuRowNote {
@@ -317,11 +324,7 @@ impl Locale {
             (Self::ZhCn, MenuUnavailable::PointerReleased, true) => "已释放",
         }
     }
-    pub(crate) const fn menu_heading(
-        self,
-        heading: crate::action_menu::MenuHeading,
-    ) -> &'static str {
-        use crate::action_menu::MenuHeading;
+    pub(crate) const fn menu_heading(self, heading: MenuHeading) -> &'static str {
         match (self, heading) {
             (Self::EnUs, MenuHeading::Folders) => "Folders",
             (Self::ZhCn, MenuHeading::Folders) => "文件夹",

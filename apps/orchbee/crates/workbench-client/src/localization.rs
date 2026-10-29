@@ -2,7 +2,9 @@
 //! Feature modules own human-facing copy; domain and protocol identifiers stay unchanged.
 
 mod action_menu;
-pub(crate) use action_menu::{ActionSearchAlias, MenuLabel, MenuRowNote, MenuUnavailable};
+pub(crate) use action_menu::{
+    ActionSearchAlias, MenuHeading, MenuLabel, MenuRowNote, MenuUnavailable,
+};
 mod parameters;
 pub use parameters::Notice;
 pub(crate) use parameters::{BackendAction, PanelDirection};
