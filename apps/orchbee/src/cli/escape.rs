@@ -30,7 +30,7 @@ const TABLE_LABEL_WIDTH: usize = 80;
 
 #[cfg(any(unix, windows))]
 pub(crate) fn display_width(text: &str) -> usize {
-    ratatui::text::Line::from(text).width()
+    crate::terminal_text::display_width(text)
 }
 
 #[cfg(not(any(unix, windows)))]

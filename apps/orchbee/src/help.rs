@@ -136,7 +136,7 @@ fn heading_line(output: &mut String, heading: &str, width: usize) {
 }
 
 fn cells(text: &str) -> usize {
-    ratatui::text::Line::from(text).width()
+    crate::terminal_text::display_width(text)
 }
 
 struct Token {

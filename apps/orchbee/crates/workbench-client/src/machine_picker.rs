@@ -1038,8 +1038,12 @@ impl Picker {
             self.visible_rows().len()
         );
         frame.render_widget(
-            crate::tui_render::overlay_surface(theme, ratatui::widgets::Padding::ZERO)
-                .title(crate::tui_render::overlay_title(&title, panel.width, theme)),
+            crate::tui_render::titled_overlay(
+                theme,
+                ratatui::widgets::Padding::ZERO,
+                &title,
+                panel.width,
+            ),
             panel,
         );
         let _ = render_picker_close(frame, panel, &source, theme, hits);

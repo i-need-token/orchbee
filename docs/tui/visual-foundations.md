@@ -235,9 +235,12 @@ combinations and control behavior.
 
 ## Display width and text safety
 
-- Measure text by display width, never by `char` or byte count. East Asian wide characters occupy
-  two cells; combining marks occupy zero. Use the same width function for measuring, truncating,
-  and laying out.
+- Measure text by display width, never by `char` or byte count. Display width sums the cell width
+  of each extended grapheme cluster, as the buffer writes the text and the terminal grid places
+  it: East Asian wide characters occupy two cells, combining marks occupy zero, and a ligature
+  across clusters, such as Lam-Alef, occupies one cell per cluster. Use the same width function
+  for measuring, truncating, laying out, and placing text; never place chrome text by a
+  whole-string measure that merges such ligatures.
 - Truncation markers are measured with that width function and are budgeted before the text. `…`
   is East Asian ambiguous width; the ASCII fallback is `..`.
 - Wrap prose at word boundaries by display width. Do not break a URL or file path inside a token

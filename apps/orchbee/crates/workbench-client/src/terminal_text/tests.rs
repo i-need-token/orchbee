@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 
+use ratatui::{buffer::Buffer, layout::Rect, style::Style};
+
 use super::{
     display_width, is_forbidden_chrome_scalar, is_forbidden_terminal_scalar, project_terminal_text,
     sanitize_terminal_symbol, sanitize_terminal_text, truncate_display, truncate_display_middle,
@@ -220,7 +222,7 @@ fn pane_symbol_keeps_program_formats_and_strips_controls() {
 }
 
 #[test]
-fn measures_display_width_in_cells() {
+fn measures_display_width_in_the_cells_the_buffer_writes() {
     for (text, width) in [
         ("", 0),
         ("abc", 3),
@@ -229,8 +231,19 @@ fn measures_display_width_in_cells() {
         ("a\u{301}界", 3),
         ("🙂", 2),
         ("…", 1),
+        // Lam-Alef joins into one glyph, but Lam and Alef are separate clusters and cells.
+        ("\u{644}\u{627}", 2),
+        // A halfwidth voiced sound mark extends its cluster yet still takes a cell.
+        ("\u{ff76}\u{ff9e}", 2),
     ] {
         assert_eq!(display_width(text), width, "width of {text:?}");
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 8, 1));
+        let (end, _) = buffer.set_stringn(0, 0, text, 8, Style::default());
+        assert_eq!(
+            usize::from(end),
+            width,
+            "cells the buffer writes for {text:?}"
+        );
     }
 }
 
@@ -243,6 +256,7 @@ fn truncates_on_grapheme_boundaries_with_a_budgeted_marker() {
         ("界面", 2, "…", "…"),
         ("界面", 1, "…", "…"),
         ("e\u{301}xyz", 3, "…", "e\u{301}x…"),
+        ("\u{644}\u{627} \u{644}\u{627}", 3, "…", "\u{644}\u{627}…"),
         ("hello", 0, "…", ""),
         ("hello", 1, "..", ""),
         ("", 4, "…", ""),
@@ -264,6 +278,12 @@ fn paths_keep_their_start_and_end_around_a_middle_marker() {
             6,
             "…",
             "~\\e\u{301}\u{301}…nd",
+        ),
+        (
+            "\u{644}\u{627}\u{644}\u{627}\u{644}\u{627}",
+            4,
+            "…",
+            "\u{644}\u{627}…\u{627}",
         ),
         ("abcdef", 1, "…", "…"),
         ("abcdef", 1, "..", ""),

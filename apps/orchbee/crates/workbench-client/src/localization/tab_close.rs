@@ -19,6 +19,15 @@ pub(crate) enum CloseStatusKind {
     Closed,
 }
 
+/// What a close ends across the terminals in its scope. Only a launch failure, a Host settlement
+/// on the terminal's exact attachment, or proven disposal counts a terminal as ended; every other
+/// terminal, including one this Client does not observe, counts as running.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct CloseImpact {
+    pub(crate) running: usize,
+    pub(crate) ended: usize,
+}
+
 /// Counts describe confirmed lifecycle closure, independently of snapshot/viewer delivery.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CloseSetStatus {
@@ -73,14 +82,15 @@ impl Locale {
             Self::ZhCn => format!("……以及另外 {count} 个标签页"),
         }
     }
-    pub(crate) const fn close_set_warning(self) -> &'static str {
-        match self {
-            Self::EnUs => {
-                "Closing ends the running work in these Tabs for everyone connected to this workspace. Tabs close one at a time; a failure stops further closes."
-            }
-            Self::ZhCn => {
-                "关闭将终止这些标签页中运行的任务，影响所有连接到此工作区的人。标签页将逐个关闭；失败时停止后续关闭。"
-            }
+    pub(crate) fn close_set_warning(self, impact: CloseImpact) -> String {
+        match (self, impact.running, impact.ended) {
+            (Self::EnUs, _, 0) => "Closing ends the running work in these Tabs for everyone connected to this workspace. Tabs close one at a time; a failure stops further closes.".into(),
+            (Self::ZhCn, _, 0) => "关闭将终止这些标签页中运行的任务，影响所有连接到此工作区的人。标签页将逐个关闭；失败时停止后续关闭。".into(),
+            (Self::EnUs, 0, _) => "Closing discards the retained output in these Tabs for everyone connected to this workspace. Tabs close one at a time; a failure stops further closes.".into(),
+            (Self::ZhCn, 0, _) => "关闭将丢弃这些标签页中保留的输出，影响所有连接到此工作区的人。标签页将逐个关闭；失败时停止后续关闭。".into(),
+            (Self::EnUs, 1, _) => "Closing ends the running work in 1 terminal and discards the retained output in these Tabs for everyone connected to this workspace. Tabs close one at a time; a failure stops further closes.".into(),
+            (Self::EnUs, running, _) => format!("Closing ends the running work in {running} terminals and discards the retained output in these Tabs for everyone connected to this workspace. Tabs close one at a time; a failure stops further closes."),
+            (Self::ZhCn, running, _) => format!("关闭将终止 {running} 个终端中运行的任务，并丢弃这些标签页中保留的输出，影响所有连接到此工作区的人。标签页将逐个关闭；失败时停止后续关闭。"),
         }
     }
     pub(crate) fn close_set_status(self, status: crate::localization::CloseSetStatus) -> String {
@@ -110,12 +120,15 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn close_warning(self) -> &'static str {
-        match self {
-            Self::EnUs => {
-                "Closing this Tab ends its running work for everyone connected to this workspace."
-            }
-            Self::ZhCn => "关闭此标签页将终止其中运行的任务，影响所有连接到此工作区的人。",
+    pub(crate) fn close_warning(self, impact: CloseImpact) -> String {
+        match (self, impact.running, impact.ended) {
+            (Self::EnUs, _, 0) => "Closing this Tab ends its running work for everyone connected to this workspace.".into(),
+            (Self::ZhCn, _, 0) => "关闭此标签页将终止其中运行的任务，影响所有连接到此工作区的人。".into(),
+            (Self::EnUs, 0, _) => "Closing this Tab discards its retained output for everyone connected to this workspace.".into(),
+            (Self::ZhCn, 0, _) => "关闭此标签页将丢弃其中保留的输出，影响所有连接到此工作区的人。".into(),
+            (Self::EnUs, 1, _) => "Closing this Tab ends the running work in 1 terminal and discards the retained output for everyone connected to this workspace.".into(),
+            (Self::EnUs, running, _) => format!("Closing this Tab ends the running work in {running} terminals and discards the retained output for everyone connected to this workspace."),
+            (Self::ZhCn, running, _) => format!("关闭此标签页将终止 {running} 个终端中运行的任务，并丢弃保留的输出，影响所有连接到此工作区的人。"),
         }
     }
 

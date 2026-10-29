@@ -21,8 +21,9 @@ names/positions and an explicit remainder count. Single/selected/group menu scop
 Names and location use sanitized, grapheme-safe previews capped at 64 cells (less on narrow
 screens), with an explicit ellipsis for clipping; full frozen IDs and positions remain authoritative.
 The draw token covers the entire bounded preview, remainder count, warning and controls.
-Its localized warning explains that running work ends for everyone connected to the Workspace,
-and that Tabs close one at a time with further closes stopped by failure.
+Its localized warning names what the close ends for everyone connected to the Workspace, as
+[close impact](#close-impact) counts it, and that Tabs close one at a time with further closes
+stopped by failure.
 
 The shared Close and Cancel buttons carry their own Enter/Esc labels. Close and Resume use the
 existing destructive action tone; Cancel remains ordinary. Neither changes the Close owner or
@@ -36,6 +37,31 @@ shown authority without classifying geometry or discarding the presentation phas
 cancelled, stale, resized or unpresentable confirmation cannot submit. The existing input owner
 captures the entire decision packet, including a menu-to-confirmation handoff tail. Opening and
 cancellation do not allocate a lifecycle request or remove canonical state.
+
+## Close impact
+
+Single, set and Resume confirmations name what the close ends from terminal facts this Client
+already holds. The count changes copy only: confirmation, frozen premises, admission and execution
+keep the rules above, and no close re-validates its impact.
+
+A terminal counts as ended only when its canonical Presentation carries a launch failure, when the
+attachment bound to that exact Presentation binding has received the Host's exit or failure
+settlement, or, for Resume, when the Server has reported disposal. Every other terminal counts as
+running: background Tabs, child Presentations, panes without a viewer, a settlement not yet
+delivered and a target missing from the current projection. The Server publishes no terminal run
+state, so the Client never infers that an unobserved terminal ended.
+
+The warning names only running work when nothing counted has ended, only discarded retained output
+when everything has ended, and otherwise the number of running terminals together with the
+discarded retained output. A close of ended terminals still asks for confirmation because it
+discards their retained output for every connected Client. Workspace Close keeps the Server's
+conditional idle admission.
+
+The count is taken at each complete draw. A settlement arriving under an open prompt changes the
+next draw without changing its token or targets. An ended terminal never runs again: a new process
+needs a new binding, which changes the revision or Snapshot that the confirmation froze, so the
+stale premise cancels the prompt. The executed close is therefore never more destructive than its
+last complete draw; that draw can only overstate running work.
 
 ## Incremental lifecycle owner
 
@@ -98,7 +124,8 @@ shared selection/collapse state, persistence path or local synthetic removal is 
 
 The owning implementation tests cover frozen ordered close sets, exact membership validation,
 first-draw refusal, admitted suspension and restoration, receipt retention, cancellation, unknown
-outcomes, peer removal and survivor selection.
+outcomes, peer removal and survivor selection. `workbench_client/ui/tests/close_impact.rs` covers
+the ended, mixed and unobserved close-impact counts and a settlement under an open prompt.
 
 Maintain the concrete witnesses in `crates/workbench-client/src/workbench_client/state/tab_close.rs`, `crates/workbench-client/src/workbench_client/mailbox/tests/tab_close.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 

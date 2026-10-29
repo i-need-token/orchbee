@@ -6,6 +6,7 @@ use super::{PanelCloseConfirmationToken, WorkbenchClientUi, WorkbenchClientView}
 use crate::workbench_client::state::{self, TabCloseResumePermit};
 use crate::{
     client_view::{ClientActionDisposition, ClientKey},
+    localization::CloseImpact,
     workbench_client::{
         mailbox::{CloseAdmissionError, CommandMailbox, MutationResult, UiReply, UiWaitKey},
         state::{
@@ -176,9 +177,14 @@ impl DrawReceipt {
 
 pub struct CloseConfirmationView<'a> {
     inner: state::CloseConfirmationView<'a>,
+    impact: CloseImpact,
 }
 
 impl<'a> CloseConfirmationView<'a> {
+    /// What closing ends, from the terminal facts this Client holds at this draw.
+    pub(crate) const fn impact(&self) -> CloseImpact {
+        self.impact
+    }
     pub(crate) fn set_count(&self) -> Option<usize> {
         self.inner.set().map(|set| set.count())
     }
@@ -260,10 +266,10 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.as_ref()?.close_set_status()
     }
     pub(crate) fn close_confirmation(&self) -> Option<CloseConfirmationView<'a>> {
-        self.state
-            .as_ref()?
-            .close_confirmation()
-            .map(|inner| CloseConfirmationView { inner })
+        let state = self.state.as_ref()?;
+        let inner = state.close_confirmation()?;
+        let impact = state.close_impact(&inner, &|pane| self.pane_settled(pane));
+        Some(CloseConfirmationView { inner, impact })
     }
     pub(crate) fn close_status(&self) -> Option<CloseStatusView<'a>> {
         self.state

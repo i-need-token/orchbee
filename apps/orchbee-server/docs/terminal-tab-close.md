@@ -44,8 +44,10 @@ or unknown disposal cannot publish removal; known disposal with blocked cleanup 
 for the existing explicit Resume path. This extension adds no persistence, remote execution,
 cross-context transfer or recovery of unestablished runtime identity.
 
-`Ctrl+B x` closes the selected canonical Workspace Tab after localized confirmation that its
-terminal execution ends for **all attached Clients**. Cancel changes nothing. An independent
+`Ctrl+B x` closes the selected canonical Workspace Tab after localized confirmation of what it
+ends for **all attached Clients**: running terminal execution, retained output of ended terminals,
+or both, as the [Client close impact](../../orchbee/docs/native-tab-close-sets.md#close-impact)
+counts them. Cancel changes nothing. An independent
 trusted-local lifecycle grant authorizes this effect; navigation permission or Input controller
 ownership alone does not. A read-only Viewer may Close if its Client has the lifecycle grant.
 The target is an exact retained binding, never an ordinal. Creating/Starting targets are definite

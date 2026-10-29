@@ -70,11 +70,7 @@ pub(super) fn render(
         }
         _ => locale.settings_title().into(),
     };
-    let block = super::overlay_surface(theme, layout.padding).title(super::overlay_title(
-        &title,
-        layout.area.width,
-        theme,
-    ));
+    let block = super::titled_overlay(theme, layout.padding, &title, layout.area.width);
     frame.render_widget(Clear, layout.area);
     frame.render_widget(block, layout.area);
     let painted_close = render_close(frame, layout.close, view, theme, hits);

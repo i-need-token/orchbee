@@ -74,7 +74,7 @@ pub(super) fn render(
         }
         lines.extend([
             Line::from(""),
-            Line::from(locale.close_set_warning()),
+            Line::from(locale.close_set_warning(confirmation.impact())),
             Line::from(""),
         ]);
         lines
@@ -83,7 +83,7 @@ pub(super) fn render(
             Line::from(""),
             Line::from(sanitize_terminal_text(confirmation.target_label()).into_owned()),
             Line::from(""),
-            Line::from(locale.close_warning()),
+            Line::from(locale.close_warning(confirmation.impact())),
             Line::from(""),
         ]
     };

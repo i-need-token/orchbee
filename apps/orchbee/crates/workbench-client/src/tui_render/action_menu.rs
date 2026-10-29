@@ -23,7 +23,6 @@ use ratatui::{
     Frame,
     layout::Rect,
     style::{Modifier, Style},
-    text::Line,
     widgets::{Clear, Padding, Paragraph},
 };
 
@@ -725,14 +724,14 @@ fn paint_frame(
     let menu = &measured.menu;
     let area = layout.area;
     let inner = layout.inner;
-    let block = super::overlay_surface(theme, Padding::horizontal(1));
+    let block = super::OverlayFrame::new(super::overlay_surface(theme, Padding::horizontal(1)));
     let block = match title(measured, area, locale, theme) {
-        Some(title) if menu.context_menu => block.title(super::overlay_heading(
+        Some(title) if menu.context_menu => block.heading(super::overlay_heading(
             &title,
             usize::from(area.width).saturating_sub(6),
             theme,
         )),
-        Some(title) => block.title(super::overlay_title(&title, area.width, theme)),
+        Some(title) => block.heading(super::overlay_title(&title, area.width, theme)),
         None => block,
     };
 
@@ -857,7 +856,7 @@ fn paint_frame(
         .and_then(|index| menu.unavailable[*index]);
     if let Some(reason) = unavailable {
         let full = locale.menu_unavailable(reason, false);
-        let reason = if Line::raw(full).width() <= usize::from(inner.width) {
+        let reason = if display_width(full) <= usize::from(inner.width) {
             full
         } else {
             locale.menu_unavailable(reason, true)

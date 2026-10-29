@@ -15,9 +15,14 @@ pub(crate) use crate::workbench_client::state::PanelCloseConfirmationToken;
 #[derive(Clone, Copy)]
 pub(crate) struct PanelCloseConfirmationView<'a> {
     inner: state::PanelCloseConfirmationView<'a>,
+    impact: crate::localization::CloseImpact,
 }
 
 impl<'a> PanelCloseConfirmationView<'a> {
+    /// What closing ends, from the terminal facts this Client holds at this draw.
+    pub(crate) const fn impact(&self) -> crate::localization::CloseImpact {
+        self.impact
+    }
     pub(crate) const fn token(&self) -> PanelCloseConfirmationToken {
         self.inner.token()
     }
@@ -46,10 +51,10 @@ impl<'a> PanelCloseConfirmationView<'a> {
 
 impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn panel_close_confirmation(&self) -> Option<PanelCloseConfirmationView<'a>> {
-        self.state
-            .as_ref()?
-            .panel_close_confirmation()
-            .map(|inner| PanelCloseConfirmationView { inner })
+        let state = self.state.as_ref()?;
+        let inner = state.panel_close_confirmation()?;
+        let impact = state.panel_close_impact(&|pane| self.pane_settled(pane))?;
+        Some(PanelCloseConfirmationView { inner, impact })
     }
 }
 

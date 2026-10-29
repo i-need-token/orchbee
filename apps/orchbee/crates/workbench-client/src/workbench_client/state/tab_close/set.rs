@@ -88,6 +88,9 @@ impl CloseSetCapture {
     pub(in crate::workbench_client) fn count(&self) -> usize {
         self.tabs.len()
     }
+    pub(super) fn tabs(&self) -> &[WorkbenchTabId] {
+        &self.tabs
+    }
     pub(in crate::workbench_client) fn labels(&self) -> &[(usize, String)] {
         &self.labels
     }

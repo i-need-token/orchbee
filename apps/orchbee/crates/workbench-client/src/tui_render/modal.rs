@@ -2,6 +2,7 @@
 
 use crate::{
     client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
+    terminal_text::{display_width, line_display_width},
     tui_layout::centered_overlay,
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ProjectedPointer},
     tui_theme::{GlyphMode, Role, Theme},
@@ -28,8 +29,7 @@ pub(super) fn title_line<'a>(text: impl Into<Cow<'a, str>>, theme: &Theme) -> Li
 pub(super) fn paint_modal_frame(frame: &mut Frame<'_>, area: Rect, title: &str, theme: &Theme) {
     frame.render_widget(Clear, area);
     frame.render_widget(
-        super::overlay_surface(theme, Padding::horizontal(2))
-            .title(super::overlay_title(title, area.width, theme)),
+        super::titled_overlay(theme, Padding::horizontal(2), title, area.width),
         area,
     );
 }
@@ -37,7 +37,7 @@ pub(super) fn paint_modal_frame(frame: &mut Frame<'_>, area: Rect, title: &str, 
 /// Inner width that keeps a modal heading complete beside its frame-borne close control.
 fn title_inner_width(title: &str) -> usize {
     // The outer frame adds two border and four padding cells around the inner width.
-    crate::terminal_text::display_width(title)
+    display_width(title)
         .saturating_add(super::OVERLAY_TITLE_RESERVE)
         .saturating_sub(6)
 }
@@ -386,7 +386,13 @@ fn modal_area_with_minimum_width(
     // Prose and optional help must not stretch a simple decision across the host.
     // Complete required controls may exceed the preferred reading width; admission
     // below still refuses them if the available width cannot contain them.
-    let natural_width = text.width().clamp(48, 72).max(minimum_inner_width);
+    let natural_width = text
+        .iter()
+        .map(line_display_width)
+        .max()
+        .unwrap_or(0)
+        .clamp(48, 72)
+        .max(minimum_inner_width);
     let outer_width = u16::try_from(natural_width.saturating_add(6)).unwrap_or(u16::MAX);
     let width = outer_width.min(content_area.width.saturating_sub(4));
     let inner_width = width.saturating_sub(6).max(1);
@@ -408,7 +414,7 @@ pub(super) fn wrapped_text_fits(text: &Text<'_>, area: Rect) -> bool {
     let graphemes_fit = text.iter().all(|line| {
         line.spans.iter().all(|span| {
             span.styled_graphemes(Style::default())
-                .all(|grapheme| Line::raw(grapheme.symbol).width() <= usize::from(area.width))
+                .all(|grapheme| display_width(grapheme.symbol) <= usize::from(area.width))
         })
     });
     graphemes_fit
@@ -444,7 +450,7 @@ pub(super) fn unwrapped_text_fits(text: &str, area: Rect) -> bool {
         && text.height() <= usize::from(area.height)
         && text
             .iter()
-            .all(|line| line.width() <= usize::from(area.width))
+            .all(|line| line_display_width(line) <= usize::from(area.width))
 }
 
 #[cfg(test)]

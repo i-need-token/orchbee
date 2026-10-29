@@ -312,7 +312,7 @@ fn help_block(
     previous: Rect,
     title: &str,
     theme: &Theme,
-) -> Option<ratatui::widgets::Block<'static>> {
+) -> Option<super::OverlayFrame> {
     // The corner and `─ ` lead the heading; a trailing blank, one rule cell, and the blank
     // before the first title control follow it.
     let title_budget = usize::from(previous.x.checked_sub(area.x.checked_add(6)?)?);
@@ -325,11 +325,8 @@ fn help_block(
         return None;
     }
     Some(
-        super::overlay_surface(theme, Padding::new(2, 2, 1, 0)).title(super::overlay_heading(
-            title,
-            title_budget,
-            theme,
-        )),
+        super::OverlayFrame::new(super::overlay_surface(theme, Padding::new(2, 2, 1, 0)))
+            .heading(super::overlay_heading(title, title_budget, theme)),
     )
 }
 

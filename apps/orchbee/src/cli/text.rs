@@ -187,7 +187,8 @@ fn example_with_options(path: CommandPath, options: &[&str]) -> String {
     // Quoted operands stay atomic, including whitespace and JSON string values.
     for word in words {
         if !line.is_empty()
-            && ratatui::text::Line::from(format!("{line} {word}")).width() > crate::help::WIDTH - 6
+            && crate::terminal_text::display_width(&format!("{line} {word}"))
+                > crate::help::WIDTH - 6
         {
             output.push_str(&format!("{line} {continuation}\n"));
             line.clear();

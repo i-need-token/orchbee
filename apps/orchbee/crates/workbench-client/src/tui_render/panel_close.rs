@@ -48,7 +48,7 @@ pub(super) fn render(
         confirmation.tab_position(),
         confirmation.panel_label(),
         confirmation.tab_label(),
-        confirmation.dissolves_tab(),
+        locale.panel_close_warning(confirmation.dissolves_tab(), confirmation.impact()),
         theme,
     );
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
@@ -161,7 +161,7 @@ fn confirmation_text(
     tab_position: usize,
     panel_label: &str,
     tab_label: &str,
-    dissolves_tab: bool,
+    warning: String,
     theme: &Theme,
 ) -> Text<'static> {
     let [panel, tab] =
@@ -171,7 +171,7 @@ fn confirmation_text(
         Line::from(panel),
         description_line(tab, theme),
         Line::from(""),
-        Line::from(locale.panel_close_warning(dissolves_tab)),
+        Line::from(warning),
         Line::from(""),
         Line::from(""),
     ])

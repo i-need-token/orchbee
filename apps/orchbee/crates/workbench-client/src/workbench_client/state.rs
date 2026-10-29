@@ -19,6 +19,7 @@ use std::time::{Duration, Instant};
 
 #[cfg(test)]
 use super::workbench_projection::project_preferred_workspace;
+mod close_impact;
 mod context_removal;
 mod context_selection;
 pub(super) mod control_takeover;

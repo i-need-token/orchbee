@@ -9,7 +9,7 @@ use super::{
     Block, ClientView, Frame, HitLayer, HitMapBuilder, Line, Locale, Paragraph, Rect, Role, Span,
     Theme, display_width, sidebar_text, truncate_display,
 };
-use crate::terminal_text::{sanitize_terminal_text, truncate_display_middle};
+use crate::terminal_text::{line_display_width, sanitize_terminal_text, truncate_display_middle};
 use crate::{
     machine_discovery::display_label,
     machine_picker::{
@@ -293,9 +293,9 @@ fn lines(
         }
         let right = Line::from(right);
         let line_slot = if lines.is_empty() {
-            first_slot(right.width())
+            first_slot(line_display_width(&right))
         } else {
-            slot(right.width())
+            slot(line_display_width(&right))
         };
         let desired: Vec<_> = resolved
             .iter()
@@ -1807,7 +1807,7 @@ pub(super) fn render(
             if offset >= content_height {
                 break;
             }
-            let width = u16::try_from(metadata.width()).unwrap_or(u16::MAX);
+            let width = u16::try_from(line_display_width(&metadata)).unwrap_or(u16::MAX);
             // A revealed close control replaces first-line metadata in the same slot.
             if width == 0 || index == 0 && close.is_some() {
                 continue;

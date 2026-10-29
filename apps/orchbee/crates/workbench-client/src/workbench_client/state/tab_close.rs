@@ -5,6 +5,7 @@
 use super::{AttachmentKey, ClientNotice, PaneKey};
 use crate::{
     local_client::workbench::WorkbenchTabCloseAccepted,
+    localization::CloseImpact,
     tui_presentation::{GeometrySettlement, PresentationPhase},
     workbench_client::workbench_projection::ClientTerminalBinding,
 };
@@ -317,6 +318,15 @@ impl<'a> CloseConfirmationView<'a> {
     }
     pub(in crate::workbench_client) const fn token(&self) -> CloseConfirmationToken {
         self.confirmation.token
+    }
+    /// The exact Tabs this confirmation closes.
+    fn tab_ids(&self) -> &'a [WorkbenchTabId] {
+        match &self.confirmation.intent {
+            CloseIntent::Set(capture) => capture.tabs(),
+            CloseIntent::Close(selection) | CloseIntent::Resume { selection, .. } => {
+                std::slice::from_ref(&selection.target.tab_id)
+            }
+        }
     }
     pub(in crate::workbench_client) fn target_label(&self) -> &'a str {
         self.confirmation.intent.selection().label.as_str()
@@ -1051,6 +1061,27 @@ impl<'a> super::WorkbenchClientView<'a> {
         &self,
     ) -> Option<CloseConfirmationView<'a>> {
         self.state.close.confirmation()
+    }
+    /// What `confirmation` ends, from the attachments `settled` reports as Host-settled. A Resume
+    /// whose Server status proved disposal has no running terminal left.
+    pub(in crate::workbench_client) fn close_impact(
+        &self,
+        confirmation: &CloseConfirmationView<'a>,
+        settled: &dyn Fn(&super::PaneRef) -> bool,
+    ) -> CloseImpact {
+        let impact = self
+            .state
+            .tabs_close_impact(confirmation.tab_ids(), settled);
+        if confirmation
+            .resume_status()
+            .is_some_and(|status| status.record.disposed)
+        {
+            return CloseImpact {
+                running: 0,
+                ended: impact.running + impact.ended,
+            };
+        }
+        impact
     }
     pub(in crate::workbench_client) fn close_status(&self) -> Option<CloseStatusView<'a>> {
         if let Some(status) = self

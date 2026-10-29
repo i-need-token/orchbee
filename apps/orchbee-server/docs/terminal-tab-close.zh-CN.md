@@ -38,7 +38,9 @@ Close 主操作容量和 revision credit 作用于整个 会话：每个非 Clos
 Dispose 不能发布移除；已知 Dispose 但清理阻塞时保留状态，沿用既有显式 Resume 路径。
 不增加持久化、远程执行、跨上下文转移或未确立运行时身份的恢复。
 
-`Ctrl+B x` 关闭选中的规范 Workspace Tab，先以本地化确认明确其终端执行将对**所有已挂接 Client**结束。
+`Ctrl+B x` 关闭选中的规范 Workspace Tab，先以本地化确认说明它将对**所有已挂接 Client**结束什么：
+运行中的终端执行、已结束终端保留的输出，或两者，按
+[Client 关闭影响](../../orchbee/docs/native-tab-close-sets.zh-CN.md#关闭影响)计数。
 取消不改变任何状态。独立的受信本地生命周期授权允许此效果；仅有导航权限或 Input controller
 所有权并不足够。只读 Viewer 所属 Client 若有生命周期授权，也可 Close。目标是精确保留绑定，
 从不使用序号。Creating/Starting 目标在取得已结算身份前，明确返回效果前 `terminal-busy`。
@@ -566,4 +568,4 @@ Panel、Tab 和 Workspace Close 按规范 Tab／树顺序捕获全部已绑定�
 
 OBWP 61/62 在既有 会话 读取权限下，按原始请求 ID 读取精确保留 Close 账本项，包括空范围及已完成范围。它返回原始目标和 generation，不解析当前布局成员。[CLI 状态与恢复](../../orchbee/docs/native-operation-status.zh-CN.md) 复用既有 generation 围栏恢复准入；读取本身不续期尝试，也不调度清理。
 
-<!-- documentation-pairing: english-sha256=6420f304fd1137568c0debd312de964a6afb7b339e87fa2436804b1d9c4a53ce zh-cn-sha256=11474186f8e68c81fe2a06623eb963d0312f5f5cfd7b2826cb0a8de079801aef -->
+<!-- documentation-pairing: english-sha256=6d7059102361a4cd7ff6e484c272fce44cb54ba436e19e2fd4ada3fbf525b3d2 zh-cn-sha256=94ecbcf719d59fa251a2d0b9f41d2f97757ca81ad421b7d4a804a0488536e320 -->

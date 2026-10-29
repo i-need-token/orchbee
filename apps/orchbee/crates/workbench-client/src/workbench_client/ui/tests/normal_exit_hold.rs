@@ -34,7 +34,7 @@ fn a_normal_exit_presents_no_settlement_until_its_hold_ends() {
 }
 
 /// Delivers one viewer record through the ordinary Poll path.
-fn poll(
+pub(super) fn poll(
     ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
@@ -60,7 +60,7 @@ fn poll(
 }
 
 /// The Host exit record for the terminal `install_projection` binds.
-fn exited(ui: &WorkbenchClientUi, key: &PaneRef, code: u32) -> Vec<u8> {
+pub(super) fn exited(ui: &WorkbenchClientUi, key: &PaneRef, code: u32) -> Vec<u8> {
     let projection = &ui
         .projections
         .iter()

@@ -707,7 +707,11 @@ fn close_set_maximum_names_are_bounded_previews_with_full_warning_and_frozen_tar
                 for required in [
                     locale.close_set_title(4),
                     locale.close_set_more(1),
-                    locale.close_set_warning().to_owned(),
+                    // No terminal here has settled, so every one counts as running.
+                    locale.close_set_warning(crate::localization::CloseImpact {
+                        running: 4,
+                        ended: 0,
+                    }),
                 ] {
                     assert!(compact(&screen).contains(&compact(&required)), "{screen}");
                 }
@@ -978,7 +982,12 @@ fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_co
                             .collect::<String>()
                     };
                     assert!(
-                        compact(&prompt).contains(&compact(locale.close_set_warning())),
+                        compact(&prompt).contains(&compact(&locale.close_set_warning(
+                            crate::localization::CloseImpact {
+                                running: expected.len(),
+                                ended: 0,
+                            }
+                        ))),
                         "{prompt}"
                     );
                     assert!(prompt.contains(&locale.close_set_title(expected.len())));

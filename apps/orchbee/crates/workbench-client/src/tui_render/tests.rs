@@ -208,6 +208,28 @@ fn sidebar_status_keeps_return_and_help_as_whole_hints_yield_and_never_shows_the
 }
 
 #[test]
+fn overlay_heading_keeps_every_cluster_of_a_ligature() {
+    // Lam-Alef is one glyph over two clusters. A heading laid out by the whole-string width is a
+    // cell short, so its trailing blank would overwrite the Alef.
+    let theme = crate::tui_theme::Theme::terminal_native();
+    let area = ratatui::layout::Rect::new(0, 0, 24, 3);
+    let mut buffer = ratatui::buffer::Buffer::empty(area);
+    ratatui::widgets::Widget::render(
+        super::titled_overlay(
+            &theme,
+            ratatui::widgets::Padding::ZERO,
+            "\u{644}\u{627}",
+            area.width,
+        ),
+        area,
+        &mut buffer,
+    );
+    let rule = theme.corners.to_border_set().horizontal_top;
+    let heading: Vec<_> = (1..7).map(|x| buffer[(x, 0)].symbol()).collect();
+    assert_eq!(heading, [rule, " ", "\u{644}", "\u{627}", " ", rule]);
+}
+
+#[test]
 fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
     use crate::{
         action_menu::{ActionMenu, MenuAction, MenuUnavailable},

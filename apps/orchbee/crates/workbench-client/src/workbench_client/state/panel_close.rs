@@ -346,4 +346,21 @@ impl<'a> super::WorkbenchClientView<'a> {
     ) -> Option<PanelCloseConfirmationView<'a>> {
         self.state.panel_close.confirmation()
     }
+    /// What the armed Panel close ends, from the attachments `settled` reports as Host-settled.
+    pub(in crate::workbench_client) fn panel_close_impact(
+        &self,
+        settled: &dyn Fn(&super::PaneRef) -> bool,
+    ) -> Option<crate::localization::CloseImpact> {
+        let target = &self
+            .state
+            .panel_close
+            .confirmation
+            .as_ref()?
+            .selection
+            .target;
+        Some(
+            self.state
+                .panel_close_impact(&target.tab_id, &target.panel_id, settled),
+        )
+    }
 }

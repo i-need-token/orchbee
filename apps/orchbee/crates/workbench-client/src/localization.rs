@@ -64,7 +64,7 @@ mod startup;
 #[cfg(any(unix, windows))]
 mod tab_close;
 pub(crate) use tab_close::{
-    CloseConfirmationKind, CloseSetStatus, CloseStatusKind, CloseStatusText,
+    CloseConfirmationKind, CloseImpact, CloseSetStatus, CloseStatusKind, CloseStatusText,
 };
 #[cfg(any(unix, windows))]
 mod tab_rename;

@@ -1,7 +1,7 @@
 use super::super::modal::ModalAction;
 use super::{PreparedContent, confirmation_text, render_content, render_prepared};
 use crate::{
-    localization::Locale,
+    localization::{CloseImpact, Locale},
     tui_pointer::HitMapBuilder,
     tui_theme::Theme,
     workbench_client::{ModalPresentation, PanelCloseConfirmationToken},
@@ -58,6 +58,11 @@ fn draw(width: u16, height: u16, locale: Locale, lines: Vec<Line<'_>>) -> (bool,
     (complete, text)
 }
 
+const RUNNING: CloseImpact = CloseImpact {
+    running: 1,
+    ended: 0,
+};
+
 fn confirmation_lines(locale: Locale, dissolves_tab: bool) -> Vec<Line<'static>> {
     confirmation_text(
         locale,
@@ -65,7 +70,7 @@ fn confirmation_lines(locale: Locale, dissolves_tab: bool) -> Vec<Line<'static>>
         1,
         "fixture",
         "fixture",
-        dissolves_tab,
+        locale.panel_close_warning(dissolves_tab, RUNNING),
         &Theme::rgb_test_dark(),
     )
     .lines
@@ -113,7 +118,14 @@ fn panel_close_long_duplicate_labels_fit_at_supported_normal_and_compact_sizes()
             34,
             panel_label,
             tab_label,
-            false,
+            // The longest warning: running and ended terminals in one Panel.
+            locale.panel_close_warning(
+                false,
+                CloseImpact {
+                    running: 2,
+                    ended: 1,
+                },
+            ),
             &Theme::rgb_test_dark(),
         );
         let targets = locale.panel_close_targets(12, 34, panel_label, tab_label);
@@ -139,8 +151,8 @@ fn panel_close_discloses_the_last_leaf_tab_dissolution_in_both_locales() {
         assert!(complete);
         let (complete, last) = draw(120, 24, locale, confirmation_lines(locale, true));
         assert!(complete);
-        let dissolving = alnum(locale.panel_close_warning(true));
-        let shared = alnum(locale.panel_close_warning(false));
+        let dissolving = alnum(&locale.panel_close_warning(true, RUNNING));
+        let shared = alnum(&locale.panel_close_warning(false, RUNNING));
         assert!(alnum(&last).contains(&dissolving));
         assert!(!alnum(&leaf).contains(&dissolving));
         assert!(alnum(&leaf).contains(&shared));

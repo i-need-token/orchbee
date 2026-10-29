@@ -1,4 +1,5 @@
 pub(in crate::workbench_client::ui) mod agent_board;
+pub(in crate::workbench_client::ui) mod close_impact;
 pub(in crate::workbench_client::ui) mod composition;
 pub(in crate::workbench_client::ui) mod context_selection;
 pub(in crate::workbench_client::ui) mod control_takeover;

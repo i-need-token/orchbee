@@ -7,6 +7,12 @@ use ratatui::{
 };
 use std::{convert::Infallible, sync::atomic::AtomicUsize};
 
+/// The one live, unsettled terminal these Close fixtures attach.
+const RUNNING: crate::localization::CloseImpact = crate::localization::CloseImpact {
+    running: 1,
+    ended: 0,
+};
+
 fn draw_close(
     workbench_client: &mut WorkbenchClient,
     view: &ClientView,
@@ -164,8 +170,7 @@ fn assert_complete_close_frame(
     let title = locale.close_title(CloseConfirmationKind::Close);
     let theme = crate::tui_theme::Theme::terminal_native();
     let mut border = Buffer::empty(outer);
-    crate::tui_render::overlay_surface(&theme, ratatui::widgets::Padding::ZERO)
-        .title(crate::tui_render::overlay_title(title, outer.width, &theme))
+    crate::tui_render::titled_overlay(&theme, ratatui::widgets::Padding::ZERO, title, outer.width)
         .render(outer, &mut border);
     let is_close = |x: u16| matches!(hits.hit_target_at(x, top), Some(HitTarget::TabClose { .. }));
     for y in buffer.area.y..buffer.area.bottom() {
@@ -221,7 +226,7 @@ fn assert_complete_close_frame(
         ["[x]"]
     );
 
-    let warning = Paragraph::new(locale.close_warning()).wrap(Wrap { trim: false });
+    let warning = Paragraph::new(locale.close_warning(RUNNING)).wrap(Wrap { trim: false });
     let warning_area = Rect::new(
         0,
         0,
@@ -301,7 +306,7 @@ fn actual_close_prompt_fits_a_sanitized_maximum_length_unicode_target() -> TestR
             .filter(|character| matches!(character, '界' | '\u{fffd}'))
             .collect();
         assert!(visible_target.contains(&safe));
-        assert_modal_contains_text(&buffer, &hits, &view, locale.close_warning());
+        assert_modal_contains_text(&buffer, &hits, &view, &locale.close_warning(RUNNING));
         assert!(!rendered.contains('\x1b'));
     }
     dispatch_close_input(&mut workbench_client, &mut view, b"n");
@@ -446,7 +451,7 @@ fn raw_close_packet_requires_actual_localized_draw_and_emits_one_command() -> Te
         dispatch_close_input(&mut workbench_client, &mut view, b"\x02x\r");
         assert_eq!(commands.load(Ordering::SeqCst), 0);
         let (buffer, hits) = draw_close_frame(&mut workbench_client, &view, locale, 120, 32)?;
-        assert_modal_contains_text(&buffer, &hits, &view, locale.close_warning());
+        assert_modal_contains_text(&buffer, &hits, &view, &locale.close_warning(RUNNING));
         dispatch_close_input(&mut workbench_client, &mut view, b"\ryy\x02q");
         spin(&mut workbench_client, |workbench_client| {
             let view = workbench_client.view();

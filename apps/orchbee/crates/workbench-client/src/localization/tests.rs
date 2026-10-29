@@ -96,7 +96,10 @@ fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
         "继续关闭此标签页？"
     );
     assert_eq!(
-        locale.close_set_warning(),
+        locale.close_set_warning(crate::localization::CloseImpact {
+            running: 2,
+            ended: 0
+        }),
         "关闭将终止这些标签页中运行的任务，影响所有连接到此工作区的人。标签页将逐个关闭；失败时停止后续关闭。"
     );
     assert_eq!(locale.rename_title(), "重命名标签页");

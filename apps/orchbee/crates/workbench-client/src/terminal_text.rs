@@ -8,6 +8,7 @@ pub use escape::{escape, quoted, unquoted};
 pub(crate) mod line_editor;
 
 use ratatui::{
+    buffer::CellWidth,
     style::Style,
     text::{Line, Span},
 };
@@ -238,11 +239,36 @@ fn skip_sequence(characters: &mut impl Iterator<Item = (usize, char)>, mut state
     }
 }
 
-/// Display width in terminal cells: East Asian wide characters count as two,
-/// combining marks as zero. This is the one canonical measure — the same
-/// function for measuring, truncating, and laying out chrome text.
+/// Display width in terminal cells: the sum of each extended grapheme cluster's
+/// cell width, which is how the buffer writes text and how the terminal grid
+/// lays it out. East Asian wide characters count as two and combining marks as
+/// zero; a ligature that spans clusters, such as Lam-Alef, still takes one cell
+/// per cluster. This is the one canonical measure — the same function for
+/// measuring, truncating, and laying out chrome text. ratatui's `Line::width`
+/// and `Span::width` measure the whole string with such ligatures merged, so
+/// chrome never measures with them.
 pub fn display_width(text: &str) -> usize {
-    Line::raw(text).width()
+    text.graphemes(true).map(grapheme_width).sum()
+}
+
+/// [`display_width`] of a composed line. Each span is segmented on its own,
+/// exactly as the buffer writes it.
+pub(crate) fn line_display_width(line: &Line<'_>) -> usize {
+    line.spans
+        .iter()
+        .map(|span| display_width(&span.content))
+        .sum()
+}
+
+/// Cells one extended grapheme cluster occupies: ratatui's [`CellWidth`], by
+/// which every buffer write path places it. A cluster carrying a control
+/// character is dropped by those paths and occupies nothing.
+fn grapheme_width(grapheme: &str) -> usize {
+    if grapheme.contains(char::is_control) {
+        0
+    } else {
+        usize::from(grapheme.cell_width())
+    }
 }
 
 /// The shortest unique trailing hexadecimal identity, shared by sidebar and menu choices.
@@ -274,7 +300,7 @@ pub fn truncate_display(text: &str, budget: usize, marker: &str) -> String {
     let mut truncated = String::new();
     let mut used = 0_usize;
     for grapheme in Span::raw(text).styled_graphemes(Style::default()) {
-        let width = display_width(grapheme.symbol);
+        let width = grapheme_width(grapheme.symbol);
         if used + width > text_budget {
             break;
         }
@@ -304,7 +330,7 @@ pub(crate) fn truncate_display_start(text: &str, budget: usize, marker: &str) ->
     let mut used = 0_usize;
     let mut start = graphemes.len();
     while let Some(grapheme) = start.checked_sub(1).map(|index| graphemes[index]) {
-        let width = display_width(grapheme);
+        let width = grapheme_width(grapheme);
         if used + width > text_budget {
             break;
         }

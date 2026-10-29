@@ -698,6 +698,13 @@ impl<'a> WorkbenchClientView<'a> {
         self.pane_projection(panel)?.end()
     }
 
+    /// Whether this exact attachment reported a Host settlement of its terminal.
+    fn pane_settled(&self, pane: &PaneRef) -> bool {
+        self.panes
+            .iter()
+            .any(|projection| &projection.key == pane && projection.value.end().is_some())
+    }
+
     /// Whether this panel's exact pane holds its closing presentation after exit code 0.
     pub(crate) fn normal_exit_held(&self, panel: &WorkbenchPanelId) -> bool {
         let (Some(holds), Some(state)) = (self.normal_exits, self.state.as_ref()) else {
