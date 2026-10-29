@@ -97,7 +97,9 @@ pub use workspace_order::{
     WorkbenchWorkspaceInsertIndex, WorkbenchWorkspaceList,
 };
 
-pub use launch_program::{MAXIMUM_LAUNCH_PROGRAM_BYTES, PresentationLaunchProgram};
+pub use launch_program::{
+    InvalidLaunchProgram, MAXIMUM_LAUNCH_PROGRAM_BYTES, PresentationLaunchProgram,
+};
 pub use panel_label::{PanelCustomLabel, PanelLabelUpdate};
 
 pub use carrier::{
