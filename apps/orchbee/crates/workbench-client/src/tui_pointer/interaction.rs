@@ -390,6 +390,7 @@ pub struct PointerProjection {
     pressed: Option<Fingerprint>,
     modal: super::modal::Projection,
     chrome: super::chrome::Projection,
+    tooltip: Option<super::tooltip::Shown>,
 }
 
 impl PointerProjection {
@@ -406,6 +407,7 @@ impl PointerProjection {
             pressed: None,
             modal: super::modal::Projection::empty(),
             chrome: super::chrome::Projection::empty(),
+            tooltip: None,
         }
     }
 
@@ -436,6 +438,15 @@ impl PointerProjection {
 
     pub(super) const fn chrome(&self) -> &super::chrome::Projection {
         &self.chrome
+    }
+
+    pub(super) fn with_tooltip(mut self, tooltip: Option<super::tooltip::Shown>) -> Self {
+        self.tooltip = tooltip;
+        self
+    }
+
+    pub(super) const fn tooltip(&self) -> Option<&super::tooltip::Shown> {
+        self.tooltip.as_ref()
     }
 
     pub(super) fn project_chrome(
@@ -556,6 +567,7 @@ impl State {
                 .map(|arm| arm.fingerprint.clone()),
             modal: super::modal::Projection::empty(),
             chrome: super::chrome::Projection::empty(),
+            tooltip: None,
         }
     }
 

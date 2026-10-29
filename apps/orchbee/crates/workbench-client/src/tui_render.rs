@@ -113,6 +113,7 @@ mod tab_close;
 mod tab_rename;
 mod tabs;
 mod terminal_cells;
+mod tooltip;
 // The owning application's backend tests paint captured cells through the real native writer.
 #[cfg(any(test, feature = "test-support"))]
 pub use terminal_cells::render as render_terminal_cells;
@@ -908,6 +909,20 @@ pub fn render_terminal_shell_with_resize<'a>(
             hits.record(HitLayer::Status, surface, HitTarget::OverlaySurface);
             status_surfaces.push(surface);
         }
+    }
+    // A pointer tooltip explains persistent chrome only while nothing else owns the screen. Its
+    // box hides what lies beneath: a press there reaches nothing.
+    if tier != ViewportTier::TooSmall
+        && capture_owner.is_none()
+        && view
+            .overlay()
+            .is_none_or(|overlay| overlay == Overlay::BusinessSidebar)
+        && !view.prefix_active()
+        && let Some(tooltip) = hits.open_tooltip()
+        && let Some(surface) = tooltip::paint(frame, tooltip, &status_surfaces, theme)
+    {
+        hits.record(HitLayer::Status, surface, HitTarget::OverlaySurface);
+        status_surfaces.push(surface);
     }
     if let Some(cursor) =
         pane_cursor.filter(|cursor| !status_surfaces.iter().any(|chip| chip.contains(*cursor)))
@@ -2498,6 +2513,31 @@ fn sidebar_menu_hold(
         target,
         matches!(anchor, crate::action_menu::MenuAnchor::Row { .. }),
     ))
+}
+
+/// A surviving wide lead outside a floating box would make the terminal diff skip its border.
+/// Removes only the glyph remnants that cross the box edge, retaining their style.
+fn clear_crossing_wide_cells(frame: &mut Frame<'_>, area: Rect) {
+    let buffer = frame.buffer_mut();
+    for y in area.y..area.bottom() {
+        let mut x = buffer.area.x;
+        while x < area.right() {
+            let cell = &buffer[(x, y)];
+            let width = u16::try_from(display_width(cell.symbol()).max(1)).unwrap_or(u16::MAX);
+            let next = x.saturating_add(width).min(buffer.area.right());
+            if (x < area.x && next > area.x) || next > area.right() {
+                let style = cell.style();
+                for column in x..next {
+                    if column < area.x || column >= area.right() {
+                        let cell = &mut buffer[(column, y)];
+                        cell.reset();
+                        cell.set_style(style);
+                    }
+                }
+            }
+            x = next;
+        }
+    }
 }
 
 pub(crate) fn overlay_surface(theme: &Theme, padding: Padding) -> Block<'static> {

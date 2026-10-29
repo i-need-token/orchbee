@@ -1362,6 +1362,8 @@ impl InputDispatcher {
             &item.kind,
             DecodedKind::Key(_) | DecodedKind::Paste { .. } | DecodedKind::RejectedPaste
         ) {
+            // The key closes a pointer tooltip and continues to its owner below.
+            self.pointer.dismiss_tooltip();
             self.pointer.flush_list_scroll(view, port);
             self.pointer.cancel_list_scroll();
             self.pointer.cancel_modal_press();

@@ -512,6 +512,35 @@ history and unavailable frames have no effect or notice. Wheel never changes foc
 from the title/border; Shift stays host-owned, including in history. Entry, coalescing and recovery
 use the [retained viewport](native-terminal-viewport.md) owner.
 
+## Pointer tooltips
+
+The [pointer tooltip contract](../../../docs/tui/overlays-and-status.md#pointer-tooltips) has three
+owners and no thread or timer of its own.
+
+- While painting a candidate frame, a feature renderer calls `HitMapBuilder::record_tooltip` or
+  `record_interaction_tooltip` with the exact layer, rectangle, and `HitTarget` it records for that
+  region, plus its `TooltipContent`. The published `FrameHitMap` keeps only which regions offer
+  one; content stays with the candidate frame, so the box shows that frame's words, Working phase,
+  and effective binding.
+- `tui_pointer/tooltip.rs` keeps the state on `PointerState`: the last real movement cell, a
+  one-shot rest start, the open target's layer, rectangle, and `HitTarget` with the cell it opened
+  at, a 400 ms warm window, and the target a press quieted. The ordinary pointer `tick`, driven by
+  the event loop's existing poll cadence, opens it 300 ms after real motion only while capture is
+  armed, the host is focused, `AnyMotion` is observable, no capture owner or captured input is
+  active, no overlay other than the business sidebar is open, and no prefix, Navigator, sidebar
+  keyboard navigation, resize mode, or gesture is active.
+- The dispatcher calls `dismiss_tooltip` for every key, paste, and rejected paste, then routes the
+  item unchanged. A press, wheel notch, or drag closes it inside `PointerState::event`;
+  `invalidate_map`, `stale_map`, released capture, focus loss, and observability downgrade clear it.
+  A published map closes it when the frontmost tooltip region under the pointer changed. The one
+  exception is the frame after a movement revealing a child beneath the arrival cell, such as a
+  row's `[x]`: the tooltip moves to that child at the pointer cell.
+- `tui_render/tooltip.rs` lays the box out and paints it after the floating status and recovery
+  chips and before the cursor is placed, only without a capture owner, an overlay other than the
+  business sidebar, an armed prefix, or the too-small tier. It reuses `overlay_surface` and the
+  action menu's crossing wide-cell cleanup, records the box as a `Status`-layer `OverlaySurface`
+  that shields what lies beneath, and hides the pane cursor under it.
+
 ## Invariants and temporal rules
 
 - `LastDrawnOnly`: events resolve only against the map of the last complete successful draw;
@@ -549,6 +578,7 @@ use the [retained viewport](native-terminal-viewport.md) owner.
 | Production surface                                                                                       | Model correspondence                                                                                                                                                                                                              |
 | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tui_pointer.rs`, `tui_pointer/interaction.rs`                                                           | `PointerState` capture/map/gesture lifecycle, typed interaction metadata and projection, stable release fingerprint, `FrameHitMap`/`HitMapBuilder` staged regions, specialized `Gesture` owners, `WheelStream`                    |
+| `tui_pointer/tooltip.rs`, `tui_render/tooltip.rs`                                                        | Tooltip rest, adjacent opening, quieting, dismissal and publication retarget; text layout, wrapping, placement and the shielding box                                                                                              |
 | `terminal_events/mouse.rs`                                                                               | `MouseEvent` decode (`decode_sgr`, `decode_x10`), `route_pane_pointer`, `encode_pane_report`, `encode_cursor_arrows`                                                                                                              |
 | `terminal_events/decoder.rs`                                                                             | Typed `DecodedKind::Mouse`/`Ignored` items; X10 atomic three-byte body consumption, timeout, and abort; mouse-shaped malformed/aborted/over-bound runs decode `Ignored`                                                           |
 | `terminal_input/dispatcher.rs`                                                                           | Explicit `Mouse` and `Ignored` arms before raw forwarding; generic pointer outcomes and whole-packet unchanged-motion redraw decision; pending bytes and decoder deadlines retain ordering; structural changes invalidate the map |
@@ -577,6 +607,7 @@ control/attach byte witnesses described in [terminal streams](windows-terminal-s
 | Hit map                   | `tui_pointer/tests` layer order, edge/outside cells, overlay capture and backdrop dismiss — including an outside press on the uncovered tab strip and pane that never selects or forwards — stale-map drop                                                                                                                                                                                                                          |
 | Interaction projection    | `tui_pointer/tests/interaction` covers hover enter/repeat/leave, disabled and specialized targets, press/release, permanent leave cancellation, repaint continuity, changed fingerprint/occlusion, transport loss, child precedence, and one bounded stationary-position follow-up                                                                                                                                                  |
 | Generic adopters          | Renderer/dispatcher tests cover Settings, menus, sidebars, Board, Help, Navigator, Machine Picker, Presentation, Tab creation and global chrome: exact sources/geometry, disabled consumption, stale refusal, hover isolation from committed selection, menu candidate movement, release cancellation and no retarget                                                                                                               |
+| Pointer tooltips          | `tui_pointer/tooltip/tests` cover the rest from real motion only, a consumed rest, admission loss, adjacent opening, press quieting, publication close and retarget, and transport loss; `tui_render/tooltip/tests` cover placement and text; `terminal_input/dispatcher/tests` prove a key closes the tooltip and still reaches its owner                                                                                          |
 | Gesture and pending focus | `tui_pointer/tests` press/release ordering, queue bound and overflow cancel, timeout, orphan, read-only, target-moved refusal, settled-without-frame wait, and fact-gated admission                                                                                                                                                                                                                                                 |
 | Dispatcher port writes    | `terminal_input/dispatcher/tests` — malformed SGR/X10 and aborted/timed-out mouse runs produce zero forwarded bytes while ordinary keys, paste, and unrelated unknown CSI pass through in order; continuous button-free motion cannot starve an expired Escape and only an all-unchanged-motion packet skips repaint                                                                                                                |
 | Wheel stream              | `tui_pointer/tests` three-per-notch, per-pass viewport cap, reversal clearing, stream close on drain                                                                                                                                                                                                                                                                                                                                |

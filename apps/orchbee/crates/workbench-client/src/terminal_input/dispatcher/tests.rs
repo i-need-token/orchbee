@@ -378,6 +378,96 @@ fn button_free_motion_redraws_only_for_changed_projection_and_never_starves_esca
 }
 
 #[test]
+fn a_key_closes_the_pointer_tooltip_and_still_reaches_its_owner() {
+    use crate::tui_pointer::{HelpControl, HitLayer, HitMapBuilder, HitTarget, TooltipContent};
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(80);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatcher.set_pointer_motion_observability(crate::tui_pointer::MotionObservability::AnyMotion);
+    let area = ratatui::layout::Rect::new(10, 5, 8, 1);
+    let target = HitTarget::Help {
+        page: 1,
+        action: HelpControl::Close,
+    };
+    let frame = |dispatcher: &InputDispatcher| {
+        let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
+        hits.record(HitLayer::Chrome, area, target.clone());
+        hits.record_tooltip(
+            HitLayer::Chrome,
+            area,
+            target.clone(),
+            TooltipContent::Action {
+                label: "Close".to_owned(),
+                key: None,
+            },
+        );
+        hits
+    };
+    let start = Instant::now();
+    let at = |millis: u64| start + std::time::Duration::from_millis(millis);
+    for (round, key) in [b"x".as_slice(), b""].into_iter().enumerate() {
+        let base = 1000 * round as u64;
+        calls.borrow_mut().clear();
+        dispatcher.publish_hit_map(frame(&dispatcher).finish());
+        dispatcher
+            .dispatch(
+                &mut view,
+                b"[<35;13;6M",
+                &mut port,
+                at(base),
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        assert!(frame(&dispatcher).open_tooltip().is_none());
+        assert!(
+            dispatcher
+                .synchronize(&mut view, &mut port, at(base + 300), &mut |_| Ok::<
+                    (),
+                    io::Error,
+                >(
+                    ()
+                ))
+                .unwrap(),
+            "the rest opens the tooltip and asks for a frame"
+        );
+        assert!(frame(&dispatcher).open_tooltip().is_some());
+        dispatcher.publish_hit_map(frame(&dispatcher).finish());
+
+        dispatcher
+            .dispatch(
+                &mut view,
+                key,
+                &mut port,
+                at(base + 310),
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        // A lone Esc waits out its bounded disambiguation before it is a key.
+        dispatcher
+            .synchronize(&mut view, &mut port, at(base + 500), &mut |_| {
+                Ok::<(), io::Error>(())
+            })
+            .unwrap();
+        assert_eq!(*calls.borrow(), [Call::Forward(key.to_vec())]);
+        assert!(frame(&dispatcher).open_tooltip().is_none());
+        dispatcher
+            .dispatch(
+                &mut view,
+                b"[<35;1;1M",
+                &mut port,
+                at(base + 510),
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+    }
+}
+
+#[test]
 fn cancelled_generic_press_fences_only_its_exact_late_release_packet() {
     use crate::tui_pointer::{
         HelpControl, HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget,

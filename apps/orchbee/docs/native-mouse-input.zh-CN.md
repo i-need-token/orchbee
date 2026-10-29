@@ -415,6 +415,29 @@ notch 从实时尾部向前回看三行；后续每个 notch 本地移动三行�
 或帧不可用时均无效果、不提示。滚轮绝不改变焦点或从标题/边框滚动内容；包括历史中，
 Shift 始终属于宿主。进入、合并导航与恢复沿用[保留视口](native-terminal-viewport.zh-CN.md)所有者。
 
+## 指针 tooltip
+
+[指针 tooltip 契约](../../../docs/zh-CN/tui/overlays-and-status.md#指针-tooltip)由三个所有者实现，
+不另开线程或计时器。
+
+- 功能渲染器在绘制候选帧时调用 `HitMapBuilder::record_tooltip` 或 `record_interaction_tooltip`，
+  传入它为该区域记录的精确层、矩形和 `HitTarget`，以及 `TooltipContent`。已发布的
+  `FrameHitMap` 只保留哪些区域提供 tooltip；内容留在候选帧中，因此盒子显示的是该帧的文字、
+  Working 相位和生效绑定。
+- `tui_pointer/tooltip.rs` 把状态放在 `PointerState` 上：最近一次真实移动的格子、一次性的静止
+  起点、已打开目标的层、矩形和 `HitTarget` 及其打开时的格子、400 ms 预热窗口，以及按下后保持安静
+  的目标。普通的指针 `tick` 由事件循环已有的轮询节奏驱动，只有在捕获开启、宿主有焦点、可观测
+  `AnyMotion`、没有捕获所有者或被捕获的输入、除业务侧栏外没有打开的覆盖层，且没有前缀、
+  Navigator、侧栏键盘导航、调整模式或手势时，才在真实移动 300 ms 后打开它。
+- 调度器对每个按键、粘贴和被拒绝的粘贴调用 `dismiss_tooltip`，然后原样路由该项。按下、滚轮或
+  拖动在 `PointerState::event` 内关闭它；`invalidate_map`、`stale_map`、释放捕获、失去焦点和
+  可观测性降级会清除它。发布的 map 中指针下最前方的 tooltip 区域变化时关闭它。唯一的例外是移动
+  之后的那一帧在到达格下方显露出子目标，例如行的 `[x]`：tooltip 移到该子目标，并以指针格为起点。
+- `tui_render/tooltip.rs` 在浮动状态和恢复浮层之后、放置光标之前布局并绘制盒子，且只在没有
+  捕获所有者、除业务侧栏外没有覆盖层、没有已激活前缀、也不处于过小层级时绘制。它复用
+  `overlay_surface` 和动作菜单清理跨边宽字符残留的逻辑，把盒子记录为 `Status` 层
+  `OverlaySurface` 以遮住下方内容，并隐藏其下的 pane 光标。
+
 ## 不变式与时序规则
 
 - `LastDrawnOnly`：事件只按最近一次完整成功 draw 的 map 解析；布局变化与下一次发布之间
@@ -450,6 +473,7 @@ Shift 始终属于宿主。进入、合并导航与恢复沿用[保留视口](na
 | 生产表面                                                                                                 | 模型对应                                                                                                                                                                          |
 | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tui_pointer.rs`、`tui_pointer/interaction.rs`                                                           | `PointerState` 捕获/map/手势生命周期、类型化交互元数据与 projection、稳定 release fingerprint、`FrameHitMap`/`HitMapBuilder` 暂存区域、specialized `Gesture` owner、`WheelStream` |
+| `tui_pointer/tooltip.rs`、`tui_render/tooltip.rs`                                                        | tooltip 静止计时、相邻打开、安静、关闭及发布时改换目标；文字布局、换行、放置和遮挡盒子                                                                                            |
 | `terminal_events/mouse.rs`                                                                               | `MouseEvent` 解码（`decode_sgr`、`decode_x10`）、`route_pane_pointer`、`encode_pane_report`、`encode_cursor_arrows`                                                               |
 | `terminal_events/decoder.rs`                                                                             | 类型化 `DecodedKind::Mouse`/`Ignored` item；X10 三字节 body 原子消费、超时与中止；鼠标形态的畸形/中止/越界运行解码为 `Ignored`                                                    |
 | `terminal_input/dispatcher.rs`                                                                           | raw 透传前的显式 `Mouse` 与 `Ignored` 臂；通用指针 outcome 与整包不变 motion 重绘裁决；pending 字节及 decoder deadline 保持顺序；结构变化使 map 失效                              |
@@ -478,6 +502,7 @@ control/attach 字节实测覆盖。
 | Hit map                 | `tui_pointer/tests` 层序、边缘/外侧 cell、overlay 捕获与 backdrop 关闭——包括落在未遮盖 tab 条与 pane 上的外点 press 既不选择也不转发、stale-map 丢弃                                                                                                                                             |
 | 交互 projection         | `tui_pointer/tests/interaction` 覆盖 hover 进入／重复／离开、disabled 与 specialized 目标、press/release、移出后永久取消、重绘连续性、fingerprint／遮挡变化、transport 丢失、子项优先级及一次有界静止位置后续重绘                                                                                |
 | 通用接入                | Renderer/dispatcher 测试覆盖 Settings、菜单、侧边栏、Board、Help、Navigator、Machine Picker、Presentation、Tab 创建及全局 chrome：精确来源／几何、禁用消费、陈旧拒绝、hover 与已提交选择隔离、菜单候选更新、释放取消及禁止改投                                                                   |
+| 指针 tooltip            | `tui_pointer/tooltip/tests` 覆盖只由真实移动开始的静止计时、已消耗的静止、准入丢失、相邻打开、按下后安静、发布时关闭与改换目标以及传输丢失；`tui_render/tooltip/tests` 覆盖放置与文字；`terminal_input/dispatcher/tests` 证明按键关闭 tooltip 且仍送达其所有者                                   |
 | 手势与 pending focus    | `tui_pointer/tests` press/release 顺序、队列上界与溢出取消、超时、orphan、只读、目标移动拒绝、settled 无帧等待与按事实准入                                                                                                                                                                       |
 | dispatcher 端口写       | `terminal_input/dispatcher/tests`——畸形 SGR/X10 与中止/超时鼠标运行产生零转发字节，而普通按键、粘贴与无关未知 CSI 按序透传；连续无键 motion 不能让到期 Escape 饥饿，且只有全部不变 motion 的 packet 才跳过重绘                                                                                   |
 | 滚轮流                  | `tui_pointer/tests` 每 notch 三次、每次一屏上限、反转清零、排空后关闭                                                                                                                                                                                                                            |
@@ -500,4 +525,4 @@ control/attach 字节实测覆盖。
 
 证据覆盖按钮边界、不响应的数量／空格、不重叠的分屏矩形、单面板／分屏／放大渲染、窄窗口及 Minimal 降级、修饰键／非左键报告、捕获／overlay／模态守卫、旧实例／anchor、成员移除及实际 UI 准入精确子项 Switch。组合 TestBackend 截图证明 cell composition；物理宿主配色、字体、鼠标硬件、延迟及多 Client 视觉行为需要各自的原生证据。
 
-<!-- documentation-pairing: english-sha256=0b5a1c694af9d794d29f750016cabd7fc5092a74db7325b400abb51d5b6e9a47 zh-cn-sha256=a5a5d2b673dad7f30858818c298317cb2a73856e62d85a20760fa769d85a5316 -->
+<!-- documentation-pairing: english-sha256=4a637b21c0dabc8ceb21caa3542691b6eff8c051ce567ff27296e8a4d2cd45ad zh-cn-sha256=4126faa0065ab369dd606336c7f13f343f23c605f04cf0a094d5319710c034bd -->

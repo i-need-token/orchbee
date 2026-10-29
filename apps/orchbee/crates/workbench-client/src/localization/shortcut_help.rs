@@ -74,14 +74,12 @@ pub(crate) enum ShortcutContext {
 impl Locale {
     pub(crate) fn sidebar_marker_label(self, marker: &str) -> &'static str {
         match (self, marker) {
-            (Self::EnUs, "unread") => "Unseen change",
-            (Self::ZhCn, "unread") => "有未读变化",
+            (Self::EnUs, "unread") => "Unread activity",
+            (Self::ZhCn, "unread") => "未读动态",
             (Self::EnUs, "expanded") => "Expanded",
             (Self::ZhCn, "expanded") => "已展开",
             (Self::EnUs, "collapsed") => "Collapsed",
             (Self::ZhCn, "collapsed") => "已折叠",
-            (Self::EnUs, "help") => "F1: symbol legend",
-            (Self::ZhCn, "help") => "F1：符号说明",
             (Self::EnUs, _) => "Sidebar symbols",
             (Self::ZhCn, _) => "侧栏符号",
         }

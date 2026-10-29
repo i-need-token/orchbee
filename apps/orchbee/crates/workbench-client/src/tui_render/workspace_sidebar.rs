@@ -7,15 +7,19 @@ use super::controls::{
 };
 use super::{
     Block, ClientView, Frame, HitLayer, HitMapBuilder, Line, Locale, Paragraph, Rect, Role, Span,
-    Theme, display_width, sidebar_text, truncate_display,
+    Theme, display_width, sidebar_text, tooltip, truncate_display,
 };
 use crate::terminal_text::{line_display_width, sanitize_terminal_text, truncate_display_middle};
 use crate::{
+    client_view::ClientAction,
+    localization::TooltipLabel,
     machine_discovery::display_label,
     machine_picker::{
         Row, SidebarFixedAction, SidebarPart, SidebarRow, SidebarSource, SidebarTarget,
     },
-    tui_pointer::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
+    tui_pointer::{
+        InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer, TooltipContent,
+    },
 };
 use orchbee_local_runtime::{SidebarTokenStyle, SpaceSidebarToken, SpaceSidebarTokenKind as Kind};
 use ratatui::style::{Modifier, Style};
@@ -1325,7 +1329,6 @@ pub(super) fn render(
         (area, whole)
     };
     let mut y = body.y;
-    let mut hovered_hint = None;
 
     for index in window.top..window.end() {
         let leading_gap = if index == window.top {
@@ -1683,51 +1686,6 @@ pub(super) fn render(
             | SidebarRow::Project { .. }
             | SidebarRow::Recents { .. } => None,
         };
-        let explain = |state| {
-            let (key, _) = state_role(state);
-            format!(
-                "{} {}",
-                super::sidebar_text::state_glyph(state, theme, view.machines.working_frame()),
-                locale.machine_picker_text(key)
-            )
-        };
-        // The open menu, not a row explanation, now speaks for a held row.
-        if row_paint_pointer != PointerPresentation::Rest && !held {
-            let mut hint = Vec::new();
-            if let Some(state) = agent_state {
-                hint.push(explain(state));
-            }
-            // A folded Workspace explains each distinct state on its status line.
-            let mut explained = Vec::new();
-            for state in &status_states {
-                if !explained.contains(state) {
-                    explained.push(*state);
-                    hint.push(explain(*state));
-                }
-            }
-            if unread {
-                hint.push(format!(
-                    "{} {}",
-                    theme.glyphs.status_bullet,
-                    locale.sidebar_marker_label("unread")
-                ));
-            }
-            if has_disclosure && let Some(expanded) = expanded {
-                hint.push(format!(
-                    "{} {}",
-                    disclosure_glyph(expanded),
-                    locale.sidebar_marker_label(if expanded { "expanded" } else { "collapsed" })
-                ));
-            }
-            hint.push(locale.sidebar_marker_label("help").to_owned());
-            hovered_hint = Some(if close_pointer == PointerPresentation::Rest {
-                hint.join(" · ")
-            } else {
-                locale
-                    .menu_action(&crate::action_menu::MenuAction::CloseWorkspace)
-                    .to_owned()
-            });
-        }
         // Only Agents have state and connector tracks; only occupied tracks become bands.
         let bands: Vec<_> = [tracks.state, tracks.guide, tracks.auxiliary]
             .into_iter()
@@ -1929,6 +1887,26 @@ pub(super) fn render(
             .is_some()
             && let Some(hits) = hits.as_deref_mut()
         {
+            // Only a Workspace's disclosure names an action no row text already says.
+            if matches!(row, SidebarRow::Context { .. })
+                && let Some(expanded) = expanded
+            {
+                hits.record_interaction_tooltip(
+                    layer,
+                    tracks.disclosure,
+                    &target,
+                    TooltipContent::Action {
+                        label: locale
+                            .tooltip_label(if expanded {
+                                TooltipLabel::HideAgents
+                            } else {
+                                TooltipLabel::ShowAgents
+                            })
+                            .to_owned(),
+                        key: None,
+                    },
+                );
+            }
             hits.record_interaction(
                 layer,
                 tracks.disclosure,
@@ -1966,11 +1944,36 @@ pub(super) fn render(
             .is_some()
             && let Some(hits) = hits.as_deref_mut()
         {
+            // The binding closes only the current Workspace, so only its close shows the key.
+            hits.record_interaction_tooltip(
+                layer,
+                rect,
+                &target,
+                TooltipContent::Action {
+                    label: locale
+                        .menu_action(&crate::action_menu::MenuAction::CloseWorkspace)
+                        .to_owned(),
+                    key: current_row(view, row)
+                        .then(|| {
+                            tooltip::action_key(view, ClientAction::RequestWorkspaceClose, theme)
+                        })
+                        .flatten(),
+                },
+            );
             hits.record_interaction(layer, rect, rect, target, close_spec);
         }
         if painted.is_some()
             && let (Some(hits), Some(target)) = (hits.as_deref_mut(), row_target)
         {
+            // An Agent row names its state glyph; a folded Workspace each state its status line
+            // shows. Either adds the unread dot.
+            let states = agent_state.into_iter().chain(status_states.iter().copied());
+            if let Some(content) = tooltip::describe(
+                None,
+                tooltip::legend(states, unread, view.machines.working_frame(), locale, theme),
+            ) {
+                hits.record_interaction_tooltip(layer, band, &target, content);
+            }
             hits.record_interaction(layer, band, band, target, row_spec);
         }
         y = band.bottom();
@@ -2016,18 +2019,6 @@ pub(super) fn render(
     } else {
         String::new()
     };
-    if let Some(hint) = hovered_hint.filter(|_| overflows || y < area.bottom()) {
-        frame.render_widget(
-            Paragraph::new(truncate_display(
-                &hint,
-                usize::from(area.width),
-                theme.glyphs.ellipsis,
-            ))
-            .style(theme.style(Role::TextSecondary)),
-            Rect::new(area.x, area.bottom() - 1, area.width, 1),
-        );
-        return;
-    }
     if range.is_empty() {
         return;
     }

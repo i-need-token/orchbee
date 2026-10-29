@@ -70,6 +70,8 @@ pub(crate) use tab_close::{
 mod tab_rename;
 mod terminal_history;
 mod terminal_title;
+mod tooltip;
+pub(crate) use tooltip::TooltipLabel;
 #[cfg(any(unix, windows))]
 mod workspace_close;
 pub(crate) use workspace_close::{WorkspaceCloseStatus, WorkspaceCloseText};

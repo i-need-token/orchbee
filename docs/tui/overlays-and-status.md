@@ -3,8 +3,8 @@
 ## Authority and scope
 
 This standard owns surface selection, overlay composition, input capture, interaction lifecycle,
-confirmations, the status line, hints, transient notices, and asynchronous outcome presentation for
-Orchbee-authored terminal interfaces.
+confirmations, the status line, hints, pointer tooltips, transient notices, and asynchronous outcome
+presentation for Orchbee-authored terminal interfaces.
 Geometry follows [`layout.md`](layout.md#overlays); colors and hierarchy follow
 [`visual-foundations.md`](visual-foundations.md); key ownership follows
 [`keyboard-input.md`](keyboard-input.md#input-ownership); reusable overlay shells and controls follow
@@ -29,6 +29,7 @@ steal focus for background status.
 | Non-capturing overlay | A passive preview while typing continues to the pane                               | The content must be acted on before the pane can continue             |
 | Capturing overlay     | A choice, picker, draft, or reference surface whose keys must not reach the pane   | One line of status or a status-line editor suffices                   |
 | Confirmation          | A brief decision precedes an effect that is not readily reversible                 | The effect is reversible, or the surface merely reports information   |
+| Pointer tooltip       | A resting pointer asks what a glyph, bracket control, or cut name in chrome means  | The words are already painted, or the information is needed to act    |
 
 Any surface that consumes every key is capturing regardless of its size or name. A surface never
 changes capture kind while open.
@@ -233,6 +234,46 @@ live content. While visible it stays above other overlays. Its segments, from st
   contains raw error text; failures map to localized messages with stable codes.
 - Notices never block input and never move layout.
 
+## Pointer tooltips
+
+A pointer tooltip states in words what one painted chrome target shows only as glyphs, a bracket
+control, or a cut name. It supplements discovery: everything it says stays reachable without a
+pointer through help, menus, or the binding table.
+
+- Content is a legend, a full name, or an action. A legend names each glyph the target shows, in
+  the glyph's own role, followed by its word; items stand two cells apart with no separator. A cut
+  name appears whole before its legend. An action states its label, then the key that does the same
+  to the same target now, taken from the effective binding table and never hard-coded. A target
+  already explained in words gets none; a tooltip never names the current marker, the row kind, or
+  help.
+- The box is the context-menu frame without a heading, marker, or arrow: `surface-overlay` inside a
+  `frame-unfocused` border with one padding cell each side, so it is its text width plus four cells
+  by its line count plus two rows. Text is `text-primary`, keys use `hint-key`, and the box looks
+  the same in every theme without an inverted fill.
+- Text takes at most 40 cells by two lines and wraps at spaces; wide characters may break between
+  characters. Whatever is left out ends the last line with the ellipsis, a path keeps both ends, an
+  action key stays whole while its label truncates, and a cut legend ends with a `text-secondary`
+  ellipsis.
+- The box sits wholly below the target's last row, else wholly above its first row, else it does
+  not open. It starts at the pointer's column and shifts left to stay on screen. It never covers its
+  target, the pointer, or the floating status, and it stays put while the pointer moves within its
+  target.
+- It opens after the pointer rests 300 ms, counted from a real button-free movement report; content
+  moving beneath a still pointer never opens one. While one is open, or within 400 ms after the
+  pointer left one, the next target's opens at once. It never times out, and its content follows its
+  target.
+- Leaving the target closes it. So does any key, which still reaches its owner unchanged; `Esc` is
+  not consumed. A press or wheel notch closes it and keeps that target quiet until the pointer leaves
+  and returns. Focus loss, released capture, lost any-motion reporting, a resize, a menu, overlay,
+  help, prefix, mode, drag, or rename starting, and the target moving, disappearing, or changing what
+  it does also close it.
+- The box is not a target. Its cells occlude what lies beneath like the status chip: moving onto it
+  closes it, a press there reaches nothing, and hover resolves beneath after the next frame.
+- Keyboard focus never opens one. Without any-motion reporting or native console motion it never
+  opens, and nothing substitutes for it, such as a long press.
+- Only the sidebar, the Tab strip, and pane titles offer tooltips, under their owners' documented
+  content. Menus, overlays, Settings, links, and program output never do.
+
 ## Pending, completion, and attention
 
 - An admitted foreground intent receives local acceptance feedback at its initiating control or
@@ -270,12 +311,13 @@ live content. While visible it stays above other overlays. Its segments, from st
 
 ## Verification
 
-| Change                  | Required check                                                                                                                                                                                                                                          |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Overlay addition        | Rendered at every required geometry in [`verification.md`](verification.md#render-evidence); fixed slots and footer order remain visible; new-size refusal, open-size suspension and resumption, and capture kind are tested                            |
-| Child or dismissal flow | Tests restore focus, selection, query, viewport anchor, draft, and preview; each `Esc` unwinds one layer and leaves running work unchanged                                                                                                              |
-| Preview or commit flow  | Tests distinguish focus, unaccepted reversible preview, validation, activation, immediate commit, staged commit, and cancellation; cancellation reverts only the active unaccepted preview and preserves an accepted parent draft or domain value       |
-| Confirmation addition   | Tests prove only the exact key confirms, `Esc` cancels, and the refused-geometry path does not run the effect                                                                                                                                           |
-| Status segment change   | Tests cover every tier and prove the input indicator survives to the smallest tier                                                                                                                                                                      |
-| Notice change           | A test with injected time proves expiry schedules a redraw and a persistent error is not replaced                                                                                                                                                       |
-| Asynchronous operation  | Tests prove local acceptance before background completion, delayed progress, active-generation completion, stale-result rejection, cancellation/ownership retirement, definite failure, unknown recovery, and that background completion does not focus |
+| Change                  | Required check                                                                                                                                                                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Overlay addition        | Rendered at every required geometry in [`verification.md`](verification.md#render-evidence); fixed slots and footer order remain visible; new-size refusal, open-size suspension and resumption, and capture kind are tested                                  |
+| Child or dismissal flow | Tests restore focus, selection, query, viewport anchor, draft, and preview; each `Esc` unwinds one layer and leaves running work unchanged                                                                                                                    |
+| Preview or commit flow  | Tests distinguish focus, unaccepted reversible preview, validation, activation, immediate commit, staged commit, and cancellation; cancellation reverts only the active unaccepted preview and preserves an accepted parent draft or domain value             |
+| Confirmation addition   | Tests prove only the exact key confirms, `Esc` cancels, and the refused-geometry path does not run the effect                                                                                                                                                 |
+| Status segment change   | Tests cover every tier and prove the input indicator survives to the smallest tier                                                                                                                                                                            |
+| Notice change           | A test with injected time proves expiry schedules a redraw and a persistent error is not replaced                                                                                                                                                             |
+| Pointer tooltip change  | Tests with injected time prove the rest from real motion only, adjacent opening, key dismissal with the key still delivered, press quieting, and closing when a published frame moves the target; placement tests cover below, above, left shift, and refusal |
+| Asynchronous operation  | Tests prove local acceptance before background completion, delayed progress, active-generation completion, stale-result rejection, cancellation/ownership retirement, definite failure, unknown recovery, and that background completion does not focus       |

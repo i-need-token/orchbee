@@ -63,8 +63,9 @@ Pointer interaction preserves these separate facts:
 | Armed gesture         | A press or drag in progress, tied to one stable target identity and its interaction revision                |
 | Activation            | A semantic intent dispatched after its gesture satisfies the owner's commit rule; it is an event, not focus |
 
-- Movement may change hover styling or reveal a local affordance. An open action menu may update
-  its provisional candidate through its owner on an enabled painted row; other collections retain
+- Movement may change hover styling, reveal a local affordance, or start the rest that opens a
+  [pointer tooltip](overlays-and-status.md#pointer-tooltips). An open action menu may update its
+  provisional candidate through its owner on an enabled painted row; other collections retain
   provisional selection. Movement never moves keyboard focus, activates an action, commits data,
   mutates shared domain state, or writes terminal input.
 - A press may move focus or selection only when the owning component declares that step. Immediate

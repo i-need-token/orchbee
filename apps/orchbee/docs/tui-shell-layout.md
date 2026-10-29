@@ -200,8 +200,8 @@ reveal it, and the context menu and keyboard close routes remain available.
 Hover or press on a disclosure, Create or close control also keeps its complete parent row hovered; the
 control retains its own local pressed feedback. Internal row padding and external group separators
 keep their existing owners. Agent rows carry no ordinal. The default Agent row is one primary
-title line, falling back to its provider when no meaningful title is available; its state glyph and
-the hover footer hint carry state. Explicitly configured Agent rows retain their selected tokens
+title line, falling back to its provider when no meaningful title is available; its state glyph
+carries state, which the row's pointer tooltip names. Explicitly configured Agent rows retain their selected tokens
 and line count.
 Project and Recents groups reserve at least one blank row
 after preceding items; configured gaps can widen it. A Project's first Workspace sits directly
@@ -743,7 +743,7 @@ Pending and canonical Workspace rows reserve the same nonempty configured token 
 
 ## Sidebar symbol discovery
 
-F1 includes a symbol legend for unread changes, disclosure and all Agent states. Hovering a sidebar row explains its glyphs on the list's last row when that row holds the overflow range or is free: an Agent's state, the distinct states on a folded Workspace's status line, unread and disclosure. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
+F1 includes a symbol legend for unread activity, disclosure and all Agent states. A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. An Agent row names its state, then unread activity. A folded Workspace, both of its rows, names each distinct state its status line shows, most urgent first, then unread activity. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. Group headings, a Project's disclosure and other rows offer none, and the list's last row keeps the overflow range. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
 
 ## Shortcut discovery scope
 

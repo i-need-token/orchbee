@@ -62,6 +62,8 @@ pub(crate) use sidebar_reorder::{
     SidebarReorderDraw, SidebarReorderPaint, SidebarReorderPreview, SidebarReorderSource,
 };
 mod sidebar_width;
+mod tooltip;
+pub(crate) use tooltip::{LegendItem, OpenTooltip, TooltipContent, TooltipText};
 
 /// Longest a queued pane press waits for its focus switch to install.
 /// Bounded so a stuck attach cannot hold input hostage.
@@ -356,6 +358,8 @@ pub struct FrameHitMap {
     link_sources: Vec<(Rect, crate::terminal_link_activation::PaintedLinkSource)>,
     menu_source: Option<crate::action_menu::DrawnMenuSource>,
     navigator: Option<crate::client_view::navigator::Paint>,
+    /// Regions this frame painted with a tooltip; their content stays with the candidate frame.
+    tooltips: Vec<tooltip::Key>,
 }
 
 impl FrameHitMap {
@@ -618,6 +622,7 @@ pub struct HitMapBuilder {
     map: FrameHitMap,
     projection: PointerProjection,
     covered_sidebar_rows: Vec<Rect>,
+    tooltip_contents: Vec<(tooltip::Key, TooltipContent)>,
 }
 
 impl HitMapBuilder {
@@ -726,9 +731,11 @@ impl HitMapBuilder {
                 link_sources: Vec::new(),
                 menu_source: None,
                 navigator: None,
+                tooltips: Vec::new(),
             },
             projection: PointerProjection::empty(),
             covered_sidebar_rows: Vec::new(),
+            tooltip_contents: Vec::new(),
         }
     }
 
@@ -1016,6 +1023,47 @@ impl HitMapBuilder {
         let pointer = self.projected_pointer(layer, hit_rect, paint_rect, target, spec);
         self.map.regions.truncate(recorded);
         pointer
+    }
+
+    /// Offers a tooltip on a region this frame records with exactly this layer, rect and target. The
+    /// tooltip opens only while that region is frontmost under a resting pointer.
+    pub(crate) fn record_tooltip(
+        &mut self,
+        layer: HitLayer,
+        rect: Rect,
+        target: HitTarget,
+        content: TooltipContent,
+    ) {
+        if rect.is_empty() {
+            return;
+        }
+        let key = tooltip::Key::new(layer, rect, target);
+        self.map.tooltips.push(key.clone());
+        self.tooltip_contents.push((key, content));
+    }
+
+    /// [`Self::record_tooltip`] for a generic interaction recorded at the same rect.
+    pub(crate) fn record_interaction_tooltip(
+        &mut self,
+        layer: HitLayer,
+        rect: Rect,
+        target: &InteractionTarget,
+        content: TooltipContent,
+    ) {
+        self.record_tooltip(layer, rect, target.hit_target(), content);
+    }
+
+    /// The open tooltip when this frame painted its target again, with this frame's content.
+    pub(crate) fn open_tooltip(&self) -> Option<OpenTooltip<'_>> {
+        let shown = self.projection.tooltip()?;
+        if !self.map.paints_tooltip_target(shown) {
+            return None;
+        }
+        self.tooltip_contents
+            .iter()
+            .rev()
+            .find(|(key, _)| key == shown.key())
+            .map(|(_, content)| shown.open(content))
     }
 
     /// Record the link source from the same terminal paint and pane geometry
@@ -1464,6 +1512,7 @@ pub struct PointerState {
         MouseButton,
     )>,
     wheel: WheelStream,
+    tooltip: tooltip::State,
 }
 
 impl PointerState {
@@ -1474,6 +1523,7 @@ impl PointerState {
             .projection()
             .with_modal(self.modal_projection());
         self.sidebar_reorder_projection(projection.with_chrome(self.chrome_projection()))
+            .with_tooltip(self.tooltip.projection())
     }
 
     /// Applies the settled outer-transport motion level. Downgrade clears
@@ -1484,6 +1534,7 @@ impl PointerState {
         }
         self.motion_observability = observability;
         if observability == MotionObservability::ButtonOnly {
+            self.tooltip.clear_transport();
             self.interactions.clear_transport();
             self.cancel_modal_press();
             self.clear_modal_transport();
@@ -1495,6 +1546,7 @@ impl PointerState {
     pub(crate) fn set_host_focus(&mut self, focused: bool) {
         self.host_unfocused = !focused;
         if !focused {
+            self.tooltip.clear_transport();
             self.interactions.clear_transport();
             self.cancel_modal_press();
             self.clear_modal_transport();
@@ -1513,8 +1565,54 @@ impl PointerState {
         let interaction = self.interactions.take_redraw_after_publish();
         let modal = self.take_modal_projection_redraw();
         let chrome = self.chrome_projection.take_redraw_after_publish();
+        let tooltip = self.tooltip.take_redraw_after_publish();
 
-        interaction || modal || chrome
+        interaction || modal || chrome || tooltip
+    }
+
+    /// Any key closes the tooltip and still reaches its owner: this never consumes the key.
+    pub(crate) fn dismiss_tooltip(&mut self) {
+        self.tooltip.dismiss();
+    }
+
+    /// Feeds one host report to the tooltip. Only button-free movement under any-motion reporting
+    /// can start the rest; a press, wheel notch or drag closes it.
+    fn observe_tooltip(&mut self, event: MouseEvent, now: Instant) {
+        let cell = (event.column, event.row);
+        match (event.action, event.button) {
+            (MouseAction::Motion, MouseButton::None) => {
+                if self.motion_observability == MotionObservability::AnyMotion && !event.mods.shift
+                {
+                    self.tooltip.motion(self.map.as_ref(), cell, now);
+                }
+            }
+            (MouseAction::Motion, _) => self.tooltip.dismiss(),
+            (MouseAction::Press, _) => self.tooltip.press(self.map.as_ref(), cell),
+            (MouseAction::Release, _) => {}
+        }
+    }
+
+    /// A tooltip may open only on persistent chrome nobody else owns: the pointer is captured and
+    /// moving, and no overlay, prefix, mode, gesture or input owner is active.
+    fn tooltip_admitted(
+        &self,
+        view: &ClientView,
+        probe: &PointerProbe,
+        capture: Option<crate::tui_composition::CaptureOwner>,
+    ) -> bool {
+        self.capture
+            && !self.host_unfocused
+            && self.motion_observability == MotionObservability::AnyMotion
+            && capture.is_none()
+            && !probe.input_captured
+            && view
+                .overlay()
+                .is_none_or(|overlay| overlay == crate::client_view::Overlay::BusinessSidebar)
+            && !view.prefix_active()
+            && !view.navigator_active()
+            && !view.machines.sidebar_navigation_active()
+            && !view.resize_mode()
+            && matches!(self.gesture, Gesture::Idle)
     }
 
     pub(crate) fn help_event(
@@ -2193,6 +2291,7 @@ impl PointerState {
     /// die so nothing reaches a pane after the host stops reporting.
     pub(crate) fn set_capture(&mut self, enabled: bool) {
         if !enabled {
+            self.tooltip.clear_transport();
             self.cancel_list_scroll();
             self.cancel_modal_press();
             self.interactions.clear_transport();
@@ -2315,6 +2414,7 @@ impl PointerState {
         self.interactions.publish(&map);
         self.publish_modal_projection(&map);
         self.publish_chrome_projection(&map);
+        self.tooltip.publish(&map);
         self.map = Some(map);
     }
 
@@ -2337,6 +2437,7 @@ impl PointerState {
     /// the next publish no new gesture is admitted, while the exact release
     /// of an already accepted Client UI press may still settle cleanup once.
     pub(crate) fn invalidate_map(&mut self) {
+        self.tooltip.dismiss();
         self.cancel_list_scroll();
         self.cancel_modal_press();
         self.interactions.invalidate_map();
@@ -2379,6 +2480,7 @@ impl PointerState {
     /// dispatcher calls this on `RegionsChanged`; the map itself never
     /// decides.
     pub(crate) fn stale_map(&mut self) {
+        self.tooltip.dismiss();
         self.cancel_modal_press();
         self.interactions.invalidate_map();
         self.invalidate_modal_projection();
@@ -2409,6 +2511,7 @@ impl PointerState {
         if probe.input_captured {
             // A modal draft or an armed confirmation owns input: pointer
             // events are swallowed without producing gestures.
+            self.tooltip.dismiss();
             self.interactions.clear_transport();
             self.clear_chrome_transport();
             self.cancel_selection(port);
@@ -2438,6 +2541,7 @@ impl PointerState {
             view.machines.cancel_sidebar_scroll();
             return PointerOutcome::Ignored;
         }
+        self.observe_tooltip(event, now);
         let interaction_revision = self.interactions.revision();
         let hover_changed = !self.host_unfocused
             && self.interactions.observe_motion(
@@ -2504,9 +2608,11 @@ impl PointerState {
         view: &mut ClientView,
         port: &mut Port,
         now: Instant,
-        _capture: Option<crate::tui_composition::CaptureOwner>,
+        capture: Option<crate::tui_composition::CaptureOwner>,
     ) -> bool {
         let probe = port.pointer_probe();
+        let admitted = self.tooltip_admitted(view, &probe, capture);
+        let tooltip_changed = self.tooltip.tick(self.map.as_ref(), now, admitted);
         if !self.capture
             || probe.input_captured
             || view
@@ -2526,7 +2632,7 @@ impl PointerState {
             // owned across idle and draw boundaries. The dispatcher supplies the current
             // composition winner; map publication still checks its exact fingerprint.
             let menu_owns_interaction = matches!(
-                _capture,
+                capture,
                 Some(crate::tui_composition::CaptureOwner::Native(
                     crate::tui_composition::WorkbenchCaptureOwner::ActionMenu
                 ))
@@ -2552,9 +2658,9 @@ impl PointerState {
             }
 
             self.wheel.clear();
-            return changed;
+            return changed || tooltip_changed;
         }
-        let mut changed = false;
+        let mut changed = tooltip_changed;
         if matches!(&self.gesture, Gesture::Tab(drag) if port.tab_drag_source().as_ref() != Some(&drag.source))
             || (self.tab_drag_captured()
                 && (view.overlay().is_some_and(|overlay| {
