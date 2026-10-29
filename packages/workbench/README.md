@@ -2,9 +2,10 @@
 
 Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
 
-The `document` and `semantic-commands` package subpaths emit JavaScript and declarations under
-`dist/workbench/`, preserving their source-relative layout for dependency analysis. Consumers use
-the package subpaths; the build paths do not introduce a separate public import surface.
+The `document`, `runtime`, and `semantic-commands` package subpaths emit JavaScript and
+declarations under `dist/workbench/`, preserving their source-relative layout for dependency
+analysis; `runtime` builds from `src/workbench/model/`. Consumers use the package subpaths; the
+build paths do not introduce a separate public import surface.
 
 Shared product-semantic React shell for Orchbee applications.
 
@@ -91,6 +92,12 @@ controlled browser fixtures for visible focus, unchanged navigation, and unchang
 The pure Project, Directory, Workspace, placement, CWD, and transition contracts are available from
 `@orchbee/workbench/project-workspace`. Application owners may use this non-React subpath for one
 authoritative mutation without importing the visual Workbench or its runtime graph.
+
+The headless `WorkbenchProjectWorkspaceRuntime` and its `WorkbenchTerminalPresentationComposition`
+type are available from `@orchbee/workbench/runtime`. Its runtime import closure contains no
+React, DOM, or stylesheet module and takes Tab state from `@orchbee/tab-strip/model`, so Electron
+Main can own a runtime without importing the React Workbench root. Its declarations still reference
+the Tab Strip root's `TabStripNewTabRequest` type.
 
 Validated shared-document read projections, bounded Terminal-output read contracts, and exact-target terminal-intent creation are available
 from `@orchbee/workbench/semantic-commands`. This DOM-, React-, storage-, and transport-independent

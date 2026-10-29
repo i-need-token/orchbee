@@ -1,8 +1,4 @@
 import {
-	WorkbenchProjectWorkspaceRuntime,
-	type WorkbenchTerminalPresentationComposition,
-} from '@orchbee/workbench';
-import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
 	type WorkbenchSharedDocument,
@@ -12,6 +8,10 @@ import {
 	type TerminalPresentationOperationId,
 	type TerminalPresentationRemovalId,
 } from '@orchbee/workbench-client-protocol';
+import {
+	WorkbenchProjectWorkspaceRuntime,
+	type WorkbenchTerminalPresentationComposition,
+} from '@orchbee/workbench/runtime';
 
 import type { DesktopRecoveredTerminalPresentation } from '../terminal-document-control';
 

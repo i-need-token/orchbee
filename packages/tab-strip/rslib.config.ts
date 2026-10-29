@@ -19,6 +19,7 @@ export default defineConfig({
 	source: {
 		entry: {
 			index: './src/index.ts',
+			'tab-strip/model/index': './src/tab-strip/model/index.ts',
 			styles: './src/styles.ts',
 		},
 		tsconfigPath: './tsconfig.build.json',

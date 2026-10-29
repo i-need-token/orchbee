@@ -18,6 +18,7 @@ import '@orchbee/tab-strip/styles.css';
 ```
 
 - `@orchbee/tab-strip` 公开组件，以及托管它所需的 Action 标识、关闭与选择输入类型。
+- `@orchbee/tab-strip/model` 为 Workbench project-workspace runtime 等无头消费者公开不含 React 的 `TabModel`，以及 `TabModelInit` 与 `TabModelSnapshot`。其运行时闭包不含 React、DOM 或样式表模块；包根继续为组件宿主导出 `TabModel`。
 - `@orchbee/ui/styles.css` 提供上下文菜单使用的共享原始样式和设计令牌注册表。
 - `@orchbee/tab-strip/styles.css` 为内置消费者提供组件的 CSS 模块输出。
 
@@ -98,7 +99,7 @@ src/
     └── utils/
 ```
 
-`TabStrip.tsx` 是窄公共适配器。 `TabStripView` 组成准备好的水平、垂直、覆盖和菜单区域。私有组件递归地重复相同的所有权结构，并且没有 barrel。四个语义子系统是这个完整组件功能的内聚方面，而不是单独使用的源模块；选定的公共合约仅通过 `tab-strip/index.ts` 和包根重新导出。
+`TabStrip.tsx` 是窄公共适配器。 `TabStripView` 组成准备好的水平、垂直、覆盖和菜单区域。私有组件递归地重复相同的所有权结构，并且没有 barrel。四个语义子系统是这个完整组件功能的内聚方面，而不是单独使用的源模块；例外是 `tab-strip/model/index.ts` 将不含 React 的 `TabModel` 及其初始化与快照类型公开为 `@orchbee/tab-strip/model`。其他选定的公共合约仅通过 `tab-strip/index.ts` 和包根重新导出。
 
 ## 正确性
 
@@ -149,4 +150,4 @@ pnpm --filter @orchbee/tab-strip test:exports
 
 要求像素精确的动画中点验证为拖起、帧回调和指针重新定位控制同一个单调时钟，保留精确几何与起始时间不变断言。用实时小数时间戳构造中点可能跨过整数像素取整边界。
 
-<!-- documentation-pairing: english-sha256=a5192714633f7639c1bce28409ab784f64217997cfef6ae15ba98b432a6a953a zh-cn-sha256=cbb8459b236d76e14e27f125dd244fa08d26ab6d6bc0772cb82a19b2247c0fba -->
+<!-- documentation-pairing: english-sha256=7e67a2161beb2ab1a0220fd4b0dccd71c51683ed8d4f3b807b865aefb61748e1 zh-cn-sha256=992decd9f46574593f13311a09e4c316f87f015fd50b1ef64e68de5b43127a39 -->

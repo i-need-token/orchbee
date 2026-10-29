@@ -2,8 +2,9 @@
 
 私有包入口只导出仓库内有消费者的符号，Knip 的 `includeEntryExports` 检查该边界。内部契约、生成资产与独立一致性证据按其所有权保留；它们的存在不自动扩大公共入口。新增客户端应按已准入用途添加所需导出。
 
-`document` 和 `semantic-commands` 包子路径在 `dist/workbench/` 下生成 JavaScript 与声明，
-保留相对于源码的目录布局，供依赖分析使用。消费者使用包子路径；构建路径不增加独立的公共导入面。
+`document`、`runtime` 和 `semantic-commands` 包子路径在 `dist/workbench/` 下生成 JavaScript 与声明，
+保留相对于源码的目录布局，供依赖分析使用；`runtime` 由 `src/workbench/model/` 构建。消费者使用包子路径；
+构建路径不增加独立的公共导入面。
 
 Orchbee 应用程序的共享产品语义 React shell。
 
@@ -71,6 +72,11 @@ Project，最后才使用独立 Terminal 回退。聚焦绝不激活位置或展
 纯 Project、Directory、Workspace、placement、CWD 与 transition contract 可从
 `@orchbee/workbench/project-workspace` 获取。应用 owner 可以通过这个非 React subpath 执行一项权威
 mutation，而无需导入可视 Workbench 或其 runtime graph。
+
+无头 `WorkbenchProjectWorkspaceRuntime` 及其 `WorkbenchTerminalPresentationComposition` 类型可从
+`@orchbee/workbench/runtime` 获取。其运行时导入闭包不含 React、DOM 或样式表模块，并从
+`@orchbee/tab-strip/model` 获取 Tab 状态，因此 Electron Main 可以拥有 runtime 而无需导入 React
+Workbench 根。其声明仍引用 Tab Strip 根的 `TabStripNewTabRequest` 类型。
 
 经过验证的共享文档读取投影、有界 Terminal-output read contract 与精确目标终端意图创建可从
 `@orchbee/workbench/semantic-commands` 获得。这个不依赖 DOM、React、存储和传输的入口会列出规范的
@@ -329,4 +335,4 @@ pnpm --filter @orchbee/workbench test
 pnpm --filter @orchbee/workbench test:exports
 ```
 
-<!-- documentation-pairing: english-sha256=60b78a1c91353a03f7317e38752f0991994ef0109c390ebd40098e46ae35645d zh-cn-sha256=a1b50af0cf8fa665c0e4d98d5cb70d4c4d5808c53ba8fd762a0f1ba06e59a99f -->
+<!-- documentation-pairing: english-sha256=d71cbea405548b0ed943a154ff30e0c447b816661b9ed819812ac0526842aba3 zh-cn-sha256=36eb81911d56a98022a962477e21f11d54059d896b68baf00bf777c0954b9a9b -->

@@ -32,7 +32,7 @@
 				},
 				{
 					"file": "packages/tab-strip/package.json",
-					"sha256": "e06137d797e0e57a116db51065b37cb938a29f29dc3146666f6fe2ab5da2bd1c"
+					"sha256": "471e3c695ede6d169fae4065f90c3aff4ec6bf5848e8fb9e09cbce1b8bbdac56"
 				},
 				{
 					"file": "packages/tab-strip/vitest.config.ts",
@@ -81,7 +81,7 @@
 				},
 				{
 					"file": "packages/tab-strip/package.json",
-					"sha256": "e06137d797e0e57a116db51065b37cb938a29f29dc3146666f6fe2ab5da2bd1c"
+					"sha256": "471e3c695ede6d169fae4065f90c3aff4ec6bf5848e8fb9e09cbce1b8bbdac56"
 				},
 				{
 					"file": "packages/tab-strip/vitest.config.ts",

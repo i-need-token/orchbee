@@ -1,4 +1,4 @@
-import type { TabModel, TabModelSnapshot } from '@orchbee/tab-strip';
+import type { TabModel, TabModelSnapshot } from '@orchbee/tab-strip/model';
 import type {
 	TerminalPresentationCloseRequest,
 	TerminalPresentationCreation,

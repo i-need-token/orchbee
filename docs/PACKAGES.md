@@ -80,6 +80,7 @@ Every library exposes these scripts:
 - Include `@orchbee/source` targets in the package `files` allowlist when the package is publishable. Private packages may omit development source from their pack output.
 - Keep `main`, `module`, and `types` aligned with the root conditional export for consumers that do not fully support `exports`. Omit all three when a private package has no root export.
 - Import another workspace package only through an allowed package name or exported subpath. Imports from another workspace's `src/*` or `dist/*` are forbidden.
+- When a package root exports React presentation, expose the headless state or runtime that a non-React consumer needs through an explicit React-free subpath. Its runtime import closure excludes React, DOM, and stylesheet modules; type-only references may remain.
 - Document every public entry point and asset in the package README.
 
 ```json

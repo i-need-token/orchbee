@@ -1,4 +1,5 @@
-import { TabModel, type TabStripNewTabRequest } from '@orchbee/tab-strip';
+import type { TabStripNewTabRequest } from '@orchbee/tab-strip';
+import { TabModel } from '@orchbee/tab-strip/model';
 import {
 	workbenchSharedDocumentRevision,
 	type TerminalPresentationEvent,

@@ -17,9 +17,4 @@ export type {
 	TabStatusAdornmentKind,
 } from './TabStrip';
 export { TabStripOrientation } from './types/tab-strip-types';
-export {
-	TabModel,
-	type TabData,
-	type TabModelInit,
-	type TabModelSnapshot,
-} from './model/tab-model';
+export { TabModel, type TabData } from './model/tab-model';

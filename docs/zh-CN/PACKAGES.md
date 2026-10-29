@@ -73,6 +73,7 @@
 - 当包可发布时，把 `@orchbee/source` 目标包含在包的 `files` 允许列表中。私有包可以从打包输出中省略开发源码。
 - 让 `main`、`module` 和 `types` 与根条件导出保持一致，以支持未完全支持 `exports` 的使用方。私有包没有根导出时省略这三个字段。
 - 只能通过允许的包名或已导出的子路径导入其他工作区包。禁止从其他工作区的 `src/*` 或 `dist/*` 导入。
+- 当包根导出 React 展示时，通过显式的不含 React 的子路径公开非 React 使用方所需的无头状态或运行时。其运行时导入闭包不包含 React、DOM 和样式表模块；可以保留仅类型引用。
 - 在包 README 中记录每个公共入口点和资产。
 
 ```json
@@ -203,4 +204,4 @@ Orchbee 包遵循语义化版本控制，并采用 Babel 风格的共享发布�
 - [语义化版本 2.0.0](https://semver.org/)
 - [pnpm 最短发布时间](https://pnpm.io/settings#minimumreleaseage)
 
-<!-- documentation-pairing: english-sha256=8f76fb8ca4cc11afdbb43d1b58f7f157df8ab038952532bce79c9ee057dca6ab zh-cn-sha256=7bf61c39607e1adefa4f5bbf22e3b7f06ccd4b418f8049f39726623e50cde36f -->
+<!-- documentation-pairing: english-sha256=0daec82077af1873a83e642657f8d47091c9b7df699692de5e3695881db52390 zh-cn-sha256=70cc9e03f64367e8258dafd839893038ee105fc979c49a193b9eabc1e8b91ab2 -->

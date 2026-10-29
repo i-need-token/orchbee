@@ -1,4 +1,4 @@
-import type { TabModelInit, TabModelSnapshot } from '@orchbee/tab-strip';
+import type { TabModelInit, TabModelSnapshot } from '@orchbee/tab-strip/model';
 import {
 	createWorkbenchSharedDocument,
 	parseWorkbenchSharedDocument,

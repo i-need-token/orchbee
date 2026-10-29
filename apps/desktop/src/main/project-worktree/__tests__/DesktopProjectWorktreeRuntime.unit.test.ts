@@ -1,6 +1,5 @@
 import path from 'node:path';
 
-import { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
 import { describe, expect, it, vi } from 'vitest';
 import {
 	terminalPresentationId,
@@ -8,6 +7,7 @@ import {
 	terminalPresentationRemovalId,
 	workbenchSharedDocumentRevision,
 } from '@orchbee/workbench-client-protocol';
+import { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench/runtime';
 
 import { DesktopClientSessionCoordinator } from '../../client-session';
 import type { WorkbenchDocumentStore } from '../../workbench-document';

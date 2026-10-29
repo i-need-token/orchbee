@@ -18,6 +18,7 @@ import '@orchbee/tab-strip/styles.css';
 ```
 
 - `@orchbee/tab-strip` exposes the component plus the Action identifiers, close and selection input types needed to host it.
+- `@orchbee/tab-strip/model` exposes the React-free `TabModel` with `TabModelInit` and `TabModelSnapshot` for headless consumers such as the Workbench project-workspace runtime. Its runtime closure contains no React, DOM, or stylesheet module; the package root continues to export `TabModel` for component hosts.
 - `@orchbee/ui/styles.css` provides the shared primitive styles and design-token registry used by the context menu.
 - `@orchbee/tab-strip/styles.css` provides the component's CSS Module output for built consumers.
 
@@ -100,7 +101,7 @@ src/
     └── utils/
 ```
 
-`TabStrip.tsx` is the narrow public adapter. `TabStripView` composes the prepared horizontal, vertical, overlay, and menu regions. Private components repeat the same ownership structure recursively and have no barrels. The four semantic subsystems are cohesive facets of this complete component capability, not separately consumable source modules; selected public contracts are re-exported only through `tab-strip/index.ts` and the package root.
+`TabStrip.tsx` is the narrow public adapter. `TabStripView` composes the prepared horizontal, vertical, overlay, and menu regions. Private components repeat the same ownership structure recursively and have no barrels. The four semantic subsystems are cohesive facets of this complete component capability, not separately consumable source modules, except that `tab-strip/model/index.ts` exposes the React-free `TabModel` and its init and snapshot types as `@orchbee/tab-strip/model`. Other selected public contracts are re-exported only through `tab-strip/index.ts` and the package root.
 
 ## Correctness
 

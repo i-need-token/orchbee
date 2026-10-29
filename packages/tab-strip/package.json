@@ -23,6 +23,12 @@
 			"import": "./dist/index.js",
 			"require": "./dist/index.cjs"
 		},
+		"./model": {
+			"@orchbee/source": "./src/tab-strip/model/index.ts",
+			"types": "./dist/tab-strip/model/index.d.ts",
+			"import": "./dist/tab-strip/model/index.js",
+			"require": "./dist/tab-strip/model/index.cjs"
+		},
 		"./styles.css": {
 			"@orchbee/source": "./src/styles.ts",
 			"default": "./dist/styles.css"
