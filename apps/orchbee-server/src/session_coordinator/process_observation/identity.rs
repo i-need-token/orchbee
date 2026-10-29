@@ -64,8 +64,7 @@ impl Default for IdentityState {
 }
 
 impl IdentityState {
-    /// The current result; diagnostics expose it in a later step, Panel reports read [Self::published].
-    #[cfg(test)]
+    /// The current result that diagnostics expose; Panel reports read [Self::published].
     pub(crate) const fn result(&self) -> Identity {
         self.result
     }

@@ -1,7 +1,12 @@
 //! The identity result of one Terminal generation and its closed reason lists.
 //! The Server owns the state that produces it; these are the shared values.
+//!
+//! Wire form: one closed object discriminated by `result`. `agent` carries `providerId` (the
+//! native provider ID) and `grade`; `unknown` and `unsupported` carry exactly one `reason`;
+//! `none` carries nothing else. `result` avoids the CLI's reserved `kind: unsupported` shape.
 
 use crate::AgentReportProvider;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Exactly one current result per Terminal generation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -19,7 +24,8 @@ pub enum AgentProcessIdentity {
 }
 
 /// How an `agent` result was established.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum AgentIdentityGrade {
     /// An Orchbee-started run anchored by a launch receipt from the same Terminal generation.
     Confirmed,
@@ -28,7 +34,8 @@ pub enum AgentIdentityGrade {
 }
 
 /// The closed, user-visible list of reasons for `unknown`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum AgentIdentityUnknownReason {
     Settling,
     SampleFailed,
@@ -41,7 +48,8 @@ pub enum AgentIdentityUnknownReason {
 }
 
 /// Reasons for `unsupported`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum AgentIdentityUnsupportedReason {
     Platform,
     RemoteExecution,
@@ -116,5 +124,52 @@ impl AgentProcessIdentity {
             Self::Unknown(_) => "unknown",
             Self::Unsupported(_) => "unsupported",
         }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "result", rename_all = "kebab-case", deny_unknown_fields)]
+enum Wire<'a> {
+    Agent {
+        #[serde(rename = "providerId", borrow)]
+        provider_id: std::borrow::Cow<'a, str>,
+        grade: AgentIdentityGrade,
+    },
+    None {},
+    Unknown {
+        reason: AgentIdentityUnknownReason,
+    },
+    Unsupported {
+        reason: AgentIdentityUnsupportedReason,
+    },
+}
+
+impl Serialize for AgentProcessIdentity {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match *self {
+            Self::Agent { provider, grade } => Wire::Agent {
+                provider_id: provider.native_provider_id().into(),
+                grade,
+            },
+            Self::None => Wire::None {},
+            Self::Unknown(reason) => Wire::Unknown { reason },
+            Self::Unsupported(reason) => Wire::Unsupported { reason },
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for AgentProcessIdentity {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match Wire::deserialize(deserializer)? {
+            Wire::Agent { provider_id, grade } => Self::Agent {
+                provider: AgentReportProvider::from_native_provider_id(&provider_id)
+                    .ok_or_else(|| serde::de::Error::custom("unknown providerId"))?,
+                grade,
+            },
+            Wire::None {} => Self::None,
+            Wire::Unknown { reason } => Self::Unknown(reason),
+            Wire::Unsupported { reason } => Self::Unsupported(reason),
+        })
     }
 }

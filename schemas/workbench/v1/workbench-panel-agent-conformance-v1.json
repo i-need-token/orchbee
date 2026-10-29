@@ -352,6 +352,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -402,6 +407,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -508,6 +518,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -609,6 +624,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -710,6 +730,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -1048,6 +1073,92 @@
 						"state": "error",
 						"sequence": "18446744073709551615",
 						"message": "ready\t😀"
+					}
+				}
+			}
+		},
+		{
+			"name": "identify",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "identify",
+					"presentationId": "33333333333333333333333333333333"
+				}
+			}
+		},
+		{
+			"name": "identified-recognized-agent",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "identified",
+					"workbenchRevision": "7",
+					"binding": {
+						"presentationId": "33333333333333333333333333333333",
+						"generation": "44444444444444444444444444444444",
+						"hostEpoch": "55555555555555555555555555555555",
+						"hostTerminalId": "66666666666666666666666666666666"
+					},
+					"identity": {
+						"result": "agent",
+						"providerId": "codex",
+						"grade": "recognized"
+					}
+				}
+			}
+		},
+		{
+			"name": "identified-unknown-settling",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "identified",
+					"workbenchRevision": "7",
+					"binding": {
+						"presentationId": "33333333333333333333333333333333",
+						"generation": "44444444444444444444444444444444",
+						"hostEpoch": "55555555555555555555555555555555",
+						"hostTerminalId": "66666666666666666666666666666666"
+					},
+					"identity": {
+						"result": "unknown",
+						"reason": "settling"
+					}
+				}
+			}
+		},
+		{
+			"name": "identified-none",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "identified",
+					"workbenchRevision": "7",
+					"binding": {
+						"presentationId": "33333333333333333333333333333333",
+						"generation": "44444444444444444444444444444444",
+						"hostEpoch": "55555555555555555555555555555555",
+						"hostTerminalId": "66666666666666666666666666666666"
+					},
+					"identity": {
+						"result": "none"
 					}
 				}
 			}
@@ -1828,6 +1939,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -1922,6 +2038,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -2017,6 +2138,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -2112,6 +2238,11 @@
 							"frameRevision": "0",
 							"rootPid": 0,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -2207,6 +2338,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -2302,6 +2438,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -2397,6 +2538,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -2492,6 +2638,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -2581,7 +2732,12 @@
 								}
 							]
 						},
-						"sample": null
+						"sample": null,
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
+						}
 					}
 				}
 			},
@@ -2677,6 +2833,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -2772,6 +2933,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -2874,6 +3040,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -2976,6 +3147,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -3087,6 +3263,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -3194,6 +3375,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -3296,6 +3482,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -3398,6 +3589,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -3500,6 +3696,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -3596,6 +3797,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -3699,6 +3905,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -3801,6 +4012,11 @@
 							"frameRevision": "0",
 							"rootPid": 123,
 							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
 						}
 					}
 				}
@@ -4615,6 +4831,78 @@
 				}
 			},
 			"boundary": "schema"
+		},
+		{
+			"name": "identified-unknown-reason-outside-vocabulary",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "identified",
+					"workbenchRevision": "7",
+					"binding": {
+						"presentationId": "33333333333333333333333333333333",
+						"generation": "44444444444444444444444444444444",
+						"hostEpoch": "55555555555555555555555555555555",
+						"hostTerminalId": "66666666666666666666666666666666"
+					},
+					"identity": {
+						"result": "unknown",
+						"reason": "other"
+					}
+				}
+			}
+		},
+		{
+			"name": "identified-none-with-reason",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "identified",
+					"workbenchRevision": "7",
+					"binding": {
+						"presentationId": "33333333333333333333333333333333",
+						"generation": "44444444444444444444444444444444",
+						"hostEpoch": "55555555555555555555555555555555",
+						"hostTerminalId": "66666666666666666666666666666666"
+					},
+					"identity": {
+						"result": "none",
+						"reason": "settling"
+					}
+				}
+			}
+		},
+		{
+			"name": "identified-agent-without-grade",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "identified",
+					"workbenchRevision": "7",
+					"binding": {
+						"presentationId": "33333333333333333333333333333333",
+						"generation": "44444444444444444444444444444444",
+						"hostEpoch": "55555555555555555555555555555555",
+						"hostTerminalId": "66666666666666666666666666666666"
+					},
+					"identity": {
+						"result": "agent",
+						"providerId": "codex"
+					}
+				}
+			}
 		}
 	]
 }

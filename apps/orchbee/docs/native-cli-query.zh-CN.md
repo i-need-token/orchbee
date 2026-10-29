@@ -503,7 +503,7 @@ Windows 终端名称要求真实的上报、进程识别或保留 provider 身�
 version 1 的 `conflictTarget`；规范回执使用相同版本和目标形状。Windows `agent get` 在 v1
 `inspection` 中保留 `terminal-found`，包含精确目标、实际帧／进程／主 Panel 报告字段及物理语义观察。
 启动管理信息属于规范 Agent 会话 inspection。物理 inspection 不伪造会话 ID。子终端读取不会借用主 Panel 的报告。按名 `read`、
-`send-keys`、`attach` 经精确物理绑定交给既有终端所有者。物理 `explain` 返回 v1 新鲜屏幕诊断或携带生效规则来源的 v1；
+`send-keys`、`attach` 经精确物理绑定交给既有终端所有者。物理 `explain` 返回 v1 新鲜屏幕诊断或携带生效规则来源的 v1，并附带[智能体识别结果](#智能体识别诊断)；
 语义 `wait`／`prompt`、focus 和 `get --client` 使用各自的物理观察／Client 契约，不伪造规范会话。所有终端名称和待完成预留均不在冷启动后恢复；改名保留精确物理绑定，清名释放其当前名称。
 
 三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、
@@ -2275,11 +2275,33 @@ Windows Job。上述检查不证明 provider 任务完成、身份认证或原�
 
 `panel process-info [<panel-id> | --current] [--client <id>]` 读取精确 Terminal 的 Windows Job。位置 Panel 目标与 `--current` 互斥；完整 ID 和 `@panel:0x<hex>` 使用现有 Panel 解析器及主绑定。没有显式选择器时，有效的 `ORCHBEE_TERMINAL_ID` 和 `ORCHBEE_WORKER_ID` 保留调用者的精确主终端或子终端；部分或过期元数据失败。调用者元数据缺席时要求唯一当前 Client；`--client` 指定精确当前 Client 并忽略调用者元数据。Client 选择被动解析实际成员，并在发布前验证同一绑定及本地附着标识。[当前 Panel 契约](native-current-panel.zh-CN.md) 负责修订栅栏、期限和取消。成员不可用时不回退到主终端。
 
-一次仅接入既有 Session 的 Client Connection 与一个绝对五秒预算覆盖快照、临时只读 viewer 接入、一次进程读取及尽力 detach。客户端连接 drop 回收剩余 viewer。Server 再验证 Worker generation 与物理终端绑定；Worker 和 Host 保留进程事实授权边界。成功时发布确切的类型化 Windows Job 样本、Panel/Terminal 路由上下文和相关联的读取来源。顺序获取的快照与样本不宣称跨所有者原子观察。Host 失败保持明确，不转为空进程成功，也不重试。文本中的字符串经过转义，机器输出的创建时间保留十进制字符串。响应描述归属终端的进程，不代表 Windows 前台进程组或 Agent 的交互就绪状态。
+一次仅接入既有 Session 的 Client Connection 与一个绝对五秒预算覆盖快照、临时只读 viewer 接入、一次进程读取、尽力 detach 及一次识别结果读取。客户端连接 drop 回收剩余 viewer。Server 再验证 Worker generation 与物理终端绑定；Worker 和 Host 保留进程事实授权边界。成功时发布确切的类型化 Windows Job 样本、Panel/Terminal 路由上下文和相关联的读取来源。顺序获取的快照与样本不宣称跨所有者原子观察。Host 失败保持明确，不转为空进程成功，也不重试。文本中的字符串经过转义，机器输出的创建时间保留十进制字符串。响应描述归属终端的进程，不代表 Windows 前台进程组或 Agent 的交互就绪状态。
 
 JSON 封套为 `orchbee.panel.process-info` v1，schema 目录及双语帮助、补全与命令共同交付。证据覆盖隐式和显式目标、I/O 前的冲突拒绝、主与子终端选择、主绑定缺失、读取拒绝、响应身份错误、Host 错误保留、输出限额、viewer 回收，以及真实 Windows Session/Worker/Host 进程路由。共享类型化读取也是后续 Agent 启动和就绪工作的实际依赖，本身不关闭这些义务。
 
 Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界的错误代码；非法响应与传输失败使用通用 CLI 失败契约。成功的 `source` 同时记录快照 revision、OBCS request ID 与 Host correlation、epoch、attachment 和物理 Terminal ID；它们不是同一个身份。目录列出当前文档与命令路径。
+
+### 智能体识别诊断
+
+`panel process-info` 与物理 `agent explain` 都携带 `identity`：Server 对该精确 Terminal 代际的当前智能体
+识别结果。它是一个以 `result` 区分的封闭对象：
+
+| `result`      | 成员                                                                     | 文本（en-US / zh-CN）                                          |
+| ------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| `agent`       | `providerId`（原生 provider ID）、`grade` 为 `confirmed` 或 `recognized` | `claude-code Agent, recognized` / `claude-code 智能体，已识别` |
+| `none`        | 无                                                                       | `No Agent` / `没有智能体`                                      |
+| `unknown`     | 下列封闭清单中的一个 `reason`                                            | `Unknown: <reason>` / `未知：<reason>`                         |
+| `unsupported` | `reason` 为 `platform` 或 `remote-execution`                             | `Unsupported: <reason>` / `不支持：<reason>`                   |
+
+未知原因为 `settling`、`sample-failed`、`sample-limit`、`command-line-unreadable`、
+`ambiguous-candidates`、`unclassified-arguments`、`unverified-provenance` 和 `detached-console`。
+Server 尚未采样的代际报告 `unknown` 加 `settling`。区分字段是 `result` 而不是 `kind`，因此该值不会被误认为共享的
+`unsupported` 能力形状。
+
+物理 Explain 在 Server 的 `explained` 结果中获得识别结果。`panel process-info` 在进程样本之后，于同一连接、同一预算内
+发送一次 Workbench Panel Agent `identify` 请求。Workbench revision 或 Host Terminal 不同则以 `workbench-changed`
+失败；其他 Server 拒绝与传输失败使用通用 CLI 失败契约。新鲜样本与识别结果是两次独立观察：`foreground` 仍是逐样本选择，
+可能在 `identity` 仍为 `unknown` 时指向智能体链。文本输出增加一行本地化的“识别结果”；JSON 原样携带该值。
 
 ## Windows Agent 启动
 
@@ -2554,4 +2576,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=5b6e111c88fb28635d14a0e991439b3bf752c86769c57263ef3c82a485fc06c4 zh-cn-sha256=5b165e1556c267c4f29ce7bd488c6a8f3f1ec797916b28bf2d2c20ffdd243b1f -->
+<!-- documentation-pairing: english-sha256=defb3c042acfd314ad8a64fb3fe0d98b91707c825990909161ddef4a4dbd6414 zh-cn-sha256=5ef29e5d51af8a3d417e3953d10c22bd2cf44dc75a307d306ebdb0cdb1f89e60 -->

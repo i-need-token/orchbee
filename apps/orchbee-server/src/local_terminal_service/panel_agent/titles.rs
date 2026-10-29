@@ -61,6 +61,7 @@ fn state_context(
         PanelAgentOutcome::Titles { .. }
         | PanelAgentOutcome::PresentationsRead { .. }
         | PanelAgentOutcome::Explained { .. }
+        | PanelAgentOutcome::Identified { .. }
         | PanelAgentOutcome::States { .. }
         | PanelAgentOutcome::Observed { .. }
         | PanelAgentOutcome::Read { .. }

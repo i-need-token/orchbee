@@ -13,7 +13,14 @@ impl LocalTerminalService {
     fn explanation_context(
         &self,
         request: &PanelAgentRequest,
-    ) -> Result<(TerminalAgentExplainContext, ProcessObservationTarget), Failure> {
+    ) -> Result<
+        (
+            TerminalAgentExplainContext,
+            ProcessObservationTarget,
+            orchbee_agent_observation_protocol::AgentProcessIdentity,
+        ),
+        Failure,
+    > {
         let workers = self.workers.lock().map_err(|_| Failure::Unavailable)?;
         let handle = workers.request_handle();
         let current =
@@ -23,14 +30,15 @@ impl LocalTerminalService {
         if prepared.1.target.worker != current {
             return Err(Failure::BindingChanged);
         }
-        Ok(prepared)
+        let identity = session.process_identity(&prepared.0.physical);
+        Ok((prepared.0, prepared.1, identity))
     }
     pub(super) fn explain_panel_agent(&self, request: &PanelAgentRequest) -> PanelAgentResult {
         let prepare = || -> Result<Outcome, Failure> {
-            let (context, target) = self.explanation_context(request)?;
+            let (context, target, identity) = self.explanation_context(request)?;
             let explanation = {
                 let captured = self.request_agent_explanation(target.clone(), context.provider)?;
-                let (after, after_target) = self.explanation_context(request)?;
+                let (after, after_target, _) = self.explanation_context(request)?;
                 if after != context || after_target != target {
                     return Err(Failure::Unavailable);
                 }
@@ -39,6 +47,7 @@ impl LocalTerminalService {
                     view: context.view.clone(),
                     explanation: captured.explanation,
                     sample: captured.sample,
+                    identity,
                 }
             };
             Ok(Outcome::Explained {

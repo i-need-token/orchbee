@@ -614,6 +614,13 @@ shadowing and bounded typed warnings. Missing metadata preserves the earlier sha
 is rejected. Remote source/version and warning source uniqueness are checked by both bindings.
 The CLI carries this metadata in its sole version-1 envelope.
 
+Physical Explain also carries a required `identity`: the Server's current Agent identity result for
+that Terminal generation, in the `AgentProcessIdentity` wire form owned by the Agent observation
+protocol crate. `identify` names one presentation ID and returns `identified` with the Workbench
+revision, the full binding of the presentation's current Terminal generation, and its `identity`;
+missing membership refuses and an unbound presentation is `unbound`. The Server answers both from
+its process identity state under one coordinator lock. This unpublished cohort changes together.
+
 Compact physical `states` reads accept 0–64 unique presentation IDs and return rows in request order,
 with Workbench/report revisions and a required nullable full binding/sequence/Agent/state snapshot.
 Missing membership refuses the batch; no current physical observation yields null. Empty reads fence

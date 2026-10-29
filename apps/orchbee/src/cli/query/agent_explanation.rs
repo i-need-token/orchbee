@@ -161,6 +161,7 @@ impl AgentReadExchange for ExplainRead {
                         },
                     )),
                     PanelAgentOutcome::Titles { .. }
+                    | PanelAgentOutcome::Identified { .. }
                     | PanelAgentOutcome::PresentationsRead { .. }
                     | PanelAgentOutcome::States { .. }
                     | PanelAgentOutcome::Observed { .. }

@@ -1149,7 +1149,11 @@ pub(crate) enum Projection {
     TabGet(TabDoc),
     PanelList(Vec<PanelRow>),
     PanelGet(PanelDoc),
-    PanelProcessInfo(PanelProcessInfoDoc),
+    /// The fresh process sample and the Server's identity result for the same Terminal.
+    PanelProcessInfo(
+        PanelProcessInfoDoc,
+        orchbee_agent_observation_protocol::AgentProcessIdentity,
+    ),
     TerminalList(TerminalListDocument),
     /// Same identity document as `TerminalList`; the extra facts belong only
     /// to human text and never alter the machine result.
@@ -1529,7 +1533,11 @@ impl Projection {
                     })
                     .collect::<Vec<_>>(),
             }),
-            Self::PanelProcessInfo(doc) => panel_process_result(doc),
+            Self::PanelProcessInfo(doc, identity) => {
+                let mut result = panel_process_result(doc);
+                result["identity"] = json!(identity);
+                result
+            }
             Self::PanelGet(doc) => json!({
                 "panel": {
                     "panelId": doc.row.panel_id,

@@ -3,12 +3,13 @@ use super::{
     Failure, FailureKind, Output,
     console_interrupt::{ArmedSignals, Finish, SignalWatch},
     failure_output, query,
+    query::{metadata_failure, panel_agent_failure},
     results::{self, Projection, TerminalListDetails, TerminalListState},
     success_output,
 };
 use crate::{
     invocation::{OutputFormat, QueryCommand, Target},
-    local_client::{LocalClient, workbench::metadata_exchange::MetadataExchangeReason},
+    local_client::LocalClient,
     localization::Locale,
 };
 use orchbee_workbench_protocol::{
@@ -337,41 +338,6 @@ fn optional_report_unavailable(reason: PanelAgentFailure) -> bool {
     reason == PanelAgentFailure::Unavailable
 }
 
-fn panel_agent_failure(reason: PanelAgentFailure) -> Failure {
-    Failure::new(match reason {
-        PanelAgentFailure::Denied => FailureKind::Denied,
-        PanelAgentFailure::NotFound
-        | PanelAgentFailure::SessionMismatch
-        | PanelAgentFailure::BindingChanged => FailureKind::Rejected,
-        PanelAgentFailure::Unbound
-        | PanelAgentFailure::InvalidRequest
-        | PanelAgentFailure::SourceLimit
-        | PanelAgentFailure::HistoryLimit
-        | PanelAgentFailure::ResourceLimit => FailureKind::ProtocolInvalid,
-        PanelAgentFailure::RevisionExhausted | PanelAgentFailure::ClockOverflow => {
-            FailureKind::InternalFailure
-        }
-        PanelAgentFailure::Unavailable => FailureKind::ServiceUnavailable,
-        PanelAgentFailure::ResultTooLarge => FailureKind::OutputTooLarge,
-    })
-}
-
-fn metadata_failure(reason: MetadataExchangeReason) -> FailureKind {
-    match reason {
-        MetadataExchangeReason::ConnectionUnavailable => FailureKind::ServiceUnavailable,
-        MetadataExchangeReason::Encoding => FailureKind::InternalFailure,
-        MetadataExchangeReason::Deadline | MetadataExchangeReason::ResponseDeadline => {
-            FailureKind::Timeout
-        }
-        MetadataExchangeReason::Correlation | MetadataExchangeReason::Protocol => {
-            FailureKind::ProtocolInvalid
-        }
-        MetadataExchangeReason::NotSubmitted
-        | MetadataExchangeReason::Write
-        | MetadataExchangeReason::Read => FailureKind::TransportLoss,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -539,11 +505,15 @@ mod tests {
         assert!(optional_report_unavailable(PanelAgentFailure::Unavailable));
         assert!(!optional_report_unavailable(PanelAgentFailure::Denied));
         assert_eq!(
-            metadata_failure(MetadataExchangeReason::Read),
+            metadata_failure(
+                crate::local_client::workbench::metadata_exchange::MetadataExchangeReason::Read
+            ),
             FailureKind::TransportLoss
         );
         assert_eq!(
-            metadata_failure(MetadataExchangeReason::Protocol),
+            metadata_failure(
+                crate::local_client::workbench::metadata_exchange::MetadataExchangeReason::Protocol
+            ),
             FailureKind::ProtocolInvalid
         );
     }

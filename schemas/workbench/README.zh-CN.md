@@ -540,6 +540,11 @@ Panel 报告准入 idle、working、blocked、done、error 和 unknown。Done �
 省略信息保留旧形状，显式 null 拒绝。两个 binding 都校验远程来源／版本及告警来源唯一性。
 CLI 在唯一的版本 1 封套中携带这些来源信息。
 
+物理 Explain 还携带必填的 `identity`：Server 对该 Terminal 代际的当前智能体识别结果，采用 Agent 观察协议 crate
+负责的 `AgentProcessIdentity` 线上格式。`identify` 指定一个展示 ID，返回 `identified`，包含 Workbench 修订、
+该展示当前 Terminal 代际的完整绑定及其 `identity`；成员不存在则拒绝，未绑定展示返回 `unbound`。
+Server 在同一协调器锁内从其进程识别状态回答两者。这份未发布 cohort 一起变更。
+
 精简物理 `states` 读取接受 0–64 个唯一展示 ID，按请求顺序返回条目、Workbench／报告修订，
 以及必填可空的完整绑定／序号／Agent／状态快照。成员不存在则拒绝整批；没有当前物理观察
 则返回 null。空读取用于报告修订门槛。Rust／TypeScript 共用严格形状、唯一性／顺序检查和
@@ -669,4 +674,4 @@ Workspace 侧栏发布增加必需非空 `spacesSidebarProfile`，独立于 `age
 
 [设置](v1/workbench-settings.schema.json) 定义匹配 Windows cohort 的闭合 Open/Save 请求及结果。三个必需但可空的字段区分未修改设置与明确的主题／提醒／声音修改；全部为空的补丁非法。来源令牌区分文件不存在与规范 SHA-256 内容摘要。Save 同时约束发布 revision；结果区分磁盘持久化、在线应用与写入前拒绝。共享语料在 Rust、TypeScript 和 JSON Schema 中检查额外字段拒绝、全宽 revision、完整快照及独立的 4 KiB 请求／256 KiB 结果限制。[原生设置所有者](../../apps/orchbee/docs/native-settings.zh-CN.md) 负责写入、输入捕获、不确定结果和恢复。
 
-<!-- documentation-pairing: english-sha256=c3f820242b656efb236fe4d656eb88bc69d2a629a882d43fae940cf3fe80be94 zh-cn-sha256=1d214bf7e847e973570adce5be6d954950a79824d35f5433a45b1abdd5230197 -->
+<!-- documentation-pairing: english-sha256=e4f15a1519591f2bf315403613df3957286b83a21291efaae88bfef761012bff zh-cn-sha256=0c0086ba75dea9bea88fef7a810f1871231b7fc4fe3f93d6d5c13e2263d6a1ba -->

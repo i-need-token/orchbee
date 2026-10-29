@@ -54,6 +54,7 @@ impl Answer {
                 PanelAgentOutcome::Read { .. }
                 | PanelAgentOutcome::PresentationsRead { .. }
                 | PanelAgentOutcome::Explained { .. }
+                | PanelAgentOutcome::Identified { .. }
                 | PanelAgentOutcome::Observed { .. }
                 | PanelAgentOutcome::States { .. }
                 | PanelAgentOutcome::Titles { .. } => 5,

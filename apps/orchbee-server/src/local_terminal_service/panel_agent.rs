@@ -23,6 +23,26 @@ impl LocalTerminalService {
         ) {
             return self.read_panel_titles(&request);
         }
+        #[cfg(windows)]
+        if matches!(
+            request.action,
+            orchbee_workbench_protocol::PanelAgentAction::Identify { .. }
+        ) {
+            let outcome = self.coordinator.lock().map_or(
+                PanelAgentOutcome::Failed {
+                    reason: PanelAgentFailure::Unavailable,
+                },
+                |mut coordinator| {
+                    coordinator.identify_presentation(&request, std::time::Instant::now())
+                },
+            );
+            return PanelAgentResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                session_id: request.session_id,
+                outcome,
+            };
+        }
         let unavailable = PanelAgentResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
@@ -76,6 +96,7 @@ impl LocalTerminalService {
                     orchbee_workbench_protocol::PanelAgentAction::Titles { .. }
                     | orchbee_workbench_protocol::PanelAgentAction::ReadPresentations { .. }
                     | orchbee_workbench_protocol::PanelAgentAction::Explain { .. }
+                    | orchbee_workbench_protocol::PanelAgentAction::Identify { .. }
                     | orchbee_workbench_protocol::PanelAgentAction::Read { .. }
                     | orchbee_workbench_protocol::PanelAgentAction::ReportPresentation { .. }
                     | orchbee_workbench_protocol::PanelAgentAction::Report { .. } => false,

@@ -624,7 +624,7 @@ target, actual frame/process/primary-panel report fields and physical semantic o
 Startup management belongs to canonical Agent session inspection. Physical inspection contains no invented
 session ID. Child terminal reads never borrow the primary panel's report. Named `read`, `send-keys` and
 `attach` route through the exact physical binding and existing terminal owners. Physical
-`explain` returns v1 fresh screen diagnostics or v1 with active rule provenance; semantic `wait`/`prompt`, focus and `get --client`
+`explain` returns v1 fresh screen diagnostics or v1 with active rule provenance, plus the [Agent identity](#agent-identity-diagnostics); semantic `wait`/`prompt`, focus and `get --client`
 use their physical observation/Client contracts without inventing canonical sessions;
 terminal names and pending reservations do not survive a cold restart. Renaming preserves the exact physical binding; clearing releases its current name.
 
@@ -2699,11 +2699,36 @@ completion, authentication, or atomic foreground ownership.
 
 `panel process-info [<panel-id> | --current] [--client <id>]` reads an exact Terminal's Windows Job. A positional Panel target and `--current` are exclusive; complete IDs and `@panel:0x<hex>` use the existing Panel resolver and primary binding. Without an explicit selector, valid `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` retain the caller's exact primary or child Terminal; partial or stale metadata fails. With absent caller metadata, require one current Client; `--client` selects an exact current Client and ignores caller metadata. Client selection passively resolves its actual member and validates the same binding and local attachment token before publication. The [current Panel contract](native-current-panel.md) owns revision fences, deadline and cancellation. No unavailable member falls back to a primary terminal.
 
-One existing-only Client Connection and one absolute five-second budget cover snapshot, transient read-only viewer admission, one process read, and best-effort detach. Client Connection drop owns remaining viewer cleanup. The Server revalidates Worker generation and physical terminal binding; Worker and Host retain process authority. Success publishes the exact typed Windows Job sample with Panel/Terminal routing context and correlated read provenance. The sequential snapshot and sample do not claim an atomic cross-owner observation. Host failures remain explicit, are never empty process success, and are not retried. Strings are escaped in text output; machine creation times remain decimal strings. The response describes owned processes, not a Windows foreground process group or Agent interactive readiness.
+One existing-only Client Connection and one absolute five-second budget cover snapshot, transient read-only viewer admission, one process read, best-effort detach, and one identity read. Client Connection drop owns remaining viewer cleanup. The Server revalidates Worker generation and physical terminal binding; Worker and Host retain process authority. Success publishes the exact typed Windows Job sample with Panel/Terminal routing context and correlated read provenance. The sequential snapshot and sample do not claim an atomic cross-owner observation. Host failures remain explicit, are never empty process success, and are not retried. Strings are escaped in text output; machine creation times remain decimal strings. The response describes owned processes, not a Windows foreground process group or Agent interactive readiness.
 
 The JSON envelope is `orchbee.panel.process-info` v1; the schema catalog and bilingual help/completion ship with the command. Evidence covers implicit and explicit targets, conflicts before I/O, primary-versus-child selection, absent primary bindings, denied reads, wrong response identities, preserved Host errors, bounded output, viewer cleanup, and the real Windows Session/Worker/Host process route. The shared typed read is also the actual dependency for subsequent Agent launch/readiness work; it does not close those obligations by itself.
 
 Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounded failure code; invalid responses and transport failures retain the generic CLI failure contract. Successful `source` records snapshot revision, OBCS request ID, and Host correlation, epoch, attachment, and physical Terminal ID as distinct identities. The catalog lists the current documents and command paths.
+
+### Agent identity diagnostics
+
+`panel process-info` and physical `agent explain` both carry `identity`: the Server's current Agent
+identity result for the exact Terminal generation. It is one closed object discriminated by `result`:
+
+| `result`      | Members                                                                | Text (en-US / zh-CN)                                           |
+| ------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `agent`       | `providerId` (native provider ID), `grade` `confirmed` or `recognized` | `claude-code Agent, recognized` / `claude-code 智能体，已识别` |
+| `none`        | none                                                                   | `No Agent` / `没有智能体`                                      |
+| `unknown`     | `reason` from the closed list below                                    | `Unknown: <reason>` / `未知：<reason>`                         |
+| `unsupported` | `reason` `platform` or `remote-execution`                              | `Unsupported: <reason>` / `不支持：<reason>`                   |
+
+Unknown reasons are `settling`, `sample-failed`, `sample-limit`, `command-line-unreadable`,
+`ambiguous-candidates`, `unclassified-arguments`, `unverified-provenance`, and `detached-console`.
+A generation the Server has not sampled yet reports `unknown` with `settling`. The discriminator is
+`result`, never `kind`, so the value cannot be mistaken for the shared `unsupported` capability shape.
+
+Physical Explain receives the identity inside the Server's `explained` result. `panel process-info`
+sends one Workbench Panel Agent `identify` request after the process sample, on the same connection
+and inside the same budget. A different Workbench revision or Host Terminal fails with
+`workbench-changed`; other Server refusals and transport failures use the generic CLI failure
+contract. The fresh sample and the identity are separate observations: `foreground` remains the
+per-sample selection and can name an Agent chain while `identity` is still `unknown`. Text output
+adds one localized Identity row; JSON carries the value verbatim.
 
 ## Windows Agent startup
 

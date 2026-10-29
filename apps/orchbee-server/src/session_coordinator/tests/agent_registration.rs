@@ -453,6 +453,75 @@ mod process_samples {
         assert!(session.cached_checkpoint_directories(&targets).is_empty());
     }
     #[test]
+    fn identify_answers_the_current_generation_identity_and_fences_unknown_presentations() {
+        use orchbee_agent_observation_protocol::{
+            AgentIdentityGrade, AgentIdentityUnknownReason, AgentProcessIdentity,
+            AgentReportProvider,
+        };
+        use orchbee_workbench_protocol::{PanelAgentFailure, TerminalPresentationId};
+        let (mut session, target, sample) = fixture();
+        let snap = session.workbench.as_ref().unwrap().snapshot().clone();
+        let PanelNode::Panel {
+            primary_presentation,
+            ..
+        } = &snap.terminal_contexts[0].tabs[0].root
+        else {
+            panic!("panel")
+        };
+        let identify = |session: &mut SessionCoordinator, presentation_id| {
+            session.identify_presentation(
+                &PanelAgentRequest {
+                    protocol_version: ProtocolVersion,
+                    request_id: WorkbenchRequestId::parse(&format!("{:032x}", 778)).unwrap(),
+                    session_id: snap.session_id.clone(),
+                    action: PanelAgentAction::Identify { presentation_id },
+                },
+                Instant::now(),
+            )
+        };
+        let presentation = primary_presentation.presentation_id.clone();
+        let identity_of = |outcome| match outcome {
+            PanelAgentOutcome::Identified {
+                workbench_revision,
+                binding,
+                identity,
+            } => {
+                assert_eq!(workbench_revision, snap.revision);
+                assert_eq!(binding.presentation_id.as_str(), presentation.as_str());
+                assert_eq!(
+                    binding.host_terminal_id.as_str(),
+                    format!(
+                        "{:032x}",
+                        u128::from_be_bytes(target.identity.terminal_id().as_bytes())
+                    )
+                );
+                identity
+            }
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(
+            identity_of(identify(&mut session, presentation.clone())),
+            AgentProcessIdentity::Unknown(AgentIdentityUnknownReason::Settling)
+        );
+        let now = Instant::now();
+        assert!(session.observe_host_process(target, &sample, now - SETTLE, now - SETTLE));
+        assert!(session.observe_host_process(target, &sample, now, now));
+        assert_eq!(
+            identity_of(identify(&mut session, presentation.clone())),
+            AgentProcessIdentity::Agent {
+                provider: AgentReportProvider::Claude,
+                grade: AgentIdentityGrade::Recognized,
+            }
+        );
+        let unknown = TerminalPresentationId::parse(&format!("{:032x}", 999)).unwrap();
+        assert!(matches!(
+            identify(&mut session, unknown),
+            PanelAgentOutcome::Failed {
+                reason: PanelAgentFailure::NotFound
+            }
+        ));
+    }
+    #[test]
     fn complete_samples_confirm_without_revision_churn_then_prove_pid_reuse_exit() {
         let (mut session, target, mut sample) = fixture();
         let now = Instant::now();

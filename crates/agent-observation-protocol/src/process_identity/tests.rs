@@ -749,3 +749,52 @@ fn result_vocabulary_is_closed_and_round_trips() {
         ["confirmed", "recognized"]
     );
 }
+
+#[test]
+fn identity_wire_form_is_closed_and_round_trips_every_reason() {
+    use serde_json::{from_value, json, to_value};
+    let mut cases = vec![
+        (
+            AgentProcessIdentity::Agent {
+                provider: P::Claude,
+                grade: AgentIdentityGrade::Confirmed,
+            },
+            json!({"result":"agent","providerId":"claude-code","grade":"confirmed"}),
+        ),
+        (
+            AgentProcessIdentity::Agent {
+                provider: P::Codex,
+                grade: AgentIdentityGrade::Recognized,
+            },
+            json!({"result":"agent","providerId":"codex","grade":"recognized"}),
+        ),
+        (AgentProcessIdentity::None, json!({"result":"none"})),
+    ];
+    cases.extend(AgentIdentityUnknownReason::ALL.map(|reason| {
+        (
+            AgentProcessIdentity::Unknown(reason),
+            json!({"result":"unknown","reason":reason.as_str()}),
+        )
+    }));
+    cases.extend(AgentIdentityUnsupportedReason::ALL.map(|reason| {
+        (
+            AgentProcessIdentity::Unsupported(reason),
+            json!({"result":"unsupported","reason":reason.as_str()}),
+        )
+    }));
+    for (identity, wire) in cases {
+        assert_eq!(to_value(identity).unwrap(), wire);
+        assert_eq!(from_value::<AgentProcessIdentity>(wire).unwrap(), identity);
+    }
+    for invalid in [
+        json!({"result":"agent","providerId":"claude","grade":"confirmed"}),
+        json!({"result":"agent","providerId":"codex"}),
+        json!({"result":"none","reason":"settling"}),
+        json!({"result":"unknown","reason":"other"}),
+        json!({"result":"unknown"}),
+        json!({"result":"unsupported","reason":"settling"}),
+        json!({"kind":"unsupported"}),
+    ] {
+        assert!(from_value::<AgentProcessIdentity>(invalid).is_err());
+    }
+}

@@ -114,6 +114,7 @@ pub(in crate::cli) fn read(
         PanelAgentOutcome::Titles { .. }
         | PanelAgentOutcome::PresentationsRead { .. }
         | PanelAgentOutcome::Explained { .. }
+        | PanelAgentOutcome::Identified { .. }
         | PanelAgentOutcome::States { .. }
         | PanelAgentOutcome::Read { .. }
         | PanelAgentOutcome::PresentationReported { .. }

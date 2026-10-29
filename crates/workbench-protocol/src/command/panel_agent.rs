@@ -111,6 +111,10 @@ pub enum PanelAgentAction {
     Explain {
         binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
     },
+    /// The Server's identity result for the presentation's current Terminal generation.
+    Identify {
+        presentation_id: TerminalPresentationId,
+    },
     States {
         presentation_ids: Vec<TerminalPresentationId>,
     },
@@ -183,6 +187,7 @@ impl PanelAgentRequest {
                     Err(ContractError::InvalidDocument)
                 }
             }
+            PanelAgentAction::Identify { .. } => Ok(()),
             PanelAgentAction::Read { panel_ids }
                 if panel_ids.len() <= MAXIMUM_PANEL_AGENT_READ_ROWS
                     && panel_ids.iter().collect::<BTreeSet<_>>().len() == panel_ids.len() =>
@@ -277,6 +282,12 @@ pub enum PanelAgentOutcome {
         report_revision: WorkbenchRevision,
         explanation: Box<TerminalAgentExplanation>,
     },
+    /// `binding` names the exact Terminal generation the identity belongs to.
+    Identified {
+        workbench_revision: WorkbenchRevision,
+        binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
+        identity: orchbee_agent_observation_protocol::AgentProcessIdentity,
+    },
     States {
         workbench_revision: WorkbenchRevision,
         report_revision: WorkbenchRevision,
@@ -348,6 +359,12 @@ impl PanelAgentResult {
                     && presentations.iter().all(|r| r.panel.valid())
             }
             PanelAgentOutcome::Explained { explanation, .. } => explanation.valid(),
+            PanelAgentOutcome::Identified { binding, .. } => {
+                orchbee_agent_observation_protocol::AgentHostEpoch::parse(
+                    binding.generation.as_str(),
+                )
+                .is_ok()
+            }
             PanelAgentOutcome::States { presentations, .. } => {
                 presentations.len() <= MAXIMUM_TERMINAL_AGENT_STATE_ROWS
                     && presentations
@@ -395,6 +412,10 @@ impl PanelAgentResult {
                 }
                 PanelAgentAction::Explain { binding } => {
                     matches!(&self.outcome, PanelAgentOutcome::Explained { explanation, .. } if &explanation.binding == binding)
+                        || shared_failure
+                }
+                PanelAgentAction::Identify { presentation_id } => {
+                    matches!(&self.outcome, PanelAgentOutcome::Identified { binding, .. } if binding.presentation_id.as_str() == presentation_id.as_str())
                         || shared_failure
                 }
                 PanelAgentAction::States { presentation_ids } => {

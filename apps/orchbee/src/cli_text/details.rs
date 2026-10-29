@@ -19,6 +19,7 @@ pub(crate) enum DetailLabel {
     Started,
     Command,
     Agent,
+    Identity,
     Processes,
 }
 
@@ -51,6 +52,8 @@ impl super::CliText {
             (Locale::ZhCn, DetailLabel::Command) => "命令",
             (Locale::EnUs, DetailLabel::Agent) => "Agent",
             (Locale::ZhCn, DetailLabel::Agent) => "智能体",
+            (Locale::EnUs, DetailLabel::Identity) => "Identity",
+            (Locale::ZhCn, DetailLabel::Identity) => "识别结果",
             (Locale::EnUs, DetailLabel::Processes) => "Processes",
             (Locale::ZhCn, DetailLabel::Processes) => "进程列表",
         }

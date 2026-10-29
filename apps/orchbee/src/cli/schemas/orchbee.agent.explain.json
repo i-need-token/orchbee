@@ -826,13 +826,82 @@
 				}
 			}
 		},
+		"processIdentity": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["result", "providerId", "grade"],
+					"additionalProperties": false,
+					"properties": {
+						"result": {
+							"const": "agent"
+						},
+						"providerId": {
+							"type": "string",
+							"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+						},
+						"grade": {
+							"enum": ["confirmed", "recognized"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["result"],
+					"additionalProperties": false,
+					"properties": {
+						"result": {
+							"const": "none"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["result", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"result": {
+							"const": "unknown"
+						},
+						"reason": {
+							"enum": [
+								"settling",
+								"sample-failed",
+								"sample-limit",
+								"command-line-unreadable",
+								"ambiguous-candidates",
+								"unclassified-arguments",
+								"unverified-provenance",
+								"detached-console"
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["result", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"result": {
+							"const": "unsupported"
+						},
+						"reason": {
+							"enum": ["platform", "remote-execution"]
+						}
+					}
+				}
+			]
+		},
 		"terminalExplanation": {
 			"type": "object",
-			"required": ["binding", "view", "explanation", "sample"],
+			"required": ["binding", "view", "explanation", "sample", "identity"],
 			"additionalProperties": false,
 			"properties": {
 				"binding": {
 					"$ref": "#/$defs/physical_terminalBinding"
+				},
+				"identity": {
+					"$ref": "#/$defs/processIdentity"
 				},
 				"view": {
 					"$ref": "#/$defs/physical_view"

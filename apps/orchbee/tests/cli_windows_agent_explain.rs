@@ -120,6 +120,14 @@ fn physical_explanation_pins_binding_preserves_evidence_and_escapes_both_locales
             assert!(output.contains("Thinking"));
             assert!(
                 output.contains(if case == "zh" {
+                    "claude-code 智能体，已识别"
+                } else {
+                    "claude-code Agent, recognized"
+                }),
+                "{output}"
+            );
+            assert!(
+                output.contains(if case == "zh" {
                     "缓存版本低于内置规则"
                 } else {
                     "cached version is older than bundled rules"
@@ -140,6 +148,10 @@ fn physical_explanation_pins_binding_preserves_evidence_and_escapes_both_locales
             assert_eq!(document["source"]["kind"], "panel-agent-explain");
             assert_eq!(document["result"]["kind"], "terminal-found");
             assert!(document["result"]["terminal"]["sample"].is_object());
+            assert_eq!(
+                document["result"]["terminal"]["identity"],
+                json!({"result":"agent","providerId":"claude-code","grade":"recognized"})
+            );
         }
     }
 }

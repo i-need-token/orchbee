@@ -18,6 +18,11 @@ pub(super) fn render(
     )?;
     field(
         out,
+        CliText::new(locale).cli_detail_label(crate::cli_text::DetailLabel::Identity),
+        &CliText::new(locale).cli_agent_identity(terminal.identity),
+    )?;
+    field(
+        out,
         labels[1],
         locale.panel_report_state(terminal.view.state),
     )?;

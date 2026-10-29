@@ -172,6 +172,8 @@ pub struct TerminalAgentExplanation {
     pub view: PanelAgentView,
     pub explanation: AgentScreenExplanation,
     pub sample: AgentDetectionSample,
+    /// The Server's identity result for this Terminal generation, independent of the screen rules.
+    pub identity: orchbee_agent_observation_protocol::AgentProcessIdentity,
 }
 impl TerminalAgentExplanation {
     pub(super) fn valid(&self) -> bool {

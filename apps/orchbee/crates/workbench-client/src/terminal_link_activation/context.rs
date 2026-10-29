@@ -166,6 +166,7 @@ fn read_presentation_agent<G: Guard>(
         PanelAgentOutcome::Titles { .. }
         | PanelAgentOutcome::PresentationsRead { .. }
         | PanelAgentOutcome::Explained { .. }
+        | PanelAgentOutcome::Identified { .. }
         | PanelAgentOutcome::States { .. }
         | PanelAgentOutcome::Observed { .. }
         | PanelAgentOutcome::Read { .. }
@@ -209,6 +210,7 @@ fn fence_presentation_agent<G: Guard>(
         PanelAgentOutcome::Titles { .. }
         | PanelAgentOutcome::PresentationsRead { .. }
         | PanelAgentOutcome::Explained { .. }
+        | PanelAgentOutcome::Identified { .. }
         | PanelAgentOutcome::States { .. }
         | PanelAgentOutcome::Observed { .. }
         | PanelAgentOutcome::Read { .. }

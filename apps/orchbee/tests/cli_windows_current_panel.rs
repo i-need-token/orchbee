@@ -165,6 +165,34 @@ fn process_read(stream: &mut LocalStream, terminal: u64, unavailable: bool) {
         json!({"kind":"detach","attachmentId":id(20)})
     );
     answer(stream, &detach, c::TerminalViewerOutcome::Detached {});
+    if !unavailable {
+        identify_reply(stream);
+    }
+}
+/// The Server's identity result for the sampled Terminal, read after the process sample.
+fn identify_reply(stream: &mut LocalStream) {
+    let WorkbenchRequest::PanelAgent(request) = read_workbench_request(stream).unwrap() else {
+        panic!("one Identify after the process sample")
+    };
+    let PanelAgentAction::Identify { presentation_id } = &request.action else {
+        panic!("one Identify after the process sample")
+    };
+    let binding = serde_json::from_value(json!({"presentationId":presentation_id,"generation":id(32),"hostEpoch":id(21),"hostTerminalId":id(30)})).unwrap();
+    write_workbench_response(
+        stream,
+        &WorkbenchResponse::PanelAgent(PanelAgentResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            session_id: request.session_id,
+            outcome: PanelAgentOutcome::Identified {
+                workbench_revision: WorkbenchRevision::new(12),
+                binding,
+                identity: serde_json::from_value(json!({"result":"unknown","reason":"settling"}))
+                    .unwrap(),
+            },
+        }),
+    )
+    .unwrap();
 }
 fn document(output: &std::process::Output) -> Value {
     serde_json::from_slice(&output.stdout).unwrap_or_else(|error| panic!("{error}: {output:?}"))
@@ -255,6 +283,10 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_mutating_contr
                 },
             );
             if process {
+                assert_eq!(
+                    doc["result"]["identity"],
+                    json!({"result":"unknown","reason":"settling"})
+                );
                 assert_eq!(
                     doc["result"]["terminal"]["terminalId"],
                     id(selected + if mode == 1 || mode >= 3 { 400 } else { 200 })

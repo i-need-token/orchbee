@@ -85,6 +85,9 @@ const PanelAgentActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z.strictObject({ kind: z.literal('explain'), binding: TerminalAgentBindingSchema }).readonly(),
 	z
+		.strictObject({ kind: z.literal('identify'), presentationId: TerminalPresentationIdSchema })
+		.readonly(),
+	z
 		.strictObject({
 			kind: z.literal('states'),
 			presentationIds: z
@@ -359,9 +362,41 @@ const screenExplanation = z
 		);
 	})
 	.readonly();
+const processIdentity = z.discriminatedUnion('result', [
+	z
+		.strictObject({
+			result: z.literal('agent'),
+			providerId: z.string().regex(/^[0-9A-Za-z._:-]{1,128}$/u),
+			grade: z.enum(['confirmed', 'recognized']),
+		})
+		.readonly(),
+	z.strictObject({ result: z.literal('none') }).readonly(),
+	z
+		.strictObject({
+			result: z.literal('unknown'),
+			reason: z.enum([
+				'settling',
+				'sample-failed',
+				'sample-limit',
+				'command-line-unreadable',
+				'ambiguous-candidates',
+				'unclassified-arguments',
+				'unverified-provenance',
+				'detached-console',
+			]),
+		})
+		.readonly(),
+	z
+		.strictObject({
+			result: z.literal('unsupported'),
+			reason: z.enum(['platform', 'remote-execution']),
+		})
+		.readonly(),
+]);
 const terminalExplanation = z
 	.strictObject({
 		binding: TerminalAgentBindingSchema,
+		identity: processIdentity,
 		view: PanelAgentViewSchema,
 		explanation: screenExplanation,
 		sample: z
@@ -431,6 +466,14 @@ const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
 			workbenchRevision: WorkbenchRevisionSchema,
 			reportRevision: WorkbenchRevisionSchema,
 			explanation: terminalExplanation,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('identified'),
+			workbenchRevision: WorkbenchRevisionSchema,
+			binding: TerminalAgentBindingSchema,
+			identity: processIdentity,
 		})
 		.readonly(),
 	z

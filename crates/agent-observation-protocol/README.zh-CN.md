@@ -108,7 +108,8 @@ provider 词汇；后续的写入方和采样器复用它，而不是各自维�
   无法分类，读不到的命令行永远不算交互。
 - 结果：`AgentProcessIdentity` 是带 `confirmed` 或 `recognized` 等级的 `agent`、`none`、带一个
   `AgentIdentityUnknownReason` 的 `unknown`，或带一个 `AgentIdentityUnsupportedReason` 的
-  `unsupported`。产生它的状态由 Server 负责。
+  `unsupported`。产生它的状态由 Server 负责。线上格式是以 `result` 区分的封闭对象：`agent` 增加
+  `providerId`（原生 provider ID）和 `grade`，`unknown` 与 `unsupported` 增加一个 `reason`，`none` 不增加成员。
 
 `evaluate_agent_sample` 把一个完整样本的 `AgentProcessRow` 值转换为 `AgentSampleVerdict`：带证据（交互、
 无法分类的参数、读不到的命令行或脱离的控制台）的最外层候选锚点，或无法指出锚点的原因。它拒绝环、父进程复用的
@@ -119,4 +120,4 @@ provider 词汇；后续的写入方和采样器复用它，而不是各自维�
 [进程身份提案](../../proposals/agent/agent-process-identity.zh-CN.md)中 Windows 支持矩阵的每一行和
 每个反例；控制台归属和不透明行由 Host 采样器提供。
 
-<!-- documentation-pairing: english-sha256=9e7dc8780dcb5cfbed65b907e9b1d77738b9d5c22d4dddf80619c4546d22a49d zh-cn-sha256=42f93aa0cb839fa72d605284d83215d028ce3e219f0e57fabca6496ec73edc0b -->
+<!-- documentation-pairing: english-sha256=61bb5893bd17579a89d96899f479576d2df8de443a3b30fcf92c069c6b11bc3c zh-cn-sha256=bbdd6dd6702fc0ff94f2ce08595e530c37cc684f99635e4037105c7aeca2cdf6 -->

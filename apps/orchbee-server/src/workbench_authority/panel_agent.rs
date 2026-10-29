@@ -263,7 +263,10 @@ impl WorkbenchAuthority {
         };
         match &request.action {
             // Host diagnostics are composed by LocalTerminalService, never by the canonical owner.
-            Action::Explain { .. } | Action::Titles { .. } => Err(Failure::Unavailable),
+            // Identity results belong to the Session's process observation, not this owner.
+            Action::Explain { .. } | Action::Titles { .. } | Action::Identify { .. } => {
+                Err(Failure::Unavailable)
+            }
             Action::States { presentation_ids } => {
                 let outcome = self.agent_states(presentation_ids, &membership, &physical)?;
                 admit_result(&outcome)?;
@@ -352,6 +355,7 @@ impl WorkbenchAuthority {
                     Action::Titles { .. }
                     | Action::ReadPresentations { .. }
                     | Action::Explain { .. }
+                    | Action::Identify { .. }
                     | Action::States { .. }
                     | Action::Observe { .. }
                     | Action::Read { .. }

@@ -41,6 +41,7 @@ impl WorkbenchAuthority {
             Outcome::Titles { .. }
             | Outcome::PresentationsRead { .. }
             | Outcome::Explained { .. }
+            | Outcome::Identified { .. }
             | Outcome::States { .. }
             | Outcome::Read { .. }
             | Outcome::PresentationReported { .. }

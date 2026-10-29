@@ -9,6 +9,8 @@ use super::{
 use super::{NETWORK_BUDGET, Projection, deadline_after, snapshot_session_until};
 use crate::cli::caller_context::PanelTarget;
 use crate::cli::results;
+use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason;
+use orchbee_workbench_protocol::PanelAgentFailure;
 use serde_json::{Value, json};
 
 pub(crate) fn panel_process_info(target: Option<&Target>) -> Result<(Value, Projection), Failure> {
@@ -30,8 +32,56 @@ fn read_on_session(
 ) -> Result<(Value, Projection), Failure> {
     let target = prepared.resolve(snapshot)?;
     let terminal = primary_terminal(snapshot, &target)?;
-    read_terminal_processes(client, deadline, snapshot, &terminal)
-        .map(|(source, document)| (source, Projection::PanelProcessInfo(document)))
+    let (source, document) = read_terminal_processes(client, deadline, snapshot, &terminal)?;
+    let identity = read_identity(client, deadline, snapshot, &document, None)?;
+    Ok((source, Projection::PanelProcessInfo(document, identity)))
+}
+
+/// Read the Server's identity result for the sampled Terminal after its process sample.
+/// The two are separate observations; a different Workbench revision or Terminal fails.
+///
+/// # Errors
+/// Map transport and Server failures; a changed revision or Terminal is `workbench-changed`.
+pub(crate) fn read_identity(
+    client: &mut LocalClient,
+    deadline: Instant,
+    snapshot: &Snapshot,
+    document: &results::PanelProcessInfoDoc,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<orchbee_agent_observation_protocol::AgentProcessIdentity, Failure> {
+    use orchbee_workbench_protocol::{
+        PanelAgentAction, PanelAgentOutcome, PanelAgentRequest, TerminalPresentationId,
+    };
+    let presentation_id = TerminalPresentationId::parse(&document.terminal.presentation_id)
+        .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+    let request = PanelAgentRequest {
+        protocol_version: snapshot.protocol_version,
+        request_id: super::request_id()?,
+        session_id: snapshot.session_id.clone(),
+        action: PanelAgentAction::Identify { presentation_id },
+    };
+    let reply = client
+        .panel_agent(request, deadline, wake)
+        .map_err(|error| Failure::new(metadata_failure(error.reason)))?;
+    if Instant::now() >= deadline {
+        return Err(Failure::new(FailureKind::Timeout));
+    }
+    match reply.outcome {
+        PanelAgentOutcome::Identified {
+            workbench_revision,
+            binding,
+            identity,
+        } => {
+            if workbench_revision != snapshot.revision
+                || binding.host_terminal_id.as_str() != document.info.terminal_id.to_text()
+            {
+                return Err(super::workbench_failure("workbench-changed"));
+            }
+            Ok(identity)
+        }
+        PanelAgentOutcome::Failed { reason } => Err(panel_agent_failure(reason)),
+        _ => Err(viewer_protocol_invalid()),
+    }
 }
 
 /// Resolve a CLI terminal against the admitted Snapshot and project one shared process observation.
@@ -131,6 +181,43 @@ pub(in crate::cli) fn classify_process(
         })
         .failure_schema("orchbee.cli.failure.process-info")
         .details(rows_details("read-process-info", reason.as_str())),
+    }
+}
+
+/// Map a Server Panel Agent refusal to the generic CLI failure kind.
+pub(in crate::cli) fn panel_agent_failure(reason: PanelAgentFailure) -> Failure {
+    Failure::new(match reason {
+        PanelAgentFailure::Denied => FailureKind::Denied,
+        PanelAgentFailure::NotFound
+        | PanelAgentFailure::SessionMismatch
+        | PanelAgentFailure::BindingChanged => FailureKind::Rejected,
+        PanelAgentFailure::Unbound
+        | PanelAgentFailure::InvalidRequest
+        | PanelAgentFailure::SourceLimit
+        | PanelAgentFailure::HistoryLimit
+        | PanelAgentFailure::ResourceLimit => FailureKind::ProtocolInvalid,
+        PanelAgentFailure::RevisionExhausted | PanelAgentFailure::ClockOverflow => {
+            FailureKind::InternalFailure
+        }
+        PanelAgentFailure::Unavailable => FailureKind::ServiceUnavailable,
+        PanelAgentFailure::ResultTooLarge => FailureKind::OutputTooLarge,
+    })
+}
+
+/// Map a Workbench exchange failure to the generic CLI failure kind.
+pub(in crate::cli) fn metadata_failure(reason: MetadataExchangeReason) -> FailureKind {
+    match reason {
+        MetadataExchangeReason::ConnectionUnavailable => FailureKind::ServiceUnavailable,
+        MetadataExchangeReason::Encoding => FailureKind::InternalFailure,
+        MetadataExchangeReason::Deadline | MetadataExchangeReason::ResponseDeadline => {
+            FailureKind::Timeout
+        }
+        MetadataExchangeReason::Correlation | MetadataExchangeReason::Protocol => {
+            FailureKind::ProtocolInvalid
+        }
+        MetadataExchangeReason::NotSubmitted
+        | MetadataExchangeReason::Write
+        | MetadataExchangeReason::Read => FailureKind::TransportLoss,
     }
 }
 

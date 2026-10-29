@@ -295,6 +295,92 @@ impl ProcessObservationTarget {
     }
 }
 impl SessionCoordinator {
+    /// The identity result of one exact physical Terminal generation. Before its first committed
+    /// sample the generation holds the initial `unknown` with `settling`.
+    pub(crate) fn process_identity(
+        &self,
+        physical: &TerminalAgentBinding,
+    ) -> orchbee_agent_observation_protocol::AgentProcessIdentity {
+        self.process_samples
+            .get(&key(&physical.binding))
+            .filter(|sample| sample.target == *physical)
+            .map_or_else(
+                || identity::IdentityState::default().result(),
+                |sample| sample.identity.result(),
+            )
+    }
+
+    /// Answers `identify` for the presentation's current Terminal generation: the canonical
+    /// owner resolves the generation, and this state supplies its identity under one lock.
+    #[cfg(windows)]
+    pub(crate) fn identify_presentation(
+        &mut self,
+        request: &orchbee_workbench_protocol::PanelAgentRequest,
+        now: Instant,
+    ) -> orchbee_workbench_protocol::PanelAgentOutcome {
+        use orchbee_workbench_protocol::{
+            PanelAgentAction as Action, PanelAgentFailure as Failure, PanelAgentOutcome as Outcome,
+        };
+        let Action::Identify { presentation_id } = &request.action else {
+            return Outcome::Failed {
+                reason: Failure::InvalidRequest,
+            };
+        };
+        let probe = orchbee_workbench_protocol::PanelAgentRequest {
+            action: Action::States {
+                presentation_ids: vec![presentation_id.clone()],
+            },
+            ..request.clone()
+        };
+        let Some(states) = self.panel_agent(probe, now) else {
+            return Outcome::Failed {
+                reason: Failure::Unavailable,
+            };
+        };
+        let (workbench_revision, binding) = match states.outcome {
+            Outcome::States {
+                workbench_revision,
+                presentations,
+                ..
+            } => match presentations
+                .into_iter()
+                .next()
+                .and_then(|row| row.snapshot)
+            {
+                Some(snapshot) => (workbench_revision, snapshot.binding),
+                None => {
+                    return Outcome::Failed {
+                        reason: Failure::Unbound,
+                    };
+                }
+            },
+            Outcome::Failed { reason } => return Outcome::Failed { reason },
+            _ => {
+                return Outcome::Failed {
+                    reason: Failure::Unavailable,
+                };
+            }
+        };
+        let hex = |bytes: [u8; 16]| format!("{:032x}", u128::from_be_bytes(bytes));
+        let Some(physical) = self.terminal_agent_bindings().ok().and_then(|facts| {
+            facts.into_iter().find(|fact| {
+                hex(fact.identity.creation_id().as_bytes()) == binding.generation.as_str()
+                    && hex(fact.identity.host_epoch().as_bytes()) == binding.host_epoch.as_str()
+                    && hex(fact.identity.terminal_id().as_bytes())
+                        == binding.host_terminal_id.as_str()
+            })
+        }) else {
+            return Outcome::Failed {
+                reason: Failure::BindingChanged,
+            };
+        };
+        Outcome::Identified {
+            workbench_revision,
+            identity: self.process_identity(&physical),
+            binding,
+        }
+    }
+
     /// A failed sample of an exactly tracked physical target ages its identity; it never ends a run.
     pub(crate) fn observe_host_process_failure(
         &mut self,

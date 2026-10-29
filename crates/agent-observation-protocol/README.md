@@ -127,7 +127,9 @@ reuse it rather than keeping their own tables.
   is never interactive.
 - Results: `AgentProcessIdentity` is `agent` with grade `confirmed` or `recognized`, `none`,
   `unknown` with one `AgentIdentityUnknownReason`, or `unsupported` with one
-  `AgentIdentityUnsupportedReason`. The Server owns the state that produces it.
+  `AgentIdentityUnsupportedReason`. The Server owns the state that produces it. Its wire form is
+  one closed object discriminated by `result`: `agent` adds `providerId` (the native provider ID)
+  and `grade`, `unknown` and `unsupported` add one `reason`, and `none` adds nothing.
 
 `evaluate_agent_sample` turns one complete sample of `AgentProcessRow` values into an
 `AgentSampleVerdict`: the outermost candidate anchor with its evidence (interactive, unclassified

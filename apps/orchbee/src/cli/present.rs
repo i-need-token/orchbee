@@ -743,7 +743,9 @@ pub(crate) fn render(
             ]
         }),
         Projection::PanelGet(doc) => panel_doc(out, doc, text),
-        Projection::PanelProcessInfo(doc) => panel_process(out, doc, locale),
+        Projection::PanelProcessInfo(doc, identity) => {
+            panel_process(out, doc, Some(*identity), locale)
+        }
         Projection::TerminalList(doc) | Projection::TerminalListHuman(doc) => {
             terminal_table(out, text, doc, locale)
         }
@@ -986,7 +988,7 @@ pub(crate) fn render(
                     ..
                 } => {
                     out.push(&CliText::new(locale).cli_agent_runtime(Some(*prompt_ready), None))?;
-                    panel_process(out, processes, locale)
+                    panel_process(out, processes, None, locale)
                 }
             }
         }
@@ -1832,6 +1834,7 @@ fn agent_changes(
 fn panel_process(
     out: &mut Bounded,
     doc: &super::results::PanelProcessInfoDoc,
+    identity: Option<orchbee_agent_observation_protocol::AgentProcessIdentity>,
     locale: Locale,
 ) -> Result<(), TooLarge> {
     use super::processes::{filetime_utc, program_name, readable_command};
@@ -1846,6 +1849,12 @@ fn panel_process(
         label(DetailLabel::Terminal),
         doc.terminal.terminal_id.clone(),
     )];
+    rows.extend(identity.map(|identity| {
+        (
+            label(DetailLabel::Identity),
+            CliText::new(locale).cli_agent_identity(identity),
+        )
+    }));
     if let Some(process) = view
         .foreground
         .pid
