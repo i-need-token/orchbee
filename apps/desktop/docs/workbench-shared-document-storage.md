@@ -153,7 +153,7 @@ and quiescing evidence belongs to the [session coordinator](multi-client-session
 
 [decision-tests]: ../src/main/workbench-document/__tests__/decideWorkbenchDocumentCommit.unit.test.ts
 [store-tests]: ../src/main/workbench-document/__tests__/FileWorkbenchDocumentStore.unit.test.ts
-[document-tests]: ../../../packages/workbench/src/workbench/document/__tests__/workbench-document.unit.test.ts
+[document-tests]: ../../../packages/workbench-client-protocol/src/__tests__/workbench-shared-document-contract.unit.test.ts
 [runtime-tests]: ../../../packages/workbench/src/workbench/model/__tests__/workbench-document-runtime.unit.test.ts
 [renderer-tests]: ../../web/src/workbench-client/workbench-document-control/__tests__/WorkbenchDocumentCoordinator.unit.test.ts
 [queue-tests]: ../src/main/client-session/__tests__/DesktopClientSessionCoordinator.unit.test.ts

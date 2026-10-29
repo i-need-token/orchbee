@@ -113,7 +113,7 @@ Web 组合可以按[导航路由](../../web/docs/navigation-routing.zh-CN.md)的
 
 [decision-tests]: ../src/main/workbench-document/__tests__/decideWorkbenchDocumentCommit.unit.test.ts
 [store-tests]: ../src/main/workbench-document/__tests__/FileWorkbenchDocumentStore.unit.test.ts
-[document-tests]: ../../../packages/workbench/src/workbench/document/__tests__/workbench-document.unit.test.ts
+[document-tests]: ../../../packages/workbench-client-protocol/src/__tests__/workbench-shared-document-contract.unit.test.ts
 [runtime-tests]: ../../../packages/workbench/src/workbench/model/__tests__/workbench-document-runtime.unit.test.ts
 [renderer-tests]: ../../web/src/workbench-client/workbench-document-control/__tests__/WorkbenchDocumentCoordinator.unit.test.ts
 [queue-tests]: ../src/main/client-session/__tests__/DesktopClientSessionCoordinator.unit.test.ts
@@ -125,4 +125,4 @@ Web 组合可以按[导航路由](../../web/docs/navigation-routing.zh-CN.md)的
 [reconciler-tests]: ../src/main/client-session/__tests__/DesktopTerminalIntentReconciler.unit.test.ts
 [adapter-tests]: ../src/main/terminal-document-control/__tests__/DesktopTerminalLifecycleAdapter.unit.test.ts
 
-<!-- documentation-pairing: english-sha256=3f65ccc5ff4f3072b60e5dd50e7ba52074d937aa2917825f15b6cf1f3d78fa73 zh-cn-sha256=0f8f06f5761c8144bd5fde40c1fadac844eaddbbe6caddb8ce55683c4464e17b -->
+<!-- documentation-pairing: english-sha256=347d19a6ee79115eabf5835dfbd04d4cbf94ade830fa72a645acf34a44a88816 zh-cn-sha256=964780eda8e5cfbc6862364a3206c6634d59449d15b50875540ddc8c0aa3c5bf -->
