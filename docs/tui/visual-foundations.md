@@ -226,6 +226,8 @@ combinations and control behavior.
   checked, or changed state.
 - Disclosure uses `▾` while expanded and `▸` while collapsed, with `v` and `>` as ASCII fallbacks,
   so a collapsed disclosure never reads as the `+` or `-` of an ASCII status glyph.
+- A checked option, such as a group's applied color in its menu, shows `✓` in its checked track,
+  with `*` as its ASCII fallback.
 - One glyph has one meaning across the Client. Document glyph meanings with the owning surface.
   ASCII fallbacks may share a character only when their tracks never coincide: the collapsed
   disclosure `>` follows an identity or label, while the navigation `>` occupies the leading

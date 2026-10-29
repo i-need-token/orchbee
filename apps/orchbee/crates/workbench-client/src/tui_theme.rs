@@ -164,6 +164,8 @@ pub struct GlyphSet {
     pub(crate) git_behind: &'static str,
     /// Active marker in navigator and context lists.
     pub(crate) active_marker: &'static str,
+    /// The checked option in a menu's checked track, such as a group's applied color.
+    pub(crate) checked_marker: &'static str,
     /// Reversible keyboard-navigation anchor within a collection.
     pub(crate) navigation_marker: &'static str,
     /// One-cell rule between strip regions, such as pinned and ordinary Tabs.
@@ -189,6 +191,7 @@ impl GlyphSet {
         git_ahead: "↑",
         git_behind: "↓",
         active_marker: "*",
+        checked_marker: "✓",
         navigation_marker: "›",
         vertical_rule: "│",
         scrollbar_track: "│",
@@ -208,6 +211,7 @@ impl GlyphSet {
         git_ahead: "+",
         git_behind: "-",
         active_marker: "*",
+        checked_marker: "*",
         navigation_marker: ">",
         vertical_rule: "|",
         scrollbar_track: "|",

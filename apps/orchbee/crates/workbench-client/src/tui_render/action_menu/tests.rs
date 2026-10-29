@@ -737,8 +737,11 @@ fn assert_bound_row_layout(
     let row = action_row_rect(map, buffer.area, token);
     let marker_end = assert_text_at(buffer, row.x, row.y, theme.glyphs.navigation_marker);
     let chord_width = u16::try_from(display_width(chord)).unwrap();
-    let chord_x = row.right() - chord_width;
-    assert_eq!(assert_text_at(buffer, chord_x, row.y, chord), row.right());
+    // The chord ends before the row's right padding cell.
+    let padding = row.right() - 1;
+    let chord_x = padding - chord_width;
+    assert_eq!(assert_text_at(buffer, chord_x, row.y, chord), padding);
+    assert_eq!(buffer[(padding, row.y)].symbol(), " ");
     let label_right = chord_x - ROW_BINDING_GAP;
     let label_budget = usize::from(label_right - marker_end);
     let full_label = locale.menu_action(&MenuAction::Machines);

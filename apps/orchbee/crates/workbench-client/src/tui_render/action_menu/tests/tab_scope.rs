@@ -119,13 +119,13 @@ fn applied_color_check_and_paired_palette_chip_survive_a_different_provisional_c
                                 &buffer,
                                 navigation_end,
                                 rect.y,
-                                theme.glyphs.active_marker,
+                                theme.glyphs.checked_marker,
                             );
                         } else {
                             assert_eq!(buffer[(navigation_end, rect.y)].symbol(), " ");
                         }
                         let swatch = navigation_end
-                            + u16::try_from(display_width(theme.glyphs.active_marker)).unwrap()
+                            + u16::try_from(display_width(theme.glyphs.checked_marker)).unwrap()
                             + 1;
                         for x in swatch..swatch + 2 {
                             assert_eq!(buffer[(x, rect.y)].bg, theme.tab_groups.accent(*color));

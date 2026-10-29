@@ -151,8 +151,10 @@ whole items when space runs out. Shared Back or Close actions are shown when the
 footer owns routine key discovery, so a normally presented global menu floats no session status.
 During geometry recovery, the status chip instead shows one localized, key-free refusal or suspension
 notice plus one shared Esc Back or Close hint; it never mixes underlying notice or Machines text.
-Menu width includes one cell of padding on each side and borders; labels that exceed the
-available width truncate on grapheme boundaries with the theme's ellipsis.
+Menu width includes the borders, one cell of padding on each side (the left one holds the
+navigation marker) and one blank cell after the widest row's content, so no label or chord touches
+the right border; labels that exceed the available width truncate on grapheme boundaries with the
+theme's ellipsis.
 Selection fills the complete inner row and uses the shared navigation-marker track; hover uses the
 independent shared pointer state. A reason row is reserved only when the menu has unavailable
 actions, so hover never changes row geometry. Each frame derives its visible window from the current

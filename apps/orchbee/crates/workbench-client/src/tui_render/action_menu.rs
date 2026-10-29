@@ -259,8 +259,9 @@ fn measure<'v>(
                                 display_width(text).saturating_add(usize::from(ROW_BINDING_GAP))
                             }),
                     )
-                    // The row owns one padding cell beside each frame edge.
-                    .saturating_add(2)
+                    // The frame's two edges, then the row's right padding cell and one blank
+                    // cell after its content.
+                    .saturating_add(4)
             })
             .max()
             .unwrap_or(16);
@@ -270,7 +271,7 @@ fn measure<'v>(
         .map(|heading| {
             marker_width
                 .saturating_add(display_width(locale.menu_heading(heading)))
-                .saturating_add(2)
+                .saturating_add(4)
         })
         .fold(desired, usize::max);
     let desired = if result_actions.is_empty() {
@@ -424,8 +425,9 @@ fn layout(measured: &Measured<'_>, area: Rect, theme: &Theme) -> Option<Placed> 
     let menu = &measured.menu;
     let inner = super::overlay_surface(theme, Padding::horizontal(1)).inner(area);
     let marker_width = display_width(theme.glyphs.navigation_marker);
+    // A row's content spans the inner width and its left padding cell, which holds the marker.
     let project_budget = usize::from(inner.width)
-        .saturating_add(2)
+        .saturating_add(1)
         .saturating_sub(marker_width);
     let project_suffixes = project_suffixes(menu, project_budget, theme.glyphs.ellipsis);
     if project_suffixes
@@ -1144,22 +1146,24 @@ fn render_row(
         Rect::new(
             navigation.right(),
             row.y,
-            u16::try_from(display_width(theme.glyphs.active_marker)).unwrap_or(1),
+            u16::try_from(display_width(theme.glyphs.checked_marker)).unwrap_or(1),
             1,
         )
     });
     let swatch = checked.map(|rect| Rect::new(rect.right() + 1, row.y, 2, 1));
     let label_left = swatch.map_or(navigation.right(), |rect| rect.right() + 1);
+    // Text stops before the row's right padding cell; a destructive band still reaches the edge.
+    let content_right = row.right().saturating_sub(1);
     let binding_width = trailing
         .map(|(text, _)| display_width(text))
         .and_then(|width| u16::try_from(width).ok())
         .filter(|width| {
-            row.width
-                .saturating_sub(label_left - row.x)
+            content_right
+                .saturating_sub(label_left)
                 .saturating_sub(*width)
                 > ROW_BINDING_GAP
         });
-    let binding_rect = binding_width.map(|width| Rect::new(row.right() - width, row.y, width, 1));
+    let binding_rect = binding_width.map(|width| Rect::new(content_right - width, row.y, width, 1));
     let primary_right =
         binding_rect.map_or(row.right(), |rect| rect.x.saturating_sub(ROW_BINDING_GAP));
     let primary = Rect::new(
@@ -1178,7 +1182,8 @@ fn render_row(
             theme.glyphs.middle_dot,
             theme.glyphs.disclosure_closed,
         ),
-        usize::from(primary.width).saturating_sub(display_width(project_suffix)),
+        usize::from(primary_right.min(content_right).saturating_sub(label_left))
+            .saturating_sub(display_width(project_suffix)),
         theme.glyphs.ellipsis,
     );
     frame.render_widget(
@@ -1211,7 +1216,7 @@ fn render_row(
         .with_provisional(navigation)
         .with_primary_role(primary_role);
     if let Some(rect) = checked {
-        tracks = tracks.with_checked(rect, theme.glyphs.active_marker);
+        tracks = tracks.with_checked(rect, theme.glyphs.checked_marker);
     }
     let applied = if menu.tabs.is_some_and(|tabs| tabs.checked(action)) {
         CheckedState::Checked
@@ -1446,7 +1451,7 @@ fn project_suffixes(menu: &MenuView<'_>, width: usize, ellipsis: &str) -> Vec<St
 
 fn color_track_width(action: &MenuAction, theme: &Theme) -> usize {
     if matches!(action, MenuAction::GroupColor(_)) {
-        display_width(theme.glyphs.active_marker) + 4
+        display_width(theme.glyphs.checked_marker) + 4
     } else {
         0
     }
