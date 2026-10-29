@@ -106,9 +106,11 @@ identity；Client 不能据此推断 lifecycle reason。可选的 `launchFailure
 表示当前 binding 下的终端从未启动。它要求存在 binding，记录启动的绝对程序路径（Worker 解析
 默认 shell 时为 `null`）及封闭的 `terminal-create-failed` 原因；参数、环境和 OS 错误文本从不
 进入其中。它只属于运行时：重新绑定或捕获 checkpoint 会移除它，Client 据此显示失败而非 attach。
-可选的 `launchProgram` 以可执行文件的文件名记录当前 binding 启动的程序：最多 128 个 UTF-8 字节，
-不含路径分隔符或控制字符，因此目录、参数和环境都不会进入其中。Server 在提交 binding 的同一
-revision 中提交它，成功启动不会单独增加 revision。它要求存在 binding，并与 `launchFailure` 一样
+可选的 `launchProgram` 以可执行文件路径按任一分隔符切分后的原始最后一段记录当前 binding 启动的
+程序：最多 128 个 UTF-8 字节，不含路径分隔符或 C0、C1 控制字符。目录、参数列表和环境都不会进入其中，
+但这一段不再进一步解析：自定义程序的可执行文件字段本身含参数时（例如 `nu -l`），会发布整个尾部。
+语料用 64 个双字节字符被接受、65 个被拒绝固定字节预算，并像拒绝 `/` 和 U+0007 一样拒绝反斜杠和
+U+0085。Server 在提交 binding 的同一 revision 中提交它，成功启动不会单独增加 revision。它要求存在 binding，并与 `launchFailure` 一样
 只属于运行时：随 binding 替换或移除，从不进入 checkpoint。缺少它表示没有记录启动的程序。
 
 Project、Directory、Workspace 与 Terminal Context array 使用 identity 升序。Directory identity
@@ -667,4 +669,4 @@ Workspace 侧栏发布增加必需非空 `spacesSidebarProfile`，独立于 `age
 
 [设置](v1/workbench-settings.schema.json) 定义匹配 Windows cohort 的闭合 Open/Save 请求及结果。三个必需但可空的字段区分未修改设置与明确的主题／提醒／声音修改；全部为空的补丁非法。来源令牌区分文件不存在与规范 SHA-256 内容摘要。Save 同时约束发布 revision；结果区分磁盘持久化、在线应用与写入前拒绝。共享语料在 Rust、TypeScript 和 JSON Schema 中检查额外字段拒绝、全宽 revision、完整快照及独立的 4 KiB 请求／256 KiB 结果限制。[原生设置所有者](../../apps/orchbee/docs/native-settings.zh-CN.md) 负责写入、输入捕获、不确定结果和恢复。
 
-<!-- documentation-pairing: english-sha256=8aa36b72c205bb6ae2c2a2d23a4797a33598e8f321c599848db3dd852b7065bf zh-cn-sha256=b74badf28e9a6ea04d1cec119e4af67736dcc05567da0467560f14baf3b39f2f -->
+<!-- documentation-pairing: english-sha256=c3f820242b656efb236fe4d656eb88bc69d2a629a882d43fae940cf3fe80be94 zh-cn-sha256=1d214bf7e847e973570adce5be6d954950a79824d35f5433a45b1abdd5230197 -->
