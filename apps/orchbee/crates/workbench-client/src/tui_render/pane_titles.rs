@@ -8,6 +8,7 @@ use super::{
 use crate::{
     terminal_text::{display_width, truncate_display},
     tui_layout::LeafArea,
+    tui_pointer::TooltipText,
 };
 use ratatui::{
     style::Modifier,
@@ -69,27 +70,30 @@ pub(super) fn paint(
     } else {
         name_style
     };
-    let (glyph, unread) = match (ended, panel) {
+    let (state, unread) = match (ended, panel) {
         (None, Some(panel)) => (
             super::panel_reports::agent_state(native.panel_report(panel)).map(|state| {
-                let state = if state == orchbee_workbench_protocol::MetadataState::Done
+                if state == orchbee_workbench_protocol::MetadataState::Done
                     && native.panel_completion_edited(panel.panel_id())
                 {
                     orchbee_workbench_protocol::MetadataState::Idle
                 } else {
                     state
-                };
-                (
-                    super::sidebar_text::state_glyph(state, theme, title.working_frame),
-                    theme
-                        .agent_style(state, title.working_frame)
-                        .remove_modifier(Modifier::BOLD),
-                )
+                }
             }),
             native.panel_unseen_count(panel.panel_id()) > 0,
         ),
         _ => (None, false),
     };
+    let glyph = state.map(|state| {
+        (
+            super::sidebar_text::state_glyph(state, theme, title.working_frame),
+            theme
+                .agent_style(state, title.working_frame)
+                .remove_modifier(Modifier::BOLD),
+        )
+    });
+    let legend = super::tooltip::legend(state, unread, title.working_frame, locale, theme);
 
     let unread = unread.then(|| format!(" {}", theme.glyphs.status_bullet));
     let fixed = 2
@@ -115,10 +119,12 @@ pub(super) fn paint(
         spans.push(Span::styled(glyph, style));
         spans.push(Span::styled(" ", name_style));
     }
-    spans.push(Span::styled(
-        truncate_display(&name, room, theme.glyphs.ellipsis),
-        name_style,
-    ));
+    let shown = truncate_display(&name, room, theme.glyphs.ellipsis);
+    let cut = (shown != name).then(|| TooltipText {
+        text: name.clone(),
+        middle: false,
+    });
+    spans.push(Span::styled(shown, name_style));
     if let Some(unread) = unread {
         spans.push(Span::styled(unread, flat(Role::StatusUnread)));
     }
@@ -127,6 +133,16 @@ pub(super) fn paint(
     frame
         .buffer_mut()
         .set_line(line.x, line.y, &left, line.width);
+    // The title's text gives a cut name in full and names its state glyph and unread dot. It
+    // records no target, so a press there still reaches the divider beneath.
+    if let Some(pane) = panel.and_then(|panel| native.pane_ref_for_panel(panel.panel_id()))
+        && let Some(content) = super::tooltip::describe(cut, legend)
+    {
+        let width = u16::try_from(left.width())
+            .unwrap_or(u16::MAX)
+            .min(line.width);
+        hits.record_pane_title_tooltip(Rect::new(line.x, line.y, width, 1), pane, content);
+    }
     if let Some(selector) = &selector {
         selector.paint(frame, ControlSurface::Canvas, theme, hits);
     } else if let Some(badge) = badge {

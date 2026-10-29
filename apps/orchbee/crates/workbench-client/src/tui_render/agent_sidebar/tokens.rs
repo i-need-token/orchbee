@@ -1,5 +1,5 @@
 //! Pure token projection from the already-fenced Agent row. No I/O or Agent authority.
-use super::super::workspace_sidebar::ProjectedSidebarLines;
+use super::super::workspace_sidebar::{ProjectedSidebarLines, full_name};
 use super::{ClientView, Line, Locale, Role, Span, Theme, display_label, machine_label};
 use crate::machine_picker::Row;
 use orchbee_local_runtime::{AgentSidebarToken, AgentSidebarTokenKind as Kind, SidebarTokenStyle};
@@ -147,11 +147,13 @@ pub(in crate::tui_render) fn projection(
             title
         };
         return ProjectedSidebarLines::new(vec![Line::from(Span::styled(
-            title,
+            title.clone(),
             text_style(Role::TextPrimary, true),
-        ))]);
+        ))])
+        .with_names(vec![(0, full_name(title))]);
     };
     let mut lines = Vec::new();
+    let mut names = Vec::new();
     for row in rows {
         let mut spans = Vec::new();
         let mut previous_icon = false;
@@ -162,6 +164,17 @@ pub(in crate::tui_render) fn projection(
             let Some((mut text, style)) = context.resolved(token) else {
                 continue;
             };
+            // A Workspace, Tab, pane or terminal title is a name the row may cut.
+            if matches!(
+                token.kind(),
+                Kind::Workspace
+                    | Kind::Tab
+                    | Kind::Pane
+                    | Kind::TerminalTitle
+                    | Kind::TerminalTitleStripped
+            ) {
+                names.push((lines.len(), full_name(text.clone())));
+            }
             if !spans.is_empty() {
                 spans.push(Span::styled(
                     if previous_icon {
@@ -193,7 +206,7 @@ pub(in crate::tui_render) fn projection(
     if lines.is_empty() {
         lines.push(Line::default());
     }
-    ProjectedSidebarLines::new(lines)
+    ProjectedSidebarLines::new(lines).with_names(names)
 }
 
 #[cfg(test)]

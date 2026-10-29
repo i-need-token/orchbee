@@ -19,6 +19,7 @@ use crate::{
     },
     tui_pointer::{
         InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer, TooltipContent,
+        TooltipText,
     },
 };
 use orchbee_local_runtime::{SidebarTokenStyle, SpaceSidebarToken, SpaceSidebarTokenKind as Kind};
@@ -41,6 +42,9 @@ pub(in crate::tui_render) struct ProjectedSidebarLines {
     lines: Vec<Line<'static>>,
     /// Right-aligned metadata per line; an empty line has none.
     trailing: Vec<Line<'static>>,
+    /// Each name a line shows, whole, by line index: what its pointer tooltip gives in full once
+    /// the painted line cuts it.
+    names: Vec<(usize, TooltipText)>,
 }
 
 impl ProjectedSidebarLines {
@@ -48,11 +52,39 @@ impl ProjectedSidebarLines {
         Self {
             lines,
             trailing: Vec::new(),
+            names: Vec::new(),
         }
+    }
+
+    /// Lines that show these names, whole, by line index.
+    pub(in crate::tui_render) fn with_names(mut self, names: Vec<(usize, TooltipText)>) -> Self {
+        self.names = names;
+        self
     }
 
     pub(in crate::tui_render) fn into_parts(self) -> (Vec<Line<'static>>, Vec<Line<'static>>) {
         (self.lines, self.trailing)
+    }
+
+    /// The first name its painted line no longer shows whole.
+    fn cut_name(names: Vec<(usize, TooltipText)>, painted: &[Line<'_>]) -> Option<TooltipText> {
+        names.into_iter().find_map(|(line, name)| {
+            let text: String = painted
+                .get(line)?
+                .spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect();
+            (!text.contains(&name.text)).then_some(name)
+        })
+    }
+}
+
+/// A name shown whole, cut at its end.
+pub(in crate::tui_render) fn full_name(text: impl Into<String>) -> TooltipText {
+    TooltipText {
+        text: text.into(),
+        middle: false,
     }
 }
 
@@ -254,6 +286,7 @@ fn lines(
     let mut lines = Vec::new();
     let mut trailing = Vec::new();
     let mut slots = Vec::new();
+    let mut names = Vec::new();
     let identity = machine.clone();
     for tokens in view.machines.space_settings().rows() {
         // A Workspace row has no state column, so a configured state icon paints nothing; Git
@@ -328,7 +361,20 @@ fn lines(
             }
         }
         let mut spans = Vec::new();
+        let mut line_names = Vec::new();
         for (i, (kind, style, text)) in resolved.into_iter().enumerate() {
+            // A Workspace name, branch or folder is a name; a folder is a path, cut in the middle.
+            match kind {
+                Kind::Workspace => line_names.push(full_name(text.clone())),
+                _ if context.shows_git_text(kind) => line_names.push(full_name(display_label(
+                    context.value(kind).expect("visible branch"),
+                ))),
+                Kind::Location => line_names.push(TooltipText {
+                    text: text.clone(),
+                    middle: true,
+                }),
+                _ => {}
+            }
             let text = if context.shows_git_text(kind) {
                 let marker = if context.git_stale { " ?" } else { "  " };
                 format!(
@@ -367,6 +413,7 @@ fn lines(
         }
         // Configured tracks keep their height while asynchronous metadata arrives.
         if context.keeps(tokens, lines.is_empty()) {
+            names.extend(line_names.into_iter().map(|name| (lines.len(), name)));
             lines.push(Line::from(spans));
             trailing.push(right);
             slots.push(line_slot);
@@ -379,6 +426,7 @@ fn lines(
     }
     if shape.folded {
         // The renderer paints the Agent status line over this reserved second line.
+        names.retain(|(line, _)| *line != 1);
         if lines.len() > 1 {
             lines[1] = Line::default();
             trailing[1] = Line::default();
@@ -408,7 +456,11 @@ fn lines(
             theme.glyphs.ellipsis,
         );
     }
-    ProjectedSidebarLines { lines, trailing }
+    ProjectedSidebarLines {
+        lines,
+        trailing,
+        names,
+    }
 }
 
 /// A folded Workspace always has a second line for its Agents' status line.
@@ -1478,14 +1530,11 @@ pub(super) fn render(
         } else {
             ""
         };
-        let projected_lines = match row {
+        let mut projected_lines = match row {
             SidebarRow::Project { .. } | SidebarRow::Recents { .. } => {
-                ProjectedSidebarLines::new(vec![group_heading(
-                    &group_label(view, row, locale),
-                    inline,
-                    text_width,
-                    theme,
-                )])
+                let label = group_label(view, row, locale);
+                ProjectedSidebarLines::new(vec![group_heading(&label, inline, text_width, theme)])
+                    .with_names(vec![(0, full_name(sanitize_terminal_text(&label)))])
             }
             SidebarRow::Context { row: context, .. } => lines(
                 view,
@@ -1505,6 +1554,7 @@ pub(super) fn render(
                 super::agent_sidebar::tokens::projection(view, row, locale, theme)
             }
         };
+        let names = std::mem::take(&mut projected_lines.names);
         let (mut row_lines, mut trailing) = projected_lines.into_parts();
         // An Agent title leaves the trailing unread cells only while that marker shows.
         if matches!(row, SidebarRow::Agent { .. }) && (markers > 0 || !inline.is_empty()) {
@@ -1537,6 +1587,7 @@ pub(super) fn render(
             };
             *line = fit(std::mem::take(line), width, theme.glyphs.ellipsis);
         }
+        let cut_name = ProjectedSidebarLines::cut_name(names, &row_lines);
         let tracks = if has_disclosure {
             tracks.with_disclosure_after(row_lines.first().map_or(0, Line::width))
         } else {
@@ -1965,11 +2016,11 @@ pub(super) fn render(
         if painted.is_some()
             && let (Some(hits), Some(target)) = (hits.as_deref_mut(), row_target)
         {
-            // An Agent row names its state glyph; a folded Workspace each state its status line
-            // shows. Either adds the unread dot.
+            // A row gives the name it cuts in full. An Agent row names its state glyph; a folded
+            // Workspace each state its status line shows. Either adds the unread dot.
             let states = agent_state.into_iter().chain(status_states.iter().copied());
             if let Some(content) = tooltip::describe(
-                None,
+                cut_name,
                 tooltip::legend(states, unread, view.machines.working_frame(), locale, theme),
             ) {
                 hits.record_interaction_tooltip(layer, band, &target, content);

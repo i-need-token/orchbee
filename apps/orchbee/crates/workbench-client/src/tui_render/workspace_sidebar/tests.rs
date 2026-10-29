@@ -802,6 +802,23 @@ fn folder_location_uses_the_whole_row_and_keeps_both_ends_beside_agents() {
         "{rows:?}"
     );
     assert!(locations[0].contains('…'), "{rows:?}");
+    // Each row's pointer tooltip gives the cut path whole, to be cut in the middle if still long.
+    let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    terminal
+        .draw(|frame| {
+            let theme = Theme::rgb_test_dark();
+            render_terminal_shell(frame, &view, Locale::EnUs, None, &theme, &mut hits);
+        })
+        .unwrap();
+    let paths = hits
+        .tooltip_contents()
+        .filter(|content| {
+            matches!(content, TooltipContent::Describe { text: Some(text), .. }
+                if text.text == path && text.middle)
+        })
+        .count();
+    assert_eq!(paths, 2);
 }
 
 fn paint_navigation_buffers(

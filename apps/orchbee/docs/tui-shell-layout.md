@@ -303,7 +303,10 @@ marker; its complete perimeter is emphasized after divider glyphs are painted, i
 edges, and every title paints after that emphasis. Sidebar navigation suppresses terminal focus cues.
 Multiple-Presentation arrows and their count end the leaf's title line in split and zoomed views; a
 bare pane's selector ends the Tab strip instead. Selectors on a divider line take pointer precedence
-over that divider; other title cells keep the divider's drag target.
+over that divider; other title cells keep the divider's drag target. A pointer resting on a title's
+text opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) that gives
+a cut name in full, then names its state glyph and unread dot. The title records no target for it,
+so those cells still drag the divider.
 The renderer, PTY dimensions, popups and read-only layout queries share
 this geometry; zoomed hidden leaves retain their canonical unzoomed dimensions.
 Inactive terminal content retains normal text contrast; focus is expressed by
@@ -743,7 +746,7 @@ Pending and canonical Workspace rows reserve the same nonempty configured token 
 
 ## Sidebar symbol discovery
 
-F1 includes a symbol legend for unread activity, disclosure and all Agent states. A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. An Agent row names its state, then unread activity. A folded Workspace, both of its rows, names each distinct state its status line shows, most urgent first, then unread activity. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. Group headings, a Project's disclosure and other rows offer none, and the list's last row keeps the overflow range. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
+F1 includes a symbol legend for unread activity, disclosure and all Agent states. A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. A row whose painted line cuts its Workspace name, branch, folder, Agent title or group heading gives the first such name in full, a folder cut in the middle if it is still too long. An Agent row names its state, then unread activity. A folded Workspace, both of its rows, names each distinct state its status line shows, most urgent first, then unread activity. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. A Project's disclosure offers none, group headings and other rows offer only a cut name, and the list's last row keeps the overflow range. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
 
 ## Shortcut discovery scope
 

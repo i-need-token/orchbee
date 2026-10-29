@@ -10,33 +10,54 @@ use std::time::{Duration, Instant};
 use ratatui::{layout::Rect, style::Style};
 
 use super::{FrameHitMap, HitLayer, HitRegion, HitRegionResolution, HitTarget};
-use crate::tui_theme::Role;
+use crate::{tui_theme::Role, workbench_client::state::PaneRef};
 
 /// How long the pointer rests on a target before its tooltip opens.
 const OPEN_DELAY: Duration = Duration::from_millis(300);
 /// After a tooltip closes because the pointer left its target, the next target's opens at once.
 const ADJACENT_GRACE: Duration = Duration::from_millis(400);
 
-/// One painted region's identity: its layer, where it is, and what it does. A target that moves or
-/// changes what it does is a different key.
+/// What offers one tooltip. A target that moves or changes what it does is a different key.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct Key {
-    layer: HitLayer,
-    rect: Rect,
-    target: HitTarget,
+pub(super) enum Key {
+    /// A recorded region, over its whole rectangle: its layer, where it is, and what it does.
+    Region {
+        layer: HitLayer,
+        rect: Rect,
+        target: HitTarget,
+    },
+    /// A pane title's painted text. It records no target of its own, so a press there still
+    /// reaches the divider or dead frame beneath; only base-layer regions without a tooltip of
+    /// their own let it through.
+    PaneTitle { rect: Rect, pane: PaneRef },
 }
 
 impl Key {
     pub(super) const fn new(layer: HitLayer, rect: Rect, target: HitTarget) -> Self {
-        Self {
+        Self::Region {
             layer,
             rect,
             target,
         }
     }
 
+    pub(super) const fn pane_title(rect: Rect, pane: PaneRef) -> Self {
+        Self::PaneTitle { rect, pane }
+    }
+
+    const fn rect(&self) -> Rect {
+        match self {
+            Self::Region { rect, .. } | Self::PaneTitle { rect, .. } => *rect,
+        }
+    }
+
     fn names(&self, region: &HitRegion) -> bool {
-        self.layer == region.layer && self.rect == region.rect && self.target == region.target
+        matches!(self, Self::Region { layer, rect, target }
+            if *layer == region.layer && *rect == region.rect && *target == region.target)
+    }
+
+    fn spans(&self, column: u16, row: u16) -> bool {
+        matches!(self, Self::PaneTitle { rect, .. } if super::contains(*rect, column, row))
     }
 }
 
@@ -85,19 +106,34 @@ pub(crate) struct OpenTooltip<'a> {
 }
 
 impl FrameHitMap {
-    /// The tooltip key of the frontmost region at a cell, when that region offers one. An open
-    /// overlay resolves only its own regions, so nothing beneath it offers a tooltip.
+    /// The tooltip key of the frontmost region at a cell, when that region offers one, else of a
+    /// pane title over the base layer or dead space there. An open overlay resolves only its own
+    /// regions, so nothing beneath it offers a tooltip.
     fn tooltip_at(&self, column: u16, row: u16) -> Option<Key> {
-        let HitRegionResolution::Region(region) = self.hit_region(column, row) else {
-            return None;
+        let base = match self.hit_region(column, row) {
+            HitRegionResolution::Region(region) => {
+                if let Some(key) = self.tooltips.iter().find(|key| key.names(region)) {
+                    return Some(key.clone());
+                }
+                region.layer == HitLayer::Foreground
+            }
+            HitRegionResolution::Dead => true,
+            HitRegionResolution::OverlayBackdrop => false,
         };
-        self.tooltips.iter().find(|key| key.names(region)).cloned()
+        base.then(|| {
+            self.tooltips
+                .iter()
+                .find(|key| key.spans(column, row))
+                .cloned()
+        })
+        .flatten()
     }
 
-    /// Whether this frame painted the region a shown tooltip belongs to.
+    /// Whether this frame painted the target a shown tooltip belongs to.
     pub(super) fn paints_tooltip_target(&self, shown: &Shown) -> bool {
         self.tooltips.contains(&shown.key)
-            && self.regions.iter().any(|region| shown.key.names(region))
+            && (matches!(shown.key, Key::PaneTitle { .. })
+                || self.regions.iter().any(|region| shown.key.names(region)))
     }
 }
 
@@ -108,7 +144,7 @@ impl Shown {
 
     pub(super) const fn open<'a>(&self, content: &'a TooltipContent) -> OpenTooltip<'a> {
         OpenTooltip {
-            target: self.key.rect,
+            target: self.key.rect(),
             pointer: self.pointer,
             content,
         }

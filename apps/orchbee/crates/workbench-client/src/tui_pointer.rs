@@ -1042,6 +1042,21 @@ impl HitMapBuilder {
         self.tooltip_contents.push((key, content));
     }
 
+    /// Offers a tooltip over a pane title's painted text without recording a target there.
+    pub(crate) fn record_pane_title_tooltip(
+        &mut self,
+        rect: Rect,
+        pane: PaneRef,
+        content: TooltipContent,
+    ) {
+        if rect.is_empty() {
+            return;
+        }
+        let key = tooltip::Key::pane_title(rect, pane);
+        self.map.tooltips.push(key.clone());
+        self.tooltip_contents.push((key, content));
+    }
+
     /// [`Self::record_tooltip`] for a generic interaction recorded at the same rect.
     pub(crate) fn record_interaction_tooltip(
         &mut self,
@@ -1051,6 +1066,12 @@ impl HitMapBuilder {
         content: TooltipContent,
     ) {
         self.record_tooltip(layer, rect, target.hit_target(), content);
+    }
+
+    /// Every tooltip this candidate frame offers, in recording order.
+    #[cfg(test)]
+    pub(crate) fn tooltip_contents(&self) -> impl Iterator<Item = &TooltipContent> {
+        self.tooltip_contents.iter().map(|(_, content)| content)
     }
 
     /// The open tooltip when this frame painted its target again, with this frame's content.

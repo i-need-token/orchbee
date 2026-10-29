@@ -423,7 +423,9 @@ Shift 始终属于宿主。进入、合并导航与恢复沿用[保留视口](na
 - 功能渲染器在绘制候选帧时调用 `HitMapBuilder::record_tooltip` 或 `record_interaction_tooltip`，
   传入它为该区域记录的精确层、矩形和 `HitTarget`，以及 `TooltipContent`。已发布的
   `FrameHitMap` 只保留哪些区域提供 tooltip；内容留在候选帧中，因此盒子显示的是该帧的文字、
-  Working 相位和生效绑定。
+  Working 相位和生效绑定。pane 标题文字不记录目标，因此按下时仍到达下方的分隔线：
+  `record_pane_title_tooltip` 按矩形和 `PaneRef` 提供它的 tooltip，只要该处最前方的区域是
+  自身没有 tooltip 的 `Foreground` 区域，或是空白区域。
 - `tui_pointer/tooltip.rs` 把状态放在 `PointerState` 上：最近一次真实移动的格子、一次性的静止
   起点、已打开目标的层、矩形和 `HitTarget` 及其打开时的格子、400 ms 预热窗口，以及按下后保持安静
   的目标。普通的指针 `tick` 由事件循环已有的轮询节奏驱动，只有在捕获开启、宿主有焦点、可观测
@@ -495,23 +497,23 @@ Shift 始终属于宿主。进入、合并导航与恢复沿用[保留视口](na
 指针及 attach 回归，以及[终端流](windows-terminal-streams.zh-CN.md)记录的打包
 control/attach 字节实测覆盖。
 
-| 表面                    | 证据                                                                                                                                                                                                                                                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 解码                    | `terminal_events/mouse/tests` SGR/X10 表——press/release/motion/wheel/修饰、跨 chunk 原子性、畸形拒绝且不退化为按键；`terminal_events/decoder/tests`——合法 SGR/X10 item、X10 分片喂入、超时 drain、ESC/C1 中止、畸形 body、越界运行、与按键/粘贴交错——所有鼠标形态畸形字节均为 `Ignored`          |
-| 编码与归属              | `route_pane_pointer` 的 fresh 事件矩阵，加上 `encode_pane_report` 对每个 tracking × format 单元、已捕获清理、release 结尾、去重、夹取、legacy 上界与 SGR cell 降级的覆盖                                                                                                                         |
-| Hit map                 | `tui_pointer/tests` 层序、边缘/外侧 cell、overlay 捕获与 backdrop 关闭——包括落在未遮盖 tab 条与 pane 上的外点 press 既不选择也不转发、stale-map 丢弃                                                                                                                                             |
-| 交互 projection         | `tui_pointer/tests/interaction` 覆盖 hover 进入／重复／离开、disabled 与 specialized 目标、press/release、移出后永久取消、重绘连续性、fingerprint／遮挡变化、transport 丢失、子项优先级及一次有界静止位置后续重绘                                                                                |
-| 通用接入                | Renderer/dispatcher 测试覆盖 Settings、菜单、侧边栏、Board、Help、Navigator、Machine Picker、Presentation、Tab 创建及全局 chrome：精确来源／几何、禁用消费、陈旧拒绝、hover 与已提交选择隔离、菜单候选更新、释放取消及禁止改投                                                                   |
-| 指针 tooltip            | `tui_pointer/tooltip/tests` 覆盖只由真实移动开始的静止计时、已消耗的静止、准入丢失、相邻打开、按下后安静、发布时关闭与改换目标以及传输丢失；`tui_render/tooltip/tests` 覆盖放置与文字；`terminal_input/dispatcher/tests` 证明按键关闭 tooltip 且仍送达其所有者                                   |
-| 手势与 pending focus    | `tui_pointer/tests` press/release 顺序、队列上界与溢出取消、超时、orphan、只读、目标移动拒绝、settled 无帧等待与按事实准入                                                                                                                                                                       |
-| dispatcher 端口写       | `terminal_input/dispatcher/tests`——畸形 SGR/X10 与中止/超时鼠标运行产生零转发字节，而普通按键、粘贴与无关未知 CSI 按序透传；连续无键 motion 不能让到期 Escape 饥饿，且只有全部不变 motion 的 packet 才跳过重绘                                                                                   |
-| 滚轮流                  | `tui_pointer/tests` 每 notch 三次、每次一屏上限、反转清零、排空后关闭                                                                                                                                                                                                                            |
-| 捕获生命周期            | `terminal_lifecycle/tests` 租约配对与恢复；dispatcher `Ctrl+B m` 切换测试；状态指示                                                                                                                                                                                                              |
-| 链接点击                | recording pointer port 覆盖精确修饰键、同 cell 释放、取消、既有手势 owner 与忙碌准入；共享 OSC 8 宽字符和折行 HTTP(S) 解析器保留其 CLI 集成 fixture；路由测试用 recording browser port 覆盖优先级、受理后不明、确定无 handler fallback 与单效果；受控 Windows 集成覆盖新鲜 viewer 和原生插件传输 |
-| CLI                     | `invocation/tests` `tui --mouse` 值准入、裸调用/其他族拒绝、`--format` 拒绝；`cli/completion` 脚本                                                                                                                                                                                               |
-| 受控 Windows Host       | `apps/terminal-host` 的 `test-conpty-orchbee-pointer` 通过固定 ConPTY/Ghostty 启动 Orchbee child，覆盖真实 inherited Reader、reply decoder、一次性模式准入、无能力回复的菜单 motion lease、返回按钮策略、语义 hover 区分及模式恢复；不证明物理指针／字体／配色行为                               |
-| 真实 PTY（Legacy 接缝） | `tui_shell/tests/connected::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes`——记录的 pane-local SGR 字节、pane-local 平移、只读丢弃、SGR cell 降级、滚轮转方向键、捕获切换、模式恢复                                                                                    |
-| 真实 PTY（公开 Native） | `tests/local_startup_process/native_pointer.rs`——真实 PTY 上 spawn 的 `orchbee` 二进制：捕获 arm、X10 与 SGR pane-local 报告、未聚焦 pane 点击聚焦与排队放行、只读拒绝、滚轮转方向键、`Ctrl+B m`、`--mouse off`、退出恢复，以及零像素宿主几何下 cell 寻址报告仍可用、`?1016` 使用 SGR cell 降级  |
+| 表面                    | 证据                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 解码                    | `terminal_events/mouse/tests` SGR/X10 表——press/release/motion/wheel/修饰、跨 chunk 原子性、畸形拒绝且不退化为按键；`terminal_events/decoder/tests`——合法 SGR/X10 item、X10 分片喂入、超时 drain、ESC/C1 中止、畸形 body、越界运行、与按键/粘贴交错——所有鼠标形态畸形字节均为 `Ignored`                                              |
+| 编码与归属              | `route_pane_pointer` 的 fresh 事件矩阵，加上 `encode_pane_report` 对每个 tracking × format 单元、已捕获清理、release 结尾、去重、夹取、legacy 上界与 SGR cell 降级的覆盖                                                                                                                                                             |
+| Hit map                 | `tui_pointer/tests` 层序、边缘/外侧 cell、overlay 捕获与 backdrop 关闭——包括落在未遮盖 tab 条与 pane 上的外点 press 既不选择也不转发、stale-map 丢弃                                                                                                                                                                                 |
+| 交互 projection         | `tui_pointer/tests/interaction` 覆盖 hover 进入／重复／离开、disabled 与 specialized 目标、press/release、移出后永久取消、重绘连续性、fingerprint／遮挡变化、transport 丢失、子项优先级及一次有界静止位置后续重绘                                                                                                                    |
+| 通用接入                | Renderer/dispatcher 测试覆盖 Settings、菜单、侧边栏、Board、Help、Navigator、Machine Picker、Presentation、Tab 创建及全局 chrome：精确来源／几何、禁用消费、陈旧拒绝、hover 与已提交选择隔离、菜单候选更新、释放取消及禁止改投                                                                                                       |
+| 指针 tooltip            | `tui_pointer/tooltip/tests` 覆盖只由真实移动开始的静止计时、已消耗的静止、准入丢失、相邻打开、按下后安静、发布时关闭与改换目标、传输丢失，以及 pane 标题在其分隔线或空白外框上提供 tooltip、在 chrome 之下不提供；`tui_render/tooltip/tests` 覆盖放置与文字；`terminal_input/dispatcher/tests` 证明按键关闭 tooltip 且仍送达其所有者 |
+| 手势与 pending focus    | `tui_pointer/tests` press/release 顺序、队列上界与溢出取消、超时、orphan、只读、目标移动拒绝、settled 无帧等待与按事实准入                                                                                                                                                                                                           |
+| dispatcher 端口写       | `terminal_input/dispatcher/tests`——畸形 SGR/X10 与中止/超时鼠标运行产生零转发字节，而普通按键、粘贴与无关未知 CSI 按序透传；连续无键 motion 不能让到期 Escape 饥饿，且只有全部不变 motion 的 packet 才跳过重绘                                                                                                                       |
+| 滚轮流                  | `tui_pointer/tests` 每 notch 三次、每次一屏上限、反转清零、排空后关闭                                                                                                                                                                                                                                                                |
+| 捕获生命周期            | `terminal_lifecycle/tests` 租约配对与恢复；dispatcher `Ctrl+B m` 切换测试；状态指示                                                                                                                                                                                                                                                  |
+| 链接点击                | recording pointer port 覆盖精确修饰键、同 cell 释放、取消、既有手势 owner 与忙碌准入；共享 OSC 8 宽字符和折行 HTTP(S) 解析器保留其 CLI 集成 fixture；路由测试用 recording browser port 覆盖优先级、受理后不明、确定无 handler fallback 与单效果；受控 Windows 集成覆盖新鲜 viewer 和原生插件传输                                     |
+| CLI                     | `invocation/tests` `tui --mouse` 值准入、裸调用/其他族拒绝、`--format` 拒绝；`cli/completion` 脚本                                                                                                                                                                                                                                   |
+| 受控 Windows Host       | `apps/terminal-host` 的 `test-conpty-orchbee-pointer` 通过固定 ConPTY/Ghostty 启动 Orchbee child，覆盖真实 inherited Reader、reply decoder、一次性模式准入、无能力回复的菜单 motion lease、返回按钮策略、语义 hover 区分及模式恢复；不证明物理指针／字体／配色行为                                                                   |
+| 真实 PTY（Legacy 接缝） | `tui_shell/tests/connected::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes`——记录的 pane-local SGR 字节、pane-local 平移、只读丢弃、SGR cell 降级、滚轮转方向键、捕获切换、模式恢复                                                                                                                        |
+| 真实 PTY（公开 Native） | `tests/local_startup_process/native_pointer.rs`——真实 PTY 上 spawn 的 `orchbee` 二进制：捕获 arm、X10 与 SGR pane-local 报告、未聚焦 pane 点击聚焦与排队放行、只读拒绝、滚轮转方向键、`Ctrl+B m`、`--mouse off`、退出恢复，以及零像素宿主几何下 cell 寻址报告仍可用、`?1016` 使用 SGR cell 降级                                      |
 
 ## 共享右键策略
 
@@ -525,4 +527,4 @@ control/attach 字节实测覆盖。
 
 证据覆盖按钮边界、不响应的数量／空格、不重叠的分屏矩形、单面板／分屏／放大渲染、窄窗口及 Minimal 降级、修饰键／非左键报告、捕获／overlay／模态守卫、旧实例／anchor、成员移除及实际 UI 准入精确子项 Switch。组合 TestBackend 截图证明 cell composition；物理宿主配色、字体、鼠标硬件、延迟及多 Client 视觉行为需要各自的原生证据。
 
-<!-- documentation-pairing: english-sha256=4a637b21c0dabc8ceb21caa3542691b6eff8c051ce567ff27296e8a4d2cd45ad zh-cn-sha256=4126faa0065ab369dd606336c7f13f343f23c605f04cf0a094d5319710c034bd -->
+<!-- documentation-pairing: english-sha256=b1eb47a561df49e3287f27c90f2eb1c7d320d81b510d4cdba61e064ce2857954 zh-cn-sha256=fc9739c5b28c9cf6d7647565c3741222db93b8525aba1b3c07fbb2772abbb8de -->

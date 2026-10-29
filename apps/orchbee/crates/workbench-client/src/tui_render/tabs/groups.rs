@@ -51,6 +51,8 @@ pub(in crate::tui_render) struct PartCue<'a> {
     pub(in crate::tui_render) states: &'a [MetadataState],
     /// The token shows the unread dot.
     pub(in crate::tui_render) unread: bool,
+    /// The whole name the token cuts.
+    pub(in crate::tui_render) name: Option<&'a str>,
     /// The edge marker pages toward later Tabs rather than earlier ones.
     pub(in crate::tui_render) later: bool,
 }
@@ -76,6 +78,8 @@ enum Kind {
         active: bool,
         checked: bool,
         label: String,
+        /// The whole label before the strip's 24-cell limit.
+        full: String,
     },
     Header {
         color: TabGroupColor,
@@ -126,6 +130,14 @@ impl Token {
             Kind::Tab { label, .. } => label,
             Kind::Header { name, .. } => name,
             Kind::Divider => "",
+        }
+    }
+
+    /// The whole name, which painted `pieces` may cut.
+    fn full_text(&self) -> &str {
+        match &self.kind {
+            Kind::Tab { full, .. } => full,
+            _ => self.text(),
         }
     }
 
@@ -261,6 +273,7 @@ fn tokens(tabs: &[GroupTabDisplay<'_>], unnamed_group: &str, theme: &Theme) -> V
         } else {
             current_header = None;
         }
+        let full = crate::terminal_text::sanitize_terminal_text(&item.tab.label).into_owned();
         tokens.push(Token {
             index,
             header: current_header,
@@ -269,11 +282,8 @@ fn tokens(tabs: &[GroupTabDisplay<'_>], unnamed_group: &str, theme: &Theme) -> V
             kind: Kind::Tab {
                 active: item.tab.active,
                 checked: item.selected,
-                label: truncate_display(
-                    &crate::terminal_text::sanitize_terminal_text(&item.tab.label),
-                    LABEL_LIMIT,
-                    theme.glyphs.ellipsis,
-                ),
+                label: truncate_display(&full, LABEL_LIMIT, theme.glyphs.ellipsis),
+                full,
             },
         });
         // Pinned Tabs lead the strip; one rule separates them from the rest.
@@ -700,9 +710,13 @@ fn paint_token<C, P, R>(
     if !visible {
         return;
     }
+    let cut = pieces
+        .iter()
+        .any(|(text, piece)| *piece == Piece::Label && text != token.full_text());
     let cue = PartCue {
         states: &token.states,
         unread: token.agent.is_some_and(|agent| agent.unread),
+        name: cut.then(|| token.full_text()),
         later: false,
     };
     interactions.record(token.index, part, body, cue);

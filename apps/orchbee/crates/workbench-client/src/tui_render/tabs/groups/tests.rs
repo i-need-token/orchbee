@@ -44,9 +44,17 @@ fn draw_from(
     (terminal.backend().buffer().clone(), hits)
 }
 
-type Cue = (StripPart, Rect, Vec<MetadataState>, bool, bool);
+type Cue = (
+    StripPart,
+    Rect,
+    Vec<MetadataState>,
+    bool,
+    Option<String>,
+    bool,
+);
 
-/// Each recorded part and what its tooltip names: Agent states, unread, and the paging direction.
+/// Each recorded part and what its tooltip names: Agent states, unread, a cut name, and the paging
+/// direction.
 fn cues(tabs: &[GroupTabDisplay<'_>], theme: &Theme, width: u16) -> Vec<Cue> {
     let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
     let mut cues = Vec::new();
@@ -64,7 +72,14 @@ fn cues(tabs: &[GroupTabDisplay<'_>], theme: &Theme, width: u16) -> Vec<Cue> {
                     &mut (),
                     &mut |_, _, _, _| ProjectedPointer::Rest,
                     &mut |_, _, part, rect, cue| {
-                        cues.push((part, rect, cue.states.to_vec(), cue.unread, cue.later));
+                        cues.push((
+                            part,
+                            rect,
+                            cue.states.to_vec(),
+                            cue.unread,
+                            cue.name.map(str::to_owned),
+                            cue.later,
+                        ));
                     },
                 ),
             );
@@ -137,7 +152,7 @@ fn overflow_markers_keep_the_active_tab_visible_and_page_the_strip() {
                 );
             }
             // Each marker's tooltip names the direction it pages.
-            for (_, rect, _, _, later) in cues(&tabs, &theme, 36)
+            for (_, rect, _, _, _, later) in cues(&tabs, &theme, 36)
                 .into_iter()
                 .filter(|(part, ..)| is_page(*part))
             {
@@ -517,9 +532,21 @@ fn agent_cues_lead_tabs_and_a_collapsed_group_carries_and_names_its_hidden_state
             hits[0].2,
             vec![MetadataState::Blocked, MetadataState::Done],
             true,
+            None,
             false
         )]
     );
+
+    // A label past the strip's 24 cells, or cut to fit, is named whole; a whole one is not.
+    let long = "cargo test -p orchbee-workbench-client tui_render";
+    for (width, label, cut) in [(80, long, true), (80, "agent", false), (8, "release", true)] {
+        let tab = tab(label, true, None);
+        let named = cues(std::slice::from_ref(&tab), &theme, width)
+            .into_iter()
+            .find(|(part, ..)| *part == StripPart::Tab)
+            .and_then(|(.., name, _)| name);
+        assert_eq!(named.as_deref(), cut.then_some(label), "{label} in {width}");
+    }
 }
 
 #[test]

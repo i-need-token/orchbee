@@ -37,7 +37,7 @@ fn sidebar() -> FrameHitMap {
 fn shown(state: &State) -> Option<(Rect, (u16, u16))> {
     state
         .projection()
-        .map(|shown| (shown.key.rect, shown.pointer))
+        .map(|shown| (shown.key.rect(), shown.pointer))
 }
 
 fn ms(start: Instant, millis: u64) -> Instant {
@@ -155,4 +155,36 @@ fn a_published_frame_closes_a_moved_target_but_retargets_what_the_same_arrival_r
     assert!(state.tick(Some(&map), ms(start, 2000), true));
     assert!(!state.tick(Some(&map), ms(start, 2400), true));
     assert_eq!(shown(&state), None);
+}
+
+#[test]
+fn a_pane_title_offers_one_over_its_divider_or_dead_frame_but_never_under_chrome() {
+    use crate::workbench_client::state::{AttachmentKey, PaneKey, PaneRef};
+    use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
+    let pane = PaneRef::new(
+        PaneKey::new(
+            AttachmentKey::new(0, WorkbenchTabId::parse(&format!("{:032x}", 10)).unwrap()),
+            WorkbenchPanelId::parse(&format!("{:032x}", 11)).unwrap(),
+        ),
+        0,
+    );
+    // A divider line carries one title; another title sits on the frame above, over no region.
+    let divider = Rect::new(0, 4, 40, 1);
+    let title = Rect::new(1, 4, 12, 1);
+    let framed = Rect::new(1, 0, 12, 1);
+    let chrome = Rect::new(8, 4, 3, 1);
+    let mut hits = HitMapBuilder::new();
+    hits.record(HitLayer::Chrome, chrome, target(HelpControl::Close));
+    hits.record_pane_title_tooltip(title, pane.clone(), content("title"));
+    hits.record_pane_title_tooltip(framed, pane.clone(), content("frame"));
+    hits.record(HitLayer::Foreground, divider, target(HelpControl::Next));
+    let map = hits.finish();
+    // Pressing a title still reaches the divider beneath it.
+    assert_eq!(map.hit_target_at(2, 4), Some(&target(HelpControl::Next)));
+    let at = |column, row| map.tooltip_at(column, row);
+    assert_eq!(at(2, 4), Some(Key::pane_title(title, pane.clone())));
+    assert_eq!(at(2, 0), Some(Key::pane_title(framed, pane)));
+    // Chrome in front occludes it, and the divider beyond the text offers none.
+    assert_eq!(at(9, 4), None);
+    assert_eq!(at(20, 4), None);
 }
