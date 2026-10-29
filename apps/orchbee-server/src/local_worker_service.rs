@@ -95,7 +95,14 @@ pub(crate) fn run(
     )?;
     terminals.start_close_maintenance()?;
     #[cfg(windows)]
-    terminals.start_process_observer()?;
+    {
+        let configuration =
+            orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
+                .map_err(io::Error::other)?;
+        terminals
+            .initialize_preferences(LocalTerminalService::preferences_scope(&configuration)?)?;
+        terminals.start_process_observer_with_configuration(configuration, false)?;
+    }
     let _client_service = endpoints
         .client
         .as_deref()

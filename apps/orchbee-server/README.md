@@ -728,6 +728,9 @@ to the Worker request: scrollback, terminal default colors and, for a default la
 profile's command. A missing store, refused read or program beyond the selection budget sends
 `Unavailable`, which refuses only that creation; a capture that would exceed the frame is not
 delivered. A saved change reaches only later creations, and running terminals keep their capture.
+The Session composition root freezes the store's scope from the Server's single startup
+configuration read before any terminal launches, so terminals restored from a checkpoint capture
+preferences exactly as later creations do.
 
 The Client actor polls its carrier and a local command wake stream together. It owns physical
 reconnect, cancellation, IDs and subscription reconstruction. A request cancelled before handoff

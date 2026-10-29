@@ -19,6 +19,9 @@ pub(crate) struct CheckpointRestore {
     pending: Vec<PendingOperation>,
 }
 
+#[cfg(test)]
+mod tests;
+
 impl LocalTerminalService {
     #[cfg(windows)]
     pub(crate) fn checkpoint_revision(
@@ -58,10 +61,13 @@ impl LocalTerminalService {
         Ok((revision, bytes))
     }
 
-    /// Reconstructs and reserves every terminal before any request can launch a Host.
+    /// Reconstructs and reserves every terminal before any request can launch a Host. The
+    /// Session's preference scope is frozen first, so restored launches capture the same
+    /// preferences as any later creation.
     pub(crate) fn from_checkpoint(
         workers: Arc<Mutex<WorkerRegistry>>,
         checkpoint: Option<WorkbenchCheckpoint>,
+        preferences: orchbee_local_runtime::UserPreferencesScope,
     ) -> io::Result<(Self, CheckpointRestore)> {
         let handle = workers
             .lock()
@@ -85,6 +91,7 @@ impl LocalTerminalService {
             .restoration_targets(&owner)
             .map_err(io::Error::other)?;
         let mut service = Self::from_workbench(workers, Some(authority));
+        service.initialize_preferences(preferences)?;
         let coordinator = service
             .coordinator
             .get_mut()

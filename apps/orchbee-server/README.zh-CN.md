@@ -623,7 +623,8 @@ frame 和 Host 采样不能提前触发或推迟文件期限。dispatcher 等待
 [启动偏好快照](../../crates/capability-node-protocol/README.zh-CN.md#启动偏好快照)附加到 Worker
 请求：滚动历史大小、终端默认色，以及默认启动时所选配置的命令。存储缺失、读取被拒或程序超出选择预算时
 发送 `Unavailable`，只拒绝该次创建；超出帧上限的快照不会被交付。保存的修改只影响之后的创建，运行中的
-终端保留其快照。
+终端保留其快照。会话组合根在任何终端启动之前，根据 Server 启动时唯一一次配置读取冻结存储范围，
+因此从 checkpoint 恢复的终端与之后的创建一样捕获偏好。
 
 Client actor 同时 poll carrier 与本地命令唤醒 stream，拥有物理重连、取消、ID 和订阅重建。
 交接前取消的请求为未提交；一旦写入可能开始，传输丢失即为 OutcomeUnknown，绝不重放请求。
@@ -824,4 +825,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=83a2b5f89d14d46ff921879f023ed7b4bdac9849ec89e9c405fc617fcae17c1b zh-cn-sha256=ca50ab4ad64179ca965ac546e978edba50d53e9c5ff4e30afe07b050787de618 -->
+<!-- documentation-pairing: english-sha256=5161e7e8d457943d6ead3cde966b90935a462e506401702ad75abcdc1cdd925b zh-cn-sha256=53cef1021f51ba424bf938089d7f7c255fe837758ddc25b81bdf24fe1f32002e -->

@@ -71,14 +71,6 @@ impl ProcessObserver {
             return Err(io::ErrorKind::AlreadyExists.into());
         }
         let settings = &current.settings;
-        let scope = match settings.path.as_deref() {
-            Some(path) => orchbee_local_runtime::UserPreferencesScope::for_configuration(path),
-            None => orchbee_local_runtime::UserPreferencesScope::from_environment(|name| {
-                std::env::var_os(name)
-            }),
-        }
-        .map_err(|_| io::Error::other("Settings scope is unavailable"))?;
-        service.initialize_preferences(scope)?;
         let root = settings.path.as_deref().and_then(std::path::Path::parent);
         let detector = ScreenDetector::load(root).map_err(io::Error::other)?;
         // Validate the complete authoritative rev0 response before manifest policy or its schedule
@@ -189,15 +181,10 @@ impl LocalTerminalService {
         self.process_observer.wake.pending.lock().unwrap().is_some()
     }
     /// Starts the sole periodic sampler; a stopped or already running owner cannot restart.
-    pub(crate) fn start_process_observer(self: &Arc<Self>) -> io::Result<()> {
-        let configuration =
-            orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
-                .map_err(io::Error::other)?;
-        self.start_process_observer_with_configuration(configuration, false)
-    }
     /// `configuration` is the Server's single startup read. Revision zero, diagnostics, every
     /// live profile and the frozen reload location all come from it; nothing rereads the file
-    /// until an explicit reload.
+    /// until an explicit reload. The composition root has already frozen the preference scope
+    /// from the same read.
     pub(crate) fn start_process_observer_with_configuration(
         self: &Arc<Self>,
         configuration: orchbee_local_runtime::UserSettingsLoad,

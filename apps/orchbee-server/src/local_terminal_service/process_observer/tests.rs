@@ -90,19 +90,19 @@ fn idle_observer_wakes_joins_and_cannot_restart_after_stop() {
     let service = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
         WorkerRegistry::new(),
     ))));
-    service.start_process_observer().unwrap();
-    assert_eq!(
-        service.start_process_observer().unwrap_err().kind(),
-        io::ErrorKind::AlreadyExists
-    );
+    let start = || {
+        service.start_process_observer_with_configuration(
+            orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name)).unwrap(),
+            false,
+        )
+    };
+    start().unwrap();
+    assert_eq!(start().unwrap_err().kind(), io::ErrorKind::AlreadyExists);
     service
         .stop_process_observer_before(Instant::now() + Duration::from_secs(3))
         .unwrap();
     assert!(service.process_observer.handle.lock().unwrap().is_none());
-    assert_eq!(
-        service.start_process_observer().unwrap_err().kind(),
-        io::ErrorKind::NotConnected
-    );
+    assert_eq!(start().unwrap_err().kind(), io::ErrorKind::NotConnected);
 }
 
 #[test]
