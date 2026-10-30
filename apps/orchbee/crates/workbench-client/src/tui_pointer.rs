@@ -41,12 +41,14 @@ use crate::workbench_client::state::PaneRef;
 
 pub(crate) mod hit_map;
 pub use hit_map::{
-    FrameHitMap, GlobalChromeAction, HitLayer, HitMapBuilder, HitTarget, InteractionAvailability,
-    InteractionSpec, InteractionTarget, ModalControl, PrimaryContract, ProjectedPointer,
-    ResizeControl,
+    FrameHitMap, GlobalChromeAction, HitLayer, HitMapBuilder, HitTarget, InteractionTarget,
+    ModalControl, PrimaryContract, ResizeControl,
 };
 #[cfg(any(test, feature = "test-support"))]
-pub use hit_map::{HitMapBuilderTestAccess, InteractionSpecTestAccess};
+pub use hit_map::{
+    HitMapBuilderTestAccess, InteractionAvailability, InteractionSpec, InteractionSpecTestAccess,
+    ProjectedPointer,
+};
 use hit_map::{HitRegionResolution, HitResolution, contains};
 pub(crate) use hit_map::{
     ListScrollTarget, PointerProjection, SidebarReorderDraw, SidebarReorderPaint, TabDragPreview,
