@@ -1,6 +1,8 @@
 //! Reading continuity through fresh projections and the existing Client view handoff.
 
-use super::super::{CommandMailbox, ControllerMode, Geometry, ViewportOutcome, ViewportStep};
+use super::super::{
+    CommandMailbox, ControllerMode, Geometry, ViewportOutcome, ViewportStep, WorkbenchClientUi,
+};
 use super::*;
 use crate::workbench_client::{
     mailbox::QueuedCommand,

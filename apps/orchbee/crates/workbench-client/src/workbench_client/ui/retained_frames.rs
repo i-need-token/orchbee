@@ -1,9 +1,10 @@
 //! Bound immutable live pixels by canonical presentation identity.
 //! These images never participate in attachment, input, selection, or feedback.
 
-use super::{ClientProjectionStatus, KeyedProjection};
+use crate::localization::ClientProjectionStatus;
+use crate::terminal_projection::TerminalProjection;
 use crate::workbench_client::{
-    state::{ClientPhaseKind, WorkbenchClientState},
+    state::{ClientPhaseKind, PaneRef, WorkbenchClientState},
     workbench_projection::ClientTerminalBinding,
 };
 use orchbee_terminal_protocol::{TerminalTextCell, TerminalTextFrame, TerminalTextRow};
@@ -68,6 +69,15 @@ pub(crate) struct RetainedFrames {
     entries: Vec<Pixels>,
 }
 
+/// The draw facts of one projected pane that the bank may retain.
+pub(super) struct DrawnPane<'a> {
+    pub(super) key: &'a PaneRef,
+    pub(super) status: ClientProjectionStatus,
+    /// The pane shows retained history instead of its live frame.
+    pub(super) history: bool,
+    pub(super) projection: &'a TerminalProjection,
+}
+
 impl RetainedFrames {
     pub(super) fn clear(&mut self) {
         self.entries.clear();
@@ -123,7 +133,11 @@ impl RetainedFrames {
         });
     }
 
-    pub(super) fn after_draw(&mut self, state: &WorkbenchClientState, panes: &[KeyedProjection]) {
+    pub(super) fn after_draw<'a>(
+        &mut self,
+        state: &WorkbenchClientState,
+        panes: impl IntoIterator<Item = DrawnPane<'a>>,
+    ) {
         self.prune(state);
         if state.ready().is_none() {
             return;
@@ -134,8 +148,8 @@ impl RetainedFrames {
                 continue;
             }
             if pane.status != ClientProjectionStatus::FrameAvailable
-                || pane.viewport.is_some()
-                || !state.pane_projected(&pane.key)
+                || pane.history
+                || !state.pane_projected(pane.key)
             {
                 continue;
             }
@@ -143,17 +157,17 @@ impl RetainedFrames {
                 continue;
             };
             if state.pane_by_panel(&identity.panel).is_none_or(|record| {
-                record.pane_ref() != pane.key || record.binding() != &identity.binding
+                record.pane_ref() != *pane.key || record.binding() != &identity.binding
             }) {
                 continue;
             }
-            let Some(frame) = pane.value.share_frame() else {
+            let Some(frame) = pane.projection.share_frame() else {
                 continue;
             };
             self.retain_host(
                 identity,
                 frame,
-                pane.value.host_terminal_id().map(Into::into),
+                pane.projection.host_terminal_id().map(Into::into),
             );
         }
     }

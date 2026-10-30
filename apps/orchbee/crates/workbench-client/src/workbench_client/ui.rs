@@ -67,6 +67,7 @@ mod panel_close;
 mod presentations;
 pub(crate) use super::input::DrawnPresentationTarget;
 mod history_positions;
+mod history_restore;
 mod retained_frames;
 /// Volatile Client view data carried across a targeted context surface replacement.
 #[derive(Clone, Default)]
@@ -1140,6 +1141,18 @@ pub(crate) struct KeyedProjection {
     effect_stream: super::terminal_effects::Stream,
 }
 
+impl KeyedProjection {
+    /// The draw facts that the retained-frame bank reads from this pane.
+    fn drawn(&self) -> retained_frames::DrawnPane<'_> {
+        retained_frames::DrawnPane {
+            key: &self.key,
+            status: self.status,
+            history: self.viewport.is_some(),
+            projection: &self.value,
+        }
+    }
+}
+
 #[cfg(test)]
 impl KeyedProjection {
     /// Test-only record for [`WorkbenchClientView::test_view`]: a live
@@ -1804,7 +1817,8 @@ impl WorkbenchClientUi {
         self.remember_navigation_draw();
         self.remember_history_positions();
         if let Some(state) = &self.state {
-            self.retained_frames.after_draw(state, &self.projections);
+            self.retained_frames
+                .after_draw(state, self.projections.iter().map(KeyedProjection::drawn));
         }
         self.dispatch_effect_after_draw();
         self.settle_pending_polls(true);
