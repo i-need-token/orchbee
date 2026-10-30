@@ -4,6 +4,7 @@
 //! terminals.
 
 mod client_control;
+mod command_notice;
 mod completion_reminders;
 mod copy_episode;
 pub(crate) mod input;

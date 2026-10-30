@@ -21,9 +21,10 @@ impl WorkbenchClientUi {
             ConfiguredCommandFailure as F, ConfiguredCommandOutcome as O,
             WorkbenchCommandOutcome as W, WorkbenchTerminalOutcome as T,
         };
-        self.notice_context = Some(super::NoticeContext::ConfiguredCommand(
-            completion.command_id,
-        ));
+        self.command_notice
+            .set_context(super::NoticeContext::ConfiguredCommand(
+                completion.command_id,
+            ));
         let notice = match completion.reply {
             Err(C::OutcomeUnknown)
             | Ok(orchbee_workbench_protocol::ConfiguredCommandResult {
@@ -102,7 +103,10 @@ impl WorkbenchClientUi {
             // Only the completion for this requested Client operation can supply the observation consumed here.
             _ => notice,
         };
-        self.command_notice = Some((notice, self.clock.now() + std::time::Duration::from_secs(5)));
+        self.command_notice.set(Some((
+            notice,
+            self.clock.now() + std::time::Duration::from_secs(5),
+        )));
     }
     /// Canonical membership is checked before any Panel mode cancellation.
     pub(in crate::workbench_client) fn validate_panel_focus(

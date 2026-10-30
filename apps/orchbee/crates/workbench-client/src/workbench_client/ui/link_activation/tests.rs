@@ -88,11 +88,12 @@ fn accepted_link_retires_an_older_synchronous_link_notice() {
     ui.clear_synchronous_link_notice();
     assert_eq!(ui.view().command_notice, None);
 
-    ui.command_notice = ui
-        .clock
-        .now()
-        .checked_add(std::time::Duration::from_secs(3))
-        .map(|until| (WorkbenchClientNotice::CommandFailed, until));
+    ui.command_notice.set(
+        ui.clock
+            .now()
+            .checked_add(std::time::Duration::from_secs(3))
+            .map(|until| (WorkbenchClientNotice::CommandFailed, until)),
+    );
     ui.clear_synchronous_link_notice();
     assert_eq!(
         ui.view().command_notice,

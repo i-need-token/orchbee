@@ -62,10 +62,10 @@ impl WorkbenchClientUi {
             Some(())
         })();
         if admitted.is_none() {
-            self.command_notice = Some((
+            self.command_notice.set(Some((
                 super::WorkbenchClientNotice::MenuUnavailable,
                 self.clock.now() + std::time::Duration::from_secs(3),
-            ));
+            )));
         }
     }
 }

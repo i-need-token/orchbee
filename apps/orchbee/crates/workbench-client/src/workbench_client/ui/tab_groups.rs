@@ -312,10 +312,10 @@ impl WorkbenchClientUi {
             Some(())
         })();
         if admitted.is_none() {
-            self.command_notice = Some((
+            self.command_notice.set(Some((
                 super::WorkbenchClientNotice::MenuUnavailable,
                 self.clock.now() + std::time::Duration::from_secs(3),
-            ));
+            )));
         }
     }
     pub(super) fn toggle_tab_group(
@@ -393,17 +393,17 @@ impl WorkbenchClientUi {
             if let Some(placement) = placement {
                 return self.create_tab_placed(Some(placement));
             }
-            self.command_notice = Some((
+            self.command_notice.set(Some((
                 super::WorkbenchClientNotice::CreateNotCreated,
                 self.clock.now() + std::time::Duration::from_secs(3),
-            ));
+            )));
             return ClientActionDisposition::KeepNavigator;
         }
         if self.configure_tab_menu(action, target).is_none() {
-            self.command_notice = Some((
+            self.command_notice.set(Some((
                 super::WorkbenchClientNotice::LocalBusy,
                 self.clock.now() + std::time::Duration::from_secs(3),
-            ));
+            )));
         }
         ClientActionDisposition::KeepNavigator
     }

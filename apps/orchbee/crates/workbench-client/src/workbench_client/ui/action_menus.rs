@@ -541,11 +541,12 @@ impl WorkbenchClientUi {
             return None;
         }
         if !self.menu_carrier_live() || self.view().tab_create_target().as_ref() != Some(target) {
-            self.command_notice = self
-                .clock
-                .now()
-                .checked_add(Duration::from_secs(5))
-                .map(|until| (WorkbenchClientNotice::MenuUnavailable, until));
+            self.command_notice.set(
+                self.clock
+                    .now()
+                    .checked_add(Duration::from_secs(5))
+                    .map(|until| (WorkbenchClientNotice::MenuUnavailable, until)),
+            );
             return None;
         }
         Some(ClientAction::CreateTab)
@@ -600,11 +601,12 @@ impl WorkbenchClientUi {
     }
 
     fn note_action_menu_unavailable(&mut self) {
-        self.command_notice = self
-            .clock
-            .now()
-            .checked_add(std::time::Duration::from_secs(5))
-            .map(|until| (WorkbenchClientNotice::MenuUnavailable, until));
+        self.command_notice.set(
+            self.clock
+                .now()
+                .checked_add(std::time::Duration::from_secs(5))
+                .map(|until| (WorkbenchClientNotice::MenuUnavailable, until)),
+        );
     }
 
     pub(in crate::workbench_client) fn open_action_menu(

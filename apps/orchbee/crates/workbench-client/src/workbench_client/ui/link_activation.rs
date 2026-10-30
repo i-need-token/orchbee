@@ -49,22 +49,21 @@ impl WorkbenchClientUi {
 
     fn report_link_notice(&mut self, notice: WorkbenchClientNotice) {
         self.links.clear_notice();
-        self.command_notice = self
-            .clock
-            .now()
-            .checked_add(std::time::Duration::from_secs(3))
-            .map(|until| (notice, until));
+        self.command_notice.set(
+            self.clock
+                .now()
+                .checked_add(std::time::Duration::from_secs(3))
+                .map(|until| (notice, until)),
+        );
     }
 
     fn clear_synchronous_link_notice(&mut self) {
-        if self.command_notice.as_ref().is_some_and(|(notice, _)| {
+        self.command_notice.clear_if(|notice| {
             matches!(
                 notice,
                 WorkbenchClientNotice::LinkBusy | WorkbenchClientNotice::LinkFailed
             )
-        }) {
-            self.command_notice = None;
-        }
+        });
     }
 }
 

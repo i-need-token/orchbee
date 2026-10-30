@@ -42,7 +42,8 @@ impl WorkbenchClientUi {
         &mut self,
         profile: &UserLaunchProfile,
     ) -> ClientActionDisposition {
-        self.notice_context = Some(NoticeContext::LaunchProfile(profile.name.clone()));
+        self.command_notice
+            .set_context(NoticeContext::LaunchProfile(profile.name.clone()));
         // A removed or edited profile cannot be silently replaced by the new default.
         let launch = self
             .preferences
@@ -52,10 +53,10 @@ impl WorkbenchClientUi {
             .find(|saved| *saved == profile)
             .and_then(|saved| self.launch_profiles.resolve(saved).ok());
         let Some(launch) = launch.filter(|_| !self.view().no_current_workspace()) else {
-            self.command_notice = Some((
+            self.command_notice.set(Some((
                 WorkbenchClientNotice::LaunchProfileUnavailable,
                 self.clock.now() + Duration::from_secs(5),
-            ));
+            )));
             return ClientActionDisposition::KeepNavigator;
         };
         let description = crate::workbench_client::state::LaunchDescription {
@@ -63,14 +64,14 @@ impl WorkbenchClientUi {
             executable: Some(launch.executable().to_owned()),
         };
         let disposition = self.create_tab_launch(None, Some(launch), Some(description));
-        self.command_notice = Some((
+        self.command_notice.set(Some((
             if disposition == ClientActionDisposition::DismissNavigator {
                 WorkbenchClientNotice::LaunchProfileSelected
             } else {
                 WorkbenchClientNotice::LaunchProfileUnavailable
             },
             self.clock.now() + Duration::from_secs(5),
-        ));
+        )));
         disposition
     }
 }

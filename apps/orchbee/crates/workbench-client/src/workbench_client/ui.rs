@@ -1223,8 +1223,7 @@ pub(super) struct WorkbenchClientUi {
     /// The copy motion and search driver whose answers settle into `copy_mode`.
     copy_query: crate::terminal_copy_query::lane::Driver,
     popup: super::independent_popup::Driver,
-    command_notice: Option<(WorkbenchClientNotice, std::time::Instant)>,
-    notice_context: Option<NoticeContext>,
+    command_notice: super::command_notice::CommandNotice,
     /// `presentation_id → workbench placement` over the freshest observed
     /// canonical snapshot — a pure function of that snapshot, rebuilt
     /// whole on every snapshot-bearing event.
@@ -1349,8 +1348,7 @@ impl WorkbenchClientUi {
             copy_mode: super::copy_episode::CopyModeEpisodes::default(),
             copy_query: crate::terminal_copy_query::lane::Driver::new(clock.clone()),
             popup: super::independent_popup::Driver::new(clock.clone()),
-            command_notice: None,
-            notice_context: None,
+            command_notice: super::command_notice::CommandNotice::default(),
             agent_index: super::agent_board::PresentationIndex::default(),
             clock,
             state: None,
@@ -1386,11 +1384,7 @@ impl WorkbenchClientUi {
             .map(WorkbenchClientNotice::Settings);
         let command_notice = command_notice
             .or_else(|| self.links.notice().map(link_notice))
-            .or_else(|| {
-                self.command_notice
-                    .filter(|(_, until)| self.clock.now() < *until)
-                    .map(|(notice, _)| notice)
-            });
+            .or_else(|| self.command_notice.current(self.clock.now()));
         let state = self.state.as_ref();
         let focus = state.and_then(WorkbenchClientState::focus_panel_id);
         // Drop projections whose exact incarnation no longer exists — the
@@ -1432,7 +1426,7 @@ impl WorkbenchClientUi {
             graphics_surface: None,
             popup_failed: self.popup.failed(),
             command_notice,
-            notice_context: self.notice_context.as_ref(),
+            notice_context: self.command_notice.context(),
             popup: Some(&self.popup),
             worktree: Some(&self.worktrees.launcher),
             menu: Some(&self.menus),
@@ -1679,15 +1673,7 @@ impl WorkbenchClientUi {
         let exit_hold_released = self.normal_exits.release(self.clock.now(), |key| {
             state.is_some_and(|state| state.pane_present(key))
         });
-        let command_notice_changed = if self
-            .command_notice
-            .is_some_and(|(_, until)| self.clock.now() >= until)
-        {
-            self.command_notice = None;
-            true
-        } else {
-            false
-        };
+        let command_notice_changed = self.command_notice.expire(self.clock.now());
 
         let effect_changed = self.settle_effect_delivery();
         if self.retirement_failure.is_some() {
@@ -2719,11 +2705,12 @@ impl WorkbenchClientUi {
         if self.capabilities.supports(capability) {
             return true;
         }
-        self.command_notice = self
-            .clock
-            .now()
-            .checked_add(std::time::Duration::from_secs(5))
-            .map(|until| (WorkbenchClientNotice::Unsupported(capability), until));
+        self.command_notice.set(
+            self.clock
+                .now()
+                .checked_add(std::time::Duration::from_secs(5))
+                .map(|until| (WorkbenchClientNotice::Unsupported(capability), until)),
+        );
         false
     }
 
