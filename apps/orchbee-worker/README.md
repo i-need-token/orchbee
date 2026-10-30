@@ -89,7 +89,7 @@ and recovery remain excluded.
 
 The managed Windows Worker retains its exact Host child handle until completion. A generation-fenced
 shutdown request permanently closes ordinary operation admission; unmanaged and wrong-generation
-requests refuse before effects. Shutdown first cancels and settles the discovery job, then uses the
+requests refuse before effects. Shutdown first stops every [background job owner](#background-job-owners-and-exit), then uses the
 existing Host inventory, force and dispose contracts under one request deadline (at most 15 seconds).
 Each inventory request selects the first remaining terminal; force is sent once per selected active
 terminal in an attempt, and disposal requires a disposable observed phase and an exact acknowledgement.
@@ -102,7 +102,7 @@ Incomplete attempts retain their failure stage, reason and count of known dispos
 from that attempt. The Worker then accepts only explicit shutdown requests. A subsequent attempt may
 continue a healthy connection or wait for an already-disconnected, empty Host; protocol or transport
 uncertainty retires the Host connection and never authorizes mutation replay, reconnection or adoption.
-Unknown discovery-child cleanup prevents success. A no-Host or confirmed Host-exit result ends the
+Unknown background job cleanup prevents success. A no-Host or confirmed Host-exit result ends the
 Worker after its bounded result-write attempt; ordinary Server loss retains its existing semantics.
 This Windows lifecycle does not add a Linux or macOS stop path.
 
@@ -157,6 +157,34 @@ bounded bytes only — porcelain parsing and malformed-listing rejection are the
 authority, not the Worker's. The owner reaps its child autonomously — a dead or evicted
 job retains only a bounded receipt until the next start replaces it; cancellation keeps the
 terminal outcome observable through `poll`.
+
+## Background job owners and exit
+
+Each Worker generation owns three kinds of background jobs. The request loop borrows them;
+pre-Host to Host handoff and Windows Server handoff keep the same owners, so ownership never
+moves to another thread or connection.
+
+| Job | Owner | Platforms | Physical cleanup bound after cancellation |
+| --- | --- | --- | --- |
+| Worktree discovery | `worktree_discovery_job::WorktreeDiscoverySlot` | all | five-second Job/child settlement |
+| Worktree mutation | `worktree_mutation_job::WorktreeMutationSlot` | Windows | five-second Job settlement |
+| Plugin and configured commands | `plugin_jobs::PluginJobs` | Windows | five-second Job settlement |
+
+Every owner separates the stop request from task completion. `request_stop` closes new
+admission where the owner has admission, signals every running task and never waits.
+`stop_before(deadline)` requests stop, then joins tasks only after they finish: `Ok` means
+every task has ended, `TimedOut` means stop is requested but completion is unproven, and
+any other error means cleanup is unknown and admission is retired. Drop requests stop and
+joins only already-finished tasks; it never waits for an unfinished one.
+
+`terminal_operations::background_jobs` applies one contract to every exit path. It
+requests stop from all owners before waiting, observes each owner against one shared
+deadline even after another fails, and reports the first failure. Explicit shutdown uses
+the request deadline (at most 15 seconds for the whole shutdown). Every other loop exit,
+including Server disconnection, protocol failure and Host start failure, uses one
+six-second window, which exceeds each owner's five-second cleanup bound. Unproven cleanup
+takes precedence over the loop's own error. A task still running when the window closes
+is detached, and the Worker reports the cleanup failure instead of claiming success.
 
 ## Live viewer relay refinement
 
@@ -843,8 +871,8 @@ A channel releases the owner only after its intent and join handle are retained.
 joins only an already-finished thread. A panic or unproven process cleanup retires new
 admission and stays PhysicalUnknown. Cancellation is a request, never rollback. Session
 shutdown cancels and joins this owner before reporting that background work has stopped;
-pre-Host to Host handoff preserves the same slot. Normal transport exit also cancels
-and joins it within a cooperative six-second cleanup window. Drop only requests cancellation.
+pre-Host to Host handoff preserves the same slot. Normal transport exit settles it with the
+other [background job owners](#background-job-owners-and-exit) in one six-second window. Drop only requests cancellation.
 
 Git execution has a 30-second work budget, 64 KiB stdout bound and 2 KiB diagnostic
 retention. These are cooperative admission budgets, not filesystem-call preemption.
@@ -926,7 +954,7 @@ tests exercise real protocol exchanges, not a packaged Worker/Host process accep
 
 ## Windows plugin process ownership
 
-The admitted request loop also serves bounded plugin-job start/list/get/cancel records before and after Host creation. `plugin_jobs` retains up to 32 command owners and 200 logs; the shared `orchbee-local-runtime` Windows command owner supplies the same Job settlement used by Git. CLI disconnect leaves accepted work running. Explicit Session shutdown signals, settles and joins all plugin owners before reporting success. [Native plugin behavior](../orchbee/docs/windows-plugins.md) owns invocation, paging, output limits and remaining integration.
+The admitted request loop also serves bounded plugin-job start/list/get/cancel records before and after Host creation. `plugin_jobs` retains up to 32 command owners and 200 logs; the shared `orchbee-local-runtime` Windows command owner supplies the same Job settlement used by Git. CLI disconnect leaves accepted work running. Explicit Session shutdown signals, settles and joins all plugin owners before reporting success; every other exit uses the shared [background job window](#background-job-owners-and-exit), and Drop never waits. [Native plugin behavior](../orchbee/docs/windows-plugins.md) owns invocation, paging, output limits and remaining integration.
 
 ## Plugin terminal launch environment
 

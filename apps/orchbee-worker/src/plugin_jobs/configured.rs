@@ -225,13 +225,6 @@ pub(super) fn cancel(records: &[Record]) -> bool {
     }
     running
 }
-pub(super) fn join(records: &mut [Record]) {
-    for record in records {
-        if let Some(join) = record.join.take() {
-            let _settled = join.join();
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests;

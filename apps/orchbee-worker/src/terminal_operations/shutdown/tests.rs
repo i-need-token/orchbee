@@ -1,4 +1,5 @@
 use super::*;
+use crate::worktree_discovery_job::WorktreeDiscoverySlot;
 use orchbee_capability_node_protocol::{
     OperationId, ShutdownBudget, WorkerGeneration, read_message, write_message,
 };

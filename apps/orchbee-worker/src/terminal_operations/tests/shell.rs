@@ -906,3 +906,99 @@ fn admitted_editor_command_query_uses_no_host_request_or_terminal_effect() {
         io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
     ));
 }
+
+/// Starts one real pre-Host plugin process that marks its start, then outlives the test unless
+/// the Worker's exit settlement terminates its Job.
+fn start_plugin_process(peer: &mut LocalStream, directory: &std::path::Path) {
+    let script = "Set-Content -LiteralPath started -Value 1; Start-Sleep -Seconds 30; \
+                  Set-Content -LiteralPath finished -Value 1";
+    node::write_message(
+        peer,
+        &CapabilityNodeMessage::PluginJobRequest(PluginJobRequest {
+            operation_id: OperationId::from_bytes([90; 16]).unwrap(),
+            worker_id: node::WorkerId::from_bytes([3; 16]).unwrap(),
+            worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
+            action: PluginJobAction::Start(PluginCommandIntent {
+                plugin_id: "test".into(),
+                command_id: "exit-settlement".into(),
+                directory: directory.to_str().unwrap().into(),
+                argv: [
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    script,
+                ]
+                .map(str::to_owned)
+                .to_vec(),
+                environment: vec![],
+            }),
+        }),
+    )
+    .unwrap();
+    assert!(matches!(
+        node::read_message(peer).unwrap(),
+        CapabilityNodeMessage::PluginJobResult(PluginJobResult {
+            outcome: PluginJobOutcome::Started { .. },
+            ..
+        })
+    ));
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while !directory.join("started").exists() {
+        assert!(Instant::now() < deadline, "plugin process started");
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// Fault injection for the fallback exit path: the Server disconnects, or the first Launch
+/// cannot start its Host, while a real plugin process tree is running.
+#[test]
+fn lazy_exit_after_disconnect_or_host_start_failure_settles_running_plugin_process() {
+    for host_start_failure in [false, true] {
+        let fixture = CohortFixture::new();
+        let cohort = Cohort::load(&fixture.0, Instant::now() + Duration::from_secs(3)).unwrap();
+        let runtime = fixture.0.join("runtime");
+        let work = fixture.0.join("plugin");
+        std::fs::create_dir(&work).unwrap();
+        let (server, mut peer) = LocalStream::pair().unwrap();
+        timeout(&peer);
+        peer.set_read_timeout(Some(Duration::from_secs(20)))
+            .unwrap();
+        let driver_work = work.clone();
+        let driver = thread::spawn(move || {
+            start_plugin_process(&mut peer, &driver_work);
+            let fault = Instant::now();
+            if host_start_failure {
+                // The fixture cohort's Host executable is not runnable, so startup fails
+                // after admission and the loop ends through the same fallback exit.
+                send(&mut peer, &launch(91, "cmd.exe"));
+                let _failed_or_closed = node::read_message(&mut peer);
+            }
+            drop(peer);
+            fault
+        });
+        let result = lazy::run(
+            server,
+            WORKER,
+            NonZeroU64::MIN,
+            &cohort,
+            &runtime,
+            &SystemShell::resolve(),
+        );
+        let exited = Instant::now();
+        let fault = driver.join().unwrap();
+        let error = result.unwrap_err();
+        let cleanup = error.downcast_ref::<io::Error>().is_some_and(|error| {
+            error.kind() == io::ErrorKind::TimedOut || error.to_string().contains("cleanup unknown")
+        });
+        assert!(!cleanup, "exit settlement proved cleanup: {error}");
+        // Fault-to-exit stays within the six-second shared settlement window plus slack.
+        assert!(exited.saturating_duration_since(fault) < Duration::from_secs(8));
+        // Settlement terminated the Job: the process can no longer reach its final write.
+        assert!(work.join("started").exists());
+        thread::sleep(Duration::from_millis(500));
+        assert!(!work.join("finished").exists());
+        std::fs::remove_file(work.join("started")).unwrap();
+        std::fs::remove_dir(&work).unwrap();
+    }
+}

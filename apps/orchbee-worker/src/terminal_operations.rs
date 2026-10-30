@@ -27,6 +27,7 @@ use crate::{
     terminal_host_operation::{HostOperationDisposition, PreparedHostOperation},
 };
 
+mod background_jobs;
 mod launch_facts;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod lazy;
@@ -83,11 +84,14 @@ pub(crate) fn run(
             managed_host: None,
         },
     );
-    #[cfg(windows)]
-    plugin_jobs.stop_before(std::time::Instant::now() + Duration::from_secs(6))?;
-    #[cfg(windows)]
-    mutation_slot.stop_before(std::time::Instant::now() + Duration::from_secs(6))?;
-    outcome
+    background_jobs::BackgroundJobs {
+        discovery: &worktree_slot,
+        #[cfg(windows)]
+        mutations: &mutation_slot,
+        #[cfg(windows)]
+        plugins: &plugin_jobs,
+    }
+    .settle_exit(outcome)
 }
 
 /// Auxiliary channels admitted alongside the operation kernel: the Agent
@@ -207,7 +211,7 @@ fn run_admitted_with_handoff(
                 request,
                 worker_id,
                 generation,
-                shutdown::BackgroundJobs {
+                background_jobs::BackgroundJobs {
                     discovery: aux.worktree_slot,
                     mutations: aux.mutation_slot,
                     plugins: aux.plugin_jobs,

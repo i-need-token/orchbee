@@ -468,8 +468,16 @@ impl WorktreeDiscoverySlot {
         CancelOutcome::Unknown
     }
 
-    /// Cancels the owned job and proves its child and pipes are settled before the deadline.
-    #[cfg(windows)]
+    /// Signals the running owner without waiting for it.
+    pub(crate) fn request_stop(&self) {
+        let inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(physical) = &inner.physical {
+            physical.cancel.store(true, Ordering::Relaxed);
+        }
+    }
+
+    /// Requests stop, then proves the owned child and pipes are settled before the deadline.
+    /// `TimedOut` leaves the stop requested and pending.
     pub(crate) fn stop_before(&self, deadline: Instant) -> io::Result<()> {
         loop {
             {
@@ -494,9 +502,11 @@ impl WorktreeDiscoverySlot {
 
 impl Drop for WorktreeDiscoverySlot {
     fn drop(&mut self) {
-        if let Ok(inner) = self.inner.get_mut()
-            && let Some(physical) = &inner.physical
-        {
+        // The bounded `stop_before` owns completion. Drop only requests stop and joins an
+        // owner that has already finished; an unfinished owner is never waited for here.
+        let inner = self.inner.get_mut().unwrap_or_else(|e| e.into_inner());
+        settle(inner);
+        if let Some(physical) = &inner.physical {
             physical.cancel.store(true, Ordering::Relaxed);
         }
     }

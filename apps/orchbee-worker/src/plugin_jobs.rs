@@ -45,7 +45,7 @@ impl PluginJobs {
     pub(crate) fn new() -> Self {
         Self::with_execute(process::run)
     }
-    fn with_execute(execute: Execute) -> Self {
+    pub(crate) fn with_execute(execute: Execute) -> Self {
         Self {
             inner: Mutex::new(Inner {
                 records: Vec::new(),
@@ -194,6 +194,13 @@ impl PluginJobs {
             existing: false,
         }
     }
+    /// Closes admission and signals every running owner without waiting for any of them.
+    pub(crate) fn request_stop(&self) {
+        let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        request_stop(&mut inner);
+    }
+    /// Requests stop, then observes every owner's completion before the deadline. `Ok` means
+    /// every owner has ended and been joined; `TimedOut` leaves the stop requested and pending.
     pub(crate) fn stop_before(&self, deadline: Instant) -> io::Result<()> {
         loop {
             {
@@ -201,17 +208,8 @@ impl PluginJobs {
                     .inner
                     .lock()
                     .map_err(|_| io::Error::other("Plugin process owner poisoned"))?;
-                inner.stopping = true;
                 settle(&mut inner);
-                let mut running = false;
-                for record in &inner.records {
-                    if let State::Running { cancel, .. } = &record.state {
-                        cancel.store(true, Ordering::Relaxed);
-                        running = true;
-                    }
-                }
-                running |= configured::cancel(&inner.commands);
-                if !running {
+                if !request_stop(&mut inner) {
                     return if inner.retired {
                         Err(io::Error::other("Plugin process cleanup unknown"))
                     } else {
@@ -226,6 +224,18 @@ impl PluginJobs {
             thread::sleep(remaining.min(Duration::from_millis(10)));
         }
     }
+}
+/// Closes admission and signals each running owner; reports whether any owner is still running.
+fn request_stop(inner: &mut Inner) -> bool {
+    inner.stopping = true;
+    let mut running = false;
+    for record in &inner.records {
+        if let State::Running { cancel, .. } = &record.state {
+            cancel.store(true, Ordering::Relaxed);
+            running = true;
+        }
+    }
+    configured::cancel(&inner.commands) || running
 }
 fn settle(inner: &mut Inner) {
     configured::settle(inner);
@@ -254,21 +264,11 @@ fn settle(inner: &mut Inner) {
 }
 impl Drop for PluginJobs {
     fn drop(&mut self) {
+        // The bounded `stop_before` owns completion. Drop only requests stop and joins
+        // owners that have already finished; an unfinished owner is never waited for here.
         let inner = self.inner.get_mut().unwrap_or_else(|e| e.into_inner());
-        configured::cancel(&inner.commands);
-        for record in &inner.records {
-            if let State::Running { cancel, .. } = &record.state {
-                cancel.store(true, Ordering::Relaxed);
-            }
-        }
-        for record in &mut inner.records {
-            if let State::Running { join, .. } =
-                std::mem::replace(&mut record.state, State::Complete)
-            {
-                let _settled = join.join();
-            }
-        }
-        configured::join(&mut inner.commands);
+        settle(inner);
+        request_stop(inner);
     }
 }
 fn running(inner: &Inner) -> usize {

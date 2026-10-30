@@ -144,7 +144,7 @@ pub(crate) fn run(
                     request,
                     worker_id,
                     generation,
-                    super::shutdown::BackgroundJobs {
+                    super::background_jobs::BackgroundJobs {
                         discovery: &worktree_slot,
                         mutations: &mutation_slot,
                         plugins: &plugin_jobs,
@@ -325,11 +325,14 @@ pub(crate) fn run(
             );
         }
     })();
-    #[cfg(windows)]
-    plugin_jobs.stop_before(std::time::Instant::now() + Duration::from_secs(6))?;
-    #[cfg(windows)]
-    mutation_slot.stop_before(Instant::now() + Duration::from_secs(6))?;
-    outcome
+    super::background_jobs::BackgroundJobs {
+        discovery: &worktree_slot,
+        #[cfg(windows)]
+        mutations: &mutation_slot,
+        #[cfg(windows)]
+        plugins: &plugin_jobs,
+    }
+    .settle_exit(outcome)
 }
 
 fn start_host(

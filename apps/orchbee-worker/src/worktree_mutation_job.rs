@@ -150,6 +150,14 @@ impl WorktreeMutationSlot {
         }
     }
 
+    /// Closes admission and signals the running owner without waiting for it.
+    pub(crate) fn request_stop(&self) {
+        let mut inner = self.inner.lock().unwrap_or_else(|error| error.into_inner());
+        request_stop(&mut inner);
+    }
+
+    /// Requests stop, then observes the owner's completion before the deadline. `Ok` means the
+    /// owner has ended and been joined; `TimedOut` leaves the stop requested and pending.
     pub(crate) fn stop_before(&self, deadline: Instant) -> io::Result<()> {
         loop {
             {
@@ -157,17 +165,14 @@ impl WorktreeMutationSlot {
                     .inner
                     .lock()
                     .map_err(|_| io::Error::other("Worktree owner is poisoned"))?;
-                inner.stopping = true;
                 settle(&mut inner);
+                let running = request_stop(&mut inner);
                 if inner.retired {
                     return Err(io::Error::other("Worktree cleanup is unknown"));
                 }
-                let running = inner.records.iter().find_map(|record| match &record.state {
-                    State::Running { cancel, .. } => Some(cancel),
-                    _ => None,
-                });
-                let Some(cancel) = running else { return Ok(()) };
-                cancel.store(true, Ordering::Relaxed);
+                if !running {
+                    return Ok(());
+                }
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
@@ -176,6 +181,19 @@ impl WorktreeMutationSlot {
             thread::sleep(remaining.min(Duration::from_millis(10)));
         }
     }
+}
+
+/// Closes admission and signals each running owner; reports whether any owner is still running.
+fn request_stop(inner: &mut Inner) -> bool {
+    inner.stopping = true;
+    let mut running = false;
+    for record in &inner.records {
+        if let State::Running { cancel, .. } = &record.state {
+            cancel.store(true, Ordering::Relaxed);
+            running = true;
+        }
+    }
+    running
 }
 
 fn settle(inner: &mut Inner) {
@@ -197,15 +215,14 @@ fn settle(inner: &mut Inner) {
 
 impl Drop for WorktreeMutationSlot {
     fn drop(&mut self) {
+        // The bounded `stop_before` owns completion. Drop only requests stop and joins an
+        // owner that has already finished; an unfinished owner is never waited for here.
         let inner = self
             .inner
             .get_mut()
             .unwrap_or_else(|error| error.into_inner());
-        for record in &inner.records {
-            if let State::Running { cancel, .. } = &record.state {
-                cancel.store(true, Ordering::Relaxed);
-            }
-        }
+        settle(inner);
+        request_stop(inner);
     }
 }
 

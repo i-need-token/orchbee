@@ -75,7 +75,7 @@ Agent 行为、服务安装或恢复。
 ## 托管 Windows 显式停止
 
 托管 Windows Worker 保留其创建的准确 Host 子进程句柄直到完成。代次匹配的停止请求永久关闭普通操作准入；
-非托管或代次不匹配的请求在产生效果前拒绝。停止先取消并等待发现任务结束，再在单次请求截止时间内（最长 15 秒）
+非托管或代次不匹配的请求在产生效果前拒绝。停止先停止所有[后台任务所有者](#后台任务所有者与退出)，再在单次请求截止时间内（最长 15 秒）
 使用现有 Host 清单、强制终止和释放契约。每次清单请求选择首个剩余终端；单次尝试对选中的活动终端只发送一次
 强制终止，释放要求观察到可释放阶段并收到准确确认。预先准备的目标清理仅在确认后回收本地查看器和控制器所有权。
 完整空清单允许断开代理连接，然后等待保留的 Host 句柄。管道消失不能单独证明停止。Server 必须另行确认 Worker
@@ -83,7 +83,7 @@ Agent 行为、服务安装或恢复。
 
 未完成的尝试保留失败阶段、原因及本次已知释放确认计数。之后 Worker 仅接受显式停止请求。后续尝试可继续健康连接，
 或等待已经断开且清单为空的 Host；协议或传输不确定会退役 Host 连接，绝不授权重放变更、重新连接或接管。
-发现任务子进程的清理未知时不能报告成功。无 Host 或确认 Host 退出的结果在有界结果写入尝试后结束 Worker；
+后台任务的清理未知时不能报告成功。无 Host 或确认 Host 退出的结果在有界结果写入尝试后结束 Worker；
 普通 Server 断开保留现有语义。此 Windows 生命周期不增加 Linux 或 macOS 停止路径。
 
 ## 托管 Linux 延迟启动 Host
@@ -129,6 +129,28 @@ stage 共享的 64 KiB stdout 预算之下；越过合并预算的 stage 承担 
 原始字节——porcelain 解析与畸形 listing 拒绝是 Server 的权威，不属于 Worker。
 属主自治回收其子进程——死亡或被逐出的 job 只保留一份有界 receipt，直到下一次
 start 将其替换；取消后终态仍可通过 `poll` 观察。
+
+## 后台任务所有者与退出
+
+每个 Worker 代次拥有三类后台任务。请求循环只借用它们；从无 Host 到有 Host 的交接以及 Windows
+Server 交接都保留同一批所有者，所有权不会转移到其他线程或连接。
+
+| 任务 | 所有者 | 平台 | 取消后的物理清理上限 |
+| --- | --- | --- | --- |
+| Worktree 发现 | `worktree_discovery_job::WorktreeDiscoverySlot` | 全部 | 五秒 Job／子进程清理 |
+| Worktree 变更 | `worktree_mutation_job::WorktreeMutationSlot` | Windows | 五秒 Job 清理 |
+| 插件命令与配置命令 | `plugin_jobs::PluginJobs` | Windows | 五秒 Job 清理 |
+
+每个所有者都区分停止请求与任务结束。`request_stop` 在所有者有准入时关闭新准入，通知所有运行中的任务，
+且从不等待。`stop_before(deadline)` 先请求停止，再只 join 已结束的任务：`Ok` 表示所有任务都已结束，
+`TimedOut` 表示已请求停止但未证实完成，其他错误表示清理未知并退役准入。Drop 请求停止，只 join 已结束的
+任务，从不等待未结束的任务。
+
+`terminal_operations::background_jobs` 对每条退出路径使用同一契约。它在等待前先向所有所有者请求停止，
+即使某个所有者失败，也在同一共享截止时间内观察每个所有者，并报告第一个失败。显式停止使用请求截止时间
+（整个停止最长 15 秒）。其他所有循环退出，包括 Server 断开、协议失败和 Host 启动失败，使用一个六秒窗口，
+该窗口大于每个所有者的五秒清理上限。未证实的清理优先于循环自身的错误。窗口结束时仍在运行的任务被分离，
+Worker 报告清理失败，而不声称成功。
 
 ## 实时查看附件转发细化
 
@@ -751,7 +773,7 @@ Start 在接触槽位前校验 Worker 身份／generation。相同保留 ID／�
 前提下限制回执。channel 仅在意图及 join handle 已保留后释放所有者。Poll 只 join
 已结束线程。panic 或未证实的进程清理退役新接纳，并保持 PhysicalUnknown。取消只是
 请求，不是回滚。会话 关闭在报告后台工作停止前取消并 join 此所有者；从无 Host 到有
-Host 的交接保留同一槽位。正常传输退出也在协作式六秒清理窗口内取消并 join。
+Host 的交接保留同一槽位。正常传输退出与其他[后台任务所有者](#后台任务所有者与退出)在同一个六秒窗口内清理。
 Drop 只请求取消。
 
 Git 执行具有 30 秒工作预算、64 KiB stdout 上限及 2 KiB 诊断保留。这些是协作式
@@ -818,7 +840,7 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 
 ## Windows 插件进程归属
 
-受理请求循环在 Host 创建前后处理有界插件任务 start/list/get/cancel 记录。`plugin_jobs` 保留最多 32 个命令 owner 和 200 条日志；共享 `orchbee-local-runtime` Windows 命令所有者 复用 Git 的 Job 清理方式。CLI 断开后已受理任务继续运行。显式停止 会话 时，必须先通知、清理并等待所有插件 owner 结束，才能报告成功。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理调用、分页、输出上限及剩余集成。
+受理请求循环在 Host 创建前后处理有界插件任务 start/list/get/cancel 记录。`plugin_jobs` 保留最多 32 个命令 owner 和 200 条日志；共享 `orchbee-local-runtime` Windows 命令所有者 复用 Git 的 Job 清理方式。CLI 断开后已受理任务继续运行。显式停止 会话 时，必须先通知、清理并等待所有插件 owner 结束，才能报告成功；其他退出使用共享的[后台任务窗口](#后台任务所有者与退出)，Drop 从不等待。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理调用、分页、输出上限及剩余集成。
 
 ## 插件终端启动环境
 
@@ -858,4 +880,4 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 启动前后均可用。[所属模型](docs/windows-server-handoff.zh-CN.md) 定义精确票据、截止点、
 回滚及证据边界。公开 Server 状态／端点交接仍需独立集成；传输回执不是最终 CLI 成功。
 
-<!-- documentation-pairing: english-sha256=ba93886f3742222f25cb1fd2a9aa74bb1f56ffa3a851b6c63024d029d440845d zh-cn-sha256=c30a54af4cc5e0eaaa76681dcd197acb85fbedd0fa7d5d712f1b56c6a2fb41e5 -->
+<!-- documentation-pairing: english-sha256=30698f3a0fffb854d01ad7c5a7328cccc2cb815bc4b5781ce9e2e7e253034e41 zh-cn-sha256=f75bde4b22a90aab3f2e8c846ae1b2d7cba0b45ca4e5843d5e901d4c7d648c7b -->
