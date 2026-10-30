@@ -6,7 +6,7 @@ use orchbee_workbench_protocol::{
     WorkbenchWorktreeResult, WorkerId, WorktreeAdmissionFailure,
 };
 use std::sync::Arc;
-#[cfg(any(windows, test))]
+#[cfg(windows)]
 use std::{io, time::Instant};
 mod driver;
 
@@ -76,7 +76,7 @@ impl LocalTerminalService {
         result
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(windows)]
     pub(crate) fn stop_worktrees_before(&self, deadline: Instant) -> io::Result<()> {
         self.worktree_maintenance.stop_before(deadline)
     }

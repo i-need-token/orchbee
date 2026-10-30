@@ -2,22 +2,17 @@
 //! and owned checkpoint lifecycle. Domain modules own transitions; Worker and Terminal Host
 //! retain physical terminal execution and Clients retain presentation.
 
-#![cfg_attr(
-    target_os = "macos",
-    expect(
-        dead_code,
-        reason = "the Apple Silicon development Session omits Windows checkpoint, stop, and Agent-recovery paths"
-    )
-)]
-
 #[cfg(any(unix, windows))]
 mod agent;
+#[cfg(any(unix, windows))]
 mod agent_screen;
 #[cfg(any(unix, windows))]
 mod agent_service;
 #[cfg(any(unix, windows))]
 mod client_connection_registry;
+#[cfg(any(unix, windows))]
 mod client_view_registry;
+#[cfg(any(unix, windows))]
 mod frame_directory;
 #[cfg(any(unix, windows))]
 mod local_client_service;
@@ -25,7 +20,7 @@ mod local_client_service;
 mod local_terminal_service;
 #[cfg(any(unix, windows))]
 mod local_worker_service;
-#[cfg(windows)]
+#[cfg(any(unix, windows))]
 mod notification_registry;
 #[cfg(any(unix, windows))]
 mod session_coordinator;
@@ -33,7 +28,7 @@ mod session_coordinator;
 mod session_shutdown;
 #[cfg(any(unix, windows))]
 mod terminal_coordinator;
-#[cfg(windows)]
+#[cfg(any(unix, windows))]
 mod window_title_registry;
 #[cfg(any(unix, windows))]
 mod workbench_service;

@@ -111,7 +111,7 @@ impl Sample {
 }
 impl SessionCoordinator {
     /// Called only after a correlated Host response and current Worker registry fence, under the Session gate.
-    #[cfg(test)]
+    #[cfg(all(test, windows))]
     pub(crate) fn observe_host_process(
         &mut self,
         target: BindingViewerTarget,
@@ -122,7 +122,7 @@ impl SessionCoordinator {
         self.observe_host_screen(target, sample, None, started, now)
     }
     /// Screen evidence must be bounded and associated with the same process on both sides of capture.
-    #[cfg(test)]
+    #[cfg(all(test, windows))]
     pub(crate) fn observe_host_screen(
         &mut self,
         target: BindingViewerTarget,
@@ -454,6 +454,7 @@ impl SessionCoordinator {
     }
 
     /// Read existing exact-physical samples only; never attach a viewer or substitute a child cwd.
+    #[cfg(windows)]
     pub(crate) fn cached_checkpoint_directories(
         &self,
         targets: &[ProcessObservationTarget],

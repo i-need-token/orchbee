@@ -22,20 +22,6 @@ impl LocalTerminalService {
             .map_err(|_| std::io::Error::from(std::io::ErrorKind::AlreadyExists))
     }
 
-    /// The Session's preference scope follows the configuration file from the Server's single
-    /// startup read, or the environment when that read resolved no file. A composition root
-    /// freezes it before any terminal launches, restored terminals included.
-    #[cfg(windows)]
-    pub(crate) fn preferences_scope(
-        configuration: &orchbee_local_runtime::UserSettingsLoad,
-    ) -> std::io::Result<UserPreferencesScope> {
-        match configuration.settings.path.as_deref() {
-            Some(path) => UserPreferencesScope::for_configuration(path),
-            None => UserPreferencesScope::from_environment(|name| std::env::var_os(name)),
-        }
-        .map_err(|_| std::io::Error::other("Settings scope is unavailable"))
-    }
-
     /// Reads one creation's launch intent from the frozen store before the caller takes any lock,
     /// so a saved change reaches only later creations and the dispatched launch and its published
     /// program share this one read. A missing store, failed read or default program beyond the

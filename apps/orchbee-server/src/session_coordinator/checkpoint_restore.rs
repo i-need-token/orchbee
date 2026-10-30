@@ -3,8 +3,6 @@
 //! adopt a physical terminal from another incarnation.
 
 use super::{SessionCoordinator, presentation_binding};
-#[cfg(windows)]
-use crate::terminal_coordinator::WorkerPlacement;
 use crate::terminal_coordinator::{CreateInputs, PendingOperation};
 use orchbee_client_server_protocol::{
     Geometry, StartMode, TerminalCreateRequest, WorkerConstraint, WorkerId, WorkingDirectory,
@@ -50,7 +48,7 @@ impl SessionCoordinator {
             let target = BindingViewerTarget {
                 terminal_id,
                 identity: fact.identity(),
-                worker: WorkerPlacement {
+                worker: crate::terminal_coordinator::WorkerPlacement {
                     worker_id: fact.worker_id(),
                     generation: fact.worker_generation(),
                 },
@@ -66,6 +64,7 @@ impl SessionCoordinator {
         Ok((workbench.snapshot().revision, targets))
     }
 
+    #[cfg(windows)]
     pub(crate) fn checkpoint_with_terminal_directories(
         &self,
         worker: &orchbee_workbench_protocol::WorkerId,

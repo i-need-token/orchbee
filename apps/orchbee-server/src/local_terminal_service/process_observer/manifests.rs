@@ -56,7 +56,7 @@ struct State {
     stopped: bool,
 }
 impl Registry {
-    #[cfg(test)]
+    #[cfg(all(test, windows))]
     pub(super) fn initialization_for_test(&self) -> (bool, bool) {
         let state = self.0.lock().unwrap();
         (
@@ -84,7 +84,7 @@ impl Registry {
         true
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, windows))]
     pub(super) fn initialize(
         &self,
         root: Option<PathBuf>,
@@ -276,7 +276,7 @@ impl Registry {
             source: state.source.clone(),
         })
     }
-    #[cfg(test)]
+    #[cfg(all(test, windows))]
     fn complete(
         &self,
         id: WorkbenchRequestId,

@@ -137,6 +137,7 @@ fn refresh_after_sequence(
     viewer.projection.complete_feedback(&feedback);
     frame(viewer, template, stop)
 }
+#[cfg(windows)]
 pub(super) fn directory(
     viewer: &mut ViewerAttachment<'_>,
     template: WorkerRequest,

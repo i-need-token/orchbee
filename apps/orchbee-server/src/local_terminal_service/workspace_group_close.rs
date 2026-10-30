@@ -7,7 +7,7 @@ use orchbee_workbench_protocol::{
     WorkerId, WorkspaceGroupCloseAction as Action, WorkspaceGroupCloseOutcome as Outcome,
     WorkspaceGroupCloseUnavailable as Unavailable,
 };
-#[cfg(any(windows, test))]
+#[cfg(windows)]
 use std::{io, time::Instant};
 use std::{
     num::NonZeroU64,
@@ -75,7 +75,7 @@ impl LocalTerminalService {
         }
         result
     }
-    #[cfg(any(windows, test))]
+    #[cfg(windows)]
     pub(crate) fn stop_workspace_groups_before(&self, deadline: Instant) -> io::Result<()> {
         self.group_close_maintenance.stop_before(deadline)
     }

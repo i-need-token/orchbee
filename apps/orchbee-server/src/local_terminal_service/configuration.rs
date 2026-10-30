@@ -93,14 +93,14 @@ impl Drop for ReloadAdmission<'_> {
     }
 }
 impl Registry {
-    #[cfg(test)]
+    #[cfg(all(test, windows))]
     pub(super) fn initialize(&self, settings: &UserSettings) -> std::io::Result<()> {
         self.initialize_load(&UserSettingsLoad {
             settings: settings.clone(),
             diagnostics: SettingsDiagnostics::default(),
         })
     }
-    #[cfg(test)]
+    #[cfg(all(test, windows))]
     pub(super) fn initialize_load(&self, current: &UserSettingsLoad) -> std::io::Result<()> {
         self.install_initial(Self::prepare_initial(current)?)
     }
@@ -135,7 +135,7 @@ impl Registry {
         *slot = Some(prepared.0);
         Ok(())
     }
-    #[cfg(test)]
+    #[cfg(all(test, windows))]
     pub(super) fn initialized_for_test(&self) -> bool {
         self.state.lock().unwrap().is_some()
     }

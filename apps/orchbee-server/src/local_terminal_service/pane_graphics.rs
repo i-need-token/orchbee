@@ -16,7 +16,6 @@ use std::{
     num::NonZeroU64,
     path::Path,
     sync::atomic::{AtomicBool, Ordering},
-    thread,
     time::{Duration, Instant},
 };
 mod files;
@@ -329,6 +328,7 @@ impl LocalTerminalService {
         pending.then(|| Instant::now() + Duration::from_millis(250))
     }
     /// Settles all preparing/read tokens and owned directories before managed clean-stop publication.
+    #[cfg(windows)]
     pub(crate) fn stop_graphics_before(&self, deadline: Instant) -> io::Result<()> {
         self.graphics_stopping.store(true, Ordering::Release);
         loop {
@@ -356,7 +356,7 @@ impl LocalTerminalService {
             if Instant::now() >= deadline {
                 return Err(io::ErrorKind::TimedOut.into());
             }
-            thread::sleep(Duration::from_millis(10));
+            std::thread::sleep(Duration::from_millis(10));
         }
         let Some(files) = &self.graphics_files else {
             return Ok(());
@@ -368,7 +368,7 @@ impl LocalTerminalService {
             if Instant::now() >= deadline {
                 return Err(io::ErrorKind::TimedOut.into());
             }
-            thread::sleep(Duration::from_millis(10));
+            std::thread::sleep(Duration::from_millis(10));
         }
     }
     fn decode_graphics_png(

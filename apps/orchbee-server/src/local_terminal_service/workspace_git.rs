@@ -252,13 +252,10 @@ impl LocalTerminalService {
             .map_err(|_| Failure::Unavailable)?;
             // The first terminal's live directory leads, so a later `cd` into a checkout is
             // observed without changing the Workspace's canonical directory.
-            #[cfg(windows)]
             let live = coordinator
                 .workspace_terminal_directory(&request.workspace_id)
                 .filter(|(owner, _)| owner == &worker)
                 .map(|(_, path)| path);
-            #[cfg(not(windows))]
-            let live: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath> = None;
             let authority = coordinator
                 .worktree_authority()
                 .ok_or(Failure::Unavailable)?;

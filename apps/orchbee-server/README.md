@@ -198,9 +198,13 @@ owner's typed outcome: plugin stores and Worker plugin jobs answer `Unsupported`
 configuration-backed requests answer `Unavailable`. Startup asks the process observer to start,
 and it refuses with `Unsupported` before reading settings because these Hosts cannot sample
 processes, so Agent manifest requests answer `Unavailable`. Startup also configures Panel graphics
-file frames, whose private frame directory refuses reservation with `Unsupported`. Terminal editor,
-Client view, Panel Agent, Panel graphics and semantic event requests keep their earlier refusal at
-admission until their behavior off Windows is decided.
+file frames, whose private frame directory refuses reservation with `Unsupported`. Agent names
+resolve through the same guarded path as on Windows; terminal name owners come only from Agent
+reports and process observation, so none exist here. Terminal editor, Client view, Panel Agent,
+Panel graphics, semantic event, Agent view, Workspace and Panel metadata, window title and
+notification requests keep their earlier refusal at admission until their behavior off Windows is
+decided. Checkpoint, stop and handoff remain Windows-only because only the Windows startup
+constructs their owners.
 
 ## Local Worker service
 

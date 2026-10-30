@@ -18,7 +18,6 @@ impl LocalTerminalService {
                 reason: Failure::Unavailable,
             },
         };
-        #[cfg(windows)]
         let mut result = self
             .coordinator
             .lock()
@@ -27,11 +26,6 @@ impl LocalTerminalService {
                 coordinator.panel_metadata(request, std::time::Instant::now())
             })
             .unwrap_or(unavailable);
-        #[cfg(not(windows))]
-        let mut result = {
-            let _ = request;
-            unavailable
-        };
         if serialize_workbench_response(&WorkbenchResponse::PanelMetadata(result.clone())).is_err()
         {
             result.outcome = Outcome::Failed {

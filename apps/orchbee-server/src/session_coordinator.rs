@@ -86,7 +86,6 @@ impl SessionCoordinator {
     ) -> Option<orchbee_workbench_protocol::PluginOutcome> {
         Some(self.workbench.as_mut()?.plugin_pane(panel_id))
     }
-    #[cfg(windows)]
     pub(crate) fn workspace_metadata(
         &mut self,
         request: orchbee_workbench_protocol::WorkspaceMetadataRequest,
@@ -181,7 +180,6 @@ impl SessionCoordinator {
         Ok((context, target))
     }
 
-    #[cfg(windows)]
     pub(crate) fn panel_metadata(
         &mut self,
         request: orchbee_workbench_protocol::PanelMetadataRequest,

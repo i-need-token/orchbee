@@ -2260,14 +2260,8 @@ impl AgentService {
 use crate::agent::native_observation::{CarrierIdentity, NativeClass, NativeEvent};
 use std::time::Instant;
 pub(crate) struct NativeOutcome {
-    class: NativeClass,
+    pub(crate) class: NativeClass,
     ack_w: Option<u64>,
-}
-impl NativeOutcome {
-    #[cfg(unix)]
-    pub(crate) fn class(&self) -> NativeClass {
-        self.class
-    }
 }
 impl AgentService {
     pub(crate) fn native_apply_event(

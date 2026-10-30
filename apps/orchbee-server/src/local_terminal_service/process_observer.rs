@@ -1,9 +1,7 @@
 //! Windows Session-owned periodic process observations with one retained viewer cleanup responsibility.
 use super::{LocalTerminalService, viewer_connection::PendingCleanup};
 use crate::agent_screen::ScreenDetector;
-use crate::{
-    session_coordinator::ProcessObservationTarget, worker_obcn_carrier::WorkerRequestHandle,
-};
+use crate::session_coordinator::ProcessObservationTarget;
 use std::{
     io,
     sync::{
@@ -104,6 +102,7 @@ impl ProcessObserver {
         }
         Ok(())
     }
+    #[cfg(windows)]
     fn stop_before(&self, deadline: Instant) -> io::Result<()> {
         self.cancel();
         loop {
@@ -135,6 +134,7 @@ impl Drop for ProcessObserver {
 }
 impl LocalTerminalService {
     /// Clean stop reuses the observer's sole cleanup slot after its sampling thread has joined.
+    #[cfg(windows)]
     pub(super) fn settle_checkpoint_viewer(&self, new: Option<PendingCleanup>) -> io::Result<()> {
         let observer = &self.process_observer;
         if !observer.wake.stop.load(Ordering::Acquire)
@@ -168,7 +168,7 @@ impl LocalTerminalService {
         Ok(())
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, windows))]
     pub(super) fn process_observer_turn_for_test(&self, schedule: &mut Schedule) {
         turn(
             self,
@@ -177,7 +177,7 @@ impl LocalTerminalService {
             &ScreenDetector::bundled().unwrap(),
         );
     }
-    #[cfg(test)]
+    #[cfg(all(test, windows))]
     pub(super) fn process_observer_pending_for_test(&self) -> bool {
         self.process_observer.wake.pending.lock().unwrap().is_some()
     }
@@ -204,13 +204,15 @@ impl LocalTerminalService {
         self.process_observer.start(self, configuration, background)
     }
     /// Stops new sampling and joins admitted work; unresolved viewer cleanup transfers to Session shutdown.
+    #[cfg(windows)]
     pub(crate) fn stop_process_observer_before(&self, deadline: Instant) -> io::Result<()> {
         self.process_observer.stop_before(deadline)
     }
     /// Only the managed Session owner calls this after matching Worker/Host stop plus actual Worker exit.
+    #[cfg(windows)]
     pub(crate) fn finish_process_observer_after_worker_exit(
         &self,
-        worker: &WorkerRequestHandle,
+        worker: &crate::worker_obcn_carrier::WorkerRequestHandle,
     ) -> io::Result<()> {
         if !self.process_observer.wake.stop.load(Ordering::Acquire)
             || self

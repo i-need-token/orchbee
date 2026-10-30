@@ -2,7 +2,6 @@
 //! operations or connection-scoped controls to their owners. It does not own canonical
 //! topology itself or treat a Client control's acceptance as completed presentation.
 
-#[cfg(windows)]
 mod agent_view;
 mod configured_commands;
 mod events;
@@ -55,19 +54,21 @@ fn withheld_off_windows(request: &WorkbenchRequest) -> bool {
                 | WorkbenchRequest::PanelAgent(_)
                 | WorkbenchRequest::PaneGraphics(_)
                 | WorkbenchRequest::Events(_)
+                | WorkbenchRequest::AgentView(_)
+                | WorkbenchRequest::WorkspaceMetadata(_)
+                | WorkbenchRequest::PanelMetadata(_)
+                | WorkbenchRequest::WindowTitle(_)
+                | WorkbenchRequest::Notification(_)
         )
 }
 
 pub(crate) struct WorkbenchService {
     changes: orchbee_server::SessionChangeSource,
-    #[cfg(windows)]
     agent_views: std::sync::Mutex<agent_view::Registry>,
     terminals: Arc<LocalTerminalService>,
     policy: WorkbenchPolicy,
     client_views: std::sync::Mutex<crate::client_view_registry::ClientViewRegistry>,
-    #[cfg(windows)]
     notifications: std::sync::Mutex<crate::notification_registry::Registry>,
-    #[cfg(windows)]
     window_titles: std::sync::Mutex<crate::window_title_registry::Registry>,
 }
 
@@ -76,16 +77,13 @@ impl WorkbenchService {
         let events = terminals.event_journal();
         Self {
             changes: orchbee_server::SessionChangeSource::default(),
-            #[cfg(windows)]
             agent_views: std::sync::Mutex::default(),
             terminals,
             policy,
             client_views: std::sync::Mutex::new(
                 crate::client_view_registry::ClientViewRegistry::with_events(events),
             ),
-            #[cfg(windows)]
             notifications: std::sync::Mutex::default(),
-            #[cfg(windows)]
             window_titles: std::sync::Mutex::default(),
         }
     }
@@ -221,10 +219,7 @@ impl WorkbenchService {
             WorkbenchRequest::Notification(request) => return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Notification(request.clone()), false)),
             WorkbenchRequest::WindowTitle(request) => return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::WindowTitle(request.clone()), false)),
         WorkbenchRequest::AgentView(request) => {
-                #[cfg(windows)]
                 return WorkbenchExecution::Response(WorkbenchResponse::AgentView(self.agent_view(request)));
-                #[cfg(not(windows))]
-                return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::AgentView(request.clone()), false));
             }
             WorkbenchRequest::Configuration(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::Configuration(self.terminals.execute_configuration(request.clone())));
@@ -892,14 +887,12 @@ pub(crate) struct WorkbenchClientConnection<'a> {
 impl WorkbenchClientConnection<'_> {
     pub(crate) fn cancel_subscription(&self, request: &WorkbenchRequest) {
         match request {
-            #[cfg(windows)]
             WorkbenchRequest::WindowTitle(_) => self
                 .service
                 .window_titles
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .disconnect(self.generation),
-            #[cfg(windows)]
             WorkbenchRequest::Notification(_) => self
                 .service
                 .notifications
@@ -931,7 +924,7 @@ impl WorkbenchClientConnection<'_> {
             .maintain_event_deadline()
             .map_err(|_| std::io::ErrorKind::ConnectionAborted.into())
     }
-    #[cfg(test)]
+    #[cfg(all(test, windows))]
     pub(crate) fn execute_with_terminal_connection(
         &self,
         request: WorkbenchRequest,
@@ -1076,7 +1069,6 @@ impl WorkbenchClientConnection<'_> {
                 self.service.terminals.execute_popup(owner, plugin.clone()),
             ));
         }
-        #[cfg(windows)]
         if let WorkbenchRequest::WindowTitle(request) = &request {
             use orchbee_workbench_protocol::{
                 WindowTitleAction, WindowTitleFailure as Failure, WindowTitleOutcome,
@@ -1128,7 +1120,6 @@ impl WorkbenchClientConnection<'_> {
                 },
             ));
         }
-        #[cfg(windows)]
         if let WorkbenchRequest::Notification(request) = &request {
             use orchbee_workbench_protocol::{
                 NotificationAction, NotificationFailure as Failure, NotificationOutcome,
@@ -1248,18 +1239,15 @@ impl Drop for WorkbenchClientConnection<'_> {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         registry.disconnect(self.generation, std::time::Instant::now());
         drop(registry);
-        #[cfg(windows)]
-        {
-            self.service
-                .notifications
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .disconnect(self.generation);
-            self.service
-                .window_titles
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .disconnect(self.generation);
-        }
+        self.service
+            .notifications
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .disconnect(self.generation);
+        self.service
+            .window_titles
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .disconnect(self.generation);
     }
 }
