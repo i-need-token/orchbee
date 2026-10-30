@@ -4,7 +4,7 @@
 
 use super::super::tests::move_membership::ready_ui;
 use super::super::*;
-use crate::client_view::{ClientAction, ClientKey, ClientView};
+use crate::client_view::{ClientAction, ClientView};
 use crate::terminal_input::{
     DispatchOutcome, InputDispatcher, TerminalInputPort, TerminalInputUnavailable,
 };
@@ -45,44 +45,23 @@ impl TerminalInputPort for RecordingPort<'_> {
         Some(self.ui.apply_client_action(command))
     }
 
-    fn capture_tab_confirmation_key_for(
-        &mut self,
-        token: CloseConfirmationToken,
-        key: ClientKey,
-    ) -> bool {
-        self.ui.capture_tab_confirmation_key(token, key)
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::TabClose { .. }
+            | SurfaceInput::PanelClose { .. }
+            | SurfaceInput::WorkspaceClose { .. }
+            | SurfaceInput::Rename { .. }
+            | SurfaceInput::Setup { .. } => self.ui.surface_input(input),
+            _ => false,
+        }
     }
-
-    fn capture_panel_confirmation_key_for(
-        &mut self,
-        token: PanelCloseConfirmationToken,
-        key: ClientKey,
-    ) -> bool {
-        self.ui.capture_panel_confirmation_key(token, key)
-    }
-
-    fn capture_workspace_confirmation_key_for(
-        &mut self,
-        token: WorkspaceCloseToken,
-        key: ClientKey,
-    ) -> bool {
-        self.ui.capture_workspace_close_key(token, key)
-    }
-
-    fn edit_rename_draft(&mut self, token: RenameDraftToken, edit: RenameEdit<'_>) -> bool {
-        self.ui.edit_rename_draft(token, edit)
-    }
-
     fn cancel_rename_draft(&mut self, token: RenameDraftToken) {
         self.ui.cancel_rename_draft(token)
     }
 
     fn submit_rename_draft(&mut self, token: RenameDraftToken) -> Option<ClientActionDisposition> {
         Some(self.ui.submit_rename_draft(token))
-    }
-
-    fn edit_setup_draft(&mut self, token: SetupToken, edit: SetupEdit<'_>) -> bool {
-        self.ui.edit_setup_draft(token, edit)
     }
 
     fn cancel_setup_draft(&mut self, token: SetupToken) {

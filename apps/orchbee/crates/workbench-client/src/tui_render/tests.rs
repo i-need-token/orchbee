@@ -1577,12 +1577,26 @@ fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
     use orchbee_workbench_protocol::{PluginPopupSize, WorkbenchRequestId};
     use ratatui::{layout::Rect, widgets::Paragraph};
     struct Port(Vec<(WorkbenchRequestId, Rect)>);
-    impl TerminalInputPort for Port {
-        fn forward(&mut self, _: &[u8]) -> Result<(), TerminalInputUnavailable> {
-            panic!("popup paint leaked input");
-        }
+    impl Port {
         fn popup_mouse(&mut self, id: &WorkbenchRequestId, rect: Rect, _: MouseEvent) {
             self.0.push((id.clone(), rect));
+        }
+    }
+
+    impl TerminalInputPort for Port {
+        fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+            use crate::terminal_input::SurfaceInput;
+            match input {
+                SurfaceInput::PopupPointer { id, content, event } => {
+                    self.popup_mouse(id, content, event);
+                    true
+                }
+                _ => false,
+            }
+        }
+
+        fn forward(&mut self, _: &[u8]) -> Result<(), TerminalInputUnavailable> {
+            panic!("popup paint leaked input");
         }
     }
     let event = |column, row, action, button| MouseEvent {

@@ -8,7 +8,27 @@ struct ClosePort {
     decisions: Vec<bool>,
     forwarded: Vec<u8>,
 }
+impl ClosePort {
+    fn capture_workspace_confirmation_key_for(
+        &mut self,
+        token: WorkspaceCloseToken,
+        _: ClientKey,
+    ) -> bool {
+        token == WorkspaceCloseToken::for_test(1) && self.active
+    }
+}
+
 impl TerminalInputPort for ClosePort {
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::WorkspaceClose { token, key } => {
+                self.capture_workspace_confirmation_key_for(token, key)
+            }
+            _ => false,
+        }
+    }
+
     fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         crate::tui_composition::CaptureClaims::default().with_workspace_close(self.active)
     }
@@ -32,13 +52,6 @@ impl TerminalInputPort for ClosePort {
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
-    }
-    fn capture_workspace_confirmation_key_for(
-        &mut self,
-        token: WorkspaceCloseToken,
-        _: ClientKey,
-    ) -> bool {
-        token == WorkspaceCloseToken::for_test(1) && self.active
     }
     fn click_workspace_close(&mut self, token: WorkspaceCloseToken, confirm: bool) {
         assert_eq!(token, WorkspaceCloseToken::for_test(1));

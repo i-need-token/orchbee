@@ -12,7 +12,53 @@ struct Port {
     board: AgentBoard,
     forwarded: Vec<u8>,
 }
+impl Port {
+    fn capture_agent_board_key_for(
+        &mut self,
+        episode: AgentBoardEpisodeToken,
+        event: crate::client_view::KeyEvent,
+    ) -> bool {
+        let Some(context) = self.board.input_context() else {
+            return false;
+        };
+        if context.episode() != episode {
+            return false;
+        }
+        if event.kind == crate::client_view::KeyKind::Release {
+            return true;
+        }
+        if board_key_action(event) == Some(AgentBoardKeyAction::Close) {
+            self.board.close();
+            return true;
+        }
+        if !context.interactive() {
+            return true;
+        }
+        match board_key_action(event) {
+            Some(AgentBoardKeyAction::SelectDown) => self.board.move_selection(1),
+            Some(AgentBoardKeyAction::SelectUp) => self.board.move_selection(-1),
+            Some(AgentBoardKeyAction::Jump) if self.board.selected_is_shown() => {
+                self.board.request_jump();
+            }
+            Some(AgentBoardKeyAction::Refresh) => self.board.request_refresh(),
+            Some(AgentBoardKeyAction::Jump | AgentBoardKeyAction::Close) => {}
+            None => {}
+        }
+        true
+    }
+}
+
 impl TerminalInputPort for Port {
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::AgentBoard { episode, key } => {
+                self.capture_agent_board_key_for(episode, key)
+            }
+            _ => false,
+        }
+    }
+
     fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         crate::tui_composition::CaptureClaims::default().with_agent_board(self.board.owns_input())
     }
@@ -53,39 +99,6 @@ impl TerminalInputPort for Port {
     }
     fn agent_board_dismiss(&mut self) {
         self.board.close();
-    }
-    fn capture_agent_board_key_for(
-        &mut self,
-        episode: AgentBoardEpisodeToken,
-        event: crate::client_view::KeyEvent,
-    ) -> bool {
-        let Some(context) = self.board.input_context() else {
-            return false;
-        };
-        if context.episode() != episode {
-            return false;
-        }
-        if event.kind == crate::client_view::KeyKind::Release {
-            return true;
-        }
-        if board_key_action(event) == Some(AgentBoardKeyAction::Close) {
-            self.board.close();
-            return true;
-        }
-        if !context.interactive() {
-            return true;
-        }
-        match board_key_action(event) {
-            Some(AgentBoardKeyAction::SelectDown) => self.board.move_selection(1),
-            Some(AgentBoardKeyAction::SelectUp) => self.board.move_selection(-1),
-            Some(AgentBoardKeyAction::Jump) if self.board.selected_is_shown() => {
-                self.board.request_jump();
-            }
-            Some(AgentBoardKeyAction::Refresh) => self.board.request_refresh(),
-            Some(AgentBoardKeyAction::Jump | AgentBoardKeyAction::Close) => {}
-            None => {}
-        }
-        true
     }
 }
 

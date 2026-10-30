@@ -79,7 +79,71 @@ impl Port {
         }
     }
 }
+impl Port {
+    fn capture_settings_key_for(
+        &mut self,
+        expected: crate::native_settings::SettingsInputContext,
+        event: KeyEvent,
+    ) -> bool {
+        if self.editor.input_context() != Some(expected) {
+            return false;
+        }
+        if expected.readiness == crate::native_settings::SettingsInputReadiness::Recovery {
+            if matches!(
+                crate::native_settings::key_edit(event, false),
+                Some(Edit::Cancel)
+            ) {
+                self.editor.edit(Edit::Cancel);
+            }
+            return true;
+        }
+        let edit = self
+            .editor
+            .view()
+            .and_then(|view| crate::native_settings::key_edit_for_view(event, view));
+        if let Some(edit) = edit
+            && self.editor.edit(edit).is_some()
+        {
+            self.saves += 1;
+        }
+        true
+    }
+
+    fn capture_settings_paste_for(
+        &mut self,
+        expected: crate::native_settings::SettingsInputContext,
+        text: Option<&str>,
+    ) -> bool {
+        if self.editor.input_context() != Some(expected) {
+            return false;
+        }
+        if expected.readiness == crate::native_settings::SettingsInputReadiness::Interactive {
+            if let Some(text) = text {
+                self.editor.paste(text);
+            } else {
+                self.editor.reject_paste();
+            }
+        }
+        true
+    }
+}
+
 impl TerminalInputPort for Port {
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::{SurfaceInput, TextEntry};
+        match input {
+            SurfaceInput::Settings {
+                expected,
+                entry: TextEntry::Key(event),
+            } => self.capture_settings_key_for(expected, event),
+            SurfaceInput::Settings {
+                expected,
+                entry: TextEntry::Paste(text),
+            } => self.capture_settings_paste_for(expected, text),
+            _ => false,
+        }
+    }
+
     fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         crate::tui_composition::CaptureClaims::default()
             .with_settings(self.editor.input_context().is_some())
@@ -110,34 +174,6 @@ impl TerminalInputPort for Port {
         self.calls.borrow_mut().push(Call::Forward(bytes.to_vec()));
         Ok(())
     }
-    fn capture_settings_key_for(
-        &mut self,
-        expected: crate::native_settings::SettingsInputContext,
-        event: KeyEvent,
-    ) -> bool {
-        if self.editor.input_context() != Some(expected) {
-            return false;
-        }
-        if expected.readiness == crate::native_settings::SettingsInputReadiness::Recovery {
-            if matches!(
-                crate::native_settings::key_edit(event, false),
-                Some(Edit::Cancel)
-            ) {
-                self.editor.edit(Edit::Cancel);
-            }
-            return true;
-        }
-        let edit = self
-            .editor
-            .view()
-            .and_then(|view| crate::native_settings::key_edit_for_view(event, view));
-        if let Some(edit) = edit
-            && self.editor.edit(edit).is_some()
-        {
-            self.saves += 1;
-        }
-        true
-    }
     fn click_settings(&mut self, token: crate::native_settings::Token, row: Row) {
         if self.editor.click(token, row).is_some() {
             self.saves += 1;
@@ -164,23 +200,6 @@ impl TerminalInputPort for Port {
         self.editor
             .scroll(token, up, lines)
             .map(crate::tui_pointer::ListScrollTarget::Settings)
-    }
-    fn capture_settings_paste_for(
-        &mut self,
-        expected: crate::native_settings::SettingsInputContext,
-        text: Option<&str>,
-    ) -> bool {
-        if self.editor.input_context() != Some(expected) {
-            return false;
-        }
-        if expected.readiness == crate::native_settings::SettingsInputReadiness::Interactive {
-            if let Some(text) = text {
-                self.editor.paste(text);
-            } else {
-                self.editor.reject_paste();
-            }
-        }
-        true
     }
 }
 

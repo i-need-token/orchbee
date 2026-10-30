@@ -573,7 +573,7 @@ pub mod test_support {
     pub mod terminal_input {
         pub use crate::terminal_input::{
             HostReply, PaneAdmission, PaneInput, PointerFrameFacts, PointerPane, PointerProbe,
-            PointerSelectionIntent, PointerTab, TerminalInputUnavailable,
+            PointerSelectionIntent, PointerTab, SurfaceInput, TerminalInputUnavailable,
         };
         pub use crate::workbench_client::input::{
             PointerFrameFactsFixture, PointerPaneFixture, PointerPaneTestAccess,

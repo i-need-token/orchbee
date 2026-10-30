@@ -22,7 +22,8 @@ use crate::{
     client_view::{ClientAction, ClientActionDisposition},
     local_client::{LocalClient, LocalClientShutdown},
     workbench_client::input::{
-        PaneAdmission, PaneInput, TerminalInputPort, TerminalInputUnavailable, TerminalObservation,
+        PaneAdmission, PaneInput, SurfaceInput, TerminalInputPort, TerminalInputUnavailable,
+        TerminalObservation,
     },
 };
 use orchbee_client_server_protocol::Geometry;
@@ -844,23 +845,21 @@ impl TerminalInputPort for WorkbenchClient {
         }
         self.finalize_native_retirement();
     }
-    fn capture_settings_key_for(
-        &mut self,
-        expected: crate::native_settings::SettingsInputContext,
-        event: crate::client_view::KeyEvent,
-    ) -> bool {
-        self.backend
-            .native_mut()
-            .is_some_and(|native| native.capture_settings_key_for(expected, event))
-    }
-    fn capture_settings_paste_for(
-        &mut self,
-        expected: crate::native_settings::SettingsInputContext,
-        text: Option<&str>,
-    ) -> bool {
-        self.backend
-            .native_mut()
-            .is_some_and(|native| native.capture_settings_paste_for(expected, text))
+    fn surface_input(&mut self, input: SurfaceInput<'_>) -> bool {
+        // A close-confirmation key may request native retirement, which settles before the
+        // dispatcher observes the result. No other local input retires the native Client.
+        let settles = matches!(
+            input,
+            SurfaceInput::TabClose { .. }
+                | SurfaceInput::PanelClose { .. }
+                | SurfaceInput::WorkspaceClose { .. }
+        );
+        let ClientBackend::Native(native) = &mut self.backend;
+        let consumed = native.surface_input(input);
+        if settles {
+            self.finalize_native_retirement();
+        }
+        consumed
     }
     fn click_settings_control(
         &mut self,
@@ -877,30 +876,8 @@ impl TerminalInputPort for WorkbenchClient {
         up: bool,
         lines: usize,
     ) -> Option<ListScrollTarget> {
-        let native = self.backend.native_mut()?;
-        match target {
-            ListScrollTarget::Setup(token) => native
-                .scroll_setup_projects(*token, up, lines)
-                .map(ListScrollTarget::Setup),
-            ListScrollTarget::Worktree(token) => native
-                .scroll_worktree(*token, up, lines)
-                .map(ListScrollTarget::Worktree),
-            ListScrollTarget::Copy(token) => native
-                .scroll_copy_mode(*token, up, lines)
-                .map(ListScrollTarget::Copy),
-            ListScrollTarget::AgentBoard(token) => native
-                .scroll_agent_board(token, up, lines)
-                .map(ListScrollTarget::AgentBoard),
-            ListScrollTarget::Settings(token) => native
-                .scroll_settings(*token, up, lines)
-                .map(ListScrollTarget::Settings),
-            ListScrollTarget::Menu(token) => native
-                .scroll_action_menu(*token, up, lines)
-                .map(ListScrollTarget::Menu),
-            ListScrollTarget::Help(_)
-            | ListScrollTarget::Navigator(_)
-            | ListScrollTarget::MachinePicker(_) => None,
-        }
+        let ClientBackend::Native(native) = &mut self.backend;
+        native.scroll_list(target, up, lines)
     }
     fn click_settings(
         &mut self,
@@ -926,25 +903,6 @@ impl TerminalInputPort for WorkbenchClient {
         self.backend
             .native_mut()
             .is_some_and(|native| native.open_action_menu(target, anchor, pointer_released))
-    }
-    fn capture_action_menu_key_for(
-        &mut self,
-        expected: crate::action_menu::MenuInputContext,
-        event: crate::client_view::KeyEvent,
-    ) -> bool {
-        self.backend
-            .native_mut()
-            .is_some_and(|native| native.capture_action_menu_key_for(expected, event))
-    }
-    fn hover_action_menu_row(
-        &mut self,
-        source: &crate::action_menu::MenuTarget,
-        token: crate::action_menu::MenuToken,
-        row: usize,
-    ) -> bool {
-        self.backend
-            .native_mut()
-            .is_some_and(|native| native.hover_action_menu_row(source, token, row))
     }
     fn activate_action_menu_row(
         &mut self,
@@ -976,36 +934,12 @@ impl TerminalInputPort for WorkbenchClient {
             .native_mut()?
             .take_action_menu_action(pointer_released)
     }
-    fn popup_input(
-        &mut self,
-        id: &orchbee_workbench_protocol::WorkbenchRequestId,
-        item: &crate::terminal_events::DecodedItem,
-    ) {
-        if let Some(native) = self.backend.native_mut() {
-            native.popup_input(id, item);
-        }
-    }
-    fn popup_mouse(
-        &mut self,
-        id: &orchbee_workbench_protocol::WorkbenchRequestId,
-        content: ratatui::layout::Rect,
-        event: crate::terminal_events::MouseEvent,
-    ) {
-        if let Some(native) = self.backend.native_mut() {
-            native.popup_mouse(id, content, event);
-        }
-    }
     fn activate_drawn_popup_close(&mut self, target: &DrawnPopupClose) -> bool {
         self.backend
             .native_mut()
             .is_some_and(|native| native.activate_drawn_popup_close(target))
     }
 
-    fn edit_worktree(&mut self, token: WorktreeToken, edit: WorktreeEdit<'_>) -> bool {
-        self.backend
-            .native_mut()
-            .is_some_and(|ui| ui.edit_worktree(token, edit))
-    }
     fn dismiss_worktree(&mut self, token: WorktreeToken) {
         if let Some(ui) = self.backend.native_mut() {
             ui.dismiss_worktree(token);
@@ -1020,12 +954,6 @@ impl TerminalInputPort for WorkbenchClient {
         if let Some(ui) = self.backend.native_mut() {
             ui.choose_worktree(token, index);
         }
-    }
-
-    fn edit_setup_draft(&mut self, token: SetupToken, edit: SetupEdit<'_>) -> bool {
-        self.backend
-            .native_mut()
-            .is_some_and(|native| native.edit_setup_draft(token, edit))
     }
 
     fn cancel_setup_draft(&mut self, token: SetupToken) {
@@ -1050,12 +978,6 @@ impl TerminalInputPort for WorkbenchClient {
         disposition
     }
 
-    fn edit_rename_draft(&mut self, token: RenameDraftToken, edit: RenameEdit<'_>) -> bool {
-        match &mut self.backend {
-            ClientBackend::Native(native) => native.edit_rename_draft(token, edit),
-        }
-    }
-
     fn cancel_rename_draft(&mut self, token: RenameDraftToken) {
         if let Some(native) = self.backend.native_mut() {
             native.cancel_rename_draft(token);
@@ -1068,55 +990,6 @@ impl TerminalInputPort for WorkbenchClient {
         };
         self.finalize_native_retirement();
         disposition
-    }
-
-    fn capture_tab_confirmation_key_for(
-        &mut self,
-        token: CloseConfirmationToken,
-        key: crate::client_view::ClientKey,
-    ) -> bool {
-        let captured = self
-            .backend
-            .native_mut()
-            .is_some_and(|native| native.capture_tab_confirmation_key(token, key));
-        self.finalize_native_retirement();
-        captured
-    }
-
-    fn capture_panel_confirmation_key_for(
-        &mut self,
-        token: PanelCloseConfirmationToken,
-        key: crate::client_view::ClientKey,
-    ) -> bool {
-        let captured = self
-            .backend
-            .native_mut()
-            .is_some_and(|native| native.capture_panel_confirmation_key(token, key));
-        self.finalize_native_retirement();
-        captured
-    }
-
-    fn capture_workspace_confirmation_key_for(
-        &mut self,
-        token: WorkspaceCloseToken,
-        key: crate::client_view::ClientKey,
-    ) -> bool {
-        let captured = self
-            .backend
-            .native_mut()
-            .is_some_and(|native| native.capture_workspace_close_key(token, key));
-        self.finalize_native_retirement();
-        captured
-    }
-
-    fn capture_agent_board_key_for(
-        &mut self,
-        episode: AgentBoardEpisodeToken,
-        key: crate::client_view::KeyEvent,
-    ) -> bool {
-        match &mut self.backend {
-            ClientBackend::Native(native) => native.capture_agent_board_key(episode, &key),
-        }
     }
 
     fn agent_board_select(&mut self, target: &AgentBoardRowTarget) -> bool {
@@ -1221,35 +1094,15 @@ impl TerminalInputPort for WorkbenchClient {
     }
 
     fn pane_input(&mut self, input: PaneInput<'_>) -> PaneAdmission {
-        let consumed = match (&mut self.backend, input) {
-            // Selection and link steps never retire native state, so they skip settlement.
-            (ClientBackend::Native(native), PaneInput::Selection { pane, intent }) => {
-                return native.pointer_selection(pane, intent);
-            }
-            (ClientBackend::Native(native), PaneInput::Link { source, cell }) => {
-                return native.pointer_link(*source, cell);
-            }
-            (ClientBackend::Native(native), PaneInput::HistoryKey(event)) => {
-                native.history_key(event)
-            }
-            (ClientBackend::Native(native), PaneInput::HistoryWheel { pane, up }) => {
-                native.history_wheel(pane, up)
-            }
-            (
-                ClientBackend::Native(native),
-                PaneInput::Scrollbar {
-                    pane,
-                    source,
-                    offset,
-                },
-            ) => native.scrollbar_scroll(pane, source, offset),
-        };
-        self.finalize_native_retirement();
-        if consumed {
-            PaneAdmission::Admitted
-        } else {
-            PaneAdmission::Rejected
+        // Selection and link steps never retire native state, so only history and scrollbar
+        // steps settle retirement.
+        let settles = !matches!(input, PaneInput::Selection { .. } | PaneInput::Link { .. });
+        let ClientBackend::Native(native) = &mut self.backend;
+        let admission = native.pane_input(input);
+        if settles {
+            self.finalize_native_retirement();
         }
+        admission
     }
 
     fn pointer_divider_ready(
@@ -1375,12 +1228,6 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    fn capture_copy_mode_key(&mut self, event: &crate::client_view::KeyEvent) -> bool {
-        self.backend
-            .native_mut()
-            .is_some_and(|native| native.capture_copy_mode_key(event))
-    }
-
     fn click_copy_control(
         &mut self,
         token: crate::terminal_copy_mode::CopyModeToken,
@@ -1389,22 +1236,6 @@ impl TerminalInputPort for WorkbenchClient {
         if let Some(native) = self.backend.native_mut() {
             native.click_copy_control(token, control);
         }
-    }
-    fn copy_pointer_cell(
-        &mut self,
-        token: crate::terminal_copy_mode::CopySurfaceToken,
-        cell: crate::terminal_copy_mode::CopyModeCursor,
-        start: bool,
-    ) -> bool {
-        self.backend
-            .native_mut()
-            .is_some_and(|native| native.copy_pointer_cell(token, cell, start))
-    }
-
-    fn capture_copy_mode_paste(&mut self, text: Option<&str>) -> bool {
-        self.backend
-            .native_mut()
-            .is_some_and(|native| native.capture_copy_mode_paste(text))
     }
 
     fn cancel_copy_mode(&mut self) -> bool {

@@ -4,6 +4,7 @@ use super::{
     MouseEvent, PointerState, Rect, TerminalInputPort, plain_primary_press,
 };
 use crate::terminal_copy_mode::{CopyModeCursor, CopySurfaceToken};
+use crate::terminal_input::SurfaceInput;
 
 #[derive(Clone, Copy)]
 pub(super) struct Drag {
@@ -65,7 +66,11 @@ impl PointerState {
                 && matches!(event.button, MouseButton::Left | MouseButton::None)
             {
                 if self.map.as_ref().is_none_or(|map| !drag.painted_in(map))
-                    || !port.copy_pointer_cell(drag.token, drag.cell(event), false)
+                    || !port.surface_input(SurfaceInput::CopyModeCell {
+                        token: drag.token,
+                        cell: drag.cell(event),
+                        start: false,
+                    })
                     || event.action == MouseAction::Release
                 {
                     self.cancel_copy_drag();
@@ -92,7 +97,11 @@ impl PointerState {
                 area: *area,
                 origin: *origin,
             };
-            if port.copy_pointer_cell(drag.token, drag.cell(event), true) {
+            if port.surface_input(SurfaceInput::CopyModeCell {
+                token: drag.token,
+                cell: drag.cell(event),
+                start: true,
+            }) {
                 self.copy_drag = Some(drag);
             }
         }

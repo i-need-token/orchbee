@@ -71,7 +71,44 @@ fn timed_out_paste_reports_one_copy_refusal_and_keeps_its_tail_captured() {
     assert!(!port.active);
 }
 
+impl CopyPort {
+    fn capture_copy_mode_key(&mut self, event: &KeyEvent) -> bool {
+        self.keys.push(*event);
+        if copy_mode_key(*event) == Some(CopyModeKey::Exit) {
+            self.active = false;
+        }
+        true
+    }
+
+    fn capture_copy_mode_paste(&mut self, text: Option<&str>) -> bool {
+        self.pastes.push(text.map(str::to_owned));
+        true
+    }
+
+    fn copy_pointer_cell(
+        &mut self,
+        _token: CopySurfaceToken,
+        cell: CopyModeCursor,
+        start: bool,
+    ) -> bool {
+        self.pointer_cells.push((cell, start));
+        true
+    }
+}
+
 impl TerminalInputPort for CopyPort {
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::{SurfaceInput, TextEntry};
+        match input {
+            SurfaceInput::CopyMode(TextEntry::Key(event)) => self.capture_copy_mode_key(&event),
+            SurfaceInput::CopyMode(TextEntry::Paste(text)) => self.capture_copy_mode_paste(text),
+            SurfaceInput::CopyModeCell { token, cell, start } => {
+                self.copy_pointer_cell(token, cell, start)
+            }
+            _ => false,
+        }
+    }
+
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
@@ -90,28 +127,8 @@ impl TerminalInputPort for CopyPort {
     fn copy_mode_active(&self) -> bool {
         self.active
     }
-    fn capture_copy_mode_key(&mut self, event: &KeyEvent) -> bool {
-        self.keys.push(*event);
-        if copy_mode_key(*event) == Some(CopyModeKey::Exit) {
-            self.active = false;
-        }
-        true
-    }
-    fn capture_copy_mode_paste(&mut self, text: Option<&str>) -> bool {
-        self.pastes.push(text.map(str::to_owned));
-        true
-    }
     fn cancel_copy_mode(&mut self) -> bool {
         std::mem::take(&mut self.active)
-    }
-    fn copy_pointer_cell(
-        &mut self,
-        _token: CopySurfaceToken,
-        cell: CopyModeCursor,
-        start: bool,
-    ) -> bool {
-        self.pointer_cells.push((cell, start));
-        true
     }
 }
 

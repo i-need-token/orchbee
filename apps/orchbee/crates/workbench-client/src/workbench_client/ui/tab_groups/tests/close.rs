@@ -490,26 +490,15 @@ impl TerminalInputPort for Port<'_> {
     ) -> Option<ClientActionDisposition> {
         Some(self.ui.apply_client_action(command))
     }
-    fn capture_tab_confirmation_key_for(
-        &mut self,
-        token: CloseConfirmationToken,
-        key: ClientKey,
-    ) -> bool {
-        self.ui.capture_tab_confirmation_key(token, key)
-    }
-    fn capture_panel_confirmation_key_for(
-        &mut self,
-        token: PanelCloseConfirmationToken,
-        key: ClientKey,
-    ) -> bool {
-        self.ui.capture_panel_confirmation_key(token, key)
-    }
-    fn capture_workspace_confirmation_key_for(
-        &mut self,
-        token: WorkspaceCloseToken,
-        key: ClientKey,
-    ) -> bool {
-        self.ui.capture_workspace_close_key(token, key)
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::TabClose { .. }
+            | SurfaceInput::PanelClose { .. }
+            | SurfaceInput::WorkspaceClose { .. }
+            | SurfaceInput::ActionMenu { .. } => self.ui.surface_input(input),
+            _ => false,
+        }
     }
     fn open_action_menu(
         &mut self,
@@ -518,13 +507,6 @@ impl TerminalInputPort for Port<'_> {
         released: bool,
     ) -> bool {
         self.ui.open_action_menu(target, anchor, released)
-    }
-    fn capture_action_menu_key_for(
-        &mut self,
-        expected: crate::action_menu::MenuInputContext,
-        key: KeyEvent,
-    ) -> bool {
-        self.ui.capture_action_menu_key_for(expected, key)
     }
     fn activate_action_menu_row(
         &mut self,

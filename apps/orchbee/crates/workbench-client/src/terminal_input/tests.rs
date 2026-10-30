@@ -92,7 +92,37 @@ fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() 
         keys: Vec<crate::client_view::ClientKey>,
         forwarded: Vec<Vec<u8>>,
     }
+    impl ModalInput {
+        fn capture_tab_confirmation_key_for(
+            &mut self,
+            token: crate::workbench_client::CloseConfirmationToken,
+            key: crate::client_view::ClientKey,
+        ) -> bool {
+            if token != crate::workbench_client::CloseConfirmationToken::for_test(1) {
+                return false;
+            }
+            if !self.active {
+                return false;
+            }
+            self.keys.push(key);
+            if key == crate::client_view::ClientKey::Plain('n') {
+                self.active = false;
+            }
+            true
+        }
+    }
+
     impl TerminalInputPort for ModalInput {
+        fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+            use crate::terminal_input::SurfaceInput;
+            match input {
+                SurfaceInput::TabClose { token, key } => {
+                    self.capture_tab_confirmation_key_for(token, key)
+                }
+                _ => false,
+            }
+        }
+
         fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
             crate::tui_composition::CaptureClaims::default().with_tab_close(self.active)
         }
@@ -126,23 +156,6 @@ fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() 
                 self.active = true;
             }
             Some(ClientActionDisposition::KeepNavigator)
-        }
-        fn capture_tab_confirmation_key_for(
-            &mut self,
-            token: crate::workbench_client::CloseConfirmationToken,
-            key: crate::client_view::ClientKey,
-        ) -> bool {
-            if token != crate::workbench_client::CloseConfirmationToken::for_test(1) {
-                return false;
-            }
-            if !self.active {
-                return false;
-            }
-            self.keys.push(key);
-            if key == crate::client_view::ClientKey::Plain('n') {
-                self.active = false;
-            }
-            true
         }
     }
     let mut view = ClientView::new(100);
@@ -185,7 +198,36 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
         active: bool,
         forwarded: Vec<Vec<u8>>,
     }
+    impl ConfirmTail {
+        fn capture_tab_confirmation_key_for(
+            &mut self,
+            token: crate::workbench_client::CloseConfirmationToken,
+            key: crate::client_view::ClientKey,
+        ) -> bool {
+            if token != crate::workbench_client::CloseConfirmationToken::for_test(1) {
+                return false;
+            }
+            if !self.active {
+                return false;
+            }
+            if key == crate::client_view::ClientKey::Enter {
+                self.active = false;
+            }
+            true
+        }
+    }
+
     impl TerminalInputPort for ConfirmTail {
+        fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+            use crate::terminal_input::SurfaceInput;
+            match input {
+                SurfaceInput::TabClose { token, key } => {
+                    self.capture_tab_confirmation_key_for(token, key)
+                }
+                _ => false,
+            }
+        }
+
         fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
             crate::tui_composition::CaptureClaims::default().with_tab_close(self.active)
         }
@@ -219,22 +261,6 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
                 self.active = true;
             }
             Some(ClientActionDisposition::KeepNavigator)
-        }
-        fn capture_tab_confirmation_key_for(
-            &mut self,
-            token: crate::workbench_client::CloseConfirmationToken,
-            key: crate::client_view::ClientKey,
-        ) -> bool {
-            if token != crate::workbench_client::CloseConfirmationToken::for_test(1) {
-                return false;
-            }
-            if !self.active {
-                return false;
-            }
-            if key == crate::client_view::ClientKey::Enter {
-                self.active = false;
-            }
-            true
         }
     }
     let mut view = ClientView::new(100);
@@ -588,7 +614,42 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
         mouse: Vec<WorkbenchRequestId>,
         close_attempts: Vec<WorkbenchRequestId>,
     }
+    impl PopupPort {
+        fn popup_input(&mut self, id: &WorkbenchRequestId, item: &super::DecodedItem) {
+            if self.id.as_ref() == Some(id) {
+                self.decoded.push(item.raw.to_vec());
+            }
+        }
+
+        fn popup_mouse(
+            &mut self,
+            id: &WorkbenchRequestId,
+            _: ratatui::layout::Rect,
+            _: super::MouseEvent,
+        ) {
+            if self.id.as_ref() != Some(id) {
+                return;
+            }
+            self.mouse.push(id.clone());
+        }
+    }
+
     impl TerminalInputPort for PopupPort {
+        fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+            use crate::terminal_input::SurfaceInput;
+            match input {
+                SurfaceInput::Popup { id, item } => {
+                    self.popup_input(id, item);
+                    true
+                }
+                SurfaceInput::PopupPointer { id, content, event } => {
+                    self.popup_mouse(id, content, event);
+                    true
+                }
+                _ => false,
+            }
+        }
+
         fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
             crate::tui_composition::CaptureClaims::default().with_popup(self.id.is_some())
         }
@@ -610,22 +671,6 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
         fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
             self.forwarded.push(bytes.to_vec());
             Ok(())
-        }
-        fn popup_input(&mut self, id: &WorkbenchRequestId, item: &super::DecodedItem) {
-            if self.id.as_ref() == Some(id) {
-                self.decoded.push(item.raw.to_vec());
-            }
-        }
-        fn popup_mouse(
-            &mut self,
-            id: &WorkbenchRequestId,
-            _: ratatui::layout::Rect,
-            _: super::MouseEvent,
-        ) {
-            if self.id.as_ref() != Some(id) {
-                return;
-            }
-            self.mouse.push(id.clone());
         }
         fn activate_drawn_popup_close(
             &mut self,

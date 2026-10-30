@@ -35,7 +35,50 @@ impl Port {
         self.shown = Some(self.token());
     }
 }
+impl Port {
+    fn edit_worktree(&mut self, token: WorktreeToken, edit: WorktreeEdit<'_>) -> bool {
+        assert_eq!(token, self.token());
+        if matches!(
+            self.stage,
+            WorktreeStage::Waiting | WorktreeStage::Preparing
+        ) {
+            return true;
+        }
+        match edit {
+            WorktreeEdit::Completeness(value) => {
+                self.complete = value;
+                if !value {
+                    self.shown = None;
+                }
+                return true;
+            }
+            WorktreeEdit::Append(text) | WorktreeEdit::Paste(text) => self.text.push_str(text),
+            WorktreeEdit::NextField => {
+                self.stage = WorktreeStage::Base;
+                self.text.clear();
+            }
+            WorktreeEdit::Next => self.selection += 1,
+            WorktreeEdit::Previous => self.selection -= 1,
+            WorktreeEdit::Fault => {
+                self.fault = true;
+                return true;
+            }
+            _ => {}
+        }
+        self.serial += 1;
+        true
+    }
+}
+
 impl TerminalInputPort for Port {
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::Worktree { token, edit } => self.edit_worktree(token, edit),
+            _ => false,
+        }
+    }
+
     fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         crate::tui_composition::CaptureClaims::default().with_worktree(self.active)
     }
@@ -73,38 +116,6 @@ impl TerminalInputPort for Port {
         }
         self.active = true;
         Some(ClientActionDisposition::DismissNavigator)
-    }
-    fn edit_worktree(&mut self, token: WorktreeToken, edit: WorktreeEdit<'_>) -> bool {
-        assert_eq!(token, self.token());
-        if matches!(
-            self.stage,
-            WorktreeStage::Waiting | WorktreeStage::Preparing
-        ) {
-            return true;
-        }
-        match edit {
-            WorktreeEdit::Completeness(value) => {
-                self.complete = value;
-                if !value {
-                    self.shown = None;
-                }
-                return true;
-            }
-            WorktreeEdit::Append(text) | WorktreeEdit::Paste(text) => self.text.push_str(text),
-            WorktreeEdit::NextField => {
-                self.stage = WorktreeStage::Base;
-                self.text.clear();
-            }
-            WorktreeEdit::Next => self.selection += 1,
-            WorktreeEdit::Previous => self.selection -= 1,
-            WorktreeEdit::Fault => {
-                self.fault = true;
-                return true;
-            }
-            _ => {}
-        }
-        self.serial += 1;
-        true
     }
     fn submit_worktree(&mut self, token: WorktreeToken) {
         assert_eq!(token, self.token());

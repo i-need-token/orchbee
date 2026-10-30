@@ -1,10 +1,11 @@
 //! Workbench input capabilities and current pointer/capture facts. The input dispatcher consumes
 //! this contract; the port owns no byte decoder, terminal lifecycle writer or dispatch loop.
 
-use super::state::workspace_setup::{SetupEdit, SetupToken};
-use super::state::worktree_launch::{WorktreeEdit, WorktreeToken};
+use super::state::workspace_setup::SetupToken;
+use super::state::worktree_launch::WorktreeToken;
 mod action;
 mod capture;
+mod surface;
 pub(crate) use action::CapturedClientAction;
 pub(in crate::workbench_client) use action::CapturedRequest;
 pub use action::InputAction;
@@ -13,9 +14,9 @@ pub(crate) use capture::{
     CaptureReadiness, ConfirmationCaptureContext, RenameInputContext, SetupCaptureContext,
     WorktreeCaptureContext,
 };
+pub use surface::{SurfaceInput, TextEntry};
 
-use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey};
-use crate::terminal_events::{DecodedItem, MouseEvent};
+use crate::client_view::{ClientAction, ClientActionDisposition};
 use crate::tui_composition::{CaptureClaims, WorkbenchCaptureOwner};
 use orchbee_client_server_protocol::Geometry;
 use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
@@ -247,20 +248,6 @@ pub trait TerminalInputPort {
     ) -> Option<ClientAction> {
         None
     }
-    fn capture_settings_key_for(
-        &mut self,
-        _expected: crate::native_settings::SettingsInputContext,
-        _event: crate::client_view::KeyEvent,
-    ) -> bool {
-        false
-    }
-    fn capture_settings_paste_for(
-        &mut self,
-        _expected: crate::native_settings::SettingsInputContext,
-        _text: Option<&str>,
-    ) -> bool {
-        false
-    }
     fn click_settings_control(
         &mut self,
         _token: crate::native_settings::Token,
@@ -294,21 +281,6 @@ pub trait TerminalInputPort {
     ) -> bool {
         false
     }
-    fn capture_action_menu_key_for(
-        &mut self,
-        _expected: crate::action_menu::MenuInputContext,
-        _event: crate::client_view::KeyEvent,
-    ) -> bool {
-        false
-    }
-    fn hover_action_menu_row(
-        &mut self,
-        _source: &crate::action_menu::MenuTarget,
-        _token: crate::action_menu::MenuToken,
-        _row: usize,
-    ) -> bool {
-        false
-    }
     fn activate_action_menu_row(
         &mut self,
         _source: &crate::action_menu::MenuTarget,
@@ -327,19 +299,6 @@ pub trait TerminalInputPort {
     fn take_action_menu_action(&mut self, _pointer_released: bool) -> Option<InputAction> {
         None
     }
-    fn popup_input(
-        &mut self,
-        _id: &orchbee_workbench_protocol::WorkbenchRequestId,
-        _item: &DecodedItem,
-    ) {
-    }
-    fn popup_mouse(
-        &mut self,
-        _id: &orchbee_workbench_protocol::WorkbenchRequestId,
-        _content: ratatui::layout::Rect,
-        _event: MouseEvent,
-    ) {
-    }
     fn activate_drawn_popup_close(
         &mut self,
         _target: &crate::workbench_client::DrawnPopupClose,
@@ -351,6 +310,12 @@ pub trait TerminalInputPort {
 
     /// One host or input-stream fact; see [`TerminalObservation`].
     fn observe_terminal(&mut self, _observation: TerminalObservation) {}
+
+    /// One local input for the surface that holds input; see [`SurfaceInput`]. Returns whether
+    /// the owner consumed it or changed. The default consumes nothing.
+    fn surface_input(&mut self, _input: SurfaceInput<'_>) -> bool {
+        false
+    }
 
     fn navigator_catalog(&self) -> Option<crate::client_view::navigator::Catalog> {
         None
@@ -484,48 +449,8 @@ pub trait TerminalInputPort {
         _control: crate::terminal_copy_mode::CopyControl,
     ) {
     }
-    fn copy_pointer_cell(
-        &mut self,
-        _token: crate::terminal_copy_mode::CopySurfaceToken,
-        _cell: crate::terminal_copy_mode::CopyModeCursor,
-        _start: bool,
-    ) -> bool {
-        false
-    }
-
-    fn capture_copy_mode_key(&mut self, _event: &crate::client_view::KeyEvent) -> bool {
-        false
-    }
-
-    fn capture_copy_mode_paste(&mut self, _text: Option<&str>) -> bool {
-        false
-    }
 
     fn cancel_copy_mode(&mut self) -> bool {
-        false
-    }
-
-    fn capture_tab_confirmation_key_for(
-        &mut self,
-        _token: crate::workbench_client::CloseConfirmationToken,
-        _key: ClientKey,
-    ) -> bool {
-        false
-    }
-
-    fn capture_panel_confirmation_key_for(
-        &mut self,
-        _token: crate::workbench_client::PanelCloseConfirmationToken,
-        _key: ClientKey,
-    ) -> bool {
-        false
-    }
-
-    fn capture_workspace_confirmation_key_for(
-        &mut self,
-        _token: crate::workbench_client::WorkspaceCloseToken,
-        _key: ClientKey,
-    ) -> bool {
         false
     }
 
@@ -551,14 +476,6 @@ pub trait TerminalInputPort {
     ) {
     }
 
-    fn capture_agent_board_key_for(
-        &mut self,
-        _episode: crate::workbench_client::AgentBoardEpisodeToken,
-        _key: crate::client_view::KeyEvent,
-    ) -> bool {
-        false
-    }
-
     /// A press on a painted board row — resolves by stable session
     /// identity, never by position.
     fn agent_board_select(
@@ -578,27 +495,16 @@ pub trait TerminalInputPort {
     /// An outside press dismissed the board's capturing overlay.
     fn agent_board_dismiss(&mut self) {}
 
-    fn edit_rename_draft(&mut self, _token: RenameDraftToken, _edit: RenameEdit<'_>) -> bool {
-        false
-    }
-
     fn cancel_rename_draft(&mut self, _token: RenameDraftToken) {}
 
     fn submit_rename_draft(&mut self, _token: RenameDraftToken) -> Option<ClientActionDisposition> {
         None
     }
 
-    fn edit_worktree(&mut self, _token: WorktreeToken, _edit: WorktreeEdit<'_>) -> bool {
-        false
-    }
     fn dismiss_worktree(&mut self, _token: WorktreeToken) {}
     fn submit_worktree(&mut self, _token: WorktreeToken) {}
     /// Submit an exact checkout from the current successfully painted picker.
     fn choose_worktree(&mut self, _token: WorktreeToken, _index: usize) {}
-
-    fn edit_setup_draft(&mut self, _token: SetupToken, _edit: SetupEdit<'_>) -> bool {
-        false
-    }
 
     fn cancel_setup_draft(&mut self, _token: SetupToken) {}
 

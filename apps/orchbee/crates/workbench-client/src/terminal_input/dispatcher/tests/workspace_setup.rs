@@ -82,7 +82,74 @@ fn project_delete_decision_accepts_only_drawn_plain_enter_and_never_editor_or_pa
     assert!(port.active);
 }
 
+impl SetupPort {
+    fn edit_setup_draft(&mut self, token: SetupToken, edit: SetupEdit<'_>) -> bool {
+        assert_eq!(token, self.token());
+        match edit {
+            SetupEdit::NextField => {
+                if !matches!(
+                    self.stage,
+                    SetupStage::QuickName | SetupStage::QuickDirectory
+                ) {
+                    return false;
+                }
+                self.stage = if self.stage == SetupStage::QuickName {
+                    SetupStage::QuickDirectory
+                } else {
+                    SetupStage::QuickName
+                };
+                self.token += 1;
+                self.shown = false;
+            }
+            SetupEdit::Append(text) => self.text.push_str(text),
+            SetupEdit::Paste(text) => {
+                self.edits.push("paste");
+                self.text.push_str(text);
+            }
+            SetupEdit::Backspace => {
+                let _removed = self.text.pop();
+                self.fault = false;
+            }
+            SetupEdit::Clear => {
+                self.text.clear();
+                self.fault = false;
+            }
+            SetupEdit::Left => self.edits.push("left"),
+            SetupEdit::Right => self.edits.push("right"),
+            SetupEdit::Home => self.edits.push("home"),
+            SetupEdit::End => self.edits.push("end"),
+            SetupEdit::Delete => self.edits.push("delete"),
+            SetupEdit::WordBackspace => self.edits.push("word_backspace"),
+            SetupEdit::Fault => self.fault = true,
+            SetupEdit::Completeness(complete) => self.complete = complete,
+            SetupEdit::SelectPreviousProject => {
+                self.selections -= 1;
+                self.shown = false;
+                self.token += 1;
+            }
+            SetupEdit::SelectNextProject => {
+                self.selections += 1;
+                self.shown = false;
+                self.token += 1;
+            }
+            SetupEdit::SelectDirectory(_) => self.edits.push("select_directory"),
+            SetupEdit::ScrollProjects { .. } => {
+                unreachable!("scrolling has its own port method")
+            }
+        }
+        true
+    }
+}
+
 impl TerminalInputPort for SetupPort {
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::Setup { token, edit } => self.edit_setup_draft(token, edit),
+            _ => false,
+        }
+    }
+
     fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         crate::tui_composition::CaptureClaims::default().with_setup(self.active)
     }
@@ -174,63 +241,6 @@ impl TerminalInputPort for SetupPort {
     ) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
-    }
-
-    fn edit_setup_draft(&mut self, token: SetupToken, edit: SetupEdit<'_>) -> bool {
-        assert_eq!(token, self.token());
-        match edit {
-            SetupEdit::NextField => {
-                if !matches!(
-                    self.stage,
-                    SetupStage::QuickName | SetupStage::QuickDirectory
-                ) {
-                    return false;
-                }
-                self.stage = if self.stage == SetupStage::QuickName {
-                    SetupStage::QuickDirectory
-                } else {
-                    SetupStage::QuickName
-                };
-                self.token += 1;
-                self.shown = false;
-            }
-            SetupEdit::Append(text) => self.text.push_str(text),
-            SetupEdit::Paste(text) => {
-                self.edits.push("paste");
-                self.text.push_str(text);
-            }
-            SetupEdit::Backspace => {
-                let _removed = self.text.pop();
-                self.fault = false;
-            }
-            SetupEdit::Clear => {
-                self.text.clear();
-                self.fault = false;
-            }
-            SetupEdit::Left => self.edits.push("left"),
-            SetupEdit::Right => self.edits.push("right"),
-            SetupEdit::Home => self.edits.push("home"),
-            SetupEdit::End => self.edits.push("end"),
-            SetupEdit::Delete => self.edits.push("delete"),
-            SetupEdit::WordBackspace => self.edits.push("word_backspace"),
-            SetupEdit::Fault => self.fault = true,
-            SetupEdit::Completeness(complete) => self.complete = complete,
-            SetupEdit::SelectPreviousProject => {
-                self.selections -= 1;
-                self.shown = false;
-                self.token += 1;
-            }
-            SetupEdit::SelectNextProject => {
-                self.selections += 1;
-                self.shown = false;
-                self.token += 1;
-            }
-            SetupEdit::SelectDirectory(_) => self.edits.push("select_directory"),
-            SetupEdit::ScrollProjects { .. } => {
-                unreachable!("scrolling has its own port method")
-            }
-        }
-        true
     }
 
     fn submit_setup_draft(&mut self, token: SetupToken) -> Option<ClientActionDisposition> {

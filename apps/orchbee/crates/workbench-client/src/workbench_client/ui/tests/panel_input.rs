@@ -45,26 +45,16 @@ impl TerminalInputPort for ClientInputPort<'_> {
         Some(self.0.apply_client_action(command))
     }
 
-    fn capture_tab_confirmation_key_for(
-        &mut self,
-        token: CloseConfirmationToken,
-        key: ClientKey,
-    ) -> bool {
-        self.0.capture_tab_confirmation_key(token, key)
-    }
-    fn capture_panel_confirmation_key_for(
-        &mut self,
-        token: PanelCloseConfirmationToken,
-        key: ClientKey,
-    ) -> bool {
-        self.0.capture_panel_confirmation_key(token, key)
-    }
-    fn capture_workspace_confirmation_key_for(
-        &mut self,
-        token: WorkspaceCloseToken,
-        key: ClientKey,
-    ) -> bool {
-        self.0.capture_workspace_close_key(token, key)
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::TabClose { .. }
+            | SurfaceInput::PanelClose { .. }
+            | SurfaceInput::WorkspaceClose { .. }
+            | SurfaceInput::Rename { .. }
+            | SurfaceInput::Setup { .. } => self.0.surface_input(input),
+            _ => false,
+        }
     }
     fn click_tab_close(&mut self, token: CloseConfirmationToken, confirm: bool) {
         self.0.click_tab_close(token, confirm);
@@ -73,20 +63,12 @@ impl TerminalInputPort for ClientInputPort<'_> {
         self.0.click_panel_close(token, confirm);
     }
 
-    fn edit_rename_draft(&mut self, token: RenameDraftToken, edit: RenameEdit<'_>) -> bool {
-        self.0.edit_rename_draft(token, edit)
-    }
-
     fn cancel_rename_draft(&mut self, token: RenameDraftToken) {
         self.0.cancel_rename_draft(token);
     }
 
     fn submit_rename_draft(&mut self, token: RenameDraftToken) -> Option<ClientActionDisposition> {
         Some(self.0.submit_rename_draft(token))
-    }
-
-    fn edit_setup_draft(&mut self, token: SetupToken, edit: SetupEdit<'_>) -> bool {
-        self.0.edit_setup_draft(token, edit)
     }
 
     fn cancel_setup_draft(&mut self, token: SetupToken) {

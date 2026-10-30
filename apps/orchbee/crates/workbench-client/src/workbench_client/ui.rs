@@ -1258,6 +1258,7 @@ mod completion_reminders;
 pub(super) mod control_steps;
 mod independent_popup;
 mod input_capture;
+mod input_routing;
 mod link_activation;
 mod navigation_draw;
 mod terminal_tail;

@@ -14,7 +14,7 @@ use super::super::tests::publication_hint::ready_split_ui;
 use super::super::*;
 mod chrome;
 mod scrollbar;
-use crate::client_view::{ClientKey, ClientView, KeyCode, KeyEvent, Modifiers};
+use crate::client_view::{ClientView, KeyCode, KeyEvent, Modifiers};
 use crate::terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable};
 use crate::workbench_client::mailbox::EventDeadline;
 use orchbee_client_server_protocol::ViewportRowOrigin;
@@ -624,22 +624,11 @@ impl TerminalInputPort for ClientInputPort<'_> {
         input: crate::terminal_input::PaneInput<'_>,
     ) -> crate::terminal_input::PaneAdmission {
         use crate::terminal_input::{PaneAdmission, PaneInput};
-        let consumed = match input {
-            PaneInput::Selection { pane, intent } => return self.0.pointer_selection(pane, intent),
-            PaneInput::Link { source, cell } => return self.0.pointer_link(*source, cell),
-            PaneInput::HistoryKey(event) => self.0.history_key(event),
-            PaneInput::HistoryWheel { pane, up } => self.0.history_wheel(pane, up),
-            PaneInput::Scrollbar {
-                pane,
-                source,
-                offset,
-            } => self.0.scrollbar_scroll(pane, source, offset),
-        };
-        if consumed {
-            PaneAdmission::Admitted
-        } else {
-            PaneAdmission::Rejected
+        // This wrapper never offered link activation.
+        if matches!(input, PaneInput::Link { .. }) {
+            return PaneAdmission::Rejected;
         }
+        self.0.pane_input(input)
     }
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.0
@@ -655,44 +644,23 @@ impl TerminalInputPort for ClientInputPort<'_> {
         Some(self.0.apply_client_action(command))
     }
 
-    fn capture_tab_confirmation_key_for(
-        &mut self,
-        token: CloseConfirmationToken,
-        key: ClientKey,
-    ) -> bool {
-        self.0.capture_tab_confirmation_key(token, key)
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::TabClose { .. }
+            | SurfaceInput::PanelClose { .. }
+            | SurfaceInput::WorkspaceClose { .. }
+            | SurfaceInput::Rename { .. }
+            | SurfaceInput::Setup { .. } => self.0.surface_input(input),
+            _ => false,
+        }
     }
-
-    fn capture_panel_confirmation_key_for(
-        &mut self,
-        token: PanelCloseConfirmationToken,
-        key: ClientKey,
-    ) -> bool {
-        self.0.capture_panel_confirmation_key(token, key)
-    }
-
-    fn capture_workspace_confirmation_key_for(
-        &mut self,
-        token: WorkspaceCloseToken,
-        key: ClientKey,
-    ) -> bool {
-        self.0.capture_workspace_close_key(token, key)
-    }
-
-    fn edit_rename_draft(&mut self, token: RenameDraftToken, edit: RenameEdit<'_>) -> bool {
-        self.0.edit_rename_draft(token, edit)
-    }
-
     fn cancel_rename_draft(&mut self, token: RenameDraftToken) {
         self.0.cancel_rename_draft(token);
     }
 
     fn submit_rename_draft(&mut self, token: RenameDraftToken) -> Option<ClientActionDisposition> {
         Some(self.0.submit_rename_draft(token))
-    }
-
-    fn edit_setup_draft(&mut self, token: SetupToken, edit: SetupEdit<'_>) -> bool {
-        self.0.edit_setup_draft(token, edit)
     }
 
     fn cancel_setup_draft(&mut self, token: SetupToken) {

@@ -1660,7 +1660,40 @@ impl BoardPort {
     }
 }
 
+impl BoardPort {
+    fn capture_agent_board_key_for(
+        &mut self,
+        episode: crate::workbench_client::AgentBoardEpisodeToken,
+        key: crate::client_view::KeyEvent,
+    ) -> bool {
+        if !self.owned.get()
+            || episode != crate::workbench_client::AgentBoardEpisodeToken::for_test(1)
+        {
+            return false;
+        }
+        if crate::client_view::Binding::new(
+            crate::client_view::KeyCode::Esc,
+            crate::client_view::Modifiers::NONE,
+        )
+        .matches(key)
+        {
+            self.owned.set(false);
+        }
+        true
+    }
+}
+
 impl TerminalInputPort for BoardPort {
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::AgentBoard { episode, key } => {
+                self.capture_agent_board_key_for(episode, key)
+            }
+            _ => false,
+        }
+    }
+
     fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         let claims =
             crate::tui_composition::CaptureClaims::default().with_agent_board(self.owned.get());
@@ -1727,27 +1760,6 @@ impl TerminalInputPort for BoardPort {
         self.action_menu.cancel();
     }
 
-    fn capture_agent_board_key_for(
-        &mut self,
-        episode: crate::workbench_client::AgentBoardEpisodeToken,
-        key: crate::client_view::KeyEvent,
-    ) -> bool {
-        if !self.owned.get()
-            || episode != crate::workbench_client::AgentBoardEpisodeToken::for_test(1)
-        {
-            return false;
-        }
-        if crate::client_view::Binding::new(
-            crate::client_view::KeyCode::Esc,
-            crate::client_view::Modifiers::NONE,
-        )
-        .matches(key)
-        {
-            self.owned.set(false);
-        }
-        true
-    }
-
     fn agent_board_select(
         &mut self,
         target: &crate::workbench_client::AgentBoardRowTarget,
@@ -1770,7 +1782,39 @@ struct ConfirmationBoardPort {
     calls: Rc<RefCell<Vec<Call>>>,
 }
 
+impl ConfirmationBoardPort {
+    fn capture_panel_confirmation_key_for(
+        &mut self,
+        _token: crate::workbench_client::PanelCloseConfirmationToken,
+        key: crate::client_view::ClientKey,
+    ) -> bool {
+        self.calls.borrow_mut().push(Call::Confirmation(key));
+        true
+    }
+
+    fn capture_agent_board_key_for(
+        &mut self,
+        _episode: crate::workbench_client::AgentBoardEpisodeToken,
+        _key: crate::client_view::KeyEvent,
+    ) -> bool {
+        true
+    }
+}
+
 impl TerminalInputPort for ConfirmationBoardPort {
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::PanelClose { token, key } => {
+                self.capture_panel_confirmation_key_for(token, key)
+            }
+            SurfaceInput::AgentBoard { episode, key } => {
+                self.capture_agent_board_key_for(episode, key)
+            }
+            _ => false,
+        }
+    }
+
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.calls.borrow_mut().push(Call::Forward(bytes.to_vec()));
         Ok(())
@@ -1807,23 +1851,6 @@ impl TerminalInputPort for ConfirmationBoardPort {
             }
             _ => None,
         }
-    }
-
-    fn capture_panel_confirmation_key_for(
-        &mut self,
-        _token: crate::workbench_client::PanelCloseConfirmationToken,
-        key: crate::client_view::ClientKey,
-    ) -> bool {
-        self.calls.borrow_mut().push(Call::Confirmation(key));
-        true
-    }
-
-    fn capture_agent_board_key_for(
-        &mut self,
-        _episode: crate::workbench_client::AgentBoardEpisodeToken,
-        _key: crate::client_view::KeyEvent,
-    ) -> bool {
-        true
     }
 
     fn apply_client_action(
@@ -2332,26 +2359,7 @@ fn board_continuation_accepts_two_moves_but_not_stale_activation_in_one_packet()
         activations: usize,
     }
 
-    impl TerminalInputPort for Port {
-        fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
-            crate::tui_composition::CaptureClaims::default().with_agent_board(true)
-        }
-
-        fn native_capture_context(
-            &self,
-            owner: crate::tui_composition::WorkbenchCaptureOwner,
-        ) -> Option<crate::workbench_client::CaptureContext> {
-            (owner == crate::tui_composition::WorkbenchCaptureOwner::AgentBoard).then(|| {
-                crate::workbench_client::CaptureContext::AgentBoard(
-                    crate::workbench_client::AgentBoardInputContext::for_test(
-                        crate::workbench_client::AgentBoardEpisodeToken::for_test(7),
-                        crate::tui_presentation::PresentationPhase::Admitted,
-                        true,
-                    ),
-                )
-            })
-        }
-
+    impl Port {
         fn capture_agent_board_key_for(
             &mut self,
             episode: crate::workbench_client::AgentBoardEpisodeToken,
@@ -2373,6 +2381,37 @@ fn board_continuation_accepts_two_moves_but_not_stale_activation_in_one_packet()
                 _ => {}
             }
             true
+        }
+    }
+
+    impl TerminalInputPort for Port {
+        fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+            use crate::terminal_input::SurfaceInput;
+            match input {
+                SurfaceInput::AgentBoard { episode, key } => {
+                    self.capture_agent_board_key_for(episode, key)
+                }
+                _ => false,
+            }
+        }
+
+        fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+            crate::tui_composition::CaptureClaims::default().with_agent_board(true)
+        }
+
+        fn native_capture_context(
+            &self,
+            owner: crate::tui_composition::WorkbenchCaptureOwner,
+        ) -> Option<crate::workbench_client::CaptureContext> {
+            (owner == crate::tui_composition::WorkbenchCaptureOwner::AgentBoard).then(|| {
+                crate::workbench_client::CaptureContext::AgentBoard(
+                    crate::workbench_client::AgentBoardInputContext::for_test(
+                        crate::workbench_client::AgentBoardEpisodeToken::for_test(7),
+                        crate::tui_presentation::PresentationPhase::Admitted,
+                        true,
+                    ),
+                )
+            })
         }
 
         fn forward(&mut self, _bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {

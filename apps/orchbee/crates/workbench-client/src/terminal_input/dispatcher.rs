@@ -20,7 +20,8 @@ use crate::workbench_client::SetupStage;
 
 use super::{
     DispatchOutcome, HostReply, ModeRequest, PaneAdmission, PaneInput, PointerCaptureRequest,
-    RenameDraftToken, RenameEdit, SetupEdit, SetupToken, TerminalInputPort, TerminalObservation,
+    RenameDraftToken, RenameEdit, SetupEdit, SetupToken, SurfaceInput, TerminalInputPort,
+    TerminalObservation, TextEntry,
     decoder::{DecodedItem, DecodedKind, LegacyDecoder},
     forward_edit_or_report,
     modal::{ModalCapacity, ModalDecoder, ModalInputEvent},
@@ -890,13 +891,13 @@ impl InputDispatcher {
                         }
                     }
                     DecodedKind::Key(key) if !view.copy_help_key(*key) => {
-                        port.capture_copy_mode_key(key);
+                        port.surface_input(SurfaceInput::CopyMode(TextEntry::Key(*key)));
                     }
                     DecodedKind::Paste { text } => {
-                        port.capture_copy_mode_paste(Some(text));
+                        port.surface_input(SurfaceInput::CopyMode(TextEntry::Paste(Some(text))));
                     }
                     DecodedKind::RejectedPaste => {
-                        port.capture_copy_mode_paste(None);
+                        port.surface_input(SurfaceInput::CopyMode(TextEntry::Paste(None)));
                     }
                     _ => {}
                 }
@@ -950,15 +951,24 @@ impl InputDispatcher {
             (WorkbenchCaptureOwner::Settings, Some(CaptureContext::Settings(expected))) => {
                 match item.kind {
                     DecodedKind::Paste { text } => {
-                        let _consumed = port.capture_settings_paste_for(expected, Some(&text));
+                        let _consumed = port.surface_input(SurfaceInput::Settings {
+                            expected,
+                            entry: TextEntry::Paste(Some(&text)),
+                        });
                         self.pointer.invalidate_map_with_port(port);
                     }
                     DecodedKind::RejectedPaste => {
-                        let _consumed = port.capture_settings_paste_for(expected, None);
+                        let _consumed = port.surface_input(SurfaceInput::Settings {
+                            expected,
+                            entry: TextEntry::Paste(None),
+                        });
                         self.pointer.invalidate_map_with_port(port);
                     }
                     DecodedKind::Key(event) => {
-                        let _consumed = port.capture_settings_key_for(expected, event);
+                        let _consumed = port.surface_input(SurfaceInput::Settings {
+                            expected,
+                            entry: TextEntry::Key(event),
+                        });
                         self.pointer.invalidate_map_with_port(port);
                         if crate::client_view::Binding::new(KeyCode::Enter, Modifiers::NONE)
                             .matches(event)
@@ -1009,7 +1019,10 @@ impl InputDispatcher {
             (WorkbenchCaptureOwner::ActionMenu, Some(CaptureContext::ActionMenu(expected))) => {
                 match item.kind {
                     DecodedKind::Key(event) => {
-                        let _consumed = port.capture_action_menu_key_for(expected, event);
+                        let _consumed = port.surface_input(SurfaceInput::ActionMenu {
+                            expected,
+                            key: event,
+                        });
                         if crate::client_view::Binding::new(KeyCode::Enter, Modifiers::NONE)
                             .matches(event)
                             || crate::client_view::Binding::new(KeyCode::Esc, Modifiers::NONE)
@@ -1120,7 +1133,10 @@ impl InputDispatcher {
                         | PointerOutcome::MenuRequested { .. } => {}
                     }
                 } else if expected.interactive() {
-                    port.popup_input(expected.id(), &item);
+                    port.surface_input(SurfaceInput::Popup {
+                        id: expected.id(),
+                        item: &item,
+                    });
                 }
                 if Self::projected_capture(view, port)
                     != Some(CaptureOwner::Native(WorkbenchCaptureOwner::Popup))
@@ -1143,8 +1159,10 @@ impl InputDispatcher {
                 if let DecodedKind::Mouse(event) = &item.kind {
                     self.capture_confirmation_mouse(port, *event);
                 } else {
-                    let _consumed =
-                        port.capture_panel_confirmation_key_for(expected.token, client_key(&item));
+                    let _consumed = port.surface_input(SurfaceInput::PanelClose {
+                        token: expected.token,
+                        key: client_key(&item),
+                    });
                     self.confirm_packet = true;
                     self.keys.capture_pending();
                 }
@@ -1153,8 +1171,10 @@ impl InputDispatcher {
                 if let DecodedKind::Mouse(event) = &item.kind {
                     self.capture_confirmation_mouse(port, *event);
                 } else {
-                    let _consumed =
-                        port.capture_tab_confirmation_key_for(expected.token, client_key(&item));
+                    let _consumed = port.surface_input(SurfaceInput::TabClose {
+                        token: expected.token,
+                        key: client_key(&item),
+                    });
                     self.confirm_packet = true;
                     self.keys.capture_pending();
                 }
@@ -1166,8 +1186,10 @@ impl InputDispatcher {
                 if let DecodedKind::Mouse(event) = &item.kind {
                     self.capture_confirmation_mouse(port, *event);
                 } else {
-                    let _consumed = port
-                        .capture_workspace_confirmation_key_for(expected.token, client_key(&item));
+                    let _consumed = port.surface_input(SurfaceInput::WorkspaceClose {
+                        token: expected.token,
+                        key: client_key(&item),
+                    });
                     self.confirm_packet = true;
                     self.keys.capture_pending();
                 }
@@ -1223,7 +1245,10 @@ impl InputDispatcher {
                         _ => {}
                     }
                 } else if let DecodedKind::Key(event) = item.kind {
-                    let _consumed = port.capture_agent_board_key_for(expected.episode(), event);
+                    let _consumed = port.surface_input(SurfaceInput::AgentBoard {
+                        episode: expected.episode(),
+                        key: event,
+                    });
                 }
                 if Self::projected_capture(view, port)
                     != Some(CaptureOwner::Native(WorkbenchCaptureOwner::AgentBoard))
@@ -2598,7 +2623,7 @@ impl InputDispatcher {
                 | ModalInputEvent::Focus(_)
                 | ModalInputEvent::HostReply(_) => continue,
             };
-            let _accepted = port.edit_rename_draft(token, edit);
+            let _accepted = port.surface_input(SurfaceInput::Rename { token, edit });
         }
     }
 
@@ -2673,7 +2698,7 @@ impl InputDispatcher {
             | ModalInputEvent::Focus(_)
             | ModalInputEvent::HostReply(_) => return,
         };
-        if port.edit_worktree(token, edit)
+        if port.surface_input(SurfaceInput::Worktree { token, edit })
             && let Some(CaptureContext::Worktree(context)) =
                 port.native_capture_context(WorkbenchCaptureOwner::Worktree)
         {
@@ -2712,7 +2737,10 @@ impl InputDispatcher {
                 }
                 ModalInputEvent::Cancel => port.cancel_setup_draft(token),
                 ModalInputEvent::Completeness(complete) => {
-                    port.edit_setup_draft(token, SetupEdit::Completeness(complete));
+                    port.surface_input(SurfaceInput::Setup {
+                        token,
+                        edit: SetupEdit::Completeness(complete),
+                    });
                 }
                 _ => {}
             }
@@ -2763,7 +2791,7 @@ impl InputDispatcher {
             edit,
             SetupEdit::SelectPreviousProject | SetupEdit::SelectNextProject | SetupEdit::NextField
         );
-        if port.edit_setup_draft(token, edit)
+        if port.surface_input(SurfaceInput::Setup { token, edit })
             && selecting
             && let Some(CaptureContext::Setup(context)) =
                 port.native_capture_context(WorkbenchCaptureOwner::Setup)

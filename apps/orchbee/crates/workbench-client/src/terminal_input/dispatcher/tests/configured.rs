@@ -394,7 +394,38 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
         actions: Vec<ClientAction>,
         forwarded: Vec<u8>,
     }
+    impl Port {
+        fn capture_workspace_confirmation_key_for(
+            &mut self,
+            _: crate::workbench_client::WorkspaceCloseToken,
+            _: ClientKey,
+        ) -> bool {
+            self.owner == 1
+        }
+
+        fn capture_agent_board_key_for(
+            &mut self,
+            _: crate::workbench_client::AgentBoardEpisodeToken,
+            _: crate::client_view::KeyEvent,
+        ) -> bool {
+            self.owner == 2
+        }
+    }
+
     impl TerminalInputPort for Port {
+        fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+            use crate::terminal_input::SurfaceInput;
+            match input {
+                SurfaceInput::WorkspaceClose { token, key } => {
+                    self.capture_workspace_confirmation_key_for(token, key)
+                }
+                SurfaceInput::AgentBoard { episode, key } => {
+                    self.capture_agent_board_key_for(episode, key)
+                }
+                _ => false,
+            }
+        }
+
         fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
             crate::tui_composition::CaptureClaims::default()
                 .with_workspace_close(self.owner == 1)
@@ -442,20 +473,6 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
         fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
             self.forwarded.extend_from_slice(bytes);
             Ok(())
-        }
-        fn capture_workspace_confirmation_key_for(
-            &mut self,
-            _: crate::workbench_client::WorkspaceCloseToken,
-            _: ClientKey,
-        ) -> bool {
-            self.owner == 1
-        }
-        fn capture_agent_board_key_for(
-            &mut self,
-            _: crate::workbench_client::AgentBoardEpisodeToken,
-            _: crate::client_view::KeyEvent,
-        ) -> bool {
-            self.owner == 2
         }
         fn pane_input(
             &mut self,

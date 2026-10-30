@@ -10,7 +10,8 @@ pub(crate) use crate::terminal_events::{PanePointerRoute, route_pane_pointer};
 use crate::terminal_events::{decoder, mouse, utf8};
 pub use crate::workbench_client::input::{
     ModeRequest, PaneAdmission, PaneInput, PointerCaptureRequest, PointerFrameFacts, PointerProbe,
-    PointerSelectionIntent, TerminalInputPort, TerminalObservation, UnavailableTerminalInputPort,
+    PointerSelectionIntent, SurfaceInput, TerminalInputPort, TerminalObservation, TextEntry,
+    UnavailableTerminalInputPort,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use crate::workbench_client::input::{PointerPane, PointerTab, TerminalInputUnavailable};

@@ -34,8 +34,8 @@ use crate::client_view::{ClientAction, ClientView, Modifiers};
 use crate::terminal_input::{
     MouseAction, MouseButton, MouseEvent, PaneAdmission, PaneEncode, PaneInput, PaneMouseEvent,
     PanePointerRoute, PointerFrameFacts, PointerProbe, PointerSelectionCell,
-    PointerSelectionIntent, TerminalInputPort, encode_cursor_arrows, encode_pane_report,
-    forward_or_report, route_pane_pointer,
+    PointerSelectionIntent, SurfaceInput, TerminalInputPort, encode_cursor_arrows,
+    encode_pane_report, forward_or_report, route_pane_pointer,
 };
 use crate::workbench_client::state::PaneRef;
 
@@ -797,7 +797,11 @@ impl PointerState {
                 && let Some(InteractionTarget::ActionMenuRow { source, token, row }) =
                     self.interactions.hovered_target()
             {
-                port.hover_action_menu_row(source, *token, *row)
+                port.surface_input(SurfaceInput::ActionMenuHover {
+                    source,
+                    token: *token,
+                    row: *row,
+                })
             } else {
                 false
             };
@@ -1035,7 +1039,11 @@ impl PointerState {
                 && matches!(event.action, MouseAction::Motion | MouseAction::Release)
                 && (event.button == *button || event.button == MouseButton::None)
             {
-                port.popup_mouse(id, *content, event);
+                port.surface_input(SurfaceInput::PopupPointer {
+                    id,
+                    content: *content,
+                    event,
+                });
                 if event.action == MouseAction::Release {
                     self.popup_gesture = None;
                 }
@@ -1052,7 +1060,11 @@ impl PointerState {
                 {
                     return PointerOutcome::Handled;
                 }
-                port.popup_mouse(id, *content, event);
+                port.surface_input(SurfaceInput::PopupPointer {
+                    id,
+                    content: *content,
+                    event,
+                });
                 if event.action == MouseAction::Press
                     && matches!(
                         event.button,

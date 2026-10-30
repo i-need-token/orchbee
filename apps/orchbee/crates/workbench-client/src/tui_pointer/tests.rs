@@ -3755,13 +3755,26 @@ fn pending_selection_starts_before_replay_and_prestart_failures_emit_nothing() {
 
 struct PopupPointerPort(Vec<(WorkbenchRequestId, Rect, MouseEvent)>);
 
-impl TerminalInputPort for PopupPointerPort {
-    fn forward(&mut self, _: &[u8]) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
-        panic!("popup mouse leaked");
-    }
-
+impl PopupPointerPort {
     fn popup_mouse(&mut self, id: &WorkbenchRequestId, rect: Rect, event: MouseEvent) {
         self.0.push((id.clone(), rect, event));
+    }
+}
+
+impl TerminalInputPort for PopupPointerPort {
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::PopupPointer { id, content, event } => {
+                self.popup_mouse(id, content, event);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn forward(&mut self, _: &[u8]) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+        panic!("popup mouse leaked");
     }
 }
 

@@ -3,9 +3,7 @@ use super::*;
 use crate::{
     client_view::{ClientAction, ClientActionDisposition, ClientView},
     localization::Locale,
-    terminal_copy_mode::{
-        CopyControl, CopyModeCursor, CopyModeStatus, CopyModeToken, CopySurfaceToken,
-    },
+    terminal_copy_mode::{CopyControl, CopyModeCursor, CopyModeStatus, CopyModeToken},
     terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable},
     tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget},
     tui_theme::Theme,
@@ -26,22 +24,17 @@ impl TerminalInputPort for Port {
     fn copy_mode_active(&self) -> bool {
         self.ui.copy_mode_active()
     }
-    fn capture_copy_mode_key(&mut self, key: &KeyEvent) -> bool {
-        self.ui.capture_copy_mode_key(key)
-    }
-    fn capture_copy_mode_paste(&mut self, text: Option<&str>) -> bool {
-        self.ui.capture_copy_mode_paste(text)
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::CopyMode(_) | SurfaceInput::CopyModeCell { .. } => {
+                self.ui.surface_input(input)
+            }
+            _ => false,
+        }
     }
     fn click_copy_control(&mut self, token: CopyModeToken, control: CopyControl) {
         self.ui.click_copy_control(token, control);
-    }
-    fn copy_pointer_cell(
-        &mut self,
-        token: CopySurfaceToken,
-        cell: CopyModeCursor,
-        start: bool,
-    ) -> bool {
-        self.ui.copy_pointer_cell(token, cell, start)
     }
     fn scroll_list(
         &mut self,

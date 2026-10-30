@@ -713,7 +713,58 @@ impl Port {
         }));
     }
 }
+impl Port {
+    fn capture_action_menu_key_for(
+        &mut self,
+        expected: crate::action_menu::MenuInputContext,
+        event: KeyEvent,
+    ) -> bool {
+        if self.menu.input_context() != Some(expected) {
+            return false;
+        }
+        if expected.readiness() == crate::action_menu::MenuInputReadiness::Recovery {
+            if event.kind != crate::client_view::KeyKind::Release
+                && crate::client_view::Binding::new(
+                    crate::client_view::KeyCode::Esc,
+                    crate::client_view::Modifiers::NONE,
+                )
+                .matches(event)
+            {
+                self.menu.cancel();
+            }
+            return true;
+        }
+        self.menu.key(event);
+        true
+    }
+
+    fn hover_action_menu_row(
+        &mut self,
+        source: &MenuTarget,
+        token: crate::action_menu::MenuToken,
+        row: usize,
+    ) -> bool {
+        self.menu
+            .view()
+            .is_some_and(|view| view.source == source && view.token == token)
+            && self.menu.hover(token, row)
+    }
+}
+
 impl TerminalInputPort for Port {
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::ActionMenu { expected, key } => {
+                self.capture_action_menu_key_for(expected, key)
+            }
+            SurfaceInput::ActionMenuHover { source, token, row } => {
+                self.hover_action_menu_row(source, token, row)
+            }
+            _ => false,
+        }
+    }
+
     fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
         crate::tui_composition::CaptureClaims::default()
             .with_settings(self.settings_capture)
@@ -760,29 +811,6 @@ impl TerminalInputPort for Port {
         self.target = Some(target);
         self.menu.open(String::new(), self.actions.clone(), anchor)
     }
-    fn capture_action_menu_key_for(
-        &mut self,
-        expected: crate::action_menu::MenuInputContext,
-        event: KeyEvent,
-    ) -> bool {
-        if self.menu.input_context() != Some(expected) {
-            return false;
-        }
-        if expected.readiness() == crate::action_menu::MenuInputReadiness::Recovery {
-            if event.kind != crate::client_view::KeyKind::Release
-                && crate::client_view::Binding::new(
-                    crate::client_view::KeyCode::Esc,
-                    crate::client_view::Modifiers::NONE,
-                )
-                .matches(event)
-            {
-                self.menu.cancel();
-            }
-            return true;
-        }
-        self.menu.key(event);
-        true
-    }
     fn cancel_action_menu(&mut self) {
         self.menu.cancel();
     }
@@ -798,17 +826,6 @@ impl TerminalInputPort for Port {
         self.menu
             .scroll(token, up, lines)
             .map(crate::tui_pointer::ListScrollTarget::Menu)
-    }
-    fn hover_action_menu_row(
-        &mut self,
-        source: &MenuTarget,
-        token: crate::action_menu::MenuToken,
-        row: usize,
-    ) -> bool {
-        self.menu
-            .view()
-            .is_some_and(|view| view.source == source && view.token == token)
-            && self.menu.hover(token, row)
     }
     fn activate_action_menu_row(
         &mut self,

@@ -21,6 +21,7 @@ use crate::{
 };
 use orchbee_workbench_client::test_support::client_view::ClientAction;
 use orchbee_workbench_client::test_support::client_view::ClientActionDisposition;
+use orchbee_workbench_client::test_support::terminal_input::SurfaceInput;
 use orchbee_workbench_client::test_support::terminal_input::TerminalInputUnavailable;
 
 use super::{InputSource, LoopExit, LoopFailure, ViewportSource, run_event_loop, to_area};
@@ -72,12 +73,8 @@ fn run_native_close_resize_confirmation(
         ) -> Option<ClientActionDisposition> {
             self.session.apply_client_action(command)
         }
-        fn capture_tab_confirmation_key_for(
-            &mut self,
-            token: orchbee_workbench_client::test_support::workbench_client::CloseConfirmationToken,
-            key: orchbee_workbench_client::test_support::client_view::ClientKey,
-        ) -> bool {
-            self.session.capture_tab_confirmation_key_for(token, key)
+        fn surface_input(&mut self, input: SurfaceInput<'_>) -> bool {
+            matches!(input, SurfaceInput::TabClose { .. }) && self.session.surface_input(input)
         }
         fn observe_terminal(&mut self, observation: TerminalObservation) {
             if matches!(

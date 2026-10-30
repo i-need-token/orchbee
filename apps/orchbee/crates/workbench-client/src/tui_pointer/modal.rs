@@ -7,7 +7,7 @@ use super::hit_map::modal::{
 use super::{
     FrameHitMap, Gesture, HitResolution, InteractionTarget, ModalControl, Modifiers,
     MotionObservability, MouseAction, MouseButton, MouseEvent, PointerOutcome, PointerState,
-    ReleaseOwnership, TerminalInputPort,
+    ReleaseOwnership, SurfaceInput, TerminalInputPort,
 };
 
 /// Live pointer position and hover for specialized modal controls. Press
@@ -586,7 +586,10 @@ impl PointerState {
             }
             Some(ControlTarget::Setup(token, control)) => match control {
                 ModalControl::NextField => {
-                    port.edit_setup_draft(token, crate::workbench_client::SetupEdit::NextField);
+                    port.surface_input(SurfaceInput::Setup {
+                        token,
+                        edit: crate::workbench_client::SetupEdit::NextField,
+                    });
                 }
                 ModalControl::Choice(index) => port.choose_setup_project(token, index),
                 ModalControl::Submit => {
@@ -597,10 +600,16 @@ impl PointerState {
             },
             Some(ControlTarget::Worktree(token, control)) => match control {
                 ModalControl::NextField => {
-                    port.edit_worktree(token, crate::workbench_client::WorktreeEdit::NextField);
+                    port.surface_input(SurfaceInput::Worktree {
+                        token,
+                        edit: crate::workbench_client::WorktreeEdit::NextField,
+                    });
                 }
                 ModalControl::Refresh => {
-                    port.edit_worktree(token, crate::workbench_client::WorktreeEdit::ReadStatus);
+                    port.surface_input(SurfaceInput::Worktree {
+                        token,
+                        edit: crate::workbench_client::WorktreeEdit::ReadStatus,
+                    });
                 }
                 ModalControl::Choice(index) => port.choose_worktree(token, index),
                 ModalControl::Submit => port.submit_worktree(token),

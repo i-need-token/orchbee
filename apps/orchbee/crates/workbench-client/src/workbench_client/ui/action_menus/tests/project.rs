@@ -1099,12 +1099,14 @@ impl crate::terminal_input::TerminalInputPort for RenameInput<'_> {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
     }
-    fn capture_action_menu_key_for(
-        &mut self,
-        expected: crate::action_menu::MenuInputContext,
-        event: KeyEvent,
-    ) -> bool {
-        self.ui.capture_action_menu_key_for(expected, event)
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::ActionMenu { .. } | SurfaceInput::Setup { .. } => {
+                self.ui.surface_input(input)
+            }
+            _ => false,
+        }
     }
     fn take_action_menu_action(
         &mut self,
@@ -1124,13 +1126,6 @@ impl crate::terminal_input::TerminalInputPort for RenameInput<'_> {
             elapsed.store(30_000, std::sync::atomic::Ordering::Relaxed);
         }
         Some(self.ui.apply_client_action(command))
-    }
-    fn edit_setup_draft(
-        &mut self,
-        token: crate::workbench_client::SetupToken,
-        edit: SetupEdit<'_>,
-    ) -> bool {
-        self.ui.edit_setup_draft(token, edit)
     }
     fn cancel_setup_draft(&mut self, token: crate::workbench_client::SetupToken) {
         self.ui.cancel_setup_draft(token);
