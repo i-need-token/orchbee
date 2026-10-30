@@ -159,6 +159,11 @@ Client 退出不关闭 会话。Worker 丢失会使能力不可用，不启动�
 Server 丢失保留启动标记和 Host 终端，需要显式恢复。本入口不实现恢复、自动清理、
 服务管理器安装或重启。普通显式端点测试入口保持下述原有行为。
 
+Linux 与 macOS 编译与 Windows 相同的 Workbench 分发。仅 Windows 支持的能力会一直执行到
+其平台适配器，或执行到本启动从不初始化的 owner，由它以自己的类型化结果拒绝：插件存储和
+Worker 插件作业返回 `Unsupported`，依赖配置的请求返回 `Unavailable`。终端编辑器与 Client
+view 请求在准入处保持原有拒绝，直到确定它们在 Windows 之外的行为。
+
 ## 本机 Worker service
 
 在 macOS 与 Linux 上，私有开发调用
@@ -830,4 +835,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=be1b53b48b287ff3726dcc7978e24955911dea8871b168c0fd681c2f1bcd67b0 zh-cn-sha256=51feba82d19922eed906c4e639505eedc087b7a1d5aa6af3792453533340a93e -->
+<!-- documentation-pairing: english-sha256=ac9e81d43cf6512dc12d79fb5097daba58ac530eeec5ee79c0feba7e288a74c5 zh-cn-sha256=d073912a04e077f689fea7390c41bcfc77a2e62b422172aa6d625d8b29024f28 -->

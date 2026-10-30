@@ -2,19 +2,14 @@
 //! retaining viewer, controller, and close-maintenance ownership. It coordinates logical and
 //! physical outcomes without implementing Host PTY behavior or owning Client presentation.
 
-#[cfg(windows)]
 mod configuration;
-#[cfg(windows)]
 pub(crate) mod configured_commands;
-#[cfg(windows)]
 mod independent_popup;
-#[cfg(windows)]
 pub(crate) use independent_popup::PopupOwner;
 #[cfg(windows)]
 mod observation;
 #[cfg(windows)]
 mod pane_graphics;
-#[cfg(windows)]
 mod plugins;
 #[cfg(windows)]
 pub(crate) mod semantic_events;
@@ -88,7 +83,6 @@ const AGENT_DRAIN_READ_RETRY: Duration = Duration::from_millis(25);
 
 pub(crate) struct LocalTerminalService {
     preferences: std::sync::OnceLock<orchbee_local_runtime::UserPreferencesStore>,
-    #[cfg(windows)]
     configuration: configuration::Registry,
     #[cfg(windows)]
     observer: observation::Observer,
@@ -98,7 +92,6 @@ pub(crate) struct LocalTerminalService {
     graphics_files: Option<pane_graphics::GraphicsFiles>,
     #[cfg(windows)]
     graphics_stopping: std::sync::atomic::AtomicBool,
-    #[cfg(windows)]
     popups: independent_popup::Popups,
     #[cfg(windows)]
     process_observer: process_observer::ProcessObserver,
@@ -137,7 +130,6 @@ impl LocalTerminalService {
     ) -> Self {
         Self {
             preferences: std::sync::OnceLock::new(),
-            #[cfg(windows)]
             configuration: configuration::Registry::default(),
             #[cfg(windows)]
             observer: observation::Observer::default(),
@@ -147,7 +139,6 @@ impl LocalTerminalService {
             graphics_files: None,
             #[cfg(windows)]
             graphics_stopping: std::sync::atomic::AtomicBool::new(false),
-            #[cfg(windows)]
             popups: independent_popup::Popups::default(),
             close_maintenance: close_maintenance::CloseMaintenance::default(),
             #[cfg(windows)]

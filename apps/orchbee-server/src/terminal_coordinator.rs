@@ -146,7 +146,6 @@ impl PlannedCreate<'_> {
         self.launch_program.as_ref()
     }
 
-    #[cfg(windows)]
     pub(crate) fn set_editor_source(
         &mut self,
         source: orchbee_capability_node_protocol::TerminalEditorSource,
@@ -161,7 +160,6 @@ impl PlannedCreate<'_> {
         Ok(())
     }
 
-    #[cfg(windows)]
     pub(crate) fn mark_popup(&mut self) -> TerminalOperationAuthorization {
         self.binding.popup_owned = true;
         self.binding.authorization
@@ -269,9 +267,7 @@ impl TerminalPhase {
 
 #[derive(Debug)]
 struct TerminalBinding {
-    #[cfg(windows)]
     popup_owned: bool,
-    #[cfg(windows)]
     popup_closing: bool,
     authorization: TerminalOperationAuthorization,
     completion_seal: Arc<TerminalCompletionSeal>,
@@ -344,7 +340,6 @@ impl TerminalCoordinator {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn fence_popup(
         &mut self,
         reference: &RequestId,
@@ -361,7 +356,6 @@ impl TerminalCoordinator {
         true
     }
 
-    #[cfg(windows)]
     pub(crate) fn target_retired(&self, target: BindingViewerTarget) -> bool {
         !self.bindings.values().any(|binding| {
             binding.authorization.terminal_id() == target.terminal_id
@@ -373,7 +367,6 @@ impl TerminalCoordinator {
         })
     }
 
-    #[cfg(windows)]
     pub(crate) fn release_popup(
         &mut self,
         reference: &RequestId,
@@ -402,7 +395,6 @@ impl TerminalCoordinator {
     #[cfg(test)]
     pub(crate) fn has_retained_binding(&self, expected: &PresentationBinding) -> bool {
         self.bindings.values().any(|binding| {
-            #[cfg(windows)]
             if binding.popup_owned {
                 return false;
             }
@@ -816,9 +808,7 @@ impl TerminalCoordinator {
                 completion_seal: Arc::clone(&completion_seal),
             }),
             binding: TerminalBinding {
-                #[cfg(windows)]
                 popup_owned: false,
-                #[cfg(windows)]
                 popup_closing: false,
                 authorization,
                 completion_seal,

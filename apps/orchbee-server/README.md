@@ -192,6 +192,12 @@ a replacement; Server loss leaves the attempt marker and retained Host terminals
 recovery. This entry implements no recovery, automatic cleanup, service-manager installation, or
 restart. The ordinary explicit-endpoint test entry retains the behavior below.
 
+Linux and macOS compile the same Workbench dispatch as Windows. A Windows-only capability runs
+until its platform adapter or an owner this startup never initializes refuses it with that
+owner's typed outcome: plugin stores and Worker plugin jobs answer `Unsupported`, and
+configuration-backed requests answer `Unavailable`. Terminal editor and Client view requests keep
+their earlier refusal at admission until their behavior off Windows is decided.
+
 ## Local Worker service
 
 On macOS and Linux, the private development invocation

@@ -40,7 +40,6 @@ pub use panel_agent::{
 };
 mod panel_metadata;
 mod plugin_panes;
-#[cfg(windows)]
 mod popup_source;
 mod split_ratios;
 pub use plugin_panes::PluginPaneLaunch;

@@ -19,15 +19,10 @@ use orchbee_workbench_protocol::{
 
 #[cfg(any(windows, test))]
 mod checkpoint_restore;
-#[cfg(windows)]
 mod configured_command;
-#[cfg(windows)]
 mod editor_popup;
-#[cfg(windows)]
 mod independent_popup;
-#[cfg(windows)]
 mod plugin_popup;
-#[cfg(windows)]
 pub(crate) use editor_popup::EditorPopupLaunch;
 mod exit_close;
 mod tab_close;
@@ -96,7 +91,6 @@ impl SessionCoordinator {
         Some(self.workbench.as_ref()?.session_id() == session)
     }
 
-    #[cfg(windows)]
     pub(crate) fn plugin_pane(
         &mut self,
         panel_id: &orchbee_workbench_protocol::WorkbenchPanelId,

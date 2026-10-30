@@ -31,7 +31,6 @@ impl ViewerProjection {
             content_version: None,
         }
     }
-    #[cfg(windows)]
     pub(super) fn capturable_version(&self, generation: u64, revision: u64) -> bool {
         !self.needs_snapshot
             && self

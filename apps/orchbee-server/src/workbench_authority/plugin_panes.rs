@@ -20,21 +20,18 @@ pub(super) fn resolve(
     command: &WorkbenchCommand,
     selector: &PluginPaneSelector,
 ) -> Result<PluginPaneLaunch, WorkbenchCommandUnavailableReason> {
-    #[cfg(windows)]
-    {
-        let registry =
-            orchbee_local_runtime::PluginRegistry::from_environment(|name| std::env::var_os(name))
-                .map_err(|_| WorkbenchCommandUnavailableReason::ServiceUnavailable)?;
-        resolve_from(&registry, snapshot, command, selector)
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = (snapshot, command, selector);
-        Err(WorkbenchCommandUnavailableReason::NoCompatibleWorker)
-    }
+    let registry =
+        orchbee_local_runtime::PluginRegistry::from_environment(|name| std::env::var_os(name))
+            .map_err(|error| match error {
+                // A platform without the plugin store has no Worker that can run the Pane.
+                orchbee_local_runtime::PluginRegistryError::Unsupported => {
+                    WorkbenchCommandUnavailableReason::NoCompatibleWorker
+                }
+                _ => WorkbenchCommandUnavailableReason::ServiceUnavailable,
+            })?;
+    resolve_from(&registry, snapshot, command, selector)
 }
 
-#[cfg(windows)]
 fn resolve_from(
     registry: &orchbee_local_runtime::PluginRegistry,
     snapshot: &Snapshot,
@@ -87,7 +84,6 @@ fn resolve_from(
     freeze(registry, selector, context).map(|(launch, _)| launch)
 }
 
-#[cfg(windows)]
 fn freeze(
     registry: &orchbee_local_runtime::PluginRegistry,
     selector: &PluginPaneSelector,
@@ -160,7 +156,6 @@ fn freeze(
     ))
 }
 
-#[cfg(windows)]
 impl super::WorkbenchAuthority {
     /// An independent terminal never acquires canonical plugin Pane membership.
     pub fn resolve_plugin_popup(
@@ -186,8 +181,6 @@ impl super::WorkbenchAuthority {
 mod tests;
 
 mod membership;
-#[cfg(windows)]
 mod program;
-#[cfg(windows)]
 mod source;
 pub(super) use membership::Membership;

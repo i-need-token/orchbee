@@ -4,7 +4,6 @@
 
 #[cfg(windows)]
 mod agent_view;
-#[cfg(windows)]
 mod configured_commands;
 #[cfg(windows)]
 mod events;
@@ -47,13 +46,22 @@ pub(crate) enum WorkbenchExecution {
 #[cfg(test)]
 mod tests;
 
+/// Request kinds that Linux and macOS keep refusing as before ORC-234 until their behavior off
+/// Windows is decided. A policy constant rather than a `cfg`, so every branch compiles everywhere.
+fn withheld_off_windows(request: &WorkbenchRequest) -> bool {
+    !cfg!(windows)
+        && matches!(
+            request,
+            WorkbenchRequest::TerminalEditor(_) | WorkbenchRequest::ClientView(_)
+        )
+}
+
 pub(crate) struct WorkbenchService {
     changes: orchbee_server::SessionChangeSource,
     #[cfg(windows)]
     agent_views: std::sync::Mutex<agent_view::Registry>,
     terminals: Arc<LocalTerminalService>,
     policy: WorkbenchPolicy,
-    #[cfg(windows)]
     client_views: std::sync::Mutex<crate::client_view_registry::ClientViewRegistry>,
     #[cfg(windows)]
     notifications: std::sync::Mutex<crate::notification_registry::Registry>,
@@ -65,13 +73,14 @@ impl WorkbenchService {
     pub(crate) fn new(policy: WorkbenchPolicy, terminals: Arc<LocalTerminalService>) -> Self {
         #[cfg(windows)]
         let events = terminals.event_journal();
+        #[cfg(not(windows))]
+        let events = None;
         Self {
             changes: orchbee_server::SessionChangeSource::default(),
             #[cfg(windows)]
             agent_views: std::sync::Mutex::default(),
             terminals,
             policy,
-            #[cfg(windows)]
             client_views: std::sync::Mutex::new(
                 crate::client_view_registry::ClientViewRegistry::with_events(events),
             ),
@@ -93,7 +102,6 @@ impl WorkbenchService {
             events: std::sync::Mutex::new(std::collections::BTreeMap::new()),
             #[cfg(windows)]
             event_capture: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-            #[cfg(windows)]
             view_lane: std::sync::Mutex::new(None),
         }
     }
@@ -204,14 +212,14 @@ impl WorkbenchService {
         if !permitted {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
+        if withheld_off_windows(&request) {
+            return WorkbenchExecution::Response(unavailable_or_denied(request, false));
+        }
         match &request {
             WorkbenchRequest::PaneGraphics(_) | WorkbenchRequest::ConfiguredCommand(_) | WorkbenchRequest::Events(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
             WorkbenchRequest::TerminalEditor(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
         WorkbenchRequest::Plugin(request) => {
-                #[cfg(windows)]
                 return WorkbenchExecution::Response(WorkbenchResponse::Plugin(self.terminals.execute_plugin(request.clone())));
-                #[cfg(not(windows))]
-                return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Plugin(request.clone()), false));
             }
             WorkbenchRequest::Notification(request) => return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Notification(request.clone()), false)),
             WorkbenchRequest::WindowTitle(request) => return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::WindowTitle(request.clone()), false)),
@@ -222,10 +230,7 @@ impl WorkbenchService {
                 return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::AgentView(request.clone()), false));
             }
             WorkbenchRequest::Configuration(request) => {
-                #[cfg(windows)]
                 return WorkbenchExecution::Response(WorkbenchResponse::Configuration(self.terminals.execute_configuration(request.clone())));
-                #[cfg(not(windows))]
-                return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Configuration(request.clone()), false));
             }
             WorkbenchRequest::Settings(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::Settings(self.terminals.execute_settings(request.clone())));
@@ -881,7 +886,6 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
 pub(crate) struct WorkbenchClientConnection<'a> {
     service: &'a WorkbenchService,
     generation: std::num::NonZeroU64,
-    #[cfg(windows)]
     view_lane: std::sync::Mutex<Option<orchbee_workbench_protocol::MultiplexLaneId>>,
     #[cfg(windows)]
     event_capture: Arc<std::sync::atomic::AtomicBool>,
@@ -926,7 +930,6 @@ impl WorkbenchClientConnection<'_> {
         if let Some(journal) = self.service.terminals.event_journal() {
             journal.watch(signal);
         }
-        #[cfg(windows)]
         self.service.terminals.watch_configuration(signal);
     }
     /// Metadata expiry is an owner deadline; the carrier waits without holding the Session gate.
@@ -963,8 +966,9 @@ impl WorkbenchClientConnection<'_> {
         terminal_connection: &mut crate::local_terminal_service::LocalTerminalConnection<'_>,
         lane: orchbee_workbench_protocol::MultiplexLaneId,
     ) -> WorkbenchExecution {
-        #[cfg(windows)]
-        if let WorkbenchRequest::TerminalEditor(editor) = &request {
+        if let WorkbenchRequest::TerminalEditor(editor) = &request
+            && !withheld_off_windows(&request)
+        {
             use orchbee_workbench_protocol::TerminalEditorAction;
             let allowed = self.service.policy.read
                 && match editor.action {
@@ -987,8 +991,6 @@ impl WorkbenchClientConnection<'_> {
                 ),
             ));
         }
-        #[cfg(not(windows))]
-        let _ = terminal_connection;
         self.execute_scoped(request, lane)
     }
 
@@ -996,28 +998,23 @@ impl WorkbenchClientConnection<'_> {
         self.execute_scoped(request, orchbee_workbench_protocol::MultiplexLaneId::ROOT)
     }
     pub(crate) fn close_lane(&self, lane: orchbee_workbench_protocol::MultiplexLaneId) {
-        #[cfg(windows)]
-        {
-            let mut owner = self
-                .view_lane
+        let mut owner = self
+            .view_lane
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if *owner == Some(lane) {
+            self.service
+                .client_views
                 .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if *owner == Some(lane) {
-                self.service
-                    .client_views
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .disconnect(self.generation, std::time::Instant::now());
-                *owner = None;
-                self.service.changes.notify();
-            }
-            drop(owner);
-            self.service.terminals.disconnect_lane_popup(
-                crate::local_terminal_service::PopupOwner::new(self.generation, lane),
-            );
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .disconnect(self.generation, std::time::Instant::now());
+            *owner = None;
+            self.service.changes.notify();
         }
-        #[cfg(not(windows))]
-        let _ = lane;
+        drop(owner);
+        self.service.terminals.disconnect_lane_popup(
+            crate::local_terminal_service::PopupOwner::new(self.generation, lane),
+        );
     }
     fn execute_scoped(
         &self,
@@ -1037,10 +1034,10 @@ impl WorkbenchClientConnection<'_> {
         request: WorkbenchRequest,
         lane: orchbee_workbench_protocol::MultiplexLaneId,
     ) -> WorkbenchExecution {
-        #[cfg(windows)]
+        if withheld_off_windows(&request) {
+            return self.service.execute(request);
+        }
         let owner = crate::local_terminal_service::PopupOwner::new(self.generation, lane);
-        #[cfg(not(windows))]
-        let _ = lane;
         #[cfg(windows)]
         if let WorkbenchRequest::PaneGraphics(graphics) = &request {
             let allowed = if graphics.action.writes() {
@@ -1061,13 +1058,11 @@ impl WorkbenchClientConnection<'_> {
                 self.semantic_events(events.clone()),
             ));
         }
-        #[cfg(windows)]
         if let WorkbenchRequest::ConfiguredCommand(command) = &request {
             return WorkbenchExecution::Response(WorkbenchResponse::ConfiguredCommand(
                 self.configured_command(command.clone(), owner),
             ));
         }
-        #[cfg(windows)]
         if let WorkbenchRequest::Plugin(plugin) = &request
             && matches!(
                 plugin.action,
@@ -1202,7 +1197,6 @@ impl WorkbenchClientConnection<'_> {
                 },
             ));
         }
-        #[cfg(windows)]
         if let WorkbenchRequest::ClientView(request) = request {
             use orchbee_workbench_protocol::{
                 ClientViewAction, ClientViewOutcome, ClientViewUnavailable,
@@ -1266,17 +1260,16 @@ impl Drop for WorkbenchClientConnection<'_> {
     fn drop(&mut self) {
         #[cfg(windows)]
         self.service.terminals.disconnect_graphics(self.generation);
-        #[cfg(windows)]
         self.service.terminals.disconnect_popup(self.generation);
+        let mut registry = self
+            .service
+            .client_views
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        registry.disconnect(self.generation, std::time::Instant::now());
+        drop(registry);
         #[cfg(windows)]
         {
-            let mut registry = self
-                .service
-                .client_views
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            registry.disconnect(self.generation, std::time::Instant::now());
-            drop(registry);
             self.service
                 .notifications
                 .lock()
@@ -1288,7 +1281,5 @@ impl Drop for WorkbenchClientConnection<'_> {
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .disconnect(self.generation);
         }
-        #[cfg(not(windows))]
-        let _generation = self.generation;
     }
 }

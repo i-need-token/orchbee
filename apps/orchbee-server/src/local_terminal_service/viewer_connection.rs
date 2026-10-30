@@ -22,7 +22,6 @@ use orchbee_client_server_protocol::{
     WorkerId as ClientWorkerId,
 };
 
-#[cfg(windows)]
 mod editor;
 #[cfg(windows)]
 pub(in crate::local_terminal_service) mod process_sampling;
