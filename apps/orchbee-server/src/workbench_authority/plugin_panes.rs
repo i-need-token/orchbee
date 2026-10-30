@@ -112,7 +112,8 @@ fn freeze(
         return Err(WorkbenchCommandUnavailableReason::NoCompatibleWorker);
     }
     let root = Path::new(&entry.plugin_root);
-    let program = orchbee_local_runtime::resolve_windows_program(&pane.command[0], root);
+    let program = program::resolve(&pane.command[0], root)
+        .ok_or(WorkbenchCommandUnavailableReason::NoCompatibleWorker)?;
     let path = |path: &Path| path.to_str().map(str::to_owned).ok_or(unavailable);
     let launch = LaunchSelection::new(path(&program)?, pane.command[1..].to_vec())
         .map_err(|_| unavailable)?;
@@ -122,7 +123,10 @@ fn freeze(
         .map_err(|_| unavailable)?;
     let bin = std::env::current_exe()
         .ok()
-        .and_then(|exe| exe.parent().map(|parent| parent.join("orchbee.exe")))
+        .and_then(|exe| {
+            exe.parent()
+                .map(|parent| parent.join(format!("orchbee{}", std::env::consts::EXE_SUFFIX)))
+        })
         .ok_or(unavailable)?;
     let mut environment = vec![
         ("ORCHBEE_PLUGIN_ID".into(), entry.manifest.id.clone()),
@@ -182,6 +186,8 @@ impl super::WorkbenchAuthority {
 mod tests;
 
 mod membership;
+#[cfg(windows)]
+mod program;
 #[cfg(windows)]
 mod source;
 pub(super) use membership::Membership;

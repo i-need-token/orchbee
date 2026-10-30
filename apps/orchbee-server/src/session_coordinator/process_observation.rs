@@ -12,6 +12,7 @@ use orchbee_terminal_protocol::{
 };
 use orchbee_workbench_protocol::PresentationBinding;
 use std::{collections::BTreeMap, time::Instant};
+mod command_line;
 mod identity;
 #[cfg(test)]
 pub(crate) use identity::SETTLE;
@@ -55,7 +56,7 @@ fn rows(sample: &TerminalProcessInfo) -> Vec<AgentProcessRow> {
                 .filter(|s| {
                     !s.trim().is_empty() && !s.contains('\0') && s.encode_utf16().count() <= 4096
                 })
-                .and_then(|s| winsafe::CommandLineToArgv(s).ok());
+                .and_then(command_line::argv);
             AgentProcessRow {
                 pid: p.pid,
                 parent_pid: p.parent_pid,

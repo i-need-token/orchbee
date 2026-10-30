@@ -17,6 +17,9 @@ hmac = { version = "0.12.1", default-features = false }
 serde_json.workspace = true
 serde.workspace = true
 sha2.workspace = true
+# Pinned provider screen rules, plugin link handlers and event probes compile on every target.
+regex.workspace = true
+toml.workspace = true
 
 orchbee-terminal-protocol = { path = "../../crates/terminal-protocol" }
 orchbee-capability-node-protocol = { path = "../../crates/capability-node-protocol" }
@@ -33,19 +36,11 @@ nix = { workspace = true, features = ["fs", "poll", "process"] }
 # Owned inbox-curl Jobs reuse the workspace-pinned, patched child-settlement adapter.
 process-wrap.workspace = true
 windows.workspace = true
-# Pinned provider screen rules compiled once by the Windows sampler.
-regex.workspace = true
-toml.workspace = true
 # Parse Host process command lines with the Windows API; never infer identity from shell text.
 winsafe = { workspace = true, features = ["shell"] }
 
 [lints]
 workspace = true
-
-[dev-dependencies]
-# Portable pure-rule conformance tests use the same locked parser versions.
-regex.workspace = true
-toml.workspace = true
 
 [[test]]
 name = "integration"

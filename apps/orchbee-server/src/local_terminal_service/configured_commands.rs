@@ -10,10 +10,12 @@ use orchbee_local_runtime::{
 use orchbee_workbench_protocol::{
     ConfiguredCommandDescriptor, ConfiguredCommandFailure as Failure, ConfiguredCommandInvocation,
     ConfiguredCommandKind, ConfiguredCommandOutcome as Outcome, ConfiguredCommandRequest,
-    LaunchOptions, LaunchSelection, PluginAction, PluginPopupSize, PluginRequest, PluginWorker,
-    ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchDirectoryPath,
-    WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchTerminalGeometry, WorkerId,
+    LaunchOptions, PluginAction, PluginPopupSize, PluginRequest, PluginWorker, ProtocolVersion,
+    Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchDirectoryPath, WorkbenchLabel,
+    WorkbenchPanelSplitDirection, WorkbenchTerminalGeometry, WorkerId,
 };
+mod shell_launch;
+pub(in crate::local_terminal_service) use shell_launch::launch;
 
 pub(crate) fn descriptor(entry: &CustomCommandEntry) -> ConfiguredCommandDescriptor {
     let command = &entry.definition;
@@ -177,9 +179,7 @@ impl LocalTerminalService {
             context.focused_pane_cwd = Some(directory.as_str().into());
         }
         context.validate().map_err(|_| Failure::InvalidIntent)?;
-        let bin = std::env::current_exe()
-            .ok()
-            .and_then(|path| path.parent().map(|parent| parent.join("orchbee.exe")))
+        let bin = super::cli_executable()
             .and_then(|path| path.to_str().map(str::to_owned))
             .ok_or(Failure::Unavailable)?;
         let mut environment = vec![
@@ -353,36 +353,6 @@ impl LocalTerminalService {
             Kind::Popup => Err(Failure::InvalidIntent),
         }
     }
-}
-pub(in crate::local_terminal_service) fn launch(
-    command: &str,
-    environment: &[(String, String)],
-) -> Result<LaunchSelection, Failure> {
-    let root = std::env::var_os("SystemRoot")
-        .map(std::path::PathBuf::from)
-        .filter(|path| path.is_absolute())
-        .ok_or(Failure::Unavailable)?;
-    let shell = std::env::var_os("ComSpec")
-        .map(std::path::PathBuf::from)
-        .filter(|path| path.is_absolute())
-        .unwrap_or_else(|| root.join("System32/cmd.exe"));
-    let program = root.join("System32/WindowsPowerShell/v1.0/powershell.exe");
-    let encoded = orchbee_local_runtime::windows_raw_command_encoded(
-        shell.to_str().ok_or(Failure::Unavailable)?,
-        command,
-        environment,
-    )
-    .ok_or(Failure::InvalidIntent)?;
-    LaunchSelection::new(
-        program.to_str().ok_or(Failure::Unavailable)?.into(),
-        vec![
-            "-NoLogo".into(),
-            "-NoProfile".into(),
-            "-EncodedCommand".into(),
-            encoded,
-        ],
-    )
-    .map_err(|_| Failure::InvalidIntent)
 }
 fn identity(value: &str) -> Result<node::OperationId, Failure> {
     u128::from_str_radix(value, 16)

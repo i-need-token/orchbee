@@ -10,6 +10,7 @@ use std::{
     num::NonZeroU64,
     time::{Duration, Instant},
 };
+mod host_name;
 struct Listener {
     order: u64,
     focused: bool,
@@ -41,7 +42,7 @@ impl Registry {
         self.profile = Some(profile.into());
         self.clear_delivery = None;
         self.template = WindowTitleTemplate::parse(profile).ok().flatten();
-        self.hostname = winsafe::GetComputerName().unwrap_or_default();
+        self.hostname = host_name::host_name().unwrap_or_default();
     }
     fn rendered(&mut self, generation: NonZeroU64, context: &WindowTitleContext) -> Outcome {
         if self.foreground() != Some(generation) {

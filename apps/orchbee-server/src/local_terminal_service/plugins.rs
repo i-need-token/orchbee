@@ -249,10 +249,7 @@ fn resolve(
         .user_directories(&entry.manifest.id)
         .map_err(|_| Failure::SourceUnavailable)?;
     let path = |p: &std::path::Path| p.to_str().map(String::from).ok_or(Failure::InvalidIntent);
-    let executable = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|p| p.join("orchbee.exe")))
-        .ok_or(Failure::Unavailable)?;
+    let executable = super::cli_executable().ok_or(Failure::Unavailable)?;
     let mut environment = vec![
         ("ORCHBEE_PLUGIN_ID".into(), entry.manifest.id.clone()),
         ("ORCHBEE_PLUGIN_ROOT".into(), entry.plugin_root.clone()),
