@@ -52,6 +52,7 @@ fn withheld_off_windows(request: &WorkbenchRequest) -> bool {
             WorkbenchRequest::TerminalEditor(_)
                 | WorkbenchRequest::ClientView(_)
                 | WorkbenchRequest::PanelAgent(_)
+                | WorkbenchRequest::ConfiguredCommand(_)
                 | WorkbenchRequest::PaneGraphics(_)
                 | WorkbenchRequest::Events(_)
                 | WorkbenchRequest::AgentView(_)

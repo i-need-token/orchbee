@@ -165,9 +165,9 @@ Worker 插件作业返回 `Unsupported`，依赖配置的请求返回 `Unavailab
 观察器；这些 Host 无法采样进程，所以观察器在读取设置前就以 `Unsupported` 拒绝，Agent manifest
 请求因此返回 `Unavailable`。启动时还会配置 Panel 图形文件帧，其私有帧目录以 `Unsupported`
 拒绝预留。Agent 名称与 Windows 走同一条受保护路径；终端名称归属只来自 Agent 报告与进程观察，
-因此这里不会出现。终端编辑器、Client view、Panel Agent、Panel 图形、语义事件、Agent view、
-Workspace 与 Panel 元数据、窗口标题与通知请求在准入处保持原有拒绝，直到确定它们在 Windows
-之外的行为。检查点、停止与交接仍只在 Windows 上，因为只有 Windows 启动会构造它们的 owner。
+因此这里不会出现。终端编辑器、Client view、Panel Agent、已配置命令、Panel 图形、语义事件、
+Agent view、Workspace 与 Panel 元数据、窗口标题与通知请求在准入处保持原有拒绝，直到确定它们在
+Windows 之外的行为。检查点、停止与交接仍只在 Windows 上，因为只有 Windows 启动会构造它们的 owner。
 
 ## 本机 Worker service
 
@@ -840,4 +840,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=7aa597af2efb119e94f33beb28d51bdbe42c0cd72c8415ac7c92688de351fde8 zh-cn-sha256=19007471dba5dd127f0df1c772d8f6b41c5d0d6e8406c99ce12c465daf7cf5f7 -->
+<!-- documentation-pairing: english-sha256=19552a956ef8c2404407348c5698127e32e3ad70388f5eeec0176eaa59f6b240 zh-cn-sha256=39bdc4db14a4bdb4993a6a43ce14138cd93372246b13a55a776561a6ef671219 -->
