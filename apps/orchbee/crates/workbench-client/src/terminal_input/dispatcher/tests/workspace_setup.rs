@@ -135,11 +135,13 @@ impl TerminalInputPort for SetupPort {
         }
     }
 
-    fn invalidate_setup_display(&mut self) {
-        self.shown = false;
-    }
-    fn observe_focus(&mut self, focused: bool) {
-        self.focus.push(focused);
+    fn observe_terminal(&mut self, observation: crate::terminal_input::TerminalObservation) {
+        use crate::terminal_input::TerminalObservation;
+        match observation {
+            TerminalObservation::DisplayInvalidated => self.shown = false,
+            TerminalObservation::Focus(focused) => self.focus.push(focused),
+            _ => {}
+        }
     }
 
     fn apply_client_action(

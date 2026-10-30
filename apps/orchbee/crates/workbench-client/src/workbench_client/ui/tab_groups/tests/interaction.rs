@@ -134,7 +134,7 @@ fn strip_paging_requires_the_painted_source_and_follows_its_pointer_selection() 
         let mut stale = source.drawn.clone();
         stale.source.revision = WorkbenchRevision::new(0);
         let painted = if exact { &source.drawn } else { &stale };
-        let page = crate::tui_pointer::TabStripStart {
+        let page = crate::workbench_client::state::TabStripStart {
             tab: source.tabs[3].id.clone(),
             header: false,
         };

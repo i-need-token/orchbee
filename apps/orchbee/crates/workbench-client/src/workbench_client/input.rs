@@ -57,6 +57,25 @@ pub enum ModeRequest {
     PointerCapture(PointerCaptureRequest),
 }
 
+/// Host and input-stream facts the port observes. None of them is a gesture or a command, and a
+/// port without a native Client consumes every one of them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TerminalObservation {
+    /// Host focus is metadata; it never selects an input owner.
+    Focus(bool),
+    /// The host window geometry the shell measured for the next frame.
+    Geometry(Geometry),
+    /// Settled host graphics facts.
+    HostGraphics(crate::terminal_graphics::Facts),
+    /// Decoded human intent, before routing; host metadata and captured tails are excluded.
+    InputIntent,
+    /// Terminal-bound editing input that `forward` admitted.
+    TerminalEdited,
+    /// The host window changed size: painted close, rename, setup and worktree decisions stay
+    /// stale until their next draw.
+    DisplayInvalidated,
+}
+
 /// The interaction facts of the currently attached pane's latest frame —
 /// the pane's requested mouse contract plus its screen/cursor modes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -286,7 +305,6 @@ pub trait TerminalInputPort {
     fn take_action_menu_action(&mut self, _pointer_released: bool) -> Option<InputAction> {
         None
     }
-    fn observe_host_graphics(&mut self, _facts: crate::terminal_graphics::Facts) {}
     fn popup_input(
         &mut self,
         _id: &orchbee_workbench_protocol::WorkbenchRequestId,
@@ -309,8 +327,8 @@ pub trait TerminalInputPort {
 
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable>;
 
-    /// Called only after terminal-bound editing input was admitted by `forward`.
-    fn terminal_edited(&mut self) {}
+    /// One host or input-stream fact; see [`TerminalObservation`].
+    fn observe_terminal(&mut self, _observation: TerminalObservation) {}
 
     fn navigator_catalog(&self) -> Option<crate::client_view::navigator::Catalog> {
         None
@@ -329,9 +347,6 @@ pub trait TerminalInputPort {
     ) -> ClientActionDisposition {
         ClientActionDisposition::KeepNavigator
     }
-
-    /// Decoded human intent, before routing; host metadata and captured tails are excluded.
-    fn observe_input_intent(&mut self) {}
 
     /// The current pointer-resolution facts. Ports without a session
     /// report the default: nothing captured, nothing attached, no regions
@@ -373,7 +388,7 @@ pub trait TerminalInputPort {
     fn page_drawn_tab_strip(
         &mut self,
         _source: &crate::action_menu::DrawnTabCreate,
-        _start: &crate::tui_pointer::TabStripStart,
+        _start: &crate::workbench_client::state::TabStripStart,
     ) {
     }
 
@@ -516,11 +531,6 @@ pub trait TerminalInputPort {
         false
     }
 
-    fn observe_geometry(&mut self, _geometry: Geometry) {}
-
-    /// Host focus is metadata; ports without a native Client consume it.
-    fn observe_focus(&mut self, _focused: bool) {}
-
     fn capture_tab_confirmation_key_for(
         &mut self,
         _token: crate::workbench_client::CloseConfirmationToken,
@@ -602,8 +612,6 @@ pub trait TerminalInputPort {
     /// An outside press dismissed the board's capturing overlay.
     fn agent_board_dismiss(&mut self) {}
 
-    fn invalidate_close_display(&mut self) {}
-
     fn edit_rename_draft(&mut self, _token: RenameDraftToken, _edit: RenameEdit<'_>) -> bool {
         false
     }
@@ -613,8 +621,6 @@ pub trait TerminalInputPort {
     fn submit_rename_draft(&mut self, _token: RenameDraftToken) -> Option<ClientActionDisposition> {
         None
     }
-
-    fn invalidate_rename_display(&mut self) {}
 
     fn edit_worktree(&mut self, _token: WorktreeToken, _edit: WorktreeEdit<'_>) -> bool {
         false
@@ -632,7 +638,6 @@ pub trait TerminalInputPort {
     ) -> Option<WorktreeToken> {
         None
     }
-    fn invalidate_worktree_display(&mut self) {}
 
     fn edit_setup_draft(&mut self, _token: SetupToken, _edit: SetupEdit<'_>) -> bool {
         false
@@ -656,8 +661,6 @@ pub trait TerminalInputPort {
     ) -> Option<SetupToken> {
         None
     }
-
-    fn invalidate_setup_display(&mut self) {}
 }
 
 #[derive(Clone, Copy, Debug, Default)]

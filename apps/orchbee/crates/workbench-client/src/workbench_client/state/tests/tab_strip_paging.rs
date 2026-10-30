@@ -1,5 +1,5 @@
 use super::*;
-use crate::tui_pointer::TabStripStart;
+use crate::workbench_client::state::TabStripStart;
 
 fn start(tab: &WorkbenchTabId) -> TabStripStart {
     TabStripStart {

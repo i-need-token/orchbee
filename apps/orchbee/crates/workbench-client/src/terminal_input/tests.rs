@@ -26,8 +26,10 @@ fn completion_edit_requires_admitted_content_input_not_focus_navigation_or_copy(
                 Ok(())
             }
         }
-        fn terminal_edited(&mut self) {
-            self.edits += 1;
+        fn observe_terminal(&mut self, observation: super::TerminalObservation) {
+            if observation == super::TerminalObservation::TerminalEdited {
+                self.edits += 1;
+            }
         }
     }
     let mut dispatcher = InputDispatcher::default();

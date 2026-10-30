@@ -199,8 +199,10 @@ fn context_prefix_across_reads_consumes_only_the_navigation_keys() {
 }
 
 impl TerminalInputPort for UnavailablePort {
-    fn observe_focus(&mut self, focused: bool) {
-        self.0.borrow_mut().push(Call::Focus(focused));
+    fn observe_terminal(&mut self, observation: crate::terminal_input::TerminalObservation) {
+        if let crate::terminal_input::TerminalObservation::Focus(focused) = observation {
+            self.0.borrow_mut().push(Call::Focus(focused));
+        }
     }
 
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {

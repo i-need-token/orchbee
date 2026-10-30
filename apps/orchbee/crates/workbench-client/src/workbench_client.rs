@@ -20,7 +20,7 @@ use crate::{
     background_thread::BackgroundThread,
     client_view::{ClientAction, ClientActionDisposition},
     local_client::{LocalClient, LocalClientShutdown},
-    workbench_client::input::{TerminalInputPort, TerminalInputUnavailable},
+    workbench_client::input::{TerminalInputPort, TerminalInputUnavailable, TerminalObservation},
 };
 use orchbee_client_server_protocol::Geometry;
 use std::{io, sync::Arc};
@@ -779,6 +779,14 @@ impl WorkbenchClient {
         }
         self.finalize_native_retirement();
     }
+
+    /// Applies one measured host geometry, then settles any retirement it made due.
+    pub(crate) fn observe_geometry(&mut self, geometry: Geometry) {
+        match &mut self.backend {
+            ClientBackend::Native(native) => native.observe_geometry(geometry),
+        }
+        self.finalize_native_retirement();
+    }
 }
 
 impl TerminalInputPort for WorkbenchClient {
@@ -952,11 +960,6 @@ impl TerminalInputPort for WorkbenchClient {
             .native_mut()?
             .take_action_menu_action(pointer_released)
     }
-    fn observe_host_graphics(&mut self, facts: crate::terminal_graphics::Facts) {
-        if let Some(native) = self.backend.native_mut() {
-            native.observe_host_graphics(facts);
-        }
-    }
     fn popup_input(
         &mut self,
         id: &orchbee_workbench_protocol::WorkbenchRequestId,
@@ -980,12 +983,6 @@ impl TerminalInputPort for WorkbenchClient {
         self.backend
             .native_mut()
             .is_some_and(|native| native.activate_drawn_popup_close(target))
-    }
-
-    fn observe_focus(&mut self, focused: bool) {
-        if let Some(native) = self.backend.native_mut() {
-            native.observe_focus(focused);
-        }
     }
 
     fn edit_worktree(&mut self, token: WorktreeToken, edit: WorktreeEdit<'_>) -> bool {
@@ -1017,11 +1014,6 @@ impl TerminalInputPort for WorkbenchClient {
         self.backend
             .native_mut()
             .and_then(|ui| ui.scroll_worktree(token, up, lines))
-    }
-    fn invalidate_worktree_display(&mut self) {
-        if let Some(ui) = self.backend.native_mut() {
-            ui.after_worktree_draw(None);
-        }
     }
 
     fn edit_setup_draft(&mut self, token: SetupToken, edit: SetupEdit<'_>) -> bool {
@@ -1063,12 +1055,6 @@ impl TerminalInputPort for WorkbenchClient {
         disposition
     }
 
-    fn invalidate_setup_display(&mut self) {
-        if let Some(native) = self.backend.native_mut() {
-            native.invalidate_setup_display();
-        }
-    }
-
     fn edit_rename_draft(&mut self, token: RenameDraftToken, edit: RenameEdit<'_>) -> bool {
         match &mut self.backend {
             ClientBackend::Native(native) => native.edit_rename_draft(token, edit),
@@ -1087,12 +1073,6 @@ impl TerminalInputPort for WorkbenchClient {
         };
         self.finalize_native_retirement();
         disposition
-    }
-
-    fn invalidate_rename_display(&mut self) {
-        if let Some(native) = self.backend.native_mut() {
-            native.invalidate_rename_display();
-        }
     }
 
     fn capture_tab_confirmation_key_for(
@@ -1134,12 +1114,6 @@ impl TerminalInputPort for WorkbenchClient {
         captured
     }
 
-    fn invalidate_close_display(&mut self) {
-        if let Some(native) = self.backend.native_mut() {
-            native.invalidate_close_display();
-        }
-    }
-
     fn capture_agent_board_key_for(
         &mut self,
         episode: AgentBoardEpisodeToken,
@@ -1179,15 +1153,6 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    fn observe_input_intent(&mut self) {
-        if let Some(native) = self.backend.native_mut() {
-            native.clear_settings_notice();
-        }
-        if let Some(control) = &mut self.client_control {
-            control.interrupt_focus();
-        }
-    }
-
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
         let accepted = match &mut self.backend {
             ClientBackend::Native(native) => native.forward(input),
@@ -1196,9 +1161,40 @@ impl TerminalInputPort for WorkbenchClient {
         accepted.then_some(()).ok_or(TerminalInputUnavailable)
     }
 
-    fn terminal_edited(&mut self) {
-        if let Some(native) = self.backend.native_mut() {
-            native.terminal_edited();
+    fn observe_terminal(&mut self, observation: TerminalObservation) {
+        match observation {
+            TerminalObservation::Focus(focused) => {
+                if let Some(native) = self.backend.native_mut() {
+                    native.observe_focus(focused);
+                }
+            }
+            TerminalObservation::Geometry(geometry) => self.observe_geometry(geometry),
+            TerminalObservation::HostGraphics(facts) => {
+                if let Some(native) = self.backend.native_mut() {
+                    native.observe_host_graphics(facts);
+                }
+            }
+            TerminalObservation::InputIntent => {
+                if let Some(native) = self.backend.native_mut() {
+                    native.clear_settings_notice();
+                }
+                if let Some(control) = &mut self.client_control {
+                    control.interrupt_focus();
+                }
+            }
+            TerminalObservation::TerminalEdited => {
+                if let Some(native) = self.backend.native_mut() {
+                    native.terminal_edited();
+                }
+            }
+            TerminalObservation::DisplayInvalidated => {
+                if let Some(native) = self.backend.native_mut() {
+                    native.invalidate_close_display();
+                    native.invalidate_rename_display();
+                    native.invalidate_setup_display();
+                    native.after_worktree_draw(None);
+                }
+            }
         }
     }
 
@@ -1314,7 +1310,7 @@ impl TerminalInputPort for WorkbenchClient {
     fn page_drawn_tab_strip(
         &mut self,
         source: &crate::action_menu::DrawnTabCreate,
-        start: &crate::tui_pointer::TabStripStart,
+        start: &crate::workbench_client::state::TabStripStart,
     ) {
         if let Some(native) = self.backend.native_mut() {
             native.page_drawn_tab_strip(source, start);
@@ -1524,13 +1520,6 @@ impl TerminalInputPort for WorkbenchClient {
         };
         self.finalize_native_retirement();
         disposition
-    }
-
-    fn observe_geometry(&mut self, geometry: Geometry) {
-        match &mut self.backend {
-            ClientBackend::Native(native) => native.observe_geometry(geometry),
-        }
-        self.finalize_native_retirement();
     }
 }
 

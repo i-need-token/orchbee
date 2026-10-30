@@ -42,14 +42,13 @@ impl TerminalInputPort for Surface {
         self.bytes.extend_from_slice(bytes);
         Ok(())
     }
-    fn observe_host_graphics(&mut self, facts: Facts) {
-        self.facts.push(facts);
-    }
-    fn observe_geometry(&mut self, geometry: Geometry) {
-        self.geometry.push(geometry);
-    }
-    fn observe_input_intent(&mut self) {
-        self.intent += 1;
+    fn observe_terminal(&mut self, observation: TerminalObservation) {
+        match observation {
+            TerminalObservation::HostGraphics(facts) => self.facts.push(facts),
+            TerminalObservation::Geometry(geometry) => self.geometry.push(geometry),
+            TerminalObservation::InputIntent => self.intent += 1,
+            _ => {}
+        }
     }
 }
 impl super::super::TerminalSurface for Surface {}

@@ -64,7 +64,6 @@ mod modal;
 pub(crate) use modal::CancelledModalEvent;
 mod scrollbar;
 mod tabs;
-pub(crate) use crate::workbench_client::state::TabStripStart;
 pub(crate) use tabs::{TabDragSource, TabDragTab};
 mod sidebar_reorder;
 #[cfg(test)]

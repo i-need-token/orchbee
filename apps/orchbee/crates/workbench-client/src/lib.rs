@@ -366,8 +366,8 @@ pub mod application {
         pub use crate::terminal_input::{
             DecodedItem, DecodedKind, DispatchOutcome, InputDispatcher, LegacyDecoder, ModeRequest,
             MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent,
-            PointerCaptureRequest, TerminalInputPort, UnavailableTerminalInputPort,
-            encode_cursor_arrows, encode_pane_report,
+            PointerCaptureRequest, TerminalInputPort, TerminalObservation,
+            UnavailableTerminalInputPort, encode_cursor_arrows, encode_pane_report,
         };
     }
 

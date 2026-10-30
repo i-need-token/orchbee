@@ -382,7 +382,7 @@ impl<'a> WorkbenchClientView<'a> {
             .is_some_and(|state| state.group_collapsed(id))
     }
     /// The start of the window the person paged the Tab strip to, while it applies.
-    pub(crate) fn tab_strip_start(&self) -> Option<crate::tui_pointer::TabStripStart> {
+    pub(crate) fn tab_strip_start(&self) -> Option<crate::workbench_client::state::TabStripStart> {
         self.state.as_ref()?.tab_strip_start().cloned()
     }
 

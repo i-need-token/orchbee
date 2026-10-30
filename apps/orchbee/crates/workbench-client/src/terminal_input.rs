@@ -10,7 +10,7 @@ pub(crate) use crate::terminal_events::{PanePointerRoute, route_pane_pointer};
 use crate::terminal_events::{decoder, mouse, utf8};
 pub use crate::workbench_client::input::{
     ModeRequest, PointerCaptureRequest, PointerFrameFacts, PointerProbe, PointerSelectionAdmission,
-    PointerSelectionIntent, TerminalInputPort, UnavailableTerminalInputPort,
+    PointerSelectionIntent, TerminalInputPort, TerminalObservation, UnavailableTerminalInputPort,
 };
 pub(crate) use crate::workbench_client::input::{PointerSelectionCell, PointerUnboundPane};
 // Existing dispatcher fixtures build pointer facts; production consumers use the owning port.
@@ -68,7 +68,7 @@ fn forward_edit_or_report(
     terminal_input: &mut (impl TerminalInputPort + ?Sized),
 ) {
     match terminal_input.forward(input) {
-        Ok(()) if editing => terminal_input.terminal_edited(),
+        Ok(()) if editing => terminal_input.observe_terminal(TerminalObservation::TerminalEdited),
         Ok(()) => {}
         Err(_) => view.report_terminal_input_unavailable(),
     }

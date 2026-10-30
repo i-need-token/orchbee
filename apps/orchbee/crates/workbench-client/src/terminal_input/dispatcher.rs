@@ -20,7 +20,7 @@ use crate::workbench_client::SetupStage;
 
 use super::{
     DispatchOutcome, HostReply, ModeRequest, PointerCaptureRequest, RenameDraftToken, RenameEdit,
-    SetupEdit, SetupToken, TerminalInputPort,
+    SetupEdit, SetupToken, TerminalInputPort, TerminalObservation,
     decoder::{DecodedItem, DecodedKind, LegacyDecoder},
     forward_edit_or_report,
     modal::{ModalCapacity, ModalDecoder, ModalInputEvent},
@@ -1285,7 +1285,7 @@ impl InputDispatcher {
                 }
             }
             self.flush_pending(view, port);
-            port.observe_focus(focused);
+            port.observe_terminal(TerminalObservation::Focus(focused));
             self.settle_capture_edge(view, port);
             return Ok(DispatchOutcome::Continue);
         }
@@ -1544,7 +1544,7 @@ impl InputDispatcher {
             }
             _ => false,
         } {
-            port.observe_input_intent();
+            port.observe_terminal(TerminalObservation::InputIntent);
         }
         if let DecodedKind::Mouse(event) = &item.kind
             && self.capture_help_mouse(view, port, *event)
@@ -2473,7 +2473,7 @@ impl InputDispatcher {
                     self.pointer.cancel_modal_press();
                     self.pointer.cancel_scrollbar();
                 }
-                port.observe_focus(focused);
+                port.observe_terminal(TerminalObservation::Focus(focused));
                 continue;
             }
             if event == ModalInputEvent::InputFailure {

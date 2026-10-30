@@ -29,7 +29,7 @@ use crate::{
     localization::Locale,
     terminal_device::{InheritedTerminal, TerminalAdmissionError, WindowDimensions},
     terminal_input::{
-        DispatchOutcome, InputDispatcher, ModeRequest, PointerCaptureRequest,
+        DispatchOutcome, InputDispatcher, ModeRequest, PointerCaptureRequest, TerminalObservation,
         UnavailableTerminalInputPort,
     },
     terminal_lifecycle::{InheritedTerminalModes, PointerTrackingLevel, TerminalModeGuard},
@@ -674,7 +674,9 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             inputs.sample_time(),
             &mut |request| mode(request).map_err(LoopFailure::Input),
         )?;
-        terminal_input.observe_host_graphics(dispatcher.graphics_facts());
+        terminal_input.observe_terminal(TerminalObservation::HostGraphics(
+            dispatcher.graphics_facts(),
+        ));
         let _changed = terminal_input.tick_with_client_capture(client_capture_claims(&view));
         if terminal_input.client_control_tick(&mut view, to_area(dimensions), chrome.locale) {
             dispatcher.invalidate_hit_map(terminal_input);
@@ -765,7 +767,9 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 now,
                 &mut |request| mode(request).map_err(LoopFailure::Input),
             )?;
-            terminal_input.observe_host_graphics(dispatcher.graphics_facts());
+            terminal_input.observe_terminal(TerminalObservation::HostGraphics(
+                dispatcher.graphics_facts(),
+            ));
             // A ready continuation outranks the idle timeout, even when the
             // previous frame took longer than the decoder's bounded wait.
             // Dispatch still reconciles current owners before reading bytes.
@@ -838,7 +842,9 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 now,
                 &mut |request| mode(request).map_err(LoopFailure::Input),
             )?;
-            terminal_input.observe_host_graphics(dispatcher.graphics_facts());
+            terminal_input.observe_terminal(TerminalObservation::HostGraphics(
+                dispatcher.graphics_facts(),
+            ));
             if previous_measurement != dispatcher.graphics_facts().measurement {
                 redraw |= synchronize_viewport(
                     terminal,
@@ -918,7 +924,9 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 }
             }
             let terminal_input = surface.active();
-            terminal_input.observe_host_graphics(dispatcher.graphics_facts());
+            terminal_input.observe_terminal(TerminalObservation::HostGraphics(
+                dispatcher.graphics_facts(),
+            ));
             {
                 redraw |= update_graphics_surface(terminal, &mut dispatcher, now);
             }
@@ -1241,10 +1249,7 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
         {
             view.machines.cancel_sidebar_scroll();
         }
-        terminal_input.invalidate_close_display();
-        terminal_input.invalidate_rename_display();
-        terminal_input.invalidate_setup_display();
-        terminal_input.invalidate_worktree_display();
+        terminal_input.observe_terminal(TerminalObservation::DisplayInvalidated);
         terminal.backend_mut().set_window_dimensions(next);
         terminal
             .resize(to_area(next))
@@ -1328,7 +1333,7 @@ fn observe_surface_geometry(
         _ => {
             let geometry = terminal_geometry(*dimensions, view, client_view)?;
             if let Some(geometry) = geometry {
-                terminal_input.observe_geometry(geometry);
+                terminal_input.observe_terminal(TerminalObservation::Geometry(geometry));
             }
         }
     }

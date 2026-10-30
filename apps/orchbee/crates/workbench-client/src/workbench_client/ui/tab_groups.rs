@@ -260,7 +260,7 @@ impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn page_drawn_tab_strip(
         &mut self,
         source: &crate::action_menu::DrawnTabCreate,
-        start: &crate::tui_pointer::TabStripStart,
+        start: &crate::workbench_client::state::TabStripStart,
     ) {
         if self
             .tab_drag_source()

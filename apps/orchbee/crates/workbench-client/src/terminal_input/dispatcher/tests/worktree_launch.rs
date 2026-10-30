@@ -145,8 +145,10 @@ impl TerminalInputPort for Port {
             None
         }
     }
-    fn invalidate_worktree_display(&mut self) {
-        self.shown = None;
+    fn observe_terminal(&mut self, observation: crate::terminal_input::TerminalObservation) {
+        if observation == crate::terminal_input::TerminalObservation::DisplayInvalidated {
+            self.shown = None;
+        }
     }
 }
 #[test]

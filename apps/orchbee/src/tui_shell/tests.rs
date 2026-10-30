@@ -15,7 +15,7 @@ use crate::{
     client_view::ClientView,
     localization::Locale,
     terminal_device::WindowDimensions,
-    terminal_input::{ModeRequest, TerminalInputPort},
+    terminal_input::{ModeRequest, TerminalInputPort, TerminalObservation},
     termination_signal::TerminationSource,
     tui_backend::{FixedViewportBackend, ResizableBackend},
 };
@@ -79,11 +79,13 @@ fn run_native_close_resize_confirmation(
         ) -> bool {
             self.session.capture_tab_confirmation_key_for(token, key)
         }
-        fn invalidate_close_display(&mut self) {
-            self.session.invalidate_close_display();
-        }
-        fn observe_geometry(&mut self, geometry: orchbee_client_server_protocol::Geometry) {
-            self.session.observe_geometry(geometry);
+        fn observe_terminal(&mut self, observation: TerminalObservation) {
+            if matches!(
+                observation,
+                TerminalObservation::DisplayInvalidated | TerminalObservation::Geometry(_)
+            ) {
+                self.session.observe_terminal(observation);
+            }
         }
     }
     impl super::TerminalSurface for Surface<'_> {
@@ -432,11 +434,11 @@ fn too_small_viewport_pauses_resize_and_recovers_with_real_geometry() -> io::Res
             SurfaceEvent::Observe(geometry),
             SurfaceEvent::Tick,
             SurfaceEvent::AfterDraw,
-            SurfaceEvent::InvalidateCloseDisplay,
+            SurfaceEvent::InvalidateDisplay,
             SurfaceEvent::Tick,
             SurfaceEvent::Forward(b"x".to_vec()),
             SurfaceEvent::AfterDraw,
-            SurfaceEvent::InvalidateCloseDisplay,
+            SurfaceEvent::InvalidateDisplay,
             SurfaceEvent::Observe(geometry),
             SurfaceEvent::Tick,
             SurfaceEvent::Action(ClientAction::Exit),
@@ -620,7 +622,7 @@ fn propagates_input_errors_to_the_restoring_session_boundary() -> io::Result<()>
 
 #[derive(Debug, Eq, PartialEq)]
 enum SurfaceEvent {
-    InvalidateCloseDisplay,
+    InvalidateDisplay,
     Observe(orchbee_client_server_protocol::Geometry),
     Tick,
     AfterDraw,
@@ -634,9 +636,6 @@ struct OrderedSurface {
 }
 
 impl TerminalInputPort for OrderedSurface {
-    fn invalidate_close_display(&mut self) {
-        self.events.push(SurfaceEvent::InvalidateCloseDisplay);
-    }
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.events.push(SurfaceEvent::Forward(input.to_vec()));
         Ok(())
@@ -651,8 +650,16 @@ impl TerminalInputPort for OrderedSurface {
         Some(ClientActionDisposition::KeepNavigator)
     }
 
-    fn observe_geometry(&mut self, geometry: orchbee_client_server_protocol::Geometry) {
-        self.events.push(SurfaceEvent::Observe(geometry));
+    fn observe_terminal(&mut self, observation: TerminalObservation) {
+        match observation {
+            TerminalObservation::DisplayInvalidated => {
+                self.events.push(SurfaceEvent::InvalidateDisplay);
+            }
+            TerminalObservation::Geometry(geometry) => {
+                self.events.push(SurfaceEvent::Observe(geometry));
+            }
+            _ => {}
+        }
     }
 }
 
@@ -714,7 +721,7 @@ fn observes_fresh_geometry_before_initial_draw_tick_and_same_batch_effects() -> 
     assert_eq!(
         surface.events,
         [
-            SurfaceEvent::InvalidateCloseDisplay,
+            SurfaceEvent::InvalidateDisplay,
             SurfaceEvent::Observe(docked),
             SurfaceEvent::Tick,
             SurfaceEvent::AfterDraw,
@@ -983,7 +990,7 @@ fn outer_resize_invalidates_close_before_input_even_when_terminal_geometry_is_eq
             SurfaceEvent::Observe(geometry),
             SurfaceEvent::Tick,
             SurfaceEvent::AfterDraw,
-            SurfaceEvent::InvalidateCloseDisplay,
+            SurfaceEvent::InvalidateDisplay,
             SurfaceEvent::Observe(geometry),
             SurfaceEvent::Tick,
             SurfaceEvent::Forward(b"y".to_vec()),
