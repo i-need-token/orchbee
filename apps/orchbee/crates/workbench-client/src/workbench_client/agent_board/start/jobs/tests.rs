@@ -249,7 +249,7 @@ fn completion_waits_for_channel_authority_and_reports_started_once() {
         progress: Arc::new(Mutex::new(None)),
         outcomes,
         wake,
-        task: None,
+        task: crate::background_thread::BackgroundThread::ended(),
         cancelled: false,
     });
 
@@ -302,7 +302,7 @@ fn disconnected_start_worker_preserves_recovery_for_start_and_cancel() {
             progress: Arc::new(Mutex::new(None)),
             outcomes,
             wake,
-            task: None,
+            task: crate::background_thread::BackgroundThread::ended(),
             cancelled: phase == Phase::Cancelling,
         });
         assert_eq!(
@@ -330,7 +330,7 @@ fn catalog_result_survives_empty_then_sender_exit() {
         revision: 4,
         outcomes,
         cancelled: Arc::new(AtomicBool::new(false)),
-        task: None,
+        task: crate::background_thread::BackgroundThread::ended(),
     });
     assert!(!jobs.drain_catalog(&mut state));
     sender.send((4, CatalogUpdate::Found("codex"))).unwrap();
@@ -359,7 +359,7 @@ fn disconnected_catalog_worker_settles_unavailable() {
         revision: 4,
         outcomes,
         cancelled: Arc::new(AtomicBool::new(false)),
-        task: None,
+        task: crate::background_thread::BackgroundThread::ended(),
     });
     assert!(jobs.drain_catalog(&mut state));
     assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
@@ -381,7 +381,7 @@ fn detection_selects_no_undetected_default_and_lists_detected_providers_first() 
         revision: 4,
         outcomes,
         cancelled: Arc::new(AtomicBool::new(false)),
-        task: None,
+        task: crate::background_thread::BackgroundThread::ended(),
     });
     assert_eq!(state.selected_provider(), None);
     assert_eq!(state.name(), "");
@@ -615,7 +615,7 @@ fn canonical_attention_progress_is_cancellable_without_replacing_the_operation()
         progress: Arc::clone(&progress),
         outcomes,
         wake,
-        task: None,
+        task: crate::background_thread::BackgroundThread::ended(),
         cancelled: false,
     });
     assert!(jobs.drain(&mut state, CatalogAdmission::Closed).changed);

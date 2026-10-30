@@ -31,7 +31,7 @@ fn startup_preference_writer_flushes_latest_complete_record_before_join() {
     let root = Root(std::env::temp_dir().join(format!("orchbee-startup-preference-{nonce:032x}")));
     fs::create_dir(&root.0).unwrap();
     let path = root.0.join("position");
-    let writer = {
+    let mut writer = {
         let _lock = orchbee_local_runtime::PrivateCache::acquire(&path).unwrap();
         let mut writer = Writer::start(path.clone()).unwrap();
         writer.publish(position(1));
@@ -39,7 +39,9 @@ fn startup_preference_writer_flushes_latest_complete_record_before_join() {
         writer.publish(position(2));
         writer
     };
-    drop(writer);
+    writer
+        .stop_before(std::time::Instant::now() + std::time::Duration::from_secs(5))
+        .unwrap();
     let raw = orchbee_local_runtime::PrivateCache::read_existing(&path, FILE, MAXIMUM_BYTES)
         .unwrap()
         .unwrap();

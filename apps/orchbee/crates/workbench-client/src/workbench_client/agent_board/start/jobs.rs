@@ -13,7 +13,6 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, TryRecvError},
     },
-    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
@@ -23,6 +22,7 @@ use orchbee_workbench_protocol::WorkbenchPanelId;
 use super::{CatalogAdmission, CatalogBegin, Drain, Phase, State};
 use crate::{
     agent_start::{Progress, Report, Request, ReservationState, Verdict},
+    background_thread::BackgroundThread,
     local_client::{LocalClientOrigin, LocalOperationClock},
 };
 
@@ -147,15 +147,43 @@ impl Jobs {
 
     /// Session teardown: wake and join the workflow, then cancel and join every lookup.
     pub(in crate::workbench_client) fn close(&mut self) {
-        if let Some(task) = &mut self.start {
+        if let Some(mut task) = self.start.take() {
             task.cancel();
+            let _ = task.task.join();
         }
-        self.start.take();
         self.retire_active_catalog();
         for mut task in self.retiring_catalogs.drain(..) {
             task.cancel();
-            drop(task);
+            let _ = task.task.join();
         }
+    }
+
+    /// Process exit: wakes the workflow and cancels every lookup without waiting. An in-flight
+    /// start still cancels and releases its reservation on its own thread.
+    pub(in crate::workbench_client) fn request_stop(&mut self) {
+        if let Some(task) = &mut self.start {
+            task.cancel();
+        }
+        self.retire_active_catalog();
+        for task in &mut self.retiring_catalogs {
+            task.cancel();
+        }
+    }
+
+    /// Process exit: observes the workflow and every lookup against the shared deadline.
+    pub(in crate::workbench_client) fn stop_before(
+        &mut self,
+        deadline: Instant,
+    ) -> std::io::Result<()> {
+        self.request_stop();
+        let start = self
+            .start
+            .as_mut()
+            .map_or(Ok(()), |task| task.task.join_before(deadline));
+        self.retiring_catalogs
+            .iter_mut()
+            .map(|task| task.task.join_before(deadline))
+            .fold(start, std::io::Result::and)
     }
 
     fn ensure_catalog(&mut self, state: &mut State, path: Option<OsString>) -> bool {
@@ -247,7 +275,7 @@ impl Jobs {
             progress: Arc::new(Mutex::new(None)),
             outcomes,
             wake,
-            task: None,
+            task: BackgroundThread::ended(),
             cancelled: false,
         });
         true
@@ -256,7 +284,8 @@ impl Jobs {
 
 impl Drop for Jobs {
     fn drop(&mut self) {
-        self.close();
+        // Only close and stop_before wait; unfinished jobs are detached here.
+        self.request_stop();
     }
 }
 
@@ -293,7 +322,7 @@ struct CatalogTask {
     revision: u64,
     outcomes: Receiver<(u64, CatalogUpdate)>,
     cancelled: Arc<AtomicBool>,
-    task: Option<JoinHandle<()>>,
+    task: BackgroundThread,
 }
 
 impl CatalogTask {
@@ -304,24 +333,22 @@ impl CatalogTask {
         let (sender, outcomes) = mpsc::sync_channel(crate::agent_provider::CANONICAL_IDS.len() + 1);
         let cancelled = Arc::new(AtomicBool::new(false));
         let task_cancelled = Arc::clone(&cancelled);
-        let task = thread::Builder::new()
-            .name("orchbee-agent-start-catalog".into())
-            .spawn(move || {
-                let complete = client_path::client_path_candidates(
-                    path.as_deref(),
-                    task_cancelled.as_ref(),
-                    deadline,
-                    |provider| {
-                        let _ = sender.send((revision, CatalogUpdate::Found(provider)));
-                    },
-                );
-                let _ = sender.send((revision, CatalogUpdate::Finished(complete)));
-            })?;
+        let task = BackgroundThread::spawn("orchbee-agent-start-catalog", move || {
+            let complete = client_path::client_path_candidates(
+                path.as_deref(),
+                task_cancelled.as_ref(),
+                deadline,
+                |provider| {
+                    let _ = sender.send((revision, CatalogUpdate::Found(provider)));
+                },
+            );
+            let _ = sender.send((revision, CatalogUpdate::Finished(complete)));
+        })?;
         Ok(Self {
             revision,
             outcomes,
             cancelled,
-            task: Some(task),
+            task,
         })
     }
 
@@ -334,16 +361,13 @@ impl CatalogTask {
     }
 
     fn finished(&self) -> bool {
-        self.task.as_ref().is_none_or(JoinHandle::is_finished)
+        self.task.is_finished()
     }
 }
 
 impl Drop for CatalogTask {
     fn drop(&mut self) {
         self.cancel();
-        if let Some(task) = self.task.take() {
-            let _ = task.join();
-        }
     }
 }
 
@@ -357,7 +381,7 @@ struct StartTask {
     progress: Arc<Mutex<Option<Progress>>>,
     outcomes: Receiver<Completion>,
     wake: LocalStream,
-    task: Option<JoinHandle<()>>,
+    task: BackgroundThread,
     cancelled: bool,
 }
 
@@ -375,35 +399,33 @@ impl StartTask {
         let completion_panel = panel.clone();
         let progress = Arc::new(Mutex::new(None));
         let task_progress = Arc::clone(&progress);
-        let task = thread::Builder::new()
-            .name("orchbee-agent-start".into())
-            .spawn(move || {
-                let started = Instant::now();
-                let report = crate::agent_start::run_on_origin(
-                    request,
-                    started,
-                    deadline,
-                    Some(reader.as_local_io()),
-                    &origin,
-                    clock,
-                    panel,
-                    &|value| {
-                        if let Ok(mut progress) = task_progress.lock() {
-                            *progress = Some(value);
-                        }
-                    },
-                );
-                let _ = sender.send(Completion {
-                    generation,
-                    panel: completion_panel,
-                    report,
-                });
-            })?;
+        let task = BackgroundThread::spawn("orchbee-agent-start", move || {
+            let started = Instant::now();
+            let report = crate::agent_start::run_on_origin(
+                request,
+                started,
+                deadline,
+                Some(reader.as_local_io()),
+                &origin,
+                clock,
+                panel,
+                &|value| {
+                    if let Ok(mut progress) = task_progress.lock() {
+                        *progress = Some(value);
+                    }
+                },
+            );
+            let _ = sender.send(Completion {
+                generation,
+                panel: completion_panel,
+                report,
+            });
+        })?;
         Ok(Self {
             progress,
             outcomes,
             wake,
-            task: Some(task),
+            task,
             cancelled: false,
         })
     }
@@ -424,8 +446,5 @@ impl StartTask {
 impl Drop for StartTask {
     fn drop(&mut self) {
         self.cancel();
-        if let Some(task) = self.task.take() {
-            let _ = task.join();
-        }
     }
 }

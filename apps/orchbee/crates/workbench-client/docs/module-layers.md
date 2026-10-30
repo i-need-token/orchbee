@@ -90,6 +90,7 @@ today.
 | `agent_runtime`                               | `workflow`     | Agent execution ports and the observation facts that Agent start consumes.                                                                          |
 | `agent_start`                                 | `workflow`     | Typed Agent startup shared by the CLI and Client surfaces.                                                                                          |
 | `application`                                 | `composition`  | Export facade for the application binary.                                                                                                           |
+| `background_thread`                           | `workflow`     | Client background-thread ownership and the process-exit budget under the shared exit contract.                                                      |
 | `client_actions`                              | `values`       | Client, menu, and prefix action definitions shared by bindings, menus, capability policy, and discovery.                                            |
 | `client_context`                              | `values`       | Identity-only Client navigation locations.                                                                                                          |
 | `client_view`                                 | `state`        | Client-local chrome, prefix mode, overlays, and presentation preferences. Binding resolution moves to `input`.                                      |

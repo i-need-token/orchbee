@@ -1,4 +1,5 @@
 //! A shared-connection control subscription with bounded observations and owned cancellation.
+use crate::background_thread::BackgroundThread;
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::{
@@ -7,10 +8,10 @@ use orchbee_workbench_protocol::{
     ProtocolVersion, SessionId, Snapshot, SnapshotReadIntent, WorkbenchClientViewRequest,
     WorkbenchRequestId, WorkbenchSnapshotOutcome,
 };
+use std::thread::{self, JoinHandle};
 use std::{
     io,
     sync::{Arc, Condvar, Mutex},
-    thread::{self, JoinHandle},
     time::Duration,
 };
 mod configured_command;
@@ -151,7 +152,7 @@ pub(in crate::workbench_client) struct ClientControlLane {
     shared: Shared,
     wake: LocalStream,
     changed: LocalStream,
-    task: Option<JoinHandle<()>>,
+    task: BackgroundThread,
 }
 impl ClientControlLane {
     pub(in crate::workbench_client) fn layout_admission(&self) -> Result<(), Reason> {
@@ -223,28 +224,26 @@ impl ClientControlLane {
         changes.set_nonblocking(true)?;
         changed.set_nonblocking(true)?;
         let worker_shared = Arc::clone(&shared);
-        let task = thread::Builder::new()
-            .name("orchbee-client-control".into())
-            .spawn(move || {
-                run(
-                    &worker_shared,
-                    origin,
-                    clock,
-                    session_id,
-                    &wake_read,
-                    &changes,
-                );
-                let (lock, signal) = &*worker_shared;
-                if let Ok(mut handoff) = lock.lock() {
-                    handoff.failed = true;
-                }
-                signal.notify_all();
-            })?;
+        let task = BackgroundThread::spawn("orchbee-client-control", move || {
+            run(
+                &worker_shared,
+                origin,
+                clock,
+                session_id,
+                &wake_read,
+                &changes,
+            );
+            let (lock, signal) = &*worker_shared;
+            if let Ok(mut handoff) = lock.lock() {
+                handoff.failed = true;
+            }
+            signal.notify_all();
+        })?;
         Ok(Self {
             shared,
             wake,
             changed,
-            task: Some(task),
+            task,
         })
     }
     pub(in crate::workbench_client) fn publish(&self, sample: Sample) -> bool {
@@ -293,9 +292,12 @@ impl ClientControlLane {
         self.shared.0.lock().map_or(true, |handoff| handoff.failed)
     }
     pub(in crate::workbench_client) fn close(&mut self) {
-        if self.task.is_none() {
-            return;
-        }
+        self.request_stop();
+        let _ = self.task.join();
+    }
+    /// Stops the lane without waiting. The lane thread joins its own command and split-ratio
+    /// helpers before it ends.
+    pub(in crate::workbench_client) fn request_stop(&mut self) {
         let (lock, signal) = &*self.shared;
         if let Ok(mut handoff) = lock.lock() {
             handoff.stopped = true;
@@ -304,14 +306,20 @@ impl ClientControlLane {
         // Closing our wake endpoint interrupts admission and exchange without waiting for a peer.
         let _ = self.wake.shutdown(std::net::Shutdown::Both);
         let _ = self.changed.shutdown(std::net::Shutdown::Both);
-        if let Some(task) = self.task.take() {
-            let _ = task.join();
-        }
+    }
+    /// Process exit: observes the lane thread against the shared deadline.
+    pub(in crate::workbench_client) fn stop_before(
+        &mut self,
+        deadline: std::time::Instant,
+    ) -> std::io::Result<()> {
+        self.request_stop();
+        self.task.join_before(deadline)
     }
 }
 impl Drop for ClientControlLane {
     fn drop(&mut self) {
-        self.close();
+        // Only close and stop_before wait; an unfinished thread is detached here.
+        self.request_stop();
     }
 }
 
@@ -632,7 +640,7 @@ impl ClientControlLane {
             shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
             changed,
             wake,
-            task: None,
+            task: BackgroundThread::ended(),
         }
     }
     pub(in crate::workbench_client) fn inject_delivery_for_test(&self, delivery: Delivery) {

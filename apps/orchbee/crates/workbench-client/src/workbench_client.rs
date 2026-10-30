@@ -14,16 +14,13 @@ mod worktree_lane;
 #[cfg(test)]
 use crate::terminal_projection::TerminalProjection;
 use crate::{
+    background_thread::BackgroundThread,
     client_view::{ClientAction, ClientActionDisposition},
     local_client::{LocalClient, LocalClientShutdown},
     workbench_client::input::{TerminalInputPort, TerminalInputUnavailable},
 };
 use orchbee_client_server_protocol::Geometry;
-use std::{
-    io,
-    sync::Arc,
-    thread::{self, JoinHandle},
-};
+use std::{io, sync::Arc};
 
 mod agent_attention;
 mod agent_board;
@@ -130,7 +127,7 @@ impl ClientBackend {
 }
 
 enum ClientTask {
-    Native(JoinHandle<connection::ClientConnectionExit>),
+    Native(BackgroundThread<connection::ClientConnectionExit>),
 }
 
 pub struct WorkbenchClient {
@@ -317,9 +314,9 @@ impl WorkbenchClient {
         let origin = client.origin();
         let mailbox = Arc::new(mailbox::CommandMailbox::new(identity_seed, geometry));
         let worker_mailbox = Arc::clone(&mailbox);
-        let task = thread::Builder::new()
-            .name("orchbee-workbench-client".into())
-            .spawn(move || connection::run_native(client, geometry, worker_mailbox, context))?;
+        let task = BackgroundThread::spawn("orchbee-workbench-client", move || {
+            connection::run_native(client, geometry, worker_mailbox, context)
+        })?;
         let client_control = Some(ui::control_steps::ClientControl::new(
             origin.clone(),
             clock.clone(),
@@ -662,44 +659,47 @@ impl WorkbenchClient {
             rename_return,
             setup_return,
         ) = match self.task.take() {
-            Some(ClientTask::Native(task)) => match task.join() {
-                Ok(returned) => {
-                    let mut returned = returned;
-                    {
-                        retired_poll = returned.take_unavailable_poll();
+            // Retirement and reconnection still wait for the connection task's pending results.
+            Some(ClientTask::Native(mut task)) => {
+                match task.join().map_or(Err(()), |joined| joined.map_err(drop)) {
+                    Ok(returned) => {
+                        let mut returned = returned;
+                        {
+                            retired_poll = returned.take_unavailable_poll();
+                        }
+                        let setup = returned.take_setup_result();
+                        workspace_close_return = returned.take_workspace_close_result();
+                        takeover_return = returned.take_takeover_result();
+                        let pending = returned.into_pending_results();
+                        (
+                            pending.create,
+                            pending.moved,
+                            pending.panel,
+                            state::CloseWorkerReturn::Returned(pending.close),
+                            pending.renamed,
+                            setup,
+                        )
                     }
-                    let setup = returned.take_setup_result();
-                    workspace_close_return = returned.take_workspace_close_result();
-                    takeover_return = returned.take_takeover_result();
-                    let pending = returned.into_pending_results();
-                    (
-                        pending.create,
-                        pending.moved,
-                        pending.panel,
-                        state::CloseWorkerReturn::Returned(pending.close),
-                        pending.renamed,
-                        setup,
-                    )
+                    Err(_) => {
+                        takeover_return = match &self.backend {
+                            ClientBackend::Native(native) => native.takeover_worker_loss(),
+                        };
+                        workspace_close_return = match &self.backend {
+                            ClientBackend::Native(native) => native.workspace_close_worker_loss(),
+                        };
+                        let evidence = match &self.backend {
+                            ClientBackend::Native(native) => native.close_worker_loss(),
+                        };
+                        let renamed = match &self.backend {
+                            ClientBackend::Native(native) => native.rename_worker_loss(),
+                        };
+                        let setup = match &self.backend {
+                            ClientBackend::Native(native) => native.setup_worker_loss(),
+                        };
+                        (None, None, None, evidence, renamed, setup)
+                    }
                 }
-                Err(_) => {
-                    takeover_return = match &self.backend {
-                        ClientBackend::Native(native) => native.takeover_worker_loss(),
-                    };
-                    workspace_close_return = match &self.backend {
-                        ClientBackend::Native(native) => native.workspace_close_worker_loss(),
-                    };
-                    let evidence = match &self.backend {
-                        ClientBackend::Native(native) => native.close_worker_loss(),
-                    };
-                    let renamed = match &self.backend {
-                        ClientBackend::Native(native) => native.rename_worker_loss(),
-                    };
-                    let setup = match &self.backend {
-                        ClientBackend::Native(native) => native.setup_worker_loss(),
-                    };
-                    (None, None, None, evidence, renamed, setup)
-                }
-            },
+            }
             None => return,
         };
         let Some(native) = self.backend.native_mut() else {
@@ -1531,8 +1531,10 @@ impl TerminalInputPort for WorkbenchClient {
     }
 }
 
-impl Drop for WorkbenchClient {
-    fn drop(&mut self) {
+impl WorkbenchClient {
+    /// Process exit: asks every session-owned background thread to stop. Never waits, and
+    /// abandons the connection task's pending results.
+    pub fn request_stop(&mut self) {
         if let Some(watcher) = &mut self.window_title {
             watcher.close();
         }
@@ -1543,19 +1545,52 @@ impl Drop for WorkbenchClient {
             watcher.close();
         }
         if let Some(control) = &mut self.client_control {
-            control.close();
+            control.request_stop();
         }
-        match &mut self.backend {
-            ClientBackend::Native(native) => {
-                native.close(state::CarrierFailure::Closed);
-                // The lane's blocked read must finish before the mailbox is
-                // released — the join happens inside finalize_retirement too,
-                // but a retired-already session still owes the lane close.
-                native.release_agent_lane();
-            }
+        if let Some(native) = self.backend.native_mut() {
+            native.request_stop();
         }
-        self.finalize_native_retirement();
         let _closed = self.shutdown.close();
+        if let Some(shutdown) = &self.recovery_shutdown {
+            shutdown.close();
+        }
+        if let Some(writer) = &mut self.position_writer {
+            writer.request_stop();
+        }
+    }
+
+    /// Process exit: after every owner was asked to stop, observes each owner's thread against
+    /// one deadline. Every owner is observed even after a failure; Ok means every thread ended.
+    ///
+    /// # Errors
+    /// TimedOut when a thread is still running at the deadline; it is detached on drop.
+    pub fn stop_before(&mut self, deadline: std::time::Instant) -> io::Result<()> {
+        self.request_stop();
+        let control = self
+            .client_control
+            .as_mut()
+            .map_or(Ok(()), |control| control.stop_before(deadline));
+        let native = self
+            .backend
+            .native_mut()
+            .map_or(Ok(()), |native| native.stop_before(deadline));
+        let task = match &mut self.task {
+            Some(ClientTask::Native(task)) => task.join_before(deadline),
+            None => Ok(()),
+        };
+        let writer = self
+            .position_writer
+            .as_mut()
+            .map_or(Ok(()), |writer| writer.stop_before(deadline));
+        control.and(native).and(task).and(writer)
+    }
+}
+
+impl Drop for WorkbenchClient {
+    fn drop(&mut self) {
+        // stop_before owns completion at process exit. Dropping only requests stop; a thread
+        // that has not ended is detached and finishes on its own.
+        self.request_stop();
     }
 }
 

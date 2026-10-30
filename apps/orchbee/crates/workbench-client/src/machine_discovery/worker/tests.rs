@@ -4,7 +4,7 @@ fn mailbox_coalesces_and_failures_distinguish_transport_from_protocol() {
     let worker = Worker {
         cancel: Arc::new(OwnedCancellation::new().unwrap()),
         latest: Arc::new(Mutex::new(None)),
-        task: None,
+        task: BackgroundThread::ended(),
     };
     for generation in 1..=1000 {
         *worker.latest.lock().unwrap() = Some(Update {

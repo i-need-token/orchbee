@@ -80,6 +80,18 @@ impl Coordinator {
     pub(super) fn close(&mut self) -> bool {
         self.lane.as_mut().is_none_or(Lane::close)
     }
+    /// Process exit: asks the Worktree lane thread to stop without waiting.
+    pub(super) fn request_stop(&mut self) {
+        if let Some(lane) = &mut self.lane {
+            lane.request_stop();
+        }
+    }
+    /// Process exit: observes the Worktree lane thread against the shared deadline.
+    pub(super) fn stop_before(&mut self, deadline: Instant) -> std::io::Result<()> {
+        self.lane
+            .as_mut()
+            .map_or(Ok(()), |lane| lane.stop_before(deadline))
+    }
     pub(super) fn ensure_lane(&mut self, clock: &crate::local_client::LocalOperationClock) -> bool {
         if self.lane.as_ref().is_some_and(Lane::failed) {
             if !self.close() {

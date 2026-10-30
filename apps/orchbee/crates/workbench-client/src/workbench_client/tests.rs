@@ -31,6 +31,7 @@ use orchbee_workbench_protocol::{
 };
 use ratatui::{Terminal, backend::TestBackend};
 use std::io::{Read, Write};
+use std::thread;
 use std::{
     num::NonZeroU64,
     sync::{

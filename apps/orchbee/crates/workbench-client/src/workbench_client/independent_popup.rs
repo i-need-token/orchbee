@@ -19,6 +19,8 @@ use orchbee_workbench_protocol::{
     SessionId, WorkbenchRequestId, WorkbenchTerminalGeometry,
 };
 use ratatui::layout::Rect;
+
+use crate::background_thread::BackgroundThread;
 use std::{
     num::NonZeroU64,
     sync::{
@@ -26,7 +28,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, SyncSender},
     },
-    thread::{self, JoinHandle},
+    thread,
     time::{Duration, Instant},
 };
 
@@ -99,16 +101,24 @@ struct Lane {
     closing: Arc<AtomicBool>,
     stopping: Arc<AtomicBool>,
     wake: LocalStream,
-    task: Option<JoinHandle<()>>,
+    task: BackgroundThread,
 }
-impl Drop for Lane {
-    fn drop(&mut self) {
+impl Lane {
+    fn interrupt(&mut self) {
         self.stopping.store(true, Ordering::Release);
         self.sender.take();
         let _ = self.wake.shutdown(std::net::Shutdown::Both);
-        if let Some(task) = self.task.take() {
-            let _ = task.join();
-        }
+    }
+    /// Joins the interrupted thread; only Client retirement waits here.
+    fn close(mut self) {
+        self.interrupt();
+        let _ = self.task.join();
+    }
+}
+impl Drop for Lane {
+    fn drop(&mut self) {
+        // Only close and the exit deadline wait; an unfinished thread is detached here.
+        self.interrupt();
     }
 }
 
@@ -229,8 +239,23 @@ impl Driver {
         self.shutdown();
         self.origin = Some(origin);
     }
+    /// Process exit: asks the popup thread to stop without waiting.
+    pub(super) fn request_stop(&mut self) {
+        if let Some(lane) = &mut self.lane {
+            lane.interrupt();
+        }
+    }
+    /// Process exit: observes the popup thread's end against the shared deadline.
+    pub(super) fn stop_before(&mut self, deadline: Instant) -> std::io::Result<()> {
+        self.lane.as_mut().map_or(Ok(()), |lane| {
+            lane.interrupt();
+            lane.task.join_before(deadline)
+        })
+    }
     pub(super) fn shutdown(&mut self) {
-        self.lane.take();
+        if let Some(lane) = self.lane.take() {
+            lane.close();
+        }
         self.latest = None;
         self.id = None;
         self.spec = None;
@@ -348,25 +373,23 @@ impl Driver {
         let clock = self.clock.clone();
         let launch_id = id.clone();
         let launch_spec = spec.clone();
-        let task = thread::Builder::new()
-            .name("orchbee-independent-popup".into())
-            .spawn(move || {
-                let mut workbench_client = PopupRunner {
-                    session,
-                    id: launch_id,
-                    clock,
-                    wake: reader,
-                    output,
-                    desired,
-                    close,
-                    stop,
-                    commands,
-                };
-                if let Err(reason) = workbench_client.run(origin, launch_spec, geometry) {
-                    workbench_client.publish(Phase::Failed(reason), None, None);
-                }
-            })
-            .map_err(|_| Reason::Busy)?;
+        let task = BackgroundThread::spawn("orchbee-independent-popup", move || {
+            let mut workbench_client = PopupRunner {
+                session,
+                id: launch_id,
+                clock,
+                wake: reader,
+                output,
+                desired,
+                close,
+                stop,
+                commands,
+            };
+            if let Err(reason) = workbench_client.run(origin, launch_spec, geometry) {
+                workbench_client.publish(Phase::Failed(reason), None, None);
+            }
+        })
+        .map_err(|_| Reason::Busy)?;
         self.latest = latest.lock().ok().map(|latest| latest.clone());
         self.id = Some(id);
         self.spec = Some(spec);
@@ -380,7 +403,7 @@ impl Driver {
             closing,
             stopping,
             wake,
-            task: Some(task),
+            task,
         });
         Ok(())
     }

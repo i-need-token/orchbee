@@ -10,6 +10,7 @@ use std::{
 use orchbee_local_ipc::LocalStream;
 
 use super::{Driver, Lane, Pending};
+use crate::background_thread::BackgroundThread;
 use crate::{
     terminal_content::{ContentSource, PaintedRows, SnapshotMember, TerminalScreen},
     terminal_copy::{CopySearchDirection, TerminalTextPoint},
@@ -148,7 +149,7 @@ fn finished_lane(outcome: Option<Outcome>) -> Lane {
         outcomes,
         wake,
         stopping: Arc::new(AtomicU8::new(0)),
-        task: None,
+        task: BackgroundThread::ended(),
     }
 }
 

@@ -33,6 +33,33 @@ crate 内部模块遵循[模块分层](docs/module-layers.zh-CN.md)：每个模�
 状态归属和组件位置。
 [TUI 组件](docs/tui-components.zh-CN.md)参考列出共享的基础控件和重复组合。
 
+## 后台线程
+
+Client 的每个后台线程都通过 `background_thread::BackgroundThread` 持有，遵循与 Worker 后台作业
+相同的退出契约：
+
+- `request_stop` 请求持有者停止，从不等待。
+- `stop_before(deadline)` 请求持有者停止，只在线程已经结束后才 join。截止时间到达时仍在运行的
+  线程报告 `TimedOut`，并继续归持有者所有。
+- 丢弃持有者从不阻塞：它请求停止，join 已经结束的线程，并分离仍在运行的线程，由该线程自行结束。
+
+进程退出时，终端 shell 先请求所有持有者停止，再等待其中任何一个：当前和缓存的 Client、机器连接
+尝试与观察者，以及系统通知持有者。随后它以同一个截止时间 `EXIT_BUDGET`（10 秒）观察每个持有者；
+这是持有者观察到停止请求后仍可能处于其中的最长截止时间。各停止请求同时进行，因此正常退出不会变慢。
+截止时间到达时仍在运行的线程会被分离，退出报告清理失败，而不是成功。
+
+只有进程退出设有这个总上限。重连和退役仍会 join 连接任务以取回待结算的结果，持有者显式的
+`close` 保留其有界的 join。
+
+在截止时间被分离的线程可能在进程结束时放弃以下工作：
+
+- 进行中的 Agent 启动的取消和预留释放。预留可能保持待定，直到 Server 使其过期。
+- 最后一次位置缓存写入。
+- 一次 Windows 剪贴板投递。
+- 关闭状态恢复的结果。
+
+已保存机器的中继归相邻传输层的保留载体守卫所有，随该守卫停止。
+
 ## 测试支持
 
 相邻的私有单元测试拥有运行时证据，仅被它们使用的 fixture 保持 `#[cfg(test)]`。
@@ -59,4 +86,4 @@ crate 内部模块遵循[模块分层](docs/module-layers.zh-CN.md)：每个模�
 [仓库验证门禁](../../../../docs/zh-CN/VERIFICATION.md)。
 导出的模块和条目必须对应真实应用消费者，并保留私有测试的归属。
 
-<!-- documentation-pairing: english-sha256=052dc18995aabec1a018034e16edc721d7166a95d0b2dd09e9ca9ade10ea5336 zh-cn-sha256=7f8c90d7862963aefcaa78705c762ed371747c2d80773c14f402471d0f001199 -->
+<!-- documentation-pairing: english-sha256=9a52595557040d062deab33d4b132ebdddd7d4b3ed603b90c49ad50d8f787cb1 zh-cn-sha256=f2192c2dd7ca842babfd6193d3447a8bbc057cd3e9e8071313f0c1630a68c498 -->

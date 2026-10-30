@@ -2,7 +2,8 @@
 //! task is absent, preserving its origin and recovery mailbox seed. It does not replay close
 //! mutations or replace the Server's retained status authority.
 
-use super::{ClientTask, WorkbenchClient, connection, state, thread};
+use super::{ClientTask, WorkbenchClient, connection, state};
+use crate::background_thread::BackgroundThread;
 
 impl WorkbenchClient {
     pub(super) fn start_status_recovery(&mut self) -> bool {
@@ -38,18 +39,16 @@ impl WorkbenchClient {
         };
         let shutdown = connection::RecoveryShutdown::new();
         let worker_shutdown = shutdown.clone();
-        match thread::Builder::new()
-            .name("orchbee-close-status-recovery".into())
-            .spawn(move || {
-                connection::run_status_recovery(
-                    origin,
-                    clock,
-                    mailbox,
-                    worker_shutdown,
-                    deadline,
-                    membership,
-                )
-            }) {
+        match BackgroundThread::spawn("orchbee-close-status-recovery", move || {
+            connection::run_status_recovery(
+                origin,
+                clock,
+                mailbox,
+                worker_shutdown,
+                deadline,
+                membership,
+            )
+        }) {
             Ok(task) => {
                 self.recovery_shutdown = Some(shutdown);
                 self.task = Some(ClientTask::Native(task));

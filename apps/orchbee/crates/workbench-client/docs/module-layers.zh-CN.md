@@ -82,6 +82,7 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 | `agent_runtime`                               | `workflow`     | Agent 执行端口，以及 Agent 启动消费的观测事实。                                                     |
 | `agent_start`                                 | `workflow`     | CLI 与 Client 界面共用的类型化 Agent 启动。                                                         |
 | `application`                                 | `composition`  | 面向应用二进制的导出门面。                                                                          |
+| `background_thread`                           | `workflow`     | 共享退出契约下的 Client 后台线程所有权与进程退出预算。                                              |
 | `client_actions`                              | `values`       | 绑定、菜单、能力策略和发现共用的 Client、菜单与前缀动作定义。                                       |
 | `client_context`                              | `values`       | 只含身份的 Client 导航位置。                                                                        |
 | `client_view`                                 | `state`        | Client 本地的界面框架、前缀模式、浮层和呈现偏好。绑定解析移到 `input`。                             |
@@ -184,4 +185,4 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 可列出每个环和每个指向高层的引用及其源码位置样本；[Lint](../../../../../docs/zh-CN/LINTING.md)
 拥有该命令。
 
-<!-- documentation-pairing: english-sha256=87c13b681daf3f936296bf0384556efc41b8cdffd1d6286037573533a8dda95a zh-cn-sha256=50deb8b08e33c3877199cc448d89b3494c5cc30fd46e6a0784f480401d5ca07d -->
+<!-- documentation-pairing: english-sha256=ac6bc31a60ced0f496afaf89238c25dfb2ea530a2deb9b903975a6089051d6c3 zh-cn-sha256=5898f38b037dd3b8e0272bd7bba112c7f9f186c4df1a620aa8eaf9c3390938a5 -->

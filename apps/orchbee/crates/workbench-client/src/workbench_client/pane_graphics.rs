@@ -126,6 +126,19 @@ impl Driver {
         self.next = None;
         self.stopping = false;
     }
+    /// Process exit: asks the lane thread to stop without waiting.
+    pub(super) fn request_stop(&mut self) {
+        if let Some(lane) = &mut self.lane {
+            lane.interrupt();
+        }
+    }
+
+    /// Process exit: observes the lane thread's end against the shared deadline.
+    pub(super) fn stop_before(&mut self, deadline: Instant) -> std::io::Result<()> {
+        self.lane
+            .as_mut()
+            .map_or(Ok(()), |lane| lane.stop_before(deadline))
+    }
     fn interrupt(&mut self) {
         if let Some(lane) = &mut self.lane {
             lane.interrupt();

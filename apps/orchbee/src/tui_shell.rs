@@ -378,6 +378,7 @@ fn run_prepared_surface(
 
     let mut system_notifications = crate::notifications::system::SystemNotifications::new();
     let mut surface = SurfaceSlot::Owned(terminal_input);
+    let mut machines = None;
     let run_result = run_surface_loop(
         &mut terminal,
         Chrome {
@@ -427,8 +428,11 @@ fn run_prepared_surface(
         dimensions,
         mouse,
         initial_view,
+        &mut machines,
     )
     .map_err(LoopFailure::into_io_error);
+    let cleanup =
+        settle_background_exit(&mut surface, machines.as_mut(), &mut system_notifications);
     let detach_notice = run_result
         .as_ref()
         .ok()
@@ -439,9 +443,10 @@ fn run_prepared_surface(
         // output first; mode restoration still sends its own control bytes.
         modes.discard_frame_output();
     }
-    system_notifications.finish();
     drop(terminal);
     drop(surface);
+    drop(machines);
+    drop(system_notifications);
     measurement_recorder
         .finish_after_restore(
             run_result.map(|_| ()),
@@ -460,7 +465,29 @@ fn run_prepared_surface(
             .and_then(|_| stderr.flush())
             .map_err(TuiFailure::Runtime)?;
     }
-    Ok(())
+    // A thread still running at the exit deadline was detached; exit reports failure, not success.
+    cleanup.map_err(|error| {
+        TuiFailure::Runtime(io::Error::new(
+            error.kind(),
+            format!("Client background cleanup did not finish before exit: {error}"),
+        ))
+    })
+}
+
+/// Observes every background owner against one process-exit deadline. The loop already asked
+/// the surface and the machine manager to stop; the system-notification owner is asked here,
+/// still before any wait. Every owner is observed even after a failure.
+fn settle_background_exit(
+    surface: &mut SurfaceSlot<'_>,
+    machines: Option<&mut machines::Manager>,
+    system_notifications: &mut crate::notifications::system::SystemNotifications,
+) -> io::Result<()> {
+    system_notifications.request_stop();
+    let deadline = Instant::now() + crate::background_thread::EXIT_BUDGET;
+    let surface = surface.active().stop_before(deadline);
+    let machines = machines.map_or(Ok(()), |machines| machines.stop_before(deadline));
+    let notifications = system_notifications.stop_before(deadline);
+    surface.and(machines).and(notifications)
 }
 
 /// Presentation inputs that travel together through the event loop: the
@@ -554,6 +581,7 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
         dimensions,
         mouse,
         view,
+        &mut None,
     )
     .map(|completion| completion.exit)
 }
@@ -601,15 +629,16 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
     mut dimensions: WindowDimensions,
     mouse: bool,
     mut view: ClientView,
+    retained_machines: &mut Option<machines::Manager>,
 ) -> Result<LoopCompletion, LoopFailure<B::Error>> {
     let mut dispatcher = InputDispatcher::default();
     let wakeup = crate::workbench_client::UiWakeup::current();
     surface.active().set_ui_wakeup(Some(wakeup.clone()));
+    let mut machines = matches!(surface, SurfaceSlot::Owned(_))
+        .then(|| machines::Manager::new(&mut view, wakeup.clone()));
     let result = (|| {
         let (inputs, mode) = input_runtime;
         let measurements = inputs.measurements();
-        let mut machines = matches!(surface, SurfaceSlot::Owned(_))
-            .then(|| machines::Manager::new(&mut view, wakeup.clone()));
         let terminal_input = surface.active();
         if let Some(id) = terminal.backend().graphics_probe_id() {
             dispatcher.activate_graphics_probe(id);
@@ -934,6 +963,12 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
     })();
     dispatcher.cancel_pointer(surface.active());
     surface.active().set_ui_wakeup(None);
+    // Exit settlement starts here: every background owner is asked to stop before any wait.
+    surface.active().request_stop();
+    if let Some(machines) = &mut machines {
+        machines.request_stop();
+    }
+    *retained_machines = machines;
     result.map(|exit| LoopCompletion {
         exit,
         locale: view.effective_locale(chrome.locale),
@@ -1314,6 +1349,12 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
         crate::workbench_client::ContextNavigationAdmission::Unavailable
     }
     fn set_ui_wakeup(&mut self, _wakeup: Option<crate::workbench_client::UiWakeup>) {}
+    /// Process exit: asks every background owner of this surface to stop without waiting.
+    fn request_stop(&mut self) {}
+    /// Process exit: observes every background owner of this surface against one deadline.
+    fn stop_before(&mut self, _deadline: Instant) -> io::Result<()> {
+        Ok(())
+    }
     fn next_poll_delay(&self) -> Option<Duration> {
         None
     }
@@ -1401,6 +1442,12 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     }
     fn set_ui_wakeup(&mut self, wakeup: Option<crate::workbench_client::UiWakeup>) {
         self.set_ui_wakeup(wakeup);
+    }
+    fn request_stop(&mut self) {
+        crate::workbench_client::WorkbenchClient::request_stop(self);
+    }
+    fn stop_before(&mut self, deadline: Instant) -> io::Result<()> {
+        crate::workbench_client::WorkbenchClient::stop_before(self, deadline)
     }
     fn next_poll_delay(&self) -> Option<Duration> {
         self.next_poll_delay()

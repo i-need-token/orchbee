@@ -1731,6 +1731,23 @@ impl AgentBoard {
     /// Bounded lane close for session teardown: the wake write interrupts
     /// an in-flight exchange and the join returns without waiting out the
     /// read deadline. Must run before the mailbox is released.
+    /// Process exit: asks the live and dying lane threads to stop without waiting.
+    pub(super) fn request_stop(&mut self) {
+        self.lane
+            .iter_mut()
+            .chain(&mut self.dying_lanes)
+            .for_each(AgentReadLane::interrupt);
+    }
+
+    /// Process exit: observes every lane thread's end against the shared deadline.
+    pub(super) fn stop_before(&mut self, deadline: Instant) -> std::io::Result<()> {
+        self.lane
+            .iter_mut()
+            .chain(&mut self.dying_lanes)
+            .map(|lane| lane.stop_before(deadline))
+            .fold(Ok(()), std::io::Result::and)
+    }
+
     pub(super) fn release_lane(&mut self) {
         self.start.retire_catalog();
         if let Some(lane) = self.lane.take() {

@@ -1,5 +1,6 @@
 //! The optional position cache: platform storage identity, load, and the single background writer.
 use super::{FILE, MAXIMUM_BYTES, Position, Record, Schema, decode};
+use crate::background_thread::BackgroundThread;
 
 #[cfg(unix)]
 mod unix;
@@ -60,44 +61,57 @@ struct Shared {
 }
 pub(in crate::workbench_client) struct Writer {
     shared: std::sync::Arc<Shared>,
-    task: Option<std::thread::JoinHandle<()>>,
+    task: BackgroundThread,
     last: Option<Position>,
 }
 impl Writer {
     fn start(path: std::path::PathBuf) -> std::io::Result<Self> {
         let shared = std::sync::Arc::new(Shared::default());
         let worker = std::sync::Arc::clone(&shared);
-        let task = std::thread::Builder::new()
-            .name("orchbee-position-writer".into())
-            .spawn(move || {
-                loop {
-                    let position = {
-                        let Ok(mut queue) = worker.queue.lock() else {
-                            return;
-                        };
-                        while queue.pending.is_none() && !queue.closing {
-                            let Ok(next) = worker.wake.wait(queue) else {
-                                return;
-                            };
-                            queue = next;
-                        }
-                        let Some(position) = queue.pending.take() else {
-                            return;
-                        };
-                        position
+        let task = BackgroundThread::spawn("orchbee-position-writer", move || {
+            loop {
+                let position = {
+                    let Ok(mut queue) = worker.queue.lock() else {
+                        return;
                     };
-                    if write(&path, position).is_err() {
-                        worker
-                            .failed
-                            .store(true, std::sync::atomic::Ordering::Release);
+                    while queue.pending.is_none() && !queue.closing {
+                        let Ok(next) = worker.wake.wait(queue) else {
+                            return;
+                        };
+                        queue = next;
                     }
+                    let Some(position) = queue.pending.take() else {
+                        return;
+                    };
+                    position
+                };
+                if write(&path, position).is_err() {
+                    worker
+                        .failed
+                        .store(true, std::sync::atomic::Ordering::Release);
                 }
-            })?;
+            }
+        })?;
         Ok(Self {
             shared,
-            task: Some(task),
+            task,
             last: None,
         })
+    }
+    /// Closes the queue without waiting; the writer still persists the pending position.
+    pub(in crate::workbench_client) fn request_stop(&mut self) {
+        if let Ok(mut queue) = self.shared.queue.lock() {
+            queue.closing = true;
+            self.shared.wake.notify_one();
+        }
+    }
+    /// Process exit: an unfinished last write is abandoned at the deadline.
+    pub(in crate::workbench_client) fn stop_before(
+        &mut self,
+        deadline: std::time::Instant,
+    ) -> std::io::Result<()> {
+        self.request_stop();
+        self.task.join_before(deadline)
     }
     pub(in crate::workbench_client) fn publish(&mut self, position: Position) {
         if self.last.as_ref() == Some(&position) {
@@ -141,13 +155,8 @@ fn write(path: &std::path::Path, position: Position) -> std::io::Result<()> {
 }
 impl Drop for Writer {
     fn drop(&mut self) {
-        if let Ok(mut queue) = self.shared.queue.lock() {
-            queue.closing = true;
-            self.shared.wake.notify_one();
-        }
-        if let Some(task) = self.task.take() {
-            let _joined = task.join();
-        }
+        // The writer finishes the pending position on its own; dropping never waits for it.
+        self.request_stop();
     }
 }
 

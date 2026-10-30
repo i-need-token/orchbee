@@ -244,6 +244,24 @@ impl AgentAttention {
         self.redraw |= self.state.unavailable();
     }
 
+    /// Process exit: asks both lane threads to stop without waiting.
+    pub(super) fn request_stop(&mut self) {
+        self.physical.request_stop();
+        if let Some(lane) = &mut self.lane {
+            lane.interrupt();
+        }
+    }
+
+    /// Process exit: observes both lane threads' ends against the shared deadline.
+    pub(super) fn stop_before(&mut self, deadline: Instant) -> std::io::Result<()> {
+        let physical = self.physical.stop_before(deadline);
+        let lane = self
+            .lane
+            .as_mut()
+            .map_or(Ok(()), |lane| lane.stop_before(deadline));
+        physical.and(lane)
+    }
+
     /// Reads now, or right after the in-flight read, instead of awaiting the interval.
     pub(super) fn expedite(&mut self) {
         self.dirty = true;

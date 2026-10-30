@@ -3,6 +3,8 @@
 //! Physical admission and reconnect belong to the connection actor.
 
 use orchbee_local_ipc::AsLocalIo;
+
+use crate::background_thread::BackgroundThread;
 #[cfg(windows)]
 use orchbee_local_ipc::LocalStream as OwnedFd;
 #[cfg(unix)]
@@ -13,7 +15,6 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, SyncSender},
     },
-    thread::{self, JoinHandle},
     time::Instant,
 };
 
@@ -127,7 +128,7 @@ pub(super) struct AgentReadLane {
     outcomes: Receiver<LaneOutcome>,
     wake: OwnedFd,
     shutdown: Arc<AtomicBool>,
-    join: Option<JoinHandle<()>>,
+    thread: BackgroundThread,
 }
 
 impl AgentReadLane {
@@ -139,18 +140,16 @@ impl AgentReadLane {
         let (outcome_tx, outcomes) = mpsc::sync_channel(1);
         let (wake_read, wake_write) = wake_pair()?;
         let shutdown = Arc::new(AtomicBool::new(false));
-        let join = thread::Builder::new()
-            .name("orchbee-agent-lane".to_owned())
-            .spawn({
-                let shutdown = Arc::clone(&shutdown);
-                move || run(origin, clock, command_rx, outcome_tx, wake_read, shutdown)
-            })?;
+        let thread = BackgroundThread::spawn("orchbee-agent-lane", {
+            let shutdown = Arc::clone(&shutdown);
+            move || run(origin, clock, command_rx, outcome_tx, wake_read, shutdown)
+        })?;
         Ok(Self {
             commands: Some(commands),
             outcomes,
             wake: wake_write,
             shutdown,
-            join: Some(join),
+            thread,
         })
     }
 
@@ -183,7 +182,7 @@ impl AgentReadLane {
             outcomes: outcome_rx,
             wake: wake_write,
             shutdown: Arc::new(AtomicBool::new(true)),
-            join: None,
+            thread: BackgroundThread::ended(),
         }
     }
 
@@ -191,7 +190,7 @@ impl AgentReadLane {
     /// predecessor thread is still exiting so at most one lane thread is
     /// alive at a time — the UI never blocks on a join outside `close`.
     pub(super) fn finished(&self) -> bool {
-        self.join.as_ref().is_none_or(JoinHandle::is_finished)
+        self.thread.is_finished()
     }
 
     pub(super) fn take_outcome(&mut self) -> Option<LaneOutcome> {
@@ -209,27 +208,25 @@ impl AgentReadLane {
         drop(self.commands.take());
     }
 
+    /// Process exit: observes the thread's end against the shared deadline.
+    pub(super) fn stop_before(&mut self, deadline: Instant) -> std::io::Result<()> {
+        self.interrupt();
+        self.thread.join_before(deadline)
+    }
+
     /// Bounded close: the wake byte interrupts any in-flight exchange and
     /// the dropped command channel ends the loop after the current
     /// operation — `join` returns without waiting out a full deadline.
     pub(super) fn close(mut self) {
-        self.shutdown.store(true, Ordering::SeqCst);
-        let _ = signal_wake(&self.wake);
-        drop(self.commands.take());
-        if let Some(join) = self.join.take() {
-            let _ = join.join();
-        }
+        self.interrupt();
+        let _ = self.thread.join();
     }
 }
 
 impl Drop for AgentReadLane {
     fn drop(&mut self) {
-        self.shutdown.store(true, Ordering::SeqCst);
-        let _ = signal_wake(&self.wake);
-        drop(self.commands.take());
-        if let Some(join) = self.join.take() {
-            let _ = join.join();
-        }
+        // Only close and stop_before wait; an unfinished thread is detached here.
+        self.interrupt();
     }
 }
 

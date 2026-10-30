@@ -19,8 +19,7 @@ pub use rename::RenameResponse;
 pub use rename::RenameServer;
 
 use super::{
-    ClientBackend, ClientTask, Geometry, LocalClient, WorkbenchClient, connection, io, mailbox,
-    thread, ui,
+    ClientBackend, ClientTask, Geometry, LocalClient, WorkbenchClient, connection, io, mailbox, ui,
 };
 use crate::local_client::test_support::multiplex_peer::Peer as UnixStream;
 use crate::{
@@ -48,6 +47,7 @@ use orchbee_workbench_protocol::{
     read_workbench_request, write_workbench_response,
 };
 use std::io::Read;
+use std::thread;
 use std::{
     num::NonZeroU64,
     sync::{
@@ -494,7 +494,9 @@ pub(super) fn workbench_client_with_identity(
                 Arc::clone(&mailbox),
                 clock,
             ))),
-            task: Some(ClientTask::Native(task)),
+            task: Some(ClientTask::Native(
+                crate::background_thread::BackgroundThread::adopt(task),
+            )),
             shutdown,
             retirement_redraw_pending: false,
             origin: Some(origin),

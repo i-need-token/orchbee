@@ -155,7 +155,7 @@ fn graphics_draw_publication_uses_the_registered_connection_and_shutdown_interru
         }));
         reached_rx.recv_timeout(Duration::from_secs(3)).unwrap();
         lane.close();
-        assert!(lane.task.is_none());
+        assert!(lane.task.is_finished());
         server.finish().unwrap();
     }
 }
@@ -260,7 +260,7 @@ fn closing_during_the_one_workbench_snapshot_read_wakes_and_joins_without_delive
         reached_rx.recv_timeout(Duration::from_secs(3)).unwrap();
         assert!(lane.take_control().is_none());
         lane.close();
-        assert!(lane.task.is_none());
+        assert!(lane.task.is_finished());
         assert!(lane.take_control().is_none());
         server.finish().unwrap();
     }

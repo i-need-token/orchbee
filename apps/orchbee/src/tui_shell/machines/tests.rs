@@ -26,6 +26,7 @@ use orchbee_workbench_client::test_support::workbench_client::input::InputAction
 use orchbee_workbench_client::test_support::workbench_client::state::AttachmentKeyTestAccess;
 use orchbee_workbench_client::test_support::workbench_client::state::PaneKeyTestAccess;
 use orchbee_workbench_client::test_support::workbench_client::state::PaneRefTestAccess;
+use std::thread;
 struct Witness {
     name: &'static str,
     focus: Option<bool>,
@@ -250,17 +251,18 @@ fn machine_cancel_and_failed_attempt_preserve_active_surface_and_ignore_stale_co
     let (mut manager, mut view, mut surface) = setup();
     let cancelled = Arc::new(OwnedCancellation::new().unwrap());
     let worker = cancelled.clone();
-    let task = thread::spawn(move || {
+    let task = BackgroundThread::spawn("orchbee-machine-connect", move || {
         while !worker.is_cancelled() {
             thread::sleep(Duration::from_millis(1));
         }
         Err(io::Error::other("cancelled"))
-    });
+    })
+    .unwrap();
     manager.attempt = Some(Attempt {
         profile: Some(profile()),
         context: None,
         cancel: cancelled.clone(),
-        task: Some(task),
+        task,
     });
     view.machines.open = false;
     let deadline = Instant::now() + Duration::from_secs(3);
@@ -285,7 +287,10 @@ fn machine_cancel_and_failed_attempt_preserve_active_surface_and_ignore_stale_co
         profile: Some(profile()),
         context: None,
         cancel: Arc::new(OwnedCancellation::new().unwrap()),
-        task: Some(thread::spawn(|| Err(io::Error::other("unavailable")))),
+        task: BackgroundThread::spawn("orchbee-machine-connect", || {
+            Err(io::Error::other("unavailable"))
+        })
+        .unwrap(),
     });
     while manager.attempt.is_some() {
         assert!(

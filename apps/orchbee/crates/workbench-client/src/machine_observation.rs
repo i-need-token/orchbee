@@ -1,4 +1,5 @@
 //! Common bounded, cancellable observation lifecycle for Agent and Workspace consumers.
+use crate::background_thread::BackgroundThread;
 use crate::local_client::cancellation::{Cancellation, OwnedCancellation};
 use crate::{
     local_client::{
@@ -15,7 +16,6 @@ use orchbee_workbench_protocol::{
 };
 use std::{
     sync::Arc,
-    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 const FRESH_FOR: Duration = Duration::from_secs(10);
@@ -85,7 +85,7 @@ struct Completed<T> {
 }
 struct Job<T> {
     cancel: Arc<OwnedCancellation>,
-    task: Option<JoinHandle<Completed<T>>>,
+    task: BackgroundThread<Completed<T>>,
 }
 impl<T: Send + Sync + 'static> Job<T> {
     fn start(
@@ -96,41 +96,34 @@ impl<T: Send + Sync + 'static> Job<T> {
     ) -> Result<Self, ()> {
         let cancel = Arc::new(OwnedCancellation::new().map_err(|_| ())?);
         let flag = cancel.clone();
-        let task = thread::Builder::new()
-            .name("orchbee-machine-observation".into())
-            .spawn(move || {
-                let result = (|| {
-                    let mut client = source.reconnect(deadline, flag.borrow()).map_err(|_| ())?;
-                    read(&mut client, deadline, flag.borrow())
-                })();
-                let completed = Completed {
-                    at: Instant::now(),
-                    rows: result,
-                };
-                if let Some(wakeup) = wakeup {
-                    wakeup.signal();
-                }
-                completed
-            })
-            .map_err(|_| ())?;
-        Ok(Self {
-            cancel,
-            task: Some(task),
+        let task = BackgroundThread::spawn("orchbee-machine-observation", move || {
+            let result = (|| {
+                let mut client = source.reconnect(deadline, flag.borrow()).map_err(|_| ())?;
+                read(&mut client, deadline, flag.borrow())
+            })();
+            let completed = Completed {
+                at: Instant::now(),
+                rows: result,
+            };
+            if let Some(wakeup) = wakeup {
+                wakeup.signal();
+            }
+            completed
         })
+        .map_err(|_| ())?;
+        Ok(Self { cancel, task })
     }
     fn stop(&self) {
         self.cancel.cancel();
     }
     fn finished(&self) -> bool {
-        self.task.as_ref().is_none_or(JoinHandle::is_finished)
+        self.task.is_finished()
     }
 }
 impl<T> Drop for Job<T> {
     fn drop(&mut self) {
+        // Only Collector::stop_before waits; an unfinished reader is detached here.
         self.cancel.cancel();
-        if let Some(task) = self.task.take() {
-            let _settled = task.join();
-        }
     }
 }
 struct Entry<T> {
@@ -288,7 +281,7 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
         for entry in &mut self.entries {
             if entry.job.as_ref().is_some_and(Job::finished) {
                 let mut job = entry.job.take().expect("finished job");
-                entry.observation = match job.task.take().expect("owned job").join() {
+                entry.observation = match job.task.join().expect("owned job") {
                     Ok(Completed { at, rows: Ok(rows) }) => {
                         entry.read_failures = 0;
                         entry.observed = Some(at);
@@ -364,17 +357,37 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
         self.tick_jobs(now, start)
     }
 }
-impl<T> Drop for Collector<T> {
-    fn drop(&mut self) {
-        for entry in &self.entries {
-            if let Some(job) = &entry.job {
-                job.cancel.cancel();
-            }
-        }
-        for job in &self.retired {
+impl<T> Collector<T> {
+    /// Process exit: cancels every reader without waiting.
+    pub fn request_stop(&mut self) {
+        for job in self
+            .entries
+            .iter()
+            .filter_map(|entry| entry.job.as_ref())
+            .chain(&self.retired)
+        {
             job.cancel.cancel();
         }
-        // Job::drop joins every writer after the cancellation pass.
+    }
+
+    /// Process exit: observes every reader thread against the shared deadline.
+    ///
+    /// # Errors
+    /// TimedOut when a reader is still running at the deadline; it is detached on drop.
+    pub fn stop_before(&mut self, deadline: Instant) -> std::io::Result<()> {
+        self.request_stop();
+        self.entries
+            .iter_mut()
+            .filter_map(|entry| entry.job.as_mut())
+            .chain(&mut self.retired)
+            .map(|job| job.task.join_before(deadline))
+            .fold(Ok(()), std::io::Result::and)
+    }
+}
+impl<T> Drop for Collector<T> {
+    fn drop(&mut self) {
+        // Only stop_before waits; unfinished readers are detached here.
+        self.request_stop();
     }
 }
 impl<T> Default for Collector<T> {

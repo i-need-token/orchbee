@@ -1540,6 +1540,46 @@ impl WorkbenchClientUi {
         self.retire(failure);
     }
 
+    /// Process exit: closes the mailbox and asks every UI-owned background thread to stop. Never
+    /// waits; Client state is not settled because nothing draws it again.
+    pub(super) fn request_stop(&mut self) {
+        if let Some(mailbox) = &self.mailbox {
+            let _closed = mailbox.close(CarrierFailure::Closed);
+        }
+        self.start_jobs.request_stop();
+        self.board.request_stop();
+        self.attention.request_stop();
+        self.reports.request_stop();
+        self.graphics.request_stop();
+        self.overlays.request_stop();
+        self.links.request_stop();
+        self.copy_mode.request_stop();
+        self.popup.request_stop();
+        self.clipboard.request_stop();
+        self.worktrees.request_stop();
+    }
+
+    /// Process exit: after every owner was asked to stop, observes each against one deadline.
+    /// Every owner is observed even after a failure; the first failure is reported.
+    pub(super) fn stop_before(&mut self, deadline: std::time::Instant) -> std::io::Result<()> {
+        self.request_stop();
+        [
+            self.start_jobs.stop_before(deadline),
+            self.board.stop_before(deadline),
+            self.attention.stop_before(deadline),
+            self.reports.stop_before(deadline),
+            self.graphics.stop_before(deadline),
+            self.overlays.stop_before(deadline),
+            self.links.stop_before(deadline),
+            self.copy_mode.stop_before(deadline),
+            self.popup.stop_before(deadline),
+            self.clipboard.stop_before(deadline),
+            self.worktrees.stop_before(deadline),
+        ]
+        .into_iter()
+        .fold(Ok(()), std::io::Result::and)
+    }
+
     pub(super) fn finalize_retirement(
         &mut self,
         pending_create: Option<PendingCreateCommit>,

@@ -40,6 +40,38 @@ the allowed reference direction, state ownership, and component placement.
 The [TUI components](docs/tui-components.md) reference inventories the shared primitives and
 recurring compositions.
 
+## Background threads
+
+Every Client background thread is owned through `background_thread::BackgroundThread`, under the
+exit contract that the Worker's background jobs follow:
+
+- `request_stop` asks an owner to stop and never waits.
+- `stop_before(deadline)` asks the owner to stop and joins its thread only after the thread has
+  ended. A thread still running at the deadline reports `TimedOut` and stays owned.
+- Dropping an owner never blocks. It requests stop, joins a thread that has already ended, and
+  detaches a running thread, which then ends on its own.
+
+At process exit, the terminal shell asks every owner to stop before it waits for any of them: the
+active and cached Clients, the machine connection attempt and observers, and the
+system-notification owner. It then observes each owner against one deadline, `EXIT_BUDGET`
+(10 seconds), which is the longest deadline that an owner can still be inside after it observes a
+stop. Stop requests overlap, so a normal exit is not slower. A thread still running at the
+deadline is detached, and the exit reports a cleanup failure instead of success.
+
+Only process exit has this total bound. Reconnection and retirement still join the connection task
+to recover its pending results, and an owner's explicit `close` keeps its bounded join.
+
+A thread detached at the deadline can abandon this work when the process ends:
+
+- The cancellation and reservation release of an in-flight Agent start. The reservation can stay
+  pending until the Server expires it.
+- The last position-cache write.
+- A Windows clipboard delivery.
+- The result of close-status recovery.
+
+The saved-machine relay belongs to the retained-carrier guard of the sibling transport and stops
+with that guard.
+
 ## Test support
 
 Adjacent private unit tests own runtime evidence, and fixtures used only by them stay

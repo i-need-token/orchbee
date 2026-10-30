@@ -19,6 +19,7 @@ mod tui_shell;
 use orchbee_workbench_client::application::agent_provider;
 use orchbee_workbench_client::application::agent_runtime;
 use orchbee_workbench_client::application::agent_start;
+use orchbee_workbench_client::application::background_thread;
 use orchbee_workbench_client::application::client_view;
 use orchbee_workbench_client::application::local_activation;
 use orchbee_workbench_client::application::local_client;

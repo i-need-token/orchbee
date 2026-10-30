@@ -7,7 +7,6 @@ use std::{
         atomic::{AtomicU8, Ordering},
         mpsc::{self, Receiver, SyncSender, TrySendError},
     },
-    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
@@ -21,6 +20,8 @@ use crate::{
     },
 };
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
+
+use crate::background_thread::BackgroundThread;
 use orchbee_workbench_protocol::PluginLinkCatalogGuard;
 
 const JOB_BUDGET: Duration = Duration::from_secs(5);
@@ -59,7 +60,7 @@ struct Lane {
     outcomes: Receiver<Notice>,
     wake: LocalStream,
     stopping: Arc<AtomicU8>,
-    task: Option<JoinHandle<()>>,
+    task: BackgroundThread,
 }
 
 impl Lane {
@@ -69,26 +70,24 @@ impl Lane {
         let (reader, wake) = LocalStream::pair()?;
         let stopping = Arc::new(AtomicU8::new(0));
         let stop = Arc::clone(&stopping);
-        let task = thread::Builder::new()
-            .name("orchbee-link-activation".into())
-            .spawn(move || {
-                let mut browser = SystemBrowser;
-                while let Ok(job) = commands.recv() {
-                    if stop.load(Ordering::Acquire) != 0 {
-                        break;
-                    }
-                    let result = execute(&origin, &clock, &reader, &stop, &job, &mut browser);
-                    if output.send(result).is_err() {
-                        break;
-                    }
+        let task = BackgroundThread::spawn("orchbee-link-activation", move || {
+            let mut browser = SystemBrowser;
+            while let Ok(job) = commands.recv() {
+                if stop.load(Ordering::Acquire) != 0 {
+                    break;
                 }
-            })?;
+                let result = execute(&origin, &clock, &reader, &stop, &job, &mut browser);
+                if output.send(result).is_err() {
+                    break;
+                }
+            }
+        })?;
         Ok(Self {
             sender: Some(sender),
             outcomes,
             wake,
             stopping,
-            task: Some(task),
+            task,
         })
     }
 
@@ -99,12 +98,23 @@ impl Lane {
     }
 }
 
+impl Lane {
+    /// Joins the interrupted thread; only Client retirement waits here.
+    fn close(mut self) {
+        self.interrupt();
+        let _ = self.task.join();
+    }
+
+    /// Process exit: observes the thread's end against the shared deadline.
+    fn stop_before(&mut self, deadline: Instant) -> std::io::Result<()> {
+        self.interrupt();
+        self.task.join_before(deadline)
+    }
+}
 impl Drop for Lane {
     fn drop(&mut self) {
+        // Only close and stop_before wait; an unfinished thread is detached here.
         self.interrupt();
-        if let Some(task) = self.task.take() {
-            let _ = task.join();
-        }
     }
 }
 
@@ -137,7 +147,9 @@ impl Driver {
 
     /// Stop admission, interrupt waits, join the owned lane, and clear transient state.
     pub(crate) fn close(&mut self) {
-        self.lane.take();
+        if let Some(lane) = self.lane.take() {
+            lane.close();
+        }
         self.origin = None;
         self.inflight = false;
         self.notice = None;
@@ -216,7 +228,7 @@ impl Driver {
         if self
             .lane
             .as_ref()
-            .is_some_and(|lane| lane.task.as_ref().is_none_or(JoinHandle::is_finished))
+            .is_some_and(|lane| lane.task.is_finished())
         {
             self.lane.take();
             if self.inflight {
@@ -257,9 +269,24 @@ impl Driver {
     }
 }
 
+impl Driver {
+    /// Process exit: asks the lane thread to stop without waiting.
+    pub(crate) fn request_stop(&mut self) {
+        if let Some(lane) = &mut self.lane {
+            lane.interrupt();
+        }
+    }
+
+    /// Process exit: observes the lane thread's end against the shared deadline.
+    pub(crate) fn stop_before(&mut self, deadline: Instant) -> std::io::Result<()> {
+        self.lane
+            .as_mut()
+            .map_or(Ok(()), |lane| lane.stop_before(deadline))
+    }
+}
 impl Drop for Driver {
     fn drop(&mut self) {
-        self.close();
+        self.request_stop();
     }
 }
 

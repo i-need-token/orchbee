@@ -333,9 +333,24 @@ impl Discovery {
         }
     }
 }
-impl Drop for Discovery {
-    fn drop(&mut self) {
-        // Wake all I/O owners before any destructor joins a worker.
+impl Discovery {
+    /// Process exit: observes every observer thread against the shared deadline after all of
+    /// them were cancelled.
+    ///
+    /// # Errors
+    /// TimedOut when an observer is still running at the deadline; it is detached on drop.
+    pub fn stop_before(&mut self, deadline: Instant) -> io::Result<()> {
+        self.request_stop();
+        self.entries
+            .iter_mut()
+            .filter_map(|entry| entry.worker.as_mut())
+            .chain(&mut self.retired)
+            .map(|worker| worker.stop_before(deadline))
+            .fold(Ok(()), io::Result::and)
+    }
+
+    /// Wakes all I/O owners and cancels every observer without waiting.
+    pub fn request_stop(&mut self) {
         for entry in &mut self.entries {
             entry.ready = None;
         }
@@ -347,6 +362,12 @@ impl Drop for Discovery {
         {
             worker.cancel();
         }
+    }
+}
+impl Drop for Discovery {
+    fn drop(&mut self) {
+        // Only stop_before waits; unfinished observers are detached here.
+        self.request_stop();
     }
 }
 

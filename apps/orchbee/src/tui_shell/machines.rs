@@ -1,5 +1,6 @@
 //! UI-owned selection over read-only saved-machine observers.
 use super::{SurfaceSlot, TerminalSurface, terminal_geometry};
+use crate::background_thread::BackgroundThread;
 use crate::{
     client_view::ClientView,
     local_client::{LocalClient, cancellation::OwnedCancellation},
@@ -15,7 +16,6 @@ use crate::{
 use std::{
     io,
     sync::Arc,
-    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
@@ -23,7 +23,7 @@ struct Attempt {
     profile: Option<Profile>,
     context: Option<ClientStartupTarget>,
     cancel: Arc<OwnedCancellation>,
-    task: Option<JoinHandle<io::Result<PreparedSelection>>>,
+    task: BackgroundThread<io::Result<PreparedSelection>>,
 }
 enum PreparedSelection {
     Connection(LocalClient),
@@ -34,10 +34,8 @@ enum PreparedSelection {
 }
 impl Drop for Attempt {
     fn drop(&mut self) {
+        // Only Manager::stop_before waits; an unfinished connection attempt is detached here.
         self.cancel.cancel();
-        if let Some(task) = self.task.take() {
-            let _settled = task.join();
-        }
     }
 }
 struct Candidate {
@@ -88,6 +86,51 @@ pub(super) struct Manager {
     agents: crate::machine_agents::Collector,
     spaces: crate::machine_spaces::Collector,
     space_git: Option<bool>,
+}
+impl Manager {
+    /// Process exit: asks every cached and candidate Client, the connection attempt, and every
+    /// machine observer to stop without waiting.
+    pub(super) fn request_stop(&mut self) {
+        for cached in &mut self.cached {
+            cached.surface.request_stop();
+        }
+        if let Some(candidate) = &mut self.candidate {
+            candidate.session.request_stop();
+        }
+        if let Some(attempt) = &self.attempt {
+            attempt.cancel.cancel();
+        }
+        self.agents.request_stop();
+        self.spaces.request_stop();
+        self.discovery.request_stop();
+    }
+
+    /// Process exit: after every owner was asked to stop, observes each against one deadline.
+    pub(super) fn stop_before(&mut self, deadline: Instant) -> io::Result<()> {
+        self.request_stop();
+        let cached = self
+            .cached
+            .iter_mut()
+            .map(|cached| cached.surface.stop_before(deadline))
+            .fold(Ok(()), io::Result::and);
+        let candidate = self
+            .candidate
+            .as_mut()
+            .map_or(Ok(()), |candidate| candidate.session.stop_before(deadline));
+        let attempt = self
+            .attempt
+            .as_mut()
+            .map_or(Ok(()), |attempt| attempt.task.join_before(deadline));
+        let agents = self.agents.stop_before(deadline);
+        let spaces = self.spaces.stop_before(deadline);
+        let discovery = self.discovery.stop_before(deadline);
+        cached
+            .and(candidate)
+            .and(attempt)
+            .and(agents)
+            .and(spaces)
+            .and(discovery)
+    }
 }
 impl Drop for Manager {
     fn drop(&mut self) {
@@ -334,17 +377,12 @@ impl Manager {
             }
             change.redraw = true;
         }
-        if self
-            .attempt
-            .as_ref()
-            .is_some_and(|a| a.task.as_ref().is_some_and(|t| t.is_finished()))
-        {
+        if self.attempt.as_ref().is_some_and(|a| a.task.is_finished()) {
             let mut attempt = self.attempt.take().expect("finished attempt");
             let result = attempt
                 .task
-                .take()
-                .expect("attempt task")
                 .join()
+                .expect("attempt task")
                 .unwrap_or_else(|_| Err(io::Error::other("machine connection worker failed")));
             if !attempt.cancel.is_cancelled()
                 && self.selection_current(view)
@@ -454,36 +492,34 @@ impl Manager {
                 match OwnedCancellation::new().and_then(|cancel| {
                     let cancel = Arc::new(cancel);
                     let worker_cancel = cancel.clone();
-                    let task = thread::Builder::new()
-                        .name("orchbee-machine-connect".into())
-                        .spawn(move || {
-                            let mut client =
-                                connection.reconnect(queued.deadline, worker_cancel.borrow())?;
-                            if let Some(target) = direct_agent {
-                                let snapshot = crate::machine_observation::snapshot(
-                                    &mut client,
-                                    queued.deadline,
-                                    worker_cancel.borrow(),
-                                )
-                                .map_err(|()| {
-                                    io::Error::other("Agent selection snapshot unavailable")
-                                })?;
-                                crate::machine_agents::verify(
-                                    &mut client,
-                                    &snapshot,
-                                    &target,
-                                    queued.deadline,
-                                    worker_cancel.borrow(),
-                                )
-                                .map_err(|()| io::Error::other("Agent selection is stale"))?;
-                                Ok(PreparedSelection::Agent {
-                                    target,
-                                    deadline: queued.deadline,
-                                })
-                            } else {
-                                Ok(PreparedSelection::Connection(client))
-                            }
-                        })?;
+                    let task = BackgroundThread::spawn("orchbee-machine-connect", move || {
+                        let mut client =
+                            connection.reconnect(queued.deadline, worker_cancel.borrow())?;
+                        if let Some(target) = direct_agent {
+                            let snapshot = crate::machine_observation::snapshot(
+                                &mut client,
+                                queued.deadline,
+                                worker_cancel.borrow(),
+                            )
+                            .map_err(|()| {
+                                io::Error::other("Agent selection snapshot unavailable")
+                            })?;
+                            crate::machine_agents::verify(
+                                &mut client,
+                                &snapshot,
+                                &target,
+                                queued.deadline,
+                                worker_cancel.borrow(),
+                            )
+                            .map_err(|()| io::Error::other("Agent selection is stale"))?;
+                            Ok(PreparedSelection::Agent {
+                                target,
+                                deadline: queued.deadline,
+                            })
+                        } else {
+                            Ok(PreparedSelection::Connection(client))
+                        }
+                    })?;
                     Ok((cancel, task))
                 }) {
                     Ok((cancel, task)) => {
@@ -491,7 +527,7 @@ impl Manager {
                             profile: queued.profile,
                             context,
                             cancel,
-                            task: Some(task),
+                            task,
                         })
                     }
                     Err(_) => self.fail_selection(view, "failed"),

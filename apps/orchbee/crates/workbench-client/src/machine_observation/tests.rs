@@ -3,7 +3,7 @@ use crate::{
     local_client::test_support::server::FakeServer,
     machine_agents::{Checkpoint, test_support::checkpoint, tests::accept},
 };
-use std::io;
+use std::{io, thread};
 fn id(n: u64) -> String {
     format!("{n:032x}")
 }
@@ -41,7 +41,7 @@ fn completed(at: Instant) -> Job<Checkpoint> {
     }
     Job {
         cancel: Arc::new(OwnedCancellation::new().unwrap()),
-        task: Some(task),
+        task: BackgroundThread::adopt(task),
     }
 }
 #[test]
@@ -66,7 +66,7 @@ fn observation_collector_bounds_workers_and_cancels_removed_sources() -> io::Res
         });
         Ok(Job {
             cancel,
-            task: Some(task),
+            task: BackgroundThread::adopt(task),
         })
     });
     assert_eq!(flags.len(), 4);
@@ -300,7 +300,7 @@ fn pending<T: Send + Sync + 'static>(
     });
     Job {
         cancel,
-        task: Some(task),
+        task: BackgroundThread::adopt(task),
     }
 }
 

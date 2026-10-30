@@ -8,6 +8,7 @@ mod action_projection;
 mod agent_provider;
 mod agent_runtime;
 mod agent_start;
+mod background_thread;
 mod client_actions;
 mod client_context;
 mod client_view;
@@ -120,6 +121,10 @@ pub mod application {
             ExchangeFailure, Failure, Report, Request, ReservationState, StartFailure, Submission,
             Verdict, command_valid, run_on_client, step_deadline,
         };
+    }
+
+    pub mod background_thread {
+        pub use crate::background_thread::{BackgroundThread, EXIT_BUDGET};
     }
 
     pub mod client_view {

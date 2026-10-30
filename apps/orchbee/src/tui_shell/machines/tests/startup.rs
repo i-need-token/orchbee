@@ -8,7 +8,7 @@ use orchbee_workbench_client::test_support::local_client::{
 };
 use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
 use orchbee_workbench_protocol::*;
-use std::{io::Read, num::NonZeroU64};
+use std::{io::Read, num::NonZeroU64, thread};
 
 fn id(n: u8) -> String {
     format!("{n:032x}")
@@ -160,7 +160,7 @@ fn attempt(server: &FakeServer, context: Option<ClientContextTarget>) -> Attempt
         profile: Some(profile()),
         context: context.map(Into::into),
         cancel: Arc::new(OwnedCancellation::new().unwrap()),
-        task: Some(thread::spawn(move || {
+        task: BackgroundThread::spawn("orchbee-machine-connect", move || {
             LocalClient::connect_before(
                 &endpoint,
                 "test-cohort",
@@ -168,7 +168,8 @@ fn attempt(server: &FakeServer, context: Option<ClientContextTarget>) -> Attempt
             )
             .map(PreparedSelection::Connection)
             .map_err(io::Error::other)
-        })),
+        })
+        .unwrap(),
     }
 }
 #[test]

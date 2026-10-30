@@ -83,7 +83,9 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
         window_title: None,
         client_control: None,
         backend: ClientBackend::Native(Box::new(ui::WorkbenchClientUi::new(mailbox, clock))),
-        task: Some(ClientTask::Native(task)),
+        task: Some(ClientTask::Native(
+            crate::background_thread::BackgroundThread::adopt(task),
+        )),
         shutdown,
         retirement_redraw_pending: false,
         origin: Some(origin),

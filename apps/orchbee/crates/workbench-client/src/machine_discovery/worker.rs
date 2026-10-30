@@ -1,5 +1,6 @@
 //! One observer promotes its bootstrap carrier before publishing an origin, then consumes push.
 use super::{Connection, Overview, Ready};
+use crate::background_thread::BackgroundThread;
 use crate::local_client::cancellation::{Cancellation, OwnedCancellation};
 use crate::{
     local_client::{LocalClient, multiplex::StreamEvent},
@@ -13,7 +14,6 @@ use orchbee_workbench_protocol::{
 use std::{
     io,
     sync::{Arc, Mutex},
-    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
@@ -29,7 +29,7 @@ pub(super) struct Update {
 pub(super) struct Worker {
     cancel: Arc<OwnedCancellation>,
     latest: Arc<Mutex<Option<Update>>>,
-    task: Option<JoinHandle<()>>,
+    task: BackgroundThread,
 }
 impl Worker {
     pub(super) fn start(profile: Profile, generation: u64) -> io::Result<Self> {
@@ -49,57 +49,55 @@ impl Worker {
         let latest = Arc::new(Mutex::new(None));
         let worker_cancel = cancel.clone();
         let worker_latest = latest.clone();
-        let task = thread::Builder::new()
-            .name("orchbee-machine-observe".into())
-            .spawn(move || {
-                let mut retained_origin = None;
-                let result = connect(worker_cancel.borrow())
-                    .and_then(LocalClient::into_multiplexed)
-                    .and_then(|client| {
-                        // No Direct origin escapes: every derived read uses this actor's carrier.
-                        retained_origin = Some(client.origin());
-                        observe(client, generation, worker_cancel.borrow(), &worker_latest)
-                    });
-                if !worker_cancel.is_cancelled()
-                    && let Err(error) = result
-                {
-                    *worker_latest.lock().unwrap_or_else(|e| e.into_inner()) = Some(Update {
-                        generation,
-                        event: Event::Failed {
-                            permanent: permanent(error.kind())
-                                || crate::local_client::multiplex::terminal_failure(&error),
-                            at: Instant::now(),
-                        },
-                    });
-                }
-                // The UI acknowledges failure by cancelling after dropping its cached origin.
-                // Keep the last transport guard here so SSH teardown cannot block a UI tick.
-                if retained_origin.is_some() {
-                    while !worker_cancel.is_cancelled() {
-                        let mut sources = [PollFd::new(
-                            worker_cancel
-                                .borrow()
-                                .wake()
-                                .expect("owned cancellation wake"),
-                            PollFlags::POLLIN,
-                        )];
-                        if poll(&mut sources, PollTimeout::NONE).is_err()
-                            || sources[0].revents().is_some_and(|flags| !flags.is_empty())
-                        {
-                            break;
-                        }
+        let task = BackgroundThread::spawn("orchbee-machine-observe", move || {
+            let mut retained_origin = None;
+            let result = connect(worker_cancel.borrow())
+                .and_then(LocalClient::into_multiplexed)
+                .and_then(|client| {
+                    // No Direct origin escapes: every derived read uses this actor's carrier.
+                    retained_origin = Some(client.origin());
+                    observe(client, generation, worker_cancel.borrow(), &worker_latest)
+                });
+            if !worker_cancel.is_cancelled()
+                && let Err(error) = result
+            {
+                *worker_latest.lock().unwrap_or_else(|e| e.into_inner()) = Some(Update {
+                    generation,
+                    event: Event::Failed {
+                        permanent: permanent(error.kind())
+                            || crate::local_client::multiplex::terminal_failure(&error),
+                        at: Instant::now(),
+                    },
+                });
+            }
+            // The UI acknowledges failure by cancelling after dropping its cached origin.
+            // Keep the last transport guard here so SSH teardown cannot block a UI tick.
+            if retained_origin.is_some() {
+                while !worker_cancel.is_cancelled() {
+                    let mut sources = [PollFd::new(
+                        worker_cancel
+                            .borrow()
+                            .wake()
+                            .expect("owned cancellation wake"),
+                        PollFlags::POLLIN,
+                    )];
+                    if poll(&mut sources, PollTimeout::NONE).is_err()
+                        || sources[0].revents().is_some_and(|flags| !flags.is_empty())
+                    {
+                        break;
                     }
-                    worker_latest
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner())
-                        .take();
-                    drop(retained_origin);
                 }
-            })?;
+                worker_latest
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .take();
+                drop(retained_origin);
+            }
+        })?;
         Ok(Self {
             cancel,
             latest,
-            task: Some(task),
+            task,
         })
     }
     pub(super) fn cancel(&self) {
@@ -109,18 +107,23 @@ impl Worker {
         self.cancel.is_cancelled()
     }
     pub(super) fn finished(&self) -> bool {
-        self.task.as_ref().is_none_or(JoinHandle::is_finished)
+        self.task.is_finished()
     }
     pub(super) fn take(&self) -> Option<Update> {
         self.latest.lock().unwrap_or_else(|e| e.into_inner()).take()
     }
 }
+impl Worker {
+    /// Process exit: observes the observer thread against the shared deadline.
+    pub(super) fn stop_before(&mut self, deadline: Instant) -> io::Result<()> {
+        self.cancel();
+        self.task.join_before(deadline)
+    }
+}
 impl Drop for Worker {
     fn drop(&mut self) {
+        // Only stop_before waits; an unfinished observer is detached here.
         self.cancel();
-        if let Some(task) = self.task.take() {
-            let _settled = task.join();
-        }
     }
 }
 fn observe(

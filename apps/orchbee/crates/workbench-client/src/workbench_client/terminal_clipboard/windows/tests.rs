@@ -4,6 +4,7 @@ use crate::workbench_client::{
     terminal_effects::Queue,
 };
 use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
+use std::thread;
 use std::{
     num::NonZeroU64,
     time::{Duration, Instant},
@@ -43,7 +44,7 @@ fn hidden_owner_pump_dispatches_once_and_is_joined_without_using_the_shared_clip
     let mut writer = Writer {
         sender: Some(sender),
         stop,
-        task: Some(task),
+        task: crate::background_thread::BackgroundThread::adopt(task),
     };
     writer.submit(queue.dispatch().unwrap());
     assert_eq!(received.recv_timeout(Duration::from_secs(5)).unwrap(), text);
@@ -64,7 +65,7 @@ fn hidden_owner_pump_dispatches_once_and_is_joined_without_using_the_shared_clip
     );
     assert!(queue.dispatch().is_none());
     writer.close();
-    assert!(writer.task.is_none());
+    assert!(writer.task.is_finished());
     assert!(matches!(
         received.try_recv(),
         Err(mpsc::TryRecvError::Disconnected)

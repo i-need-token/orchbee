@@ -80,6 +80,16 @@ impl Coordinator {
         self.surface_pending = false;
     }
 
+    /// Process exit: asks the copy query thread to stop without waiting.
+    pub(super) fn request_stop(&mut self) {
+        self.query.request_stop();
+    }
+
+    /// Process exit: observes the copy query thread against the shared deadline.
+    pub(super) fn stop_before(&mut self, deadline: std::time::Instant) -> std::io::Result<()> {
+        self.query.stop_before(deadline)
+    }
+
     pub(super) fn cancel(&mut self) {
         self.cancel_episode();
     }

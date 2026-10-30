@@ -8,7 +8,7 @@ use orchbee_workbench_client::test_support::machine_agents::TargetTestAccess;
 use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
 use orchbee_workbench_client::test_support::machine_picker::Selection;
 use orchbee_workbench_protocol::{SessionId, WorkbenchTerminalContextId, WorkbenchWorkspaceId};
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, thread};
 
 struct Navigation {
     current: ClientContextTarget,
@@ -228,10 +228,11 @@ fn superseded_connection_completion_cannot_fail_or_replace_new_direct_navigation
         profile: Some(super::profile()),
         context: Some(targets[1].clone().into()),
         cancel: cancel.clone(),
-        task: Some(thread::spawn(move || {
+        task: BackgroundThread::spawn("orchbee-machine-connect", move || {
             receive.recv_timeout(Duration::from_secs(3)).unwrap();
             Err(io::Error::other("old completion"))
-        })),
+        })
+        .unwrap(),
     });
     request(&mut view, &targets[2]);
     manager.tick(&mut surface, &mut view, dimensions(), now, &mut |_| {});
@@ -443,12 +444,13 @@ fn cancelled_verification_result_cannot_switch_or_reopen_explicit_navigator() {
         verified_agent(&mut manager, &mut view, &targets[1], now);
         manager.queued.take();
         let target = Box::new(targets[1].clone());
-        let task = thread::spawn(move || {
+        let task = BackgroundThread::spawn("orchbee-machine-connect", move || {
             Ok(PreparedSelection::Agent {
                 target,
                 deadline: now + Duration::from_secs(60),
             })
-        });
+        })
+        .unwrap();
         while !task.is_finished() {
             thread::yield_now();
         }
@@ -457,7 +459,7 @@ fn cancelled_verification_result_cannot_switch_or_reopen_explicit_navigator() {
             profile: None,
             context: Some(ClientStartupTarget::Agent(Box::new(targets[1].clone()))),
             cancel: cancel.clone(),
-            task: Some(task),
+            task,
         });
         if explicit {
             view.machines.show_workspaces();

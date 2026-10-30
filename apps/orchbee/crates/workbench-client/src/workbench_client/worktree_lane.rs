@@ -11,11 +11,11 @@ use orchbee_workbench_protocol::{
 use std::{
     io,
     sync::{Arc, Condvar, Mutex},
-    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 mod sidebar;
 use super::state::worktree_launch::addressed::{AddressedWorktreeSource, SidebarDiscovery};
+use crate::background_thread::BackgroundThread;
 /// The single exchange whose receipt is settling; Read never submits a mutation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Exchange {
@@ -78,24 +78,18 @@ type Shared = Arc<(Mutex<Handoff>, Condvar)>;
 pub(super) struct Lane {
     shared: Shared,
     wake: LocalStream,
-    task: Option<JoinHandle<()>>,
+    task: BackgroundThread,
 }
 impl Lane {
     pub(crate) fn spawn(origin: LocalClientOrigin, clock: LocalOperationClock) -> io::Result<Self> {
         let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
         let (read, wake) = LocalStream::pair()?;
         let worker = Arc::clone(&shared);
-        let task = thread::Builder::new()
-            .name("orchbee-worktree".into())
-            .spawn(move || {
-                let _end = End(Arc::clone(&worker));
-                run(&worker, origin, clock, &read);
-            })?;
-        Ok(Self {
-            shared,
-            wake,
-            task: Some(task),
-        })
+        let task = BackgroundThread::spawn("orchbee-worktree", move || {
+            let _end = End(Arc::clone(&worker));
+            run(&worker, origin, clock, &read);
+        })?;
+        Ok(Self { shared, wake, task })
     }
     pub(crate) fn idle(&self) -> bool {
         self.shared
@@ -122,20 +116,27 @@ impl Lane {
         self.shared.0.lock().map_or(true, |h| h.failed)
     }
     pub(crate) fn close(&mut self) -> bool {
-        if self.task.is_none() {
-            return true;
-        }
+        self.request_stop();
+        self.task.join().is_none_or(|joined| joined.is_ok())
+    }
+    /// Stops admission and wakes the lane without waiting.
+    pub(crate) fn request_stop(&mut self) {
         if let Ok(mut h) = self.shared.0.lock() {
             h.stopped = true;
         }
         self.shared.1.notify_all();
         let _wake_closed = self.wake.shutdown(std::net::Shutdown::Both);
-        self.task.take().is_none_or(|task| task.join().is_ok())
+    }
+    /// Process exit: observes the lane thread's end against the shared deadline.
+    pub(crate) fn stop_before(&mut self, deadline: Instant) -> io::Result<()> {
+        self.request_stop();
+        self.task.join_before(deadline)
     }
 }
 impl Drop for Lane {
     fn drop(&mut self) {
-        let _joined = self.close();
+        // Only close and stop_before wait; an unfinished thread is detached here.
+        self.request_stop();
     }
 }
 struct End(Shared);

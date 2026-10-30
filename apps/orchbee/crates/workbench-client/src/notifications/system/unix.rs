@@ -8,8 +8,16 @@ impl SystemNotifications {
         Self
     }
 
-    /// Consume the unavailable capability; it has no native owner to join.
-    pub fn finish(self) {}
+    /// The unavailable capability has no native owner to stop.
+    pub const fn request_stop(&mut self) {}
+
+    /// The unavailable capability has no native owner to observe.
+    ///
+    /// # Errors
+    /// Never fails.
+    pub const fn stop_before(&mut self, _deadline: std::time::Instant) -> std::io::Result<()> {
+        Ok(())
+    }
 
     pub fn submit(
         &mut self,

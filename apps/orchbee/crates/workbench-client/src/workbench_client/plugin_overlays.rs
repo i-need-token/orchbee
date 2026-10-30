@@ -5,6 +5,8 @@ use crate::local_client::{
     workbench::panel_close::{WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission},
 };
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
+
+use crate::background_thread::BackgroundThread;
 use orchbee_workbench_protocol::{
     PluginAction, PluginOutcome, PluginRequest, ProtocolVersion, WorkbenchAction, WorkbenchCommand,
     WorkbenchRequestId,
@@ -15,7 +17,6 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, SyncSender},
     },
-    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
@@ -24,7 +25,7 @@ struct Lane {
     outcomes: Receiver<(OverlayJob, OverlayResult)>,
     wake: LocalStream,
     stopping: Arc<AtomicBool>,
-    task: Option<JoinHandle<()>>,
+    task: BackgroundThread,
 }
 impl Lane {
     fn spawn(origin: LocalClientOrigin, clock: LocalOperationClock) -> std::io::Result<Self> {
@@ -33,25 +34,23 @@ impl Lane {
         let (reader, wake) = LocalStream::pair()?;
         let stopping = Arc::new(AtomicBool::new(false));
         let stop = Arc::clone(&stopping);
-        let task = thread::Builder::new()
-            .name("orchbee-plugin-overlays".into())
-            .spawn(move || {
-                while let Ok(job) = commands.recv() {
-                    if stop.load(Ordering::Acquire) {
-                        break;
-                    }
-                    let result = execute(&origin, &clock, &job, &reader, &stop);
-                    if output.send((job, result)).is_err() {
-                        break;
-                    }
+        let task = BackgroundThread::spawn("orchbee-plugin-overlays", move || {
+            while let Ok(job) = commands.recv() {
+                if stop.load(Ordering::Acquire) {
+                    break;
                 }
-            })?;
+                let result = execute(&origin, &clock, &job, &reader, &stop);
+                if output.send((job, result)).is_err() {
+                    break;
+                }
+            }
+        })?;
         Ok(Self {
             sender: Some(sender),
             outcomes,
             wake,
             stopping,
-            task: Some(task),
+            task,
         })
     }
     fn interrupt(&mut self) {
@@ -60,12 +59,23 @@ impl Lane {
         let _ = self.wake.shutdown(std::net::Shutdown::Both);
     }
 }
+impl Lane {
+    /// Joins the interrupted thread; only Client retirement waits here.
+    fn close(mut self) {
+        self.interrupt();
+        let _ = self.task.join();
+    }
+
+    /// Process exit: observes the thread's end against the shared deadline.
+    fn stop_before(&mut self, deadline: Instant) -> std::io::Result<()> {
+        self.interrupt();
+        self.task.join_before(deadline)
+    }
+}
 impl Drop for Lane {
     fn drop(&mut self) {
+        // Only close and stop_before wait; an unfinished thread is detached here.
         self.interrupt();
-        if let Some(task) = self.task.take() {
-            let _ = task.join();
-        }
     }
 }
 
@@ -93,7 +103,9 @@ impl Driver {
         self.origin = Some(origin);
     }
     pub(super) fn close(&mut self) {
-        self.lane.take();
+        if let Some(lane) = self.lane.take() {
+            lane.close();
+        }
         self.origin = None;
         self.inflight = None;
         self.next = None;
@@ -118,7 +130,7 @@ impl Driver {
         if self
             .lane
             .as_ref()
-            .is_some_and(|lane| lane.task.as_ref().is_none_or(JoinHandle::is_finished))
+            .is_some_and(|lane| lane.task.is_finished())
         {
             self.lane.take();
             if let Some(job) = self.inflight.take() {
@@ -179,9 +191,24 @@ impl Driver {
         changed
     }
 }
+impl Driver {
+    /// Process exit: asks the lane thread to stop without waiting.
+    pub(super) fn request_stop(&mut self) {
+        if let Some(lane) = &mut self.lane {
+            lane.interrupt();
+        }
+    }
+
+    /// Process exit: observes the lane thread's end against the shared deadline.
+    pub(super) fn stop_before(&mut self, deadline: Instant) -> std::io::Result<()> {
+        self.lane
+            .as_mut()
+            .map_or(Ok(()), |lane| lane.stop_before(deadline))
+    }
+}
 impl Drop for Driver {
     fn drop(&mut self) {
-        self.close();
+        self.request_stop();
     }
 }
 

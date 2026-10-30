@@ -1,4 +1,5 @@
 use super::*;
+use std::thread;
 mod sidebar;
 use crate::local_client::test_support::server::FakeServer;
 use crate::workbench_client::state::worktree_launch::{

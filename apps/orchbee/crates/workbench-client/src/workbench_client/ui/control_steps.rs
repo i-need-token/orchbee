@@ -649,6 +649,23 @@ impl ClientControl {
             lane.close();
         }
     }
+    /// Process exit: asks the control lane to stop without waiting.
+    pub(in crate::workbench_client) fn request_stop(&mut self) {
+        self.stopped = true;
+        if let Some(lane) = &mut self.lane {
+            lane.request_stop();
+        }
+    }
+    /// Process exit: observes the control lane against the shared deadline.
+    pub(in crate::workbench_client) fn stop_before(
+        &mut self,
+        deadline: std::time::Instant,
+    ) -> std::io::Result<()> {
+        self.request_stop();
+        self.lane
+            .as_mut()
+            .map_or(Ok(()), |lane| lane.stop_before(deadline))
+    }
 }
 
 /// Resolve geometry exactly once, before any navigation. Err is a terminal receipt,

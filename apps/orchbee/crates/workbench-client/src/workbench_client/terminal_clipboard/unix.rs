@@ -14,4 +14,11 @@ impl Writer {
     }
 
     pub(in crate::workbench_client) fn close(&mut self) {}
+    pub(in crate::workbench_client) fn request_stop(&mut self) {}
+    pub(in crate::workbench_client) fn stop_before(
+        &mut self,
+        _deadline: std::time::Instant,
+    ) -> std::io::Result<()> {
+        Ok(())
+    }
 }

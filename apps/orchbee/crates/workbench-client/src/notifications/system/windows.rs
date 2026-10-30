@@ -1,4 +1,4 @@
-//! One lazily created, hidden Win32 notification owner, joined with the TUI lifetime.
+//! One lazily created, hidden Win32 notification owner, stopped with the TUI lifetime.
 use orchbee_workbench_protocol::Notification;
 use std::{
     cell::RefCell,
@@ -9,15 +9,16 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc,
     },
-    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 use winsafe::{self as w, co, gui, prelude::*};
+
+use crate::background_thread::BackgroundThread;
 #[derive(Default)]
 pub struct SystemNotifications {
     sender: Option<mpsc::SyncSender<Notification>>,
     stop: Arc<AtomicBool>,
-    task: Option<JoinHandle<()>>,
+    task: BackgroundThread,
 }
 impl SystemNotifications {
     /// Construct the same lazy native owner without starting its notification thread.
@@ -25,9 +26,19 @@ impl SystemNotifications {
         Self::default()
     }
 
-    /// Join the native owner at the caller's settled resource-release boundary.
-    pub fn finish(self) {
-        drop(self);
+    /// Process exit: removes the native owner's pending notifications without waiting.
+    pub fn request_stop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+        self.sender.take();
+    }
+
+    /// Process exit: observes the native owner's thread against the shared deadline.
+    ///
+    /// # Errors
+    /// TimedOut when the thread is still running at the deadline; it is detached on drop.
+    pub fn stop_before(&mut self, deadline: Instant) -> io::Result<()> {
+        self.request_stop();
+        self.task.join_before(deadline)
     }
 
     pub fn submit(&mut self, message: Notification) -> io::Result<()> {
@@ -35,11 +46,9 @@ impl SystemNotifications {
         if self.sender.is_none() {
             let (sender, receiver) = mpsc::sync_channel(4);
             let stop = Arc::clone(&self.stop);
-            self.task = Some(
-                thread::Builder::new()
-                    .name("orchbee-system-notifications".into())
-                    .spawn(move || run(receiver, stop))?,
-            );
+            self.task = BackgroundThread::spawn("orchbee-system-notifications", move || {
+                run(receiver, stop)
+            })?;
             self.sender = Some(sender);
         }
         self.sender
@@ -51,11 +60,8 @@ impl SystemNotifications {
 }
 impl Drop for SystemNotifications {
     fn drop(&mut self) {
-        self.stop.store(true, Ordering::Release);
-        self.sender.take();
-        if let Some(task) = self.task.take() {
-            let _ = task.join();
-        }
+        // Only stop_before waits; an unfinished thread is detached here.
+        self.request_stop();
     }
 }
 struct Icon {

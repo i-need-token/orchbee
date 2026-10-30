@@ -6,15 +6,17 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc,
     },
-    thread::{self, JoinHandle},
+    time::Instant,
 };
 use winsafe::{self as w, co, gui, prelude::*};
+
+use crate::background_thread::BackgroundThread;
 
 #[derive(Default)]
 pub(in crate::workbench_client) struct Writer {
     sender: Option<mpsc::SyncSender<Job>>,
     stop: Arc<AtomicBool>,
-    task: Option<JoinHandle<()>>,
+    task: BackgroundThread,
 }
 impl Writer {
     pub(in crate::workbench_client) fn new() -> Self {
@@ -28,13 +30,12 @@ impl Writer {
         if self.sender.is_none() {
             let (sender, receiver) = mpsc::sync_channel(1);
             let stop = Arc::clone(&self.stop);
-            let Ok(task) = thread::Builder::new()
-                .name("orchbee-clipboard".into())
-                .spawn(move || run(receiver, stop, deliver))
+            let Ok(task) =
+                BackgroundThread::spawn("orchbee-clipboard", move || run(receiver, stop, deliver))
             else {
                 return;
             };
-            self.task = Some(task);
+            self.task = task;
             self.sender = Some(sender);
         }
         let _ = self
@@ -44,16 +45,26 @@ impl Writer {
             .try_send(job);
     }
     pub(in crate::workbench_client) fn close(&mut self) {
+        self.request_stop();
+        let _ = self.task.join();
+    }
+    /// Abandons undelivered clipboard writes without waiting.
+    pub(in crate::workbench_client) fn request_stop(&mut self) {
         self.stop.store(true, Ordering::Release);
         self.sender.take();
-        if let Some(task) = self.task.take() {
-            let _ = task.join();
-        }
+    }
+    /// Process exit: a delivery still running at the deadline is abandoned.
+    pub(in crate::workbench_client) fn stop_before(
+        &mut self,
+        deadline: Instant,
+    ) -> std::io::Result<()> {
+        self.request_stop();
+        self.task.join_before(deadline)
     }
 }
 impl Drop for Writer {
     fn drop(&mut self) {
-        self.close();
+        self.request_stop();
     }
 }
 
