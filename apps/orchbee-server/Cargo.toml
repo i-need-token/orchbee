@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 getrandom.workspace = true
 orchbee-local-ipc = { path = "../../crates/local-ipc" }
+orchbee-agent-integration = { path = "../../crates/agent-integration" }
 orchbee-agent-observation-protocol = { path = "../../crates/agent-observation-protocol" }
 orchbee-local-runtime = { path = "../../crates/local-runtime" }
 base64.workspace = true

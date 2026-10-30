@@ -158,9 +158,21 @@ authority, not the Worker's. The owner reaps its child autonomously — a dead o
 job retains only a bounded receipt until the next start replaces it; cancellation keeps the
 terminal outcome observable through `poll`.
 
+## Agent integration job
+
+`agent_integration_jobs::AgentIntegrationJobs` answers OBCN kind 31 in both the pre-Host and Host
+request loops and is the node's only Agent integration writer. Every action is fenced to this Worker
+ID and generation before owner access. Start decodes the contract request, then runs one writer
+thread; while it runs, another Start answers `Busy`, and a replayed Start with the same document
+answers `Accepted`. The writer uses this Worker's own home directory and `PATH`, under the request
+budget or the contract's 40-second ceiling. Cancel sets the cooperative termination the writer
+observes between bounded steps. Poll returns the encoded report; a job that panics or whose report
+exceeds the contract bound is `Abandoned`. Eight settled jobs stay pollable, and admission evicts
+the oldest settled one first.
+
 ## Background job owners and exit
 
-Each Worker generation owns three kinds of background jobs. The request loop borrows them;
+Each Worker generation owns four kinds of background jobs. The request loop borrows them;
 pre-Host to Host handoff and Windows Server handoff keep the same owners, so ownership never
 moves to another thread or connection.
 
@@ -169,6 +181,7 @@ moves to another thread or connection.
 | Worktree discovery             | `worktree_discovery_job::WorktreeDiscoverySlot` | all       | five-second Job/child settlement          |
 | Worktree mutation              | `worktree_mutation_job::WorktreeMutationSlot`   | Windows   | five-second Job settlement                |
 | Plugin and configured commands | `plugin_jobs::PluginJobs`                       | Windows   | five-second Job settlement                |
+| Agent integration              | `agent_integration_jobs::AgentIntegrationJobs`  | all       | 0.6-second provider command teardown      |
 
 Every owner separates the stop request from task completion. `request_stop` closes new
 admission where the owner has admission, signals every running task and never waits.

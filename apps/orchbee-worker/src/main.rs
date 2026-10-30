@@ -5,6 +5,8 @@
 #[cfg(any(unix, windows))]
 mod agent_drain;
 #[cfg(any(unix, windows))]
+mod agent_integration_jobs;
+#[cfg(any(unix, windows))]
 mod default_interactive_launch;
 #[cfg(windows)]
 mod git_repository_windows;

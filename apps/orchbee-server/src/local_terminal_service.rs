@@ -35,6 +35,7 @@ use crate::{
 };
 
 mod agent_drain_read;
+mod agent_integration;
 mod agent_names;
 #[cfg(windows)]
 mod checkpoint;
@@ -346,6 +347,7 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
             | WorkerOperationResult::Send(_)
             | WorkerOperationResult::WorktreeJob(_)
             | WorkerOperationResult::PluginJob(_)
+            | WorkerOperationResult::AgentIntegrationJob(_)
             | WorkerOperationResult::WorktreeMutation(_),
         ) => Completion::Unknown,
         // The drain variant can never come back from the Launch/Start

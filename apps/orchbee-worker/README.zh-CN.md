@@ -130,16 +130,26 @@ stage 共享的 64 KiB stdout 预算之下；越过合并预算的 stage 承担 
 属主自治回收其子进程——死亡或被逐出的 job 只保留一份有界 receipt，直到下一次
 start 将其替换；取消后终态仍可通过 `poll` 观察。
 
+## Agent 集成 job
+
+`agent_integration_jobs::AgentIntegrationJobs` 在无 Host 与有 Host 两条请求循环中应答 OBCN kind 31，
+是节点上唯一的 Agent 集成写入方。每个 action 在访问所有者前先按本 Worker 的 ID 和代次做 fencing。
+Start 先按契约解码请求，再运行一个写入线程；运行期间其他 Start 回答 `Busy`，同一文档重放的 Start 回答
+`Accepted`。写入方使用本 Worker 自己的主目录和 `PATH`，预算取请求预算或契约的 40 秒上限。Cancel
+设置写入方在有界步骤之间观察的协作终止。Poll 返回编码后的报告；panic 或报告超出契约上限的 job 为
+`Abandoned`。保留八个已结束 job 供 poll，准入时先淘汰最早结束的一个。
+
 ## 后台任务所有者与退出
 
-每个 Worker 代次拥有三类后台任务。请求循环只借用它们；从无 Host 到有 Host 的交接以及 Windows
+每个 Worker 代次拥有四类后台任务。请求循环只借用它们；从无 Host 到有 Host 的交接以及 Windows
 Server 交接都保留同一批所有者，所有权不会转移到其他线程或连接。
 
-| 任务               | 所有者                                          | 平台    | 取消后的物理清理上限 |
-| ------------------ | ----------------------------------------------- | ------- | -------------------- |
-| Worktree 发现      | `worktree_discovery_job::WorktreeDiscoverySlot` | 全部    | 五秒 Job／子进程清理 |
-| Worktree 变更      | `worktree_mutation_job::WorktreeMutationSlot`   | Windows | 五秒 Job 清理        |
-| 插件命令与配置命令 | `plugin_jobs::PluginJobs`                       | Windows | 五秒 Job 清理        |
+| 任务               | 所有者                                          | 平台    | 取消后的物理清理上限     |
+| ------------------ | ----------------------------------------------- | ------- | ------------------------ |
+| Worktree 发现      | `worktree_discovery_job::WorktreeDiscoverySlot` | 全部    | 五秒 Job／子进程清理     |
+| Worktree 变更      | `worktree_mutation_job::WorktreeMutationSlot`   | Windows | 五秒 Job 清理            |
+| 插件命令与配置命令 | `plugin_jobs::PluginJobs`                       | Windows | 五秒 Job 清理            |
+| Agent 集成         | `agent_integration_jobs::AgentIntegrationJobs`  | 全部    | 0.6 秒 provider 命令清理 |
 
 每个所有者都区分停止请求与任务结束。`request_stop` 在所有者有准入时关闭新准入，通知所有运行中的任务，
 且从不等待。`stop_before(deadline)` 先请求停止，再只 join 已结束的任务：`Ok` 表示所有任务都已结束，
@@ -880,4 +890,4 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 启动前后均可用。[所属模型](docs/windows-server-handoff.zh-CN.md) 定义精确票据、截止点、
 回滚及证据边界。公开 Server 状态／端点交接仍需独立集成；传输回执不是最终 CLI 成功。
 
-<!-- documentation-pairing: english-sha256=8704a85580413341a62b76f74a20068e6c4d9bac3cf77b3f82fa69420092ec0e zh-cn-sha256=c01575b3867f90ba33a7b89495f14ed8cacc3fad5a6ac402e18c85c75c8ea9a1 -->
+<!-- documentation-pairing: english-sha256=9c087231c722f875534606d0915bbacc0610306cdc66b9efae2180aaef51972e zh-cn-sha256=08179a599a57f38ed4bfd55f5ad0d2fd4df9d5b4110841e23b19a305b8ce968c -->

@@ -59,7 +59,7 @@ fn decode(value: NodePath) -> Option<PathBuf> {
 #[cfg(unix)]
 fn unix_path(hex: &str) -> Option<PathBuf> {
     use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
-    if hex.len() % 2 != 0 || hex.len() > MAXIMUM_PATH_UNITS * 2 {
+    if !hex.len().is_multiple_of(2) || hex.len() > MAXIMUM_PATH_UNITS * 2 {
         return None;
     }
     let bytes = (0..hex.len())

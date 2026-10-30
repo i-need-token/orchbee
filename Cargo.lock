@@ -924,6 +924,7 @@ version = "0.1.0"
 dependencies = [
  "getrandom",
  "nix",
+ "orchbee-agent-integration",
  "orchbee-agent-observation-protocol",
  "orchbee-client-server-protocol",
  "orchbee-local-client-protocol",
@@ -992,6 +993,7 @@ dependencies = [
  "getrandom",
  "hmac",
  "nix",
+ "orchbee-agent-integration",
  "orchbee-agent-observation-protocol",
  "orchbee-capability-node-protocol",
  "orchbee-client-server-protocol",
@@ -1090,6 +1092,8 @@ version = "0.1.0"
 dependencies = [
  "getrandom",
  "nix",
+ "orchbee-agent-integration",
+ "orchbee-agent-integration-writer",
  "orchbee-capability-node-protocol",
  "orchbee-local-ipc",
  "orchbee-local-peer-credentials",

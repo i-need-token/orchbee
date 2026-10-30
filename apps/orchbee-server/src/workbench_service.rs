@@ -218,7 +218,9 @@ impl WorkbenchService {
         WorkbenchRequest::Plugin(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::Plugin(self.terminals.execute_plugin(request.clone())));
             }
-            WorkbenchRequest::AgentIntegration(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, false)),
+            WorkbenchRequest::AgentIntegration(request) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::AgentIntegration(self.terminals.execute_agent_integration(request.clone())));
+            }
             WorkbenchRequest::Notification(request) => return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Notification(request.clone()), false)),
             WorkbenchRequest::WindowTitle(request) => return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::WindowTitle(request.clone()), false)),
         WorkbenchRequest::AgentView(request) => {

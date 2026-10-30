@@ -52,6 +52,7 @@ pub(crate) fn run(
     // The discovery slot outlives the pre-Host phase: jobs admitted here stay
     // owned across the first Launch instead of being orphaned at handoff.
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
+    let agent_integrations = crate::agent_integration_jobs::AgentIntegrationJobs::new();
     #[cfg(windows)]
     let plugin_jobs = crate::plugin_jobs::PluginJobs::new();
     #[cfg(windows)]
@@ -146,6 +147,7 @@ pub(crate) fn run(
                     generation,
                     super::background_jobs::BackgroundJobs {
                         discovery: &worktree_slot,
+                        integrations: &agent_integrations,
                         mutations: &mutation_slot,
                         plugins: &plugin_jobs,
                     },
@@ -167,6 +169,16 @@ pub(crate) fn run(
                 // is expected here and does not retire the Server connection.
                 let _no_host = super::dispatch_drain_request(
                     &server, None, &drain, &request, worker_id, generation,
+                )?;
+                continue;
+            }
+            if let CapabilityNodeMessage::AgentIntegrationJobRequest(request) = request {
+                // Agent integration jobs need no Host; they answer directly in this loop.
+                let result = agent_integrations.execute(request, worker_id, generation);
+                let _no_host = server_transport::send(
+                    &server,
+                    None,
+                    &CapabilityNodeMessage::AgentIntegrationJobResult(result),
                 )?;
                 continue;
             }
@@ -312,6 +324,7 @@ pub(crate) fn run(
                     drain: &drain,
                     system_shell,
                     worktree_slot: &worktree_slot,
+                    agent_integrations: &agent_integrations,
                     #[cfg(windows)]
                     mutation_slot: &mutation_slot,
                     #[cfg(windows)]
@@ -327,6 +340,7 @@ pub(crate) fn run(
     })();
     super::background_jobs::BackgroundJobs {
         discovery: &worktree_slot,
+        integrations: &agent_integrations,
         #[cfg(windows)]
         mutations: &mutation_slot,
         #[cfg(windows)]

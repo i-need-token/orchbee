@@ -14,6 +14,7 @@ const EXIT_SETTLEMENT_BUDGET: Duration = Duration::from_secs(6);
 /// Borrowed view of the background job owners that outlive one request loop phase.
 pub(super) struct BackgroundJobs<'a> {
     pub(super) discovery: &'a WorktreeDiscoverySlot,
+    pub(super) integrations: &'a crate::agent_integration_jobs::AgentIntegrationJobs,
     #[cfg(windows)]
     pub(super) mutations: &'a crate::worktree_mutation_job::WorktreeMutationSlot,
     #[cfg(windows)]
@@ -31,6 +32,7 @@ impl BackgroundJobs<'_> {
             self.mutations.request_stop();
         }
         self.discovery.request_stop();
+        self.integrations.request_stop();
         #[cfg(windows)]
         let settled = {
             let plugins = self.plugins.stop_before(deadline);
@@ -40,7 +42,8 @@ impl BackgroundJobs<'_> {
         #[cfg(not(windows))]
         let settled = Ok(());
         let discovery = self.discovery.stop_before(deadline);
-        settled.and(discovery)
+        let integrations = self.integrations.stop_before(deadline);
+        settled.and(discovery).and(integrations)
     }
 
     /// Fallback settlement when the request loop ends by disconnection, protocol failure or

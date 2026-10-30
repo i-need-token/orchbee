@@ -55,6 +55,7 @@ pub(crate) enum WorkerOperationRequest {
     Send(orchbee_capability_node_protocol::TerminalSendRequest),
     WorktreeJob(WorktreeJobRequest),
     PluginJob(orchbee_capability_node_protocol::PluginJobRequest),
+    AgentIntegrationJob(orchbee_capability_node_protocol::AgentIntegrationJobRequest),
     WorktreeMutation(orchbee_capability_node_protocol::WorktreeMutationRequest),
     // The Server drain pump admits drains through admit_agent_drain.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainRequest),
@@ -100,6 +101,7 @@ impl WorkerOperationRequest {
             Self::Send(request) => (request.worker_id, request.worker_generation),
             Self::WorktreeJob(request) => (request.worker_id, request.worker_generation),
             Self::PluginJob(request) => (request.worker_id, request.worker_generation),
+            Self::AgentIntegrationJob(request) => (request.worker_id, request.worker_generation),
             Self::WorktreeMutation(request) => (request.worker_id, request.worker_generation),
             Self::AgentDrain(request) => (request.worker_id, request.worker_generation),
             Self::Titles(request) => (request.worker_id, request.worker_generation),
@@ -122,6 +124,7 @@ impl WorkerOperationRequest {
             | Self::Start(_)
             | Self::Send(_)
             | Self::PluginJob(_)
+            | Self::AgentIntegrationJob(_)
             | Self::WorktreeJob(_)
             | Self::WorktreeMutation(_) => RequestLane::High,
         }
@@ -150,6 +153,9 @@ impl WorkerOperationRequest {
             Self::Viewer(request) => CapabilityNodeMessage::TerminalViewerRequest(*request),
             Self::Send(request) => CapabilityNodeMessage::TerminalSendRequest(request.clone()),
             Self::PluginJob(request) => CapabilityNodeMessage::PluginJobRequest(request.clone()),
+            Self::AgentIntegrationJob(request) => {
+                CapabilityNodeMessage::AgentIntegrationJobRequest(request.clone())
+            }
             Self::WorktreeMutation(request) => {
                 CapabilityNodeMessage::WorktreeMutationRequest(request.clone())
             }
@@ -180,6 +186,7 @@ pub(crate) enum WorkerOperationResult {
     Send(orchbee_capability_node_protocol::TerminalSendResult),
     WorktreeJob(WorktreeJobResult),
     PluginJob(orchbee_capability_node_protocol::PluginJobResult),
+    AgentIntegrationJob(orchbee_capability_node_protocol::AgentIntegrationJobResult),
     WorktreeMutation(orchbee_capability_node_protocol::WorktreeMutationResult),
     // Constructed by the Server drain pump's reply path.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainReply),
@@ -1596,6 +1603,29 @@ fn validate_response(
         (_, CapabilityNodeMessage::AgentIntegrationJobRequest(_)) => {
             Err(WorkerResponseFailure::WrongDirection)
         }
+        (
+            WorkerOperationRequest::AgentIntegrationJob(expected),
+            CapabilityNodeMessage::AgentIntegrationJobResult(actual),
+        ) => {
+            use orchbee_capability_node_protocol::AgentIntegrationJobAction;
+            if actual.operation_id != expected.operation_id {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            let expected_job = match &expected.action {
+                // Start mints the Job identity: the echoed Job ID is the
+                // request's own operation identity.
+                AgentIntegrationJobAction::Start { .. } => expected.operation_id,
+                AgentIntegrationJobAction::Poll { job_id }
+                | AgentIntegrationJobAction::Cancel { job_id } => *job_id,
+            };
+            if actual.job_id != expected_job {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            if !expected.action.admits(&actual.outcome) {
+                return Err(WorkerResponseFailure::WrongResultKind);
+            }
+            Ok(WorkerOperationResult::AgentIntegrationJob(actual))
+        }
         (_, CapabilityNodeMessage::AgentIntegrationJobResult(_)) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }
@@ -1604,6 +1634,7 @@ fn validate_response(
         | (WorkerOperationRequest::EditorCommand(_), _)
         | (WorkerOperationRequest::WorktreeJob(_), _)
         | (WorkerOperationRequest::PluginJob(_), _)
+        | (WorkerOperationRequest::AgentIntegrationJob(_), _)
         | (WorkerOperationRequest::WorktreeMutation(_), _) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }

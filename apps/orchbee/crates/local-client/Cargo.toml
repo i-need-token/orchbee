@@ -11,6 +11,7 @@ test-support = []
 
 [dependencies]
 getrandom.workspace = true
+orchbee-agent-integration = { path = "../../../../crates/agent-integration" }
 orchbee-agent-observation-protocol = { path = "../../../../crates/agent-observation-protocol" }
 orchbee-client-server-protocol = { path = "../../../../crates/client-server-protocol" }
 orchbee-local-client-protocol = { path = "../../../../crates/local-client-protocol" }

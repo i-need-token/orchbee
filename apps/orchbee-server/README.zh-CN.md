@@ -758,8 +758,15 @@ Workbench 插件执行在解析源文件前要求读取、终端创建和生命�
 
 `workbench.agent-integration` 的检查（`list`、`explain`）、poll 与 cancel 需要读取授权。启动
 `enable` 或 `disable` 还需要终端创建与生命周期授权，与变更型插件 action 相同。非变更请求不会
-触发通用 Workbench 失效。到 Worker job 的中继尚未接入：每个已授权请求都回答带 `worker-unavailable` 的
-`failed`，未授权请求回答 `denied`。
+触发通用 Workbench 失效。未授权请求回答 `denied`。
+
+已授权请求必须指向当前 Session，否则回答 `session-mismatch`。Server 以新的操作 ID 把请求作为 OBCN
+kind 31 中继给当前 Worker，并按操作 ID、job ID 和 action 配对 kind 32 结果。Start 的 job ID 就是它自己的
+操作 ID，因此 Workbench job `{workerId, generation, jobId}` 恰好对应一个 Worker job。poll 或 cancel 的
+job 指向其他 Worker 或代次，或者 Worker 拒绝 fencing 时，回答 `worker-changed`。Worker `Busy` 和载体背压
+回答 `busy`；没有 Worker、`SpawnThreadFailed` 或 `Dead` 回答 `worker-unavailable`。已投递的 enable
+或 disable Start 丢失结果时回答 `abandoned`，因为其效果未知。Server 先按契约解码已完成的报告再回答；
+无法解码的报告回答 `malformed`。
 
 ## Workspace Git 观测
 
@@ -855,4 +862,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=917ed26faddda85b06ca9c258703c96cfb10049da29684840503776012111c22 zh-cn-sha256=e3e5fe035dcb38fb29d9d4ef972e517730cb87f04247984f6a56c6de676cd58c -->
+<!-- documentation-pairing: english-sha256=53a75dbb0cfa52c347337b945f82320c4ebc1780725fd42a183b4c10feb9b1f7 zh-cn-sha256=27b32cde162958be124bb954aacc036c01a9ea1610c23d5628127fc982670b79 -->

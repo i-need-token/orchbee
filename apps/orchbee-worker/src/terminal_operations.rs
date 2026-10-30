@@ -59,6 +59,7 @@ pub(crate) fn run(
     host.stream().set_nonblocking(true)?;
     let kernel = AuthorizedHostOperationKernel::new(worker_id, generation)?;
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
+    let agent_integrations = crate::agent_integration_jobs::AgentIntegrationJobs::new();
     #[cfg(windows)]
     let plugin_jobs = crate::plugin_jobs::PluginJobs::new();
     #[cfg(windows)]
@@ -75,6 +76,7 @@ pub(crate) fn run(
             drain,
             system_shell,
             worktree_slot: &worktree_slot,
+            agent_integrations: &agent_integrations,
             #[cfg(windows)]
             mutation_slot: &mutation_slot,
             #[cfg(windows)]
@@ -86,6 +88,7 @@ pub(crate) fn run(
     );
     background_jobs::BackgroundJobs {
         discovery: &worktree_slot,
+        integrations: &agent_integrations,
         #[cfg(windows)]
         mutations: &mutation_slot,
         #[cfg(windows)]
@@ -102,6 +105,7 @@ pub(crate) struct AdmittedAux<'a> {
     pub(crate) drain: &'a Rc<RefCell<AgentDrain>>,
     pub(crate) system_shell: &'a SystemShell,
     pub(crate) worktree_slot: &'a crate::worktree_discovery_job::WorktreeDiscoverySlot,
+    pub(crate) agent_integrations: &'a crate::agent_integration_jobs::AgentIntegrationJobs,
     #[cfg(windows)]
     pub(crate) mutation_slot: &'a crate::worktree_mutation_job::WorktreeMutationSlot,
     #[cfg(windows)]
@@ -213,6 +217,7 @@ fn run_admitted_with_handoff(
                 generation,
                 background_jobs::BackgroundJobs {
                     discovery: aux.worktree_slot,
+                    integrations: aux.agent_integrations,
                     mutations: aux.mutation_slot,
                     plugins: aux.plugin_jobs,
                 },
@@ -241,6 +246,20 @@ fn run_admitted_with_handoff(
                 generation,
             )?;
             if host_closed {
+                return Err(peer_closed().into());
+            }
+            continue;
+        }
+        if let CapabilityNodeMessage::AgentIntegrationJobRequest(request) = request {
+            // Start only admits the job owner; it never waits for the writer.
+            let result = aux
+                .agent_integrations
+                .execute(request, worker_id, generation);
+            if server_transport::send(
+                &server,
+                Some(host),
+                &CapabilityNodeMessage::AgentIntegrationJobResult(result),
+            )? {
                 return Err(peer_closed().into());
             }
             continue;

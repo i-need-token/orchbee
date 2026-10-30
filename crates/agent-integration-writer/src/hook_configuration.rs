@@ -161,7 +161,7 @@ fn command_root(id: &str, command: &str, policy: RootPolicy) -> Result<Option<Pa
         Ok(bytes) => bytes,
         Err(_) => return Err(()),
     };
-    if bytes.len() % 2 != 0 {
+    if !bytes.len().is_multiple_of(2) {
         return Err(());
     }
     let words: Vec<u16> = bytes

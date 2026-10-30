@@ -489,6 +489,7 @@ fn handoff_actual_admitted_loop_preserves_host_and_cached_terminal_binding_on_ne
                 drain: &drain,
                 system_shell: &crate::default_interactive_launch::SystemShell::resolve(),
                 worktree_slot: &jobs,
+                agent_integrations: &crate::agent_integration_jobs::AgentIntegrationJobs::new(),
                 mutation_slot: &mutations,
                 plugin_jobs: &plugins,
                 session_runtime: Some(&runtime),

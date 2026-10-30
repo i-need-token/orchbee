@@ -115,6 +115,7 @@ fn stuck_owner_times_out_at_the_shared_deadline_without_withholding_other_stops(
     );
     let jobs = BackgroundJobs {
         discovery: &discovery,
+        integrations: &crate::agent_integration_jobs::AgentIntegrationJobs::new(),
         mutations: &mutations,
         plugins: &plugins,
     };

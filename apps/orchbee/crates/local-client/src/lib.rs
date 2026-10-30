@@ -44,6 +44,10 @@ pub mod workbench {
         WorkspaceGitError, WorktreeExchangeError, WorktreeListReadError, WorktreeListReadFailure,
     };
 
+    pub mod agent_integration {
+        pub use crate::local_client::workbench::agent_integration::AgentIntegrationJobEnd;
+    }
+
     pub mod client_view {
         pub use crate::local_client::workbench::client_view::ClientViewExchangeError;
     }
