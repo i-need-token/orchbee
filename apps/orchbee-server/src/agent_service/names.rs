@@ -5,10 +5,7 @@
 mod launch;
 mod terminal;
 pub(crate) use launch::{LaunchEvidence, ObservedCommand};
-#[cfg(windows)]
 pub(crate) use terminal::TerminalNameFact;
-#[cfg(not(windows))]
-use terminal::TerminalNameFact;
 
 use std::collections::BTreeMap;
 
@@ -231,7 +228,7 @@ enum Refusal {
 }
 
 impl AgentService {
-    #[cfg(any(not(windows), test))]
+    #[cfg(test)]
     pub(crate) fn execute_names_prepared(
         &self,
         request: AgentNamesRequest,
@@ -351,7 +348,6 @@ mod tests;
 
 impl AgentService {
     /// Policy precedes preparation; the caller supplies the existing final commit guards.
-    #[cfg(windows)]
     pub(crate) fn execute_names_guarded(
         &self,
         request: AgentNamesRequest,
@@ -374,7 +370,6 @@ impl AgentService {
             .unwrap_or_else(|| answer(&request, Err(Refusal::Unavailable), &[]))
     }
 
-    #[cfg(windows)]
     pub(crate) fn fold_terminal_names(
         &self,
         request: &AgentNamesRequest,
@@ -390,7 +385,6 @@ impl AgentService {
         .map_err(|_| PreparedUnavailable)
     }
 
-    #[cfg(windows)]
     pub(crate) fn observe_terminal_name(&self, fact: &TerminalNameFact) {
         // Poison/disposal is permanently unavailable to every names consumer, never stale success.
         let _ = self.with_state(|state| state.names.observe_terminal_owner(fact));
