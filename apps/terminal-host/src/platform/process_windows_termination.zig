@@ -3,13 +3,17 @@ const builtin = @import("builtin");
 const thread_sync = @import("thread_sync.zig");
 const windows_api = @import("windows_api.zig");
 
-// Private state embedded in the Windows Process owner. It records submission,
-// never child exit, Job emptiness, PTY completion or lifecycle containment.
+// Private state embedded in the Windows Process owner. It records submission and
+// the whole-Job fallback, never child exit, Job emptiness, PTY completion or
+// lifecycle containment.
 pub const Termination = if (builtin.os.tag != .windows) void else struct {
     const windows = std.os.windows;
 
     mutex: thread_sync.Mutex = .{},
     root_submitted: bool = false,
+    /// Set once force termination targets the whole Job; from then on
+    /// kill-on-close stays and every member counts.
+    whole_job: std.atomic.Value(bool) = .init(false),
 
     pub fn terminate(self: *Termination, process: windows.HANDLE) !void {
         const failure = submission: {
@@ -29,10 +33,19 @@ pub const Termination = if (builtin.os.tag != .windows) void else struct {
         return submissionFailure(failure);
     }
 
-    pub fn forceTerminate(self: *Termination, job: windows.HANDLE) !void {
+    /// Records a force termination that ended the root and every console holder.
+    pub fn recordForceSubmission(self: *Termination) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.root_submitted = true;
+    }
+
+    /// Terminates every Job member: the fallback of the console-holder close.
+    pub fn terminateJob(self: *Termination, job: windows.HANDLE) !void {
         const failure = submission: {
             self.mutex.lock();
             defer self.mutex.unlock();
+            self.whole_job.store(true, .release);
             // Root submission never discharges descendant termination.
             if (windows_api.ob_windows_terminal_job_terminate(job, 1).toBool()) {
                 self.root_submitted = true;
@@ -41,6 +54,10 @@ pub const Termination = if (builtin.os.tag != .windows) void else struct {
             break :submission windows.GetLastError();
         };
         return submissionFailure(failure);
+    }
+
+    pub fn wholeJob(self: *const Termination) bool {
+        return self.whole_job.load(.acquire);
     }
 
     fn submissionFailure(failure: windows.Win32Error) anyerror {

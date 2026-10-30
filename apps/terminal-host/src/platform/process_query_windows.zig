@@ -2,6 +2,7 @@ const std = @import("std");
 const windows = std.os.windows;
 const monotonic = @import("monotonic.zig");
 const sample = @import("process_sample.zig");
+const windows_api = @import("windows_api.zig");
 
 const RawFacts = extern struct {
     creation_time: u64,
@@ -34,6 +35,7 @@ extern fn ob_windows_open_job_process(job: windows.HANDLE, pid: u32, out: *?wind
 extern fn ob_windows_process_facts(process: windows.HANDLE, facts: *RawFacts) c_int;
 extern fn ob_windows_console_host(process: windows.HANDLE) u32;
 extern fn ob_windows_process_identities(pids: [*]const u32, count: u32, creation: [*]u64, parent: [*]u32) windows.BOOL;
+extern fn ob_windows_terminate_job_process(pid: u32, exit_code: windows.UINT) windows.BOOL;
 extern "kernel32" fn GetProcessId(process: windows.HANDLE) callconv(.winapi) u32;
 
 fn enumerate(job: windows.HANDLE, buffer: *[sample.maximum_processes]u32) ![]u32 {
@@ -95,7 +97,7 @@ fn checkBudget(timer: *const monotonic.Timer) !void {
 }
 
 /// The root's console is the Terminal's console only while the root is live.
-fn consoleReference(root: windows.HANDLE) ?u32 {
+pub fn consoleReference(root: windows.HANDLE) ?u32 {
     const host = ob_windows_console_host(root);
     return if (host == 0 or host == console_unknown) null else host;
 }
@@ -181,6 +183,77 @@ pub fn collect(allocator: std.mem.Allocator, job: windows.HANDLE, root: windows.
         error.OutOfMemory => return error.OutOfMemory,
     };
     return .{ .allocator = allocator, .root_pid = root_pid, .processes = processes };
+}
+
+/// Live Job members that hold the Terminal console: the root, when it is one, and
+/// every other such member.
+pub const ConsoleMembers = struct {
+    root: bool = false,
+    others: u32 = 0,
+
+    pub fn empty(self: ConsoleMembers) bool {
+        return !self.root and self.others == 0;
+    }
+};
+
+pub const ConsoleAction = enum { observe, terminate };
+
+/// Bound on the exit of the members whose termination one `.terminate` pass submits.
+const console_exit_budget_ms = 250;
+
+/// The close-path reading of the Job with the sample's console rule. A live member holds
+/// the Terminal console when it is the root or reads `attached` or `unknown`, including
+/// an opaque member; `detached` and `none` members (GUI programs, other consoles, no
+/// console) do not. `.terminate` ends every holder and waits, bounded, for each to exit.
+/// A holder it cannot end that way is an error, never a silent survivor.
+pub fn consoleMembers(job: windows.HANDLE, root: windows.HANDLE, reference: ?u32, action: ConsoleAction) sample.Error!ConsoleMembers {
+    const root_pid = GetProcessId(root);
+    if (root_pid == 0) return error.ProcessSampleUnavailable;
+    var buffer: [sample.maximum_processes]u32 = undefined;
+    const ids = try enumerate(job, &buffer);
+    // Each open handle pins its PID until termination is submitted and observed.
+    var holders: [sample.maximum_processes]windows.HANDLE = undefined;
+    var holder_pids: [sample.maximum_processes]u32 = undefined;
+    var pinned: usize = 0;
+    defer for (holders[0..pinned]) |handle| {
+        _ = windows.CloseHandle(handle);
+    };
+    var members: ConsoleMembers = .{};
+    for (ids) |pid| {
+        var handle: ?windows.HANDLE = null;
+        switch (ob_windows_open_job_process(job, pid, &handle)) {
+            open_member => {
+                const holds = pid == root_pid or switch (console(ob_windows_console_host(handle.?), reference)) {
+                    .attached, .unknown => true,
+                    .detached, .none => false,
+                };
+                if (!holds) {
+                    _ = windows.CloseHandle(handle.?);
+                    continue;
+                }
+                holders[pinned] = handle.?;
+                holder_pids[pinned] = pid;
+                pinned += 1;
+            },
+            // An opaque member holds the console as `unknown` and cannot be pinned.
+            open_denied => if (action == .terminate) return error.ProcessSampleUnavailable,
+            else => continue,
+        }
+        if (pid == root_pid) members.root = true else members.others += 1;
+    }
+    if (action == .observe) return members;
+    for (holder_pids[0..pinned]) |pid| _ = ob_windows_terminate_job_process(pid, 1);
+    const timer = monotonic.Timer.start() catch return error.ProcessSampleUnavailable;
+    for (holders[0..pinned]) |handle| {
+        const elapsed_ms = timer.read() / std.time.ns_per_ms;
+        const remaining_ms: windows.DWORD = if (elapsed_ms >= console_exit_budget_ms)
+            0
+        else
+            @intCast(console_exit_budget_ms - elapsed_ms);
+        if (windows_api.WaitForSingleObject(handle, remaining_ms) != windows_api.WAIT_OBJECT_0)
+            return error.ProcessSampleUnavailable;
+    }
+    return members;
 }
 
 pub const testing = if (@import("builtin").is_test) struct {

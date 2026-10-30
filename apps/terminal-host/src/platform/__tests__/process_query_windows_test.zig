@@ -269,3 +269,106 @@ test "Windows process samples keep opaque, read-denied, other-console, GUI, cons
     try std.testing.expect(settled);
     try std.testing.expect(samples >= 40);
 }
+
+extern "kernel32" fn WaitForSingleObject(handle: windows.HANDLE, milliseconds: windows.DWORD) callconv(.winapi) windows.DWORD;
+const wait_object_0: windows.DWORD = 0;
+const wait_timeout: windows.DWORD = 258;
+
+fn closeShell(process: *subject.Process) void {
+    stopShell(process);
+    process.deinit();
+}
+
+/// Waits until a child of the shell, other than `exclude`, holds the Terminal console.
+fn awaitAttachedChild(process: *subject.Process, image: []const u8, exclude: u32) !void {
+    const timer = try platform.monotonic.Timer.start();
+    while (timer.read() < 3 * std.time.ns_per_s) {
+        var sample = try subject.sampleProcesses(process, allocator);
+        defer sample.deinit();
+        for (sample.processes) |row| {
+            if (row.pid == sample.root_pid or row.pid == exclude) continue;
+            const name = row.image orelse continue;
+            if (std.ascii.endsWithIgnoreCase(name, image) and row.console == .attached) return;
+        }
+        platform.monotonic.sleep(5 * std.time.ns_per_ms);
+    }
+    return error.ConsoleChildDidNotAttach;
+}
+
+test "Windows close ends console holders and releases GUI and console-less members from the Job" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const directory = try subject.environmentVariableOwned(allocator, "SystemRoot");
+    defer allocator.free(directory);
+    var process = try spawnShell(directory, "ping -t 127.0.0.1 >nul");
+    var owned = true;
+    defer if (owned) closeShell(&process);
+    // The suspended GUI program opens no window; DETACHED_PROCESS leaves a console
+    // program without any console. Neither holds the Terminal console.
+    const gui = try Member.spawn(process.job_handle, "rundll32.exe", null, 0, false);
+    defer gui.deinit();
+    const console_less = try Member.spawn(process.job_handle, "ping -n 120 127.0.0.1", null, detached_process, true);
+    defer console_less.deinit();
+    try awaitAttachedChild(&process, "ping.exe", console_less.pid);
+
+    try process.forceTerminate();
+    try std.testing.expectEqual(wait_object_0, WaitForSingleObject(process.process_handle, 5_000));
+    _ = try process.wait();
+    try process.finishPtyAfterChildExit();
+    try std.testing.expect(try process.processTreeContained());
+    {
+        var remaining = try subject.sampleProcesses(&process, allocator);
+        defer remaining.deinit();
+        try std.testing.expectEqual(@as(usize, 2), remaining.processes.len);
+        try std.testing.expect(rowFor(remaining, gui.pid) != null);
+        try std.testing.expect(rowFor(remaining, console_less.pid) != null);
+    }
+    // Closing the last Job handle no longer ends them.
+    owned = false;
+    process.deinit();
+    try std.testing.expectEqual(wait_timeout, WaitForSingleObject(gui.process, 200));
+    try std.testing.expectEqual(wait_timeout, WaitForSingleObject(console_less.process, 0));
+}
+
+test "Windows close falls back to the whole Job when a console holder cannot be ended alone" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const directory = try subject.environmentVariableOwned(allocator, "SystemRoot");
+    defer allocator.free(directory);
+    var process = try spawnShell(directory, "ping -t 127.0.0.1 >nul");
+    defer closeShell(&process);
+    const gui = try Member.spawn(process.job_handle, "rundll32.exe", null, 0, false);
+    defer gui.deinit();
+    // A member that denies every right reads `unknown`, so it holds the console.
+    const opaque_member = try Member.spawn(process.job_handle, "ping -n 123 127.0.0.1", "D:", create_no_window, true);
+    defer opaque_member.deinit();
+    try process.forceTerminate();
+    try std.testing.expectEqual(wait_object_0, WaitForSingleObject(opaque_member.process, 5_000));
+    try std.testing.expectEqual(wait_object_0, WaitForSingleObject(gui.process, 5_000));
+}
+
+test "Windows close activity ignores members without the Terminal console" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const executable = try subject.environmentVariableOwned(allocator, "ComSpec");
+    defer allocator.free(executable);
+    var process = try subject.Process.spawn(allocator, .{
+        .arguments = &.{"/D"},
+        .columns = 80,
+        .rows = 24,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = executable,
+    });
+    defer closeShell(&process);
+    const gui = try Member.spawn(process.job_handle, "rundll32.exe", null, 0, false);
+    defer gui.deinit();
+    // Until the shell connects, its console is unknown and so is the GUI member's.
+    const timer = try platform.monotonic.Timer.start();
+    while (try process.hasActiveCommand()) {
+        if (timer.read() > 5 * std.time.ns_per_s) return error.ShellDidNotSettle;
+        platform.monotonic.sleep(5 * std.time.ns_per_ms);
+    }
+    _ = try process.write("ping -t 127.0.0.1 >nul\r");
+    while (!try process.hasActiveCommand()) {
+        if (timer.read() > 10 * std.time.ns_per_s) return error.CommandDidNotStart;
+        platform.monotonic.sleep(5 * std.time.ns_per_ms);
+    }
+}

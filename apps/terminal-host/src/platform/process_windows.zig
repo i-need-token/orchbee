@@ -1,11 +1,11 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const monotonic = @import("monotonic.zig");
 const process_common = @import("process_common.zig");
 const process_types = @import("process_types.zig");
 const pty_module = @import("pty.zig");
 const termination_module = @import("process_windows_termination.zig");
+const ConsoleTree = @import("process_windows_console.zig").ConsoleTree;
 const windows_api = @import("windows_api.zig");
 
 const ExitResult = process_types.ExitResult;
@@ -150,6 +150,7 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
     interactive_shell: bool = false,
     pty: pty_module.Pty,
     termination: termination_module.Termination = .{},
+    console: ConsoleTree = .{},
 
     pub fn spawn(allocator: std.mem.Allocator, launch: Launch) !Process {
         var environment = try process_common.environmentForLaunch(allocator, launch.environment);
@@ -282,8 +283,10 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
     }
 
     pub fn deinit(self: *Process) void {
+        self.console.releaseMembers(self.job_handle, self.process_handle, &self.termination);
         _ = windows.CloseHandle(self.process_handle);
         _ = windows.CloseHandle(self.job_handle);
+        self.console.deinit();
         self.pty.deinit();
         self.* = undefined;
     }
@@ -324,21 +327,14 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
     }
 
     pub fn forceTerminate(self: *Process) !void {
-        try self.termination.forceTerminate(self.job_handle);
+        try self.console.forceTerminate(self.job_handle, self.process_handle, &self.termination);
     }
 
-    pub fn processTreeContained(self: *const Process) !bool {
-        var active_processes: windows.DWORD = 0;
-        if (!windows_api.ob_windows_terminal_job_active_processes(
-            self.job_handle,
-            &active_processes,
-        ).toBool()) {
-            return error.ProcessContainmentQueryFailed;
-        }
-        return active_processes == 0;
+    pub fn processTreeContained(self: *Process) !bool {
+        return self.console.treeContained(self.job_handle, self.process_handle, &self.termination);
     }
 
-    pub fn hasActiveCommand(self: *const Process) !bool {
+    pub fn hasActiveCommand(self: *Process) !bool {
         if (!self.interactive_shell) return true;
         var active_processes: windows.DWORD = 0;
         if (!windows_api.ob_windows_terminal_job_active_processes(
@@ -348,12 +344,17 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
             return error.ProcessObservationFailed;
         }
         const root_state = windows_api.WaitForSingleObject(self.process_handle, 0);
-        if (root_state == windows_api.WAIT_OBJECT_0) return active_processes != 0;
-        if (root_state != windows_api.WAIT_TIMEOUT or active_processes == 0) return error.ProcessObservationFailed;
-        return active_processes != 1;
+        const root_live = root_state == windows_api.WAIT_TIMEOUT;
+        if (!root_live and root_state != windows_api.WAIT_OBJECT_0) return error.ProcessObservationFailed;
+        if (root_live and active_processes == 0) return error.ProcessObservationFailed;
+        if (active_processes == @intFromBool(root_live)) return false;
+        // Another member exists; only one holding the Terminal console is a command.
+        return self.console.holdsCommand(self.job_handle, self.process_handle, &self.termination);
     }
 
     pub fn wait(self: *Process) !ExitResult {
+        // Console ownership must stay readable after the root exits.
+        try self.console.learnWhileLive(self.process_handle);
         if (windows_api.WaitForSingleObject(self.process_handle, windows_api.INFINITE) !=
             windows_api.WAIT_OBJECT_0)
         {
@@ -380,22 +381,9 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         // Holding HPCON keeps the pseudoconsole alive, but closing it while a
         // descendant is still attached sends that descendant CTRL_CLOSE_EVENT
         // and can block indefinitely on Windows versions before 11 24H2. The
-        // Job is the complete descendant authority, so zero active processes is
-        // the first safe point at which to close the pseudoconsole. Natural
-        // process exit does not signal the Job handle. Observe accounting with
-        // a quiet interval even after force termination signals that handle,
-        // because accounting can still be converging to zero.
-        while (true) {
-            var active_processes: windows.DWORD = 0;
-            if (!windows_api.ob_windows_terminal_job_active_processes(
-                self.job_handle,
-                &active_processes,
-            ).toBool()) {
-                return error.ProcessObservationFailed;
-            }
-            if (active_processes == 0) break;
-            monotonic.sleep(10 * std.time.ns_per_ms);
-        }
+        // Job is the complete descendant authority, and only its members that
+        // hold this console are attached, so closing waits for those alone.
+        try self.console.awaitDetached(self.job_handle, self.process_handle, &self.termination);
         self.pty.closeConsole();
     }
 

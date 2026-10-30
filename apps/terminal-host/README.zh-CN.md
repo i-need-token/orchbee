@@ -89,7 +89,7 @@ Server admission 之后验证同用户 Host 并完成相同的精确版本 `Hell
 terminal command，也不创建 PTY；Server 仍是 launch-authorization owner，Host 仍是 terminal
 authority。
 
-进程树所有权遵循启动时创建的遏制域：Linux 和 macOS 上的专用会话、FreeBSD 上保留的直接子进程 process-reaper 子树，或 Windows 关闭时终止作业。仅当该域没有实时成员时清理才完成。在 Windows 上，Host 按带有等待间隔的单调时间节奏观察 Job 统计，仅在活动进程数归零后关闭 HPCON；Desktop 拥有的强制升级会终止 Job，使该观察能够完成。进程自然退出不会使 Job 句柄变为有信号状态。在 Linux 和 macOS 上，防止受信任的同一用户子进程故意逃离 POSIX 会话并不是一个隔离承诺。
+进程树所有权遵循启动时创建的遏制域：Linux 和 macOS 上的专用会话、FreeBSD 上保留的直接子进程 process-reaper 子树，或 Windows 关闭时终止作业。仅当该域没有实时成员时清理才完成。在 Windows 上，该域是持有终端控制台的 Job 成员：关闭时结束这些成员，并把其余成员（例如从 shell 启动的 GUI 程序）移出终端所有权；任何失败或 Host 崩溃仍会结束整个 Job（[运行时模型](docs/runtime-model.zh-CN.md)）。Host 按带有等待间隔的单调时间节奏观察 Job 统计，仅在没有成员持有该控制台后关闭 HPCON；Desktop 拥有的强制升级会终止控制台持有者，失败时终止整个 Job，使该观察能够完成。进程自然退出不会使 Job 句柄变为有信号状态。在 Linux 和 macOS 上，防止受信任的同一用户子进程故意逃离 POSIX 会话并不是一个隔离承诺。
 
 ## 可执行接口
 
@@ -327,4 +327,4 @@ pnpm --filter @orchbee/terminal-host benchmark -- \
 
 `zig build test-graphics` 检查 PNG 服务、附件授权、终端文本保持及已有直接图形投影。Windows 服务测试自行创建并释放 ConPTY 进程和运行时，不打开 Desktop 窗口。
 
-<!-- documentation-pairing: english-sha256=a151c058c03cfb56789ed5db386e6603eaba13beb4223a1983b55c0df8c6959c zh-cn-sha256=29a3907ee42868a853152ec32e1f15c5995ea0274e82b4e57ac397f7912994f3 -->
+<!-- documentation-pairing: english-sha256=7864deef1df9a57ac45dafde7ecab97a75a9f34709a927bc40068df21d3bfe98 zh-cn-sha256=043ea5c173b609f102e46df134e5219ce6fb11f6449074d75d9e319fe126e18f -->

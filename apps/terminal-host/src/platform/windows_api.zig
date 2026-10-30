@@ -10,6 +10,7 @@ pub const S_OK: HRESULT = 0;
 pub const WAIT_OBJECT_0: windows.DWORD = 0;
 pub const WAIT_TIMEOUT: windows.DWORD = 258;
 pub const INFINITE: windows.DWORD = std.math.maxInt(windows.DWORD);
+pub const SYNCHRONIZE: windows.DWORD = 0x0010_0000;
 
 pub const STARTUPINFOEXW = extern struct {
     StartupInfo: windows.STARTUPINFOW,
@@ -84,6 +85,14 @@ pub extern "kernel32" fn TerminateProcess(
     process: windows.HANDLE,
     exit_code: windows.UINT,
 ) callconv(.winapi) windows.BOOL;
+
+pub extern "kernel32" fn OpenProcess(
+    access: windows.DWORD,
+    inherit_handle: windows.BOOL,
+    process_id: windows.DWORD,
+) callconv(.winapi) ?windows.HANDLE;
+
+pub extern "kernel32" fn GetCurrentProcessId() callconv(.winapi) windows.DWORD;
 
 pub extern "kernel32" fn WaitForSingleObject(
     handle: windows.HANDLE,
@@ -167,6 +176,8 @@ pub extern fn ob_windows_terminal_job_terminate(
     job: windows.HANDLE,
     exit_code: windows.UINT,
 ) windows.BOOL;
+
+pub extern fn ob_windows_terminal_job_release_members(job: windows.HANDLE) windows.BOOL;
 
 pub extern fn ob_windows_terminal_job_active_processes(
     job: windows.HANDLE,

@@ -66,6 +66,19 @@ int ob_windows_open_job_process(HANDLE job, uint32_t pid, HANDLE *out) {
     return 1;
 }
 
+/* Submit termination for a member the caller keeps pinned with an open handle,
+ * so the PID cannot name another process. A member that is already exiting can
+ * refuse; the caller's bounded exit wait decides the outcome. */
+BOOL ob_windows_terminate_job_process(uint32_t pid, UINT exit_code) {
+    HANDLE process = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+    if (process == NULL) return FALSE;
+    const BOOL terminated = TerminateProcess(process, exit_code);
+    const DWORD error = GetLastError();
+    CloseHandle(process);
+    SetLastError(error);
+    return terminated;
+}
+
 typedef LONG (NTAPI *ob_query_process)(HANDLE, ULONG, void *, ULONG, ULONG *);
 struct ob_basic_process {
     LONG exit_status;

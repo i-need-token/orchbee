@@ -184,11 +184,29 @@ POSIX session also escapes this contract; preventing hostile same-user code from
 part of the accepted trust boundary. FreeBSD containment follows the reaper subtree rather than
 session membership.
 
+On Windows, the Job keeps every descendant and kill-on-close while the Terminal runs, so process
+samples, Agent identity and close activity still observe the whole tree. The containment domain is
+the Job members that hold the Terminal console: the root, every member whose console reads
+`attached`, and every member whose console is `unknown`, opaque members included. Members that read
+`detached` (another console or a GUI-subsystem program) or `none` are outside it, as is a GUI child
+started by a console holder. The Terminal console is the live root's console host, learned once
+the root has connected and pinned by a process handle, so its PID cannot name another console after
+the root exits or the pseudoconsole closes; until it is learned, every member with a console reads
+`unknown`. Force termination ends the console holders round by round, waiting at most 250 ms for
+each round's exits, and completes at the first round that finds none. A holder that cannot be read
+or ended individually, a failed round, or holders that still appear after four rounds fall back to
+terminating the whole Job, after which containment again counts every member. Before the last Job
+handle closes, the Host clears kill-on-close only when that fallback was never taken and a final
+reading finds no holder; the remaining members then outlive the Terminal outside Orchbee ownership.
+Any failure keeps kill-on-close, so closing the handle ends every member. A Host that exits without
+that release, for example by crashing, still ends every member, GUI programs included.
+
 The runtime also derives one non-authoritative close-activity observation for each projected live
 terminal.
-On POSIX, `active` means another process group owns the PTY foreground; on Windows, it means the
-kill-on-close Job contains a process in addition to the retained shell. A failed platform query is
-`unknown`. After a successful inactive platform query, current OSC 133 state may still classify a
+On POSIX, `active` means another process group owns the PTY foreground; on Windows, it means a
+kill-on-close Job member other than the retained shell holds the Terminal console, so a GUI program
+started from the shell alone does not make the terminal active. A failed console reading keeps the
+Job-wide answer. A failed platform query is `unknown`. After a successful inactive platform query, current OSC 133 state may still classify a
 cursor outside the prompt/input region as `active`, covering a command executed inside the shell
 process; a cursor at the prompt/input region is `idle`. Without semantic integration, a successful
 inactive platform query falls back to `idle`. Accepted activity-affecting input invalidates the
@@ -666,26 +684,35 @@ alone is not an identity-release barrier: a descendant without PTY handles may s
 containment, as covered by THCR-028. The barrier checks actual identity release and verifies that
 the resumed request issues no additional signals, commits the normal exit, and replays idempotently.
 
-Windows declares the complementary drain fact only after its kill-on-close Job has no active
-processes. Closing a pseudoconsole while a descendant remains can signal that descendant and can
-block indefinitely on supported Windows versions, so Job emptiness is part of the Windows
-adapter's safe-drain condition. This changes when the shared lifecycle may leave `finishing`; it
+Windows declares the complementary drain fact only after no member of its kill-on-close Job holds
+the Terminal console. Closing a pseudoconsole while an attached descendant remains can signal that
+descendant and can block indefinitely on supported Windows versions, so the absence of console
+holders is part of the Windows adapter's safe-drain condition; members without the console are not
+attached and do not delay it. This changes when the shared lifecycle may leave `finishing`; it
 does not create a second lifecycle or permit an unsafe normal classification. The adapter observes
-Job accounting at a quiet monotonic cadence until the active count reaches zero; natural process
-exit does not signal the Job handle. A signaled handle after force termination cannot bypass that
-accounting predicate or turn its retry into a busy loop.
+Job accounting at a quiet monotonic cadence until the active count reaches zero or two consecutive
+readings find no console holder, because a console program reports its creator until its console
+connection completes. While holders remain, it re-reads console ownership when accounting changes
+and at least once per second. Once containment has observed no holder, a holder or a failed
+reading here is a containment race and falls back to terminating the whole Job instead of waiting.
+Natural process exit does not signal the Job handle. A signaled handle after force termination
+cannot bypass that predicate or turn its retry into a busy loop.
 
 The Windows Process owner keeps one successful root-termination submission receipt, initially
 absent. A short per-Process mutex serializes termination syscalls and receipt publication; it is
-not held during blocking waits, joins or PTY closure, and it acquires no other lifecycle lock.
+not held during blocking waits, joins or PTY closure, and it acquires no other lifecycle lock;
+console-holder rounds and their bounded exit waits run without it.
 Containment may hold its existing outer mutex while invoking force termination; the lock order is
 containment then termination, never the reverse. Successful graceful
-root termination or successful force termination of the Job publishes the receipt before returning.
+root termination or successful force termination of the console holders or the Job publishes the
+receipt before returning.
 A later graceful request is then an idempotent no-op even while Windows is still completing exit.
-Force requests always still target the Job, including after a graceful receipt, because descendants
-may remain. A failed syscall never creates a receipt. Without one, a failed graceful root termination is
+Force requests always still target the console holders, or the whole Job after the fallback,
+including after a graceful receipt, because descendants may remain. A failed syscall never creates a
+receipt. Without one, a failed graceful root termination is
 ignored only when a zero-time observation of the retained process handle proves exit. A failed
-force Job termination always remains an error, even if the root has exited. Exit status 259 is not a
+force termination falls back to Job termination, whose failure always remains an error, even if the
+root has exited. Exit status 259 is not a
 liveness test. The receipt proves accepted termination submission only: actual child exit, Job
 emptiness, PTY EOF and containment retain their existing independent observations.
 
@@ -700,7 +727,7 @@ The Windows retained-descendant termination witness uses a test-only child with 
 begin/ready kernel events and no natural exit timer. Job membership is observed before releasing
 the begin event, proving that a process count alone is not a readiness acknowledgment. Only after
 the child signals ready does the test terminate the root, require a retained descendant, then force
-the Job and require complete containment. The test's Job owns cleanup on every path; event handles
+termination and require complete containment. The test's Job owns cleanup on every path; event handles
 are released after the owned processes stop. This fixture is a test-build dependency, never installed.
 
 An unrecoverable runtime failure fences new client and terminal-generated input, stops further PTY
@@ -1962,7 +1989,8 @@ Native inventory and guarded termination use `sampleCloseActivityForClose`, inde
 projection fallback described above. Idle requires a recognized interactive shell, a successful
 inactive process observation, current semantic prompt state and no queued/in-flight client input.
 Direct commands, scripts and Agent roots remain active even when they are the only process. A
-Windows exited root with remaining Job descendants is active. Missing prompt semantics and process
+Windows exited root with a remaining Job member that holds the Terminal console is active; members
+without the console do not keep it active. Missing prompt semantics and process
 query failure remain unknown.
 
 Accepted activity-affecting input invalidates the prior close sample. Under `input_mutex`, the Host

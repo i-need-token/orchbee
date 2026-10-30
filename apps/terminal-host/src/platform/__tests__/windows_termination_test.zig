@@ -98,12 +98,14 @@ test "Windows denied live root termination cannot fabricate a successful submiss
     try expectExited(&process);
 }
 
-test "Windows denied Job termination cannot fabricate a root submission or hide behind root exit" {
+test "Windows denied Job access cannot fabricate a root submission or hide behind root exit" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     var process = try spawn("ping -n 31 127.0.0.1 >nul");
     defer cleanup(&process);
     const original = process.job_handle;
-    const restricted = try restrictedHandle(original, 0x0004); // JOB_OBJECT_QUERY only.
+    // Without JOB_OBJECT_QUERY the console holders cannot be read, so force falls
+    // back to Job termination, which JOB_OBJECT_TERMINATE alone would permit.
+    const restricted = try restrictedHandle(original, 0x00100000); // SYNCHRONIZE only.
     defer windows.CloseHandle(restricted);
     {
         process.job_handle = restricted;
