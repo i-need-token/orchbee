@@ -2173,7 +2173,7 @@ impl InputDispatcher {
             match action {
                 Some(ClientAction::OpenMachines)
                     if view
-                        .capabilities
+                        .capabilities()
                         .supports(crate::tui_capabilities::Capability::SavedMachines) =>
                 {
                     view.machines.show()

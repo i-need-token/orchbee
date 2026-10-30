@@ -58,7 +58,8 @@ pub(super) struct Watcher {
     connection: Mutex<Option<Connection>>,
     revision: Option<u64>,
     applied_snapshot: Option<ConfigurationSnapshot>,
-    notification_update: Option<(u64, NotificationSettings)>,
+    /// Revision whose policy this tick wrote into `ClientView.notifications`, its single owner.
+    notification_update: Option<u64>,
     creation_update: Option<CreationDefaults>,
 }
 /// Creation defaults the native Workbench owner consumes outside the shared Client view.
@@ -154,8 +155,8 @@ impl Watcher {
                     }) => {
                         view.machines.configure_space_sidebar(spaces);
                         view.machines.configure_agent_sidebar(sidebar);
-                        view.notifications.configure(notifications.clone());
-                        self.notification_update = Some((snapshot.revision.value(), notifications));
+                        view.notifications.configure(notifications);
+                        self.notification_update = Some(snapshot.revision.value());
                         self.creation_update = Some(CreationDefaults {
                             focus_new_panel: snapshot.focus_new_panel,
                             worktrees_directory: snapshot.worktrees_directory.clone(),
@@ -191,7 +192,7 @@ impl Watcher {
         }
         changed
     }
-    pub(super) fn take_notification_update(&mut self) -> Option<(u64, NotificationSettings)> {
+    pub(super) fn take_notification_update(&mut self) -> Option<u64> {
         self.notification_update.take()
     }
     pub(super) fn take_creation_update(&mut self) -> Option<CreationDefaults> {

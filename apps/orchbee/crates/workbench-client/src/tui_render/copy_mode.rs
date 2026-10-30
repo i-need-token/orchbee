@@ -112,7 +112,7 @@ pub(super) fn render_controls(
         );
     } else {
         if view
-            .capabilities
+            .capabilities()
             .supports(crate::tui_capabilities::Capability::Clipboard)
             && let Some(rect) = paint_action_control(
                 frame,

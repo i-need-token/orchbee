@@ -946,7 +946,7 @@ pub fn render_terminal_shell_with_resize<'a>(
             locale,
             notice,
             theme,
-            view.capabilities
+            view.capabilities()
                 .supports(crate::tui_capabilities::Capability::Clipboard),
         );
         hits.record(HitLayer::Status, areas.status, HitTarget::OverlaySurface);

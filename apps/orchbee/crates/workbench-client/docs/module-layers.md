@@ -51,8 +51,20 @@ borrows or receive derived values; render reads only the derived view model.
 | Client-local view    | Owns chrome, selection, focus, drafts, menus, notices, copy mode, preferences, and positions that exist only in this Client; persists only through its own single store | `client_view`, `action_menu`, `machine_picker`, `machines`, `native_settings`, `notifications`, `onboarding`, `terminal_copy_mode`, `transient_notice`, `workbench_client::completion_reminders`, `workbench_client::normal_exit_hold`, `workbench_client::startup_directory`, `workbench_client::startup_preference`, `workbench_client::terminal_selection`, `workbench_client::terminal_viewport` |
 | Connection lifecycle | Owns the queues, correlation, generations, retained evidence, and wakeups of one Client Connection; the `workflow` connection task drives it                            | `workbench_client::mailbox`, `workbench_client::wakeup`                                                                                                                                                                                                                                                                                                                                              |
 
-`ClientView` and `WorkbenchClientUi` still both hold capabilities, user preferences, notices, and
-copy-mode activity. Each keeps a single writer once the duplicate is removed.
+`ClientView` and `WorkbenchClientUi` share four values. Each has one writer, and the other holder
+receives the owner's value through composition:
+
+- Host capabilities are a compile-time admission. Each holder receives them once at construction,
+  and nothing writes them afterwards.
+- `ClientView::apply_user_preferences` writes the confirmed user preferences. `WorkbenchClientUi`
+  receives the owner's values in the same settlement.
+- The configuration watcher writes the notification policy into the `ClientView` notifications.
+  `WorkbenchClientUi` receives that policy with the revision that admitted it.
+- The `WorkbenchClientUi` copy-mode coordinator owns copy-mode activity. `ClientView` keeps a
+  mirror that only `settle_copy_mode` writes from the owner's current answer.
+
+Client-local notices in `ClientView` and Workbench command notices in `WorkbenchClientUi` are
+separate facts with separate writers.
 
 ## Components
 

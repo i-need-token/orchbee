@@ -450,8 +450,12 @@ impl WorkbenchClient {
         if let Some(native) = self.backend.native_mut()
             && let Some(snapshot) = native.take_settings_snapshot()
         {
-            native.apply_user_preferences(&snapshot.values);
+            // ClientView is the single writer of confirmed preferences; the UI receives the
+            // owner's values in the same settlement, before any input or paint observes them.
             view.apply_user_preferences(snapshot.values);
+            if let Some(values) = view.user_preferences() {
+                native.apply_user_preferences(values);
+            }
             return true;
         }
         false
@@ -487,11 +491,13 @@ impl WorkbenchClient {
                 }
                 if let Some(watcher) = &mut self.configuration {
                     configuration_changed |= watcher.tick(view);
-                    if let Some((revision, notifications)) = watcher.take_notification_update() {
+                    // The watcher configured `view.notifications`, the policy's single writer;
+                    // the UI receives that policy with the revision that admitted it.
+                    if let Some(revision) = watcher.take_notification_update() {
                         native.cancel_action_menu();
                         native.cancel_copy_mode();
-                        view.settle_copy_mode(false);
-                        native.configure_agent_notifications(revision, &notifications);
+                        view.settle_copy_mode(native.copy_mode_active());
+                        native.configure_agent_notifications(revision, view.notifications.policy());
                     }
                     if let Some(defaults) = watcher.take_creation_update() {
                         native.configure_panel_focus(defaults.focus_new_panel);

@@ -142,9 +142,12 @@ pub enum SidebarSurface {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClientView {
-    pub capabilities: crate::tui_capabilities::Capabilities,
+    /// Compile-time host admission received once at construction; nothing writes it afterwards.
+    capabilities: crate::tui_capabilities::Capabilities,
     pub onboarding: crate::onboarding::State,
-    pub(crate) user_preferences: Option<orchbee_workbench_protocol::UserPreferencesValues>,
+    /// Confirmed shared preferences. `apply_user_preferences` is the single writer;
+    /// `WorkbenchClientUi` receives its copy from here in the same settlement.
+    user_preferences: Option<orchbee_workbench_protocol::UserPreferencesValues>,
     pub machines: crate::machine_picker::Picker,
     bindings: std::sync::Arc<Bindings>,
     theme_name: Option<crate::tui_theme::ThemeName>,
@@ -169,7 +172,8 @@ pub struct ClientView {
     prefix_used: bool,
     resize_mode: bool,
     pub(crate) resize_pointer_fine: bool,
-    /// Read-only projection of the Client-owned copy episode, used only for discovery.
+    /// Mirror of the `WorkbenchClientUi` copy-mode owner, written only by `settle_copy_mode`
+    /// from the owner's current answer; it detects the exit edge for discovery.
     copy_mode_active: bool,
     pub(crate) resize_pending: bool,
     viewport: ViewportClass,
@@ -364,6 +368,17 @@ impl ClientView {
             .with_outer_host_colors(values.application_theme, self.host_colors),
         );
         self.user_preferences = Some(values);
+    }
+
+    /// The confirmed preferences that `WorkbenchClientUi` receives after each settlement.
+    pub(crate) const fn user_preferences(
+        &self,
+    ) -> Option<&orchbee_workbench_protocol::UserPreferencesValues> {
+        self.user_preferences.as_ref()
+    }
+
+    pub const fn capabilities(&self) -> crate::tui_capabilities::Capabilities {
+        self.capabilities
     }
 
     pub fn effective_locale(

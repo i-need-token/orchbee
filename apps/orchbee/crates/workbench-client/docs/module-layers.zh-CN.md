@@ -45,8 +45,19 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 | Client 本地视图 | 拥有只存在于此 Client 中的界面框架、选择、焦点、草稿、菜单、提示、复制模式、偏好和位置；只通过自己唯一的存储持久化 | `client_view`、`action_menu`、`machine_picker`、`machines`、`native_settings`、`notifications`、`onboarding`、`terminal_copy_mode`、`transient_notice`、`workbench_client::completion_reminders`、`workbench_client::normal_exit_hold`、`workbench_client::startup_directory`、`workbench_client::startup_preference`、`workbench_client::terminal_selection`、`workbench_client::terminal_viewport` |
 | 连接生命周期    | 拥有一个 Client Connection 的队列、关联、代次、保留证据和唤醒；由 `workflow` 连接任务驱动                          | `workbench_client::mailbox`、`workbench_client::wakeup`                                                                                                                                                                                                                                                                                                                                              |
 
-`ClientView` 和 `WorkbenchClientUi` 目前都持有能力、用户偏好、提示和复制模式活动。消除重复后，
-每一项都只保留一个写入者。
+`ClientView` 和 `WorkbenchClientUi` 共享四个值。每个值只有一个写入者，另一方经组合层接收所有者
+的值：
+
+- 主机能力是编译期准入。两方各在构造时接收一次，此后没有写入者。
+- `ClientView::apply_user_preferences` 写入已确认的用户偏好。`WorkbenchClientUi` 在同一次结算中
+  接收所有者的值。
+- 配置观察者把通知策略写入 `ClientView` 的通知状态。`WorkbenchClientUi` 连同准入它的修订号一起
+  接收该策略。
+- `WorkbenchClientUi` 的复制模式协调者拥有复制模式活动。`ClientView` 保留一份镜像，只由
+  `settle_copy_mode` 按所有者当前的回答写入。
+
+`ClientView` 中的 Client 本地提示和 `WorkbenchClientUi` 中的 Workbench 命令提示是不同的事实，
+各有各的写入者。
 
 ## 组件
 
@@ -172,4 +183,4 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 可列出每个环和每个指向高层的引用及其源码位置样本；[Lint](../../../../../docs/zh-CN/LINTING.md)
 拥有该命令。
 
-<!-- documentation-pairing: english-sha256=5f5bc30882684a05034a80e09f38cafed744e0b471b99ad8c1539e3de181a759 zh-cn-sha256=ae81a3624a840127097b401c7f3e010ac0881749517b99cccf3f295207828d5e -->
+<!-- documentation-pairing: english-sha256=b47a879c188863da4b62e8e4a0647b57794106e29da52e4fb6640431336be01d zh-cn-sha256=5b6ea1fdfa65fe964e152bea8c58555f9b21707c9d46300838e2ab702d7c77d0 -->

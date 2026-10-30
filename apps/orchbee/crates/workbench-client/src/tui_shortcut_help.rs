@@ -55,7 +55,7 @@ pub(crate) fn entries(
     for binding in view.bindings().discovery_entries(glyphs) {
         if let PrefixAction::Client(action) = &binding.action
             && crate::tui_capabilities::for_action(action)
-                .is_some_and(|capability| !view.capabilities.supports(capability))
+                .is_some_and(|capability| !view.capabilities().supports(capability))
         {
             continue;
         }
@@ -160,7 +160,7 @@ fn append_contextual_entries(
             if *command == SidebarCommand::Exit
                 || (*command == SidebarCommand::NewWorkspace
                     && !view
-                        .capabilities
+                        .capabilities()
                         .supports(crate::tui_capabilities::Capability::DirectoryInput))
             {
                 continue;

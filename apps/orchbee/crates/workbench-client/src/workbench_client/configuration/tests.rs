@@ -59,7 +59,7 @@ fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
     assert!(watcher.tick(&mut view));
     assert_eq!(view.configured_theme(), theme);
     assert_eq!(view.effective_locale(Locale::EnUs), Locale::ZhCn);
-    assert_eq!(view.user_preferences.as_ref(), Some(&preferences));
+    assert_eq!(view.user_preferences(), Some(&preferences));
     assert!(view.pointer_released());
     assert_eq!(view.machines.sidebar_settings().row_gap(), 2);
     assert_eq!(view.machines.space_settings().row_gap(), 3);
@@ -592,12 +592,7 @@ fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() 
             .prefix
             .matches(KeyEvent::press(KeyCode::Char('x'), Modifiers::CTRL))
     );
-    assert_eq!(
-        watcher
-            .take_notification_update()
-            .map(|(revision, _)| revision),
-        Some(2)
-    );
+    assert_eq!(watcher.take_notification_update(), Some(2));
     let defaults = watcher.take_creation_update().unwrap();
     assert!(!defaults.focus_new_panel);
     assert_eq!(defaults.worktrees_directory.as_deref(), Some("C:/trees"));

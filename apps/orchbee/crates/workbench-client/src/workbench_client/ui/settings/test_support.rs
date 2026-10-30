@@ -283,7 +283,7 @@ pub fn external_confirmed_values_update_unedited_presentation_and_cancel_reveals
         if draft.conflict && draft.values.application_theme == ApplicationAppearance::Dark
             && draft.basis_values == &initial));
     ui.settings.editor.edit(Edit::Cancel);
-    assert_eq!(shell.user_preferences.as_ref(), Some(&latest.values));
+    assert_eq!(shell.user_preferences(), Some(&latest.values));
     let restored = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs, paint_frame);
     assert_eq!(
         restored[(0, 0)].bg,

@@ -181,7 +181,7 @@ fn render_actions(
     .filter(|(command, _, _)| {
         *command != SidebarCommand::NewWorkspace
             || view
-                .capabilities
+                .capabilities()
                 .supports(crate::tui_capabilities::Capability::DirectoryInput)
     })
     .enumerate()

@@ -101,7 +101,7 @@ impl Manager {
     pub(super) fn new(view: &mut ClientView, wakeup: crate::workbench_client::UiWakeup) -> Self {
         view.machines.available = true;
         if !view
-            .capabilities
+            .capabilities()
             .supports(crate::tui_capabilities::Capability::SavedMachines)
         {
             view.machines.replace(&[]);
@@ -172,7 +172,7 @@ impl Manager {
             .configure(view.notifications.policy().clone());
         if now >= self.refresh
             && view
-                .capabilities
+                .capabilities()
                 .supports(crate::tui_capabilities::Capability::SavedMachines)
         {
             self.refresh = now + Duration::from_secs(1);
