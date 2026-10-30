@@ -38,11 +38,10 @@ fn now() -> Instant {
     super::test_support::fault_injection::now()
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Direction {
-    Enable,
-    Disable,
-}
+pub use orchbee_agent_integration::{
+    AttemptedStep, Direction, FailureCode, MutationReport, PlannedStep, Refusal, StepKind,
+    StepOutcome, Verdict,
+};
 
 #[cfg(windows)]
 mod codex_windows;
@@ -52,69 +51,6 @@ mod file_publication_windows;
 mod hermes_windows;
 #[cfg(windows)]
 mod hook_configuration_windows;
-
-impl Direction {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Enable => "enable",
-            Self::Disable => "disable",
-        }
-    }
-}
-
-/// One executed or refused step of the plan — the machine-readable
-/// `attempted[]` member.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum StepKind {
-    /// A provider CLI command — `argv` is the literal argument vector.
-    Command {
-        executable: String,
-        argv: Vec<String>,
-    },
-    /// A managed-filesystem effect.
-    Filesystem {
-        operation: &'static str,
-        path: PathBuf,
-    },
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum StepOutcome {
-    Completed,
-    /// The no-replace primitive found the destination occupied.
-    Conflict,
-    Failed,
-    /// The invocation deadline expired before the step could run — the step
-    /// never produced an effect.
-    Deadline,
-    TimedOut,
-    Leaked,
-    OutputTooLarge,
-    /// The termination signal fired — the step's kill path ran or the step
-    /// never launched.
-    Cancelled,
-}
-
-impl StepOutcome {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Completed => "completed",
-            Self::Conflict => "conflict",
-            Self::Failed => "failed",
-            Self::Deadline => "deadline",
-            Self::TimedOut => "timed-out",
-            Self::Leaked => "leaked",
-            Self::OutputTooLarge => "output-too-large",
-            Self::Cancelled => "cancelled",
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct AttemptedStep {
-    pub step: StepKind,
-    pub outcome: StepOutcome,
-}
 
 /// One invocation's effect journal; vectors borrow its records and frontier
 /// together instead of growing independent mutation-output argument lists.
@@ -140,104 +76,6 @@ enum Attempt {
     /// effect already landed.
     Refused(Refusal),
     Failed(FailureCode),
-}
-
-/// Pre-effect refusal codes — nothing was mutated.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Refusal {
-    AgentUnavailable,
-    Conflict,
-    /// The provider is `manual-only` on this platform — the CLI names the
-    /// manual path instead of attempting effects.
-    ManualActionRequired,
-    InspectionFailed,
-    /// No adapter source: no cohort sidecar and no override.
-    CapsuleUnavailable,
-    /// The deadline cannot cover the plan plus the re-inspection reserve.
-    Deadline,
-}
-
-impl Refusal {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::AgentUnavailable => "agent-unavailable",
-            Self::Conflict => "conflict",
-            Self::ManualActionRequired => "manual-action-required",
-            Self::InspectionFailed => "inspection-failed",
-            Self::CapsuleUnavailable => "capsule-unavailable",
-            Self::Deadline => "timed-out",
-        }
-    }
-}
-
-/// Post-effect failure codes — the canonical failure vocabulary plus the
-/// CLI-typed step outcomes the honest frontier surfaces.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum FailureCode {
-    Conflict,
-    /// Canonical failure-code member — canonical maps a provider command
-    /// timeout onto `manual-action-required`; this port keeps the honest
-    /// `timed-out` code instead, so nothing produces it here.
-    #[allow(dead_code)]
-    ManualActionRequired,
-    OperationFailed,
-    VerificationFailed,
-    TimedOut,
-    OutputTooLarge,
-    Leaked,
-}
-
-impl FailureCode {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Conflict => "conflict",
-            Self::ManualActionRequired => "manual-action-required",
-            Self::OperationFailed => "operation-failed",
-            Self::VerificationFailed => "verification-failed",
-            Self::TimedOut => "timed-out",
-            Self::OutputTooLarge => "output-too-large",
-            Self::Leaked => "leaked",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Verdict {
-    /// The goal state is observed (or was already true pre-effect).
-    Completed,
-    /// The controller refused the goal. Whether the refusal precedes any
-    /// integration effect is told by `attempted`: a nonempty attempted[]
-    /// means the capsule/vector frontier was already crossed and the exit
-    /// map must not emit a pre-effect class.
-    Refused(Refusal),
-    /// A known post-effect failure.
-    Failed(FailureCode),
-    /// The outcome could not be determined — re-inspection was unavailable
-    /// or the deadline expired mid-frontier. Closed-vocabulary member: the
-    /// frontier maps undetermined observation onto `Failed(TimedOut)`, but
-    /// the schema's verdict word stays reserved.
-    #[allow(dead_code)]
-    Unknown,
-    /// The termination signal fired — exit 130 at any stage.
-    Cancelled,
-}
-
-pub struct MutationReport {
-    pub integration_id: IntegrationId,
-    pub direction: Direction,
-    pub attempted: Vec<AttemptedStep>,
-    /// Retained backups/staging a same-call cleanup could not remove —
-    /// named, never silently swept.
-    pub residuals: Vec<PathBuf>,
-    pub observed: Option<SnapshotItem>,
-    pub provenance: Provenance,
-    /// Whether any Orchbee-owned effect could already exist — capsule
-    /// staging/publication, a spawned provider command, or a guarded fs
-    /// write. This is the private frontier the exit map classifies by; a
-    /// deadline-refused step recorded in `attempted` is a log entry, not
-    /// proof the frontier was crossed.
-    pub effect_begun: bool,
-    pub verdict: Verdict,
 }
 
 /// The frontier: entry gates → capsule publish (enable only, before any
@@ -2091,25 +1929,6 @@ fn step_outcome(step: FsStep) -> StepOutcome {
 }
 
 // -- `explain` plan projection ------------------------------------------------
-
-/// One step of the guard-evaluated enable plan — the same vector the
-/// frontier would run for the observed dimensions, projected for `explain`
-/// without any effect.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum PlannedStep {
-    /// The managed capsule publication precedes provider steps on `enable`.
-    CapsulePublish { target: PathBuf },
-    /// A provider CLI command; `executable` is the resolved absolute path
-    /// when PATH resolves it, else the bare registered name.
-    Command {
-        executable: String,
-        argv: Vec<String>,
-    },
-    /// A guarded filesystem effect on the provider-owned target.
-    GuardedWrite { target: PathBuf },
-    /// Removal of a source-proven obsolete target after current publication.
-    GuardedRemove { target: PathBuf },
-}
 
 /// `agent integration explain`'s plan — the enable-direction vector the
 /// frontier would run for the observed dims. An empty plan means the

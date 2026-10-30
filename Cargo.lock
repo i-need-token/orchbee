@@ -868,6 +868,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "orchbee-agent-integration"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "orchbee-agent-observation-protocol"
 version = "0.1.0"
 dependencies = [
@@ -1016,6 +1024,7 @@ dependencies = [
  "ctrlc",
  "getrandom",
  "nix",
+ "orchbee-agent-integration",
  "orchbee-agent-observation-protocol",
  "orchbee-client-server-protocol",
  "orchbee-local-client",
@@ -1046,6 +1055,7 @@ dependencies = [
 name = "orchbee-workbench-protocol"
 version = "0.1.0"
 dependencies = [
+ "orchbee-agent-integration",
  "orchbee-agent-observation-protocol",
  "serde",
  "serde_json",

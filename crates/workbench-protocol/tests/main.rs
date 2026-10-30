@@ -1,5 +1,6 @@
 //! Integration and conformance tests through this crate's public boundaries.
 
+mod agent_integration;
 mod agent_manifests;
 mod client_layout;
 mod client_view;

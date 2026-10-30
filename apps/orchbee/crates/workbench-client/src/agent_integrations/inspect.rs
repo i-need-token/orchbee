@@ -119,22 +119,7 @@ pub(crate) struct PluginInspection {
     pub(crate) state: State,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Marketplace {
-    Absent,
-    Current,
-    Outdated,
-}
-
-impl Marketplace {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Absent => "absent",
-            Self::Current => "current",
-            Self::Outdated => "update-required",
-        }
-    }
-}
+pub use orchbee_agent_integration::{Marketplace, TargetState};
 
 /// claude-code — `claude plugin list --json` + `plugin marketplace list
 /// --json`, canonical verdict order preserved.
@@ -826,28 +811,6 @@ fn read_json_record(path: &Path, maximum: u64) -> Option<Value> {
             _ => None,
         },
         _ => None,
-    }
-}
-
-/// Guarded-entry target states after ownership inspection.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum TargetState {
-    Conflict,
-    Current,
-    Missing,
-    Unknown,
-    UpdateRequired,
-}
-
-impl TargetState {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Conflict => "conflict",
-            Self::Current => "current",
-            Self::Missing => "missing",
-            Self::Unknown => "unknown",
-            Self::UpdateRequired => "update-required",
-        }
     }
 }
 

@@ -445,7 +445,9 @@ fn run_admitted_with_handoff(
             | CapabilityNodeMessage::WorktreeMutationRequest(_)
             | CapabilityNodeMessage::WorktreeMutationResult(_)
             | CapabilityNodeMessage::PluginJobRequest(_)
-            | CapabilityNodeMessage::PluginJobResult(_) => {
+            | CapabilityNodeMessage::PluginJobResult(_)
+            | CapabilityNodeMessage::AgentIntegrationJobRequest(_)
+            | CapabilityNodeMessage::AgentIntegrationJobResult(_) => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "Server sent a Worker-to-Server result",

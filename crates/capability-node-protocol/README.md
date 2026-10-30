@@ -434,6 +434,28 @@ every arm below the payload ceiling with declared headroom. Codec tests cover ev
 and outcome arm, strict goldens, the field-budget boundary, unknown tags, stage codes, and
 trailing bytes; the Server and Worker guides own admission, fencing, and job evidence.
 
+## Agent integration job messages
+
+OBCN kind 31 `AgentIntegrationJobRequest` and kind 32 `AgentIntegrationJobResult` carry the
+node's one Agent integration job. A request contains operation ID (16 bytes), Worker ID (16),
+Worker generation (u64), then an action tag: 1 `Start` with a u16 length and 1 through 8,192
+bytes of one encoded [Agent integration request](../agent-integration/README.md#contract), 2
+`Poll` with a job ID (16), or 3 `Cancel` with a job ID (16). The job ID is the Start operation's
+own operation ID.
+
+A result echoes the operation ID (16), the action tag, and the job ID (16), then one
+action-scoped outcome byte. Start outcomes: 1 Accepted, 2 Busy (another integration job still
+owns the node writer; no effect), 3 InvalidRequest (the document failed the contract before any
+effect), 4 SpawnThreadFailed, 5 Dead, or 12 RejectedFencing. Poll outcomes: 1 Pending; 2
+Completed with a u16 length and 1 through 32,768 bytes of one encoded Agent integration report;
+3 Abandoned (the job ended without a report the contract can carry, so its effects are unknown);
+10 Unknown; or 12 RejectedFencing. Cancel outcomes: 1 Registered or 2 AlreadyTerminal (the final
+report stays observable through Poll), 10 Unknown, or 12 RejectedFencing.
+
+This crate validates only the byte bounds; it never parses the contract documents. Codec tests
+cover every action and outcome arm, both document bounds, action-to-outcome admission, and
+trailing bytes.
+
 ## Agent drain messages
 
 OBCN kind 17 `AgentDrainRequest` and kind 18 `AgentDrainReply` carry the Server-initiated drain of

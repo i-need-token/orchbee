@@ -202,6 +202,21 @@ Plugin Pane launch options may carry `pluginPane: { pluginId, entrypointId }` on
 
 Plugin PaneGet is read-only and returns PaneFound with a nonzero canonical revision, closed selector, exact context/Tab/Panel/Presentation and binding. Response correlation requires the requested Panel; the result is not an action Job receipt or caller display context.
 
+## Agent integration jobs
+
+`AgentIntegrationRequest`/`AgentIntegrationResult` add the closed `workbench.agent-integration`
+and `workbench.agent-integration.result` directions, OBWP kinds 63/64, capped at 10 KiB and
+36 KiB. `action` is `start` with one
+[Agent integration request](../agent-integration/README.md#contract), or `poll`/`cancel` with a
+job identity `{workerId, generation, jobId}` (nonzero generation, 32 lowercase hexadecimal job ID).
+Outcomes are `accepted`, `pending`, `completed` with one Agent integration report,
+`cancel-registered`, `already-terminal`, or `failed` with a closed reason: `denied`,
+`session-mismatch`, `invalid-request`, `worker-unavailable`, `worker-changed`, `busy`,
+`job-unknown`, `abandoned`, or `malformed`. A result answers only its request's protocol version,
+request ID, Session, and action; poll and cancel outcomes answer only their own job. Starting
+`enable` or `disable` is mutating. Only native Clients consume this direction, so it has no
+TypeScript schema or shared JSON corpus.
+
 ## Workspace Git status reads
 
 `WorkspaceGitRequest`/`WorkspaceGitResult` add the closed `workbench.workspace-git`

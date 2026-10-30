@@ -18,6 +18,7 @@ orchbee-local-client = { path = "../local-client" }
 orchbee-local-ipc = { path = "../../../../crates/local-ipc" }
 orchbee-local-runtime = { path = "../../../../crates/local-runtime" }
 crossterm.workspace = true
+orchbee-agent-integration = { path = "../../../../crates/agent-integration" }
 orchbee-agent-observation-protocol = { path = "../../../../crates/agent-observation-protocol" }
 orchbee-client-server-protocol = { path = "../../../../crates/client-server-protocol" }
 orchbee-terminal-protocol = { path = "../../../../crates/terminal-protocol" }

@@ -24,6 +24,7 @@ use crate::{
 };
 
 mod agent_drain;
+mod agent_integration_job;
 mod control;
 mod cwd_validation;
 mod graphics_decode;
@@ -92,6 +93,8 @@ pub enum CapabilityNodeMessage {
     WorktreeJobResult(crate::WorktreeJobResult),
     AgentDrainRequest(crate::AgentDrainRequest),
     AgentDrainReply(crate::AgentDrainReply),
+    AgentIntegrationJobRequest(crate::AgentIntegrationJobRequest),
+    AgentIntegrationJobResult(crate::AgentIntegrationJobResult),
 }
 
 pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, ProtocolError> {
@@ -278,6 +281,12 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         CapabilityNodeMessage::AgentDrainReply(value) => {
             agent_drain::encode_reply(value).expect("validated agent drain reply")
         }
+        CapabilityNodeMessage::AgentIntegrationJobRequest(value) => {
+            agent_integration_job::encode_request(value)
+        }
+        CapabilityNodeMessage::AgentIntegrationJobResult(value) => {
+            agent_integration_job::encode_result(value)
+        }
     }
 }
 
@@ -363,6 +372,10 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
             agent_drain::decode_request(payload).map(CapabilityNodeMessage::AgentDrainRequest)
         }
         Some(18) => agent_drain::decode_reply(payload).map(CapabilityNodeMessage::AgentDrainReply),
+        Some(agent_integration_job::REQUEST_KIND) => agent_integration_job::decode_request(payload)
+            .map(CapabilityNodeMessage::AgentIntegrationJobRequest),
+        Some(agent_integration_job::RESULT_KIND) => agent_integration_job::decode_result(payload)
+            .map(CapabilityNodeMessage::AgentIntegrationJobResult),
         Some(AUTHORIZED_TERMINAL_LAUNCH_KIND) => decode_authorized_terminal_launch(payload)
             .map(CapabilityNodeMessage::AuthorizedTerminalLaunch),
         Some(TERMINAL_LAUNCH_RESULT_KIND) => {

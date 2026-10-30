@@ -28,6 +28,12 @@ pub use multiplex::{
 };
 mod command;
 pub use command::{
+    AgentIntegrationAction, AgentIntegrationFailure, AgentIntegrationJob, AgentIntegrationOutcome,
+    AgentIntegrationRequest, AgentIntegrationResult,
+    MAXIMUM_ENCODED_AGENT_INTEGRATION_REQUEST_BYTES,
+    MAXIMUM_ENCODED_AGENT_INTEGRATION_RESULT_BYTES,
+};
+pub use command::{
     CloseOperationOutcome, CloseOperationRead, CloseOperationResult, CloseOperationTarget,
 };
 pub use command::{

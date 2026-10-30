@@ -76,7 +76,7 @@ today.
 | `action_projection`                      | `values`       | Action identity, category, tone, and discovery metadata projected from `client_actions`.                                                            |
 | `agent_configuration_windows`            | `workflow`     | Windows provider configuration locations read from the environment; moves to the Worker with `agent_integrations`.                                  |
 | `agent_integrations`                     | `workflow`     | Provider integration inspection and enable or disable effects over files and processes; moves to the Worker.                                        |
-| `agent_provider`                         | `values`       | Recognized Agent identities, canonical command names, and managed integration identities.                                                           |
+| `agent_provider`                         | `values`       | Recognized Agent identities, canonical command names, and the managed integration identity re-exported from `orchbee-agent-integration`.            |
 | `agent_runtime`                          | `workflow`     | Agent execution ports and the observation facts that Agent start consumes.                                                                          |
 | `agent_start`                            | `workflow`     | Typed Agent startup shared by the CLI and Client surfaces.                                                                                          |
 | `application`                            | `composition`  | Export facade for the application binary.                                                                                                           |

@@ -63,103 +63,103 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 
 每行给出目标层。模块目前混合多个层时，说明会指出需要移走的部分。
 
-| 模块                                     | 层             | 职责与理由                                                                               |
-| ---------------------------------------- | -------------- | ---------------------------------------------------------------------------------------- |
-| `action_menu`                            | `state`        | Client 本地的菜单捕获与选择，以及菜单目标展示哪个前缀绑定。                              |
-| `action_projection`                      | `values`       | 从 `client_actions` 投影出的动作身份、类别、色调和发现元数据。                           |
-| `agent_configuration_windows`            | `workflow`     | 从环境读取的 Windows provider 配置位置；与 `agent_integrations` 一起移到 Worker。        |
-| `agent_integrations`                     | `workflow`     | provider integration 检查，以及作用于文件和进程的启用或禁用副作用；移到 Worker。         |
-| `agent_provider`                         | `values`       | 可识别的 Agent 身份、规范命令名和受管集成身份。                                          |
-| `agent_runtime`                          | `workflow`     | Agent 执行端口，以及 Agent 启动消费的观测事实。                                          |
-| `agent_start`                            | `workflow`     | CLI 与 Client 界面共用的类型化 Agent 启动。                                              |
-| `application`                            | `composition`  | 面向应用二进制的导出门面。                                                               |
-| `client_actions`                         | `values`       | 绑定、菜单、能力策略和发现共用的 Client、菜单与前缀动作定义。                            |
-| `client_context`                         | `values`       | 只含身份的 Client 导航位置。                                                             |
-| `client_view`                            | `state`        | Client 本地的界面框架、前缀模式、浮层和呈现偏好。绑定解析移到 `input`。                  |
-| `exchange_values`                        | `values`       | 状态所有者构造和结算的 Client Connection 交换请求值与结果值；不含传输句柄或时钟。        |
-| `host_appearance`                        | `values`       | 默认颜色探测观测到的外层终端外观事实。                                                   |
-| `host_capabilities`                      | `values`       | 可选宿主副作用的名称及其编译期平台准入，包括登录 Shell 模式和本地启动恢复检查点。        |
-| `host_graphics`                          | `values`       | 宿主窗口几何以及据此测得的图形事实。                                                     |
-| `local_activation`                       | `workflow`     | 本地 Session 激活，包括其锁、标记、进程派生和截止时间。                                  |
-| `local_client`                           | `workflow`     | 通往同级传输层句柄的唯一入口。状态所有者通过 `exchange_values` 读取交换值。              |
-| `localization`                           | `values`       | 类型化消息身份以及 `en-US` 和 `zh-CN` 目录。从环境检测 locale 的部分移到 `composition`。 |
-| `machine_agents`                         | `workflow`     | 跨机器 Agent 观测作业及其有界检查点。                                                    |
-| `machine_discovery`                      | `workflow`     | 已启用的已保存机器的只读观测者。                                                         |
-| `machine_observation`                    | `workflow`     | 机器作业共用的有界、可取消观测生命周期。                                                 |
-| `machine_picker`                         | `state`        | Client 本地的机器选择。其绘制器移到 `presentation`，指针处理移到 `input`。               |
-| `machine_spaces`                         | `workflow`     | 通过机器观测读取的 Workspace 元数据和本地 Git 检查点。                                   |
-| `machine_ssh`                            | `workflow`     | 为已保存机器构建并运行 SSH 命令的适配器。                                                |
-| `machine_tunnel`                         | `workflow`     | 已保存机器的 carrier 适配器。                                                            |
-| `machines`                               | `state`        | 已保存机器目录的值，以及该目录唯一的存储写入者。                                         |
-| `native_settings`                        | `state`        | Client 本地的 Settings 草稿及其值行。                                                    |
-| `notifications`                          | `state`        | 主 TUI 的通知状态。其订阅与系统通知副作用移到 `workflow`；绘制移到 `presentation`。      |
-| `onboarding`                             | `state`        | Client 本地的引导状态；只有显式关闭才写入其存储。                                        |
-| `startup_status`                         | `values`       | 本地启动结论。                                                                           |
-| `terminal_buffer_text`                   | `values`       | 遍历经过验证的保留行中的字形。                                                           |
-| `terminal_content`                       | `workflow`     | 在独立 viewer 连接上的有界内容检查。                                                     |
-| `terminal_copy`                          | `values`       | 缓冲区坐标复制策略。                                                                     |
-| `terminal_copy_mode`                     | `state`        | 针对一个已准入内容表面的 Client 本地键盘复制状态。                                       |
-| `terminal_copy_query`                    | `workflow`     | 带关联且同一时刻只有一个在途请求的复制移动与搜索读取。                                   |
-| `terminal_device`                        | `workflow`     | 继承终端设备适配器。准入失败移到 `values`；窗口几何位于 `host_graphics`。                |
-| `terminal_events`                        | `values`       | 宿主事件类型和确定性字节解码器。                                                         |
-| `terminal_graphics`                      | `workflow`     | 宿主图形探测。测得的事实位于 `host_graphics`。                                           |
-| `terminal_host_appearance`               | `workflow`     | 外层终端默认颜色探测。观测到的事实位于 `host_appearance`。                               |
-| `terminal_input`                         | `input`        | 把解码后的宿主事件投递给当前捕获 owner 或终端转发。                                      |
-| `terminal_lifecycle`                     | `workflow`     | 继承终端的模式租约、回滚和恢复。                                                         |
-| `terminal_link_activation`               | `workflow`     | TUI 与 CLI 共用的单次副作用链接激活。                                                    |
-| `terminal_links`                         | `values`       | 基于经过验证的字形的纯文本链接策略。                                                     |
-| `terminal_live_view`                     | `presentation` | 为显示而对实时网格做的 Client 本地裁剪。                                                 |
-| `terminal_pointer_admission`             | `workflow`     | any-motion 指针报告的一次性准入探测。                                                    |
-| `terminal_projection`                    | `state`        | 从 Server 与 Worker 流派生的单个附着的已验证文本投影。                                   |
-| `terminal_scrollbar`                     | `values`       | 经过验证的滚动条观测和整数单元格几何。                                                   |
-| `terminal_text`                          | `values`       | 不可信文本的终端安全投影，以及共享的散文换行规则。                                       |
-| `terminal_title`                         | `values`       | 标题活动前缀处理，以及界面为控制台默认标题和启动程序显示的程序名称。                     |
-| `termination_signal`                     | `workflow`     | 供退出生命周期使用的宿主终止观测。                                                       |
-| `transient_notice`                       | `state`        | 一个有界且会合并的提示生命周期。                                                         |
-| `tui_capabilities`                       | `values`       | 把宿主能力映射到可用动作的策略。                                                         |
-| `tui_composition`                        | `values`       | 无状态地选出最上层捕获表面，供绘制结算和输入分发共用。                                   |
-| `tui_graphics`                           | `workflow`     | 与 backend 共用帧和恢复租约的 Windows 图形表面。                                         |
-| `tui_layout`                             | `presentation` | shell 与窗格的布局几何。                                                                 |
-| `tui_pointer`                            | `input`        | 指针归属、手势生命周期和滚轮规范化。命中图与交互投影类型移到 `values`。                  |
-| `tui_presentation`                       | `values`       | 表面实例的呈现生命周期分类。                                                             |
-| `tui_render`                             | `presentation` | 帧组合与绘制。基础控件和重复组合作为共享组件层保留；业务表面移到各自功能。               |
-| `tui_shortcut_help`                      | `presentation` | 从绑定和活动模式派生的有效快捷键帮助。                                                   |
-| `tui_theme`                              | `values`       | 语义主题角色和内置主题。                                                                 |
-| `windows_console_input`                  | `workflow`     | Windows 控制台记录输入适配器。                                                           |
-| `windows_signal`                         | `workflow`     | Windows 控制台中断分发器。                                                               |
-| `workbench_client`                       | `composition`  | 连接任务生命周期与 UI 组合。其子模块在下方各自标明层。                                   |
-| `workbench_client::agent_attention`      | `workflow`     | Agent 注意力观测 lane 与绘制确认。                                                       |
-| `workbench_client::agent_board`          | `state`        | 来自最近一次完成读取的 Agent 看板行，以及看板的选择和排队意图。                          |
-| `workbench_client::agent_notifications`  | `values`       | 逻辑时间通知策略。                                                                       |
-| `workbench_client::agent_read_lane`      | `workflow`     | 共享 carrier 上的有界 Agent 与 Panel 读取作业。                                          |
-| `workbench_client::client_control`       | `workflow`     | 由 UI owner 推进步骤的远程导航 lane。                                                    |
-| `workbench_client::completion_reminders` | `state`        | 每个命令事实只消费一次的提醒状态。                                                       |
-| `workbench_client::configuration`        | `workflow`     | 配置发布监视器。                                                                         |
-| `workbench_client::connection`           | `workflow`     | Client 连接任务。                                                                        |
-| `workbench_client::independent_popup`    | `workflow`     | 独立的投影与控制 lane。                                                                  |
-| `workbench_client::input`                | `input`        | 分发器消费的输入端口契约。                                                               |
-| `workbench_client::mailbox`              | `state`        | 连接生命周期的队列、关联，以及与 Client 状态一起进行的原子准入。                         |
-| `workbench_client::normal_exit_hold`     | `state`        | Shell 以退出码 0 结束的窗格的关闭呈现，保持到窗格离开成员关系或超过上限。                |
-| `workbench_client::pane_graphics`        | `workflow`     | 窗格画布读取 owner。                                                                     |
-| `workbench_client::panel_reports`        | `workflow`     | 已选 Presentation 的观测 lane。                                                          |
-| `workbench_client::plugin_overlays`      | `workflow`     | 插件浮层读取与关闭作业。                                                                 |
-| `workbench_client::primary_directory`    | `values`       | 已准入的主根进程目录样本。                                                               |
-| `workbench_client::settings_lane`        | `workflow`     | Settings 快照观测与写入提交。                                                            |
-| `workbench_client::startup_directory`    | `state`        | 空 Session 启动意图和保留的调用证据。                                                    |
-| `workbench_client::startup_preference`   | `state`        | Client 本地的最近显示位置。                                                              |
-| `workbench_client::state`                | `state`        | 针对经过验证的规范投影的附着、成员关系、选择和待处理操作。                               |
-| `workbench_client::status_recovery`      | `workflow`     | 连接任务退出后的保留关闭观测任务。                                                       |
-| `workbench_client::terminal_clipboard`   | `workflow`     | 剪贴板副作用适配器。                                                                     |
-| `workbench_client::terminal_effects`     | `workflow`     | 有界外部副作用队列。                                                                     |
-| `workbench_client::terminal_selection`   | `state`        | 附着本地的选择命令和已准入文本。                                                         |
-| `workbench_client::terminal_tail`        | `presentation` | 基于保留行的实时尾部显示决策。                                                           |
-| `workbench_client::terminal_viewport`    | `state`        | 每个窗格的保留历史视口状态。                                                             |
-| `workbench_client::ui`                   | `composition`  | `WorkbenchClientUi`：功能组合、结算和输入端口实现。其功能状态移到状态所有者。            |
-| `workbench_client::wakeup`               | `state`        | 连接生命周期的唤醒合并。                                                                 |
-| `workbench_client::window_title`         | `workflow`     | 窗口标题订阅消费者。                                                                     |
-| `workbench_client::workbench_projection` | `state`        | 把经过验证的规范快照投影为 Client 上下文、Tab 和 Panel。                                 |
-| `workbench_client::worktree_lane`        | `workflow`     | 有界 Worktree 命令 lane。                                                                |
-| `worktree_destination`                   | `values`       | 已配置的 checkout 目标位置策略。                                                         |
+| 模块                                     | 层             | 职责与理由                                                                                   |
+| ---------------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| `action_menu`                            | `state`        | Client 本地的菜单捕获与选择，以及菜单目标展示哪个前缀绑定。                                  |
+| `action_projection`                      | `values`       | 从 `client_actions` 投影出的动作身份、类别、色调和发现元数据。                               |
+| `agent_configuration_windows`            | `workflow`     | 从环境读取的 Windows provider 配置位置；与 `agent_integrations` 一起移到 Worker。            |
+| `agent_integrations`                     | `workflow`     | provider integration 检查，以及作用于文件和进程的启用或禁用副作用；移到 Worker。             |
+| `agent_provider`                         | `values`       | 可识别的 Agent 身份、规范命令名，以及从 `orchbee-agent-integration` 重新导出的受管集成身份。 |
+| `agent_runtime`                          | `workflow`     | Agent 执行端口，以及 Agent 启动消费的观测事实。                                              |
+| `agent_start`                            | `workflow`     | CLI 与 Client 界面共用的类型化 Agent 启动。                                                  |
+| `application`                            | `composition`  | 面向应用二进制的导出门面。                                                                   |
+| `client_actions`                         | `values`       | 绑定、菜单、能力策略和发现共用的 Client、菜单与前缀动作定义。                                |
+| `client_context`                         | `values`       | 只含身份的 Client 导航位置。                                                                 |
+| `client_view`                            | `state`        | Client 本地的界面框架、前缀模式、浮层和呈现偏好。绑定解析移到 `input`。                      |
+| `exchange_values`                        | `values`       | 状态所有者构造和结算的 Client Connection 交换请求值与结果值；不含传输句柄或时钟。            |
+| `host_appearance`                        | `values`       | 默认颜色探测观测到的外层终端外观事实。                                                       |
+| `host_capabilities`                      | `values`       | 可选宿主副作用的名称及其编译期平台准入，包括登录 Shell 模式和本地启动恢复检查点。            |
+| `host_graphics`                          | `values`       | 宿主窗口几何以及据此测得的图形事实。                                                         |
+| `local_activation`                       | `workflow`     | 本地 Session 激活，包括其锁、标记、进程派生和截止时间。                                      |
+| `local_client`                           | `workflow`     | 通往同级传输层句柄的唯一入口。状态所有者通过 `exchange_values` 读取交换值。                  |
+| `localization`                           | `values`       | 类型化消息身份以及 `en-US` 和 `zh-CN` 目录。从环境检测 locale 的部分移到 `composition`。     |
+| `machine_agents`                         | `workflow`     | 跨机器 Agent 观测作业及其有界检查点。                                                        |
+| `machine_discovery`                      | `workflow`     | 已启用的已保存机器的只读观测者。                                                             |
+| `machine_observation`                    | `workflow`     | 机器作业共用的有界、可取消观测生命周期。                                                     |
+| `machine_picker`                         | `state`        | Client 本地的机器选择。其绘制器移到 `presentation`，指针处理移到 `input`。                   |
+| `machine_spaces`                         | `workflow`     | 通过机器观测读取的 Workspace 元数据和本地 Git 检查点。                                       |
+| `machine_ssh`                            | `workflow`     | 为已保存机器构建并运行 SSH 命令的适配器。                                                    |
+| `machine_tunnel`                         | `workflow`     | 已保存机器的 carrier 适配器。                                                                |
+| `machines`                               | `state`        | 已保存机器目录的值，以及该目录唯一的存储写入者。                                             |
+| `native_settings`                        | `state`        | Client 本地的 Settings 草稿及其值行。                                                        |
+| `notifications`                          | `state`        | 主 TUI 的通知状态。其订阅与系统通知副作用移到 `workflow`；绘制移到 `presentation`。          |
+| `onboarding`                             | `state`        | Client 本地的引导状态；只有显式关闭才写入其存储。                                            |
+| `startup_status`                         | `values`       | 本地启动结论。                                                                               |
+| `terminal_buffer_text`                   | `values`       | 遍历经过验证的保留行中的字形。                                                               |
+| `terminal_content`                       | `workflow`     | 在独立 viewer 连接上的有界内容检查。                                                         |
+| `terminal_copy`                          | `values`       | 缓冲区坐标复制策略。                                                                         |
+| `terminal_copy_mode`                     | `state`        | 针对一个已准入内容表面的 Client 本地键盘复制状态。                                           |
+| `terminal_copy_query`                    | `workflow`     | 带关联且同一时刻只有一个在途请求的复制移动与搜索读取。                                       |
+| `terminal_device`                        | `workflow`     | 继承终端设备适配器。准入失败移到 `values`；窗口几何位于 `host_graphics`。                    |
+| `terminal_events`                        | `values`       | 宿主事件类型和确定性字节解码器。                                                             |
+| `terminal_graphics`                      | `workflow`     | 宿主图形探测。测得的事实位于 `host_graphics`。                                               |
+| `terminal_host_appearance`               | `workflow`     | 外层终端默认颜色探测。观测到的事实位于 `host_appearance`。                                   |
+| `terminal_input`                         | `input`        | 把解码后的宿主事件投递给当前捕获 owner 或终端转发。                                          |
+| `terminal_lifecycle`                     | `workflow`     | 继承终端的模式租约、回滚和恢复。                                                             |
+| `terminal_link_activation`               | `workflow`     | TUI 与 CLI 共用的单次副作用链接激活。                                                        |
+| `terminal_links`                         | `values`       | 基于经过验证的字形的纯文本链接策略。                                                         |
+| `terminal_live_view`                     | `presentation` | 为显示而对实时网格做的 Client 本地裁剪。                                                     |
+| `terminal_pointer_admission`             | `workflow`     | any-motion 指针报告的一次性准入探测。                                                        |
+| `terminal_projection`                    | `state`        | 从 Server 与 Worker 流派生的单个附着的已验证文本投影。                                       |
+| `terminal_scrollbar`                     | `values`       | 经过验证的滚动条观测和整数单元格几何。                                                       |
+| `terminal_text`                          | `values`       | 不可信文本的终端安全投影，以及共享的散文换行规则。                                           |
+| `terminal_title`                         | `values`       | 标题活动前缀处理，以及界面为控制台默认标题和启动程序显示的程序名称。                         |
+| `termination_signal`                     | `workflow`     | 供退出生命周期使用的宿主终止观测。                                                           |
+| `transient_notice`                       | `state`        | 一个有界且会合并的提示生命周期。                                                             |
+| `tui_capabilities`                       | `values`       | 把宿主能力映射到可用动作的策略。                                                             |
+| `tui_composition`                        | `values`       | 无状态地选出最上层捕获表面，供绘制结算和输入分发共用。                                       |
+| `tui_graphics`                           | `workflow`     | 与 backend 共用帧和恢复租约的 Windows 图形表面。                                             |
+| `tui_layout`                             | `presentation` | shell 与窗格的布局几何。                                                                     |
+| `tui_pointer`                            | `input`        | 指针归属、手势生命周期和滚轮规范化。命中图与交互投影类型移到 `values`。                      |
+| `tui_presentation`                       | `values`       | 表面实例的呈现生命周期分类。                                                                 |
+| `tui_render`                             | `presentation` | 帧组合与绘制。基础控件和重复组合作为共享组件层保留；业务表面移到各自功能。                   |
+| `tui_shortcut_help`                      | `presentation` | 从绑定和活动模式派生的有效快捷键帮助。                                                       |
+| `tui_theme`                              | `values`       | 语义主题角色和内置主题。                                                                     |
+| `windows_console_input`                  | `workflow`     | Windows 控制台记录输入适配器。                                                               |
+| `windows_signal`                         | `workflow`     | Windows 控制台中断分发器。                                                                   |
+| `workbench_client`                       | `composition`  | 连接任务生命周期与 UI 组合。其子模块在下方各自标明层。                                       |
+| `workbench_client::agent_attention`      | `workflow`     | Agent 注意力观测 lane 与绘制确认。                                                           |
+| `workbench_client::agent_board`          | `state`        | 来自最近一次完成读取的 Agent 看板行，以及看板的选择和排队意图。                              |
+| `workbench_client::agent_notifications`  | `values`       | 逻辑时间通知策略。                                                                           |
+| `workbench_client::agent_read_lane`      | `workflow`     | 共享 carrier 上的有界 Agent 与 Panel 读取作业。                                              |
+| `workbench_client::client_control`       | `workflow`     | 由 UI owner 推进步骤的远程导航 lane。                                                        |
+| `workbench_client::completion_reminders` | `state`        | 每个命令事实只消费一次的提醒状态。                                                           |
+| `workbench_client::configuration`        | `workflow`     | 配置发布监视器。                                                                             |
+| `workbench_client::connection`           | `workflow`     | Client 连接任务。                                                                            |
+| `workbench_client::independent_popup`    | `workflow`     | 独立的投影与控制 lane。                                                                      |
+| `workbench_client::input`                | `input`        | 分发器消费的输入端口契约。                                                                   |
+| `workbench_client::mailbox`              | `state`        | 连接生命周期的队列、关联，以及与 Client 状态一起进行的原子准入。                             |
+| `workbench_client::normal_exit_hold`     | `state`        | Shell 以退出码 0 结束的窗格的关闭呈现，保持到窗格离开成员关系或超过上限。                    |
+| `workbench_client::pane_graphics`        | `workflow`     | 窗格画布读取 owner。                                                                         |
+| `workbench_client::panel_reports`        | `workflow`     | 已选 Presentation 的观测 lane。                                                              |
+| `workbench_client::plugin_overlays`      | `workflow`     | 插件浮层读取与关闭作业。                                                                     |
+| `workbench_client::primary_directory`    | `values`       | 已准入的主根进程目录样本。                                                                   |
+| `workbench_client::settings_lane`        | `workflow`     | Settings 快照观测与写入提交。                                                                |
+| `workbench_client::startup_directory`    | `state`        | 空 Session 启动意图和保留的调用证据。                                                        |
+| `workbench_client::startup_preference`   | `state`        | Client 本地的最近显示位置。                                                                  |
+| `workbench_client::state`                | `state`        | 针对经过验证的规范投影的附着、成员关系、选择和待处理操作。                                   |
+| `workbench_client::status_recovery`      | `workflow`     | 连接任务退出后的保留关闭观测任务。                                                           |
+| `workbench_client::terminal_clipboard`   | `workflow`     | 剪贴板副作用适配器。                                                                         |
+| `workbench_client::terminal_effects`     | `workflow`     | 有界外部副作用队列。                                                                         |
+| `workbench_client::terminal_selection`   | `state`        | 附着本地的选择命令和已准入文本。                                                             |
+| `workbench_client::terminal_tail`        | `presentation` | 基于保留行的实时尾部显示决策。                                                               |
+| `workbench_client::terminal_viewport`    | `state`        | 每个窗格的保留历史视口状态。                                                                 |
+| `workbench_client::ui`                   | `composition`  | `WorkbenchClientUi`：功能组合、结算和输入端口实现。其功能状态移到状态所有者。                |
+| `workbench_client::wakeup`               | `state`        | 连接生命周期的唤醒合并。                                                                     |
+| `workbench_client::window_title`         | `workflow`     | 窗口标题订阅消费者。                                                                         |
+| `workbench_client::workbench_projection` | `state`        | 把经过验证的规范快照投影为 Client 上下文、Tab 和 Panel。                                     |
+| `workbench_client::worktree_lane`        | `workflow`     | 有界 Worktree 命令 lane。                                                                    |
+| `worktree_destination`                   | `values`       | 已配置的 checkout 目标位置策略。                                                             |
 
 ## 维护
 
@@ -168,4 +168,4 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 可列出每个环和每个指向高层的引用及其源码位置样本；[Lint](../../../../../docs/zh-CN/LINTING.md)
 拥有该命令。
 
-<!-- documentation-pairing: english-sha256=608e501ff0929c5469fbf261597c1d923d9c4ad761e4143a0e7f67df0e102599 zh-cn-sha256=f14772777ae9467ed74becbdcc6be2e8774b2c4e4a516050838e71af6c5b675c -->
+<!-- documentation-pairing: english-sha256=5e9eed821b84e8285fcb41b52d137536e585eaacaf6a676cdcad9e615ae48f57 zh-cn-sha256=2908f64907d05a4fd006648194588512a2cdf02d75924f79bfb8cc42fd5ba8ac -->

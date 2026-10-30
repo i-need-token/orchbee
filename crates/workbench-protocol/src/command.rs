@@ -145,6 +145,13 @@ pub use worktree_query::{
     WorkbenchWorktreeQueryOutcome, WorkbenchWorktreeQueryResult, WorktreeQueryEntry,
     WorktreeQueryFailure, WorktreeQuerySource, WorktreeWorkspaceAssociation,
 };
+mod agent_integration;
+pub use agent_integration::{
+    AgentIntegrationAction, AgentIntegrationFailure, AgentIntegrationJob, AgentIntegrationOutcome,
+    AgentIntegrationRequest, AgentIntegrationResult,
+    MAXIMUM_ENCODED_AGENT_INTEGRATION_REQUEST_BYTES,
+    MAXIMUM_ENCODED_AGENT_INTEGRATION_RESULT_BYTES,
+};
 mod workspace_git;
 mod workspace_metadata;
 pub use workspace_git::{
@@ -1013,6 +1020,8 @@ pub enum WorkbenchRequest {
     AgentView(crate::AgentViewRequest),
     #[serde(rename = "workbench.terminal-editor")]
     TerminalEditor(TerminalEditorRequest),
+    #[serde(rename = "workbench.agent-integration")]
+    AgentIntegration(AgentIntegrationRequest),
     #[serde(rename = "workbench.plugin")]
     Plugin(PluginRequest),
     #[serde(rename = "workbench.configuration")]
@@ -1427,6 +1436,8 @@ pub enum WorkbenchResponse {
     AgentView(crate::AgentViewResult),
     #[serde(rename = "workbench.terminal-editor.result")]
     TerminalEditor(TerminalEditorResult),
+    #[serde(rename = "workbench.agent-integration.result")]
+    AgentIntegration(AgentIntegrationResult),
     #[serde(rename = "workbench.plugin.result")]
     Plugin(PluginResult),
     #[serde(rename = "workbench.configuration.result")]
@@ -1512,6 +1523,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
         return request.validate();
     }
     if let WorkbenchRequest::Plugin(request) = request {
+        return request.validate();
+    }
+    if let WorkbenchRequest::AgentIntegration(request) = request {
         return request.validate();
     }
     if let WorkbenchRequest::WindowTitle(request) = request {
@@ -1642,6 +1656,9 @@ fn request_byte_limit(request: &WorkbenchRequest) -> usize {
     if matches!(request, WorkbenchRequest::Plugin(_)) {
         return MAXIMUM_ENCODED_PLUGIN_REQUEST_BYTES;
     }
+    if matches!(request, WorkbenchRequest::AgentIntegration(_)) {
+        return MAXIMUM_ENCODED_AGENT_INTEGRATION_REQUEST_BYTES;
+    }
     if matches!(request, WorkbenchRequest::Configuration(_)) {
         return MAXIMUM_CONFIGURATION_BYTES;
     }
@@ -1759,6 +1776,10 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         }
         WorkbenchResponse::Plugin(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_PLUGIN_RESULT_BYTES)?;
+            result.validate()
+        }
+        WorkbenchResponse::AgentIntegration(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_AGENT_INTEGRATION_RESULT_BYTES)?;
             result.validate()
         }
         WorkbenchResponse::WindowTitle(result) => result.validate(),

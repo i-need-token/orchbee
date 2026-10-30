@@ -16,8 +16,8 @@ use super::capsule;
 use super::copilot::Command as CopilotCommand;
 use super::exec::{self, CommandResult};
 use super::inspect::{
-    self, BootstrapKind, ClinePackage, CodexInspection, Marketplace, PluginInspection,
-    ResourceOptions, TargetState,
+    self, BootstrapKind, ClinePackage, CodexInspection, PluginInspection, ResourceOptions,
+    TargetState,
 };
 use super::model::{Availability, IntegrationId, Issue, ManagementMode, SnapshotItem, State};
 
@@ -681,26 +681,7 @@ pub(crate) fn snapshot(context: &ProviderContext) -> Vec<SnapshotItem> {
         .collect()
 }
 
-/// The detailed guard dimensions an `explain` surfaces — the canonical
-/// per-provider inspection internals, captured in the same read pass as
-/// the snapshot row.
-#[derive(Clone, Copy)]
-pub enum InspectionDetail {
-    Cli {
-        marketplace: Option<Marketplace>,
-        plugin_present: Option<bool>,
-    },
-    Codex {
-        marketplace: Marketplace,
-        plugin_present: bool,
-    },
-    Guarded {
-        target_state: TargetState,
-        source_ready: bool,
-        obsolete_target_state: Option<TargetState>,
-    },
-    Plain,
-}
+pub use orchbee_agent_integration::InspectionDetail;
 
 /// The richer inspection for `explain` — same verdict, same single read
 /// pass, with the guard dimensions attached where the provider exposes

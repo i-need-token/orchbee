@@ -146,20 +146,7 @@ mod imp {
         }
     }
 
-    /// The capsule-facing view a snapshot/explain carries: whether the managed
-    /// capsule validates and stays in step with its source, plus the source's
-    /// own admission state.
-    #[derive(Debug)]
-    pub struct CapsuleStatus {
-        pub ready: bool,
-        pub root: PathBuf,
-        pub source_kind: &'static str,
-        /// `Some` when the source's declared digest does not match the capsule
-        /// contract — a binding failure, surfaced separately from readiness.
-        pub binding_failure: bool,
-        /// Identity of the current source payload, never a semantic version.
-        pub payload_sha256: String,
-    }
+    pub use orchbee_agent_integration::CapsuleStatus;
 
     /// Resolve the adapter source: the explicit `--adapter-source` override
     /// wins; otherwise the cohort's declared sidecar. A cohort that cannot be

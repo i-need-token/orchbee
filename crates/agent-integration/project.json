@@ -1,0 +1,11 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "agent-integration",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Managed Agent integration identities and the bounded, language-neutral operation request and report contract exchanged by native Clients, the Server relay, and the node-local writer. Actual consumers are orchbee-workbench-client, which re-exports the contract values as its integration model, and orchbee-workbench-protocol, which embeds the documents in the Workbench Agent integration direction.",
+	"nonGoals": [
+		"Executing inspections or mutations, changing provider configuration, owning threads, processes, cancellation, or deadlines, authorization, transport framing, rendering, or CLI grammar.",
+		"Defining Desktop's TypeScript integration writer, the Agent observation contract, or the provider registry itself."
+	]
+}

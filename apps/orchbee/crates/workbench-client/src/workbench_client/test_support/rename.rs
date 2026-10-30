@@ -89,6 +89,7 @@ impl RenameServer {
                             | WorkbenchRequest::Events(_)
                             | WorkbenchRequest::PaneGraphics(_)
                             | WorkbenchRequest::Plugin(_)
+                            | WorkbenchRequest::AgentIntegration(_)
                             | WorkbenchRequest::TerminalEditor(_)
                             | WorkbenchRequest::WindowTitle(_)
                             | WorkbenchRequest::Notification(_)

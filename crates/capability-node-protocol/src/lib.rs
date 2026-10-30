@@ -3,6 +3,13 @@
 //! authorization state, process lifetime and recovery policy.
 
 mod agent_drain;
+mod agent_integration_job;
+pub use agent_integration_job::{
+    AgentIntegrationJobAction, AgentIntegrationJobCancelOutcome, AgentIntegrationJobOutcome,
+    AgentIntegrationJobPollOutcome, AgentIntegrationJobRequest, AgentIntegrationJobResult,
+    AgentIntegrationJobStartOutcome, MAXIMUM_AGENT_INTEGRATION_REPORT_BYTES,
+    MAXIMUM_AGENT_INTEGRATION_REQUEST_BYTES,
+};
 mod codec;
 mod error;
 mod identity;

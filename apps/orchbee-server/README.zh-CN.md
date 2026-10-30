@@ -754,6 +754,13 @@ Workbench 插件执行在解析源文件前要求读取、终端创建和生命�
 
 插件 Pane 成员记录针对候选规范快照准备，与终端预留同时提交。有界临时映射跟随精确 Presentation／绑定标识；只读 PaneGet 清除丢失绑定，返回带修订号的事实，Worker 不可用时仍可读取。已退役的 authority 拒绝读取。
 
+## Agent 集成受理
+
+`workbench.agent-integration` 的检查（`list`、`explain`）、poll 与 cancel 需要读取授权。启动
+`enable` 或 `disable` 还需要终端创建与生命周期授权，与变更型插件 action 相同。非变更请求不会
+触发通用 Workbench 失效。到 Worker job 的中继尚未接入：每个已授权请求都回答带 `worker-unavailable` 的
+`failed`，未授权请求回答 `denied`。
+
 ## Workspace Git 观测
 
 `workbench.workspace-git` 按读取授权查询当前 Worker 实例上的规范 Workspace。
@@ -848,4 +855,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=e161374c4b382970d23146b6e876040eea52a192f0a013679a74ebfaf3c21ece zh-cn-sha256=525a33074fffdd6643140792fc6eede2764be1333b90104ce33dfde231dec46e -->
+<!-- documentation-pairing: english-sha256=917ed26faddda85b06ca9c258703c96cfb10049da29684840503776012111c22 zh-cn-sha256=e3e5fe035dcb38fb29d9d4ef972e517730cb87f04247984f6a56c6de676cd58c -->

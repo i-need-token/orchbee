@@ -175,6 +175,18 @@ Open/read/close 由已认证 Client 连接持有，使用既有独立终端生�
 
 插件 PaneGet 为只读操作，PaneFound 返回非零规范修订号、封闭选择器、精确 context／Tab／Panel／Presentation 及绑定。响应关联必须匹配请求的 Panel；结果不是 action Job 回执或调用者展示上下文。
 
+## Agent 集成 job
+
+`AgentIntegrationRequest`/`AgentIntegrationResult` 新增封闭的 `workbench.agent-integration` 与
+`workbench.agent-integration.result` 方向，OBWP kind 63/64，上限分别为 10 KiB 与 36 KiB。`action`
+为携带一个 [Agent 集成请求](../agent-integration/README.zh-CN.md#契约)的 `start`，或携带 job 身份
+`{workerId, generation, jobId}`（非零 generation，32 位小写十六进制 job ID）的 `poll`/`cancel`。
+结果为 `accepted`、`pending`、携带一个 Agent 集成报告的 `completed`、`cancel-registered`、
+`already-terminal`，或携带封闭原因的 `failed`：`denied`、`session-mismatch`、`invalid-request`、
+`worker-unavailable`、`worker-changed`、`busy`、`job-unknown`、`abandoned` 或 `malformed`。结果只回答
+其请求的协议版本、请求 ID、Session 与 action；poll 与 cancel 结果只回答它们自己的 job。启动 `enable`
+或 `disable` 属于变更。只有原生 Client 消费这个方向，因此它没有 TypeScript schema 或共享 JSON 语料。
+
 ## Workspace Git 状态读取
 
 `WorkspaceGitRequest`／`WorkspaceGitResult` 增加封闭的 `workbench.workspace-git`
@@ -237,4 +249,4 @@ Windows cohort 的整链见证。
 
 `CloseOperationRead` 与 `CloseOperationResult` 在既有 intent 大小上限内使用 OBWP 61/62。它们按原始请求 ID 读取保留 Close，精确关联 会话／request／operation，并使用封闭的 Workspace／Tab／Panel 目标。此读取不创建状态，并保留墓碑。Rust、TypeScript 和 JSON Schema 共享命令语料；[CLI 操作状态](../../apps/orchbee/docs/native-operation-status.zh-CN.md) 负责调用及恢复。
 
-<!-- documentation-pairing: english-sha256=ac2a01c47803f6cad030cf447649fbb92b09c5710dad93b67b824960c80d9350 zh-cn-sha256=ae23136a6f3e1975122ebc19281e91422269dd945aa716f295e645ae226638af -->
+<!-- documentation-pairing: english-sha256=eda6f3aec1ac6508c456eceeebd0cfecfd38f2f0a17869fb20643123279005c2 zh-cn-sha256=a45dee0bb05367c92f5b4bd7f75d93d25b8a953509aed020f4c83ae67aa8ab37 -->

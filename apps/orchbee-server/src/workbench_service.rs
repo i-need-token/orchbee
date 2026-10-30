@@ -107,6 +107,7 @@ impl WorkbenchService {
             WorkbenchRequest::PaneGraphics(_) | WorkbenchRequest::ConfiguredCommand(_) | WorkbenchRequest::Events(_) => false,
             WorkbenchRequest::AgentView(request) => if request.action.mutating() { self.policy.manage_navigation } else { self.policy.read },
             WorkbenchRequest::Plugin(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
+            WorkbenchRequest::AgentIntegration(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
             WorkbenchRequest::TerminalEditor(_) | WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
             WorkbenchRequest::Configuration(request) => match request.action { orchbee_workbench_protocol::ConfigurationAction::Reload => self.policy.manage_navigation, orchbee_workbench_protocol::ConfigurationAction::Current => self.policy.read },
             WorkbenchRequest::Settings(request) => match request.operation { orchbee_workbench_protocol::SettingsOperation::Save { .. } => self.policy.manage_navigation, orchbee_workbench_protocol::SettingsOperation::Open {} => self.policy.read },
@@ -217,6 +218,7 @@ impl WorkbenchService {
         WorkbenchRequest::Plugin(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::Plugin(self.terminals.execute_plugin(request.clone())));
             }
+            WorkbenchRequest::AgentIntegration(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, false)),
             WorkbenchRequest::Notification(request) => return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Notification(request.clone()), false)),
             WorkbenchRequest::WindowTitle(request) => return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::WindowTitle(request.clone()), false)),
         WorkbenchRequest::AgentView(request) => {
@@ -567,6 +569,20 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                 },
             })
         }
+        WorkbenchRequest::AgentIntegration(request) => WorkbenchResponse::AgentIntegration(
+            orchbee_workbench_protocol::AgentIntegrationResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                session_id: request.session_id,
+                outcome: orchbee_workbench_protocol::AgentIntegrationOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::AgentIntegrationFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::AgentIntegrationFailure::WorkerUnavailable
+                    },
+                },
+            },
+        ),
         WorkbenchRequest::WindowTitle(request) => {
             WorkbenchResponse::WindowTitle(orchbee_workbench_protocol::WindowTitleResult {
                 protocol_version: request.protocol_version,

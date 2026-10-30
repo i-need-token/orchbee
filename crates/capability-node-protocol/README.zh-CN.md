@@ -390,6 +390,24 @@ status 存在字节、可选 i32 退出码及同一预算下的一个长度前�
 明示余量。Codec test 覆盖每个 action 与 outcome arm、严格 golden、字段预算边界、
 未知 tag、stage 码与 trailing byte；Server 与 Worker 指南拥有准入、fencing 与 job 证据。
 
+## Agent 集成 job 消息
+
+OBCN kind 31 `AgentIntegrationJobRequest` 与 kind 32 `AgentIntegrationJobResult` 携带节点唯一的
+Agent 集成 job。请求依次包含 operation ID（16 字节）、Worker ID（16）、Worker generation（u64），
+然后是一个 action 标签：1 `Start` 携带 u16 长度与 1 到 8,192 字节的一个已编码
+[Agent 集成请求](../agent-integration/README.zh-CN.md#契约)，2 `Poll` 携带 job ID（16），或 3
+`Cancel` 携带 job ID（16）。job ID 就是 Start 操作自身的 operation ID。
+
+结果回显 operation ID（16）、action 标签与 job ID（16），然后是一个按 action 区分的结果字节。Start
+结果：1 Accepted、2 Busy（另一个集成 job 仍占有节点写入方；没有效果）、3 InvalidRequest（文档在
+任何效果之前未通过契约）、4 SpawnThreadFailed、5 Dead，或 12 RejectedFencing。Poll 结果：1 Pending；
+2 Completed 携带 u16 长度与 1 到 32,768 字节的一个已编码 Agent 集成报告；3 Abandoned（job 结束时
+没有契约能携带的报告，因此其效果未知）；10 Unknown；或 12 RejectedFencing。Cancel 结果：1 Registered
+或 2 AlreadyTerminal（最终报告仍可通过 Poll 观察）、10 Unknown，或 12 RejectedFencing。
+
+本 crate 只校验字节边界；它从不解析契约文档。编解码测试覆盖每个 action 与结果分支、两个文档边界、
+action 到结果的接纳，以及尾随字节。
+
 ## Agent drain 消息
 
 OBCN kind 17 `AgentDrainRequest` 与 kind 18 `AgentDrainReply` 承载 Server 发起的、对 Worker
@@ -697,4 +715,4 @@ Worker 将缺失的 Host 元数据映射为 unknown；保留的启动、终端�
 空闲证据。独立字节 golden、Worker 回执测试及 Server 条件关闭见证覆盖这些细化。配套原生
 cohort 一同升级／回滚；不支持混用版本绕过安全门禁。
 
-<!-- documentation-pairing: english-sha256=c88bc6c77194af8f256b848022df3d654954e2fce47c3edd3b7a43afb527084a zh-cn-sha256=44c7c6c14e2b07295e1f5e4f3f28a8d824a72cf4f6eaa4b374b07e948d52ee5a -->
+<!-- documentation-pairing: english-sha256=c25c3987c53c6c816d2fad4f294cd3ebf39133b587d839aa596af16fe5d52c71 zh-cn-sha256=e1d91bb3b68caf10d4252b4603df9f2172738f03be76a3a33f1a0c0775ad496f -->

@@ -882,6 +882,14 @@ Plugin Pane Tab/split admission resolves catalog selectors after grant, revision
 
 Plugin Pane membership is prepared against the candidate canonical snapshot and committed with its terminal reservation. The bounded ephemeral map follows exact Presentation/binding identity; read-only PaneGet prunes lost bindings and returns revision-correlated facts, including when the Worker is unavailable. A retired authority refuses the read.
 
+## Agent integration admission
+
+`workbench.agent-integration` inspection (`list`, `explain`), poll, and cancel require the read
+grant. Starting `enable` or `disable` additionally requires the terminal-creation and lifecycle
+grants, the same set as mutating plugin actions. Non-mutating requests trigger no generic
+Workbench invalidation. The relay to the Worker job is not admitted yet: every authorized request
+answers `failed` with `worker-unavailable`, and an unauthorized one answers `denied`.
+
 ## Workspace Git observations
 
 `workbench.workspace-git` is a read-granted query of a canonical Workspace on the

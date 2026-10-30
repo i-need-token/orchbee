@@ -1593,6 +1593,12 @@ fn validate_response(
         (_, CapabilityNodeMessage::WorktreeJobRequest(_)) => {
             Err(WorkerResponseFailure::WrongDirection)
         }
+        (_, CapabilityNodeMessage::AgentIntegrationJobRequest(_)) => {
+            Err(WorkerResponseFailure::WrongDirection)
+        }
+        (_, CapabilityNodeMessage::AgentIntegrationJobResult(_)) => {
+            Err(WorkerResponseFailure::WrongResultKind)
+        }
         (_, CapabilityNodeMessage::WorktreeJobResult(_))
         | (WorkerOperationRequest::Titles(_), _)
         | (WorkerOperationRequest::EditorCommand(_), _)

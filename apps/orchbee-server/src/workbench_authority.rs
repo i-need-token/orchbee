@@ -168,6 +168,7 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::Settings(_)
             | WorkbenchRequest::TerminalEditor(_)
             | WorkbenchRequest::Plugin(_)
+            | WorkbenchRequest::AgentIntegration(_)
             | WorkbenchRequest::WindowTitle(_)
             | WorkbenchRequest::Notification(_)
             | WorkbenchRequest::AgentManifests(_)

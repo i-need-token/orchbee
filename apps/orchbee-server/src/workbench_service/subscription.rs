@@ -31,6 +31,7 @@ pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
             matches!(request.action, NotificationAction::Listen { .. })
         }
         WorkbenchRequest::Plugin(request) => !request.action.mutating(),
+        WorkbenchRequest::AgentIntegration(request) => !request.action.mutating(),
         WorkbenchRequest::AgentView(request) => !request.action.mutating(),
         WorkbenchRequest::TerminalEditor(request) => {
             matches!(request.action, TerminalEditorAction::Read { .. })
