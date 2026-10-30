@@ -1,5 +1,7 @@
 //! Probe ownership, real reply framing and literal input preservation witnesses.
 use super::*;
+use crate::host_graphics::WindowDimensions;
+use orchbee_workbench_protocol::{PaneGraphicsCellPixels, PaneGraphicsTransport};
 
 fn dimensions(columns: u16, rows: u16) -> WindowDimensions {
     WindowDimensions {

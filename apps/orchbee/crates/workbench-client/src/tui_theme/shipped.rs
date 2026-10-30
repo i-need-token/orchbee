@@ -3,7 +3,7 @@ use super::{
     AGENT_ATTENTION, AGENT_DONE, AGENT_ERROR, Color, ColorLevel, GlyphSet, Modifier, Polarity,
     RoleStyles, Style, TabGroupPalette, TerminalColorSource, Theme,
 };
-use crate::terminal_host_appearance::HostAppearance;
+use crate::host_appearance::HostAppearance;
 use ratatui::widgets::BorderType;
 
 struct Palette {

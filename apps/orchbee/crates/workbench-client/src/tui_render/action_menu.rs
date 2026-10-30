@@ -1,11 +1,11 @@
 //! Retained action-menu projection; only a complete successful frame arms input.
 
 use crate::{
+    action_menu::menu_binding_action,
     action_menu::{
         MenuAction, MenuAnchor, MenuControl, MenuDraw, MenuRowNote, MenuTarget, MenuView,
         TabMenuScope,
     },
-    action_projection::menu_binding_action,
     client_view::{
         Binding, Bindings, KeyCode, KeyLabelGlyphs, LabelStyle, Modifiers,
         format_binding_with_glyphs, join_key_labels,

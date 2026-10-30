@@ -12,7 +12,7 @@ use crate::workbench_client::workbench_projection::{
 };
 use crate::{
     client_view::PanelDirection,
-    local_client::workbench::{
+    exchange_values::workbench::{
         panel_close::{WorkbenchPanelCloseAccepted, WorkbenchPanelClosePrecommit},
         panel_placement::{WorkbenchPanelPlacementCommit, WorkbenchPanelPlacementPrecommit},
         panel_split::{WorkbenchPanelSplitCommit, WorkbenchPanelSplitPrecommit},

@@ -5,7 +5,7 @@ use super::{
     PendingRefreshFlight, WorkbenchClientState, context_removal::ContextRemovalPermit,
 };
 use crate::{
-    local_client::workbench::WorkbenchWorkspaceCloseAccepted,
+    exchange_values::workbench::WorkbenchWorkspaceCloseAccepted,
     tui_presentation::{GeometrySettlement, PresentationPhase},
     workbench_client::workbench_projection::ClientContextLocation,
 };

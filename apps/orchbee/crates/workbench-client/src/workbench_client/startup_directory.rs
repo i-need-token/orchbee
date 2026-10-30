@@ -5,7 +5,7 @@ use super::{
     workbench_projection::{ClientContextTabs, project_native_context_tabs},
 };
 use crate::{
-    local_client::workbench::workspace_launch::WorkspaceLaunchCommit, localization::Locale,
+    exchange_values::workbench::workspace_launch::WorkspaceLaunchCommit, localization::Locale,
 };
 use orchbee_workbench_protocol::{
     SessionId, Snapshot, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchRequestId,

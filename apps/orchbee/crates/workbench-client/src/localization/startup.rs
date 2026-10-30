@@ -16,7 +16,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub const fn startup_progress(self) -> &'static str {
         match self {
             Self::EnUs => "Starting the local terminal…\n",
@@ -24,7 +23,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub const fn startup_wait_notice(self) -> &'static str {
         match self {
             Self::EnUs => "The terminal window is too small. Resize it to continue.\n",
@@ -32,7 +30,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub const fn startup_wait_hint(self) -> &'static str {
         match self {
             Self::EnUs => "Press Ctrl+B then q to exit.\n",
@@ -40,26 +37,21 @@ impl Locale {
         }
     }
 
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub const fn startup_failure(
         self,
         failure: crate::startup_status::StartupFailure,
     ) -> &'static str {
         use crate::startup_status::StartupFailure;
         match (self, failure) {
-            #[cfg(windows)]
             (Self::EnUs, StartupFailure::AlreadyInSession) => {
                 "You are already inside this Session. Return to the existing Client to navigate, or use --session <name> to open another Session. CLI subcommands remain available.\n"
             }
-            #[cfg(windows)]
             (Self::ZhCn, StartupFailure::AlreadyInSession) => {
                 "当前终端已在此会话内。请返回现有客户端切换位置，或使用 --session <name> 进入其他会话。CLI 子命令仍可正常使用。\n"
             }
-            #[cfg(windows)]
             (Self::EnUs, StartupFailure::Configuration) => {
                 "Invalid Windows configuration. Run orchbee config check for details, correct the setting and retry.\n"
             }
-            #[cfg(windows)]
             (Self::ZhCn, StartupFailure::Configuration) => {
                 "Windows 配置无效。运行 orchbee config check 查看详情，修正后重试。\n"
             }
@@ -85,14 +77,14 @@ impl Locale {
             (Self::ZhCn, StartupFailure::Runtime) => "本地会话运行时未通过所有者或权限检查。\n",
             (_, StartupFailure::SocketPathTooLong) => self.socket_path_too_long(),
             (Self::EnUs, StartupFailure::RecoveryRequired) => {
-                if cfg!(windows) {
+                if crate::host_capabilities::startup_recovery_checkpoint() {
                     "Local startup could not confirm existing ownership or startup completion. The checkpoint is retained. Run orchbee server diagnose with the same --session selection; use orchbee --session recovery-work server start for another session. Live tasks require Host adoption; incomplete or legacy records need diagnosis.\n"
                 } else {
                     "The local session requires explicit recovery. No replacement process was started.\n"
                 }
             }
             (Self::ZhCn, StartupFailure::RecoveryRequired) => {
-                if cfg!(windows) {
+                if crate::host_capabilities::startup_recovery_checkpoint() {
                     "无法确认既有进程归属或启动完成情况，已保留检查点。请用相同 --session 选择运行 orchbee server diagnose；可执行 orchbee --session recovery-work server start 另开会话。存活任务仍需 Host 接管；不完整或旧版记录需要诊断。\n"
                 } else {
                     "本地会话需要显式恢复。未启动替代进程。\n"

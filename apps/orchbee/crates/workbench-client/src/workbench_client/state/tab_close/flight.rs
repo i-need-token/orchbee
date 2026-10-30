@@ -3,7 +3,7 @@
 //! issuing Server effects or inferring disposal from a lost response.
 
 use super::{CloseFlightKey, CloseIntent, CloseSelection, CloseState, CloseStateError};
-use crate::local_client::workbench::{WorkbenchTabCloseAccepted, WorkbenchTabClosePrecommit};
+use crate::exchange_values::workbench::{WorkbenchTabCloseAccepted, WorkbenchTabClosePrecommit};
 use crate::workbench_client::state::{
     AttachmentKey, ClientNotice, ClientPhase, WorkbenchClientState,
 };

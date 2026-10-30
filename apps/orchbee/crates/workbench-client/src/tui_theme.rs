@@ -1051,7 +1051,7 @@ impl Theme {
     pub(crate) fn with_outer_host_colors(
         mut self,
         application: orchbee_workbench_protocol::ApplicationAppearance,
-        colors: crate::terminal_host_appearance::HostColors,
+        colors: crate::host_appearance::HostColors,
     ) -> Self {
         if application != orchbee_workbench_protocol::ApplicationAppearance::System {
             return self;
@@ -1601,7 +1601,7 @@ pub trait ThemeTestAccess {
     ) -> Self;
     fn application_with_host(
         appearance: orchbee_workbench_protocol::ApplicationAppearance,
-        host: crate::terminal_host_appearance::HostAppearance,
+        host: crate::host_appearance::HostAppearance,
         level: ColorLevel,
     ) -> Self;
     fn one_light() -> Self;
@@ -1624,7 +1624,7 @@ impl ThemeTestAccess for Theme {
     }
     fn application_with_host(
         appearance: orchbee_workbench_protocol::ApplicationAppearance,
-        host: crate::terminal_host_appearance::HostAppearance,
+        host: crate::host_appearance::HostAppearance,
         level: ColorLevel,
     ) -> Self {
         Theme::application_with_host(appearance, host, level)

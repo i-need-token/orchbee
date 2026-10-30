@@ -248,7 +248,7 @@ impl InputDispatcher {
         &mut self,
         reply: HostReply,
         now: Instant,
-    ) -> Option<crate::terminal_host_appearance::HostAppearance> {
+    ) -> Option<crate::host_appearance::HostAppearance> {
         match reply {
             HostReply::Graphics(reply) => {
                 self.graphics.reply(reply, now);

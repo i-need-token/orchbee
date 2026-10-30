@@ -4,11 +4,10 @@
 
 use ratatui::{
     Frame,
-    buffer::Buffer,
     layout::{Alignment, Constraint, Layout, Position, Rect},
     style::Modifier,
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph, Widget},
+    widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph},
 };
 mod action_menu;
 #[cfg(test)]
@@ -92,6 +91,8 @@ mod copy_mode;
 mod divider_resize;
 mod help;
 mod modal;
+pub(crate) use modal::{OverlayFrame, overlay_surface, titled_overlay};
+use modal::{overlay_block, overlay_heading, overlay_title};
 mod navigator;
 mod onboarding;
 mod pane_graphics;
@@ -2555,116 +2556,6 @@ fn clear_crossing_wide_cells(frame: &mut Frame<'_>, area: Rect) {
             x = next;
         }
     }
-}
-
-pub(crate) fn overlay_surface(theme: &Theme, padding: Padding) -> Block<'static> {
-    Block::new()
-        .borders(Borders::ALL)
-        .border_type(theme.corners)
-        .border_style(theme.style(Role::FrameUnfocused))
-        .style(theme.style(Role::SurfaceOverlay))
-        .padding(padding)
-}
-
-/// An overlay surface and the task heading on its top-left edge, painted as one widget.
-///
-/// `Block::title` would place the heading by ratatui's whole-string `Line::width`, which merges a
-/// ligature across grapheme clusters, such as Lam-Alef, into one cell while the buffer writes one
-/// cell per cluster; the heading's trailing blank then overwrites its last letter. The heading is
-/// written with `Buffer::set_line` instead, which advances by the cells it actually placed: the
-/// rule [`display_width`] measures.
-pub(crate) struct OverlayFrame {
-    surface: Block<'static>,
-    heading: Option<Line<'static>>,
-}
-
-impl OverlayFrame {
-    pub(crate) fn new(surface: Block<'static>) -> Self {
-        Self {
-            surface,
-            heading: None,
-        }
-    }
-
-    pub(crate) fn heading(self, heading: Line<'static>) -> Self {
-        Self {
-            heading: Some(heading),
-            ..self
-        }
-    }
-
-    pub(crate) fn inner(&self, area: Rect) -> Rect {
-        self.surface.inner(area)
-    }
-}
-
-impl Widget for OverlayFrame {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        self.surface.render(area, buf);
-        let area = area.intersection(buf.area);
-        if let Some(heading) = self.heading
-            && !area.is_empty()
-        {
-            // Where a block title goes: the top edge, between the side borders.
-            buf.set_line(
-                area.x.saturating_add(1),
-                area.y,
-                &heading,
-                area.width.saturating_sub(2),
-            );
-        }
-    }
-}
-
-/// Top-edge cells an overlay heading leaves to its frame: both corners, the leading `─ ` and
-/// trailing blank, at least one rule cell, and the spaced close control ` [x] ─`.
-const OVERLAY_TITLE_RESERVE: usize = 12;
-
-/// The task heading painted once on an overlay's top-left edge as `─ Title `.
-///
-/// The heading truncates from the end so the frame's close control always keeps its cells.
-fn overlay_title(title: &str, width: u16, theme: &Theme) -> Line<'static> {
-    overlay_heading(
-        title,
-        usize::from(width).saturating_sub(OVERLAY_TITLE_RESERVE),
-        theme,
-    )
-}
-
-/// The same top-left heading inside an owner-computed display budget, for frames whose top edge
-/// carries other controls.
-fn overlay_heading(title: &str, budget: usize, theme: &Theme) -> Line<'static> {
-    let title = truncate_display(
-        &crate::terminal_text::sanitize_terminal_text(title),
-        budget,
-        theme.glyphs.ellipsis,
-    );
-    Line::from(vec![
-        Span::styled(
-            theme.corners.to_border_set().horizontal_top,
-            theme.style(Role::FrameUnfocused),
-        ),
-        Span::raw(" "),
-        Span::styled(
-            title,
-            theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
-        ),
-        Span::raw(" "),
-    ])
-}
-
-/// An overlay surface headed by [`overlay_title`].
-pub(crate) fn titled_overlay(
-    theme: &Theme,
-    padding: Padding,
-    title: &str,
-    width: u16,
-) -> OverlayFrame {
-    OverlayFrame::new(overlay_surface(theme, padding)).heading(overlay_title(title, width, theme))
-}
-
-fn overlay_block(title: &str, width: u16, theme: &Theme) -> OverlayFrame {
-    titled_overlay(theme, Padding::horizontal(2), title, width)
 }
 
 #[cfg(test)]

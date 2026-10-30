@@ -1,8 +1,8 @@
 //! Terminal notification transport is unavailable before environment or output access.
 use crate::{
+    host_capabilities::{Capability, Unsupported},
     notifications::terminal::Host,
     terminal_device::InheritedTerminal,
-    tui_capabilities::{Capability, Unsupported},
 };
 use std::io;
 

@@ -8,7 +8,7 @@ use super::workbench_projection::{
     validate_canonical_refresh, validate_created_tab,
 };
 use crate::client_view::ClientAction;
-use crate::local_client::workbench::WorkbenchTabCreateCommit;
+use crate::exchange_values::workbench::WorkbenchTabCreateCommit;
 use orchbee_client_server_protocol::{ControllerId, Geometry};
 use orchbee_workbench_protocol::{
     SessionId, WorkbenchLabel, WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,

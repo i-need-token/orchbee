@@ -1,5 +1,6 @@
 //! Deterministic menu capture, selection and successful-draw authority.
 //! WorkbenchClientUi alone owns target validation and navigation; this unit cannot execute actions.
+use crate::client_actions::PrefixAction;
 use crate::client_view::{
     Binding, ClientAction, KeyCode, KeyEvent, KeyKind, Modifiers, PanelDirection,
 };
@@ -85,243 +86,9 @@ impl From<(u16, u16)> for MenuAnchor {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum MenuAction {
-    SplitPanel(PanelDirection),
-    Zoom,
-    Resize,
-    Copy,
-    Takeover,
-    ClosePane,
-    MovePanel(PanelDirection),
-    NewTab,
-    /// A frozen saved choice; never changes the shared default profile.
-    NewTabWithProfile(Box<orchbee_workbench_protocol::UserLaunchProfile>),
-    TabCreation,
-    NewTabToRight,
-    NewTabInGroup,
-    NewTabInRecentGroup,
-    NewGroupWithTab,
-    DuplicateTab,
-    MoveTabPrevious,
-    MoveTabNext,
-    MoveTabFirst,
-    MoveTabLast,
-    SelectTab,
-    SelectAllTabs,
-    ClearTabSelection,
-    PinTab,
-    UnpinTab,
-    ManageGroups,
-    CreateGroup,
-    RenameGroup,
-    ChooseGroupColor,
-    GroupColor(orchbee_workbench_protocol::TabGroupColor),
-    JoinGroup(u16),
-    RemoveFromGroup,
-    Ungroup,
-    RenameTab,
-    ResumeTabClose,
-    CloseSelectedTabs,
-    CloseOtherTabs,
-    CloseTrailingTabs,
-    CloseGroup,
-    QuickWorkspace,
-    WorkspaceAtDirectory,
-    WorkspaceDirectory,
-    RenameWorkspace,
-    RenameProject,
-    WorkspaceProjects,
-    WorkspaceCreation,
-    CreateWorkspaceProject,
-    LeaveWorkspaceProject,
-    JoinWorkspaceProject(orchbee_workbench_protocol::WorkbenchProjectId),
-    /// A new Workspace of the menu's Project in one of its recorded folders.
-    WorkspaceInFolder(orchbee_workbench_protocol::WorkbenchDirectoryPath),
-    OpenWorktreeAt(orchbee_workbench_protocol::WorkbenchDirectoryPath),
-    RemoveWorktree,
-    DeleteWorkspace,
-    DeleteProject,
-    CloseProjectWorkspaces,
-    CloseWorkspace,
-    NewWorkspace,
-    NewWorktree,
-    OpenWorktree,
-    Reload,
-    Settings,
-    Machines,
-    Help,
-    Sidebar,
-    Navigator,
-    AgentBoard,
-    ReleasePointer,
-    Detach,
-}
+pub use crate::client_actions::MenuAction;
 
 pub(crate) use crate::localization::{MenuHeading, MenuRowNote, MenuUnavailable};
-
-impl From<&MenuAction> for crate::localization::MenuLabel {
-    fn from(action: &MenuAction) -> Self {
-        match action {
-            MenuAction::SplitPanel(value) => Self::SplitPanel(*value),
-            MenuAction::Zoom => Self::Zoom,
-            MenuAction::Resize => Self::Resize,
-            MenuAction::Copy => Self::Copy,
-            MenuAction::Takeover => Self::Takeover,
-            MenuAction::ClosePane => Self::ClosePane,
-            MenuAction::MovePanel(value) => Self::MovePanel(*value),
-            MenuAction::NewTab => Self::NewTab,
-            MenuAction::NewTabWithProfile(_) => Self::NewTabWithProfile,
-            MenuAction::TabCreation => Self::TabCreation,
-            MenuAction::NewTabToRight => Self::NewTabToRight,
-            MenuAction::NewTabInGroup => Self::NewTabInGroup,
-            MenuAction::NewTabInRecentGroup => Self::NewTabInRecentGroup,
-            MenuAction::NewGroupWithTab => Self::NewGroupWithTab,
-            MenuAction::DuplicateTab => Self::DuplicateTab,
-            MenuAction::MoveTabPrevious => Self::MoveTabPrevious,
-            MenuAction::MoveTabNext => Self::MoveTabNext,
-            MenuAction::MoveTabFirst => Self::MoveTabFirst,
-            MenuAction::MoveTabLast => Self::MoveTabLast,
-            MenuAction::SelectTab => Self::SelectTab,
-            MenuAction::SelectAllTabs => Self::SelectAllTabs,
-            MenuAction::ClearTabSelection => Self::ClearTabSelection,
-            MenuAction::PinTab => Self::PinTab,
-            MenuAction::UnpinTab => Self::UnpinTab,
-            MenuAction::ManageGroups => Self::ManageGroups,
-            MenuAction::CreateGroup => Self::CreateGroup,
-            MenuAction::RenameGroup => Self::RenameGroup,
-            MenuAction::ChooseGroupColor => Self::ChooseGroupColor,
-            MenuAction::GroupColor(value) => Self::GroupColor(*value),
-            MenuAction::JoinGroup(_) => Self::JoinGroup,
-            MenuAction::RemoveFromGroup => Self::RemoveFromGroup,
-            MenuAction::Ungroup => Self::Ungroup,
-            MenuAction::RenameTab => Self::RenameTab,
-            MenuAction::ResumeTabClose => Self::ResumeTabClose,
-            MenuAction::CloseSelectedTabs => Self::CloseSelectedTabs,
-            MenuAction::CloseOtherTabs => Self::CloseOtherTabs,
-            MenuAction::CloseTrailingTabs => Self::CloseTrailingTabs,
-            MenuAction::CloseGroup => Self::CloseGroup,
-            MenuAction::QuickWorkspace => Self::QuickWorkspace,
-            MenuAction::WorkspaceAtDirectory => Self::WorkspaceAtDirectory,
-            MenuAction::WorkspaceDirectory => Self::WorkspaceDirectory,
-            MenuAction::RenameWorkspace => Self::RenameWorkspace,
-            MenuAction::RenameProject => Self::RenameProject,
-            MenuAction::WorkspaceProjects => Self::WorkspaceProjects,
-            MenuAction::WorkspaceCreation => Self::WorkspaceCreation,
-            MenuAction::WorkspaceInFolder(_) => Self::WorkspaceInFolder,
-            MenuAction::CreateWorkspaceProject => Self::CreateWorkspaceProject,
-            MenuAction::LeaveWorkspaceProject => Self::LeaveWorkspaceProject,
-            MenuAction::JoinWorkspaceProject(_) => Self::JoinWorkspaceProject,
-            MenuAction::OpenWorktreeAt(_) => Self::OpenWorktreeAt,
-            MenuAction::RemoveWorktree => Self::RemoveWorktree,
-            MenuAction::DeleteWorkspace => Self::DeleteWorkspace,
-            MenuAction::DeleteProject => Self::DeleteProject,
-            MenuAction::CloseProjectWorkspaces => Self::CloseProjectWorkspaces,
-            MenuAction::CloseWorkspace => Self::CloseWorkspace,
-            MenuAction::NewWorkspace => Self::NewWorkspace,
-            MenuAction::NewWorktree => Self::NewWorktree,
-            MenuAction::OpenWorktree => Self::OpenWorktree,
-            MenuAction::Reload => Self::Reload,
-            MenuAction::Settings => Self::Settings,
-            MenuAction::Machines => Self::Machines,
-            MenuAction::Help => Self::Help,
-            MenuAction::Sidebar => Self::Sidebar,
-            MenuAction::Navigator => Self::Navigator,
-            MenuAction::AgentBoard => Self::AgentBoard,
-            MenuAction::ReleasePointer => Self::ReleasePointer,
-            MenuAction::Detach => Self::Detach,
-        }
-    }
-}
-
-impl MenuAction {
-    pub(crate) const fn submenu(&self) -> bool {
-        matches!(
-            self,
-            Self::ManageGroups
-                | Self::ChooseGroupColor
-                | Self::TabCreation
-                | Self::WorkspaceProjects
-                | Self::WorkspaceCreation
-        )
-    }
-    /// Addressed sidebar choices require their menu's frozen source owner.
-    /// They cannot fall back to an action on the current Workspace.
-    pub(crate) fn client_action(&self) -> Option<ClientAction> {
-        Some(match self {
-            Self::SplitPanel(direction) => ClientAction::SplitPanel(*direction),
-            Self::Zoom => ClientAction::ToggleZoom,
-            Self::Resize => ClientAction::EnterResizeMode,
-            Self::Copy => ClientAction::EnterCopyMode,
-            Self::Takeover => ClientAction::RequestControlTakeover,
-            Self::ClosePane => ClientAction::ClosePanel,
-            Self::MovePanel(direction) => ClientAction::MovePanel(*direction),
-            Self::MoveTabPrevious
-            | Self::ResumeTabClose
-            | Self::CloseSelectedTabs
-            | Self::CloseOtherTabs
-            | Self::CloseTrailingTabs
-            | Self::CloseGroup
-            | Self::MoveTabNext
-            | Self::MoveTabFirst
-            | Self::MoveTabLast
-            | Self::SelectTab
-            | Self::SelectAllTabs
-            | Self::ClearTabSelection
-            | Self::PinTab
-            | Self::NewTabInGroup
-            | Self::NewTabWithProfile(_)
-            | Self::NewTabInRecentGroup
-            | Self::TabCreation
-            | Self::NewTabToRight
-            | Self::NewGroupWithTab
-            | Self::DuplicateTab
-            | Self::UnpinTab
-            | Self::ManageGroups
-            | Self::CreateGroup
-            | Self::RenameGroup
-            | Self::ChooseGroupColor
-            | Self::GroupColor(_)
-            | Self::JoinGroup(_)
-            | Self::RemoveFromGroup
-            | Self::Ungroup => ClientAction::TabMenu {
-                action: self.clone(),
-                tab_id: None,
-            },
-            Self::NewTab => ClientAction::CreateTab,
-            Self::RenameTab => ClientAction::RequestRenameTab,
-            Self::QuickWorkspace => ClientAction::RequestQuickWorkspace,
-            Self::WorkspaceAtDirectory => ClientAction::RequestWorkspaceAtDirectory,
-            Self::WorkspaceDirectory => ClientAction::RequestWorkspaceDirectory,
-            Self::RenameWorkspace => ClientAction::RequestWorkspaceRename,
-            Self::RenameProject => ClientAction::RequestProjectRename,
-            Self::CloseProjectWorkspaces => ClientAction::RequestProjectCloseAll(None),
-            Self::CloseWorkspace => ClientAction::RequestWorkspaceClose,
-            Self::NewWorkspace => ClientAction::RequestWorkspaceCreate,
-            Self::NewWorktree => ClientAction::RequestWorktreeCreate,
-            Self::OpenWorktree => ClientAction::RequestWorktreeOpen,
-            Self::Reload => ClientAction::ReloadConfiguration,
-            Self::Settings => ClientAction::OpenSettings,
-            Self::Machines => ClientAction::OpenMachines,
-            Self::Help => ClientAction::OpenShortcutHelp,
-            Self::Sidebar => ClientAction::ToggleBusinessSidebar,
-            Self::Navigator => ClientAction::OpenWorkbenchNavigator,
-            Self::AgentBoard => ClientAction::ToggleAgentBoard,
-            Self::ReleasePointer => ClientAction::TogglePointerCapture,
-            Self::Detach => ClientAction::Exit,
-            Self::WorkspaceProjects
-            | Self::WorkspaceCreation
-            | Self::WorkspaceInFolder(_)
-            | Self::CreateWorkspaceProject
-            | Self::LeaveWorkspaceProject
-            | Self::JoinWorkspaceProject(_)
-            | Self::OpenWorktreeAt(_)
-            | Self::RemoveWorktree
-            | Self::DeleteWorkspace
-            | Self::DeleteProject => return None,
-        })
-    }
-}
 
 /// Zoom joins only beside another panel; Take control only while another Client holds the size.
 pub(crate) const PANE_ACTIONS: &[MenuAction] = &[
@@ -391,6 +158,52 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::ReleasePointer,
 ];
 
+/// Resolves only bindings whose dispatch target has the same meaning as this menu entry.
+///
+/// Stable metadata identity is deliberately insufficient here: a prefix action aimed at the
+/// current Tab, Workspace, or Pane must not be advertised for an exact background menu target.
+pub(crate) fn menu_binding_action(
+    target: &crate::action_menu::MenuTarget,
+    action: crate::action_menu::MenuAction,
+) -> Option<PrefixAction> {
+    use crate::action_menu::{MenuAction as M, MenuTarget as T};
+    use ClientAction as A;
+
+    if let T::Drawn { target, .. } = target {
+        return menu_binding_action(target, action);
+    }
+
+    let action = match (target, action) {
+        (T::Global | T::Create(None), M::NewWorkspace) => {
+            PrefixAction::Client(A::RequestWorkspaceCreate)
+        }
+        (T::Global | T::Create(None), M::NewWorktree) => {
+            PrefixAction::Client(A::RequestWorktreeCreate)
+        }
+        (T::Global | T::Create(None), M::OpenWorktree) => {
+            PrefixAction::Client(A::RequestWorktreeOpen)
+        }
+        (T::Global, M::SplitPanel(direction)) => PrefixAction::Client(A::SplitPanel(direction)),
+        (T::Global, M::ClosePane) => PrefixAction::Client(A::ClosePanel),
+        (T::Global, M::Zoom) => PrefixAction::Client(A::ToggleZoom),
+        (T::Global, M::MovePanel(direction)) => PrefixAction::Client(A::MovePanel(direction)),
+        (T::Global, M::RenameTab) => PrefixAction::Client(A::RequestRenameTab),
+        (T::Global, M::Copy) => PrefixAction::Client(A::EnterCopyMode),
+        (T::Global, M::Resize) => PrefixAction::Client(A::EnterResizeMode),
+        (T::Global, M::Reload) => PrefixAction::Client(A::ReloadConfiguration),
+        (T::Global, M::Settings) => PrefixAction::Client(A::OpenSettings),
+        (T::Global, M::Machines) => PrefixAction::Client(A::OpenMachines),
+        (T::Global, M::Help) => PrefixAction::ShowHelp,
+        (T::Global, M::Sidebar) => PrefixAction::SidebarToggle,
+        (T::Global, M::Navigator) => PrefixAction::NavigatorToggle,
+        (T::Global, M::AgentBoard) => PrefixAction::BoardToggle,
+        (T::Global, M::ReleasePointer) => PrefixAction::Client(A::TogglePointerCapture),
+        (T::Global, M::Detach) => PrefixAction::Client(A::Exit),
+        (T::TabCreate(_), M::NewTab) => PrefixAction::Client(A::CreateTab),
+        _ => return None,
+    };
+    Some(action)
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MenuToken(u64);
 

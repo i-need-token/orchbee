@@ -11,9 +11,13 @@ mod agent_integrations;
 mod agent_provider;
 mod agent_runtime;
 mod agent_start;
+mod client_actions;
 mod client_context;
 mod client_view;
+mod exchange_values;
+mod host_appearance;
 mod host_capabilities;
+mod host_graphics;
 mod local_activation;
 mod local_client;
 mod localization;
@@ -432,7 +436,7 @@ pub mod application {
 
     pub mod tui_capabilities {
         #[cfg(not(windows))]
-        pub use crate::tui_capabilities::Unsupported;
+        pub use crate::host_capabilities::Unsupported;
         pub use crate::tui_capabilities::{Capabilities, Capability};
     }
 
@@ -590,7 +594,7 @@ pub mod test_support {
     }
 
     pub mod terminal_host_appearance {
-        pub use crate::terminal_host_appearance::HostAppearance;
+        pub use crate::host_appearance::HostAppearance;
     }
 
     pub mod terminal_input {

@@ -54,91 +54,7 @@ pub(crate) use crate::localization::PanelDirection;
 
 pub(crate) use crate::localization::BackendAction;
 
-/// Plain Client view intent; executable menu captures and their proofs remain with Workbench.
-// Not `Copy`: `FocusPanel` carries a `WorkbenchPanelId` (heap identity).
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ClientAction {
-    DismissOnboarding,
-    TabMenu {
-        action: crate::action_menu::MenuAction,
-        tab_id: Option<orchbee_workbench_protocol::WorkbenchTabId>,
-    },
-    ToggleTabGroup(orchbee_workbench_protocol::WorkbenchTabGroupId),
-    OpenActionMenu,
-    OpenSettings,
-    ConfiguredCommand(String),
-    EnterResizeMode,
-    EnterCopyMode,
-    ExitResizeMode,
-    ResizePane {
-        direction: PanelDirection,
-        fine: bool,
-    },
-    ReloadConfiguration,
-    RequestWorkspaceCreate,
-    RequestQuickWorkspace,
-    RequestWorkspaceAtDirectory,
-    RequestProjectQuickWorkspace,
-    RequestWorktreeCreate,
-    RequestWorktreeOpen,
-    RequestWorkspaceClose,
-    RequestWorkspaceCloseAt(orchbee_workbench_protocol::WorkbenchWorkspaceId),
-    RequestSidebarWorkspaceDelete,
-    RequestControlTakeover,
-    RequestWorkspaceDirectory,
-    RequestWorkspaceRename,
-    RequestProjectRename,
-    RequestTargetedProjectRename,
-    RequestWorkspaceOrganization,
-    RequestProjectCloseAll(Option<orchbee_workbench_protocol::WorkbenchProjectId>),
-    RequestRenameTab,
-    RequestCloseTab,
-    ConfirmClose,
-    CancelClose,
-    MovePreviousTab,
-    MoveNextTab,
-    ToggleBusinessSidebar,
-    FocusBusinessSidebar,
-    OpenShortcutHelp,
-    CloseShortcutHelp,
-    PageShortcutHelp,
-    OpenWorkbenchNavigator,
-    OpenMachines,
-    PreviousAgent,
-    NextAgent,
-    FocusAgent(u8),
-    CloseWorkbenchNavigator,
-    /// `Ctrl+B g` — toggles the Client-owned Agent board overlay.
-    ToggleAgentBoard,
-    CreateTab,
-    SelectNextTab,
-    SelectPreviousTab,
-    SelectTab(u8),
-    SelectPreviousContext,
-    SelectNextContext,
-    PreviousPresentation,
-    NextPresentation,
-    MovePanelFocus(PanelDirection),
-    /// Pointer gesture: focus the panel with this stable identity in the
-    /// active tab.
-    FocusPanel(orchbee_workbench_protocol::WorkbenchPanelId),
-    /// Client-local zoom on the active tab: draw the focused leaf across
-    /// the whole pane area while hidden leaves stay attached. Volatile
-    /// session view state — never a backend action.
-    ToggleZoom,
-    SplitPanel(PanelDirection),
-    ClosePanel,
-    MovePanel(PanelDirection),
-    TogglePointerCapture,
-    /// `Ctrl+B PageUp` while help is closed: enter retained-history mode on
-    /// the focus pane. The session owns admission; an unenterable pane
-    /// simply stays Live.
-    EnterHistory,
-    ForwardLiteralPrefix,
-    DismissPrefix,
-    UnknownPrefix,
-    Exit,
-}
+pub use crate::client_actions::ClientAction;
 
 pub use crate::localization::Notice;
 
@@ -217,75 +133,6 @@ impl ClientTransition {
     }
 }
 
-impl ClientAction {
-    pub(crate) fn backend_action(&self) -> Option<BackendAction> {
-        match self {
-            Self::OpenActionMenu | Self::FocusBusinessSidebar | Self::DismissOnboarding => None,
-            Self::OpenSettings => None,
-            Self::EnterResizeMode
-            | Self::EnterCopyMode
-            | Self::ExitResizeMode
-            | Self::ResizePane { .. } => None,
-            Self::ConfiguredCommand(_) => None,
-            Self::OpenMachines | Self::PreviousAgent | Self::NextAgent | Self::FocusAgent(_) => {
-                None
-            }
-            Self::TabMenu { .. } | Self::ToggleTabGroup(_) => None,
-            Self::ReloadConfiguration => Some(BackendAction::ReloadConfiguration),
-            Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
-            Self::RequestQuickWorkspace
-            | Self::RequestWorkspaceAtDirectory
-            | Self::RequestProjectQuickWorkspace => Some(BackendAction::QuickCreateWorkspace),
-            Self::RequestWorktreeCreate => Some(BackendAction::CreateWorktree),
-            Self::RequestWorktreeOpen => Some(BackendAction::OpenWorktree),
-            Self::RequestWorkspaceClose => Some(BackendAction::CloseWorkspace),
-            Self::RequestControlTakeover => None,
-            Self::RequestWorkspaceDirectory => Some(BackendAction::ConfigureWorkspaceDirectory),
-            Self::RequestWorkspaceRename => Some(BackendAction::RenameWorkspace),
-            Self::RequestProjectRename | Self::RequestTargetedProjectRename => {
-                Some(BackendAction::RenameProject)
-            }
-            Self::RequestWorkspaceCloseAt(_)
-            | Self::RequestSidebarWorkspaceDelete
-            | Self::RequestWorkspaceOrganization
-            | Self::RequestProjectCloseAll(_) => None,
-            Self::RequestRenameTab => Some(BackendAction::RenameTab),
-            Self::RequestCloseTab => Some(BackendAction::CloseTab),
-            Self::CreateTab => Some(BackendAction::CreateTab),
-            Self::MovePreviousTab => Some(BackendAction::MovePreviousTab),
-            Self::MoveNextTab => Some(BackendAction::MoveNextTab),
-            Self::SelectNextTab => Some(BackendAction::SelectNextTab),
-            Self::SelectPreviousTab => Some(BackendAction::SelectPreviousTab),
-            Self::SelectTab(position) => Some(BackendAction::SelectTab(*position)),
-            Self::SelectPreviousContext => Some(BackendAction::SelectPreviousContext),
-            Self::SelectNextContext => Some(BackendAction::SelectNextContext),
-            Self::PreviousPresentation
-            | Self::NextPresentation
-            | Self::MovePanelFocus(_)
-            | Self::FocusPanel(_)
-            | Self::ToggleZoom => None,
-            Self::SplitPanel(_) => Some(BackendAction::SplitPanel),
-            Self::ClosePanel => Some(BackendAction::ClosePanel),
-            Self::MovePanel(_) => Some(BackendAction::MovePanel),
-            Self::ToggleBusinessSidebar
-            | Self::ConfirmClose
-            | Self::CancelClose
-            | Self::OpenShortcutHelp
-            | Self::CloseShortcutHelp
-            | Self::PageShortcutHelp
-            | Self::OpenWorkbenchNavigator
-            | Self::CloseWorkbenchNavigator
-            | Self::ToggleAgentBoard
-            | Self::TogglePointerCapture
-            | Self::EnterHistory
-            | Self::ForwardLiteralPrefix
-            | Self::DismissPrefix
-            | Self::UnknownPrefix
-            | Self::Exit => None,
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SidebarSurface {
     Docked(crate::tui_layout::SidebarWidth),
@@ -302,8 +149,8 @@ pub struct ClientView {
     bindings: std::sync::Arc<Bindings>,
     theme_name: Option<crate::tui_theme::ThemeName>,
     theme: Option<crate::tui_theme::Theme>,
-    host_appearance: crate::terminal_host_appearance::HostAppearance,
-    host_colors: crate::terminal_host_appearance::HostColors,
+    host_appearance: crate::host_appearance::HostAppearance,
+    host_colors: crate::host_appearance::HostColors,
     color_level: crate::tui_theme::ColorLevel,
     no_color: bool,
     pub notifications: crate::notifications::State,
@@ -353,8 +200,8 @@ impl ClientView {
             bindings: std::sync::Arc::new(Bindings::default()),
             theme_name: None,
             theme: None,
-            host_appearance: crate::terminal_host_appearance::HostAppearance::Unknown,
-            host_colors: crate::terminal_host_appearance::HostColors::default(),
+            host_appearance: crate::host_appearance::HostAppearance::Unknown,
+            host_colors: crate::host_appearance::HostColors::default(),
             color_level: crate::tui_theme::ColorLevel::Ansi16,
             no_color: false,
             notifications: crate::notifications::State::default(),
@@ -442,7 +289,7 @@ impl ClientView {
     /// Updates the sampled host polarity and resolves a confirmed System preference if present.
     pub(crate) fn configure_host_appearance(
         &mut self,
-        appearance: crate::terminal_host_appearance::HostAppearance,
+        appearance: crate::host_appearance::HostAppearance,
     ) -> bool {
         self.configure_host_terminal(appearance, self.host_colors)
     }
@@ -457,8 +304,8 @@ impl ClientView {
 
     pub(crate) fn configure_host_terminal(
         &mut self,
-        appearance: crate::terminal_host_appearance::HostAppearance,
-        colors: crate::terminal_host_appearance::HostColors,
+        appearance: crate::host_appearance::HostAppearance,
+        colors: crate::host_appearance::HostColors,
     ) -> bool {
         if self.host_appearance == appearance && self.host_colors == colors {
             return false;

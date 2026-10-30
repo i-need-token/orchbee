@@ -10,24 +10,10 @@ mod configured;
 pub use configured::Bindings;
 pub(crate) use configured::DiscoveryEntry;
 
+pub(crate) use crate::client_actions::PrefixAction;
+
 /// The chord the ordinary layer intercepts unconditionally: `Ctrl+B`.
 pub(crate) const PREFIX_CHORD: Binding = Binding::new(KeyCode::Char('b'), Modifiers::CTRL);
-
-/// What one member key resolves to when matched under an armed prefix.
-/// `Client` actions map one-to-one to `ClientAction`; the toggle intents own
-/// their local view effects inside `ClientView::decide_prefix`.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum PrefixAction {
-    Client(ClientAction),
-    SelectTabDigit,
-    SelectAgentDigit,
-    SidebarToggle,
-    NavigatorToggle,
-    BoardToggle,
-    ShowHelp,
-    HelpPagePrevious,
-    HelpPageNext,
-}
 
 /// One matchable key set inside a group. `CharRange` exists so the ordered-Tab
 /// selection is one member displayed as `1..9`, never nine rows.

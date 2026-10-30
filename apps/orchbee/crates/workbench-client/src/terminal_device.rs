@@ -4,13 +4,7 @@
 
 use std::{fmt, io};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct WindowDimensions {
-    pub columns: u16,
-    pub pixel_height: u16,
-    pub pixel_width: u16,
-    pub rows: u16,
-}
+pub use crate::host_graphics::WindowDimensions;
 
 #[derive(Debug)]
 pub enum TerminalAdmissionError {

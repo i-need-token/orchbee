@@ -1,8 +1,8 @@
 //! Unix saved-machine tunnels have no process or endpoint implementation.
 use super::StartedCarrier;
 use crate::{
+    host_capabilities::{Capability, Unsupported},
     machines::Profile,
-    tui_capabilities::{Capability, Unsupported},
 };
 use std::io;
 

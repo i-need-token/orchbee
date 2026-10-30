@@ -18,7 +18,7 @@ fn host_defaults_follow_resolved_application_appearance_without_replacing_explic
         ] {
             let chrome = Theme::application_with_host(
                 application,
-                crate::terminal_host_appearance::HostAppearance::Unknown,
+                crate::host_appearance::HostAppearance::Unknown,
                 ColorLevel::Truecolor,
             );
             let theme = chrome
@@ -66,7 +66,7 @@ fn a_system_preview_uses_captured_host_defaults_without_mutating_the_confirmed_t
 
 #[test]
 fn detected_system_polarity_changes_chrome_but_host_terminal_defaults_stay_captured() {
-    use crate::terminal_host_appearance::HostAppearance;
+    use crate::host_appearance::HostAppearance;
 
     let host_foreground = Color::Rgb(0x12, 0x34, 0x56);
     let host_background = Color::Rgb(0x20, 0x30, 0x40);
@@ -89,7 +89,7 @@ fn detected_system_polarity_changes_chrome_but_host_terminal_defaults_stay_captu
 
 #[test]
 fn detected_host_polarity_does_not_replace_explicit_terminal_display_choices() {
-    use crate::terminal_host_appearance::HostAppearance;
+    use crate::host_appearance::HostAppearance;
 
     let custom =
         Theme::application_with_host(App::System, HostAppearance::Light, ColorLevel::Truecolor)
@@ -123,7 +123,7 @@ fn detected_host_polarity_does_not_replace_explicit_terminal_display_choices() {
 
 #[test]
 fn outer_host_defaults_replace_child_baselines_without_replacing_explicit_preferences() {
-    use crate::terminal_host_appearance::{HostAppearance, HostColors};
+    use crate::host_appearance::{HostAppearance, HostColors};
     for (terminal, expected) in [
         (Terminal::Host, (0xcccccc, 0x0c0c0c)),
         (Terminal::Light, (0x141414, 0xfcfcfc)),
@@ -170,7 +170,7 @@ fn outer_host_defaults_replace_child_baselines_without_replacing_explicit_prefer
 
 #[test]
 fn system_defaults_remain_host_relative_without_a_probe_or_exact_color_support() {
-    use crate::terminal_host_appearance::{HostAppearance, HostColors};
+    use crate::host_appearance::{HostAppearance, HostColors};
     for (appearance, colors) in [
         (HostAppearance::Unknown, HostColors::default()),
         (HostAppearance::Light, HostColors::default()),
@@ -242,7 +242,7 @@ fn system_defaults_remain_host_relative_without_a_probe_or_exact_color_support()
 
 #[test]
 fn host_default_backgrounds_keep_working_breath_smooth_and_unknown_static() {
-    use crate::terminal_host_appearance::{HostAppearance, HostColors};
+    use crate::host_appearance::{HostAppearance, HostColors};
     use orchbee_workbench_protocol::MetadataState::{Unknown, Working};
 
     for (appearance, foreground, background) in [
@@ -315,7 +315,7 @@ fn host_default_backgrounds_keep_working_breath_smooth_and_unknown_static() {
 
 #[test]
 fn system_derives_strip_and_interaction_fills_from_observed_host_colors() {
-    use crate::terminal_host_appearance::{HostAppearance, HostColors};
+    use crate::host_appearance::{HostAppearance, HostColors};
     use orchbee_workbench_protocol::TabGroupColor;
     let system = |appearance, level, foreground, background| {
         Theme::application_with_host(App::System, appearance, level).with_outer_host_colors(

@@ -5,7 +5,7 @@
 use super::recovery_fence::RecoveryFence;
 use super::rename_draft::{RenameDraftIntent, RenameDraftToken};
 use super::{AttachmentKey, CarrierFailure, ClientContextTabs};
-use crate::local_client::workbench::label_rename::{
+use crate::exchange_values::workbench::label_rename::{
     WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameRequest,
 };
 use crate::workbench_client::workbench_projection::renamed::{

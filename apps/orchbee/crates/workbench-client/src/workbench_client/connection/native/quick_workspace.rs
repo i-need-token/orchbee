@@ -53,7 +53,7 @@ fn launch_directory() -> std::io::Result<Option<WorkbenchDirectoryPath>> {
 #[cfg(not(windows))]
 fn launch_directory() -> std::io::Result<Option<WorkbenchDirectoryPath>> {
     Err(
-        crate::tui_capabilities::Unsupported(crate::tui_capabilities::Capability::DirectoryInput)
+        crate::host_capabilities::Unsupported(crate::host_capabilities::Capability::DirectoryInput)
             .into(),
     )
 }

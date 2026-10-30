@@ -15,8 +15,8 @@ impl SystemNotifications {
         &mut self,
         _message: orchbee_workbench_protocol::Notification,
     ) -> std::io::Result<()> {
-        Err(crate::tui_capabilities::Unsupported(
-            crate::tui_capabilities::Capability::SystemNotification,
+        Err(crate::host_capabilities::Unsupported(
+            crate::host_capabilities::Capability::SystemNotification,
         )
         .into())
     }

@@ -16,12 +16,10 @@ use super::{
     workbench_projection::ClientContextTabs,
 };
 use crate::{
-    local_client::{
-        LocalOperationClock,
-        workbench::{
-            WorkbenchTabCreateCommit, WorkbenchTabCreatePrecommit, WorkbenchTabCreateRequest,
-        },
+    exchange_values::workbench::{
+        WorkbenchTabCreateCommit, WorkbenchTabCreatePrecommit, WorkbenchTabCreateRequest,
     },
+    local_client::LocalOperationClock,
     terminal_projection::TerminalProjection,
 };
 use orchbee_client_server_protocol::{

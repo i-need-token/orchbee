@@ -370,9 +370,9 @@ impl CommandMailbox {
     pub(in crate::workbench_client) fn retain_setup_confirmation_required(
         &self,
         operation: &SetupOperation,
-        reason: &crate::local_client::workbench::workspace_setup::WorkbenchSetupPrecommit,
+        reason: &crate::exchange_values::workbench::workspace_setup::WorkbenchSetupPrecommit,
     ) -> bool {
-        use crate::local_client::workbench::workspace_setup::WorkbenchSetupPrecommit;
+        use crate::exchange_values::workbench::workspace_setup::WorkbenchSetupPrecommit;
         if !matches!(
             operation.command.action,
             orchbee_workbench_protocol::WorkbenchAction::ProjectDissolveIfIdle { .. }

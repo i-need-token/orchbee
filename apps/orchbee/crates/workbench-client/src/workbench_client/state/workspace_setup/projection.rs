@@ -272,7 +272,7 @@ impl SetupKnownCommit {
     fn validate_launch(
         &self,
         snapshot: &Snapshot,
-        commit: &crate::local_client::workbench::workspace_launch::WorkspaceLaunchCommit,
+        commit: &crate::exchange_values::workbench::workspace_launch::WorkspaceLaunchCommit,
     ) -> Option<ClientContextTabs> {
         use orchbee_workbench_protocol::{WorkbenchTerminalOutcome, WorkspacePlacement};
         let WorkbenchAction::WorkspaceLaunch {

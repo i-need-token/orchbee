@@ -10,7 +10,7 @@ use crate::workbench_client::workbench_projection::{
     ClientProjectionDivergence, MovedTabExpectation, validate_canonical_refresh, validate_moved_tab,
 };
 use crate::{
-    local_client::workbench::{WorkbenchTabMoveCommit, WorkbenchTabMovePrecommit},
+    exchange_values::workbench::{WorkbenchTabMoveCommit, WorkbenchTabMovePrecommit},
     workbench_client::workbench_projection::ClientContextTabs,
 };
 use orchbee_workbench_protocol::{

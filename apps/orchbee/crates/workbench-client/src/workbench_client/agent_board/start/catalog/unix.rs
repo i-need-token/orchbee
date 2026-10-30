@@ -7,7 +7,7 @@ use std::{
 };
 pub(super) fn directory() -> std::io::Result<PathBuf> {
     Err(
-        crate::tui_capabilities::Unsupported(crate::tui_capabilities::Capability::AgentLaunch)
+        crate::host_capabilities::Unsupported(crate::host_capabilities::Capability::AgentLaunch)
             .into(),
     )
 }

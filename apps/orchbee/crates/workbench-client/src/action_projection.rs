@@ -4,8 +4,8 @@
 //! module only projects the stable identity and discovery metadata that help and menus must agree
 //! on. Availability is supplied by the owning UI snapshot; it is never inferred here.
 
-use crate::action_menu::MenuAction;
-use crate::client_view::{ClientAction, PanelDirection, PrefixAction};
+use crate::client_actions::{ClientAction, MenuAction, PrefixAction};
+use crate::localization::PanelDirection;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ActionIdentity<'a> {
@@ -323,53 +323,6 @@ const fn move_panel(direction: PanelDirection) -> ActionMetadata<'static> {
         PanelDirection::Up => "workbench.panel.active.move-up",
     };
     built_in(id, ActionCategory::Pane, PANE)
-}
-
-/// Resolves only bindings whose dispatch target has the same meaning as this menu entry.
-///
-/// Stable metadata identity is deliberately insufficient here: a prefix action aimed at the
-/// current Tab, Workspace, or Pane must not be advertised for an exact background menu target.
-pub(crate) fn menu_binding_action(
-    target: &crate::action_menu::MenuTarget,
-    action: crate::action_menu::MenuAction,
-) -> Option<PrefixAction> {
-    use crate::action_menu::{MenuAction as M, MenuTarget as T};
-    use ClientAction as A;
-
-    if let T::Drawn { target, .. } = target {
-        return menu_binding_action(target, action);
-    }
-
-    let action = match (target, action) {
-        (T::Global | T::Create(None), M::NewWorkspace) => {
-            PrefixAction::Client(A::RequestWorkspaceCreate)
-        }
-        (T::Global | T::Create(None), M::NewWorktree) => {
-            PrefixAction::Client(A::RequestWorktreeCreate)
-        }
-        (T::Global | T::Create(None), M::OpenWorktree) => {
-            PrefixAction::Client(A::RequestWorktreeOpen)
-        }
-        (T::Global, M::SplitPanel(direction)) => PrefixAction::Client(A::SplitPanel(direction)),
-        (T::Global, M::ClosePane) => PrefixAction::Client(A::ClosePanel),
-        (T::Global, M::Zoom) => PrefixAction::Client(A::ToggleZoom),
-        (T::Global, M::MovePanel(direction)) => PrefixAction::Client(A::MovePanel(direction)),
-        (T::Global, M::RenameTab) => PrefixAction::Client(A::RequestRenameTab),
-        (T::Global, M::Copy) => PrefixAction::Client(A::EnterCopyMode),
-        (T::Global, M::Resize) => PrefixAction::Client(A::EnterResizeMode),
-        (T::Global, M::Reload) => PrefixAction::Client(A::ReloadConfiguration),
-        (T::Global, M::Settings) => PrefixAction::Client(A::OpenSettings),
-        (T::Global, M::Machines) => PrefixAction::Client(A::OpenMachines),
-        (T::Global, M::Help) => PrefixAction::ShowHelp,
-        (T::Global, M::Sidebar) => PrefixAction::SidebarToggle,
-        (T::Global, M::Navigator) => PrefixAction::NavigatorToggle,
-        (T::Global, M::AgentBoard) => PrefixAction::BoardToggle,
-        (T::Global, M::ReleasePointer) => PrefixAction::Client(A::TogglePointerCapture),
-        (T::Global, M::Detach) => PrefixAction::Client(A::Exit),
-        (T::TabCreate(_), M::NewTab) => PrefixAction::Client(A::CreateTab),
-        _ => return None,
-    };
-    Some(action)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

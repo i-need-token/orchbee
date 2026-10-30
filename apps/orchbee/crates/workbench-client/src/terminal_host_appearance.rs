@@ -1,5 +1,6 @@
 //! One bounded outer-terminal default-color probe; replies never enter pane or editor input.
 
+use crate::host_appearance::{HostAppearance, HostColors};
 pub(crate) use crate::terminal_events::appearance::{ColorReply, ColorTarget};
 use std::fmt;
 #[cfg(windows)]
@@ -17,22 +18,6 @@ pub(crate) fn system_fallback() -> HostAppearance {
     {
         HostAppearance::Unknown
     }
-}
-
-/// The outer host's observed background polarity, independent of the System theme fallback.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum HostAppearance {
-    Dark,
-    Light,
-    #[default]
-    Unknown,
-}
-
-/// Colors captured from the outer terminal, never from a retained child frame.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) struct HostColors {
-    pub(crate) foreground: Option<u32>,
-    pub(crate) background: Option<u32>,
 }
 
 /// The one ordered query for the host's default foreground and background colors.

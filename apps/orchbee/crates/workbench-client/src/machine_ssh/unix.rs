@@ -2,7 +2,8 @@
 use super::Output;
 use std::{io, path::PathBuf, process::Command, time::Instant};
 fn unsupported() -> io::Error {
-    crate::tui_capabilities::Unsupported(crate::tui_capabilities::Capability::SavedMachines).into()
+    crate::host_capabilities::Unsupported(crate::host_capabilities::Capability::SavedMachines)
+        .into()
 }
 pub fn executable() -> io::Result<PathBuf> {
     Err(unsupported())

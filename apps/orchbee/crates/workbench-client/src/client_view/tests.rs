@@ -81,7 +81,7 @@ fn classifies_the_wide_boundary_and_projects_the_sidebar_per_client() {
 
 #[test]
 fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_selection() {
-    use crate::terminal_host_appearance::{HostAppearance, HostColors};
+    use crate::host_appearance::{HostAppearance, HostColors};
     use orchbee_workbench_protocol::{
         ApplicationAppearance as Application, TerminalDisplayAppearance as Terminal,
     };
@@ -139,7 +139,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
     );
     assert!(host.configure_host_terminal(
         HostAppearance::Dark,
-        crate::terminal_host_appearance::HostColors {
+        crate::host_appearance::HostColors {
             foreground: Some(0x123456),
             background: Some(0x203040),
         },

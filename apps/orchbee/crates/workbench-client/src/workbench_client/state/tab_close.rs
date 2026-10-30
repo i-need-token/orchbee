@@ -4,7 +4,7 @@
 
 use super::{AttachmentKey, ClientNotice, PaneKey};
 use crate::{
-    local_client::workbench::WorkbenchTabCloseAccepted,
+    exchange_values::workbench::WorkbenchTabCloseAccepted,
     localization::CloseImpact,
     tui_presentation::{GeometrySettlement, PresentationPhase},
     workbench_client::workbench_projection::ClientTerminalBinding,

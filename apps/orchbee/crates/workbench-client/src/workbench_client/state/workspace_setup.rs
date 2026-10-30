@@ -20,7 +20,7 @@ use super::{
     ClientContextTabs, ClientPhase, NavigatorRefreshStatus, OperationDeadlines, PreparedRefresh,
     SelectedTab, WorkbenchClientState, validate_canonical_refresh,
 };
-use crate::local_client::workbench::workspace_setup::{
+use crate::exchange_values::workbench::workspace_setup::{
     WorkbenchSetupCommit, WorkbenchSetupRequest,
 };
 use crate::tui_presentation::PresentationPhase;

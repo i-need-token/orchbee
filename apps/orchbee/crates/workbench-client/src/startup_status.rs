@@ -9,7 +9,6 @@
 /// in this one enum so both callers classify the same verdict type.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StartupFailure {
-    #[cfg(windows)]
     AlreadyInSession,
     Terminal,
     Cohort,
@@ -22,6 +21,5 @@ pub enum StartupFailure {
     TerminalUnavailable,
     OutcomeUnknown,
     Interface,
-    #[cfg(windows)]
     Configuration,
 }

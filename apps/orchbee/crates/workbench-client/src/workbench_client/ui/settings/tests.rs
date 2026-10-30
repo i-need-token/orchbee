@@ -178,7 +178,7 @@ fn captures_whole_shell_settings_alignment_frames() {
             crate::localization::Locale::EnUs,
             crate::tui_theme::Theme::application_with_host(
                 default_appearance,
-                crate::terminal_host_appearance::HostAppearance::Unknown,
+                crate::host_appearance::HostAppearance::Unknown,
                 crate::tui_theme::ColorLevel::Truecolor,
             ),
             "alignment-settings-draft-en-us-120x40-default",

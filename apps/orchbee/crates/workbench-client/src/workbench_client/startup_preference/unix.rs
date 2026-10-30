@@ -6,8 +6,8 @@ use std::{
 };
 
 pub(super) fn storage_path(_runtime: &Path) -> io::Result<PathBuf> {
-    Err(
-        crate::tui_capabilities::Unsupported(crate::tui_capabilities::Capability::PositionStorage)
-            .into(),
+    Err(crate::host_capabilities::Unsupported(
+        crate::host_capabilities::Capability::PositionStorage,
     )
+    .into())
 }

@@ -1,9 +1,7 @@
 //! Composition policy for optional host effects. Shared state and protocol operations stay available.
-use crate::client_view::ClientAction;
+use crate::client_actions::ClientAction;
 
 pub use crate::host_capabilities::Capability;
-#[cfg(not(windows))]
-pub use crate::host_capabilities::Unsupported;
 
 /// Select the host effect required by this view intent; availability is a separate input.
 pub(crate) fn for_action(action: &ClientAction) -> Option<Capability> {
@@ -23,7 +21,7 @@ pub(crate) fn for_action(action: &ClientAction) -> Option<Capability> {
 
 /// The existing default-shell adapter admits POSIX login mode only.
 pub(crate) const fn login_shell_supported() -> bool {
-    cfg!(unix)
+    crate::host_capabilities::login_shell_available()
 }
 
 /// Immutable composition input. Pure UI traces can exercise any capability set on any host.
@@ -45,13 +43,19 @@ impl Capabilities {
             login_shell: true,
         }
     }
+    /// Admits exactly the effects whose host adapters exist on this build.
     pub const fn for_host() -> Self {
+        let mut effects = Self::none().effects;
+        let mut index = 0;
+        while index < Capability::ALL.len() {
+            let capability = Capability::ALL[index];
+            if capability.available() {
+                effects |= 1 << capability as u8;
+            }
+            index += 1;
+        }
         Self {
-            effects: if cfg!(windows) {
-                Self::all().effects
-            } else {
-                Self::none().effects
-            },
+            effects,
             login_shell: login_shell_supported(),
         }
     }

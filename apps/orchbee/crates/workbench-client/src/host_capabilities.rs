@@ -21,6 +21,20 @@ pub enum Capability {
 pub struct Unsupported(pub Capability);
 
 impl Capability {
+    /// Every optional effect, in declaration order.
+    pub(crate) const ALL: [Self; 10] = [
+        Self::Clipboard,
+        Self::Browser,
+        Self::SavedMachines,
+        Self::DirectoryInput,
+        Self::AgentLaunch,
+        Self::PositionStorage,
+        Self::ConfigurationFile,
+        Self::SystemNotification,
+        Self::WindowTitle,
+        Self::Graphics,
+    ];
+
     pub const fn available(self) -> bool {
         // These capabilities currently have Windows adapters. The terminal, local transport,
         // shared Workbench operations and client-local interaction are separate capabilities.
@@ -41,6 +55,17 @@ impl Capability {
     pub fn require(self) -> Result<(), Unsupported> {
         self.available().then_some(()).ok_or(Unsupported(self))
     }
+}
+
+/// The existing default-shell adapter admits POSIX login mode only.
+pub(crate) const fn login_shell_available() -> bool {
+    cfg!(unix)
+}
+
+/// Only the Windows local activation adapter retains a diagnosable startup checkpoint when
+/// recovery is required; other hosts refuse without starting a replacement process.
+pub(crate) const fn startup_recovery_checkpoint() -> bool {
+    cfg!(windows)
 }
 
 impl std::fmt::Display for Unsupported {

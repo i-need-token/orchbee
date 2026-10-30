@@ -31,6 +31,7 @@ Client 运行时。它从不依赖二进制，从不解析调用，也从不写�
 
 crate 内部模块遵循[模块分层](docs/module-layers.zh-CN.md)：每个模块所在的层、允许的引用方向、
 状态归属和组件位置。
+[TUI 组件](docs/tui-components.zh-CN.md)参考列出共享的基础控件和重复组合。
 
 ## 测试支持
 
@@ -58,4 +59,4 @@ crate 内部模块遵循[模块分层](docs/module-layers.zh-CN.md)：每个模�
 [仓库验证门禁](../../../../docs/zh-CN/VERIFICATION.md)。
 导出的模块和条目必须对应真实应用消费者，并保留私有测试的归属。
 
-<!-- documentation-pairing: english-sha256=9105788638bc05110ab4bba2328ea73a4259f0b3a3889167c3fee014bbd3986c zh-cn-sha256=7d4f3100ff07f53b780b8179e40f3249e0a5ab6db4ec34f2e874087368c6f6fa -->
+<!-- documentation-pairing: english-sha256=052dc18995aabec1a018034e16edc721d7166a95d0b2dd09e9ca9ade10ea5336 zh-cn-sha256=7f8c90d7862963aefcaa78705c762ed371747c2d80773c14f402471d0f001199 -->
