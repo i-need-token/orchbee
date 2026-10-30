@@ -186,7 +186,7 @@ impl WorkbenchClientUi {
             self.cancel_setup_draft(token);
         }
         self.worktrees.dismiss_focus();
-        self.board.close();
+        self.board_reads.close_board(&mut self.board);
         if let Some(mailbox) = mailbox {
             for index in 0..self.projections.len() {
                 if self.retirement_failure.is_some() {

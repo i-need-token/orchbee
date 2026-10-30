@@ -40,7 +40,7 @@ impl Port {
             Some(AgentBoardKeyAction::Jump) if self.board.selected_is_shown() => {
                 self.board.request_jump();
             }
-            Some(AgentBoardKeyAction::Refresh) => self.board.request_refresh(),
+            Some(AgentBoardKeyAction::Refresh) => self.board.request_refresh(Instant::now()),
             Some(AgentBoardKeyAction::Jump | AgentBoardKeyAction::Close) => {}
             None => {}
         }
@@ -48,7 +48,7 @@ impl Port {
     }
 
     fn click_agent_board_control(&mut self, target: &AgentBoardControlTarget) -> bool {
-        self.board.control_drawn(target)
+        self.board.control_drawn(target, Instant::now())
     }
 
     fn agent_board_dismiss(&mut self) {

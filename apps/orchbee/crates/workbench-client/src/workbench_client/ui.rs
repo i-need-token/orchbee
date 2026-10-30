@@ -1211,6 +1211,8 @@ pub(super) struct WorkbenchClientUi {
     outer_focused: Option<bool>,
     state: Option<WorkbenchClientState>,
     board: super::agent_board::AgentBoard,
+    /// The Board's read lane; its answers settle into `board`.
+    board_reads: agent_board::BoardReads,
     /// The Board's catalog and startup jobs; they settle into `board`'s start state.
     start_jobs: super::agent_board::start::jobs::Jobs,
     worktrees: worktree_launch::Coordinator,
@@ -1327,9 +1329,9 @@ impl WorkbenchClientUi {
             capabilities,
             mailbox: Some(mailbox),
             board: super::agent_board::AgentBoard::new(
-                clock.clone(),
                 capabilities.supports(crate::tui_capabilities::Capability::AgentLaunch),
             ),
+            board_reads: agent_board::BoardReads::new(clock.clone()),
             start_jobs: Default::default(),
             worktrees: worktree_launch::Coordinator::default(),
             menus: action_menus::MenuEpisode::default(),
@@ -1559,7 +1561,7 @@ impl WorkbenchClientUi {
             let _closed = mailbox.close(CarrierFailure::Closed);
         }
         self.start_jobs.request_stop();
-        self.board.request_stop();
+        self.board_reads.request_stop();
         self.attention.request_stop();
         self.reports.request_stop();
         self.graphics.request_stop();
@@ -1577,7 +1579,7 @@ impl WorkbenchClientUi {
         self.request_stop();
         [
             self.start_jobs.stop_before(deadline),
-            self.board.stop_before(deadline),
+            self.board_reads.stop_before(deadline),
             self.attention.stop_before(deadline),
             self.reports.stop_before(deadline),
             self.graphics.stop_before(deadline),
@@ -2747,7 +2749,7 @@ impl WorkbenchClientUi {
         // navigator, help, sidebar, modals, and pane operations all take
         // the overlay slot back.
         if !matches!(action, ClientAction::ToggleAgentBoard) {
-            self.board.close();
+            self.board_reads.close_board(&mut self.board);
         }
         if matches!(
             action,
@@ -4460,7 +4462,7 @@ impl WorkbenchClientUi {
         if self.retirement_failure.is_none() {
             self.retirement_poll_serial = self.ordinary_poll_serial;
         }
-        self.board.close();
+        self.board_reads.close_board(&mut self.board);
         self.reports.close();
         self.graphics.close();
         self.overlays.close();

@@ -1,8 +1,8 @@
 //! Board unit tests: the key map, selection/scroll bounds, the
 //! painted-verdict input gate, jump refusal and expiry paths, the pure
-//! staged-jump planner, and the presentation index join — plus the
-//! Linux-only lane outcome application. Nothing here needs a live OBAP
-//! endpoint; lane outcomes are injected as data.
+//! staged-jump planner, and the presentation index join — plus read
+//! request and answer settlement. Nothing here needs a live OBAP endpoint
+//! or a lane; requests are accepted or refused and answers injected as data.
 
 use super::*;
 mod mouse;
@@ -19,10 +19,24 @@ use orchbee_workbench_protocol::{
     WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
 };
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 
 fn clock() -> crate::local_client::LocalOperationClock {
     adjustable_operation_clock(Arc::new(AtomicU64::new(0)))
+}
+
+/// A read lane that accepts every request.
+fn accepted(_: AgentBoardReadRequest) -> Result<(), AgentBoardReadRefusal> {
+    Ok(())
+}
+
+/// No read lane can serve any request.
+fn no_lane(_: AgentBoardReadRequest) -> Result<(), AgentBoardReadRefusal> {
+    Err(AgentBoardReadRefusal::LaneUnavailable)
+}
+
+fn no_preference(_: &AgentPresentationAttachment) -> bool {
+    false
 }
 
 #[test]
@@ -112,7 +126,7 @@ fn summary(session: &str, attachments: Vec<AgentPresentationAttachment>) -> Agen
 }
 
 fn board_with(sessions: &[&str]) -> AgentBoard {
-    let mut board = AgentBoard::new(clock(), true);
+    let mut board = AgentBoard::new(true);
     board.rows = sessions
         .iter()
         .map(|id| AgentBoardRow::from_summary(summary(id, vec![])))
@@ -125,17 +139,17 @@ fn one_started_completion_requests_exactly_one_refresh() {
     use crate::agent_start::{DeliveryDisposition, Report, ReservationState, Verdict};
     use orchbee_agent_observation_protocol::{AgentName, ObapRequestId};
 
-    let mut board = AgentBoard::new(clock(), true);
+    let mut board = AgentBoard::new(true);
     let mut jobs = start::jobs::Jobs::default();
     let origin = crate::local_client::test_support::server::disconnected_origin();
     jobs.set_origin(origin.clone());
-    board.set_origin(origin);
+    board.set_origin_locality(origin.is_local());
     board.open();
     board.start.install_catalog(&["codex"]);
     board.start.set_name("alpha");
     board.start.accept_without_task();
     let target = panel_id(1);
-    assert!(jobs.start(&mut board.start, board.epoch, target, board.clock.clone()));
+    assert!(jobs.start(&mut board.start, board.epoch, target, clock()));
     let report = Report {
         name: AgentName::parse("alpha").unwrap(),
         provider: AgentProviderId::parse("codex").unwrap(),
@@ -151,10 +165,14 @@ fn one_started_completion_requests_exactly_one_refresh() {
     };
     assert!(jobs.queue_completion_t(&board.start, report));
     board.intent = None;
-    assert!(board.drain_start(|start, admission| jobs.drain(start, admission)));
+    assert!(board.drain_start(Instant::now(), |start, admission| {
+        jobs.drain(start, admission)
+    }));
     assert!(matches!(board.intent, Some(BoardIntent::Refresh)));
     board.intent = None;
-    assert!(!board.drain_start(|start, admission| jobs.drain(start, admission)));
+    assert!(!board.drain_start(Instant::now(), |start, admission| {
+        jobs.drain(start, admission)
+    }));
     assert!(board.intent.is_none());
 }
 
@@ -393,7 +411,7 @@ fn first_geometry_block_refuses_and_a_stale_episode_cannot_reopen() {
 
 #[test]
 fn covered_board_rejects_painted_row_and_control_activation() {
-    let mut board = AgentBoard::new(clock(), true);
+    let mut board = AgentBoard::new(true);
     board.rows = vec![AgentBoardRow::from_summary(summary(
         "s-1",
         vec![attachment(&hex(9), true)],
@@ -407,14 +425,14 @@ fn covered_board_rejects_painted_row_and_control_activation() {
     board.settle_draw(None);
 
     assert!(!board.select_drawn_row(&row));
-    assert!(!board.control_drawn(&open));
+    assert!(!board.control_drawn(&open, Instant::now()));
     assert!(board.intent.is_none(), "hidden Open cannot queue a jump");
     assert_eq!(board.selection, 0);
 }
 
 #[test]
 fn request_jump_refuses_a_row_without_navigable_attachment() {
-    let mut board = AgentBoard::new(clock(), true);
+    let mut board = AgentBoard::new(true);
     board.rows = vec![AgentBoardRow::from_summary(summary(
         "s-1",
         vec![attachment(&hex(9), false)],
@@ -429,7 +447,7 @@ fn request_jump_refuses_a_row_without_navigable_attachment() {
 
 #[test]
 fn request_jump_on_a_navigable_row_queues_the_intent() {
-    let mut board = AgentBoard::new(clock(), true);
+    let mut board = AgentBoard::new(true);
     board.rows = vec![AgentBoardRow::from_summary(summary(
         "s-1",
         vec![attachment(&hex(9), true)],
@@ -449,7 +467,7 @@ fn request_jump_on_a_navigable_row_queues_the_intent() {
 
 #[test]
 fn expire_jump_reports_budget_exhaustion() {
-    let mut board = AgentBoard::new(clock(), true);
+    let mut board = AgentBoard::new(true);
     board.open();
     let deadline = Instant::now();
     board.jump = Some(BoardJump {
@@ -667,7 +685,7 @@ fn jump_plan_reattaches_a_dead_viewer_and_never_lands_on_it() {
 
 #[test]
 fn a_new_jump_supersedes_at_request_time_while_the_lane_credit_stays_held() {
-    let mut board = AgentBoard::new(clock(), true);
+    let mut board = AgentBoard::new(true);
     board.rows = vec![
         AgentBoardRow::from_summary(summary("s-1", vec![attachment(&hex(9), true)])),
         AgentBoardRow::from_summary(summary("s-2", vec![attachment(&hex(10), true)])),
@@ -695,13 +713,13 @@ fn a_new_jump_supersedes_at_request_time_while_the_lane_credit_stays_held() {
         board.inflight,
         Some(BoardInflight::JumpGet { serial: 7 })
     ));
-    assert!(!board.drive_intent(Instant::now()));
+    assert!(!board.drive_intent(Instant::now(), accepted));
     assert!(matches!(board.intent, Some(BoardIntent::Jump { .. })));
 }
 
 #[test]
 fn a_refused_enter_preserves_the_prior_jump() {
-    let mut board = AgentBoard::new(clock(), true);
+    let mut board = AgentBoard::new(true);
     board.rows = vec![AgentBoardRow::from_summary(summary(
         "s-1",
         vec![attachment(&hex(9), false)],
@@ -721,7 +739,7 @@ fn a_refused_enter_preserves_the_prior_jump() {
 
 #[test]
 fn fail_jump_drops_the_stage_but_never_the_lane_credit() {
-    let mut board = AgentBoard::new(clock(), true);
+    let mut board = AgentBoard::new(true);
     board.open();
     board.jump = Some(BoardJump {
         serial: 7,
@@ -742,12 +760,11 @@ fn fail_jump_drops_the_stage_but_never_the_lane_credit() {
 
 #[test]
 fn reopen_preserves_last_good_age_and_rides_out_the_residual_cooldown() {
-    let elapsed = Arc::new(AtomicU64::new(0));
-    let mut board = AgentBoard::new(adjustable_operation_clock(elapsed.clone()), true);
+    let mut board = AgentBoard::new(true);
     board.open();
     board.rows = vec![AgentBoardRow::from_summary(summary("s-1", vec![]))];
     board.rows_from_complete = true;
-    let installed = board.clock.now();
+    let installed = Instant::now();
     board.rows_at = Some(installed);
     board.last_read_end = Some(installed);
     board.last_summary = Some(AgentBoardSummary {
@@ -758,7 +775,6 @@ fn reopen_preserves_last_good_age_and_rides_out_the_residual_cooldown() {
     board.close();
     // Reopen inside the cooldown window: last-good rows, their install
     // age, and the sidebar summary all survive the close.
-    elapsed.store(1_000, Ordering::SeqCst);
     board.open();
     assert_eq!(board.rows_at, Some(installed));
     let summary = board.summary().expect("summary survives the reopen");
@@ -768,13 +784,15 @@ fn reopen_preserves_last_good_age_and_rides_out_the_residual_cooldown() {
     );
     // The open-time refresh waits out the residual cooldown instead of
     // issuing early or being dropped.
-    assert!(!board.drive_intent(board.clock.now()));
+    assert!(!board.drive_intent(installed + Duration::from_secs(1), no_lane));
     assert!(matches!(board.intent, Some(BoardIntent::Refresh)));
-    // Past the cooldown the same queued intent issues for real — on this
-    // lane-less board the attempt reports the honest lane failure.
-    elapsed.store(3_000, Ordering::SeqCst);
-    assert!(board.drive_intent(board.clock.now()));
-    assert!(matches!(board.read, AgentBoardRead::Failed(_)));
+    // Past the cooldown the same queued intent issues for real — refused
+    // for want of a lane, the attempt reports the honest lane failure.
+    assert!(board.drive_intent(installed + Duration::from_secs(3), no_lane));
+    assert_eq!(
+        board.read,
+        AgentBoardRead::Failed(AgentBoardReadFailure::LaneUnavailable)
+    );
     assert!(board.intent.is_none());
 }
 
@@ -890,8 +908,8 @@ fn presentation_index_resolves_only_live_panel_identities() {
 
 #[test]
 fn request_refresh_preserves_a_queued_jump_intent() {
-    let elapsed = Arc::new(AtomicU64::new(0));
-    let mut board = AgentBoard::new(adjustable_operation_clock(elapsed.clone()), true);
+    let now = Instant::now();
+    let mut board = AgentBoard::new(true);
     board.rows = vec![AgentBoardRow::from_summary(summary("s-1", vec![]))];
     board.open();
     // Enter queued a jump behind a busy round — `r` is consumed, never
@@ -899,77 +917,100 @@ fn request_refresh_preserves_a_queued_jump_intent() {
     board.intent = Some(BoardIntent::Jump {
         target: session_id("s-1"),
     });
-    board.request_refresh();
+    board.request_refresh(now);
     assert!(matches!(board.intent, Some(BoardIntent::Jump { .. })));
     // A completed round then a fully elapsed cooldown — the queued jump
     // still holds the single intent slot.
-    board.last_read_end = Some(Instant::now());
-    elapsed.store(10_000, Ordering::SeqCst);
-    board.request_refresh();
+    board.last_read_end = Some(now);
+    let later = now + Duration::from_secs(10);
+    board.request_refresh(later);
     assert!(matches!(board.intent, Some(BoardIntent::Jump { .. })));
     // With no jump queued the same request still queues a refresh.
     board.intent = None;
-    board.request_refresh();
+    board.request_refresh(later);
     assert!(matches!(board.intent, Some(BoardIntent::Refresh)));
 }
 
-mod lane_outcomes {
+mod read_answers {
     use super::*;
-    use crate::local_client::test_support::server::disconnected_origin;
     use orchbee_agent_observation_protocol::{
         AgentCapability, AgentSessionDetail, AgentSessionSnapshot, AgentTurnState,
     };
 
+    fn settle_list(
+        board: &mut AgentBoard,
+        items: Vec<AgentSessionSummary>,
+        complete: bool,
+        now: Instant,
+    ) {
+        let episode = board.episode();
+        board.settle_read(
+            AgentBoardReadEvent::Answer(AgentBoardReadAnswer::List {
+                episode,
+                result: Ok(AgentListRound { items, complete }),
+            }),
+            now,
+            &mut no_preference,
+        );
+    }
+
+    fn settle_get(
+        board: &mut AgentBoard,
+        serial: u64,
+        result: Result<AgentGetOutcome, AgentReadFailure>,
+    ) {
+        let episode = board.episode();
+        board.settle_read(
+            AgentBoardReadEvent::Answer(AgentBoardReadAnswer::Get {
+                episode,
+                serial,
+                result,
+            }),
+            Instant::now(),
+            &mut no_preference,
+        );
+    }
+
     #[test]
     fn client_path_catalog_waits_for_the_same_open_episodes_complete_empty_read() {
-        let mut board = AgentBoard::new(clock(), true);
+        let mut board = AgentBoard::new(true);
         let mut jobs = start::jobs::Jobs::default();
-        board.set_origin(crate::local_client::test_support::server::disconnected_remote_origin());
+        board.set_origin_locality(false);
         board.open_with_start_catalog(Some(std::ffi::OsString::from("C:\\client-bin")));
-        assert!(!board.drain_start(|start, admission| jobs.drain(start, admission)));
+        assert!(!board.drain_start(Instant::now(), |start, admission| {
+            jobs.drain(start, admission)
+        }));
         assert_eq!(board.start.catalog_status(), start::CatalogStatus::Loading);
 
         board.inflight = Some(BoardInflight::ListRound);
-        board.apply_list_outcome(
-            board.epoch,
-            Ok(lane::ListRound {
-                revision: Some(1),
-                items: vec![],
-                complete: false,
-            }),
-            Instant::now(),
-        );
-        assert!(!board.drain_start(|start, admission| jobs.drain(start, admission)));
+        settle_list(&mut board, vec![], false, Instant::now());
+        assert!(!board.drain_start(Instant::now(), |start, admission| {
+            jobs.drain(start, admission)
+        }));
         board.inflight = Some(BoardInflight::ListRound);
-        board.apply_list_outcome(
-            board.epoch,
-            Ok(lane::ListRound {
-                revision: Some(2),
-                items: vec![summary("s-1", vec![])],
-                complete: true,
-            }),
+        settle_list(
+            &mut board,
+            vec![summary("s-1", vec![])],
+            true,
             Instant::now(),
         );
-        assert!(!board.drain_start(|start, admission| jobs.drain(start, admission)));
+        assert!(!board.drain_start(Instant::now(), |start, admission| {
+            jobs.drain(start, admission)
+        }));
 
         board.inflight = Some(BoardInflight::ListRound);
-        board.apply_list_outcome(
-            board.epoch,
-            Ok(lane::ListRound {
-                revision: Some(3),
-                items: vec![],
-                complete: true,
-            }),
-            Instant::now(),
-        );
-        assert!(board.drain_start(|start, admission| jobs.drain(start, admission)));
+        settle_list(&mut board, vec![], true, Instant::now());
+        assert!(board.drain_start(Instant::now(), |start, admission| {
+            jobs.drain(start, admission)
+        }));
         assert_eq!(
             board.start.catalog_status(),
             start::CatalogStatus::Unavailable
         );
         board.close();
         assert!(
-            !board.drain_start(|start, admission| jobs.drain(start, admission)),
+            !board.drain_start(Instant::now(), |start, admission| jobs
+                .drain(start, admission)),
             "close fences deferred probe admission"
         );
         board.open_with_start_catalog(Some(std::ffi::OsString::from("C:\\client-bin")));
@@ -978,7 +1019,8 @@ mod lane_outcomes {
             AgentBoardRead::Ready { complete: true, .. }
         ));
         assert!(
-            !board.drain_start(|start, admission| jobs.drain(start, admission)),
+            !board.drain_start(Instant::now(), |start, admission| jobs
+                .drain(start, admission)),
             "a previous episode's complete-empty result cannot admit a probe"
         );
         board.close();
@@ -986,17 +1028,13 @@ mod lane_outcomes {
 
     #[test]
     fn list_outcome_replaces_rows_and_marks_incomplete() {
-        let mut board = AgentBoard::new(clock(), true);
+        let mut board = AgentBoard::new(true);
         board.open();
         board.inflight = Some(BoardInflight::ListRound);
-        let epoch = board.epoch;
-        board.apply_list_outcome(
-            epoch,
-            Ok(lane::ListRound {
-                revision: Some(1),
-                items: vec![summary("s-1", vec![]), summary("s-2", vec![])],
-                complete: false,
-            }),
+        settle_list(
+            &mut board,
+            vec![summary("s-1", vec![]), summary("s-2", vec![])],
+            false,
             Instant::now(),
         );
         assert_eq!(board.rows.len(), 2);
@@ -1012,17 +1050,19 @@ mod lane_outcomes {
 
     #[test]
     fn stale_epoch_outcome_is_dropped_without_touching_rows() {
-        let mut board = AgentBoard::new(clock(), true);
+        let mut board = AgentBoard::new(true);
         board.open();
         board.inflight = Some(BoardInflight::ListRound);
-        board.apply_list_outcome(
-            board.epoch + 1,
-            Ok(lane::ListRound {
-                revision: Some(1),
-                items: vec![summary("s-1", vec![])],
-                complete: true,
+        board.settle_read(
+            AgentBoardReadEvent::Answer(AgentBoardReadAnswer::List {
+                episode: AgentBoardEpisodeToken(board.epoch + 1),
+                result: Ok(AgentListRound {
+                    items: vec![summary("s-1", vec![])],
+                    complete: true,
+                }),
             }),
             Instant::now(),
+            &mut no_preference,
         );
         assert!(board.rows.is_empty());
         // The in-flight marker stays: the current epoch's request is
@@ -1034,31 +1074,18 @@ mod lane_outcomes {
     fn an_incomplete_round_keeps_the_last_good_rows_install_age() {
         // The bug lived on the real path: issue_list_round's InFlight
         // transition hid the installed rows' timestamp from
-        // apply_list_outcome. This drives spawn → send → InFlight for
-        // real instead of fabricating a Ready read state.
-        let elapsed = Arc::new(AtomicU64::new(0));
-        let mut board = AgentBoard::new(adjustable_operation_clock(elapsed.clone()), true);
+        // apply_list_outcome. This drives the issue → InFlight transition
+        // for real instead of fabricating a Ready read state.
+        let mut board = AgentBoard::new(true);
         board.open();
-        board.set_origin(disconnected_origin());
         let t0 = Instant::now();
-        board.issue_list_round(t0);
+        assert!(board.drive_intent(t0, accepted));
         assert!(matches!(board.read, AgentBoardRead::InFlight));
         assert!(matches!(board.inflight, Some(BoardInflight::ListRound)));
-        // The bounded lane admits the next round only after delivering this one, so wait for the
-        // real delivery and substitute its content.
-        let delivered = Instant::now() + Duration::from_secs(5);
-        while board.lane.as_mut().unwrap().take_outcome().is_none() {
-            assert!(Instant::now() < delivered, "the lane never delivered");
-            std::thread::yield_now();
-        }
-        let epoch = board.epoch;
-        board.apply_list_outcome(
-            epoch,
-            Ok(lane::ListRound {
-                revision: Some(1),
-                items: vec![summary("s-1", vec![]), summary("s-2", vec![])],
-                complete: true,
-            }),
+        settle_list(
+            &mut board,
+            vec![summary("s-1", vec![]), summary("s-2", vec![])],
+            true,
             t0,
         );
         assert!(matches!(
@@ -1069,20 +1096,11 @@ mod lane_outcomes {
             } if at == t0
         ));
         // Past the cooldown, `r` queues a second real round.
-        elapsed.store(10_000, Ordering::SeqCst);
-        board.request_refresh();
         let t1 = t0 + Duration::from_secs(5);
-        assert!(board.drive_intent(t1));
+        board.request_refresh(t1);
+        assert!(board.drive_intent(t1, accepted));
         assert!(matches!(board.read, AgentBoardRead::InFlight));
-        board.apply_list_outcome(
-            epoch,
-            Ok(lane::ListRound {
-                revision: Some(1),
-                items: vec![summary("s-1", vec![])],
-                complete: false,
-            }),
-            t1,
-        );
+        settle_list(&mut board, vec![summary("s-1", vec![])], false, t1);
         // The kept last_good rows carry their install age — not the
         // partial's landing time — through the read state and the
         // sidebar summary alike.
@@ -1102,21 +1120,17 @@ mod lane_outcomes {
 
     #[test]
     fn a_refresh_repairs_selection_by_identity_not_the_old_index() {
-        let mut board = AgentBoard::new(clock(), true);
+        let mut board = AgentBoard::new(true);
         board.open();
         board.inflight = Some(BoardInflight::ListRound);
-        let epoch = board.epoch;
-        board.apply_list_outcome(
-            epoch,
-            Ok(lane::ListRound {
-                revision: Some(1),
-                items: vec![
-                    summary("s-1", vec![]),
-                    summary("s-2", vec![]),
-                    summary("s-3", vec![]),
-                ],
-                complete: true,
-            }),
+        settle_list(
+            &mut board,
+            vec![
+                summary("s-1", vec![]),
+                summary("s-2", vec![]),
+                summary("s-3", vec![]),
+            ],
+            true,
             Instant::now(),
         );
         assert!(board.select_session(&session_id("s-3")));
@@ -1125,17 +1139,14 @@ mod lane_outcomes {
         // session occupies index 2 — an index-following repair would
         // land on it.
         board.inflight = Some(BoardInflight::ListRound);
-        board.apply_list_outcome(
-            epoch,
-            Ok(lane::ListRound {
-                revision: Some(1),
-                items: vec![
-                    summary("s-1", vec![]),
-                    summary("s-4", vec![]),
-                    summary("s-5", vec![]),
-                ],
-                complete: true,
-            }),
+        settle_list(
+            &mut board,
+            vec![
+                summary("s-1", vec![]),
+                summary("s-4", vec![]),
+                summary("s-5", vec![]),
+            ],
+            true,
             Instant::now(),
         );
         assert_eq!(board.selection, 0);
@@ -1144,42 +1155,35 @@ mod lane_outcomes {
 
     #[test]
     fn a_refresh_preserves_the_manual_top_row_independently_of_selection() {
-        let mut board = AgentBoard::new(clock(), true);
+        let mut board = AgentBoard::new(true);
         board.open();
         board.viewport_rows = 2;
         board.inflight = Some(BoardInflight::ListRound);
-        let epoch = board.epoch;
-        board.apply_list_outcome(
-            epoch,
-            Ok(lane::ListRound {
-                revision: Some(1),
-                items: vec![
-                    summary("s-1", vec![]),
-                    summary("s-2", vec![]),
-                    summary("s-3", vec![]),
-                    summary("s-4", vec![]),
-                ],
-                complete: true,
-            }),
+        settle_list(
+            &mut board,
+            vec![
+                summary("s-1", vec![]),
+                summary("s-2", vec![]),
+                summary("s-3", vec![]),
+                summary("s-4", vec![]),
+            ],
+            true,
             Instant::now(),
         );
         board.selection = 0;
         board.scroll = 2;
 
         board.inflight = Some(BoardInflight::ListRound);
-        board.apply_list_outcome(
-            epoch,
-            Ok(lane::ListRound {
-                revision: Some(2),
-                items: vec![
-                    summary("s-new", vec![]),
-                    summary("s-1", vec![]),
-                    summary("s-2", vec![]),
-                    summary("s-3", vec![]),
-                    summary("s-4", vec![]),
-                ],
-                complete: true,
-            }),
+        settle_list(
+            &mut board,
+            vec![
+                summary("s-new", vec![]),
+                summary("s-1", vec![]),
+                summary("s-2", vec![]),
+                summary("s-3", vec![]),
+                summary("s-4", vec![]),
+            ],
+            true,
             Instant::now(),
         );
 
@@ -1225,7 +1229,7 @@ mod lane_outcomes {
 
     #[test]
     fn get_outcome_orders_candidates_and_starts_navigating() {
-        let mut board = AgentBoard::new(clock(), true);
+        let mut board = AgentBoard::new(true);
         board.open();
         board.jump = Some(BoardJump {
             serial: 7,
@@ -1233,9 +1237,8 @@ mod lane_outcomes {
             deadline: Instant::now() + Duration::from_secs(5),
         });
         board.inflight = Some(BoardInflight::JumpGet { serial: 7 });
-        let epoch = board.epoch;
-        board.apply_get_outcome(
-            epoch,
+        settle_get(
+            &mut board,
             7,
             Ok(AgentGetOutcome::Found {
                 revision: AgentSafeInteger::new(1),
@@ -1245,7 +1248,6 @@ mod lane_outcomes {
                     vec![attachment(&hex(9), true), attachment(&hex(10), true)],
                 )),
             }),
-            &mut |_: &orchbee_agent_observation_protocol::AgentPresentationAttachment| false,
         );
         let Some(jump) = board.jump.as_ref() else {
             panic!("jump survives the verified get");
@@ -1263,7 +1265,7 @@ mod lane_outcomes {
 
     #[test]
     fn get_outcome_candidate_exhaustion_fails_gone() {
-        let mut board = AgentBoard::new(clock(), true);
+        let mut board = AgentBoard::new(true);
         board.open();
         board.jump = Some(BoardJump {
             serial: 7,
@@ -1280,7 +1282,7 @@ mod lane_outcomes {
 
     #[test]
     fn get_outcome_ended_lifecycle_refuses_before_navigation() {
-        let mut board = AgentBoard::new(clock(), true);
+        let mut board = AgentBoard::new(true);
         board.open();
         board.jump = Some(BoardJump {
             serial: 7,
@@ -1288,15 +1290,13 @@ mod lane_outcomes {
             deadline: Instant::now() + Duration::from_secs(5),
         });
         board.inflight = Some(BoardInflight::JumpGet { serial: 7 });
-        let epoch = board.epoch;
-        board.apply_get_outcome(
-            epoch,
+        settle_get(
+            &mut board,
             7,
             Ok(AgentGetOutcome::Found {
                 revision: AgentSafeInteger::new(1),
                 session: Box::new(detail("s-1", AgentLifecycle::Ended, vec![])),
             }),
-            &mut |_: &orchbee_agent_observation_protocol::AgentPresentationAttachment| false,
         );
         assert_eq!(board.notice, Some(JumpFailure::Ended));
         assert!(board.jump.is_none());
@@ -1304,7 +1304,7 @@ mod lane_outcomes {
 
     #[test]
     fn get_outcome_for_a_superseded_serial_is_dropped() {
-        let mut board = AgentBoard::new(clock(), true);
+        let mut board = AgentBoard::new(true);
         board.open();
         board.jump = Some(BoardJump {
             serial: 8,
@@ -1312,16 +1312,14 @@ mod lane_outcomes {
             deadline: Instant::now() + Duration::from_secs(5),
         });
         board.inflight = Some(BoardInflight::JumpGet { serial: 8 });
-        let epoch = board.epoch;
         // Serial 7's outcome arrives after serial 8 took over — dropped.
-        board.apply_get_outcome(
-            epoch,
+        settle_get(
+            &mut board,
             7,
             Ok(AgentGetOutcome::Found {
                 revision: AgentSafeInteger::new(1),
                 session: Box::new(detail("s-1", AgentLifecycle::Live, vec![])),
             }),
-            &mut |_: &orchbee_agent_observation_protocol::AgentPresentationAttachment| false,
         );
         assert!(matches!(
             board.inflight,
@@ -1334,81 +1332,88 @@ mod lane_outcomes {
     }
 
     #[test]
-    fn a_dead_lane_delivers_its_last_matching_outcome_before_release() {
-        // The thread already exited, but its final outcome was still
-        // queued: the drain applies it first — the serial match releases
-        // the credit and the outcome's own verdict (Gone, not the
-        // witness's Unavailable) reaches the user — and finished() then
-        // has nothing left to fail.
-        let mut board = AgentBoard::new(clock(), true);
+    fn a_dead_lanes_last_matching_answer_keeps_its_verdict_over_the_end() {
+        // The lane's final answer was still queued when its thread ended,
+        // so it settles before the end: the serial match releases the
+        // credit with the answer's own verdict (Gone, not the end's
+        // Unavailable), and the end then has nothing left to fail.
+        let mut board = AgentBoard::new(true);
         board.open();
-        let epoch = board.epoch;
-        board.install_lane_t(AgentReadLane::for_test(vec![LaneOutcome::Get {
-            epoch,
-            serial: 5,
-            result: Ok(AgentGetOutcome::Rejected {
-                reason: orchbee_agent_observation_protocol::AgentSessionRejectionReason::NotFound,
-            }),
-        }]));
         board.jump = Some(BoardJump {
             serial: 5,
             stage: JumpStage::Checking,
             deadline: Instant::now() + Duration::from_secs(8),
         });
         board.inflight = Some(BoardInflight::JumpGet { serial: 5 });
-        assert!(board.drain_lane(Instant::now(), &mut |_: &AgentPresentationAttachment| false));
+        settle_get(
+            &mut board,
+            5,
+            Ok(AgentGetOutcome::Rejected {
+                reason: orchbee_agent_observation_protocol::AgentSessionRejectionReason::NotFound,
+            }),
+        );
+        board.settle_read(
+            AgentBoardReadEvent::LaneEnded,
+            Instant::now(),
+            &mut no_preference,
+        );
         assert_eq!(board.notice, Some(JumpFailure::Gone));
         assert!(board.jump.is_none());
         assert!(board.inflight.is_none());
-        assert!(board.lane.is_none());
     }
 
     #[test]
-    fn a_dead_lane_releases_residual_credit_as_unavailable_only_after_finished() {
-        // An issued Get whose outcome will never arrive: the command
-        // landed on a channel whose thread was already gone. The drain
-        // finds nothing matching; the thread's exit is the only witness,
-        // and it releases the credit into the honest Unavailable verdict.
-        let mut board = AgentBoard::new(clock(), true);
+    fn a_dead_lane_releases_residual_credit_as_unavailable() {
+        // An issued Get whose answer will never arrive: the command
+        // landed on a channel whose thread was already gone. The lane's
+        // end is the only witness, and it releases the credit into the
+        // honest Unavailable verdict.
+        let mut board = AgentBoard::new(true);
         board.open();
-        board.install_lane_t(AgentReadLane::for_test(vec![]));
         board.jump = Some(BoardJump {
             serial: 5,
             stage: JumpStage::Checking,
             deadline: Instant::now() + Duration::from_secs(8),
         });
         board.inflight = Some(BoardInflight::JumpGet { serial: 5 });
-        assert!(board.drain_lane(Instant::now(), &mut |_: &AgentPresentationAttachment| false));
+        board.settle_read(
+            AgentBoardReadEvent::LaneEnded,
+            Instant::now(),
+            &mut no_preference,
+        );
         assert_eq!(board.notice, Some(JumpFailure::Unavailable));
         assert!(board.jump.is_none());
         assert!(board.inflight.is_none());
-        assert!(board.lane.is_none());
     }
 
     #[test]
-    fn a_dead_lane_drops_stale_outcomes_before_releasing_the_held_credit() {
-        // A superseded serial's outcome drains first and is dropped by
-        // its own correlation — it must not release the live credit nor
-        // fail the live jump. The finished() witness then releases the
-        // still-held credit into Unavailable.
-        let mut board = AgentBoard::new(clock(), true);
+    fn a_dead_lane_drops_stale_answers_before_releasing_the_held_credit() {
+        // A superseded serial's answer settles first and is dropped by its
+        // own correlation — it must not release the live credit nor fail
+        // the live jump. The lane's end then releases the still-held
+        // credit into Unavailable.
+        let mut board = AgentBoard::new(true);
         board.open();
-        let epoch = board.epoch;
-        board.install_lane_t(AgentReadLane::for_test(vec![LaneOutcome::Get {
-            epoch,
-            serial: 4,
-            result: Ok(AgentGetOutcome::Unavailable {
-                reason:
-                    orchbee_agent_observation_protocol::AgentUnavailableReason::RuntimeUnavailable,
-            }),
-        }]));
         board.jump = Some(BoardJump {
             serial: 5,
             stage: JumpStage::Checking,
             deadline: Instant::now() + Duration::from_secs(8),
         });
         board.inflight = Some(BoardInflight::JumpGet { serial: 5 });
-        assert!(board.drain_lane(Instant::now(), &mut |_: &AgentPresentationAttachment| false));
+        settle_get(
+            &mut board,
+            4,
+            Ok(AgentGetOutcome::Unavailable {
+                reason:
+                    orchbee_agent_observation_protocol::AgentUnavailableReason::RuntimeUnavailable,
+            }),
+        );
+        assert!(board.notice.is_none(), "the stale answer changes nothing");
+        board.settle_read(
+            AgentBoardReadEvent::LaneEnded,
+            Instant::now(),
+            &mut no_preference,
+        );
         assert_eq!(board.notice, Some(JumpFailure::Unavailable));
         assert!(board.jump.is_none());
         assert!(board.inflight.is_none());
@@ -1418,15 +1423,14 @@ mod lane_outcomes {
     fn a_dead_lane_releases_a_held_list_credit_as_unavailable() {
         // The same residual-credit witness for the read side: the
         // outstanding ListRound fails Unavailable — not Transport and
-        // never silently InFlight — once the exit is witnessed, and the
+        // never silently InFlight — once the end is witnessed, and the
         // cooldown starts from the witnessed failure.
-        let mut board = AgentBoard::new(clock(), true);
+        let mut board = AgentBoard::new(true);
         board.open();
-        board.install_lane_t(AgentReadLane::for_test(vec![]));
         board.inflight = Some(BoardInflight::ListRound);
         board.read = AgentBoardRead::InFlight;
         let now = Instant::now();
-        assert!(board.drain_lane(now, &mut |_: &AgentPresentationAttachment| false));
+        board.settle_read(AgentBoardReadEvent::LaneEnded, now, &mut no_preference);
         assert_eq!(
             board.read,
             AgentBoardRead::Failed(AgentBoardReadFailure::Unavailable)

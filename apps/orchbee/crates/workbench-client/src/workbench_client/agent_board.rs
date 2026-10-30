@@ -5,23 +5,20 @@
 //! server-owned — this module keeps only what the last completed read
 //! delivered and never synthesizes status of its own.
 //!
-//! The lane (Linux) runs the OBAP reads on a dedicated Client Connection
-//! spawned from `LocalClientOrigin` — never the native worker's
-//! connection, so a post-submission ambiguity there cannot retire the
-//! primary session.
+//! The Board holds no read lane. It issues each OBAP read as a typed
+//! [`AgentBoardReadRequest`] and settles each [`AgentBoardReadEvent`] the
+//! composition hands back; the composition owns the lane thread that runs
+//! the reads on a logical scope of the shared carrier.
 
 use std::time::{Duration, Instant};
 
 use orchbee_agent_observation_protocol::{
     AgentGetOutcome, AgentLifecycle, AgentObservationFreshness, AgentPresentationAttachment,
-    AgentPresentationVisibility, AgentProviderId, AgentSemanticStatus, AgentSessionId,
-    AgentSessionRejectionReason, AgentSessionSummary,
+    AgentPresentationVisibility, AgentProviderId, AgentSafeInteger, AgentSemanticStatus,
+    AgentSessionId, AgentSessionRejectionReason, AgentSessionSummary,
 };
 
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
-
-use super::agent_read_lane as lane;
-use lane::{AgentReadLane, LaneCommand, LaneOutcome};
 
 pub(super) mod start;
 #[cfg(test)]
@@ -51,8 +48,8 @@ pub struct AgentBoardRow {
     status: AgentSemanticStatus,
     lifecycle: AgentLifecycle,
     freshness: AgentObservationFreshness,
-    generation: orchbee_agent_observation_protocol::AgentSafeInteger,
-    sequence: orchbee_agent_observation_protocol::AgentSafeInteger,
+    generation: AgentSafeInteger,
+    sequence: AgentSafeInteger,
     attachments: Box<[AgentPresentationAttachment]>,
 }
 
@@ -599,11 +596,111 @@ enum BoardIntent {
     Jump { target: AgentSessionId },
 }
 
-/// The one outstanding lane request, correlated by kind (and jump serial).
+/// The one outstanding read request, correlated by kind (and jump serial).
 #[derive(Clone, Debug)]
 enum BoardInflight {
     ListRound,
     JumpGet { serial: u64 },
+}
+
+/// One canonical read the open Board asks for. The composition runs it on
+/// the Board's read lane; the answer carries `episode` and `serial` back
+/// unchanged, and the Board alone interprets them.
+#[derive(Debug)]
+pub(super) enum AgentBoardReadRequest {
+    /// Walk the whole Agent list within `deadline`.
+    List {
+        episode: AgentBoardEpisodeToken,
+        deadline: Instant,
+    },
+    /// Verify one session's attachments for jump `serial` within `deadline`.
+    Get {
+        episode: AgentBoardEpisodeToken,
+        serial: u64,
+        session: AgentSessionId,
+        deadline: Instant,
+    },
+}
+
+impl AgentBoardReadRequest {
+    /// The open Board episode that issued the request.
+    pub(super) const fn episode(&self) -> AgentBoardEpisodeToken {
+        match self {
+            Self::List { episode, .. } | Self::Get { episode, .. } => *episode,
+        }
+    }
+}
+
+/// Why the composition could not hand a request to a read lane.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum AgentBoardReadRefusal {
+    /// No lane could serve it: no origin yet, a retired lane's thread is
+    /// still exiting, or the lane thread could not start.
+    LaneUnavailable,
+    /// The live lane refused the command because its thread is gone; the
+    /// composition released that lane.
+    Rejected,
+}
+
+/// Why a read the lane ran produced no canonical answer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum AgentReadFailure {
+    /// The runtime answered `unavailable`.
+    Unavailable,
+    /// The runtime denied the read.
+    Denied,
+    /// Connect, transport, or post-submission ambiguity.
+    Transport,
+}
+
+/// One completed list walk. `complete` is false when the page bound or the
+/// restart budget was hit; the accumulated pages are still canonical and may
+/// be shown with the incomplete marker.
+#[derive(Debug)]
+pub(super) struct AgentListRound {
+    pub(super) items: Vec<AgentSessionSummary>,
+    pub(super) complete: bool,
+}
+
+/// The read lane's answer to one [`AgentBoardReadRequest`].
+#[derive(Debug)]
+pub(super) enum AgentBoardReadAnswer {
+    List {
+        episode: AgentBoardEpisodeToken,
+        result: Result<AgentListRound, AgentReadFailure>,
+    },
+    Get {
+        episode: AgentBoardEpisodeToken,
+        serial: u64,
+        result: Result<AgentGetOutcome, AgentReadFailure>,
+    },
+}
+
+/// What the composition settles into the Board from its read lane, in
+/// delivery order.
+#[derive(Debug)]
+pub(super) enum AgentBoardReadEvent {
+    Answer(AgentBoardReadAnswer),
+    /// The lane delivered an outcome of a kind the Board never requests.
+    Foreign,
+    /// The lane serving this episode ended after delivering every answer it
+    /// had queued, so no answer will arrive for an outstanding request.
+    LaneEnded,
+}
+
+/// Attention facts that the Board view overlays on canonical rows. The
+/// composition lends the attention owner; the Board never reaches it.
+pub(super) trait AgentRowAttention {
+    /// Whether the session has attention the user has not seen.
+    fn session_unread(&self, session: &AgentSessionId) -> bool;
+    /// Whether the user edited the session after this exact completion
+    /// observation.
+    fn session_completion_edited(
+        &self,
+        session: &AgentSessionId,
+        generation: AgentSafeInteger,
+        sequence: AgentSafeInteger,
+    ) -> bool;
 }
 
 /// An accepted jump in progress. `serial` is the generation the lane's
@@ -704,7 +801,7 @@ impl AgentBoardControlTarget {
 
 pub(super) struct AgentBoard {
     open: bool,
-    /// Bump on every open/close — lane outcomes carrying an older epoch
+    /// Bump on every open/close — read answers carrying an older episode
     /// are stale by construction and dropped.
     epoch: u64,
     presentation: PresentationPhase,
@@ -740,14 +837,6 @@ pub(super) struct AgentBoard {
     /// When the last list round finished — success or failure — the
     /// source of the read cooldown `r` never bypasses.
     last_read_end: Option<Instant>,
-    clock: crate::local_client::LocalOperationClock,
-    lane_origin: Option<crate::local_client::LocalClientOrigin>,
-    lane: Option<AgentReadLane>,
-    /// Lane handles whose threads are still exiting after a close or a
-    /// failed send — kept until `finished` so a spawn never overlaps a
-    /// live predecessor and teardown joins whatever remains instead of
-    /// leaving a detached thread.
-    dying_lanes: Vec<AgentReadLane>,
     start: start::State,
     start_catalog_path: Option<std::ffi::OsString>,
     start_catalog_ready_epoch: Option<u64>,
@@ -826,7 +915,7 @@ impl AgentBoard {
         AgentBoardActualDraw::new(token, visible_rows, first, selected)
     }
 
-    pub(super) fn control_drawn(&mut self, target: &AgentBoardControlTarget) -> bool {
+    pub(super) fn control_drawn(&mut self, target: &AgentBoardControlTarget, now: Instant) -> bool {
         if !self.interactive()
             || self
                 .current_draw()
@@ -837,7 +926,7 @@ impl AgentBoard {
         match target.control() {
             AgentBoardControl::Open if self.selected_is_shown() => self.request_jump(),
             AgentBoardControl::Open => return false,
-            AgentBoardControl::Refresh => self.request_refresh(),
+            AgentBoardControl::Refresh => self.request_refresh(now),
             AgentBoardControl::Close => self.close(),
             AgentBoardControl::Start => return false,
             AgentBoardControl::CancelStart => return self.start.cancel(),
@@ -867,10 +956,7 @@ impl AgentBoard {
         Some(self.token())
     }
 
-    pub(super) fn new(
-        clock: crate::local_client::LocalOperationClock,
-        launch_supported: bool,
-    ) -> Self {
+    pub(super) fn new(launch_supported: bool) -> Self {
         Self {
             open: false,
             epoch: 0,
@@ -892,23 +978,30 @@ impl AgentBoard {
             jump_serial: 0,
             notice: None,
             last_read_end: None,
-            clock,
-            lane_origin: None,
-            lane: None,
-            dying_lanes: Vec::new(),
             start: start::State::new(launch_supported),
             start_catalog_path: None,
             start_catalog_ready_epoch: None,
         }
     }
 
-    pub(super) fn set_origin(&mut self, origin: crate::local_client::LocalClientOrigin) {
-        self.start.set_origin_locality(origin.is_local());
-        self.lane_origin = Some(origin);
+    /// Whether the Client Connection's origin is this machine; only then is
+    /// the Client's own PATH evidence for the start catalog.
+    pub(super) fn set_origin_locality(&mut self, local: bool) {
+        self.start.set_origin_locality(local);
     }
 
     pub(super) const fn is_open(&self) -> bool {
         self.open
+    }
+
+    /// The open episode that the composition's read lane may serve; `None`
+    /// while the Board is closed.
+    pub(super) const fn open_episode(&self) -> Option<AgentBoardEpisodeToken> {
+        if self.open {
+            Some(self.episode())
+        } else {
+            None
+        }
     }
     /// Capture presence is synchronous from `open`: a key arriving before
     /// the first paint still belongs to the board and never falls through.
@@ -943,6 +1036,9 @@ impl AgentBoard {
         self.start_catalog_path = path;
     }
 
+    /// Ends the open episode. The epoch bump invalidates every answer the
+    /// episode's requests still owe and stops scheduling; the composition then
+    /// retires the read lane that served the episode.
     pub(super) fn close(&mut self) {
         self.open = false;
         self.epoch += 1;
@@ -956,15 +1052,6 @@ impl AgentBoard {
             self.start_catalog_path = None;
             self.start_catalog_ready_epoch = None;
             self.start.retire_catalog();
-        }
-        if let Some(mut lane) = self.lane.take() {
-            // Cancel order: the epoch bump above already invalidates
-            // outcomes and stops scheduling; now the in-flight exchange
-            // is interrupted and the thread asked to exit. The handle
-            // moves to `dying_lanes` and is released only after the
-            // thread actually exits — never a UI join, never detached.
-            lane.interrupt();
-            self.dying_lanes.push(lane);
         }
     }
 
@@ -1143,12 +1230,12 @@ impl AgentBoard {
         self.shown = None;
     }
 
-    pub(super) fn request_refresh(&mut self) {
+    pub(super) fn request_refresh(&mut self, now: Instant) {
         // A completed round — success or failure — imposes the cooldown;
         // `r` inside the window is a no-op, not a queued refresh.
         if self
             .last_read_end
-            .is_some_and(|at| self.clock.now() < at + AGENT_READ_COOLDOWN)
+            .is_some_and(|at| now < at + AGENT_READ_COOLDOWN)
         {
             return;
         }
@@ -1270,6 +1357,7 @@ impl AgentBoard {
     /// begin the catalog only while the empty Board's form admits it.
     pub(super) fn drain_start(
         &mut self,
+        now: Instant,
         jobs: impl FnOnce(&mut start::State, start::CatalogAdmission) -> start::Drain,
     ) -> bool {
         let admission = if self.open
@@ -1284,7 +1372,7 @@ impl AgentBoard {
         };
         let drained = jobs(&mut self.start, admission);
         if drained.started {
-            self.request_refresh();
+            self.request_refresh(now);
         }
         drained.changed
     }
@@ -1311,9 +1399,15 @@ impl AgentBoard {
         self.start.operation_panel()
     }
 
-    /// Issue the queued intent through the lane — one outstanding lane
-    /// request at a time (the model's read serialization).
-    pub(super) fn drive_intent(&mut self, now: Instant) -> bool {
+    /// Issue the queued intent as a typed read request — one outstanding
+    /// request at a time (the model's read serialization). `issue` hands the
+    /// request to the composition's read lane and reports a refusal; the
+    /// request's answer arrives later through `settle_read`.
+    pub(super) fn drive_intent(
+        &mut self,
+        now: Instant,
+        issue: impl FnOnce(AgentBoardReadRequest) -> Result<(), AgentBoardReadRefusal>,
+    ) -> bool {
         if !self.open || self.inflight.is_some() {
             return false;
         }
@@ -1331,37 +1425,22 @@ impl AgentBoard {
                     self.intent = Some(BoardIntent::Refresh);
                     return false;
                 }
-                self.issue_list_round(now);
+                self.issue_list_round(now, issue);
                 true
             }
             Some(BoardIntent::Jump { target }) => {
-                self.issue_jump_get(target, now);
+                self.issue_jump_get(target, now, issue);
                 true
             }
             None => false,
         }
     }
 
-    fn lane_or_spawn(&mut self) -> Option<&mut AgentReadLane> {
-        if self.lane.is_none() {
-            // Release finished predecessors first, then hold the spawn
-            // while any predecessor thread is still exiting — at most
-            // one lane thread is alive at a time, and the UI never
-            // blocks on a join here.
-            self.dying_lanes.retain(|lane| !lane.finished());
-            if !self.dying_lanes.is_empty() {
-                return None;
-            }
-            let origin = self.lane_origin.clone()?;
-            match AgentReadLane::spawn(origin, self.clock.clone()) {
-                Ok(lane) => self.lane = Some(lane),
-                Err(_) => return None,
-            }
-        }
-        self.lane.as_mut()
-    }
-
-    fn issue_list_round(&mut self, now: Instant) {
+    fn issue_list_round(
+        &mut self,
+        now: Instant,
+        issue: impl FnOnce(AgentBoardReadRequest) -> Result<(), AgentBoardReadRefusal>,
+    ) {
         {
             // A new canonical read fences both a queued catalog answer and
             // the previous episode/round's empty-list admission.
@@ -1372,21 +1451,30 @@ impl AgentBoard {
             self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
             return;
         };
-        let epoch = self.epoch;
-        let Some(lane) = self.lane_or_spawn() else {
-            self.read = AgentBoardRead::Failed(AgentBoardReadFailure::LaneUnavailable);
-            return;
+        let request = AgentBoardReadRequest::List {
+            episode: self.episode(),
+            deadline,
         };
-        if lane.send(LaneCommand::ListRound { epoch, deadline }) {
-            self.inflight = Some(BoardInflight::ListRound);
-            self.read = AgentBoardRead::InFlight;
-        } else {
-            self.dying_lanes.extend(self.lane.take());
-            self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
-        }
+        self.read = match issue(request) {
+            Ok(()) => {
+                self.inflight = Some(BoardInflight::ListRound);
+                AgentBoardRead::InFlight
+            }
+            Err(AgentBoardReadRefusal::LaneUnavailable) => {
+                AgentBoardRead::Failed(AgentBoardReadFailure::LaneUnavailable)
+            }
+            Err(AgentBoardReadRefusal::Rejected) => {
+                AgentBoardRead::Failed(AgentBoardReadFailure::Transport)
+            }
+        };
     }
 
-    fn issue_jump_get(&mut self, target: AgentSessionId, now: Instant) {
+    fn issue_jump_get(
+        &mut self,
+        target: AgentSessionId,
+        now: Instant,
+        issue: impl FnOnce(AgentBoardReadRequest) -> Result<(), AgentBoardReadRefusal>,
+    ) {
         self.jump_serial += 1;
         let serial = self.jump_serial;
         let Some(deadline) = now.checked_add(AGENT_JUMP_DEADLINE) else {
@@ -1404,64 +1492,45 @@ impl AgentBoard {
         let get_deadline = now
             .checked_add(AGENT_GET_DEADLINE)
             .map_or(deadline, |get| get.min(deadline));
-        let epoch = self.epoch;
-        let Some(lane) = self.lane_or_spawn() else {
-            self.fail_jump(JumpFailure::Unavailable);
-            return;
-        };
-        if lane.send(LaneCommand::GetSession {
-            epoch,
+        let request = AgentBoardReadRequest::Get {
+            episode: self.episode(),
             serial,
             session: target,
             deadline: get_deadline,
-        }) {
-            self.inflight = Some(BoardInflight::JumpGet { serial });
-        } else {
-            self.dying_lanes.extend(self.lane.take());
-            self.fail_jump(JumpFailure::Unavailable);
+        };
+        match issue(request) {
+            Ok(()) => self.inflight = Some(BoardInflight::JumpGet { serial }),
+            Err(_) => self.fail_jump(JumpFailure::Unavailable),
         }
     }
 
-    /// Drain every arrived lane outcome. The list path is board-local;
-    /// the Get path needs the caller's live-context preference to order
-    /// candidates, so it takes that as a closure.
-    pub(super) fn drain_lane(
+    /// Settle one read event in the order the composition's lane delivered
+    /// it. The list path is board-local; the Get path needs the caller's
+    /// live-context preference to order candidates, so it takes that as a
+    /// closure.
+    pub(super) fn settle_read(
         &mut self,
+        event: AgentBoardReadEvent,
         now: Instant,
-        mut prefer: impl FnMut(&AgentPresentationAttachment) -> bool,
-    ) -> bool {
-        let mut changed = false;
-        while let Some(outcome) = self.lane.as_mut().and_then(AgentReadLane::take_outcome) {
-            changed = true;
-            match outcome {
-                LaneOutcome::PanelReports { .. } | LaneOutcome::Graphics { .. } => {
-                    self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
-                }
-                LaneOutcome::Attention { .. } | LaneOutcome::PhysicalAttention { .. } => {
-                    self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
-                }
-                LaneOutcome::List { epoch, result } => {
-                    self.apply_list_outcome(epoch, result, now);
-                }
-                LaneOutcome::Get {
-                    epoch,
-                    serial,
-                    result,
-                } => {
-                    self.apply_get_outcome(epoch, serial, result, &mut prefer);
-                }
+        prefer: &mut impl FnMut(&AgentPresentationAttachment) -> bool,
+    ) {
+        match event {
+            AgentBoardReadEvent::Answer(AgentBoardReadAnswer::List { episode, result }) => {
+                self.apply_list_outcome(episode, result, now);
             }
-        }
-        // Dead-lane honesty: every queued outcome drained above; the
-        // thread's exit is the only remaining witness, and it proves no
-        // outcome will ever arrive for a residual credit. Release that
-        // credit into the honest failure now — never leave the board
-        // waiting on a lane that no longer exists.
-        if self.lane.as_ref().is_some_and(AgentReadLane::finished)
-            && let Some(lane) = self.lane.take()
-        {
-            lane.close();
-            match self.inflight.take() {
+            AgentBoardReadEvent::Answer(AgentBoardReadAnswer::Get {
+                episode,
+                serial,
+                result,
+            }) => self.apply_get_outcome(episode, serial, result, prefer),
+            AgentBoardReadEvent::Foreign => {
+                self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
+            }
+            // Dead-lane honesty: the lane's end follows every answer it
+            // queued, so it proves no answer will ever arrive for a residual
+            // credit. Release that credit into the honest failure now —
+            // never leave the board waiting on a lane that no longer exists.
+            AgentBoardReadEvent::LaneEnded => match self.inflight.take() {
                 Some(BoardInflight::ListRound) => {
                     self.last_read_end = Some(now);
                     self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Unavailable);
@@ -1472,19 +1541,17 @@ impl AgentBoard {
                     self.fail_jump(JumpFailure::Unavailable);
                 }
                 Some(BoardInflight::JumpGet { .. }) | None => {}
-            }
-            changed = true;
+            },
         }
-        changed
     }
 
     fn apply_list_outcome(
         &mut self,
-        epoch: u64,
-        result: Result<lane::ListRound, lane::LaneFailure>,
+        episode: AgentBoardEpisodeToken,
+        result: Result<AgentListRound, AgentReadFailure>,
         now: Instant,
     ) {
-        if epoch != self.epoch || !matches!(self.inflight, Some(BoardInflight::ListRound)) {
+        if episode != self.episode() || !matches!(self.inflight, Some(BoardInflight::ListRound)) {
             return;
         }
         self.inflight = None;
@@ -1562,27 +1629,27 @@ impl AgentBoard {
                 });
                 self.notice = None;
                 if round.complete && self.rows.is_empty() {
-                    self.start_catalog_ready_epoch = Some(epoch);
+                    self.start_catalog_ready_epoch = Some(self.epoch);
                 } else {
                     self.start_catalog_ready_epoch = None;
                     self.start.retire_catalog();
                 }
             }
-            Err(lane::LaneFailure::Denied) => {
+            Err(AgentReadFailure::Denied) => {
                 {
                     self.start_catalog_ready_epoch = None;
                     self.start.retire_catalog();
                 }
                 self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Denied);
             }
-            Err(lane::LaneFailure::Unavailable) => {
+            Err(AgentReadFailure::Unavailable) => {
                 {
                     self.start_catalog_ready_epoch = None;
                     self.start.retire_catalog();
                 }
                 self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Unavailable);
             }
-            Err(lane::LaneFailure::Transport) => {
+            Err(AgentReadFailure::Transport) => {
                 {
                     self.start_catalog_ready_epoch = None;
                     self.start.retire_catalog();
@@ -1597,9 +1664,9 @@ impl AgentBoard {
     /// tab — the deterministic pick's "current-tab usable" preference.
     fn apply_get_outcome(
         &mut self,
-        epoch: u64,
+        episode: AgentBoardEpisodeToken,
         serial: u64,
-        result: Result<AgentGetOutcome, lane::LaneFailure>,
+        result: Result<AgentGetOutcome, AgentReadFailure>,
         prefer: &mut impl FnMut(&AgentPresentationAttachment) -> bool,
     ) {
         // The physical lane credit is bound to the outcome itself: a
@@ -1607,7 +1674,7 @@ impl AgentBoard {
         // issued it was superseded at request time or already failed.
         // What the credit must never do is clear a *different* jump:
         // that check happens only after the release.
-        if epoch != self.epoch
+        if episode != self.episode()
             || !matches!(self.inflight, Some(BoardInflight::JumpGet { serial: held }) if held == serial)
         {
             return;
@@ -1721,41 +1788,10 @@ impl AgentBoard {
         self.shown = None;
     }
 
-    /// Test seam: hand the board a prepared lane (queued outcomes or a
-    /// real spawned thread) so drains run against it without an origin.
-    #[cfg(test)]
-    pub(in crate::workbench_client::agent_board) fn install_lane_t(&mut self, lane: AgentReadLane) {
-        self.lane = Some(lane);
-    }
-
-    /// Bounded lane close for session teardown: the wake write interrupts
-    /// an in-flight exchange and the join returns without waiting out the
-    /// read deadline. Must run before the mailbox is released.
-    /// Process exit: asks the live and dying lane threads to stop without waiting.
-    pub(super) fn request_stop(&mut self) {
-        self.lane
-            .iter_mut()
-            .chain(&mut self.dying_lanes)
-            .for_each(AgentReadLane::interrupt);
-    }
-
-    /// Process exit: observes every lane thread's end against the shared deadline.
-    pub(super) fn stop_before(&mut self, deadline: Instant) -> std::io::Result<()> {
-        self.lane
-            .iter_mut()
-            .chain(&mut self.dying_lanes)
-            .map(|lane| lane.stop_before(deadline))
-            .fold(Ok(()), std::io::Result::and)
-    }
-
-    pub(super) fn release_lane(&mut self) {
+    /// Connection release: the start jobs are closed, so no catalog answer
+    /// can still arrive for this connection.
+    pub(super) fn retire_start_catalog(&mut self) {
         self.start.retire_catalog();
-        if let Some(lane) = self.lane.take() {
-            lane.close();
-        }
-        for lane in self.dying_lanes.drain(..) {
-            lane.close();
-        }
     }
 }
 
@@ -1767,7 +1803,7 @@ impl AgentBoard {
 pub struct AgentBoardView<'a> {
     board: &'a AgentBoard,
     index: &'a PresentationIndex,
-    attention: Option<&'a super::agent_attention::AgentAttention>,
+    attention: Option<&'a dyn AgentRowAttention>,
 }
 
 impl<'a> AgentBoardView<'a> {
@@ -1778,10 +1814,7 @@ impl<'a> AgentBoardView<'a> {
             attention: None,
         }
     }
-    pub(super) fn with_attention(
-        mut self,
-        attention: &'a super::agent_attention::AgentAttention,
-    ) -> Self {
+    pub(super) fn with_attention(mut self, attention: &'a dyn AgentRowAttention) -> Self {
         self.attention = Some(attention);
         self
     }

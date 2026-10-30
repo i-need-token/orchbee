@@ -209,7 +209,7 @@ impl WorkbenchClientUi {
         if !self.worktrees.ensure_lane(&self.clock) {
             return ClientActionDisposition::KeepNavigator;
         }
-        self.board.close();
+        self.board_reads.close_board(&mut self.board);
         if mailbox.try_enqueue_worktree_preparation_for(
             state,
             &mut self.worktrees.launcher,

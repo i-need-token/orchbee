@@ -62,6 +62,21 @@ pub(super) struct AgentAttention {
     redraw: bool,
 }
 
+impl super::agent_board::AgentRowAttention for AgentAttention {
+    fn session_unread(&self, session: &orchbee_agent_observation_protocol::AgentSessionId) -> bool {
+        self.state.session_unread(session)
+    }
+
+    fn session_completion_edited(
+        &self,
+        session: &orchbee_agent_observation_protocol::AgentSessionId,
+        generation: orchbee_agent_observation_protocol::AgentSafeInteger,
+        sequence: orchbee_agent_observation_protocol::AgentSafeInteger,
+    ) -> bool {
+        self.state.completion_edited(session, generation, sequence)
+    }
+}
+
 impl AgentAttention {
     pub(super) fn terminal_edited(&mut self, pane: &PaintedPane) {
         self.redraw |= self.state.edit_completed(&pane.presentation);
@@ -69,15 +84,6 @@ impl AgentAttention {
             .physical
             .state
             .edit_completed(|binding| pane.matches(binding));
-    }
-
-    pub(super) fn session_completion_edited(
-        &self,
-        session: &orchbee_agent_observation_protocol::AgentSessionId,
-        generation: orchbee_agent_observation_protocol::AgentSafeInteger,
-        sequence: orchbee_agent_observation_protocol::AgentSafeInteger,
-    ) -> bool {
-        self.state.completion_edited(session, generation, sequence)
     }
 
     pub(super) fn edited_completions(
@@ -95,12 +101,6 @@ impl AgentAttention {
             .completion_edited(|binding| pane.matches(binding))
     }
 
-    pub(super) fn session_unread(
-        &self,
-        session: &orchbee_agent_observation_protocol::AgentSessionId,
-    ) -> bool {
-        self.state.session_unread(session)
-    }
     pub(super) fn agent_in_terminal(
         &self,
         presentation: &str,

@@ -1,7 +1,8 @@
 //! The `WorkbenchClientUi` side of the Agent board: the toggle, input capture,
-//! snapshot-index maintenance, the per-tick drive (lane drain, intent
-//! issue, jump stages), and the staged cross-context jump that reuses the
-//! existing context-selection, switch, and local panel-focus admissions.
+//! snapshot-index maintenance, the read lane's lifetime, the per-tick drive
+//! (read settlement, intent issue, jump stages), and the staged cross-context
+//! jump that reuses the existing context-selection, switch, and local
+//! panel-focus admissions.
 //!
 //! Every stage re-resolves stable identities against live state: the
 //! attachment's `presentation_id` against the freshest index, the owning
@@ -25,7 +26,11 @@ use super::{
 use crate::client_view::KeyEvent;
 use crate::tui_composition::{WorkbenchCaptureOwner, project_native_capture};
 use crate::workbench_client::workbench_projection::ClientContextLocation;
+use orchbee_agent_observation_protocol::AgentPresentationAttachment;
 use std::time::Instant;
+
+mod reads;
+pub(super) use reads::BoardReads;
 
 impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn set_agent_board_origin(
@@ -44,7 +49,8 @@ impl WorkbenchClientUi {
         self.worktrees.set_origin(origin.clone());
         self.settings.set_origin(origin.clone());
         self.start_jobs.set_origin(origin.clone());
-        self.board.set_origin(origin);
+        self.board.set_origin_locality(origin.is_local());
+        self.board_reads.set_origin(origin);
     }
 
     /// `Ctrl+B g`. Opening queues the first read and refreshes the
@@ -57,7 +63,7 @@ impl WorkbenchClientUi {
             return ClientActionDisposition::KeepNavigator;
         }
         if self.board.is_open() {
-            self.board.close();
+            self.board_reads.close_board(&mut self.board);
             return ClientActionDisposition::KeepNavigator;
         }
         if self.modal_owns_input() {
@@ -101,12 +107,12 @@ impl WorkbenchClientUi {
         self.board.input_context()
     }
 
-    /// Close the lane's thread before the mailbox retires — the wake
-    /// write interrupts any in-flight exchange so the join stays bounded.
-    /// On non-Linux there is no lane; the call is a no-op.
+    /// Close the lane threads before the mailbox retires — the wake
+    /// write interrupts any in-flight exchange so each join stays bounded.
     pub(in crate::workbench_client) fn release_agent_lane(&mut self) {
         self.start_jobs.close();
-        self.board.release_lane();
+        self.board.retire_start_catalog();
+        self.board_reads.release();
         self.settings.close();
         if !self.worktrees.close() {
             self.worktrees
@@ -137,7 +143,7 @@ impl WorkbenchClientUi {
             return true;
         }
         if board_key_action(*event) == Some(AgentBoardKeyAction::Close) {
-            self.board.close();
+            self.board_reads.close_board(&mut self.board);
             return true;
         }
         if !context.interactive() {
@@ -177,7 +183,7 @@ impl WorkbenchClientUi {
         match board_key_action(*event) {
             Some(AgentBoardKeyAction::SelectUp) => self.board.move_selection(-1),
             Some(AgentBoardKeyAction::SelectDown) => self.board.move_selection(1),
-            Some(AgentBoardKeyAction::Refresh) => self.board.request_refresh(),
+            Some(AgentBoardKeyAction::Refresh) => self.board.request_refresh(self.clock.now()),
             Some(AgentBoardKeyAction::Jump) if self.board.selected_is_shown() => {
                 self.board.request_jump();
             }
@@ -228,13 +234,14 @@ impl WorkbenchClientUi {
             }
             return accepted;
         }
-        let changed = self.board.control_drawn(target);
+        let changed = self.board.control_drawn(target, self.clock.now());
+        self.board_reads.follow(self.board.open_episode());
         self.start_jobs.reconcile(self.board.start_state());
         changed
     }
 
     fn accepted_agent_start(&mut self) {
-        self.board.close();
+        self.board_reads.close_board(&mut self.board);
         if let Some(phase) = self.board.start_phase()
             && let Some(state) = self.state.as_mut()
         {
@@ -244,7 +251,7 @@ impl WorkbenchClientUi {
 
     /// Backdrop dismissal: a press outside the painted board surface.
     pub(in crate::workbench_client) fn agent_board_dismiss(&mut self) {
-        self.board.close();
+        self.board_reads.close_board(&mut self.board);
     }
 
     /// The renderer's read handle, `Some` only while the board is open.
@@ -263,6 +270,7 @@ impl WorkbenchClientUi {
         draw: Option<AgentBoardDraw>,
     ) {
         self.board.settle_draw(draw);
+        self.board_reads.follow(self.board.open_episode());
     }
 
     /// A best-effort Workbench refresh at open time so the presentation
@@ -350,8 +358,8 @@ impl WorkbenchClientUi {
         }
     }
 
-    /// The per-tick board drive: expire a budgeted jump, drain arrived
-    /// lane outcomes, issue the next queued intent, and advance the
+    /// The per-tick board drive: expire a budgeted jump, settle arrived
+    /// read events, issue the next queued intent, and advance the
     /// in-flight jump's stage. Runs inside the ordinary scheduler block,
     /// so an armed membership-recovery attempt still owns the mailbox.
     /// `allow_jump` is the total compositor's current top-owner verdict;
@@ -359,25 +367,32 @@ impl WorkbenchClientUi {
     /// Board-owned domain work continues to settle.
     pub(super) fn drive_agent_board(&mut self, allow_jump: bool) -> bool {
         let now = self.clock.now();
+        self.board_reads.follow(self.board.open_episode());
         let mut changed = self.board.expire_jump(now);
         // The Get path's deterministic pick asks which attachments already
         // resolve into the caller's active context+tab — read once here,
-        // live at the moment the lane outcome is applied.
+        // live at the moment the read answer is applied.
         let (location, tab) = self.agent_anchor();
-        changed |= self.board.drain_lane(now, |attachment| {
+        let mut prefer = |attachment: &AgentPresentationAttachment| {
             self.agent_index
                 .placement(attachment)
                 .is_some_and(|placement| {
                     location.as_ref() == Some(&placement.location)
                         && tab.as_ref() == Some(&placement.tab_id)
                 })
-        });
-        changed |= self.board.drive_intent(now);
+        };
+        while let Some(event) = self.board_reads.next_event() {
+            changed = true;
+            self.board.settle_read(event, now, &mut prefer);
+        }
+        changed |= self
+            .board
+            .drive_intent(now, |request| self.board_reads.issue(request));
         {
             let before = self.board.start_phase();
-            changed |= self
-                .board
-                .drain_start(|start, admission| self.start_jobs.drain(start, admission));
+            changed |= self.board.drain_start(now, |start, admission| {
+                self.start_jobs.drain(start, admission)
+            });
             let after = self.board.start_phase();
             if before != after
                 && let Some(phase) = after
@@ -528,6 +543,7 @@ impl WorkbenchClientUi {
                     return self.select_presentation(index, &placement.panel_id, &presentation);
                 }
                 self.board.jump_landed();
+                self.board_reads.follow(self.board.open_episode());
                 true
             }
         }

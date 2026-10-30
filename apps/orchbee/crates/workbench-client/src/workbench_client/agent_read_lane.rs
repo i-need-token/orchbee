@@ -24,6 +24,10 @@ use orchbee_agent_observation_protocol::{
     ObapRequestId,
 };
 
+use super::agent_board::{
+    AgentBoardReadAnswer, AgentBoardReadRequest, AgentListRound, AgentReadFailure,
+};
+
 use crate::local_client::{
     LocalClient, LocalClientOrigin, LocalOperationClock, agent::AgentExchangeError,
 };
@@ -60,16 +64,8 @@ pub(super) enum LaneCommand {
         revision: Option<u64>,
         deadline: Instant,
     },
-    ListRound {
-        epoch: u64,
-        deadline: Instant,
-    },
-    GetSession {
-        epoch: u64,
-        serial: u64,
-        session: AgentSessionId,
-        deadline: Instant,
-    },
+    /// One Agent board read; its answer is `LaneOutcome::Board`.
+    Board(AgentBoardReadRequest),
 }
 
 pub(super) enum LaneOutcome {
@@ -89,15 +85,7 @@ pub(super) enum LaneOutcome {
         epoch: u64,
         result: Result<AttentionRound, LaneFailure>,
     },
-    List {
-        epoch: u64,
-        result: Result<ListRound, LaneFailure>,
-    },
-    Get {
-        epoch: u64,
-        serial: u64,
-        result: Result<AgentGetOutcome, LaneFailure>,
-    },
+    Board(AgentBoardReadAnswer),
 }
 
 /// One completed list walk — `complete` is false when the page bound or
@@ -119,7 +107,17 @@ pub(super) enum LaneFailure {
     Transport,
 }
 
-/// The board's lane handle: command channel, outcome drain, the wake
+impl From<LaneFailure> for AgentReadFailure {
+    fn from(failure: LaneFailure) -> Self {
+        match failure {
+            LaneFailure::Unavailable => Self::Unavailable,
+            LaneFailure::Denied => Self::Denied,
+            LaneFailure::Transport => Self::Transport,
+        }
+    }
+}
+
+/// One lane handle: command channel, outcome drain, the wake
 /// pipe's write end, and the thread join for bounded shutdown. The
 /// sender is optional so `close` can drop it (waking `recv`) before
 /// joining — a `Drop` type cannot move fields out otherwise.
@@ -200,7 +198,7 @@ impl AgentReadLane {
     /// Ask the thread to exit: the shutdown flag ends the loop at its
     /// next boundary, the wake byte interrupts any in-flight exchange,
     /// and the dropped sender ends `recv` even when the thread is idle.
-    /// Used by board close — the handle then lives in `dying_lanes` until
+    /// An owner that retires a lane without joining keeps the handle until
     /// the thread has actually exited.
     pub(super) fn interrupt(&mut self) {
         self.shutdown.store(true, Ordering::SeqCst);
@@ -305,24 +303,31 @@ fn run(
                     &shutdown,
                 ),
             },
-            LaneCommand::ListRound { epoch, deadline } => LaneOutcome::List {
-                epoch,
-                result: list_round(
-                    &origin,
-                    &clock,
-                    &mut client,
-                    deadline,
-                    wake_read.as_local_io(),
-                    &shutdown,
-                ),
-            },
-            LaneCommand::GetSession {
-                epoch,
+            LaneCommand::Board(AgentBoardReadRequest::List { episode, deadline }) => {
+                LaneOutcome::Board(AgentBoardReadAnswer::List {
+                    episode,
+                    result: list_round(
+                        &origin,
+                        &clock,
+                        &mut client,
+                        deadline,
+                        wake_read.as_local_io(),
+                        &shutdown,
+                    )
+                    .map(|round| AgentListRound {
+                        items: round.items,
+                        complete: round.complete,
+                    })
+                    .map_err(AgentReadFailure::from),
+                })
+            }
+            LaneCommand::Board(AgentBoardReadRequest::Get {
+                episode,
                 serial,
                 session,
                 deadline,
-            } => LaneOutcome::Get {
-                epoch,
+            }) => LaneOutcome::Board(AgentBoardReadAnswer::Get {
+                episode,
                 serial,
                 result: get_session(
                     &origin,
@@ -331,8 +336,9 @@ fn run(
                     session,
                     deadline,
                     wake_read.as_local_io(),
-                ),
-            },
+                )
+                .map_err(AgentReadFailure::from),
+            }),
         };
         if outcomes.try_send(outcome).is_err() {
             break;
