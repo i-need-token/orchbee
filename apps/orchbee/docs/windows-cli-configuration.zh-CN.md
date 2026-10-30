@@ -64,6 +64,8 @@ Windows `config check` 版本 1 为 `user-config` 检查增加已接纳的警告
 `[update] channel` 仅接受 `stable`（默认）或 `preview`，与 `manifest_check` 相互独立。`orchbee channel show [--format text|json]` 读取完整共享配置，不创建文件、不激活 Session、不访问网络。文本仅为频道标记；`orchbee.channel.show` v1 报告频道、default/file 来源、选定配置路径和文件存在状态。默认文件缺失时使用 stable；显式文件缺失或配置非法时失败。这是期望的发布频道偏好，不代表当前安装 cohort 的事实。Windows `config check` v1 和配置失败 v1 接受 `update.channel` 诊断；旧 schema 保持封闭。
 
 `[update] manifest_check` 是 TOML 布尔值，默认 true，来源为 `default`／`file`。
+只有 Server 从 `ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL` 取得目录源时，它才允许自动检查识别规则；
+Orchbee 不内置默认目录源。
 Windows `config check` v1 增加 `manifestCheck` 和 `manifestCheckSource`。
 Client 激活校验文件后只传递配置路径和显式文件标志。托管 Server 在任何进程或持久副作用之前，
 于该冻结位置读取一次完整的权威版本 0 候选；直接启动通过同一设置所有者确定位置并读取一次。
@@ -344,4 +346,4 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 
 `terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 从每次发布的配置快照应用该偏好，发布后的下一次分屏即使用新值。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。
 
-<!-- documentation-pairing: english-sha256=982ebe97215d77ce55e7e5ab3b1622786af3bf73de5cd46d52143b3ea4732de8 zh-cn-sha256=5ca5e40ce1d8826665c3317d23fffcf467ea409d275e0a795cbf9da80196392d -->
+<!-- documentation-pairing: english-sha256=efb7d749cfe2735d11ee799a52d752edb706698aebb12a56c48333c33698be07 zh-cn-sha256=982008a9b47d1284beadfd367c05290534bfc60d3e80adb676fb4c55ae9c85d7 -->

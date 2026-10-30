@@ -1,6 +1,6 @@
 # Agent screen detection model
 
-The Server owns fallback screen interpretation separately from explicit Agent reports and process identity. A successful bounded terminal sample can describe working, idle or blocked UI; it cannot prove which provider owns a process, authenticate it or create a canonical Agent Session. The Windows periodic sampler compiles the deterministic engine once before startup and publishes admitted screen fallback. Physical explain consumes the same engine through the bounded observer queue. Startup now loads bounded local overrides and eligible remote cache with typed provenance warnings. Manifest queries and retained live reload now use the observer owner; explicit remote updates retain separate cache and activation facts; automatic scheduling follows the policy below.
+The Server owns fallback screen interpretation separately from explicit Agent reports and process identity. A successful bounded terminal sample can describe working, idle or blocked UI; it cannot prove which provider owns a process, authenticate it or create a canonical Agent Session. The Windows periodic sampler compiles the deterministic engine once before startup and publishes admitted screen fallback. Physical explain consumes the same engine through the bounded observer queue. Startup now loads bounded local overrides and, with a configured update catalog, eligible remote cache with typed provenance warnings. Manifest queries and retained live reload now use the observer owner; explicit remote updates retain separate cache and activation facts; automatic scheduling follows the policy below.
 
 ## Inputs and rule ownership
 
@@ -49,7 +49,9 @@ Working-to-plain-idle transitions hold for three further confirmations or 700 ms
 The accepted rule-maintenance model gives the Server one immutable compiled ruleset and its
 provenance. Windows startup resolves the shared configuration-file parent without rewriting user
 settings. For each bundled provider, `<config>/agent-detection/<report-label>.toml` overrides
-`<config>/agent-detection/remote/<report-label>.toml`, then bundled rules. Reads admit regular UTF-8
+`<config>/agent-detection/remote/<report-label>.toml`, then bundled rules. The remote cache takes
+part only while a valid update catalog is configured; otherwise the Server never reads
+`agent-detection/remote`, and a local override precedes bundled rules. Reads admit regular UTF-8
 files of at most 256 KiB with the same provider, engine and complexity validation as bundled rules.
 Present versions must be dotted numeric; remote caches must also declare an engine version and
 be no older than bundled versions. Trailing zero segments compare equally. Normalized manifest
@@ -106,9 +108,12 @@ Automatic scheduling follows the configuration and ownership rules below.
 
 ## Remote update ownership
 
-Remote maintenance uses the real public Herdr feed at `https://herdr.dev/agent-detection/index.toml`,
-with `ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL` as a validated Server startup override.
-There is no Orchbee-hosted update service implied by this source. A catalog and every manifest are
+Orchbee ships no default rule catalog. Remote maintenance runs only when the Server starts with
+`ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL` set to a valid HTTP(S) catalog URL; the value is
+frozen for the Session. Without it the Server uses only bundled rules and local overrides: it
+schedules no check, refuses explicit Update as unavailable, makes no network request and ignores any
+existing remote cache, whose origin can no longer be confirmed. A set but invalid value has the same
+effect and is reported as a typed source error. A catalog and every manifest are
 bounded to 256 KiB; known-provider duplicate entries, unsupported schema, unsafe relative paths,
 invalid UTF-8/provider/engine/version/complexity are refused before committing executable rules.
 Cached versions never decrease. Equal numeric versions must have identical bytes; changed bytes
@@ -132,7 +137,7 @@ completion and activation are distinct facts, including cancellation and partial
 
 The production `server update-agent-manifests` operation consumes this updater and retains the full
 cache report separately from activation. Explicit and automatic updates use the same cache/version and cleanup rules. Automatic network
-activity requires the release/background policy and update setting; source/cohort rollback leaves overrides and committed cache
+activity requires a configured catalog, the release/background policy and update setting; source/cohort rollback leaves overrides and committed cache
 versions intact.
 
 ## Retained production update operations
@@ -143,9 +148,10 @@ same-kind request reads the original receipt. Update executes on a separately ow
 observer polls only finished work, joins it, and installs its validated detector between sampling
 turns. Cache commits and activation have distinct receipts. Partial provider failures remain visible
 and cannot produce a successful whole-update exit. A load/activation failure never erases committed
-cache results. Invalid source configuration disables Update with a typed diagnostic while terminal
-startup and local Reload remain available. Startup and Reload read persisted status without creating
-cache paths; ordinary Current queries read the owner's retained snapshot.
+cache results. A missing catalog disables Update, and an invalid one also reports a typed
+diagnostic; terminal startup and local Reload remain available. With a configured catalog, Startup
+and Reload read persisted status without creating cache paths; ordinary Current queries read the
+owner's retained snapshot.
 
 Stop closes admission, cancels network work and drains/joins the update before the observer exits.
 An executing update remains pending until its actual cache report and child cleanup settle; it is
@@ -157,7 +163,8 @@ ownership are specified below.
 
 ## Automatic checks and configuration snapshots
 
-Windows `update.manifest_check` is a strict boolean, default true. Only persistent managed Sessions in
+Windows `update.manifest_check` is a strict boolean, default true; it takes effect only with a
+configured catalog. Only persistent managed Sessions in
 release, non-test builds allow background checks. Standalone, debug and test execution do not
 schedule network work. An enabled owner schedules once at startup, then every thirty minutes by
 monotonic time. Busy maintenance defers the due check until the shared slot is free. Automatic work

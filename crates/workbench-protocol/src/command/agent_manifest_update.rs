@@ -137,10 +137,11 @@ pub struct AgentManifestMaintenance {
 }
 impl AgentManifestMaintenance {
     pub fn validate(&self) -> Result<(), crate::ContractError> {
+        // A configured catalog, a rejected configuration, or no configured catalog at all.
         if !matches!((&self.source_url,self.source_error),(Some(url),None) if valid_agent_manifest_catalog_url(url))
             && !matches!(
                 (&self.source_url, self.source_error),
-                (None, Some(AgentManifestUpdateFailure::InvalidSource))
+                (None, None | Some(AgentManifestUpdateFailure::InvalidSource))
             )
         {
             return Err(crate::ContractError::InvalidDocument);

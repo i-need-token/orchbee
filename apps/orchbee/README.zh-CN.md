@@ -102,7 +102,7 @@ Windows `agent explain` 也会将名称和 Panel 解析为精确的物理终端�
 屏幕规则评估。结果包含清单来源/版本、同优先级首条胜出规则、所有规则匹配及有界区域证据。
 一次准入与 5 秒 CLI 总预算
 覆盖解析和读取；Server 队列/读取预算为 4 秒。绑定或上报上下文变化时拒绝，不重试。
-不发送输入、申请控制器或改变焦点。Windows 启动依次选择本地覆盖、符合条件的远程缓存及内置规则。物理诊断包含实际路径、缓存版本、覆盖状态及类型化警告。Windows `server agent-manifests`、`server reload-agent-manifests` 和 `server agent-manifests-status` 暴露已安装快照及保留的热重载回执。显式 `server update-agent-manifests` 下载并启用经过校验的缓存规则，分别保留逐 provider 缓存结果和启用回执。启用 `update.manifest_check` 时，托管发布版 Session 在启动时及每三十分钟自动检查；调试／测试及独立端点不调度。
+不发送输入、申请控制器或改变焦点。Windows 启动依次选择本地覆盖、符合条件的远程缓存及内置规则；只有 `ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL` 指定有效目录源时远程缓存才参与选择，Orchbee 不内置默认目录源。物理诊断包含实际路径、缓存版本、覆盖状态及类型化警告。Windows `server agent-manifests`、`server reload-agent-manifests` 和 `server agent-manifests-status` 暴露已安装快照及保留的热重载回执。显式 `server update-agent-manifests` 下载并启用经过校验的缓存规则，分别保留逐 provider 缓存结果和启用回执。已配置目录源且启用 `update.manifest_check` 时，托管发布版 Session 在启动时及每三十分钟自动检查；未配置时不运行检查，Update 不可用；调试／测试及独立端点不调度。
 参见[屏幕模型](../orchbee-server/docs/agent-screen-model.zh-CN.md)。
 
 Windows `panel create-terminal` 启动未绑定主项或精确成员，或追加子项，不分割 Panel。
@@ -943,4 +943,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=be886c849a7be69f07aa062ae595e40aeeeebac482afb8159e33ceadc7e33612 zh-cn-sha256=52416ffe31c0c983f6a922979365d4264a0c0d715b2318e6f356c91f4890bc9f -->
+<!-- documentation-pairing: english-sha256=bea32de7830a4a813c7046369cb09fc2080b267168f4c36c5768c2c88a6377e0 zh-cn-sha256=2b0b70a75ea8e3b3c750598127fc72f4db2d6fadcd8c8024257aaa2e5fa7ac9e -->

@@ -133,6 +133,8 @@ export const AgentManifestMaintenanceSchema = z
 		statusError: AgentManifestUpdateFailureSchema.nullable(),
 	})
 	.refine((m) =>
-		m.sourceUrl === null ? m.sourceError === 'invalid-source' : m.sourceError === null,
+		m.sourceUrl === null
+			? m.sourceError === null || m.sourceError === 'invalid-source'
+			: m.sourceError === null,
 	)
 	.readonly();

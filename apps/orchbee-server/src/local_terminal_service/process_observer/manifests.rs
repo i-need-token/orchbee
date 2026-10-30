@@ -1,6 +1,6 @@
 //! One observer-owned install point and bounded, non-evicting Session-lifetime receipts.
 use super::{LocalTerminalService, ScreenDetector, Wake};
-use crate::agent_screen::updating::{self, CatalogUrl, Failure as UpdateFailure, UpdateReport};
+use crate::agent_screen::updating::{self, Failure as UpdateFailure, UpdateReport};
 use orchbee_workbench_protocol::{
     AgentManifestActivation as Activation, AgentManifestMaintenance,
     AgentManifestsAction as Action, AgentManifestsFailure as Failure,
@@ -40,13 +40,13 @@ struct Work {
     id: Owner,
     kind: Kind,
     root: Option<PathBuf>,
-    source: Result<CatalogUrl, UpdateFailure>,
+    source: updating::Source,
 }
 #[derive(Default)]
 pub(super) struct Registry(Mutex<Option<State>>);
 struct State {
     root: Option<PathBuf>,
-    source: Result<CatalogUrl, UpdateFailure>,
+    source: updating::Source,
     update_disabled: bool,
     snapshot: AgentManifestsSnapshot,
     operations: BTreeMap<WorkbenchRequestId, Receipt>,
@@ -90,12 +90,13 @@ impl Registry {
         root: Option<PathBuf>,
         detector: &ScreenDetector,
     ) -> std::io::Result<()> {
-        self.initialize_source(root, detector, updating::configured_source())
+        self.initialize_source(root, detector, Ok(None))
     }
     pub(super) fn initialize_settings(
         &self,
         settings: &UserSettings,
         detector: &ScreenDetector,
+        source: updating::Source,
         background: bool,
         release: bool,
     ) -> std::io::Result<()> {
@@ -106,7 +107,7 @@ impl Registry {
                 .and_then(std::path::Path::parent)
                 .map(std::path::Path::to_owned),
             detector,
-            updating::configured_source(),
+            source,
         )?;
         if let Some(state) = self
             .0
@@ -138,7 +139,7 @@ impl Registry {
         &self,
         root: Option<PathBuf>,
         detector: &ScreenDetector,
-        source: Result<CatalogUrl, UpdateFailure>,
+        source: updating::Source,
     ) -> std::io::Result<()> {
         let maintenance = updating::maintenance(root.as_deref(), &source);
         let snapshot = AgentManifestsSnapshot {
@@ -238,9 +239,7 @@ impl Registry {
         if state.operations.len() == RECEIPTS {
             return failed(Failure::ResourceLimit);
         }
-        if kind == Kind::Update
-            && (state.source.is_err() || state.root.is_none() || state.update_disabled)
-        {
+        if kind == Kind::Update && !available(state) {
             return failed(Failure::UpdateUnavailable);
         }
         state.active = Some(Owner::Manual(operation_id.clone()));
@@ -361,8 +360,9 @@ impl Registry {
         settle(state, id, status);
     }
 }
+/// Without a configured valid catalog neither manual nor automatic updates are admitted.
 fn available(state: &State) -> bool {
-    state.source.is_ok() && state.root.is_some() && !state.update_disabled
+    matches!(state.source, Ok(Some(_))) && state.root.is_some() && !state.update_disabled
 }
 fn snapshot(state: &State) -> AgentManifestsSnapshot {
     let mut snapshot = state.snapshot.clone();

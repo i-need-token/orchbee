@@ -170,20 +170,20 @@ Windows `terminal link-resolve <terminal> --cursor ROW:COL` 解析显式原生�
 沿用选区／复制的既有 Session 只读五秒 viewer 和完整帧／Host／绑定围栏。
 
 解析器先严格读取一行 render，检查被点击完整字形的 OSC 8 目标，包括宽字尾。
-显式超链接返回完整 URI 与空 regions，遵循参考实现将帧拥有的 OSC 8 高亮和
-服务端解析的纯文本区域分开的规则。没有 OSC 8 时，只按需读取完整映射文本行，
+显式超链接返回完整 URI 与空 regions，帧拥有的 OSC 8 高亮和
+服务端解析的纯文本区域保持分开。没有 OSC 8 时，只按需读取完整映射文本行，
 以证明跨已验证软换行的空白分隔 token，包括请求视口之外的 token 端点。
 缺少邻接上下文时有限扩展；硬行边界与 Unicode 空白结束 token，已验证宽字头
 占位不增加文本。纯文本识别使用小写 http／https 前缀、裁剪尾部
 引号／标点、保留平衡的圆／方／花括号，点击最终 URL 之外返回无链接。
-参考实现的共享 8192 单元格探查预算计算选中的物理格、宽字头占位／尾格及双向
+共享的 8192 单元格探查预算计算选中的物理格、宽字头占位／尾格及双向
 边界探查；预算耗尽返回无链接，不返回截断 URL。原生编码字节／
 字形／65536 扫描行限制仍明确失败，不返回未证明的空结果。可见的包含端点区域
 保留完整宽字／组合字，并裁剪到请求视口。
 
 封闭 `orchbee.terminal.link-resolve` v1 包含完整 URL 或 null、
 `plain-text`／`explicit`／`none` 类型、可见区域、视口起点／offset 与捕获的
-内容修订／generation／Host／终端绑定。空结果是参考实现有界 token 策略下的
+内容修订／generation／Host／终端绑定。空结果是有界 token 策略下的
 成功无链接结果，包括其探查预算耗尽的情况。
 错误／重复／外来参数在运行时发现前拒绝；过期／回收／误路由／不完整记录整体
 失败，不重试，也不返回部分区域。本操作不取得 controller、不发输入、不确认
@@ -236,7 +236,7 @@ Windows `terminal copy-motion <terminal> --cursor ROW:COL --motion <motion>`
 两类词均跨越已验证软换行，硬行插入空白分隔。普通词区分空白、ASCII
 标点（下划线除外）及其他字符；大词仅按空白分隔。结果保留完整字形头部，
 宽字尾与组合字均不拆开。行末是裁剪硬行尾填充后的最后字符；首非空白是首个
-非空白字形。依冻结参照，Kitty Unicode placeholder 单元格在复制移动／搜索中视为空白。段落移动找指定方向最近的空白物理行，保留列，依冻结参照最多
+非空白字形。Kitty Unicode placeholder 单元格在复制移动／搜索中视为空白。段落移动找指定方向最近的空白物理行，保留列，最多
 检查 999 行。没有目标则返回原光标；缓冲区外坐标失败。
 
 Windows `terminal copy-search <terminal> --cursor ROW:COL --query <literal>`
@@ -2528,9 +2528,10 @@ provider 的实际来源、版本、路径、缓存和警告，也显示启动�
 重置屏幕稳定状态，并同时切换采样和 Explain。
 `server update-agent-manifests [--request-id <operation-id>]` 通过 Server 持有的 Windows curl
 工作线程下载并校验规则，提交符合条件的缓存版本，再启用当前本地覆盖、缓存或内置规则的选择结果。
-本地覆盖继续优先。目录源由 `ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL` 指定，默认
-`https://herdr.dev/agent-detection/index.toml`；无效覆盖值停用 Update，但本地规则仍可使用。
-来源在 Session 启动时冻结。`update.manifest_check` 为 true（默认）时，托管发布版 Session 在启动时及
+本地覆盖继续优先。目录源只能由 `ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL` 指定，没有默认值。
+未设置或值无效时，Update 不可用、不运行检查、忽略远程缓存，目录源显示 `not configured`（中文界面为“未配置”）或报告来源错误，
+内置规则和本地规则仍可使用。来源在 Session 启动时冻结。已配置目录源且 `update.manifest_check` 为
+true（默认）时，托管发布版 Session 在启动时及
 每三十分钟自动检查；调试／测试及独立端点不调度。只有配置发布（Session 采样或
 `server reload-config`）改变此开关；规则 Reload 从不读取 `config.toml`，规则安装失败保留旧检测器。自动结果使用独立的最近结果槽，不消耗手动回执。
 `server agent-manifests-status <operation-id>` 读取重载或更新回执，不重新提交。
@@ -2584,4 +2585,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=98e36b4db91258a60002894f6abe3b6d7dd3169de5e5639e8e6566e191700535 zh-cn-sha256=d2f19373b10349740db6daeb2ae0def84f541b825747fe31329d4926e513be38 -->
+<!-- documentation-pairing: english-sha256=8475c351455cdcc877ba39b77b5ad3f666892f1f6195cecf06d514f4e860b3a0 zh-cn-sha256=b9e650dee1d79a6d0a6ff814f0181d574f8bd46e8890a3394db5176686f7f510 -->

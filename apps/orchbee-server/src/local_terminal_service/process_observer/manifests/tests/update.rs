@@ -22,7 +22,7 @@ fn live_update_commits_and_activates_without_repeating_downloads() {
     let wake = &service.process_observer.wake;
     let mut detector = ScreenDetector::bundled().unwrap();
     wake.manifests
-        .initialize_source(Some(root.0.clone()), &detector, Ok(http.url.clone()))
+        .initialize_source(Some(root.0.clone()), &detector, Ok(Some(http.url.clone())))
         .unwrap();
     assert!(
         !root.0.join("agent-detection").exists(),
@@ -74,7 +74,7 @@ fn active_download_keeps_queries_responsive_and_stop_retains_pending_until_join(
     let wake = Arc::new(Wake::default());
     let mut detector = ScreenDetector::bundled().unwrap();
     wake.manifests
-        .initialize_source(Some(root.0.clone()), &detector, Ok(http.url.clone()))
+        .initialize_source(Some(root.0.clone()), &detector, Ok(Some(http.url.clone())))
         .unwrap();
     let action = Action::Update {
         operation_id: id(1),
@@ -134,7 +134,7 @@ fn invalid_source_and_unknown_update_effects_preserve_local_reload() {
         .initialize_source(
             Some(root.0.clone()),
             &detector,
-            CatalogUrl::parse(updating::DEFAULT_CATALOG),
+            updating::CatalogUrl::parse("https://example.com/agent-detection/index.toml").map(Some),
         )
         .unwrap();
     registry.execute(&Action::Update {

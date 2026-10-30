@@ -67,6 +67,8 @@ The shared Windows settings reader owns bounded file inspection, deterministic f
 `[update] channel` accepts exactly `stable` (default) or `preview`, independently of `manifest_check`. `orchbee channel show [--format text|json]` reads the complete shared configuration without creating files, activating a Session or accessing the network. Text is the channel token; `orchbee.channel.show` v1 reports channel, default/file provenance, selected configuration path and file presence. An absent default file uses stable; an absent explicit file or malformed configuration fails. This is the requested release preference, not evidence about the currently installed cohort. Windows `config check` v1 and configuration failure v1 admit `update.channel` diagnostics.
 
 `[update] manifest_check` is a TOML boolean, default true, with `default`/`file` provenance.
+It allows automatic detection-rule checks only when the Server has a catalog from
+`ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL`; Orchbee ships no default catalog.
 Windows `config check` v1 adds `manifestCheck` and `manifestCheckSource`.
 Client activation validates the file and passes only its configuration path/explicit-file flag. The
 managed Server reads the complete authoritative revision-0 candidate at that frozen location once,

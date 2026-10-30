@@ -1,5 +1,5 @@
 //! Real remote-rule cache updates. Observer installation and public receipts are separate owners.
-use super::{ScreenDetector, manifest::Manifest, version::Version};
+use super::{RemoteCache, ScreenDetector, manifest::Manifest, version::Version};
 use orchbee_agent_observation_protocol::AgentReportProvider;
 use orchbee_local_runtime::PrivateCache;
 use serde::Deserialize;
@@ -13,8 +13,10 @@ use std::{
 mod fetch;
 const LIMIT: usize = 256 * 1024;
 const UPDATE_BUDGET: Duration = Duration::from_secs(600);
-pub(crate) const DEFAULT_CATALOG: &str = "https://herdr.dev/agent-detection/index.toml";
 pub(crate) const CATALOG_ENV: &str = "ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL";
+/// The Session's frozen catalog choice. `Ok(None)` means no catalog is configured, so no update
+/// runs and the remote directory is never read.
+pub(crate) type Source = Result<Option<CatalogUrl>, Failure>;
 
 #[derive(Clone, Debug)]
 pub(crate) struct CatalogUrl(String);
@@ -137,13 +139,23 @@ fn update_provider(
     row.cached_version = Some(display);
     Ok(Disposition::Updated)
 }
+/// Cached remote rules have confirmable provenance only while a valid catalog is configured.
+pub(crate) fn remote_cache(source: &Source) -> RemoteCache {
+    if matches!(source, Ok(Some(_))) {
+        RemoteCache::Admitted
+    } else {
+        RemoteCache::Ignored
+    }
+}
 /// Startup and explicit reload inspect existing status without creating the cache.
 pub(crate) fn maintenance(
     root: Option<&Path>,
-    source: &Result<CatalogUrl, Failure>,
+    source: &Source,
 ) -> orchbee_workbench_protocol::AgentManifestMaintenance {
     let loaded = (|| {
-        let Some(root) = root else { return Ok(None) };
+        let Some(root) = root.filter(|_| remote_cache(source) == RemoteCache::Admitted) else {
+            return Ok(None);
+        };
         let Some(bytes) = PrivateCache::read_existing(
             &root.join("agent-detection").join("remote"),
             "status.json",
@@ -163,16 +175,20 @@ pub(crate) fn maintenance(
     };
     orchbee_workbench_protocol::AgentManifestMaintenance {
         automatic: None,
-        source_url: source.as_ref().ok().map(|s| s.as_str().to_owned()),
+        source_url: match source {
+            Ok(Some(url)) => Some(url.as_str().to_owned()),
+            Ok(None) | Err(_) => None,
+        },
         source_error: source.as_ref().err().copied(),
         last_update,
         status_error,
     }
 }
-pub(crate) fn configured_source() -> Result<CatalogUrl, Failure> {
+/// Orchbee ships no default catalog; only an explicit startup variable enables remote updates.
+pub(crate) fn configured_source() -> Source {
     match std::env::var(CATALOG_ENV) {
-        Ok(value) => CatalogUrl::parse(&value),
-        Err(std::env::VarError::NotPresent) => CatalogUrl::parse(DEFAULT_CATALOG),
+        Ok(value) => CatalogUrl::parse(&value).map(Some),
+        Err(std::env::VarError::NotPresent) => Ok(None),
         Err(std::env::VarError::NotUnicode(_)) => Err(Failure::InvalidSource),
     }
 }

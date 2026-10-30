@@ -32,13 +32,13 @@ impl super::CliText {
             (Locale::EnUs, CommandPath::ServerUpdateAgentManifests) => {
                 crate::cli_text::HelpDetails::new(
                     "orchbee server update-agent-manifests [--request-id <operation-id>] [--format text|json]",
-                    "Download detection rules from the configured catalog and activate eligible cached rules. Wait up to five seconds; exit 8 retains the operation ID for server agent-manifests-status. Reusing an ID does not repeat the download. Partial failure returns a nonzero exit; cache results and activation are separate.",
+                    "Download detection rules from the catalog that ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL set at session startup and activate eligible cached rules. Without a catalog, update is unavailable. Wait up to five seconds; exit 8 retains the operation ID for server agent-manifests-status. Reusing an ID does not repeat the download. Partial failure returns a nonzero exit; cache results and activation are separate.",
                 )
             }
             (Locale::ZhCn, CommandPath::ServerUpdateAgentManifests) => {
                 crate::cli_text::HelpDetails::new(
                     "orchbee server update-agent-manifests [--request-id <operation-id>] [--format text|json]",
-                    "从配置的目录源下载识别规则并启用符合条件的缓存规则。最多等待五秒；退出码 8 会保留操作 ID，可用 server agent-manifests-status 查询。复用 ID 不会重复下载。部分失败返回非零退出码；缓存结果和启用结果分别显示。",
+                    "从会话启动时 ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL 指定的目录源下载识别规则，并启用符合条件的缓存规则；未配置目录源时无法更新。最多等待五秒；退出码 8 会保留操作 ID，可用 server agent-manifests-status 查询。复用 ID 不会重复下载。部分失败返回非零退出码；缓存结果和启用结果分别显示。",
                 )
             }
             (Locale::EnUs, _) => crate::cli_text::HelpDetails::new(
@@ -86,7 +86,12 @@ impl super::CliText {
                     escape(snapshot.configuration_root.as_deref().unwrap_or("-"))
                 ));
                 if let Some(maintenance)=&snapshot.maintenance {
-                    text.push_str(&format!("{}: {}\n",if zh {"更新目录源"} else {"Update catalog"},escape(maintenance.source_url.as_deref().unwrap_or("-"))));
+                    let catalog = match (&maintenance.source_url, maintenance.source_error) {
+                        (Some(url), _) => escape(url),
+                        (None, Some(_)) => "-".into(),
+                        (None, None) => (if zh { "未配置" } else { "not configured" }).into(),
+                    };
+                    text.push_str(&format!("{}: {}\n",if zh {"更新目录源"} else {"Update catalog"},catalog));
                     if let Some(error)=maintenance.source_error { text.push_str(&format!("{}: {:?}\n",if zh {"目录源错误"} else {"Catalog error"},error)); }
                     if let Some(error)=maintenance.status_error { text.push_str(&format!("{}: {:?}\n",if zh {"缓存状态错误"} else {"Cache status error"},error)); }
                     if let Some(automatic)=&maintenance.automatic {

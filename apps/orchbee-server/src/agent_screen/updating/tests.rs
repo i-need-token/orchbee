@@ -48,12 +48,14 @@ pub(crate) fn rules(provider: &str, version: &str) -> String {
         &format!("version = \"{version}\""),
     )
 }
+/// Scripted fetches and pre-fetch cancellation never contact this reserved example host.
+const CATALOG: &str = "https://example.com/agent-detection/index.toml";
 pub(crate) const INDEX: &str = "schema_version=1\n[[agents]]\nid='codex'\npath='codex.toml'\n";
 fn scripted(root: &Root, content: &str) -> UpdateReport {
     let stop = AtomicBool::new(false);
     run_with_fetch(
         &root.0,
-        &CatalogUrl::parse(DEFAULT_CATALOG).unwrap(),
+        &CatalogUrl::parse(CATALOG).unwrap(),
         &stop,
         Instant::now() + Duration::from_secs(10),
         |url, _, _| {
@@ -87,7 +89,7 @@ fn cache_updates_preserve_versions_bytes_partial_outcomes_and_corrupt_inputs() {
     let stop = AtomicBool::new(false);
     let partial = run_with_fetch(
         &root.0,
-        &CatalogUrl::parse(DEFAULT_CATALOG).unwrap(),
+        &CatalogUrl::parse(CATALOG).unwrap(),
         &stop,
         Instant::now() + Duration::from_secs(10),
         |url, _, _| {
@@ -117,7 +119,7 @@ fn cache_updates_preserve_versions_bytes_partial_outcomes_and_corrupt_inputs() {
 }
 #[test]
 fn catalog_and_cancellation_fail_before_any_manifest_commit() {
-    let source = CatalogUrl::parse(DEFAULT_CATALOG).unwrap();
+    let source = CatalogUrl::parse(CATALOG).unwrap();
     for path in [
         "/absolute",
         "../other",
@@ -338,7 +340,7 @@ fn real_inbox_curl_commits_validated_rules_and_rejects_oversized_and_invalid_utf
     assert_eq!(report.failure, None, "{report:?}");
     assert!(report.status_saved);
     assert_eq!(report.agents[0].result, Disposition::Updated);
-    let active = ScreenDetector::load(Some(&root.0)).unwrap();
+    let active = ScreenDetector::load(Some(&root.0), RemoteCache::Admitted).unwrap();
     let codex = active
         .summaries()
         .into_iter()

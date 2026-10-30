@@ -7,6 +7,12 @@ use orchbee_workbench_protocol::{
 };
 use std::{fs::File, io::Read, path::Path};
 const MAXIMUM_MANIFEST_BYTES: u64 = 256 * 1024;
+/// Whether cached remote rules join selection. Ignored rules are never read or reported.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum RemoteCache {
+    Admitted,
+    Ignored,
+}
 
 fn read(path: &Path) -> Result<Option<String>, Reason> {
     let file = match File::open(path) {
@@ -53,7 +59,10 @@ fn candidate(
 }
 impl ScreenDetector {
     /// Startup and later reloads use the same deterministic source ordering without writing inputs.
-    pub(crate) fn load(configuration_root: Option<&Path>) -> Result<Self, String> {
+    pub(crate) fn load(
+        configuration_root: Option<&Path>,
+        remote_cache: RemoteCache,
+    ) -> Result<Self, String> {
         let mut detector = Self::bundled()?;
         let Some(root) = configuration_root else {
             return Ok(detector);
@@ -71,7 +80,11 @@ impl ScreenDetector {
                 warnings: vec![],
             };
             let bundled_version = current.version.as_deref().and_then(Version::parse);
-            match candidate(current.provider, &remote) {
+            let remote_candidate = match remote_cache {
+                RemoteCache::Admitted => candidate(current.provider, &remote),
+                RemoteCache::Ignored => Ok(None),
+            };
+            match remote_candidate {
                 Ok(Some(candidate)) if candidate.minimum_engine_version.is_none() => {
                     info.warnings.push(Warning {
                         source: Source::RemoteCache,

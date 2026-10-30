@@ -357,6 +357,52 @@
 			}
 		},
 		{
+			"name": "unconfigured-source-uses-bundled-and-local-rules",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						],
+						"maintenance": {
+							"sourceUrl": null,
+							"sourceError": null,
+							"lastUpdate": null,
+							"statusError": null,
+							"automatic": {
+								"manifestCheck": true,
+								"manifestCheckSource": "default",
+								"backgroundEnabled": true,
+								"releaseBuild": true,
+								"updateAvailable": false,
+								"enabled": false,
+								"lastOperation": null
+							}
+						}
+					}
+				}
+			}
+		},
+		{
 			"name": "updated-and-activated",
 			"direction": "response",
 			"document": {

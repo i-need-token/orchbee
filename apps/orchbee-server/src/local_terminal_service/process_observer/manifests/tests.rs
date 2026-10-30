@@ -8,7 +8,13 @@ fn configuration_apply_changes_live_schedule_but_refuses_active_or_stopped_maint
     let registry = Registry::default();
     let startup = UserSettings::default();
     registry
-        .initialize_settings(&startup, &ScreenDetector::bundled().unwrap(), true, true)
+        .initialize_settings(
+            &startup,
+            &ScreenDetector::bundled().unwrap(),
+            Ok(None),
+            true,
+            true,
+        )
         .unwrap();
     let disabled = UserSettings {
         manifest_check: false,
@@ -198,7 +204,8 @@ fn reload_installs_changed_rules_once_from_the_original_root() {
         u128::from_le_bytes(nonce)
     )));
     std::fs::create_dir(&root.0).unwrap();
-    let mut installed = ScreenDetector::load(Some(&root.0)).unwrap();
+    let mut installed =
+        ScreenDetector::load(Some(&root.0), crate::agent_screen::RemoteCache::Ignored).unwrap();
     let registry = Registry::default();
     registry
         .initialize(Some(root.0.clone()), &installed)
@@ -225,7 +232,7 @@ fn reload_installs_changed_rules_once_from_the_original_root() {
             Owner::Manual(id) => id,
             Owner::Automatic => panic!("manual reload"),
         },
-        ScreenDetector::load(work.root.as_deref()),
+        ScreenDetector::load(work.root.as_deref(), updating::remote_cache(&work.source)),
         |next| {
             installed = next;
             Ok(())

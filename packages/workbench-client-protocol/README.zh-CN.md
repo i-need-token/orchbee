@@ -278,6 +278,8 @@ TypeScript 和 JSON 契约覆盖已安装快照、可选维护信息、保留的
 以及分开的缓存报告与启用事实。当前快照及状态查询只读。修改使用明确的 会话 生命周期操作 ID；
 相同类型复用 ID 读取保留回执，跨类型复用拒绝。更新报告保留逐 provider 的尝试版本、缓存版本
 和失败原因，以及目录源、时间和持久化事实；效果未知绝不声称成功。
+维护信息的 `sourceUrl`／`sourceError` 区分已配置目录源（URL，错误为 null）、被拒绝的配置
+（URL 为 null，`invalid-source`）和未配置目录源（两者均为 null）。
 共享 `workbench-agent-manifests-conformance-v1.json` 语料覆盖接纳／拒绝的形状、可空字段、
 数字版本、来源、修订、重复项和跨字段一致性。语义字节／版本和跨字段校验补充 JSON Schema。
 Server 屏幕模型拥有来源选择、下载、安装、取消和回执上限。
@@ -360,4 +362,4 @@ pane graphics 绑定与 Rust 共用封闭的图片、图层、像素块和生产
 
 封闭的 `CloseOperationReadSchema` 与 `CloseOperationResultSchema` 加入请求／结果联合及命令一致性语料。它们对应[保留 Close 身份查询](../../crates/workbench-protocol/README.zh-CN.md#保留-close-身份查询)，不引入 Client 所有的生命周期状态。
 
-<!-- documentation-pairing: english-sha256=2a6b39bf079ed39ee4dd84383de43f8727d18e8a9332636d9275e1669c53d0be zh-cn-sha256=bb9e024c03a635ea461d9d52ac3660915f15c624922ff1404ccefb906c2b50a2 -->
+<!-- documentation-pairing: english-sha256=9f90d6ff7d125d4dc4e54c7a75f104286e424fc7c579770dfac8667801e4e9fd zh-cn-sha256=672163eee3bf782241d2ea9616d1720762695328164b9a7a76562f16c6385c40 -->

@@ -362,6 +362,8 @@ Reload/Update operations and separate cache-report/activation facts. Current/sta
 read-only. Mutations use explicit Session-lifetime operation IDs; repeated same-kind IDs read the
 retained receipt and cross-kind reuse refuses. Update reports retain per-provider attempted/cached
 versions and failures, catalog/time and persistence facts; unknown effects never claim success.
+Maintenance `sourceUrl`/`sourceError` distinguish a configured catalog (URL, null error), a rejected
+configuration (null URL, `invalid-source`) and no configured catalog (both null).
 The shared `workbench-agent-manifests-conformance-v1.json` corpus covers accepted/refused shapes,
 nullable fields, numeric versions, sources, revisions, duplicates and cross-field consistency.
 Semantic byte/version and cross-field checks supplement JSON Schema. The Server screen model owns

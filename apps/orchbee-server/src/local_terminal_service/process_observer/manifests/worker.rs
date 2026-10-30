@@ -46,7 +46,12 @@ impl Worker {
                         || automatic_activation_needed(report, detector)
                 })
                 .filter(|_| !wake.stop.load(Ordering::Acquire))
-                .map(|_| ScreenDetector::load(running.work.root.as_deref()));
+                .map(|_| {
+                    ScreenDetector::load(
+                        running.work.root.as_deref(),
+                        updating::remote_cache(&running.work.source),
+                    )
+                });
             wake.manifests
                 .complete_update(running.work.id.clone(), report, loaded, |next| {
                     install(service, detector, next)
@@ -59,7 +64,8 @@ impl Worker {
             return;
         };
         if work.kind == Kind::Reload {
-            let next = ScreenDetector::load(work.root.as_deref());
+            let next =
+                ScreenDetector::load(work.root.as_deref(), updating::remote_cache(&work.source));
             let maintenance = updating::maintenance(work.root.as_deref(), &work.source);
             wake.manifests
                 .complete_reload(work.id, next, Some(maintenance), |next| {
@@ -67,7 +73,7 @@ impl Worker {
                 });
             return;
         }
-        let (Some(root), Ok(source)) = (work.root.clone(), work.source.clone()) else {
+        let (Some(root), Ok(Some(source))) = (work.root.clone(), work.source.clone()) else {
             wake.manifests
                 .refuse_work(work.id, Failure::UpdateUnavailable);
             return;

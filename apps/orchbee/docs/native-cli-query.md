@@ -199,8 +199,8 @@ viewer and full frame/Host/binding fences as selection and copy.
 
 The resolver first reads one strictly validated render row to inspect the clicked
 whole glyph's OSC 8 target, including wide tails. An explicit hyperlink returns
-its complete URI and an empty regions list, matching the reference's separation
-between frame-owned OSC 8 highlighting and server-resolved plain-text regions.
+its complete URI and an empty regions list, keeping frame-owned OSC 8 highlighting
+separate from server-resolved plain-text regions.
 Without OSC 8, complete mapped text rows are read only as needed to prove the
 whitespace-delimited token across verified soft wraps, including token ends
 outside the requested viewport. Missing neighboring context triggers a bounded
@@ -208,7 +208,7 @@ extension; hard row boundaries and Unicode whitespace stop the token. Verified
 wide spacer heads add no text. Plain detection uses lowercase
 http/https prefixes, trailing quotes/punctuation trimmed, balanced round/square/
 curly closers retained, and a click outside the resulting URL yields no link.
-The reference shared8192-cell inspection budget includes selected physical
+A shared 8192-cell inspection budget includes selected physical
 cells, wide spacer/tail cells and boundary probes in both directions; exhausted
 inspection yields no link rather than a truncated URL. Native
 encoded-byte/glyph/65536-row scan limits still fail explicitly rather than
@@ -218,7 +218,7 @@ wide/combining cells and are clipped to the requested viewport.
 Closed `orchbee.terminal.link-resolve` v1 includes the complete URL or null,
 `plain-text`/`explicit`/`none` kind, visible regions, viewport origin/offset and
 captured content revision/generation/Host/terminal binding. Empty is a successful
-no-link result under the reference's bounded token policy, including exhaustion
+no-link result under the bounded token policy, including exhaustion
 of its inspection budget. Malformed/duplicate/foreign options fail before
 runtime discovery; stale/evicted/misrouted/incomplete records fail whole, with no
 retry or partial regions. This operation never obtains a controller, sends input,
@@ -285,9 +285,9 @@ whitespace. Ordinary words distinguish whitespace, ASCII punctuation
 whitespace. Results remain at whole glyph heads, including wide tails and
 combining text. Line end is the last character after hard-row padding trim;
 first nonblank is the first non-whitespace glyph. Kitty Unicode placeholder
-cells are whitespace for copy motion/search, matching the pinned reference. Paragraph motion finds the
+cells are whitespace for copy motion/search. Paragraph motion finds the
 nearest blank physical row in the requested direction, preserving column and
-checking at most 999 rows, as the pinned reference does. No target returns the
+checking at most 999 rows. No target returns the
 original cursor. Out-of-buffer points fail.
 
 Windows `terminal copy-search <terminal> --cursor ROW:COL --query <literal>`
@@ -2975,10 +2975,11 @@ frozen update catalog, source errors, last update facts and persisted-status err
 and existing status, resets screen stabilization and switches sampling and Explain together.
 `server update-agent-manifests [--request-id <operation-id>]` downloads validated rules through the
 Server's owned Windows curl worker, commits eligible cache versions and then activates the current
-local/cache/bundled selection. Local overrides continue to take precedence. Catalog selection uses
-`ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL`, defaulting to
-`https://herdr.dev/agent-detection/index.toml`; invalid overrides disable Update while local rules
-remain usable. The source is frozen at Session startup. Managed release Sessions automatically check at startup and
+local/cache/bundled selection. Local overrides continue to take precedence. The catalog comes only
+from `ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL`; there is no default. Without it, or with an
+invalid value, Update is unavailable, no check runs, the remote cache is ignored and the catalog reads
+`not configured` or reports the source error, while bundled and local rules remain usable. The source
+is frozen at Session startup. With a catalog, managed release Sessions automatically check at startup and
 every thirty minutes when `update.manifest_check` is true (default). Debug/test and standalone
 execution do not schedule checks. Only configuration publication (the Session's sampler or
 `server reload-config`) changes this switch; rule Reload never reads `config.toml`, and a failed rule installation preserves the previous detector. Automatic results use

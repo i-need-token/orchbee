@@ -8,6 +8,7 @@ mod regions;
 mod stability;
 pub(crate) mod updating;
 mod version;
+pub(crate) use loading::RemoteCache;
 pub(crate) use stability::Stability;
 #[cfg(test)]
 mod tests;

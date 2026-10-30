@@ -42,7 +42,7 @@ pub const USER_CONFIG_OPTIONS: &[UserConfigOption] = &[
         path: "update.manifest_check",
         default: "true",
         choices: "true, false",
-        description: "Allow the automatic update-manifest check.",
+        description: "Allow automatic checks of the detection-rule catalog named by ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL; no check runs without one.",
     },
     UserConfigOption {
         path: "keys.prefix",

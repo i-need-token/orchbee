@@ -24,14 +24,8 @@ fn automatic_real_update_avoids_the_manual_ledger_and_only_configuration_changes
     let wake = &service.process_observer.wake;
     let mut detector = ScreenDetector::bundled().unwrap();
     wake.manifests
-        .initialize_settings(&settings, &detector, true, true)
+        .initialize_settings(&settings, &detector, Ok(Some(http.url.clone())), true, true)
         .unwrap();
-    {
-        let mut lock = wake.manifests.0.lock().unwrap();
-        let state = lock.as_mut().unwrap();
-        state.source = Ok(http.url.clone());
-        state.snapshot.maintenance = Some(updating::maintenance(Some(&root.0), &state.source));
-    }
     let reload = Action::Reload {
         operation_id: id(1),
     };
@@ -117,4 +111,50 @@ fn automatic_real_update_avoids_the_manual_ledger_and_only_configuration_changes
         Some(Owner::Automatic)
     ));
     wake.manifests.cancel();
+}
+#[test]
+fn unconfigured_source_reads_no_remote_state_and_admits_no_update() {
+    let root = Root::new();
+    let path = root.0.join("config.toml");
+    std::fs::write(&path, "[update]\nmanifest_check=true").unwrap();
+    let remote = root.0.join("agent-detection").join("remote");
+    std::fs::create_dir_all(&remote).unwrap();
+    // Any read of this unconfirmed status would surface as a cache status error.
+    std::fs::write(remote.join("status.json"), "unconfirmed").unwrap();
+    let settings =
+        orchbee_local_runtime::read_user_settings_at(Some(&path), true, |_| None).unwrap();
+    let registry = Registry::default();
+    registry
+        .initialize_settings(
+            &settings,
+            &ScreenDetector::bundled().unwrap(),
+            Ok(None),
+            true,
+            true,
+        )
+        .unwrap();
+    registry.schedule(Instant::now());
+    assert!(registry.take().is_none(), "no automatic check is admitted");
+    assert_eq!(
+        registry.execute(&Action::Update {
+            operation_id: id(1)
+        }),
+        failed(Failure::UpdateUnavailable)
+    );
+    let Outcome::Current { snapshot } = registry.execute(&Action::Current {}) else {
+        panic!("current snapshot")
+    };
+    let maintenance = snapshot.maintenance.unwrap();
+    maintenance.validate().unwrap();
+    assert_eq!(
+        (
+            maintenance.source_url,
+            maintenance.source_error,
+            maintenance.last_update,
+            maintenance.status_error
+        ),
+        (None, None, None, None)
+    );
+    let automatic = maintenance.automatic.unwrap();
+    assert!(automatic.manifest_check && !automatic.update_available && !automatic.enabled);
 }

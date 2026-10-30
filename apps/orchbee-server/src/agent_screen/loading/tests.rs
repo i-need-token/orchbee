@@ -26,7 +26,7 @@ impl Root {
             .join("codex.toml")
     }
     fn explain(&self) -> orchbee_workbench_protocol::AgentScreenExplanation {
-        ScreenDetector::load(Some(&self.0))
+        ScreenDetector::load(Some(&self.0), RemoteCache::Admitted)
             .unwrap()
             .explain(Provider::Codex, input())
             .unwrap()
@@ -76,8 +76,16 @@ fn installed_rules_prioritize_local_then_valid_remote_and_leave_old_snapshot_imm
         "equal remote version is admissible"
     );
     assert_eq!(remote.matched_rule.unwrap().id, "remote");
+    // Without a configured catalog the same cache is neither selected nor reported.
+    let ignored = ScreenDetector::load(Some(&root.0), RemoteCache::Ignored)
+        .unwrap()
+        .explain(Provider::Codex, input())
+        .unwrap();
+    let info = ignored.manifest.unwrap();
+    assert_eq!(info.source, Source::Bundled);
+    assert!(info.cached_remote_version.is_none() && info.warnings.is_empty());
     fs::write(root.local(), manifest("0", "local", "blocked")).unwrap();
-    let installed = ScreenDetector::load(Some(&root.0)).unwrap();
+    let installed = ScreenDetector::load(Some(&root.0), RemoteCache::Admitted).unwrap();
     let local = installed.explain(Provider::Codex, input()).unwrap();
     assert_eq!(local.matched_rule.unwrap().id, "local");
     let info = local.manifest.unwrap();

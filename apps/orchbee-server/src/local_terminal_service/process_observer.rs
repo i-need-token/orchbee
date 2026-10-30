@@ -1,6 +1,6 @@
 //! Windows Session-owned periodic process observations with one retained viewer cleanup responsibility.
 use super::{LocalTerminalService, viewer_connection::PendingCleanup};
-use crate::agent_screen::ScreenDetector;
+use crate::agent_screen::{ScreenDetector, updating};
 use crate::session_coordinator::ProcessObservationTarget;
 use std::{
     io,
@@ -71,7 +71,10 @@ impl ProcessObserver {
         }
         let settings = &current.settings;
         let root = settings.path.as_deref().and_then(std::path::Path::parent);
-        let detector = ScreenDetector::load(root).map_err(io::Error::other)?;
+        // One startup read freezes the catalog for both rule selection and maintenance.
+        let source = updating::configured_source();
+        let detector = ScreenDetector::load(root, updating::remote_cache(&source))
+            .map_err(io::Error::other)?;
         // Validate the complete authoritative rev0 response before manifest policy or its schedule
         // can become visible. Installation remains after manifest initialization so a later
         // manifest failure cannot leave the configuration owner half-started.
@@ -79,6 +82,7 @@ impl ProcessObserver {
         self.wake.manifests.initialize_settings(
             settings,
             &detector,
+            source,
             background,
             !cfg!(debug_assertions) && !cfg!(test),
         )?;
