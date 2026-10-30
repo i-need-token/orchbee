@@ -1,5 +1,5 @@
 use super::*;
-fn position(context: u32) -> Position {
+pub(super) fn position(context: u32) -> Position {
     Position {
         location: {
             let fixture_context_id = orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
@@ -83,6 +83,3 @@ fn current_position_rejects_historical_shape_and_requires_member() {
         .remove("member");
     assert!(decode(&serde_json::to_vec(&missing).unwrap()).is_err());
 }
-
-#[cfg(windows)]
-mod windows;

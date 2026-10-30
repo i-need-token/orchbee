@@ -338,7 +338,9 @@ pub mod application {
     }
 
     pub mod notifications {
-        pub use crate::notifications::{available, render, sound};
+        pub use crate::notifications::paint::render;
+        pub use crate::notifications::system::sound;
+        pub use crate::workbench_client::notification_available as available;
 
         pub mod system {
             pub use crate::notifications::system::SystemNotifications;

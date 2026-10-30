@@ -377,7 +377,7 @@ fn warning_reload_keeps_the_agent_notification_surface_available() {
         thread::sleep(Duration::from_millis(5));
     }
     assert_eq!(view.notice(), Some(Notice::ConfigurationWarning));
-    assert!(crate::notifications::available(
+    assert!(crate::workbench_client::notification_available(
         &view,
         Some(crate::workbench_client::WorkbenchClientView::notification_test_view(),),
     ));

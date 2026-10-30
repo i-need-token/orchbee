@@ -101,7 +101,7 @@ pub(crate) use ui::{
 pub(crate) use ui::{AgentStartCatalogStatus, AgentStartPhase};
 pub use ui::{
     CaptureContext, CloseConfirmationToken, DisplayPhase, DrawReceipt, RetainedFrameBank,
-    WorkbenchClientView, WorkspaceCloseToken,
+    WorkbenchClientView, WorkspaceCloseToken, notification_available,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use workbench_projection::ClientMemberTargetFixture;
@@ -134,10 +134,10 @@ enum ClientTask {
 }
 
 pub struct WorkbenchClient {
-    position_writer: Option<startup_preference::Writer>,
+    position_writer: Option<startup_preference::store::Writer>,
     position_startup: Option<startup_preference::Startup>,
     configuration: Option<configuration::Watcher>,
-    notifications: Option<crate::notifications::Subscription>,
+    notifications: Option<crate::notifications::subscription::Subscription>,
     window_title: Option<window_title::Subscription>,
     client_control: Option<ui::control_steps::ClientControl>,
     backend: ClientBackend,
@@ -254,7 +254,7 @@ impl WorkbenchClient {
         if !crate::tui_capabilities::Capability::PositionStorage.available() {
             return Self::start(client, geometry);
         }
-        let preferences = startup_preference::Preferences::load(runtime);
+        let preferences = startup_preference::store::Preferences::load(runtime);
         let fallback = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let context = Some(ClientStartupTarget::LocalDirectory {
             position: preferences.position.clone(),
@@ -389,7 +389,7 @@ impl WorkbenchClient {
         let position_failed = self
             .position_writer
             .as_ref()
-            .is_some_and(startup_preference::Writer::take_failure);
+            .is_some_and(startup_preference::store::Writer::take_failure);
         let changed = match &mut self.backend {
             ClientBackend::Native(native) => native.tick_with_client_capture(client_capture),
         };
@@ -432,7 +432,7 @@ impl WorkbenchClient {
         if let Some(native) = self.backend.native_mut() {
             let automatic_accepting = view.notifications.empty()
                 && (!native.agent_notification_requires_card()
-                    || crate::notifications::available(view, Some(native.view())));
+                    || ui::notification_available(view, Some(native.view())));
             if let Some((delivery, message)) =
                 native.take_agent_notification(locale, automatic_accepting)
             {
@@ -503,7 +503,7 @@ impl WorkbenchClient {
                     && let Some(origin) = &self.origin
                     && let Some((session, _)) = native.control_observation(false)
                 {
-                    self.notifications = crate::notifications::Subscription::spawn(
+                    self.notifications = crate::notifications::subscription::Subscription::spawn(
                         origin.clone(),
                         native.configuration_clock(),
                         session,
@@ -530,7 +530,7 @@ impl WorkbenchClient {
                     view.window_title = Some(snapshot);
                 }
                 let accepting = (!view.notifications.card_delivery()
-                    || crate::notifications::available(view, Some(native.view())))
+                    || ui::notification_available(view, Some(native.view())))
                     && view.notifications.empty();
                 if let Some(listener) = &self.notifications
                     && let Some(message) = listener.poll(accepting)

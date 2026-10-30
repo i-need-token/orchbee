@@ -1,21 +1,11 @@
-//! Main-TUI transient notification state and noncapturing paint; transport stays in subscription.
-use crate::{
-    client_view::ClientView,
-    tui_composition::{ClientCaptureClaims, project_capture},
-    tui_theme::{Role, Theme},
-    workbench_client::WorkbenchClientView,
-};
+//! Main-TUI transient notification state. Its card painter lives in `paint`, its transport in
+//! `subscription`, and its host effects in `system`.
 use orchbee_workbench_protocol::{
     Notification, NotificationPosition as Position, NotificationSound,
 };
-use ratatui::{
-    Frame,
-    layout::Rect,
-    text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph},
-};
 use std::time::{Duration, Instant};
-mod subscription;
+pub(crate) mod paint;
+pub(crate) mod subscription;
 pub(crate) mod system;
 pub(crate) mod terminal;
 use orchbee_local_runtime::{NotificationDelivery as Delivery, NotificationSettings};
@@ -24,7 +14,6 @@ pub struct Effect {
     pub delivery: Delivery,
     pub message: Notification,
 }
-pub(crate) use subscription::Subscription;
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Visible {
     message: Notification,
@@ -114,125 +103,6 @@ impl State {
             _ => NotificationSound::None,
         }
     }
-}
-pub fn available(view: &ClientView, workbench_client: Option<WorkbenchClientView<'_>>) -> bool {
-    let Some(native) = workbench_client else {
-        return false;
-    };
-    let client_claims = ClientCaptureClaims::default();
-    #[cfg(windows)]
-    let client_claims = client_claims
-        .with_machine(view.machines.open)
-        .with_resize(view.resize_mode());
-    project_capture(client_claims, native.capture_claims()).is_none()
-        && !view.prefix_active()
-        && view.overlay().is_none()
-        && native.notice().is_none()
-}
-pub fn sound(kind: NotificationSound) {
-    #[cfg(windows)]
-    {
-        let tone = match kind {
-            NotificationSound::None => return,
-            NotificationSound::Done => winsafe::co::MBP::INFORMATION,
-            NotificationSound::Request => winsafe::co::MBP::EXCLAMATION,
-        };
-        let _ = winsafe::MessageBeep(tone);
-    }
-    #[cfg(not(windows))]
-    if kind != NotificationSound::None {
-        use std::io::Write;
-        let mut output = std::io::stdout().lock();
-        let _ = output.write_all(b"\x07").and_then(|()| output.flush());
-    }
-}
-/// Paint the one visible card and record its exact painted extent as a
-/// noncapturing hit shield. Covered controls cannot hover, arm, or activate
-/// through the card, while cells outside it keep their ordinary policy.
-/// Returns the painted card rectangle only when this frame drew it.
-pub fn render(
-    frame: &mut Frame<'_>,
-    state: &State,
-    theme: &Theme,
-    hits: &mut crate::tui_pointer::HitMapBuilder,
-) -> Option<Rect> {
-    let Some(visible) = &state.visible else {
-        return None;
-    };
-    let bounds = frame.area();
-    // Keep clear of the top chrome row and the last row, where the status chip floats.
-    let area = Rect::new(
-        bounds.x,
-        bounds.y.saturating_add(1),
-        bounds.width,
-        bounds.height.saturating_sub(2),
-    );
-    if area.width < 8 || area.height < 3 {
-        return None;
-    }
-    let title = crate::terminal_text::escape(&visible.message.title);
-    let body = visible
-        .message
-        .body
-        .as_deref()
-        .map(crate::terminal_text::escape);
-    let width = crate::terminal_text::display_width(&title)
-        .max(
-            body.as_deref()
-                .map_or(0, crate::terminal_text::display_width),
-        )
-        .saturating_add(4)
-        .clamp(8, 60)
-        .min(usize::from(area.width)) as u16;
-    let height = if body.is_some() { 4 } else { 3 }.min(area.height);
-    let left = matches!(
-        visible.message.position.unwrap_or(Position::BottomRight),
-        Position::TopLeft | Position::BottomLeft
-    );
-    let top = matches!(
-        visible.message.position.unwrap_or(Position::BottomRight),
-        Position::TopLeft | Position::TopRight
-    );
-    let rect = Rect::new(
-        if left { area.x } else { area.right() - width },
-        if top { area.y } else { area.bottom() - height },
-        width,
-        height,
-    );
-    frame.render_widget(Clear, rect);
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(theme.style(Role::StatusInfo))
-        .style(theme.style(Role::SurfaceOverlay));
-    let inner = block.inner(rect);
-    frame.render_widget(block, rect);
-    let clip = |text: &str| {
-        crate::terminal_text::truncate_display(
-            text,
-            usize::from(inner.width),
-            theme.glyphs.ellipsis,
-        )
-    };
-    let mut lines = vec![Line::from(Span::styled(
-        clip(&title),
-        theme.style(Role::TextPrimary),
-    ))];
-    if let Some(body) = body {
-        lines.push(Line::from(Span::styled(
-            clip(&body),
-            theme.style(Role::TextSecondary),
-        )));
-    }
-    frame.render_widget(
-        Paragraph::new(lines).style(theme.style(Role::SurfaceOverlay)),
-        inner,
-    );
-    hits.record(
-        crate::tui_pointer::HitLayer::Notification,
-        rect,
-        crate::tui_pointer::HitTarget::OverlaySurface,
-    );
-    Some(rect)
 }
 /// Crate-internal `State` operations the application's tests drive.
 #[cfg(any(test, feature = "test-support"))]

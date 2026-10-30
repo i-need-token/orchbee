@@ -1,5 +1,11 @@
+use super::paint::render;
 use super::*;
+use crate::client_view::ClientView;
 use crate::tui_pointer::{HitMapBuilder, HitTarget};
+use crate::tui_theme::Theme;
+#[cfg(windows)]
+use crate::workbench_client::notification_available as available;
+use ratatui::layout::Rect;
 use ratatui::{Terminal, backend::TestBackend};
 fn message(position: Position) -> Notification {
     Notification::normalize(

@@ -1,9 +1,10 @@
-//! Native system notification capability; the Client owns fallback presentation.
+//! Native system notification capability and host alert tone; the Client owns fallback
+//! presentation.
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-pub use windows::SystemNotifications;
+pub use windows::{SystemNotifications, sound};
 #[cfg(not(windows))]
 mod unix;
 #[cfg(not(windows))]
-pub use unix::SystemNotifications;
+pub use unix::{SystemNotifications, sound};

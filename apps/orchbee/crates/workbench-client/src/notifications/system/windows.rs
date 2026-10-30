@@ -154,3 +154,14 @@ fn run(receiver: mpsc::Receiver<Notification>, stop: Arc<AtomicBool>) {
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
+
+/// Play the host alert tone for one notification sound.
+pub fn sound(kind: orchbee_workbench_protocol::NotificationSound) {
+    use orchbee_workbench_protocol::NotificationSound;
+    let tone = match kind {
+        NotificationSound::None => return,
+        NotificationSound::Done => winsafe::co::MBP::INFORMATION,
+        NotificationSound::Request => winsafe::co::MBP::EXCLAMATION,
+    };
+    let _ = winsafe::MessageBeep(tone);
+}

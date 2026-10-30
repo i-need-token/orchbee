@@ -1,5 +1,6 @@
 //! Windows private-cache locking and persistence witness for the joined position writer.
-use super::{FILE, MAXIMUM_BYTES, Writer, decode, position};
+use super::Writer;
+use crate::workbench_client::startup_preference::{FILE, MAXIMUM_BYTES, decode, tests::position};
 use std::{fs, path::PathBuf};
 
 struct Root(PathBuf);

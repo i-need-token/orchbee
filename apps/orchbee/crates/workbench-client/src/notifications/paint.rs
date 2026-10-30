@@ -1,0 +1,98 @@
+//! Noncapturing paint of the one visible notification card.
+use super::{Position, State};
+use crate::tui_theme::{Role, Theme};
+use ratatui::{
+    Frame,
+    layout::Rect,
+    text::{Line, Span},
+    widgets::{Block, Borders, Clear, Paragraph},
+};
+
+/// Paint the one visible card and record its exact painted extent as a
+/// noncapturing hit shield. Covered controls cannot hover, arm, or activate
+/// through the card, while cells outside it keep their ordinary policy.
+/// Returns the painted card rectangle only when this frame drew it.
+pub fn render(
+    frame: &mut Frame<'_>,
+    state: &State,
+    theme: &Theme,
+    hits: &mut crate::tui_pointer::HitMapBuilder,
+) -> Option<Rect> {
+    let Some(visible) = &state.visible else {
+        return None;
+    };
+    let bounds = frame.area();
+    // Keep clear of the top chrome row and the last row, where the status chip floats.
+    let area = Rect::new(
+        bounds.x,
+        bounds.y.saturating_add(1),
+        bounds.width,
+        bounds.height.saturating_sub(2),
+    );
+    if area.width < 8 || area.height < 3 {
+        return None;
+    }
+    let title = crate::terminal_text::escape(&visible.message.title);
+    let body = visible
+        .message
+        .body
+        .as_deref()
+        .map(crate::terminal_text::escape);
+    let width = crate::terminal_text::display_width(&title)
+        .max(
+            body.as_deref()
+                .map_or(0, crate::terminal_text::display_width),
+        )
+        .saturating_add(4)
+        .clamp(8, 60)
+        .min(usize::from(area.width)) as u16;
+    let height = if body.is_some() { 4 } else { 3 }.min(area.height);
+    let left = matches!(
+        visible.message.position.unwrap_or(Position::BottomRight),
+        Position::TopLeft | Position::BottomLeft
+    );
+    let top = matches!(
+        visible.message.position.unwrap_or(Position::BottomRight),
+        Position::TopLeft | Position::TopRight
+    );
+    let rect = Rect::new(
+        if left { area.x } else { area.right() - width },
+        if top { area.y } else { area.bottom() - height },
+        width,
+        height,
+    );
+    frame.render_widget(Clear, rect);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(theme.style(Role::StatusInfo))
+        .style(theme.style(Role::SurfaceOverlay));
+    let inner = block.inner(rect);
+    frame.render_widget(block, rect);
+    let clip = |text: &str| {
+        crate::terminal_text::truncate_display(
+            text,
+            usize::from(inner.width),
+            theme.glyphs.ellipsis,
+        )
+    };
+    let mut lines = vec![Line::from(Span::styled(
+        clip(&title),
+        theme.style(Role::TextPrimary),
+    ))];
+    if let Some(body) = body {
+        lines.push(Line::from(Span::styled(
+            clip(&body),
+            theme.style(Role::TextSecondary),
+        )));
+    }
+    frame.render_widget(
+        Paragraph::new(lines).style(theme.style(Role::SurfaceOverlay)),
+        inner,
+    );
+    hits.record(
+        crate::tui_pointer::HitLayer::Notification,
+        rect,
+        crate::tui_pointer::HitTarget::OverlaySurface,
+    );
+    Some(rect)
+}

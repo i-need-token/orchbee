@@ -21,3 +21,12 @@ impl SystemNotifications {
         .into())
     }
 }
+
+/// Ring the terminal bell for one audible notification sound.
+pub fn sound(kind: orchbee_workbench_protocol::NotificationSound) {
+    use std::io::Write;
+    if kind != orchbee_workbench_protocol::NotificationSound::None {
+        let mut output = std::io::stdout().lock();
+        let _ = output.write_all(b"\x07").and_then(|()| output.flush());
+    }
+}

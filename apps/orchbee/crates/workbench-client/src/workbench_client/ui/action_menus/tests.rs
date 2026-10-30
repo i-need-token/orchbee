@@ -620,8 +620,9 @@ fn notifications_follow_the_real_pending_admitted_and_released_menu_capture() {
 
     let (mut ui, _, _, _) = tests::move_membership::ready_ui();
     let shell = ClientView::new(80);
-    let available =
-        |ui: &WorkbenchClientUi| crate::notifications::available(&shell, Some(ui.view()));
+    let available = |ui: &WorkbenchClientUi| {
+        crate::workbench_client::notification_available(&shell, Some(ui.view()))
+    };
 
     assert!(available(&ui));
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));

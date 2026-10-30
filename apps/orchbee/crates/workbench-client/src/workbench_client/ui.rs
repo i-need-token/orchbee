@@ -118,6 +118,7 @@ pub(crate) use super::input::WorktreeCaptureContext;
 #[cfg(test)]
 pub(crate) use super::input::{ConfirmationCaptureContext, SetupCaptureContext};
 pub(crate) use super::input::{RenameDraftToken, RenameEdit};
+pub use input_capture::notification_available;
 pub(crate) use panel_close::{PanelCloseConfirmationToken, PanelCloseConfirmationView};
 #[cfg(test)]
 pub(crate) use tab_close::{CloseConfirmationKind, CloseStatusKind};

@@ -1,7 +1,9 @@
 //! Read-only native input composition projected from the feature owners.
 
 use super::{WorkbenchClientUi, WorkbenchClientView};
-use crate::tui_composition::{CaptureClaims, WorkbenchCaptureOwner};
+use crate::tui_composition::{
+    CaptureClaims, ClientCaptureClaims, WorkbenchCaptureOwner, project_capture,
+};
 use crate::workbench_client::input::{
     CaptureContext, CaptureReadiness, ConfirmationCaptureContext, RenameCaptureContext,
     SetupCaptureContext, WorktreeCaptureContext,
@@ -143,4 +145,24 @@ impl WorkbenchClientUi {
     ) -> Option<CaptureContext> {
         self.view().capture_context(owner)
     }
+}
+
+/// Whether the noncapturing notification card may paint above the current Client and native
+/// capture owners.
+pub fn notification_available(
+    view: &crate::client_view::ClientView,
+    workbench_client: Option<WorkbenchClientView<'_>>,
+) -> bool {
+    let Some(native) = workbench_client else {
+        return false;
+    };
+    let client_claims = ClientCaptureClaims::default();
+    #[cfg(windows)]
+    let client_claims = client_claims
+        .with_machine(view.machines.open)
+        .with_resize(view.resize_mode());
+    project_capture(client_claims, native.capture_claims()).is_none()
+        && !view.prefix_active()
+        && view.overlay().is_none()
+        && native.notice().is_none()
 }
