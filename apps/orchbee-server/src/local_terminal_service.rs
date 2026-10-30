@@ -7,10 +7,8 @@ pub(crate) mod configured_commands;
 mod independent_popup;
 pub(crate) use independent_popup::PopupOwner;
 mod observation;
-#[cfg(windows)]
 mod pane_graphics;
 mod plugins;
-#[cfg(windows)]
 pub(crate) mod semantic_events;
 mod user_preferences;
 use std::{
@@ -83,11 +81,8 @@ pub(crate) struct LocalTerminalService {
     preferences: std::sync::OnceLock<orchbee_local_runtime::UserPreferencesStore>,
     configuration: configuration::Registry,
     observer: observation::Observer,
-    #[cfg(windows)]
     graphics_preparation: Mutex<()>,
-    #[cfg(windows)]
     graphics_files: Option<pane_graphics::GraphicsFiles>,
-    #[cfg(windows)]
     graphics_stopping: std::sync::atomic::AtomicBool,
     popups: independent_popup::Popups,
     process_observer: process_observer::ProcessObserver,
@@ -128,11 +123,8 @@ impl LocalTerminalService {
             preferences: std::sync::OnceLock::new(),
             configuration: configuration::Registry::default(),
             observer: observation::Observer::default(),
-            #[cfg(windows)]
             graphics_preparation: Mutex::default(),
-            #[cfg(windows)]
             graphics_files: None,
-            #[cfg(windows)]
             graphics_stopping: std::sync::atomic::AtomicBool::new(false),
             popups: independent_popup::Popups::default(),
             close_maintenance: close_maintenance::CloseMaintenance::default(),

@@ -162,8 +162,13 @@ pub(super) fn run(
         terminals.configure_graphics_files(runtime);
         Ok::<_, io::Error>((handle, Arc::new(terminals), pending))
     })();
+    // File frames refuse at the frame directory adapter here; creation stays lazy.
     #[cfg(not(windows))]
-    let terminals = Arc::new(LocalTerminalService::new(registry));
+    let terminals = {
+        let mut terminals = LocalTerminalService::new(registry);
+        terminals.configure_graphics_files(runtime);
+        Arc::new(terminals)
+    };
     #[cfg(not(windows))]
     terminals.initialize_preferences(
         orchbee_local_runtime::UserPreferencesScope::from_environment(|name| {

@@ -18,7 +18,6 @@ mod agent_service;
 #[cfg(any(unix, windows))]
 mod client_connection_registry;
 mod client_view_registry;
-#[cfg(windows)]
 mod frame_directory;
 #[cfg(any(unix, windows))]
 mod local_client_service;

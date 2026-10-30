@@ -45,10 +45,8 @@ pub(crate) use target_lifecycle::TargetLifecycle;
 #[cfg(windows)]
 mod agent_names;
 mod agent_registration;
-#[cfg(windows)]
 mod pane_graphics;
 mod process_observation;
-#[cfg(windows)]
 mod semantic_events;
 #[cfg(all(test, windows))]
 pub(crate) use process_observation::SETTLE as PROCESS_IDENTITY_SETTLE;
@@ -58,7 +56,6 @@ pub(crate) struct SessionCoordinator {
     terminals: TerminalCoordinator,
     workbench: Option<WorkbenchAuthority>,
     process_samples: process_observation::Samples,
-    #[cfg(windows)]
     terminal_observations: semantic_events::Observations,
     #[cfg(windows)]
     agent_names: Option<std::sync::Weak<crate::agent_service::AgentService>>,
@@ -73,7 +70,6 @@ impl SessionCoordinator {
             terminals: TerminalCoordinator::new(),
             workbench,
             process_samples: process_observation::Samples::new(),
-            #[cfg(windows)]
             terminal_observations: semantic_events::Observations::new(),
             #[cfg(windows)]
             agent_names: None,

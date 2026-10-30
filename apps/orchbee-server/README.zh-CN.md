@@ -163,7 +163,8 @@ Linux 与 macOS 编译与 Windows 相同的 Workbench 分发。仅 Windows 支�
 其平台适配器，或执行到本启动从不初始化的 owner，由它以自己的类型化结果拒绝：插件存储和
 Worker 插件作业返回 `Unsupported`，依赖配置的请求返回 `Unavailable`。启动时会请求启动进程
 观察器；这些 Host 无法采样进程，所以观察器在读取设置前就以 `Unsupported` 拒绝，Agent manifest
-请求因此返回 `Unavailable`。终端编辑器、Client view 与 Panel Agent 请求在准入处保持原有拒绝，
+请求因此返回 `Unavailable`。启动时还会配置 Panel 图形文件帧，其私有帧目录以 `Unsupported`
+拒绝预留。终端编辑器、Client view、Panel Agent、Panel 图形与语义事件请求在准入处保持原有拒绝，
 直到确定它们在 Windows 之外的行为。
 
 ## 本机 Worker service
@@ -837,4 +838,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=ef7153fcafbe79a767fc307c6cb51c3315fd6d06a1977276d2b763f04238520a zh-cn-sha256=b3b9f4f46f5c34e3b738a1284fcf0aa9ad05b8e283148d11c22ea3294fbe4f4d -->
+<!-- documentation-pairing: english-sha256=fbe53436cd39baa9ec8e3dc1baf2cca83434c0c4f8892b1311d334b9380da5bb zh-cn-sha256=7ab1ebd9e146fa126900e5bd13be81b956e9484b0e33027f40980c332075d86f -->

@@ -5,9 +5,7 @@
 #[cfg(windows)]
 mod agent_view;
 mod configured_commands;
-#[cfg(windows)]
 mod events;
-#[cfg(windows)]
 mod pane_graphics;
 use crate::local_terminal_service::LocalTerminalService;
 use orchbee_server::WorkbenchReadOrNavigationRequest;
@@ -55,6 +53,8 @@ fn withheld_off_windows(request: &WorkbenchRequest) -> bool {
             WorkbenchRequest::TerminalEditor(_)
                 | WorkbenchRequest::ClientView(_)
                 | WorkbenchRequest::PanelAgent(_)
+                | WorkbenchRequest::PaneGraphics(_)
+                | WorkbenchRequest::Events(_)
         )
 }
 
@@ -73,10 +73,7 @@ pub(crate) struct WorkbenchService {
 
 impl WorkbenchService {
     pub(crate) fn new(policy: WorkbenchPolicy, terminals: Arc<LocalTerminalService>) -> Self {
-        #[cfg(windows)]
         let events = terminals.event_journal();
-        #[cfg(not(windows))]
-        let events = None;
         Self {
             changes: orchbee_server::SessionChangeSource::default(),
             #[cfg(windows)]
@@ -100,9 +97,7 @@ impl WorkbenchService {
         WorkbenchClientConnection {
             service: self,
             generation,
-            #[cfg(windows)]
             events: std::sync::Mutex::new(std::collections::BTreeMap::new()),
-            #[cfg(windows)]
             event_capture: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             view_lane: std::sync::Mutex::new(None),
         }
@@ -886,9 +881,7 @@ pub(crate) struct WorkbenchClientConnection<'a> {
     service: &'a WorkbenchService,
     generation: std::num::NonZeroU64,
     view_lane: std::sync::Mutex<Option<orchbee_workbench_protocol::MultiplexLaneId>>,
-    #[cfg(windows)]
     event_capture: Arc<std::sync::atomic::AtomicBool>,
-    #[cfg(windows)]
     events: std::sync::Mutex<
         std::collections::BTreeMap<
             orchbee_workbench_protocol::WorkbenchRequestId,
@@ -898,14 +891,15 @@ pub(crate) struct WorkbenchClientConnection<'a> {
 }
 impl WorkbenchClientConnection<'_> {
     pub(crate) fn cancel_subscription(&self, request: &WorkbenchRequest) {
-        #[cfg(windows)]
         match request {
+            #[cfg(windows)]
             WorkbenchRequest::WindowTitle(_) => self
                 .service
                 .window_titles
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .disconnect(self.generation),
+            #[cfg(windows)]
             WorkbenchRequest::Notification(_) => self
                 .service
                 .notifications
@@ -920,12 +914,9 @@ impl WorkbenchClientConnection<'_> {
             }
             _ => {}
         }
-        #[cfg(not(windows))]
-        let _ = request;
     }
     pub(crate) fn watch_changes(&self, signal: &Arc<orchbee_server::SessionChangeSignal>) {
         self.service.changes.watch(signal);
-        #[cfg(windows)]
         if let Some(journal) = self.service.terminals.event_journal() {
             journal.watch(signal);
         }
@@ -935,17 +926,10 @@ impl WorkbenchClientConnection<'_> {
     pub(crate) fn maintain_subscription_deadline(
         &self,
     ) -> std::io::Result<Option<std::time::Instant>> {
-        #[cfg(windows)]
-        {
-            self.service
-                .terminals
-                .maintain_event_deadline()
-                .map_err(|_| std::io::ErrorKind::ConnectionAborted.into())
-        }
-        #[cfg(not(windows))]
-        {
-            Ok(None)
-        }
+        self.service
+            .terminals
+            .maintain_event_deadline()
+            .map_err(|_| std::io::ErrorKind::ConnectionAborted.into())
     }
     #[cfg(test)]
     pub(crate) fn execute_with_terminal_connection(
@@ -1037,7 +1021,6 @@ impl WorkbenchClientConnection<'_> {
             return self.service.execute(request);
         }
         let owner = crate::local_terminal_service::PopupOwner::new(self.generation, lane);
-        #[cfg(windows)]
         if let WorkbenchRequest::PaneGraphics(graphics) = &request {
             let allowed = if graphics.action.writes() {
                 self.service.policy.manage_navigation
@@ -1051,7 +1034,6 @@ impl WorkbenchClientConnection<'_> {
                 self.pane_graphics(graphics.clone()),
             ));
         }
-        #[cfg(windows)]
         if let WorkbenchRequest::Events(events) = &request {
             return WorkbenchExecution::Response(WorkbenchResponse::Events(
                 self.semantic_events(events.clone()),
@@ -1257,7 +1239,6 @@ impl WorkbenchClientConnection<'_> {
 }
 impl Drop for WorkbenchClientConnection<'_> {
     fn drop(&mut self) {
-        #[cfg(windows)]
         self.service.terminals.disconnect_graphics(self.generation);
         self.service.terminals.disconnect_popup(self.generation);
         let mut registry = self

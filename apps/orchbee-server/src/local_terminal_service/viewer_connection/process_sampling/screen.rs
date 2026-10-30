@@ -16,13 +16,9 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
 };
-#[cfg(windows)]
 mod events;
-#[cfg(windows)]
 mod graphics;
-#[cfg(windows)]
 pub(in crate::local_terminal_service) use events::event_capture;
-#[cfg(windows)]
 pub(in crate::local_terminal_service) use graphics::graphics_png;
 
 fn request(

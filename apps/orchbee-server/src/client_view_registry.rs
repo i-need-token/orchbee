@@ -18,7 +18,6 @@ const RECEIPT_RETENTION: Duration = Duration::from_secs(60);
 const MAXIMUM_RECEIPTS: usize = 256;
 const MAXIMUM_PAYLOAD_RESERVATION: usize = 16 * MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES;
 
-#[cfg(windows)]
 pub(crate) struct GraphicsInfo {
     pub(crate) client_id: WorkbenchClientId,
     pub(crate) capabilities: Option<orchbee_workbench_protocol::PaneGraphicsCapabilities>,
@@ -28,7 +27,6 @@ pub(crate) struct GraphicsInfo {
 
 struct PublishedView {
     record: ClientViewRecord,
-    #[cfg(windows)]
     graphics: Option<orchbee_workbench_protocol::PaneGraphicsClientObservation>,
 }
 impl PublishedView {
@@ -89,7 +87,6 @@ pub(crate) struct ClientViewRegistry {
     receipts: BTreeMap<WorkbenchRequestId, Receipt>,
 }
 impl ClientViewRegistry {
-    #[cfg(windows)]
     pub(crate) fn observe_graphics(
         &mut self,
         generation: NonZeroU64,
@@ -113,7 +110,6 @@ impl ClientViewRegistry {
         Ok(())
     }
 
-    #[cfg(windows)]
     pub(crate) fn graphics_info(
         &self,
         requested: Option<&WorkbenchClientId>,
@@ -571,7 +567,6 @@ impl ClientViewRegistry {
                 view,
                 availability: ClientViewAvailability::Current,
             },
-            #[cfg(windows)]
             graphics: self
                 .clients
                 .get(&client_id)

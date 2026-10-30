@@ -19,8 +19,8 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-mod files_windows;
-pub(super) use files_windows::GraphicsFiles;
+mod files;
+pub(super) use files::GraphicsFiles;
 
 impl LocalTerminalService {
     fn graphics_snapshot<T>(

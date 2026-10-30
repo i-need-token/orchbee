@@ -41,7 +41,6 @@ pub(super) struct CloseMaintenance {
 
 impl CloseMaintenance {
     /// Nonblocking release notification; resource destructors never perform filesystem cleanup.
-    #[cfg(windows)]
     pub(super) fn release_waker(&self) -> Arc<dyn Fn() + Send + Sync> {
         let wake = Arc::clone(&self.wake);
         Arc::new(move || {
@@ -254,10 +253,7 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>) {
             return;
         };
         let popup_due = service.popup_maintenance_turn();
-        #[cfg(windows)]
         let graphics_due = service.graphics_maintenance_turn();
-        #[cfg(not(windows))]
-        let graphics_due = None;
         let Ok(due) = service.close_maintenance_turn(&mut cursor) else {
             return;
         };

@@ -197,8 +197,10 @@ until its platform adapter or an owner this startup never initializes refuses it
 owner's typed outcome: plugin stores and Worker plugin jobs answer `Unsupported`, and
 configuration-backed requests answer `Unavailable`. Startup asks the process observer to start,
 and it refuses with `Unsupported` before reading settings because these Hosts cannot sample
-processes, so Agent manifest requests answer `Unavailable`. Terminal editor, Client view and Panel
-Agent requests keep their earlier refusal at admission until their behavior off Windows is decided.
+processes, so Agent manifest requests answer `Unavailable`. Startup also configures Panel graphics
+file frames, whose private frame directory refuses reservation with `Unsupported`. Terminal editor,
+Client view, Panel Agent, Panel graphics and semantic event requests keep their earlier refusal at
+admission until their behavior off Windows is decided.
 
 ## Local Worker service
 
