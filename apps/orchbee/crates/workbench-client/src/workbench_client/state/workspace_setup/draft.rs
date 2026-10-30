@@ -4,18 +4,12 @@
 
 use super::super::field_window::{FieldWindow, field_window};
 use super::super::line_editor::{LengthLimit, LineEditor};
-use super::{ClientContextTabs, WorkbenchClientState, WorkbenchLabel, WorkbenchProjectId};
+use super::{
+    SetupDraft, SetupIntent, SetupToken, WorkbenchClientState, WorkbenchLabel, WorkbenchProjectId,
+};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_workbench_protocol::{MAXIMUM_DIRECTORY_PATH_BYTES, MAXIMUM_LABEL_LENGTH};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct SetupToken(pub(super) u64);
-impl SetupToken {
-    #[cfg(test)]
-    pub(crate) const fn for_test(value: u64) -> Self {
-        Self(value)
-    }
-}
 pub(crate) use crate::localization::SetupStage;
 pub(crate) use crate::localization::SetupStatus;
 /// The typed edit vocabulary the setup draft applies — the same contract
@@ -42,32 +36,6 @@ pub enum SetupEdit<'a> {
 }
 pub(crate) use crate::localization::LocationLabelStatus;
 pub(crate) use crate::localization::LocationLabelTarget;
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::workbench_client) enum SetupIntent {
-    Organize(Box<super::WorkspaceOrganizationRequest>),
-    TabGroupName(Box<orchbee_workbench_protocol::TabConfiguration>),
-    ConfigureDirectory,
-    RenameLocation(LocationLabelTarget),
-    RenameProject(Box<super::ProjectRenameRequest>),
-}
-#[derive(Clone, Debug)]
-pub(super) struct SetupDraft {
-    pub(super) organization: Option<Box<super::WorkspaceOrganizationRequest>>,
-    pub(super) tab_configuration: Option<orchbee_workbench_protocol::TabConfiguration>,
-    pub(super) project_rename: Option<Box<super::ProjectRenameRequest>>,
-    pub(super) continuation: Option<super::OperationDeadlines>,
-    pub(super) quick: Option<super::quick::QuickWorkspaceFields>,
-    pub(super) token: SetupToken,
-    pub(super) baseline: ClientContextTabs,
-    pub(super) stage: SetupStage,
-    pub(super) selected: usize,
-    pub(super) project: Option<WorkbenchProjectId>,
-    pub(super) editor: LineEditor,
-    pub(super) shown: bool,
-    pub(super) complete: bool,
-    pub(super) faulted: bool,
-    pub(super) parent: Option<Box<SetupParent>>,
-}
 #[derive(Clone, Debug)]
 pub(super) struct SetupParent {
     stage: SetupStage,

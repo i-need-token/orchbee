@@ -229,7 +229,7 @@ pub(in crate::workbench_client) struct PreparedMembershipInstall<'a> {
     decision: MembershipInstallDecision,
     refresh_generation: Option<u64>,
     settled_create: Option<super::CommittedTabCreate>,
-    duplicate_witness: Option<super::tab_duplication::DuplicateInstallWitness>,
+    duplicate_witness: Option<super::DuplicateInstallWitness>,
     close_consumption: Option<super::tab_close::PreparedCloseConsumption>,
     mutation_completion: MembershipMutationCompletion,
     /// The anchor whose viewers the cleanup already disposed (wire detach or

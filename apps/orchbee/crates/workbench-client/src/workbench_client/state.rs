@@ -201,6 +201,13 @@ pub(crate) enum AgentStartPhase {
     Cancelled,
 }
 
+/// Not Clone: derived under the install's exclusive state borrow, consumed once after pane minting.
+struct DuplicateInstallWitness {
+    operation: CreateOperationKey,
+    candidate: ClientContextTabs,
+    pane: PaneRef,
+}
+
 /// One queued poll's admission serial and the exact pane incarnation it was issued for.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct PollKey {

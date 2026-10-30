@@ -27,11 +27,46 @@ use crate::tui_presentation::PresentationPhase;
 use crate::workbench_client::workbench_projection::{
     ClientContextLocation, project_native_context_tabs,
 };
-use draft::SetupDraft;
-pub(in crate::workbench_client) use draft::SetupIntent;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SetupToken(u64);
+impl SetupToken {
+    #[cfg(test)]
+    pub(crate) const fn for_test(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::workbench_client) enum SetupIntent {
+    Organize(Box<WorkspaceOrganizationRequest>),
+    TabGroupName(Box<orchbee_workbench_protocol::TabConfiguration>),
+    ConfigureDirectory,
+    RenameLocation(LocationLabelTarget),
+    RenameProject(Box<ProjectRenameRequest>),
+}
+#[derive(Clone, Debug)]
+struct SetupDraft {
+    organization: Option<Box<WorkspaceOrganizationRequest>>,
+    tab_configuration: Option<orchbee_workbench_protocol::TabConfiguration>,
+    project_rename: Option<Box<ProjectRenameRequest>>,
+    continuation: Option<super::OperationDeadlines>,
+    quick: Option<quick::QuickWorkspaceFields>,
+    token: SetupToken,
+    baseline: ClientContextTabs,
+    stage: SetupStage,
+    selected: usize,
+    project: Option<WorkbenchProjectId>,
+    editor: LineEditor,
+    shown: bool,
+    complete: bool,
+    faulted: bool,
+    parent: Option<Box<draft::SetupParent>>,
+}
+
+use super::line_editor::LineEditor;
 pub(crate) use draft::{
     LocationLabelStatus, LocationLabelTarget, SetupDraftView, SetupEdit, SetupStage, SetupStatus,
-    SetupToken,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchDirectoryPath,

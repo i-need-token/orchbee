@@ -6,7 +6,7 @@ mod origin;
 mod removal;
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use draft::Draft;
-pub(crate) use draft::{WorktreeEdit, WorktreeStage, WorktreeToken, WorktreeView};
+pub(crate) use draft::{WorktreeEdit, WorktreeStage};
 use orchbee_workbench_protocol::{
     WorkbenchDirectoryPath, WorkbenchProjectId, WorkbenchRequestId, WorkbenchWorktreeOutcome,
     WorkerId, WorktreeIntent, WorktreeOperationStatus, WorktreeQueryEntry, WorktreeQuerySource,
@@ -17,6 +17,22 @@ pub(in crate::workbench_client) use removal::Removal;
 
 pub(crate) use crate::localization::WorktreeMode;
 pub(crate) use crate::localization::WorktreeNotice;
+
+/// One non-reused draw/input authority.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WorktreeToken(pub(in crate::workbench_client) u64);
+#[cfg(test)]
+impl WorktreeToken {
+    pub(crate) fn for_test(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+/// Read-only projection consumed by renderer and input adapters.
+#[derive(Clone, Copy)]
+pub(crate) struct WorktreeView<'a> {
+    launcher: &'a Launcher,
+}
 #[derive(Clone, Debug)]
 pub(in crate::workbench_client) struct Discovery {
     pub(crate) source: WorktreeQuerySource,

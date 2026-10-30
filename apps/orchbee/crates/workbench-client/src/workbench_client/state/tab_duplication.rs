@@ -93,12 +93,7 @@ pub(super) struct DuplicateSequence {
     notice_hidden: bool,
 }
 
-/// Not Clone: derived under the install's exclusive state borrow, consumed once after pane minting.
-pub(super) struct DuplicateInstallWitness {
-    operation: CreateOperationKey,
-    candidate: ClientContextTabs,
-    pane: PaneRef,
-}
+use super::DuplicateInstallWitness;
 
 impl DuplicateSequence {
     fn complete(&self) -> bool {

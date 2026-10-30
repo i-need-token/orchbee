@@ -1,5 +1,8 @@
 //! Bounded Unicode fields and stable-ID Project/checkout choices for one Worktree confirmation.
-use super::{Discovery, Launcher, Origin, Phase, Plan, WorktreeMode, WorktreeNotice};
+use super::{
+    Discovery, Origin, Phase, Plan, WorktreeMode, WorktreeNotice, WorktreeToken, WorktreeView,
+};
+pub(crate) use crate::localization::WorktreeStage;
 use crate::tui_presentation::PresentationPhase;
 use crate::workbench_client::state::{
     field_window::{FieldWindow, field_window},
@@ -9,16 +12,6 @@ use orchbee_workbench_protocol::{
     WorkbenchRequestId, WorkbenchTerminalGeometry, WorkbenchWorktreeOutcome, WorktreeEntryText,
     WorktreeIntent, WorktreeReference, WorktreeSelector, WorktreeSource,
 };
-/// One non-reused draw/input authority.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct WorktreeToken(pub(in crate::workbench_client) u64);
-#[cfg(test)]
-impl WorktreeToken {
-    pub(crate) fn for_test(value: u64) -> Self {
-        Self(value)
-    }
-}
-pub(crate) use crate::localization::WorktreeStage;
 /// Single-line edits and choice movement; never interpreted as terminal input.
 pub enum WorktreeEdit<'a> {
     ReadStatus,
@@ -279,11 +272,6 @@ impl Draft {
             intent,
         })
     }
-}
-/// Read-only projection consumed by renderer and input adapters.
-#[derive(Clone, Copy)]
-pub(crate) struct WorktreeView<'a> {
-    pub(super) launcher: &'a Launcher,
 }
 impl<'a> WorktreeView<'a> {
     /// Rows with no usable checkout identity remain visible but cannot open.
