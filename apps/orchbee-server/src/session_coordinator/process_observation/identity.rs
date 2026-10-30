@@ -11,9 +11,12 @@
 //! - Failed samples never end a run; after [`STALE`] without success the result is
 //!   `unknown` with `sample-failed`.
 //! - A run is published to Panel reports at most once and stays published until it ends.
+//! - A run is `confirmed` only while the shell-echoed command it started in is still open, and
+//!   only when its anchor was created after every row of the last successful sample taken before
+//!   that command was observed; any missing evidence leaves the `recognized` grade.
 
 use orchbee_agent_observation_protocol::{
-    AgentAnchor, AgentIdentityUnknownReason as Reason, AgentIdentityUnsupportedReason,
+    AgentAnchor, AgentIdentityGrade, AgentIdentityUnknownReason as Reason, AgentIdentityUnsupportedReason,
     AgentProcessIdentity as Identity, AgentProcessRow, AgentReportProvider, AgentSampleVerdict,
 };
 use std::time::{Duration, Instant};
@@ -34,6 +37,16 @@ pub(crate) struct Run {
     pub(crate) created: u64,
     pub(crate) provider: AgentReportProvider,
     pub(crate) published: bool,
+    /// The shell-echoed command whose window the anchor appeared in.
+    pub(crate) command: Option<[u8; 16]>,
+}
+
+/// One open shell-echoed command and the newest creation time of the last successful sample
+/// taken before it was observed; without that floor nothing proves an anchor appeared inside.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct Window {
+    command: [u8; 16],
+    floor: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -49,6 +62,8 @@ pub(crate) struct IdentityState {
     pending: Option<Pending>,
     last_success: Option<Instant>,
     minted: u32,
+    window: Option<Window>,
+    floor: Option<u64>,
 }
 
 impl Default for IdentityState {
@@ -59,6 +74,8 @@ impl Default for IdentityState {
             pending: None,
             last_success: None,
             minted: 0,
+            window: None,
+            floor: None,
         }
     }
 }
@@ -84,14 +101,23 @@ impl IdentityState {
         self.run.is_some() || self.pending.is_some()
     }
 
-    /// Applies one successful sample and returns the run it ended, if any.
+    /// Applies one successful sample and returns the run it ended, if any. `open` is the
+    /// Terminal's open shell-echoed command, read after this sample's rows.
     pub(crate) fn observe(
         &mut self,
         at: Instant,
         rows: &[AgentProcessRow],
         verdict: AgentSampleVerdict,
+        open: Option<[u8; 16]>,
     ) -> Option<Run> {
         self.last_success = Some(at);
+        if self.window.map(|window| window.command) != open {
+            self.window = open.map(|command| Window {
+                command,
+                floor: self.floor,
+            });
+        }
+        self.floor = Some(rows.iter().map(|row| row.creation_time).max().unwrap_or(0));
         let mut ended = None;
         if let Some(mut run) = self.run {
             if rows
@@ -99,7 +125,9 @@ impl IdentityState {
                 .any(|row| row.pid == run.pid && row.creation_time == run.created)
             {
                 self.result = match verdict {
-                    AgentSampleVerdict::Anchor(anchor) if anchor_of(anchor, run) => anchor.result(),
+                    AgentSampleVerdict::Anchor(anchor) if anchor_of(anchor, run) => {
+                        graded(anchor.result(), run, open)
+                    }
                     AgentSampleVerdict::Unresolved { reason, .. } => Identity::Unknown(reason),
                     _ => Identity::Unknown(Reason::AmbiguousCandidates),
                 };
@@ -110,7 +138,7 @@ impl IdentityState {
                 run.pid = anchor.pid;
                 run.created = anchor.creation_time;
                 self.run = Some(run);
-                self.result = anchor.result();
+                self.result = graded(anchor.result(), run, open);
                 self.publish();
                 return None;
             }
@@ -125,14 +153,23 @@ impl IdentityState {
                 {
                     self.pending = None;
                     self.minted = self.minted.saturating_add(1);
-                    self.run = Some(Run {
+                    let run = Run {
                         sequence: self.minted,
                         pid: anchor.pid,
                         created: anchor.creation_time,
                         provider: anchor.provider,
                         published: false,
-                    });
-                    anchor.result()
+                        command: self
+                            .window
+                            .filter(|window| {
+                                window
+                                    .floor
+                                    .is_some_and(|floor| anchor.creation_time > floor)
+                            })
+                            .map(|window| window.command),
+                    };
+                    self.run = Some(run);
+                    graded(anchor.result(), run, open)
                 }
                 Some(pending) if same_anchor(pending.anchor, anchor) => {
                     Identity::Unknown(Reason::Settling)
@@ -161,6 +198,8 @@ impl IdentityState {
 
     /// Applies one failed sample; it proves nothing about the anchor, so the run stays.
     pub(crate) fn fail(&mut self, at: Instant) {
+        // A gap in successful samples leaves no floor for a command observed after it.
+        self.floor = None;
         if self
             .last_success
             .is_none_or(|last| at.saturating_duration_since(last) >= STALE)
@@ -183,6 +222,19 @@ impl IdentityState {
         {
             run.published = true;
         }
+    }
+}
+
+/// Raises a recognized run to `confirmed` while the command it appeared in is still open.
+fn graded(result: Identity, run: Run, open: Option<[u8; 16]>) -> Identity {
+    match result {
+        Identity::Agent { provider, .. } if run.command.is_some() && run.command == open => {
+            Identity::Agent {
+                provider,
+                grade: AgentIdentityGrade::Confirmed,
+            }
+        }
+        other => other,
     }
 }
 

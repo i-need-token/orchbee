@@ -316,7 +316,7 @@ Windows 管道证据覆盖这些边界，不证明经过认证的 Hermes 工作�
 
 ## 运行令牌转发
 
-受管 PowerShell 只把 `ORCHBEE_RUN_TOKEN` 导出给 Agent 启动命令，Agent 的 hook 继承它。共享传输仅在它是 32 位小写十六进制且非零时，才把它作为可选的 `runToken` 加入 envelope；其他值一律省略，观测仍会送达。Server 和 Desktop 的 envelope 解析器接受带或不带该字段的 envelope，拒绝已出现但格式错误的令牌。Server 把携带令牌的会话精确绑定到其运行，不带令牌的会话沿用最新运行回退，见 [canonical 模型](../../orchbee-server/docs/agent-canonical-model.zh-CN.md#托管启动预留)。
+受管 PowerShell 把 `ORCHBEE_RUN_TOKEN` 导出给它运行的每条命令，包括 Agent 启动和[手动输入的命令](native-terminal-run.zh-CN.md#手动输入运行边界)，Agent 的 hook 继承它。共享传输仅在它是 32 位小写十六进制且非零时，才把它作为可选的 `runToken` 加入 envelope；其他值一律省略，观测仍会送达。Server 和 Desktop 的 envelope 解析器接受带或不带该字段的 envelope，拒绝已出现但格式错误的令牌。Server 把携带令牌的会话精确绑定到其运行，不带令牌的会话沿用最新运行回退，见 [canonical 模型](../../orchbee-server/docs/agent-canonical-model.zh-CN.md#托管启动预留)。
 
 在该字段之前安装的集成继续发送不带令牌的 envelope，并沿用回退规则。该字段改变了 Capsule 负载，因此 doctor 会把它们报告为 `update-required`；`orchbee agent integration enable --provider codex`（选择相应 provider）会安装转发令牌的传输。Envelope 版本不变，也不需要协商。
 
@@ -338,4 +338,4 @@ Windows 公开 doctor 用例将可执行文件、当前 sidecar 和安装树复�
 通过 Desktop 的摘要实现更新来源清单，核对更新状态、本地化重装命令及安装树保持不变。
 Unicode 摘要向量区分 UTF-16 路径顺序与 UTF-8 字节顺序。
 
-<!-- documentation-pairing: english-sha256=9d7bdc3f0c1f1065aef8dd65f8f507f289ee07c580aaf8b3c5e3c25383a890c6 zh-cn-sha256=c650a765982b78da703d00652861c4c02f2a603b2068a16b10e9f8e0b10e8a37 -->
+<!-- documentation-pairing: english-sha256=2c6ca5a091085cc9303d4fcebabfcd05d050bce20ccf2b446c9ed90d7d7f8b24 zh-cn-sha256=6e2ca2603bcb31d223aa477444a65c204a0b5cf07ec1e3099a7fbb2cb18ce63f -->

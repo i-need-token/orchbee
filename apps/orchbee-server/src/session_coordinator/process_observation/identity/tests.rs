@@ -32,6 +32,7 @@ fn agent(pid: u32, parent: u32, created: u64, provider: P) -> AgentProcessRow {
 struct Trace {
     state: IdentityState,
     origin: Instant,
+    open: Option<[u8; 16]>,
 }
 
 impl Trace {
@@ -39,6 +40,7 @@ impl Trace {
         Self {
             state: IdentityState::default(),
             origin: Instant::now(),
+            open: None,
         }
     }
     fn at(&self, ms: u64) -> Instant {
@@ -48,7 +50,7 @@ impl Trace {
     fn sample(&mut self, ms: u64, rows: &[AgentProcessRow]) -> Option<u32> {
         let verdict = evaluate_agent_sample(rows, false);
         self.state
-            .observe(self.at(ms), rows, verdict)
+            .observe(self.at(ms), rows, verdict, self.open)
             .map(|run| run.sequence)
     }
     fn fail(&mut self, ms: u64) {
@@ -68,6 +70,52 @@ fn recognized(provider: P) -> Identity {
         provider,
         grade: AgentIdentityGrade::Recognized,
     }
+}
+
+fn confirmed(provider: P) -> Identity {
+    Identity::Agent {
+        provider,
+        grade: AgentIdentityGrade::Confirmed,
+    }
+}
+
+#[test]
+fn a_run_is_confirmed_only_inside_the_command_window_it_appeared_in() {
+    let shell = [SHELL];
+    let rows = [SHELL, agent(20, 10, 200, P::Claude)];
+    // Typed command observed after an idle sample; the anchor appears inside its window.
+    let mut t = Trace::new();
+    t.sample(0, &shell);
+    t.open = Some([1; 16]);
+    t.sample(100, &rows);
+    t.sample(600, &rows);
+    assert_eq!(t.result(), confirmed(P::Claude));
+    // The finish marker leaves the anchor at the recognized grade.
+    t.open = None;
+    t.sample(900, &rows);
+    assert_eq!(t.result(), recognized(P::Claude));
+
+    // An anchor that predates the command, or a window without a prior sample, stays recognized.
+    let mut t = Trace::new();
+    t.sample(0, &rows);
+    t.open = Some([2; 16]);
+    t.sample(100, &rows);
+    t.sample(600, &rows);
+    assert_eq!(t.result(), recognized(P::Claude));
+    let mut t = Trace::new();
+    t.open = Some([3; 16]);
+    t.sample(0, &rows);
+    t.sample(500, &rows);
+    assert_eq!(t.result(), recognized(P::Claude));
+
+    // A failed sample before the window removes the floor.
+    let mut t = Trace::new();
+    t.sample(0, &shell);
+    t.fail(50);
+    t.open = Some([4; 16]);
+    t.sample(100, &rows);
+    t.sample(600, &rows);
+    assert_eq!(t.result(), recognized(P::Claude));
 }
 
 #[test]

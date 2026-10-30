@@ -179,6 +179,8 @@ impl SessionCoordinator {
             return false;
         }
         let directory = directory.or_else(|| prior.and_then(|sample| sample.directory.clone()));
+        // The projection read after this sample's rows supplies the open command.
+        let open = self.open_command(&physical);
         let Some(workbench) = self.workbench.as_mut() else {
             return false;
         };
@@ -189,7 +191,7 @@ impl SessionCoordinator {
             .map_or_else(identity::IdentityState::default, |p| p.identity.clone());
         let old = prior.and_then(Sample::published);
         let departed = identity
-            .observe(started, &rows, verdict)
+            .observe(started, &rows, verdict, open)
             .filter(|run| run.published)
             .map(Selected::from);
         let retained = identity.published().map(Selected::from);

@@ -137,6 +137,18 @@ impl SessionCoordinator {
         );
         true
     }
+    /// The open shell-echoed command of this exact Terminal generation, for run boundaries.
+    pub(super) fn open_command(
+        &self,
+        physical: &orchbee_server::TerminalAgentBinding,
+    ) -> Option<[u8; 16]> {
+        self.terminal_observations
+            .values()
+            .find(|observed| observed.physical == *physical)
+            .and_then(|observed| observed.command)
+            .filter(|command| !command.completed)
+            .map(|command| command.id)
+    }
     /// The latest shell-echoed command per current Host Terminal, for launch receipts.
     pub(crate) fn observed_commands(&self) -> Vec<crate::agent_service::ObservedCommand> {
         self.terminal_observations

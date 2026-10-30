@@ -144,8 +144,9 @@ Any other result, or a failed or mismatched read, leaves the per-sample selectio
 - The receipt and the identity result can only end startup early; neither completes it, and
   neither can fail or delay a startup that the per-sample evidence and canonical session would
   complete.
-- The `confirmed` grade and hook binding by token belong to later slices; the identity result
-  stays `recognized`.
+- The identity result is `confirmed` under the
+  [typed-run boundary rule](native-terminal-run.md#typed-run-boundaries), which also covers this
+  prefixed command; cmd launches stay `recognized`.
 
 ## Windows argument boundary
 

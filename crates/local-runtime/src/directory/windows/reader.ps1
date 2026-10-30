@@ -40,8 +40,16 @@ try {
         }
         if ($orchbeeLine -cmatch '\A<#orchbee-run:([0-9a-f]{32})#> ') {
             $global:__OrchbeeRunId = $Matches[1]
+            $global:__OrchbeeRunTyped = $false
             $env:ORCHBEE_RUN_TOKEN = $global:__OrchbeeRunId
             $orchbeeLine = $orchbeeLine.Substring($Matches[0].Length)
+            [Console]::Write("$([char]27)_orchbee.command.v1;start;$global:__OrchbeeRunId$([char]27)\")
+        }
+        elseif (-not [string]::IsNullOrWhiteSpace($orchbeeLine)) {
+            # A typed command gets its own shell-minted run boundary; OSC 133;D stays absent.
+            $global:__OrchbeeRunId = [Guid]::NewGuid().ToString('N')
+            $global:__OrchbeeRunTyped = $true
+            $env:ORCHBEE_RUN_TOKEN = $global:__OrchbeeRunId
             [Console]::Write("$([char]27)_orchbee.command.v1;start;$global:__OrchbeeRunId$([char]27)\")
         }
         $orchbeeLine

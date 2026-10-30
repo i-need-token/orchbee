@@ -14,6 +14,16 @@ The CLI generates a random invocation ID and sends one paste/Enter request with 
 
 JSON uses `orchbee.terminal.run` v1. `submission` preserves the complete input receipt; `completion` separately carries `exitCode`, `statusKind: powershell-success`, and physical output coordinates. PowerShell status is 0 for `$? = true`, 1 otherwise; it is not a guessed native process exit code. The output range's `retained` field is false after generation/origin changes. `failure` retains timeout, cancellation or transport facts without erasing accepted input or observed completion. `cleanup` records the viewer obligation. Cancellation does not stop the shell command. JSON is the recovery format; choose it before submitting scripted work.
 
+## Typed-run boundaries
+
+The same wrapper marks every other nonblank line PowerShell accepts from the user. It mints a random 32-digit lowercase hexadecimal token in the shell, exports it as `ORCHBEE_RUN_TOKEN` to that command only, and echoes it in the same private start and finish markers. The line, PSReadLine history, `$?` and `$LASTEXITCODE` stay unchanged, nothing visible is printed, and no OSC 133 completion is added, so command feedback is the same as before. A prefixed line keeps its submitted ID, so Agent start and `--wait` behave as before. A typed command can replace the Host's latest invocation, as any later command already could.
+
+After each process sample the Server reads the Terminal's open invocation from the frame captured after that sample. An Agent run is `confirmed` while the invocation it appeared in stays open, provided its anchor was created after every row of the last successful sample taken before the invocation was observed. Any missing piece leaves `recognized`: no earlier sample, a failed sample in between, a marker seen late, or a finished invocation. The Agent's hooks inherit the token and bind its session exactly, as described in [Windows Agent integrations](windows-agent-integrations.md). cmd, an unverified PSReadLine, and unmanaged shells mint no token and stay at `recognized`.
+
+- A token reaches only the command that the wrapper marked, and the prompt removes it on return.
+- Typed tokens are shell-minted and never submitted as input; only the Host's echoed markers carry them to the Server.
+- The grade never rises without an open invocation and an anchor newer than the pre-invocation floor.
+
 ## Fresh output boundaries
 
 `terminal read --format json` supplies an opaque cursor when the Host can identify the primary screen's row origin. Pass it to `terminal wait-output <target> --after <cursor> --contains <text>`, or use `--after now` to begin at the first observed frame. Only later physical rows participate; the occupied boundary row and prompt/input rows are excluded. Existing output is never counted as fresh.

@@ -8,7 +8,9 @@ if ($null -eq $global:__OrchbeeDirectoryPrompt) {
         $out = @(& $global:__OrchbeeDirectoryPrompt) -join ' '
         if ($null -ne $global:__OrchbeeRunId) {
             $orchbeeStatus = if ($orchbeeSucceeded) { 0 } else { 1 }
-            [Console]::Write("$([char]27)]133;D;$orchbeeStatus`a$([char]27)_orchbee.command.v1;finish;$global:__OrchbeeRunId;$orchbeeStatus$([char]27)\")
+            # Typed runs leave OSC 133 completion to the user's shell integration.
+            $orchbeeEnd = if ($global:__OrchbeeRunTyped) { '' } else { "$([char]27)]133;D;$orchbeeStatus`a" }
+            [Console]::Write("$orchbeeEnd$([char]27)_orchbee.command.v1;finish;$global:__OrchbeeRunId;$orchbeeStatus$([char]27)\")
             $global:__OrchbeeRunId = $null
             Remove-Item -LiteralPath Env:ORCHBEE_RUN_TOKEN -ErrorAction Ignore
         }
