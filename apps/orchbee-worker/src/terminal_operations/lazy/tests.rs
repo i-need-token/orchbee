@@ -69,7 +69,7 @@ fn validation_before_first_launch_uses_real_socket_and_never_creates_host_runtim
             GENERATION,
             &cohort,
             &worker_runtime,
-            None,
+            &crate::default_interactive_launch::SystemShell::resolve(),
         )
         .is_err()
     });
@@ -138,7 +138,7 @@ fn worktree_job_before_first_launch_answers_without_a_host() -> TestResult {
             GENERATION,
             &cohort,
             &worker_runtime,
-            None,
+            &crate::default_interactive_launch::SystemShell::resolve(),
         )
         .is_err()
     });
@@ -248,7 +248,7 @@ fn overlong_host_endpoint_fails_before_host_directory_or_spawn() -> TestResult {
             GENERATION,
             &cohort,
             &worker_runtime,
-            None,
+            &crate::default_interactive_launch::SystemShell::resolve(),
         )
         .is_err()
     });
@@ -987,7 +987,7 @@ fn guarded_real_host() -> TestResult<(FixtureLifecycle, PathBuf, PathBuf)> {
             GENERATION,
             &cohort,
             &worker_runtime,
-            None,
+            &crate::default_interactive_launch::SystemShell::resolve(),
         )
         .is_err()
     });
@@ -1220,7 +1220,7 @@ fn lazy_prehost_drain_replies_empty_and_never_starts_host() -> TestResult {
             GENERATION,
             &cohort,
             &worker_runtime,
-            None,
+            &crate::default_interactive_launch::SystemShell::resolve(),
         )
         .is_err()
     });
@@ -1464,7 +1464,7 @@ fn server_close_mid_drain_ends_the_epoch() -> TestResult {
             GENERATION,
             &cohort,
             &worker_runtime,
-            None,
+            &crate::default_interactive_launch::SystemShell::resolve(),
         )
         .is_err()
     });

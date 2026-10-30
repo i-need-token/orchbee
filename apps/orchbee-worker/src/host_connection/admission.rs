@@ -15,8 +15,10 @@ use nix::{
 use orchbee_local_ipc::{
     AsLocalIo, LocalStream as UnixStream, PollFd, PollFlags, PollTimeout, poll,
 };
+#[cfg(target_os = "macos")]
+use std::os::fd::AsFd;
 #[cfg(unix)]
-use std::os::fd::{AsFd, AsRawFd};
+use std::os::fd::AsRawFd;
 use std::{
     io::{self, Read, Write},
     path::Path,
