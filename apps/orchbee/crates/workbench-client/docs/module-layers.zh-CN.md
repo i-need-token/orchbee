@@ -96,6 +96,22 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 - owner 只报告是否接受的动作，在接受时回答 `KeepNavigator`，拒绝时不回答任何处置。
 - 帮助、导航器和机器选择器是视图拥有的列表；`input` 不经端口滚动它们。
 
+## Agent 看板读取
+
+`workbench_client::agent_board` 从不持有读取 lane。它把每次列表读取或跳转读取作为类型化请求发出，
+请求带有当前打开片段的标记；回答、外来结果和 lane 结束都经同一个入口结算。
+`workbench_client::agent_read_lane` 用这套词汇执行请求，`workbench_client::ui` 持有 lane 的
+生命周期，并保持以下不变量：
+
+- 同一时刻最多只有一个看板 lane 线程存活。只有在每个已退役前任的线程都结束后才启动新 lane，
+  UI 路径上从不 join 仍在运行的线程。
+- 存活的 lane 只服务一个打开的片段。每个可能关闭看板的组合入口都在同一步退役该 lane：中断在途
+  交换，并持有句柄直到线程结束。每个 tick 的驱动在结算回答之前再做一次同样的检查。
+- 看板先结算 lane 在线程结束前排队的每个回答，然后才结算该 lane 的结束；结束只让没有被任何回答
+  结算的请求失败。
+- 进程退出时中断存活的和已退役的 lane，并在共享的 Client 退出预算内观测它们。连接释放时在
+  mailbox 退役之前 join 它们。
+
 ## 模块归属
 
 每行给出目标层。模块目前混合多个层时，说明会指出需要移走的部分。
@@ -174,7 +190,7 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 | `windows_signal`                              | `workflow`     | Windows 控制台中断分发器。                                                                          |
 | `workbench_client`                            | `composition`  | 连接任务生命周期与 UI 组合。其子模块在下方各自标明层。                                              |
 | `workbench_client::agent_attention`           | `workflow`     | Agent 注意力观测 lane 与绘制确认。                                                                  |
-| `workbench_client::agent_board`               | `state`        | 来自最近一次完成读取的 Agent 看板行，以及看板的选择和排队意图。                                     |
+| `workbench_client::agent_board`               | `state`        | 来自最近一次完成读取的 Agent 看板行、看板的选择和排队意图，以及类型化[读取](#agent-看板读取)词汇。  |
 | `workbench_client::agent_board::start::jobs`  | `workflow`     | Client PATH 目录查询和 Agent 启动作业，以及它们的平台 PATH 适配器；作业把结果结算回看板的启动状态。 |
 | `workbench_client::agent_notifications`       | `values`       | 逻辑时间通知策略。                                                                                  |
 | `workbench_client::agent_read_lane`           | `workflow`     | 共享 carrier 上的有界 Agent 与 Panel 读取作业。                                                     |
@@ -221,4 +237,4 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 可列出每个环和每个指向高层的引用及其源码位置样本；[Lint](../../../../../docs/zh-CN/LINTING.md)
 拥有该命令。
 
-<!-- documentation-pairing: english-sha256=18925f0d1edf6f8e89495abb5da51e0252e4eb2e6ec29d80a6b1c2ad020c4dd4 zh-cn-sha256=dd24376afa743ce320cd909d437f6ca34986aae3d10a491b12052504f1a0c243 -->
+<!-- documentation-pairing: english-sha256=670766791b30cef1bb382c493c8c953f350c036b337f4d3d9c4a038cc64b8fd1 zh-cn-sha256=b078ec9af79285007f37c8ce31739a65f1ebe7ed21e85b08548d3aa66cc80620 -->

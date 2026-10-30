@@ -109,6 +109,23 @@ Every implementation keeps these invariants:
 - Help, the navigator, and the machine picker are view-owned lists; `input` scrolls them without
   the port.
 
+## Agent board reads
+
+`workbench_client::agent_board` never holds a read lane. It issues each list or jump read as a
+typed request stamped with its open episode, and settles answers, a foreign outcome, and the lane's
+end through one entry. `workbench_client::agent_read_lane` runs the requests in that vocabulary,
+and `workbench_client::ui` owns the lane's lifetime under these invariants:
+
+- At most one Board lane thread is alive. A lane starts only after every retired predecessor's
+  thread has ended, and nothing on the UI path joins a running thread.
+- The live lane serves exactly one open episode. Every composition entry that can close the Board
+  retires the lane in the same step: it interrupts the in-flight exchange and keeps the handle until
+  the thread ends. The per-tick drive repeats the check before it settles answers.
+- The Board settles every answer that a lane queued before its thread ended, and only then that
+  lane's end; the end fails only a request that no answer settled.
+- Process exit interrupts the live and retired lanes and observes them under the shared Client
+  exit budget. Connection release joins them before the mailbox retires.
+
 ## Module assignment
 
 Each row is the target layer. A note names the part that must move when a module mixes layers
@@ -188,7 +205,7 @@ today.
 | `windows_signal`                              | `workflow`     | Windows console interrupt dispatcher.                                                                                                               |
 | `workbench_client`                            | `composition`  | Connection-task lifetime and UI composition. Its children carry their own layers below.                                                             |
 | `workbench_client::agent_attention`           | `workflow`     | Agent attention observation lane and paint acknowledgements.                                                                                        |
-| `workbench_client::agent_board`               | `state`        | Agent board rows from the last completed read, with the board's selection and queued intents.                                                       |
+| `workbench_client::agent_board`               | `state`        | Agent board rows from the last completed read, the board's selection and queued intents, and its typed [read](#agent-board-reads) vocabulary.       |
 | `workbench_client::agent_board::start::jobs`  | `workflow`     | Client-PATH catalog and Agent startup jobs with their platform PATH adapter; they settle outcomes into the Board's start state.                     |
 | `workbench_client::agent_notifications`       | `values`       | Logical-time notification policy.                                                                                                                   |
 | `workbench_client::agent_read_lane`           | `workflow`     | Bounded Agent and Panel read jobs on the shared carrier.                                                                                            |
