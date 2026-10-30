@@ -70,6 +70,32 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 | 重复组合 | 编排基础控件的共享 `presentation` 模块，例如列表、选择器、模态窗口和快捷键栏；浮层框架和模态组合位于 `tui_render::modal` 下。它们不拥有功能副作用。                                                  |
 | 业务表面 | 所属功能模块。每个子模块只属于一层：状态在 `state`，视图模型和绘制器在 `presentation`，手势到意图的映射在 `input`，副作用在 `workflow`。归属表列出每个与父模块不同层的子模块。                       |
 
+## 输入端口
+
+`workbench_client::input` 中的 `TerminalInputPort` 是 `input` 模块触达组合层的唯一途径。
+`WorkbenchClient` 实现它，`workbench_client::ui` 把每个入口路由到拥有其目标的功能组合。端口契约
+定义输入与动作词汇，并按命名各个动作的功能分组，因为这些词汇携带的见证来自 `state`、
+`presentation` 和 `input` 模块。端口按职责设置入口，从不按手势设置：
+
+| 分组       | 入口                                                                                                                                      | 承载                                                                           |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| 事实       | `native_capture_claims`、`native_capture_context`、`copy_mode_active`、`pointer_probe`、拖动源、分隔条与调整大小投影、`navigator_catalog` | 分发和手势解析读取的事实                                                       |
+| 终端       | `forward`、`observe_terminal`                                                                                                             | 终端转发，以及宿主或输入流观测                                                 |
+| 局部输入   | `pane_input`、`surface_input`、`scroll_list`                                                                                              | 窗格步骤、交给持有输入的表面的输入，以及已绘制列表的滚动；结果留在 owner 本地  |
+| 已提交结果 | `surface_action`、`apply_client_action`、`tab_create_action`、动作菜单入口、`activate_navigator`、`copy_picker_identifier`                | 功能定义的 `SurfaceAction`，或从绑定、菜单、导航器或选择器解析出的 Client 动作 |
+
+每个实现都保持以下不变量：
+
+- 局部输入本身从不提交产品结果；被捕获的按键仍可按 owner 键位表的定义引发 owner 自己的转换。
+- 指向某个已绘制或已捕获实例的值携带该实例的见证。owner 重新校验见证，见证过期时拒绝且不改变
+  状态。
+- `WorkbenchClient` 恰好在以下入口之后结算原生退役：几何观测；历史键、历史滚轮和滚动条窗格
+  步骤；关闭确认按键；关闭决定；重命名与设置提交；设置选择；以及呈现激活。
+- 调整大小控件和分隔条动作经 `workbench_client::client_control` lane 执行。其余动作经拥有其目标
+  的功能组合执行。
+- owner 只报告是否接受的动作，在接受时回答 `KeepNavigator`，拒绝时不回答任何处置。
+- 帮助、导航器和机器选择器是视图拥有的列表；`input` 不经端口滚动它们。
+
 ## 模块归属
 
 每行给出目标层。模块目前混合多个层时，说明会指出需要移走的部分。
@@ -159,7 +185,7 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 | `workbench_client::configuration`             | `workflow`     | 配置发布监视器。                                                                                    |
 | `workbench_client::connection`                | `workflow`     | Client 连接任务。                                                                                   |
 | `workbench_client::independent_popup`         | `workflow`     | 独立的投影与控制 lane。                                                                             |
-| `workbench_client::input`                     | `input`        | 分发器消费的输入端口契约。                                                                          |
+| `workbench_client::input`                     | `input`        | [输入端口](#输入端口)契约及其输入与动作词汇。                                                       |
 | `workbench_client::mailbox`                   | `state`        | 连接生命周期的队列、关联，以及与 Client 状态一起进行的原子准入。                                    |
 | `workbench_client::normal_exit_hold`          | `state`        | Shell 以退出码 0 结束的窗格的关闭呈现，保持到窗格离开成员关系或超过上限。                           |
 | `workbench_client::pane_graphics`             | `workflow`     | 窗格画布读取 owner。                                                                                |
@@ -195,4 +221,4 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 可列出每个环和每个指向高层的引用及其源码位置样本；[Lint](../../../../../docs/zh-CN/LINTING.md)
 拥有该命令。
 
-<!-- documentation-pairing: english-sha256=24da111c3f564c2ad041c43f4374cabb359fc567e786bf4b417fe1f5434b8e61 zh-cn-sha256=edefa0702a001ac1a987ea0df3af1c7f007a42ec9b7c59e74c24b63f0919b77f -->
+<!-- documentation-pairing: english-sha256=18925f0d1edf6f8e89495abb5da51e0252e4eb2e6ec29d80a6b1c2ad020c4dd4 zh-cn-sha256=dd24376afa743ce320cd909d437f6ca34986aae3d10a491b12052504f1a0c243 -->

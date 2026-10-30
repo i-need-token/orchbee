@@ -77,6 +77,38 @@ map to layers as follows.
 | Recurring composition | Shared `presentation` modules that arrange primitives, such as lists, pickers, modal windows, and shortcut bars; the overlay frame and modal compositions live under `tui_render::modal`. They own no feature effects.                                                             |
 | Business surface      | The owning feature module. Each child keeps one layer: state in `state`, view model and painter in `presentation`, gesture-to-intent mapping in `input`, and effects in `workflow`. The assignment table names every child whose layer differs from its parent.                    |
 
+## Input port
+
+`TerminalInputPort` in `workbench_client::input` is the only way `input` modules reach
+composition. `WorkbenchClient` implements it, and `workbench_client::ui` routes each entry to the
+feature composition that owns its target. The port contract defines the input and action
+vocabulary, grouped by the feature that names each action, because the witnesses it carries come
+from `state`, `presentation`, and `input` modules. The port has one entry per responsibility, never
+one per gesture:
+
+| Group             | Entries                                                                                                                                                   | Carries                                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Facts             | `native_capture_claims`, `native_capture_context`, `copy_mode_active`, `pointer_probe`, drag sources, divider and resize projections, `navigator_catalog` | What dispatch and gesture resolution read                                                                       |
+| Terminal          | `forward`, `observe_terminal`                                                                                                                             | Terminal forwarding and host or input-stream observations                                                       |
+| Local input       | `pane_input`, `surface_input`, `scroll_list`                                                                                                              | Pane steps, input for the surface that holds input, and painted-list scrolling; the result stays with the owner |
+| Committed results | `surface_action`, `apply_client_action`, `tab_create_action`, action-menu entries, `activate_navigator`, `copy_picker_identifier`                         | A feature-defined `SurfaceAction`, or a Client action resolved from bindings, menus, the navigator, or a picker |
+
+Every implementation keeps these invariants:
+
+- Local input never commits a product result by itself; a captured key may still lead its owner
+  to a transition that the owner's keymap defines.
+- A value aimed at a painted or captured incarnation carries that incarnation's witness. The owner
+  revalidates it and refuses a stale witness without changing state.
+- `WorkbenchClient` settles native retirement after exactly these entries: geometry observations;
+  history-key, history-wheel, and scrollbar pane steps; close-confirmation keys; close decisions;
+  rename and setup submissions; setup choices; and presentation activation.
+- Resize-control and divider actions run through the `workbench_client::client_control` lane.
+  Every other action runs through the feature composition that owns its target.
+- An action whose owner reports only acceptance answers `KeepNavigator` when accepted and nothing
+  when refused.
+- Help, the navigator, and the machine picker are view-owned lists; `input` scrolls them without
+  the port.
+
 ## Module assignment
 
 Each row is the target layer. A note names the part that must move when a module mixes layers
@@ -167,7 +199,7 @@ today.
 | `workbench_client::configuration`             | `workflow`     | Configuration publication watcher.                                                                                                                  |
 | `workbench_client::connection`                | `workflow`     | The Client connection task.                                                                                                                         |
 | `workbench_client::independent_popup`         | `workflow`     | Independent projection and control lane.                                                                                                            |
-| `workbench_client::input`                     | `input`        | Input port contract consumed by the dispatcher.                                                                                                     |
+| `workbench_client::input`                     | `input`        | The [input port](#input-port) contract and its input and action vocabulary.                                                                         |
 | `workbench_client::mailbox`                   | `state`        | Connection-lifecycle queues, correlation, and atomic admission with Client state.                                                                   |
 | `workbench_client::normal_exit_hold`          | `state`        | Closing presentation of a pane whose Shell exited with code 0, held until the pane leaves membership or its bound passes.                           |
 | `workbench_client::pane_graphics`             | `workflow`     | Pane canvas read owner.                                                                                                                             |

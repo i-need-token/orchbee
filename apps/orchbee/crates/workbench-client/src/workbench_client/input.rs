@@ -220,11 +220,14 @@ impl PointerProbe {
     }
 }
 
+/// The only way `input` modules reach composition. Entries come in four groups, in this order:
+/// facts that dispatch and gesture resolution read; terminal forwarding and host observations;
+/// local input that stays with the owner of its target; and committed results, either a
+/// feature-defined [`SurfaceAction`] or a Client action resolved from bindings, menus, the
+/// navigator, or a picker. A value aimed at a painted or captured incarnation carries its witness,
+/// and the owner refuses a stale one. The crate's `docs/module-layers.md` lists the invariants
+/// every implementation keeps.
 pub trait TerminalInputPort {
-    fn copy_picker_identifier(&mut self, _text: String) -> bool {
-        false
-    }
-
     /// Pure exclusive-capture intents from the native surface owners.
     fn native_capture_claims(&self) -> CaptureClaims {
         CaptureClaims::default()
@@ -235,65 +238,8 @@ pub trait TerminalInputPort {
         None
     }
 
-    /// Validate a completed tab-create click; the ordinary action path owns its effects.
-    fn tab_create_action(
-        &mut self,
-        _target: &crate::action_menu::DrawnTabCreate,
-    ) -> Option<ClientAction> {
-        None
-    }
-
-    /// Moves one painted list while its painted token still matches and returns the list's new
-    /// painted target. View-owned lists (help, navigator, machine picker) never reach the port,
-    /// and the default moves nothing.
-    fn scroll_list(
-        &mut self,
-        _target: &crate::tui_pointer::hit_map::ListScrollTarget,
-        _up: bool,
-        _lines: usize,
-    ) -> Option<crate::tui_pointer::hit_map::ListScrollTarget> {
-        None
-    }
-
-    fn open_action_menu(
-        &mut self,
-        _target: crate::action_menu::MenuTarget,
-        _anchor: Option<crate::action_menu::MenuAnchor>,
-        _pointer_released: bool,
-    ) -> bool {
+    fn copy_mode_active(&self) -> bool {
         false
-    }
-    fn take_action_menu_action(&mut self, _pointer_released: bool) -> Option<InputAction> {
-        None
-    }
-
-    fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable>;
-
-    /// One host or input-stream fact; see [`TerminalObservation`].
-    fn observe_terminal(&mut self, _observation: TerminalObservation) {}
-
-    /// One local input for the surface that holds input; see [`SurfaceInput`]. Returns whether
-    /// the owner consumed it or changed. The default consumes nothing.
-    fn surface_input(&mut self, _input: SurfaceInput<'_>) -> bool {
-        false
-    }
-
-    /// One committed gesture result; see [`SurfaceAction`]. Returns the layout disposition the
-    /// owner reports, or `None` when it reports none or refused a stale witness. The default
-    /// commits nothing.
-    fn surface_action(&mut self, _action: SurfaceAction<'_>) -> Option<ClientActionDisposition> {
-        None
-    }
-
-    fn navigator_catalog(&self) -> Option<crate::client_view::navigator::Catalog> {
-        None
-    }
-
-    fn activate_navigator(
-        &mut self,
-        _row: &crate::client_view::navigator::Row,
-    ) -> crate::client_view::navigator::Admission {
-        crate::client_view::navigator::Admission::Refused
     }
 
     /// The current pointer-resolution facts. Ports without a session
@@ -339,16 +285,78 @@ pub trait TerminalInputPort {
         crate::tui_layout::ResizeProjection::Canonical
     }
 
+    fn navigator_catalog(&self) -> Option<crate::client_view::navigator::Catalog> {
+        None
+    }
+
+    fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable>;
+
+    /// One host or input-stream fact; see [`TerminalObservation`].
+    fn observe_terminal(&mut self, _observation: TerminalObservation) {}
+
     /// One pane-local input; see [`PaneInput`]. The default rejects it.
     fn pane_input(&mut self, _input: PaneInput<'_>) -> PaneAdmission {
         PaneAdmission::Rejected
+    }
+
+    /// One local input for the surface that holds input; see [`SurfaceInput`]. Returns whether
+    /// the owner consumed it or changed. The default consumes nothing.
+    fn surface_input(&mut self, _input: SurfaceInput<'_>) -> bool {
+        false
+    }
+
+    /// Moves one painted list while its painted token still matches and returns the list's new
+    /// painted target. View-owned lists (help, navigator, machine picker) never reach the port,
+    /// and the default moves nothing.
+    fn scroll_list(
+        &mut self,
+        _target: &crate::tui_pointer::hit_map::ListScrollTarget,
+        _up: bool,
+        _lines: usize,
+    ) -> Option<crate::tui_pointer::hit_map::ListScrollTarget> {
+        None
+    }
+
+    /// One committed gesture result; see [`SurfaceAction`]. Returns the layout disposition the
+    /// owner reports, or `None` when it reports none or refused a stale witness. The default
+    /// commits nothing.
+    fn surface_action(&mut self, _action: SurfaceAction<'_>) -> Option<ClientActionDisposition> {
+        None
     }
 
     fn apply_client_action(&mut self, _action: InputAction) -> Option<ClientActionDisposition> {
         None
     }
 
-    fn copy_mode_active(&self) -> bool {
+    /// Validate a completed tab-create click; the ordinary action path owns its effects.
+    fn tab_create_action(
+        &mut self,
+        _target: &crate::action_menu::DrawnTabCreate,
+    ) -> Option<ClientAction> {
+        None
+    }
+
+    fn open_action_menu(
+        &mut self,
+        _target: crate::action_menu::MenuTarget,
+        _anchor: Option<crate::action_menu::MenuAnchor>,
+        _pointer_released: bool,
+    ) -> bool {
+        false
+    }
+
+    fn take_action_menu_action(&mut self, _pointer_released: bool) -> Option<InputAction> {
+        None
+    }
+
+    fn activate_navigator(
+        &mut self,
+        _row: &crate::client_view::navigator::Row,
+    ) -> crate::client_view::navigator::Admission {
+        crate::client_view::navigator::Admission::Refused
+    }
+
+    fn copy_picker_identifier(&mut self, _text: String) -> bool {
         false
     }
 }
