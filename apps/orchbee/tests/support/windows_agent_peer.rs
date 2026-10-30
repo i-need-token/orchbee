@@ -884,7 +884,7 @@ pub(super) fn runtime_preflight(stream: &mut LocalStream, detail: Value) {
         "claude-code" => "claude",
         provider => provider,
     };
-    process_reply(
+    process_reply_identified(
         stream,
         vec![process(10, None, &format!("{executable}.exe"))],
     );
@@ -918,6 +918,18 @@ pub(super) fn process_reply(
     process_sample_reply(stream, Ok(processes));
 }
 
+/// A CLI process read: the sample, then the Server identity read that follows it.
+pub(super) fn process_reply_identified(
+    stream: &mut LocalStream,
+    processes: Vec<orchbee_terminal_protocol::TerminalProcess>,
+) {
+    let host_terminal = orchbee_terminal_protocol::TerminalId::from_bytes([7; 16])
+        .unwrap()
+        .to_text();
+    process_reply(stream, processes.clone());
+    identify_reply(stream, &processes, &host_terminal);
+}
+
 pub(super) fn process_sample_reply(
     stream: &mut LocalStream,
     sample: Result<Vec<orchbee_terminal_protocol::TerminalProcess>, &str>,
@@ -941,12 +953,13 @@ pub(super) fn process_sample_for(
     let attachment = AttachmentId::from_bytes([8; 16]).unwrap();
     let viewer = ViewerId::parse(&attachment.to_text()).unwrap();
     let epoch = HostEpoch::from_bytes([6; 16]).unwrap();
+    let host_terminal = TerminalId::from_bytes([7; 16]).unwrap();
     let (kind, payload) = match sample {
         Ok(processes) => {
             let control = encode_process_info_control(&ProcessInfoControl::ProcessInfo(
                 TerminalProcessInfo {
                     attachment_id: attachment,
-                    terminal_id: TerminalId::from_bytes([7; 16]).unwrap(),
+                    terminal_id: host_terminal,
                     root_pid: 10,
                     processes,
                 },
@@ -1017,6 +1030,93 @@ pub(super) fn process_sample_for(
         )
         .unwrap();
     }
+}
+
+/// Answer the `identify` that follows a successful process sample as a settled Server would: the
+/// sample's own verdict, with the run it publishes as the anchor. The reply's Workbench revision
+/// is not a fence; only the Host Terminal must match the sample.
+pub(super) fn identify_reply(
+    stream: &mut LocalStream,
+    processes: &[orchbee_terminal_protocol::TerminalProcess],
+    host_terminal: &str,
+) {
+    use orchbee_agent_observation_protocol::{
+        AgentIdentityUnknownReason as Reason, AgentIdentityUnsupportedReason, AgentProcessAnchor,
+        AgentProcessIdentity as Identity, AgentProcessRow, AgentSampleVerdict,
+        classify_agent_process, evaluate_agent_sample,
+    };
+    use orchbee_workbench_protocol::{
+        PanelAgentAction, PanelAgentOutcome, PanelAgentResult, ProtocolVersion, WorkbenchRequest,
+        WorkbenchResponse, WorkbenchRevision, read_workbench_request, write_workbench_response,
+    };
+    let WorkbenchRequest::PanelAgent(request) = read_workbench_request(stream).unwrap() else {
+        panic!("one Identify after the process sample")
+    };
+    let PanelAgentAction::Identify { presentation_id } = &request.action else {
+        panic!("one Identify after the process sample")
+    };
+    let rows: Vec<_> = processes
+        .iter()
+        .map(|process| {
+            let argv: Option<Vec<String>> = process
+                .command_line
+                .as_deref()
+                .map(|command| command.split_whitespace().map(str::to_owned).collect());
+            AgentProcessRow {
+                pid: process.pid,
+                parent_pid: process.parent_pid,
+                creation_time: process.creation_time,
+                opaque: process.image.is_none(),
+                detached: false,
+                recognition: classify_agent_process(process.image.as_deref(), argv.as_deref()),
+            }
+        })
+        .collect();
+    let (identity, candidate) = match evaluate_agent_sample(&rows, false) {
+        AgentSampleVerdict::Anchor(anchor) => (anchor.result(), Some(anchor)),
+        AgentSampleVerdict::Unresolved { anchor, reason } => (Identity::Unknown(reason), anchor),
+        AgentSampleVerdict::None => (Identity::None, None),
+        AgentSampleVerdict::Remote => (
+            Identity::Unsupported(AgentIdentityUnsupportedReason::RemoteExecution),
+            None,
+        ),
+    };
+    let anchor = candidate
+        .filter(|_| {
+            matches!(
+                identity,
+                Identity::Agent { .. }
+                    | Identity::Unknown(
+                        Reason::UnclassifiedArguments | Reason::CommandLineUnreadable
+                    )
+            )
+        })
+        .map(|anchor| AgentProcessAnchor {
+            pid: anchor.pid,
+            provider: anchor.provider,
+        });
+    let binding = serde_json::from_value(serde_json::json!({
+        "presentationId": presentation_id,
+        "generation": "4".repeat(32),
+        "hostEpoch": "6".repeat(32),
+        "hostTerminalId": host_terminal,
+    }))
+    .unwrap();
+    write_workbench_response(
+        stream,
+        &WorkbenchResponse::PanelAgent(PanelAgentResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            session_id: request.session_id,
+            outcome: PanelAgentOutcome::Identified {
+                workbench_revision: WorkbenchRevision::new(1),
+                binding,
+                identity,
+                anchor,
+            },
+        }),
+    )
+    .unwrap();
 }
 
 /// Only correlated read batches, then a final empty revision fence; writes always fail this fixture.

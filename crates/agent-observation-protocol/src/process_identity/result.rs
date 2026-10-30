@@ -173,3 +173,40 @@ impl<'de> Deserialize<'de> for AgentProcessIdentity {
         })
     }
 }
+
+/// The anchor of the run the Server attributes to a Terminal generation: the run Panel reports
+/// show. Wire form: `{"pid": <u32>, "providerId": <native provider ID>}`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AgentProcessAnchor {
+    pub pid: u32,
+    pub provider: AgentReportProvider,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AnchorWire<'a> {
+    pid: u32,
+    #[serde(borrow)]
+    provider_id: std::borrow::Cow<'a, str>,
+}
+
+impl Serialize for AgentProcessAnchor {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        AnchorWire {
+            pid: self.pid,
+            provider_id: self.provider.native_provider_id().into(),
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for AgentProcessAnchor {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = AnchorWire::deserialize(deserializer)?;
+        Ok(Self {
+            pid: wire.pid,
+            provider: AgentReportProvider::from_native_provider_id(&wire.provider_id)
+                .ok_or_else(|| serde::de::Error::custom("unknown providerId"))?,
+        })
+    }
+}

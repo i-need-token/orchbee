@@ -46,7 +46,17 @@ fn observed() -> Read {
             title: frame.title,
             current_directory: Some("file:///C:/frame%20%E9%A1%B9%E7%9B%AE".into()),
         },
-        processes: Some((json!({}), PanelProcessInfoDoc { terminal, info })),
+        processes: Some((
+            json!({}),
+            PanelProcessInfoDoc {
+                terminal,
+                info,
+                server: crate::cli::processes::ServerIdentity {
+                    identity: orchbee_agent_observation_protocol::AgentProcessIdentity::None,
+                    anchor: None,
+                },
+            },
+        )),
     }
 }
 

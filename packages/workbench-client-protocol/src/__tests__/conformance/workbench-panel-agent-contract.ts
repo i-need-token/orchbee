@@ -362,6 +362,12 @@ const screenExplanation = z
 		);
 	})
 	.readonly();
+const processAnchor = z
+	.strictObject({
+		pid: z.number().int().min(0).max(4_294_967_295),
+		providerId: z.string().regex(/^[0-9A-Za-z._:-]{1,128}$/u),
+	})
+	.readonly();
 const processIdentity = z.discriminatedUnion('result', [
 	z
 		.strictObject({
@@ -474,7 +480,12 @@ const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
 			workbenchRevision: WorkbenchRevisionSchema,
 			binding: TerminalAgentBindingSchema,
 			identity: processIdentity,
+			anchor: z.union([z.null(), processAnchor]),
 		})
+		.refine(
+			({ identity, anchor }) =>
+				identity.result !== 'agent' || anchor?.providerId === identity.providerId,
+		)
 		.readonly(),
 	z
 		.strictObject({

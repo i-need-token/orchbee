@@ -185,19 +185,7 @@ fn collect(
                 &terminal,
                 signals.poll_fd(),
             )
-            .and_then(|(source, document)| {
-                let identity = query::read_identity(
-                    &mut client,
-                    deadline,
-                    &snapshot,
-                    &document,
-                    signals.poll_fd(),
-                )?;
-                Ok((
-                    source,
-                    results::Projection::PanelProcessInfo(document, identity),
-                ))
-            })?;
+            .map(|(source, document)| (source, results::Projection::PanelProcessInfo(document)))?;
             let final_snapshot = query::refresh_snapshot(
                 &mut client,
                 &snapshot.session_id,

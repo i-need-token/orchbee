@@ -80,8 +80,8 @@ pub use process_identity::{
     AGENT_PROVIDER_REGISTRY, AGENT_PROVIDER_REGISTRY_VERSION, AgentAlias, AgentAliasClass,
     AgentAnchor, AgentAnchorEvidence, AgentBundledRuntime, AgentIdentityGrade,
     AgentIdentityUnknownReason, AgentIdentityUnsupportedReason, AgentInstallRoot,
-    AgentInstallShape, AgentInvocationMode, AgentModeGrammar, AgentProcessIdentity,
-    AgentProcessRecognition, AgentProcessRow, AgentProviderEntry, AgentSampleVerdict,
-    AgentUnresolvedProcess, classify_agent_process, descends_from, evaluate_agent_sample,
-    native_agent_basename,
+    AgentInstallShape, AgentInvocationMode, AgentModeGrammar, AgentProcessAnchor,
+    AgentProcessIdentity, AgentProcessRecognition, AgentProcessRow, AgentProviderEntry,
+    AgentSampleVerdict, AgentUnresolvedProcess, classify_agent_process, descends_from,
+    evaluate_agent_sample, native_agent_basename,
 };

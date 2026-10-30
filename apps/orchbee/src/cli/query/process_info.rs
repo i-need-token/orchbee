@@ -33,26 +33,28 @@ fn read_on_session(
     let target = prepared.resolve(snapshot)?;
     let terminal = primary_terminal(snapshot, &target)?;
     let (source, document) = read_terminal_processes(client, deadline, snapshot, &terminal)?;
-    let identity = read_identity(client, deadline, snapshot, &document, None)?;
-    Ok((source, Projection::PanelProcessInfo(document, identity)))
+    Ok((source, Projection::PanelProcessInfo(document)))
 }
 
-/// Read the Server's identity result for the sampled Terminal after its process sample.
-/// The two are separate observations; a different Workbench revision or Terminal fails.
+/// Read the Server's identity result and run anchor for the sampled Terminal after its process
+/// sample. The two are separate observations; a different Host Terminal fails. The reply's
+/// Workbench revision is no fence: the identity belongs to the sampled Terminal, and each command
+/// keeps its own snapshot fences.
 ///
 /// # Errors
-/// Map transport and Server failures; a changed revision or Terminal is `workbench-changed`.
-pub(crate) fn read_identity(
+/// Map transport and Server failures; a changed Host Terminal is `workbench-changed`.
+fn read_identity(
     client: &mut LocalClient,
     deadline: Instant,
     snapshot: &Snapshot,
-    document: &results::PanelProcessInfoDoc,
+    row: &results::TerminalRow,
+    info: &orchbee_terminal_protocol::TerminalProcessInfo,
     wake: Option<BorrowedFd<'_>>,
-) -> Result<orchbee_agent_observation_protocol::AgentProcessIdentity, Failure> {
+) -> Result<crate::cli::processes::ServerIdentity, Failure> {
     use orchbee_workbench_protocol::{
         PanelAgentAction, PanelAgentOutcome, PanelAgentRequest, TerminalPresentationId,
     };
-    let presentation_id = TerminalPresentationId::parse(&document.terminal.presentation_id)
+    let presentation_id = TerminalPresentationId::parse(&row.presentation_id)
         .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let request = PanelAgentRequest {
         protocol_version: snapshot.protocol_version,
@@ -68,16 +70,15 @@ pub(crate) fn read_identity(
     }
     match reply.outcome {
         PanelAgentOutcome::Identified {
-            workbench_revision,
             binding,
             identity,
+            anchor,
+            ..
         } => {
-            if workbench_revision != snapshot.revision
-                || binding.host_terminal_id.as_str() != document.info.terminal_id.to_text()
-            {
+            if binding.host_terminal_id.as_str() != info.terminal_id.to_text() {
                 return Err(super::workbench_failure("workbench-changed"));
             }
-            Ok(identity)
+            Ok(crate::cli::processes::ServerIdentity { identity, anchor })
         }
         PanelAgentOutcome::Failed { reason } => Err(panel_agent_failure(reason)),
         _ => Err(viewer_protocol_invalid()),
@@ -97,7 +98,8 @@ pub(crate) fn read_terminal_processes(
     read_terminal_processes_cancellable(client, deadline, snapshot, terminal, None)
 }
 
-/// Keep CLI target selection and document projection around the shared attach/read/detach operation.
+/// Keep CLI target selection and document projection around the shared attach/read/detach operation,
+/// followed by the Server identity read.
 ///
 /// # Errors
 /// Preserve selection, identity and process-query failures under the caller's deadline and wake.
@@ -117,7 +119,7 @@ pub(crate) fn read_terminal_processes_cancellable(
     .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let observed = crate::agent_runtime::startup::processes::read(client, deadline, &binding, wake)
         .map_err(classify_process)?;
-    Ok(project(snapshot, row, observed))
+    project(client, deadline, snapshot, row, observed, wake)
 }
 
 /// Project a process observation for an already selected row without taking viewer release ownership.
@@ -135,14 +137,19 @@ pub(super) fn read_attached(
     let observed =
         crate::agent_runtime::startup::processes::read_attached(client, deadline, lease, wake)
             .map_err(classify_process)?;
-    Ok(project(snapshot, row, observed))
+    project(client, deadline, snapshot, row, observed, wake)
 }
 
+/// Pair the sample with the Server's identity of the same Terminal, read after it.
 fn project(
+    client: &mut LocalClient,
+    deadline: Instant,
     snapshot: &Snapshot,
     row: results::TerminalRow,
     observed: crate::agent_runtime::startup::processes::Observation,
-) -> (Value, results::PanelProcessInfoDoc) {
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<(Value, results::PanelProcessInfoDoc), Failure> {
+    let server = read_identity(client, deadline, snapshot, &row, &observed.info, wake)?;
     let source = json!({
         "kind": "terminal-process-query",
         "sessionId": snapshot.session_id.as_str(),
@@ -153,13 +160,14 @@ fn project(
         "attachmentId": observed.attachment.to_text(),
         "hostTerminalId": observed.info.terminal_id.to_text(),
     });
-    (
+    Ok((
         source,
         results::PanelProcessInfoDoc {
             terminal: row,
             info: observed.info,
+            server,
         },
-    )
+    ))
 }
 
 /// Map shared process evidence to the existing viewer failures and process-info schema/Host codes.

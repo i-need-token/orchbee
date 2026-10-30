@@ -393,15 +393,16 @@ Windows `panel list/get/current` 还返回可空的 `cwd`、`cwdSource`、`foreg
 
 每个主终端的单个只读 viewer 提供两类观察。帧事实保留 Host epoch、attachment、sequence、
 generation、revision、几何、屏幕、scrollback 数量、原始标题及上报目录。在保留摘要前释放
-完整单元格数据。进程样本复用 Windows Job 读取及其明确的 root/Agent-chain/ambiguous
-选择策略，不声称 OS 前台权威。已观察样本保留独立来源及标准 `panel process-info` 结果。
+完整单元格数据。进程样本复用 Windows Job 读取，随后进行一次 Server `identify` 读取，
+其前台遵循下文的 Server 识别规则，不声称 OS 前台权威。已观察样本保留独立来源及标准
+`panel process-info` 结果。
 进程采样不可用时仍保留已成功观察的帧元数据。
 
 `cwd` 优先采用从帧上报目录解码的绝对 Windows 路径，回退到采样的根进程目录。
 file URI 按严格 UTF-8 解码一次百分号转义（盘符路径或 UNC authority），不接受 query、fragment、
 控制字符，不访问文件系统；非法或非 Windows 上报仅原样保留在帧证据中，不作为文件系统目录。
 `cwdSource` 为 `terminal-frame`、
-`root-process` 或 null。`foregroundCwd` 来自公开进程策略选中的进程，不可用或歧义时为 null。
+`root-process` 或 null。`foregroundCwd` 取 Server 前台所指进程在样本中的目录；不可用、歧义或该进程不在样本中时为 null。
 不代入调用 CLI 的目录或猜测的启动目录。原始标题保持不变；简化标题移除一个精确的 Windows
 提权前缀（`Administrator: `，或简体中文的 `管理员: `、`管理员：`）、两端空白，以及至多一个用
 空白分隔的前导 Braille 或已知活动字符（`·✢✳✶✻✽◐◓◑◒`），空结果为 null。其他显示语言的提权
@@ -2236,7 +2237,9 @@ Session／名称行为和已有回执来源不变。解析回执可报告 `resol
 
 `src/cli/processes.rs` 负责对经过校验的 Host 样本作有界、无状态的解释；进程采集仍只归
 Host 所有。每个进程增加可空 `argv` 和 `providerId`；`foreground` 返回 `kind`、可空
-`pid` 与可空 `providerId`。进程结果为 version 1。通过现有安全 `winsafe` shell 绑定
+`pid` 与可空 `providerId`。Client 不从样本中选择前台：每次进程读取之后，都在同一连接、同一
+预算内进行一次 Workbench Panel Agent `identify` 读取，`foreground` 投影 Server 的识别结果和运行
+锚点。进程结果为 version 1。通过现有安全 `winsafe` shell 绑定
 调用 Windows `CommandLineToArgvW`，只解释非空、不含 NUL、至多 4096 个 UTF-16 单元
 的命令行。空或不可用命令保持 null，不替换成 CLI 自身命令行，不做 Shell 展开、文件
 查找或环境读取。这是 Windows 参数解析投影，不保证另一程序采用相同解析器。仅 Windows
@@ -2247,16 +2250,19 @@ eval／command 内容和任意后续参数都不能标识 Agent。已知包入�
 显式列表。provider 匹配是诊断启发式，不是可执行文件认证；它不创建 canonical
 Agent 状态，也不代表已就绪。
 
-| 样本解释                        | 前台投影                            | 输入预检                        |
-| ------------------------------- | ----------------------------------- | ------------------------------- |
-| 一个 Agent 候选是所有候选的祖先 | `agent-chain`，选中 PID/provider    | 必须匹配预期 canonical provider |
-| 多个无祖先包含关系的候选        | `ambiguous`，PID/provider 为 null   | 拒绝                            |
-| 没有候选，保留的根进程仍存在    | `root`，根 PID，provider 为 null    | 拒绝                            |
-| 根进程缺失且没有唯一候选        | `unavailable`，PID/provider 为 null | 拒绝                            |
+| Server 识别状态                                     | 前台投影                            | 输入预检                        |
+| --------------------------------------------------- | ----------------------------------- | ------------------------------- |
+| 已发布的运行（有 `anchor`）                         | `agent-chain`，锚点 PID/provider    | 必须匹配预期 canonical provider |
+| 没有运行，`unknown` 且原因为 `ambiguous-candidates` | `ambiguous`，PID/provider 为 null   | 拒绝                            |
+| 没有运行，样本中保留的根进程仍存在                  | `root`，根 PID，provider 为 null    | 拒绝                            |
+| 没有运行，样本中没有根进程                          | `unavailable`，PID/provider 为 null | 拒绝                            |
 
-父边只连接样本中创建时间不晚于子进程的父进程。遍历受样本大小限制并检测环；复用的
-父 PID 不能伪造祖先关系。祖先链选择范围限制在 Orchbee 保留的 Job 内，不做全局扫描或 Git Bash 环境标记逃逸回退。歧义明确
-返回，不伪装成可用 Shell；不声称存在 POSIX 前台进程组。
+锚点是 Panel 报告归属到该终端的运行，因此 `foreground`、Panel 报告和 TUI 的 Agent 展示指向同一个
+运行。`agent` 识别结果总有该锚点；已发布的运行也可能在 `unknown` 下继续（例如
+`unclassified-arguments`，或锚点之外出现不透明行），此时由识别结果一行说明原因。Server 仍在稳定时，
+即使样本指出了 Agent 也不做选择。锚点可能指向较早样本中已经不存在的进程；进程行仍来自样本。祖先规则、
+环与父 PID 复用处理以及保留 Job 边界，归 Server 使用的共享样本判定所有。歧义明确返回，不伪装成可用
+Shell；不声称存在 POSIX 前台进程组。
 
 在规范会话目标上，Windows 的 `agent send-keys` 和 `agent prompt` 先解析 canonical 会话及其精确终端，
 在同一已接纳会话上查询该终端、核对预期 canonical provider ID（非可执行别名），然后在发送前重读固定 Agent。
@@ -2299,9 +2305,11 @@ Server 尚未采样的代际报告 `unknown` 加 `settling`。区分字段是 `r
 `unsupported` 能力形状。
 
 物理 Explain 在 Server 的 `explained` 结果中获得识别结果。`panel process-info` 在进程样本之后，于同一连接、同一预算内
-发送一次 Workbench Panel Agent `identify` 请求。Workbench revision 或 Host Terminal 不同则以 `workbench-changed`
-失败；其他 Server 拒绝与传输失败使用通用 CLI 失败契约。新鲜样本与识别结果是两次独立观察：`foreground` 仍是逐样本选择，
-可能在 `identity` 仍为 `unknown` 时指向智能体链。文本输出增加一行本地化的“识别结果”；JSON 原样携带该值。
+发送一次 Workbench Panel Agent `identify` 请求；`identified` 还携带运行 `anchor`。Host Terminal 不同则以
+`workbench-changed` 失败；回复中的 Workbench revision 不作为守卫，因为识别结果属于被采样的确切终端，且各命令保留
+自己的快照守卫。其他 Server 拒绝与传输失败使用通用 CLI 失败契约。新鲜样本与识别结果仍是两次独立观察，但
+`foreground` 由识别读取推导，因此智能体链总是指向 Server 已发布的运行。文本输出增加一行本地化的“识别结果”；JSON
+原样携带该值。
 
 ## Windows Agent 启动
 
@@ -2576,4 +2584,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=defb3c042acfd314ad8a64fb3fe0d98b91707c825990909161ddef4a4dbd6414 zh-cn-sha256=5ef29e5d51af8a3d417e3953d10c22bd2cf44dc75a307d306ebdb0cdb1f89e60 -->
+<!-- documentation-pairing: english-sha256=d1906a25c42632f42b76be1bc8e21968a1e7c49d3f4d14dab1b496ee8798d1d3 zh-cn-sha256=53b7c2b3d29b001e29dea2462e1ae1d5da016ee05d5114f132c2254fa3a11c4b -->

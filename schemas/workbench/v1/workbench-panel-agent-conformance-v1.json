@@ -1112,6 +1112,10 @@
 						"result": "agent",
 						"providerId": "codex",
 						"grade": "recognized"
+					},
+					"anchor": {
+						"pid": 4242,
+						"providerId": "codex"
 					}
 				}
 			}
@@ -1136,7 +1140,8 @@
 					"identity": {
 						"result": "unknown",
 						"reason": "settling"
-					}
+					},
+					"anchor": null
 				}
 			}
 		},
@@ -1159,6 +1164,35 @@
 					},
 					"identity": {
 						"result": "none"
+					},
+					"anchor": null
+				}
+			}
+		},
+		{
+			"name": "identified-unknown-with-published-anchor",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "identified",
+					"workbenchRevision": "7",
+					"binding": {
+						"presentationId": "33333333333333333333333333333333",
+						"generation": "44444444444444444444444444444444",
+						"hostEpoch": "55555555555555555555555555555555",
+						"hostTerminalId": "66666666666666666666666666666666"
+					},
+					"identity": {
+						"result": "unknown",
+						"reason": "unclassified-arguments"
+					},
+					"anchor": {
+						"pid": 4242,
+						"providerId": "codex"
 					}
 				}
 			}
@@ -4852,7 +4886,8 @@
 					"identity": {
 						"result": "unknown",
 						"reason": "other"
-					}
+					},
+					"anchor": null
 				}
 			}
 		},
@@ -4876,7 +4911,8 @@
 					"identity": {
 						"result": "none",
 						"reason": "settling"
-					}
+					},
+					"anchor": null
 				}
 			}
 		},
@@ -4900,6 +4936,91 @@
 					"identity": {
 						"result": "agent",
 						"providerId": "codex"
+					},
+					"anchor": {
+						"pid": 4242,
+						"providerId": "codex"
+					}
+				}
+			}
+		},
+		{
+			"name": "identified-agent-without-anchor",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "identified",
+					"workbenchRevision": "7",
+					"binding": {
+						"presentationId": "33333333333333333333333333333333",
+						"generation": "44444444444444444444444444444444",
+						"hostEpoch": "55555555555555555555555555555555",
+						"hostTerminalId": "66666666666666666666666666666666"
+					},
+					"identity": {
+						"result": "agent",
+						"providerId": "codex",
+						"grade": "recognized"
+					},
+					"anchor": null
+				}
+			}
+		},
+		{
+			"name": "identified-agent-anchor-other-provider",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "identified",
+					"workbenchRevision": "7",
+					"binding": {
+						"presentationId": "33333333333333333333333333333333",
+						"generation": "44444444444444444444444444444444",
+						"hostEpoch": "55555555555555555555555555555555",
+						"hostTerminalId": "66666666666666666666666666666666"
+					},
+					"identity": {
+						"result": "agent",
+						"providerId": "codex",
+						"grade": "recognized"
+					},
+					"anchor": {
+						"pid": 4242,
+						"providerId": "claude-code"
+					}
+				}
+			}
+		},
+		{
+			"name": "identified-missing-anchor",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "identified",
+					"workbenchRevision": "7",
+					"binding": {
+						"presentationId": "33333333333333333333333333333333",
+						"generation": "44444444444444444444444444444444",
+						"hostEpoch": "55555555555555555555555555555555",
+						"hostTerminalId": "66666666666666666666666666666666"
+					},
+					"identity": {
+						"result": "agent",
+						"providerId": "codex",
+						"grade": "recognized"
 					}
 				}
 			}

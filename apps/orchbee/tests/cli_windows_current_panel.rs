@@ -189,6 +189,7 @@ fn identify_reply(stream: &mut LocalStream) {
                 binding,
                 identity: serde_json::from_value(json!({"result":"unknown","reason":"settling"}))
                     .unwrap(),
+                anchor: None,
             },
         }),
     )

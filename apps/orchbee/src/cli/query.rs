@@ -60,9 +60,7 @@ mod process_info;
 pub(crate) use process_info::panel_process_info;
 pub(crate) use process_info::read_terminal_processes;
 pub(in crate::cli) use process_info::{classify_process, metadata_failure, panel_agent_failure};
-pub(crate) use process_info::{
-    primary_terminal, read_identity, read_terminal_processes_cancellable,
-};
+pub(crate) use process_info::{primary_terminal, read_terminal_processes_cancellable};
 
 mod agent_terminal;
 pub(in crate::cli) use agent_terminal::classify_observation;

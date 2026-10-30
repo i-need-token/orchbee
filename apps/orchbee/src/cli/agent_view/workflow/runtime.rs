@@ -134,7 +134,7 @@ pub(super) fn read(
             Some(terminal_fields),
         ));
     };
-    let view = crate::cli::processes::interpret(&processes.info);
+    let foreground = processes.foreground();
     let agent = &canonical.session;
     let expected = crate::cli::processes::provider(agent.snapshot.provider_id.as_str());
     let prompt_ready = agent.snapshot.observation.freshness == AgentObservationFreshness::Fresh
@@ -145,10 +145,9 @@ pub(super) fn read(
                 | AgentSemanticStatus::NeedsAttention { .. }
                 | AgentSemanticStatus::Ended { .. }
         )
-        && view.foreground.selection == crate::cli::processes::Selection::AgentChain
+        && foreground.selection == crate::cli::processes::Selection::AgentChain
         && expected.is_some_and(|expected| {
-            expected == agent.snapshot.provider_id.as_str()
-                && view.foreground.provider == Some(expected)
+            expected == agent.snapshot.provider_id.as_str() && foreground.provider == Some(expected)
         });
     Ok((
         canonical,

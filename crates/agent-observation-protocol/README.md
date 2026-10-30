@@ -132,14 +132,16 @@ reuse it rather than keeping their own tables.
   `AgentIdentityUnsupportedReason`. The Server owns the state that produces it. Its wire form is
   one closed object discriminated by `result`: `agent` adds `providerId` (the native provider ID)
   and `grade`, `unknown` and `unsupported` add one `reason`, and `none` adds nothing.
+  `AgentProcessAnchor` is the PID and provider of the run the Server attributes to the Terminal,
+  the run Panel reports show; its wire form is `{pid, providerId}`.
 
 `evaluate_agent_sample` turns one complete sample of `AgentProcessRow` values into an
 `AgentSampleVerdict`: the outermost candidate anchor with its evidence (interactive, unclassified
 arguments, unreadable command line, or detached console), or why no anchor can be named. It rejects
 cycles, reused-parent creation order, and ambiguous siblings; opaque and unresolved rows outside the
 anchor's subtree, and a sample at the row limit, leave it unresolved; rows inside the subtree never
-hold an outer Agent. The Server identity state settles verdicts into runs and results; native CLI
-diagnostics and Agent start read their own sample through the same verdict. Each caller uses the existing OS parser, and only the Server adapter admits proven Host samples under its identity and
-timing fences. Table-driven fixtures cover every Windows support matrix row and counterexample in
+hold an outer Agent. The Server identity state settles verdicts into runs and results; native
+Clients classify each sampled process for diagnostics with the existing OS parser, but read that
+result and its run anchor rather than selecting from their own samples. Only the Server adapter admits proven Host samples under its identity and timing fences. Table-driven fixtures cover every Windows support matrix row and counterexample in
 the [process identity proposal](../../proposals/agent/agent-process-identity.md); the Host sampler
 supplies console attachment and opaque rows.

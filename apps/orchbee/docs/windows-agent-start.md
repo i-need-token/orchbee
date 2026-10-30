@@ -132,18 +132,22 @@ Terminal: `awaiting`, `started`, then `finished` with PowerShell's `$?`. Inspect
 for example when the provider is not found, and true reports `agent-exited`. Without a receipt,
 the idle-shell check after 3000 ms still reports `agent-exited`.
 
-After each process sample, startup reads the Server's identity result for the reserved Terminal.
-A settled `agent` result naming another provider reports `agent-provider-mismatch`, such as
-Grok answering Cursor's generic `agent` name; one naming the requested provider confirms it.
-Any other result, or a failed or mismatched read, leaves the per-sample selection in charge.
+After each process sample, startup reads the Server's identity result and run anchor for the
+reserved Terminal, and its foreground follows the
+[process-info rule](native-cli-query.md#windows-interpretation-and-agent-input-preflight); startup
+selects nothing from its own sample. A published run naming another provider reports
+`agent-provider-mismatch`, such as Grok answering Cursor's generic `agent` name; ambiguity reports
+`agent-runtime-ambiguous` and a missing root `agent-exited`. Readiness also requires the published
+run to name the requested provider. A settling Server, or a failed or mismatched read, selects no
+foreground for that step and startup keeps polling within its budget.
 
 - One reservation has one run token; only its own Host Terminal echoing that token advances its
   receipt, and a receipt phase never moves back.
 - The prefix never adds input: one line is still submitted once and never replayed.
 - The token reaches only the command the managed wrapper ran.
-- The receipt and the identity result can only end startup early; neither completes it, and
-  neither can fail or delay a startup that the per-sample evidence and canonical session would
-  complete.
+- The receipt can only end startup early and never completes it. The Server's published run is
+  required for completion, so a settling Server delays completion until the run settles but never
+  fails startup on its own.
 - The identity result is `confirmed` under the
   [typed-run boundary rule](native-terminal-run.md#typed-run-boundaries), which also covers this
   prefixed command; cmd launches stay `recognized`.

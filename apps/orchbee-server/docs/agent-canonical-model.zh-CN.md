@@ -211,8 +211,9 @@ dispose／poison 所有者仍回答 unavailable。保留既有 canonical ID 优�
   启动的 Agent 仍然可见；始终是 `detached-console` 的运行从不发布。已发布的运行保持发布直到结束，
   只有那时才报告退出。
 
-不变量和确定性轨迹位于 `src/session_coordinator/process_observation/identity.rs` 及其相邻测试。诊断
-之后会展示该结果；Agent start 通过同一逐样本判定读取自己的样本。
+不变量和确定性轨迹位于 `src/session_coordinator/process_observation/identity.rs` 及其相邻测试。`identify`
+在同一协调器锁内回答该结果和已发布运行的锚点，即 Panel 报告归属的同一运行；原生 Client 的前台、Agent
+start 和 TUI 的 Agent 展示都跟随该运行，不从自己的样本中做选择。
 
 ## 托管终端状态
 
@@ -571,4 +572,4 @@ Devin 六组 hook 仅接收 session-identified。身份刷新保留未知或已�
 
 Hermes 仅准入 session-identified。会话启动／重置和 CLI 恢复观察保留规范轮次状态，不制造空闲或完成。
 
-<!-- documentation-pairing: english-sha256=501ef06f241dcdbaad180ac29b745a4ed8139d24e5a3dde53379c8655df22e84 zh-cn-sha256=1c3bd11327b62c8991825ac75ea0de2c5c4d3ece18d16a7b1207a70f947ada34 -->
+<!-- documentation-pairing: english-sha256=9734a33e07535a92a9281a8d05f6eddb930b75bab894c8406df1dd0ab93d7323 zh-cn-sha256=7b6a04262147cc4c96414078a146f559d790ba56b251fcb19f3447e15560072e -->

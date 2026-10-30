@@ -161,12 +161,9 @@ fn process_agent(observation: &super::terminal_observation::Observation) -> Opti
     let super::terminal_observation::Observation::Observed(read) = observation else {
         return None;
     };
-    read.processes.as_ref().and_then(|(_, processes)| {
-        super::processes::interpret(&processes.info)
-            .foreground
-            .provider
-            .map(str::to_owned)
-    })
+    read.processes
+        .as_ref()
+        .and_then(|(_, processes)| processes.foreground().provider.map(str::to_owned))
 }
 
 fn terminal_list_state(
@@ -421,9 +418,20 @@ mod tests {
                 "attachmentId": attachment_id.to_text(),
                 "hostTerminalId": terminal_id.to_text(),
             }),
+            // The Agent comes from the Server's published run, not from the sampled codex row.
             results::PanelProcessInfoDoc {
                 terminal: terminal_row(terminal_id.to_text()),
                 info,
+                server: crate::cli::processes::ServerIdentity {
+                    identity: orchbee_agent_observation_protocol::AgentProcessIdentity::Agent {
+                        provider: orchbee_agent_observation_protocol::AgentReportProvider::Codex,
+                        grade: orchbee_agent_observation_protocol::AgentIdentityGrade::Recognized,
+                    },
+                    anchor: Some(orchbee_agent_observation_protocol::AgentProcessAnchor {
+                        pid: 20,
+                        provider: orchbee_agent_observation_protocol::AgentReportProvider::Codex,
+                    }),
+                },
             },
         )))
     }

@@ -13,8 +13,7 @@ use crate::local_client::{
 use orchbee_agent_observation_protocol::{
     AgentHostEpoch, AgentHostTerminalId, AgentLaunchOutcome, AgentLaunchReceipt,
     AgentLaunchRequest, AgentLaunchReservation, AgentLifecycle, AgentObservationFreshness,
-    AgentPresentationId, AgentProcessIdentity, AgentSafeInteger, AgentSemanticStatus,
-    AgentSessionId, ObapRequestId,
+    AgentPresentationId, AgentSafeInteger, AgentSemanticStatus, AgentSessionId, ObapRequestId,
 };
 use orchbee_local_ipc::LocalIo;
 use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessInfo};
@@ -342,7 +341,6 @@ impl Workflow<'_> {
             {
                 return Err(Failure::Start(StartFailure::BindingChanged));
             }
-            let runtime = agent_start_runtime::interpret(&process.info);
             let identified = agent_start_runtime::identity::read(
                 client,
                 snapshot,
@@ -351,27 +349,20 @@ impl Workflow<'_> {
                 self.step()?,
                 wake,
             );
-            let provider = match identified {
-                Some(AgentProcessIdentity::Agent { provider, .. }) => {
-                    if provider.native_provider_id() != self.request.provider.as_str() {
-                        // The Server settled another provider in this Terminal generation.
-                        return Err(Failure::Start(StartFailure::ProviderMismatch));
-                    }
-                    Some(provider.native_provider_id())
-                }
-                // Without a settled Server result, the per-sample selection keeps deciding.
-                _ => runtime.foreground.provider,
-            };
-            match runtime.foreground.selection {
-                agent_start_runtime::Selection::Ambiguous => {
+            // The Server's run is the only foreground; without its answer this step selects none.
+            let foreground =
+                identified.map(|server| agent_start_runtime::foreground(&process.info, server));
+            match foreground.map(|foreground| (foreground.selection, foreground.provider)) {
+                Some((agent_start_runtime::Selection::Ambiguous, _)) => {
                     return Err(Failure::Start(StartFailure::RuntimeAmbiguous));
                 }
-                agent_start_runtime::Selection::AgentChain
+                Some((agent_start_runtime::Selection::AgentChain, provider))
                     if provider != Some(self.request.provider.as_str()) =>
                 {
+                    // The Server settled another provider in this Terminal generation.
                     return Err(Failure::Start(StartFailure::ProviderMismatch));
                 }
-                agent_start_runtime::Selection::Unavailable => {
+                Some((agent_start_runtime::Selection::Unavailable, _)) => {
                     return Err(Failure::Start(StartFailure::AgentExited));
                 }
                 _ => {}
@@ -422,7 +413,10 @@ impl Workflow<'_> {
                             | AgentSemanticStatus::Interrupted { .. }
                     );
                 if ready
-                    && provider == Some(self.request.provider.as_str())
+                    && foreground.is_some_and(|foreground| {
+                        foreground.selection == agent_start_runtime::Selection::AgentChain
+                            && foreground.provider == Some(self.request.provider.as_str())
+                    })
                     && submitted.elapsed() >= SETTLE
                     && pending.settle_remaining_ms.value() == 0
                 {
@@ -599,7 +593,6 @@ fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure>
     }
     let interpreted = agent_start_runtime::interpret(sample);
     let root = interpreted
-        .processes
         .iter()
         .find(|p| p.facts.pid == sample.root_pid)
         .ok_or_else(refuse)?;
@@ -646,7 +639,7 @@ fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure>
             return Err(refuse());
         }
     }
-    if interpreted.processes.iter().any(|p| {
+    if interpreted.iter().any(|p| {
         p.facts.pid != sample.root_pid
             && p.facts.image.as_deref().is_none_or(|image| {
                 !matches!(
@@ -666,9 +659,7 @@ fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure>
 
 /// The shell runs the Worker's fixed PowerShell initialization, which carries the run markers.
 fn managed_powershell(sample: &TerminalProcessInfo) -> bool {
-    let interpreted = agent_start_runtime::interpret(sample);
-    interpreted
-        .processes
+    agent_start_runtime::interpret(sample)
         .iter()
         .find(|p| p.facts.pid == sample.root_pid)
         .is_some_and(|root| {

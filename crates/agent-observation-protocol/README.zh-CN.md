@@ -112,14 +112,15 @@ provider 词汇；后续的写入方和采样器复用它，而不是各自维�
   `AgentIdentityUnknownReason` 的 `unknown`，或带一个 `AgentIdentityUnsupportedReason` 的
   `unsupported`。产生它的状态由 Server 负责。线上格式是以 `result` 区分的封闭对象：`agent` 增加
   `providerId`（原生 provider ID）和 `grade`，`unknown` 与 `unsupported` 增加一个 `reason`，`none` 不增加成员。
+  `AgentProcessAnchor` 是 Server 归属到该终端的运行（即 Panel 报告显示的运行）的 PID 和 provider；线上格式
+  是 `{pid, providerId}`。
 
 `evaluate_agent_sample` 把一个完整样本的 `AgentProcessRow` 值转换为 `AgentSampleVerdict`：带证据（交互、
 无法分类的参数、读不到的命令行或脱离的控制台）的最外层候选锚点，或无法指出锚点的原因。它拒绝环、父进程复用的
 创建时间倒置和并列歧义；锚点子树之外的不透明行和未决行，以及达到行数上限的样本，使判定保持未决；子树内的行永远
-不会是外层 Agent。Server 身份状态把判定稳定为运行和结果；原生 CLI 诊断和 Agent start 通过同一判定读取自己的
-样本。各调用方
-使用既有 OS 解析器，只有 Server 适配器在身份和时间守卫内接纳经证明的 Host 样本。表驱动夹具覆盖
+不会是外层 Agent。Server 身份状态把判定稳定为运行和结果；原生 Client 用既有 OS 解析器逐个分类采样进程以供
+诊断，但读取该结果及其运行锚点，不从自己的样本中做选择。只有 Server 适配器在身份和时间守卫内接纳经证明的 Host 样本。表驱动夹具覆盖
 [进程身份提案](../../proposals/agent/agent-process-identity.zh-CN.md)中 Windows 支持矩阵的每一行和
 每个反例；控制台归属和不透明行由 Host 采样器提供。
 
-<!-- documentation-pairing: english-sha256=7899e381988fd119585785bda854e4d6f7ac8ff5183e946f15cc44f48d6d58c6 zh-cn-sha256=0072beafc72b587c3cc792504393378a52a85fe6bf800e47fa9f1d0381dc77fe -->
+<!-- documentation-pairing: english-sha256=3c3d63f7795f3ff20f330c83844c3ba1da8859c2fd466d0c54cff393f8f31a67 zh-cn-sha256=cee97e46076e8175019e19682fb6c88c61531e8b9d2bb8647a70080823f7c423 -->

@@ -3,7 +3,7 @@ use super::{
     AgentTarget, ArmedSignals, Completion, Failure, FailureKind, Instant, Locale, Map, Output,
     OutputFormat, READ_BUDGET, ResolvedWait, Sent, Value, WaitDeadline, json, output, query, send,
 };
-use crate::cli::processes::{Selection, interpret};
+use crate::cli::processes::Selection;
 use crate::cli::query::terminal_agent::{TerminalAgentRead, failure as error};
 use crate::cli::query::terminal_agent_wait::{self, Matched};
 use crate::cli_text::CliText;
@@ -57,8 +57,8 @@ pub(super) fn span(
         &terminal,
         signals.poll_fd(),
     )?;
-    let view = interpret(&sample.info);
-    match view.foreground.selection {
+    let foreground = sample.foreground();
+    match foreground.selection {
         Selection::Ambiguous => {
             return Err(error(FailureKind::Rejected, "agent-runtime-ambiguous"));
         }
@@ -67,7 +67,7 @@ pub(super) fn span(
         }
         Selection::AgentChain => {}
     }
-    if view.foreground.provider != Some(expected) {
+    if foreground.provider != Some(expected) {
         return Err(error(FailureKind::Rejected, "agent-provider-mismatch"));
     }
     let (snapshot, before) = terminal_agent_wait::read_pinned(

@@ -545,7 +545,7 @@
 				},
 				{
 					"type": "object",
-					"required": ["kind", "workbenchRevision", "binding", "identity"],
+					"required": ["kind", "workbenchRevision", "binding", "identity", "anchor"],
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
@@ -559,6 +559,16 @@
 						},
 						"identity": {
 							"$ref": "#/$defs/processIdentity"
+						},
+						"anchor": {
+							"oneOf": [
+								{
+									"type": "null"
+								},
+								{
+									"$ref": "#/$defs/processAnchor"
+								}
+							]
 						}
 					}
 				},
@@ -1026,6 +1036,22 @@
 				},
 				"manifest": {
 					"$ref": "#/$defs/manifestInfo"
+				}
+			}
+		},
+		"processAnchor": {
+			"type": "object",
+			"required": ["pid", "providerId"],
+			"additionalProperties": false,
+			"properties": {
+				"pid": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4294967295
+				},
+				"providerId": {
+					"type": "string",
+					"pattern": "^[0-9A-Za-z._:-]{1,128}$"
 				}
 			}
 		},

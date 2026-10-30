@@ -313,6 +313,24 @@ impl SessionCoordinator {
             )
     }
 
+    /// The anchor of the run Panel reports attribute to the exact physical generation, if any.
+    /// Read under the same lock as [Self::process_identity], so an `agent` result names it.
+    pub(crate) fn process_anchor(
+        &self,
+        physical: &TerminalAgentBinding,
+    ) -> Option<orchbee_agent_observation_protocol::AgentProcessAnchor> {
+        self.process_samples
+            .get(&key(&physical.binding))
+            .filter(|sample| sample.target == *physical)
+            .and_then(Sample::published)
+            .map(
+                |run| orchbee_agent_observation_protocol::AgentProcessAnchor {
+                    pid: run.pid,
+                    provider: run.provider,
+                },
+            )
+    }
+
     /// Answers `identify` for the presentation's current Terminal generation: the canonical
     /// owner resolves the generation, and this state supplies its identity under one lock.
     pub(crate) fn identify_presentation(
@@ -379,6 +397,7 @@ impl SessionCoordinator {
         Outcome::Identified {
             workbench_revision,
             identity: self.process_identity(&physical),
+            anchor: self.process_anchor(&physical),
             binding,
         }
     }

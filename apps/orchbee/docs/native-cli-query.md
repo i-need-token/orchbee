@@ -483,17 +483,19 @@ and deadline errors fail the query without a partial result.
 One read-only viewer per primary terminal supplies both observations. Frame facts retain
 Host epoch, attachment, sequence, generation, revision, geometry, screen, scrollback count,
 raw title and reported directory. Full cell data is discarded before the summary is retained.
-The process sample uses the existing Windows Job read and its explicit root/Agent-chain/
-ambiguous selection policy; it does not claim OS foreground authority. Each observed sample
-retains its own source and the normal `panel process-info` result. Unavailable process sampling
+The process sample uses the existing Windows Job read followed by one Server `identify` read,
+and its foreground follows the Server identity rule below; it does not claim OS foreground
+authority. Each observed sample retains its own source and the normal `panel process-info`
+result. Unavailable process sampling
 does not erase successfully observed frame metadata.
 
 `cwd` uses an absolute Windows path decoded from the frame's reported directory, falling back to the sampled root-process directory;
 file URIs decode percent escapes once as strict UTF-8 (drive paths or UNC authority), without
 query/fragment/control characters or filesystem access; invalid/non-Windows reports remain raw
 in the frame evidence and do not become a filesystem directory.
-`cwdSource` is `terminal-frame`, `root-process` or null. `foregroundCwd` uses the process selected
-by the disclosed process policy and remains null when unavailable or ambiguous. No invoking-CLI
+`cwdSource` is `terminal-frame`, `root-process` or null. `foregroundCwd` uses the sampled directory of
+the process the Server's foreground names and remains null when unavailable, ambiguous, or absent
+from the sample. No invoking-CLI
 directory or launch-directory guess is substituted. Raw title is retained unchanged. The stripped
 title removes one exact Windows elevation prefix (`Administrator: `, or Simplified Chinese
 `管理员: ` or `管理员：`), surrounding whitespace, and at most one leading whitespace-delimited
@@ -2650,6 +2652,9 @@ establish provider foreground ownership or readiness. This workflow uses impleme
 `src/cli/processes.rs` owns a bounded, stateless interpretation of the validated Host
 sample. The Host alone owns process collection. Each process adds nullable `argv` and
 `providerId`; `foreground` reports `kind`, nullable `pid`, and nullable `providerId`.
+The Client selects no foreground from its sample: every process read is followed by one
+Workbench Panel Agent `identify` read on the same connection and budget, and `foreground`
+projects the Server's identity result and run anchor.
 The process result is version 1. Windows `CommandLineToArgvW`, through the existing
 safe `winsafe` shell binding, interprets nonempty command lines of at most 4096 UTF-16
 units without NUL. Empty or unavailable commands remain null; there is no substitution
@@ -2663,18 +2668,22 @@ later arguments never identify an Agent. Known package entrypoints and executabl
 aliases are explicit. Provider matching is a diagnostic heuristic, not executable
 authentication. It does not create canonical Agent state or establish readiness.
 
-| Sample interpretation                                 | Foreground projection                | Input preflight                        |
-| ----------------------------------------------------- | ------------------------------------ | -------------------------------------- |
-| One Agent candidate is an ancestor of every candidate | `agent-chain`, selected PID/provider | Expected canonical provider must match |
-| Several unrelated candidates                          | `ambiguous`, null PID/provider       | Refuse                                 |
-| No candidate, retained root is present                | `root`, root PID, null provider      | Refuse                                 |
-| Root absent and no unique candidate                   | `unavailable`, null PID/provider     | Refuse                                 |
+| Server identity state                          | Foreground projection              | Input preflight                        |
+| ---------------------------------------------- | ---------------------------------- | -------------------------------------- |
+| A published run (`anchor` present)             | `agent-chain`, anchor PID/provider | Expected canonical provider must match |
+| No run, `unknown` with `ambiguous-candidates`  | `ambiguous`, null PID/provider     | Refuse                                 |
+| No run, retained root is present in the sample | `root`, root PID, null provider    | Refuse                                 |
+| No run, root absent from the sample            | `unavailable`, null PID/provider   | Refuse                                 |
 
-Parent edges only connect sampled processes whose parent creation time is no later
-than the child's. Traversal is bounded by the sample size and detects cycles; a reused
-parent PID cannot manufacture an ancestor. Ancestor-chain selection stays within Orchbee's retained Job, without global scans
-or the Git Bash environment-marker escape fallback. Ambiguity stays explicit rather
-than looking like an available shell. No POSIX foreground process group is claimed.
+The anchor is the run Panel reports attribute to the Terminal, so `foreground`, Panel reports and
+the TUI Agent display name the same run. An `agent` identity always has that anchor; a published
+run can also continue under `unknown` (for example `unclassified-arguments` or an opaque row
+outside the anchor), and the identity row explains why. A sample that names an Agent selects
+nothing while the Server is still settling. The anchor can name a process the earlier sample no
+longer holds; the process rows stay the sample's. Ancestor rules, cycle and reused-parent
+handling, and the retained-Job boundary belong to the shared sample verdict the Server consumes.
+Ambiguity stays explicit rather than looking like an available shell. No POSIX foreground
+process group is claimed.
 
 For canonical session targets on Windows, `agent send-keys` and `agent prompt` resolve the canonical session and its
 exact terminal, query this terminal on the same admitted session, check the expected
@@ -2724,11 +2733,13 @@ A generation the Server has not sampled yet reports `unknown` with `settling`. T
 
 Physical Explain receives the identity inside the Server's `explained` result. `panel process-info`
 sends one Workbench Panel Agent `identify` request after the process sample, on the same connection
-and inside the same budget. A different Workbench revision or Host Terminal fails with
-`workbench-changed`; other Server refusals and transport failures use the generic CLI failure
-contract. The fresh sample and the identity are separate observations: `foreground` remains the
-per-sample selection and can name an Agent chain while `identity` is still `unknown`. Text output
-adds one localized Identity row; JSON carries the value verbatim.
+and inside the same budget; `identified` also carries the run `anchor`. A different Host Terminal
+fails with `workbench-changed`; the reply's Workbench revision is not a fence, because the identity
+belongs to the exact sampled Terminal and each command keeps its own snapshot fences. Other Server
+refusals and transport failures use the generic CLI failure contract. The fresh sample and the
+identity remain separate observations, but `foreground` is derived from the identity read, so an
+Agent chain always names the Server's published run. Text output adds one localized Identity row;
+JSON carries the value verbatim.
 
 ## Windows Agent startup
 

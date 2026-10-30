@@ -46,7 +46,6 @@ impl Observation {
             fields["cwdSource"] = json!("terminal-frame");
         }
         if let Some((source, processes)) = &read.processes {
-            let view = super::processes::interpret(&processes.info);
             if reported.is_none()
                 && let Some(cwd) = processes
                     .info
@@ -59,7 +58,8 @@ impl Observation {
                 fields["cwdSource"] = json!("root-process");
             }
             fields["foregroundCwd"] = json!(
-                view.foreground
+                processes
+                    .foreground()
                     .pid
                     .and_then(|pid| processes.info.processes.iter().find(|row| row.pid == pid))
                     .and_then(|row| row.current_directory.as_deref())

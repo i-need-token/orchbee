@@ -79,6 +79,10 @@ fn identify(stream: &mut LocalStream, reservation: &Value, identity: &str) {
         panic!("one Identify after the process sample")
     };
     assert!(matches!(&request.action, PanelAgentAction::Identify { .. }));
+    let identity: Value = serde_json::from_str(identity).unwrap();
+    // An `agent` result always names the published run; the sample's Agent row is PID 11.
+    let anchor = (identity["result"] == "agent")
+        .then(|| json!({"pid": 11, "providerId": identity["providerId"]}));
     write_workbench_response(
         stream,
         &WorkbenchResponse::PanelAgent(PanelAgentResult {
@@ -88,7 +92,8 @@ fn identify(stream: &mut LocalStream, reservation: &Value, identity: &str) {
             outcome: PanelAgentOutcome::Identified {
                 workbench_revision: WorkbenchRevision::new(1),
                 binding: serde_json::from_value(reservation["binding"].clone()).unwrap(),
-                identity: serde_json::from_str(identity).unwrap(),
+                identity: serde_json::from_value(identity).unwrap(),
+                anchor: anchor.map(|anchor| serde_json::from_value(anchor).unwrap()),
             },
         }),
     )
@@ -270,7 +275,12 @@ fn startup_samples_again_after_unavailable_sample_but_preserves_permanent_host_f
                 process(11, Some(10), "claude.exe"),
             ],
         );
-        identify(&mut stream, &reservation, SETTLING);
+        // The Server's run decides the provider; a settling Server would select nothing.
+        identify(
+            &mut stream,
+            &reservation,
+            r#"{"result":"agent","providerId":"claude-code","grade":"recognized"}"#,
+        );
         release(&mut stream, &reservation);
         assert_closed(&mut stream);
     });
@@ -403,7 +413,12 @@ fn startup_binds_only_ready_matching_agent_and_keeps_unknown_commit_distinct() {
                 &mut stream,
                 vec![process(10, None, "cmd.exe"), process(11, Some(10), AMP)],
             );
-            identify(&mut stream, &reservation, SETTLING);
+            // Readiness binds only the Server's published run of the requested provider.
+            identify(
+                &mut stream,
+                &reservation,
+                r#"{"result":"agent","providerId":"amp","grade":"recognized"}"#,
+            );
             let mut detail = session_detail("sess-alpha");
             detail["snapshot"]["providerId"] = json!("amp");
             detail["snapshot"]["turn"] = json!({"kind":"idle"});
@@ -450,8 +465,8 @@ fn startup_binds_only_ready_matching_agent_and_keeps_unknown_commit_distinct() {
     }
 }
 
-/// A settled Server identity naming another provider fails startup even when the per-sample
-/// chain names the requested one; a finished launch receipt reports the shell status at once.
+/// A settled Server run naming another provider fails startup; the sample's own chain is never
+/// consulted. A finished launch receipt reports the shell status at once.
 #[test]
 fn startup_consumes_server_identity_and_finished_launch_receipts() {
     let cases = [

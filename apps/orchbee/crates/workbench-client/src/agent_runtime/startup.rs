@@ -1,5 +1,5 @@
 //! Shared startup protocol operations. Callers retain discovery, selectors, presentation and signal ownership.
-pub(crate) use super::processes::{Selection, interpret};
+pub(crate) use super::processes::{Selection, ServerIdentity, foreground, interpret};
 pub(crate) use super::{SendVerdict, wait_backoff};
 pub(crate) mod binding;
 pub(crate) mod identity;

@@ -23,76 +23,66 @@ fn sample(processes: Vec<TerminalProcess>) -> TerminalProcessInfo {
 }
 
 #[test]
-fn agent_chain_selection_has_explicit_ambiguity_and_root_absence() {
-    let shell = process(10, None, "C:\\Windows\\cmd.exe", "cmd.exe");
-    let outer = process(20, Some(10), "C:\\bin\\codex.exe", "codex.exe");
-    let inner = process(30, Some(20), "C:\\bin\\claude.exe", "claude.exe");
-    let mut facts = sample(vec![shell, outer, inner]);
-    let projection = interpret(&facts);
-    assert_eq!(projection.foreground.selection, Selection::AgentChain);
-    assert_eq!(projection.foreground.pid, Some(20));
-    assert_eq!(projection.foreground.provider, Some("codex"));
-    facts.processes[2].parent_pid = Some(10);
-    assert_eq!(interpret(&facts).foreground.selection, Selection::Ambiguous);
-    facts.processes.truncate(1);
-    assert_eq!(interpret(&facts).foreground.selection, Selection::Root);
-    facts.processes.clear();
+fn foreground_projects_the_server_run_never_the_sample() {
+    use orchbee_agent_observation_protocol::AgentIdentityGrade;
+    let shell = process(10, None, r"C:\Windows\cmd.exe", "cmd.exe");
+    let codex = process(20, Some(10), r"C:\bin\codex.exe", "codex.exe");
+    let mut facts = sample(vec![shell, codex]);
+    let anchor = AgentProcessAnchor {
+        pid: 20,
+        provider: AgentReportProvider::Codex,
+    };
+    let server = |identity, anchor| ServerIdentity { identity, anchor };
+    let agent = AgentProcessIdentity::Agent {
+        provider: AgentReportProvider::Codex,
+        grade: AgentIdentityGrade::Recognized,
+    };
+    let unknown = AgentProcessIdentity::Unknown;
     assert_eq!(
-        interpret(&facts).foreground.selection,
-        Selection::Unavailable
+        foreground(&facts, server(agent, Some(anchor))),
+        Foreground {
+            selection: Selection::AgentChain,
+            pid: Some(20),
+            provider: Some("codex"),
+        }
     );
-    facts
-        .processes
-        .push(process(25, Some(21), "codex.exe", "codex.exe"));
+    // A published run whose result is unknown is still the run Panel reports show.
+    let unclassified = unknown(AgentIdentityUnknownReason::UnclassifiedArguments);
     assert_eq!(
-        interpret(&facts).foreground.selection,
+        foreground(&facts, server(unclassified, Some(anchor))).selection,
         Selection::AgentChain
     );
-    // An opaque member inside the anchor never holds an outer Agent; one outside leaves the
-    // identity unresolved, which the Server reports, while the named chain stays.
-    let mut opaque = process(26, Some(25), "", "");
-    (opaque.image, opaque.command_line) = (None, None);
-    facts.processes.push(opaque);
-    assert_eq!(interpret(&facts).foreground.pid, Some(25));
-    facts.processes[1].parent_pid = Some(99);
-    assert_eq!(interpret(&facts).foreground.pid, Some(25));
-    // Without a candidate, an opaque member is not a foreground Agent.
+    // A sample that names an Agent selects nothing while the Server is still settling.
+    let settling = foreground(
+        &facts,
+        server(unknown(AgentIdentityUnknownReason::Settling), None),
+    );
+    assert_eq!(
+        (settling.selection, settling.pid, settling.provider),
+        (Selection::Root, Some(10), None)
+    );
+    let ambiguous = unknown(AgentIdentityUnknownReason::AmbiguousCandidates);
+    assert_eq!(
+        foreground(&facts, server(ambiguous, None)).selection,
+        Selection::Ambiguous
+    );
     facts.processes.remove(0);
     assert_eq!(
-        interpret(&facts).foreground.selection,
+        foreground(&facts, server(AgentProcessIdentity::None, None)).selection,
         Selection::Unavailable
     );
-}
-
-#[test]
-fn cycles_and_reused_parent_pids_never_select_an_agent_chain() {
-    let mut facts = sample(vec![
-        process(20, Some(30), "codex.exe", "codex"),
-        process(30, Some(20), "claude.exe", "claude"),
-    ]);
-    facts.processes[1].creation_time = 20;
-    assert_eq!(interpret(&facts).foreground.selection, Selection::Ambiguous);
-    facts.processes[0].parent_pid = None;
-    facts.processes[0].creation_time = 40;
-    assert_eq!(interpret(&facts).foreground.selection, Selection::Ambiguous);
-    facts.processes[0].creation_time = 10;
-    assert_eq!(interpret(&facts).foreground.pid, Some(20));
 }
 
 #[cfg(windows)]
 #[test]
-fn unlisted_arguments_stay_candidates_and_noninteractive_forms_are_excluded() {
+fn rows_name_unlisted_argument_providers_and_exclude_noninteractive_forms() {
     let shell = process(10, None, r"C:\Windows\cmd.exe", "cmd.exe");
     let agent = |command| process(20, Some(10), r"C:\bin\claude.exe", command);
     let facts = sample(vec![shell.clone(), agent("claude --unlisted-flag")]);
-    let unlisted = interpret(&facts);
-    assert_eq!(unlisted.foreground.selection, Selection::AgentChain);
-    assert_eq!(unlisted.foreground.provider, Some("claude-code"));
+    assert_eq!(interpret(&facts)[1].provider, Some("claude-code"));
     for command in ["claude -p task", "claude --version"] {
         let facts = sample(vec![shell.clone(), agent(command)]);
-        let excluded = interpret(&facts);
-        assert_eq!(excluded.foreground.selection, Selection::Root, "{command}");
-        assert_eq!(excluded.foreground.provider, None, "{command}");
+        assert_eq!(interpret(&facts)[1].provider, None, "{command}");
     }
 }
 

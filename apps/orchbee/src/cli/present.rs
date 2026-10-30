@@ -743,8 +743,8 @@ pub(crate) fn render(
             ]
         }),
         Projection::PanelGet(doc) => panel_doc(out, doc, text),
-        Projection::PanelProcessInfo(doc, identity) => {
-            panel_process(out, doc, Some(*identity), locale)
+        Projection::PanelProcessInfo(doc) => {
+            panel_process(out, doc, Some(doc.server.identity), locale)
         }
         Projection::TerminalList(doc) | Projection::TerminalListHuman(doc) => {
             terminal_table(out, text, doc, locale)
@@ -1839,12 +1839,10 @@ fn panel_process(
 ) -> Result<(), TooLarge> {
     use super::processes::{filetime_utc, program_name, readable_command};
     use crate::cli_text::DetailLabel;
-    let view = super::processes::interpret(&doc.info);
+    let processes = super::processes::interpret(&doc.info);
+    let foreground = doc.foreground();
     let label = |label| CliText::new(locale).cli_detail_label(label);
-    out.push(
-        &CliText::new(locale)
-            .cli_process_summary(view.foreground.selection, view.foreground.provider),
-    )?;
+    out.push(&CliText::new(locale).cli_process_summary(foreground.selection, foreground.provider))?;
     let mut rows = vec![(
         label(DetailLabel::Terminal),
         doc.terminal.terminal_id.clone(),
@@ -1855,10 +1853,9 @@ fn panel_process(
             CliText::new(locale).cli_agent_identity(identity),
         )
     }));
-    if let Some(process) = view
-        .foreground
+    if let Some(process) = foreground
         .pid
-        .and_then(|pid| view.processes.iter().find(|row| row.facts.pid == pid))
+        .and_then(|pid| processes.iter().find(|row| row.facts.pid == pid))
     {
         let facts = process.facts;
         rows.extend([
@@ -1890,7 +1887,7 @@ fn panel_process(
     table(
         out,
         &CliText::new(locale).cli_process_headers(),
-        &view.processes,
+        &processes,
         |row| {
             let process = row.facts;
             vec![

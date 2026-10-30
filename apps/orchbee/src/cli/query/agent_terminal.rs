@@ -41,14 +41,14 @@ pub(crate) fn verify_agent_terminal(
     selected: ResolvedAgentTerminal,
     deadline: Instant,
 ) -> Result<ResolvedAgentTerminal, Failure> {
-    use super::super::processes::{Selection, interpret, provider};
+    use super::super::processes::{Selection, provider};
     let before = &selected.observation.session.snapshot;
     let (source, document) =
         read_terminal_processes(client, deadline, snapshot, &selected.terminal)?;
-    let view = interpret(&document.info);
+    let foreground = document.foreground();
     let expected = provider(before.provider_id.as_str())
         .filter(|canonical| *canonical == before.provider_id.as_str());
-    let detected = view.foreground.provider;
+    let detected = foreground.provider;
     let refusal = |reason: &str| {
         Failure::new(FailureKind::Rejected)
             .failure_schema("orchbee.cli.failure.agent-runtime")
@@ -70,7 +70,7 @@ pub(crate) fn verify_agent_terminal(
     if expected.is_none() {
         return Err(refusal("agent-provider-unsupported"));
     }
-    match view.foreground.selection {
+    match foreground.selection {
         Selection::Ambiguous => return Err(refusal("agent-runtime-ambiguous")),
         Selection::Root | Selection::Unavailable => return Err(refusal("agent-not-running")),
         Selection::AgentChain => {}

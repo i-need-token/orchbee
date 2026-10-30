@@ -455,8 +455,8 @@ mod process_samples {
     #[test]
     fn identify_answers_the_current_generation_identity_and_fences_unknown_presentations() {
         use orchbee_agent_observation_protocol::{
-            AgentIdentityGrade, AgentIdentityUnknownReason, AgentProcessIdentity,
-            AgentReportProvider,
+            AgentIdentityGrade, AgentIdentityUnknownReason, AgentProcessAnchor,
+            AgentProcessIdentity, AgentReportProvider,
         };
         use orchbee_workbench_protocol::{PanelAgentFailure, TerminalPresentationId};
         let (mut session, target, sample) = fixture();
@@ -485,7 +485,12 @@ mod process_samples {
                 workbench_revision,
                 binding,
                 identity,
+                anchor,
             } => {
+                // An `agent` result always names the published run's provider.
+                if let AgentProcessIdentity::Agent { provider, .. } = identity {
+                    assert_eq!(anchor.map(|anchor| anchor.provider), Some(provider));
+                }
                 assert_eq!(workbench_revision, snap.revision);
                 assert_eq!(binding.presentation_id.as_str(), presentation.as_str());
                 assert_eq!(
@@ -495,23 +500,33 @@ mod process_samples {
                         u128::from_be_bytes(target.identity.terminal_id().as_bytes())
                     )
                 );
-                identity
+                (identity, anchor)
             }
             other => panic!("{other:?}"),
         };
         assert_eq!(
             identity_of(identify(&mut session, presentation.clone())),
-            AgentProcessIdentity::Unknown(AgentIdentityUnknownReason::Settling)
+            (
+                AgentProcessIdentity::Unknown(AgentIdentityUnknownReason::Settling),
+                None
+            )
         );
         let now = Instant::now();
         assert!(session.observe_host_process(target, &sample, now - SETTLE, now - SETTLE));
         assert!(session.observe_host_process(target, &sample, now, now));
+        let claude = Some(AgentProcessAnchor {
+            pid: 20,
+            provider: AgentReportProvider::Claude,
+        });
         assert_eq!(
             identity_of(identify(&mut session, presentation.clone())),
-            AgentProcessIdentity::Agent {
-                provider: AgentReportProvider::Claude,
-                grade: AgentIdentityGrade::Recognized,
-            }
+            (
+                AgentProcessIdentity::Agent {
+                    provider: AgentReportProvider::Claude,
+                    grade: AgentIdentityGrade::Recognized,
+                },
+                claude
+            )
         );
         let unknown = TerminalPresentationId::parse(&format!("{:032x}", 999)).unwrap();
         assert!(matches!(
@@ -520,6 +535,91 @@ mod process_samples {
                 reason: PanelAgentFailure::NotFound
             }
         ));
+    }
+    /// The `identify` answer stays one Server fact along a run: the anchor is exactly the run
+    /// Panel reports attribute, and an `agent` result never appears without it.
+    #[test]
+    fn identify_anchor_follows_the_published_run_across_a_trajectory() {
+        use orchbee_agent_observation_protocol::{
+            AgentIdentityUnknownReason, AgentProcessAnchor, AgentProcessIdentity,
+            AgentReportProvider,
+        };
+        let (mut session, target, sample) = fixture();
+        let snap = session.workbench.as_ref().unwrap().snapshot().clone();
+        let PanelNode::Panel {
+            primary_presentation,
+            ..
+        } = &snap.terminal_contexts[0].tabs[0].root
+        else {
+            panic!("panel")
+        };
+        let presentation_id = primary_presentation.presentation_id.clone();
+        let identify = |session: &mut SessionCoordinator| match session.identify_presentation(
+            &PanelAgentRequest {
+                protocol_version: ProtocolVersion,
+                request_id: WorkbenchRequestId::parse(&format!("{:032x}", 779)).unwrap(),
+                session_id: snap.session_id.clone(),
+                action: PanelAgentAction::Identify {
+                    presentation_id: presentation_id.clone(),
+                },
+            },
+            Instant::now(),
+        ) {
+            PanelAgentOutcome::Identified {
+                identity, anchor, ..
+            } => (identity, anchor),
+            other => panic!("{other:?}"),
+        };
+        let claude = Some(AgentProcessAnchor {
+            pid: 20,
+            provider: AgentReportProvider::Claude,
+        });
+        let start = Instant::now();
+        // One sample only names a settling anchor: no run, so neither an anchor nor a report.
+        let _ = session.observe_host_process(target, &sample, start, start);
+        assert_eq!(
+            identify(&mut session),
+            (
+                AgentProcessIdentity::Unknown(AgentIdentityUnknownReason::Settling),
+                None
+            )
+        );
+        assert_eq!(read(&mut session).1.agent, None);
+        let settled = start + SETTLE;
+        let _ = session.observe_host_process(target, &sample, settled, settled);
+        let (identity, anchor) = identify(&mut session);
+        assert!(matches!(identity, AgentProcessIdentity::Agent { .. }));
+        assert_eq!(anchor, claude);
+        assert_eq!(read(&mut session).1.agent.as_deref(), Some("claude"));
+        // An opaque row outside the anchor leaves the result unknown, but the published run, its
+        // anchor, and the Panel report stay the same Server fact.
+        let mut opaque = sample.clone();
+        opaque.processes.push(TerminalProcess {
+            pid: 30,
+            parent_pid: Some(10),
+            creation_time: 300,
+            console: TerminalProcessConsole::Attached,
+            image: None,
+            command_line: None,
+            current_directory: None,
+        });
+        let later = settled + Duration::from_millis(1);
+        let _ = session.observe_host_process(target, &opaque, later, later);
+        assert_eq!(
+            identify(&mut session),
+            (
+                AgentProcessIdentity::Unknown(AgentIdentityUnknownReason::CommandLineUnreadable),
+                claude
+            )
+        );
+        assert_eq!(read(&mut session).1.agent.as_deref(), Some("claude"));
+        // A complete sample without the anchor ends the run: no anchor and no report.
+        let mut shell = sample.clone();
+        shell.processes.truncate(1);
+        let ended = later + Duration::from_millis(1);
+        let _ = session.observe_host_process(target, &shell, ended, ended);
+        assert_eq!(identify(&mut session), (AgentProcessIdentity::None, None));
+        assert_eq!(read(&mut session).1.agent, None);
     }
     #[test]
     fn complete_samples_confirm_without_revision_churn_then_prove_pid_reuse_exit() {

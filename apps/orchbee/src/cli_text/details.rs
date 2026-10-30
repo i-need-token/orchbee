@@ -105,7 +105,7 @@ impl super::CliText {
         }
     }
 
-    /// Which process the sample identifies as being in the foreground.
+    /// Which process the Server attributes the foreground to.
     pub(crate) fn cli_process_summary(
         self,
         selection: crate::cli::processes::Selection,

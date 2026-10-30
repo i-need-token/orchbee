@@ -135,19 +135,38 @@ fn process_info_machine_contract_preserves_precision_nulls_and_escapes_text() {
     let identities = identities();
     assert_eq!(identities.len(), IDENTITY_TEXT.len());
     let project = |identity| {
-        Projection::PanelProcessInfo(
-            results::PanelProcessInfoDoc {
-                terminal: terminal.clone(),
-                info: info(),
+        Projection::PanelProcessInfo(results::PanelProcessInfoDoc {
+            terminal: terminal.clone(),
+            info: info(),
+            server: crate::cli::processes::ServerIdentity {
+                identity,
+                anchor: match identity {
+                    orchbee_agent_observation_protocol::AgentProcessIdentity::Agent {
+                        provider,
+                        ..
+                    } => Some(orchbee_agent_observation_protocol::AgentProcessAnchor {
+                        pid: 41,
+                        provider,
+                    }),
+                    _ => None,
+                },
             },
-            identity,
-        )
+        })
     };
     for (identity, (en, zh)) in identities.iter().copied().zip(IDENTITY_TEXT) {
         let projection = project(identity);
         let document = json!({"schema":"orchbee.panel.process-info","version":1,"source":source,"result":projection.result()});
         validator.validate(&document).unwrap();
         assert_eq!(document["result"]["identity"], json!(identity));
+        // `foreground` is the Server's run: an Agent chain exactly when it names an anchor.
+        let agent = matches!(
+            identity,
+            orchbee_agent_observation_protocol::AgentProcessIdentity::Agent { .. }
+        );
+        assert_eq!(
+            document["result"]["foreground"]["kind"],
+            if agent { "agent-chain" } else { "root" }
+        );
         assert_eq!(
             document["result"]["processes"][0]["creationTime"],
             u64::MAX.to_string()

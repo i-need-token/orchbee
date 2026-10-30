@@ -293,6 +293,14 @@ impl TerminalListDocument {
 pub(crate) struct PanelProcessInfoDoc {
     pub(crate) terminal: TerminalRow,
     pub(crate) info: orchbee_terminal_protocol::TerminalProcessInfo,
+    /// The Server's identity and run anchor, read after `info`; the sole foreground source.
+    pub(crate) server: super::processes::ServerIdentity,
+}
+
+impl PanelProcessInfoDoc {
+    pub(crate) fn foreground(&self) -> super::processes::Foreground {
+        super::processes::foreground(&self.info, self.server)
+    }
 }
 
 /// `terminal get`: the Server's point-in-time join — the current routing
@@ -1150,10 +1158,7 @@ pub(crate) enum Projection {
     PanelList(Vec<PanelRow>),
     PanelGet(PanelDoc),
     /// The fresh process sample and the Server's identity result for the same Terminal.
-    PanelProcessInfo(
-        PanelProcessInfoDoc,
-        orchbee_agent_observation_protocol::AgentProcessIdentity,
-    ),
+    PanelProcessInfo(PanelProcessInfoDoc),
     TerminalList(TerminalListDocument),
     /// Same identity document as `TerminalList`; the extra facts belong only
     /// to human text and never alter the machine result.
@@ -1310,17 +1315,17 @@ pub(crate) enum LaunchProfileCatalogSelection {
 }
 
 pub(super) fn panel_process_result(doc: &PanelProcessInfoDoc) -> Value {
-    let view = super::processes::interpret(&doc.info);
+    let foreground = doc.foreground();
     json!({
         "terminal": terminal_row_json(&doc.terminal),
         "scope": "windows-job",
         "rootPid": doc.info.root_pid,
         "foreground": {
-            "kind": view.foreground.selection.as_str(),
-            "pid": view.foreground.pid,
-            "providerId": view.foreground.provider,
+            "kind": foreground.selection.as_str(),
+            "pid": foreground.pid,
+            "providerId": foreground.provider,
         },
-        "processes": view.processes.iter().map(|row| {
+        "processes": super::processes::interpret(&doc.info).iter().map(|row| {
             let process = row.facts;
             json!({
             "pid": process.pid,
@@ -1533,9 +1538,9 @@ impl Projection {
                     })
                     .collect::<Vec<_>>(),
             }),
-            Self::PanelProcessInfo(doc, identity) => {
+            Self::PanelProcessInfo(doc) => {
                 let mut result = panel_process_result(doc);
-                result["identity"] = json!(identity);
+                result["identity"] = json!(doc.server.identity);
                 result
             }
             Self::PanelGet(doc) => json!({

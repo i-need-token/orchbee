@@ -1281,7 +1281,7 @@ fn agent_input_refuses_runtime_absence_decoys_mismatch_and_ambiguity_without_a_s
                 "alias" => rows.push(process(20, Some(10), "codex.exe")),
                 _ => unreachable!(),
             }
-            process_reply(&mut stream, rows);
+            process_reply_identified(&mut stream, rows);
             assert_closed(&mut stream);
         });
         let output = fixture.run(&["agent", "send-keys", "alpha", "enter", "--format", "json"]);
@@ -1310,7 +1310,7 @@ fn runtime_preflight_rechecks_canonical_binding_before_input() {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, session_detail("sess-alpha"));
-            process_reply(&mut stream, vec![process(10, None, "claude.exe")]);
+            process_reply_identified(&mut stream, vec![process(10, None, "claude.exe")]);
             let mut next = session_detail("sess-alpha");
             match change {
                 "ended" => {

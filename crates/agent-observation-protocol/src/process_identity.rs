@@ -14,7 +14,7 @@ pub use registry::{
 };
 pub use result::{
     AgentIdentityGrade, AgentIdentityUnknownReason, AgentIdentityUnsupportedReason,
-    AgentProcessIdentity,
+    AgentProcessAnchor, AgentProcessIdentity,
 };
 pub use sample::{
     AgentAnchor, AgentAnchorEvidence, AgentProcessRow, AgentSampleVerdict, descends_from,

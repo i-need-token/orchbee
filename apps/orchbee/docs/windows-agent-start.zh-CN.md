@@ -101,15 +101,17 @@ Server 依据其采样器对同一 Host 终端的最新帧锁存每个预留的�
 立即结束：`$?` 为 false 报告 `launch-command-failed`（例如找不到提供方程序），为 true 报告
 `agent-exited`。没有回执时，3000 毫秒后的空闲 shell 检查仍报告 `agent-exited`。
 
-每次进程采样后，启动流程读取 Server 对所预留终端的识别结果。已稳定的 `agent` 结果若是另一
-提供方，报告 `agent-provider-mismatch`，例如 Cursor 的通用名 `agent` 实际启动了 Grok；若是
-所请求的提供方，则确认该提供方。其他结果、读取失败或终端不符时，仍由逐样本选择决定。
+每次进程采样后，启动流程读取 Server 对所预留终端的识别结果和运行锚点，其前台遵循
+[process-info 规则](native-cli-query.zh-CN.md#windows-解释与-agent-输入预检)；启动流程不从自己的样本中
+做选择。已发布的运行若是另一提供方，报告 `agent-provider-mismatch`，例如 Cursor 的通用名 `agent`
+实际启动了 Grok；歧义报告 `agent-runtime-ambiguous`，根进程缺失报告 `agent-exited`。就绪还要求已发布
+的运行是所请求的提供方。Server 仍在稳定、读取失败或终端不符时，该步不选择前台，启动流程在预算内继续轮询。
 
 - 每个预留只有一个运行令牌；只有本 Host 终端回传该令牌才能推进其回执，回执阶段不会回退。
 - 前缀不增加输入：仍只提交一行一次，且不重放。
 - 令牌只进入受管包装器执行的那条命令。
-- 回执和识别结果只能让启动提前结束，都不能完成启动，也不会让逐样本证据和 canonical 会话
-  本可完成的启动失败或延迟。
+- 回执只能让启动提前结束，不能完成启动。完成启动需要 Server 已发布的运行，因此 Server 仍在稳定时
+  启动会推迟到运行稳定，但这不会单独让启动失败。
 - 识别结果按[手动输入运行边界规则](native-terminal-run.zh-CN.md#手动输入运行边界)成为 `confirmed`，该规则同样适用于这条带前缀的命令；cmd 启动保持 `recognized`。
 
 ## Windows 参数边界
@@ -167,4 +169,4 @@ Pending 状态携带原始预留及当前 blocked 标志。读取不延长期限
 
 原生表单在检测尚无结果时不预选提供商，也不生成自动名称。已发现的提供商排在手动选项之前；显式选择按提供商身份固定，不随目录更新改变。没有显式选择时，首个发现的提供商成为默认项；检测结束且未发现候选时选择首个手动提供商。启动反馈仅在看板状态行显示一次，结果未确认时引导用户查看终端。只有固定身份的规范关注观察才声明需要输入；进程存在本身不能证明就绪。
 
-<!-- documentation-pairing: english-sha256=238f2e6fda7b9cb8f7831884709020c0216a2c88fede1ec1fa4d78e6eb288ae0 zh-cn-sha256=29949ff6772ee84837f47723c7e3a442cd1e2aa36e4cbdfb20ac249669477055 -->
+<!-- documentation-pairing: english-sha256=9baa66825295b2bc7f2fa58bad9a14b6ace6c1cb9cfc4aa83cd3e4dc56b635ec zh-cn-sha256=77cfb2e33f57d968b6db49bdaf1b3ba2a329028da7c43fd85d839960abc13217 -->

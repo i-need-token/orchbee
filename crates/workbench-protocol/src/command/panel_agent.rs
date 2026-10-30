@@ -282,11 +282,14 @@ pub enum PanelAgentOutcome {
         report_revision: WorkbenchRevision,
         explanation: Box<TerminalAgentExplanation>,
     },
-    /// `binding` names the exact Terminal generation the identity belongs to.
+    /// `binding` names the exact Terminal generation the identity belongs to. `anchor` is the
+    /// run Panel reports attribute to it; an `agent` identity always names that run's provider.
     Identified {
         workbench_revision: WorkbenchRevision,
         binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
         identity: orchbee_agent_observation_protocol::AgentProcessIdentity,
+        #[serde(deserialize_with = "nullable")]
+        anchor: Option<orchbee_agent_observation_protocol::AgentProcessAnchor>,
     },
     States {
         workbench_revision: WorkbenchRevision,
@@ -359,11 +362,23 @@ impl PanelAgentResult {
                     && presentations.iter().all(|r| r.panel.valid())
             }
             PanelAgentOutcome::Explained { explanation, .. } => explanation.valid(),
-            PanelAgentOutcome::Identified { binding, .. } => {
+            PanelAgentOutcome::Identified {
+                binding,
+                identity,
+                anchor,
+                ..
+            } => {
                 orchbee_agent_observation_protocol::AgentHostEpoch::parse(
                     binding.generation.as_str(),
                 )
                 .is_ok()
+                    && match identity {
+                        orchbee_agent_observation_protocol::AgentProcessIdentity::Agent {
+                            provider,
+                            ..
+                        } => anchor.is_some_and(|anchor| anchor.provider == *provider),
+                        _ => true,
+                    }
             }
             PanelAgentOutcome::States { presentations, .. } => {
                 presentations.len() <= MAXIMUM_TERMINAL_AGENT_STATE_ROWS

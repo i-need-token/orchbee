@@ -1,9 +1,10 @@
 //! Interpretation of a bounded Host Job sample. This never collects processes,
-//! expands commands, or creates canonical Agent state.
+//! expands commands, or creates canonical Agent state. The foreground Agent chain is the
+//! Server's: [`foreground`] projects its identity result and run anchor, never the sample.
 
 use orchbee_agent_observation_protocol::{
-    AgentIdentityUnknownReason, AgentProcessRow, AgentReportProvider, AgentSampleVerdict,
-    classify_agent_process, evaluate_agent_sample,
+    AgentIdentityUnknownReason, AgentProcessAnchor, AgentProcessIdentity, AgentProcessRow,
+    AgentReportProvider, classify_agent_process,
 };
 #[cfg(test)]
 mod tests;
@@ -37,21 +38,24 @@ impl Selection {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Foreground {
     pub selection: Selection,
     pub pid: Option<u32>,
     pub provider: Option<&'static str>,
 }
 
-pub struct Interpretation<'a> {
-    pub processes: Vec<Process<'a>>,
-    pub foreground: Foreground,
+/// The Server's answer for one Terminal generation: its identity result and the anchor of the
+/// run Panel reports attribute to it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ServerIdentity {
+    pub identity: AgentProcessIdentity,
+    pub anchor: Option<AgentProcessAnchor>,
 }
 
-pub fn interpret(sample: &TerminalProcessInfo) -> Interpretation<'_> {
-    let mut rows = Vec::with_capacity(sample.processes.len());
-    let processes: Vec<_> = sample
+/// Per-process facts for diagnostics: decoded arguments and the provider each row names alone.
+pub fn interpret(sample: &TerminalProcessInfo) -> Vec<Process<'_>> {
+    sample
         .processes
         .iter()
         .map(|facts| {
@@ -67,7 +71,6 @@ pub fn interpret(sample: &TerminalProcessInfo) -> Interpretation<'_> {
                 ),
                 recognition: classify_agent_process(facts.image.as_deref(), argv.as_deref()),
             };
-            rows.push(row);
             Process {
                 facts,
                 argv,
@@ -76,51 +79,31 @@ pub fn interpret(sample: &TerminalProcessInfo) -> Interpretation<'_> {
                     .map(AgentReportProvider::native_provider_id),
             }
         })
-        .collect();
-    let at_limit = sample.processes.len() >= orchbee_terminal_protocol::MAXIMUM_PROCESS_SAMPLE_ROWS;
-    // The same per-sample verdict the Server identity state consumes. A named anchor is the
-    // foreground Agent chain even when other evidence is unresolved; settling, runs, and the
-    // identity result stay with the Server.
-    let foreground = match evaluate_agent_sample(&rows, at_limit) {
-        AgentSampleVerdict::Anchor(anchor)
-        | AgentSampleVerdict::Unresolved {
-            anchor: Some(anchor),
-            ..
-        } => Foreground {
-            selection: Selection::AgentChain,
-            pid: Some(anchor.pid),
-            provider: Some(anchor.provider.native_provider_id()),
-        },
-        AgentSampleVerdict::Unresolved {
-            anchor: None,
-            reason: AgentIdentityUnknownReason::AmbiguousCandidates,
-        } => Foreground {
-            selection: Selection::Ambiguous,
-            pid: None,
-            provider: None,
-        },
-        AgentSampleVerdict::Unresolved { anchor: None, .. }
-        | AgentSampleVerdict::None
-        | AgentSampleVerdict::Remote
-            if processes.iter().any(|p| p.facts.pid == sample.root_pid) =>
-        {
-            Foreground {
-                selection: Selection::Root,
-                pid: Some(sample.root_pid),
-                provider: None,
-            }
+        .collect()
+}
+
+/// The foreground the Server attributes to the sampled Terminal: its published run is the Agent
+/// chain; without one, ambiguity stays explicit and otherwise the sample's retained root (or
+/// nothing) is in front. The anchor can name a process the earlier sample does not hold.
+pub fn foreground(sample: &TerminalProcessInfo, server: ServerIdentity) -> Foreground {
+    let (selection, pid, provider) = match (server.anchor, server.identity) {
+        (Some(anchor), _) => (
+            Selection::AgentChain,
+            Some(anchor.pid),
+            Some(anchor.provider.native_provider_id()),
+        ),
+        (None, AgentProcessIdentity::Unknown(AgentIdentityUnknownReason::AmbiguousCandidates)) => {
+            (Selection::Ambiguous, None, None)
         }
-        AgentSampleVerdict::Unresolved { anchor: None, .. }
-        | AgentSampleVerdict::None
-        | AgentSampleVerdict::Remote => Foreground {
-            selection: Selection::Unavailable,
-            pid: None,
-            provider: None,
-        },
+        (None, _) if sample.processes.iter().any(|p| p.pid == sample.root_pid) => {
+            (Selection::Root, Some(sample.root_pid), None)
+        }
+        (None, _) => (Selection::Unavailable, None, None),
     };
-    Interpretation {
-        processes,
-        foreground,
+    Foreground {
+        selection,
+        pid,
+        provider,
     }
 }
 /// The program's file name without directories, or `-` when unknown.

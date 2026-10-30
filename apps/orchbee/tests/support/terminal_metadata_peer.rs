@@ -136,6 +136,7 @@ pub(crate) fn sample_for(
     if mode != "wrong-epoch" {
         let mut process = peer_support::process(10, None, image);
         process.current_directory = Some("C:\\root".into());
+        let sampled = [process.clone()];
         let (kind, payload) = if mode == "process-unavailable" {
             let encoded =
                 encode_connection_control(&ConnectionControl::TypedFailure(TypedFailure {
@@ -168,6 +169,14 @@ pub(crate) fn sample_for(
         })
         .unwrap();
         reply(stream, "process", TerminalViewerOutcome::Record(record));
+        if mode != "process-unavailable" {
+            // The Server identity read happens before the viewer detaches.
+            peer_support::identify_reply(
+                stream,
+                &sampled,
+                &TerminalId::from_bytes([7; 16]).unwrap().to_text(),
+            );
+        }
     }
     reply(stream, "detach", TerminalViewerOutcome::Detached {});
 }

@@ -542,7 +542,9 @@ CLI 在唯一的版本 1 封套中携带这些来源信息。
 
 物理 Explain 还携带必填的 `identity`：Server 对该 Terminal 代际的当前智能体识别结果，采用 Agent 观察协议 crate
 负责的 `AgentProcessIdentity` 线上格式。`identify` 指定一个展示 ID，返回 `identified`，包含 Workbench 修订、
-该展示当前 Terminal 代际的完整绑定及其 `identity`；成员不存在则拒绝，未绑定展示返回 `unbound`。
+该展示当前 Terminal 代际的完整绑定、其 `identity`，以及必填可空的 `anchor`（`{pid, providerId}`，即 Panel
+报告归属到它的运行的 `AgentProcessAnchor`）。`agent` 识别结果要求同一 provider 的锚点；Rust 和 TypeScript
+在 JSON 形状之外检查这一配对。成员不存在则拒绝，未绑定展示返回 `unbound`。
 Server 在同一协调器锁内从其进程识别状态回答两者。这份未发布 cohort 一起变更。
 
 精简物理 `states` 读取接受 0–64 个唯一展示 ID，按请求顺序返回条目、Workbench／报告修订，
@@ -693,4 +695,4 @@ TypeScript 与 Rust 测试读取同一份文件，彼此不读取对方的源码
 `scripts/verification-scope.mjs` 记录两份文件的确切使用者。`@orchbee/design-tokens` 中的调色板
 在主题权威变更通过验收前仍是独立来源。
 
-<!-- documentation-pairing: english-sha256=0b4ee10a5d1157f6fb7aedf478ffe572592d7769ac1da463139fdaab32cb593b zh-cn-sha256=673c103df30145e81fc38b8ecaefdeea10c198f34a6ca8b263c614663716d16b -->
+<!-- documentation-pairing: english-sha256=20157c1fde8c55e97538145bf01dbe62983d1a5e8cf66eccf77481569335d52d zh-cn-sha256=5f6da7f0f2b0dbad9841be7c59e083c0d7bf82200e76955dc01afd993e6c8e4a -->

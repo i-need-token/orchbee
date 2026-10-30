@@ -251,8 +251,10 @@ anchor can be named. The state turns verdicts into one result: `agent` with grad
   then is an exit reported.
 
 The invariants and deterministic traces live in
-`src/session_coordinator/process_observation/identity.rs` and its adjacent tests. Diagnostics will
-expose the result; Agent start reads its own sample through the same per-sample verdict.
+`src/session_coordinator/process_observation/identity.rs` and its adjacent tests. `identify` answers the
+result with the anchor of the published run, the same run Panel reports attribute, read under one
+coordinator lock; native Client foregrounds, Agent start, and the TUI Agent display all follow that
+run and select nothing from their own samples.
 
 ## Managed terminal status
 
