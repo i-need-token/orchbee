@@ -1006,7 +1006,7 @@ fn passive_empty_member_read_keeps_identity_and_never_exports_a_pending_switch()
 
 #[test]
 fn unbound_panel_focus_exits_board_without_attaching_a_terminal() {
-    use crate::workbench_client::client_control::{ControlStep, StepProgress};
+    use crate::workbench_client::ui::control_steps::{ControlStep, StepProgress};
     use orchbee_workbench_protocol::{ClientViewControl, ClientViewIntent, ClientViewSequence};
     let (mut ui, mailbox, _) = empty_ui();
     let (_, before) = ui.control_observation(false).unwrap();

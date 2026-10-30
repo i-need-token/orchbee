@@ -261,8 +261,8 @@ impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn refresh_layout_adjustment(
         &mut self,
         requested: &mut bool,
-    ) -> crate::workbench_client::client_control::ControlStep {
-        use crate::workbench_client::client_control::ControlStep;
+    ) -> crate::workbench_client::ui::control_steps::ControlStep {
+        use crate::workbench_client::ui::control_steps::ControlStep;
         if self.state.as_ref().is_some_and(|state| {
             state.pending_refresh_generation().is_some() || state.publication_debt_pending()
         }) {

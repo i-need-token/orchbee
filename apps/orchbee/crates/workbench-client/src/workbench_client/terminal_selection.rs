@@ -1,7 +1,6 @@
 //! Attachment-local selection commands and complete Host-owned text admission.
 mod export;
 mod record;
-use crate::workbench_client::input::{PointerSelectionCell, PointerSelectionIntent};
 use orchbee_client_server_protocol::{
     TerminalViewerAction, ViewerId, ViewerSelectionExportCancelReason, ViewerSelectionExportFormat,
     ViewerSelectionGestureAction, ViewerSelectionGestureGeometry, ViewerSelectionGesturePosition,
@@ -13,6 +12,34 @@ use orchbee_terminal_protocol::{
 };
 pub(super) use record::{Event, event as decode_event, reply as decode_reply};
 use std::{collections::VecDeque, num::NonZeroU64};
+
+/// A terminal cell inside the pane viewport recorded by the pointer press.
+/// This stays deliberately independent from the Host wire coordinates: the
+/// native session resolves the exact attachment and geometry only after it
+/// admits the semantic start.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PointerSelectionCell {
+    pub(crate) column: u16,
+    pub(crate) row: u16,
+}
+
+/// One Client-side selection gesture step. The pointer layer owns cells and
+/// ordering; the native session remains the sole authority for translating
+/// them into a Host selection command.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PointerSelectionIntent {
+    Start {
+        click_count: u8,
+        cell: PointerSelectionCell,
+    },
+    Update {
+        cell: PointerSelectionCell,
+    },
+    End {
+        cell: PointerSelectionCell,
+    },
+    Cancel,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Failure {

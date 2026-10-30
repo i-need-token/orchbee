@@ -65,7 +65,7 @@ mod navigator;
 mod panel;
 mod panel_close;
 mod presentations;
-pub(crate) use presentations::DrawnPresentationTarget;
+pub(crate) use super::input::DrawnPresentationTarget;
 mod history_positions;
 mod retained_frames;
 /// Volatile Client view data carried across a targeted context surface replacement.
@@ -109,20 +109,21 @@ mod copy_mode;
 mod tab_rename;
 mod terminal_effects;
 mod terminal_selection;
-pub use input_capture::CaptureContext;
-pub(crate) use input_capture::CaptureReadiness;
+pub use super::input::CaptureContext;
+pub(crate) use super::input::CaptureReadiness;
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use super::input::RenameInputContext;
 #[cfg(test)]
-pub(crate) use input_capture::WorktreeCaptureContext;
+pub(crate) use super::input::WorktreeCaptureContext;
 #[cfg(test)]
-pub(crate) use input_capture::{ConfirmationCaptureContext, SetupCaptureContext};
+pub(crate) use super::input::{ConfirmationCaptureContext, SetupCaptureContext};
+pub(crate) use super::input::{RenameDraftToken, RenameEdit};
 pub(crate) use panel_close::{PanelCloseConfirmationToken, PanelCloseConfirmationView};
 #[cfg(test)]
 pub(crate) use tab_close::{CloseConfirmationKind, CloseStatusKind};
 pub use tab_close::{CloseConfirmationToken, DrawReceipt};
 pub(crate) use tab_close::{CloseConfirmationView, CloseStatusToken, ModalPresentation};
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use tab_rename::RenameInputContext;
-pub(crate) use tab_rename::{RenameDraftToken, RenameDraftView, RenameEdit};
+pub(crate) use tab_rename::RenameDraftView;
 mod create_membership;
 mod direct_navigation;
 mod startup_preference;
@@ -1236,6 +1237,7 @@ mod scrollbar;
 mod client_presentation;
 mod client_viewport;
 mod completion_reminders;
+pub(super) mod control_steps;
 mod independent_popup;
 mod input_capture;
 mod link_activation;

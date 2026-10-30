@@ -1,67 +1,11 @@
 //! Read-only native input composition projected from the feature owners.
 
 use super::{WorkbenchClientUi, WorkbenchClientView};
-use crate::{
-    tui_composition::{CaptureClaims, WorkbenchCaptureOwner},
-    tui_presentation::PresentationPhase,
-    workbench_client::{
-        CloseConfirmationToken, PanelCloseConfirmationToken, RenameDraftToken, SetupStage,
-        SetupToken, WorkspaceCloseToken,
-    },
+use crate::tui_composition::{CaptureClaims, WorkbenchCaptureOwner};
+use crate::workbench_client::input::{
+    CaptureContext, CaptureReadiness, ConfirmationCaptureContext, RenameCaptureContext,
+    SetupCaptureContext, WorktreeCaptureContext,
 };
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CaptureReadiness {
-    Recovery,
-    Interactive,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct RenameCaptureContext {
-    pub(crate) token: RenameDraftToken,
-    pub(crate) phase: PresentationPhase,
-    pub(crate) readiness: CaptureReadiness,
-    pub(crate) remaining_scalars: usize,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct SetupCaptureContext {
-    pub(crate) token: SetupToken,
-    pub(crate) phase: PresentationPhase,
-    pub(crate) readiness: CaptureReadiness,
-    pub(crate) stage: SetupStage,
-    pub(crate) remaining_scalars: usize,
-    pub(crate) remaining_bytes: usize,
-}
-
-#[derive(Clone, Copy)]
-pub struct WorktreeCaptureContext {
-    pub(crate) token: super::WorktreeToken,
-    pub(crate) readiness: CaptureReadiness,
-    pub(crate) stage: super::WorktreeStage,
-    pub(crate) remaining_bytes: usize,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct ConfirmationCaptureContext<Token> {
-    pub(crate) token: Token,
-    pub(crate) phase: PresentationPhase,
-    pub(crate) readiness: CaptureReadiness,
-}
-
-#[derive(Clone)]
-pub enum CaptureContext {
-    Settings(crate::native_settings::SettingsInputContext),
-    ActionMenu(crate::action_menu::MenuInputContext),
-    Popup(super::super::independent_popup::PopupInputContext),
-    Worktree(WorktreeCaptureContext),
-    Setup(SetupCaptureContext),
-    Rename(RenameCaptureContext),
-    PanelClose(ConfirmationCaptureContext<PanelCloseConfirmationToken>),
-    TabClose(ConfirmationCaptureContext<CloseConfirmationToken>),
-    WorkspaceClose(ConfirmationCaptureContext<WorkspaceCloseToken>),
-    AgentBoard(super::super::agent_board::AgentBoardInputContext),
-}
 
 impl WorkbenchClientView<'_> {
     /// All native capture intents, without assigning priority or inferring

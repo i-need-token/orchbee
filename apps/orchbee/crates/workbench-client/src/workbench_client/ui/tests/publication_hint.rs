@@ -318,7 +318,7 @@ fn full_refused_publication_hint_survives_until_queue_drains() {
         for _ in 0..3 {
             assert!(matches!(
                 ui.refresh_layout_adjustment(&mut requested),
-                crate::workbench_client::client_control::ControlStep::Waiting
+                crate::workbench_client::ui::control_steps::ControlStep::Waiting
             ));
         }
     }
@@ -1186,7 +1186,7 @@ pub(in crate::workbench_client) fn attach_split_peer(
 
 #[test]
 fn remote_panel_focus_refuses_a_faulted_peer_instead_of_waiting_or_reattaching() {
-    use crate::workbench_client::client_control::{ControlStep, StepProgress};
+    use crate::workbench_client::ui::control_steps::{ControlStep, StepProgress};
     use orchbee_workbench_protocol::{
         ClientViewControl, ClientViewControlReason, ClientViewIntent, ClientViewSequence,
         WorkbenchClientId, WorkbenchRequestId,

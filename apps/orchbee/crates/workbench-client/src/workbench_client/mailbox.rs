@@ -574,10 +574,7 @@ impl CommandLease {
         let QueuedCommand::Poll(tagged) = &self.record else {
             return None;
         };
-        Some(PollKey {
-            serial: self.serial,
-            key: tagged.key.clone(),
-        })
+        Some(PollKey::new(self.serial, tagged.key.clone()))
     }
 
     fn active_lease(&self) -> ActiveLease {
@@ -585,32 +582,12 @@ impl CommandLease {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct PollKey {
-    serial: u64,
-    key: PaneRef,
-}
+pub(super) use super::state::PollKey;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum SetupPollKey {
     Allocated(PollKey),
     Superseded(DesiredFence),
-}
-
-impl PollKey {
-    pub(super) const fn serial(&self) -> u64 {
-        self.serial
-    }
-
-    /// The exact pane incarnation this poll was issued for.
-    pub(super) const fn pane_ref(&self) -> &PaneRef {
-        &self.key
-    }
-
-    /// The logical pane of this poll.
-    pub(super) const fn pane(&self) -> &PaneKey {
-        self.key.pane()
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -2809,7 +2786,7 @@ impl CommandMailbox {
             let deadline = Self::forward_event_deadline_locked(
                 &state,
                 EventDeadline::Forward(cutoff),
-                Some(poll_key.serial),
+                Some(poll_key.serial()),
             );
             state = self.wait_for_event_deadline_observed(state, deadline, observed_at)?;
             drop(state);
@@ -2818,7 +2795,7 @@ impl CommandMailbox {
         let deadline = Self::forward_event_deadline_locked(
             &state,
             EventDeadline::Forward(cutoff),
-            Some(poll_key.serial),
+            Some(poll_key.serial()),
         );
         self.ensure_event_before_locked(&mut state, deadline, observed_at, false)?;
         if !matches!(state.causal, CausalCell::Empty) {
@@ -2826,7 +2803,7 @@ impl CommandMailbox {
         }
         state.event_wait_key = None;
         state.event_deadline = deadline;
-        state.event_anchor_serial = Some(poll_key.serial);
+        state.event_anchor_serial = Some(poll_key.serial());
         state.causal = CausalCell::Awaiting(poll_key.clone());
         state.event = EventCell::Event(Box::new(WorkerEvent::PollResult { poll_key, record }));
         self.changed.notify_all();
@@ -3472,11 +3449,11 @@ impl CommandMailbox {
                 Ok(MutationResult::Applied)
             }
             CausalCell::Awaiting(current) | CausalCell::Settled(current, _)
-                if poll_key.serial < current.serial =>
+                if poll_key.serial() < current.serial() =>
             {
                 Ok(MutationResult::Stale)
             }
-            CausalCell::Empty if poll_key.serial <= state.next_command_serial => {
+            CausalCell::Empty if poll_key.serial() <= state.next_command_serial => {
                 Ok(MutationResult::Stale)
             }
             CausalCell::Settled(current, _) if current == poll_key => Ok(MutationResult::Stale),
@@ -3522,7 +3499,7 @@ impl CommandMailbox {
             let effective_cutoff = state
                 .queue
                 .iter()
-                .filter(|record| record.serial > poll_key.serial)
+                .filter(|record| record.serial > poll_key.serial())
                 .filter_map(|record| record.command.barrier())
                 .map(BarrierFence::forward_cutoff)
                 .fold(cutoff, Instant::min);
@@ -3548,7 +3525,7 @@ impl CommandMailbox {
                     drop(state);
                     (state, observed_at) = self.lock_with_fresh_sample(clock);
                 }
-                CausalCell::Empty if poll_key.serial <= state.next_command_serial => {
+                CausalCell::Empty if poll_key.serial() <= state.next_command_serial => {
                     return if observed_at >= effective_cutoff {
                         Err(EventError::ForwardExpired)
                     } else {
@@ -3556,7 +3533,7 @@ impl CommandMailbox {
                     };
                 }
                 CausalCell::Awaiting(current) | CausalCell::Settled(current, _)
-                    if poll_key.serial < current.serial =>
+                    if poll_key.serial() < current.serial() =>
                 {
                     return Ok(None);
                 }
@@ -3666,7 +3643,7 @@ impl CommandMailbox {
             return Err(self.close_locked(state, CarrierFailure::IdentityExhausted));
         };
         state.next_command_serial = serial;
-        Ok(PollKey { serial, key })
+        Ok(PollKey::new(serial, key))
     }
 
     fn abandon_stale_poll_locked(

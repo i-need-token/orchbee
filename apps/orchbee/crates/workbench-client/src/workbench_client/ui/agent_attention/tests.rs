@@ -506,7 +506,7 @@ fn agent_focus_cancels_only_after_validating_its_source_and_does_not_discard_his
 
 #[test]
 fn explicit_agent_focus_acknowledges_an_already_focused_agent_despite_outer_focus_loss() {
-    use crate::workbench_client::client_control::{ControlStep, StepProgress};
+    use crate::workbench_client::ui::control_steps::{ControlStep, StepProgress};
     use orchbee_agent_observation_protocol::AgentNameTarget;
     let (mut ui, pane) = fixture();
     let command = focus_command(

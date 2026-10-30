@@ -82,14 +82,12 @@ fn known_keyboard_commit_waits_through_an_older_refresh_without_resubmission_unt
         .unwrap()
         .take_layout_for_test()
         .unwrap();
-    control
-        .lane
-        .as_ref()
-        .unwrap()
-        .finish_layout_for_test(lane::LayoutCompletion {
+    control.lane.as_ref().unwrap().finish_layout_for_test(
+        crate::workbench_client::client_control::LayoutCompletion {
             operation_id: mutation.request_id,
             reply: Ok(WorkbenchRevision::new(2)),
-        });
+        },
+    );
     control.tick(&mut native, true);
     settle_queued_refresh(
         &mut native,
@@ -242,14 +240,12 @@ fn keyboard_submits_once_drops_repeats_and_owns_no_remote_receipt_until_shared_d
         }
     );
     assert!(control.local_resize_pending());
-    control
-        .lane
-        .as_ref()
-        .unwrap()
-        .finish_layout_for_test(lane::LayoutCompletion {
+    control.lane.as_ref().unwrap().finish_layout_for_test(
+        crate::workbench_client::client_control::LayoutCompletion {
             operation_id: mutation.request_id,
             reply: Ok(WorkbenchRevision::new(2)),
-        });
+        },
+    );
     assert!(control.tick(&mut native, true));
     control.after_draw(&mut native);
     assert!(control.local_resize_pending(), "commit alone is not drawn");
@@ -306,11 +302,8 @@ fn failed_interrupted_and_stale_keyboard_completions_never_replay_or_complete_an
             control.interrupt();
             control.tick(&mut native, false);
         }
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .finish_layout_for_test(lane::LayoutCompletion {
+        control.lane.as_ref().unwrap().finish_layout_for_test(
+            crate::workbench_client::client_control::LayoutCompletion {
                 operation_id: if ending == "stale" {
                     WorkbenchRequestId::parse(&format!("{:032x}", 9999)).unwrap()
                 } else {
@@ -320,7 +313,8 @@ fn failed_interrupted_and_stale_keyboard_completions_never_replay_or_complete_an
                     may_have_committed: ending == "unknown",
                     reason: Reason::StaleView,
                 }),
-            });
+            },
+        );
         control.tick(&mut native, false);
         if ending == "stale" {
             assert!(control.local_resize_pending());

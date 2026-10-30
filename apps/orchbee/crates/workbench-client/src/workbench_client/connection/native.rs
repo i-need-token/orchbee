@@ -20,6 +20,7 @@ use crate::{
             PollKey, QueuedCommand, ReconcileMarker, SetupPollKey, Tagged, UiReply,
             ViewportOutcome, WorkerEvent,
         },
+        startup_directory::ClientStartupTarget,
         state::{
             AttachTarget, BootstrapTarget, CarrierFailure, CleanupContinuation, ControllerMode,
             CreateOperation, CreateProjectionDecision, CreateTerminalProvenance, FrameIdentity,
@@ -30,9 +31,7 @@ use crate::{
         terminal_viewport::{
             ViewportReadRejection, ViewportStep, ViewportWindowFailure, decode_viewport_window,
         },
-        workbench_projection::{
-            ClientStartupTarget, project_native_context_tabs, project_preferred_workspace,
-        },
+        workbench_projection::{project_native_context_tabs, project_preferred_workspace},
     },
 };
 use orchbee_client_server_protocol::{

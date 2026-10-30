@@ -44,56 +44,6 @@ pub struct ClientContextTarget {
     pub location: ClientContextLocation,
 }
 
-#[derive(Clone, Debug)]
-pub enum ClientStartupTarget {
-    Context(ClientContextTarget),
-    Agent(Box<crate::machine_agents::Target>),
-    LocalDirectory {
-        position: Option<super::startup_preference::Position>,
-        fallback: std::sync::Arc<std::sync::atomic::AtomicBool>,
-        directory: Box<super::startup_directory::StartupDirectory>,
-    },
-}
-impl PartialEq for ClientStartupTarget {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Context(left), Self::Context(right)) => left == right,
-            (Self::Agent(left), Self::Agent(right)) => left == right,
-            (
-                Self::LocalDirectory {
-                    position: left,
-                    fallback: left_notice,
-                    directory: left_directory,
-                },
-                Self::LocalDirectory {
-                    position: right,
-                    fallback: right_notice,
-                    directory: right_directory,
-                },
-            ) => {
-                left == right
-                    && left_directory == right_directory
-                    && std::sync::Arc::ptr_eq(left_notice, right_notice)
-            }
-            _ => false,
-        }
-    }
-}
-impl Eq for ClientStartupTarget {}
-impl From<ClientContextTarget> for ClientStartupTarget {
-    fn from(value: ClientContextTarget) -> Self {
-        Self::Context(value)
-    }
-}
-impl ClientStartupTarget {
-    pub(super) fn context(&self) -> Option<&ClientContextTarget> {
-        match self {
-            Self::Context(context) => Some(context),
-            Self::Agent(target) => Some(&target.context),
-            Self::LocalDirectory { .. } => None,
-        }
-    }
-}
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ClientMemberTarget {

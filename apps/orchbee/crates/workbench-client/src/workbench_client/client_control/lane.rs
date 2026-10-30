@@ -15,20 +15,21 @@ use std::{
 };
 mod configured_command;
 mod split_ratio;
-pub(super) use split_ratio::LayoutCompletion;
+pub(in crate::workbench_client) use split_ratio::LayoutCompletion;
 
 const STARTUP_ADMISSION_TOTAL_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Clone)]
-pub(super) struct Sample {
-    pub(super) heartbeat: ClientViewSequence,
-    pub(super) revision: ClientViewSequence,
-    pub(super) view: ClientViewObservation,
-    pub(super) graphics: Option<orchbee_workbench_protocol::PaneGraphicsClientObservation>,
+pub(in crate::workbench_client) struct Sample {
+    pub(in crate::workbench_client) heartbeat: ClientViewSequence,
+    pub(in crate::workbench_client) revision: ClientViewSequence,
+    pub(in crate::workbench_client) view: ClientViewObservation,
+    pub(in crate::workbench_client) graphics:
+        Option<orchbee_workbench_protocol::PaneGraphicsClientObservation>,
 }
-pub(super) struct Delivery {
-    pub(super) command: ClientViewControl,
-    pub(super) workbench_snapshot: Option<Snapshot>,
+pub(in crate::workbench_client) struct Delivery {
+    pub(in crate::workbench_client) command: ClientViewControl,
+    pub(in crate::workbench_client) workbench_snapshot: Option<Snapshot>,
 }
 /// Delivery certainty and definite local refusal are separate command failure outcomes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -146,21 +147,21 @@ impl Handoff {
     }
 }
 
-pub(super) struct ClientControlLane {
+pub(in crate::workbench_client) struct ClientControlLane {
     shared: Shared,
     wake: LocalStream,
     changed: LocalStream,
     task: Option<JoinHandle<()>>,
 }
 impl ClientControlLane {
-    pub(super) fn layout_admission(&self) -> Result<(), Reason> {
+    pub(in crate::workbench_client) fn layout_admission(&self) -> Result<(), Reason> {
         self.shared
             .0
             .lock()
             .map_err(|_| Reason::ProjectionUnavailable)?
             .layout_admission()
     }
-    pub(super) fn submit_layout(
+    pub(in crate::workbench_client) fn submit_layout(
         &self,
         command: orchbee_workbench_protocol::WorkbenchCommand,
     ) -> Result<(), Reason> {
@@ -174,10 +175,10 @@ impl ClientControlLane {
         let _notified = crate::local_client::subscription::notify(&self.changed);
         Ok(())
     }
-    pub(super) fn take_layout_result(&self) -> Option<LayoutCompletion> {
+    pub(in crate::workbench_client) fn take_layout_result(&self) -> Option<LayoutCompletion> {
         self.shared.0.lock().ok()?.layout_result.take()
     }
-    pub(super) fn invoke_configured(
+    pub(in crate::workbench_client) fn invoke_configured(
         &self,
         id: String,
         source: Option<orchbee_workbench_protocol::ClientPopupSource>,
@@ -208,10 +209,10 @@ impl ClientControlLane {
         let _notified = crate::local_client::subscription::notify(&self.changed);
         Ok(())
     }
-    pub(super) fn take_invocation_result(&self) -> Option<CommandCompletion> {
+    pub(in crate::workbench_client) fn take_invocation_result(&self) -> Option<CommandCompletion> {
         self.shared.0.lock().ok()?.invocation_result.take()
     }
-    pub(super) fn spawn(
+    pub(in crate::workbench_client) fn spawn(
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
         session_id: SessionId,
@@ -246,7 +247,7 @@ impl ClientControlLane {
             task: Some(task),
         })
     }
-    pub(super) fn publish(&self, sample: Sample) -> bool {
+    pub(in crate::workbench_client) fn publish(&self, sample: Sample) -> bool {
         let (lock, signal) = &*self.shared;
         let Ok(mut handoff) = lock.lock() else {
             return false;
@@ -266,7 +267,11 @@ impl ClientControlLane {
         drop(handoff);
         crate::local_client::subscription::notify(&self.changed).is_ok()
     }
-    pub(super) fn complete(&self, sample: Sample, completion: ClientViewCompletion) -> bool {
+    pub(in crate::workbench_client) fn complete(
+        &self,
+        sample: Sample,
+        completion: ClientViewCompletion,
+    ) -> bool {
         let (lock, signal) = &*self.shared;
         let Ok(mut handoff) = lock.lock() else {
             return false;
@@ -281,13 +286,13 @@ impl ClientControlLane {
         drop(handoff);
         crate::local_client::subscription::notify(&self.changed).is_ok()
     }
-    pub(super) fn take_control(&self) -> Option<Delivery> {
+    pub(in crate::workbench_client) fn take_control(&self) -> Option<Delivery> {
         self.shared.0.lock().ok()?.control.take()
     }
-    pub(super) fn failed(&self) -> bool {
+    pub(in crate::workbench_client) fn failed(&self) -> bool {
         self.shared.0.lock().map_or(true, |handoff| handoff.failed)
     }
-    pub(super) fn close(&mut self) {
+    pub(in crate::workbench_client) fn close(&mut self) {
         if self.task.is_none() {
             return;
         }
@@ -610,7 +615,7 @@ fn run(
     }
 }
 
-pub(super) fn random_request_id() -> Option<WorkbenchRequestId> {
+pub(in crate::workbench_client) fn random_request_id() -> Option<WorkbenchRequestId> {
     let mut bytes = [0; 16];
     getrandom::fill(&mut bytes).ok()?;
     WorkbenchRequestId::parse(&format!("{:032x}", u128::from_be_bytes(bytes))).ok()
@@ -618,7 +623,7 @@ pub(super) fn random_request_id() -> Option<WorkbenchRequestId> {
 
 #[cfg(test)]
 impl ClientControlLane {
-    pub(super) fn for_test() -> Self {
+    pub(in crate::workbench_client) fn for_test() -> Self {
         // Without a task, change notifications drain into the retained wake endpoint, so a write
         // never observes a closed peer.
         let (wake, changed) = LocalStream::pair().unwrap();
@@ -630,7 +635,7 @@ impl ClientControlLane {
             task: None,
         }
     }
-    pub(super) fn inject_delivery_for_test(&self, delivery: Delivery) {
+    pub(in crate::workbench_client) fn inject_delivery_for_test(&self, delivery: Delivery) {
         assert!(
             self.shared
                 .0
@@ -641,15 +646,17 @@ impl ClientControlLane {
                 .is_none()
         );
     }
-    pub(super) fn completion_for_test(&self) -> Option<(Sample, ClientViewCompletion)> {
+    pub(in crate::workbench_client) fn completion_for_test(
+        &self,
+    ) -> Option<(Sample, ClientViewCompletion)> {
         self.shared.0.lock().unwrap().completion.clone()
     }
-    pub(super) fn take_layout_for_test(
+    pub(in crate::workbench_client) fn take_layout_for_test(
         &self,
     ) -> Option<orchbee_workbench_protocol::WorkbenchCommand> {
         self.shared.0.lock().unwrap().layout.take()
     }
-    pub(super) fn finish_layout_for_test(&self, result: LayoutCompletion) {
+    pub(in crate::workbench_client) fn finish_layout_for_test(&self, result: LayoutCompletion) {
         let mut handoff = self.shared.0.lock().unwrap();
         assert!(handoff.layout_pending);
         handoff.layout_pending = false;

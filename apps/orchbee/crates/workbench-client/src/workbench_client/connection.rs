@@ -27,7 +27,7 @@ pub(super) fn run_native(
     client: LocalClient,
     initial_geometry: Geometry,
     mailbox: Arc<CommandMailbox>,
-    context: Option<super::workbench_projection::ClientStartupTarget>,
+    context: Option<super::startup_directory::ClientStartupTarget>,
 ) -> ClientConnectionExit {
     native::run_at(client, initial_geometry, mailbox, context)
 }

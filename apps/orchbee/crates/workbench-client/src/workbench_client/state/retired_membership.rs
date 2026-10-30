@@ -2,12 +2,12 @@
 //! evidence while preserving recovery fences and exact operation identity. It does not treat
 //! carrier loss or a missing member as confirmed detach.
 
+use super::PollKey;
 use super::recovery_fence::RecoveryFence;
 use super::{
     AttachmentKey, CarrierFailure, ClientContextTabs, ClientPhase, OperationDeadlines,
     PreparedMembershipCandidate, WorkbenchClientState,
 };
-use crate::workbench_client::mailbox::PollKey;
 use orchbee_client_server_protocol::RequestId;
 
 /// Returned only by a normally joined worker after its current ordinary Poll was correlated.

@@ -34,14 +34,14 @@ const MAXIMUM_LIST_PAGES: usize = 6;
 mod attention;
 pub(super) use attention::AttentionRound;
 
-mod pane_graphics;
-mod panel_reports;
-mod physical_attention;
+pub(super) mod pane_graphics;
+pub(super) mod panel_reports;
+pub(super) mod physical_attention;
 
 pub(super) enum LaneCommand {
     Graphics {
         epoch: u64,
-        job: super::pane_graphics::Job,
+        job: pane_graphics::Job,
         deadline: Instant,
     },
     PhysicalAttention {
@@ -50,7 +50,7 @@ pub(super) enum LaneCommand {
     },
     PanelReports {
         epoch: u64,
-        scope: super::panel_reports::Scope,
+        scope: panel_reports::Scope,
         deadline: Instant,
     },
     Attention {
@@ -74,15 +74,15 @@ pub(super) enum LaneCommand {
 pub(super) enum LaneOutcome {
     Graphics {
         epoch: u64,
-        result: Result<super::pane_graphics::Round, LaneFailure>,
+        result: Result<pane_graphics::Round, LaneFailure>,
     },
     PhysicalAttention {
         epoch: u64,
-        result: Result<super::agent_attention::PhysicalRound, LaneFailure>,
+        result: Result<physical_attention::PhysicalRound, LaneFailure>,
     },
     PanelReports {
         epoch: u64,
-        result: Result<super::panel_reports::Round, LaneFailure>,
+        result: Result<panel_reports::Round, LaneFailure>,
     },
     Attention {
         epoch: u64,

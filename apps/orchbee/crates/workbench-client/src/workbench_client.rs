@@ -49,7 +49,7 @@ mod normal_exit_hold;
 mod primary_directory;
 mod startup_directory;
 mod startup_preference;
-pub use startup_directory::StartupDirectory;
+pub use startup_directory::{ClientStartupTarget, StartupDirectory};
 pub(crate) mod state;
 pub(crate) use state::control_takeover::TakeoverStatus;
 pub(crate) use state::workspace_close::WorkspaceDeleteRequest;
@@ -71,9 +71,7 @@ mod wakeup;
 mod workbench_projection;
 pub use wakeup::UiWakeup;
 
-pub use workbench_projection::{
-    ClientContextLocation, ClientContextTarget, ClientMemberTarget, ClientStartupTarget,
-};
+pub use workbench_projection::{ClientContextLocation, ClientContextTarget, ClientMemberTarget};
 pub(crate) use workbench_projection::{ClientPanel, ClientPanelTree, ClientPresentation};
 
 pub(crate) use ui::{
@@ -141,7 +139,7 @@ pub struct WorkbenchClient {
     configuration: Option<configuration::Watcher>,
     notifications: Option<crate::notifications::Subscription>,
     window_title: Option<window_title::Subscription>,
-    client_control: Option<client_control::ClientControl>,
+    client_control: Option<ui::control_steps::ClientControl>,
     backend: ClientBackend,
     task: Option<ClientTask>,
     shutdown: LocalClientShutdown,
@@ -227,7 +225,7 @@ impl WorkbenchClient {
             if self.client_control.is_none()
                 && let Some(origin) = &self.origin
             {
-                self.client_control = Some(client_control::ClientControl::new(
+                self.client_control = Some(ui::control_steps::ClientControl::new(
                     origin.clone(),
                     native.configuration_clock(),
                 ));
@@ -310,7 +308,7 @@ impl WorkbenchClient {
     fn start_with_context(
         client: LocalClient,
         geometry: Geometry,
-        context: Option<workbench_projection::ClientStartupTarget>,
+        context: Option<startup_directory::ClientStartupTarget>,
     ) -> io::Result<Self> {
         let client = client.into_multiplexed()?;
         let shutdown = client.connection_shutdown_handle()?;
@@ -322,7 +320,7 @@ impl WorkbenchClient {
         let task = thread::Builder::new()
             .name("orchbee-workbench-client".into())
             .spawn(move || connection::run_native(client, geometry, worker_mailbox, context))?;
-        let client_control = Some(client_control::ClientControl::new(
+        let client_control = Some(ui::control_steps::ClientControl::new(
             origin.clone(),
             clock.clone(),
         ));
@@ -561,8 +559,8 @@ impl WorkbenchClient {
                 if let Some(feedback) = control.take_local_resize_feedback() {
                     local_resize_changed = true;
                     match feedback {
-                        client_control::LocalResizeFeedback::Clear => view.clear_resize_notice(),
-                        client_control::LocalResizeFeedback::Notice(notice) => {
+                        ui::control_steps::LocalResizeFeedback::Clear => view.clear_resize_notice(),
+                        ui::control_steps::LocalResizeFeedback::Notice(notice) => {
                             view.configuration_notice(notice)
                         }
                     }
@@ -1477,7 +1475,7 @@ impl TerminalInputPort for WorkbenchClient {
         ) && self
             .client_control
             .as_ref()
-            .is_some_and(client_control::ClientControl::local_resize_pending)
+            .is_some_and(ui::control_steps::ClientControl::local_resize_pending)
         {
             return Some(ClientActionDisposition::KeepNavigator);
         }

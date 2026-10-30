@@ -5,75 +5,14 @@ use super::{
     state::WorkbenchClientState,
 };
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
-use orchbee_workbench_protocol::{
-    MAXIMUM_PANEL_NODES_PER_CONTEXT, MetadataTokens, PanelAgentView, PanelMetadataEffective,
-    PresentationBinding, SessionId, TerminalPresentationId, WorkbenchPanelId, WorkbenchRevision,
-};
-use std::{
-    collections::BTreeMap,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 // Selected presentations include Host process/output detection with no event source. Keep this
 // bounded physical sample; canonical metadata is also refreshed on normal view changes.
 const INTERVAL: Duration = Duration::from_secs(1);
 const DEADLINE: Duration = Duration::from_secs(5);
-pub(super) const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct SelectedPanel {
-    pub(super) panel_id: WorkbenchPanelId,
-    pub(super) presentation_id: TerminalPresentationId,
-    pub(super) binding: PresentationBinding,
-}
-impl SelectedPanel {
-    fn capture(panel: &ClientPanel, presentation: &ClientPresentation) -> Option<Self> {
-        let binding = presentation.binding()?;
-        Some(Self {
-            panel_id: panel.panel_id().clone(),
-            presentation_id: presentation.presentation_id().clone(),
-            binding: PresentationBinding {
-                worker_id: binding.worker_id().clone(),
-                terminal_id: binding.terminal_id().clone(),
-            },
-        })
-    }
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct Scope {
-    pub(super) session: SessionId,
-    pub(super) revision: WorkbenchRevision,
-    pub(super) panels: Vec<SelectedPanel>,
-}
-impl Scope {
-    pub(super) fn capture(state: &WorkbenchClientState) -> Option<Self> {
-        let cache = state.cache();
-        let active = state.active()?.key().anchor().tab_id();
-        let tab = cache.tabs().iter().find(|tab| tab.tab_id() == active)?;
-        if tab.panel_count() > MAXIMUM_PANEL_NODES_PER_CONTEXT {
-            return None;
-        }
-        Some(Self {
-            session: cache.session_id().clone(),
-            revision: cache.revision(),
-            panels: (0..tab.panel_count())
-                .filter_map(|i| tab.panel(i))
-                .filter_map(|p| SelectedPanel::capture(p, state.selected_presentation(p)))
-                .collect(),
-        })
-    }
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct PanelReport {
-    pub(crate) report: Option<PanelAgentView>,
-    pub(crate) metadata: PanelMetadataEffective,
-    pub(crate) tokens: MetadataTokens,
-}
-#[derive(Debug, Eq, PartialEq)]
-pub(super) struct Round {
-    pub(super) scope: Scope,
-    pub(super) rows: BTreeMap<WorkbenchPanelId, PanelReport>,
-}
+pub(crate) use super::agent_read_lane::panel_reports::PanelReport;
+pub(super) use super::agent_read_lane::panel_reports::{Round, Scope, SelectedPanel};
 #[derive(Clone, Copy)]
 pub(crate) enum PanelReportView<'a> {
     Pending,

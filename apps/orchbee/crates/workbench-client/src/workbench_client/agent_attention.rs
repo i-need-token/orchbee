@@ -13,10 +13,7 @@ use orchbee_agent_observation_protocol::AgentChangesCursor;
 
 mod physical;
 mod physical_observer;
-pub(super) use physical::{
-    MAXIMUM_BYTES as MAXIMUM_PHYSICAL_BYTES, MAXIMUM_ENTRIES as MAXIMUM_PHYSICAL_ENTRIES,
-    PhysicalRound,
-};
+pub(super) use physical::PhysicalRound;
 use physical_observer::PhysicalObserver;
 mod state;
 use state::{AttentionPaint, AttentionState};

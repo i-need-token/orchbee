@@ -188,6 +188,46 @@ impl PaneRef {
     }
 }
 
+/// One Agent start's lifecycle phase as the board and its notice report it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AgentStartPhase {
+    Starting,
+    WaitingInput,
+    Unconfirmed,
+    Cancelling,
+    Started,
+    Failed,
+    Unknown,
+    Cancelled,
+}
+
+/// One queued poll's admission serial and the exact pane incarnation it was issued for.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct PollKey {
+    serial: u64,
+    key: PaneRef,
+}
+
+impl PollKey {
+    pub(super) const fn new(serial: u64, key: PaneRef) -> Self {
+        Self { serial, key }
+    }
+
+    pub(super) const fn serial(&self) -> u64 {
+        self.serial
+    }
+
+    /// The exact pane incarnation this poll was issued for.
+    pub(super) const fn pane_ref(&self) -> &PaneRef {
+        &self.key
+    }
+
+    /// The logical pane of this poll.
+    pub(super) const fn pane(&self) -> &PaneKey {
+        self.key.pane()
+    }
+}
+
 /// Why a pane's viewer is unavailable while the pane itself stays selected.
 /// Pane-local degradation: the rest of the membership is unaffected, and only
 /// an explicit new reconcile (re-observe or selection change) may mint a fresh
@@ -528,7 +568,7 @@ pub(super) enum ClientNotice {
     /// A modal surface or armed confirmation owns the input layer — the
     /// Agent board refused to open rather than fight for capture.
     ModalOwnsInput,
-    AgentStart(super::agent_board::AgentStartPhase),
+    AgentStart(AgentStartPhase),
     /// The viewport lost its facts/anchor and is returning to live —
     /// shown while the recovery demand pair is in flight.
     HistoryRecovering,
@@ -565,9 +605,7 @@ impl ClientNotice {
             | Self::BellUnknown => false,
             Self::AgentStart(phase) => matches!(
                 phase,
-                super::agent_board::AgentStartPhase::Started
-                    | super::agent_board::AgentStartPhase::Failed
-                    | super::agent_board::AgentStartPhase::Cancelled
+                AgentStartPhase::Started | AgentStartPhase::Failed | AgentStartPhase::Cancelled
             ),
             _ => true,
         }

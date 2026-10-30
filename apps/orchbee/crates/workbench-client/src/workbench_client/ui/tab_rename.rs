@@ -9,12 +9,10 @@ use super::{
     MoveAdmissionError, MutationResult, OperationDeadlines, RefreshDecision, UiReply,
     WorkbenchClientUi, WorkbenchClientView,
 };
+use crate::workbench_client::input::{RenameDraftToken, RenameEdit, RenameInputContext};
 use crate::workbench_client::state::FieldWindow;
 use crate::workbench_client::state::rename_draft::{self, RenameDraftEdit};
 use orchbee_workbench_protocol::MAXIMUM_LABEL_LENGTH;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct RenameDraftToken(rename_draft::RenameDraftToken);
 
 pub(crate) struct RenameDraftView<'a>(
     rename_draft::RenameDraftView<'a>,
@@ -64,34 +62,6 @@ impl<'a> RenameDraftView<'a> {
     pub(crate) fn remaining_scalar_capacity(&self) -> usize {
         MAXIMUM_LABEL_LENGTH - self.0.text().chars().count()
     }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct RenameInputContext {
-    token: RenameDraftToken,
-}
-impl RenameInputContext {
-    #[cfg(test)]
-    pub(crate) const fn token(self) -> RenameDraftToken {
-        self.token
-    }
-}
-
-/// The typed edit vocabulary forwarded to the rename draft — the same
-/// contract U5's typed-input bridge emits for text fields.
-pub enum RenameEdit<'a> {
-    Append(&'a str),
-    Paste(&'a str),
-    Backspace,
-    Clear,
-    Left,
-    Right,
-    Home,
-    End,
-    Delete,
-    WordBackspace,
-    Fault,
-    Completeness(bool),
 }
 
 impl<'a> WorkbenchClientView<'a> {

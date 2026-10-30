@@ -18,29 +18,31 @@ fn rejection_unknown_and_stale_completion_never_write_or_resubmit() {
         control.tick(&mut native, false);
         let before = native.control_observation(false).unwrap();
         let command = ratio_command(&control, 0.7);
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .inject_delivery_for_test(lane::Delivery {
+        control.lane.as_ref().unwrap().inject_delivery_for_test(
+            crate::workbench_client::client_control::Delivery {
                 command: command.clone(),
                 workbench_snapshot: Some(split_snapshot(1)),
-            });
+            },
+        );
         assert!(!control.tick(&mut native, false));
         let lane = control.lane.as_ref().unwrap();
         assert!(lane.take_layout_for_test().is_some());
         match case {
-            "rejected" | "unknown" => lane.finish_layout_for_test(lane::LayoutCompletion {
-                operation_id: command.operation_id.clone(),
-                reply: Err(SplitRatioFailure {
-                    may_have_committed: case == "unknown",
-                    reason: Reason::StaleView,
-                }),
-            }),
-            "stale-operation" => lane.finish_layout_for_test(lane::LayoutCompletion {
-                operation_id: WorkbenchRequestId::parse(&format!("{:032x}", 999)).unwrap(),
-                reply: Ok(WorkbenchRevision::new(2)),
-            }),
+            "rejected" | "unknown" => lane.finish_layout_for_test(
+                crate::workbench_client::client_control::LayoutCompletion {
+                    operation_id: command.operation_id.clone(),
+                    reply: Err(SplitRatioFailure {
+                        may_have_committed: case == "unknown",
+                        reason: Reason::StaleView,
+                    }),
+                },
+            ),
+            "stale-operation" => lane.finish_layout_for_test(
+                crate::workbench_client::client_control::LayoutCompletion {
+                    operation_id: WorkbenchRequestId::parse(&format!("{:032x}", 999)).unwrap(),
+                    reply: Ok(WorkbenchRevision::new(2)),
+                },
+            ),
             _ => {}
         }
         if case == "stale-operation" {
@@ -98,14 +100,12 @@ fn committed_ratio_replaced_before_draw_cannot_claim_success() {
     let mut control = controller(clock.clone());
     control.tick(&mut native, false);
     let command = ratio_command(&control, 0.7);
-    control
-        .lane
-        .as_ref()
-        .unwrap()
-        .inject_delivery_for_test(lane::Delivery {
+    control.lane.as_ref().unwrap().inject_delivery_for_test(
+        crate::workbench_client::client_control::Delivery {
             command: command.clone(),
             workbench_snapshot: Some(split_snapshot(1)),
-        });
+        },
+    );
     control.tick(&mut native, false);
     control
         .lane
@@ -113,14 +113,12 @@ fn committed_ratio_replaced_before_draw_cannot_claim_success() {
         .unwrap()
         .take_layout_for_test()
         .unwrap();
-    control
-        .lane
-        .as_ref()
-        .unwrap()
-        .finish_layout_for_test(lane::LayoutCompletion {
+    control.lane.as_ref().unwrap().finish_layout_for_test(
+        crate::workbench_client::client_control::LayoutCompletion {
             operation_id: command.operation_id,
             reply: Ok(WorkbenchRevision::new(2)),
-        });
+        },
+    );
     control.tick(&mut native, false);
     let mut changed = split_snapshot(3);
     let PanelNode::Split { ratio, .. } = &mut changed.terminal_contexts[0].tabs[0].root else {

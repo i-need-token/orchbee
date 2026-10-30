@@ -66,8 +66,7 @@ impl Drop for Mutation {
         }
     }
 }
-pub(in crate::workbench_client::client_control) struct LayoutCompletion {
-    pub(in crate::workbench_client::client_control) operation_id: WorkbenchRequestId,
-    pub(in crate::workbench_client::client_control) reply:
-        Result<WorkbenchRevision, SplitRatioFailure>,
+pub(in crate::workbench_client) struct LayoutCompletion {
+    pub(in crate::workbench_client) operation_id: WorkbenchRequestId,
+    pub(in crate::workbench_client) reply: Result<WorkbenchRevision, SplitRatioFailure>,
 }

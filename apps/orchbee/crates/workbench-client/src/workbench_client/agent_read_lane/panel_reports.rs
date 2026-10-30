@@ -3,12 +3,16 @@ use super::{
     Arc, AtomicBool, Instant, LaneFailure, LocalClient, LocalClientOrigin, LocalOperationClock,
     Ordering, mint_request_id,
 };
-use crate::workbench_client::panel_reports::{MAXIMUM_BYTES, PanelReport, Round, Scope};
+use crate::workbench_client::{ClientPanel, ClientPresentation, state::WorkbenchClientState};
 use orchbee_workbench_protocol::{
     MAXIMUM_PANEL_AGENT_READ_ROWS, MAXIMUM_PANEL_METADATA_READ_ROWS, PanelAgentAction,
     PanelAgentOutcome, PanelAgentRequest, PanelMetadataAction, PanelMetadataOutcome,
     PanelMetadataRequest, PresentationAgentRow, PresentationMetadataRow, ProtocolVersion,
     TerminalPresentationId, WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
+};
+use orchbee_workbench_protocol::{
+    MAXIMUM_PANEL_NODES_PER_CONTEXT, MetadataTokens, PanelAgentView, PanelMetadataEffective,
+    PresentationBinding, SessionId,
 };
 use std::collections::BTreeMap;
 
@@ -253,3 +257,63 @@ fn count_bytes(bytes: &mut usize, count: usize) -> Result<(), LaneFailure> {
 
 #[cfg(test)]
 mod tests;
+
+pub(in crate::workbench_client) const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::workbench_client) struct SelectedPanel {
+    pub(in crate::workbench_client) panel_id: WorkbenchPanelId,
+    pub(in crate::workbench_client) presentation_id: TerminalPresentationId,
+    pub(in crate::workbench_client) binding: PresentationBinding,
+}
+impl SelectedPanel {
+    pub(in crate::workbench_client) fn capture(
+        panel: &ClientPanel,
+        presentation: &ClientPresentation,
+    ) -> Option<Self> {
+        let binding = presentation.binding()?;
+        Some(Self {
+            panel_id: panel.panel_id().clone(),
+            presentation_id: presentation.presentation_id().clone(),
+            binding: PresentationBinding {
+                worker_id: binding.worker_id().clone(),
+                terminal_id: binding.terminal_id().clone(),
+            },
+        })
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::workbench_client) struct Scope {
+    pub(in crate::workbench_client) session: SessionId,
+    pub(in crate::workbench_client) revision: WorkbenchRevision,
+    pub(in crate::workbench_client) panels: Vec<SelectedPanel>,
+}
+impl Scope {
+    pub(in crate::workbench_client) fn capture(state: &WorkbenchClientState) -> Option<Self> {
+        let cache = state.cache();
+        let active = state.active()?.key().anchor().tab_id();
+        let tab = cache.tabs().iter().find(|tab| tab.tab_id() == active)?;
+        if tab.panel_count() > MAXIMUM_PANEL_NODES_PER_CONTEXT {
+            return None;
+        }
+        Some(Self {
+            session: cache.session_id().clone(),
+            revision: cache.revision(),
+            panels: (0..tab.panel_count())
+                .filter_map(|i| tab.panel(i))
+                .filter_map(|p| SelectedPanel::capture(p, state.selected_presentation(p)))
+                .collect(),
+        })
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PanelReport {
+    pub(crate) report: Option<PanelAgentView>,
+    pub(crate) metadata: PanelMetadataEffective,
+    pub(crate) tokens: MetadataTokens,
+}
+#[derive(Debug, Eq, PartialEq)]
+pub(in crate::workbench_client) struct Round {
+    pub(in crate::workbench_client) scope: Scope,
+    pub(in crate::workbench_client) rows: BTreeMap<WorkbenchPanelId, PanelReport>,
+}

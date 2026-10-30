@@ -4,7 +4,7 @@ use super::{
     SwitchMarker, WorkbenchClientState, WorkbenchClientUi, WorkbenchPanelId, WorkbenchTabId,
     finish_action,
 };
-use crate::workbench_client::client_control::{ControlStep, StepProgress};
+use crate::workbench_client::ui::control_steps::{ControlStep, StepProgress};
 use orchbee_workbench_protocol::{
     ClientViewControl, ClientViewControlReason as Reason, ClientViewIntent, ClientViewObservation,
     ClientViewPhase, ClientViewSelection, SessionId,

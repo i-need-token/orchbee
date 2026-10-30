@@ -101,14 +101,12 @@ fn plugin_overlay_control_reserves_before_focus_and_requires_an_uninterrupted_dr
             previously_zoomed: false,
         };
         let target = target.clone();
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .inject_delivery_for_test(lane::Delivery {
+        control.lane.as_ref().unwrap().inject_delivery_for_test(
+            crate::workbench_client::client_control::Delivery {
                 command,
                 workbench_snapshot: Some(snapshot),
-            });
+            },
+        );
         control.tick(&mut native, false);
         if case == "wrong-binding" {
             assert_eq!(native.control_observation(false).unwrap(), before);
@@ -171,14 +169,12 @@ fn inject(control: &ClientControl, command: ClientViewControl) {
             crate::workbench_client::ui::tests::membership::snapshot(2, revision)
         }
     });
-    control
-        .lane
-        .as_ref()
-        .unwrap()
-        .inject_delivery_for_test(lane::Delivery {
+    control.lane.as_ref().unwrap().inject_delivery_for_test(
+        crate::workbench_client::client_control::Delivery {
             command,
             workbench_snapshot,
-        });
+        },
+    );
 }
 fn completion(control: &ClientControl) -> Option<(Sample, ClientViewCompletion)> {
     control.lane.as_ref().unwrap().completion_for_test()
@@ -738,7 +734,7 @@ fn layout_read_completes_without_draw_resize_or_selection_and_pins_its_sample() 
         let initial = mailbox.try_recv().unwrap().unwrap();
         assert!(matches!(
             initial.record(),
-            super::super::mailbox::QueuedCommand::Poll(_)
+            crate::workbench_client::mailbox::QueuedCommand::Poll(_)
         ));
         mailbox.finish_lease(initial).unwrap();
         let mut control = controller(clock);
@@ -759,14 +755,12 @@ fn layout_read_completes_without_draw_resize_or_selection_and_pins_its_sample() 
             tab_id,
             panel_id,
         };
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .inject_delivery_for_test(lane::Delivery {
+        control.lane.as_ref().unwrap().inject_delivery_for_test(
+            crate::workbench_client::client_control::Delivery {
                 command: command.clone(),
                 workbench_snapshot: available.then(|| split_snapshot(1)),
-            });
+            },
+        );
         assert!(
             !control.tick(&mut native, false),
             "a read must not ask the shell to resize"
@@ -859,14 +853,12 @@ fn directional_focus_pins_one_neighbor_preserves_zoom_and_requires_draw() {
                 )
                 .unwrap();
             let destination = layout.neighbors.right.unwrap();
-            control
-                .lane
-                .as_ref()
-                .unwrap()
-                .inject_delivery_for_test(lane::Delivery {
+            control.lane.as_ref().unwrap().inject_delivery_for_test(
+                crate::workbench_client::client_control::Delivery {
                     command: command.clone(),
                     workbench_snapshot: Some(snapshot),
-                });
+                },
+            );
             assert_eq!(control.tick(&mut native, shell_busy), shell_busy);
             if shell_busy {
                 assert!(control.take_shell_mode_dismissal());
@@ -973,14 +965,12 @@ fn no_neighbor_in_an_inactive_tab_has_no_selection_attachment_resize_or_draw_eff
                 panel_id: tab.panel(0).unwrap().panel_id().clone(),
                 direction,
             };
-            control
-                .lane
-                .as_ref()
-                .unwrap()
-                .inject_delivery_for_test(lane::Delivery {
+            control.lane.as_ref().unwrap().inject_delivery_for_test(
+                crate::workbench_client::client_control::Delivery {
                     command: command.clone(),
                     workbench_snapshot: Some(snapshot.clone()),
-                });
+                },
+            );
             assert!(
                 !control.tick(&mut native, shell_busy),
                 "no-neighbor cannot ask shell to synchronize sizes"
@@ -1062,14 +1052,12 @@ fn directional_unknown_geometry_never_claims_no_neighbor_or_changes_selection() 
             command.expected_view_revision = ClientViewSequence::new(control.revision + 1).unwrap();
         }
         let snapshot = (case != "missing-snapshot").then(|| split_snapshot(2));
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .inject_delivery_for_test(lane::Delivery {
+        control.lane.as_ref().unwrap().inject_delivery_for_test(
+            crate::workbench_client::client_control::Delivery {
                 command,
                 workbench_snapshot: snapshot,
-            });
+            },
+        );
         assert!(!control.tick(&mut native, false));
         assert_eq!(
             completion(&control).unwrap().1.outcome,
@@ -1102,14 +1090,12 @@ fn a_directional_destination_that_never_attaches_keeps_the_original_deadline() {
     let before = native.control_observation(false).unwrap();
     let mut command = command(&control, None);
     directional(&mut command, ClientPanelDirection::Right);
-    control
-        .lane
-        .as_ref()
-        .unwrap()
-        .inject_delivery_for_test(lane::Delivery {
+    control.lane.as_ref().unwrap().inject_delivery_for_test(
+        crate::workbench_client::client_control::Delivery {
             command,
             workbench_snapshot: Some(split_snapshot(1)),
-        });
+        },
+    );
     assert!(!control.tick(&mut native, false));
     let deadline = control.pending.as_ref().unwrap().deadline;
     elapsed.store(49_000, Ordering::SeqCst);
@@ -1135,7 +1121,7 @@ fn presentation_read_completes_without_draw_or_navigation_in_ready_and_busy() {
             let initial = mailbox.try_recv().unwrap().unwrap();
             assert!(matches!(
                 initial.record(),
-                super::super::mailbox::QueuedCommand::Poll(_)
+                crate::workbench_client::mailbox::QueuedCommand::Poll(_)
             ));
             mailbox.finish_lease(initial).unwrap();
             let mut control = controller(clock);
@@ -1148,14 +1134,12 @@ fn presentation_read_completes_without_draw_or_navigation_in_ready_and_busy() {
             command.intent = ClientViewIntent::Presentation {
                 panel_id: panel_id.clone(),
             };
-            control
-                .lane
-                .as_ref()
-                .unwrap()
-                .inject_delivery_for_test(lane::Delivery {
+            control.lane.as_ref().unwrap().inject_delivery_for_test(
+                crate::workbench_client::client_control::Delivery {
                     command: command.clone(),
                     workbench_snapshot: available.then(|| split_snapshot(1)),
-                });
+                },
+            );
             assert!(!control.tick(&mut native, shell_busy));
             let (sample, completed) = completion(&control).unwrap();
             let status = match completed.outcome {
@@ -1231,14 +1215,12 @@ fn panel_focus_validates_canonical_target_before_cancelling_modes() {
             }
             _ => {}
         }
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .inject_delivery_for_test(lane::Delivery {
+        control.lane.as_ref().unwrap().inject_delivery_for_test(
+            crate::workbench_client::client_control::Delivery {
                 command,
                 workbench_snapshot: (case != "missing").then_some(canonical),
-            });
+            },
+        );
         control.tick(&mut native, true);
         assert_eq!(
             control.take_shell_mode_dismissal(),

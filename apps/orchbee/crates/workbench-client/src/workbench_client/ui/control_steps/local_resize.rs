@@ -150,7 +150,7 @@ impl ClientControl {
             self.local_resize = Some(LocalResizePending {
                 request_id,
                 flow,
-                deadline: self.clock.now() + super::super::state::OPERATION_TOTAL,
+                deadline: self.clock.now() + crate::workbench_client::state::OPERATION_TOTAL,
                 interrupted: false,
                 awaiting_draw: false,
                 presentation: None,

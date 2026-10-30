@@ -8,14 +8,10 @@ use orchbee_workbench_protocol::{
     WorkbenchRevision,
 };
 
-pub(in crate::workbench_client) const MAXIMUM_ENTRIES: usize = 4096;
-pub(in crate::workbench_client) const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::workbench_client) struct PhysicalRound {
-    pub(in crate::workbench_client) report_revision: WorkbenchRevision,
-    pub(in crate::workbench_client) states: Vec<TerminalAgentStateSnapshot>,
-}
+pub(in crate::workbench_client) use crate::workbench_client::agent_read_lane::physical_attention::{
+    MAXIMUM_PHYSICAL_BYTES as MAXIMUM_BYTES, MAXIMUM_PHYSICAL_ENTRIES as MAXIMUM_ENTRIES,
+    PhysicalRound,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Entry {

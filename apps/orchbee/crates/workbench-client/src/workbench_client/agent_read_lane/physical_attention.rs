@@ -1,8 +1,5 @@
 //! One complete all-Session physical checkpoint, fenced by Workbench and report revisions.
 use super::{LaneFailure, LocalClient, LocalClientOrigin, LocalOperationClock, mint_request_id};
-use crate::workbench_client::agent_attention::{
-    MAXIMUM_PHYSICAL_BYTES, MAXIMUM_PHYSICAL_ENTRIES, PhysicalRound,
-};
 use orchbee_local_ipc::LocalIo;
 use orchbee_workbench_protocol::{
     MAXIMUM_TERMINAL_AGENT_STATE_ROWS, PanelAgentAction, PanelAgentOutcome, PanelAgentRequest,
@@ -202,3 +199,14 @@ impl RoundBuilder {
 
 #[cfg(test)]
 mod tests;
+
+use orchbee_workbench_protocol::TerminalAgentStateSnapshot;
+
+pub(in crate::workbench_client) const MAXIMUM_PHYSICAL_ENTRIES: usize = 4096;
+pub(in crate::workbench_client) const MAXIMUM_PHYSICAL_BYTES: usize = 8 * 1024 * 1024;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::workbench_client) struct PhysicalRound {
+    pub(in crate::workbench_client) report_revision: WorkbenchRevision,
+    pub(in crate::workbench_client) states: Vec<TerminalAgentStateSnapshot>,
+}

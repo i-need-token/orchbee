@@ -1,14 +1,18 @@
 //! Workbench input capabilities and current pointer/capture facts. The input dispatcher consumes
 //! this contract; the port owns no byte decoder, terminal lifecycle writer or dispatch loop.
 
-use super::{
-    CaptureContext, RenameDraftToken, RenameEdit, SetupEdit, SetupToken, WorktreeEdit,
-    WorktreeToken,
-};
+use super::state::workspace_setup::{SetupEdit, SetupToken};
+use super::state::worktree_launch::{WorktreeEdit, WorktreeToken};
 mod action;
+mod capture;
 pub(crate) use action::CapturedClientAction;
 pub(in crate::workbench_client) use action::CapturedRequest;
 pub use action::InputAction;
+pub use capture::{CaptureContext, RenameCaptureContext, RenameDraftToken, RenameEdit};
+pub(crate) use capture::{
+    CaptureReadiness, ConfirmationCaptureContext, RenameInputContext, SetupCaptureContext,
+    WorktreeCaptureContext,
+};
 
 use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey};
 use crate::terminal_events::{DecodedItem, MouseEvent};
@@ -67,32 +71,43 @@ pub struct PointerFrameFacts {
     pub(crate) application_cursor: bool,
 }
 
-/// A terminal cell inside the pane viewport recorded by the pointer press.
-/// This stays deliberately independent from the Host wire coordinates: the
-/// native session resolves the exact attachment and geometry only after it
-/// admits the semantic start.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct PointerSelectionCell {
-    pub(crate) column: u16,
-    pub(crate) row: u16,
+pub use super::terminal_selection::{PointerSelectionCell, PointerSelectionIntent};
+
+/// One presentation control exactly as it was drawn for a live pane source.
+///
+/// The destination alone is not authority. Attached controls retain the
+/// physical pane incarnation that owned the header; unbound controls retain
+/// the current logical pane and selected member. Release revalidates both the
+/// source and the destination against current membership before switching.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DrawnPresentationTarget {
+    Attached {
+        pane: crate::workbench_client::state::PaneRef,
+        presentation: orchbee_workbench_protocol::TerminalPresentationId,
+    },
+    Unbound {
+        selected: PointerUnboundPane,
+        presentation: orchbee_workbench_protocol::TerminalPresentationId,
+    },
 }
 
-/// One Client-side selection gesture step. The pointer layer owns cells and
-/// ordering; the native session remains the sole authority for translating
-/// them into a Host selection command.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PointerSelectionIntent {
-    Start {
-        click_count: u8,
-        cell: PointerSelectionCell,
-    },
-    Update {
-        cell: PointerSelectionCell,
-    },
-    End {
-        cell: PointerSelectionCell,
-    },
-    Cancel,
+impl DrawnPresentationTarget {
+    pub(crate) const fn presentation(&self) -> &orchbee_workbench_protocol::TerminalPresentationId {
+        match self {
+            Self::Attached { presentation, .. } | Self::Unbound { presentation, .. } => {
+                presentation
+            }
+        }
+    }
+
+    pub(in crate::workbench_client) fn panel(
+        &self,
+    ) -> &orchbee_workbench_protocol::WorkbenchPanelId {
+        match self {
+            Self::Attached { pane, .. } => pane.pane().panel(),
+            Self::Unbound { selected, .. } => selected.key.panel(),
+        }
+    }
 }
 
 /// Whether the native session admitted a selection start for the exact pane.
@@ -352,7 +367,7 @@ pub trait TerminalInputPort {
 
     fn activate_drawn_presentation(
         &mut self,
-        _target: &crate::workbench_client::DrawnPresentationTarget,
+        _target: &DrawnPresentationTarget,
     ) -> ClientActionDisposition {
         ClientActionDisposition::KeepNavigator
     }

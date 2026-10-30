@@ -2806,6 +2806,6 @@ fn geometry(columns: u16) -> Geometry {
 impl PollKey {
     /// The poll's attachment anchor for single-pane assertions.
     pub(in crate::workbench_client) const fn attachment(&self) -> &AttachmentKey {
-        self.key.anchor()
+        self.pane_ref().anchor()
     }
 }

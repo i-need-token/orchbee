@@ -685,14 +685,12 @@ fn divider_local_commit_waits_for_shared_publication_and_draw_and_competes_with_
             .is_none()
     );
     assert_eq!(native.control_observation(false).unwrap(), before);
-    control
-        .lane
-        .as_ref()
-        .unwrap()
-        .finish_layout_for_test(lane::LayoutCompletion {
+    control.lane.as_ref().unwrap().finish_layout_for_test(
+        crate::workbench_client::client_control::LayoutCompletion {
             operation_id: mutation.request_id,
             reply: Ok(WorkbenchRevision::new(2)),
-        });
+        },
+    );
     control.tick(&mut native, false);
     control.after_draw(&mut native);
     assert!(control.local_resize_pending());
@@ -758,11 +756,8 @@ fn divider_unknown_or_rejected_resolution_never_replays_and_reports_the_shared_n
             .unwrap()
             .take_layout_for_test()
             .unwrap();
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .finish_layout_for_test(lane::LayoutCompletion {
+        control.lane.as_ref().unwrap().finish_layout_for_test(
+            crate::workbench_client::client_control::LayoutCompletion {
                 operation_id: mutation.request_id,
                 reply: Err(
                     crate::local_client::workbench::split_ratio::SplitRatioFailure {
@@ -770,7 +765,8 @@ fn divider_unknown_or_rejected_resolution_never_replays_and_reports_the_shared_n
                         may_have_committed: unknown,
                     },
                 ),
-            });
+            },
+        );
         control.tick(&mut native, false);
         assert!(!control.local_resize_pending());
         assert_eq!(

@@ -59,17 +59,7 @@ enum Catalog {
     Unavailable,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Phase {
-    Starting,
-    WaitingInput,
-    Unconfirmed,
-    Cancelling,
-    Started,
-    Failed,
-    Unknown,
-    Cancelled,
-}
+pub(crate) use crate::workbench_client::state::AgentStartPhase as Phase;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) struct Drain {

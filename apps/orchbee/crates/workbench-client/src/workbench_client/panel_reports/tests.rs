@@ -1,5 +1,9 @@
 use super::*;
 use crate::local_client::test_support::server::adjustable_operation_clock;
+use orchbee_workbench_protocol::{
+    SessionId, TerminalPresentationId, WorkbenchPanelId, WorkbenchRevision,
+};
+use std::collections::BTreeMap;
 use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},

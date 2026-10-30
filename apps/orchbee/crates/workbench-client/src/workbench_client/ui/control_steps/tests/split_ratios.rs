@@ -65,7 +65,7 @@ fn resize_submits_once_preserves_zoom_and_only_shared_draw_or_interruption_settl
             panel_id,
         };
         let lane = control.lane.as_ref().unwrap();
-        lane.inject_delivery_for_test(lane::Delivery {
+        lane.inject_delivery_for_test(crate::workbench_client::client_control::Delivery {
             command: command.clone(),
             workbench_snapshot: Some(snapshot.clone()),
         });
@@ -104,14 +104,12 @@ fn resize_submits_once_preserves_zoom_and_only_shared_draw_or_interruption_settl
             );
             assert!(mailbox.try_recv().unwrap().is_none());
         }
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .finish_layout_for_test(lane::LayoutCompletion {
+        control.lane.as_ref().unwrap().finish_layout_for_test(
+            crate::workbench_client::client_control::LayoutCompletion {
                 operation_id: command.operation_id.clone(),
                 reply: Ok(WorkbenchRevision::new(2)),
-            });
+            },
+        );
         assert!(
             control.tick(&mut native, false),
             "publication refresh queued"
@@ -256,14 +254,12 @@ fn unchanged_ratio_and_no_resize_border_do_not_request_draw_or_queue_native_work
             };
             command = source;
         }
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .inject_delivery_for_test(lane::Delivery {
+        control.lane.as_ref().unwrap().inject_delivery_for_test(
+            crate::workbench_client::client_control::Delivery {
                 command: command.clone(),
                 workbench_snapshot: Some(split_snapshot(1)),
-            });
+            },
+        );
         assert!(!control.tick(&mut native, false));
         let (sample, done) = completion(&control).unwrap();
         let ClientViewCompletionOutcome::LayoutAdjusted { adjustment } = done.outcome else {
@@ -372,14 +368,12 @@ fn inactive_and_unvisited_shared_changes_acknowledge_without_selection_attachmen
             path: ClientSplitPath::new(vec![]).unwrap(),
             ratio: ClientSplitRatio::new(0.7).unwrap(),
         };
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .inject_delivery_for_test(lane::Delivery {
+        control.lane.as_ref().unwrap().inject_delivery_for_test(
+            crate::workbench_client::client_control::Delivery {
                 command: command.clone(),
                 workbench_snapshot: Some(snapshot.clone()),
-            });
+            },
+        );
         assert!(
             !control.tick(&mut native, false),
             "inactive store cannot request shell geometry synchronization"
@@ -393,14 +387,12 @@ fn inactive_and_unvisited_shared_changes_acknowledge_without_selection_attachmen
             .take_layout_for_test()
             .unwrap();
         assert_eq!(mutation.expected_revision, snapshot.revision);
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .finish_layout_for_test(lane::LayoutCompletion {
+        control.lane.as_ref().unwrap().finish_layout_for_test(
+            crate::workbench_client::client_control::LayoutCompletion {
                 operation_id: command.operation_id.clone(),
                 reply: Ok(WorkbenchRevision::new(3)),
-            });
+            },
+        );
         assert!(!control.tick(&mut native, false));
         let (sample, done) = completion(&control).unwrap();
         let ClientViewCompletionOutcome::LayoutAdjusted { adjustment } = done.outcome else {
@@ -485,14 +477,12 @@ fn ratio_paths_require_matching_rendered_and_canonical_split_identity_before_com
             };
             children.swap(0, 1);
         }
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .inject_delivery_for_test(lane::Delivery {
+        control.lane.as_ref().unwrap().inject_delivery_for_test(
+            crate::workbench_client::client_control::Delivery {
                 command,
                 workbench_snapshot: (case != "missing-snapshot").then_some(snapshot),
-            });
+            },
+        );
         assert!(!control.tick(&mut native, false));
         assert!(matches!(
             completion(&control).unwrap().1.outcome,
@@ -528,14 +518,12 @@ fn ratio_creation_guard_rejects_each_replaced_identity_before_any_effect() {
             panic!();
         };
         *expected_split = Some(serde_json::from_value::<ClientSplitIdentity>(identity).unwrap());
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .inject_delivery_for_test(lane::Delivery {
+        control.lane.as_ref().unwrap().inject_delivery_for_test(
+            crate::workbench_client::client_control::Delivery {
                 command,
                 workbench_snapshot: Some(snapshot),
-            });
+            },
+        );
         assert!(!control.tick(&mut native, false));
         assert_eq!(
             completion(&control).unwrap().1.outcome,

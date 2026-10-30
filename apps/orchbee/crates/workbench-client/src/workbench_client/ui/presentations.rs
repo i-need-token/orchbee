@@ -1,46 +1,11 @@
 //! Presentation navigation uses the existing switch admission and cleanup transaction.
 use super::{
-    ActionBuildError, Arc, ClientActionDisposition, ClientPhaseKind, OperationDeadlines, PaneRef,
+    ActionBuildError, Arc, ClientActionDisposition, ClientPhaseKind, OperationDeadlines,
     SelectionPlan, SwitchMarker, WorkbenchClientUi, WorkbenchClientView, WorkbenchPanelId,
     finish_action,
 };
-use crate::workbench_client::input::PointerUnboundPane;
+use crate::workbench_client::input::DrawnPresentationTarget;
 use orchbee_workbench_protocol::TerminalPresentationId;
-
-/// One presentation control exactly as it was drawn for a live pane source.
-///
-/// The destination alone is not authority. Attached controls retain the
-/// physical pane incarnation that owned the header; unbound controls retain
-/// the current logical pane and selected member. Release revalidates both the
-/// source and the destination against current membership before switching.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum DrawnPresentationTarget {
-    Attached {
-        pane: PaneRef,
-        presentation: TerminalPresentationId,
-    },
-    Unbound {
-        selected: PointerUnboundPane,
-        presentation: TerminalPresentationId,
-    },
-}
-
-impl DrawnPresentationTarget {
-    pub(crate) const fn presentation(&self) -> &TerminalPresentationId {
-        match self {
-            Self::Attached { presentation, .. } | Self::Unbound { presentation, .. } => {
-                presentation
-            }
-        }
-    }
-
-    fn panel(&self) -> &WorkbenchPanelId {
-        match self {
-            Self::Attached { pane, .. } => pane.pane().panel(),
-            Self::Unbound { selected, .. } => selected.key.panel(),
-        }
-    }
-}
 
 impl WorkbenchClientUi {
     pub(super) fn select_presentation_in_active_tab(

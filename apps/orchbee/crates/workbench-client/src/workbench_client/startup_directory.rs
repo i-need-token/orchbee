@@ -43,6 +43,56 @@ impl Parameters {
 }
 
 #[derive(Clone, Debug)]
+pub enum ClientStartupTarget {
+    Context(super::workbench_projection::ClientContextTarget),
+    Agent(Box<crate::machine_agents::Target>),
+    LocalDirectory {
+        position: Option<super::startup_preference::Position>,
+        fallback: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        directory: Box<StartupDirectory>,
+    },
+}
+impl PartialEq for ClientStartupTarget {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Context(left), Self::Context(right)) => left == right,
+            (Self::Agent(left), Self::Agent(right)) => left == right,
+            (
+                Self::LocalDirectory {
+                    position: left,
+                    fallback: left_notice,
+                    directory: left_directory,
+                },
+                Self::LocalDirectory {
+                    position: right,
+                    fallback: right_notice,
+                    directory: right_directory,
+                },
+            ) => {
+                left == right
+                    && left_directory == right_directory
+                    && std::sync::Arc::ptr_eq(left_notice, right_notice)
+            }
+            _ => false,
+        }
+    }
+}
+impl Eq for ClientStartupTarget {}
+impl From<super::workbench_projection::ClientContextTarget> for ClientStartupTarget {
+    fn from(value: super::workbench_projection::ClientContextTarget) -> Self {
+        Self::Context(value)
+    }
+}
+impl ClientStartupTarget {
+    pub(super) fn context(&self) -> Option<&super::workbench_projection::ClientContextTarget> {
+        match self {
+            Self::Context(context) => Some(context),
+            Self::Agent(target) => Some(&target.context),
+            Self::LocalDirectory { .. } => None,
+        }
+    }
+}
+#[derive(Clone, Debug)]
 pub struct StartupDirectory {
     parameters: Option<Parameters>,
     allowed: bool,
