@@ -1,7 +1,7 @@
 # Windows Agent 集成
 
 本文负责原生 `agent integration list`、`explain`、`enable`、`disable` 的 Windows
-细化契约。CLI 负责本机接入，不启动 Session。共享的 provider 分类器与变更流程继续负责
+细化契约。每条命令都会激活本地 Session，并在其 Worker 上运行一个经 Server 授权的 job，因此下文的用户目录、PATH 和配置根都来自启动该 Session 的进程。共享的 provider 分类器与变更流程继续负责
 归属、载荷身份、计划、回执和残留物。
 
 ## 模型与边界
@@ -338,4 +338,4 @@ Windows 公开 doctor 用例将可执行文件、当前 sidecar 和安装树复�
 通过 Desktop 的摘要实现更新来源清单，核对更新状态、本地化重装命令及安装树保持不变。
 Unicode 摘要向量区分 UTF-16 路径顺序与 UTF-8 字节顺序。
 
-<!-- documentation-pairing: english-sha256=2c6ca5a091085cc9303d4fcebabfcd05d050bce20ccf2b446c9ed90d7d7f8b24 zh-cn-sha256=6e2ca2603bcb31d223aa477444a65c204a0b5cf07ec1e3099a7fbb2cb18ce63f -->
+<!-- documentation-pairing: english-sha256=eefd846d7ca8f6e4a1d9afc393d1e51b9a2bee535acf04dd8b0c8df59cae3ab1 zh-cn-sha256=44592f6579fcb2966a56724ff0f566f51078b903afa20a144869c17b85d5af1d -->

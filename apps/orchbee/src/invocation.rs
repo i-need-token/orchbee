@@ -910,9 +910,6 @@ pub(crate) enum Request {
     ServerDiagnose {
         format: OutputFormat,
     },
-    /// `agent integration`: the local provider-onboarding surface — runs
-    /// entirely off ambient PATH and the cohort sidecar, never contacts a
-    /// Session.
     AgentStart {
         command: AgentStartCommand,
         format: OutputFormat,
@@ -921,6 +918,8 @@ pub(crate) enum Request {
         command: AgentNamesCommand,
         format: OutputFormat,
     },
+    /// `agent integration`: provider onboarding — declares activation of the local Session and
+    /// runs one Server-authorized job on its Worker.
     AgentIntegration {
         command: AgentIntegrationCommand,
         format: OutputFormat,

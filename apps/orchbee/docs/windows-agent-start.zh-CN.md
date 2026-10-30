@@ -15,12 +15,12 @@ orchbee agent start alpha --provider codex --panel <id> --timeout 30000 --format
 两种形式混用会被拒绝。保留空参数，拒绝控制字符，编码后命令不能超过 8000 个 ASCII 字符。
 帮助与无效值诊断列出完整的 `--provider` 取值集合。
 
-准入前，CLI 在启动期限内（至多 10000 毫秒）检查本机该 kind 的托管集成。缺少可执行文件时以
+读取 Session 快照之后、准入之前，CLI 在启动期限内（至多 10000 毫秒）请 Session 的 Worker 检查该 kind 的托管集成。缺少可执行文件时以
 `provider-not-found` 拒绝；集成为 `not-installed`、`disabled` 或 `update-required`，或适配器
 capsule 未发布时，以 `integration-not-enabled` 拒绝；`conflict` 以
 `integration-blocked` 拒绝。这些均为 `check-failed`（退出码 1），不预留名称也不发送输入，
 诊断指出 `agent integration enable` 或 `agent integration explain`。预检绝不启用集成，因为那会
-修改提供方自己的配置。没有托管集成的 kind、仅手动管理、`unknown` 状态以及因预算截断的检查，
+修改提供方自己的配置。没有托管集成的 kind、仅手动管理、`unknown` 状态、因预算截断的检查以及被中断或失败的检查 job，
 继续交由 canonical 就绪判定。成功时，文本结果给出下一步 `agent prompt --name <name>`。
 
 完整读取为空后，[Agent 看板](agent-board.zh-CN.md)通过 `agent_provider::detection_executable()`
@@ -169,4 +169,4 @@ Pending 状态携带原始预留及当前 blocked 标志。读取不延长期限
 
 原生表单在检测尚无结果时不预选提供商，也不生成自动名称。已发现的提供商排在手动选项之前；显式选择按提供商身份固定，不随目录更新改变。没有显式选择时，首个发现的提供商成为默认项；检测结束且未发现候选时选择首个手动提供商。启动反馈仅在看板状态行显示一次，结果未确认时引导用户查看终端。只有固定身份的规范关注观察才声明需要输入；进程存在本身不能证明就绪。
 
-<!-- documentation-pairing: english-sha256=9baa66825295b2bc7f2fa58bad9a14b6ace6c1cb9cfc4aa83cd3e4dc56b635ec zh-cn-sha256=77cfb2e33f57d968b6db49bdaf1b3ba2a329028da7c43fd85d839960abc13217 -->
+<!-- documentation-pairing: english-sha256=5cde432a0326d65c0ccc61a68012d6c2a46dbc95102001b46126dd2755af1236 zh-cn-sha256=7dedc02b5ef4e0e043ab6a9b1fdafd96f50c66e75978f9c0265e760b51feb8a7 -->

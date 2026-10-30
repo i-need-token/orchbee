@@ -80,7 +80,8 @@ pub mod application {
     pub mod agent_integrations {
         pub use orchbee_agent_integration::{
             AttemptedStep, CapsuleStatus, Direction, FailureCode, InspectionDetail, IntegrationId,
-            Issue, MutationReport, PlannedStep, Refusal, SnapshotItem, State, StepKind, Verdict,
+            IntegrationOperation, IntegrationReport, IntegrationRequest, Issue, MutationReport,
+            PlannedStep, Refusal, SnapshotItem, State, StepKind, Verdict,
         };
         #[cfg(windows)]
         pub use orchbee_agent_integration_writer::{
@@ -175,6 +176,10 @@ pub mod application {
             pub use crate::local_client::agent::{
                 AgentExchangeError, AgentExchangeFailure, AgentReadOperation,
             };
+        }
+
+        pub mod agent_integration {
+            pub use crate::local_client::workbench::agent_integration::AgentIntegrationJobEnd;
         }
 
         pub mod cancellation {

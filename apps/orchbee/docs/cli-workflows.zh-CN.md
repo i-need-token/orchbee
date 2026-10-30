@@ -88,15 +88,14 @@ Doctor 不执行该传输。已安装 hook 或 `complete:true` 不代表 Agent �
 
 - 若按下方片段提取 ID，需要 `PATH` 上有 `jq`；否则请手动从
   `--format json` 输出中读取相同字段。
-- 角色区分：`config check`、`server diagnose`、`api schema`、
-  `agent doctor` 与整个 `agent integration` 命令族纯属本地（不连接、
-  不加锁、无 Session 副作用）；`help`、`completion` 与 `--version` 输出
-  固定文本，不触碰运行时状态；`server start` 执行唯一一次有副作用的
-  激活；其余每条命令——包括裸 orchbee/`tui` 入口的
-  connect-or-activate——都与本地 Session 通信。
+- 角色区分：`config check`、`server diagnose`、`api schema` 与
+  `agent doctor` 纯属本地（不连接、不加锁、无 Session 副作用）；
+  `help`、`completion` 与 `--version` 输出固定文本，不触碰运行时状态；
+  `server start` 与 `agent integration` 命令族声明激活；其余每条命令——
+  包括裸 orchbee/`tui` 入口的 connect-or-activate——都与本地 Session 通信。
 - 只有当运行中的 Session 从已启用的受支持 Agent 集成中观察到会话时，
   Agent 行才会出现。provider 接入即第 6 节的 `agent integration` 命令
-  族——本地、有界、绝不接触 Session——且没有 `agent launch`；已启用的
+  族——有界，由本地 Session 的 Worker 执行——且没有 `agent launch`；已启用的
   provider 可执行文件与其他程序一样，经第 3 节的通用 `--exec` 途径
   启动。
 
@@ -205,8 +204,11 @@ orchbee worktree list --directory "$DIR"
 ## 6. 接入 provider 并观察 Agent
 
 `agent integration` 管理受支持 provider 的本地接入——检查其状态、解
-释 enable 计划，以及启用或禁用受管集成。这些命令只在调用用户的机器
-与 PATH 上运行：绝不接触 Session，且每次变更都保持有界、非交互。
+释 enable 计划，以及启用或禁用受管集成。没有运行中的本地 Session 时，
+每条命令会先激活它，再作为一个 job 在该 Session 的 Worker 上运行；Worker
+从自己的用户目录和 `PATH` 解析 provider，它们来自启动该 Session 的进程。每次变更都保持有界、非交互。激活期间的中断会像
+`server start` 一样结束命令；job 创建后，第一次中断会登记协作取消，
+命令会等待 job 的最终报告。
 
 ```sh
 orchbee agent integration list                     # 每个 provider 的本地状态
@@ -289,4 +291,4 @@ Worker 从继承环境依次选择非空 VISUAL、EDITOR，否则使用 Windows 
 
 保留编辑器控制操作的已知答复为 `orchbee.client.control` v1，保留准确操作／来源／成员、观察视图和等待状态；文本使用本地化 popup／控制结果。`popup-opened` 要求编辑器帧已安装；保留的 queued／delivered、拒绝、超时、取消和 unknown 结果不宣称编辑器就绪。未知提交绝不自动重放，应保留操作 ID 供 `client control-status` 查询。Ctrl+C 以退出码130停止等待，不撤销已提交请求。通过既有 popup 关闭控制／按钮关闭；恢复普通来源输入要求已知结算或模型规定的连接清理路径。实际编辑器／GUI 验收仍属于最终 Windows 验证。
 
-<!-- documentation-pairing: english-sha256=3d6d36840d2ad6873492e7e7c3f1a376bc1fcc1c05cca20fbf2a35fd040e8f48 zh-cn-sha256=6a8bf526d7e9ecd7a7f1e095e3bd495a7dcb46f0a126d1921b6f9e7c7ee341d4 -->
+<!-- documentation-pairing: english-sha256=9e89eedab26b1b66868d694a6743b84c53b9fe1f86babbcae9ac9434381a85b2 zh-cn-sha256=59dad9d11fc32c3dd35895a5d3a3d35ad1e0910cd69d3afba7719f5a4e0c2625 -->

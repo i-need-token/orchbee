@@ -1667,11 +1667,11 @@ fn agent_cancellation_emits_agent_envelope_with_finalization() {
     );
 }
 
-/// A failed termination-signal registration refuses an integration
-/// invocation before any provider context, inspection, or effect — the
-/// armed seam makes `install` fail once, and the refusal carries the
-/// existing `internal-failure` kind at exit 1. A second install succeeds,
-/// proving the refusal came from the injected fault, not ambient state.
+/// A failed termination-signal registration refuses an integration job
+/// before any Session exchange, so no job runs uncancellable — the armed
+/// seam makes `install` fail once, and the refusal carries the existing
+/// `internal-failure` kind at exit 1. A second install succeeds, proving
+/// the refusal came from the injected fault, not ambient state.
 #[cfg(unix)]
 #[test]
 fn integration_signal_install_failure_refuses_before_effects() {
@@ -1684,7 +1684,8 @@ fn integration_signal_install_failure_refuses_before_effects() {
         provider: IntegrationId::ClaudeCode,
         adapter_source: None,
     };
-    let failure = match integration::run_local(&command) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
+    let failure = match integration::run_job(&command, deadline) {
         Err(failure) => failure,
         Ok(_) => panic!("armed install fault must refuse the invocation"),
     };

@@ -74,7 +74,7 @@ bounded by the original deadline, and separately reported. No hidden compensatin
 
 - `SIGINT` and `SIGTERM` abort the invocation's own waiting and observation. They never issue
   a semantic cancellation; cancelling an accepted operation requires the explicit `cancel`
-  verb. A declared offline provisioning workflow may stop and reap its own untransferred child processes; its owning guide defines commit and recovery cuts.
+  verb. A declared offline provisioning workflow may stop and reap its own untransferred child processes; its owning guide defines commit and recovery cuts. A declared Session-run provisioning job that exposes no request identity, such as provider onboarding, instead registers cooperative cancellation of the job its own invocation started and waits for that job's final report; its owning guide defines the cancellation cut.
 - A declared `terminal send` input source watches exactly `SIGHUP`, `SIGINT`, `SIGQUIT`, and
   `SIGTERM`, minus any signal inherited as ignored or blocked, and only inside its
   materialization window. A captured signal ends acquisition as a typed source failure —

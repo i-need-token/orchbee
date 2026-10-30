@@ -1,8 +1,8 @@
-//! `agent integration` — the CLI-local provider onboarding commands. Every
-//! command runs on this machine only: the ambient PATH resolves provider
-//! executables, provider commands run under the bounded local runner, and no
-//! Session is started or contacted. Mutations are guarded and report the
-//! post-effect state they actually observed.
+//! `agent integration` — provider onboarding through the local Session. Every command
+//! declares activation: it converges the selected local Session toward readiness, then runs one
+//! Server-authorized job on the Session's Worker, which resolves provider executables from its own
+//! `PATH` and home directory. Mutations are guarded and report the post-effect state they
+//! actually observed.
 
 use crate::cli_text::CliText;
 use serde_json::{Map, Value, json};
@@ -15,7 +15,7 @@ use crate::localization::Locale;
 
 #[cfg(any(unix, windows))]
 use crate::agent_integrations::{
-    AttemptedStep, CapsuleStatus, Direction, FailureCode, InspectionDetail, Issue, MutationReport,
+    AttemptedStep, CapsuleStatus, FailureCode, InspectionDetail, Issue, MutationReport,
     PlannedStep, Refusal, SnapshotItem, State, StepKind, Verdict,
 };
 
@@ -43,8 +43,15 @@ fn run_local(_command: &AgentIntegrationCommand) -> Result<Prepared, Failure> {
         .details(stage_reason_details("platform", "unsupported-platform")))
 }
 
+/// Session activation shares the `server start` budget; the job then runs under the contract's
+/// 40-second ceiling plus settlement of its final poll and cancellation.
 #[cfg(any(unix, windows))]
-pub(super) fn run_local(command: &AgentIntegrationCommand) -> Result<Prepared, Failure> {
+const ACTIVATION_BUDGET: std::time::Duration = std::time::Duration::from_secs(20);
+#[cfg(any(unix, windows))]
+const JOB_BUDGET: std::time::Duration = std::time::Duration::from_secs(50);
+
+#[cfg(any(unix, windows))]
+fn run_local(command: &AgentIntegrationCommand) -> Result<Prepared, Failure> {
     if matches!(
         command,
         AgentIntegrationCommand::List {
@@ -54,59 +61,178 @@ pub(super) fn run_local(command: &AgentIntegrationCommand) -> Result<Prepared, F
     ) {
         super::execution::admit(super::execution::Capability::IntegrationOutdated)?;
     }
-    let adapter_source = match command {
-        AgentIntegrationCommand::List { adapter_source, .. }
-        | AgentIntegrationCommand::Explain { adapter_source, .. }
-        | AgentIntegrationCommand::Enable { adapter_source, .. }
-        | AgentIntegrationCommand::Disable { adapter_source, .. } => adapter_source.as_deref(),
-    };
-    // Arm the shared termination source — SIGINT at any frontier boundary
-    // settles as `cancelled` (exit 130). An install failure refuses the
-    // invocation outright: no context, inspection, or effect may run
-    // uncancellable.
+    // No handler is armed during activation, so a termination signal ends it by its default
+    // disposition, exactly like `server start`.
+    let started = std::time::Instant::now();
+    super::server::activate(started + ACTIVATION_BUDGET)?;
+    run_job(command, started + ACTIVATION_BUDGET + JOB_BUDGET)
+}
+
+/// Runs `command` as one job on the activated Session's Worker. The shared termination source is
+/// armed before the job exists: SIGINT then registers cooperative cancellation, and a cancelled
+/// mutation settles as `cancelled` (exit 130) through the job's own report. An install failure
+/// refuses before any Session exchange.
+#[cfg(any(unix, windows))]
+pub(super) fn run_job(
+    command: &AgentIntegrationCommand,
+    deadline: std::time::Instant,
+) -> Result<Prepared, Failure> {
+    use crate::agent_integrations::IntegrationOperation as Operation;
+    use crate::termination_signal::TerminationSource;
     let signal = crate::termination_signal::TerminationSignal::install()
         .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-    let cancel: Option<std::sync::Arc<dyn crate::agent_integrations::TerminationSource>> =
-        Some(std::sync::Arc::new(signal)
-            as std::sync::Arc<
-                dyn crate::agent_integrations::TerminationSource,
-            >);
-    let context = crate::agent_integrations::context(adapter_source, cancel).map_err(|_| {
-        Failure::new(FailureKind::ServiceUnavailable)
-            .details(stage_reason_details("environment", "home-unavailable"))
-    })?;
-    Ok(match command {
+    let (operation, adapter_source) = match command {
         AgentIntegrationCommand::List {
             provider,
-            outdated_only,
+            adapter_source,
             ..
-        } => {
-            let (items, capsule) = crate::agent_integrations::list(&context, *provider);
-            Prepared::List {
+        } => (
+            Operation::List {
+                provider: *provider,
+            },
+            adapter_source,
+        ),
+        AgentIntegrationCommand::Explain {
+            provider,
+            adapter_source,
+        } => (
+            Operation::Explain {
+                provider: *provider,
+            },
+            adapter_source,
+        ),
+        AgentIntegrationCommand::Enable {
+            provider,
+            adapter_source,
+        } => (
+            Operation::Enable {
+                provider: *provider,
+            },
+            adapter_source,
+        ),
+        AgentIntegrationCommand::Disable {
+            provider,
+            adapter_source,
+        } => (
+            Operation::Disable {
+                provider: *provider,
+            },
+            adapter_source,
+        ),
+    };
+    let mutating = matches!(
+        operation,
+        Operation::Enable { .. } | Operation::Disable { .. }
+    );
+    let (mut client, snapshot) = super::query::stream_snapshot(deadline, None)?;
+    if TerminationSource::requested(&signal) {
+        return Err(Failure::new(FailureKind::Cancelled));
+    }
+    let request = crate::agent_integrations::IntegrationRequest {
+        operation,
+        adapter_source: adapter_source.clone(),
+        budget_milliseconds: None,
+    };
+    let end = client.agent_integration_job(
+        &snapshot.session_id,
+        request,
+        deadline,
+        || super::query::request_id().ok(),
+        |pause| {
+            std::thread::sleep(pause);
+            TerminationSource::requested(&signal)
+        },
+    );
+    prepare(settle(end, mutating)?, command)
+}
+
+/// Projects how the Worker job ended onto the CLI failure vocabulary. A mutation that may have
+/// started is never reported as a definite refusal.
+#[cfg(any(unix, windows))]
+fn settle(
+    end: crate::local_client::agent_integration::AgentIntegrationJobEnd,
+    mutating: bool,
+) -> Result<crate::agent_integrations::IntegrationReport, Failure> {
+    use crate::local_client::agent_integration::AgentIntegrationJobEnd as End;
+    use orchbee_workbench_protocol::AgentIntegrationFailure as Reason;
+    let failure = |kind, reason| {
+        Failure::new(kind).details(stage_reason_details("agent-integration", reason))
+    };
+    match end {
+        End::Completed { report, .. } => Ok(*report),
+        End::Failed { reason, started } => {
+            let name = match reason {
+                Reason::Denied => "denied",
+                Reason::SessionMismatch => "session-mismatch",
+                Reason::InvalidRequest => "invalid-request",
+                Reason::WorkerUnavailable => "worker-unavailable",
+                Reason::WorkerChanged => "worker-changed",
+                Reason::Busy => "busy",
+                Reason::JobUnknown => "job-unknown",
+                Reason::Abandoned => "abandoned",
+                Reason::Malformed => "malformed",
+            };
+            Err(match reason {
+                _ if mutating && (started || reason == Reason::Abandoned) => {
+                    failure(FailureKind::OutcomeUnknown, name)
+                }
+                Reason::Denied => failure(FailureKind::Denied, name),
+                Reason::Busy if !started => failure(FailureKind::Rejected, name),
+                Reason::InvalidRequest | Reason::Abandoned | Reason::Malformed => {
+                    failure(FailureKind::InternalFailure, name)
+                }
+                Reason::Busy
+                | Reason::SessionMismatch
+                | Reason::WorkerUnavailable
+                | Reason::WorkerChanged
+                | Reason::JobUnknown => failure(FailureKind::ServiceUnavailable, name),
+            })
+        }
+        End::Exchange { submitted, started } if mutating && (submitted || started) => {
+            Err(failure(FailureKind::OutcomeUnknown, "transport-loss"))
+        }
+        End::Exchange { .. } => Err(failure(FailureKind::TransportLoss, "transport-loss")),
+        End::Deadline if mutating => Err(failure(FailureKind::OutcomeUnknown, "deadline")),
+        End::Deadline => Err(failure(FailureKind::Timeout, "deadline")),
+    }
+}
+
+#[cfg(any(unix, windows))]
+fn prepare(
+    report: crate::agent_integrations::IntegrationReport,
+    command: &AgentIntegrationCommand,
+) -> Result<Prepared, Failure> {
+    use crate::agent_integrations::IntegrationReport as Report;
+    match (report, command) {
+        (Report::HomeUnavailable, _) => Err(Failure::new(FailureKind::ServiceUnavailable)
+            .details(stage_reason_details("environment", "home-unavailable"))),
+        (Report::List { items, capsule }, AgentIntegrationCommand::List { outdated_only, .. }) => {
+            Ok(Prepared::List {
                 items,
                 capsule,
                 outdated_only: *outdated_only,
-            }
+            })
         }
-        AgentIntegrationCommand::Explain { provider, .. } => {
-            let (item, detail, capsule, plan) =
-                crate::agent_integrations::explain(&context, *provider);
-            Prepared::Explain {
+        (
+            Report::Explain {
                 item,
                 detail,
                 capsule,
                 plan,
-            }
-        }
-        AgentIntegrationCommand::Enable { provider, .. } => {
-            let report = crate::agent_integrations::mutate(&context, *provider, Direction::Enable);
-            Prepared::Mutation { report }
-        }
-        AgentIntegrationCommand::Disable { provider, .. } => {
-            let report = crate::agent_integrations::mutate(&context, *provider, Direction::Disable);
-            Prepared::Mutation { report }
-        }
-    })
+            },
+            AgentIntegrationCommand::Explain { .. },
+        ) => Ok(Prepared::Explain {
+            item,
+            detail,
+            capsule,
+            plan,
+        }),
+        (
+            Report::Mutation { report },
+            AgentIntegrationCommand::Enable { .. } | AgentIntegrationCommand::Disable { .. },
+        ) => Ok(Prepared::Mutation { report }),
+        _ => Err(Failure::new(FailureKind::InternalFailure)),
+    }
 }
 
 /// One prepared integration answer — the typed result before the format

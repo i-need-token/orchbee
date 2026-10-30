@@ -91,17 +91,16 @@ does not establish Agent-board readiness. Managed enable/disable and `agent star
 
 - `jq` on `PATH` if you follow the id-extraction snippets below; otherwise
   read the same fields from `--format json` output manually.
-- Role split: `config check`, `server diagnose`, `api schema`,
-  `agent doctor`, and the whole `agent integration` family are purely
-  local (no connection, lock, or Session effect); `help`, `completion`, and
-  `--version` print fixed text without touching runtime state; `server
-start` performs the one effectful activation; every other command —
-  and the bare/`tui` entry's connect-or-activate — talks to the local
-  Session.
+- Role split: `config check`, `server diagnose`, `api schema`, and
+  `agent doctor` are purely local (no connection, lock, or Session effect);
+  `help`, `completion`, and `--version` print fixed text without touching
+  runtime state; `server start` and the `agent integration` family declare
+  activation; every other command — and the bare/`tui` entry's
+  connect-or-activate — talks to the local Session.
 - Agent rows appear only when the running Session observes sessions from a
   supported Agent integration that is already enabled. Provider onboarding
-  is the `agent integration` family in section 6 — local, bounded, and
-  never Session-touching — and there is no `agent launch`; an enabled
+  is the `agent integration` family in section 6 — bounded and run by the
+  local Session's Worker — and there is no `agent launch`; an enabled
   provider's installed executable is launched like any other program —
   through the generic `--exec` route in section 3.
 
@@ -216,9 +215,13 @@ unborn repository and `null` marks the bare entry.
 
 `agent integration` manages the local onboarding of a supported provider —
 inspect its state, explain the enable plan, and enable or disable the
-managed integration. These commands run on the invoking user's machine and
-PATH only: they never contact a Session, and every mutation stays bounded and
-non-interactive.
+managed integration. Each command activates the local Session when none is
+running, then runs as one job on the Session's Worker, which resolves the
+provider from its own home directory and `PATH` — those of the process that
+started the Session. Every mutation stays bounded and non-interactive. An
+interruption during activation ends the command like `server start`; once
+the job exists, the first interruption registers cooperative cancellation and
+the command waits for the job's final report.
 
 ```sh
 orchbee agent integration list                     # every provider's local state

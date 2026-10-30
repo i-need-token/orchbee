@@ -5,49 +5,49 @@ use super::Locale;
 pub(super) const HELP_AGENT_INTEGRATION_LIST_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent integration list [--provider <id>] [--outdated-only] [--adapter-source <abs>] [--format text|json]",
-        "Inspect every supported provider's local integration state — or only the\none selected by '--provider'. Reads run the providers' own bounded\ncommands from the ambient PATH where required; nothing is written.\n'--adapter-source' overrides the cohort adapter payload for development\nand tests. Windows --outdated-only shows owned updates/repairs, preserving\nunknown and blocked provider diagnostics. Use enable to apply a guarded repair.\n'--format json' emits the orchbee.agent.integrations envelope.",
+        "Inspect every supported provider's local integration state — or only the\none selected by '--provider'. Starts the local Session when none is\nrunning; its Worker runs the providers' own bounded read commands from the\nSession's PATH where required; nothing is written.\n'--adapter-source' overrides the cohort adapter payload for development\nand tests. Windows --outdated-only shows owned updates/repairs, preserving\nunknown and blocked provider diagnostics. Use enable to apply a guarded repair.\n'--format json' emits the orchbee.agent.integrations envelope.",
     );
 
 pub(super) const HELP_AGENT_INTEGRATION_LIST_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent integration list [--provider <id>] [--outdated-only] [--adapter-source <abs>] [--format text|json]",
-        "检查每个受支持 provider 的本地集成状态，或仅检查 '--provider' 所选的一个。需要时会执行 provider 自身来自环境 PATH 的有界读命令；不写入任何内容。'--adapter-source' 为开发与测试覆盖 cohort adapter 载荷。\nWindows --outdated-only 只显示需更新／修复的自有条目，保留未知和冲突诊断。使用 enable 显式执行受保护的修复。'--format json' 输出 orchbee.agent.integrations 封套。",
+        "检查每个受支持 provider 的本地集成状态，或仅检查 '--provider' 所选的一个。没有运行中的本地 Session 时会先启动它；需要时由其 Worker 执行 provider 自身来自 Session PATH 的有界读命令；不写入任何内容。'--adapter-source' 为开发与测试覆盖 cohort adapter 载荷。\nWindows --outdated-only 只显示需更新／修复的自有条目，保留未知和冲突诊断。使用 enable 显式执行受保护的修复。'--format json' 输出 orchbee.agent.integrations 封套。",
     );
 
 pub(super) const HELP_AGENT_INTEGRATION_EXPLAIN_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent integration explain --provider <id> [--adapter-source <abs>] [--format text|json]",
-        "Explain one provider's local integration state and the guard-evaluated\nplan 'enable' would run for the observed dimensions. Reads execute the\nprovider's own bounded commands from the ambient PATH where required;\nnothing is written. '--format json' emits the\norchbee.agent.integration.plan envelope.",
+        "Explain one provider's local integration state and the guard-evaluated\nplan 'enable' would run for the observed dimensions. Starts the local\nSession when none is running; its Worker executes the provider's own\nbounded read commands from the Session's PATH where required; nothing is\nwritten. '--format json' emits the orchbee.agent.integration.plan envelope.",
     );
 
 pub(super) const HELP_AGENT_INTEGRATION_EXPLAIN_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent integration explain --provider <id> [--adapter-source <abs>] [--format text|json]",
-        "解释一个 provider 的本地集成状态，以及针对观测到的维度 'enable' 将执行的、经守卫求值的计划。需要时会执行 provider 自身来自环境 PATH 的有界读命令；不写入任何内容。'--format json' 输出\norchbee.agent.integration.plan 封套。",
+        "解释一个 provider 的本地集成状态，以及针对观测到的维度 'enable' 将执行的、经守卫求值的计划。没有运行中的本地 Session 时会先启动它；需要时由其 Worker 执行 provider 自身来自 Session PATH 的有界读命令；不写入任何内容。'--format json' 输出\norchbee.agent.integration.plan 封套。",
     );
 
 pub(super) const HELP_AGENT_INTEGRATION_ENABLE_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent integration enable --provider <id> [--adapter-source <abs>] [--format text|json]",
-        "Enable one provider's managed observation integration locally: publish\nthe adapter capsule when needed, then install its guarded module or run\nbounded non-interactive provider setup commands. Manual-only entries and\nunavailable providers refuse before effects. Foreign, modified or unreadable entries\nare never replaced; the receipt retains attempted effects and\nthe state observed by re-inspection. '--format json' emits the\norchbee.agent.integration.mutation envelope.",
+        "Enable one provider's managed observation integration through the local\nSession, starting it when none is running: its Worker publishes the\nadapter capsule when needed, then installs its guarded module or runs\nbounded non-interactive provider setup commands. Manual-only entries and\nunavailable providers refuse before effects. Foreign, modified or unreadable entries\nare never replaced; the receipt retains attempted effects and\nthe state observed by re-inspection. '--format json' emits the\norchbee.agent.integration.mutation envelope.",
     );
 
 pub(super) const HELP_AGENT_INTEGRATION_ENABLE_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent integration enable --provider <id> [--adapter-source <abs>] [--format text|json]",
-        "在本地启用一个 provider 的受管观测集成：必要时先发布 adapter capsule，然后安装受保护的模块，或执行有界、非交互的 provider 设置命令。仅手动管理或不可用的 provider 在产生效应前拒绝。不会替换外来、被修改或不可读的条目；回执保留已尝试的效应和复检观察到的状态。\n'--format json' 输出 orchbee.agent.integration.mutation 封套。",
+        "通过本地 Session 启用一个 provider 的受管观测集成，没有运行中的 Session 时会先启动它：由其 Worker 在必要时先发布 adapter capsule，然后安装受保护的模块，或执行有界、非交互的 provider 设置命令。仅手动管理或不可用的 provider 在产生效应前拒绝。不会替换外来、被修改或不可读的条目；回执保留已尝试的效应和复检观察到的状态。\n'--format json' 输出 orchbee.agent.integration.mutation 封套。",
     );
 
 pub(super) const HELP_AGENT_INTEGRATION_DISABLE_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent integration disable --provider <id> [--adapter-source <abs>] [--format text|json]",
-        "Disable one provider's managed observation integration locally: run the\nprovider's own bounded removal commands or guarded removal of the owned\nentry. Only entries verifiably owned by Orchbee are ever removed; foreign\nor newer-versioned entries are refused before any effect. '--format json'\nemits the orchbee.agent.integration.mutation envelope.",
+        "Disable one provider's managed observation integration through the local\nSession, starting it when none is running: its Worker runs the provider's\nown bounded removal commands or guarded removal of the owned\nentry. Only entries verifiably owned by Orchbee are ever removed; foreign\nor newer-versioned entries are refused before any effect. '--format json'\nemits the orchbee.agent.integration.mutation envelope.",
     );
 
 pub(super) const HELP_AGENT_INTEGRATION_DISABLE_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent integration disable --provider <id> [--adapter-source <abs>] [--format text|json]",
-        "在本地禁用一个 provider 的受管观测集成：执行 provider 自身的有界移除命令，或对所有物执行受保护的移除。只有经核实归 Orchbee 所有的条目才会被移除；外来或更新版本的条目在任何效应前被拒绝。'--format json'\n输出 orchbee.agent.integration.mutation 封套。",
+        "通过本地 Session 禁用一个 provider 的受管观测集成，没有运行中的 Session 时会先启动它：由其 Worker 执行 provider 自身的有界移除命令，或对所有物执行受保护的移除。只有经核实归 Orchbee 所有的条目才会被移除；外来或更新版本的条目在任何效应前被拒绝。'--format json'\n输出 orchbee.agent.integration.mutation 封套。",
     );
 
 impl super::CliText {

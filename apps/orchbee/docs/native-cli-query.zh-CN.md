@@ -937,7 +937,7 @@ orchbee <recognized path> -h|--help
 在 Windows 上，`--default-config` 必须是根命令的唯一参数，直接从构建输出规范 UTF-8 TOML，不读取用户配置或运行时选择环境。
 共用进程路由保留该路径先于 locale 选择。具名原生端口保留 Windows Session 选择和
 Unix 对不可用运行时路由的拒绝；离线发现继续忽略 Session 选择。集成 `--outdated-only`
-的能力准入同样先于信号注册和上下文检查，保留其既有 Windows 能力范围。
+的能力准入同样先于 Session 激活、信号注册和 Worker job，保留其既有 Windows 能力范围。
 `--skill` 必须是根命令的唯一参数，输出内嵌且本地化的 CLI 使用指南。PowerShell
 补全是静态语法投影：绝不执行用户表达式或查询 Session；需显式加载，不修改 shell profile。
 PowerShell 7 会对独立的 `-` 调用补全并提供根级 `-v`/`-V` 别名；Windows PowerShell 5.1
@@ -2584,4 +2584,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=d1906a25c42632f42b76be1bc8e21968a1e7c49d3f4d14dab1b496ee8798d1d3 zh-cn-sha256=53b7c2b3d29b001e29dea2462e1ae1d5da016ee05d5114f132c2254fa3a11c4b -->
+<!-- documentation-pairing: english-sha256=98e36b4db91258a60002894f6abe3b6d7dd3169de5e5639e8e6566e191700535 zh-cn-sha256=d2f19373b10349740db6daeb2ae0def84f541b825747fe31329d4926e513be38 -->

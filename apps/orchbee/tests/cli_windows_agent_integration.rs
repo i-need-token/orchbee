@@ -1,15 +1,116 @@
-//! Public Windows onboarding: isolated profile/configuration, a deterministic
-//! provider CLI, real batch launch, capsule publication, and schema receipts.
+//! Public Windows onboarding through a real local Session: isolated profile/configuration, a
+//! private cohort carrying the Server and Worker under test, a deterministic provider CLI, real
+//! batch launch, capsule publication, and schema receipts. The Worker inspects and edits with the
+//! environment of the Session that runs it, so each verb invocation activates its own Session.
 #![cfg(windows)]
 
-use serde_json::Value;
+use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{
     fs,
     path::{Path, PathBuf},
     process::{Command, Output, Stdio},
+    sync::{
+        Arc, Mutex, Weak,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant},
 };
 
-struct Fixture(PathBuf);
+/// The fixture root, the shared cohort, and whether a verb may have left its Session running.
+struct Fixture(PathBuf, Arc<Cohort>, AtomicBool);
+
+/// One private native cohort shared by overlapping fixtures: the CLI, Server and Worker under
+/// test plus an inert Host, because integration jobs run before any Host starts.
+struct Cohort(PathBuf);
+
+const INERT_HOST: &[u8] = b"integration jobs never start a Host";
+
+impl Cohort {
+    fn shared() -> Arc<Self> {
+        static LIVE: Mutex<Weak<Cohort>> = Mutex::new(Weak::new());
+        let mut live = LIVE.lock().unwrap_or_else(|error| error.into_inner());
+        live.upgrade().unwrap_or_else(|| {
+            let cohort = Arc::new(Self::stage());
+            *live = Arc::downgrade(&cohort);
+            cohort
+        })
+    }
+
+    fn stage() -> Self {
+        let root = temporary("orchbee-integration-cohort-");
+        let built = Path::new(env!("CARGO_BIN_EXE_orchbee")).parent().unwrap();
+        let mut artifacts = serde_json::Map::new();
+        for name in ["orchbee", "orchbee-server", "orchbee-worker"] {
+            let source = built.join(format!("{name}.exe"));
+            let bytes = fs::read(&source).unwrap_or_else(|error| {
+                panic!(
+                    "{}: {error}; build orchbee-server and orchbee-worker first",
+                    source.display()
+                )
+            });
+            // Native cohort admission requires private regular files with one link.
+            fs::write(root.join(format!("{name}.exe")), &bytes).unwrap();
+            artifacts.insert(
+                name.to_owned(),
+                json!(format!("{:x}", Sha256::digest(&bytes))),
+            );
+        }
+        fs::write(root.join("orchbee-terminal-host.exe"), INERT_HOST).unwrap();
+        artifacts.insert(
+            "orchbee-terminal-host".to_owned(),
+            json!(format!("{:x}", Sha256::digest(INERT_HOST))),
+        );
+        artifacts.insert(
+            "agent-observation-adapters".to_owned(),
+            json!(format!("{:x}", Sha256::digest(b"unused adapters"))),
+        );
+        fs::write(
+            root.join("cohort.json"),
+            serde_json::to_vec(&json!({"schemaVersion": 1, "artifacts": artifacts})).unwrap(),
+        )
+        .unwrap();
+        Self(root)
+    }
+}
+
+impl Drop for Cohort {
+    fn drop(&mut self) {
+        remove(&self.0, "orchbee-integration-cohort-");
+    }
+}
+
+fn temporary(prefix: &str) -> PathBuf {
+    let mut nonce = [0; 16];
+    getrandom::fill(&mut nonce).unwrap();
+    let root = std::env::temp_dir().join(format!("{prefix}{:032x}", u128::from_le_bytes(nonce)));
+    fs::create_dir(&root).unwrap();
+    root
+}
+
+/// Removes a directory this suite created under the temporary root, waiting briefly for stopped
+/// Session processes to release their executables and logs.
+fn remove(path: &Path, prefix: &str) {
+    let target = fs::canonicalize(path).unwrap();
+    assert!(target.starts_with(fs::canonicalize(std::env::temp_dir()).unwrap()));
+    assert!(
+        path.file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .starts_with(prefix)
+    );
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        match fs::remove_dir_all(&target) {
+            Ok(()) => return,
+            Err(error) if Instant::now() >= deadline => {
+                panic!("remove {}: {error}", target.display())
+            }
+            Err(_) => std::thread::sleep(Duration::from_millis(100)),
+        }
+    }
+}
 
 #[test]
 fn hermes_plugin_activation_repairs_members_and_preserves_python_cache() {
@@ -1465,13 +1566,13 @@ fn windows_codex_inspects_complete_toml_without_rewriting_unrelated_settings() {
 }
 impl Fixture {
     fn new() -> Self {
-        let mut nonce = [0; 16];
-        getrandom::fill(&mut nonce).unwrap();
-        let root = std::env::temp_dir().join(format!(
-            "orchbee-integration-cli-{:032x}",
-            u128::from_le_bytes(nonce)
-        ));
-        for path in ["用户 & ' $ ` home/.codex", "explicit Codex home", "bin"] {
+        let root = temporary("orchbee-integration-cli-");
+        for path in [
+            "用户 & ' $ ` home/.codex",
+            "explicit Codex home",
+            "bin",
+            "runtime",
+        ] {
             fs::create_dir_all(root.join(path)).unwrap();
         }
         let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
@@ -1494,7 +1595,48 @@ impl Fixture {
             b"user_default = 'must remain untouched'\n",
         )
         .unwrap();
-        Self(root)
+        Self(root, Cohort::shared(), AtomicBool::new(false))
+    }
+    /// The CLI under test, selecting this fixture's runtime base and profile.
+    fn cli(&self) -> Command {
+        let mut command = Command::new(self.1.0.join("orchbee.exe"));
+        command
+            .env("ORCHBEE_RUNTIME_BASE", self.0.join("runtime"))
+            .env_remove("ORCHBEE_RUNTIME_SCOPE")
+            .env_remove("ORCHBEE_SESSION")
+            .env_remove("ORCHBEE_CONFIG_FILE")
+            .env_remove("ORCHBEE_TERMINAL_ID")
+            .env_remove("ORCHBEE_WORKER_ID")
+            .env("USERPROFILE", self.home())
+            .env("APPDATA", self.0.join("roaming"))
+            .env("LOCALAPPDATA", self.0.join("local"))
+            .env("HOME", self.0.join("wrong-posix-home"))
+            .env("LC_ALL", "en-US")
+            .current_dir(&self.0)
+            .stdin(Stdio::null());
+        command
+    }
+    /// Stops the Session an earlier verb may have activated and waits until its lifetime lock is
+    /// free, so the next verb's Session carries that verb's own environment.
+    fn stop(&self, strict: bool) {
+        if !self.2.swap(false, Ordering::AcqRel) {
+            return;
+        }
+        let output = self
+            .cli()
+            .args(["server", "stop", "--confirm", "--format", "json"])
+            .output()
+            .unwrap();
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap_or(Value::Null);
+        assert!(
+            !strict
+                || !matches!(
+                    document["result"]["outcome"].as_str(),
+                    Some("pending" | "busy" | "failed" | "unknown")
+                ),
+            "the previous verb's Session must stop: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
     }
     fn home(&self) -> PathBuf {
         self.0.join("用户 & ' $ ` home")
@@ -1533,7 +1675,8 @@ impl Fixture {
             .unwrap()
     }
     fn command(&self, verb: &str, provider: &str, config_home: &Path, extra: &[&str]) -> Command {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_orchbee"));
+        self.stop(true);
+        let mut command = self.cli();
         command
             .args([
                 "agent",
@@ -1554,22 +1697,15 @@ impl Fixture {
             .env_remove("QODER_CONFIG_DIR")
             .env_remove("CURSOR_CONFIG_DIR")
             .env_remove("KIMI_CODE_HOME")
-            .env("USERPROFILE", self.home())
-            .env("APPDATA", self.0.join("roaming"))
-            .env("LOCALAPPDATA", self.0.join("local"))
             .env_remove("HERMES_HOME")
             .env_remove("HERMES_DATA_DIR_SUFFIX")
-            .env("HOME", self.0.join("wrong-posix-home"))
             .env("CODEX_HOME", config_home)
             .env("GROK_HOME", config_home)
-            .env("PATH", self.0.join("bin"))
-            .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
-            .env("LC_ALL", "en-US")
-            .current_dir(&self.0)
-            .stdin(Stdio::null());
+            .env("PATH", self.0.join("bin"));
         if provider == "letta" {
             command.env_remove("HOME");
         }
+        self.2.store(true, Ordering::Release);
         command
     }
     fn document(&self, verb: &str, code: i32) -> Value {
@@ -1903,17 +2039,8 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        let target = fs::canonicalize(&self.0).unwrap();
-        assert!(target.starts_with(fs::canonicalize(std::env::temp_dir()).unwrap()));
-        assert!(
-            self.0
-                .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .starts_with("orchbee-integration-cli-")
-        );
-        fs::remove_dir_all(target).unwrap();
+        self.stop(!std::thread::panicking());
+        remove(&self.0, "orchbee-integration-cli-");
     }
 }
 

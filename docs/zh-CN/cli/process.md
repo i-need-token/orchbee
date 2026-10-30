@@ -62,7 +62,7 @@
 ## 信号与取消
 
 - `SIGINT` 和 `SIGTERM` 只中止调用自身的等待与观察。它们绝不发出语义取消；取消已受理的
-  操作需要显式的 `cancel` 动词。已声明的离线安装流程可停止并回收自身尚未移交的子进程；所属指南定义提交与恢复切点。
+  操作需要显式的 `cancel` 动词。已声明的离线安装流程可停止并回收自身尚未移交的子进程；所属指南定义提交与恢复切点。已声明、由 Session 运行且不暴露请求标识的配置 job（如 provider 接入）改为对本次调用自己启动的 job 登记协作取消，并等待该 job 的最终报告；所属指南定义取消切点。
 - 已声明的 `terminal send` 输入源只在其物化窗口内监视恰好 `SIGHUP`、`SIGINT`、`SIGQUIT`
   和 `SIGTERM` 四个信号，并扣除任何以忽略或阻塞方式继承的信号。捕获到的信号在
   任何请求存在之前以类型化源失败结束——在 `orchbee.cli.failure.source` 信封上报告；
@@ -100,4 +100,4 @@
 
 程序名准入在路由前必须仅处理语法。若命令拥有 PATH 解析职责，则最终执行的 CLI 必须在配置、发现与变更前解析出有界的绝对程序路径，逐字传递参数，并记录解析路径而不将其视为进程成功的证明。
 
-<!-- documentation-pairing: english-sha256=9ba6030095194ff149508a6d3316b1a8bd96d7774df1f3eddd270de96435451d zh-cn-sha256=4aa9fb725b44212382340ed46ef3315f6fe47a3ec10d3d290792eb1a8bcb4f6b -->
+<!-- documentation-pairing: english-sha256=e00ceb60ec60180b1888a002881dfc4e93c6c4ce17cb23e925c3b6d6bcdc8e7c zh-cn-sha256=f27f0cfbf155a99a35b3c07527bc886bebff0135f1df44c52ce231f68a6a7b83 -->

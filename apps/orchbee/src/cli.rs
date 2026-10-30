@@ -562,8 +562,8 @@ pub(crate) fn server_diagnose(format: OutputFormat, locale: Locale) -> Output {
     server_diagnose::run(format, locale)
 }
 
-/// `agent integration` is CLI-local provider onboarding: the bounded local
-/// runner owns every provider command, and no Session is started or contacted.
+/// `agent integration` is provider onboarding through the local Session: each verb declares
+/// activation, and the Session's Worker owns every provider command.
 pub(crate) fn agent_integration(
     command: crate::invocation::AgentIntegrationCommand,
     format: OutputFormat,

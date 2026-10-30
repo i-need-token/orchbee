@@ -519,48 +519,109 @@ fn startup_consumes_server_identity_and_finished_launch_receipts() {
     }
 }
 
-/// A managed provider whose executable is absent, or whose integration is not
-/// enabled, refuses locally before any Session contact: nothing is reserved or
-/// typed, and the diagnostic names the one command that resolves it.
+/// Answers the preflight's one integration job: the Start is accepted and the first poll
+/// completes with the Session Worker's codex row.
+fn integration_preflight(stream: &mut LocalStream, item: Value) {
+    use orchbee_workbench_protocol::{
+        AgentIntegrationAction, AgentIntegrationJob, AgentIntegrationOutcome,
+        AgentIntegrationResult, ProtocolVersion, WorkbenchRequest, WorkbenchResponse,
+        WorkbenchRevision, WorkerId, read_workbench_request, write_workbench_response,
+    };
+    let job = AgentIntegrationJob {
+        worker_id: WorkerId::parse(&"0b".repeat(16)).unwrap(),
+        generation: WorkbenchRevision::new(1),
+        job_id: "0a".repeat(16),
+    };
+    let report = json!({
+        "kind": "list",
+        "items": [item],
+        "capsule": {
+            "ready": false,
+            "root": {"text": r"C:\capsule"},
+            "sourceKind": "absent",
+            "bindingFailure": false,
+            "payloadSha256": "0".repeat(64),
+        },
+    });
+    for outcome in [
+        json!({"kind": "accepted", "job": job}),
+        json!({"kind": "completed", "job": job, "report": report}),
+    ] {
+        let WorkbenchRequest::AgentIntegration(request) = read_workbench_request(stream).unwrap()
+        else {
+            panic!("the preflight's Agent integration job");
+        };
+        match &request.action {
+            AgentIntegrationAction::Start { request } => {
+                let request = serde_json::to_value(request).unwrap();
+                assert_eq!(
+                    request["operation"],
+                    json!({"kind": "list", "provider": "codex"})
+                );
+                assert!(request.get("adapterSource").is_none());
+                let budget = request["budgetMilliseconds"].as_u64().unwrap();
+                assert!((1..=10_000).contains(&budget));
+            }
+            AgentIntegrationAction::Poll { job: polled } => assert_eq!(polled, &job),
+            AgentIntegrationAction::Cancel { .. } => {
+                panic!("an uninterrupted preflight never cancels")
+            }
+        }
+        write_workbench_response(
+            stream,
+            &WorkbenchResponse::AgentIntegration(AgentIntegrationResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                session_id: request.session_id,
+                outcome: serde_json::from_value::<AgentIntegrationOutcome>(outcome).unwrap(),
+            }),
+        )
+        .unwrap();
+    }
+}
+
+/// A managed provider whose executable is absent from the Session Worker's PATH, or whose
+/// integration the Worker reports as not enabled, refuses after the snapshot and before any
+/// reservation or input; the diagnostic names the one command that resolves it.
 #[test]
-fn startup_preflight_refuses_unready_integration_before_any_session_contact() {
-    for (installed, reason, hint) in [
-        (false, "provider-not-found", "was not found on PATH"),
+fn startup_preflight_refuses_unready_integration_before_any_reservation() {
+    for (availability, reason, hint) in [
+        ("not-found", "provider-not-found", "was not found on PATH"),
         (
-            true,
+            "available",
             "integration-not-enabled",
             "orchbee agent integration enable --provider codex",
         ),
     ] {
         let fixture = Fixture::new();
-        let bin = fixture.0.join("bin");
-        let home = fixture.0.join("home");
-        let codex_home = home.join(".codex");
-        for directory in [&bin, &codex_home] {
-            std::fs::create_dir_all(directory).unwrap();
-        }
-        if installed {
-            std::fs::write(bin.join("codex.cmd"), b"@exit /b 1\r\n").unwrap();
-        }
-        let output = fixture.run_with_env(
-            &[
-                "agent",
-                "start",
-                "alpha",
-                "--provider=codex",
-                "--panel",
-                PANEL,
-                "--format=json",
-            ],
-            None,
-            None,
-            &[
-                ("PATH", bin.as_os_str()),
-                ("USERPROFILE", home.as_os_str()),
-                ("CODEX_HOME", codex_home.as_os_str()),
-            ],
+        let rendezvous = fixture.rendezvous();
+        let item = json!({
+            "availability": availability,
+            "integrationId": "codex",
+            "issue": null,
+            "managementMode": "managed-local",
+            "state": "not-installed",
+            "timedOut": false,
+        });
+        let peer = peer(
+            &fixture,
+            LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
+            move |mut stream| {
+                bound_snapshot_reply(&mut stream);
+                integration_preflight(&mut stream, item);
+            },
         );
+        let output = fixture.run(&[
+            "agent",
+            "start",
+            "alpha",
+            "--provider=codex",
+            "--panel",
+            PANEL,
+            "--format=json",
+        ]);
         let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(peer.join().is_ok(), "{reason}: {stderr}");
         assert_eq!(output.status.code(), Some(1), "{reason}: {stderr}");
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         validate(

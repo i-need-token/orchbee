@@ -53,17 +53,6 @@ pub(crate) fn run(command: &AgentStartCommand, format: OutputFormat, locale: Loc
         );
     }
     let deadline = started + Duration::from_millis(u64::from(command.timeout_ms));
-    if let Some(failure) = integration_preflight(
-        request.provider.as_str(),
-        deadline.min(Instant::now() + PREFLIGHT_BUDGET),
-    ) {
-        return project(
-            Report::preflight(request, started, failure),
-            format,
-            locale,
-            None,
-        );
-    }
     let armed = match ArmedSignals::arm_interrupts() {
         Ok(armed) => armed,
         Err(_) => {
@@ -119,7 +108,16 @@ fn run_local(
     let admitted = crate::agent_start::step_deadline(deadline)
         .map_err(report::domain_failure)
         .and_then(|step| super::query::stream_snapshot(step, wake))
-        .and_then(|(client, snapshot)| {
+        .and_then(|(mut client, snapshot)| {
+            if let Some(failure) = integration_preflight(
+                &mut client,
+                &snapshot.session_id,
+                request.provider.as_str(),
+                deadline,
+                wake,
+            ) {
+                return Err(failure);
+            }
             let target = prepared.resolve(&snapshot)?;
             let super::results::Projection::PanelGet(panel) = super::results::project(
                 &crate::invocation::QueryCommand::PanelGet(target),
@@ -154,24 +152,57 @@ fn failure(kind: FailureKind, reason: &str) -> Failure {
     Failure::new(kind).details(super::stage_reason_details("agent-start", reason))
 }
 
-/// The local inspection never consumes more than this share of the start
+/// The Worker inspection never consumes more than this share of the start
 /// budget; an inspection it cuts short is inconclusive, not a refusal.
 const PREFLIGHT_BUDGET: Duration = Duration::from_secs(10);
 
-/// Refuse before any reservation or input when this machine's managed
-/// integration cannot report readiness for the provider: its executable is
-/// absent, its hooks are not enabled, or the adapter capsule is not published.
-/// An unmanaged provider, a manual-only platform or an inconclusive inspection
-/// leaves the decision to canonical readiness. Nothing here enables anything:
-/// enabling edits the provider's own configuration.
-fn integration_preflight(provider: &str, ceiling: Instant) -> Option<Failure> {
+/// Refuse before any reservation or input when the Session's Worker cannot report readiness
+/// of its managed integration for the provider: its executable is absent, its hooks are not
+/// enabled, or the adapter capsule is not published. An unmanaged provider, a manual-only
+/// platform or an inconclusive, interrupted or failed inspection leaves the decision to canonical
+/// readiness. Nothing here enables anything: enabling edits the provider's own configuration.
+fn integration_preflight(
+    client: &mut crate::local_client::LocalClient,
+    session_id: &orchbee_workbench_protocol::SessionId,
+    provider: &str,
+    deadline: Instant,
+    wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+) -> Option<Failure> {
     use crate::agent_integrations::{
-        IntegrationId, State,
+        IntegrationId, IntegrationOperation, IntegrationReport, IntegrationRequest, State,
         model::{Availability, ManagementMode},
     };
+    use crate::local_client::agent_integration::AgentIntegrationJobEnd;
     let id = IntegrationId::parse(crate::agent_provider::integration_id(provider)?)?;
-    let context = crate::agent_integrations::context_before(None, None, ceiling).ok()?;
-    let (items, capsule) = crate::agent_integrations::list(&context, Some(id));
+    let budget = deadline
+        .saturating_duration_since(Instant::now())
+        .min(PREFLIGHT_BUDGET);
+    let request = IntegrationRequest {
+        operation: IntegrationOperation::List { provider: Some(id) },
+        adapter_source: None,
+        budget_milliseconds: Some(
+            u32::try_from(budget.as_millis())
+                .ok()
+                .filter(|ms| *ms > 0)?,
+        ),
+    };
+    let end = client.agent_integration_job(
+        session_id,
+        request,
+        deadline.min(Instant::now() + budget + PREFLIGHT_SETTLEMENT),
+        || super::query::request_id().ok(),
+        |pause| crate::agent_runtime::wait_backoff(wake, pause),
+    );
+    let AgentIntegrationJobEnd::Completed {
+        report,
+        cancel_registered: false,
+    } = end
+    else {
+        return None;
+    };
+    let IntegrationReport::List { items, capsule } = *report else {
+        return None;
+    };
     let item = items.first()?;
     if item.timed_out || item.management_mode != ManagementMode::ManagedLocal {
         return None;
@@ -187,6 +218,9 @@ fn integration_preflight(provider: &str, ceiling: Instant) -> Option<Failure> {
     };
     Some(failure(FailureKind::CheckFailed, reason))
 }
+
+/// Beyond its own budget the preflight waits only this long for the job's final report.
+const PREFLIGHT_SETTLEMENT: Duration = Duration::from_secs(1);
 
 fn project(
     mut report: Report,

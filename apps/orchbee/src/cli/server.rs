@@ -148,6 +148,27 @@ fn run() -> Result<StartOutcome, Failure> {
         .map_err(classify)
 }
 
+/// Converges the selected local Session toward readiness for a verb that declares activation,
+/// with `server start`'s failure vocabulary. The admitted probe is dropped.
+pub(super) fn activate(deadline: std::time::Instant) -> Result<(), Failure> {
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    {
+        crate::local_activation::activate_local_session(deadline)
+            .map(drop)
+            .map_err(classify)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+    {
+        let _unsupported = deadline;
+        Err(
+            Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
+                "platform",
+                "unsupported-platform",
+            )),
+        )
+    }
+}
+
 /// Project the shared activation failure onto the CLI's typed vocabulary.
 /// The raw cause — never a string — selects the arm; the verdict only
 /// arbitrates between a typed cause and a bare lifecycle refusal.
