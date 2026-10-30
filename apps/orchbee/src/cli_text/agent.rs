@@ -1,7 +1,7 @@
 //! Localized Agent observations and command help; does not reinterpret Agent state.
 
 use super::Locale;
-use crate::cli::Failure;
+use crate::cli_outcome::Failure;
 
 pub(super) const HELP_AGENT_LIST_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
@@ -248,7 +248,7 @@ impl super::CliText {
 
     pub(crate) fn cli_agent_client_view(
         self,
-        view: &crate::cli::results::AgentClientViewDoc,
+        view: &crate::cli_outcome::AgentClientViewDoc,
     ) -> String {
         let (seen, focused, status) = match self.locale {
             Locale::EnUs => (
@@ -583,7 +583,7 @@ impl super::CliText {
     /// kind names the operation's own stage, and `not-found` echoes the
     /// escaped session identity instead of a resource/target pair.
     pub(super) fn cli_agent_failure(self, failure: &Failure) -> String {
-        use crate::cli::FailureKind;
+        use crate::cli_outcome::FailureKind;
         match failure.kind {
             FailureKind::NotFound => {
                 let session = failure
@@ -592,7 +592,7 @@ impl super::CliText {
                     .and_then(|details| details.get("sessionId"))
                     .and_then(|value| value.as_str())
                     .unwrap_or("");
-                let escaped = crate::cli::escape::quoted(session);
+                let escaped = crate::cli_text::escape::quoted(session);
                 match self.locale {
                     Locale::EnUs => format!("No agent session matches {escaped}.\n"),
                     Locale::ZhCn => format!("没有与 {escaped} 匹配的智能体会话。\n"),

@@ -79,15 +79,17 @@ pub(super) fn render(
     out.write(format_args!(
         "{}\n{}  {}\n",
         CliText::new(locale).cli_agent_terminal_heading(),
-        super::escape::unquoted(fields["terminalTitleStripped"].as_str().unwrap_or("-")),
-        super::escape::unquoted(fields["cwd"].as_str().unwrap_or("-")),
+        crate::cli_text::escape::unquoted(fields["terminalTitleStripped"].as_str().unwrap_or("-")),
+        crate::cli_text::escape::unquoted(fields["cwd"].as_str().unwrap_or("-")),
     ))?;
     if let Some(metadata) = fields.get("metadata") {
         out.write(format_args!(
             "{}\n{}  {}\n",
             CliText::new(locale).cli_panel_metadata_heading(),
-            super::escape::unquoted(metadata["presentation"]["title"].as_str().unwrap_or("-")),
-            super::escape::unquoted(
+            crate::cli_text::escape::unquoted(
+                metadata["presentation"]["title"].as_str().unwrap_or("-")
+            ),
+            crate::cli_text::escape::unquoted(
                 metadata["presentation"]["displayAgent"]
                     .as_str()
                     .unwrap_or("-")
@@ -103,8 +105,10 @@ pub(super) fn render(
                 for (key, value) in values {
                     out.write(format_args!(
                         "{}={}\n",
-                        super::escape::unquoted(key),
-                        super::escape::unquoted(value.as_str().expect("typed metadata value"))
+                        crate::cli_text::escape::unquoted(key),
+                        crate::cli_text::escape::unquoted(
+                            value.as_str().expect("typed metadata value")
+                        )
                     ))?;
                 }
             }

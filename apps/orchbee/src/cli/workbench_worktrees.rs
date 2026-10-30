@@ -242,7 +242,7 @@ impl Document {
                 "{}  {}  {}\n",
                 id,
                 state,
-                super::escape::escape(path)
+                crate::cli_text::escape::escape(path)
             ))?;
         }
         Ok(())

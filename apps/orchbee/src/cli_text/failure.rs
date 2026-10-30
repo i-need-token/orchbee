@@ -1,13 +1,13 @@
 //! Localized CLI failure routing and shared diagnostics; does not recover or retry operations.
 
 use super::{Locale, failure_target};
-use crate::cli::Failure;
+use crate::cli_outcome::Failure;
 
 impl super::CliText {
     /// Localized human diagnostic for one CLI failure. User-controlled data is
     /// escaped before it reaches the terminal.
     pub(crate) fn cli_failure(self, failure: &Failure) -> String {
-        use crate::cli::FailureKind;
+        use crate::cli_outcome::FailureKind;
         if failure.failure_schema.is_none()
             && failure
                 .details
@@ -118,12 +118,13 @@ impl super::CliText {
             == Some("local-runtime");
         // The dedicated `worktree list` failure envelope owns its own
         // wording; the schema marker is the unambiguous discriminator.
-        if failure.failure_schema == Some(crate::cli::schema::WORKTREE_FAILURE_ID) {
+        if failure.failure_schema == Some(crate::invocation::grammar::schemas::WORKTREE_FAILURE_ID)
+        {
             return self.cli_worktree_failure(failure);
         }
         // Agent read and cancelled failures answer under the dedicated Agent
         // envelope; the schema marker selects their wording the same way.
-        if failure.failure_schema == Some(crate::cli::schema::AGENT_FAILURE_ID) {
+        if failure.failure_schema == Some(crate::invocation::grammar::schemas::AGENT_FAILURE_ID) {
             return self.cli_agent_failure(failure);
         }
         if failure.failure_schema == Some("orchbee.cli.failure.agent-projection") {
@@ -131,7 +132,9 @@ impl super::CliText {
         }
         // Launch-profile catalog reads and profile resolutions answer under
         // their dedicated envelope the same way.
-        if failure.failure_schema == Some(crate::cli::schema::LAUNCH_PROFILE_FAILURE_ID) {
+        if failure.failure_schema
+            == Some(crate::invocation::grammar::schemas::LAUNCH_PROFILE_FAILURE_ID)
+        {
             return self.cli_launch_profile_failure(failure);
         }
         if failure.failure_schema == Some("orchbee.cli.failure.agent-names") {
@@ -386,7 +389,7 @@ impl super::CliText {
     }
 
     fn cli_invalid_identifier(self, resource: &str, target: &str) -> String {
-        let escaped = crate::cli::escape::quoted(target);
+        let escaped = crate::cli_text::escape::quoted(target);
         match self.locale {
             Locale::EnUs => {
                 format!("Invalid {resource} identifier {escaped}.\n")
@@ -396,7 +399,7 @@ impl super::CliText {
     }
 
     fn cli_not_found(self, resource: &str, target: &str) -> String {
-        let escaped = crate::cli::escape::quoted(target);
+        let escaped = crate::cli_text::escape::quoted(target);
         match self.locale {
             Locale::EnUs => format!("No {resource} matches {escaped}.\n"),
             Locale::ZhCn => format!("没有与 {escaped} 匹配的 {resource}。\n"),
@@ -406,7 +409,7 @@ impl super::CliText {
     /// The bounded candidate list and the true total: list handles with
     /// labels when the resolver supplied them, otherwise the JSON identifiers.
     fn cli_ambiguous(self, resource: &str, target: &str, failure: &Failure) -> String {
-        let escaped = crate::cli::escape::quoted(target);
+        let escaped = crate::cli_text::escape::quoted(target);
         let details = failure.details.as_ref();
         let listed: Vec<String> = match &failure.candidate_display {
             Some(display) => display.lines.clone(),

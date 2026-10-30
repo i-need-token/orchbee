@@ -1,9 +1,9 @@
 //! Localized worktree operations, query failures, and command help; does not inspect or mutate checkouts.
 
 use super::failure_target;
-use crate::cli::Failure;
-use crate::cli::escape::native_path;
-use crate::{cli::escape::escape, invocation::CommandPath, localization::Locale};
+use crate::cli_outcome::Failure;
+use crate::native_path;
+use crate::{cli_text::escape::escape, invocation::CommandPath, localization::Locale};
 use serde_json::Value;
 
 impl super::CliText {
@@ -268,9 +268,9 @@ impl super::CliText {
                 let mut text = format!(
                     "{}: {}\n{}: {}\n",
                     word("Repository", "仓库"),
-                    native_path(source.repository_root.as_str()),
+                    native_path::display(source.repository_root.as_str()),
                     word("Source checkout", "来源检出"),
-                    native_path(source.checkout_path.as_str())
+                    native_path::display(source.checkout_path.as_str())
                 );
                 for entry in entries {
                     let checkout = &entry.checkout;
@@ -290,7 +290,7 @@ impl super::CliText {
                     };
                     text.push_str(&format!(
                         "\n{}  [{}]  {}\n",
-                        native_path(path),
+                        native_path::display(path),
                         kind,
                         escape(branch)
                     ));
@@ -384,7 +384,7 @@ impl super::CliText {
     /// `worktree list` failure diagnostics, keyed by the details the typed
     /// outcome mapping produced. Every line states what the listing observed.
     pub(super) fn cli_worktree_failure(self, failure: &Failure) -> String {
-        use crate::cli::FailureKind;
+        use crate::cli_outcome::FailureKind;
         let detail = |name: &str| {
             failure
                 .details

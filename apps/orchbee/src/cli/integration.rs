@@ -7,9 +7,9 @@
 use crate::cli_text::CliText;
 use serde_json::{Map, Value, json};
 
-#[cfg(any(unix, windows))]
-use super::escape::{display_width, escape};
 use super::{Failure, FailureKind, Output, failure_output, output, stage_reason_details};
+#[cfg(any(unix, windows))]
+use crate::cli_text::escape::{display_width, escape};
 use crate::invocation::{AgentIntegrationCommand, OutputFormat};
 use crate::localization::Locale;
 
@@ -412,7 +412,7 @@ fn capsule_json(capsule: &CapsuleStatus) -> Value {
     } else {
         "not-ready"
     };
-    let (root_key, root_value) = super::config::path_detail(&capsule.root);
+    let (root_key, root_value) = crate::native_path::detail(&capsule.root);
     let root_key = if root_key == "path" {
         "rootPath"
     } else {

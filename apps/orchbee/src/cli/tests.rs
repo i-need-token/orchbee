@@ -169,10 +169,10 @@ fn launch_profile_documents_preserve_platform_paths_and_reject_relative_paths() 
 }
 
 use super::results::{
-    ContextRef, Projection, TabDoc, TabRow, TerminalListDetails, TerminalListDocument,
-    TerminalListState, TerminalRow,
+    ContextRef, Projection, TabDoc, TabRow, TerminalListDetails, TerminalListDocument, TerminalRow,
 };
 use super::{OutputFormat, output};
+use crate::cli_outcome::TerminalListState;
 use crate::invocation::{ParseFailure, ParseFailureKind, QueryCommand, Target};
 use crate::localization::Locale;
 
@@ -290,81 +290,6 @@ fn usage_advice_uses_command_scope_and_preserves_usage_exits() {
 }
 
 #[test]
-fn unknown_option_advice_uses_root_family_and_leaf_grammar_scopes() {
-    use crate::invocation::{UsageContext, UsageReason};
-
-    let advice = |context, option: &str| {
-        super::usage::suggestions(&UsageReason::UnknownOption {
-            context,
-            option: option.to_owned(),
-        })
-    };
-
-    assert!(
-        advice(UsageContext::Root, "--hlep")
-            .iter()
-            .any(|candidate| candidate == "--help")
-    );
-    #[cfg(windows)]
-    {
-        assert!(
-            advice(UsageContext::Root, "--sesion")
-                .iter()
-                .any(|candidate| candidate == "--session")
-        );
-        assert!(
-            advice(UsageContext::Root, "--machne")
-                .iter()
-                .any(|candidate| candidate == "--machine")
-        );
-    }
-    #[cfg(not(windows))]
-    {
-        assert!(
-            !advice(UsageContext::Root, "--sesion")
-                .iter()
-                .any(|candidate| candidate == "--session")
-        );
-        assert!(
-            !advice(UsageContext::Root, "--machne")
-                .iter()
-                .any(|candidate| candidate == "--machine")
-        );
-    }
-    assert!(
-        advice(UsageContext::Path("agent"), "--prvider")
-            .iter()
-            .any(|candidate| candidate == "--provider")
-    );
-    assert!(
-        advice(UsageContext::Path("agent integration"), "--adapter-souce")
-            .iter()
-            .any(|candidate| candidate == "--adapter-source")
-    );
-    assert!(
-        advice(UsageContext::Path("terminal list"), "--formt")
-            .iter()
-            .any(|candidate| candidate == "--format")
-    );
-    assert!(
-        advice(UsageContext::Path("terminal list"), "--formt=json")
-            .iter()
-            .any(|candidate| candidate == "--format")
-    );
-    for option in ["-x", "-x=value"] {
-        assert!(advice(UsageContext::Root, option).is_empty(), "{option}");
-        assert!(
-            advice(UsageContext::Path("agent"), option).is_empty(),
-            "{option}"
-        );
-    }
-
-    assert!(advice(UsageContext::Root, &format!("--{}", "x".repeat(65))).is_empty());
-    assert!(advice(UsageContext::Root, "--hélp").is_empty());
-    assert!(advice(UsageContext::Root, "--for").len() <= 3);
-}
-
-#[test]
 fn terminal_lists_use_localized_headers_and_copyable_stable_handles() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let rows = (1..=2)
@@ -388,7 +313,7 @@ fn terminal_lists_use_localized_headers_and_copyable_stable_handles() {
         assert_eq!(text.lines().count(), 3);
         assert!(
             text.lines()
-                .all(|line| super::escape::display_width(line) <= 80)
+                .all(|line| crate::cli_text::escape::display_width(line) <= 80)
         );
         assert!(text.contains("@terminal:0x1"), "{text}");
         assert!(text.contains("@terminal:0x2"), "{text}");
@@ -1819,56 +1744,6 @@ fn terminal_get_text_is_a_sentence_and_aligned_labels() {
         }
         assert!(!text.contains("createOutcome"), "{text}");
     }
-}
-
-#[test]
-fn usage_advice_offers_synonyms_and_the_label_form() {
-    use crate::invocation::{UsageContext, UsageReason};
-    let unknown = |context, word: &str| {
-        super::usage::suggestions(&UsageReason::UnknownCommand {
-            context,
-            word: word.to_owned(),
-        })
-    };
-    assert_eq!(
-        unknown(UsageContext::Path("workspace"), "delete")[0],
-        "close"
-    );
-    assert_eq!(unknown(UsageContext::Path("tab"), "rm")[0], "close");
-    let stray = |context, value: &str| {
-        super::usage::suggestions(&UsageReason::UnexpectedArgument {
-            context,
-            value: value.to_owned(),
-        })
-    };
-    assert_eq!(
-        stray(UsageContext::Path("tab rename"), "main"),
-        ["--label main"]
-    );
-    assert_eq!(
-        stray(UsageContext::Path("project create"), "demo"),
-        ["--label demo"]
-    );
-    assert!(stray(UsageContext::Path("terminal list"), "x").is_empty());
-}
-
-#[test]
-fn git_paths_render_with_native_separators() {
-    let rendered = super::escape::native_path("C:/Users/me/code/orchbee");
-    if cfg!(windows) {
-        assert_eq!(rendered, r"C:\Users\me\code\orchbee");
-    } else {
-        assert_eq!(rendered, "C:/Users/me/code/orchbee");
-    }
-    assert_eq!(super::escape::native_path("relative/path"), "relative/path");
-    assert_eq!(
-        super::escape::native_path("C:/x\u{1b}"),
-        if cfg!(windows) {
-            r"C:\x\u{001b}"
-        } else {
-            r"C:/x\u{001b}"
-        }
-    );
 }
 
 #[test]

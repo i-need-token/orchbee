@@ -219,7 +219,7 @@ impl Resolved {
             "{}: {}  {}\n",
             CliText::new(locale).cli_current_presentation_label(),
             self.presentation_id,
-            super::escape::escape(&self.presentation.display_label)
+            crate::cli_text::escape::escape(&self.presentation.display_label)
         ))
     }
 }

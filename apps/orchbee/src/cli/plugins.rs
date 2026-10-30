@@ -126,7 +126,7 @@ fn execute(
     })
 }
 fn render(result: &Value, locale: Locale) -> String {
-    let string = |value: &Value| super::escape::escape(value.as_str().unwrap_or(""));
+    let string = |value: &Value| crate::cli_text::escape::escape(value.as_str().unwrap_or(""));
     if result["kind"] == "directory" {
         return format!("{}\n", string(&result["path"]));
     }

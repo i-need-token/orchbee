@@ -2020,7 +2020,7 @@ fn workspace_get_text_leads_with_the_workspace_and_its_directory_path() {
             panic!("workspace get projection");
         };
         let summary = CliText::new(locale).cli_workspace_summary(
-            &crate::cli::escape::quoted(&doc.row.label),
+            &crate::cli_text::escape::quoted(&doc.row.label),
             doc.row.number,
             doc.row.tab_count,
             doc.row.panel_count,

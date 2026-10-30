@@ -138,11 +138,11 @@ fn absent_paths_report_exists_false_io_errors_omit_it() {
 #[test]
 fn non_utf8_paths_encode_as_path_bytes_hex() {
     // The machine field is exact bytes, never a lossy display string.
-    let (key, value) = path_detail(Path::new("/tmp/utf8"));
+    let (key, value) = crate::native_path::detail(Path::new("/tmp/utf8"));
     assert_eq!(key, "path");
     assert_eq!(value, json!("/tmp/utf8"));
     let raw = std::ffi::OsStr::from_bytes(b"/tmp/\xff\xfe");
-    let (key, value) = path_detail(Path::new(raw));
+    let (key, value) = crate::native_path::detail(Path::new(raw));
     assert_eq!(key, "pathBytesHex");
     let hex: String = raw
         .as_bytes()

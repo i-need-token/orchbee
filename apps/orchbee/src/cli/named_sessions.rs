@@ -3,7 +3,8 @@
 //! Session solely from an endpoint pathname.
 
 use super::console_interrupt::{ArmedSignals, Finish, SignalWatch};
-use super::{Failure, FailureKind, Output, config, failure_output, output};
+use super::{Failure, FailureKind, Output, failure_output, output};
+use crate::cli_outcome::SessionState;
 use crate::cli_text::CliText;
 use crate::{
     invocation::{NamedSessionCommand, OutputFormat},
@@ -29,41 +30,6 @@ mod platform;
 #[cfg(not(windows))]
 #[path = "named_sessions/unix.rs"]
 mod platform;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SessionState {
-    Running,
-    Stopping,
-    Stopped,
-    Absent,
-    Starting,
-    Deleting,
-    RecoveryRequired,
-    Recoverable,
-    Unreadable,
-}
-impl SessionState {
-    pub(crate) fn token(self) -> &'static str {
-        match self {
-            Self::Running => "running",
-            Self::Stopping => "stopping",
-            Self::Stopped => "stopped",
-            Self::Absent => "absent",
-            Self::Starting => "starting",
-            Self::Deleting => "deleting",
-            Self::RecoveryRequired => "recovery-required",
-            Self::Recoverable => "recoverable",
-            Self::Unreadable => "unreadable",
-        }
-    }
-    fn running(self) -> Option<bool> {
-        match self {
-            Self::Running | Self::Stopping => Some(true),
-            Self::Stopped | Self::Absent | Self::Recoverable => Some(false),
-            _ => None,
-        }
-    }
-}
 
 pub(crate) fn run(command: &NamedSessionCommand, format: OutputFormat, locale: Locale) -> Output {
     if let Err(failure) = super::execution::admit(super::execution::Capability::NamedSessions) {
@@ -153,7 +119,7 @@ fn delete(
 
 fn failed(failure: Failure, format: OutputFormat, locale: Locale) -> Output {
     failure_output(
-        failure.source(config::local_runtime_source()),
+        failure.source(crate::cli_outcome::local_runtime_source()),
         Some(format),
         locale,
     )
@@ -199,7 +165,7 @@ fn list(format: OutputFormat, locale: Locale) -> Output {
             }
             let (state, pid) = observe(&entry, deadline, &signals)?;
             let [endpoint, _] = Rendezvous::socket_paths(&entry.runtime);
-            let path = Value::Object(serde_json::Map::from_iter([config::path_detail(
+            let path = Value::Object(serde_json::Map::from_iter([crate::native_path::detail(
                 &entry.runtime,
             )]));
             documents.push(
@@ -211,7 +177,7 @@ fn list(format: OutputFormat, locale: Locale) -> Output {
             rows.push(vec![
                 entry.name.as_str().to_owned(),
                 CliText::new(locale).cli_session_state(state).to_owned(),
-                super::escape::native_path(&entry.runtime.to_string_lossy()),
+                crate::native_path::display(&entry.runtime.to_string_lossy()),
             ]);
         }
         let text = if rows.is_empty() {
@@ -397,7 +363,7 @@ fn emit(
 ) -> Output {
     let encoded = match format {
         OutputFormat::Json => output::encode_document(
-            &json!({"schema":schema,"version":1,"source":config::local_runtime_source(),"result":result}),
+            &json!({"schema":schema,"version":1,"source":crate::cli_outcome::local_runtime_source(),"result":result}),
         ),
         OutputFormat::Text => output::encode_text(&text),
     };

@@ -3,8 +3,9 @@ use super::{CliText, Locale};
 
 #[test]
 fn agent_start_preserves_the_caller_context_usage_hint() {
-    let mut failure = crate::cli::Failure::new(crate::cli::FailureKind::InvalidUsage)
-        .failure_schema("orchbee.cli.failure.agent-start");
+    let mut failure =
+        crate::cli_outcome::Failure::new(crate::cli_outcome::FailureKind::InvalidUsage)
+            .failure_schema("orchbee.cli.failure.agent-start");
     failure.usage = Some(Box::new(
         crate::invocation::UsageReason::CallerContextUnavailable,
     ));
@@ -20,7 +21,7 @@ fn agent_start_preserves_the_caller_context_usage_hint() {
 
 #[test]
 fn missing_agent_panel_reports_the_target_and_discovery_command() {
-    let failure = crate::cli::Failure::new(crate::cli::FailureKind::NotFound)
+    let failure = crate::cli_outcome::Failure::new(crate::cli_outcome::FailureKind::NotFound)
         .failure_schema("orchbee.cli.failure.agent-start")
         .details(serde_json::Map::from_iter([
             ("reason".into(), serde_json::json!("startup-failed")),
@@ -63,7 +64,7 @@ fn display_name_hints_follow_target_syntax_in_both_locales() {
 /// layer with its 256-scalar prefix bound.
 #[test]
 fn cli_usage_diagnostics_are_localized_and_escaped() {
-    use crate::cli::{Failure, FailureKind};
+    use crate::cli_outcome::{Failure, FailureKind};
     use crate::invocation::{UsageContext, UsageReason};
 
     let usage_failure = |usage: UsageReason| Failure {
@@ -328,7 +329,7 @@ fn popup_receipt_text_preserves_incomplete_reason_status_and_query_guidance_in_b
 
 #[test]
 fn viewer_read_failures_explain_the_cause_without_internal_reason_codes() {
-    use crate::cli::{Failure, FailureKind};
+    use crate::cli_outcome::{Failure, FailureKind};
 
     for reason in [
         "stale-revision",

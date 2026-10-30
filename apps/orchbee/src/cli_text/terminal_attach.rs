@@ -21,8 +21,8 @@ impl super::CliText {
         }
     }
 
-    pub(crate) fn terminal_stream_failure(self, failure: &crate::cli::Failure) -> String {
-        use crate::cli::FailureKind;
+    pub(crate) fn terminal_stream_failure(self, failure: &crate::cli_outcome::Failure) -> String {
+        use crate::cli_outcome::FailureKind;
         let message = match (self.locale, failure.kind) {
             (Locale::EnUs, FailureKind::Timeout) => "The terminal stream deadline elapsed.\n",
             (Locale::ZhCn, FailureKind::Timeout) => "终端流操作已超时。\n",
@@ -53,7 +53,7 @@ impl super::CliText {
         if !message.is_empty() {
             return message.to_owned();
         }
-        if failure.kind == crate::cli::FailureKind::Rejected {
+        if failure.kind == crate::cli_outcome::FailureKind::Rejected {
             let reason = failure
                 .details
                 .as_ref()

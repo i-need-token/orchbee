@@ -164,7 +164,7 @@ impl Document {
             .map(|r| r.handle.len())
             .max()
             .unwrap_or(0)
-            .max(super::escape::display_width(headers[1]));
+            .max(crate::cli_text::escape::display_width(headers[1]));
         let spare = 80usize.saturating_sub(4 + handle + 9 + 10);
         let title = 14.min(spare / 3);
         let agent = 12.min((spare - title) / 2);
@@ -216,7 +216,7 @@ mod tests {
             assert!(
                 lines
                     .iter()
-                    .all(|line| super::super::escape::display_width(line) <= 80),
+                    .all(|line| crate::cli_text::escape::display_width(line) <= 80),
                 "{text}"
             );
             assert!(!text.contains('\u{1b}'));

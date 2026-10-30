@@ -2,7 +2,7 @@
 
 use super::Locale;
 use super::failure_target;
-use crate::cli::Failure;
+use crate::cli_outcome::Failure;
 
 pub(super) const HELP_LAUNCH_PROFILE_LIST_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
@@ -57,7 +57,7 @@ impl super::CliText {
     /// catalog outcome mapping produced. Every line states what the catalog
     /// resolution observed — the CLI never resolved the selector itself.
     pub(super) fn cli_launch_profile_failure(self, failure: &Failure) -> String {
-        use crate::cli::FailureKind;
+        use crate::cli_outcome::FailureKind;
         let detail = |name: &str| {
             failure
                 .details
@@ -69,7 +69,7 @@ impl super::CliText {
         match failure.kind {
             FailureKind::NotFound => {
                 let (_resource, target) = failure_target(failure);
-                let escaped = crate::cli::escape::quoted(&target);
+                let escaped = crate::cli_text::escape::quoted(&target);
                 match self.locale {
                     Locale::EnUs => {
                         format!("No launch profile matches {escaped}.\n")
@@ -79,7 +79,7 @@ impl super::CliText {
             }
             FailureKind::Ambiguous => {
                 let (_resource, target) = failure_target(failure);
-                let escaped = crate::cli::escape::quoted(&target);
+                let escaped = crate::cli_text::escape::quoted(&target);
                 match self.locale {
                     Locale::EnUs => {
                         format!(

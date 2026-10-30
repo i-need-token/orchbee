@@ -2,6 +2,7 @@
 //! is started, no directory is created, and no lock is taken.
 
 use crate::cli_text::CliText;
+use crate::native_path;
 use std::path::Path;
 #[cfg(all(test, target_os = "linux"))]
 use std::path::PathBuf;
@@ -20,12 +21,9 @@ use orchbee_local_runtime::{
 
 const CHECK_BUDGET: Duration = Duration::from_secs(5);
 
-#[cfg(windows)]
-#[path = "config/windows.rs"]
-mod platform;
-#[cfg(not(windows))]
-#[path = "config/unix.rs"]
-mod platform;
+/// Unix keeps the existing trailing unsupported-check row; Windows reports its complete check
+/// inventory.
+const APPEND_UNSUPPORTED_CHECK: bool = cfg!(not(windows));
 
 pub(crate) struct CheckReport {
     pub(crate) name: &'static str,
@@ -69,16 +67,6 @@ fn detail(pairs: impl IntoIterator<Item = (String, Value)>) -> Map<String, Value
     Map::from_iter(pairs)
 }
 
-/// A filesystem path as a machine field: UTF-8 paths are `path`; native
-/// non-Unicode representations retain bytes or UTF-16 without lossy display.
-pub(crate) fn path_detail(path: &Path) -> (String, Value) {
-    platform::path_detail(path)
-}
-
-pub(crate) fn local_runtime_source() -> Value {
-    json!({ "kind": "local-runtime" })
-}
-
 pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
     match run_checks() {
         Err(failure) => failure_output(failure, Some(format), locale),
@@ -92,7 +80,7 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
                     })
                 })
                 .collect::<Vec<_>>();
-            if platform::APPEND_UNSUPPORTED_CHECK {
+            if APPEND_UNSUPPORTED_CHECK {
                 check_documents.push(json!({"kind":"unsupported"}));
             }
             let result = json!({
@@ -121,7 +109,7 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
                     let document = json!({
                         "schema": "orchbee.config.check",
                         "version": 1,
-                        "source": local_runtime_source(),
+                        "source": crate::cli_outcome::local_runtime_source(),
                         "result": result,
                     });
                     match output::encode_document(&document) {
@@ -209,12 +197,15 @@ fn classify_paths(
         Ok(_) => (
             pass(
                 "runtime-base",
-                detail([path_detail(base), ("exists".to_owned(), json!(true))]),
+                detail([
+                    native_path::detail(base),
+                    ("exists".to_owned(), json!(true)),
+                ]),
             ),
             pass(
                 "runtime-directory",
                 detail([
-                    path_detail(scope_directory),
+                    native_path::detail(scope_directory),
                     ("exists".to_owned(), json!(true)),
                 ]),
             ),
@@ -261,7 +252,10 @@ fn classify_paths(
             let base_pass = || {
                 pass(
                     "runtime-base",
-                    detail([path_detail(base), ("exists".to_owned(), json!(true))]),
+                    detail([
+                        native_path::detail(base),
+                        ("exists".to_owned(), json!(true)),
+                    ]),
                 )
             };
             let path_failure = |name: &'static str, target: &Path| {
@@ -269,7 +263,7 @@ fn classify_paths(
                 if let Some(exists) = established {
                     details.insert("exists".to_owned(), json!(exists));
                 }
-                let (key, value) = path_detail(target);
+                let (key, value) = native_path::detail(target);
                 details.insert(key, value);
                 fail(name, details)
             };
@@ -281,7 +275,7 @@ fn classify_paths(
                     not_applicable(
                         "runtime-directory",
                         detail([
-                            path_detail(scope_directory),
+                            native_path::detail(scope_directory),
                             ("exists".to_owned(), json!(false)),
                             ("reason".to_owned(), json!("absent")),
                         ]),
@@ -440,7 +434,7 @@ fn socket_budget_entry(path: &Path) -> (Map<String, Value>, bool) {
             json!(UNIX_SOCKET_PATH_CAPACITY),
         ),
     ]);
-    let (key, value) = path_detail(path);
+    let (key, value) = native_path::detail(path);
     details.insert(key, value);
     (details, !fits)
 }
@@ -480,7 +474,7 @@ fn socket_entry(
                 json!(UNIX_SOCKET_PATH_CAPACITY),
             ),
         ]);
-        let (key, value) = path_detail(path);
+        let (key, value) = native_path::detail(path);
         details.insert(key, value);
         return (details, presence == "present", true);
     }

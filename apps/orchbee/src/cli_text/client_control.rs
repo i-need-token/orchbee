@@ -1,6 +1,6 @@
 //! Formats Client navigation, selection and control receipts without choosing targets or executing transitions.
 use super::Locale;
-use crate::cli::escape::escape;
+use crate::cli_text::escape::escape;
 use serde_json::Value;
 
 pub(super) const HELP_AGENT_FOCUS_EN: crate::cli_text::HelpDetails =

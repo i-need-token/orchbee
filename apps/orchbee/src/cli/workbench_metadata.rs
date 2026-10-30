@@ -177,8 +177,8 @@ impl Document {
                 out.write(format_args!(
                     "{}  {}={}\n",
                     id,
-                    super::escape::escape(key.as_str()),
-                    super::escape::escape(value.as_str())
+                    crate::cli_text::escape::escape(key.as_str()),
+                    crate::cli_text::escape::escape(value.as_str())
                 ))?;
             }
         }

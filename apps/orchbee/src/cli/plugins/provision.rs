@@ -163,7 +163,7 @@ fn render(
     operation_id: &str,
     locale: Locale,
 ) -> Result<Vec<u8>, output::TooLarge> {
-    use super::super::escape::escape;
+    use crate::cli_text::escape::escape;
     let write = |out: &mut output::Bounded| -> Result<(), std::fmt::Error> {
         writeln!(
             out,

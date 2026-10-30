@@ -108,10 +108,10 @@ impl super::CliText {
     /// Which process the Server attributes the foreground to.
     pub(crate) fn cli_process_summary(
         self,
-        selection: crate::cli::processes::Selection,
+        selection: crate::agent_runtime::processes::Selection,
         provider: Option<&str>,
     ) -> String {
-        use crate::cli::processes::Selection;
+        use crate::agent_runtime::processes::Selection;
         match (self.locale, selection) {
             (Locale::EnUs, Selection::AgentChain) => format!(
                 "The foreground process is the {} Agent.\n",

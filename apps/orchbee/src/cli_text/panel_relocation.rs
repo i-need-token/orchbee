@@ -33,7 +33,10 @@ impl super::CliText {
                         Locale::EnUs => en,
                         Locale::ZhCn => zh,
                     };
-                    text.push_str(&format!("{label}: {}\n", crate::cli::escape::escape(value)));
+                    text.push_str(&format!(
+                        "{label}: {}\n",
+                        crate::cli_text::escape::escape(value)
+                    ));
                 }
             }
         }
@@ -57,7 +60,10 @@ impl super::CliText {
                     Locale::EnUs => en,
                     Locale::ZhCn => zh,
                 };
-                text.push_str(&format!("{label}: {}\n", crate::cli::escape::escape(value)));
+                text.push_str(&format!(
+                    "{label}: {}\n",
+                    crate::cli_text::escape::escape(value)
+                ));
             }
         }
         if transfer["closedSourceTab"] == true {
@@ -71,7 +77,10 @@ impl super::CliText {
                 Locale::EnUs => "Workspace directory",
                 Locale::ZhCn => "工作区目录",
             };
-            text.push_str(&format!("{label}: {}\n", crate::cli::escape::escape(path)));
+            text.push_str(&format!(
+                "{label}: {}\n",
+                crate::cli_text::escape::escape(path)
+            ));
         }
         text
     }

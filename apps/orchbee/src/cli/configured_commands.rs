@@ -482,7 +482,9 @@ fn emit(
                                     })
                                     .filter(|keys| !keys.is_empty())
                                     .unwrap_or_else(|| "-".to_owned()),
-                                super::escape::escape(entry["description"].as_str().unwrap_or("")),
+                                crate::cli_text::escape::escape(
+                                    entry["description"].as_str().unwrap_or(""),
+                                ),
                             ]
                         })
                         .collect::<Vec<_>>(),

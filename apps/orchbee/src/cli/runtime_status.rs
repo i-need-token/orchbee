@@ -22,7 +22,7 @@ fn failed(mut failure: Failure, format: OutputFormat, locale: Locale) -> Output 
         failure = failure.details(super::stage_details("runtime-status"));
     }
     let mut result = failure_output(
-        failure.source(super::config::local_runtime_source()),
+        failure.source(crate::cli_outcome::local_runtime_source()),
         Some(format),
         locale,
     );

@@ -110,25 +110,25 @@ pub(crate) fn run(action: ConfigurationAction, format: OutputFormat, locale: Loc
                     ) = reply.as_ref().map(|reply| &reply.outcome)
                     {
                         text.push_str(&CliText::new(locale).cli_configuration_notifications(
-                            &super::escape::escape(&snapshot.notification_profile),
+                            &crate::cli_text::escape::escape(&snapshot.notification_profile),
                         ));
                         text.push_str(&CliText::new(locale).cli_configuration_title(
-                            &super::escape::escape(&snapshot.window_title),
+                            &crate::cli_text::escape::escape(&snapshot.window_title),
                         ));
                         text.push_str(&format!(
                             "spacesSidebarProfile={}\nfocusNewPanel={}\nnewCwd={}\n",
-                            super::escape::escape(&snapshot.spaces_sidebar_profile),
+                            crate::cli_text::escape::escape(&snapshot.spaces_sidebar_profile),
                             snapshot.focus_new_panel,
-                            super::escape::escape(&snapshot.new_cwd),
+                            crate::cli_text::escape::escape(&snapshot.new_cwd),
                         ));
                         if let Some(directory) = &snapshot.worktrees_directory {
                             text.push_str(&format!(
                                 "worktreesDirectory={}\n",
-                                super::escape::escape(directory)
+                                crate::cli_text::escape::escape(directory)
                             ));
                         }
                         text.push_str(&CliText::new(locale).cli_configuration_sidebar(
-                            &super::escape::escape(&snapshot.agent_sidebar_profile),
+                            &crate::cli_text::escape::escape(&snapshot.agent_sidebar_profile),
                         ));
                         text.push_str(&CliText::new(locale).cli_configuration_diagnostics(
                             snapshot.diagnostics.items.len(),
@@ -136,7 +136,7 @@ pub(crate) fn run(action: ConfigurationAction, format: OutputFormat, locale: Loc
                         ));
                         for diagnostic in &snapshot.diagnostics.items {
                             text.push_str(&CliText::new(locale).cli_configuration_diagnostic(
-                                &super::escape::escape(&diagnostic.field),
+                                &crate::cli_text::escape::escape(&diagnostic.field),
                                 &diagnostic.reason,
                                 match diagnostic.disposition {
                                     orchbee_workbench_protocol::ConfigurationDiagnosticDisposition::Defaulted => "defaulted",

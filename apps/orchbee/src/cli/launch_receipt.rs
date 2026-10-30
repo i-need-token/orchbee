@@ -16,7 +16,7 @@ pub(super) fn annotate(
     };
     if format == OutputFormat::Text {
         let suffix = CliText::new(locale)
-            .cli_resolved_executable(&super::escape::unquoted(launch.executable()));
+            .cli_resolved_executable(&crate::cli_text::escape::unquoted(launch.executable()));
         if suffix.len() > output::LIMIT.saturating_sub(output.stdout.len()) {
             return oversized(output, format, locale);
         }

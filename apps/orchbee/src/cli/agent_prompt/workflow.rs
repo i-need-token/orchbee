@@ -42,7 +42,7 @@ struct Matched {
     observations: u64,
     elapsed_ms: u64,
     timeout_ms: Option<u32>,
-    client: Option<Box<crate::cli::results::AgentClientViewDoc>>,
+    client: Option<Box<crate::cli_outcome::AgentClientViewDoc>>,
     matched_change: Option<(
         orchbee_agent_observation_protocol::ObapRequestId,
         orchbee_agent_observation_protocol::AgentChange,

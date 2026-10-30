@@ -238,14 +238,14 @@ pub(crate) fn run(
             )));
             text.push('\n');
             if let Some(path) = &report.published {
-                text.push_str(&super::escape::escape(
+                text.push_str(&crate::cli_text::escape::escape(
                     &path.join("orchbee.exe").to_string_lossy(),
                 ));
                 text.push('\n');
             }
             if let Some(path) = &report.cleanup_pending {
                 text.push_str(CliText::new(locale).cli_update_message("cleanup-pending"));
-                text.push_str(&super::escape::escape(&path.to_string_lossy()));
+                text.push_str(&crate::cli_text::escape::escape(&path.to_string_lossy()));
                 text.push('\n');
             }
             output::encode_text(&text)

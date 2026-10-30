@@ -364,8 +364,10 @@ impl Document {
             out.write(format_args!(
                 "{}  {}  {}\n",
                 id,
-                super::escape::escape(presentation.title.as_ref().map_or("-", |v| v.as_str())),
-                super::escape::escape(
+                crate::cli_text::escape::escape(
+                    presentation.title.as_ref().map_or("-", |v| v.as_str())
+                ),
+                crate::cli_text::escape::escape(
                     presentation
                         .display_agent
                         .as_ref()
@@ -377,8 +379,8 @@ impl Document {
                 out.write(format_args!(
                     "{}  {}={}\n",
                     id,
-                    super::escape::escape(key.as_str()),
-                    super::escape::escape(value.as_str())
+                    crate::cli_text::escape::escape(key.as_str()),
+                    crate::cli_text::escape::escape(value.as_str())
                 ))?;
             }
             for (state, value) in presentation.state_labels {
@@ -386,7 +388,7 @@ impl Document {
                     "{}  {}={}\n",
                     id,
                     serde_json::to_string(&state).expect("closed state"),
-                    super::escape::escape(value.as_str())
+                    crate::cli_text::escape::escape(value.as_str())
                 ))?;
             }
         }
@@ -454,7 +456,7 @@ pub(in crate::cli) fn render_report(
     ]) {
         out.write(format_args!(
             "{label}: {}\n",
-            super::escape::escape(value.as_str().unwrap_or("-"))
+            crate::cli_text::escape::escape(value.as_str().unwrap_or("-"))
         ))?;
     }
     Ok(())

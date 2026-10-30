@@ -1,6 +1,6 @@
 //! Formats manifest inspection and update outcomes with CLI escaping; collection and mutation remain with the feature runner.
 use super::Locale;
-use crate::cli::escape::escape;
+use crate::cli_text::escape::escape;
 use crate::invocation::CommandPath;
 use orchbee_workbench_protocol::{AgentManifestsOperation, AgentManifestsOutcome};
 impl super::CliText {

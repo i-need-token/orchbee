@@ -1,6 +1,6 @@
 //! Localized projection labels and actionable complete-read/selector failures.
 use super::Locale;
-use crate::cli::{Failure, FailureKind};
+use crate::cli_outcome::{Failure, FailureKind};
 impl super::CliText {
     pub(crate) fn cli_panel_table_headers(self) -> [&'static str; 6] {
         match self.locale {
@@ -101,14 +101,14 @@ impl super::CliText {
             for candidate in candidates {
                 if let Some(selector) = candidate["selector"].as_str() {
                     text.push_str("  ");
-                    text.push_str(&crate::cli::escape::unquoted(selector));
+                    text.push_str(&crate::cli_text::escape::unquoted(selector));
                     if let Some(id) = candidate["sessionId"].as_str() {
                         text.push_str("  --agent-session ");
-                        text.push_str(&crate::cli::escape::quoted(id));
+                        text.push_str(&crate::cli_text::escape::quoted(id));
                     }
                     if let Some(id) = candidate["panelId"].as_str() {
                         text.push_str("  panel=");
-                        text.push_str(&crate::cli::escape::unquoted(id));
+                        text.push_str(&crate::cli_text::escape::unquoted(id));
                     }
                     text.push('\n');
                 }

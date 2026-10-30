@@ -302,7 +302,7 @@ fn emit(
         OutputFormat::Json => output::encode_record(&document),
         OutputFormat::Text => output::encode_text(&format!(
             "reply\t{}\n",
-            crate::cli::escape::escape(
+            crate::cli_text::escape::escape(
                 &serde_json::to_string(&observation.document())
                     .map_err(|_| Failure::new(FailureKind::InternalFailure))?
             )

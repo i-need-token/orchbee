@@ -1,6 +1,6 @@
 //! Formats the observed key-reset report without reading or editing configuration.
 use super::Locale;
-use crate::cli::escape::quoted;
+use crate::cli_text::escape::quoted;
 use orchbee_local_runtime::{KeysResetOutcome, KeysResetReport};
 
 impl super::CliText {

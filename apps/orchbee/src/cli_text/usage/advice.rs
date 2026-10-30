@@ -4,7 +4,7 @@
 use crate::invocation::{HelpTopic, UsageContext, UsageReason, help_paths};
 
 /// Direct grammar children, in stable name order, for a missing command diagnostic.
-pub(crate) fn children(context: UsageContext) -> Vec<(&'static str, HelpTopic)> {
+pub(super) fn children(context: UsageContext) -> Vec<(&'static str, HelpTopic)> {
     let words = match context {
         UsageContext::Root => Vec::new(),
         UsageContext::Path(path) => path.split_whitespace().collect(),
@@ -36,12 +36,15 @@ const SYNONYMS: [(&str, &str); 10] = [
 /// At most three close spellings from this failure's grammar scope, a known
 /// synonym first, or the `--label` form of a stray label word.
 /// Oversized and non-ASCII input produces no advice and cannot grow the work budget.
-pub(crate) fn suggestions(reason: &UsageReason) -> Vec<String> {
+pub(super) fn suggestions(reason: &UsageReason) -> Vec<String> {
     if let UsageReason::UnexpectedArgument { context, value } = reason {
         let takes_label =
             crate::invocation::grammar::usage_option_candidates(*context).contains(&"--label");
         return if takes_label && !value.starts_with('-') && value.len() <= 128 {
-            vec![format!("--label {}", crate::cli::escape::escape(value))]
+            vec![format!(
+                "--label {}",
+                crate::cli_text::escape::escape(value)
+            )]
         } else {
             Vec::new()
         };
@@ -117,3 +120,6 @@ fn edit_distance(word: &str, candidate: &str) -> usize {
     }
     previous[candidate.len()]
 }
+
+#[cfg(test)]
+mod tests;

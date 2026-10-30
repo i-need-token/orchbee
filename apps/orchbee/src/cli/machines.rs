@@ -252,8 +252,8 @@ fn emit(
                             text.push_str(&format!(
                                 "{}\t{}\t{}\t{}\t{}\n",
                                 profile.id.as_str(),
-                                super::escape::escape(&profile.draft.label),
-                                super::escape::escape(&profile.draft.target),
+                                crate::cli_text::escape::escape(&profile.draft.label),
+                                crate::cli_text::escape::escape(&profile.draft.target),
                                 profile.draft.session.as_str(),
                                 CliText::new(locale).cli_machine_message(if profile.enabled {
                                     "enabled"

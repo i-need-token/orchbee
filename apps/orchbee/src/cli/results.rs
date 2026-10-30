@@ -19,6 +19,7 @@ use orchbee_workbench_protocol::{
 use serde_json::{Map, Value, json};
 
 use super::{CandidateDisplay, Failure, FailureKind, target_details};
+use crate::cli_outcome::{AgentClientViewDoc, TerminalListState};
 mod shape;
 pub(super) use shape::complete;
 
@@ -263,12 +264,6 @@ pub(crate) struct TerminalPlacement {
     /// Canonical Workspace handle when a placement is available.
     pub(crate) workspace: String,
     pub(crate) panel: String,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum TerminalListState {
-    Observed,
-    Agent(orchbee_workbench_protocol::PanelAgentState),
 }
 
 #[derive(Clone, Debug)]
@@ -1252,43 +1247,6 @@ impl AgentRuntimeDoc {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct AgentClientViewDoc {
-    pub(crate) client_id: orchbee_workbench_protocol::WorkbenchClientId,
-    pub(crate) operation_id: orchbee_workbench_protocol::WorkbenchRequestId,
-    pub(crate) phase: orchbee_workbench_protocol::ClientViewPhase,
-    pub(crate) outer_focused: Option<bool>,
-    pub(crate) focused: bool,
-    pub(crate) attention_revision: AgentSafeInteger,
-    pub(crate) state: AgentClientVersionMatch,
-    pub(crate) state_change_revision: Option<AgentSafeInteger>,
-    pub(crate) seen: Option<bool>,
-    pub(crate) status: Option<&'static str>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum AgentClientVersionMatch {
-    Current,
-    Missing,
-    Stale,
-}
-
-impl AgentClientViewDoc {
-    pub(crate) fn document(&self) -> Value {
-        let state = match self.state {
-            AgentClientVersionMatch::Current => "current",
-            AgentClientVersionMatch::Missing => "missing",
-            AgentClientVersionMatch::Stale => "stale",
-        };
-        json!({
-            "clientId": self.client_id, "operationId": self.operation_id,
-            "phase": self.phase, "outerFocused": self.outer_focused, "focused": self.focused,
-            "attentionRevision": self.attention_revision, "state": state,
-            "stateChangeRevision": self.state_change_revision, "seen": self.seen, "status": self.status,
-        })
-    }
-}
-
 /// The `worktree list` result body. `path` is the registered Workbench
 /// directory — distinct from each entry's observed `worktreePath`.
 #[derive(Clone, Debug)]
@@ -2127,7 +2085,7 @@ fn candidate_display(
         .map(|id| {
             let handle = handles.get(id).map_or(*id, String::as_str);
             match labels.get(id).filter(|label| !label.is_empty()) {
-                Some(label) => format!("{handle} ({})", super::escape::quoted(label)),
+                Some(label) => format!("{handle} ({})", crate::cli_text::escape::quoted(label)),
                 None => handle.to_owned(),
             }
         })

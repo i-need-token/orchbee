@@ -3,8 +3,11 @@
 use super::Locale;
 
 impl super::CliText {
-    pub(super) fn cli_client_query_failure(self, kind: crate::cli::FailureKind) -> &'static str {
-        use crate::cli::FailureKind;
+    pub(super) fn cli_client_query_failure(
+        self,
+        kind: crate::cli_outcome::FailureKind,
+    ) -> &'static str {
+        use crate::cli_outcome::FailureKind;
         match (self.locale, kind) {
             (Locale::EnUs, FailureKind::Rejected) => {
                 "The Client view changed or refused the read. Retry when the TUI is ready.\n"

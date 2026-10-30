@@ -24,7 +24,7 @@ impl super::CliText {
             text.push_str(&format!(
                 "{}: {}\n",
                 self.plugin_runtime_state("operation-id"),
-                crate::cli::escape::escape(operation)
+                crate::cli_text::escape::escape(operation)
             ));
         }
         text
@@ -38,7 +38,7 @@ impl super::CliText {
         kind: &str,
         resolved: &ResolvedLink,
     ) -> String {
-        let url = resolved.url.as_deref().map(crate::cli::escape::quoted);
+        let url = resolved.url.as_deref().map(crate::cli_text::escape::quoted);
         let label = match (self.locale, kind) {
             (Locale::ZhCn, "none") => "无",
             (Locale::ZhCn, "plain-text") => "纯文本",

@@ -3,7 +3,7 @@
 //! resource. Revisions, request IDs and other internal identities stay in
 //! the JSON document.
 use super::Locale;
-use crate::cli::escape::{display_width, escape, quoted, unquoted};
+use crate::cli_text::escape::{display_width, escape, quoted, unquoted};
 use serde_json::Value;
 
 /// Public receipt members in display order. Every other result member is an

@@ -189,10 +189,8 @@ fn terminal_name_schemas_accept_current_receipts() {
 }
 
 fn canonical_agent_inspection(with_client: bool) -> Box<crate::cli::results::AgentInspectionDoc> {
-    use crate::cli::results::{
-        AgentClientVersionMatch, AgentClientViewDoc, AgentInspectionDoc, AgentManagementDoc,
-        AgentRuntimeDoc,
-    };
+    use crate::cli::results::{AgentInspectionDoc, AgentManagementDoc, AgentRuntimeDoc};
+    use crate::cli_outcome::{AgentClientVersionMatch, AgentClientViewDoc};
     use orchbee_agent_observation_protocol::{
         AgentManagement, AgentSafeInteger, AgentSessionDetail,
     };

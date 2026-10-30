@@ -1,7 +1,8 @@
 //! Pure projection of independently observed process and local cohort facts.
 use super::{Failure, FailureKind, Locale, Output, OutputFormat, failed};
-use crate::cli::{config, escape::escape, output};
+use crate::cli::output;
 use crate::cli_text::CliText;
+use crate::cli_text::escape::escape;
 use orchbee_local_client_protocol::{
     SERVER_FEATURE_AGENT_OBSERVATION, SERVER_FEATURE_CLIENT_VIEW, SERVER_FEATURE_LIVE_HANDOFF,
     SERVER_FEATURE_RENDER_ROWS, SERVER_KNOWN_FEATURES, ServerMetadata, ServerMode,
@@ -146,7 +147,9 @@ pub(super) enum Report {
     Server(ServerReport),
 }
 fn path(value: &Path) -> Value {
-    Value::Object(serde_json::Map::from_iter([config::path_detail(value)]))
+    Value::Object(serde_json::Map::from_iter([crate::native_path::detail(
+        value,
+    )]))
 }
 fn protocols(terminal: u8) -> Value {
     json!({"admission":orchbee_local_client_protocol::PROTOCOL_VERSION,"terminal":terminal})
@@ -217,7 +220,7 @@ impl Report {
                 )
             }
         };
-        json!({"schema":schema,"version":1,"source":config::local_runtime_source(),"result":result})
+        json!({"schema":schema,"version":1,"source":crate::cli_outcome::local_runtime_source(),"result":result})
     }
 }
 

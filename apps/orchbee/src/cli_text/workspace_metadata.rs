@@ -73,16 +73,16 @@ impl super::CliText {
             },
         };
         let detail = unknown.map_or_else(String::new, |reason| {
-            format!(" ({})", crate::cli::escape::escape(reason))
+            format!(" ({})", crate::cli_text::escape::escape(reason))
         });
         format!(
             "{state}{detail}\nWorkspace: {}\n{}: {}\n",
-            crate::cli::escape::escape(workspace_id),
+            crate::cli_text::escape::escape(workspace_id),
             match self.locale {
                 Locale::EnUs => "Request",
                 Locale::ZhCn => "请求",
             },
-            crate::cli::escape::escape(request_id)
+            crate::cli_text::escape::escape(request_id)
         )
     }
 }

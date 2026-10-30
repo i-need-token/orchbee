@@ -95,7 +95,7 @@ pub(crate) fn run(format: OutputFormat, locale: Locale) -> Output {
         // Like `server start`, every `server diagnose` answer — failure
         // included — comes from the local runtime authority.
         Err(failure) => failure_output(
-            failure.source(super::config::local_runtime_source()),
+            failure.source(crate::cli_outcome::local_runtime_source()),
             Some(format),
             locale,
         ),
@@ -367,12 +367,12 @@ fn collect_at(base: &Path, deadline: Instant) -> Result<DiagnoseDocument, Failur
     let session = ModeCheckedLocalSessionRendezvous::validate_mode_checked(base, scope);
 
     let mut rows: Vec<(String, Map<String, Value>)> = Vec::with_capacity(6);
-    let (base_key, base_value) = super::config::path_detail(base);
+    let (base_key, base_value) = crate::native_path::detail(base);
 
     match session {
         Err(error) => {
             let (mut dir_row, dir_state, dir_reason, parent_unsafe) = classify_directory(&error);
-            let (dir_key, dir_value) = super::config::path_detail(&scope_directory);
+            let (dir_key, dir_value) = crate::native_path::detail(&scope_directory);
             dir_row.insert(dir_key, dir_value);
             // The base row inherits the verdict only when the failure names
             // the base path itself; otherwise the derived base stays a
@@ -420,7 +420,7 @@ fn collect_at(base: &Path, deadline: Instant) -> Result<DiagnoseDocument, Failur
             base_row.insert(base_key, base_value);
             rows.push(("runtimeBase".to_owned(), base_row));
             let mut dir_row = state_row("known", None);
-            let (dir_key, dir_value) = super::config::path_detail(session.runtime_directory());
+            let (dir_key, dir_value) = crate::native_path::detail(session.runtime_directory());
             dir_row.insert(dir_key, dir_value);
             rows.push(("runtimeDirectory".to_owned(), dir_row));
 
@@ -539,7 +539,7 @@ fn envelope(
         envelope: json!({
             "schema": "orchbee.server.diagnose",
             "version": 1,
-            "source": super::config::local_runtime_source(),
+            "source": crate::cli_outcome::local_runtime_source(),
             "result": result,
         }),
         rows,

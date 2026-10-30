@@ -23,7 +23,7 @@ pub(in crate::cli) fn render_list(
         .map(String::len)
         .max()
         .unwrap_or(0)
-        .max(crate::cli::escape::display_width(headers[1]));
+        .max(crate::cli_text::escape::display_width(headers[1]));
     let cwd_width = 36usize.saturating_sub(handle_width);
     compact_table(
         out,
@@ -60,7 +60,7 @@ pub(in crate::cli) fn render_inspection(
     out.write(format_args!(
         "{}: {}\n{}: {}\n{}: {}\n",
         headers[2],
-        crate::cli::escape::unquoted(doc.row.provider()),
+        crate::cli_text::escape::unquoted(doc.row.provider()),
         headers[3],
         CliText::new(locale).cli_projection_status(doc.row.status()),
         headers[4],
@@ -109,7 +109,7 @@ mod tests {
             assert_eq!(text.lines().count(), 2);
             assert!(
                 text.lines()
-                    .all(|line| crate::cli::escape::display_width(line) <= 80),
+                    .all(|line| crate::cli_text::escape::display_width(line) <= 80),
                 "{text}"
             );
         }

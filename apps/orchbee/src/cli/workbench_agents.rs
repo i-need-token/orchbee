@@ -5,8 +5,9 @@ use super::{
     console_interrupt::SignalWatch,
     output::{Bounded, TooLarge},
     query,
-    results::{self, AgentClientViewDoc, Projection},
+    results::{self, Projection},
 };
+use crate::cli_outcome::AgentClientViewDoc;
 use crate::cli_text::CliText;
 use crate::{invocation::QueryCommand, local_client::LocalClient, localization::Locale};
 use orchbee_agent_observation_protocol::{

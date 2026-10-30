@@ -1,10 +1,11 @@
 use super::ID;
 use crate::cli::{
-    OutputFormat, escape,
+    OutputFormat,
     results::{ContextRef, Projection, StatusDoc, TabRow, WorkspaceRow},
     success_output,
 };
 use crate::cli_text::CliText;
+use crate::cli_text::escape;
 use crate::invocation::QueryCommand;
 use crate::localization::Locale;
 use serde_json::{Value, json};
@@ -326,7 +327,7 @@ fn status_text_reports_selected_session_identity_client_version_and_counts() {
                     .find(|(_, character)| character.is_ascii_digit())
                     .map(|(index, _)| index)
                     .expect("count value");
-                crate::cli::escape::display_width(&line[..value])
+                crate::cli_text::escape::display_width(&line[..value])
             })
             .collect();
         assert!(

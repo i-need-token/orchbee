@@ -259,7 +259,7 @@ fn finish_reply(
         OutputFormat::Json => output::encode_record(&json!({"schema":"orchbee.events.wait","version":1,"source":source(snapshot),"result":public_reply(&reply)?,"cleanup":cleanup})),
         OutputFormat::Text => {
             let mut text = CliText::new(locale).events_status(status).to_owned();
-            if let Outcome::Matched {event, ..} = &reply.outcome { text.push_str(&format!("{}\t{}\n", crate::invocation::events::public_name(event.event), super::escape::escape(&serde_json::to_string(&event.data).map_err(|_| Failure::new(FailureKind::InternalFailure))?))); }
+            if let Outcome::Matched {event, ..} = &reply.outcome { text.push_str(&format!("{}\t{}\n", crate::invocation::events::public_name(event.event), crate::cli_text::escape::escape(&serde_json::to_string(&event.data).map_err(|_| Failure::new(FailureKind::InternalFailure))?))); }
             output::encode_text(&text)
         }
     }.map_err(|_| Failure::new(FailureKind::OutputTooLarge))?;

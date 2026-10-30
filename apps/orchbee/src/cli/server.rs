@@ -36,7 +36,7 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
         // success envelope does; it also selects the localized start
         // diagnostics rather than the shared query wording.
         Err(failure) => failure_output(
-            failure.source(super::config::local_runtime_source()),
+            failure.source(crate::cli_outcome::local_runtime_source()),
             Some(format),
             locale,
         ),
@@ -75,7 +75,7 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
                     let document = json!({
                         "schema": "orchbee.server.start",
                         "version": 1,
-                        "source": super::config::local_runtime_source(),
+                        "source": crate::cli_outcome::local_runtime_source(),
                         "result": result,
                     });
                     match output::encode_document(&document) {
@@ -143,7 +143,7 @@ fn run() -> Result<StartOutcome, Failure> {
             },
             spawned: started.spawned,
             scope: started.scope,
-            runtime_base: super::config::path_detail(&started.runtime_base),
+            runtime_base: crate::native_path::detail(&started.runtime_base),
         })
         .map_err(classify)
 }

@@ -1,7 +1,7 @@
 //! Localized Agent startup outcomes and provider choices; does not start or retry Agents.
 
 use super::Locale;
-use crate::cli::Failure;
+use crate::cli_outcome::Failure;
 
 impl super::CliText {
     pub(crate) fn cli_agent_started(self, name: &str, session: &str) -> String {

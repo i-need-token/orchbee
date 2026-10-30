@@ -372,7 +372,7 @@ impl ClientAgentRead {
         items: &[&orchbee_agent_observation_protocol::AgentSessionSummary],
         deadline: Instant,
         signals: &mut impl SignalWatch,
-    ) -> Result<Vec<results::AgentClientViewDoc>, Failure> {
+    ) -> Result<Vec<crate::cli_outcome::AgentClientViewDoc>, Failure> {
         let ids = items
             .iter()
             .map(|item| item.session_id.clone())
@@ -408,7 +408,7 @@ impl ClientAgentRead {
         canonical: &query::AgentObservationRead,
         deadline: Instant,
         signals: &mut impl SignalWatch,
-    ) -> Result<results::AgentClientViewDoc, Failure> {
+    ) -> Result<crate::cli_outcome::AgentClientViewDoc, Failure> {
         let unchanged = query::attention_covers_observation(
             client,
             &self.attention,
@@ -426,7 +426,7 @@ impl ClientAgentRead {
         snapshot: &Snapshot,
         canonical: &query::AgentObservationRead,
         unchanged: bool,
-    ) -> Result<results::AgentClientViewDoc, Failure> {
+    ) -> Result<crate::cli_outcome::AgentClientViewDoc, Failure> {
         if self.attention.entries.len() != 1
             || self.attention.entries[0].session_id != canonical.session.snapshot.session_id
         {
@@ -445,8 +445,8 @@ impl ClientAgentRead {
         revision: orchbee_agent_observation_protocol::AgentSafeInteger,
         facts: AgentViewFacts<'_>,
         unchanged: bool,
-    ) -> Result<results::AgentClientViewDoc, Failure> {
-        use results::AgentClientVersionMatch;
+    ) -> Result<crate::cli_outcome::AgentClientViewDoc, Failure> {
+        use crate::cli_outcome::AgentClientVersionMatch;
         if self.attention.revision.value() > revision.value() {
             return Err(view_failure(FailureKind::ProtocolInvalid));
         }
@@ -499,7 +499,7 @@ impl ClientAgentRead {
                         })
                 })
             });
-        Ok(results::AgentClientViewDoc {
+        Ok(crate::cli_outcome::AgentClientViewDoc {
             client_id: self.client_id.clone(),
             operation_id: self.operation_id.clone(),
             phase: self.view.phase,

@@ -43,12 +43,12 @@ use std::{
 
 use serde_json::{Map, Value, json};
 
-use crate::cli::stage_reason_details;
-use crate::cli::{Failure, FailureKind, Output, failure_output};
-use crate::cli::{
-    config::{local_runtime_source, path_detail},
-    output, stage_details,
+use crate::cli::output;
+use crate::cli::{Output, failure_output};
+use crate::cli_outcome::{
+    Failure, FailureKind, local_runtime_source, stage_details, stage_reason_details,
 };
+use crate::native_path;
 use crate::termination_signal::{TerminationSignal, TerminationSource};
 use crate::{invocation::OutputFormat, localization::Locale};
 
@@ -995,7 +995,7 @@ fn recorded_root(
 /// A target path exceeding the byte admission cap — honestly
 /// `not-inspected` with the offending path attached, never truncated.
 fn target_too_long(path: &Path) -> HookProbe {
-    let (key, value) = path_detail(path);
+    let (key, value) = native_path::detail(path);
     HookProbe::Final {
         state: HookState::Unknown,
         reason: HookReason::NotInspected,
@@ -1205,7 +1205,7 @@ fn current_payload_digest(budget: &mut Budget) -> Result<String, RootState> {
     let Some(path) = fs::current_adapter_directory(budget.observation) else {
         return Err(RootState::Unreadable);
     };
-    let (key, value) = path_detail(&path);
+    let (key, value) = native_path::detail(&path);
     let Some(encoded) = value.as_str() else {
         return Err(RootState::Unreadable);
     };
@@ -1275,7 +1275,7 @@ fn socket_fact(observation: fs::Observation) -> Value {
     };
     let path = fs::observation_socket_path(euid, observation);
     let path_state = || {
-        let (key, value) = path_detail(&path);
+        let (key, value) = native_path::detail(&path);
         Map::from_iter([(key, value)])
     };
     if !fs::path_admitted(&path) {
@@ -1320,7 +1320,7 @@ fn entry_kind(kind: EntryKind) -> &'static str {
 /// `{path}` or `{pathBytesHex}` — the byte-preserving field pair, never a
 /// lossy render.
 fn path_bytes_field(bytes: &[u8]) -> Map<String, Value> {
-    let (key, value) = path_detail(&fs::path_from_bytes(bytes));
+    let (key, value) = native_path::detail(&fs::path_from_bytes(bytes));
     Map::from_iter([(key, value)])
 }
 

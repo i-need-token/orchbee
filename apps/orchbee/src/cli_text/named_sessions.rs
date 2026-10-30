@@ -1,6 +1,6 @@
 //! Formats named-Session discovery and deletion facts without probing storage or stopping a Session.
 use super::Locale;
-use crate::cli::named_sessions::SessionState;
+use crate::cli_outcome::SessionState;
 use crate::invocation::CommandPath;
 use orchbee_local_runtime::NamedSessionDeleteReason as Reason;
 
@@ -33,7 +33,7 @@ impl super::CliText {
         outcome: &str,
         reason: Option<Reason>,
     ) -> String {
-        let name = crate::cli::escape::escape(name);
+        let name = crate::cli_text::escape::escape(name);
         let message = match (self.locale, reason) {
             (Locale::EnUs, Some(Reason::DefaultSession)) => {
                 "The default session cannot be deleted."

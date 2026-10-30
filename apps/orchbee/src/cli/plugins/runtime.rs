@@ -185,7 +185,7 @@ fn render(
     operation_id: Option<&str>,
     locale: Locale,
 ) -> Result<Vec<u8>, output::TooLarge> {
-    use super::super::escape::escape;
+    use crate::cli_text::escape::escape;
     output::render_text(|out| {
         if let Some(id) = operation_id {
             out.write(format_args!(

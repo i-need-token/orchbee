@@ -4,9 +4,9 @@ use serde_json::Value;
 impl super::CliText {
     pub(crate) fn cli_workspace_preparation_failure(
         self,
-        kind: crate::cli::FailureKind,
+        kind: crate::cli_outcome::FailureKind,
     ) -> &'static str {
-        use crate::cli::FailureKind;
+        use crate::cli_outcome::FailureKind;
         match (self.locale, kind) {
             (Locale::EnUs, FailureKind::NotFound) => {
                 "No usable source Workspace or primary terminal was found.\n"
@@ -48,7 +48,7 @@ impl super::CliText {
             text.push_str(hint);
         }
         if !complete {
-            let stage = crate::cli::escape::escape(document["stage"].as_str().unwrap_or("—"));
+            let stage = crate::cli_text::escape::escape(document["stage"].as_str().unwrap_or("—"));
             text.push_str(&match self.locale {
                 Locale::EnUs => format!("Workspace creation incomplete at stage {stage}.\n"),
                 Locale::ZhCn => format!("工作区创建未完成，停在阶段 {stage}。\n"),
@@ -57,7 +57,7 @@ impl super::CliText {
             if document["failure"]["details"]["reason"] == "directory-unavailable"
                 && let Some(path) = document["directory"]["path"].as_str()
             {
-                let path = crate::cli::escape::quoted(path);
+                let path = crate::cli_text::escape::quoted(path);
                 text.push_str(&match self.locale {
                     Locale::EnUs => format!("Directory: {path}\n"),
                     Locale::ZhCn => format!("目录：{path}\n"),

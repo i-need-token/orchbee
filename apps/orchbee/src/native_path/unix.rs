@@ -1,10 +1,13 @@
-//! Unix path diagnostics preserve native bytes and the existing unsupported-check row.
+//! Unix preserves reported path separators and delegates only control escaping; non-UTF-8
+//! machine paths keep their native bytes.
 use serde_json::{Value, json};
 use std::path::Path;
 
-pub(super) const APPEND_UNSUPPORTED_CHECK: bool = true;
+pub(super) fn display(value: &str) -> String {
+    crate::terminal_text::unquoted(value)
+}
 
-pub(super) fn path_detail(path: &Path) -> (String, Value) {
+pub(super) fn detail(path: &Path) -> (String, Value) {
     match path.to_str() {
         Some(text) => ("path".to_owned(), json!(text)),
         None => {

@@ -2,7 +2,7 @@
 //! UTC receipt time, the record or event name, its subject and a short
 //! detail. The machine envelope stays the JSON format's responsibility.
 use crate::cli_text::CliText;
-use crate::{cli::escape::quoted, localization::Locale};
+use crate::{cli_text::escape::quoted, localization::Locale};
 use orchbee_workbench_protocol::{
     SemanticEvent, SemanticEventData as Data, SemanticEventsOutcome as Outcome,
 };

@@ -4,9 +4,10 @@ use super::{
     console_interrupt::{ArmedSignals, Finish, SignalWatch},
     failure_output, query,
     query::{metadata_failure, panel_agent_failure},
-    results::{self, Projection, TerminalListDetails, TerminalListState},
+    results::{self, Projection, TerminalListDetails},
     success_output,
 };
+use crate::cli_outcome::TerminalListState;
 use crate::{
     invocation::{OutputFormat, QueryCommand, Target},
     local_client::LocalClient,

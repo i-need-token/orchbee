@@ -1,5 +1,5 @@
 //! Localized group progress and recovery instructions; untrusted labels never reach the terminal raw.
-use crate::{cli::escape::escape, localization::Locale};
+use crate::{cli_text::escape::escape, localization::Locale};
 use serde_json::Value;
 impl super::CliText {
     pub(crate) fn cli_workspace_group_close_result(self, result: &Value) -> String {

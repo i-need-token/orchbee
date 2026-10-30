@@ -21,11 +21,13 @@ use orchbee_workbench_protocol::{
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::config::CheckReport;
-use super::escape::{display_width, escape, quoted, table_label, table_label_width, unquoted};
 use super::output::{Bounded, TooLarge};
 use super::results::{
     AgentWaitDoc, ContextRef, LaunchProfileCatalogSelection, PanelDoc, PresentationRow, Projection,
     StatusDoc, TerminalRow, hex_encode,
+};
+use crate::cli_text::escape::{
+    display_width, escape, quoted, table_label, table_label_width, unquoted,
 };
 use crate::invocation::QueryCommand;
 use crate::localization::Locale;
@@ -375,7 +377,7 @@ fn terminal_cell_width(value: &str) -> usize {
 /// refs pass through the same escaping as every other user-controlled value.
 fn worktree_path(value: &WorktreeEntryText) -> String {
     match value {
-        WorktreeEntryText::Utf8(text) => super::escape::native_path(text),
+        WorktreeEntryText::Utf8(text) => crate::native_path::display(text),
         WorktreeEntryText::Bytes(bytes) => format!("hex:{}", hex_encode(bytes)),
     }
 }
@@ -901,7 +903,7 @@ pub(crate) fn render(
         // reported it), the verbatim branch ref, and the flag column.
         Projection::WorktreeList(doc) => {
             field(out, text.directory_id, &doc.directory_id)?;
-            field(out, text.path, &super::escape::native_path(&doc.path))?;
+            field(out, text.path, &crate::native_path::display(&doc.path))?;
             table(out, &text.worktree_headers, &doc.entries, worktree_cells)
         }
         // `launch-profile list` prints one row per entry, or how to create
@@ -1493,7 +1495,7 @@ pub(crate) fn config_checks(
         .and_then(|check| check.details.get("path"))
         .and_then(Value::as_str)
     {
-        out.push(&CliText::new(locale).cli_config_file_line(&super::escape::native_path(path)))?;
+        out.push(&CliText::new(locale).cli_config_file_line(&crate::native_path::display(path)))?;
     }
     out.push(CliText::new(locale).cli_check_json_hint())
 }
@@ -1507,7 +1509,7 @@ fn check_summary(check: &CheckReport) -> String {
             .map_or_else(|| reason.to_owned(), |field| format!("{field}: {reason}"));
     }
     if let Some(path) = text("path") {
-        return super::escape::native_path(path);
+        return crate::native_path::display(path);
     }
     match (text("locale"), text("source")) {
         (Some(locale), Some(source)) => format!("{locale} ({source})"),
@@ -1685,7 +1687,7 @@ pub(crate) fn agent_doctor(
         for root in roots {
             let path = root["path"]
                 .as_str()
-                .map_or_else(|| "-".to_owned(), super::escape::native_path);
+                .map_or_else(|| "-".to_owned(), crate::native_path::display);
             out.write(format_args!(
                 "  {path}  {}  {}\n",
                 root["origin"].as_str().unwrap_or("?"),

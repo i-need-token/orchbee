@@ -1,41 +1,15 @@
-//! Presents CLI paths, bounded table labels, and diagnostic tokens using shared text escaping.
-//! Platform spelling and display-width limits stay here; escape sequences are never split.
+//! Presents CLI text, bounded table labels, and diagnostic tokens using shared text escaping.
+//! Display-width limits stay here; escape sequences are never split. Native path spelling belongs
+//! to `crate::native_path`.
 
 use unicode_segmentation::UnicodeSegmentation;
 
 pub(crate) use crate::terminal_text::{escape, quoted, unquoted};
 
-/// A path as the platform spells it: on Windows, a drive-absolute or UNC path
-/// reported with forward slashes uses backslashes. Controls stay escaped and
-/// the result remains copyable.
-pub(crate) fn native_path(value: &str) -> String {
-    // `\\?\C:\…` is an API spelling; people read and paste `C:\…`.
-    let value = match value.strip_prefix("\\\\?\\") {
-        Some(rest) if matches!(rest.as_bytes(), [drive, b':', ..] if drive.is_ascii_alphabetic()) => {
-            rest
-        }
-        _ => value,
-    };
-    platform::native_path(value)
-}
-
-#[cfg(windows)]
-#[path = "escape/windows.rs"]
-mod platform;
-#[cfg(not(windows))]
-#[path = "escape/unix.rs"]
-mod platform;
-
 const TABLE_LABEL_WIDTH: usize = 80;
 
-#[cfg(any(unix, windows))]
 pub(crate) fn display_width(text: &str) -> usize {
     crate::terminal_text::display_width(text)
-}
-
-#[cfg(not(any(unix, windows)))]
-pub(crate) fn display_width(text: &str) -> usize {
-    text.chars().count()
 }
 
 /// A quoted label truncated so the whole cell fits `TABLE_LABEL_WIDTH` display

@@ -116,7 +116,7 @@ fn execute(
             text.push_str(&format!(
                 "{}\t{}\n",
                 command.operation(),
-                super::escape::escape(
+                crate::cli_text::escape::escape(
                     &serde_json::to_string(&observation.document())
                         .map_err(|_| Failure::new(FailureKind::InternalFailure))?
                 )

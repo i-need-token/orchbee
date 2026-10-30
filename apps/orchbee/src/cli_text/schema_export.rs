@@ -1,6 +1,6 @@
 //! Formats schema-export path and failure diagnostics without creating or publishing files.
 use super::Locale;
-use crate::cli::escape::diagnostic_token;
+use crate::cli_text::escape::diagnostic_token;
 
 impl super::CliText {
     pub(crate) fn schema_export_failure(

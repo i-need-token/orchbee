@@ -1,5 +1,5 @@
 use super::*;
-use crate::cli::results::AgentClientVersionMatch;
+use crate::cli_outcome::AgentClientVersionMatch;
 
 fn summary(id: usize, presentation: &str) -> AgentSessionSummary {
     serde_json::from_value(json!({

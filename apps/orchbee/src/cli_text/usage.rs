@@ -2,6 +2,8 @@
 
 use super::Locale;
 
+mod advice;
+
 impl super::CliText {
     /// The localized `invalid-usage` stderr diagnostic: one concrete cause
     /// plus a help hint that always names a real path. `None` and the
@@ -11,7 +13,7 @@ impl super::CliText {
         let Some(reason) = usage else {
             return self.locale.usage_failure().to_owned();
         };
-        let echo = |value: &str| crate::cli::escape::diagnostic_token(value);
+        let echo = |value: &str| crate::cli_text::escape::diagnostic_token(value);
         let context = |context: UsageContext| match context {
             UsageContext::Root => "orchbee".to_owned(),
             UsageContext::Path(path) => format!("orchbee {path}"),
@@ -705,7 +707,7 @@ impl super::CliText {
                 hint(*ctx),
             ),
         };
-        let suggestions = crate::cli::usage_suggestions(reason);
+        let suggestions = advice::suggestions(reason);
         let advice = if suggestions.is_empty() {
             String::new()
         } else {
@@ -724,7 +726,7 @@ impl super::CliText {
             Locale::ZhCn => format!("{problem}{advice}请运行 ‘{hint}’。\n"),
         };
         if let UsageReason::MissingCommand { context } = reason {
-            let children = crate::cli::usage_children(*context);
+            let children = advice::children(*context);
             if !children.is_empty() {
                 diagnostic.push_str(self.cli_help_text(crate::cli_text::HelpText::Commands));
                 diagnostic.push('\n');

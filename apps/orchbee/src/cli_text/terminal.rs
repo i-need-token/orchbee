@@ -144,7 +144,7 @@ impl super::CliText {
         revision: u64,
         text: &str,
     ) -> String {
-        let text = crate::cli::escape::quoted(text);
+        let text = crate::cli_text::escape::quoted(text);
         match self.locale {
             Locale::EnUs => {
                 format!("Terminal {terminal}, content revision {revision}\nSelection: {text}\n")
@@ -167,11 +167,11 @@ impl super::CliText {
     /// send envelope on stdout still reports both axes verbatim.
     pub(crate) fn cli_send_stderr(
         self,
-        verdict: crate::cli::send::SendVerdict,
+        verdict: crate::agent_runtime::SendVerdict,
         reason: Option<&'static str>,
         cleanup_unconfirmed: bool,
     ) -> String {
-        use crate::cli::send::SendVerdict;
+        use crate::agent_runtime::SendVerdict;
         let cleanup_note = match (self.locale, cleanup_unconfirmed) {
             (_, false) => "",
             (Locale::EnUs, true) => " Release of the temporary input channel is unconfirmed.",
@@ -265,9 +265,9 @@ impl super::CliText {
 
     pub(crate) const fn cli_terminal_list_state(
         self,
-        state: crate::cli::results::TerminalListState,
+        state: crate::cli_outcome::TerminalListState,
     ) -> &'static str {
-        use crate::cli::results::TerminalListState;
+        use crate::cli_outcome::TerminalListState;
         use orchbee_workbench_protocol::PanelAgentState;
         match (self.locale, state) {
             (_, TerminalListState::Observed) => match self.locale {

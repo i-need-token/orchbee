@@ -28,7 +28,7 @@ impl super::CliText {
         query: &str,
         result: &CopySearchResult,
     ) -> String {
-        let query = crate::cli::escape::quoted(query);
+        let query = crate::cli_text::escape::quoted(query);
         let current = result
             .current_global
             .map(|index| (index + 1).to_string())

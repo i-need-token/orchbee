@@ -1,6 +1,5 @@
 //! Private-runtime report workflow over admitted file and unauthenticated endpoint-name facts.
 use super::{DiagnoseDocument, Failure, FailureKind};
-use crate::cli::config;
 use orchbee_local_runtime::{
     ActivationState, ModeCheckedLocalSessionRendezvous as Rendezvous, RendezvousError,
     SessionCatalog, SessionLifetimeObservation, SessionScope, UnrecognizedRecord,
@@ -32,7 +31,7 @@ fn error_row(error: &io::Error) -> Row {
 }
 
 fn path_row(path: &Path, mut result: Row) -> Row {
-    let (key, value) = config::path_detail(path);
+    let (key, value) = crate::native_path::detail(path);
     result.insert(key, value);
     result
 }
@@ -90,7 +89,7 @@ fn record_row(record: &UnrecognizedRecord) -> Row {
             }),
         ),
     ]);
-    let (key, value) = config::path_detail(&record.path);
+    let (key, value) = crate::native_path::detail(&record.path);
     result.insert(key, value);
     result
 }
@@ -312,7 +311,7 @@ fn collect_at(
     );
     Ok(DiagnoseDocument {
         envelope: json!({"schema":"orchbee.server.diagnose", "version":1,
-            "source":config::local_runtime_source(), "result":result}),
+            "source":crate::cli_outcome::local_runtime_source(), "result":result}),
         rows,
         advisories,
     })

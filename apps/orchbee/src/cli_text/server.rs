@@ -1,7 +1,7 @@
 //! Localized Server lifecycle outcomes and command help; does not start or stop the Server.
 
 use super::Locale;
-use crate::cli::Failure;
+use crate::cli_outcome::Failure;
 
 pub(super) const HELP_SERVER_START_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
