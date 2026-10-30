@@ -113,7 +113,10 @@ impl Saver {
                 match result {
                     Err(error) => {
                         if last_error != Some(error.kind()) {
-                            eprintln!("Workbench checkpoint save failed: {error}");
+                            eprintln!(
+                                "orchbee-server diagnostic component=checkpoint operation=autosave stage=save cause=io:{:?}",
+                                error.kind()
+                            );
                         }
                         last_error = Some(error.kind());
                         schedule.failed(Instant::now());

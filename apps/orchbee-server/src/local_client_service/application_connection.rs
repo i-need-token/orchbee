@@ -266,7 +266,7 @@ pub(super) fn run_network<Permit>(
         );
     }
     let first = orchbee_workbench_protocol::read_multiplex_message(&mut prefixed)
-        .map_err(ApplicationConnectionError::Prefix)?;
+        .map_err(ApplicationConnectionError::Multiplex)?;
     let signal = std::sync::Arc::new(orchbee_server::SessionChangeSignal::default());
     watch(&signal);
     super::multiplex::run(
@@ -307,7 +307,7 @@ pub(super) fn run_network<Permit>(
         },
         maintenance,
     )
-    .map_err(ApplicationConnectionError::Prefix)
+    .map_err(ApplicationConnectionError::Multiplex)
 }
 
 #[cfg(test)]
@@ -375,6 +375,7 @@ where
 pub(super) enum ApplicationConnectionError {
     Stopping,
     Prefix(io::Error),
+    Multiplex(io::Error),
     UnknownProtocol,
     WorkbenchOutcomeUnknown,
     Workbench(WorkbenchWireError),
@@ -384,12 +385,49 @@ pub(super) enum ApplicationConnectionError {
     Write(WriteMessageError),
 }
 
+impl ApplicationConnectionError {
+    /// The failure that ended the Connection. A multiplexed handler failure crosses the lane
+    /// runner inside an `io::Error`; recovering it keeps the handler's own stage.
+    pub(super) fn innermost(&self) -> &Self {
+        if let Self::Multiplex(error) = self
+            && let Some(inner) = error
+                .get_ref()
+                .and_then(|inner| inner.downcast_ref::<Self>())
+        {
+            return inner.innermost();
+        }
+        self
+    }
+
+    /// The Connection stage that failed, as a static diagnostic identifier.
+    pub(super) const fn stage(&self) -> &'static str {
+        match self {
+            Self::Stopping => "admission",
+            Self::Prefix(_) => "record-prefix",
+            Self::Multiplex(_) => "multiplex",
+            Self::UnknownProtocol => "protocol-select",
+            Self::WorkbenchOutcomeUnknown => "workbench-outcome",
+            Self::Workbench(_) => "workbench-wire",
+            Self::Agent(_) => "agent-wire",
+            Self::AgentFault(_) => "agent-read",
+            Self::Read(_) => "terminal-read",
+            Self::Write(_) => "terminal-write",
+        }
+    }
+}
+
 impl fmt::Display for ApplicationConnectionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Stopping => formatter.write_str("Session is stopping"),
             Self::Prefix(error) => {
                 write!(formatter, "Application record prefix read failed: {error}")
+            }
+            Self::Multiplex(error) => {
+                write!(
+                    formatter,
+                    "Multiplexed application connection failed: {error}"
+                )
             }
             Self::UnknownProtocol => formatter.write_str("Unknown application protocol"),
             Self::WorkbenchOutcomeUnknown => {
@@ -410,7 +448,7 @@ impl std::error::Error for ApplicationConnectionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Stopping => None,
-            Self::Prefix(error) => Some(error),
+            Self::Prefix(error) | Self::Multiplex(error) => Some(error),
             Self::UnknownProtocol | Self::WorkbenchOutcomeUnknown => None,
             Self::Workbench(error) => Some(error),
             Self::Agent(error) => Some(error),

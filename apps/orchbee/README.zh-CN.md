@@ -599,6 +599,11 @@ OBLC 握手计数。如果无法读取线程名，应将该代理指标记为不
 客户端拥有 mailbox、连接 task 与已准入输入。`terminal_projection` 校验终端 frame 并产生精确反馈。
 Terminal Host 保持 VT 与 history 权威。
 
+被拒绝的记录返回 `ProjectionRejection`：记录族（`operation`）、校验阶段（`stage`），以及作为
+`source` 的静态协议解码错误，绝不保留记录字节或终端文本。调用方保持其外部分类——CLI 读取为
+`protocol-invalid`，Workbench Client 为协议 carrier 失败——且不输出其中任何内容，因为 Client 的
+标准错误输出和机器文档是产品界面，而 Client 没有自有的诊断出口。
+
 [Workbench Client 生命周期回归](crates/workbench-client/src/workbench_client/tests.rs) 覆盖 Drop 中断与 join、未知输入结果退役及只读输入拒绝。
 [Native 传输回归](crates/workbench-client/src/workbench_client/connection/native/tests.rs) 与
 [mailbox 轨迹](crates/workbench-client/src/workbench_client/mailbox/tests.rs) 覆盖有界准入、projection/feedback 顺序及退役。
@@ -949,4 +954,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=bb1acb8636ed043bd4bd9d6963fe4aa4fafe6c79c1870f09b7d4583fa3d00877 zh-cn-sha256=2513f6fe13a3ab8e7de8840ab9a6df803b7aa65583e92d20e879e067cfba0801 -->
+<!-- documentation-pairing: english-sha256=87dd3c1509997654a4412d02836eee3a87821cbb02e3d4173767ba79df887b38 zh-cn-sha256=5015273f4f1a2f07bb440c61d92eef9a3f23974593ac030642e2edd0d53c9bc4 -->

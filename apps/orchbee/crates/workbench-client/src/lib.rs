@@ -410,7 +410,9 @@ pub mod application {
     }
 
     pub mod terminal_projection {
-        pub use crate::terminal_projection::TerminalProjection;
+        pub use crate::terminal_projection::{
+            ProjectionOperation, ProjectionRejection, ProjectionStage, TerminalProjection,
+        };
     }
 
     pub mod terminal_text {

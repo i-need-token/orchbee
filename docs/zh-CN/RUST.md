@@ -210,6 +210,10 @@ member 的契约以复用其表。`## Module assignment` 下的表把模块路�
   如何传达给所有者；捕获 panic 或忽略 join 结果都不能证明恢复成功。
 - 不得静默丢弃操作或清理失败。有意尽力而为的操作需要归属明确的理由，并在契约要求时
   提供可观察的失败处理。
+- 转换为外部分类的失败，在该转换点之前的错误值中保留操作、失败阶段和类型化原因。内部细节
+  只能经所属组件已文档化的诊断出口离开进程，且只由静态标识、数值关联和错误类别渲染——绝不
+  包含记录字节、终端内容、凭据、路径、环境值或嵌套错误文本。产品标准错误输出和机器文档都不是
+  诊断出口。
 
 ## 资源与并发
 
@@ -373,4 +377,4 @@ workspace 构建统一后的依赖 feature，不能证明独立交付的 package
 cohort。它绝不把 `target/` 下碰巧已有的文件视为 release input。Supported target、signing、
 install path、update cohort 与 rollback 仍由每个已接受的应用发布切片负责。
 
-<!-- documentation-pairing: english-sha256=419a8e49f80b79355f9432a315e2ee2fc0e3a205ec14ec4184797d0e9e13a745 zh-cn-sha256=4aee932e9ec21303903842866d1686c5786a2d45a0b6041c539983498b42d46d -->
+<!-- documentation-pairing: english-sha256=27b41bf6d3d73d2dcdc8cf045af71ce9403613baa9ed00d0c0759446fadd00b2 zh-cn-sha256=6c5a47cc6294cd58831b433c51b0b9b7e069163679ca98bf1abdd4b188d99ae2 -->

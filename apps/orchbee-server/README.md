@@ -332,6 +332,16 @@ the exact Worker generation and complete Host identity. Worker loss or replaceme
 retargeting, re-creation, or replay. EOF, malformed, wrong-direction, oversized, truncated, read, or
 write failure closes only the affected Connection; generation-scoped cleanup preserves terminal state.
 
+Failures no peer can receive — a handler that cannot spawn, handshake transport setup or
+peer-credential refusal, a poisoned registry, an exhausted generation, an undeliverable stop result,
+and a Connection that ends on a fault — go through the service's private `diagnostic` exit: one
+locale-neutral standard-error line naming `operation`, `stage`, an I/O error-kind or `protocol`
+`cause`, and the Connection generation when one exists. A multiplexed handler failure keeps its own
+stage. Session stop and a departed peer (end of stream, reset, abort, broken pipe) are ordinary ends
+and are not reported. The line carries no record bytes, terminal content, paths, credentials,
+environment values, or nested error text, and changes no peer-visible outcome. Managed launch binds
+the Server's standard error to the null device, so only a harness that owns it reads these lines.
+
 The private [`orchbee-local-client-protocol`](../../crates/local-client-protocol/README.md) owns
 Client framing and its connecting adapter. The independent
 [`orchbee-client-server-protocol`](../../crates/client-server-protocol/README.md) binding owns OBCS

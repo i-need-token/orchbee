@@ -689,6 +689,12 @@ shell owns terminal modes and drawing; the session owns its mailbox, connection 
 input. `terminal_projection` validates terminal frames and produces exact feedback. Terminal Host
 retains VT and history authority.
 
+A refused record returns `ProjectionRejection`: the record family (`operation`), the validation
+`stage`, and the static protocol decoder error as its `source`, never record bytes or terminal text.
+Callers keep their external classification — `protocol-invalid` for CLI reads and the protocol
+carrier failure for the Workbench Client — and print none of it, because the Client's standard
+error and machine documents are product surfaces and the Client has no owned diagnostic exit.
+
 [Workbench Client lifecycle regressions](crates/workbench-client/src/workbench_client/tests.rs) cover interrupted Drop/join,
 unknown-input retirement and read-only input refusal. [Native transport regressions](crates/workbench-client/src/workbench_client/connection/native/tests.rs)
 and [mailbox traces](crates/workbench-client/src/workbench_client/mailbox/tests.rs) cover bounded admission, projection/feedback

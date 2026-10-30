@@ -23,7 +23,7 @@ fn shell_exit_keeps_final_pixels_and_requires_the_exact_terminal_and_epoch() -> 
             )?);
         projection
             .receive(&record(SNAPSHOT)?)
-            .map_err(|()| "initial frame")?;
+            .map_err(|_| "initial frame")?;
         let retained = projection.share_frame().ok_or("retained frame")?;
         for wrong_terminal in [true, false] {
             let lifecycle =
@@ -62,9 +62,21 @@ fn shell_exit_keeps_final_pixels_and_requires_the_exact_terminal_and_epoch() -> 
                 optional_message: false,
                 payload: &lifecycle.payload,
             })?;
-            assert_eq!(projection.receive_lifecycle(&wrong_epoch), Err(()));
+            assert_eq!(
+                projection.receive_lifecycle(&wrong_epoch),
+                Err(ProjectionRejection::new(
+                    Operation::Lifecycle,
+                    Stage::EnvelopeRoute
+                ))
+            );
             if wrong_terminal {
-                assert_eq!(projection.receive_lifecycle(&bytes), Err(()));
+                assert_eq!(
+                    projection.receive_lifecycle(&bytes),
+                    Err(ProjectionRejection::new(
+                        Operation::Lifecycle,
+                        Stage::Identity
+                    ))
+                );
                 assert_eq!(projection.end(), None);
             } else {
                 assert_eq!(projection.receive_lifecycle(&bytes), Ok(true));
@@ -86,14 +98,14 @@ fn retained_pixels_are_immutable_and_outlive_only_their_actual_consumers() -> Te
     let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
     projection
         .receive(&record(SNAPSHOT)?)
-        .map_err(|()| "initial projection")?;
+        .map_err(|_| "initial projection")?;
     let retained = projection.share_frame().ok_or("installed frame")?;
     let weak = Arc::downgrade(&retained);
     let first_revision = retained.route.revision;
     let next = snapshot_at(route.sequence.get() + 1, route.revision + 1);
     projection
         .receive(&record(&next)?)
-        .map_err(|()| "updated projection")?;
+        .map_err(|_| "updated projection")?;
     assert_eq!(retained.route.revision, first_revision);
     assert!(!Arc::ptr_eq(&retained, &projection.share_frame().unwrap()));
     projection.clear_frame();
@@ -360,7 +372,7 @@ fn frame_metadata_delta_clears_previously_observed_values() -> TestResult {
     let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
     projection
         .receive(&record(&snapshot)?)
-        .map_err(|()| "snapshot")?;
+        .map_err(|_| "snapshot")?;
     assert!(projection.frame().ok_or("frame")?.title.is_some());
     let mut delta = snapshot;
     delta[6] = 2;
@@ -368,7 +380,7 @@ fn frame_metadata_delta_clears_previously_observed_values() -> TestResult {
     delta[56..64].copy_from_slice(&route.revision.to_le_bytes());
     delta[64..72].copy_from_slice(&(route.revision + 1).to_le_bytes());
     delta[116..124].fill(255);
-    projection.receive(&record(&delta)?).map_err(|()| "delta")?;
+    projection.receive(&record(&delta)?).map_err(|_| "delta")?;
     let frame = projection.frame().ok_or("delta frame")?;
     assert!(frame.title.is_none() && frame.current_directory.is_none());
     Ok(())
@@ -487,5 +499,42 @@ fn snapshot_cannot_move_an_existing_projection_backwards() -> TestResult {
     );
     projection.frame = saved;
     assert_eq!(projection.frame().ok_or("frame")?.route.revision, 12);
+    Ok(())
+}
+
+#[test]
+fn refused_records_keep_operation_stage_and_static_cause() -> TestResult {
+    use orchbee_terminal_protocol::{ProtocolError, ProtocolErrorCode};
+    use std::error::Error as _;
+    let route = inspect_terminal_frame_route(SNAPSHOT)?;
+    let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
+    let truncated = projection
+        .receive(&[0; 3])
+        .err()
+        .ok_or("truncated record accepted")?;
+    assert_eq!(
+        (truncated.operation(), truncated.stage()),
+        (Operation::Record, Stage::EnvelopeDecode)
+    );
+    assert_eq!(
+        truncated.cause().map(ProtocolError::code),
+        Some(ProtocolErrorCode::Truncated)
+    );
+    assert!(truncated.source().is_some());
+    let snapshot = record(SNAPSHOT)?;
+    projection.receive(&snapshot).map_err(|_| "snapshot")?;
+    let replay = projection
+        .receive(&snapshot)
+        .err()
+        .ok_or("replayed sequence accepted")?;
+    assert_eq!(
+        replay,
+        ProjectionRejection::new(Operation::Frame, Stage::FrameRoute)
+    );
+    assert!(replay.source().is_none());
+    assert_eq!(
+        replay.to_string(),
+        "terminal projection refused frame record at frame-route"
+    );
     Ok(())
 }

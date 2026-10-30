@@ -2223,7 +2223,7 @@ impl UiDriver {
             .as_mut()
             .ok_or_else(|| test_error("PollResult without projection"))?
             .receive_for_geometry(&record, expected_geometry)
-            .map_err(|()| test_error("terminal projection rejected routed record"))?;
+            .map_err(|_| test_error("terminal projection rejected routed record"))?;
         match outcome {
             Some(feedback @ TerminalViewerAction::FrameApplied { .. }) => {
                 if self

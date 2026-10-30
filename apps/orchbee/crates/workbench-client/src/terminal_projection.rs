@@ -13,6 +13,10 @@ use orchbee_terminal_protocol::{
 };
 use std::{collections::HashSet, sync::Arc};
 
+mod rejection;
+pub use rejection::{ProjectionOperation, ProjectionRejection, ProjectionStage};
+use rejection::{ProjectionOperation as Operation, ProjectionStage as Stage};
+
 #[derive(Clone)]
 pub struct TerminalProjection {
     end: Option<TerminalEnd>,
@@ -45,13 +49,17 @@ impl TerminalProjection {
     }
 
     /// Lifecycle records never invalidate the final frame or mint frame feedback.
-    #[expect(
-        clippy::result_unit_err,
-        reason = "application-private boundary whose callers only branch on failure"
-    )]
-    pub fn receive_lifecycle(&mut self, record: &[u8]) -> Result<bool, ()> {
+    ///
+    /// # Errors
+    ///
+    /// Returns the operation and stage that refused a malformed, misrouted, or contradictory
+    /// lifecycle record; the projection is unchanged.
+    pub fn receive_lifecycle(&mut self, record: &[u8]) -> Result<bool, ProjectionRejection> {
         use orchbee_terminal_protocol::{LifecycleControl, decode_lifecycle_control};
-        let envelope = decode_transport_envelope(record).map_err(|_| ())?;
+        let envelope = decode_transport_envelope(record).map_err(ProjectionRejection::decoding(
+            Operation::Record,
+            Stage::EnvelopeDecode,
+        ))?;
         if !matches!(envelope.kind, 15 | 19) {
             return Ok(false);
         }
@@ -62,27 +70,29 @@ impl TerminalProjection {
             || envelope.optional_message
             || envelope.payload_encoding != PayloadEncoding::ControlJson
         {
-            return Err(());
+            return Err(reject(Operation::Lifecycle, Stage::EnvelopeRoute));
         }
         let (identity, end) =
-            match decode_lifecycle_control(envelope.kind, envelope.role, envelope.payload)
-                .map_err(|_| ())?
-            {
+            match decode_lifecycle_control(envelope.kind, envelope.role, envelope.payload).map_err(
+                ProjectionRejection::decoding(Operation::Lifecycle, Stage::PayloadDecode),
+            )? {
                 LifecycleControl::TerminalExited(event) => {
                     (event.identity, TerminalEnd::Exited(event.exit))
                 }
                 LifecycleControl::TerminalFailed(event) => (event.identity, TerminalEnd::Failed),
                 // This lifecycle exchange requires its exact target-bearing acknowledgment; other control records cannot confirm it.
-                _ => return Err(()),
+                _ => return Err(reject(Operation::Lifecycle, Stage::UnexpectedMessage)),
             };
         if identity.host_epoch != self.epoch
             || self
                 .host_terminal_id
                 .as_ref()
                 .is_none_or(|terminal| terminal.as_str() != identity.terminal_id.to_text())
-            || self.end.is_some_and(|previous| previous != end)
         {
-            return Err(());
+            return Err(reject(Operation::Lifecycle, Stage::Identity));
+        }
+        if self.end.is_some_and(|previous| previous != end) {
+            return Err(reject(Operation::Lifecycle, Stage::ConflictingEnd));
         }
         self.end = Some(end);
         Ok(true)
@@ -124,7 +134,10 @@ impl TerminalProjection {
         self.frame = None;
     }
     #[cfg(test)]
-    pub(crate) fn receive(&mut self, record: &[u8]) -> Result<Option<Feedback>, ()> {
+    pub(crate) fn receive(
+        &mut self,
+        record: &[u8],
+    ) -> Result<Option<Feedback>, ProjectionRejection> {
         self.receive_for_geometry(record, None)
     }
 
@@ -135,40 +148,53 @@ impl TerminalProjection {
     pub(crate) fn install_frame_for_test(&mut self, frame: TerminalTextFrame) {
         self.frame = Some(Arc::new(frame));
     }
-    #[expect(
-        clippy::result_unit_err,
-        reason = "application-private boundary whose callers only branch on failure"
-    )]
+    /// Applies one terminal record and mints its exact feedback.
+    ///
+    /// # Errors
+    ///
+    /// Returns the operation and stage that refused a malformed or misrouted record. A frame that
+    /// decodes but cannot be applied is not an error: it clears the frame and requests a snapshot.
     pub fn receive_for_geometry(
         &mut self,
         record: &[u8],
         expected_geometry: Option<Geometry>,
-    ) -> Result<Option<Feedback>, ()> {
+    ) -> Result<Option<Feedback>, ProjectionRejection> {
         if self.receive_lifecycle(record)? {
             return Ok(None);
         }
-        let envelope = decode_transport_envelope(record).map_err(|_| ())?;
+        let envelope = decode_transport_envelope(record).map_err(ProjectionRejection::decoding(
+            Operation::Record,
+            Stage::EnvelopeDecode,
+        ))?;
         if envelope.protocol != CURRENT_PROTOCOL_VERSION
             || envelope.role != MessageRole::Event
             || envelope.correlation_id.is_some()
             || envelope.host_epoch != Some(self.epoch)
             || envelope.optional_message
         {
-            return Err(());
+            return Err(reject(Operation::Record, Stage::EnvelopeRoute));
         }
         if envelope.kind == 49 && envelope.payload_encoding == PayloadEncoding::ControlJson {
             let ProjectionDemandControl::ProjectionBlocked(blocked) =
                 decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload)
-                    .map_err(|_| ())?
+                    .map_err(ProjectionRejection::decoding(
+                        Operation::ProjectionBlocked,
+                        Stage::PayloadDecode,
+                    ))?
             else {
-                return Err(());
+                return Err(reject(
+                    Operation::ProjectionBlocked,
+                    Stage::UnexpectedMessage,
+                ));
             };
-            if blocked.attachment_id != self.attachment
-                || self
-                    .blocked_revision
-                    .is_some_and(|old| blocked.revision <= old)
+            if blocked.attachment_id != self.attachment {
+                return Err(reject(Operation::ProjectionBlocked, Stage::Identity));
+            }
+            if self
+                .blocked_revision
+                .is_some_and(|old| blocked.revision <= old)
             {
-                return Err(());
+                return Err(reject(Operation::ProjectionBlocked, Stage::StaleRevision));
             }
             self.blocked_revision = Some(blocked.revision);
             self.clear_frame();
@@ -179,16 +205,17 @@ impl TerminalProjection {
         // and answers with the event's own acknowledgement.
         if envelope.kind == 53 && envelope.payload_encoding == PayloadEncoding::ControlJson {
             let HistoryControl::HistoryChanged(event) =
-                decode_history_control(envelope.kind, envelope.role, envelope.payload)
-                    .map_err(|_| ())?
+                decode_history_control(envelope.kind, envelope.role, envelope.payload).map_err(
+                    ProjectionRejection::decoding(Operation::HistoryChanged, Stage::PayloadDecode),
+                )?
             else {
-                return Err(());
+                return Err(reject(Operation::HistoryChanged, Stage::UnexpectedMessage));
             };
             if event.attachment_id != self.attachment {
-                return Err(());
+                return Err(reject(Operation::HistoryChanged, Stage::Identity));
             }
             return Ok(Some(Feedback::HistoryObserved {
-                attachment_id: ViewerId::parse(&self.attachment.to_text()).map_err(|_| ())?,
+                attachment_id: self.viewer_id(Operation::HistoryChanged)?,
                 sequence: event.sequence,
                 generation: event.generation,
                 revision: event.revision,
@@ -197,15 +224,18 @@ impl TerminalProjection {
         if !matches!(envelope.kind, 41 | 42)
             || envelope.payload_encoding != PayloadEncoding::TerminalFrame
         {
-            return Err(());
+            return Err(reject(Operation::Record, Stage::UnexpectedKind));
         }
-        let route = inspect_terminal_frame_route(envelope.payload).map_err(|_| ())?;
-        if route.attachment_id != self.attachment
-            || route.host_epoch != self.epoch
-            || (envelope.kind == 41) != route.base_revision.is_none()
+        let route = inspect_terminal_frame_route(envelope.payload).map_err(
+            ProjectionRejection::decoding(Operation::Frame, Stage::PayloadDecode),
+        )?;
+        if route.attachment_id != self.attachment || route.host_epoch != self.epoch {
+            return Err(reject(Operation::Frame, Stage::Identity));
+        }
+        if (envelope.kind == 41) != route.base_revision.is_none()
             || route.sequence.get() <= self.last_sequence
         {
-            return Err(());
+            return Err(reject(Operation::Frame, Stage::FrameRoute));
         }
         let previous_sequence = self.last_sequence;
         self.last_sequence = route.sequence.get();
@@ -238,7 +268,7 @@ impl TerminalProjection {
             Ok(()) => {
                 self.blocked_revision = None;
                 Ok(Some(Feedback::FrameApplied {
-                    attachment_id: ViewerId::parse(&self.attachment.to_text()).map_err(|_| ())?,
+                    attachment_id: self.viewer_id(Operation::Frame)?,
                     sequence: route.sequence,
                     generation: route.generation,
                     revision: route.revision,
@@ -247,12 +277,16 @@ impl TerminalProjection {
             Err(reason) => {
                 self.clear_frame();
                 Ok(Some(Feedback::NeedSnapshot {
-                    attachment_id: ViewerId::parse(&self.attachment.to_text()).map_err(|_| ())?,
+                    attachment_id: self.viewer_id(Operation::Frame)?,
                     sequence: route.sequence,
                     reason,
                 }))
             }
         }
+    }
+    fn viewer_id(&self, operation: Operation) -> Result<ViewerId, ProjectionRejection> {
+        ViewerId::parse(&self.attachment.to_text())
+            .map_err(|_| reject(operation, Stage::FeedbackIdentity))
     }
     fn apply(&mut self, mut next: TerminalTextFrame) -> Result<(), Reason> {
         if next.route.revision < self.last_revision {
@@ -285,6 +319,9 @@ impl TerminalProjection {
         self.frame = Some(Arc::new(next));
         Ok(())
     }
+}
+const fn reject(operation: Operation, stage: Stage) -> ProjectionRejection {
+    ProjectionRejection::new(operation, stage)
 }
 fn validate_rows(rows: &[TerminalTextRow]) -> Result<(), Reason> {
     let mut strings = HashSet::new();

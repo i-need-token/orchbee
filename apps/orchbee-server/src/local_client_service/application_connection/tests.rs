@@ -636,3 +636,13 @@ impl Write for MemoryStream {
         Ok(())
     }
 }
+
+#[test]
+fn multiplexed_handler_failures_keep_their_own_stage() {
+    let wrapped = ApplicationConnectionError::Multiplex(std::io::Error::other(
+        ApplicationConnectionError::WorkbenchOutcomeUnknown,
+    ));
+    assert_eq!(wrapped.innermost().stage(), "workbench-outcome");
+    let lane = ApplicationConnectionError::Multiplex(std::io::ErrorKind::InvalidData.into());
+    assert_eq!(lane.innermost().stage(), "multiplex");
+}

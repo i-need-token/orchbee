@@ -24,6 +24,8 @@ use orchbee_local_client_protocol::{
 };
 use orchbee_local_peer_credentials::require_same_effective_user;
 
+use self::application_connection::ApplicationConnectionError;
+use self::diagnostic::Diagnostic;
 use crate::agent_service::{AgentPolicy, AgentService};
 use crate::client_connection_registry::{ClientConnectionAdmission, ClientConnectionRegistry};
 
@@ -31,6 +33,7 @@ use crate::local_terminal_service::LocalTerminalService;
 use crate::workbench_service::{WorkbenchPolicy, WorkbenchService};
 
 mod application_connection;
+mod diagnostic;
 #[cfg(windows)]
 mod managed_windows;
 #[cfg(windows)]
@@ -180,7 +183,7 @@ fn serve(
                 let candidate_terminals = Arc::clone(&terminals);
                 let candidate_workbench = Arc::clone(&workbench);
                 let candidate_agents = Arc::clone(&agents);
-                let _candidate = thread::Builder::new()
+                let candidate = thread::Builder::new()
                     .name("orchbee-local-client".to_owned())
                     .spawn(move || {
                         handle_candidate(
@@ -193,6 +196,12 @@ fn serve(
                             &candidate_agents,
                         );
                     });
+                // The unstarted closure drops the stream and slot, closing the candidate.
+                if let Err(error) = candidate {
+                    diagnostic::report(
+                        &Diagnostic::new("accept", "spawn-handler").caused_by(&error),
+                    );
+                }
             }
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
             Err(error) => return Err(error),
@@ -230,10 +239,15 @@ fn handle_candidate_control(
     control: stop_control::StopControl<'_>,
 ) {
     let agents = control.agents;
-    if stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
-        || stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
-        || require_same_effective_user(&stream).is_err()
+    if let Err(error) = stream
+        .set_read_timeout(Some(HANDSHAKE_TIMEOUT))
+        .and_then(|()| stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT)))
     {
+        diagnostic::report(&Diagnostic::new("handshake", "transport-setup").caused_by(&error));
+        return;
+    }
+    if require_same_effective_user(&stream).is_err() {
+        diagnostic::report(&Diagnostic::new("handshake", "peer-credentials"));
         return;
     }
 
@@ -268,7 +282,13 @@ fn handle_candidate_control(
             return;
         }
         let result = control.request(&request);
-        let _delivery = write_message(&mut stream, &LocalClientMessage::SessionStopResult(result));
+        if let Err(error) =
+            write_message(&mut stream, &LocalClientMessage::SessionStopResult(result))
+        {
+            diagnostic::report(
+                &Diagnostic::new("session-stop", "deliver-result").caused_by(&error),
+            );
+        }
         return;
     }
     let LocalClientMessage::ClientHello(hello) = message else {
@@ -286,7 +306,10 @@ fn handle_candidate_control(
 
     let admission = match registry.lock() {
         Ok(mut registry) => registry.admit(),
-        Err(_poisoned) => return,
+        Err(_poisoned) => {
+            diagnostic::report(&Diagnostic::new("admission", "registry-poisoned"));
+            return;
+        }
     };
     let generation = match admission {
         ClientConnectionAdmission::Accepted { generation } => generation,
@@ -294,7 +317,10 @@ fn handle_candidate_control(
             send_rejection(&mut stream, RejectionReason::CapacityExceeded);
             return;
         }
-        ClientConnectionAdmission::GenerationExhausted => return,
+        ClientConnectionAdmission::GenerationExhausted => {
+            diagnostic::report(&Diagnostic::new("admission", "generation-exhausted"));
+            return;
+        }
     };
     let _connection_registration =
         ClientConnectionRegistration::new(Arc::clone(registry), generation);
@@ -313,7 +339,7 @@ fn handle_candidate_control(
     drop(admission_lease);
 
     let connections = std::cell::RefCell::new(std::collections::BTreeMap::new());
-    let _connection_result = application_connection::run_network(
+    let connection_result = application_connection::run_network(
         &stream,
         |lane, request| {
             connections
@@ -365,6 +391,35 @@ fn handle_candidate_control(
             workbench_connection.close_lane(lane);
         },
         || workbench_connection.maintain_subscription_deadline(),
+    );
+    report_connection_end(connection_result, generation);
+}
+
+/// Reports a Connection that ended on a fault; Session stop and a departed peer are ordinary ends.
+fn report_connection_end(
+    result: Result<(), ApplicationConnectionError>,
+    generation: std::num::NonZeroU64,
+) {
+    let Err(error) = result else {
+        return;
+    };
+    let failure = error.innermost();
+    let departed = diagnostic::io_kind(failure).is_some_and(|kind| {
+        matches!(
+            kind,
+            io::ErrorKind::UnexpectedEof
+                | io::ErrorKind::ConnectionReset
+                | io::ErrorKind::ConnectionAborted
+                | io::ErrorKind::BrokenPipe
+        )
+    });
+    if departed || matches!(failure, ApplicationConnectionError::Stopping) {
+        return;
+    }
+    diagnostic::report(
+        &Diagnostic::new("application-connection", failure.stage())
+            .caused_by(failure)
+            .connection(generation),
     );
 }
 

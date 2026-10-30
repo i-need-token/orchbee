@@ -280,6 +280,14 @@ Connection 解析成功的 deferred Create。Server 保留精确 Worker 代次�
 丢失或更换不能授权重新指派、重新创建或重放。EOF、畸形、错误方向、超限、截断及读写失败
 仅关闭对应 Connection；按代次清理保留终端状态。
 
+没有对端能接收的失败——处理线程无法创建、握手传输设置失败或对端凭据被拒、registry 中毒、
+代次耗尽、停止结果无法送达，以及因故障结束的 Connection——经该服务私有的 `diagnostic` 出口
+输出：一行与语言区域无关的标准错误输出，写明 `operation`、`stage`、I/O 错误类别或 `protocol`
+形式的 `cause`，存在时再附 Connection 代次。多路复用处理器的失败保留其自身阶段。会话停止和
+对端离开（流结束、重置、中止、管道断开）属于正常结束，不报告。该行不含记录字节、终端内容、
+路径、凭据、环境值或嵌套错误文本，也不改变对端可见的结果。托管启动把 Server 的标准错误绑定到
+空设备，因此只有持有它的测试或开发 harness 能读到这些行。
+
 私有 [`orchbee-local-client-protocol`](../../crates/local-client-protocol/README.zh-CN.md) 拥有
 Client framing 和连接适配器。独立的
 [`orchbee-client-server-protocol`](../../crates/client-server-protocol/README.zh-CN.md) binding
@@ -840,4 +848,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=19552a956ef8c2404407348c5698127e32e3ad70388f5eeec0176eaa59f6b240 zh-cn-sha256=39bdc4db14a4bdb4993a6a43ce14138cd93372246b13a55a776561a6ef671219 -->
+<!-- documentation-pairing: english-sha256=e161374c4b382970d23146b6e876040eea52a192f0a013679a74ebfaf3c21ece zh-cn-sha256=525a33074fffdd6643140792fc6eede2764be1333b90104ce33dfde231dec46e -->

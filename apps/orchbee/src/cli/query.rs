@@ -1438,7 +1438,7 @@ fn poll_applied_frame(
                     // an applicable frame; a replayed record was already
                     // rejected above as protocol-invalid.
                     Ok(None) => {}
-                    Err(()) => return Err(viewer_protocol_invalid()),
+                    Err(_) => return Err(viewer_protocol_invalid()),
                 }
             }
             TerminalViewerOutcome::Rejected { reason } => {
@@ -1805,7 +1805,7 @@ fn wait_observe(
                     // Same as the one-shot read: a consumed ProjectionBlocked
                     // keeps polling for an applicable frame.
                     Ok(None) => {}
-                    Err(()) => return Err(viewer_protocol_invalid()),
+                    Err(_) => return Err(viewer_protocol_invalid()),
                 }
             }
             TerminalViewerOutcome::Rejected { reason } => {

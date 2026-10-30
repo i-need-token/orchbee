@@ -249,6 +249,12 @@ native types; do not reproduce TypeScript file-count or syntax conventions.
   neither catching a panic nor ignoring a join result establishes successful recovery.
 - Never silently discard an operation or cleanup failure. An intentionally best-effort action
   needs an owned reason and observable failure handling where the contract requires it.
+- A failure translated into an external classification keeps its operation, failing stage, and
+  typed cause in the error value up to that translation. Internal detail leaves the process only
+  through the owning component's documented diagnostic exit, rendered from static identifiers,
+  numeric correlation, and error kinds — never record bytes, terminal content, credentials, paths,
+  environment values, or nested error text. Product standard error and machine documents are not
+  diagnostic exits.
 
 ## Resources and concurrency
 

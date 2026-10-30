@@ -522,7 +522,7 @@ fn poll_frame<G: Guard>(
                         }
                     }
                     Ok(None) => {}
-                    Err(()) => return Err(Error::ProtocolInvalid),
+                    Err(_) => return Err(Error::ProtocolInvalid),
                 }
             }
             TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {

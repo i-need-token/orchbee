@@ -4073,7 +4073,7 @@ impl WorkbenchClientUi {
                 return true;
             }
             Ok(false) => {}
-            Err(()) => {
+            Err(_) => {
                 self.retire(CarrierFailure::Protocol);
                 return true;
             }
@@ -4160,7 +4160,7 @@ impl WorkbenchClientUi {
                     ClientProjectionStatus::Blocked,
                 )
             }
-            Err(()) => {
+            Err(_) => {
                 self.retire(CarrierFailure::Protocol);
                 return true;
             }
