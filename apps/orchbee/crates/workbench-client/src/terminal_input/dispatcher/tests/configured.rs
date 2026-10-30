@@ -457,8 +457,15 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
         ) -> bool {
             self.owner == 2
         }
-        fn history_key(&mut self, _: &crate::client_view::KeyEvent) -> bool {
-            self.owner == 3
+        fn pane_input(
+            &mut self,
+            input: crate::terminal_input::PaneInput<'_>,
+        ) -> crate::terminal_input::PaneAdmission {
+            if matches!(input, crate::terminal_input::PaneInput::HistoryKey(_)) && self.owner == 3 {
+                crate::terminal_input::PaneAdmission::Admitted
+            } else {
+                crate::terminal_input::PaneAdmission::Rejected
+            }
         }
     }
     let keys = KeySettings {

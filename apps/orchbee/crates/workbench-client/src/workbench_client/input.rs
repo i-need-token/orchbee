@@ -93,18 +93,44 @@ pub struct PointerFrameFacts {
 pub use super::terminal_selection::{PointerSelectionCell, PointerSelectionIntent};
 pub use crate::tui_pointer::hit_map::{DrawnPresentationTarget, PointerUnboundPane};
 
-/// Whether the native session admitted a selection start for the exact pane.
-/// Ports that do not implement selection reject it, so adding this private
-/// seam cannot silently claim ownership in an older backend.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PointerSelectionAdmission {
-    Admitted,
-    Rejected,
+/// Input that the focused pane's own viewport owns: provisional selection, link activation and
+/// non-Live history movement. Each step names the exact painted incarnation it resolves against.
+pub enum PaneInput<'a> {
+    /// One cell-semantic selection step for the exact painted pane. Only `Start` has an admission
+    /// decision; callers ignore the result of later steps after an admitted start.
+    Selection {
+        pane: &'a crate::workbench_client::state::PaneRef,
+        intent: PointerSelectionIntent,
+    },
+    /// One Ctrl+click from an exact successfully painted pane source. This read-only path never
+    /// focuses the pane or acquires terminal control.
+    Link {
+        source: Box<crate::terminal_link_activation::PaintedLinkSource>,
+        cell: PointerSelectionCell,
+    },
+    /// A key that the focus pane's non-Live history core may consume locally. A rejected key
+    /// follows the ordinary byte path untouched.
+    HistoryKey(&'a crate::client_view::KeyEvent),
+    /// A wheel notch (three rows) over the non-Live history core of the exact focus incarnation
+    /// the pointer already probed.
+    HistoryWheel {
+        pane: &'a crate::workbench_client::state::PaneRef,
+        up: bool,
+    },
+    /// A bounded tail jump; the pane revalidates the exact painted scrollbar source first.
+    Scrollbar {
+        pane: &'a crate::workbench_client::state::PaneRef,
+        source: crate::terminal_scrollbar::ScrollbarSnapshot,
+        offset: u32,
+    },
 }
 
+/// Whether the pane admitted one [`PaneInput`]. Ports without pane input reject every step, so a
+/// backend that never implemented one cannot silently claim its ownership.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PointerLinkAdmission {
+pub enum PaneAdmission {
     Admitted,
+    /// An earlier link activation still owns the effect; only `PaneInput::Link` reports it.
     Busy,
     Rejected,
 }
@@ -443,36 +469,13 @@ pub trait TerminalInputPort {
         crate::tui_layout::ResizeProjection::Canonical
     }
 
-    /// Sends one cell-semantic selection step for the exact painted pane.
-    /// Only `Start` has an admission decision; callers ignore the return for
-    /// later steps after a start was admitted. The default is closed.
-    fn pointer_selection(
-        &mut self,
-        _pane: &crate::workbench_client::state::PaneRef,
-        _intent: PointerSelectionIntent,
-    ) -> PointerSelectionAdmission {
-        PointerSelectionAdmission::Rejected
-    }
-
-    /// Admit one Ctrl+click from an exact successfully painted pane source.
-    /// This read-only path never focuses the pane or acquires terminal control.
-    fn pointer_link(
-        &mut self,
-        _source: crate::terminal_link_activation::PaintedLinkSource,
-        _cell: PointerSelectionCell,
-    ) -> PointerLinkAdmission {
-        PointerLinkAdmission::Rejected
+    /// One pane-local input; see [`PaneInput`]. The default rejects it.
+    fn pane_input(&mut self, _input: PaneInput<'_>) -> PaneAdmission {
+        PaneAdmission::Rejected
     }
 
     fn apply_client_action(&mut self, _action: InputAction) -> Option<ClientActionDisposition> {
         None
-    }
-
-    /// Whether the focus pane's non-Live history core consumes this key
-    /// locally. Ports without history always report `false`: the event
-    /// then follows the ordinary byte path untouched.
-    fn history_key(&mut self, _event: &crate::client_view::KeyEvent) -> bool {
-        false
     }
 
     fn copy_mode_active(&self) -> bool {
@@ -511,23 +514,6 @@ pub trait TerminalInputPort {
     }
 
     fn cancel_copy_mode(&mut self) -> bool {
-        false
-    }
-
-    /// Whether a wheel notch over `key` is consumed by that pane's
-    /// non-Live history core (three rows per notch). The pointer layer
-    /// only calls this for the exact focus incarnation it already probed.
-    fn history_wheel(&mut self, _key: &crate::workbench_client::state::PaneRef, _up: bool) -> bool {
-        false
-    }
-
-    /// Revalidates the exact painted source before admitting a bounded tail jump.
-    fn scrollbar_scroll(
-        &mut self,
-        _key: &crate::workbench_client::state::PaneRef,
-        _source: crate::terminal_scrollbar::ScrollbarSnapshot,
-        _offset: u32,
-    ) -> bool {
         false
     }
 

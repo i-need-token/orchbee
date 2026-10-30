@@ -8,6 +8,8 @@ use crate::{
 };
 use orchbee_workbench_client::test_support::client_view::ClientViewTestAccess;
 use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
+use orchbee_workbench_client::test_support::terminal_input::PaneAdmission;
+use orchbee_workbench_client::test_support::terminal_input::PaneInput;
 use orchbee_workbench_client::test_support::terminal_input::PointerFrameFacts;
 use orchbee_workbench_client::test_support::terminal_input::PointerFrameFactsFixture;
 use orchbee_workbench_client::test_support::terminal_input::PointerPane;
@@ -16,8 +18,6 @@ use orchbee_workbench_client::test_support::terminal_input::PointerPaneTestAcces
 use orchbee_workbench_client::test_support::terminal_input::PointerProbe;
 use orchbee_workbench_client::test_support::terminal_input::PointerProbeFixture;
 use orchbee_workbench_client::test_support::terminal_input::PointerProbeTestAccess;
-use orchbee_workbench_client::test_support::terminal_input::PointerSelectionAdmission;
-use orchbee_workbench_client::test_support::terminal_input::PointerSelectionIntent;
 use orchbee_workbench_client::test_support::terminal_input::PointerTab;
 use orchbee_workbench_client::test_support::terminal_input::PointerTabFixture;
 use orchbee_workbench_client::test_support::tui_pointer::HitMapBuilderTestAccess;
@@ -71,15 +71,14 @@ impl crate::terminal_input::TerminalInputPort for Witness {
         Some(orchbee_workbench_client::test_support::client_view::ClientActionDisposition::KeepNavigator)
     }
 
-    fn pointer_selection(
-        &mut self,
-        _pane: &orchbee_workbench_client::test_support::workbench_client::state::PaneRef,
-        intent: PointerSelectionIntent,
-    ) -> PointerSelectionAdmission {
+    fn pane_input(&mut self, input: PaneInput<'_>) -> PaneAdmission {
+        let PaneInput::Selection { intent, .. } = input else {
+            return PaneAdmission::Rejected;
+        };
         self.log
             .borrow_mut()
             .push(format!("{} selection {intent:?}", self.name));
-        PointerSelectionAdmission::Admitted
+        PaneAdmission::Admitted
     }
 }
 

@@ -845,13 +845,16 @@ impl TerminalInputPort for Port {
         probe.input_captured |= self.menu.active() || self.settings_capture;
         probe
     }
-    fn pointer_selection(
+    fn pane_input(
         &mut self,
-        _: &crate::workbench_client::state::PaneRef,
-        intent: crate::terminal_input::PointerSelectionIntent,
-    ) -> crate::terminal_input::PointerSelectionAdmission {
-        self.selections.push(intent);
-        crate::terminal_input::PointerSelectionAdmission::Admitted
+        input: crate::terminal_input::PaneInput<'_>,
+    ) -> crate::terminal_input::PaneAdmission {
+        if let crate::terminal_input::PaneInput::Selection { intent, .. } = input {
+            self.selections.push(intent);
+            crate::terminal_input::PaneAdmission::Admitted
+        } else {
+            crate::terminal_input::PaneAdmission::Rejected
+        }
     }
     fn apply_client_action(
         &mut self,

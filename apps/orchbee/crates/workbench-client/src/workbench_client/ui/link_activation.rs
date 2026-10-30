@@ -4,7 +4,7 @@
 use super::{WorkbenchClientNotice, WorkbenchClientUi};
 use crate::{
     terminal_link_activation::PaintedLinkSource,
-    workbench_client::input::{PointerLinkAdmission, PointerSelectionCell},
+    workbench_client::input::{PaneAdmission, PointerSelectionCell},
 };
 
 impl WorkbenchClientUi {
@@ -13,14 +13,14 @@ impl WorkbenchClientUi {
         &mut self,
         source: PaintedLinkSource,
         cell: PointerSelectionCell,
-    ) -> PointerLinkAdmission {
+    ) -> PaneAdmission {
         if self.retirement_failure.is_some() {
-            return PointerLinkAdmission::Rejected;
+            return PaneAdmission::Rejected;
         }
         let current = self.view().painted_link_source(source.pane.pane().panel());
         if current.as_ref() != Some(&source) {
             self.report_link_notice(WorkbenchClientNotice::LinkFailed);
-            return PointerLinkAdmission::Rejected;
+            return PaneAdmission::Rejected;
         }
         if !self
             .capabilities
@@ -29,20 +29,20 @@ impl WorkbenchClientUi {
             self.report_link_notice(WorkbenchClientNotice::Unsupported(
                 crate::tui_capabilities::Capability::Browser,
             ));
-            return PointerLinkAdmission::Rejected;
+            return PaneAdmission::Rejected;
         }
         match self.links.admit(source, cell.column, cell.row) {
             crate::terminal_link_activation::Admission::Accepted => {
                 self.clear_synchronous_link_notice();
-                PointerLinkAdmission::Admitted
+                PaneAdmission::Admitted
             }
             crate::terminal_link_activation::Admission::Busy => {
                 self.report_link_notice(WorkbenchClientNotice::LinkBusy);
-                PointerLinkAdmission::Busy
+                PaneAdmission::Busy
             }
             crate::terminal_link_activation::Admission::Unavailable => {
                 self.report_link_notice(WorkbenchClientNotice::LinkFailed);
-                PointerLinkAdmission::Rejected
+                PaneAdmission::Rejected
             }
         }
     }

@@ -39,10 +39,8 @@ use orchbee_workbench_protocol::WorkbenchPanelId;
 use orchbee_workbench_protocol::WorkbenchRequestId;
 use orchbee_workbench_protocol::WorkbenchTabId;
 
-use crate::terminal_input::PointerLinkAdmission;
 use crate::terminal_input::{
-    PointerPane, PointerSelectionAdmission, PointerSelectionCell, PointerSelectionIntent,
-    PointerTab,
+    PaneAdmission, PaneInput, PointerPane, PointerSelectionCell, PointerSelectionIntent, PointerTab,
 };
 use crate::workbench_client::state::{AttachmentKey, PaneKey};
 
@@ -362,7 +360,7 @@ struct RecordingPort {
     non_live: Vec<PaneKey>,
     selection_admitted: bool,
     selections: Vec<(PaneRef, PointerSelectionIntent)>,
-    link_admission: Option<PointerLinkAdmission>,
+    link_admission: Option<PaneAdmission>,
     links: Vec<(
         crate::terminal_link_activation::PaintedLinkSource,
         PointerSelectionCell,
@@ -376,15 +374,6 @@ impl RecordingPort {
 }
 
 impl TerminalInputPort for RecordingPort {
-    fn scrollbar_scroll(
-        &mut self,
-        pane: &PaneRef,
-        _source: crate::terminal_scrollbar::ScrollbarSnapshot,
-        offset: u32,
-    ) -> bool {
-        self.scrolls.push((pane.clone(), offset));
-        true
-    }
     fn forward(
         &mut self,
         input: &[u8],
@@ -397,32 +386,30 @@ impl TerminalInputPort for RecordingPort {
         self.probe.clone()
     }
 
-    fn pointer_selection(
-        &mut self,
-        pane: &PaneRef,
-        intent: PointerSelectionIntent,
-    ) -> PointerSelectionAdmission {
-        self.selections.push((pane.clone(), intent));
-        if self.selection_admitted {
-            PointerSelectionAdmission::Admitted
-        } else {
-            PointerSelectionAdmission::Rejected
+    fn pane_input(&mut self, input: PaneInput<'_>) -> PaneAdmission {
+        match input {
+            PaneInput::Selection { pane, intent } => {
+                self.selections.push((pane.clone(), intent));
+                if self.selection_admitted {
+                    PaneAdmission::Admitted
+                } else {
+                    PaneAdmission::Rejected
+                }
+            }
+            PaneInput::Link { source, cell } => {
+                self.links.push((*source, cell));
+                self.link_admission.unwrap_or(PaneAdmission::Rejected)
+            }
+            PaneInput::HistoryWheel { pane, up } => {
+                self.wheels.push((pane.clone(), up));
+                PaneAdmission::Admitted
+            }
+            PaneInput::Scrollbar { pane, offset, .. } => {
+                self.scrolls.push((pane.clone(), offset));
+                PaneAdmission::Admitted
+            }
+            PaneInput::HistoryKey(_) => PaneAdmission::Rejected,
         }
-    }
-
-    fn pointer_link(
-        &mut self,
-        source: crate::terminal_link_activation::PaintedLinkSource,
-        cell: PointerSelectionCell,
-    ) -> PointerLinkAdmission {
-        self.links.push((source, cell));
-        self.link_admission
-            .unwrap_or(PointerLinkAdmission::Rejected)
-    }
-
-    fn history_wheel(&mut self, key: &PaneRef, up: bool) -> bool {
-        self.wheels.push((key.clone(), up));
-        true
     }
 
     fn apply_client_action(
@@ -597,7 +584,7 @@ fn link_fixture() -> (
     publish_link_map(&mut pointer, &source, content);
     let port = RecordingPort {
         probe: active_probe(0, 0, 1, 1),
-        link_admission: Some(PointerLinkAdmission::Admitted),
+        link_admission: Some(PaneAdmission::Admitted),
         ..RecordingPort::default()
     };
     (pointer, ClientView::new(120), port, source, content)
@@ -959,7 +946,7 @@ fn ctrl_added_after_an_existing_pointer_owner_never_steals_that_gesture() {
     let mut port = RecordingPort {
         probe: active_probe(0, 0, 1, 1),
         selection_admitted: true,
-        link_admission: Some(PointerLinkAdmission::Admitted),
+        link_admission: Some(PaneAdmission::Admitted),
         ..RecordingPort::default()
     };
     pointer.event(
@@ -988,7 +975,7 @@ fn ctrl_added_after_an_existing_pointer_owner_never_steals_that_gesture() {
     publish_link_map(&mut pointer, &source, content);
     let mut port = RecordingPort {
         probe: active_probe(0, 0, 1, 1),
-        link_admission: Some(PointerLinkAdmission::Admitted),
+        link_admission: Some(PaneAdmission::Admitted),
         ..RecordingPort::default()
     };
     port.probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false));
@@ -1012,7 +999,7 @@ fn ctrl_added_after_an_existing_pointer_owner_never_steals_that_gesture() {
     set_leaf(&mut probe, pane_leaf(1, 1, 2, 0, true, Some(true), false));
     let mut port = RecordingPort {
         probe,
-        link_admission: Some(PointerLinkAdmission::Admitted),
+        link_admission: Some(PaneAdmission::Admitted),
         ..RecordingPort::default()
     };
     pointer.event(

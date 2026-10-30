@@ -19,8 +19,8 @@ use crate::tui_pointer::{
 use crate::workbench_client::SetupStage;
 
 use super::{
-    DispatchOutcome, HostReply, ModeRequest, PointerCaptureRequest, RenameDraftToken, RenameEdit,
-    SetupEdit, SetupToken, TerminalInputPort, TerminalObservation,
+    DispatchOutcome, HostReply, ModeRequest, PaneAdmission, PaneInput, PointerCaptureRequest,
+    RenameDraftToken, RenameEdit, SetupEdit, SetupToken, TerminalInputPort, TerminalObservation,
     decoder::{DecodedItem, DecodedKind, LegacyDecoder},
     forward_edit_or_report,
     modal::{ModalCapacity, ModalDecoder, ModalInputEvent},
@@ -2007,7 +2007,9 @@ impl InputDispatcher {
             // discarded by the core. Live panes always report `false`, so
             // their keys keep the ordinary byte path untouched.
             DecodedKind::Key(event)
-                if event.kind != KeyKind::Release && port.history_key(&event) =>
+                if event.kind != KeyKind::Release
+                    && port.pane_input(PaneInput::HistoryKey(&event))
+                        == PaneAdmission::Admitted =>
             {
                 self.flush_pending(view, port);
             }

@@ -32,8 +32,8 @@ use orchbee_terminal_protocol::MouseTracking;
 pub use crate::client_view::help::HelpControl;
 use crate::client_view::{ClientAction, ClientView, Modifiers};
 use crate::terminal_input::{
-    MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, PanePointerRoute,
-    PointerFrameFacts, PointerProbe, PointerSelectionAdmission, PointerSelectionCell,
+    MouseAction, MouseButton, MouseEvent, PaneAdmission, PaneEncode, PaneInput, PaneMouseEvent,
+    PanePointerRoute, PointerFrameFacts, PointerProbe, PointerSelectionCell,
     PointerSelectionIntent, TerminalInputPort, encode_cursor_arrows, encode_pane_report,
     forward_or_report, route_pane_pointer,
 };
@@ -1117,10 +1117,10 @@ impl PointerState {
             return false;
         };
         let click_count = self.next_click_count(&expected, cell, at);
-        if port.pointer_selection(
-            &expected,
-            PointerSelectionIntent::Start { click_count, cell },
-        ) != PointerSelectionAdmission::Admitted
+        if port.pane_input(PaneInput::Selection {
+            pane: &expected,
+            intent: PointerSelectionIntent::Start { click_count, cell },
+        }) != PaneAdmission::Admitted
         {
             return false;
         }
@@ -1146,8 +1146,10 @@ impl PointerState {
             self.gesture = previous;
             return false;
         };
-        let _admission =
-            port.pointer_selection(&selection.expected, PointerSelectionIntent::Cancel);
+        let _admission = port.pane_input(PaneInput::Selection {
+            pane: &selection.expected,
+            intent: PointerSelectionIntent::Cancel,
+        });
         true
     }
 
@@ -1237,13 +1239,17 @@ impl PointerState {
         };
         match event.action {
             MouseAction::Motion => {
-                let _admission =
-                    port.pointer_selection(&expected, PointerSelectionIntent::Update { cell });
+                let _admission = port.pane_input(PaneInput::Selection {
+                    pane: &expected,
+                    intent: PointerSelectionIntent::Update { cell },
+                });
             }
             MouseAction::Release => {
                 self.gesture = Gesture::Idle;
-                let _admission =
-                    port.pointer_selection(&expected, PointerSelectionIntent::End { cell });
+                let _admission = port.pane_input(PaneInput::Selection {
+                    pane: &expected,
+                    intent: PointerSelectionIntent::End { cell },
+                });
             }
             MouseAction::Press => {}
         }
@@ -2210,7 +2216,10 @@ impl PointerState {
                     && !link.cancelled
                     && let Some(source) = link.source
                 {
-                    let _admission = port.pointer_link(source, link.cell);
+                    let _admission = port.pane_input(PaneInput::Link {
+                        source: Box::new(source),
+                        cell: link.cell,
+                    });
                 }
                 PointerOutcome::Handled
             }
@@ -2458,7 +2467,10 @@ impl PointerState {
                 && probe.panes.iter().any(|pane| {
                     pane.record == target.expected && pane.attached && pane.frame_available
                 })
-                && port.history_wheel(&target.expected, event.button == MouseButton::WheelUp)
+                && port.pane_input(PaneInput::HistoryWheel {
+                    pane: &target.expected,
+                    up: event.button == MouseButton::WheelUp,
+                }) == PaneAdmission::Admitted
             {
                 return PointerOutcome::Handled;
             }
@@ -2482,7 +2494,10 @@ impl PointerState {
             // A non-Live focus owns the wheel outright: local scroll when
             // the core accepts it, silent consumption otherwise — never an
             // encoded byte, never an overlay dismissal.
-            port.history_wheel(&target.expected, event.button == MouseButton::WheelUp);
+            let _admission = port.pane_input(PaneInput::HistoryWheel {
+                pane: &target.expected,
+                up: event.button == MouseButton::WheelUp,
+            });
             return PointerOutcome::Handled;
         }
         let Some(frame) = probe.frame else {
@@ -2517,7 +2532,10 @@ impl PointerState {
                 }
             }
             PanePointerRoute::Client if !frame.alternate_screen && vertical => {
-                port.history_wheel(&target.expected, event.button == MouseButton::WheelUp);
+                let _admission = port.pane_input(PaneInput::HistoryWheel {
+                    pane: &target.expected,
+                    up: event.button == MouseButton::WheelUp,
+                });
                 PointerOutcome::Handled
             }
             PanePointerRoute::Client | PanePointerRoute::Host => PointerOutcome::Ignored,

@@ -1,6 +1,6 @@
 //! Selection admission and record intake for the installed pane incarnation.
 use super::{ClientProjectionStatus, ViewportSurface, WorkbenchClientUi};
-use crate::workbench_client::input::{PointerSelectionAdmission, PointerSelectionIntent};
+use crate::workbench_client::input::{PaneAdmission, PointerSelectionIntent};
 use crate::workbench_client::terminal_selection::{
     self as selection, Command, Driver, Event, Failure, Reply,
 };
@@ -126,16 +126,16 @@ impl WorkbenchClientUi {
         &mut self,
         key: &PaneRef,
         intent: PointerSelectionIntent,
-    ) -> PointerSelectionAdmission {
+    ) -> PaneAdmission {
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
-            return PointerSelectionAdmission::Rejected;
+            return PaneAdmission::Rejected;
         };
         let Some(index) = self
             .projections
             .iter()
             .position(|projection| &projection.key == key)
         else {
-            return PointerSelectionAdmission::Rejected;
+            return PaneAdmission::Rejected;
         };
         if intent == PointerSelectionIntent::Cancel {
             self.effects.cancel_selection(key);
@@ -145,7 +145,7 @@ impl WorkbenchClientUi {
                 self.settle_selection_failure(failure);
             }
             self.admit_selections(&mailbox);
-            return PointerSelectionAdmission::Admitted;
+            return PaneAdmission::Admitted;
         }
         if self.workspace_creation_replaces_content()
             || self.retirement_failure.is_some()
@@ -156,13 +156,13 @@ impl WorkbenchClientUi {
             })
             || self.projections[index].status != ClientProjectionStatus::FrameAvailable
         {
-            return PointerSelectionAdmission::Rejected;
+            return PaneAdmission::Rejected;
         }
         let Some(frame) = self.projections[index].value.frame() else {
-            return PointerSelectionAdmission::Rejected;
+            return PaneAdmission::Rejected;
         };
         if frame.interaction.mouse_tracking() != orchbee_terminal_protocol::MouseTracking::None {
-            return PointerSelectionAdmission::Rejected;
+            return PaneAdmission::Rejected;
         }
         let (generation, columns, rows) = (
             frame.route.generation,
@@ -171,7 +171,7 @@ impl WorkbenchClientUi {
         );
         if self.projections[index].tail.is_some() {
             if self.view().pane_tail_window(key.pane().panel()).is_none() {
-                return PointerSelectionAdmission::Rejected;
+                return PaneAdmission::Rejected;
             }
             // A user selection pins the displayed window; automatic following must not move it.
             self.projections[index].tail = None;
@@ -181,7 +181,7 @@ impl WorkbenchClientUi {
             .pane_viewport(key.pane().panel())
             .is_some_and(|surface| !matches!(surface, ViewportSurface::Window { .. }))
         {
-            return PointerSelectionAdmission::Rejected;
+            return PaneAdmission::Rejected;
         }
         let intent = if let Some(crop) = self.view().pane_live_view(key.pane().panel()) {
             let map = |mut cell: crate::workbench_client::input::PointerSelectionCell| {
@@ -218,12 +218,12 @@ impl WorkbenchClientUi {
                     self.effects.cancel_selection(key);
                 }
                 self.admit_selections(&mailbox);
-                PointerSelectionAdmission::Admitted
+                PaneAdmission::Admitted
             }
-            Ok(false) => PointerSelectionAdmission::Rejected,
+            Ok(false) => PaneAdmission::Rejected,
             Err(failure) => {
                 self.settle_selection_failure(failure);
-                PointerSelectionAdmission::Rejected
+                PaneAdmission::Rejected
             }
         }
     }

@@ -7,7 +7,7 @@ fn retained_renderer_has_no_cursor_selection_graphics_input_or_ack() {
     use crate::{
         client_view::ClientView,
         localization::Locale,
-        terminal_input::{PointerSelectionAdmission, PointerSelectionCell, PointerSelectionIntent},
+        terminal_input::{PaneAdmission, PointerSelectionCell, PointerSelectionIntent},
         tui_pointer::HitMapBuilder,
         tui_theme::{Role, Theme},
         workbench_client::{
@@ -148,7 +148,7 @@ fn retained_renderer_has_no_cursor_selection_graphics_input_or_ack() {
                 cell: PointerSelectionCell { column: 0, row: 0 }
             }
         ),
-        PointerSelectionAdmission::Admitted
+        PaneAdmission::Admitted
     );
     ui.after_close_draw(receipt);
     ui.after_draw();

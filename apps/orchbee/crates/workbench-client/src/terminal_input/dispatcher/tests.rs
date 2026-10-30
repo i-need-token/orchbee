@@ -2505,22 +2505,22 @@ impl TerminalInputPort for ModalLinkPort {
         self.probe.clone()
     }
 
-    fn pointer_selection(
+    fn pane_input(
         &mut self,
-        _pane: &crate::workbench_client::state::PaneRef,
-        intent: crate::terminal_input::PointerSelectionIntent,
-    ) -> crate::terminal_input::PointerSelectionAdmission {
-        self.selections.push(intent);
-        crate::terminal_input::PointerSelectionAdmission::Admitted
-    }
-
-    fn pointer_link(
-        &mut self,
-        _source: crate::terminal_link_activation::PaintedLinkSource,
-        _cell: crate::terminal_input::PointerSelectionCell,
-    ) -> crate::terminal_input::PointerLinkAdmission {
-        self.links += 1;
-        crate::terminal_input::PointerLinkAdmission::Admitted
+        input: crate::terminal_input::PaneInput<'_>,
+    ) -> crate::terminal_input::PaneAdmission {
+        use crate::terminal_input::{PaneAdmission, PaneInput};
+        match input {
+            PaneInput::Selection { intent, .. } => {
+                self.selections.push(intent);
+                PaneAdmission::Admitted
+            }
+            PaneInput::Link { .. } => {
+                self.links += 1;
+                PaneAdmission::Admitted
+            }
+            _ => PaneAdmission::Rejected,
+        }
     }
 }
 

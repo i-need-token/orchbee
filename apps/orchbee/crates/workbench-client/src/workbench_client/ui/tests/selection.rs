@@ -1,8 +1,6 @@
 use super::super::tests::move_membership::ready_ui;
 use super::super::*;
-use crate::terminal_input::{
-    PointerSelectionAdmission, PointerSelectionCell, PointerSelectionIntent,
-};
+use crate::terminal_input::{PaneAdmission, PointerSelectionCell, PointerSelectionIntent};
 use crate::workbench_client::state;
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, MessageRole, PayloadEncoding,
@@ -57,7 +55,7 @@ fn accepted_release_and_complete_host_export_reach_the_copy_queue_once() {
                 cell: PointerSelectionCell { column: 1, row: 0 },
             }
         ),
-        PointerSelectionAdmission::Admitted
+        PaneAdmission::Admitted
     );
     assert_eq!(
         ui.pointer_selection(
@@ -66,7 +64,7 @@ fn accepted_release_and_complete_host_export_reach_the_copy_queue_once() {
                 cell: PointerSelectionCell { column: 3, row: 0 },
             }
         ),
-        PointerSelectionAdmission::Admitted
+        PaneAdmission::Admitted
     );
     let attachment = *ui.projections[0].value.attachment();
     for _ in 0..3 {
@@ -206,7 +204,7 @@ fn selection_start_on_a_ready_read_only_pane_enters_the_real_command_mailbox() {
                 cell: PointerSelectionCell { column: 1, row: 2 },
             }
         ),
-        PointerSelectionAdmission::Admitted
+        PaneAdmission::Admitted
     );
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::Selection(tagged) = lease.record() else {

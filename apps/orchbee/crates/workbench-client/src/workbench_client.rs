@@ -20,7 +20,9 @@ use crate::{
     background_thread::BackgroundThread,
     client_view::{ClientAction, ClientActionDisposition},
     local_client::{LocalClient, LocalClientShutdown},
-    workbench_client::input::{TerminalInputPort, TerminalInputUnavailable, TerminalObservation},
+    workbench_client::input::{
+        PaneAdmission, PaneInput, TerminalInputPort, TerminalInputUnavailable, TerminalObservation,
+    },
 };
 use orchbee_client_server_protocol::Geometry;
 use std::{io, sync::Arc};
@@ -1236,13 +1238,35 @@ impl TerminalInputPort for WorkbenchClient {
         disposition
     }
 
-    fn pointer_selection(
-        &mut self,
-        key: &state::PaneRef,
-        intent: crate::workbench_client::input::PointerSelectionIntent,
-    ) -> crate::workbench_client::input::PointerSelectionAdmission {
-        match &mut self.backend {
-            ClientBackend::Native(native) => native.pointer_selection(key, intent),
+    fn pane_input(&mut self, input: PaneInput<'_>) -> PaneAdmission {
+        let consumed = match (&mut self.backend, input) {
+            // Selection and link steps never retire native state, so they skip settlement.
+            (ClientBackend::Native(native), PaneInput::Selection { pane, intent }) => {
+                return native.pointer_selection(pane, intent);
+            }
+            (ClientBackend::Native(native), PaneInput::Link { source, cell }) => {
+                return native.pointer_link(*source, cell);
+            }
+            (ClientBackend::Native(native), PaneInput::HistoryKey(event)) => {
+                native.history_key(event)
+            }
+            (ClientBackend::Native(native), PaneInput::HistoryWheel { pane, up }) => {
+                native.history_wheel(pane, up)
+            }
+            (
+                ClientBackend::Native(native),
+                PaneInput::Scrollbar {
+                    pane,
+                    source,
+                    offset,
+                },
+            ) => native.scrollbar_scroll(pane, source, offset),
+        };
+        self.finalize_native_retirement();
+        if consumed {
+            PaneAdmission::Admitted
+        } else {
+            PaneAdmission::Rejected
         }
     }
 
@@ -1363,24 +1387,6 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    fn pointer_link(
-        &mut self,
-        source: crate::terminal_link_activation::PaintedLinkSource,
-        cell: crate::workbench_client::input::PointerSelectionCell,
-    ) -> crate::workbench_client::input::PointerLinkAdmission {
-        match &mut self.backend {
-            ClientBackend::Native(native) => native.pointer_link(source, cell),
-        }
-    }
-
-    fn history_key(&mut self, event: &crate::client_view::KeyEvent) -> bool {
-        let consumed = match &mut self.backend {
-            ClientBackend::Native(native) => native.history_key(event),
-        };
-        self.finalize_native_retirement();
-        consumed
-    }
-
     fn copy_mode_active(&self) -> bool {
         match &self.backend {
             ClientBackend::Native(native) => native.copy_mode_active(),
@@ -1433,28 +1439,6 @@ impl TerminalInputPort for WorkbenchClient {
         self.backend
             .native_mut()
             .is_some_and(ui::WorkbenchClientUi::cancel_copy_mode)
-    }
-
-    fn history_wheel(&mut self, key: &state::PaneRef, up: bool) -> bool {
-        let consumed = match &mut self.backend {
-            ClientBackend::Native(native) => native.history_wheel(key, up),
-        };
-        self.finalize_native_retirement();
-        consumed
-    }
-
-    fn scrollbar_scroll(
-        &mut self,
-        key: &state::PaneRef,
-        source: crate::terminal_scrollbar::ScrollbarSnapshot,
-        offset: u32,
-    ) -> bool {
-        let consumed = self
-            .backend
-            .native_mut()
-            .is_some_and(|native| native.scrollbar_scroll(key, source, offset));
-        self.finalize_native_retirement();
-        consumed
     }
 
     fn apply_client_action(&mut self, command: InputAction) -> Option<ClientActionDisposition> {

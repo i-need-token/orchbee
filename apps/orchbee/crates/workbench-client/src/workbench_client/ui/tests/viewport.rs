@@ -619,21 +619,27 @@ impl TerminalInputPort for ClientInputPort<'_> {
         self.0.pointer_probe()
     }
 
-    fn pointer_selection(
+    fn pane_input(
         &mut self,
-        pane: &PaneRef,
-        intent: crate::terminal_input::PointerSelectionIntent,
-    ) -> crate::terminal_input::PointerSelectionAdmission {
-        self.0.pointer_selection(pane, intent)
-    }
-
-    fn scrollbar_scroll(
-        &mut self,
-        key: &PaneRef,
-        source: crate::terminal_scrollbar::ScrollbarSnapshot,
-        offset: u32,
-    ) -> bool {
-        self.0.scrollbar_scroll(key, source, offset)
+        input: crate::terminal_input::PaneInput<'_>,
+    ) -> crate::terminal_input::PaneAdmission {
+        use crate::terminal_input::{PaneAdmission, PaneInput};
+        let consumed = match input {
+            PaneInput::Selection { pane, intent } => return self.0.pointer_selection(pane, intent),
+            PaneInput::Link { source, cell } => return self.0.pointer_link(*source, cell),
+            PaneInput::HistoryKey(event) => self.0.history_key(event),
+            PaneInput::HistoryWheel { pane, up } => self.0.history_wheel(pane, up),
+            PaneInput::Scrollbar {
+                pane,
+                source,
+                offset,
+            } => self.0.scrollbar_scroll(pane, source, offset),
+        };
+        if consumed {
+            PaneAdmission::Admitted
+        } else {
+            PaneAdmission::Rejected
+        }
     }
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.0
@@ -647,14 +653,6 @@ impl TerminalInputPort for ClientInputPort<'_> {
         command: crate::workbench_client::InputAction,
     ) -> Option<ClientActionDisposition> {
         Some(self.0.apply_client_action(command))
-    }
-
-    fn history_key(&mut self, event: &crate::client_view::KeyEvent) -> bool {
-        self.0.history_key(event)
-    }
-
-    fn history_wheel(&mut self, key: &crate::workbench_client::state::PaneRef, up: bool) -> bool {
-        self.0.history_wheel(key, up)
     }
 
     fn capture_tab_confirmation_key_for(

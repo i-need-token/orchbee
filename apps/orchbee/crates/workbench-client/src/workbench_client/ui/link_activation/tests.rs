@@ -5,7 +5,7 @@ use super::*;
 use crate::{
     local_client::test_support::server::adjustable_operation_clock,
     terminal_content::TerminalScreen,
-    terminal_input::{PointerLinkAdmission, PointerSelectionCell},
+    terminal_input::{PaneAdmission, PointerSelectionCell},
     terminal_link_activation::{Notice, PaintedLinkSource, PaintedRows, SnapshotMember},
 };
 use std::{
@@ -32,7 +32,7 @@ fn synchronous_link_rejection_replaces_an_older_lane_notice() {
 
     assert_eq!(
         ui.pointer_link(source(), PointerSelectionCell { column: 0, row: 0 }),
-        PointerLinkAdmission::Rejected
+        PaneAdmission::Rejected
     );
     assert_eq!(
         ui.view().command_notice,
@@ -51,7 +51,7 @@ fn synchronous_link_notice_expiry_requests_one_idle_redraw() {
     let mut ui = WorkbenchClientUi::new(mailbox, clock);
     assert_eq!(
         ui.pointer_link(source(), PointerSelectionCell { column: 0, row: 0 }),
-        PointerLinkAdmission::Rejected
+        PaneAdmission::Rejected
     );
     assert_eq!(
         ui.view().command_notice,

@@ -58,7 +58,12 @@ impl ScrollbarDrag {
         if self.last_offset == Some(offset) {
             return true;
         }
-        if !port.scrollbar_scroll(&self.pane, self.source, offset) {
+        if port.pane_input(crate::terminal_input::PaneInput::Scrollbar {
+            pane: &self.pane,
+            source: self.source,
+            offset,
+        }) != crate::terminal_input::PaneAdmission::Admitted
+        {
             return false;
         }
         self.last_offset = Some(offset);

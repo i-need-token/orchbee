@@ -198,9 +198,7 @@ fn minimal_global_actions_leave_the_projected_first_row_and_live_cursor_to_the_t
 
 #[test]
 fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_packet() {
-    use crate::terminal_input::{
-        PointerSelectionAdmission, PointerSelectionCell, PointerSelectionIntent,
-    };
+    use crate::terminal_input::{PaneAdmission, PointerSelectionCell, PointerSelectionIntent};
 
     for same_packet in [true, false] {
         for history in [false, true] {
@@ -277,7 +275,7 @@ fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_pa
                         cell: PointerSelectionCell { column: 1, row: 1 },
                     },
                 ),
-                PointerSelectionAdmission::Rejected,
+                PaneAdmission::Rejected,
             );
             assert!(!ui.history_wheel(&key, true));
             assert!(!ui.history_key(&KeyEvent::press(KeyCode::PageUp, Modifiers::NONE)));
@@ -292,7 +290,7 @@ fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_pa
             // Retiring a gesture must still be able to clean up its old owner.
             assert_eq!(
                 ui.pointer_selection(&key, PointerSelectionIntent::Cancel),
-                PointerSelectionAdmission::Admitted,
+                PaneAdmission::Admitted,
             );
             mailbox.close(CarrierFailure::WorkerExited);
         }

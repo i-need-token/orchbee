@@ -3,8 +3,7 @@ mod mouse;
 use crate::{
     terminal_copy_mode::EpisodeId,
     terminal_input::{
-        DecodedKind, LegacyDecoder, PointerSelectionAdmission, PointerSelectionCell,
-        PointerSelectionIntent,
+        DecodedKind, LegacyDecoder, PaneAdmission, PointerSelectionCell, PointerSelectionIntent,
     },
     workbench_client::state::{AttachmentKey, PaneKey},
 };
@@ -503,7 +502,7 @@ fn copy_entry_places_viewport_enter_after_an_already_admitted_pointer_start_or_u
                     cell: PointerSelectionCell { column: 1, row: 0 },
                 },
             ),
-            PointerSelectionAdmission::Admitted,
+            PaneAdmission::Admitted,
         );
         if update_in_flight {
             let (same, start, action) = take_selection(&mut ui, &mailbox);
@@ -522,7 +521,7 @@ fn copy_entry_places_viewport_enter_after_an_already_admitted_pointer_start_or_u
                         cell: PointerSelectionCell { column: 2, row: 0 },
                     },
                 ),
-                PointerSelectionAdmission::Admitted,
+                PaneAdmission::Admitted,
             );
         }
 
@@ -582,7 +581,7 @@ fn rejected_current_start_releases_copy_entry_but_an_old_generation_reply_does_n
                 cell: PointerSelectionCell { column: 1, row: 0 },
             },
         ),
-        PointerSelectionAdmission::Admitted,
+        PaneAdmission::Admitted,
     );
     let (same, old_start, _) = take_selection(&mut ui, &mailbox);
     assert_eq!(same, key);
@@ -600,7 +599,7 @@ fn rejected_current_start_releases_copy_entry_but_an_old_generation_reply_does_n
                 cell: PointerSelectionCell { column: 2, row: 0 },
             },
         ),
-        PointerSelectionAdmission::Admitted,
+        PaneAdmission::Admitted,
     );
     let (same, current_start, _) = take_selection(&mut ui, &mailbox);
     assert_eq!(same, key);
@@ -656,7 +655,7 @@ fn copy_entry_preserves_a_pointer_exports_queued_cancellation_behind_its_flight(
                 cell: PointerSelectionCell { column: 1, row: 0 },
             },
         ),
-        PointerSelectionAdmission::Admitted,
+        PaneAdmission::Admitted,
     );
     let (same, start, _) = take_selection(&mut ui, &mailbox);
     reply_selection(&mut ui, &mailbox, same, start, SelectionChangedState::None);
@@ -667,7 +666,7 @@ fn copy_entry_preserves_a_pointer_exports_queued_cancellation_behind_its_flight(
                 cell: PointerSelectionCell { column: 4, row: 0 },
             },
         ),
-        PointerSelectionAdmission::Admitted,
+        PaneAdmission::Admitted,
     );
     for _ in 0..2 {
         let (same, command, _) = take_selection(&mut ui, &mailbox);
@@ -689,7 +688,7 @@ fn copy_entry_preserves_a_pointer_exports_queued_cancellation_behind_its_flight(
                 cell: PointerSelectionCell { column: 2, row: 0 },
             },
         ),
-        PointerSelectionAdmission::Admitted,
+        PaneAdmission::Admitted,
     );
     assert_eq!(
         ui.enter_copy_mode(),

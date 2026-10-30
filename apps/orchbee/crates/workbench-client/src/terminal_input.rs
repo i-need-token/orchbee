@@ -9,15 +9,12 @@ pub use crate::terminal_events::{
 pub(crate) use crate::terminal_events::{PanePointerRoute, route_pane_pointer};
 use crate::terminal_events::{decoder, mouse, utf8};
 pub use crate::workbench_client::input::{
-    ModeRequest, PointerCaptureRequest, PointerFrameFacts, PointerProbe, PointerSelectionAdmission,
+    ModeRequest, PaneAdmission, PaneInput, PointerCaptureRequest, PointerFrameFacts, PointerProbe,
     PointerSelectionIntent, TerminalInputPort, TerminalObservation, UnavailableTerminalInputPort,
 };
-pub(crate) use crate::workbench_client::input::{PointerSelectionCell, PointerUnboundPane};
-// Existing dispatcher fixtures build pointer facts; production consumers use the owning port.
-#[cfg(test)]
-pub(crate) use crate::workbench_client::input::PointerLinkAdmission;
 #[cfg(any(test, feature = "test-support"))]
 pub use crate::workbench_client::input::{PointerPane, PointerTab, TerminalInputUnavailable};
+pub(crate) use crate::workbench_client::input::{PointerSelectionCell, PointerUnboundPane};
 use crate::workbench_client::{RenameDraftToken, RenameEdit, SetupEdit, SetupToken};
 mod dispatcher;
 mod modal;
