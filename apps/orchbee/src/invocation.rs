@@ -4863,7 +4863,7 @@ fn doctor_providers_option(
         .iter()
         .map(|value| {
             if let Some(provider) = crate::agent_integrations::IntegrationId::parse_provider(value)
-                && crate::agent_doctor::PROVIDER_IDS.contains(&provider.as_str())
+                && grammar::values::DOCTOR_PROVIDER_IDS.contains(&provider.as_str())
             {
                 Ok(provider.as_str().to_owned())
             } else {

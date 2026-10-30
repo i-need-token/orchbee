@@ -44,6 +44,7 @@ mod creation;
 mod creation_defaults;
 mod current_panel;
 mod current_presentation;
+mod doctor_document;
 mod launch_receipt;
 mod source_context;
 pub(crate) mod workspace_creation;
@@ -418,7 +419,7 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         QueryCommand::AgentDoctor {
             providers,
             asset_roots,
-        } => crate::agent_doctor::run(providers, asset_roots, format, locale),
+        } => doctor_document::run(providers, asset_roots, format, locale),
         // `terminal get` answers the Server's own launch-read join on the
         // admitted session; the snapshot supplies only the typed target id.
         QueryCommand::TerminalGet(target) => match query::terminal_get(target) {

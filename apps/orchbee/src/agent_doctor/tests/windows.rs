@@ -3,41 +3,6 @@ use super::observation;
 use std::{ffi::OsStr, path::Path};
 
 #[test]
-fn all_windows_provider_rows_fit_the_current_bounded_schema() {
-    use serde_json::{Value, json};
-    let run = super::super::DoctorRun {
-        providers: probes::PROVIDERS
-            .iter()
-            .map(|provider| {
-                json!({
-                    "id": crate::agent_integrations::IntegrationId::parse(provider.id).unwrap().provider(), "executable":{"state":"absent"},
-                    "runtime":{"node":{"state":"absent"}},
-                    "hook":{"state":"unknown","reason":"unreadable","detail":{}}
-                })
-            })
-            .collect(),
-        roots: vec![],
-        endpoint: json!({"socket":{"state":"not-inspected","reason":"windows-endpoint-not-inspected"}}),
-        environment: json!({"observationSocketEnv":{"state":"unset"}}),
-        complete: true,
-    };
-    assert_eq!(run.providers.len(), 20);
-    let output = super::super::emit(
-        run,
-        crate::invocation::OutputFormat::Json,
-        crate::localization::Locale::EnUs,
-    );
-    let mut document: Value = serde_json::from_slice(&output.stdout).unwrap();
-    let definition: Value =
-        serde_json::from_str(include_str!("../../cli/schemas/orchbee.agent.doctor.json")).unwrap();
-    let validator = jsonschema::validator_for(&definition).unwrap();
-    validator.validate(&document).unwrap();
-    let row = document["result"]["providers"][0].clone();
-    document["result"]["providers"] = json!(vec![row; 21]);
-    assert!(!validator.is_valid(&document));
-}
-
-#[test]
 fn windows_paths_admit_drive_and_unc_but_refuse_devices_and_relative_names() {
     for path in [
         r"C:\Users\中文 user\config.toml",
@@ -157,11 +122,12 @@ source = 'C:\Users\a b\capsule'
 [plugins."orchbee-agent-observation@orchbee-local"]
 enabled = true
 "#,
+        probes::PathStyle::Windows,
     );
     assert_eq!(scan.source.as_deref(), Some(r"C:\Users\a b\capsule"));
     assert_eq!(scan.source_type.as_deref(), Some("local"));
     assert!(
-        matches!(probes::derive_module_root("file:///C:/a%20b/bundle/opencode/orchbee-agent-observation.mjs", "/bundle/opencode/orchbee-agent-observation.mjs"), probes::ModuleUrlRoot::Root(root) if root == b"C:/a b")
+        matches!(probes::derive_module_root("file:///C:/a%20b/bundle/opencode/orchbee-agent-observation.mjs", "/bundle/opencode/orchbee-agent-observation.mjs", probes::PathStyle::Windows), probes::ModuleUrlRoot::Root(root) if root == b"C:/a b")
     );
     assert!(
         fs::scan_path_for("../codex", OsStr::new(r"C:\bin"), observation())

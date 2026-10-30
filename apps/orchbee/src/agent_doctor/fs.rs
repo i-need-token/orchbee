@@ -17,6 +17,12 @@ mod unix_path;
 pub(crate) use unix_path::{path_admitted, path_from_bytes};
 /// The native path representation and endpoint output policy; every branch is type-checked.
 pub(crate) const WINDOWS_PATHS: bool = cfg!(windows);
+/// The host path style the pure probes classify against.
+pub(crate) const PATH_STYLE: super::probes::PathStyle = if WINDOWS_PATHS {
+    super::probes::PathStyle::Windows
+} else {
+    super::probes::PathStyle::Posix
+};
 use super::{
     Budget,
     probes::{CapsuleEntry, MarkerFileEntry},

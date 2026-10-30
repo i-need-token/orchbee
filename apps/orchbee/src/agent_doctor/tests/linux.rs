@@ -23,6 +23,15 @@ fn scratch(tag: &str) -> std::path::PathBuf {
     directory
 }
 
+/// Linux classifies against the POSIX path style.
+fn module_root(module_url: &str, suffix: &str) -> ModuleUrlRoot {
+    probes::derive_module_root(module_url, suffix, probes::PathStyle::Posix)
+}
+
+fn scan_codex(bytes: &[u8]) -> probes::CodexScan {
+    probes::scan_codex_config(bytes, probes::PathStyle::Posix)
+}
+
 fn provider(id: &str) -> &'static Provider {
     probes::PROVIDERS
         .iter()
@@ -36,7 +45,10 @@ fn provider(id: &str) -> &'static Provider {
 #[test]
 fn provider_ids_match_the_probe_table() {
     let table: Vec<&str> = probes::PROVIDERS.iter().map(|p| p.id).collect();
-    assert_eq!(table, PROVIDER_IDS);
+    assert_eq!(
+        table,
+        crate::invocation::grammar::values::DOCTOR_PROVIDER_IDS
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -47,7 +59,7 @@ fn provider_ids_match_the_probe_table() {
 fn module_url_root_derivation() {
     let suffix = "/extensions/opencode/dist/index.mjs";
     // Happy path: raw bytes preserved, percent-decoded once.
-    let ModuleUrlRoot::Root(root) = probes::derive_module_root(
+    let ModuleUrlRoot::Root(root) = module_root(
         "file:///home/u/.cache/cap%20sule/extensions/opencode/dist/index.mjs",
         suffix,
     ) else {
@@ -56,7 +68,7 @@ fn module_url_root_derivation() {
     assert_eq!(root, b"/home/u/.cache/cap sule");
     // Non-UTF8 decoded bytes stay raw — never lossy.
     let ModuleUrlRoot::Root(root) =
-        probes::derive_module_root("file:///r%FFx/extensions/opencode/dist/index.mjs", suffix)
+        module_root("file:///r%FFx/extensions/opencode/dist/index.mjs", suffix)
     else {
         panic!("non-UTF8 bytes still derive")
     };
@@ -69,11 +81,7 @@ fn module_url_root_derivation() {
         "file:x/extensions/opencode/dist/index.mjs",
         "FILE:///x/extensions/opencode/dist/index.mjs",
     ] {
-        assert_eq!(
-            probes::derive_module_root(url, suffix),
-            ModuleUrlRoot::NonFile,
-            "{url}"
-        );
+        assert_eq!(module_root(url, suffix), ModuleUrlRoot::NonFile, "{url}");
     }
     // Query, fragment, malformed escapes, and decoded NUL bytes are
     // invalid — never a candidate. (A decoded non-absolute path is
@@ -86,11 +94,7 @@ fn module_url_root_derivation() {
         "file:///%00/extensions/opencode/dist/index.mjs",
         "file:///x/extensions/opencode/dist/index.mjs%",
     ] {
-        assert_eq!(
-            probes::derive_module_root(url, suffix),
-            ModuleUrlRoot::Invalid,
-            "{url}"
-        );
+        assert_eq!(module_root(url, suffix), ModuleUrlRoot::Invalid, "{url}");
     }
     // Wrong or rootless suffix contributes nothing — no ancestor guessing.
     for url in [
@@ -99,7 +103,7 @@ fn module_url_root_derivation() {
         "file:///x/extensions/opencode/dist/index.mjs/extra",
     ] {
         assert_eq!(
-            probes::derive_module_root(url, suffix),
+            module_root(url, suffix),
             ModuleUrlRoot::SuffixUnrecognized,
             "{url}"
         );
@@ -190,7 +194,7 @@ fn codex_config(plugin: Option<&[u8]>, marketplace: Option<&[u8]>) -> Vec<u8> {
 #[test]
 fn codex_scan_fields() {
     // Well-formed local+absolute marketplace with explicit enablement.
-    let scan = probes::scan_codex_config(&codex_config(
+    let scan = scan_codex(&codex_config(
         Some(b"enabled = true\n"),
         Some(b"source_type = \"local\"\nsource = \"/opt/capsule\"\n"),
     ));
@@ -201,19 +205,19 @@ fn codex_scan_fields() {
     assert!(!scan.duplicate_key && !scan.duplicate_section);
     // `enabled` present but not bool-parseable → `Some(None)` (the
     // `unknown/malformed` signal, never `conflict` by itself).
-    let scan = probes::scan_codex_config(&codex_config(
+    let scan = scan_codex(&codex_config(
         Some(b"enabled = \"yes\"\n"),
         Some(b"source_type = \"local\"\nsource = \"/opt/capsule\"\n"),
     ));
     assert_eq!(scan.enabled, Some(None));
     // Key absent → `None` (the `enabledFlag:"absent"` projection).
-    let scan = probes::scan_codex_config(&codex_config(
+    let scan = scan_codex(&codex_config(
         Some(b""),
         Some(b"source_type = \"local\"\nsource = \"/opt/capsule\"\n"),
     ));
     assert_eq!(scan.enabled, None);
     // Duplicate key and duplicate section are separate contradiction flags.
-    let scan = probes::scan_codex_config(&codex_config(
+    let scan = scan_codex(&codex_config(
         Some(b"enabled = true\nenabled = false\n"),
         None,
     ));
@@ -222,31 +226,31 @@ fn codex_scan_fields() {
     // is the contradiction.
     let mut doubled = codex_config(Some(b""), None);
     doubled.extend_from_slice(&codex_config(Some(b""), None));
-    let scan = probes::scan_codex_config(&doubled);
+    let scan = scan_codex(&doubled);
     assert!(scan.duplicate_section && !scan.duplicate_key);
     // Non-local source type and non-absolute source are recorded as facts;
     // classification decides they are contradictions.
-    let scan = probes::scan_codex_config(&codex_config(
+    let scan = scan_codex(&codex_config(
         Some(b""),
         Some(b"source_type = \"github\"\nsource = \"x/y\"\n"),
     ));
     assert_eq!(scan.source_type.as_deref(), Some("github"));
     assert_eq!(scan.source.as_deref(), Some("x/y"));
-    let scan = probes::scan_codex_config(&codex_config(
+    let scan = scan_codex(&codex_config(
         Some(b""),
         Some(b"source_type = \"local\"\nsource = \"relative/path\"\n"),
     ));
     assert_eq!(scan.source.as_deref(), Some("relative/path"));
     // Marketplace-only (no plugin section at all) parses for
     // classification as `absent`.
-    let scan = probes::scan_codex_config(&codex_config(
+    let scan = scan_codex(&codex_config(
         None,
         Some(b"source_type = \"local\"\nsource = \"/opt/capsule\"\n"),
     ));
     assert!(!scan.plugin_present && scan.marketplace_present);
     // Unsupported syntax lines are ignored exactly like the consumer
     // scanner — never invented TOML semantics.
-    let scan = probes::scan_codex_config(b"??? not toml at all\n");
+    let scan = scan_codex(b"??? not toml at all\n");
     assert!(!scan.plugin_present && !scan.marketplace_present && !scan.duplicate_key);
 }
 

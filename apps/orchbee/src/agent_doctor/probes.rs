@@ -9,6 +9,17 @@ use std::cmp::Ordering;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+/// How the host spells filesystem paths in provider configuration. The
+/// workflow half passes the host style, so classification stays
+/// platform-neutral.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PathStyle {
+    /// Absolute POSIX paths; Codex strings are JSON basic strings only.
+    Posix,
+    /// Drive-letter paths; Codex also writes TOML single-line literal strings.
+    Windows,
+}
+
 /// The only current contract — `ENTRY_CONTRACT_VERSION`,
 /// `CLINE_CONTRACT_VERSION`, and `CAPSULE_CONTRACT_VERSION` all pin `1` in
 /// the Desktop sources. A non-current owned installation requires reinstall.
@@ -537,7 +548,7 @@ pub(crate) struct CodexScan {
 /// Byte-level line scanner for `~/.codex/config.toml`: section headers are
 /// byte-exact, assignments match `[A-Za-z][A-Za-z0-9_]*\s*=\s*.+`, duplicate
 /// keys stop the scan exactly like the source's early return.
-pub(crate) fn scan_codex_config(bytes: &[u8]) -> CodexScan {
+pub(crate) fn scan_codex_config(bytes: &[u8], style: PathStyle) -> CodexScan {
     const MARKETPLACE: &[u8] = b"[marketplaces.orchbee-local]";
     const PLUGIN: &[u8] = b"[plugins.\"orchbee-agent-observation@orchbee-local\"]";
     #[derive(Clone, Copy, Eq, PartialEq)]
@@ -608,8 +619,9 @@ pub(crate) fn scan_codex_config(bytes: &[u8]) -> CodexScan {
         duplicate_section: marketplace_count > 1 || plugin_count > 1,
         duplicate_key,
         enabled,
-        source_type: lookup(&marketplace_values, b"source_type").and_then(basic_string),
-        source: lookup(&marketplace_values, b"source").and_then(basic_string),
+        source_type: lookup(&marketplace_values, b"source_type")
+            .and_then(|raw| basic_string(raw, style)),
+        source: lookup(&marketplace_values, b"source").and_then(|raw| basic_string(raw, style)),
     }
 }
 
@@ -661,9 +673,9 @@ fn parse_assignment(line: &[u8]) -> Option<(&[u8], &[u8])> {
 
 /// `parseBasicString` — `JSON.parse` of the raw value producing a string,
 /// else `None`.
-fn basic_string(raw: &[u8]) -> Option<String> {
+fn basic_string(raw: &[u8], style: PathStyle) -> Option<String> {
     // Codex serializes Windows paths as TOML single-line literal strings.
-    if super::fs::WINDOWS_PATHS
+    if style == PathStyle::Windows
         && let Some(literal) = raw
             .strip_prefix(b"'")
             .and_then(|raw| raw.strip_suffix(b"'"))
@@ -716,7 +728,11 @@ impl ModuleUrlRoot {
 /// percent-decode preserving raw bytes, NUL rejection, absoluteness, then the
 /// anchored provider suffix strip. No ancestor guessing — a failed URL
 /// contributes no candidate.
-pub(crate) fn derive_module_root(module_url: &str, suffix: &str) -> ModuleUrlRoot {
+pub(crate) fn derive_module_root(
+    module_url: &str,
+    suffix: &str,
+    style: PathStyle,
+) -> ModuleUrlRoot {
     let Some(rest) = module_url.strip_prefix("file://") else {
         return ModuleUrlRoot::NonFile;
     };
@@ -735,7 +751,7 @@ pub(crate) fn derive_module_root(module_url: &str, suffix: &str) -> ModuleUrlRoo
     if decoded.contains(&0) || !decoded.starts_with(b"/") {
         return ModuleUrlRoot::Invalid;
     }
-    let decoded = if super::fs::WINDOWS_PATHS {
+    let decoded = if style == PathStyle::Windows {
         if decoded.len() >= 4
             && decoded[1].is_ascii_alphabetic()
             && decoded[2] == b':'

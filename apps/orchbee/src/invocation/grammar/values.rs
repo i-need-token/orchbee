@@ -93,6 +93,30 @@ pub(crate) const PROVIDER_VALUES: &[&str] = &{
     }
     values
 };
+/// Agent doctor probe-table identities in canonical probe order. CLI provider spellings map
+/// through `IntegrationId` before this check; `agent_doctor` proves its probe table matches.
+pub(crate) const DOCTOR_PROVIDER_IDS: &[&str] = &[
+    "claude-code",
+    "codex",
+    "gemini",
+    "github-copilot",
+    "grok",
+    "cline",
+    "opencode",
+    "kilo",
+    "mastracode",
+    "droid",
+    "kimi",
+    "letta",
+    "devin",
+    "hermes",
+    "antigravity-cli",
+    "qodercli",
+    "cursor",
+    "pi",
+    "omp",
+    "qwen-code",
+];
 pub(crate) const COPY_MOTION_VALUES: &[&str] = &{
     use crate::terminal_copy::CopyMotion;
     let mut values = [""; CopyMotion::ALL.len()];

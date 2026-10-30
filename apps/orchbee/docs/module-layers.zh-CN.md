@@ -20,8 +20,8 @@
 
 | 模块                   | 层             | 职责与理由                                                                                                                                                       |
 | ---------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent_doctor`         | `workflow`     | 基于有界文件系统事实的离线 provider hook 诊断；`fs` 是它唯一的 I/O 边界。                                                                                        |
-| `agent_doctor::probes` | `values`       | Agent doctor 中纯分类的那一半。                                                                                                                                  |
+| `agent_doctor`         | `workflow`     | 基于有界文件系统事实的离线 provider hook 诊断；`fs` 是它唯一的 I/O 边界。它返回带类型化提示的类型化报告；文档、提示文案和输出归 `cli`。                          |
+| `agent_doctor::probes` | `values`       | Agent doctor 中纯分类的那一半；宿主路径风格由调用方传入。                                                                                                        |
 | `agent_integrations`   | `values`       | CLI 与 Session Worker 交换并渲染的 Agent 集成契约值。                                                                                                            |
 | `agent_projection`     | `values`       | 为 Agent 输出确定性地连接规范 Session 与物理 Agent 实例。                                                                                                        |
 | `cli`                  | `composition`  | 把已准入的请求分发给功能 owner，并组装 stdout、stderr、失败和进程结果。逐命令的副作用和文案移出到 `workflow` 与 `presentation` 模块。                            |
@@ -43,4 +43,4 @@
 `pnpm lint:rust-modules -- --details --member apps/orchbee` 可列出每个环和每个指向高层的引用及其
 源码位置样本；[Lint](../../../docs/zh-CN/LINTING.md) 拥有该命令。
 
-<!-- documentation-pairing: english-sha256=ba355233b0208ea71f47a9102c3ae720499c133d2ad4b303cd335f721ad9c2fd zh-cn-sha256=1f96142b069038dcdf31d36e5329330963d7cc35fa68e7e0135cc7617425b5a8 -->
+<!-- documentation-pairing: english-sha256=97c9c73ba02fdb1026655da0be6bde9a6f01ec785e56cb451291bbdab9a83d6e zh-cn-sha256=d1d74920918e7c58809a61cc621c459f82f434efe247aaf9f96a9939c1a2dfe1 -->

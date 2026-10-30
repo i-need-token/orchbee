@@ -3,38 +3,13 @@
 //! it never executes provider commands, never mutates setup or
 //! configuration, never persists, and never connects to sockets for
 //! liveness. `fs` is the module's only IO boundary; `probes` is the pure
-//! classification half.
+//! classification half. The command's machine document and text belong to
+//! the CLI composition root; this module returns the typed [`Report`].
 
-use crate::cli_text::CliText;
 mod fs;
 mod probes;
 #[cfg(test)]
 mod tests;
-
-/// Private adapter identities in canonical probe order. CLI provider spellings
-/// map through IntegrationId before this boundary; probes retain payload IDs.
-pub(crate) const PROVIDER_IDS: &[&str] = &[
-    "claude-code",
-    "codex",
-    "gemini",
-    "github-copilot",
-    "grok",
-    "cline",
-    "opencode",
-    "kilo",
-    "mastracode",
-    "droid",
-    "kimi",
-    "letta",
-    "devin",
-    "hermes",
-    "antigravity-cli",
-    "qodercli",
-    "cursor",
-    "pi",
-    "omp",
-    "qwen-code",
-];
 
 use std::{
     path::Path,
@@ -43,14 +18,9 @@ use std::{
 
 use serde_json::{Map, Value, json};
 
-use crate::cli::output;
-use crate::cli::{Output, failure_output};
-use crate::cli_outcome::{
-    Failure, FailureKind, local_runtime_source, stage_details, stage_reason_details,
-};
+use crate::cli_outcome::{Failure, FailureKind, stage_details, stage_reason_details};
 use crate::native_path;
 use crate::termination_signal::{TerminationSignal, TerminationSource};
-use crate::{invocation::OutputFormat, localization::Locale};
 
 use fs::{CapsuleWalk, DirEntries, EntryKind, FileRead, FingerprintWalk, ListKind, Lstat};
 use probes::{
@@ -178,58 +148,75 @@ fn final_verdict(state: HookState, reason: HookReason) -> HookProbe {
     }
 }
 
-/// `orchbee agent doctor [--provider <id>]... [--asset-root <path>]...
-/// [--format text|json]` — one offline diagnostic document; exit 0 whenever
-/// a complete or partial document was produced.
-pub(crate) fn run(
-    providers: &[String],
-    asset_roots: &[String],
-    format: OutputFormat,
-    locale: Locale,
-) -> Output {
+/// `orchbee agent doctor [--provider <id>]... [--asset-root <path>]...` — one
+/// offline inspection. A complete or partial report is the answer; `Err` is a
+/// command-level refusal before or during inspection.
+pub(crate) fn run(providers: &[String], asset_roots: &[String]) -> Result<Report, Failure> {
     let observation = match fs::Observation::admit() {
         Ok(observation) => observation,
-        Err(fs::Unsupported) => return unsupported(format, locale),
+        Err(fs::Unsupported) => return Err(unsupported()),
     };
-    let signal = match TerminationSignal::install() {
-        Ok(signal) => signal,
-        Err(_) => {
-            return failure_output(
-                Failure::new(FailureKind::InternalFailure),
-                Some(format),
-                locale,
-            );
-        }
+    let Ok(signal) = TerminationSignal::install() else {
+        return Err(Failure::new(FailureKind::InternalFailure));
     };
-    match inspect(providers, asset_roots, &signal, observation) {
-        Err(failure) => failure_output(failure, Some(format), locale),
-        Ok(run) => emit(run, format, locale),
-    }
+    inspect(providers, asset_roots, &signal, observation)
 }
 
-fn unsupported(format: OutputFormat, locale: Locale) -> Output {
+fn unsupported() -> Failure {
     // Unsupported platforms produce a command-level refusal — the failure envelope
     // carries the stage detail; no provider rows ever exist. The `command`
     // detail names this command so the shared platform arm never credits
     // the refusal to `config check`.
     let mut details = stage_reason_details("platform", "unsupported-platform");
     details.insert("command".to_owned(), serde_json::json!("agent doctor"));
-    failure_output(
-        Failure::new(FailureKind::ServiceUnavailable).details(details),
-        Some(format),
-        locale,
-    )
+    Failure::new(FailureKind::ServiceUnavailable).details(details)
 }
 
 /// The facts the document assembles — provider rows in canonical order,
 /// root rows in flag-then-declaration order, the shared environment and
-/// endpoint facts, and the completeness bit.
-struct DoctorRun {
-    providers: Vec<Value>,
-    roots: Vec<Value>,
-    endpoint: Value,
-    environment: Value,
-    complete: bool,
+/// endpoint facts, the completeness bit, and the bounded hints derived from
+/// them.
+pub(crate) struct Report {
+    pub(crate) providers: Vec<Value>,
+    pub(crate) roots: Vec<Value>,
+    pub(crate) endpoint: Value,
+    pub(crate) environment: Value,
+    pub(crate) complete: bool,
+    pub(crate) hints: Vec<Hint>,
+    /// Hosts with native Windows paths report the endpoint socket as
+    /// unsupported in the machine document; text keeps the observed fact.
+    pub(crate) machine_socket_unsupported: bool,
+}
+
+/// One remediation hint: a stable id, the document fields that justify it,
+/// and the subjects its text names. Text is rendered by presentation.
+pub(crate) struct Hint {
+    pub(crate) id: &'static str,
+    pub(crate) evidence: Vec<String>,
+    pub(crate) subjects: Vec<String>,
+}
+
+impl Report {
+    /// Assembles the facts and derives at most `MAX_HINTS` hints from them.
+    pub(crate) fn new(
+        providers: Vec<Value>,
+        roots: Vec<Value>,
+        endpoint: Value,
+        environment: Value,
+        complete: bool,
+    ) -> Self {
+        let mut report = Self {
+            providers,
+            roots,
+            endpoint,
+            environment,
+            complete,
+            hints: Vec::new(),
+            machine_socket_unsupported: fs::WINDOWS_PATHS,
+        };
+        report.hints = build_hints(&report);
+        report
+    }
 }
 
 /// The bounded probe sequence: provider targets and executable scans in
@@ -241,7 +228,7 @@ fn inspect(
     supplied: &[String],
     signal: &TerminationSignal,
     observation: fs::Observation,
-) -> Result<DoctorRun, Failure> {
+) -> Result<Report, Failure> {
     let mut budget = Budget::new(observation);
     let mut complete = true;
     let home = fs::home_directory(observation);
@@ -430,13 +417,13 @@ fn inspect(
         json!({ "socket": { "state": "unknown", "reason": "budget-exhausted" } })
     };
 
-    Ok(DoctorRun {
-        providers: provider_rows,
+    Ok(Report::new(
+        provider_rows,
         roots,
         endpoint,
         environment,
         complete,
-    })
+    ))
 }
 
 /// The inherited `PATH` value as raw bytes for the scanner — an unset PATH
@@ -632,7 +619,7 @@ fn probe_codex(
         FileRead::Absent => return final_verdict(HookState::Absent, HookReason::TargetMissing),
         read => return read_uninspectable(read),
     };
-    let scan = probes::scan_codex_config(&bytes);
+    let scan = probes::scan_codex_config(&bytes, fs::PATH_STYLE);
     // Recognized structural contradictions — the only `conflict` arms.
     if scan.duplicate_key {
         return final_verdict(HookState::Conflict, HookReason::DuplicateKey);
@@ -802,7 +789,8 @@ fn probe_bootstrap(
     // when the body mismatches — the declaration's root is still a bounded
     // observable fact.
     if let Some(url) = &scan.module_url
-        && let ModuleUrlRoot::Root(root) = probes::derive_module_root(url, shape.suffix)
+        && let ModuleUrlRoot::Root(root) =
+            probes::derive_module_root(url, shape.suffix, fs::PATH_STYLE)
     {
         let _ = recorded_root(recorded, provider, "moduleUrl", root);
     }
@@ -818,7 +806,7 @@ fn probe_bootstrap(
         }
         BootstrapVerdict::Present => {
             let url = scan.module_url.as_deref().unwrap_or_default();
-            match probes::derive_module_root(url, shape.suffix) {
+            match probes::derive_module_root(url, shape.suffix, fs::PATH_STYLE) {
                 ModuleUrlRoot::Root(_) => HookProbe::AwaitsRoot {
                     // The root was registered just above — its index is the
                     // last recorded entry for this provider.
@@ -1324,24 +1312,23 @@ fn path_bytes_field(bytes: &[u8]) -> Map<String, Value> {
     Map::from_iter([(key, value)])
 }
 
-/// Deterministic observation-only hints — `{id, evidence, text}` rows:
-/// `evidence` names the concrete fact rows the hint cites, `text` is the
-/// canonical `en-US` statement of the observed condition and its direct
-/// consequence only — never a remedy, never a trust or currentness claim.
-/// The machine document stays locale-neutral; text output re-localizes the
-/// sentence from `id` and the subjects behind `evidence`. Capped at
-/// `MAX_HINTS`.
-fn build_hints(run: &DoctorRun) -> Vec<Value> {
-    let mut hints: Vec<Value> = Vec::new();
-    let mut push = |id: &str, evidence: Vec<String>, subjects: Vec<String>| {
+/// Deterministic observation-only hints: `evidence` names the concrete fact
+/// rows the hint cites, and `subjects` are what its statement names. The
+/// statement is the observed condition and its direct consequence only —
+/// never a remedy, never a trust or currentness claim. The machine document
+/// carries the canonical `en-US` statement; text output re-localizes it from
+/// `id` and `subjects`. Capped at `MAX_HINTS`.
+fn build_hints(run: &Report) -> Vec<Hint> {
+    let mut hints: Vec<Hint> = Vec::new();
+    let mut push = |id: &'static str, evidence: Vec<String>, subjects: Vec<String>| {
         if hints.len() >= MAX_HINTS || (evidence.is_empty() && subjects.is_empty()) {
             return;
         }
-        hints.push(json!({
-            "id": id,
-            "evidence": evidence,
-            "text": CliText::new(Locale::EnUs).cli_agent_doctor_hint_text(id, &subjects),
-        }));
+        hints.push(Hint {
+            id,
+            evidence,
+            subjects,
+        });
     };
 
     let mut conflict = Vec::new();
@@ -1470,61 +1457,4 @@ fn build_hints(run: &DoctorRun) -> Vec<Value> {
         push("partial-document", vec!["complete".to_owned()], Vec::new());
     }
     hints
-}
-
-/// Assembles and emits the document — exit 0 for complete and partial
-/// documents alike (a partial document is itself the answer).
-fn emit(run: DoctorRun, format: OutputFormat, locale: Locale) -> Output {
-    let result = json!({
-        "complete": run.complete,
-        "providers": run.providers,
-        "endpoint": run.endpoint,
-        "asset": { "roots": run.roots },
-        "environment": run.environment,
-        "hints": build_hints(&run),
-    });
-    let too_large = || {
-        failure_output(
-            Failure::new(FailureKind::OutputTooLarge).details(Map::from_iter([(
-                "limitBytes".to_owned(),
-                json!(output::LIMIT),
-            )])),
-            Some(format),
-            locale,
-        )
-    };
-    match format {
-        OutputFormat::Json => {
-            let mut document = json!({
-                "schema": "orchbee.agent.doctor",
-                "version": 1,
-                "source": local_runtime_source(),
-                "result": result,
-            });
-            if fs::WINDOWS_PATHS {
-                document["result"]["endpoint"]["socket"] = json!({"kind":"unsupported"});
-            }
-            match output::encode_document(&document) {
-                Ok(stdout) => Output {
-                    status: 0,
-                    stdout,
-                    stderr: String::new(),
-                    finalization: None,
-                },
-                Err(output::TooLarge) => too_large(),
-            }
-        }
-        OutputFormat::Text => {
-            match output::render_text(|out| crate::cli::present::agent_doctor(out, &result, locale))
-            {
-                Ok(stdout) => Output {
-                    status: 0,
-                    stdout,
-                    stderr: String::new(),
-                    finalization: None,
-                },
-                Err(output::TooLarge) => too_large(),
-            }
-        }
-    }
 }
