@@ -114,12 +114,15 @@ impl TerminalInputPort for SetupPort {
         self.submit_setup_draft(token);
     }
 
-    fn scroll_setup_projects(
+    fn scroll_list(
         &mut self,
-        token: SetupToken,
+        target: &crate::tui_pointer::ListScrollTarget,
         up: bool,
         lines: usize,
-    ) -> Option<SetupToken> {
+    ) -> Option<crate::tui_pointer::ListScrollTarget> {
+        let &crate::tui_pointer::ListScrollTarget::Setup(token) = target else {
+            return None;
+        };
         if token == self.token() && self.shown {
             let lines = i32::try_from(lines).unwrap();
             self.selections = if up {
@@ -129,7 +132,7 @@ impl TerminalInputPort for SetupPort {
             };
             self.token += 1;
             self.shown = false;
-            Some(self.token())
+            Some(crate::tui_pointer::ListScrollTarget::Setup(self.token()))
         } else {
             None
         }

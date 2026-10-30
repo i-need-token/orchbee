@@ -115,18 +115,12 @@ impl PointerState {
         };
         let previous_focus = view.navigator.focus.clone();
         let next = match &pending.target {
-            Target::Setup(token) => port
-                .scroll_setup_projects(*token, pending.up, lines)
-                .map(Target::Setup),
-            Target::Worktree(token) => port
-                .scroll_worktree(*token, pending.up, lines)
-                .map(Target::Worktree),
-            Target::Copy(token) => port
-                .scroll_copy_mode(*token, pending.up, lines)
-                .map(Target::Copy),
-            Target::AgentBoard(token) => port
-                .scroll_agent_board(token, pending.up, lines)
-                .map(Target::AgentBoard),
+            target @ (Target::Setup(_)
+            | Target::Worktree(_)
+            | Target::Copy(_)
+            | Target::AgentBoard(_)
+            | Target::Settings(_)
+            | Target::Menu(_)) => port.scroll_list(target, pending.up, lines),
             Target::Help(source @ HelpDrawSource::Presented { last, rows, .. }) => view
                 .scroll_drawn_help(source, pending.up)
                 .then(|| {
@@ -136,12 +130,6 @@ impl PointerState {
                 .flatten()
                 .map(Target::Help),
             Target::Help(HelpDrawSource::Refused { .. }) => None,
-            Target::Settings(token) => port
-                .scroll_settings(*token, pending.up, lines)
-                .map(Target::Settings),
-            Target::Menu(token) => port
-                .scroll_action_menu(*token, pending.up, lines)
-                .map(Target::Menu),
             Target::Navigator(row) => view
                 .navigator
                 .scroll(row, pending.up, lines)

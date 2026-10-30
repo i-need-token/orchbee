@@ -130,17 +130,20 @@ impl TerminalInputPort for Port {
         self.selection = i32::try_from(index).unwrap();
         self.submit_worktree(token);
     }
-    fn scroll_worktree(
+    fn scroll_list(
         &mut self,
-        token: WorktreeToken,
+        target: &crate::tui_pointer::ListScrollTarget,
         up: bool,
         lines: usize,
-    ) -> Option<WorktreeToken> {
+    ) -> Option<crate::tui_pointer::ListScrollTarget> {
+        let &crate::tui_pointer::ListScrollTarget::Worktree(token) = target else {
+            return None;
+        };
         if token == self.token() && self.shown == Some(token) {
             self.selection += if up { -(lines as i32) } else { lines as i32 };
             self.serial += 1;
             self.shown = None;
-            Some(self.token())
+            Some(crate::tui_pointer::ListScrollTarget::Worktree(self.token()))
         } else {
             None
         }

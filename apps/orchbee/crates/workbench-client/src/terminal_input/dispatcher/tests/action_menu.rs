@@ -786,13 +786,18 @@ impl TerminalInputPort for Port {
     fn cancel_action_menu(&mut self) {
         self.menu.cancel();
     }
-    fn scroll_action_menu(
+    fn scroll_list(
         &mut self,
-        token: crate::action_menu::MenuToken,
+        target: &crate::tui_pointer::ListScrollTarget,
         up: bool,
         lines: usize,
-    ) -> Option<crate::action_menu::MenuToken> {
-        self.menu.scroll(token, up, lines)
+    ) -> Option<crate::tui_pointer::ListScrollTarget> {
+        let &crate::tui_pointer::ListScrollTarget::Menu(token) = target else {
+            return None;
+        };
+        self.menu
+            .scroll(token, up, lines)
+            .map(crate::tui_pointer::ListScrollTarget::Menu)
     }
     fn hover_action_menu_row(
         &mut self,

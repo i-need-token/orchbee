@@ -267,12 +267,16 @@ pub trait TerminalInputPort {
         _control: crate::native_settings::Control,
     ) {
     }
-    fn scroll_settings(
+
+    /// Moves one painted list while its painted token still matches and returns the list's new
+    /// painted target. View-owned lists (help, navigator, machine picker) never reach the port,
+    /// and the default moves nothing.
+    fn scroll_list(
         &mut self,
-        _token: crate::native_settings::Token,
+        _target: &crate::tui_pointer::hit_map::ListScrollTarget,
         _up: bool,
         _lines: usize,
-    ) -> Option<crate::native_settings::Token> {
+    ) -> Option<crate::tui_pointer::hit_map::ListScrollTarget> {
         None
     }
 
@@ -318,14 +322,6 @@ pub trait TerminalInputPort {
         _token: crate::action_menu::MenuToken,
         _control: crate::action_menu::MenuControl,
     ) {
-    }
-    fn scroll_action_menu(
-        &mut self,
-        _token: crate::action_menu::MenuToken,
-        _up: bool,
-        _lines: usize,
-    ) -> Option<crate::action_menu::MenuToken> {
-        None
     }
     fn cancel_action_menu(&mut self) {}
     fn take_action_menu_action(&mut self, _pointer_released: bool) -> Option<InputAction> {
@@ -496,14 +492,6 @@ pub trait TerminalInputPort {
     ) -> bool {
         false
     }
-    fn scroll_copy_mode(
-        &mut self,
-        _token: crate::terminal_copy_mode::CopyModeToken,
-        _up: bool,
-        _lines: usize,
-    ) -> Option<crate::terminal_copy_mode::CopyModeToken> {
-        None
-    }
 
     fn capture_copy_mode_key(&mut self, _event: &crate::client_view::KeyEvent) -> bool {
         false
@@ -580,14 +568,6 @@ pub trait TerminalInputPort {
         false
     }
 
-    fn scroll_agent_board(
-        &mut self,
-        _token: &crate::workbench_client::AgentBoardToken,
-        _up: bool,
-        _lines: usize,
-    ) -> Option<crate::workbench_client::AgentBoardToken> {
-        None
-    }
     fn click_agent_board_control(
         &mut self,
         _target: &crate::workbench_client::AgentBoardControlTarget,
@@ -615,15 +595,6 @@ pub trait TerminalInputPort {
     fn submit_worktree(&mut self, _token: WorktreeToken) {}
     /// Submit an exact checkout from the current successfully painted picker.
     fn choose_worktree(&mut self, _token: WorktreeToken, _index: usize) {}
-    /// Move the picker only while its painted token still matches.
-    fn scroll_worktree(
-        &mut self,
-        _token: WorktreeToken,
-        _up: bool,
-        _lines: usize,
-    ) -> Option<WorktreeToken> {
-        None
-    }
 
     fn edit_setup_draft(&mut self, _token: SetupToken, _edit: SetupEdit<'_>) -> bool {
         false
@@ -637,16 +608,6 @@ pub trait TerminalInputPort {
 
     /// Select and submit one exact Project row authorized by the last draw.
     fn choose_setup_project(&mut self, _token: SetupToken, _index: usize) {}
-
-    /// Move the Project picker only while its painted token still matches.
-    fn scroll_setup_projects(
-        &mut self,
-        _token: SetupToken,
-        _up: bool,
-        _lines: usize,
-    ) -> Option<SetupToken> {
-        None
-    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]

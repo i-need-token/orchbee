@@ -152,13 +152,18 @@ impl TerminalInputPort for Port {
             self.saves += 1;
         }
     }
-    fn scroll_settings(
+    fn scroll_list(
         &mut self,
-        token: crate::native_settings::Token,
+        target: &crate::tui_pointer::ListScrollTarget,
         up: bool,
         lines: usize,
-    ) -> Option<crate::native_settings::Token> {
-        self.editor.scroll(token, up, lines)
+    ) -> Option<crate::tui_pointer::ListScrollTarget> {
+        let &crate::tui_pointer::ListScrollTarget::Settings(token) = target else {
+            return None;
+        };
+        self.editor
+            .scroll(token, up, lines)
+            .map(crate::tui_pointer::ListScrollTarget::Settings)
     }
     fn capture_settings_paste_for(
         &mut self,

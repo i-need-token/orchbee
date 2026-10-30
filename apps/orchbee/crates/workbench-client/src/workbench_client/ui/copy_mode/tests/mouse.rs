@@ -43,13 +43,18 @@ impl TerminalInputPort for Port {
     ) -> bool {
         self.ui.copy_pointer_cell(token, cell, start)
     }
-    fn scroll_copy_mode(
+    fn scroll_list(
         &mut self,
-        token: CopyModeToken,
+        target: &crate::tui_pointer::ListScrollTarget,
         up: bool,
         lines: usize,
-    ) -> Option<CopyModeToken> {
-        self.ui.scroll_copy_mode(token, up, lines)
+    ) -> Option<crate::tui_pointer::ListScrollTarget> {
+        let &crate::tui_pointer::ListScrollTarget::Copy(token) = target else {
+            return None;
+        };
+        self.ui
+            .scroll_copy_mode(token, up, lines)
+            .map(crate::tui_pointer::ListScrollTarget::Copy)
     }
 }
 

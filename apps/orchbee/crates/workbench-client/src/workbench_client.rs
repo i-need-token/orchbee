@@ -16,6 +16,7 @@ mod window_title;
 mod worktree_lane;
 #[cfg(test)]
 use crate::terminal_projection::TerminalProjection;
+use crate::tui_pointer::hit_map::ListScrollTarget;
 use crate::{
     background_thread::BackgroundThread,
     client_view::{ClientAction, ClientActionDisposition},
@@ -870,13 +871,36 @@ impl TerminalInputPort for WorkbenchClient {
             native.click_settings_control(token, control);
         }
     }
-    fn scroll_settings(
+    fn scroll_list(
         &mut self,
-        token: crate::native_settings::Token,
+        target: &ListScrollTarget,
         up: bool,
         lines: usize,
-    ) -> Option<crate::native_settings::Token> {
-        self.backend.native_mut()?.scroll_settings(token, up, lines)
+    ) -> Option<ListScrollTarget> {
+        let native = self.backend.native_mut()?;
+        match target {
+            ListScrollTarget::Setup(token) => native
+                .scroll_setup_projects(*token, up, lines)
+                .map(ListScrollTarget::Setup),
+            ListScrollTarget::Worktree(token) => native
+                .scroll_worktree(*token, up, lines)
+                .map(ListScrollTarget::Worktree),
+            ListScrollTarget::Copy(token) => native
+                .scroll_copy_mode(*token, up, lines)
+                .map(ListScrollTarget::Copy),
+            ListScrollTarget::AgentBoard(token) => native
+                .scroll_agent_board(token, up, lines)
+                .map(ListScrollTarget::AgentBoard),
+            ListScrollTarget::Settings(token) => native
+                .scroll_settings(*token, up, lines)
+                .map(ListScrollTarget::Settings),
+            ListScrollTarget::Menu(token) => native
+                .scroll_action_menu(*token, up, lines)
+                .map(ListScrollTarget::Menu),
+            ListScrollTarget::Help(_)
+            | ListScrollTarget::Navigator(_)
+            | ListScrollTarget::MachinePicker(_) => None,
+        }
     }
     fn click_settings(
         &mut self,
@@ -942,16 +966,6 @@ impl TerminalInputPort for WorkbenchClient {
             native.activate_action_menu_control(source, token, control);
         }
     }
-    fn scroll_action_menu(
-        &mut self,
-        token: crate::action_menu::MenuToken,
-        up: bool,
-        lines: usize,
-    ) -> Option<crate::action_menu::MenuToken> {
-        self.backend
-            .native_mut()?
-            .scroll_action_menu(token, up, lines)
-    }
     fn cancel_action_menu(&mut self) {
         if let Some(native) = self.backend.native_mut() {
             native.cancel_action_menu();
@@ -1007,16 +1021,6 @@ impl TerminalInputPort for WorkbenchClient {
             ui.choose_worktree(token, index);
         }
     }
-    fn scroll_worktree(
-        &mut self,
-        token: WorktreeToken,
-        up: bool,
-        lines: usize,
-    ) -> Option<WorktreeToken> {
-        self.backend
-            .native_mut()
-            .and_then(|ui| ui.scroll_worktree(token, up, lines))
-    }
 
     fn edit_setup_draft(&mut self, token: SetupToken, edit: SetupEdit<'_>) -> bool {
         self.backend
@@ -1035,17 +1039,6 @@ impl TerminalInputPort for WorkbenchClient {
             native.choose_setup_project(token, index);
         }
         self.finalize_native_retirement();
-    }
-
-    fn scroll_setup_projects(
-        &mut self,
-        token: SetupToken,
-        up: bool,
-        lines: usize,
-    ) -> Option<SetupToken> {
-        self.backend
-            .native_mut()
-            .and_then(|native| native.scroll_setup_projects(token, up, lines))
     }
 
     fn submit_setup_draft(&mut self, token: SetupToken) -> Option<ClientActionDisposition> {
@@ -1130,17 +1123,6 @@ impl TerminalInputPort for WorkbenchClient {
         match &mut self.backend {
             ClientBackend::Native(native) => native.agent_board_select(target),
         }
-    }
-
-    fn scroll_agent_board(
-        &mut self,
-        token: &AgentBoardToken,
-        up: bool,
-        lines: usize,
-    ) -> Option<AgentBoardToken> {
-        self.backend
-            .native_mut()?
-            .scroll_agent_board(token, up, lines)
     }
 
     fn click_agent_board_control(&mut self, target: &AgentBoardControlTarget) -> bool {
@@ -1417,16 +1399,6 @@ impl TerminalInputPort for WorkbenchClient {
         self.backend
             .native_mut()
             .is_some_and(|native| native.copy_pointer_cell(token, cell, start))
-    }
-    fn scroll_copy_mode(
-        &mut self,
-        token: crate::terminal_copy_mode::CopyModeToken,
-        up: bool,
-        lines: usize,
-    ) -> Option<crate::terminal_copy_mode::CopyModeToken> {
-        self.backend
-            .native_mut()
-            .and_then(|native| native.scroll_copy_mode(token, up, lines))
     }
 
     fn capture_copy_mode_paste(&mut self, text: Option<&str>) -> bool {

@@ -35,13 +35,18 @@ impl TerminalInputPort for Port {
     fn click_agent_board_control(&mut self, target: &AgentBoardControlTarget) -> bool {
         self.board.control_drawn(target)
     }
-    fn scroll_agent_board(
+    fn scroll_list(
         &mut self,
-        token: &AgentBoardToken,
+        target: &crate::tui_pointer::ListScrollTarget,
         up: bool,
         lines: usize,
-    ) -> Option<AgentBoardToken> {
-        self.board.scroll_painted(token, up, lines)
+    ) -> Option<crate::tui_pointer::ListScrollTarget> {
+        let crate::tui_pointer::ListScrollTarget::AgentBoard(token) = target else {
+            return None;
+        };
+        self.board
+            .scroll_painted(token, up, lines)
+            .map(crate::tui_pointer::ListScrollTarget::AgentBoard)
     }
     fn agent_board_select(&mut self, target: &AgentBoardRowTarget) -> bool {
         self.board.select_drawn_row(target)
