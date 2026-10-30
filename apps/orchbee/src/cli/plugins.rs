@@ -1,8 +1,5 @@
 //! Offline catalog commands and admitted runtime invocation/log commands.
 use crate::cli_text::CliText;
-pub(in crate::cli) mod context;
-mod failure;
-pub(in crate::cli) mod links;
 mod panes;
 mod popup;
 mod provision;

@@ -1,5 +1,5 @@
 //! Pane commands use canonical terminal creation and its postcommit receipt.
-use super::failure::Reason;
+use crate::cli::plugin_preparation::failure::Reason;
 use crate::{
     cli::{Output, creation, failure_output},
     invocation::{CreationKind, OutputFormat, plugins::panes::Open},

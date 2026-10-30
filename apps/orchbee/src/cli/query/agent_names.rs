@@ -7,11 +7,28 @@ use super::{
     AGENT_TOTAL_BUDGET, AgentAdmissionError, AgentExchangeError, BorrowedFd, Failure, FailureKind,
     Instant, agent_session_until, classify_connect, deadline_after, obap_request_id,
 };
-use crate::cli::agent_names::{Execution, FAILURE_SCHEMA};
+use crate::cli::SourceFinalization;
 use crate::cli::command_interrupt::{ArmedSignals, Finish};
 use crate::invocation::AgentNamesCommand;
+use crate::invocation::grammar::schemas::AGENT_NAMES_FAILURE_ID as FAILURE_SCHEMA;
 use orchbee_agent_observation_protocol::{AgentNamesRequest, AgentNamesResult};
 use serde_json::{Map, json};
+
+/// One settled names exchange: the typed result or failure, plus the source finalization the
+/// process answer must carry.
+pub(in crate::cli) struct Execution {
+    pub(in crate::cli) result: Result<AgentNamesResult, Failure>,
+    pub(in crate::cli) finalization: Option<SourceFinalization>,
+}
+
+impl Execution {
+    fn failed(failure: Failure) -> Self {
+        Self {
+            result: Err(failure),
+            finalization: None,
+        }
+    }
+}
 
 pub(super) fn execute(command: &AgentNamesCommand) -> Execution {
     if let Err(failure) =

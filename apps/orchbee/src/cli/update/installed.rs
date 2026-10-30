@@ -1,6 +1,5 @@
 //! Offline installed release provenance, bound to an independently admitted native cohort.
 use super::manifest::{MANIFEST_LIMIT, Release};
-use crate::cli::installation::VerifiedRelease;
 use crate::release_store::open_release_file;
 use orchbee_local_runtime::{Cohort, CohortArtifact, UpdateChannel};
 use sha2::{Digest, Sha256};
@@ -8,6 +7,14 @@ use std::{
     io::{self, Read},
     path::Path,
 };
+
+/// One installed release whose manifest matched the admitted native cohort.
+pub(in crate::cli) struct VerifiedRelease {
+    pub(in crate::cli) channel: UpdateChannel,
+    pub(in crate::cli) version: String,
+    pub(in crate::cli) build_id: String,
+    pub(in crate::cli) manifest: String,
+}
 
 /// Reads no preferences and starts no process. Call only with the current cohort's admission result.
 pub(in crate::cli) fn observe(

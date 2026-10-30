@@ -513,7 +513,7 @@ fn unified_agent_get_physical_inspection_requires_current_semantics() {
             client_view: None,
             binding,
             terminal,
-            semantic: crate::cli::query::terminal_agent::TerminalAgentRead {
+            semantic: crate::cli::results::terminal_agent::TerminalAgentRead {
                 source: json!({"sessionId":id,"workbenchRevision":"12","reportRevision":"7","requestId":"22222222222222222222222222222222"}),
                 report_revision: WorkbenchRevision::new(7),
                 observation: Box::new(observation),

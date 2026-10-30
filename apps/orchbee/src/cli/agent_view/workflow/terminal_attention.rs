@@ -4,36 +4,16 @@ use super::{
     Instant, SignalWatch, Snapshot, WorkbenchClientId, WorkbenchRequestId, read_control,
     view_failure,
 };
-use crate::{cli::query::terminal_agent::TerminalAgentRead, local_client::LocalClient};
+use crate::cli::results::terminal_agent::{ClientAttention, TerminalAgentRead};
+use crate::local_client::LocalClient;
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
-use orchbee_workbench_protocol::{
-    ClientTerminalAgentAttentionSnapshot, PanelAgentState, WorkbenchRevision,
-};
+use orchbee_workbench_protocol::{ClientTerminalAgentAttentionSnapshot, PanelAgentState};
 
 pub(in crate::cli) struct Read {
     client: WorkbenchClientId,
     operation: WorkbenchRequestId,
     view: ClientViewObservation,
     attention: ClientTerminalAgentAttentionSnapshot,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct Projection {
-    pub(in crate::cli) client_id: WorkbenchClientId,
-    operation_id: WorkbenchRequestId,
-    view: ClientViewObservation,
-    report_revision: WorkbenchRevision,
-    sequence: Option<WorkbenchRevision>,
-    pub(in crate::cli) seen: Option<bool>,
-    pub(in crate::cli) status: Option<&'static str>,
-    outer_focused: Option<bool>,
-}
-impl Projection {
-    pub(in crate::cli) fn document(&self) -> serde_json::Value {
-        serde_json::json!({"clientId":self.client_id,"operationId":self.operation_id,"view":self.view,
-            "reportRevision":self.report_revision,"sequence":self.sequence,"seen":self.seen,
-            "status":self.status,"outerFocused":self.outer_focused})
-    }
 }
 
 pub(in crate::cli) fn read(
@@ -72,7 +52,7 @@ impl Read {
     pub(in crate::cli) fn matches_view(&self, view: &ClientViewObservation) -> bool {
         &self.view == view
     }
-    pub(in crate::cli) fn corroborate(self, report: &TerminalAgentRead) -> Projection {
+    pub(in crate::cli) fn corroborate(self, report: &TerminalAgentRead) -> ClientAttention {
         let version = self
             .attention
             .entries
@@ -92,7 +72,7 @@ impl Read {
             PanelAgentState::Blocked => Some("blocked"),
             PanelAgentState::Unknown => Some("unknown"),
         };
-        Projection {
+        ClientAttention {
             client_id: self.client,
             operation_id: self.operation,
             view: self.view,

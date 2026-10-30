@@ -1,5 +1,5 @@
 //! Preserve the admitted Windows executable search, file check and native spelling.
-use super::super::apply::error;
+use super::super::error;
 use crate::cli::{Failure, FailureKind};
 use std::path::{Path, PathBuf};
 

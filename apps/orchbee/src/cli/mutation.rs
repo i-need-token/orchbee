@@ -244,8 +244,25 @@ impl Receipt {
         self
     }
 
+    /// The text answer renders through the shared localized receipt: one
+    /// sentence, then the affected resources; internal identities stay in JSON.
+    fn render(
+        &self,
+        out: &mut super::output::Bounded,
+        locale: Locale,
+    ) -> Result<(), super::output::TooLarge> {
+        out.push(
+            &CliText::new(locale)
+                .cli_receipt_with(&self.document()["result"], self.closed_summary(locale)),
+        )?;
+        if let Some(hint) = self.target_hint(locale) {
+            out.push(hint)?;
+        }
+        Ok(())
+    }
+
     /// The localized first line for a finished close, if this is one.
-    pub(super) fn closed_summary(&self, locale: Locale) -> Option<String> {
+    fn closed_summary(&self, locale: Locale) -> Option<String> {
         let closing = self.closing.as_ref().filter(|closing| closing.finished)?;
         let resource = if self.action == "workspace.close" {
             "workspace"
@@ -255,7 +272,7 @@ impl Receipt {
         Some(CliText::new(locale).cli_close_finished(resource, &closing.label, closing.terminals))
     }
 
-    pub(super) fn target_hint(&self, locale: Locale) -> Option<&'static str> {
+    fn target_hint(&self, locale: Locale) -> Option<&'static str> {
         if self.action.starts_with("project.")
             || self.action.starts_with("workspace.")
             || self.action.starts_with("tab.")
@@ -351,7 +368,7 @@ mod workflow {
         CLOSE_FAILURE_ID, LAUNCH_PROFILE_FAILURE_ID, MUTATION_RESULT_ID, PROJECT_RENAME_RESULT_ID,
     };
     use super::super::{
-        Failure, FailureKind, Output, failure_output, output, present, results, stage_details,
+        Failure, FailureKind, Output, failure_output, output, results, stage_details,
         stage_reason_details,
     };
     use super::{Closing, Receipt, TerminalFact, command_source};
@@ -2599,17 +2616,15 @@ mod workflow {
                 },
                 Err(output::TooLarge) => too_large(),
             },
-            OutputFormat::Text => {
-                match output::render_text(|out| present::receipt(out, receipt, locale)) {
-                    Ok(stdout) => Output {
-                        status: 0,
-                        stdout,
-                        stderr: String::new(),
-                        finalization: None,
-                    },
-                    Err(output::TooLarge) => too_large(),
-                }
-            }
+            OutputFormat::Text => match output::render_text(|out| receipt.render(out, locale)) {
+                Ok(stdout) => Output {
+                    status: 0,
+                    stdout,
+                    stderr: String::new(),
+                    finalization: None,
+                },
+                Err(output::TooLarge) => too_large(),
+            },
         }
     }
 

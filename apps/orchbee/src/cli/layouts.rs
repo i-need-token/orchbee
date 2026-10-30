@@ -1,11 +1,10 @@
 //! Admitted reusable-layout workflows. Canonical membership and Client view keep separate owners.
 mod apply;
 mod export;
-mod launch;
 mod model;
-pub(in crate::cli) mod structure;
 mod template;
 mod workflow;
+use super::layout_topology::failure;
 use super::{
     Failure, FailureKind, Output,
     console_interrupt::{ArmedSignals, Finish},
@@ -17,14 +16,8 @@ use crate::{
 };
 /// Create or replace an admitted layout with bounded recovery and retained effect receipts.
 pub(crate) use apply::run as apply;
-use serde_json::{Map, json};
 use std::time::{Duration, Instant};
 
-fn failure(kind: FailureKind, reason: &'static str) -> Failure {
-    Failure::new(kind)
-        .failure_schema("orchbee.cli.failure.layout")
-        .details(Map::from_iter([("reason".into(), json!(reason))]))
-}
 pub(crate) fn export(
     command: &LayoutExportCommand,
     format: OutputFormat,

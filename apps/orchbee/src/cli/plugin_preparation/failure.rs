@@ -2,7 +2,7 @@
 use crate::cli::{Failure, FailureKind, stage_reason_details};
 
 #[derive(Clone, Copy)]
-pub(super) enum Reason {
+pub(in crate::cli) enum Reason {
     SelectorUnavailable,
     RegistryUnavailable,
     PluginNotFound,
@@ -26,7 +26,7 @@ pub(super) enum Reason {
 }
 
 impl Reason {
-    pub(super) fn failure(self) -> Failure {
+    pub(in crate::cli) fn failure(self) -> Failure {
         use FailureKind::{
             InternalFailure, NotFound, ProtocolInvalid, Rejected, ServiceUnavailable,
         };

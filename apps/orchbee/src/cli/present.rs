@@ -20,11 +20,11 @@ use orchbee_workbench_protocol::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 
-use super::config::CheckReport;
 use super::output::{Bounded, TooLarge};
 use super::results::{
     AgentWaitDoc, ContextRef, LaunchProfileCatalogSelection, PanelDoc, PresentationRow, Projection,
     StatusDoc, TerminalRow, hex_encode,
+    local_report::{CheckReport, DiagnoseDocument},
 };
 use crate::cli_text::escape::{
     display_width, escape, quoted, table_label, table_label_width, unquoted,
@@ -751,30 +751,7 @@ pub(crate) fn render(
         Projection::TerminalList(doc) | Projection::TerminalListHuman(doc) => {
             terminal_table(out, text, doc, locale)
         }
-        // `terminal read` emits the observed content itself: one output line
-        // per emitted grid row — or, under `--source recent-unwrapped`, per joined logical
-        // line — preserving printable text and escaping controls, followed by
-        // the localized markers for tail-omitted entries and
-        // budget-omitted rows.
-        Projection::TerminalOutput(doc) => {
-            if matches!(
-                command,
-                QueryCommand::TerminalOutput { plain: true, .. }
-                    | QueryCommand::TerminalOutput { ansi: true, .. }
-            ) {
-                return out.push(&doc.text);
-            }
-            for line in doc.text.lines() {
-                out.push(&unquoted(line))?;
-                out.push("\n")?;
-            }
-            if doc.range.capacity_omitted > 0 {
-                out.push(&CliText::new(locale).cli_read_truncated(
-                    usize::try_from(doc.range.capacity_omitted).unwrap_or(usize::MAX),
-                ))?;
-            }
-            Ok(())
-        }
+        Projection::TerminalOutput(doc) => doc.render(out, command, locale),
         #[cfg(test)]
         Projection::TerminalRead(doc) => {
             match &doc.lines {
@@ -931,9 +908,8 @@ pub(crate) fn render(
         // Agent text renders only ever see the success outcome — refusals
         // leave the query layer as failures before projection.
         Projection::AgentList(outcome) => agent_list(out, outcome, text, locale),
-        Projection::UnifiedAgentList(doc) => super::agent_projection::render_list(out, doc, locale),
-        Projection::UnifiedAgentInspection(doc) => {
-            super::agent_projection::render_inspection(out, doc, command, locale)
+        Projection::UnifiedAgentList(doc) | Projection::UnifiedAgentInspection(doc) => {
+            doc.render(out, command, locale)
         }
         Projection::AgentChanges(outcome) => agent_changes(out, outcome, locale),
         Projection::AgentGet(outcome) => agent_get(out, outcome, text, locale),
@@ -944,7 +920,7 @@ pub(crate) fn render(
             ..
         } => {
             super::terminal_observation::render(out, terminal, locale)?;
-            super::panel_metadata_query::render_report(
+            reported_agent(
                 out,
                 &serde_json::json!({"view":semantic.observation.view}),
                 locale,
@@ -974,11 +950,7 @@ pub(crate) fn render(
             }
             if let Some(terminal) = &doc.terminal {
                 super::terminal_observation::render(out, terminal, locale)?;
-                super::panel_metadata_query::render_report(
-                    out,
-                    &terminal["reportedAgent"],
-                    locale,
-                )?;
+                reported_agent(out, &terminal["reportedAgent"], locale)?;
             }
             match &doc.runtime {
                 super::results::AgentRuntimeDoc::Unavailable(reason) => {
@@ -1500,6 +1472,32 @@ pub(crate) fn config_checks(
     out.push(CliText::new(locale).cli_check_json_hint())
 }
 
+/// The reported Agent fields of one physical presentation, or nothing when no view was
+/// reported.
+pub(super) fn reported_agent(
+    out: &mut Bounded,
+    report: &Value,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    let view = &report["view"];
+    if view.is_null() {
+        return Ok(());
+    }
+    let labels = CliText::new(locale).cli_reported_agent_fields();
+    for (label, value) in labels.iter().zip([
+        &view["agent"],
+        &view["state"],
+        &view["authoritySource"],
+        &view["message"],
+    ]) {
+        out.write(format_args!(
+            "{label}: {}\n",
+            escape(value.as_str().unwrap_or("-"))
+        ))?;
+    }
+    Ok(())
+}
+
 /// The one fact a check row shows: a failure's field and reason, else its
 /// path, else its locale and source.
 fn check_summary(check: &CheckReport) -> String {
@@ -1524,7 +1522,7 @@ fn check_summary(check: &CheckReport) -> String {
 /// lines after the rows.
 pub(crate) fn server_diagnose(
     out: &mut Bounded,
-    document: &super::server_diagnose::DiagnoseDocument,
+    document: &DiagnoseDocument,
     locale: Locale,
 ) -> Result<(), TooLarge> {
     for (name, row) in &document.rows {
@@ -1578,23 +1576,6 @@ fn detail(out: &mut Bounded, value: &Value) -> Result<(), TooLarge> {
         }
         other => out.push(&other.to_string()),
     }
-}
-
-/// A mutation receipt renders through the shared localized receipt: one
-/// sentence, then the affected resources; internal identities stay in JSON.
-pub(super) fn receipt(
-    out: &mut Bounded,
-    receipt: &super::mutation::Receipt,
-    locale: Locale,
-) -> Result<(), TooLarge> {
-    out.push(&CliText::new(locale).cli_receipt_with(
-        &receipt.document()["result"],
-        receipt.closed_summary(locale),
-    ))?;
-    if let Some(hint) = receipt.target_hint(locale) {
-        out.push(hint)?;
-    }
-    Ok(())
 }
 
 /// Confirm input submission using the admitted terminal identity, without

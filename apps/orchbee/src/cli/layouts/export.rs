@@ -211,7 +211,7 @@ fn observe(
     Ok(document)
 }
 
-type LayoutTarget<'a> = super::structure::Resolved<'a>;
+type LayoutTarget<'a> = crate::cli::layout_topology::Resolved<'a>;
 
 fn target<'a>(
     snapshot: &'a Snapshot,
@@ -226,9 +226,9 @@ fn target<'a>(
                 snapshot,
             )
         })?;
-        super::structure::resolve(snapshot, &ClientLayoutTarget::Panel(Some(target)))
+        crate::cli::layout_topology::resolve(snapshot, &ClientLayoutTarget::Panel(Some(target)))
     } else {
-        super::structure::resolve(snapshot, target)
+        crate::cli::layout_topology::resolve(snapshot, target)
     }
 }
 

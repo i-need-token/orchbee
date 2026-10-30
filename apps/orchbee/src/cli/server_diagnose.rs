@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value, json};
 
+use super::results::local_report::DiagnoseDocument;
 use super::{Failure, FailureKind, Output, failure_output, output};
 use crate::invocation::OutputFormat;
 use crate::localization::Locale;
@@ -37,14 +38,6 @@ const ADVISORY_ACTIVATION_RECORDED: &str = "activation-recorded";
 /// The advisory emitted when a valid client or worker socket residue was
 /// observed — the other half of the current activation predicate.
 const ADVISORY_SOCKET_RESIDUE: &str = "socket-residue";
-
-/// The collected diagnose product: the machine envelope plus the row table
-/// and advisory tokens the text renderer shares with it.
-pub(crate) struct DiagnoseDocument {
-    pub(crate) envelope: Value,
-    pub(crate) rows: Vec<(String, Map<String, Value>)>,
-    pub(crate) advisories: Vec<&'static str>,
-}
 
 /// Platform-specific observations share one machine shape. Text keeps its concise rows.
 fn complete_rows(value: &mut Value) {

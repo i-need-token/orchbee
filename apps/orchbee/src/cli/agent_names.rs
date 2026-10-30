@@ -8,25 +8,10 @@ use orchbee_agent_observation_protocol::{
 };
 use serde_json::{Value, json};
 
-use super::{Failure, FailureKind, Output, SourceFinalization, failure_output, output};
+use super::{Failure, FailureKind, Output, failure_output, output};
+use crate::invocation::grammar::schemas::AGENT_NAMES_FAILURE_ID;
 use crate::invocation::{AgentNamesCommand, OutputFormat};
 use crate::localization::Locale;
-
-pub(crate) const FAILURE_SCHEMA: &str = "orchbee.cli.failure.agent-names";
-
-pub(super) struct Execution {
-    pub(super) result: Result<AgentNamesResult, Failure>,
-    pub(super) finalization: Option<SourceFinalization>,
-}
-
-impl Execution {
-    pub(super) fn failed(failure: Failure) -> Self {
-        Self {
-            result: Err(failure),
-            finalization: None,
-        }
-    }
-}
 
 impl AgentNamesCommand {
     pub(crate) const fn operation(&self) -> &'static str {
@@ -44,15 +29,12 @@ impl AgentNamesCommand {
 }
 
 pub(crate) fn run(command: AgentNamesCommand, format: OutputFormat, locale: Locale) -> Output {
-    let Execution {
-        result,
-        finalization,
-    } = super::query::names_command(&command);
-    let mut answer = match result {
+    let execution = super::query::names_command(&command);
+    let mut answer = match execution.result {
         Err(failure) => failure_output(failure, Some(format), locale),
         Ok(result) => render(&result, format, locale),
     };
-    answer.finalization = finalization;
+    answer.finalization = execution.finalization;
     answer
 }
 
@@ -97,7 +79,9 @@ fn render(result: &AgentNamesResult, format: OutputFormat, locale: Locale) -> Ou
     let source = json!({ "kind": "agent-names", "requestId": result.request_id() });
     match project(result, locale) {
         Err(failure) => failure_output(
-            failure.source(source).failure_schema(FAILURE_SCHEMA),
+            failure
+                .source(source)
+                .failure_schema(AGENT_NAMES_FAILURE_ID),
             Some(format),
             locale,
         ),
@@ -117,36 +101,14 @@ fn render(result: &AgentNamesResult, format: OutputFormat, locale: Locale) -> Ou
                     finalization: None,
                 },
                 Err(_) => failure_output(
-                    Failure::new(FailureKind::OutputTooLarge).failure_schema(FAILURE_SCHEMA),
+                    Failure::new(FailureKind::OutputTooLarge)
+                        .failure_schema(AGENT_NAMES_FAILURE_ID),
                     Some(format),
                     locale,
                 ),
             }
         }
     }
-}
-
-pub(super) fn rejection(
-    reason: Value,
-    conflict: Option<&orchbee_agent_observation_protocol::AgentSessionId>,
-) -> Failure {
-    let kind = match reason.as_str() {
-        Some("ambiguous-target") => FailureKind::Ambiguous,
-        Some("read-denied" | "manage-denied") => FailureKind::Denied,
-        Some("not-found" | "name-not-found" | "session-not-found") => FailureKind::NotFound,
-        _ => FailureKind::Rejected,
-    };
-    let mut details = serde_json::Map::from_iter([
-        ("stage".to_owned(), json!("agent-names")),
-        ("reason".to_owned(), reason),
-    ]);
-    if let Some(id) = conflict {
-        details.insert(
-            "conflictTarget".to_owned(),
-            json!({"kind":"session","sessionId":id}),
-        );
-    }
-    Failure::new(kind).details(details)
 }
 
 fn project(
@@ -179,7 +141,9 @@ fn project(
                     json!(resolved_by).as_str().unwrap_or_default()
                 ),
             )),
-            AgentResolveOutcome::Rejected { reason } => Err(rejection(json!(reason), None)),
+            AgentResolveOutcome::Rejected { reason } => {
+                Err(super::query::agent_names_rejection(json!(reason), None))
+            }
             AgentResolveOutcome::Unavailable { .. } => Err(unavailable()),
         },
         AgentNamesResult::NamesList { result, .. } => match &result.outcome {
@@ -227,7 +191,9 @@ fn project(
                 }
                 Ok(("orchbee.agent.names", json!(result.outcome), text))
             }
-            AgentNamesListOutcome::Rejected { reason } => Err(rejection(json!(reason), None)),
+            AgentNamesListOutcome::Rejected { reason } => {
+                Err(super::query::agent_names_rejection(json!(reason), None))
+            }
             AgentNamesListOutcome::Unavailable { .. } => Err(unavailable()),
         },
         AgentNamesResult::NameAssign { result, .. } => match &result.outcome {
@@ -259,7 +225,10 @@ fn project(
             AgentNameAssignOutcome::Rejected {
                 reason,
                 conflict_session_id,
-            } => Err(rejection(json!(reason), conflict_session_id.as_ref())),
+            } => Err(super::query::agent_names_rejection(
+                json!(reason),
+                conflict_session_id.as_ref(),
+            )),
             AgentNameAssignOutcome::Unavailable { .. } => Err(unavailable()),
         },
         AgentNamesResult::NameRelease { result, .. } => match &result.outcome {
@@ -274,7 +243,9 @@ fn project(
                 let text = CliText::new(locale).cli_agent_name_cleared(session_id.as_str());
                 Ok(("orchbee.agent.rename", json!(result.outcome), text))
             }
-            AgentNameReleaseOutcome::Rejected { reason } => Err(rejection(json!(reason), None)),
+            AgentNameReleaseOutcome::Rejected { reason } => {
+                Err(super::query::agent_names_rejection(json!(reason), None))
+            }
             AgentNameReleaseOutcome::Unavailable { .. } => Err(unavailable()),
         },
     }

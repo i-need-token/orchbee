@@ -60,7 +60,9 @@ pub(super) fn read_with_receipt(
     {
         return Err(Failure::new(FailureKind::ProtocolInvalid));
     }
-    if let Some(kind) = super::workbench_query::submission_failure(answer.exit_code(), outcome) {
+    if let Some(kind) =
+        super::client_control::exchange::submission_failure(answer.exit_code(), outcome)
+    {
         return Err(Failure::new(kind));
     }
     let Some(WorkbenchClientViewResult {

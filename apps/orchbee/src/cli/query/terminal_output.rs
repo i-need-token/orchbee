@@ -3,7 +3,7 @@
 use super::{
     Failure, FailureKind, Instant, LocalClient, Projection, TerminalTextFrame,
     TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerId, WaitRun,
-    WaitSample, acknowledge_frame, aged_pin, agent_terminal, attach_viewer, classify_rows_rejected,
+    WaitSample, acknowledge_frame, aged_pin, attach_viewer, classify_rows_rejected,
     classify_viewer, classify_viewer_rejected, decode_history_window, detach_viewer,
     obcs_request_id, read_settled, snapshot_session, viewer_protocol_invalid, viewer_unavailable,
 };
@@ -30,7 +30,7 @@ pub(crate) fn read_output(
     let target = match target {
         OutputTarget::Terminal(target) => target.clone(),
         OutputTarget::Agent(target) => {
-            agent_terminal::agent_terminal_target(&mut client, &snapshot, target, deadline)?
+            super::named_terminal::agent_terminal_target(&mut client, &snapshot, target, deadline)?
         }
     };
     let outcome = (|| {
@@ -90,7 +90,7 @@ pub(crate) fn read_output(
             };
             // Detection follows the reference source's plain-text representation even under ANSI.
             doc.ansi = ansi;
-            Ok((source.clone(), Projection::TerminalOutput(doc)))
+            Ok((source.clone(), Projection::TerminalOutput(Box::new(doc))))
         })
         .map_err(|failure| failure.source(source))
 }

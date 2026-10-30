@@ -1,13 +1,34 @@
 //! Shared terminal frame and process projection for Panel and Agent queries.
-use super::query;
+use super::results::PanelProcessInfoDoc;
 use crate::cli_text::CliText;
+use orchbee_terminal_protocol::TerminalFrameRoute;
 use serde_json::{Value, json};
+use std::sync::Arc;
+
+/// The frame facts one read-only viewer attachment sampled.
+#[derive(Debug)]
+pub(in crate::cli) struct Metadata {
+    pub(in crate::cli) route: TerminalFrameRoute,
+    pub(in crate::cli) columns: u16,
+    pub(in crate::cli) rows: u16,
+    pub(in crate::cli) alternate_screen: bool,
+    pub(in crate::cli) scrollback_rows: u64,
+    pub(in crate::cli) title: Option<Arc<str>>,
+    pub(in crate::cli) current_directory: Option<Arc<str>>,
+}
+
+/// One frame metadata sample with the optional process facts sampled beside it.
+#[derive(Debug)]
+pub(in crate::cli) struct Read {
+    pub(in crate::cli) frame: Metadata,
+    pub(in crate::cli) processes: Option<(Value, PanelProcessInfoDoc)>,
+}
 
 #[derive(Debug)]
 pub(super) enum Observation {
     Unbound,
     Unavailable,
-    Observed(Box<query::terminal_metadata::Read>),
+    Observed(Box<Read>),
 }
 use crate::terminal_title::stripped;
 

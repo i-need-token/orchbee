@@ -24,8 +24,8 @@ pub(in crate::cli) struct NamedTarget {
     pub(in crate::cli) presentation: Option<String>,
 }
 
-pub(super) struct ResolvedTarget {
-    pub(super) session_id: AgentSessionId,
+pub(in crate::cli) struct ResolvedTarget {
+    pub(in crate::cli) session_id: AgentSessionId,
     pub(in crate::cli) presentation: Option<String>,
 }
 
@@ -188,7 +188,7 @@ pub(super) fn prepare(
     })
 }
 
-pub(super) fn resolve_on_session(
+pub(in crate::cli) fn resolve_on_session(
     client: &mut LocalClient,
     target: &AgentTarget,
     snapshot: Option<&Snapshot>,
@@ -197,11 +197,11 @@ pub(super) fn resolve_on_session(
 ) -> Result<ResolvedTarget, Failure> {
     let resolved = resolve_named(client, target, snapshot, total, wake)?;
     let AgentNameTarget::Session { session_id } = resolved.target else {
-        return Err(crate::cli::agent_names::rejection(
+        return Err(super::agent_names_failure::rejection(
             serde_json::json!("session-not-found"),
             None,
         )
-        .failure_schema(crate::cli::agent_names::FAILURE_SCHEMA));
+        .failure_schema(crate::invocation::grammar::schemas::AGENT_NAMES_FAILURE_ID));
     };
     Ok(ResolvedTarget {
         session_id,
@@ -295,13 +295,13 @@ pub(super) fn resolve(
         .map_err(agent_names_failure::exchange_failure)?;
     if Instant::now() >= total {
         return Err(Failure::new(FailureKind::Timeout)
-            .failure_schema(crate::cli::agent_names::FAILURE_SCHEMA));
+            .failure_schema(crate::invocation::grammar::schemas::AGENT_NAMES_FAILURE_ID));
     }
     Ok(answer)
 }
 
 pub(super) fn resolved_target(answer: &AgentNamesResult) -> Result<AgentNameTarget, Failure> {
-    let schema = crate::cli::agent_names::FAILURE_SCHEMA;
+    let schema = crate::invocation::grammar::schemas::AGENT_NAMES_FAILURE_ID;
     let source = serde_json::json!({"kind":"agent-names", "requestId":answer.request_id()});
     let AgentNamesResult::Resolve { result, .. } = answer else {
         return Err(Failure::new(FailureKind::ProtocolInvalid).failure_schema(schema));
@@ -311,7 +311,7 @@ pub(super) fn resolved_target(answer: &AgentNamesResult) -> Result<AgentNameTarg
             session_id: session_id.clone(),
         }),
         AgentResolveOutcome::ResolvedTarget { target, .. } => Ok(target.clone()),
-        AgentResolveOutcome::Rejected { reason } => Err(crate::cli::agent_names::rejection(
+        AgentResolveOutcome::Rejected { reason } => Err(super::agent_names_failure::rejection(
             serde_json::json!(reason),
             None,
         )

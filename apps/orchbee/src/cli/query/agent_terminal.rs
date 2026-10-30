@@ -2,7 +2,6 @@
 //! This owner resolves only; existing terminal owners retain observation/input.
 
 use super::agent_target;
-use super::named_terminal_target;
 use super::read_terminal_processes;
 use super::{
     AgentReadOperation, AgentSessionId, BorrowedFd, Failure, FailureKind, Instant, LocalClient,
@@ -11,21 +10,6 @@ use super::{
 };
 use crate::invocation::AgentTarget;
 use orchbee_agent_observation_protocol::{AgentLifecycle, AgentSessionDetail};
-
-/// Resolve once, get once, and refuse a missing or ambiguous live binding.
-/// The caller keeps the admission and original deadline for the terminal operation.
-pub(crate) fn agent_terminal_target(
-    client: &mut LocalClient,
-    snapshot: &Snapshot,
-    target: &AgentTarget,
-    deadline: Instant,
-) -> Result<Target, Failure> {
-    if crate::cli::execution::admit(crate::cli::execution::Capability::AgentProjection).is_ok() {
-        named_terminal_target(client, snapshot, target, deadline, None, false)
-    } else {
-        resolve_agent_terminal(client, snapshot, target, deadline).map(|resolved| resolved.terminal)
-    }
-}
 
 pub(crate) use crate::agent_runtime::AgentObservationRead;
 

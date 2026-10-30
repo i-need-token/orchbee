@@ -3,14 +3,17 @@
 //! Workbench state, or physical terminal execution.
 
 use crate::cli_text::CliText;
+mod agent_list;
 pub(crate) mod agent_manifests;
 pub(crate) mod agent_view_spec;
+mod agent_wait;
 mod command_interrupt;
 mod console_interrupt;
 mod execution;
 mod input_source;
 mod installation;
 pub(crate) mod invocation_route;
+mod link_activation;
 pub(crate) mod machines;
 pub(crate) mod notification;
 pub(crate) mod operation;
@@ -18,10 +21,12 @@ pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;
 mod panel_metadata_query;
 pub(crate) mod panel_terminal_creation;
+mod plugin_preparation;
 pub(crate) mod plugins;
 mod report_target;
 pub(crate) mod runtime_configuration;
 mod schema_export;
+mod terminal_run;
 pub(crate) mod window_title;
 pub(crate) mod workspace_metadata;
 pub(crate) use schema_export::run as export_schema;
@@ -62,6 +67,7 @@ pub(crate) mod config;
 pub(crate) mod config_reset;
 mod configuration;
 pub(crate) mod integration;
+mod layout_topology;
 pub(crate) mod layouts;
 mod mutation;
 pub(crate) mod named_sessions;
@@ -354,7 +360,7 @@ pub(crate) fn mutation(command: MutationCommand, format: OutputFormat, locale: L
         timeout_ms,
     } = &command
     {
-        return query::run_terminal(target, command, *timeout_ms, format, locale);
+        return terminal_run::run(target, command, *timeout_ms, format, locale);
     }
     if let MutationCommand::TerminalSend { target, input } = &command {
         return send::run(target, input, format, locale);
@@ -444,7 +450,7 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         } => {
             if client.is_some() || execution::admit(execution::Capability::AgentProjection).is_ok()
             {
-                agent_projection::run(&command, format, locale)
+                agent_list::run(&command, format, locale)
             } else {
                 match agent_request::list_cursor(
                     cursor.as_deref(),
@@ -481,7 +487,7 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             after_revision,
             timeout_ms,
         } => agent_output(
-            query::agent_wait(
+            agent_wait::agent_wait(
                 session,
                 agent_request::wait_conditions(until.as_deref()),
                 *after_revision,

@@ -1,12 +1,12 @@
 //! Compose membership and launch owners under exact snapshots and one recovery budget.
 mod closing;
 mod view;
-use super::{error, exchange, ownership, receipt::Receipt, targeting::Destination};
+use super::{error, exchange, launch, ownership, receipt::Receipt, targeting::Destination};
 use crate::{
     cli::{
         Failure, FailureKind,
         console_interrupt::{ArmedSignals, SignalWatch},
-        layouts::{export, launch, template, workflow},
+        layouts::{export, template, workflow},
         mutation, query,
     },
     invocation::{ClientLayoutTarget, LayoutApplyCommand, LayoutExportCommand, Target},

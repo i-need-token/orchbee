@@ -374,7 +374,7 @@ impl Document {
                         .map_or("-", |v| v.as_str())
                 )
             ))?;
-            render_report(out, &self.report_value(id), locale)?;
+            super::present::reported_agent(out, &self.report_value(id), locale)?;
             for (key, value) in row.tokens.as_map() {
                 out.write(format_args!(
                     "{}  {}={}\n",
@@ -437,27 +437,3 @@ pub(super) fn empty_fixture(
 }
 #[cfg(test)]
 mod tests;
-
-pub(in crate::cli) fn render_report(
-    out: &mut Bounded,
-    report: &Value,
-    locale: Locale,
-) -> Result<(), TooLarge> {
-    let view = &report["view"];
-    if view.is_null() {
-        return Ok(());
-    }
-    let labels = CliText::new(locale).cli_reported_agent_fields();
-    for (label, value) in labels.iter().zip([
-        &view["agent"],
-        &view["state"],
-        &view["authoritySource"],
-        &view["message"],
-    ]) {
-        out.write(format_args!(
-            "{label}: {}\n",
-            crate::cli_text::escape::escape(value.as_str().unwrap_or("-"))
-        ))?;
-    }
-    Ok(())
-}

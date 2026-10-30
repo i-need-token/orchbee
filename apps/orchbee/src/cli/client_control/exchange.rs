@@ -283,3 +283,25 @@ pub(super) fn interrupted(
         Ok(false)
     }
 }
+
+/// The failure class of one finished Client view submission: its process exit code, refined by
+/// the typed outcome for a rejected observation step.
+pub(in crate::cli) fn submission_failure(
+    code: u8,
+    outcome: Option<&ClientViewOutcome>,
+) -> Option<FailureKind> {
+    Some(match code {
+        0 => return None,
+        3 => match outcome {
+            Some(ClientViewOutcome::Denied {}) => FailureKind::Denied,
+            Some(ClientViewOutcome::NotFound {}) => FailureKind::NotFound,
+            // This step consumes its requested ClientView receipt class; other replies cannot confirm that observation.
+            _ => FailureKind::Rejected,
+        },
+        4 => FailureKind::ServiceUnavailable,
+        5 | 8 => FailureKind::TransportLoss,
+        7 => FailureKind::Timeout,
+        130 => FailureKind::Cancelled,
+        _ => FailureKind::ProtocolInvalid,
+    })
+}

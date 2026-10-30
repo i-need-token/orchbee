@@ -37,10 +37,25 @@
 | `tui_backend`          | `workflow`     | 宿主终端帧写入适配器。                                                                                                                                           |
 | `tui_shell`            | `composition`  | TUI 事件循环、表面切换、输入轮询和绘制结算。                                                                                                                     |
 
+## `cli` 内部的顺序
+
+`cli` 的每个子模块都继承 `composition`，只能靠无环规则排序。以下不变量维持这一顺序：
+
+- 结果模型（`results`、`output`、`handles` 和 `terminal_observation`）从不引用命令 owner。由
+  owner 基于其他结果值组装、并自行渲染文本的查询文档，以 `results::OwnedDocument` 的形式进入
+  `results::Projection`。
+- `present` 只渲染结果值。需要命令 owner 类型的命令文案留在该 owner；例如 mutation 的 `Receipt`
+  自行渲染。
+- `query` 只做单步的读取、解析和交换，从不调用命令流程。把读取与 Client 注意力、输入提交或插件
+  激活组合起来的流程放在各自的同级模块中，例如 `agent_wait`、`agent_list` 和 `terminal_run`。
+  它们共用的辅助放在更低的同级模块中，例如 `link_activation`、`plugin_preparation`、
+  `layout_topology` 和 `client_control::exchange`。
+- 多个 owner 共同报告的失败 schema 标识位于 `invocation::grammar::schemas`。
+
 ## 维护
 
 添加、删除、重命名或移动模块时，在同一变更中更新它的行。运行
 `pnpm lint:rust-modules -- --details --member apps/orchbee` 可列出每个环和每个指向高层的引用及其
 源码位置样本；[Lint](../../../docs/zh-CN/LINTING.md) 拥有该命令。
 
-<!-- documentation-pairing: english-sha256=97c9c73ba02fdb1026655da0be6bde9a6f01ec785e56cb451291bbdab9a83d6e zh-cn-sha256=d1d74920918e7c58809a61cc621c459f82f434efe247aaf9f96a9939c1a2dfe1 -->
+<!-- documentation-pairing: english-sha256=b277023b1c133b9c064466ae62be1dcf9d6e5254b9938ba584dc6ad64d203160 zh-cn-sha256=36ebf33ea42bb27e0edb75a6896b41ff0f1598f0dba16e8ba14f43900b553db2 -->

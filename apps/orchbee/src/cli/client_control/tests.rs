@@ -1208,3 +1208,27 @@ fn configured_popup_receipt_is_closed() {
     let validator = jsonschema::validator_for(&schema).unwrap();
     validator.validate(&document).unwrap();
 }
+
+#[test]
+fn read_failures_preserve_denial_missing_observation_and_interruption_classes() {
+    assert_eq!(
+        exchange::submission_failure(3, Some(&ClientViewOutcome::Denied {})),
+        Some(FailureKind::Denied)
+    );
+    assert_eq!(
+        exchange::submission_failure(3, Some(&ClientViewOutcome::NotFound {})),
+        Some(FailureKind::NotFound)
+    );
+    for (code, kind) in [
+        (1, FailureKind::ProtocolInvalid),
+        (3, FailureKind::Rejected),
+        (4, FailureKind::ServiceUnavailable),
+        (5, FailureKind::TransportLoss),
+        (7, FailureKind::Timeout),
+        (8, FailureKind::TransportLoss),
+        (130, FailureKind::Cancelled),
+    ] {
+        assert_eq!(exchange::submission_failure(code, None), Some(kind));
+    }
+    assert_eq!(exchange::submission_failure(0, None), None);
+}

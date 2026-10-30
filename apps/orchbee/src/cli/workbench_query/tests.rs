@@ -7,29 +7,6 @@ fn id(number: u64) -> String {
     format!("{number:032x}")
 }
 
-#[test]
-fn read_failures_preserve_denial_missing_observation_and_interruption_classes() {
-    assert_eq!(
-        submission_failure(3, Some(&ClientViewOutcome::Denied {})),
-        Some(FailureKind::Denied)
-    );
-    assert_eq!(
-        submission_failure(3, Some(&ClientViewOutcome::NotFound {})),
-        Some(FailureKind::NotFound)
-    );
-    for (code, kind) in [
-        (1, FailureKind::ProtocolInvalid),
-        (3, FailureKind::Rejected),
-        (4, FailureKind::ServiceUnavailable),
-        (5, FailureKind::TransportLoss),
-        (7, FailureKind::Timeout),
-        (8, FailureKind::TransportLoss),
-        (130, FailureKind::Cancelled),
-    ] {
-        assert_eq!(submission_failure(code, None), Some(kind));
-    }
-    assert_eq!(submission_failure(0, None), None);
-}
 fn record() -> ClientViewRecord {
     let corpus: Value = serde_json::from_str(include_str!(
         "../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"

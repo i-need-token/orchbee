@@ -13,13 +13,6 @@ mod platform;
 #[derive(Debug)]
 pub(super) struct Unsupported;
 
-pub(super) struct VerifiedRelease {
-    pub(super) channel: UpdateChannel,
-    pub(super) version: String,
-    pub(super) build_id: String,
-    pub(super) manifest: String,
-}
-
 /// Installation observation. Unavailable never becomes a guessed channel or development build.
 pub(in crate::cli) enum Installation {
     Development,
@@ -72,7 +65,7 @@ pub(super) fn inspect(
     Ok(
         match crate::cli::update::observe_installation(executable, admitted, version) {
             Ok(None) => Installation::Development,
-            Ok(Some(VerifiedRelease {
+            Ok(Some(crate::cli::update::VerifiedRelease {
                 channel,
                 version,
                 build_id,

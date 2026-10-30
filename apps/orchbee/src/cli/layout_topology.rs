@@ -1,4 +1,5 @@
-//! Shared topology operations resolve only canonical identities, never a virtual viewport.
+//! Shared layout topology operations for layout workflows and Client navigation. They resolve
+//! only canonical identities, never a virtual viewport.
 use crate::cli_text::CliText;
 mod ratio;
 use crate::{
@@ -15,8 +16,16 @@ use orchbee_workbench_protocol::{
     WorkbenchPanelId, WorkbenchRequestId, WorkbenchSplitRatio,
 };
 pub(in crate::cli) use ratio::submit as submit_ratio;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use std::time::{Duration, Instant};
+
+/// The shared layout failure envelope: topology resolution and layout workflows report one reason
+/// vocabulary.
+pub(in crate::cli) fn failure(kind: FailureKind, reason: &'static str) -> Failure {
+    Failure::new(kind)
+        .failure_schema("orchbee.cli.failure.layout")
+        .details(Map::from_iter([("reason".into(), json!(reason))]))
+}
 
 pub(in crate::cli) struct Resolved<'a> {
     pub(in crate::cli) context: &'a TerminalContext,
@@ -79,7 +88,7 @@ pub(in crate::cli) fn split(
     let mut node = root;
     for index in path.indices() {
         let PanelNode::Split { children, .. } = node else {
-            return Err(super::failure(FailureKind::NotFound, "layout-unavailable"));
+            return Err(failure(FailureKind::NotFound, "layout-unavailable"));
         };
         node = &children[usize::from(*index)].node;
     }
@@ -90,7 +99,7 @@ pub(in crate::cli) fn split(
         ..
     } = node
     else {
-        return Err(super::failure(FailureKind::NotFound, "layout-unavailable"));
+        return Err(failure(FailureKind::NotFound, "layout-unavailable"));
     };
     Ok((
         ClientSplitIdentity {

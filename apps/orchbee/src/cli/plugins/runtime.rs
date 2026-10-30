@@ -40,7 +40,7 @@ pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
                 context,
             } => {
                 let id = query::request_id()?.as_str().to_owned();
-                let context = super::context::resolve(
+                let context = crate::cli::plugin_preparation::context::resolve(
                     &mut client,
                     &snapshot,
                     selected.as_ref(),

@@ -2,24 +2,12 @@
 //! watch, preserving typed source failures and provenance. It does not submit input or
 //! reinterpret acquired bytes as executable syntax.
 
-use super::{SignalWatch, acquire_file, acquire_stdin};
-pub(super) use crate::cli::input_source::usage;
+use super::{SignalWatch, acquire_file, acquire_stdin, limit_for};
+use crate::cli::input_source::usage;
 pub(crate) use crate::cli::input_source::{InputSource, SourceFailure, source_details};
 use crate::invocation::{SendSourceCause, TerminalSendInput};
 
 use std::{borrow::Cow, time::Instant};
-/// The declared form's acquisition bound: the literal `bytes` record bound
-/// plus one spare byte to detect oversize, or the `paste` content bound.
-/// The folded `--enter` CR counts toward the `bytes` record bound after
-/// acquisition, so acquisition reads at most the plain bound.
-pub(super) fn limit_for(paste: bool) -> usize {
-    if paste {
-        crate::invocation::MAXIMUM_SEND_PASTE_BYTES
-    } else {
-        crate::invocation::MAXIMUM_SEND_BYTES_BYTES
-    }
-}
-
 /// Materialize the parsed input declaration into the records the send path
 /// submits. `Text`/`Keys` pass through untouched; `File`/`Stdin` are
 /// acquired once, bounded to the declared form, and become the literal

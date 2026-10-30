@@ -52,3 +52,15 @@ impl ArmedSignals {
         self.0.into_finalization()
     }
 }
+
+/// The declared form's acquisition bound: the literal `bytes` record bound
+/// plus one spare byte to detect oversize, or the `paste` content bound.
+/// The folded `--enter` CR counts toward the `bytes` record bound after
+/// acquisition, so acquisition reads at most the plain bound.
+fn limit_for(paste: bool) -> usize {
+    if paste {
+        crate::invocation::MAXIMUM_SEND_PASTE_BYTES
+    } else {
+        crate::invocation::MAXIMUM_SEND_BYTES_BYTES
+    }
+}

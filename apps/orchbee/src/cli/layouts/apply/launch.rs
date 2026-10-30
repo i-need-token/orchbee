@@ -1,5 +1,6 @@
 //! Resolve all local launch intents before any canonical creation.
-use super::{apply::error, template};
+use super::super::template;
+use super::error;
 use crate::{
     cli::{
         Failure, FailureKind,

@@ -41,9 +41,10 @@ use nix::{
     },
 };
 
-use super::input::{limit_for, usage};
+use super::limit_for;
 #[cfg(test)]
 use super::materialize;
+use crate::cli::input_source::usage;
 use crate::cli::input_source::{InputSource, SourceFailure};
 use crate::cli::{Failure, FailureKind, SourceFinalization};
 use crate::invocation::SendSourceCause;

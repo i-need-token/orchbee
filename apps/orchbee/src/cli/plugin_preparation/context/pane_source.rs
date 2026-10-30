@@ -6,7 +6,7 @@ use crate::{
         caller_context::PanelTarget,
         client_control::{exchange as control, selection},
         console_interrupt::SignalWatch,
-        query, results, workbench_query,
+        query, results,
     },
     invocation::{MutationCommand, TabContext, Target},
     local_client::LocalClient,
@@ -377,7 +377,7 @@ fn read_status(
     {
         return Err(invalid());
     }
-    if let Some(kind) = workbench_query::submission_failure(answer.exit_code(), outcome) {
+    if let Some(kind) = control::submission_failure(answer.exit_code(), outcome) {
         return Err(Failure::new(kind));
     }
     let Some(reply) = answer.reply else {

@@ -132,7 +132,8 @@ pub(super) fn read(
         {
             return Err(invalid());
         }
-        if let Some(kind) = super::workbench_query::submission_failure(answer.exit_code(), outcome)
+        if let Some(kind) =
+            super::client_control::exchange::submission_failure(answer.exit_code(), outcome)
         {
             return Err(Failure::new(kind));
         }

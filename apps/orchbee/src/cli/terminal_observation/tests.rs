@@ -1,8 +1,5 @@
 use super::*;
-use crate::cli::{
-    query::terminal_metadata::{Metadata, Read},
-    results::{PanelProcessInfoDoc, TerminalRow},
-};
+use crate::cli::results::{PanelProcessInfoDoc, TerminalRow};
 use crate::cli_text::CliText;
 use orchbee_terminal_protocol::{
     TerminalId, TerminalProcess, TerminalProcessConsole, TerminalProcessInfo,

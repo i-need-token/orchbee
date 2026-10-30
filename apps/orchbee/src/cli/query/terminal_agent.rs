@@ -2,24 +2,13 @@
 use super::{
     BorrowedFd, Failure, FailureKind, Instant, LocalClient, ProtocolVersion, Snapshot, request_id,
 };
+use crate::cli::results::terminal_agent::TerminalAgentRead;
 use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason;
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::{
-    PanelAgentAction, PanelAgentFailure, PanelAgentOutcome, PanelAgentRequest,
-    TerminalAgentObservation, WorkbenchRevision,
+    PanelAgentAction, PanelAgentFailure, PanelAgentOutcome, PanelAgentRequest, WorkbenchRevision,
 };
 
-#[derive(Debug)]
-pub(crate) struct TerminalAgentRead {
-    pub source: serde_json::Value,
-    pub report_revision: WorkbenchRevision,
-    pub observation: Box<TerminalAgentObservation>,
-}
-impl TerminalAgentRead {
-    pub(in crate::cli) fn document(&self) -> serde_json::Value {
-        serde_json::json!({"source":self.source,"observation":self.observation})
-    }
-}
 pub(in crate::cli) fn read(
     client: &mut LocalClient,
     snapshot: &Snapshot,

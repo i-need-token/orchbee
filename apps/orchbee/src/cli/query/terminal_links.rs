@@ -1,15 +1,13 @@
 //! Link observation owns an explicit immutable viewport and existing viewer reads.
-use super::terminal_buffer::{self, BufferReader, ContentFence, Prepared};
-use super::viewer_protocol_invalid;
+use super::terminal_buffer::{self, ContentFence, Prepared};
 use crate::cli_text::CliText;
 use crate::{
     cli::Output,
     invocation::{OutputFormat, TerminalLinkCommand, TerminalTextPoint},
     localization::Locale,
-    terminal_links::{self, LinkRead, ResolvedLink},
+    terminal_links::ResolvedLink,
 };
 use serde_json::json;
-use std::ops::Range;
 
 pub(crate) fn run(command: &TerminalLinkCommand, format: OutputFormat, locale: Locale) -> Output {
     terminal_buffer::run(
@@ -50,7 +48,7 @@ pub(crate) fn run(command: &TerminalLinkCommand, format: OutputFormat, locale: L
                     },
                 )
             } else {
-                let resolved = plain(reader, cursor, viewport.clone())?;
+                let resolved = terminal_buffer::plain_link(reader, cursor, viewport.clone())?;
                 (
                     if resolved.url.is_some() {
                         "plain-text"
@@ -106,64 +104,6 @@ pub(crate) fn run(command: &TerminalLinkCommand, format: OutputFormat, locale: L
             })
         },
     )
-}
-
-pub(super) fn plain(
-    reader: &mut BufferReader<'_>,
-    cursor: TerminalTextPoint,
-    viewport: Range<u64>,
-) -> Result<ResolvedLink, crate::cli::Failure> {
-    let mut start = u64::from(cursor.row);
-    let mut end = (start + 2).min(reader.total);
-    let mut rows = reader.rows(start..end)?;
-    loop {
-        match terminal_links::resolve(
-            &rows,
-            reader.frame.geometry.columns,
-            cursor,
-            reader.total,
-            viewport.clone(),
-        ) {
-            LinkRead::Complete(result) => return Ok(result),
-            LinkRead::LimitExceeded => return Err(terminal_buffer::limit()),
-            LinkRead::NeedContext { before, after } => {
-                let remaining = 65536_usize.saturating_sub(rows.len());
-                if remaining == 0 {
-                    return Err(terminal_buffer::limit());
-                }
-                let extension = rows.len().max(64).min(remaining) as u64;
-                if before {
-                    let next = start.saturating_sub(extension);
-                    let mut incoming = reader.rows(next..start)?;
-                    if let (Some(prior), Some(after)) = (incoming.last(), rows.first())
-                        && prior.wrap != after.wrap_continuation
-                    {
-                        return Err(viewer_protocol_invalid());
-                    }
-                    incoming.extend(rows);
-                    rows = incoming;
-                    start = next;
-                }
-                if after {
-                    let remaining = 65536_usize.saturating_sub(rows.len()) as u64;
-                    if remaining == 0 {
-                        return Err(terminal_buffer::limit());
-                    }
-                    let next = end
-                        .saturating_add(extension.min(remaining))
-                        .min(reader.total);
-                    let incoming = reader.rows(end..next)?;
-                    if let (Some(prior), Some(after)) = (rows.last(), incoming.first())
-                        && prior.wrap != after.wrap_continuation
-                    {
-                        return Err(viewer_protocol_invalid());
-                    }
-                    rows.extend(incoming);
-                    end = next;
-                }
-            }
-        }
-    }
 }
 
 #[cfg(test)]

@@ -42,6 +42,21 @@ pub(crate) struct Document {
     panel_table: Option<super::panel_list::Document>,
 }
 
+impl super::results::OwnedDocument for Document {
+    fn result(&self) -> Value {
+        Document::result(self)
+    }
+
+    fn render(
+        &self,
+        out: &mut Bounded,
+        command: &QueryCommand,
+        locale: Locale,
+    ) -> Result<(), TooLarge> {
+        Document::render(self, out, command, locale)
+    }
+}
+
 impl Document {
     fn new(projection: Projection) -> Self {
         Self {
@@ -204,26 +219,6 @@ fn requested_contexts(
     Ok(contexts)
 }
 
-pub(super) fn submission_failure(
-    code: u8,
-    outcome: Option<&ClientViewOutcome>,
-) -> Option<FailureKind> {
-    Some(match code {
-        0 => return None,
-        3 => match outcome {
-            Some(ClientViewOutcome::Denied {}) => FailureKind::Denied,
-            Some(ClientViewOutcome::NotFound {}) => FailureKind::NotFound,
-            // This step consumes its requested ClientView receipt class; other replies cannot confirm that observation.
-            _ => FailureKind::Rejected,
-        },
-        4 => FailureKind::ServiceUnavailable,
-        5 | 8 => FailureKind::TransportLoss,
-        7 => FailureKind::Timeout,
-        130 => FailureKind::Cancelled,
-        _ => FailureKind::ProtocolInvalid,
-    })
-}
-
 fn execute(
     command: &QueryCommand,
     selected: Option<&WorkbenchClientId>,
@@ -366,7 +361,7 @@ pub(super) fn collect(
         {
             return Err(Failure::new(FailureKind::ProtocolInvalid));
         }
-        if let Some(kind) = submission_failure(answer.exit_code(), outcome) {
+        if let Some(kind) = control::submission_failure(answer.exit_code(), outcome) {
             return Err(Failure::new(kind));
         }
         let Some(reply) = answer.reply else {

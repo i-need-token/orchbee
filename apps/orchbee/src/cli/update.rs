@@ -17,7 +17,7 @@ use super::{
     failure_output, output,
 };
 use crate::{invocation::OutputFormat, localization::Locale};
-pub(in crate::cli) use installed::observe as observe_installation;
+pub(in crate::cli) use installed::{VerifiedRelease, observe as observe_installation};
 use orchbee_local_runtime::{CommandFailure, CommandOutput, UpdateChannel};
 use serde_json::json;
 use std::{

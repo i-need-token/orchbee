@@ -2,7 +2,8 @@
 //! cancellation. A pipe's owned reader process is reaped before source handoff;
 //! the caller's pipe mode is never changed and no blocking thread escapes.
 mod pipe;
-use super::input::{limit_for, usage};
+use super::limit_for;
+use crate::cli::input_source::usage;
 use crate::cli::input_source::{InputSource, SourceFailure};
 use crate::{
     cli::{Failure, FailureKind, SourceFinalization},

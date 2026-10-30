@@ -1,5 +1,5 @@
 //! Popup commands address one current Client and preserve one mutation's receipt.
-use super::failure::Reason;
+use crate::cli::plugin_preparation::{context, failure::Reason};
 use crate::cli_text::CliText;
 use crate::{
     cli::{
@@ -106,10 +106,10 @@ fn execute(
             .selection
             .as_ref()
             .ok_or_else(|| Reason::BindingUnavailable.failure())?;
-        let (context, member) = super::context::observe(
+        let (context, member) = context::observe(
             &mut client,
             &snapshot,
-            super::context::Source::current(Some(&selected.client_id)),
+            context::Source::current(Some(&selected.client_id)),
             PluginInvocationContext::default(),
             id.as_str(),
             deadline,

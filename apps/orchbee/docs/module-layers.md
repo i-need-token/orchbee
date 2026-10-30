@@ -41,6 +41,23 @@ today.
 | `tui_backend`          | `workflow`     | Host-terminal frame writer adapter.                                                                                                                                                                                                              |
 | `tui_shell`            | `composition`  | TUI event loop, surface switching, input polling, and draw settlement.                                                                                                                                                                           |
 
+## Order inside `cli`
+
+Every `cli` child inherits `composition`, so only the no-cycle rule orders them. These invariants
+keep that order:
+
+- The result model, `results`, `output`, `handles`, and `terminal_observation`, never names a
+  command owner. A query document whose owner composes other result values and renders its own text
+  enters `results::Projection` as a `results::OwnedDocument`.
+- `present` renders result values only. Command text that needs a command owner's types stays with
+  that owner; a mutation `Receipt`, for example, renders itself.
+- `query` reads, resolves, and exchanges single steps and never calls a command workflow. Workflows
+  that combine a read with Client attention, input submission, or plugin activation live in their
+  own siblings, such as `agent_wait`, `agent_list`, and `terminal_run`. Helpers they share live in
+  lower siblings, such as `link_activation`, `plugin_preparation`, `layout_topology`, and
+  `client_control::exchange`.
+- Failure schema identifiers that several owners report live in `invocation::grammar::schemas`.
+
 ## Maintenance
 
 Add, remove, rename, or move a module together with its row in the same change. Run

@@ -21,8 +21,8 @@ use orchbee_agent_observation_protocol::{
 };
 use serde_json::json;
 
-use super::{
-    AGENT_TOTAL_BUDGET, AgentAdmissionError, AgentCancelled, AgentQueryError,
+use super::query::{
+    self, AGENT_TOTAL_BUDGET, AgentAdmissionError, AgentCancelled, AgentQueryError,
     agent_protocol_invalid, agent_read_details, agent_session_details, agent_session_rejection,
     agent_session_until, agent_unavailable_details, classify_agent_read, classify_connect,
     is_deadline_elapsed, obap_request_id,
@@ -40,7 +40,7 @@ const WAIT_POLL_INITIAL: Duration = Duration::from_millis(50);
 /// Consecutive quiet polls double the interval up to this ceiling.
 const WAIT_POLL_MAXIMUM: Duration = Duration::from_millis(500);
 
-use super::{AgentJournal, JournalError};
+use super::query::{AgentJournal, JournalError};
 
 /// `agent wait`: the armed span owns the whole wait — one admitted Client
 /// Session held across every poll, one absolute deadline covering
@@ -148,7 +148,7 @@ enum WaitAttempt {
     /// A settled outcome: the decisive Get's identity plus the matched
     /// document, or an already-classified wait failure.
     Done(Result<(ObapRequestId, AgentWaitDoc), Failure>),
-    TerminalDone(Result<super::terminal_agent_wait::Matched, Failure>),
+    TerminalDone(Result<crate::cli::results::terminal_agent::Matched, Failure>),
 }
 
 /// Facts the last completed observation carried, for honest timeout
@@ -209,7 +209,7 @@ fn agent_wait_span(
         Err(failure) => return WaitAttempt::Done(Err(failure)),
     };
     let snapshot = if selected.is_some() {
-        match super::agent_target::read_snapshot(&mut client, resolve_deadline, signals.poll_fd()) {
+        match query::read_agent_snapshot(&mut client, resolve_deadline, signals.poll_fd()) {
             Ok(snapshot) => Some(snapshot),
             Err(failure) => return WaitAttempt::Done(Err(failure)),
         }
@@ -217,7 +217,7 @@ fn agent_wait_span(
         None
     };
     let session_id = if extended {
-        match super::agent_target::resolve_named(
+        match query::agent_target::resolve_named(
             &mut client,
             target,
             snapshot.as_ref(),
@@ -229,31 +229,29 @@ fn agent_wait_span(
                     session_id
                 }
                 orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding } => {
-                    return WaitAttempt::TerminalDone(
-                        super::terminal_agent_wait::admit(until).and_then(|()| {
-                            super::terminal_agent_wait::observe(
-                                &mut client,
-                                super::terminal_agent_wait::Options {
-                                    selected,
-                                    target,
-                                    binding: &binding,
-                                    until,
-                                    after_revision,
-                                    timeout_ms,
-                                    start,
-                                    total,
-                                },
-                                None,
-                                signals,
-                            )
-                        }),
-                    );
+                    return WaitAttempt::TerminalDone(terminal::admit(until).and_then(|()| {
+                        terminal::observe(
+                            &mut client,
+                            terminal::Options {
+                                selected,
+                                target,
+                                binding: &binding,
+                                until,
+                                after_revision,
+                                timeout_ms,
+                                start,
+                                total,
+                            },
+                            None,
+                            signals,
+                        )
+                    }));
                 }
             },
             Err(failure) => return WaitAttempt::Done(Err(failure)),
         }
     } else {
-        match super::agent_target::resolve_on_session(
+        match query::agent_target::resolve_on_session(
             &mut client,
             target,
             snapshot.as_ref(),
@@ -445,7 +443,7 @@ fn agent_wait_span(
                             )));
                         }
                         let (session, client_view) = {
-                            let canonical = super::AgentObservationRead {
+                            let canonical = query::AgentObservationRead {
                                 request_id: answered.clone(),
                                 revision,
                                 session,
@@ -549,7 +547,7 @@ fn agent_wait_span(
                                 == orchbee_agent_observation_protocol::AgentLifecycle::Ended
                         {
                             break WaitAttempt::Done(Err(Failure::new(FailureKind::Rejected)
-                                .details(super::agent_rejection_details(
+                                .details(query::agent_rejection_details(
                                     AgentReadOperation::Wait,
                                     "session-ended",
                                 ))
@@ -851,6 +849,8 @@ fn wait_timeout(
     }
     WaitAttempt::Done(Err(Failure::new(FailureKind::Timeout).details(details)))
 }
+
+pub(in crate::cli) mod terminal;
 
 #[cfg(test)]
 mod tests;

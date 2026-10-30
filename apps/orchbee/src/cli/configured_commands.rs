@@ -210,10 +210,10 @@ fn execute(
     }
     let operation_id = query::request_id()?;
     let (context, source) = if let Some(record) = &selected {
-        let (context, member) = super::plugins::context::observe(
+        let (context, member) = super::plugin_preparation::context::observe(
             &mut client,
             &snapshot,
-            super::plugins::context::Source::current(Some(&record.client_id)),
+            super::plugin_preparation::context::Source::current(Some(&record.client_id)),
             (**provided).clone(),
             operation_id.as_str(),
             deadline,

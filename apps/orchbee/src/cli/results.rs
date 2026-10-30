@@ -22,6 +22,8 @@ use super::{CandidateDisplay, Failure, FailureKind, target_details};
 use crate::cli_outcome::{AgentClientViewDoc, TerminalListState};
 mod shape;
 pub(super) use shape::complete;
+pub(in crate::cli) mod local_report;
+pub(in crate::cli) mod terminal_agent;
 
 use crate::invocation::{
     AgentWaitCondition, PanelQueryTarget, QueryCommand, Resource, Target, TerminalListFilter,
@@ -1114,23 +1116,38 @@ fn primary_terminal(snapshot: &Snapshot, target: &Target) -> Result<TerminalRow,
         .ok_or_else(|| not_found(Resource::Terminal, target))
 }
 
+/// A query result document whose owner composes the machine body and renders the human text.
+/// The result model sees only this interface, so document owners, which build on result values,
+/// never become its dependencies.
+pub(crate) trait OwnedDocument: std::fmt::Debug {
+    /// The machine `result` body.
+    fn result(&self) -> Value;
+    /// The human text for `command`.
+    fn render(
+        &self,
+        out: &mut super::output::Bounded,
+        command: &QueryCommand,
+        locale: crate::localization::Locale,
+    ) -> Result<(), super::output::TooLarge>;
+}
+
 #[derive(Debug)]
 pub(crate) enum Projection {
-    WorkbenchQuery(Box<super::workbench_query::Document>),
+    WorkbenchQuery(Box<dyn OwnedDocument>),
     Status(StatusDoc),
     /// The typed `listed` outcome, verbatim from the wire.
     AgentList(AgentListOutcome),
-    UnifiedAgentList(Box<super::agent_projection::List>),
-    UnifiedAgentInspection(Box<super::agent_projection::Inspection>),
+    UnifiedAgentList(Box<dyn OwnedDocument>),
+    UnifiedAgentInspection(Box<dyn OwnedDocument>),
     AgentChanges(orchbee_agent_observation_protocol::AgentChangesOutcome),
     /// The typed `found` outcome, verbatim from the wire.
     AgentGet(AgentGetOutcome),
     AgentInspection(Box<AgentInspectionDoc>),
     AgentTerminalInspection {
-        client_view: Option<super::agent_view::workflow::terminal_attention::Projection>,
+        client_view: Option<terminal_agent::ClientAttention>,
         binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
         terminal: Value,
-        semantic: super::query::terminal_agent::TerminalAgentRead,
+        semantic: terminal_agent::TerminalAgentRead,
     },
     /// The typed `found` outcome carrying session plus explanation.
     AgentExplain(AgentExplainOutcome),
@@ -1139,7 +1156,7 @@ pub(crate) enum Projection {
     /// verbatim plus the requested-order matched conditions and the
     /// effective wait echo.
     AgentWait(AgentWaitDoc),
-    AgentTerminalWait(Box<super::query::terminal_agent_wait::Matched>),
+    AgentTerminalWait(Box<terminal_agent::Matched>),
     ProjectList(Vec<ProjectRow>),
     ProjectGet(ProjectDoc),
     WorkspaceList(Vec<WorkspaceRow>),
@@ -1159,7 +1176,7 @@ pub(crate) enum Projection {
     /// to human text and never alter the machine result.
     TerminalListHuman(TerminalListDocument),
     TerminalGet(TerminalGetDoc),
-    TerminalOutput(super::terminal_output::TerminalOutputDoc),
+    TerminalOutput(Box<dyn OwnedDocument>),
     #[cfg(test)]
     TerminalRead(TerminalReadDoc),
     #[cfg(test)]
@@ -1305,8 +1322,7 @@ impl Projection {
             Self::WorkbenchQuery(doc) => doc.result(),
             // Preserve source facts while using the same current public row shape.
             Self::AgentList(outcome) => shape::canonical_list(outcome),
-            Self::UnifiedAgentList(doc) => doc.document(),
-            Self::UnifiedAgentInspection(doc) => doc.document(),
+            Self::UnifiedAgentList(doc) | Self::UnifiedAgentInspection(doc) => doc.result(),
             Self::AgentChanges(outcome) => json!(outcome),
             Self::AgentGet(outcome) => json!(outcome),
             Self::AgentTerminalInspection {

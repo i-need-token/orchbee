@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value, json};
 
+use super::results::local_report::CheckReport;
 use super::{Failure, FailureKind, Output, failure_output, output};
 use crate::invocation::OutputFormat;
 use crate::localization::Locale;
@@ -24,12 +25,6 @@ const CHECK_BUDGET: Duration = Duration::from_secs(5);
 /// Unix keeps the existing trailing unsupported-check row; Windows reports its complete check
 /// inventory.
 const APPEND_UNSUPPORTED_CHECK: bool = cfg!(not(windows));
-
-pub(crate) struct CheckReport {
-    pub(crate) name: &'static str,
-    pub(crate) status: &'static str,
-    pub(crate) details: Map<String, Value>,
-}
 
 fn pass(name: &'static str, details: Map<String, Value>) -> CheckReport {
     CheckReport {

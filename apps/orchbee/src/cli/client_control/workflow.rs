@@ -30,9 +30,9 @@ pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
         timeout_ms,
         ..
     } = command
-        && crate::cli::layouts::structure::explicit(target)
+        && crate::cli::layout_topology::explicit(target)
     {
-        return crate::cli::layouts::structure::run(
+        return crate::cli::layout_topology::run(
             target,
             operation_id.as_ref(),
             *timeout_ms,

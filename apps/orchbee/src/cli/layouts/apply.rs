@@ -1,10 +1,11 @@
 //! Bounded admitted layout application; retained effects survive incomplete composition.
 mod engine;
 mod exchange;
+mod launch;
 mod ownership;
 mod receipt;
 mod targeting;
-use super::{launch, template, workflow};
+use super::{template, workflow};
 use crate::{
     cli::{
         Failure, FailureKind, Output,

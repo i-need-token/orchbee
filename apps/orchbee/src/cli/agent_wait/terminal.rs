@@ -3,11 +3,12 @@
 use std::time::{Duration, Instant};
 
 use orchbee_agent_observation_protocol::{AgentLaunchBinding, AgentNameTarget, AgentSafeInteger};
-use orchbee_workbench_protocol::{Snapshot, TerminalAgentChange, WorkbenchRevision};
-use serde_json::{Value, json};
+use orchbee_workbench_protocol::{Snapshot, WorkbenchRevision};
+use serde_json::json;
 
-use super::terminal_agent::{self, TerminalAgentRead, failure as error};
 use crate::cli::console_interrupt::SignalWatch;
+use crate::cli::query::terminal_agent::{self, failure as error};
+use crate::cli::results::terminal_agent::{Matched, TerminalAgentRead};
 use crate::cli::wait_deadline::WaitDeadline;
 use crate::cli::{Failure, FailureKind};
 use crate::invocation::{AgentTarget, AgentWaitCondition};
@@ -17,35 +18,6 @@ mod state;
 pub(in crate::cli) use state::admit;
 
 const READ_BUDGET: Duration = Duration::from_secs(5);
-
-/// A physical match retains the latest read separately from a transient matched change.
-#[derive(Debug)]
-pub(crate) struct Matched {
-    pub(in crate::cli) client_view:
-        Option<crate::cli::agent_view::workflow::terminal_attention::Projection>,
-    pub(in crate::cli) read: TerminalAgentRead,
-    pub(in crate::cli) conditions: Vec<AgentWaitCondition>,
-    pub(in crate::cli) change: Option<TerminalAgentChange>,
-    until: Vec<AgentWaitCondition>,
-    after_revision: Option<AgentSafeInteger>,
-    timeout_ms: Option<u32>,
-    observations: u64,
-    pub(in crate::cli) elapsed_ms: u64,
-}
-impl Matched {
-    pub(in crate::cli) fn document(&self) -> Value {
-        let wait = json!({"until":self.until.iter().map(|c| c.as_str()).collect::<Vec<_>>(),
-            "afterRevision":self.after_revision,"timeoutMs":self.timeout_ms,"observations":self.observations,"elapsedMs":self.elapsed_ms});
-        let mut result = json!({"kind":"terminal-matched","target":{"kind":"terminal","binding":self.read.observation.binding},
-            "semantic":self.read.document(),"matchedConditions":self.conditions.iter().map(|c| c.as_str()).collect::<Vec<_>>(),
-            "matchedChange":self.change,"wait":wait});
-        result["clientView"] = self
-            .client_view
-            .as_ref()
-            .map_or(Value::Null, |view| view.document());
-        result
-    }
-}
 
 pub(in crate::cli) struct Options<'a> {
     pub selected: Option<&'a orchbee_workbench_protocol::WorkbenchClientId>,
@@ -68,7 +40,7 @@ pub(in crate::cli) fn read_pinned(
     signals: &mut impl SignalWatch,
 ) -> Result<(Snapshot, TerminalAgentRead), Failure> {
     interrupt(signals)?;
-    let snapshot = super::agent_target::read_snapshot(client, deadline, signals.poll_fd())?;
+    let snapshot = crate::cli::query::read_agent_snapshot(client, deadline, signals.poll_fd())?;
     let read = terminal_agent::read(
         client,
         &snapshot,
@@ -77,7 +49,7 @@ pub(in crate::cli) fn read_pinned(
         deadline,
         signals.poll_fd(),
     )?;
-    let resolved = super::agent_target::resolve_named(
+    let resolved = crate::cli::query::agent_target::resolve_named(
         client,
         target,
         Some(&snapshot),
@@ -153,7 +125,7 @@ pub(in crate::cli) fn observe(
             .selected
             .map(|selected| {
                 let snapshot =
-                    super::agent_target::read_snapshot(client, deadline, signals.poll_fd())?;
+                    crate::cli::query::read_agent_snapshot(client, deadline, signals.poll_fd())?;
                 crate::cli::agent_view::workflow::terminal_attention::read(
                     client,
                     &snapshot,

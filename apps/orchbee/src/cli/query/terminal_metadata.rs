@@ -4,27 +4,7 @@ use super::{
     TerminalViewerRequest, attach_viewer_cancellable, obcs_request_id,
     poll_terminal_frame_cancellable, process_info,
 };
-use crate::cli::results::PanelProcessInfoDoc;
-use orchbee_terminal_protocol::TerminalFrameRoute;
-use serde_json::Value;
-use std::sync::Arc;
-
-#[derive(Debug)]
-pub(in crate::cli) struct Metadata {
-    pub(in crate::cli) route: TerminalFrameRoute,
-    pub(in crate::cli) columns: u16,
-    pub(in crate::cli) rows: u16,
-    pub(in crate::cli) alternate_screen: bool,
-    pub(in crate::cli) scrollback_rows: u64,
-    pub(in crate::cli) title: Option<Arc<str>>,
-    pub(in crate::cli) current_directory: Option<Arc<str>>,
-}
-
-#[derive(Debug)]
-pub(in crate::cli) struct Read {
-    pub(in crate::cli) frame: Metadata,
-    pub(in crate::cli) processes: Option<(Value, PanelProcessInfoDoc)>,
-}
+use crate::cli::terminal_observation::{Metadata, Read};
 
 pub(in crate::cli) fn read(
     client: &mut LocalClient,

@@ -9,6 +9,22 @@ use orchbee_agent_observation_protocol::{
 
 pub(in crate::cli) use super::agent_target::resolve_named;
 
+/// Resolve once, get once, and refuse a missing or ambiguous live binding.
+/// The caller keeps the admission and original deadline for the terminal operation.
+pub(crate) fn agent_terminal_target(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    target: &crate::invocation::AgentTarget,
+    deadline: Instant,
+) -> Result<Target, Failure> {
+    if crate::cli::execution::admit(crate::cli::execution::Capability::AgentProjection).is_ok() {
+        named_terminal_target(client, snapshot, target, deadline, None, false)
+    } else {
+        agent_terminal::resolve_agent_terminal(client, snapshot, target, deadline)
+            .map(|resolved| resolved.terminal)
+    }
+}
+
 pub(crate) fn named_terminal_target(
     client: &mut LocalClient,
     snapshot: &Snapshot,
@@ -82,7 +98,7 @@ pub(in crate::cli) fn verify_named_binding(
         AgentNameTarget::Terminal { binding: current } if current == *binding => Ok(()),
         AgentNameTarget::Session { .. } | AgentNameTarget::Terminal { .. } => {
             Err(Failure::new(FailureKind::ProtocolInvalid)
-                .failure_schema(crate::cli::agent_names::FAILURE_SCHEMA))
+                .failure_schema(crate::invocation::grammar::schemas::AGENT_NAMES_FAILURE_ID))
         }
     }
 }

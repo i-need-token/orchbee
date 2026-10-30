@@ -1,5 +1,5 @@
 use super::*;
-use orchbee_workbench_protocol::{PanelAgentView, TerminalAgentObservation};
+use orchbee_workbench_protocol::{PanelAgentView, TerminalAgentObservation, WorkbenchRevision};
 use serde_json::json;
 
 #[test]

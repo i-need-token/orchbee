@@ -184,7 +184,7 @@ fn terminal_output_text_is_copyable_and_json_preserves_original_data() {
     use crate::invocation::{OutputSelection, OutputSource, OutputTarget};
 
     let content = "C:\\Users\\luna\\中文 \"🐝\"\u{1b}[31m\u{202e}\n";
-    let projection = Projection::TerminalOutput(TerminalOutputDoc {
+    let projection = Projection::TerminalOutput(Box::new(TerminalOutputDoc {
         terminal: TerminalRow {
             terminal_id: ID.into(),
             worker_id: ID.into(),
@@ -217,7 +217,7 @@ fn terminal_output_text_is_copyable_and_json_preserves_original_data() {
         text: content.into(),
         ansi: false,
         cursor: None,
-    });
+    }));
     let command = QueryCommand::TerminalOutput {
         target: OutputTarget::Terminal(Target::Id(ID.into())),
         selection: OutputSelection {
@@ -1749,7 +1749,7 @@ fn terminal_get_text_is_a_sentence_and_aligned_labels() {
 #[test]
 fn config_check_text_leads_with_its_verdict_and_keeps_raw_details_in_json() {
     let checks = [
-        super::config::CheckReport {
+        super::results::local_report::CheckReport {
             name: "locale",
             status: "pass",
             details: serde_json::Map::from_iter([
@@ -1757,7 +1757,7 @@ fn config_check_text_leads_with_its_verdict_and_keeps_raw_details_in_json() {
                 ("source".into(), serde_json::json!("environment")),
             ]),
         },
-        super::config::CheckReport {
+        super::results::local_report::CheckReport {
             name: "user-config",
             status: "warning",
             details: serde_json::Map::from_iter([

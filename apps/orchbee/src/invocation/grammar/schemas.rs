@@ -10,6 +10,9 @@ pub(crate) const WORKTREE_FAILURE_ID: &str = "orchbee.cli.failure.worktree";
 /// semantic failures plus the signal-cancelled kind, kept off the generic
 /// failure schema.
 pub(crate) const AGENT_FAILURE_ID: &str = "orchbee.cli.failure.agent";
+/// The dedicated Agent-name failure envelope: name resolution, assignment, and release
+/// rejections plus their exchange faults, shared by every command that resolves a name.
+pub(crate) const AGENT_NAMES_FAILURE_ID: &str = "orchbee.cli.failure.agent-names";
 /// The dedicated launch-profile failure envelope: the catalog read's typed
 /// states and exchange faults plus the mutations' profile-resolution
 /// settlements — the generic schema's resource and candidate grammars are

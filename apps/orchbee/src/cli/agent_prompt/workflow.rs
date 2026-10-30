@@ -25,7 +25,7 @@ enum Completion {
     },
     Terminal {
         binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
-        waited: Option<Result<query::terminal_agent_wait::Matched, Failure>>,
+        waited: Option<Result<crate::cli::results::terminal_agent::Matched, Failure>>,
     },
 }
 impl Completion {
@@ -259,7 +259,7 @@ fn span(
     }
     let before = &selected.observation.session;
     let session_id = before.snapshot.session_id.clone();
-    if query::wait_backoff(signals.poll_fd(), Duration::from_millis(1)) {
+    if crate::agent_runtime::wait_backoff(signals.poll_fd(), Duration::from_millis(1)) {
         return Err(prompt_error(FailureKind::InternalFailure, "interrupted"));
     }
     let codex_boundary = extended && before.snapshot.provider_id.as_str() == "codex";
@@ -396,7 +396,7 @@ fn observe(
                                 AgentWaitCondition::Working
                                     | AgentWaitCondition::Blocked
                                     | AgentWaitCondition::NeedsAttention
-                            ) && query::status_matches(
+                            ) && crate::cli::agent_wait::status_matches(
                                 *condition,
                                 version.freshness,
                                 &change.session.status,
@@ -495,7 +495,9 @@ fn observe(
             .until
             .iter()
             .copied()
-            .filter(|condition| query::condition_matches(*condition, &read.session))
+            .filter(|condition| {
+                crate::cli::agent_wait::condition_matches(*condition, &read.session)
+            })
             .collect();
         if active && !conditions.is_empty() {
             return Ok(Matched {
@@ -515,7 +517,7 @@ fn observe(
             continue;
         }
         let remaining = limit.saturating_duration_since(Instant::now());
-        if query::wait_backoff(signals.poll_fd(), backoff.min(remaining)) {
+        if crate::agent_runtime::wait_backoff(signals.poll_fd(), backoff.min(remaining)) {
             return Err(prompt_error(FailureKind::InternalFailure, "interrupted"));
         }
         backoff = (backoff * 2).min(Duration::from_millis(500));

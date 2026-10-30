@@ -51,6 +51,66 @@ pub(super) struct BufferReader<'a> {
     remaining_glyphs: usize,
     effect_detach_attempted: &'a mut bool,
 }
+/// Resolves the plain-text link under `cursor`, widening the read only as far as the link
+/// grammar asks for more context.
+pub(super) fn plain_link(
+    reader: &mut BufferReader<'_>,
+    cursor: TerminalTextPoint,
+    viewport: Range<u64>,
+) -> Result<crate::terminal_links::ResolvedLink, Failure> {
+    let mut start = u64::from(cursor.row);
+    let mut end = (start + 2).min(reader.total);
+    let mut rows = reader.rows(start..end)?;
+    loop {
+        match crate::terminal_links::resolve(
+            &rows,
+            reader.frame.geometry.columns,
+            cursor,
+            reader.total,
+            viewport.clone(),
+        ) {
+            crate::terminal_links::LinkRead::Complete(result) => return Ok(result),
+            crate::terminal_links::LinkRead::LimitExceeded => return Err(limit()),
+            crate::terminal_links::LinkRead::NeedContext { before, after } => {
+                let remaining = 65536_usize.saturating_sub(rows.len());
+                if remaining == 0 {
+                    return Err(limit());
+                }
+                let extension = rows.len().max(64).min(remaining) as u64;
+                if before {
+                    let next = start.saturating_sub(extension);
+                    let mut incoming = reader.rows(next..start)?;
+                    if let (Some(prior), Some(after)) = (incoming.last(), rows.first())
+                        && prior.wrap != after.wrap_continuation
+                    {
+                        return Err(viewer_protocol_invalid());
+                    }
+                    incoming.extend(rows);
+                    rows = incoming;
+                    start = next;
+                }
+                if after {
+                    let remaining = 65536_usize.saturating_sub(rows.len()) as u64;
+                    if remaining == 0 {
+                        return Err(limit());
+                    }
+                    let next = end
+                        .saturating_add(extension.min(remaining))
+                        .min(reader.total);
+                    let incoming = reader.rows(end..next)?;
+                    if let (Some(prior), Some(after)) = (rows.last(), incoming.first())
+                        && prior.wrap != after.wrap_continuation
+                    {
+                        return Err(viewer_protocol_invalid());
+                    }
+                    rows.extend(incoming);
+                    end = next;
+                }
+            }
+        }
+    }
+}
+
 pub(super) fn limit() -> Failure {
     classify_rows_rejected(ViewerRowsRejectedReason::LimitExceeded, "read-history")
 }
@@ -228,8 +288,8 @@ impl BufferReader<'_> {
         col: u16,
         viewport: Range<u64>,
         explicit: bool,
-    ) -> Result<crate::cli::plugins::links::Activation, Failure> {
-        use crate::cli::plugins::links;
+    ) -> Result<crate::cli::link_activation::Activation, Failure> {
+        use crate::cli::link_activation as links;
         let Some(url) = url else {
             return Ok(links::Activation::NoLink);
         };
@@ -251,7 +311,7 @@ impl BufferReader<'_> {
         let same_url = if explicit {
             final_uri.as_deref() == Some(url)
         } else if final_uri.is_none() {
-            super::terminal_links::plain(
+            plain_link(
                 self,
                 TerminalTextPoint {
                     row: u32::try_from(row).map_err(|_| limit())?,

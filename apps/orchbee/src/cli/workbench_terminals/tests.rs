@@ -1,5 +1,5 @@
 use super::*;
-use crate::cli::query::terminal_metadata::{Metadata, Read};
+use crate::cli::terminal_observation::{Metadata, Read};
 use crate::cli_text::CliText;
 use orchbee_terminal_protocol::decode_terminal_text_frame;
 use serde_json::json;

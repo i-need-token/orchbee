@@ -271,7 +271,7 @@ fn execute_shared(
     signals: &mut ArmedSignals,
     output: &mut Option<Receipt>,
 ) -> Result<(), Failure> {
-    use crate::cli::layouts::structure;
+    use crate::cli::layout_topology as structure;
     use crate::invocation::ClientLayoutTarget;
     let (mut client, snapshot) = query::stream_snapshot(deadline, signals.poll_fd())?;
     check_wait(signals, deadline)?;

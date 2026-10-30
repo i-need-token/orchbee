@@ -3,8 +3,13 @@
 use orchbee_terminal_protocol::{TerminalTextFrame, TerminalTextRowWindow};
 use serde_json::{Value, json};
 
+use super::output::{Bounded, TooLarge};
 use super::{Failure, FailureKind, output, results::TerminalRow};
+use crate::cli_text::CliText;
+use crate::cli_text::escape::unquoted;
+use crate::invocation::QueryCommand;
 use crate::invocation::{OutputSelection, OutputSource};
+use crate::localization::Locale;
 
 pub(crate) mod ansi;
 
@@ -226,8 +231,8 @@ fn join_text(rows: &[OutputRow], unwrap: bool) -> Result<String, Failure> {
     Ok(text)
 }
 
-impl TerminalOutputDoc {
-    pub(crate) fn result(&self) -> Value {
+impl super::results::OwnedDocument for TerminalOutputDoc {
+    fn result(&self) -> Value {
         json!({
             "terminal": super::results::terminal_row_json(&self.terminal),
             "cursor": self.cursor,
@@ -243,6 +248,36 @@ impl TerminalOutputDoc {
                 "startsMidLine": self.span.starts_mid_line,
                 "endsMidLine": self.span.ends_mid_line },
         })
+    }
+
+    /// `terminal read` emits the observed content itself: one output line
+    /// per emitted grid row — or, under `--source recent-unwrapped`, per joined logical
+    /// line — preserving printable text and escaping controls, followed by
+    /// the localized markers for tail-omitted entries and
+    /// budget-omitted rows.
+    fn render(
+        &self,
+        out: &mut Bounded,
+        command: &QueryCommand,
+        locale: Locale,
+    ) -> Result<(), TooLarge> {
+        if matches!(
+            command,
+            QueryCommand::TerminalOutput { plain: true, .. }
+                | QueryCommand::TerminalOutput { ansi: true, .. }
+        ) {
+            return out.push(&self.text);
+        }
+        for line in self.text.lines() {
+            out.push(&unquoted(line))?;
+            out.push("\n")?;
+        }
+        if self.range.capacity_omitted > 0 {
+            out.push(&CliText::new(locale).cli_read_truncated(
+                usize::try_from(self.range.capacity_omitted).unwrap_or(usize::MAX),
+            ))?;
+        }
+        Ok(())
     }
 }
 

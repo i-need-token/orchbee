@@ -3,9 +3,6 @@
 //! No path activates a Session. Selection/copy/link reads do not start processes;
 //! explicit link activation delegates one plugin Job to the existing execution owner.
 
-mod terminal_run;
-pub(super) use terminal_run::run as run_terminal;
-
 mod terminal_buffer;
 pub(super) mod terminal_copy;
 pub(super) mod terminal_links;
@@ -34,7 +31,6 @@ pub(in crate::cli) mod named_terminal;
 pub(crate) use named_terminal::named_terminal_target;
 mod agent_management;
 pub(in crate::cli) mod terminal_agent;
-pub(in crate::cli) mod terminal_agent_wait;
 pub(super) mod terminal_metadata;
 pub(in crate::cli) use agent_management::read_agent_management;
 mod agent_journal;
@@ -43,8 +39,9 @@ mod agent_explanation;
 mod agent_focus;
 mod agent_names;
 mod agent_names_failure;
+pub(in crate::cli) use agent_names_failure::rejection as agent_names_rejection;
 
-mod agent_target;
+pub(in crate::cli) mod agent_target;
 pub(in crate::cli) fn read_agent_snapshot(
     client: &mut LocalClient,
     deadline: Instant,
@@ -114,16 +111,12 @@ use orchbee_workbench_protocol::{
 use std::time::{Duration, Instant};
 
 mod agent_list_unarmed;
-mod agent_wait;
-pub(crate) use agent_wait::condition_matches;
-pub(crate) use agent_wait::status_matches;
-pub(crate) use agent_wait::{agent_wait, wait_backoff};
 
 const COHORT_BUDGET: Duration = Duration::from_secs(5);
 /// The Agent read's whole-command budget: one absolute deadline sampled
 /// once at invocation entry and shared by the preamble, the admission, and
 /// the single OBAP exchange — never refreshed between stages.
-const AGENT_TOTAL_BUDGET: Duration = Duration::from_secs(5);
+pub(super) const AGENT_TOTAL_BUDGET: Duration = Duration::from_secs(5);
 const NETWORK_BUDGET: Duration = Duration::from_secs(5);
 /// An `Empty` poll answer is retried inside the shared network budget; the
 /// cadence stays coarse enough that a quiet host is never hammered.
@@ -1286,7 +1279,7 @@ fn aged_pin<T>(
 }
 
 /// Confirm an applied frame so the Host may publish the next one.
-fn acknowledge_frame(
+pub(super) fn acknowledge_frame(
     client: &mut LocalClient,
     deadline: Instant,
     viewer: &ViewerId,
@@ -1386,7 +1379,7 @@ fn poll_terminal_frame_cancellable(
 /// Poll until one record applies to the borrowed projection. The projection
 /// keeps the applied frame as the base later delta frames require, so a read
 /// that abandons an aged pin can acknowledge it and poll for the next one.
-fn poll_applied_frame(
+pub(super) fn poll_applied_frame(
     client: &mut LocalClient,
     deadline: Instant,
     viewer_id: &ViewerId,
@@ -1820,7 +1813,7 @@ fn wait_observe(
 
 /// The confirmed-`Detach` exit `wait-output` requires: the real outcome is
 /// inspected, unlike the best-effort send a one-shot read uses.
-fn wait_detach(
+pub(super) fn wait_detach(
     client: &mut LocalClient,
     deadline: Instant,
     viewer_id: &ViewerId,
@@ -1951,7 +1944,7 @@ fn viewer_unavailable() -> Failure {
     Failure::new(FailureKind::ServiceUnavailable).details(stage_details("viewer"))
 }
 
-fn viewer_protocol_invalid() -> Failure {
+pub(super) fn viewer_protocol_invalid() -> Failure {
     Failure::new(FailureKind::ProtocolInvalid).details(stage_details("viewer"))
 }
 
@@ -2159,7 +2152,7 @@ pub(crate) enum AgentQueryError {
 /// failure family. Preamble failures arrive already classified; the raw
 /// connect outcome is held unprojected because it may carry the protocol's
 /// provisional wake markers, which only the finish arbitration may weigh.
-enum AgentAdmissionError {
+pub(super) enum AgentAdmissionError {
     Preamble(Failure),
     Connect(crate::local_client::LocalClientConnectError),
 }
@@ -2349,7 +2342,7 @@ fn agent_span<Request: AgentReadExchange>(
 /// bounded by `total`, never a renewed budget. The wake descriptor joins
 /// the admission wait set; nothing here may create state, replay a request,
 /// or touch the Workbench.
-fn agent_session_until(
+pub(super) fn agent_session_until(
     total: Instant,
     wake: Option<BorrowedFd<'_>>,
 ) -> Result<LocalClient, AgentAdmissionError> {
@@ -2607,7 +2600,7 @@ fn agent_session_read(
 /// The `get`/`explain` refusal mapping: `not-found` names the session, while
 /// `read-denied` carries only the typed reason — both under the common
 /// `agent-read` stage.
-fn agent_session_rejection(
+pub(super) fn agent_session_rejection(
     operation: AgentReadOperation,
     reason: orchbee_agent_observation_protocol::AgentSessionRejectionReason,
     session_id: &AgentSessionId,
@@ -2626,7 +2619,9 @@ fn agent_session_rejection(
 
 /// Common `agent-read` details: the stage plus the operation, as the failure
 /// schema closes them. Session-targeted failures add `sessionId`.
-fn agent_read_details(operation: AgentReadOperation) -> serde_json::Map<String, serde_json::Value> {
+pub(super) fn agent_read_details(
+    operation: AgentReadOperation,
+) -> serde_json::Map<String, serde_json::Value> {
     let mut details = serde_json::Map::new();
     details.insert("stage".to_owned(), serde_json::json!("agent-read"));
     details.insert(
@@ -2636,7 +2631,7 @@ fn agent_read_details(operation: AgentReadOperation) -> serde_json::Map<String, 
     details
 }
 
-fn agent_session_details(
+pub(super) fn agent_session_details(
     operation: AgentReadOperation,
     session_id: &str,
 ) -> serde_json::Map<String, serde_json::Value> {
@@ -2645,7 +2640,7 @@ fn agent_session_details(
     details
 }
 
-fn agent_rejection_details(
+pub(super) fn agent_rejection_details(
     operation: AgentReadOperation,
     reason: &str,
 ) -> serde_json::Map<String, serde_json::Value> {
@@ -2654,7 +2649,7 @@ fn agent_rejection_details(
     details
 }
 
-fn agent_unavailable_details(
+pub(super) fn agent_unavailable_details(
     operation: AgentReadOperation,
 ) -> serde_json::Map<String, serde_json::Value> {
     agent_rejection_details(operation, "runtime-unavailable")
@@ -2673,14 +2668,14 @@ fn agent_timeout_details(
     details
 }
 
-fn agent_protocol_invalid(operation: AgentReadOperation) -> Failure {
+pub(super) fn agent_protocol_invalid(operation: AgentReadOperation) -> Failure {
     Failure::new(FailureKind::ProtocolInvalid).details(agent_read_details(operation))
 }
 
 /// A deadline-elapsed transport error is the command's own timeout, never a
 /// transport loss: `TimedOut` only arises from the shared deadline inside the
 /// exchange machinery.
-fn is_deadline_elapsed(error: &std::io::Error) -> bool {
+pub(super) fn is_deadline_elapsed(error: &std::io::Error) -> bool {
     error.kind() == std::io::ErrorKind::TimedOut
 }
 
@@ -2780,7 +2775,7 @@ pub(crate) fn read_terminal(
 
 pub(super) fn names_command(
     command: &crate::invocation::AgentNamesCommand,
-) -> super::agent_names::Execution {
+) -> agent_names::Execution {
     agent_names::execute(command)
 }
 pub(crate) fn agent_changes(

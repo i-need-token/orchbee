@@ -3,9 +3,10 @@ use super::{
     AgentTarget, ArmedSignals, Completion, Failure, FailureKind, Instant, Locale, Map, Output,
     OutputFormat, READ_BUDGET, ResolvedWait, Sent, Value, WaitDeadline, json, output, query, send,
 };
+use crate::cli::agent_wait::terminal as terminal_agent_wait;
 use crate::cli::processes::Selection;
-use crate::cli::query::terminal_agent::{TerminalAgentRead, failure as error};
-use crate::cli::query::terminal_agent_wait::{self, Matched};
+use crate::cli::query::terminal_agent::failure as error;
+use crate::cli::results::terminal_agent::{Matched, TerminalAgentRead};
 use crate::cli_text::CliText;
 use crate::invocation::Target;
 use crate::local_client::LocalClient;

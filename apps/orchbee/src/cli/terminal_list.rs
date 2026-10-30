@@ -319,7 +319,7 @@ fn verify_reports(
 }
 
 fn observation_for(
-    outcome: Result<query::terminal_metadata::Read, Failure>,
+    outcome: Result<crate::cli::terminal_observation::Read, Failure>,
 ) -> Result<super::terminal_observation::Observation, Failure> {
     match outcome {
         Ok(read) => Ok(super::terminal_observation::Observation::Observed(
@@ -352,8 +352,8 @@ mod tests {
             base_revision: None,
         };
         super::super::terminal_observation::Observation::Observed(Box::new(
-            query::terminal_metadata::Read {
-                frame: query::terminal_metadata::Metadata {
+            crate::cli::terminal_observation::Read {
+                frame: crate::cli::terminal_observation::Metadata {
                     route,
                     columns: 80,
                     rows: 24,

@@ -1,7 +1,7 @@
 //! One correlated shell submission followed by bounded observation, preserving every receipt.
 use crate::cli::command_interrupt::{ArmedSignals, Finish};
 use crate::cli::console_interrupt::SignalWatch;
-use crate::cli::{Failure, FailureKind, Output, output, send};
+use crate::cli::{Failure, FailureKind, Output, output, query, send};
 use crate::cli_text::CliText;
 use crate::invocation::{OutputFormat, Target};
 use crate::localization::Locale;
@@ -50,7 +50,7 @@ pub(in crate::cli) fn run(
             );
         }
     };
-    let run_id = match super::obcs_request_id() {
+    let run_id = match query::obcs_request_id() {
         Ok(id) => id.as_str().to_owned(),
         Err(failure) => {
             let mut result = crate::cli::failure_output(failure, Some(format), locale);
@@ -159,10 +159,10 @@ fn execute(
     attempt: &mut Attempt,
 ) -> Result<(), Failure> {
     check(signals, deadline)?;
-    let (mut client, snapshot) = super::stream_snapshot(step(deadline), signals.poll_fd())?;
+    let (mut client, snapshot) = query::stream_snapshot(step(deadline), signals.poll_fd())?;
     attempt.source = Some(crate::cli::results::snapshot_source(&snapshot));
     check(signals, deadline)?;
-    let (terminal, viewer, _, _, mut projection) = super::attach_viewer_cancellable(
+    let (terminal, viewer, _, _, mut projection) = query::attach_viewer_cancellable(
         &mut client,
         step(deadline),
         &snapshot,
@@ -172,7 +172,7 @@ fn execute(
     attempt.terminal_id = Some(terminal.terminal_id.clone());
     attempt.cleanup = "requested";
     let outcome: Result<(), Failure> = (|| {
-        super::poll_applied_frame(
+        query::poll_applied_frame(
             &mut client,
             step(deadline),
             &viewer,
@@ -182,8 +182,8 @@ fn execute(
         check(signals, deadline)?;
         let frame = projection
             .frame()
-            .ok_or_else(super::viewer_protocol_invalid)?;
-        super::acknowledge_frame(&mut client, step(deadline), &viewer, frame)?;
+            .ok_or_else(query::viewer_protocol_invalid)?;
+        query::acknowledge_frame(&mut client, step(deadline), &viewer, frame)?;
         frame
             .command_observation
             .filter(|value| value.ready)
@@ -211,7 +211,7 @@ fn execute(
         }
         loop {
             check(signals, deadline)?;
-            super::poll_applied_frame(
+            query::poll_applied_frame(
                 &mut client,
                 deadline,
                 &viewer,
@@ -221,8 +221,8 @@ fn execute(
             check(signals, deadline)?;
             let frame = projection
                 .frame()
-                .ok_or_else(super::viewer_protocol_invalid)?;
-            super::acknowledge_frame(&mut client, step(deadline), &viewer, frame)?;
+                .ok_or_else(query::viewer_protocol_invalid)?;
+            query::acknowledge_frame(&mut client, step(deadline), &viewer, frame)?;
             if let Some(command) = completed(frame, &attempt.run_id) {
                 attempt.completion = Some(json!({
                     "exitCode": command.exit_code,
@@ -243,7 +243,7 @@ fn execute(
         }
     })();
     let cleanup = if Instant::now() < deadline {
-        super::wait_detach(&mut client, deadline, &viewer)
+        query::wait_detach(&mut client, deadline, &viewer)
     } else {
         Err(error(FailureKind::Timeout, "timeout"))
     };

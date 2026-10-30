@@ -241,10 +241,10 @@ fn execute(
         signals,
     )?;
     if command.options.plugin_pane.is_some() {
-        let (context, observed_member) = crate::cli::plugins::context::observe(
+        let (context, observed_member) = crate::cli::plugin_preparation::context::observe(
             &mut client,
             &snapshot,
-            crate::cli::plugins::context::Source::creation(
+            crate::cli::plugin_preparation::context::Source::creation(
                 &canonical,
                 &snapshot,
                 command.overlay,

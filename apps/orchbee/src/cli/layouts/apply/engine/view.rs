@@ -151,12 +151,12 @@ impl Engine<'_> {
         if self.selected.is_none() {
             let expected = self.expected.as_ref().ok_or_else(internal)?;
             let (identity, previous) =
-                crate::cli::layouts::structure::split(&expected.root, &split.path)?;
+                crate::cli::layout_topology::split(&expected.root, &split.path)?;
             if identity != self.splits[index] {
                 return Err(ownership::changed());
             }
             self.receipt.stage = "ratio";
-            let (effect, result) = crate::cli::layouts::structure::submit_ratio(
+            let (effect, result) = crate::cli::layout_topology::submit_ratio(
                 &mut self.client,
                 &self.snapshot,
                 &self.destination.context,
