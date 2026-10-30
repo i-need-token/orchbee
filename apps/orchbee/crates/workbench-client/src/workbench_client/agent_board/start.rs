@@ -1,39 +1,19 @@
-//! Empty-board Agent startup state and its two private background tasks.
+//! Empty-board Agent startup state.
 //!
-//! PATH inspection and the startup workflow never run on the input thread.
-//! The accepted operation keeps its exact generation and Panel target; closing
-//! the Board retires presentation only. Explicit cancellation wakes the owned
-//! workflow, while session teardown cancels and joins it within the workflow's
-//! existing bounded I/O/release contract.
-
-use std::{
-    ffi::OsString,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-        mpsc::{self, Receiver, TryRecvError},
-    },
-    thread::{self, JoinHandle},
-    time::{Duration, Instant},
-};
+//! The Client-PATH catalog and the startup workflow run in [`jobs`], which the
+//! composition owns and which settles each outcome back into this state; the
+//! input thread never waits on either. The accepted operation keeps its exact
+//! generation and Panel target; closing the Board retires presentation only.
+//! Explicit cancellation marks the operation, and the jobs wake the workflow.
 
 use orchbee_agent_observation_protocol::{AgentName, AgentProviderId};
-use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
-use crate::{
-    agent_start::{Progress, Report, Request, ReservationState, Verdict},
-    client_view::{KeyCode, KeyEvent, KeyKind, Modifiers},
-    local_client::{LocalClientOrigin, LocalOperationClock},
-};
+use crate::client_view::{KeyCode, KeyEvent, KeyKind, Modifiers};
 
-const START_DEADLINE: Duration = Duration::from_secs(300);
-const CATALOG_DEADLINE: Duration = Duration::from_secs(6);
 const MAXIMUM_NAME_BYTES: usize = 32;
 
-mod catalog;
-#[cfg(test)]
-mod tests;
+pub(in crate::workbench_client) mod jobs;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct DrawSource {
@@ -62,7 +42,7 @@ enum Catalog {
 pub(crate) use crate::workbench_client::state::AgentStartPhase as Phase;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(super) struct Drain {
+pub(in crate::workbench_client) struct Drain {
     pub(super) changed: bool,
     pub(super) started: bool,
 }
@@ -83,12 +63,10 @@ struct Operation {
     phase: Phase,
 }
 
-pub(super) struct State {
+pub(in crate::workbench_client) struct State {
     launch_supported: bool,
     catalog: Catalog,
     catalog_revision: u64,
-    catalog_task: Option<CatalogTask>,
-    retiring_catalog_tasks: Vec<CatalogTask>,
     name: String,
     automatic_name: bool,
     provider_chosen: bool,
@@ -101,8 +79,8 @@ pub(super) struct State {
     draft_revision: u64,
     generation: u64,
     operation: Option<Operation>,
-    task: Option<StartTask>,
-    origin: Option<LocalClientOrigin>,
+    /// Locality of the current Client origin; `None` until one is set.
+    origin_local: Option<bool>,
     #[cfg(test)]
     accept_without_task: bool,
 }
@@ -117,8 +95,6 @@ impl State {
                 Catalog::Unsupported
             },
             catalog_revision: 0,
-            catalog_task: None,
-            retiring_catalog_tasks: Vec::new(),
             name: String::new(),
             automatic_name: true,
             provider_chosen: false,
@@ -129,57 +105,77 @@ impl State {
             draft_revision: 0,
             generation: 0,
             operation: None,
-            task: None,
-            origin: None,
+            origin_local: None,
             #[cfg(test)]
             accept_without_task: false,
         }
     }
 
-    pub(super) fn set_origin(&mut self, origin: LocalClientOrigin) {
-        let locality_changed = self
-            .origin
-            .as_ref()
-            .is_some_and(|current| current.is_local() != origin.is_local());
-        if locality_changed {
+    pub(super) fn set_origin_locality(&mut self, local: bool) {
+        if self.origin_local.is_some_and(|current| current != local) {
             self.retire_catalog();
         }
-        self.origin = Some(origin);
+        self.origin_local = Some(local);
     }
 
-    pub(super) fn ensure_catalog(&mut self, path: Option<OsString>) -> bool {
-        self.reap_catalog_tasks();
-        if !matches!(self.catalog, Catalog::Unloaded) {
-            return false;
-        }
-        if !self.retiring_catalog_tasks.is_empty() {
-            return false;
+    /// Admits the next catalog load. The jobs report whether a retired lookup
+    /// still runs and begin a lookup only for `CatalogBegin::Load`.
+    fn begin_catalog(&mut self, retiring: bool) -> CatalogBegin {
+        if !matches!(self.catalog, Catalog::Unloaded) || retiring {
+            return CatalogBegin::Unchanged;
         }
         if !self.launch_supported {
             self.catalog = Catalog::Unsupported;
-            return true;
+            return CatalogBegin::Settled;
         }
         self.catalog_revision = self.catalog_revision.wrapping_add(1);
-        if self.origin.as_ref().is_none_or(|origin| !origin.is_local()) {
+        if self.origin_local != Some(true) {
             // This PATH belongs to the Client process. It is evidence only
             // for a local Session; presenting it for a tunneled target would
             // falsely claim that a command exists in the target terminal.
             self.catalog = Catalog::Unavailable;
             self.settle_default_provider();
-            return true;
+            return CatalogBegin::Settled;
         }
-        let revision = self.catalog_revision;
-        match CatalogTask::spawn(revision, path) {
-            Ok(task) => {
-                self.catalog = Catalog::Loading;
-                self.catalog_task = Some(task);
-            }
-            Err(_) => {
-                self.catalog = Catalog::Unavailable;
-                self.settle_default_provider();
-            }
+        self.catalog = Catalog::Loading;
+        CatalogBegin::Load(self.catalog_revision)
+    }
+
+    const fn catalog_loading(&self) -> bool {
+        matches!(self.catalog, Catalog::Loading)
+    }
+
+    fn settle_catalog_found(&mut self, provider: &'static str) -> bool {
+        if self.detected.contains(&provider) {
+            return false;
+        }
+        let first = self.detected.is_empty();
+        self.detected.push(provider);
+        self.detected.sort_unstable();
+        self.order_providers();
+        if first
+            && !self.provider_chosen
+            && self.draft_editable()
+            && let Some(index) = self.providers.iter().position(|id| *id == provider)
+        {
+            self.selected_provider = Some(index);
+            self.suggest_name();
         }
         true
+    }
+
+    /// A finished, incomplete, or lost lookup settles the catalog and the default provider.
+    fn settle_catalog_finished(&mut self, complete: bool) {
+        self.catalog = if complete {
+            Catalog::Ready
+        } else {
+            Catalog::Unavailable
+        };
+        self.settle_default_provider();
+    }
+
+    fn touch_catalog(&mut self) {
+        self.catalog_revision = self.catalog_revision.wrapping_add(1);
     }
 
     pub(super) fn opened(&mut self, episode: u64) {
@@ -318,7 +314,7 @@ impl State {
             && self.draft_editable()
             && self.selected_provider().is_some()
             && AgentName::parse(&self.name).is_ok()
-            && self.origin.is_some()
+            && self.origin_local.is_some()
     }
 
     pub(super) fn draft_editable(&self) -> bool {
@@ -427,64 +423,50 @@ impl State {
         }
     }
 
-    pub(super) fn start(
-        &mut self,
-        episode: u64,
-        panel: WorkbenchPanelId,
-        clock: LocalOperationClock,
-    ) -> bool {
-        if !self.can_start() || self.task.is_some() {
-            return false;
+    /// Accepts one start for `episode` and returns what the jobs must run.
+    fn begin_start(&mut self, episode: u64, panel: WorkbenchPanelId) -> Option<StartOperation> {
+        if !self.can_start() {
+            return None;
         }
-        let (Ok(name), Some(provider), Some(origin)) = (
+        let (Ok(name), Some(provider)) = (
             AgentName::parse(&self.name),
             self.selected_provider()
                 .and_then(|provider| AgentProviderId::parse(provider).ok()),
-            self.origin.clone(),
         ) else {
-            return false;
-        };
-        let Some(deadline) = Instant::now().checked_add(START_DEADLINE) else {
-            return false;
+            return None;
         };
         self.generation = self.generation.wrapping_add(1);
         let generation = self.generation;
-        #[cfg(test)]
-        if self.accept_without_task {
-            self.operation = Some(Operation {
-                generation,
-                episode,
-                panel,
-                name,
-                provider,
-                phase: Phase::Starting,
-            });
-            return true;
-        }
-        let request = Request::new(name.clone(), provider.clone(), Vec::new());
-        let Ok(task) =
-            StartTask::spawn(generation, panel.clone(), origin, clock, request, deadline)
-        else {
-            self.operation = Some(Operation {
-                generation,
-                episode,
-                panel,
-                name,
-                provider,
-                phase: Phase::Failed,
-            });
-            return true;
-        };
         self.operation = Some(Operation {
             generation,
             episode,
+            panel: panel.clone(),
+            name: name.clone(),
+            provider: provider.clone(),
+            phase: Phase::Starting,
+        });
+        Some(StartOperation {
+            generation,
             panel,
             name,
             provider,
-            phase: Phase::Starting,
-        });
-        self.task = Some(task);
-        true
+            #[cfg(test)]
+            without_task: self.accept_without_task,
+        })
+    }
+
+    fn settle_start_spawn_failed(&mut self, generation: u64) {
+        if let Some(operation) = self.operation.as_mut()
+            && operation.generation == generation
+        {
+            operation.phase = Phase::Failed;
+        }
+    }
+
+    fn cancelling(&self) -> bool {
+        self.operation
+            .as_ref()
+            .is_some_and(|operation| operation.phase == Phase::Cancelling)
     }
 
     pub(super) fn cancel(&mut self) -> bool {
@@ -495,55 +477,31 @@ impl State {
             return false;
         }
         operation.phase = Phase::Cancelling;
-        if let Some(task) = &mut self.task {
-            task.cancel();
-        }
         true
     }
 
-    pub(super) fn drain(&mut self) -> Drain {
-        self.reap_catalog_tasks();
-        let mut drained = Drain {
-            changed: self.drain_catalog(),
-            started: false,
+    /// Progress moves only an operation that is still starting or waiting.
+    fn settle_start_progress(&mut self, phase: Phase) -> bool {
+        let Some(operation) = self.operation.as_mut() else {
+            return false;
         };
-        if let Some(progress) = self.task.as_ref().and_then(|task| {
-            task.progress
-                .try_lock()
-                .ok()
-                .and_then(|mut progress| progress.take())
-        }) && let Some(operation) = self.operation.as_mut()
-            && matches!(operation.phase, Phase::Starting | Phase::WaitingInput)
-        {
-            let phase = match progress {
-                Progress::Observing => Phase::Starting,
-                Progress::WaitingInput => Phase::WaitingInput,
-            };
-            drained.changed |= operation.phase != phase;
-            operation.phase = phase;
+        if !matches!(operation.phase, Phase::Starting | Phase::WaitingInput) {
+            return false;
         }
-        let outcome = self.task.as_ref().map(StartTask::take);
-        match outcome {
-            Some(Ok(completion)) => {
-                let phase = report_phase(&completion.report);
-                let applied =
-                    self.apply_completion(completion.generation, &completion.panel, phase);
-                drained.changed |= applied;
-                drained.started = applied && phase == Phase::Started;
-                self.task.take();
-            }
-            Some(Err(TryRecvError::Disconnected)) => {
-                // A worker that disappears after accepting an operation cannot
-                // prove whether terminal input landed. Preserve recovery state.
-                if let Some(operation) = self.operation.as_mut() {
-                    drained.changed |= operation.phase != Phase::Unknown;
-                    operation.phase = Phase::Unknown;
-                }
-                self.task.take();
-            }
-            Some(Err(TryRecvError::Empty)) | None => {}
-        }
-        drained
+        let changed = operation.phase != phase;
+        operation.phase = phase;
+        changed
+    }
+
+    /// A worker that disappears after accepting an operation cannot prove
+    /// whether terminal input landed. Preserve recovery state.
+    fn settle_start_lost(&mut self) -> bool {
+        let Some(operation) = self.operation.as_mut() else {
+            return false;
+        };
+        let changed = operation.phase != Phase::Unknown;
+        operation.phase = Phase::Unknown;
+        changed
     }
 
     fn apply_completion(
@@ -562,76 +520,7 @@ impl State {
         true
     }
 
-    fn drain_catalog(&mut self) -> bool {
-        let mut changed = false;
-        // One candidate per canonical provider plus one final verdict is the
-        // complete bounded mailbox. Input never waits for a lookup or a join.
-        for _ in 0..=crate::agent_provider::CANONICAL_IDS.len() {
-            let Some(task) = self.catalog_task.as_ref() else {
-                break;
-            };
-            let expected = task.revision;
-            match task.take() {
-                Ok((revision, _)) if revision != expected => continue,
-                Ok((_, CatalogUpdate::Found(provider))) => {
-                    if !self.detected.contains(&provider) {
-                        let first = self.detected.is_empty();
-                        self.detected.push(provider);
-                        self.detected.sort_unstable();
-                        self.order_providers();
-                        if first
-                            && !self.provider_chosen
-                            && self.draft_editable()
-                            && let Some(index) =
-                                self.providers.iter().position(|id| *id == provider)
-                        {
-                            self.selected_provider = Some(index);
-                            self.suggest_name();
-                        }
-                        changed = true;
-                    }
-                }
-                Ok((_, CatalogUpdate::Finished(complete))) => {
-                    self.retire_active_catalog_task();
-                    self.catalog = if complete {
-                        Catalog::Ready
-                    } else {
-                        Catalog::Unavailable
-                    };
-                    self.settle_default_provider();
-                    changed = true;
-                    break;
-                }
-                Err(TryRecvError::Disconnected) => {
-                    self.retire_active_catalog_task();
-                    self.catalog = Catalog::Unavailable;
-                    self.settle_default_provider();
-                    changed = true;
-                    break;
-                }
-                Err(TryRecvError::Empty) => break,
-            }
-        }
-        if changed {
-            self.catalog_revision = self.catalog_revision.wrapping_add(1);
-        }
-        changed
-    }
-
-    pub(super) fn close(&mut self) {
-        if let Some(task) = &mut self.task {
-            task.cancel();
-        }
-        self.task.take();
-        self.retire_catalog();
-        for mut task in self.retiring_catalog_tasks.drain(..) {
-            task.cancel();
-            drop(task);
-        }
-    }
-
     pub(super) fn retire_catalog(&mut self) {
-        self.retire_active_catalog_task();
         if !matches!(self.catalog, Catalog::Unloaded) {
             self.catalog = Catalog::Unloaded;
             self.catalog_revision = self.catalog_revision.wrapping_add(1);
@@ -640,20 +529,8 @@ impl State {
         }
     }
 
-    fn retire_active_catalog_task(&mut self) {
-        if let Some(mut task) = self.catalog_task.take() {
-            task.cancel();
-            self.retiring_catalog_tasks.push(task);
-        }
-    }
-
-    fn reap_catalog_tasks(&mut self) {
-        self.retiring_catalog_tasks.retain(|task| !task.finished());
-    }
-
     #[cfg(test)]
     pub(super) fn install_catalog(&mut self, providers: &[&'static str]) {
-        self.retire_active_catalog_task();
         self.catalog = Catalog::Ready;
         self.detected = providers.to_vec();
         self.providers = providers
@@ -688,210 +565,26 @@ impl State {
     pub(super) fn operation_panel(&self) -> Option<&WorkbenchPanelId> {
         self.operation.as_ref().map(|operation| &operation.panel)
     }
-
-    #[cfg(test)]
-    pub(super) fn queue_completion(&mut self, report: Report) -> bool {
-        let Some(operation) = &self.operation else {
-            return false;
-        };
-        let (sender, outcomes) = mpsc::sync_channel(1);
-        if sender
-            .send(Completion {
-                generation: operation.generation,
-                panel: operation.panel.clone(),
-                report,
-            })
-            .is_err()
-        {
-            return false;
-        }
-        drop(sender);
-        let Ok((_reader, wake)) = LocalStream::pair() else {
-            return false;
-        };
-        self.task = Some(StartTask {
-            progress: Arc::new(Mutex::new(None)),
-            outcomes,
-            wake,
-            task: None,
-            cancelled: false,
-        });
-        true
-    }
 }
 
-fn report_phase(report: &Report) -> Phase {
-    match &report.verdict {
-        Verdict::Started { .. } => Phase::Started,
-        Verdict::Failed { failure, .. }
-            if failure.timed_out()
-                && report.delivery == crate::agent_start::DeliveryDisposition::Applied =>
-        {
-            Phase::Unconfirmed
-        }
-        Verdict::Failed { failure, .. }
-            if failure.unknown()
-                || matches!(
-                    report.reservation_state,
-                    ReservationState::Pending | ReservationState::Unknown
-                )
-                || report.delivery.possibly_applied() =>
-        {
-            Phase::Unknown
-        }
-        Verdict::Failed { failure, .. } if failure.cancelled() => Phase::Cancelled,
-        Verdict::Failed { .. } => Phase::Failed,
-    }
+/// Whether a drain may begin the Client-PATH catalog, and the PATH it reads.
+pub(in crate::workbench_client) enum CatalogAdmission {
+    Closed,
+    Open(Option<std::ffi::OsString>),
 }
 
-impl Drop for State {
-    fn drop(&mut self) {
-        self.close();
-    }
+enum CatalogBegin {
+    Unchanged,
+    Settled,
+    Load(u64),
 }
 
-enum CatalogUpdate {
-    Found(&'static str),
-    Finished(bool),
-}
-
-struct CatalogTask {
-    revision: u64,
-    outcomes: Receiver<(u64, CatalogUpdate)>,
-    cancelled: Arc<AtomicBool>,
-    task: Option<JoinHandle<()>>,
-}
-
-impl CatalogTask {
-    fn spawn(revision: u64, path: Option<OsString>) -> std::io::Result<Self> {
-        let deadline = Instant::now()
-            .checked_add(CATALOG_DEADLINE)
-            .ok_or_else(|| std::io::Error::other("Agent catalog deadline overflow"))?;
-        let (sender, outcomes) = mpsc::sync_channel(crate::agent_provider::CANONICAL_IDS.len() + 1);
-        let cancelled = Arc::new(AtomicBool::new(false));
-        let task_cancelled = Arc::clone(&cancelled);
-        let task = thread::Builder::new()
-            .name("orchbee-agent-start-catalog".into())
-            .spawn(move || {
-                let complete = catalog::client_path_candidates(
-                    path.as_deref(),
-                    task_cancelled.as_ref(),
-                    deadline,
-                    |provider| {
-                        let _ = sender.send((revision, CatalogUpdate::Found(provider)));
-                    },
-                );
-                let _ = sender.send((revision, CatalogUpdate::Finished(complete)));
-            })?;
-        Ok(Self {
-            revision,
-            outcomes,
-            cancelled,
-            task: Some(task),
-        })
-    }
-
-    fn take(&self) -> Result<(u64, CatalogUpdate), TryRecvError> {
-        self.outcomes.try_recv()
-    }
-
-    fn cancel(&mut self) {
-        self.cancelled.store(true, Ordering::Release);
-    }
-
-    fn finished(&self) -> bool {
-        self.task.as_ref().is_none_or(JoinHandle::is_finished)
-    }
-}
-
-impl Drop for CatalogTask {
-    fn drop(&mut self) {
-        self.cancel();
-        if let Some(task) = self.task.take() {
-            let _ = task.join();
-        }
-    }
-}
-
-struct Completion {
+/// The accepted start that the jobs run for one generation and Panel.
+struct StartOperation {
     generation: u64,
     panel: WorkbenchPanelId,
-    report: Report,
-}
-
-struct StartTask {
-    progress: Arc<Mutex<Option<Progress>>>,
-    outcomes: Receiver<Completion>,
-    wake: LocalStream,
-    task: Option<JoinHandle<()>>,
-    cancelled: bool,
-}
-
-impl StartTask {
-    fn spawn(
-        generation: u64,
-        panel: WorkbenchPanelId,
-        origin: LocalClientOrigin,
-        clock: LocalOperationClock,
-        request: Request,
-        deadline: Instant,
-    ) -> std::io::Result<Self> {
-        let (sender, outcomes) = mpsc::sync_channel(1);
-        let (reader, wake) = LocalStream::pair()?;
-        let completion_panel = panel.clone();
-        let progress = Arc::new(Mutex::new(None));
-        let task_progress = Arc::clone(&progress);
-        let task = thread::Builder::new()
-            .name("orchbee-agent-start".into())
-            .spawn(move || {
-                let started = Instant::now();
-                let report = crate::agent_start::run_on_origin(
-                    request,
-                    started,
-                    deadline,
-                    Some(reader.as_local_io()),
-                    &origin,
-                    clock,
-                    panel,
-                    &|value| {
-                        if let Ok(mut progress) = task_progress.lock() {
-                            *progress = Some(value);
-                        }
-                    },
-                );
-                let _ = sender.send(Completion {
-                    generation,
-                    panel: completion_panel,
-                    report,
-                });
-            })?;
-        Ok(Self {
-            progress,
-            outcomes,
-            wake,
-            task: Some(task),
-            cancelled: false,
-        })
-    }
-
-    fn take(&self) -> Result<Completion, TryRecvError> {
-        self.outcomes.try_recv()
-    }
-
-    fn cancel(&mut self) {
-        if self.cancelled {
-            return;
-        }
-        self.cancelled = true;
-        let _ = self.wake.shutdown(std::net::Shutdown::Both);
-    }
-}
-
-impl Drop for StartTask {
-    fn drop(&mut self) {
-        self.cancel();
-        if let Some(task) = self.task.take() {
-            let _ = task.join();
-        }
-    }
+    name: AgentName,
+    provider: AgentProviderId,
+    #[cfg(test)]
+    without_task: bool,
 }

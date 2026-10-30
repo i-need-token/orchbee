@@ -23,7 +23,7 @@ use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use super::agent_read_lane as lane;
 use lane::{AgentReadLane, LaneCommand, LaneOutcome};
 
-mod start;
+pub(super) mod start;
 #[cfg(test)]
 mod tests;
 pub(crate) use start::{CatalogStatus as AgentStartCatalogStatus, Phase as AgentStartPhase};
@@ -903,7 +903,7 @@ impl AgentBoard {
     }
 
     pub(super) fn set_origin(&mut self, origin: crate::local_client::LocalClientOrigin) {
-        self.start.set_origin(origin.clone());
+        self.start.set_origin_locality(origin.is_local());
         self.lane_origin = Some(origin);
     }
 
@@ -1184,9 +1184,12 @@ impl AgentBoard {
         self.intent = Some(BoardIntent::Jump { target });
     }
 
+    /// Admits a start against the current draw; `jobs` accepts it in the start
+    /// state for this episode and runs its workflow.
     pub(super) fn start_agent(
         &mut self,
         panel: orchbee_workbench_protocol::WorkbenchPanelId,
+        jobs: impl FnOnce(&mut start::State, u64, orchbee_workbench_protocol::WorkbenchPanelId) -> bool,
     ) -> bool {
         if !self.interactive()
             || !self.rows.is_empty()
@@ -1195,13 +1198,14 @@ impl AgentBoard {
         {
             return false;
         }
-        self.start.start(self.epoch, panel, self.clock.clone())
+        jobs(&mut self.start, self.epoch, panel)
     }
 
     pub(super) fn start_agent_drawn(
         &mut self,
         target: &AgentBoardControlTarget,
         panel: orchbee_workbench_protocol::WorkbenchPanelId,
+        jobs: impl FnOnce(&mut start::State, u64, orchbee_workbench_protocol::WorkbenchPanelId) -> bool,
     ) -> bool {
         if target.control() != AgentBoardControl::Start
             || !self.interactive()
@@ -1211,7 +1215,7 @@ impl AgentBoard {
         {
             return false;
         }
-        self.start_agent(panel)
+        self.start_agent(panel, jobs)
     }
 
     pub(super) fn edit_start_draft(&mut self, event: crate::client_view::KeyEvent) -> bool {
@@ -1257,22 +1261,32 @@ impl AgentBoard {
             .is_some_and(start::Phase::running)
     }
 
-    pub(super) fn drain_start(&mut self) -> bool {
-        let admitted = if self.open
+    /// The start state the jobs reconcile after an explicit cancellation.
+    pub(super) const fn start_state(&self) -> &start::State {
+        &self.start
+    }
+
+    /// One start drain: `jobs` settles its outcomes into the start state and may
+    /// begin the catalog only while the empty Board's form admits it.
+    pub(super) fn drain_start(
+        &mut self,
+        jobs: impl FnOnce(&mut start::State, start::CatalogAdmission) -> start::Drain,
+    ) -> bool {
+        let admission = if self.open
             && self.start_catalog_ready_epoch == Some(self.epoch)
             && self.rows.is_empty()
             && matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
             && self.start.catalog_unloaded()
         {
-            self.start.ensure_catalog(self.start_catalog_path.clone())
+            start::CatalogAdmission::Open(self.start_catalog_path.clone())
         } else {
-            false
+            start::CatalogAdmission::Closed
         };
-        let drained = self.start.drain();
+        let drained = jobs(&mut self.start, admission);
         if drained.started {
             self.request_refresh();
         }
-        admitted || drained.changed
+        drained.changed
     }
 
     #[cfg(test)]
@@ -1295,14 +1309,6 @@ impl AgentBoard {
         &self,
     ) -> Option<&orchbee_workbench_protocol::WorkbenchPanelId> {
         self.start.operation_panel()
-    }
-
-    #[cfg(test)]
-    pub(in crate::workbench_client) fn queue_start_completion_t(
-        &mut self,
-        report: crate::agent_start::Report,
-    ) -> bool {
-        self.start.queue_completion(report)
     }
 
     /// Issue the queued intent through the lane — one outstanding lane
@@ -1726,7 +1732,7 @@ impl AgentBoard {
     /// an in-flight exchange and the join returns without waiting out the
     /// read deadline. Must run before the mailbox is released.
     pub(super) fn release_lane(&mut self) {
-        self.start.close();
+        self.start.retire_catalog();
         if let Some(lane) = self.lane.take() {
             lane.close();
         }

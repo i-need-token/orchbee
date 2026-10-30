@@ -1,3 +1,4 @@
+use super::super::*;
 use super::*;
 use crate::agent_start::{
     DeliveryDisposition, ExchangeFailure, Failure, StartFailure, Submission, Verdict,
@@ -239,11 +240,12 @@ fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
 #[test]
 fn completion_waits_for_channel_authority_and_reports_started_once() {
     let mut state = State::new(true);
+    let mut jobs = Jobs::default();
     let target = panel(1);
     state.operation = Some(operation(7, target.clone(), Phase::Starting));
     let (sender, outcomes) = mpsc::sync_channel(1);
     let (_reader, wake) = LocalStream::pair().unwrap();
-    state.task = Some(StartTask {
+    jobs.start = Some(StartTask {
         progress: Arc::new(Mutex::new(None)),
         outcomes,
         wake,
@@ -253,7 +255,10 @@ fn completion_waits_for_channel_authority_and_reports_started_once() {
 
     // Empty is not worker loss. The sender may publish immediately after this
     // observation, including after its worker handle has become finished.
-    assert_eq!(state.drain(), Drain::default());
+    assert_eq!(
+        jobs.drain(&mut state, CatalogAdmission::Closed),
+        Drain::default()
+    );
     let mut completed = report(
         Failure::Start(StartFailure::TerminalNotIdle),
         ReservationState::Completed,
@@ -272,24 +277,28 @@ fn completion_waits_for_channel_authority_and_reports_started_once() {
         .unwrap();
     drop(sender);
     assert_eq!(
-        state.drain(),
+        jobs.drain(&mut state, CatalogAdmission::Closed),
         Drain {
             changed: true,
             started: true
         }
     );
-    assert_eq!(state.drain(), Drain::default());
+    assert_eq!(
+        jobs.drain(&mut state, CatalogAdmission::Closed),
+        Drain::default()
+    );
 }
 
 #[test]
 fn disconnected_start_worker_preserves_recovery_for_start_and_cancel() {
     for phase in [Phase::Starting, Phase::Cancelling] {
         let mut state = State::new(true);
+        let mut jobs = Jobs::default();
         state.operation = Some(operation(7, panel(1), phase));
         let (sender, outcomes) = mpsc::sync_channel(1);
         drop(sender);
         let (_reader, wake) = LocalStream::pair().unwrap();
-        state.task = Some(StartTask {
+        jobs.start = Some(StartTask {
             progress: Arc::new(Mutex::new(None)),
             outcomes,
             wake,
@@ -297,7 +306,7 @@ fn disconnected_start_worker_preserves_recovery_for_start_and_cancel() {
             cancelled: phase == Phase::Cancelling,
         });
         assert_eq!(
-            state.drain(),
+            jobs.drain(&mut state, CatalogAdmission::Closed),
             Drain {
                 changed: true,
                 started: false
@@ -313,25 +322,26 @@ fn disconnected_start_worker_preserves_recovery_for_start_and_cancel() {
 #[test]
 fn catalog_result_survives_empty_then_sender_exit() {
     let mut state = State::new(true);
+    let mut jobs = Jobs::default();
     state.catalog = Catalog::Loading;
     state.catalog_revision = 4;
     let (sender, outcomes) = mpsc::sync_channel(1);
-    state.catalog_task = Some(CatalogTask {
+    jobs.catalog = Some(CatalogTask {
         revision: 4,
         outcomes,
         cancelled: Arc::new(AtomicBool::new(false)),
         task: None,
     });
-    assert!(!state.drain_catalog());
+    assert!(!jobs.drain_catalog(&mut state));
     sender.send((4, CatalogUpdate::Found("codex"))).unwrap();
-    assert!(state.drain_catalog());
+    assert!(jobs.drain_catalog(&mut state));
     assert_eq!(state.detected(), ["codex"]);
     assert_eq!(state.catalog_status(), CatalogStatus::Loading);
     assert_eq!(state.selected_provider(), Some("codex"));
     assert_eq!(state.name(), "codex-1");
     sender.send((4, CatalogUpdate::Finished(false))).unwrap();
     drop(sender);
-    assert!(state.drain_catalog());
+    assert!(jobs.drain_catalog(&mut state));
     assert_eq!(state.detected(), ["codex"]);
     assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
     assert!(state.providers().contains(&"cursor"));
@@ -340,17 +350,18 @@ fn catalog_result_survives_empty_then_sender_exit() {
 #[test]
 fn disconnected_catalog_worker_settles_unavailable() {
     let mut state = State::new(true);
+    let mut jobs = Jobs::default();
     state.catalog = Catalog::Loading;
     state.catalog_revision = 4;
     let (sender, outcomes) = mpsc::sync_channel(1);
     drop(sender);
-    state.catalog_task = Some(CatalogTask {
+    jobs.catalog = Some(CatalogTask {
         revision: 4,
         outcomes,
         cancelled: Arc::new(AtomicBool::new(false)),
         task: None,
     });
-    assert!(state.drain_catalog());
+    assert!(jobs.drain_catalog(&mut state));
     assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
     assert_eq!(
         state.selected_provider(),
@@ -362,10 +373,11 @@ fn disconnected_catalog_worker_settles_unavailable() {
 #[test]
 fn detection_selects_no_undetected_default_and_lists_detected_providers_first() {
     let mut state = State::new(true);
+    let mut jobs = Jobs::default();
     state.catalog = Catalog::Loading;
     state.catalog_revision = 4;
     let (sender, outcomes) = mpsc::sync_channel(3);
-    state.catalog_task = Some(CatalogTask {
+    jobs.catalog = Some(CatalogTask {
         revision: 4,
         outcomes,
         cancelled: Arc::new(AtomicBool::new(false)),
@@ -376,7 +388,7 @@ fn detection_selects_no_undetected_default_and_lists_detected_providers_first() 
     assert!(!state.can_start());
 
     sender.send((4, CatalogUpdate::Found("codex"))).unwrap();
-    assert!(state.drain_catalog());
+    assert!(jobs.drain_catalog(&mut state));
     assert_eq!(state.providers()[0], "codex");
     assert_eq!(state.selected_provider(), Some("codex"));
 
@@ -385,7 +397,7 @@ fn detection_selects_no_undetected_default_and_lists_detected_providers_first() 
         .send((4, CatalogUpdate::Found("claude-code")))
         .unwrap();
     sender.send((4, CatalogUpdate::Finished(true))).unwrap();
-    assert!(state.drain_catalog());
+    assert!(jobs.drain_catalog(&mut state));
     assert_eq!(state.providers()[..2], ["claude-code", "codex"]);
     assert_eq!(state.selected_provider(), Some("codex"));
     assert_eq!(state.name(), "codex-1");
@@ -447,12 +459,15 @@ fn reopening_keeps_accepted_and_unknown_work_but_retires_retryable_results() {
 #[test]
 fn remote_origin_never_publishes_the_local_process_path_as_target_availability() {
     let mut state = State::new(true);
-    state.set_origin(crate::local_client::test_support::server::disconnected_remote_origin());
-    state.ensure_catalog(std::env::var_os("PATH"));
+    let mut jobs = Jobs::default();
+    let origin = crate::local_client::test_support::server::disconnected_remote_origin();
+    state.set_origin_locality(origin.is_local());
+    jobs.set_origin(origin);
+    jobs.ensure_catalog(&mut state, std::env::var_os("PATH"));
     assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
     assert!(state.detected().is_empty());
     assert!(!state.providers().is_empty());
-    assert!(state.catalog_task.is_none());
+    assert!(jobs.catalog.is_none());
 }
 
 #[test]
@@ -460,15 +475,15 @@ fn catalog_keeps_partial_results_and_never_guesses_cursor_from_agent() {
     use std::cell::Cell;
     let mut observed = Vec::new();
     let mut found = Vec::new();
-    let complete = catalog::resolve_candidates(
+    let complete = client_path::resolve_candidates(
         crate::agent_provider::CANONICAL_IDS,
         || false,
         |command| {
             observed.push(command.to_owned());
             match command {
-                "codex" | "agent" | "amp" => catalog::Query::Found,
-                "pi" => catalog::Query::Unavailable,
-                _ => catalog::Query::Missing,
+                "codex" | "agent" | "amp" => client_path::Query::Found,
+                "pi" => client_path::Query::Unavailable,
+                _ => client_path::Query::Missing,
             }
         },
         |provider| found.push(provider),
@@ -477,24 +492,24 @@ fn catalog_keeps_partial_results_and_never_guesses_cursor_from_agent() {
     assert_eq!(found, ["codex", "amp"]);
     assert!(!observed.iter().any(|command| command == "agent"));
     let probes = Cell::new(0);
-    assert!(!catalog::resolve_candidates(
+    assert!(!client_path::resolve_candidates(
         crate::agent_provider::CANONICAL_IDS,
         || probes.get() == 2,
         |_| {
             probes.set(probes.get() + 1);
-            catalog::Query::Missing
+            client_path::Query::Missing
         },
         |_| {}
     ));
     assert_eq!(probes.get(), 2);
     let cancelled = AtomicBool::new(true);
-    assert!(!catalog::client_path_candidates(
+    assert!(!client_path::client_path_candidates(
         None,
         &cancelled,
         Instant::now() + CATALOG_DEADLINE,
         |_| panic!("cancelled lookup")
     ));
-    assert!(!catalog::client_path_candidates(
+    assert!(!client_path::client_path_candidates(
         None,
         &AtomicBool::new(false),
         Instant::now(),
@@ -557,7 +572,7 @@ fn catalog_where_query_honors_supported_extensions_and_rejects_directories() {
         // witness does not make the product's whole-catalog deadline a claim
         // about completion time under parallel test-process contention.
         let deadline = Instant::now() + Duration::from_secs(15);
-        catalog::query(
+        client_path::query(
             &executable,
             &system,
             Some(fixture.0.as_os_str()),
@@ -567,9 +582,9 @@ fn catalog_where_query_honors_supported_extensions_and_rejects_directories() {
             deadline,
         )
     };
-    assert_eq!(lookup("codex"), catalog::Query::Found);
-    assert_eq!(lookup("amp"), catalog::Query::Found);
-    assert_eq!(lookup("claude"), catalog::Query::Missing);
+    assert_eq!(lookup("codex"), client_path::Query::Found);
+    assert_eq!(lookup("amp"), client_path::Query::Found);
+    assert_eq!(lookup("claude"), client_path::Query::Missing);
 }
 
 #[test]
@@ -591,21 +606,22 @@ fn accepted_command_timeout_is_unconfirmed_and_cannot_be_replayed() {
 #[test]
 fn canonical_attention_progress_is_cancellable_without_replacing_the_operation() {
     let mut state = State::new(true);
+    let mut jobs = Jobs::default();
     state.operation = Some(operation(1, panel(1), Phase::Starting));
     let (_sender, outcomes) = mpsc::sync_channel(1);
     let (_reader, wake) = LocalStream::pair().unwrap();
     let progress = Arc::new(Mutex::new(Some(Progress::WaitingInput)));
-    state.task = Some(StartTask {
+    jobs.start = Some(StartTask {
         progress: Arc::clone(&progress),
         outcomes,
         wake,
         task: None,
         cancelled: false,
     });
-    assert!(state.drain().changed);
+    assert!(jobs.drain(&mut state, CatalogAdmission::Closed).changed);
     assert_eq!(state.phase(1), Some(Phase::WaitingInput));
     assert!(state.cancel());
     *progress.lock().unwrap() = Some(Progress::Observing);
-    state.drain();
+    jobs.drain(&mut state, CatalogAdmission::Closed);
     assert_eq!(state.phase(1), Some(Phase::Cancelling));
 }

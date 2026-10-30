@@ -152,6 +152,7 @@ today.
 | `workbench_client`                            | `composition`  | Connection-task lifetime and UI composition. Its children carry their own layers below.                                                             |
 | `workbench_client::agent_attention`           | `workflow`     | Agent attention observation lane and paint acknowledgements.                                                                                        |
 | `workbench_client::agent_board`               | `state`        | Agent board rows from the last completed read, with the board's selection and queued intents.                                                       |
+| `workbench_client::agent_board::start::jobs`  | `workflow`     | Client-PATH catalog and Agent startup jobs with their platform PATH adapter; they settle outcomes into the Board's start state.                     |
 | `workbench_client::agent_notifications`       | `values`       | Logical-time notification policy.                                                                                                                   |
 | `workbench_client::agent_read_lane`           | `workflow`     | Bounded Agent and Panel read jobs on the shared carrier.                                                                                            |
 | `workbench_client::client_control`            | `workflow`     | Remote navigation lane whose steps the UI owner advances.                                                                                           |

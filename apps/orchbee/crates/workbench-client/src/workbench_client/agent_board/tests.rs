@@ -126,13 +126,16 @@ fn one_started_completion_requests_exactly_one_refresh() {
     use orchbee_agent_observation_protocol::{AgentName, ObapRequestId};
 
     let mut board = AgentBoard::new(clock(), true);
-    board.set_origin(crate::local_client::test_support::server::disconnected_origin());
+    let mut jobs = start::jobs::Jobs::default();
+    let origin = crate::local_client::test_support::server::disconnected_origin();
+    jobs.set_origin(origin.clone());
+    board.set_origin(origin);
     board.open();
     board.start.install_catalog(&["codex"]);
     board.start.set_name("alpha");
     board.start.accept_without_task();
     let target = panel_id(1);
-    assert!(board.start.start(board.epoch, target, board.clock.clone()));
+    assert!(jobs.start(&mut board.start, board.epoch, target, board.clock.clone()));
     let report = Report {
         name: AgentName::parse("alpha").unwrap(),
         provider: AgentProviderId::parse("codex").unwrap(),
@@ -146,12 +149,12 @@ fn one_started_completion_requests_exactly_one_refresh() {
             session: AgentSessionId::parse("session-1").unwrap(),
         },
     };
-    assert!(board.queue_start_completion_t(report));
+    assert!(jobs.queue_completion_t(&board.start, report));
     board.intent = None;
-    assert!(board.drain_start());
+    assert!(board.drain_start(|start, admission| jobs.drain(start, admission)));
     assert!(matches!(board.intent, Some(BoardIntent::Refresh)));
     board.intent = None;
-    assert!(!board.drain_start());
+    assert!(!board.drain_start(|start, admission| jobs.drain(start, admission)));
     assert!(board.intent.is_none());
 }
 
@@ -920,9 +923,10 @@ mod lane_outcomes {
     #[test]
     fn client_path_catalog_waits_for_the_same_open_episodes_complete_empty_read() {
         let mut board = AgentBoard::new(clock(), true);
+        let mut jobs = start::jobs::Jobs::default();
         board.set_origin(crate::local_client::test_support::server::disconnected_remote_origin());
         board.open_with_start_catalog(Some(std::ffi::OsString::from("C:\\client-bin")));
-        assert!(!board.drain_start());
+        assert!(!board.drain_start(|start, admission| jobs.drain(start, admission)));
         assert_eq!(board.start.catalog_status(), start::CatalogStatus::Loading);
 
         board.inflight = Some(BoardInflight::ListRound);
@@ -935,7 +939,7 @@ mod lane_outcomes {
             }),
             Instant::now(),
         );
-        assert!(!board.drain_start());
+        assert!(!board.drain_start(|start, admission| jobs.drain(start, admission)));
         board.inflight = Some(BoardInflight::ListRound);
         board.apply_list_outcome(
             board.epoch,
@@ -946,7 +950,7 @@ mod lane_outcomes {
             }),
             Instant::now(),
         );
-        assert!(!board.drain_start());
+        assert!(!board.drain_start(|start, admission| jobs.drain(start, admission)));
 
         board.inflight = Some(BoardInflight::ListRound);
         board.apply_list_outcome(
@@ -958,14 +962,14 @@ mod lane_outcomes {
             }),
             Instant::now(),
         );
-        assert!(board.drain_start());
+        assert!(board.drain_start(|start, admission| jobs.drain(start, admission)));
         assert_eq!(
             board.start.catalog_status(),
             start::CatalogStatus::Unavailable
         );
         board.close();
         assert!(
-            !board.drain_start(),
+            !board.drain_start(|start, admission| jobs.drain(start, admission)),
             "close fences deferred probe admission"
         );
         board.open_with_start_catalog(Some(std::ffi::OsString::from("C:\\client-bin")));
@@ -974,7 +978,7 @@ mod lane_outcomes {
             AgentBoardRead::Ready { complete: true, .. }
         ));
         assert!(
-            !board.drain_start(),
+            !board.drain_start(|start, admission| jobs.drain(start, admission)),
             "a previous episode's complete-empty result cannot admit a probe"
         );
         board.close();

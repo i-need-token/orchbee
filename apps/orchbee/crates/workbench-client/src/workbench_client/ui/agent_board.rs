@@ -43,6 +43,7 @@ impl WorkbenchClientUi {
         self.popup.set_origin(origin.clone());
         self.worktrees.set_origin(origin.clone());
         self.settings.set_origin(origin.clone());
+        self.start_jobs.set_origin(origin.clone());
         self.board.set_origin(origin);
     }
 
@@ -104,6 +105,7 @@ impl WorkbenchClientUi {
     /// write interrupts any in-flight exchange so the join stays bounded.
     /// On non-Linux there is no lane; the call is a no-op.
     pub(in crate::workbench_client) fn release_agent_lane(&mut self) {
+        self.start_jobs.close();
         self.board.release_lane();
         self.settings.close();
         if !self.worktrees.close() {
@@ -143,11 +145,14 @@ impl WorkbenchClientUi {
         if self.board.start_form_active() {
             match agent_start_key_action(*event, self.board.start_running()) {
                 Some(AgentStartKeyAction::Start) => {
+                    let clock = self.clock.clone();
                     if let Some(panel) = self
                         .state
                         .as_ref()
                         .and_then(|state| state.focus_panel_id().cloned())
-                        && self.board.start_agent(panel)
+                        && self.board.start_agent(panel, |start, episode, panel| {
+                            self.start_jobs.start(start, episode, panel, clock)
+                        })
                     {
                         self.accepted_agent_start();
                     }
@@ -160,6 +165,7 @@ impl WorkbenchClientUi {
                 }
                 Some(AgentStartKeyAction::Cancel) => {
                     self.board.cancel_start_drawn();
+                    self.start_jobs.reconcile(self.board.start_state());
                 }
                 None => {
                     self.board.edit_start_draft(*event);
@@ -210,13 +216,20 @@ impl WorkbenchClientUi {
             else {
                 return false;
             };
-            let accepted = self.board.start_agent_drawn(target, panel);
+            let clock = self.clock.clone();
+            let accepted = self
+                .board
+                .start_agent_drawn(target, panel, |start, episode, panel| {
+                    self.start_jobs.start(start, episode, panel, clock)
+                });
             if accepted {
                 self.accepted_agent_start();
             }
             return accepted;
         }
-        self.board.control_drawn(target)
+        let changed = self.board.control_drawn(target);
+        self.start_jobs.reconcile(self.board.start_state());
+        changed
     }
 
     fn accepted_agent_start(&mut self) {
@@ -361,7 +374,9 @@ impl WorkbenchClientUi {
         changed |= self.board.drive_intent(now);
         {
             let before = self.board.start_phase();
-            changed |= self.board.drain_start();
+            changed |= self
+                .board
+                .drain_start(|start, admission| self.start_jobs.drain(start, admission));
             let after = self.board.start_phase();
             if before != after
                 && let Some(phase) = after

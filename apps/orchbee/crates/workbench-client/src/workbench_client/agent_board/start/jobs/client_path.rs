@@ -1,4 +1,4 @@
-//! Cancellable Client-PATH hints for the empty Agent board.
+//! Platform adapter for cancellable Client-PATH hints on the empty Agent board.
 //!
 //! Windows path resolution runs in the fixed system `where.exe` process, not
 //! in this process. A Job owns each query so a mapped drive, reparse target,
@@ -13,10 +13,10 @@ use std::{
 };
 
 #[cfg(windows)]
-#[path = "catalog/windows.rs"]
+#[path = "client_path/windows.rs"]
 mod platform;
 #[cfg(not(windows))]
-#[path = "catalog/unix.rs"]
+#[path = "client_path/unix.rs"]
 mod platform;
 
 #[cfg(windows)]

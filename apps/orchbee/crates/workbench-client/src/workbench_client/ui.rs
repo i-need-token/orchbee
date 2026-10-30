@@ -1197,6 +1197,8 @@ pub(super) struct WorkbenchClientUi {
     outer_focused: Option<bool>,
     state: Option<WorkbenchClientState>,
     board: super::agent_board::AgentBoard,
+    /// The Board's catalog and startup jobs; they settle into `board`'s start state.
+    start_jobs: super::agent_board::start::jobs::Jobs,
     worktrees: worktree_launch::Coordinator,
     attention: super::agent_attention::AgentAttention,
     reports: super::panel_reports::PanelReports,
@@ -1312,6 +1314,7 @@ impl WorkbenchClientUi {
                 clock.clone(),
                 capabilities.supports(crate::tui_capabilities::Capability::AgentLaunch),
             ),
+            start_jobs: Default::default(),
             worktrees: worktree_launch::Coordinator::default(),
             menus: action_menus::Coordinator::default(),
             settings: settings::Coordinator::new(capabilities.login_shell),
