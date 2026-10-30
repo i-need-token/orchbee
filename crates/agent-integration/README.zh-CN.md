@@ -1,7 +1,8 @@
 # orchbee-agent-integration
 
 托管 Agent 集成身份，以及原生 Client、Server 中继与节点本地写入方之间交换的语言中立操作契约。本
-crate 只拥有值与编解码器；它从不检查或修改 provider 配置。
+crate 只拥有值与编解码器；由[写入方](../agent-integration-writer/README.zh-CN.md)检查和修改
+provider 配置。
 
 ## 身份
 
@@ -35,4 +36,4 @@ crate 只拥有值与编解码器；它从不检查或修改 provider 配置。
 
 `src/contract/tests.rs` 覆盖 provider registry id、预算与未知字段拒绝、无损节点路径和封闭报告词汇。
 
-<!-- documentation-pairing: english-sha256=9a7f1eb055b2fd9a4b607c2f4a394d3189c45383a09706c6fdb9df653fb25a18 zh-cn-sha256=5be5410e422368182f3bf02600f1095cf6d30fc0ac1ee7a786583fbb642206f7 -->
+<!-- documentation-pairing: english-sha256=976500d944fbd1382a7bf59cf60e9206be3e326966f54c0e2ee66e3dd16d12c4 zh-cn-sha256=d31e26d515a2046aa47aab41004523df860401c999eb158c97fa66bae23b1436 -->

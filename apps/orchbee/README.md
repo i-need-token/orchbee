@@ -901,22 +901,9 @@ ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test 
 
 ### Agent integration conformance fixtures
 
-`tests/fixtures/agent-integrations/` holds the corpora replayed by the Workbench Client
-`agent_integrations` harnesses; the application's CLI tests run both packs with its
-integration exit mapping:
-
-- `provider-conformance/` — `payloads.json` plus `cases/<provider>.cases.json`:
-  per-provider inspection, enable, and disable cases pinning scripted command
-  replies, expected argv, filesystem effects, and the rendered CLI verdict.
-- `provider-effects/` — `cases.json`: filesystem-effect machine cases —
-  capsule publish, move-aside, backup digests, remove walks, cohort and
-  version gates, and budget or cancellation frontiers.
-
-The harnesses resolve both corpora through `CARGO_MANIFEST_DIR`, so any
-checkout replays them with no environment override or machine-local path.
-A case edit is a semantic contract change and belongs in the same reviewed
-change as the engine behavior it pins; a new provider adds one file under
-`provider-conformance/cases/`.
+The [Agent integration writer](../../crates/agent-integration-writer/README.md#conformance-fixtures)
+owns the provider conformance and effect corpora; the application's CLI tests replay both packs
+with its integration exit mapping.
 
 ## Workspace terminal startup
 

@@ -1,0 +1,47 @@
+[package]
+name = "orchbee-agent-integration-writer"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[features]
+# Exposes the provider conformance and effect replays to the owning application's tests.
+test-support = []
+
+[dependencies]
+base64.workspace = true
+getrandom.workspace = true
+orchbee-agent-integration = { path = "../agent-integration" }
+orchbee-local-ipc = { path = "../local-ipc" }
+orchbee-local-runtime = { path = "../local-runtime" }
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+# Capsule payload digests are canonical sha256.
+sha2.workspace = true
+# Syntax-preserving Kimi hook inspection; Windows also owns hook editing.
+toml_edit.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true, features = ["dir", "fs", "poll", "signal", "user"] }
+rustix = { workspace = true, features = ["fs"] }
+
+[target.'cfg(windows)'.dependencies]
+# Windows hook configuration documents reuse the workspace-pinned serde.
+serde_core = { version = "1.0.229", default-features = false, features = ["std"] }
+# Complete, bounded provider-owned TOML configuration inspection.
+toml.workspace = true
+# Suspended Job Object assignment and bounded process-tree cancellation.
+process-wrap.workspace = true
+windows.workspace = true
+# System-directory lookup, file replacement, and bounded CommandLineToArgv process projection.
+winsafe = { workspace = true, features = ["kernel", "shell"] }
+
+[target.'cfg(unix)'.dev-dependencies]
+nix = { workspace = true, features = ["fs", "process", "signal", "term"] }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+rustix = { workspace = true, features = ["process"] }
+
+[lints]
+workspace = true

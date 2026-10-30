@@ -1,0 +1,11 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "agent-integration-writer",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Node-local Agent integration writer: provider inspection, enable and disable plans, and their bounded filesystem and process effects using the cohort-admitted observation-adapter capsule, with cooperative termination and one invocation budget. Its actual consumer is orchbee-workbench-client for the native CLI.",
+	"nonGoals": [
+		"Defining the operation contract, the provider registry, transport, authorization, rendering, or CLI grammar.",
+		"Owning Agent session state, observation ingress, or Desktop's TypeScript integration writer."
+	]
+}

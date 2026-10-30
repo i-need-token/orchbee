@@ -66,10 +66,10 @@ pub(super) fn run_local(command: &AgentIntegrationCommand) -> Result<Prepared, F
     // uncancellable.
     let signal = crate::termination_signal::TerminationSignal::install()
         .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-    let cancel: Option<std::sync::Arc<dyn crate::termination_signal::TerminationSource>> =
+    let cancel: Option<std::sync::Arc<dyn crate::agent_integrations::TerminationSource>> =
         Some(std::sync::Arc::new(signal)
             as std::sync::Arc<
-                dyn crate::termination_signal::TerminationSource,
+                dyn crate::agent_integrations::TerminationSource,
             >);
     let context = crate::agent_integrations::context(adapter_source, cancel).map_err(|_| {
         Failure::new(FailureKind::ServiceUnavailable)

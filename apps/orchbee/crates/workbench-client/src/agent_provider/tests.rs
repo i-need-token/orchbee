@@ -65,7 +65,7 @@ fn every_managed_integration_is_reachable_from_exactly_one_start_kind() {
     assert_eq!(integration_id("codex"), Some("codex"));
     assert_eq!(integration_id("amp"), None);
     managed.sort_unstable();
-    let mut all: Vec<_> = crate::agent_integrations::IntegrationId::ALL
+    let mut all: Vec<_> = orchbee_agent_integration::IntegrationId::ALL
         .iter()
         .map(|id| id.as_str())
         .collect();

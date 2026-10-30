@@ -791,19 +791,8 @@ ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test 
 
 ### Agent integration 一致性 fixture
 
-`tests/fixtures/agent-integrations/` 保存 Workbench Client 中 `agent_integrations` harness 重放的
-两套语料；应用的 CLI 测试以自身的 integration 退出码映射运行这两套语料：
-
-- `provider-conformance/` —— `payloads.json` 加 `cases/<provider>.cases.json`：
-  按 provider 组织的 inspect、enable、disable 案例，钉定脚本化命令回复、
-  期望 argv、文件系统效果以及渲染后的 CLI verdict。
-- `provider-effects/` —— `cases.json`：文件系统效果机案例——胶囊发布、
-  move-aside、备份摘要、remove 遍历、cohort 与版本门、预算与取消边界。
-
-两套语料都由 harness 经 `CARGO_MANIFEST_DIR` 解析，任何检出均可直接重放，
-不依赖环境覆盖或本机路径。案例修改即语义契约变更，须与被钉定的引擎行为
-在同一受审变更中提交；新增 provider 在 `provider-conformance/cases/` 下
-增加一个文件。
+[Agent 集成写入方](../../crates/agent-integration-writer/README.zh-CN.md#一致性-fixture)
+拥有 provider 一致性与效果语料；应用的 CLI 测试以自身的 integration 退出码映射重放这两套语料。
 
 ## Workspace 终端启动
 
@@ -954,4 +943,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=87dd3c1509997654a4412d02836eee3a87821cbb02e3d4173767ba79df887b38 zh-cn-sha256=5015273f4f1a2f07bb440c61d92eef9a3f23974593ac030642e2edd0d53c9bc4 -->
+<!-- documentation-pairing: english-sha256=be886c849a7be69f07aa062ae595e40aeeeebac482afb8159e33ceadc7e33612 zh-cn-sha256=52416ffe31c0c983f6a922979365d4264a0c0d715b2318e6f356c91f4890bc9f -->

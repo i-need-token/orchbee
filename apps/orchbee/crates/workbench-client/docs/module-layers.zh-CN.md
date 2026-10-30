@@ -67,8 +67,6 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 | ---------------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |
 | `action_menu`                            | `state`        | Client 本地的菜单捕获与选择，以及菜单目标展示哪个前缀绑定。                                  |
 | `action_projection`                      | `values`       | 从 `client_actions` 投影出的动作身份、类别、色调和发现元数据。                               |
-| `agent_configuration_windows`            | `workflow`     | 从环境读取的 Windows provider 配置位置；与 `agent_integrations` 一起移到 Worker。            |
-| `agent_integrations`                     | `workflow`     | provider integration 检查，以及作用于文件和进程的启用或禁用副作用；移到 Worker。             |
 | `agent_provider`                         | `values`       | 可识别的 Agent 身份、规范命令名，以及从 `orchbee-agent-integration` 重新导出的受管集成身份。 |
 | `agent_runtime`                          | `workflow`     | Agent 执行端口，以及 Agent 启动消费的观测事实。                                              |
 | `agent_start`                            | `workflow`     | CLI 与 Client 界面共用的类型化 Agent 启动。                                                  |
@@ -168,4 +166,4 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 可列出每个环和每个指向高层的引用及其源码位置样本；[Lint](../../../../../docs/zh-CN/LINTING.md)
 拥有该命令。
 
-<!-- documentation-pairing: english-sha256=5e9eed821b84e8285fcb41b52d137536e585eaacaf6a676cdcad9e615ae48f57 zh-cn-sha256=2908f64907d05a4fd006648194588512a2cdf02d75924f79bfb8cc42fd5ba8ac -->
+<!-- documentation-pairing: english-sha256=4fefa32c94f1f46ce25119b56ce0a97978caf74dadd724c41b6106534f793ee2 zh-cn-sha256=761d0027feddd38fdafd28e27761e2a662e92496970ac65ddaad4a882d95802d -->

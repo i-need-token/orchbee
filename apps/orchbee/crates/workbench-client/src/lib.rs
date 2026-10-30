@@ -5,9 +5,6 @@
 
 mod action_menu;
 mod action_projection;
-#[cfg(windows)]
-mod agent_configuration_windows;
-mod agent_integrations;
 mod agent_provider;
 mod agent_runtime;
 mod agent_start;
@@ -75,26 +72,28 @@ mod worktree_destination;
 pub mod application {
     #[cfg(windows)]
     pub mod agent_configuration_windows {
-        pub use crate::agent_configuration_windows::{
+        pub use orchbee_agent_integration_writer::{
             extension_directory, hook_configuration_candidates_for, kilo_entry, opencode_entries,
         };
     }
 
     pub mod agent_integrations {
-        pub use crate::agent_integrations::{
-            AttemptedStep, CapsuleStatus, Direction, FailureCode, HookConfigurationKind,
-            HookConfigurationScan, InspectionDetail, IntegrationId, Issue, MutationReport,
-            PlannedStep, Refusal, RootPolicy, SnapshotItem, State, StepKind, Verdict,
+        pub use orchbee_agent_integration::{
+            AttemptedStep, CapsuleStatus, Direction, FailureCode, InspectionDetail, IntegrationId,
+            Issue, MutationReport, PlannedStep, Refusal, SnapshotItem, State, StepKind, Verdict,
+        };
+        #[cfg(windows)]
+        pub use orchbee_agent_integration_writer::{
+            CONFIGURATION_ROOT_POLICY, verify_distribution_capsule,
+        };
+        pub use orchbee_agent_integration_writer::{
+            HookConfigurationKind, HookConfigurationScan, RootPolicy, TerminationSource,
             bundled_payload_sha256, configuration_kinds, context, context_before, explain, list,
             mutate, scan_hook_configuration,
         };
-        #[cfg(windows)]
-        pub use crate::agent_integrations::{
-            CONFIGURATION_ROOT_POLICY, verify_distribution_capsule,
-        };
 
         pub mod model {
-            pub use crate::agent_integrations::model::{Availability, ManagementMode};
+            pub use orchbee_agent_integration::{Availability, ManagementMode};
         }
     }
 
@@ -506,13 +505,13 @@ pub mod application {
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support {
     pub mod agent_integrations {
-        #[cfg(unix)]
-        pub use crate::agent_integrations::test_support::{
+        #[cfg(all(unix, feature = "test-support"))]
+        pub use orchbee_agent_integration_writer::{
             provider_conformance64_replay, provider_effects52_conformance,
         };
 
         pub mod model {
-            pub use crate::agent_integrations::model::Provenance;
+            pub use orchbee_agent_integration::Provenance;
         }
     }
 

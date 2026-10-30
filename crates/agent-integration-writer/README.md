@@ -1,0 +1,32 @@
+# orchbee-agent-integration-writer
+
+Node-local Agent integration writer: provider inspection, enable and disable plans, and their
+filesystem and process effects, using the cohort-admitted observation-adapter capsule and
+retained mutation outcomes. Values and report vocabularies come from the
+[Agent integration contract](../agent-integration/README.md); this crate never defines them.
+
+## Ownership
+
+- One invocation runs under one cooperative 40-second budget. Callers pass a
+  `TerminationSource`; the writer observes it between bounded steps and settles as cancelled.
+- Unix and Windows are supported. Windows configuration-location helpers compile only on Windows.
+- The actual consumer is `orchbee-workbench-client`, which serves the CLI's `agent integration`
+  verbs and the other CLI paths that inspect provider configuration.
+
+## Conformance fixtures
+
+`tests/fixtures/` holds the corpora replayed by this crate's harnesses. The `test-support`
+feature exposes both replays, and the CLI tests run them with the CLI's integration exit mapping:
+
+- `provider-conformance/` — `payloads.json` plus `cases/<provider>.cases.json`:
+  per-provider inspection, enable, and disable cases pinning scripted command
+  replies, expected argv, filesystem effects, and the rendered CLI verdict.
+- `provider-effects/` — `cases.json`: filesystem-effect machine cases —
+  capsule publish, move-aside, backup digests, remove walks, cohort and
+  version gates, and budget or cancellation frontiers.
+
+The harnesses resolve both corpora through `CARGO_MANIFEST_DIR`, so any
+checkout replays them with no environment override or machine-local path.
+A case edit is a semantic contract change and belongs in the same reviewed
+change as the engine behavior it pins; a new provider adds one file under
+`provider-conformance/cases/`.

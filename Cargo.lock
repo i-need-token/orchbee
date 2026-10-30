@@ -876,6 +876,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "orchbee-agent-integration-writer"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "getrandom",
+ "nix",
+ "orchbee-agent-integration",
+ "orchbee-local-ipc",
+ "orchbee-local-runtime",
+ "process-wrap",
+ "rustix",
+ "serde",
+ "serde_core",
+ "serde_json",
+ "sha2",
+ "toml",
+ "toml_edit",
+ "windows",
+ "winsafe",
+]
+
+[[package]]
 name = "orchbee-agent-observation-protocol"
 version = "0.1.0"
 dependencies = [
@@ -1025,6 +1047,7 @@ dependencies = [
  "getrandom",
  "nix",
  "orchbee-agent-integration",
+ "orchbee-agent-integration-writer",
  "orchbee-agent-observation-protocol",
  "orchbee-client-server-protocol",
  "orchbee-local-client",

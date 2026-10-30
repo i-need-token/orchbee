@@ -2,7 +2,8 @@
 
 Managed Agent integration identities and the language-neutral operation contract exchanged by
 native Clients, the Server relay, and the node-local writer. The crate owns values and codecs
-only; it never inspects or changes provider configuration.
+only; the [writer](../agent-integration-writer/README.md) inspects and changes provider
+configuration.
 
 ## Identity
 
