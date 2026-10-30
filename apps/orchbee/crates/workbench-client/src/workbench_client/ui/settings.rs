@@ -32,7 +32,7 @@ pub(super) struct Coordinator {
     observed_source: Option<String>,
     started: Option<Instant>,
     pub(super) pending: bool,
-    notice: Option<(Notice, Option<Instant>)>,
+    notice: crate::workbench_client::settings_notice::SettingsNotice,
 }
 impl Coordinator {
     pub(super) fn new(login_shell_supported: bool) -> Self {
@@ -51,22 +51,13 @@ impl Coordinator {
         }
     }
     pub(super) fn clear_notice(&mut self) {
-        self.notice = None;
+        self.notice.clear();
     }
     pub(super) fn notice(&self, now: Instant) -> Option<Notice> {
-        self.notice
-            .filter(|(_, until)| until.is_none_or(|until| now < until))
-            .map(|(notice, _)| notice)
+        self.notice.current(now)
     }
     fn note(&mut self, notice: Notice, now: Instant) {
-        self.notice = Some((
-            notice,
-            if !matches!(notice, Notice::Saved | Notice::NoChange) {
-                None
-            } else {
-                now.checked_add(Duration::from_secs(5))
-            },
-        ));
+        self.notice.note(notice, now);
     }
     fn observe_snapshot(&mut self, snapshot: UserPreferencesSnapshot, now: Instant) -> bool {
         if self.observed_source.as_deref() == Some(&snapshot.source) {
@@ -241,13 +232,7 @@ impl WorkbenchClientUi {
     }
     pub(super) fn drive_settings(&mut self) -> bool {
         self.ensure_settings_lane();
-        let expired = self
-            .settings
-            .notice
-            .is_some_and(|(_, until)| until.is_some_and(|until| self.clock.now() >= until));
-        if expired {
-            self.settings.notice = None;
-        }
+        let expired = self.settings.notice.expire(self.clock.now());
         let pending = matches!(
             self.settings.editor.view(),
             Some(View::Loading { .. } | View::Saving { .. })

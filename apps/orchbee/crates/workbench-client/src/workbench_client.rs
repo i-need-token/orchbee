@@ -11,6 +11,7 @@ pub(crate) mod input;
 pub use input::InputAction;
 mod configuration;
 mod settings_lane;
+mod settings_notice;
 mod window_title;
 mod worktree_lane;
 #[cfg(test)]
