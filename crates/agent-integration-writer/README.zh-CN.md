@@ -9,8 +9,8 @@ cohort 接纳的观察适配器 capsule 与保留的变更结果。值与报告�
 - 一次调用在一个 40 秒协作预算内运行。调用方传入 `TerminationSource`；写入方在有界步骤之间观察它，
   并以 cancelled 结算。
 - 支持 Unix 与 Windows。Windows 配置位置辅助函数只在 Windows 上编译。
-- 实际消费方是 `orchbee-workbench-client`，它服务 CLI 的 `agent integration` 动词以及其他检查
-  provider 配置的 CLI 路径。
+- 实际消费方是 `orchbee-worker`，其 job 所有者为所在 Session 执行全部检查与变更；以及
+  `orchbee`，它为离线 `agent doctor` 与 Windows 更新校验复用只读配置辅助函数。
 
 ## 一致性 fixture
 
@@ -28,4 +28,4 @@ CLI 测试以 CLI 的 integration 退出码映射运行它们：
 在同一受审变更中提交；新增 provider 在 `provider-conformance/cases/` 下
 增加一个文件。
 
-<!-- documentation-pairing: english-sha256=4cbd51c34dd2716765b376c009d0b0cf57b2eafcafe2b162caf7c4d38bfc724b zh-cn-sha256=34f7ef7d0c450feacc805c21c0f18408e4cf61fc7a9b521578187fb7f2c35f5f -->
+<!-- documentation-pairing: english-sha256=6ff9fcd0b783472bc0ed05b7e9ccb4145aa02b8db78e5d0fe78ec505a02acf52 zh-cn-sha256=6e1c7a4aab95474ae5cd1e3674aa7c0ad47fe47d01d5b594ea99dd06a004069a -->

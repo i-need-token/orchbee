@@ -10,8 +10,9 @@ retained mutation outcomes. Values and report vocabularies come from the
 - One invocation runs under one cooperative 40-second budget. Callers pass a
   `TerminationSource`; the writer observes it between bounded steps and settles as cancelled.
 - Unix and Windows are supported. Windows configuration-location helpers compile only on Windows.
-- The actual consumer is `orchbee-workbench-client`, which serves the CLI's `agent integration`
-  verbs and the other CLI paths that inspect provider configuration.
+- The actual consumers are `orchbee-worker`, whose job owner runs every inspection and mutation
+  for its Session, and `orchbee`, which reuses the read-only configuration helpers for offline
+  `agent doctor` and Windows update verification.
 
 ## Conformance fixtures
 

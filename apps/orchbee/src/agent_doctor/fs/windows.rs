@@ -23,19 +23,19 @@ pub(super) static NATIVE: Native = Native {
     endpoint_user: || None,
     codex_target: |_, home| codex_configuration_path(home),
     guarded_target: |provider, home| {
-        crate::agent_configuration_windows::extension_directory(provider.id, home)
+        orchbee_agent_integration_writer::extension_directory(provider.id, home)
     },
     bootstrap_target: |provider, home| {
         if provider.id == "opencode" {
-            crate::agent_configuration_windows::opencode_entries(home).map(|paths| paths.current)
+            orchbee_agent_integration_writer::opencode_entries(home).map(|paths| paths.current)
         } else if provider.id == "kilo" {
-            crate::agent_configuration_windows::kilo_entry(home)
+            orchbee_agent_integration_writer::kilo_entry(home)
         } else {
             Some(home.join(provider.home_target))
         }
     },
     configuration_targets: Some(|provider, home, kinds| {
-        crate::agent_configuration_windows::hook_configuration_candidates_for(
+        orchbee_agent_integration_writer::hook_configuration_candidates_for(
             provider.id,
             home,
             kinds,
@@ -46,7 +46,7 @@ pub(super) static NATIVE: Native = Native {
                 .map(|target| ConfigurationTarget {
                     path: target.path,
                     kind: target.kind,
-                    root_policy: crate::agent_integrations::CONFIGURATION_ROOT_POLICY,
+                    root_policy: orchbee_agent_integration_writer::CONFIGURATION_ROOT_POLICY,
                 })
                 .collect()
         })

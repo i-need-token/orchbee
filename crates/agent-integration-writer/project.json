@@ -3,7 +3,7 @@
 	"domain": "agent-integration-writer",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Node-local Agent integration writer: provider inspection, enable and disable plans, and their bounded filesystem and process effects using the cohort-admitted observation-adapter capsule, with cooperative termination and one invocation budget. Its actual consumer is orchbee-workbench-client for the native CLI.",
+	"responsibility": "Node-local Agent integration writer: provider inspection, enable and disable plans, and their bounded filesystem and process effects using the cohort-admitted observation-adapter capsule, with cooperative termination and one invocation budget. Its actual consumers are orchbee-worker, whose job owner runs it for the local Session, and orchbee, which reuses its read-only configuration helpers for offline agent doctor and Windows update verification.",
 	"nonGoals": [
 		"Defining the operation contract, the provider registry, transport, authorization, rendering, or CLI grammar.",
 		"Owning Agent session state, observation ingress, or Desktop's TypeScript integration writer."

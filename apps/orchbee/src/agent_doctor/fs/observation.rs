@@ -1,7 +1,7 @@
 //! An admitted native observation capability. Unsupported hosts cannot construct a probe port.
 use super::{Budget, EnvValue, FileRead, Lstat, PathScan};
 use crate::agent_doctor::probes::Provider;
-use crate::agent_integrations::{
+use orchbee_agent_integration_writer::{
     HookConfigurationKind, HookConfigurationScan, RootPolicy, configuration_kinds,
     scan_hook_configuration,
 };

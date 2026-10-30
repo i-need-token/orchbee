@@ -78,7 +78,5 @@ pub(super) fn execute(command: Command, context: &mut Context) -> io::Result<Com
 }
 
 pub(super) fn verify_capsule(directory: &Path, expected: &str) -> io::Result<bool> {
-    Ok(crate::agent_integrations::verify_distribution_capsule(
-        directory, expected,
-    ))
+    Ok(orchbee_agent_integration_writer::verify_distribution_capsule(directory, expected))
 }

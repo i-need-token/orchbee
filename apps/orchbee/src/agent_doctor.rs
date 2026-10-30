@@ -336,7 +336,7 @@ fn inspect(
     // Compare verified installed bytes with this distribution's actual payload.
     // Unstaged development binaries retain their embedded sidecar identity.
     let current_digest = if ordered.is_empty() {
-        Ok(crate::agent_integrations::bundled_payload_sha256())
+        Ok(orchbee_agent_integration_writer::bundled_payload_sha256())
     } else if budget.take_item() {
         current_payload_digest(&mut budget)
     } else {
@@ -542,7 +542,7 @@ fn probe_hook_configuration(
     recorded: &mut Vec<RootCandidate>,
     budget: &mut Budget,
 ) -> HookProbe {
-    use crate::agent_integrations::HookConfigurationScan;
+    use orchbee_agent_integration_writer::HookConfigurationScan;
     let candidates = match budget.observation.configuration_targets(provider, home) {
         Ok(Some(candidates)) => candidates,
         Ok(None) => return final_verdict(HookState::Unknown, HookReason::NotInspected),
@@ -1214,7 +1214,7 @@ fn current_payload_digest(budget: &mut Budget) -> Result<String, RootState> {
     }
     let outcome = probe_root(encoded.as_bytes(), budget);
     match outcome.state {
-        RootState::Absent => Ok(crate::agent_integrations::bundled_payload_sha256()),
+        RootState::Absent => Ok(orchbee_agent_integration_writer::bundled_payload_sha256()),
         RootState::Consistent => outcome
             .detail
             .get("payloadSha256")

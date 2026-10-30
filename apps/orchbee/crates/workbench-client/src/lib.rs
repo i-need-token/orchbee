@@ -70,34 +70,6 @@ mod worktree_destination;
 /// The surface the `orchbee` application consumes, mirroring the owning module paths. Every
 /// other item stays inside its private implementation module.
 pub mod application {
-    #[cfg(windows)]
-    pub mod agent_configuration_windows {
-        pub use orchbee_agent_integration_writer::{
-            extension_directory, hook_configuration_candidates_for, kilo_entry, opencode_entries,
-        };
-    }
-
-    pub mod agent_integrations {
-        pub use orchbee_agent_integration::{
-            AttemptedStep, CapsuleStatus, Direction, FailureCode, InspectionDetail, IntegrationId,
-            IntegrationOperation, IntegrationReport, IntegrationRequest, Issue, MutationReport,
-            PlannedStep, Refusal, SnapshotItem, State, StepKind, Verdict,
-        };
-        #[cfg(windows)]
-        pub use orchbee_agent_integration_writer::{
-            CONFIGURATION_ROOT_POLICY, verify_distribution_capsule,
-        };
-        pub use orchbee_agent_integration_writer::{
-            HookConfigurationKind, HookConfigurationScan, RootPolicy, TerminationSource,
-            bundled_payload_sha256, configuration_kinds, context, context_before, explain, list,
-            mutate, scan_hook_configuration,
-        };
-
-        pub mod model {
-            pub use orchbee_agent_integration::{Availability, ManagementMode};
-        }
-    }
-
     pub mod agent_provider {
         pub use crate::agent_provider::{
             CANONICAL_IDS, executable, integration_id, reported_label,
@@ -511,17 +483,6 @@ pub mod application {
 /// paths. Production builds never compile them.
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support {
-    pub mod agent_integrations {
-        #[cfg(all(unix, feature = "test-support"))]
-        pub use orchbee_agent_integration_writer::{
-            provider_conformance64_replay, provider_effects52_conformance,
-        };
-
-        pub mod model {
-            pub use orchbee_agent_integration::Provenance;
-        }
-    }
-
     pub mod agent_runtime {
 
         pub mod startup {

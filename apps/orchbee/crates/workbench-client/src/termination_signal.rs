@@ -100,24 +100,6 @@ impl TerminationSource for TerminationSignal {
     }
 }
 
-impl orchbee_agent_integration_writer::TerminationSource for TerminationSignal {
-    fn requested(&self) -> bool {
-        #[cfg(unix)]
-        {
-            self.signal.load(Ordering::Relaxed) != 0
-        }
-
-        #[cfg(windows)]
-        {
-            self.interrupt.requested()
-        }
-        #[cfg(not(any(unix, windows)))]
-        {
-            false
-        }
-    }
-}
-
 #[cfg(unix)]
 impl Drop for TerminationSignal {
     fn drop(&mut self) {

@@ -3,6 +3,7 @@
 //! retain shared Workbench authority and physical terminal execution.
 
 mod agent_doctor;
+mod agent_integrations;
 mod agent_projection;
 mod cli;
 mod cli_text;
@@ -15,9 +16,6 @@ mod startup_wait;
 mod tui_backend;
 mod tui_shell;
 
-#[cfg(windows)]
-use orchbee_workbench_client::application::agent_configuration_windows;
-use orchbee_workbench_client::application::agent_integrations;
 use orchbee_workbench_client::application::agent_provider;
 use orchbee_workbench_client::application::agent_runtime;
 use orchbee_workbench_client::application::agent_start;

@@ -1704,8 +1704,8 @@ fn integration_signal_install_failure_refuses_before_effects() {
 #[test]
 fn integration_cancelled_mutation_document_validates_against_schema() {
     use super::integration::Prepared;
-    use crate::agent_integrations::{Direction, IntegrationId, MutationReport, Verdict};
-    use orchbee_workbench_client::test_support::agent_integrations::model::Provenance;
+    use crate::agent_integrations::{IntegrationId, MutationReport, Verdict};
+    use orchbee_agent_integration::{Direction, Provenance};
 
     let report = MutationReport {
         integration_id: IntegrationId::ClaudeCode,

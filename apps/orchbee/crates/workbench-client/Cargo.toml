@@ -8,10 +8,7 @@ publish = false
 [features]
 # Exposes Client runtime fixtures and transport fakes to the owning application's tests through
 # its development dependency.
-test-support = [
-	"orchbee-agent-integration-writer/test-support",
-	"orchbee-local-client/test-support",
-]
+test-support = ["orchbee-local-client/test-support"]
 
 [dependencies]
 serde.workspace = true
@@ -22,7 +19,6 @@ orchbee-local-ipc = { path = "../../../../crates/local-ipc" }
 orchbee-local-runtime = { path = "../../../../crates/local-runtime" }
 crossterm.workspace = true
 orchbee-agent-integration = { path = "../../../../crates/agent-integration" }
-orchbee-agent-integration-writer = { path = "../../../../crates/agent-integration-writer" }
 orchbee-agent-observation-protocol = { path = "../../../../crates/agent-observation-protocol" }
 orchbee-client-server-protocol = { path = "../../../../crates/client-server-protocol" }
 orchbee-terminal-protocol = { path = "../../../../crates/terminal-protocol" }

@@ -15,6 +15,10 @@ orchbee-workbench-client = { path = "crates/workbench-client" }
 orchbee-local-ipc = { path = "../../crates/local-ipc" }
 orchbee-local-runtime = { path = "../../crates/local-runtime" }
 crossterm.workspace = true
+# Integration requests and reports exchanged with the Session Worker.
+orchbee-agent-integration = { path = "../../crates/agent-integration" }
+# Read-only provider configuration helpers for offline `agent doctor` and update verification.
+orchbee-agent-integration-writer = { path = "../../crates/agent-integration-writer" }
 orchbee-agent-observation-protocol = { path = "../../crates/agent-observation-protocol" }
 orchbee-client-server-protocol = { path = "../../crates/client-server-protocol" }
 orchbee-terminal-protocol = { path = "../../crates/terminal-protocol" }
@@ -47,6 +51,10 @@ jsonschema.workspace = true
 # Bounded fake peers, controlled transport clocks, and Client runtime fixtures for application
 # tests only.
 orchbee-workbench-client = { path = "crates/workbench-client", features = ["test-support"] }
+# Frozen provider fixture packs replayed against the CLI's integration exit mapping.
+orchbee-agent-integration-writer = { path = "../../crates/agent-integration-writer", features = [
+	"test-support",
+] }
 
 [target.'cfg(unix)'.dev-dependencies]
 nix = { workspace = true, features = ["fs", "process", "signal", "term"] }

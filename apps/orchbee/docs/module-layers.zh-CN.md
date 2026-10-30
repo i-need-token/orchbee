@@ -22,6 +22,7 @@
 | ---------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `agent_doctor`         | `workflow`     | 基于有界文件系统事实的离线 provider hook 诊断；`fs` 是它唯一的 I/O 边界。                                                             |
 | `agent_doctor::probes` | `values`       | Agent doctor 中纯分类的那一半。                                                                                                       |
+| `agent_integrations`   | `values`       | CLI 与 Session Worker 交换并渲染的 Agent 集成契约值。                                                                                 |
 | `agent_projection`     | `values`       | 为 Agent 输出确定性地连接规范 Session 与物理 Agent 实例。                                                                             |
 | `cli`                  | `composition`  | 把已准入的请求分发给功能 owner，并组装 stdout、stderr、失败和进程结果。逐命令的副作用和文案移出到 `workflow` 与 `presentation` 模块。 |
 | `cli_text`             | `presentation` | 基于类型化结果的人类可读帮助与结果文案。                                                                                              |
@@ -40,4 +41,4 @@
 `pnpm lint:rust-modules -- --details --member apps/orchbee` 可列出每个环和每个指向高层的引用及其
 源码位置样本；[Lint](../../../docs/zh-CN/LINTING.md) 拥有该命令。
 
-<!-- documentation-pairing: english-sha256=234a1f05a0303f42ac8af341226907b581348ef52da68dd09b4ae858146e2daa zh-cn-sha256=c42cdf0b9ac713da83531bc986a0e7dd1b7af1cc0e63f5343d23651d0ff1ce49 -->
+<!-- documentation-pairing: english-sha256=f50533ba48de5b7b7d9beae1b86998ef2fbf3759b0d70486fe68bc3d5e8370dd zh-cn-sha256=46b878e673d0f46e47c3afad4dfad4791a7626094561c879df9c4124018b662e -->
