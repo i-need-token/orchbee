@@ -10,7 +10,7 @@ use crate::{
     terminal_text::{display_width, sanitize_terminal_text},
     tui_composition::CaptureOwner,
     tui_layout::ViewportTier,
-    tui_theme::{GlyphMode, Role, Theme},
+    tui_theme::{Role, Theme},
     workbench_client::{
         DisplayController, DisplayPhase, DisplayProvenance, LocationLabelStatus,
         LocationLabelTarget, PersistentStatus, SetupStatus, TakeoverStatus, WorkbenchClientView,
@@ -142,7 +142,7 @@ pub(super) fn render(
         .filter(|notice| !(facts.read_only && *notice == Notice::TerminalInputUnavailable));
     let primary = client_notice.map_or(facts.primary, |notice| locale.shell_notice(Some(notice)));
     let secondary_notice = secondary_notice(view, primary, facts.secondary_notice);
-    let glyphs = key_label_glyphs(theme);
+    let glyphs = theme.glyphs.key_labels();
     let indicator_kind = input_indicator(view, capture_owner);
     let contexts = contexts(view, facts.zoomed);
     let copy = locale.status();
@@ -677,7 +677,7 @@ fn render_row(
         .filter(|notice| !(facts.read_only && *notice == Notice::TerminalInputUnavailable));
     let primary = client_notice.map_or(facts.primary, |notice| locale.shell_notice(Some(notice)));
     let secondary_notice = secondary_notice(view, primary, facts.secondary_notice);
-    let glyphs = key_label_glyphs(theme);
+    let glyphs = theme.glyphs.key_labels();
     let indicator_kind = input_indicator(view, capture_owner);
     let contexts = contexts(view, facts.zoomed);
 
@@ -1048,14 +1048,6 @@ fn fit_hints(hints: &HintSet, available: usize, theme: &Theme) -> (Vec<OwnedHint
         kept.retain(|index| *index != next);
     }
     (Vec::new(), 0)
-}
-
-fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
-    match theme.glyphs.mode() {
-        GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(any(test, feature = "test-support"))]
-        GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
-    }
 }
 
 fn input_indicator(

@@ -6,11 +6,10 @@ use super::{
 };
 use crate::{
     client_view::{
-        KeyLabelGlyphs, PrefixAction,
+        PrefixAction,
         navigator::{Command, Target, label_with_glyphs},
     },
     tui_pointer::hit_map::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
-    tui_theme::GlyphMode,
 };
 
 #[expect(
@@ -53,7 +52,7 @@ pub(super) fn render(
     // Two row columns, their headings, refresh feedback and two instruction rows.
     // Refusal publishes no receipt and the dispatcher retires capture after paint.
     let copy = locale.navigator();
-    let label_glyphs = key_label_glyphs(theme);
+    let label_glyphs = theme.glyphs.key_labels();
     let toggle = view
         .bindings()
         .action_labels_with_glyphs(PrefixAction::NavigatorToggle, label_glyphs)
@@ -295,12 +294,4 @@ pub(super) fn render(
         );
     }
     Some(area)
-}
-
-const fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
-    match theme.glyphs.mode() {
-        GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(any(test, feature = "test-support"))]
-        GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
-    }
 }

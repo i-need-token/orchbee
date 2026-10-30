@@ -257,7 +257,7 @@ impl SidebarSource {
         &self,
         target: SidebarTarget,
         part: SidebarPart,
-        window: super::SidebarWindow,
+        window: SidebarWindow,
     ) -> Option<DrawnSidebarTarget> {
         self.0.admits(&target, part).then(|| DrawnSidebarTarget {
             source: self.clone(),
@@ -268,13 +268,29 @@ impl SidebarSource {
     }
 }
 
+/// Row window of one painted Sidebar or Picker list.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SidebarWindow {
+    pub(crate) top: usize,
+    pub(crate) capacity: usize,
+    pub(crate) total: usize,
+    pub(crate) maximum: usize,
+    /// An inert provisional row participates in geometry, but owns no canonical identity.
+    pub(crate) insertion: Option<usize>,
+}
+impl SidebarWindow {
+    pub(crate) fn end(self) -> usize {
+        self.top.saturating_add(self.capacity).min(self.total)
+    }
+}
+
 /// Exact semantic target and window geometry admitted by one Sidebar frame.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DrawnSidebarTarget {
     source: SidebarSource,
     target: SidebarTarget,
     part: SidebarPart,
-    window: super::SidebarWindow,
+    window: SidebarWindow,
 }
 
 /// Stable identity of a fixed action on the painted Sidebar surface.
@@ -318,7 +334,7 @@ impl DrawnSidebarTarget {
         &self.target
     }
 
-    pub(crate) const fn window(&self) -> super::SidebarWindow {
+    pub(crate) const fn window(&self) -> SidebarWindow {
         self.window
     }
 

@@ -20,9 +20,8 @@ pub use navigation::SidebarTarget;
 pub(crate) use navigation::{
     DrawnSidebarFixedTarget, DrawnSidebarTarget, SIDEBAR_BINDINGS, SidebarActivation,
     SidebarCommand, SidebarFixedAction, SidebarFixedActivation, SidebarIntent, SidebarPart,
-    SidebarRow, SidebarSource, sidebar_binding_label,
+    SidebarRow, SidebarSource, SidebarWindow, sidebar_binding_label,
 };
-pub(crate) use sidebar::SidebarWindow;
 pub(crate) use spaces::TabAgent;
 pub(crate) use spaces::{most_urgent, urgency};
 

@@ -1,20 +1,7 @@
 //! Client-local window and input decisions for the shared Agent projection.
-use super::{ClientStartupTarget, Picker, Row, Selection, SelectionOrigin, SidebarTarget};
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct SidebarWindow {
-    pub(crate) top: usize,
-    pub(crate) capacity: usize,
-    pub(crate) total: usize,
-    pub(crate) maximum: usize,
-    /// An inert provisional row participates in geometry, but owns no canonical identity.
-    pub(crate) insertion: Option<usize>,
-}
-impl SidebarWindow {
-    pub(crate) fn end(self) -> usize {
-        self.top.saturating_add(self.capacity).min(self.total)
-    }
-}
+use super::{
+    ClientStartupTarget, Picker, Row, Selection, SelectionOrigin, SidebarTarget, SidebarWindow,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct Sidebar<S> {

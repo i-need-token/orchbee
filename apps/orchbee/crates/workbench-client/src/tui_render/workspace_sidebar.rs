@@ -25,6 +25,7 @@ use crate::{
 use orchbee_local_runtime::{SidebarTokenStyle, SpaceSidebarToken, SpaceSidebarTokenKind as Kind};
 use ratatui::style::{Modifier, Style};
 use sidebar_text::{fit, machine_label, state_role};
+pub(super) mod agent_tokens;
 mod layout;
 
 /// The fixed `[x]` icon-action extent revealed flush with a closeable row's trailing edge.
@@ -696,7 +697,7 @@ fn entry_height(
         SidebarRow::Context { row: context, .. } => {
             context_height(view, context, locale, folded(view, row))
         }
-        SidebarRow::Agent { row, .. } => super::agent_sidebar::tokens::height(view, row, locale),
+        SidebarRow::Agent { row, .. } => agent_tokens::height(view, row, locale),
     };
     let text_width = entry_width(source, row, width, sidebar_width);
     base + u16::try_from(suffix_rows(suffix, text_width)).unwrap_or(u16::MAX - base)
@@ -1550,9 +1551,7 @@ pub(super) fn render(
                     folded: folded(view, row),
                 },
             ),
-            SidebarRow::Agent { row, .. } => {
-                super::agent_sidebar::tokens::projection(view, row, locale, theme)
-            }
+            SidebarRow::Agent { row, .. } => agent_tokens::projection(view, row, locale, theme),
         };
         let names = std::mem::take(&mut projected_lines.names);
         let (mut row_lines, mut trailing) = projected_lines.into_parts();

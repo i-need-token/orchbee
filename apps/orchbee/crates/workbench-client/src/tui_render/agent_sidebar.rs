@@ -4,27 +4,16 @@ use super::controls::{
     InteractionState, NavigationState, OperationState, PointerPresentation, action_rect,
     render_action,
 };
-use super::sidebar_text::machine_label;
 use super::{
-    Block, Borders, Clear, ClientView, Frame, HitLayer, HitMapBuilder, Line, Locale, Padding,
-    Paragraph, Rect, Role, SessionStatus, SidebarArea, SidebarLayer, Span, Theme, display_width,
+    Block, Borders, Clear, ClientView, Frame, HitLayer, HitMapBuilder, Locale, Padding, Paragraph,
+    Rect, Role, SessionStatus, SidebarArea, SidebarLayer, Theme, display_width,
 };
-use crate::client_view::{KeyLabelGlyphs, Overlay};
-use crate::machine_discovery::display_label;
+use crate::client_view::Overlay;
 use crate::tui_layout::{DrawnSidebarWidth, SidebarWidthDrag};
 use crate::tui_pointer::hit_map::{
     HitTarget, InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer,
 };
 use ratatui::style::Style;
-pub(super) mod tokens;
-
-pub(super) fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
-    match theme.glyphs.mode() {
-        crate::tui_theme::GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(any(test, feature = "test-support"))]
-        crate::tui_theme::GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
-    }
-}
 
 fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation {
     match pointer {
@@ -191,7 +180,9 @@ fn render_actions(
         }
         let row = Rect::new(area.x, area.y + offset as u16, area.width, 1);
         let hint = owns_keyboard
-            .then(|| crate::machine_picker::sidebar_binding_label(command, key_label_glyphs(theme)))
+            .then(|| {
+                crate::machine_picker::sidebar_binding_label(command, theme.glyphs.key_labels())
+            })
             .flatten();
         let target =
             InteractionTarget::SidebarFixed(view.machines.drawn_sidebar_fixed(source, action));

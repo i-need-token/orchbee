@@ -35,10 +35,7 @@ const LEGEND_GAP: &str = "  ";
 /// The first key the binding table shows now for a Client action, in the theme's key glyphs.
 pub(super) fn action_key(view: &ClientView, action: ClientAction, theme: &Theme) -> Option<String> {
     view.bindings()
-        .action_labels_with_glyphs(
-            PrefixAction::Client(action),
-            super::agent_sidebar::key_label_glyphs(theme),
-        )
+        .action_labels_with_glyphs(PrefixAction::Client(action), theme.glyphs.key_labels())
         .into_iter()
         .next()
 }

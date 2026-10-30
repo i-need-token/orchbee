@@ -76,10 +76,7 @@ pub(super) fn render(
         let hint = (action == Action::Help)
             .then(|| {
                 view.bindings()
-                    .action_labels_with_glyphs(
-                        action.binding(),
-                        super::agent_sidebar::key_label_glyphs(theme),
-                    )
+                    .action_labels_with_glyphs(action.binding(), theme.glyphs.key_labels())
                     .into_iter()
                     .next()
             })

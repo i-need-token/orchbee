@@ -2,8 +2,7 @@
 use super::{Choice, Control, DrawnPickerTarget, Mode, Picker, PickerAction, PickerSource};
 use crate::{
     client_view::{
-        Binding, KeyCode, KeyLabelGlyphs, LabelStyle, Modifiers, format_binding_with_glyphs,
-        join_key_labels,
+        Binding, KeyCode, LabelStyle, Modifiers, format_binding_with_glyphs, join_key_labels,
     },
     localization::Locale,
     machine_discovery::{Observation, display_label},
@@ -22,7 +21,7 @@ use crate::{
         action_rect, frame_close_rect, measure_key_hints, paint_row_interaction, render_action,
         render_frame_icon_action, render_key_hints, render_query_field,
     },
-    tui_theme::{GlyphMode, Role, Theme},
+    tui_theme::{Role, Theme},
 };
 use ratatui::{
     Frame,
@@ -35,16 +34,8 @@ fn search_key_label(theme: &Theme) -> String {
     format_binding_with_glyphs(
         &Binding::new(KeyCode::Char('/'), Modifiers::NONE),
         LabelStyle::for_host(),
-        key_label_glyphs(theme),
+        theme.glyphs.key_labels(),
     )
-}
-
-fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
-    match theme.glyphs.mode() {
-        GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(any(test, feature = "test-support"))]
-        GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
-    }
 }
 
 fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation {
@@ -142,7 +133,7 @@ impl Picker {
         } else {
             self.mode.label(locale)
         };
-        let glyphs = key_label_glyphs(theme);
+        let glyphs = theme.glyphs.key_labels();
         let style = LabelStyle::for_host();
         let close =
             format_binding_with_glyphs(&Binding::new(KeyCode::Esc, Modifiers::NONE), style, glyphs);

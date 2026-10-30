@@ -3,7 +3,7 @@
 use crate::tui_shortcut_help::ShortcutHelpEntry;
 use crate::{
     client_view::{
-        ClientView, KeyLabelGlyphs,
+        ClientView,
         help::{DrawnHelpControl, HelpControl, HelpDrawCandidate, HelpDrawSource},
     },
     localization::{Locale, ShellText},
@@ -13,7 +13,7 @@ use crate::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
         ProjectedPointer,
     },
-    tui_theme::{GlyphMode, Role, Theme},
+    tui_theme::{Role, Theme},
 };
 use ratatui::{
     Frame,
@@ -90,8 +90,12 @@ pub(super) fn render(
         session_available,
         candidate,
     } = context;
-    let mut entries =
-        crate::tui_shortcut_help::entries(locale, view, session_available, key_label_glyphs(theme));
+    let mut entries = crate::tui_shortcut_help::entries(
+        locale,
+        view,
+        session_available,
+        theme.glyphs.key_labels(),
+    );
     if !view.help_expanded() && view.help_filter().trim().is_empty() {
         entries.retain(ShortcutHelpEntry::common);
     }
@@ -424,14 +428,6 @@ fn control_plan(
             },
             pointer,
         ),
-    }
-}
-
-const fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
-    match theme.glyphs.mode() {
-        GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(any(test, feature = "test-support"))]
-        GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     }
 }
 

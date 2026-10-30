@@ -1,3 +1,4 @@
+use super::super::workspace_sidebar::agent_tokens;
 use super::super::{project_shell_areas, render_terminal_shell};
 use super::*;
 use crate::{
@@ -39,7 +40,7 @@ fn default_agent_title_prefers_explicit_name_then_task_and_never_an_automatic_nu
                 _ => None,
             })
             .unwrap();
-        let lines = tokens::lines(&view, agent, Locale::EnUs, &Theme::terminal_native());
+        let lines = agent_tokens::lines(&view, agent, Locale::EnUs, &Theme::terminal_native());
         let actual: String = lines[0]
             .spans
             .iter()
@@ -101,7 +102,7 @@ fn live_raw_and_stripped_titles_and_custom_title_keep_distinct_values_and_exact_
                     .iter()
                     .find_map(|entry| match entry {
                         crate::machine_picker::SidebarRow::Agent { row, .. } => {
-                            Some(tokens::lines(&view, row, locale, &theme))
+                            Some(agent_tokens::lines(&view, row, locale, &theme))
                         }
                         _ => None,
                     })
@@ -273,7 +274,7 @@ fn configured_sidebar_values_share_metadata_labels_and_keep_provider_identity_fo
                 .iter()
                 .find_map(|entry| match entry {
                     crate::machine_picker::SidebarRow::Agent { row, .. } => {
-                        Some(tokens::lines(&view, row, locale, &theme))
+                        Some(agent_tokens::lines(&view, row, locale, &theme))
                     }
                     _ => None,
                 })
@@ -701,7 +702,7 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
                 .iter()
                 .find_map(|entry| match entry {
                     crate::machine_picker::SidebarRow::Agent { row, .. } => {
-                        Some(tokens::lines(&view, row, locale, &theme))
+                        Some(agent_tokens::lines(&view, row, locale, &theme))
                     }
                     _ => None,
                 })
@@ -783,7 +784,7 @@ fn settings_sits_alone_on_the_sidebar_last_row_as_an_exact_action_without_a_shor
                     .bindings()
                     .action_labels_with_glyphs(
                         PrefixAction::Client(ClientAction::OpenSettings),
-                        key_label_glyphs(&Theme::terminal_native()),
+                        Theme::terminal_native().glyphs.key_labels(),
                     )
                     .into_iter()
                     .next()
@@ -952,7 +953,7 @@ fn captured_input_suppresses_sidebar_focus_chrome_and_local_hints_without_forget
     let theme = Theme::one_dark();
     let local_hint = crate::machine_picker::sidebar_binding_label(
         crate::machine_picker::SidebarCommand::NewWorkspace,
-        key_label_glyphs(&theme),
+        theme.glyphs.key_labels(),
     )
     .unwrap();
     let paint_with_owner = |owns_keyboard| {

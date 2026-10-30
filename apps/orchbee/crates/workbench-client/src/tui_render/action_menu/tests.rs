@@ -43,7 +43,7 @@ fn global_search_uses_localized_aliases_effective_chords_and_nested_labels() {
     }]);
     let client = ClientView::new(80);
     let theme = Theme::terminal_native();
-    let glyphs = key_label_glyphs(&theme);
+    let glyphs = theme.glyphs.key_labels();
 
     for (locale, query) in [(Locale::EnUs, "split"), (Locale::ZhCn, "分屏")] {
         menu.set_query(Some(query));
@@ -116,7 +116,7 @@ fn restored_filtered_selection_is_visible_on_the_first_small_frame() {
         let view = menu.view().unwrap();
         let client = ClientView::new(80);
         let theme = Theme::terminal_native();
-        let glyphs = key_label_glyphs(&theme);
+        let glyphs = theme.glyphs.key_labels();
         let binding_labels = view
             .actions
             .iter()
@@ -893,7 +893,7 @@ fn global_tab_and_panel_rows_render_the_current_binding_for_each_localized_actio
             let text = visible_row_text(buffer, row);
             let chord = client
                 .bindings()
-                .action_labels_with_glyphs(binding_action.clone(), key_label_glyphs(&theme))
+                .action_labels_with_glyphs(binding_action.clone(), theme.glyphs.key_labels())
                 .into_iter()
                 .next()
                 .expect("the keyboard action has an effective binding");
@@ -985,7 +985,7 @@ fn wide_english_row_keeps_the_full_label_and_effective_chord_in_separate_slots()
         .bindings()
         .action_labels_with_glyphs(
             PrefixAction::Client(ClientAction::OpenMachines),
-            key_label_glyphs(&theme),
+            theme.glyphs.key_labels(),
         )
         .into_iter()
         .next()
@@ -1037,7 +1037,7 @@ fn compact_chinese_row_truncates_only_the_label_and_keeps_a_custom_chord_whole()
         .bindings()
         .action_labels_with_glyphs(
             PrefixAction::Client(ClientAction::OpenMachines),
-            key_label_glyphs(&theme),
+            theme.glyphs.key_labels(),
         )
         .into_iter()
         .next()

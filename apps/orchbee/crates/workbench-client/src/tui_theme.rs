@@ -5,6 +5,7 @@
 //! semantic roles of `docs/tui/visual-foundations.md` to concrete values and
 //! quantizes them once at startup to a detected color level.
 
+use crate::terminal_events::keys::KeyLabelGlyphs;
 use ratatui::{
     style::{Color, Modifier, Style},
     widgets::BorderType,
@@ -224,6 +225,15 @@ impl GlyphSet {
 
     pub(crate) const fn mode(self) -> GlyphMode {
         self.mode
+    }
+
+    /// The key-label vocabulary that matches this glyph set.
+    pub(crate) const fn key_labels(self) -> KeyLabelGlyphs {
+        match self.mode {
+            GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
+            #[cfg(any(test, feature = "test-support"))]
+            GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
+        }
     }
 
     #[cfg(test)]

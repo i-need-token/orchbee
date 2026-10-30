@@ -197,3 +197,22 @@ pub(crate) fn setting(key: PreferenceKey) -> &'static SettingMetadata {
 pub(crate) fn setting_for_row(row: Row) -> Option<&'static SettingMetadata> {
     SETTINGS.iter().find(|metadata| metadata.row == row)
 }
+
+impl Row {
+    /// The longest text draft this row admits: a metadata control's own bound, or the editor
+    /// bound of a launch-profile text row.
+    pub(crate) fn text_limit(self) -> Option<usize> {
+        if let Some(metadata) = setting_for_row(self) {
+            return match metadata.control {
+                SettingControl::Color => Some(7),
+                SettingControl::BoundedInteger { maximum, .. } => Some(maximum.to_string().len()),
+                _ => None,
+            };
+        }
+        match self {
+            Self::ProfileName => Some(512),
+            Self::Executable | Self::ArgumentValue => Some(32 * 1024),
+            _ => None,
+        }
+    }
+}

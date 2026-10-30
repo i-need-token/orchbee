@@ -1,5 +1,4 @@
 //! The same common preferences, with a literal-argument launch-profile editor.
-use super::metadata::{SettingControl, setting_for_row};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Row {
@@ -133,20 +132,6 @@ impl Row {
             Self::DeleteProfile => const { bit(Row::DeleteProfile) },
             Self::ResetProfiles => const { bit(Row::ResetProfiles) },
             Self::Back => const { bit(Row::Back) },
-        }
-    }
-    pub(crate) fn text_limit(self) -> Option<usize> {
-        if let Some(metadata) = setting_for_row(self) {
-            return match metadata.control {
-                SettingControl::Color => Some(7),
-                SettingControl::BoundedInteger { maximum, .. } => Some(maximum.to_string().len()),
-                _ => None,
-            };
-        }
-        match self {
-            Self::ProfileName => Some(512),
-            Self::Executable | Self::ArgumentValue => Some(32 * 1024),
-            _ => None,
         }
     }
 }

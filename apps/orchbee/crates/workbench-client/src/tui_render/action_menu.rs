@@ -94,7 +94,7 @@ pub(super) fn render(
     if content.width < 16 || content.height < if menu.context_menu { 3 } else { 5 } {
         return ModalPresentation::NotPresented;
     }
-    let glyphs = key_label_glyphs(theme);
+    let glyphs = theme.glyphs.key_labels();
     let style = LabelStyle::for_host();
     let keys = Keys {
         glyphs,
@@ -1026,14 +1026,6 @@ fn effective_binding_for_source(
         .next()
         .map(|label| sanitize_terminal_text(&label).into_owned())
         .filter(|label| display_width(label) > 0)
-}
-
-const fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
-    match theme.glyphs.mode() {
-        GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(any(test, feature = "test-support"))]
-        GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
-    }
 }
 
 fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation {
