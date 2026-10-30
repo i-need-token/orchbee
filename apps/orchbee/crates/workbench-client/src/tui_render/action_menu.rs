@@ -11,7 +11,9 @@ use crate::{
         format_binding_with_glyphs, join_key_labels,
     },
     localization::Locale,
-    terminal_text::{display_width, sanitize_terminal_text, truncate_display},
+    terminal_text::{
+        display_width, sanitize_terminal_text, truncate_display, truncate_display_middle,
+    },
     tui_pointer::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
         ProjectedPointer,
@@ -1150,7 +1152,14 @@ fn render_row(
         primary_right.saturating_sub(label_left),
         1,
     );
-    let label = truncate_display(
+    // A folder row names a path, which truncates in the middle (docs/tui/layout.md); every other
+    // label truncates at its end.
+    let truncate = if matches!(action, MenuAction::WorkspaceInFolder(_)) {
+        truncate_display_middle
+    } else {
+        truncate_display
+    };
+    let label = truncate(
         &action_label(
             locale,
             menu.source,

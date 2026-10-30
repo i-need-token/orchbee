@@ -238,6 +238,8 @@ padding and continuation rows retain their declared owner.
 
 - Sibling labels start in the same column whether or not a row has children, status, metadata, or a
   visible auxiliary action. Numbers appear only when ordinal position has product meaning.
+- A trailing shortcut in the metadata slot is a formatted key in `hint-key`, as in a shortcut bar;
+  a count or note in that slot uses `text-secondary`. A row shows one of them, the shortcut first.
 - The collection, rather than an item renderer, owns the navigation marker and its
   `accent-selection` treatment. Feature code supplies provisional identity and fixed geometry, not
   a replacement glyph.
