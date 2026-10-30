@@ -16,8 +16,9 @@
 //!   that command was observed; any missing evidence leaves the `recognized` grade.
 
 use orchbee_agent_observation_protocol::{
-    AgentAnchor, AgentIdentityGrade, AgentIdentityUnknownReason as Reason, AgentIdentityUnsupportedReason,
-    AgentProcessIdentity as Identity, AgentProcessRow, AgentReportProvider, AgentSampleVerdict,
+    AgentAnchor, AgentIdentityGrade, AgentIdentityUnknownReason as Reason,
+    AgentIdentityUnsupportedReason, AgentProcessIdentity as Identity, AgentProcessRow,
+    AgentReportProvider, AgentSampleVerdict,
 };
 use std::time::{Duration, Instant};
 
