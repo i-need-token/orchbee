@@ -674,4 +674,23 @@ Workspace 侧栏发布增加必需非空 `spacesSidebarProfile`，独立于 `age
 
 [设置](v1/workbench-settings.schema.json) 定义匹配 Windows cohort 的闭合 Open/Save 请求及结果。三个必需但可空的字段区分未修改设置与明确的主题／提醒／声音修改；全部为空的补丁非法。来源令牌区分文件不存在与规范 SHA-256 内容摘要。Save 同时约束发布 revision；结果区分磁盘持久化、在线应用与写入前拒绝。共享语料在 Rust、TypeScript 和 JSON Schema 中检查额外字段拒绝、全宽 revision、完整快照及独立的 4 KiB 请求／256 KiB 结果限制。[原生设置所有者](../../apps/orchbee/docs/native-settings.zh-CN.md) 负责写入、输入捕获、不确定结果和恢复。
 
-<!-- documentation-pairing: english-sha256=e4f15a1519591f2bf315403613df3957286b83a21291efaae88bfef761012bff zh-cn-sha256=0c0086ba75dea9bea88fef7a810f1871231b7fc4fe3f93d6d5c13e2263d6a1ba -->
+## 跨 Client 对拍数据源
+
+两份版本 1 文件承载原生测试以前从 GUI 包源码读取的对拍数据。每份都带 `contractVersion: 1`；
+TypeScript 与 Rust 测试读取同一份文件，彼此不读取对方的源码。
+
+- [Action 身份登记表](v1/workbench-action-identities-v1.json) 按所属 GUI 目录（`workbench`、
+  `tabs`）列出原生 Client 复用的每个 GUI 命名空间 action 身份。每个 `workbench` 条目必须是
+  `@orchbee/workbench` 中 `WORKBENCH_ACTION_IDS` 的值，每个 `tabs` 条目必须是
+  `@orchbee/tab-strip` 中 `TAB_STRIP_ACTION_IDS` 的值。原生 action 投影恰好复用登记的集合；
+  仅原生拥有的身份保留自己的命名空间，不登记。
+- [Tab 关闭目标语料](v1/tab-close-targets-conformance-v1.json) 给出 Tab 顺序、固定与组成员关系、
+  选择和目标，以及预期的所选、其他、后续和组关闭集合。`@orchbee/tab-strip` 的
+  `getTabCloseTargets` 与原生关闭集合 owner 必须得出相同集合。它只比较目标策略；生命周期顺序及
+  空组清理仍由各 Host owner 负责。
+
+复用新的身份或修改关闭目标策略时，在同一变更中更新该文件及两侧使用者。
+`scripts/verification-scope.mjs` 记录两份文件的确切使用者。`@orchbee/design-tokens` 中的调色板
+在主题权威变更通过验收前仍是独立来源。
+
+<!-- documentation-pairing: english-sha256=0b4ee10a5d1157f6fb7aedf478ffe572592d7769ac1da463139fdaab32cb593b zh-cn-sha256=673c103df30145e81fc38b8ecaefdeea10c198f34a6ca8b263c614663716d16b -->

@@ -21,12 +21,20 @@ const foreignDependencies = [
 ];
 const foreignPaths = [
 	['apps/desktop/resources/', 'apps/orchbee'],
-	['packages/design-tokens/src/tokens.css', 'apps/orchbee'],
+	['packages/design-tokens/src/tokens.css', 'apps/orchbee/crates/workbench-client'],
 	['crates/local-runtime/src/directory/windows/initialization.ps1', 'apps/terminal-host'],
 	['crates/local-runtime/src/directory/windows/reader.ps1', 'apps/terminal-host'],
+];
+// Language-neutral parity sources with exact consumers; other shared schema inputs keep the
+// full gate until their consumers are recorded here.
+const sharedContractInputs = [
 	[
-		'packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json',
-		'apps/orchbee',
+		'schemas/workbench/v1/workbench-action-identities-v1.json',
+		['packages/workbench', 'packages/tab-strip', 'apps/orchbee/crates/workbench-client'],
+	],
+	[
+		'schemas/workbench/v1/tab-close-targets-conformance-v1.json',
+		['packages/tab-strip', 'apps/orchbee/crates/workbench-client'],
 	],
 ];
 
@@ -279,6 +287,16 @@ export function selectVerificationScope(graph, paths) {
 				]) {
 					if (!graph.some((entry) => entry.root === root))
 						throw new Error(`Missing terminal contract consumer ${root}`);
+					selected.add(root);
+					reasons.push(`${root} <- ${changed}`);
+				}
+				continue;
+			}
+			const contractConsumers = sharedContractInputs.find(([input]) => input === changed)?.[1];
+			if (contractConsumers) {
+				for (const root of contractConsumers) {
+					if (!graph.some((entry) => entry.root === root))
+						throw new Error(`Missing shared contract consumer ${root}`);
 					selected.add(root);
 					reasons.push(`${root} <- ${changed}`);
 				}

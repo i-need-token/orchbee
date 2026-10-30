@@ -1,0 +1,47 @@
+{
+	"contractVersion": 1,
+	"catalogs": {
+		"workbench": [
+			"workbench.focus.sidebar",
+			"workbench.panel.active.focus-down",
+			"workbench.panel.active.focus-left",
+			"workbench.panel.active.focus-right",
+			"workbench.panel.active.focus-up",
+			"workbench.panel.active.maximization.toggle",
+			"workbench.panel.active.move-down",
+			"workbench.panel.active.move-left",
+			"workbench.panel.active.move-right",
+			"workbench.panel.active.move-up",
+			"workbench.panel.active.resize",
+			"workbench.panel.active.split-below",
+			"workbench.panel.active.split-right",
+			"workbench.project.close-all",
+			"workbench.project.dissolve",
+			"workbench.project.rename",
+			"workbench.settings.open",
+			"workbench.sidebar.toggle",
+			"workbench.tab.select-by-position",
+			"workbench.tab.select-next",
+			"workbench.tab.select-previous",
+			"workbench.tab.title.set",
+			"workbench.terminal.active.close",
+			"workbench.terminal.create",
+			"workbench.workspace.create",
+			"workbench.workspace.create-project",
+			"workbench.workspace.delete",
+			"workbench.workspace.set-project"
+		],
+		"tabs": [
+			"tabs.group.create",
+			"tabs.group.create-with-tab",
+			"tabs.group.ungroup",
+			"tabs.group.update",
+			"tabs.tab.close",
+			"tabs.tab.duplicate",
+			"tabs.tab.move",
+			"tabs.tab.move-to-group",
+			"tabs.tab.pinned.set",
+			"tabs.tab.select"
+		]
+	}
+}

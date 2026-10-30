@@ -10,6 +10,12 @@ use orchbee_workbench_protocol::{
 use serde::Deserialize;
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Corpus {
+    contract_version: u32,
+    cases: Vec<Case>,
+}
+#[derive(Deserialize)]
 struct Case {
     name: String,
     tabs: Vec<TabInput>,
@@ -35,13 +41,14 @@ fn id(value: &str) -> WorkbenchTabId {
 }
 
 #[test]
-fn close_set_target_corpus_matches_actual_gui_menu_owner() {
-    let cases: Vec<Case> = serde_json::from_str(include_str!(concat!(
+fn close_set_target_corpus_matches_the_shared_tab_close_contract() {
+    let corpus: Corpus = serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json"
+        "/../../../../schemas/workbench/v1/tab-close-targets-conformance-v1.json"
     )))
     .unwrap();
-    for case in cases {
+    assert_eq!(corpus.contract_version, 1);
+    for case in corpus.cases {
         let mut source = snapshot(case.tabs.len(), 1, None);
         let tabs = &mut source.terminal_contexts[0].tabs;
         for (tab, input) in tabs.iter_mut().zip(&case.tabs) {

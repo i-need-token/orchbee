@@ -332,62 +332,47 @@ fn availability_keeps_hidden_distinct_from_disabled() {
 }
 
 #[test]
-fn reused_cross_client_ids_are_present_in_their_owning_catalogs() {
-    let workbench = include_str!(
-        "../../../../../../packages/workbench/src/workbench/actions/workbench-action-ids.ts"
-    );
-    let tabs = include_str!(
-        "../../../../../../packages/tab-strip/src/tab-strip/actions/tab-strip-action-contracts.ts"
-    );
-    for id in [
-        "workbench.settings.open",
-        "workbench.focus.sidebar",
-        "workbench.terminal.active.close",
-        "workbench.terminal.create",
-        "workbench.workspace.create",
-        "workbench.workspace.delete",
-        "workbench.workspace.set-project",
-        "workbench.project.close-all",
-        "workbench.project.dissolve",
-        "workbench.project.rename",
-        "workbench.panel.active.focus-down",
-        "workbench.panel.active.focus-left",
-        "workbench.panel.active.focus-right",
-        "workbench.panel.active.focus-up",
-        "workbench.panel.active.move-down",
-        "workbench.panel.active.move-left",
-        "workbench.panel.active.move-right",
-        "workbench.panel.active.move-up",
-        "workbench.panel.active.resize",
-        "workbench.panel.active.maximization.toggle",
-        "workbench.panel.active.split-below",
-        "workbench.panel.active.split-right",
-        "workbench.sidebar.toggle",
-        "workbench.tab.title.set",
-        "workbench.tab.select-by-position",
-        "workbench.tab.select-next",
-        "workbench.tab.select-previous",
-    ] {
-        assert!(
-            workbench.contains(&format!("'{id}'")),
-            "missing GUI action ID {id}"
-        );
+fn reused_cross_client_ids_match_the_shared_action_identity_registry() {
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase", deny_unknown_fields)]
+    struct Registry {
+        contract_version: u32,
+        catalogs: Catalogs,
     }
-    for id in [
-        "tabs.group.create",
-        "tabs.group.create-with-tab",
-        "tabs.group.ungroup",
-        "tabs.group.update",
-        "tabs.tab.close",
-        "tabs.tab.duplicate",
-        "tabs.tab.move",
-        "tabs.tab.move-to-group",
-        "tabs.tab.pinned.set",
-        "tabs.tab.select",
-    ] {
-        assert!(
-            tabs.contains(&format!("'{id}'")),
-            "missing tab-strip action ID {id}"
-        );
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Catalogs {
+        workbench: Vec<String>,
+        tabs: Vec<String>,
     }
+    let registry: Registry = serde_json::from_str(include_str!(
+        "../../../../../../schemas/workbench/v1/workbench-action-identities-v1.json"
+    ))
+    .unwrap();
+    assert_eq!(registry.contract_version, 1);
+    let mut registered = std::collections::BTreeSet::new();
+    for (namespace, ids) in [
+        ("workbench.", &registry.catalogs.workbench),
+        ("tabs.", &registry.catalogs.tabs),
+    ] {
+        for id in ids {
+            assert!(
+                id.starts_with(namespace),
+                "{id} is outside its owning catalog"
+            );
+            assert!(registered.insert(id.as_str()), "duplicate registry ID {id}");
+        }
+    }
+    // Every GUI-namespace literal the projection mints reuses a registered GUI identity, and
+    // the registry names no identity the native projection has stopped reusing.
+    let projected: std::collections::BTreeSet<_> = include_str!("../action_projection.rs")
+        .split('"')
+        .filter(|segment| {
+            (segment.starts_with("workbench.") || segment.starts_with("tabs."))
+                && segment.bytes().all(|byte| {
+                    byte.is_ascii_lowercase() || byte.is_ascii_digit() || b".-".contains(&byte)
+                })
+        })
+        .collect();
+    assert_eq!(projected, registered);
 }

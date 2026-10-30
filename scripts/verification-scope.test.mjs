@@ -164,26 +164,28 @@ test('real workspace selection retains foreign fixture, resource, process and di
 	const designTokens = selectVerificationScope(actual, ['packages/design-tokens/src/tokens.css']);
 	assert.equal(designTokens.all, false, designTokens.reasons.join('\n'));
 	assert.ok(designTokens.pnpm.includes('@orchbee/design-tokens'));
-	assert.deepEqual(designTokens.cargo, ['orchbee']);
+	assert.deepEqual(designTokens.cargo, ['orchbee', 'orchbee-workbench-client']);
 	assert.equal(
 		selectVerificationScope(actual, ['packages/design-tokens/src/tokens.css.bak']).cargo.length,
 		0,
 	);
-	const tabCloseCorpus = selectVerificationScope(actual, [
-		'packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json',
-	]);
-	assert.equal(tabCloseCorpus.all, false);
-	assert.ok(tabCloseCorpus.pnpm.includes('@orchbee/tab-strip'));
-	assert.ok(tabCloseCorpus.cargo.includes('orchbee'));
+	for (const [contract, packages] of [
+		[
+			'schemas/workbench/v1/workbench-action-identities-v1.json',
+			['@orchbee/tab-strip', '@orchbee/workbench'],
+		],
+		['schemas/workbench/v1/tab-close-targets-conformance-v1.json', ['@orchbee/tab-strip']],
+	]) {
+		const parity = selectVerificationScope(actual, [contract]);
+		assert.equal(parity.all, false, parity.reasons.join('\n'));
+		for (const name of packages)
+			assert.ok(parity.pnpm.includes(name), `${contract} must select ${name}`);
+		assert.ok(parity.cargo.includes('orchbee-workbench-client'), contract);
+		assert.equal(selectVerificationScope(actual, [contract + '.bak']).all, true);
+	}
 	assert.equal(
 		selectVerificationScope(actual, ['packages/tab-strip/src/tab-strip/model/tab-close-targets.ts'])
 			.cargo.length,
-		0,
-	);
-	assert.equal(
-		selectVerificationScope(actual, [
-			'packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json.bak',
-		]).cargo.length,
 		0,
 	);
 	assert.equal(selectVerificationScope(actual, ['apps/desktop/src/window.ts']).cargo.length, 0);

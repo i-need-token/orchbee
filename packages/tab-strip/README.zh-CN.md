@@ -137,7 +137,7 @@ src/
 
 共享的 [Tab 配置语料](../../schemas/workbench/v1/tab-configuration-conformance-v1.json) 对比 GUI `TabModel` 与 Rust 规范权威方在固定、创建分组、分配、移除、元数据和分组移动上的转换。从仍有成员的分组中取出中间成员新建分组时，会插入到原分组块之后，在不改变活动 Tab 的前提下保留成员连续性。
 
-上下文菜单使用 `getTabCloseTargets` 和 `getGroupCloseTabIds`。其[关闭目标语料](src/tab-strip/model/__tests__/fixtures/tab-close-targets.json) 同时针对原生 Client 执行：目标是否属于选择决定命令集合，相对 Close 排除固定／受保护成员，后续范围从最右侧所选 Tab 之后开始，关闭组包括折叠成员。这比较目标策略；生命周期顺序及空组清理仍由各实际接入的 Host owner 负责。
+上下文菜单使用 `getTabCloseTargets` 和 `getGroupCloseTabIds`。其[关闭目标语料](../../schemas/workbench/v1/tab-close-targets-conformance-v1.json) 同时针对原生 Client 执行：目标是否属于选择决定命令集合，相对 Close 排除固定／受保护成员，后续范围从最右侧所选 Tab 之后开始，关闭组包括折叠成员。这比较目标策略；生命周期顺序及空组清理仍由各实际接入的 Host owner 负责。
 
 横向分组拖拽具有连续块移动 Lean 证明、生成实现/属性测试及确定性浏览器轨迹。映射、可重现命令与限制见[正确性证据](formal/README.zh-CN.md)。本地拖拽与分组流程不另设 TLA 模型。
 
@@ -150,4 +150,4 @@ pnpm --filter @orchbee/tab-strip test:exports
 
 要求像素精确的动画中点验证为拖起、帧回调和指针重新定位控制同一个单调时钟，保留精确几何与起始时间不变断言。用实时小数时间戳构造中点可能跨过整数像素取整边界。
 
-<!-- documentation-pairing: english-sha256=7e67a2161beb2ab1a0220fd4b0dccd71c51683ed8d4f3b807b865aefb61748e1 zh-cn-sha256=992decd9f46574593f13311a09e4c316f87f015fd50b1ef64e68de5b43127a39 -->
+<!-- documentation-pairing: english-sha256=ddd39e530e26bbb6eb6ab8e3e39661369db9be106919b1ce5cd44debc3a97c66 zh-cn-sha256=39b367cc56c9a48be35d86ccada5bc3f600f89de9d12f4436fbdb51a3e3d5f8f -->

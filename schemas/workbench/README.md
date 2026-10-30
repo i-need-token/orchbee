@@ -762,3 +762,26 @@ Canonical split `ratio` is optional with an equal default and finite 0.1–0.9 b
 ## Native Settings wire contract
 
 [Settings](v1/workbench-settings.schema.json) defines closed Open/Save requests and outcomes for matched Windows cohorts. Three required-nullable fields distinguish untouched settings from explicit theme/reminder/sound changes; the all-null patch is invalid. Source tokens distinguish a missing file from a canonical SHA-256 content digest. Save additionally fences the publication revision; outcomes separate disk persistence, live application and pre-write refusal. The shared corpus exercises extra-field refusal, full-width revisions, complete snapshots and the independent 4 KiB request/256 KiB result limits in Rust, TypeScript and JSON Schema. The [native Settings owner](../../apps/orchbee/docs/native-settings.md) governs writes, input capture, uncertainty and recovery.
+
+## Cross-Client parity sources
+
+Two version-1 files hold parity data that native tests previously read from GUI package sources.
+Each carries `contractVersion: 1`; TypeScript and Rust tests read the same file, and neither reads
+the other's source.
+
+- The [action identity registry](v1/workbench-action-identities-v1.json) lists, per owning GUI
+  catalog (`workbench`, `tabs`), every GUI-namespace action identity that a native Client reuses.
+  Each `workbench` entry must be a `WORKBENCH_ACTION_IDS` value in `@orchbee/workbench`, and each
+  `tabs` entry a `TAB_STRIP_ACTION_IDS` value in `@orchbee/tab-strip`. The native action projection
+  reuses exactly the registered set; native-only identities keep their own namespace and are not
+  registered.
+- The [Tab Close target corpus](v1/tab-close-targets-conformance-v1.json) gives Tab order, pin and
+  group membership, selection and target, with the expected selected, other, trailing and group
+  Close sets. `getTabCloseTargets` in `@orchbee/tab-strip` and the native Close-set owner must
+  produce the same sets. It compares target policy only; lifecycle sequencing and empty-group
+  cleanup stay with each host owner.
+
+Reusing another identity or changing Close target policy updates the file and both consumers in
+one change. `scripts/verification-scope.mjs` records the exact consumers of both files. The
+palette in `@orchbee/design-tokens` stays a separate source until the theme-authority change is
+accepted.

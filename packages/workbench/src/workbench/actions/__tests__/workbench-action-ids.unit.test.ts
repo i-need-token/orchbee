@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import registry from '../../../../../../schemas/workbench/v1/workbench-action-identities-v1.json';
 
 import {
 	WORKBENCH_ACTION_IDS,
@@ -84,6 +85,12 @@ describe('workbench action contracts', () => {
 			toggleSidebar: 'workbench.sidebar.toggle',
 			updateWorkspace: 'workbench.workspace.update',
 		});
+	});
+
+	it('owns every Workbench identity in the shared cross-Client registry', () => {
+		expect(registry.contractVersion).toBe(1);
+		const owned = new Set<string>(Object.values(WORKBENCH_ACTION_IDS));
+		expect(registry.catalogs.workbench.filter((id) => !owned.has(id))).toEqual([]);
 	});
 
 	it('validates exact Agent navigation identity without accepting projected topology', () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import registry from '../../../../../../schemas/workbench/v1/workbench-action-identities-v1.json';
 
 import {
 	TAB_STRIP_ACTION_IDS,
@@ -24,6 +25,12 @@ describe('tab strip action contracts', () => {
 		expect(TAB_STRIP_ACTION_IDS.closeTabs).toBe('tabs.tab.close');
 		expect(TAB_STRIP_ACTION_IDS.moveTabsToGroup).toBe('tabs.tab.move-to-group');
 		expect(TAB_STRIP_ACTION_IDS.selectTab).toBe('tabs.tab.select');
+	});
+
+	it('owns every TabStrip identity in the shared cross-Client registry', () => {
+		expect(registry.contractVersion).toBe(1);
+		const owned = new Set<string>(Object.values(TAB_STRIP_ACTION_IDS));
+		expect(registry.catalogs.tabs.filter((id) => !owned.has(id))).toEqual([]);
 	});
 
 	it('parses create, selection, movement, grouping, pinning, and group update inputs', () => {

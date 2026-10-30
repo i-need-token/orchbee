@@ -4,7 +4,7 @@
 
 原生标签页菜单可关闭所选集合或其他标签页，全局菜单关闭当前标签页右侧的标签页，分组菜单关闭完整 canonical 组，包含折叠成员。
 `TabStripContextMenu` 与原生 owner 共用
-`packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json` 中的目标语料。
+[Tab 关闭目标语料](../../../schemas/workbench/README.zh-CN.md#跨-client-对拍数据源)。
 菜单目标属于选中集合时，直接 Close 按规范顺序使用所选 ID；否则只使用该目标。
 其他／右侧 Close 排除固定标签页与目标，且仅在目标属于选中集合时保护该集合。
 此时右侧范围从最右侧所选标签页之后开始。直接关闭所选集合／组时，适用的固定成员也包含在内。
@@ -103,4 +103,4 @@ Server 发布 owner 仅在移除关闭 Tab 后其源组变空时删除该组。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=82f7bf2c22ea7d2f56a5686abdf058344f975698eed396225c08d2bba5fb10e6 zh-cn-sha256=c904c6885b5bbae781bdc4a1f12c357816ad2e89280cb8093714eafe9abbf19d -->
+<!-- documentation-pairing: english-sha256=5fa0b7d01d5bb44028c3bfe6f5bcea8776fb14d25c15b586db8ae252091107df zh-cn-sha256=de9ae199b57fd6616f9ab39d11b93461296d3a74b16c7fae86fecf2e97179a29 -->
