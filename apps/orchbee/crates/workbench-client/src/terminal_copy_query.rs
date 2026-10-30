@@ -8,8 +8,7 @@ use crate::{
     terminal_copy_mode::{EpisodeId, QueryId},
 };
 
-mod lane;
-pub(crate) use lane::Driver;
+pub(crate) mod lane;
 
 /// Exact copy episode and query identities carried through the worker lane.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -74,17 +73,4 @@ pub(crate) enum Failure {
     ProtocolInvalid,
     DetachUnknown,
     Unexpected,
-}
-
-impl From<crate::terminal_content::Error<()>> for Failure {
-    fn from(value: crate::terminal_content::Error<()>) -> Self {
-        match value {
-            crate::terminal_content::Error::Gate(())
-            | crate::terminal_content::Error::TransportUnavailable => Self::TransportUnavailable,
-            crate::terminal_content::Error::IdentityUnavailable => Self::IdentityUnavailable,
-            crate::terminal_content::Error::ProtocolInvalid => Self::ProtocolInvalid,
-            crate::terminal_content::Error::LimitExceeded => Self::LimitExceeded,
-            crate::terminal_content::Error::SourceChanged => Self::SourceChanged,
-        }
-    }
 }

@@ -2,6 +2,7 @@
 //! selection-export and clipboard identities.
 
 use super::{ClientProjectionStatus, WorkbenchClientUi};
+use crate::workbench_client::copy_episode::PendingQuery;
 use crate::{
     client_view::{
         CopyModeKey, CopySearchCommand, KeyCode, KeyEvent, KeyKind, Modifiers, copy_mode_key,
@@ -9,12 +10,10 @@ use crate::{
     },
     terminal_content::{ContentSource, TerminalScreen},
     terminal_copy::TerminalTextPoint,
-    terminal_copy_mode::{
-        CopyModeView, Effect, EpisodeId, Mode, Navigation, Refusal, SearchEdit, Surface,
-    },
+    terminal_copy_mode::{CopyModeView, Effect, Mode, Navigation, Refusal, SearchEdit, Surface},
     terminal_copy_query::{
-        Action as QueryAction, Admission as QueryAdmission, Driver as QueryDriver,
-        Failure as QueryFailure, QueryIdentity, Request as QueryRequest, Value as QueryValue,
+        Action as QueryAction, Admission as QueryAdmission, Failure as QueryFailure, QueryIdentity,
+        Request as QueryRequest, Value as QueryValue,
     },
     workbench_client::{
         mailbox::{AdmissionError, CommandMailbox, QueuedCommand, Tagged},
@@ -26,211 +25,6 @@ use crate::{
 use orchbee_terminal_protocol::TerminalTextRow;
 use std::{num::NonZeroU64, sync::Arc};
 mod pointer;
-
-#[derive(Clone)]
-struct PendingQuery {
-    identity: QueryIdentity,
-    source: ContentSource,
-    search: Option<Box<str>>,
-}
-
-#[derive(Clone)]
-struct Entry {
-    fence: ContentSource,
-    needs_viewport_enter: bool,
-}
-
-enum EpisodeState {
-    Entering(Entry),
-    Active(Mode),
-}
-
-struct Episode {
-    key: PaneRef,
-    id: EpisodeId,
-    source: Option<ContentSource>,
-    state: EpisodeState,
-    pending_query: Option<PendingQuery>,
-}
-
-pub(super) struct Coordinator {
-    next_episode: u64,
-    episode: Option<Episode>,
-    surface_pending: bool,
-    query: QueryDriver,
-}
-
-impl Coordinator {
-    pub(super) fn new(clock: crate::local_client::LocalOperationClock) -> Self {
-        Self {
-            next_episode: 0,
-            episode: None,
-            surface_pending: false,
-            query: QueryDriver::new(clock),
-        }
-    }
-
-    pub(super) fn set_origin(&mut self, origin: crate::local_client::LocalClientOrigin) {
-        self.query.set_origin(origin);
-    }
-
-    pub(super) fn close(&mut self) {
-        self.query.close();
-        self.episode = None;
-        self.surface_pending = false;
-    }
-
-    /// Process exit: asks the copy query thread to stop without waiting.
-    pub(super) fn request_stop(&mut self) {
-        self.query.request_stop();
-    }
-
-    /// Process exit: observes the copy query thread against the shared deadline.
-    pub(super) fn stop_before(&mut self, deadline: std::time::Instant) -> std::io::Result<()> {
-        self.query.stop_before(deadline)
-    }
-
-    pub(super) fn cancel(&mut self) {
-        self.cancel_episode();
-    }
-
-    fn next_episode(&mut self) -> Option<EpisodeId> {
-        self.next_episode = self.next_episode.checked_add(1)?;
-        NonZeroU64::new(self.next_episode).map(EpisodeId::new)
-    }
-
-    fn begin_entering(
-        &mut self,
-        key: PaneRef,
-        fence: ContentSource,
-        needs_viewport_enter: bool,
-    ) -> Option<EpisodeId> {
-        let id = self.next_episode()?;
-        self.query.cancel();
-        self.surface_pending = false;
-        self.episode = Some(Episode {
-            key,
-            id,
-            source: None,
-            state: EpisodeState::Entering(Entry {
-                fence,
-                needs_viewport_enter,
-            }),
-            pending_query: None,
-        });
-        Some(id)
-    }
-
-    fn activate(
-        &mut self,
-        source: ContentSource,
-        surface: Surface,
-        cursor: TerminalTextPoint,
-    ) -> bool {
-        let Some(episode) = self.episode.as_mut() else {
-            return false;
-        };
-        let Some(mode) = Mode::new(episode.id, surface, cursor) else {
-            return false;
-        };
-        episode.source = Some(source);
-        episode.state = EpisodeState::Active(mode);
-        self.surface_pending = false;
-        true
-    }
-
-    pub(super) fn active(&self) -> bool {
-        self.episode.is_some()
-    }
-
-    pub(super) fn key(&self) -> Option<&PaneRef> {
-        self.episode.as_ref().map(|episode| &episode.key)
-    }
-
-    fn id(&self) -> Option<EpisodeId> {
-        self.episode.as_ref().map(|episode| match &episode.state {
-            EpisodeState::Entering(_) => episode.id,
-            EpisodeState::Active(mode) => mode.episode(),
-        })
-    }
-
-    fn mode(&self) -> Option<&Mode> {
-        match &self.episode.as_ref()?.state {
-            EpisodeState::Entering(_) => None,
-            EpisodeState::Active(mode) => Some(mode),
-        }
-    }
-
-    fn mode_mut(&mut self) -> Option<&mut Mode> {
-        match &mut self.episode.as_mut()?.state {
-            EpisodeState::Entering(_) => None,
-            EpisodeState::Active(mode) => Some(mode),
-        }
-    }
-
-    fn entry(&self) -> Option<&Entry> {
-        match &self.episode.as_ref()?.state {
-            EpisodeState::Entering(entry) => Some(entry),
-            EpisodeState::Active(_) => None,
-        }
-    }
-
-    fn entry_mut(&mut self) -> Option<&mut Entry> {
-        match &mut self.episode.as_mut()?.state {
-            EpisodeState::Entering(entry) => Some(entry),
-            EpisodeState::Active(_) => None,
-        }
-    }
-
-    pub(super) fn view(&self) -> Option<CopyModeView<'_>> {
-        let episode = self.episode.as_ref()?;
-        let mut view = match &episode.state {
-            EpisodeState::Entering(_) => CopyModeView::entering(episode.id),
-            EpisodeState::Active(mode) => mode.view(),
-        };
-        if self.surface_pending && matches!(&episode.state, EpisodeState::Active(_)) {
-            view.status = crate::terminal_copy_mode::CopyModeStatus::Moving;
-            view.cursor = None;
-            if let Some(token) = &mut view.pointer {
-                token.pending();
-            }
-        }
-        Some(view)
-    }
-
-    fn surface_pending(&self) -> bool {
-        self.episode.is_some() && self.surface_pending
-    }
-
-    fn set_surface_pending(&mut self, pending: bool) -> bool {
-        if self.episode.is_none() {
-            return false;
-        }
-        let changed = self.surface_pending != pending;
-        self.surface_pending = pending;
-        changed
-    }
-
-    fn cancel_episode(&mut self) -> Option<PaneRef> {
-        self.query.cancel();
-        self.surface_pending = false;
-        self.episode.take().map(|episode| episode.key)
-    }
-
-    pub(super) fn effect_current(
-        &self,
-        key: &PaneRef,
-        generation: NonZeroU64,
-        export: NonZeroU64,
-        episode: NonZeroU64,
-    ) -> bool {
-        self.key() == Some(key)
-            && self.id().is_some_and(|id| id.get() == episode)
-            && self.mode().is_some_and(|mode| {
-                mode.surface().generation == generation && mode.clipboard_identity() == Some(export)
-            })
-    }
-}
 
 impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn copy_mode_active(&self) -> bool {
@@ -284,13 +78,13 @@ impl WorkbenchClientUi {
             return false;
         }
 
-        if entry.needs_viewport_enter {
+        if entry.needs_viewport_enter() {
             let Some(source) = self.admitted_copy_source(&key) else {
                 self.cancel_copy_mode();
                 self.copy_notice(ClientNotice::CopyModeInvalidated);
                 return true;
             };
-            if !entry_source_matches(&entry.fence, &source)
+            if !entry_source_matches(entry.fence(), &source)
                 || self.projections[index].viewport.is_some()
             {
                 self.cancel_copy_mode();
@@ -326,18 +120,18 @@ impl WorkbenchClientUi {
                         first_read_sequence,
                         self.clock.now(),
                     ));
-                    if let Some(entry) = self.copy_mode.entry_mut() {
-                        entry.needs_viewport_enter = false;
-                    }
+                    self.copy_mode.viewport_entered();
                     return true;
                 }
                 Err(AdmissionError::Full | AdmissionError::Busy) => return false,
                 Err(AdmissionError::Closed(closed)) => {
+                    self.copy_query.cancel();
                     self.copy_mode.cancel_episode();
                     self.retire(closed.failure());
                     return true;
                 }
                 Err(_) => {
+                    self.copy_query.cancel();
                     self.copy_mode.cancel_episode();
                     self.retire(CarrierFailure::Protocol);
                     return true;
@@ -357,7 +151,7 @@ impl WorkbenchClientUi {
             self.copy_notice(ClientNotice::CopyModeInvalidated);
             return true;
         };
-        if !entry_source_matches(&entry.fence, &source) || !self.copy_entry_selection_settled(&key)
+        if !entry_source_matches(entry.fence(), &source) || !self.copy_entry_selection_settled(&key)
         {
             if self.copy_entry_selection_settled(&key) {
                 self.cancel_copy_mode();
@@ -503,6 +297,7 @@ impl WorkbenchClientUi {
             self.copy_notice(ClientNotice::CopyModeUnavailable);
             return ClientActionDisposition::KeepNavigator;
         }
+        self.copy_query.cancel();
         self.admit_selections(&mailbox);
         self.continue_copy_entry(&mailbox);
         ClientActionDisposition::DismissNavigator
@@ -659,11 +454,7 @@ impl WorkbenchClientUi {
         let Some(key) = self.copy_mode.key().cloned() else {
             return false;
         };
-        let cleanup_source = self
-            .copy_mode
-            .episode
-            .as_ref()
-            .and_then(|episode| episode.source.clone());
+        let cleanup_source = self.copy_mode.source().cloned();
         let cleanup = cleanup_source
             .as_ref()
             .and_then(|source| self.copy_selection_cleanup(&key, source));
@@ -673,6 +464,7 @@ impl WorkbenchClientUi {
             .find(|projection| projection.key == key)
             .and_then(|projection| projection.selection.as_ref())
             .is_some_and(terminal_selection::Driver::copy_selection_owned);
+        self.copy_query.cancel();
         self.copy_mode.cancel_episode();
         self.effects.cancel_selection(&key);
         if let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) {
@@ -766,11 +558,7 @@ impl WorkbenchClientUi {
             self.copy_notice(ClientNotice::CopyModeInvalidated);
             return true;
         };
-        let previous = self
-            .copy_mode
-            .episode
-            .as_ref()
-            .and_then(|episode| episode.source.clone());
+        let previous = self.copy_mode.source().cloned();
         if previous.as_ref() != Some(&source) {
             let moving = self.copy_mode.mode().is_some_and(|mode| {
                 mode.view().status == crate::terminal_copy_mode::CopyModeStatus::Moving
@@ -818,9 +606,7 @@ impl WorkbenchClientUi {
                 self.copy_notice(ClientNotice::CopyModeInvalidated);
                 return true;
             }
-            if let Some(episode) = self.copy_mode.episode.as_mut() {
-                episode.source = Some(source);
-            }
+            self.copy_mode.set_source(source);
             changed = true;
         }
         changed |= self.settle_copy_selection_gesture();
@@ -1199,15 +985,13 @@ impl WorkbenchClientUi {
             source: source.clone(),
             search,
         };
-        match self.copy_mode.query.admit(QueryRequest {
+        match self.copy_query.admit(QueryRequest {
             identity,
             source,
             action,
         }) {
             QueryAdmission::Accepted => {
-                if let Some(episode) = self.copy_mode.episode.as_mut() {
-                    episode.pending_query = Some(pending);
-                }
+                self.copy_mode.set_pending_query(pending);
             }
             QueryAdmission::Busy => {
                 self.fail_copy_query(identity.query, ClientNotice::CopyModeBusy)
@@ -1222,14 +1006,10 @@ impl WorkbenchClientUi {
     }
 
     fn take_copy_query_outcome(&mut self) -> bool {
-        let Some(outcome) = self.copy_mode.query.take_outcome() else {
+        let Some(outcome) = self.copy_query.take_outcome() else {
             return false;
         };
-        let pending = self
-            .copy_mode
-            .episode
-            .as_mut()
-            .and_then(|episode| episode.pending_query.take());
+        let pending = self.copy_mode.take_pending_query();
         let Some(pending) = pending else { return false };
         let current = self
             .copy_mode
@@ -1391,12 +1171,7 @@ impl WorkbenchClientUi {
     }
 
     fn copy_surface_refresh_pending(&self, key: &PaneRef) -> bool {
-        let Some(expected) = self
-            .copy_mode
-            .episode
-            .as_ref()
-            .and_then(|episode| episode.source.as_ref())
-        else {
+        let Some(expected) = self.copy_mode.source() else {
             return false;
         };
         let Some(projection) = self

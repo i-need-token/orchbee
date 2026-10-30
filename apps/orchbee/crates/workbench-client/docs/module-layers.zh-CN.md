@@ -39,11 +39,11 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 每一份 Client 状态都只有一个写入模块。其他模块通过共享借用读取它，或接收派生值；渲染只读取
 派生的视图模型。
 
-| 来源            | 写入者契约                                                                                                         | 所有者                                                                                                                                                                                                                                                                                                                                                                                               |
-| --------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Server 投影     | 只应用经过验证的 Server 或 Worker 结果与事件；从不铸造规范成员关系，也从不因投影缺失推断物理清理                   | `workbench_client::workbench_projection`、`workbench_client::state`、`workbench_client::agent_board`、`terminal_projection`                                                                                                                                                                                                                                                                          |
-| Client 本地视图 | 拥有只存在于此 Client 中的界面框架、选择、焦点、草稿、菜单、提示、复制模式、偏好和位置；只通过自己唯一的存储持久化 | `client_view`、`action_menu`、`machine_picker`、`machines`、`native_settings`、`notifications`、`onboarding`、`terminal_copy_mode`、`transient_notice`、`workbench_client::completion_reminders`、`workbench_client::normal_exit_hold`、`workbench_client::startup_directory`、`workbench_client::startup_preference`、`workbench_client::terminal_selection`、`workbench_client::terminal_viewport` |
-| 连接生命周期    | 拥有一个 Client Connection 的队列、关联、代次、保留证据和唤醒；由 `workflow` 连接任务驱动                          | `workbench_client::mailbox`、`workbench_client::wakeup`                                                                                                                                                                                                                                                                                                                                              |
+| 来源            | 写入者契约                                                                                                         | 所有者                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Server 投影     | 只应用经过验证的 Server 或 Worker 结果与事件；从不铸造规范成员关系，也从不因投影缺失推断物理清理                   | `workbench_client::workbench_projection`、`workbench_client::state`、`workbench_client::agent_board`、`terminal_projection`                                                                                                                                                                                                                                                                                                            |
+| Client 本地视图 | 拥有只存在于此 Client 中的界面框架、选择、焦点、草稿、菜单、提示、复制模式、偏好和位置；只通过自己唯一的存储持久化 | `client_view`、`action_menu`、`machine_picker`、`machines`、`native_settings`、`notifications`、`onboarding`、`terminal_copy_mode`、`transient_notice`、`workbench_client::completion_reminders`、`workbench_client::copy_episode`、`workbench_client::normal_exit_hold`、`workbench_client::startup_directory`、`workbench_client::startup_preference`、`workbench_client::terminal_selection`、`workbench_client::terminal_viewport` |
+| 连接生命周期    | 拥有一个 Client Connection 的队列、关联、代次、保留证据和唤醒；由 `workflow` 连接任务驱动                          | `workbench_client::mailbox`、`workbench_client::wakeup`                                                                                                                                                                                                                                                                                                                                                                                |
 
 `ClientView` 和 `WorkbenchClientUi` 共享四个值。每个值只有一个写入者，另一方经组合层接收所有者
 的值：
@@ -53,7 +53,7 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
   接收所有者的值。
 - 配置观察者把通知策略写入 `ClientView` 的通知状态。`WorkbenchClientUi` 连同准入它的修订号一起
   接收该策略。
-- `WorkbenchClientUi` 的复制模式协调者拥有复制模式活动。`ClientView` 保留一份镜像，只由
+- `workbench_client::copy_episode` 拥有复制模式活动。`ClientView` 保留一份镜像，只由
   `settle_copy_mode` 按所有者当前的回答写入。
 
 `ClientView` 中的 Client 本地提示和 `WorkbenchClientUi` 中的 Workbench 命令提示是不同的事实，
@@ -112,9 +112,11 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 | `startup_status`                              | `values`       | 本地启动结论。                                                                                      |
 | `terminal_buffer_text`                        | `values`       | 遍历经过验证的保留行中的字形。                                                                      |
 | `terminal_content`                            | `workflow`     | 在独立 viewer 连接上的有界内容检查。                                                                |
+| `terminal_content::source`                    | `state`        | 复制模式和阅读位置据以设防的内容来源身份与屏幕见证。                                                |
 | `terminal_copy`                               | `values`       | 缓冲区坐标复制策略。                                                                                |
 | `terminal_copy_mode`                          | `state`        | 针对一个已准入内容表面的 Client 本地键盘复制状态。                                                  |
-| `terminal_copy_query`                         | `workflow`     | 带关联且同一时刻只有一个在途请求的复制移动与搜索读取。                                              |
+| `terminal_copy_query`                         | `state`        | 复制模式片段据以匹配的复制查询身份、请求和结果。                                                    |
+| `terminal_copy_query::lane`                   | `workflow`     | 带关联且同一时刻只有一个在途请求的复制移动与搜索读取。                                              |
 | `terminal_device`                             | `workflow`     | 继承终端设备适配器。准入失败移到 `values`；窗口几何位于 `host_graphics`。                           |
 | `terminal_events`                             | `values`       | 宿主事件类型和确定性字节解码器。                                                                    |
 | `terminal_graphics`                           | `workflow`     | 宿主图形探测。测得的事实位于 `host_graphics`。                                                      |
@@ -152,6 +154,7 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 | `workbench_client::agent_read_lane`           | `workflow`     | 共享 carrier 上的有界 Agent 与 Panel 读取作业。                                                     |
 | `workbench_client::client_control`            | `workflow`     | 由 UI owner 推进步骤的远程导航 lane。                                                               |
 | `workbench_client::completion_reminders`      | `state`        | 每个命令事实只消费一次的提醒状态。                                                                  |
+| `workbench_client::copy_episode`              | `state`        | 复制模式片段：所在窗格、内容围栏和待决查询。查询驱动由 UI 组合层持有。                              |
 | `workbench_client::configuration`             | `workflow`     | 配置发布监视器。                                                                                    |
 | `workbench_client::connection`                | `workflow`     | Client 连接任务。                                                                                   |
 | `workbench_client::independent_popup`         | `workflow`     | 独立的投影与控制 lane。                                                                             |
@@ -187,4 +190,4 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 可列出每个环和每个指向高层的引用及其源码位置样本；[Lint](../../../../../docs/zh-CN/LINTING.md)
 拥有该命令。
 
-<!-- documentation-pairing: english-sha256=dfceeca4b1220a3d0511dfdc4fc555ec66fa2a860aaf76cba64b0e3cdf5ce7be zh-cn-sha256=a3c116633c1c473b26dc4d89a988986e41ca50ab307c3e6c42a56e0d47a450b0 -->
+<!-- documentation-pairing: english-sha256=27f344d75c7f16bc68677898d1b2d7c0b422105e329434fa5cf4402b965bbe61 zh-cn-sha256=c61887fb4bea41dc6b02e994ec13f00b66e7ca2db2fbc64c9b676b7a3698a49b -->

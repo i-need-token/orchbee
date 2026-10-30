@@ -5,6 +5,7 @@
 
 mod client_control;
 mod completion_reminders;
+mod copy_episode;
 pub(crate) mod input;
 pub use input::InputAction;
 mod configuration;

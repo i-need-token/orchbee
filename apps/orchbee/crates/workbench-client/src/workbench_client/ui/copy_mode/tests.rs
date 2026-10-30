@@ -1,7 +1,7 @@
 use super::*;
 mod mouse;
 use crate::{
-    local_client::test_support::server::adjustable_operation_clock,
+    terminal_copy_mode::EpisodeId,
     terminal_input::{
         DecodedKind, LegacyDecoder, PointerSelectionAdmission, PointerSelectionCell,
         PointerSelectionIntent,
@@ -20,10 +20,7 @@ use orchbee_terminal_protocol::{
     encode_selection_export_control, encode_transport_envelope,
 };
 use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
-use std::{
-    sync::{Arc, atomic::AtomicU64},
-    time::Instant,
-};
+use std::{sync::Arc, time::Instant};
 
 use super::super::tests::move_membership::ready_ui;
 use super::super::tests::viewport::{controlling_ui, install_projection, settle_viewing};
@@ -44,10 +41,6 @@ fn pane() -> PaneRef {
 
 fn identity(value: u64) -> NonZeroU64 {
     NonZeroU64::new(value).unwrap()
-}
-
-fn coordinator() -> Coordinator {
-    Coordinator::new(adjustable_operation_clock(Arc::new(AtomicU64::new(0))))
 }
 
 fn take_selection(
@@ -902,7 +895,6 @@ fn entering_projects_no_cursor_and_cancellation_releases_the_episode() {
 
 #[test]
 fn clipboard_effect_identity_is_exact_across_episode_generation_and_export() {
-    let mut coordinator = coordinator();
     let pane = pane();
     let episode = EpisodeId::new(identity(7));
     let generation = identity(11);
@@ -915,13 +907,10 @@ fn clipboard_effect_identity_is_exact_across_episode_generation_and_export() {
     mode.take_effect();
     let export = identity(17);
     mode.export_ready(export).unwrap();
-    coordinator.episode = Some(Episode {
-        key: pane.clone(),
-        id: episode,
-        source: None,
-        state: EpisodeState::Active(mode),
-        pending_query: None,
-    });
+    let coordinator = crate::workbench_client::copy_episode::CopyModeEpisodes::active_for_test(
+        pane.clone(),
+        mode,
+    );
 
     assert!(coordinator.effect_current(&pane, generation, export, episode.get()));
     assert!(!coordinator.effect_current(&pane, generation, identity(18), episode.get()));
@@ -978,9 +967,8 @@ fn raw_forward_search_and_carriage_return_submit_without_pane_input() {
     assert!(view.search.is_none(), "Enter must close the search draft");
     let pending = ui
         .copy_mode
-        .episode
-        .as_ref()
-        .and_then(|episode| episode.pending_query.as_ref())
+        .pending_query_slot()
+        .flatten()
         .expect("one exact search query flight");
     assert_eq!(pending.search.as_deref(), Some("foo"));
     assert!(
@@ -1211,16 +1199,7 @@ fn primary_output_refresh_waits_for_rows_applied_then_rebases_without_queued_inp
                 .take_effect()
                 .is_none()
         );
-        assert!(
-            fixture
-                .ui
-                .copy_mode
-                .episode
-                .as_ref()
-                .unwrap()
-                .pending_query
-                .is_none()
-        );
+        assert!(fixture.ui.copy_mode.pending_query_slot().unwrap().is_none());
         if searching {
             assert_eq!(
                 fixture.ui.copy_mode_view().unwrap().search.unwrap().draft,
@@ -1447,16 +1426,7 @@ fn primary_pending_output_refresh_preserves_local_search_editing_without_submiss
             .take_effect()
             .is_none()
     );
-    assert!(
-        fixture
-            .ui
-            .copy_mode
-            .episode
-            .as_ref()
-            .unwrap()
-            .pending_query
-            .is_none()
-    );
+    assert!(fixture.ui.copy_mode.pending_query_slot().unwrap().is_none());
     assert!(
         fixture.mailbox.try_recv().unwrap().is_none(),
         "local editing and refused submit must not enqueue any terminal effect"

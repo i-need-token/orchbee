@@ -304,7 +304,7 @@ pub struct WorkbenchClientView<'a> {
     board: Option<AgentBoardView<'a>>,
     worktree: Option<&'a crate::workbench_client::state::worktree_launch::Launcher>,
     board_summary: Option<&'a AgentBoardSummary>,
-    copy_mode: Option<&'a copy_mode::Coordinator>,
+    copy_mode: Option<&'a super::copy_episode::CopyModeEpisodes>,
     attention: Option<&'a super::agent_attention::AgentAttention>,
     reports: Option<&'a super::panel_reports::PanelReports>,
     graphics: Option<&'a super::pane_graphics::Driver>,
@@ -1038,7 +1038,8 @@ impl<'a> WorkbenchClientView<'a> {
     }
 
     pub(crate) fn copy_mode(&self) -> Option<crate::terminal_copy_mode::CopyModeView<'a>> {
-        self.copy_mode.and_then(copy_mode::Coordinator::view)
+        self.copy_mode
+            .and_then(super::copy_episode::CopyModeEpisodes::view)
     }
 }
 
@@ -1205,7 +1206,9 @@ pub(super) struct WorkbenchClientUi {
     graphics: super::pane_graphics::Driver,
     overlays: super::plugin_overlays::Driver,
     links: crate::terminal_link_activation::Driver,
-    copy_mode: copy_mode::Coordinator,
+    copy_mode: super::copy_episode::CopyModeEpisodes,
+    /// The copy motion and search driver whose answers settle into `copy_mode`.
+    copy_query: crate::terminal_copy_query::lane::Driver,
     popup: super::independent_popup::Driver,
     command_notice: Option<(WorkbenchClientNotice, std::time::Instant)>,
     notice_context: Option<NoticeContext>,
@@ -1330,7 +1333,8 @@ impl WorkbenchClientUi {
             graphics: super::pane_graphics::Driver::new(clock.clone()),
             overlays: super::plugin_overlays::Driver::new(clock.clone()),
             links: crate::terminal_link_activation::Driver::new(clock.clone()),
-            copy_mode: copy_mode::Coordinator::new(clock.clone()),
+            copy_mode: super::copy_episode::CopyModeEpisodes::default(),
+            copy_query: crate::terminal_copy_query::lane::Driver::new(clock.clone()),
             popup: super::independent_popup::Driver::new(clock.clone()),
             command_notice: None,
             notice_context: None,
@@ -1553,7 +1557,7 @@ impl WorkbenchClientUi {
         self.graphics.request_stop();
         self.overlays.request_stop();
         self.links.request_stop();
-        self.copy_mode.request_stop();
+        self.copy_query.request_stop();
         self.popup.request_stop();
         self.clipboard.request_stop();
         self.worktrees.request_stop();
@@ -1571,7 +1575,7 @@ impl WorkbenchClientUi {
             self.graphics.stop_before(deadline),
             self.overlays.stop_before(deadline),
             self.links.stop_before(deadline),
-            self.copy_mode.stop_before(deadline),
+            self.copy_query.stop_before(deadline),
             self.popup.stop_before(deadline),
             self.clipboard.stop_before(deadline),
             self.worktrees.stop_before(deadline),
@@ -4403,7 +4407,8 @@ impl WorkbenchClientUi {
     fn clear_projections(&mut self) {
         self.normal_exits.clear();
         self.history_positions.projections_cleared();
-        self.copy_mode.cancel();
+        self.copy_query.cancel();
+        self.copy_mode.cancel_episode();
         self.effects.close();
         self.terminal_effect.take();
         self.projections.clear();
@@ -4458,6 +4463,7 @@ impl WorkbenchClientUi {
         self.graphics.close();
         self.overlays.close();
         self.links.close();
+        self.copy_query.close();
         self.copy_mode.close();
         self.popup.shutdown();
         if let Some(state) = &mut self.state {

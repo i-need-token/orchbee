@@ -39,7 +39,7 @@ impl WorkbenchClientUi {
         self.graphics.set_origin(origin.clone());
         self.overlays.set_origin(origin.clone());
         self.links.set_origin(origin.clone());
-        self.copy_mode.set_origin(origin.clone());
+        self.copy_query.set_origin(origin.clone());
         self.popup.set_origin(origin.clone());
         self.worktrees.set_origin(origin.clone());
         self.settings.set_origin(origin.clone());
@@ -116,6 +116,7 @@ impl WorkbenchClientUi {
         self.attention.close();
         self.reports.close();
         self.graphics.close();
+        self.copy_query.close();
         self.copy_mode.close();
     }
 

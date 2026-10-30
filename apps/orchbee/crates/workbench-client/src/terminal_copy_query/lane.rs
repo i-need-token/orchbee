@@ -386,3 +386,16 @@ fn evaluate(
 
 #[cfg(test)]
 mod tests;
+
+impl From<crate::terminal_content::Error<()>> for Failure {
+    fn from(value: crate::terminal_content::Error<()>) -> Self {
+        match value {
+            crate::terminal_content::Error::Gate(())
+            | crate::terminal_content::Error::TransportUnavailable => Self::TransportUnavailable,
+            crate::terminal_content::Error::IdentityUnavailable => Self::IdentityUnavailable,
+            crate::terminal_content::Error::ProtocolInvalid => Self::ProtocolInvalid,
+            crate::terminal_content::Error::LimitExceeded => Self::LimitExceeded,
+            crate::terminal_content::Error::SourceChanged => Self::SourceChanged,
+        }
+    }
+}
