@@ -55,7 +55,7 @@ or another Panel.
 | Static / vacant | Clear                      | No active producer                                    | Remove layer; absent is an unchanged success |
 | Any             | Presentation removed       | Canonical identity no longer exists                   | Retire owned layers and producer             |
 
-Stream framing follows the reference: a bounded JSON header followed by its declared raw byte
+Stream framing is a bounded JSON header followed by its declared raw byte
 body. Every accepted frame returns its actual sequence/revision receipt. Damage rectangles are
 bounded hints against a complete canonical frame, never patches that leave unprovided pixels
 undefined. Bad framing terminates the producer and releases its layer. Private file frames admit

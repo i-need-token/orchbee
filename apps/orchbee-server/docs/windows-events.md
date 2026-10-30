@@ -1,11 +1,11 @@
 # Windows semantic event subscriptions
 
-## Accepted behavior and reference
+## Accepted behavior
 
 Windows scripts observe actual Workspace, Tab, Panel, worktree, Agent and Client changes, or wait for a specific change through the owned event stream. Current snapshots cannot substitute for retained history.
 
 Native names and payloads follow canonical Workspace/Tab/Panel identities and Client-local focus
-and viewport ownership. A Panel is the reference Pane; a source may explicitly identify a child
+and viewport ownership. A Panel is the observed terminal unit; a source may explicitly identify a child
 Presentation. Native typed receipts and structured terminal rows remain authoritative. This change
 does not add Desktop, macOS or Linux event consumers.
 
@@ -83,7 +83,7 @@ without emitting a partial match. Recent-unwrapped discards an incomplete older 
 the requested number of complete retained logical lines follows it; an incomplete requested line
 refuses instead of inventing its missing prefix.
 
-Agent status probes may emit the admitted initial current state, matching the reference behavior;
+Agent status probes may emit the admitted initial current state;
 later changes come from actual admitted Agent observations. Probe records identify their physical
 or Client observation origin separately from journal records. A journal cursor alone does not prove
 unobserved physical output/scroll transitions, and opening a new probe establishes a new baseline.

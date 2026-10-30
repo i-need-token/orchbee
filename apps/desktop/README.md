@@ -465,7 +465,7 @@ Focused traces cover:
   movement inside the pinned partition, stable explicit tab-title targeting, pre-filled custom-title
   editing, dynamic-title preservation beneath the custom value, blank reset to the latest natural
   title, Action-search discovery, focus restoration, and unchanged terminal input identity;
-- exact headed `terminal-parity/FS-12-panel-resize` Browser-composition witness for the Kitty-aligned
+- exact headed `terminal-parity/FS-12-panel-resize` Browser-composition witness for the
   resize-mode entry key and `W`/`N`/`T`/`S`/`R` vocabulary, Control-modified larger steps, nearest
   matching split-axis mutation, whole-Tab equal-weight reset, menu and Action-search discovery,
   stale-target closure, focus restoration, unchanged attachment identity during resize, and stable

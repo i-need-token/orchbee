@@ -14,7 +14,7 @@ and at most 128 UTF-8 bytes. Targets are at most 1024 ASCII bytes: an SSH host
 alias, `[user@]host`, or `ssh://[user@]host[:port]`; bracketed IPv6 is supported.
 Passwords and shell metacharacters are rejected. Session names use the native
 Windows Session grammar, defaulting to `default`. Duplicate target/session pairs
-may have distinct IDs, as in the reference.
+may have distinct IDs.
 
 | Event          | Guard and transition                                                                                  | Effects                                       |
 | -------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------- |
@@ -446,8 +446,8 @@ current-context values are qualified by that active machine. Workspace IDs are
 native workspace identities (required for every terminal), Tab IDs are native
 Tab identities, and pane IDs are exact Presentation identities, including child
 Presentations. Placement order comes from the snapshot's ordered workspace, Tab
-and pane placement. A missing context operand compares as missing, including the
-reference's missing-equals-missing behavior. UI presets/search further narrow the
+and pane placement. A missing context operand compares as missing, and two missing
+operands compare as equal. UI presets/search further narrow the
 source filter; explicit source sorting wins and the sort control explains its owner, otherwise the UI ordering applies.
 The source specification is read before and fenced after physical checkpoints;
 a changed or unavailable source never silently means an empty override.

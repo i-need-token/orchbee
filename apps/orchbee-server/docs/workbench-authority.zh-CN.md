@@ -75,7 +75,7 @@ identity 和 presentation identity。Server 与 会话 将所有 leaf binding �
 | 守卫或转换                                     | 可观察结果                                                             |
 | ---------------------------------------------- | ---------------------------------------------------------------------- |
 | 源／目标缺失、目录归属错误、修订过期或容量耗尽 | 拓扑和身份分配发布前拒绝。                                             |
-| 目标是源 Tab                                   | 保留带类型的 same-Tab 拒绝；CLI 工作流负责参考实现的无变化投影。       |
+| 目标是源 Tab                                   | 保留带类型的 same-Tab 拒绝；CLI 工作流负责无变化投影。                 |
 | 源仍有其他叶子                                 | 脱离叶子并折叠其父 Split。                                             |
 | 源只有该叶子                                   | 移除源 Tab，但不释放终端。                                             |
 | 跨上下文移动使源 Workspace 变空                | 移除 Workspace／上下文及显示顺序项，保留 Project／目录和全部终端绑定。 |
@@ -499,4 +499,4 @@ Panel 所属关系及非空、与期望一致的绑定，再应用来源守卫�
 [create-process]: ../tests/client_process/tab_create.rs
 [create-authority-tests]: ../src/workbench_authority/terminal_tab_create/tests.rs
 
-<!-- documentation-pairing: english-sha256=f5bc38df5e588d8f8e76ad52bcd4bbd89ea038e57688cb7b53196b190a250172 zh-cn-sha256=b2b1ecc7d10100b75de34269ebe006b0c9ec254a72e37064d5989686a984d85e -->
+<!-- documentation-pairing: english-sha256=fd9f240d00fba82a5d2d9dc0dce5738f798705e0cca6bffc8c06e427fd16195e zh-cn-sha256=f6faeee727d6d971dd2337d776bab9ce3e019b90787fd08052fa94dae8dbd899 -->

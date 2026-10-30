@@ -48,7 +48,7 @@ Layer ID 含 1–80 个 ASCII 字母、数字、点、下划线或连字符。�
 | 静态／空闲 | Clear                 | 没有活动 producer                       | 移除图层；不存在时成功且未变化 |
 | 任意       | Presentation 删除     | 规范身份不再存在                        | 回收图层与 producer            |
 
-Stream framing 遵循参考：有界 JSON header，后接声明长度的原始字节 body。每个接受的 frame
+Stream framing 为有界 JSON header，后接声明长度的原始字节 body。每个接受的 frame
 返回真实 sequence／revision 回执。Damage rectangle 是针对完整规范 frame 的有界提示，
 不是让未提供像素未定义的 patch。错误 framing 结束 producer 并释放图层。私有文件 frame
 仅准入 会话 所有的 producer 根下精确普通文件，固定尺寸并有界读取；消费后的 lease 与
@@ -130,4 +130,4 @@ OBWP 57/58 承载封闭的请求和结果。OBNG 承载受限、由 viewer 定�
 
 在同一已授权 Windows 补齐目标下，基础完成后先接入 CLI 上传及保留流，再接入实际 TUI 渲染与能力事实；两项均完成之后才进行组合验收。CLI 语法与输入规范由 [Windows Panel 图形 CLI](../../orchbee/docs/windows-panel-graphics.zh-CN.md) 拥有。实现顺序调整不改变对齐完成条件。
 
-<!-- documentation-pairing: english-sha256=c3043c4120b38ef557e8b0de0f41d67ffa0786e509d58c779f41cc3ef5b6667b zh-cn-sha256=accc3d7c488f227fd166128f91f494edc9c457a5316829db2af83862d48adacd -->
+<!-- documentation-pairing: english-sha256=f3dba78c987cfecfd23f55a2d39d1104a682894c571e1d7fc8b8cc150a60f506 zh-cn-sha256=5c2857199db04131980f1217d96181b6e8ae4e122311e80f374bfe53ffd53245 -->

@@ -489,4 +489,4 @@ pnpm --filter @orchbee/desktop benchmark -- \
 
 它还可以收集受控的 Ghostty 和仅主机引用。结果是诊断证据；它们不是当前开发阶段的合并或切片完成门。
 
-<!-- documentation-pairing: english-sha256=67203d1e1490bdd36ccdda9db69e01fcd88084c1a7efdda93e379bef8a88d0d3 zh-cn-sha256=47fbbd5847ece8c0b4fcffe16b30894842daa54eac7c8b069c11793313da4e66 -->
+<!-- documentation-pairing: english-sha256=849458cde55f98f5ff95b674a8bce8a17351c73c3f0aaf238fb3b930fe6606ca zh-cn-sha256=47fbbd5847ece8c0b4fcffe16b30894842daa54eac7c8b069c11793313da4e66 -->

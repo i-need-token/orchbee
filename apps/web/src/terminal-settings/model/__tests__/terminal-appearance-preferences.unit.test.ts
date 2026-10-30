@@ -22,7 +22,7 @@ describe('terminal appearance preferences', () => {
 		expect(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.terminalDisplayTheme).toBe('host');
 	});
 
-	it('applies the Kitty-compatible two-point font-size policy within product bounds', () => {
+	it('applies the two-point font-size policy within product bounds', () => {
 		expect(resolveTerminalFontSizeChange(13, 'increase')).toBe(15);
 		expect(resolveTerminalFontSizeChange(13, 'decrease')).toBe(11);
 		expect(resolveTerminalFontSizeChange(MAXIMUM_TERMINAL_FONT_SIZE - 1, 'increase')).toBe(

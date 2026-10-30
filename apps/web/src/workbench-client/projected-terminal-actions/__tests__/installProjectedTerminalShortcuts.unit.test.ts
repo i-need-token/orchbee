@@ -69,7 +69,7 @@ describe('projected terminal shortcuts', () => {
 		);
 	});
 
-	it('routes Kitty-aligned prompt navigation from terminal focus', () => {
+	it('routes prompt navigation from terminal focus', () => {
 		const harness = shortcutHarness('apple');
 		const previous = harness.keyDown(
 			{ ...baseEvent, code: 'KeyZ', ctrlKey: true, shiftKey: true },
@@ -122,7 +122,7 @@ describe('projected terminal shortcuts', () => {
 		expect(harness.invoke).toHaveBeenCalledOnce();
 	});
 
-	it('routes Kitty-aligned history scrolling and leaves unavailable bindings unconsumed', () => {
+	it('routes history scrolling and leaves unavailable bindings unconsumed', () => {
 		const harness = shortcutHarness('standard');
 		const shortcuts = [
 			['ArrowUp', 'terminal.history.scroll-line-up'],

@@ -81,7 +81,7 @@ describe('projected terminal shortcut declarations', () => {
 		expect(formatProjectedTerminalActionShortcut('unknown', 'apple')).toBeNull();
 	});
 
-	it('resolves Kitty-aligned scrollback only while the terminal is focused', () => {
+	it('resolves scrollback only while the terminal is focused', () => {
 		const event = {
 			altKey: false,
 			code: 'KeyH',
@@ -99,7 +99,7 @@ describe('projected terminal shortcut declarations', () => {
 		expect(resolveProjectedTerminalShortcut(event, 'apple', 'viewer')).toBeNull();
 	});
 
-	it('resolves Kitty-aligned command output only while the terminal is focused', () => {
+	it('resolves command output only while the terminal is focused', () => {
 		const event = {
 			altKey: false,
 			code: 'KeyG',
@@ -142,7 +142,7 @@ describe('projected terminal shortcut declarations', () => {
 		['PageDown', 'scrollPageDown', 'terminal.history.scroll-page-down'],
 		['Home', 'scrollToTop', 'terminal.history.scroll-top'],
 		['End', 'scrollToBottom', 'terminal.history.scroll-bottom'],
-	] as const)('resolves Kitty-aligned %s history scrolling', (code, action, actionId) => {
+	] as const)('resolves %s history scrolling', (code, action, actionId) => {
 		expect(
 			resolveProjectedTerminalShortcut(
 				{
@@ -160,7 +160,7 @@ describe('projected terminal shortcut declarations', () => {
 		).toMatchObject({ action, actionId });
 	});
 
-	it('resolves Kitty-aligned prompt navigation only for terminal focus', () => {
+	it('resolves prompt navigation only for terminal focus', () => {
 		expect(
 			resolveProjectedTerminalShortcut(
 				{

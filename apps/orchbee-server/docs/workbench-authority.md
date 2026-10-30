@@ -90,7 +90,7 @@ remains separately tracked.
 | Guard or transition                                                               | Observable result                                                                                              |
 | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Missing source/destination, foreign directory, stale revision or exhausted bounds | Refuse before any topology or identity allocation is published.                                                |
-| Destination is the source Tab                                                     | Existing typed same-Tab refusal; the CLI workflow owns the reference no-op projection.                         |
+| Destination is the source Tab                                                     | Existing typed same-Tab refusal; the CLI workflow owns the no-op projection.                                   |
 | Source has another leaf                                                           | Detach the leaf and collapse its parent Split.                                                                 |
 | Source has only that leaf                                                         | Remove the source Tab, without disposing its terminal.                                                         |
 | Cross-context move empties a source Workspace                                     | Remove that Workspace/context and its display-order entry; keep Project/directories and all terminal bindings. |

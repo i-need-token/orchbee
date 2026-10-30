@@ -1,11 +1,11 @@
 # Windows 语义事件订阅
 
-## 已接受行为与参考
+## 已接受行为
 
 Windows 脚本通过有所有者的事件流观察真实 Workspace、Tab、Panel、worktree、Agent 和 Client 变化，或等待指定变化。当前快照不能代替保留历史。
 
 原生命名与载荷遵循规范 Workspace／Tab／Panel 身份，以及 Client 本地焦点和 viewport 所有权。
-Panel 对应参考的 Pane；来源可明确指定子 Presentation。原生明确类型回执及结构化终端行
+Panel 是被观察的终端单元；来源可明确指定子 Presentation。原生明确类型回执及结构化终端行
 保持权威。本项不增加 Desktop、macOS 或 Linux 事件消费者。
 
 ## 事件所有权与顺序
@@ -69,7 +69,7 @@ visible 表示所选 Client 的 viewport；recent-unwrapped 合并已证明的�
 Recent-unwrapped 仅在不完整的旧前缀之后已有足量完整保留逻辑行时丢弃该前缀；
 请求本身包含不完整行时拒绝，不能编造丢失的前缀。
 
-Agent 状态探测可以发出已准入的当前初始状态，与参考一致；后续变化来自真实已准入 Agent
+Agent 状态探测可以发出已准入的当前初始状态；后续变化来自真实已准入 Agent
 观察。探测记录将物理或 Client 观察来源与日志记录明确区分。单一日志 cursor 不能证明未观察的
 物理输出／滚动变化；新探测建立新基线。来源丢失或临时 viewer 回收不确定时，保留明确拒绝／
 unknown 所有权状态，旧所有者结算前不附着替代观察器。
@@ -95,4 +95,4 @@ stream 以自己的 closed 记录结束，并明确确定关闭或释放连接�
 片段返回 Busy，保留订阅与 actor。CLI 在整体截止时间内沿原所有者重试 Busy；截止时仍未
 观察到基线则返回实际 Busy 回执，不伪造超时。
 
-<!-- documentation-pairing: english-sha256=e7fb3e0137ff7399e82f2c9d26e78afb0f111f70ce8388b86599e017e5c2d1ff zh-cn-sha256=9b78ec6f636bf6fcc7bf330c1ebc260e43b68366c26c442b24c808c8c3df26e7 -->
+<!-- documentation-pairing: english-sha256=6621ea40db7f3ab8ded4e8f3369414de7443272c5dd2d48a1398a6c5c2422efb zh-cn-sha256=cc56c1261fab32268c32ee30ebc005e22470b1781c409a560e9032a5e56ee27e -->
