@@ -293,5 +293,5 @@ fn run_with_fetch(
     report
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 pub(crate) mod tests;

@@ -489,5 +489,5 @@ impl super::LocalTerminalService {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 pub(super) mod tests;

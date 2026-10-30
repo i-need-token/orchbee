@@ -24,6 +24,7 @@ pub(super) struct Schedule {
     discovery: Option<Cursor>,
 }
 mod explanation;
+mod host_sampling;
 mod manifests;
 #[derive(Default)]
 struct Wake {
@@ -185,6 +186,16 @@ impl LocalTerminalService {
     /// live profile and the frozen reload location all come from it; nothing rereads the file
     /// until an explicit reload. The composition root has already frozen the preference scope
     /// from the same read.
+    /// Starts the observer where Hosts sample processes, reading the startup configuration only
+    /// then. Elsewhere it refuses with `Unsupported`, and the Session runs without an observer.
+    pub(crate) fn start_process_observer(
+        self: &Arc<Self>,
+        configuration: impl FnOnce() -> io::Result<orchbee_local_runtime::UserSettingsLoad>,
+        background: bool,
+    ) -> io::Result<()> {
+        host_sampling::require()?;
+        self.start_process_observer_with_configuration(configuration()?, background)
+    }
     pub(crate) fn start_process_observer_with_configuration(
         self: &Arc<Self>,
         configuration: orchbee_local_runtime::UserSettingsLoad,
@@ -369,5 +380,5 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: Scree
         }
     }
 }
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests;

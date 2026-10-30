@@ -23,10 +23,8 @@ use orchbee_client_server_protocol::{
 };
 
 mod editor;
-#[cfg(windows)]
 pub(in crate::local_terminal_service) mod process_sampling;
 mod routing;
-#[cfg(windows)]
 pub(super) use process_sampling::{CapturedAgentExplanation, PendingCleanup};
 
 const MAXIMUM_CONNECTION_VIEWERS: usize = 8;

@@ -6,7 +6,6 @@ mod configuration;
 pub(crate) mod configured_commands;
 mod independent_popup;
 pub(crate) use independent_popup::PopupOwner;
-#[cfg(windows)]
 mod observation;
 #[cfg(windows)]
 mod pane_graphics;
@@ -50,7 +49,6 @@ mod operation_maintenance;
 mod panel_agent;
 mod panel_create;
 mod panel_metadata;
-#[cfg(windows)]
 mod process_observer;
 mod projection;
 mod send;
@@ -84,7 +82,6 @@ const AGENT_DRAIN_READ_RETRY: Duration = Duration::from_millis(25);
 pub(crate) struct LocalTerminalService {
     preferences: std::sync::OnceLock<orchbee_local_runtime::UserPreferencesStore>,
     configuration: configuration::Registry,
-    #[cfg(windows)]
     observer: observation::Observer,
     #[cfg(windows)]
     graphics_preparation: Mutex<()>,
@@ -93,7 +90,6 @@ pub(crate) struct LocalTerminalService {
     #[cfg(windows)]
     graphics_stopping: std::sync::atomic::AtomicBool,
     popups: independent_popup::Popups,
-    #[cfg(windows)]
     process_observer: process_observer::ProcessObserver,
     close_maintenance: close_maintenance::CloseMaintenance,
     worktree_maintenance: operation_maintenance::OperationMaintenance,
@@ -131,7 +127,6 @@ impl LocalTerminalService {
         Self {
             preferences: std::sync::OnceLock::new(),
             configuration: configuration::Registry::default(),
-            #[cfg(windows)]
             observer: observation::Observer::default(),
             #[cfg(windows)]
             graphics_preparation: Mutex::default(),
@@ -141,7 +136,6 @@ impl LocalTerminalService {
             graphics_stopping: std::sync::atomic::AtomicBool::new(false),
             popups: independent_popup::Popups::default(),
             close_maintenance: close_maintenance::CloseMaintenance::default(),
-            #[cfg(windows)]
             process_observer: process_observer::ProcessObserver::default(),
             worktree_maintenance: operation_maintenance::OperationMaintenance::new(
                 "orchbee-worktree-operations",

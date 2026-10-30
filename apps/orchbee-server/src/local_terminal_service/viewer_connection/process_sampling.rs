@@ -22,7 +22,6 @@ pub(in crate::local_terminal_service) struct PendingCleanup {
     template: WorkerRequest,
 }
 impl PendingCleanup {
-    #[cfg(windows)]
     pub(in crate::local_terminal_service) fn matches_target(
         &self,
         target: BindingViewerTarget,
@@ -113,7 +112,6 @@ impl LocalTerminalService {
         self.with_issued_observation_viewer(target, stop, issued, observe)
     }
 
-    #[cfg(windows)]
     pub(in crate::local_terminal_service) fn with_reference_observation_viewer(
         &self,
         target: &ProcessObservationTarget,

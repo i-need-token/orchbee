@@ -34,7 +34,6 @@ impl SessionCoordinator {
         let Some(authority) = self.workbench.as_ref() else {
             return TargetLifecycle::Unfenced;
         };
-        #[cfg(windows)]
         if self.terminals.target_retired(target) {
             return TargetLifecycle::Fenced;
         }

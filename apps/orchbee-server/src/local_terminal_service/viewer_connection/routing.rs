@@ -527,7 +527,6 @@ pub(super) fn valid_process_record(
 ) -> bool {
     match process_record(viewer, operation, record) {
         Ok(Some(info)) => {
-            #[cfg(windows)]
             viewer.service.observe_host_process(
                 &viewer.handle,
                 viewer.target,
@@ -536,8 +535,6 @@ pub(super) fn valid_process_record(
                 None,
                 started,
             );
-            #[cfg(not(windows))]
-            let _ = (info, started);
             true
         }
         Ok(None) => true,

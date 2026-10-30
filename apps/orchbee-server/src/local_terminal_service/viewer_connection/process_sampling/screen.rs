@@ -542,5 +542,5 @@ fn checkpoint_directory(
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests;

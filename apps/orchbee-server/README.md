@@ -195,8 +195,10 @@ restart. The ordinary explicit-endpoint test entry retains the behavior below.
 Linux and macOS compile the same Workbench dispatch as Windows. A Windows-only capability runs
 until its platform adapter or an owner this startup never initializes refuses it with that
 owner's typed outcome: plugin stores and Worker plugin jobs answer `Unsupported`, and
-configuration-backed requests answer `Unavailable`. Terminal editor and Client view requests keep
-their earlier refusal at admission until their behavior off Windows is decided.
+configuration-backed requests answer `Unavailable`. Startup asks the process observer to start,
+and it refuses with `Unsupported` before reading settings because these Hosts cannot sample
+processes, so Agent manifest requests answer `Unavailable`. Terminal editor, Client view and Panel
+Agent requests keep their earlier refusal at admission until their behavior off Windows is decided.
 
 ## Local Worker service
 

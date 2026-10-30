@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 const READ_WINDOW: Duration = Duration::from_secs(4);
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests;
 
 struct Job {

@@ -47,19 +47,16 @@ mod agent_names;
 mod agent_registration;
 #[cfg(windows)]
 mod pane_graphics;
-#[cfg(windows)]
 mod process_observation;
 #[cfg(windows)]
 mod semantic_events;
-#[cfg(test)]
+#[cfg(all(test, windows))]
 pub(crate) use process_observation::SETTLE as PROCESS_IDENTITY_SETTLE;
-#[cfg(windows)]
 pub(crate) use process_observation::{ProcessObservationTarget, identify as identify_host_agent};
 
 pub(crate) struct SessionCoordinator {
     terminals: TerminalCoordinator,
     workbench: Option<WorkbenchAuthority>,
-    #[cfg(windows)]
     process_samples: process_observation::Samples,
     #[cfg(windows)]
     terminal_observations: semantic_events::Observations,
@@ -75,7 +72,6 @@ impl SessionCoordinator {
         Self {
             terminals: TerminalCoordinator::new(),
             workbench,
-            #[cfg(windows)]
             process_samples: process_observation::Samples::new(),
             #[cfg(windows)]
             terminal_observations: semantic_events::Observations::new(),
@@ -106,7 +102,6 @@ impl SessionCoordinator {
         Some(self.workbench.as_mut()?.workspace_metadata(request, now))
     }
 
-    #[cfg(any(windows, test))]
     fn terminal_agent_bindings(
         &self,
     ) -> Result<
@@ -124,7 +119,6 @@ impl SessionCoordinator {
             .collect())
     }
 
-    #[cfg(any(windows, test))]
     pub(crate) fn panel_agent(
         &mut self,
         request: orchbee_workbench_protocol::PanelAgentRequest,
@@ -163,7 +157,6 @@ impl SessionCoordinator {
         Some(result)
     }
 
-    #[cfg(windows)]
     pub(crate) fn prepare_agent_explanation(
         &mut self,
         request: &orchbee_workbench_protocol::PanelAgentRequest,

@@ -74,7 +74,7 @@ pub(super) fn run(
             .launch_checkpoint_terminals(restored, startup_deadline)?;
         owners
             .terminals
-            .start_process_observer_with_configuration(configuration, true)?;
+            .start_process_observer(move || Ok(configuration), true)?;
         let worker = checkpoint_worker(&owners.handle)?;
         owners.checkpoint_saver = Some(super::checkpoint_windows::autosave::Saver::start(
             Arc::clone(&owners.checkpoint_store),

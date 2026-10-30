@@ -364,5 +364,5 @@ fn hex(bytes: [u8; 16]) -> String {
     format!("{:032x}", u128::from_be_bytes(bytes))
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests;

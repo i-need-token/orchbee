@@ -3,27 +3,22 @@ use super::LocalTerminalService;
 use orchbee_workbench_protocol::{
     PanelAgentFailure, PanelAgentOutcome, PanelAgentRequest, PanelAgentResult, ProtocolVersion,
 };
-#[cfg(windows)]
 mod explanation;
-#[cfg(windows)]
 mod titles;
 impl LocalTerminalService {
     pub(crate) fn execute_panel_agent(&self, request: PanelAgentRequest) -> PanelAgentResult {
-        #[cfg(windows)]
         if matches!(
             request.action,
             orchbee_workbench_protocol::PanelAgentAction::Explain { .. }
         ) {
             return self.explain_panel_agent(&request);
         }
-        #[cfg(windows)]
         if matches!(
             request.action,
             orchbee_workbench_protocol::PanelAgentAction::Titles { .. }
         ) {
             return self.read_panel_titles(&request);
         }
-        #[cfg(windows)]
         if matches!(
             request.action,
             orchbee_workbench_protocol::PanelAgentAction::Identify { .. }
@@ -51,80 +46,66 @@ impl LocalTerminalService {
                 reason: PanelAgentFailure::Unavailable,
             },
         };
-        #[cfg(windows)]
-        {
-            if matches!(
-                &request.action,
-                orchbee_workbench_protocol::PanelAgentAction::Observe { .. }
-                    | orchbee_workbench_protocol::PanelAgentAction::States { .. }
-            ) {
-                let Ok(workers) = self.workers.lock() else {
-                    return unavailable;
-                };
-                let handle = workers.request_handle();
-                let Some(worker) = super::placement(handle.as_ref().filter(|h| h.is_active()))
-                else {
-                    return unavailable;
-                };
-                let Ok(mut coordinator) = self.coordinator.lock() else {
-                    return unavailable;
-                };
-                let Ok(facts) = coordinator.agent_registration_snapshot() else {
-                    return unavailable;
-                };
-                let valid = match &request.action {
-                    orchbee_workbench_protocol::PanelAgentAction::Observe { binding, .. } => {
-                        facts.iter().any(|fact| {
-                            fact.presentation_id().as_str() == binding.presentation_id.as_str()
-                                && fact.worker_id() == worker.worker_id
-                                && fact.worker_generation() == worker.generation
-                        })
-                    }
-                    orchbee_workbench_protocol::PanelAgentAction::States { presentation_ids } => {
-                        facts
-                            .iter()
-                            .filter(|fact| {
-                                presentation_ids
-                                    .iter()
-                                    .any(|id| id.as_str() == fact.presentation_id().as_str())
-                            })
-                            .all(|fact| {
-                                fact.worker_id() == worker.worker_id
-                                    && fact.worker_generation() == worker.generation
-                            })
-                    }
-                    orchbee_workbench_protocol::PanelAgentAction::Titles { .. }
-                    | orchbee_workbench_protocol::PanelAgentAction::ReadPresentations { .. }
-                    | orchbee_workbench_protocol::PanelAgentAction::Explain { .. }
-                    | orchbee_workbench_protocol::PanelAgentAction::Identify { .. }
-                    | orchbee_workbench_protocol::PanelAgentAction::Read { .. }
-                    | orchbee_workbench_protocol::PanelAgentAction::ReportPresentation { .. }
-                    | orchbee_workbench_protocol::PanelAgentAction::Report { .. } => false,
-                };
-                if !valid {
-                    return unavailable;
+        if matches!(
+            &request.action,
+            orchbee_workbench_protocol::PanelAgentAction::Observe { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::States { .. }
+        ) {
+            let Ok(workers) = self.workers.lock() else {
+                return unavailable;
+            };
+            let handle = workers.request_handle();
+            let Some(worker) = super::placement(handle.as_ref().filter(|h| h.is_active())) else {
+                return unavailable;
+            };
+            let Ok(mut coordinator) = self.coordinator.lock() else {
+                return unavailable;
+            };
+            let Ok(facts) = coordinator.agent_registration_snapshot() else {
+                return unavailable;
+            };
+            let valid = match &request.action {
+                orchbee_workbench_protocol::PanelAgentAction::Observe { binding, .. } => {
+                    facts.iter().any(|fact| {
+                        fact.presentation_id().as_str() == binding.presentation_id.as_str()
+                            && fact.worker_id() == worker.worker_id
+                            && fact.worker_generation() == worker.generation
+                    })
                 }
-                return coordinator
-                    .panel_agent(request, std::time::Instant::now())
-                    .unwrap_or(unavailable);
+                orchbee_workbench_protocol::PanelAgentAction::States { presentation_ids } => facts
+                    .iter()
+                    .filter(|fact| {
+                        presentation_ids
+                            .iter()
+                            .any(|id| id.as_str() == fact.presentation_id().as_str())
+                    })
+                    .all(|fact| {
+                        fact.worker_id() == worker.worker_id
+                            && fact.worker_generation() == worker.generation
+                    }),
+                orchbee_workbench_protocol::PanelAgentAction::Titles { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::ReadPresentations { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::Explain { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::Identify { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::Read { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::ReportPresentation { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::Report { .. } => false,
+            };
+            if !valid {
+                return unavailable;
             }
-            self.coordinator
-                .lock()
-                .ok()
-                .and_then(|mut coordinator| {
-                    coordinator.panel_agent(request, std::time::Instant::now())
-                })
-                .unwrap_or(unavailable)
+            return coordinator
+                .panel_agent(request, std::time::Instant::now())
+                .unwrap_or(unavailable);
         }
-        #[cfg(not(windows))]
-        {
-            let _ = request;
-            unavailable
-        }
+        self.coordinator
+            .lock()
+            .ok()
+            .and_then(|mut coordinator| coordinator.panel_agent(request, std::time::Instant::now()))
+            .unwrap_or(unavailable)
     }
 }
 
-#[cfg(windows)]
 impl LocalTerminalService {
     pub(super) fn observe_host_process(
         &self,

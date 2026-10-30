@@ -35,7 +35,6 @@ impl RegistrationFact {
     }
 
     #[must_use]
-    #[cfg(any(windows, test))]
     pub fn binding(&self) -> &PresentationBinding {
         &self.binding
     }
@@ -91,7 +90,6 @@ impl SessionCoordinator {
     }
 
     /// Checkpoint-owned bounded selection; ordinary canonical registration keeps its own bound.
-    #[cfg(any(windows, test))]
     pub(crate) fn agent_registration_for_bindings(
         &self,
         bindings: &[PresentationBinding],

@@ -52,7 +52,9 @@ fn withheld_off_windows(request: &WorkbenchRequest) -> bool {
     !cfg!(windows)
         && matches!(
             request,
-            WorkbenchRequest::TerminalEditor(_) | WorkbenchRequest::ClientView(_)
+            WorkbenchRequest::TerminalEditor(_)
+                | WorkbenchRequest::ClientView(_)
+                | WorkbenchRequest::PanelAgent(_)
         )
 }
 
@@ -236,10 +238,7 @@ impl WorkbenchService {
                 return WorkbenchExecution::Response(WorkbenchResponse::Settings(self.terminals.execute_settings(request.clone())));
             }
             WorkbenchRequest::AgentManifests(request) => {
-                #[cfg(windows)]
                 return WorkbenchExecution::Response(WorkbenchResponse::AgentManifests(self.terminals.execute_agent_manifests(request.clone())));
-                #[cfg(not(windows))]
-                { let _ = request; return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::AgentManifests(request.clone()), false)); }
             }
             WorkbenchRequest::PanelAgent(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::PanelAgent(

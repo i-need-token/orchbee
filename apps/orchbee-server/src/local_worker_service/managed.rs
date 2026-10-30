@@ -173,6 +173,18 @@ pub(super) fn run(
     )?;
     #[cfg(not(windows))]
     terminals.start_close_maintenance()?;
+    // Hosts here cannot sample processes, so the observer refuses before reading settings.
+    #[cfg(not(windows))]
+    match terminals.start_process_observer(
+        || {
+            orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
+                .map_err(io::Error::other)
+        },
+        true,
+    ) {
+        Err(error) if error.kind() == io::ErrorKind::Unsupported => {}
+        started => started?,
+    }
     #[cfg(windows)]
     {
         let (handle, terminals, pending) = match initialized {

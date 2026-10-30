@@ -14,7 +14,7 @@ use orchbee_workbench_protocol::PresentationBinding;
 use std::{collections::BTreeMap, time::Instant};
 mod command_line;
 mod identity;
-#[cfg(test)]
+#[cfg(all(test, windows))]
 pub(crate) use identity::SETTLE;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Selected {
@@ -315,7 +315,6 @@ impl SessionCoordinator {
 
     /// Answers `identify` for the presentation's current Terminal generation: the canonical
     /// owner resolves the generation, and this state supplies its identity under one lock.
-    #[cfg(windows)]
     pub(crate) fn identify_presentation(
         &mut self,
         request: &orchbee_workbench_protocol::PanelAgentRequest,

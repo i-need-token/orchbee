@@ -450,5 +450,5 @@ impl LocalTerminalService {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests;
