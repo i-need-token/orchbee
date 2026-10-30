@@ -1,6 +1,8 @@
 use super::*;
 use crate::machines::Draft;
-use crate::tui_pointer::FrameHitMap;
+use crate::tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget};
+use crate::tui_theme::Theme;
+use ratatui::layout::Rect;
 use std::ops::Deref;
 fn profile(n: u8, label: &str, enabled: bool) -> Profile {
     Profile {

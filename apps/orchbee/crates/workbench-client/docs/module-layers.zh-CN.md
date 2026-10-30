@@ -84,7 +84,9 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 | `machine_agents`                              | `workflow`     | 跨机器 Agent 观测作业及其有界检查点。                                                        |
 | `machine_discovery`                           | `workflow`     | 已启用的已保存机器的只读观测者。                                                             |
 | `machine_observation`                         | `workflow`     | 机器作业共用的有界、可取消观测生命周期。                                                     |
-| `machine_picker`                              | `state`        | Client 本地的机器选择。其绘制器移到 `presentation`，指针处理移到 `input`。                   |
+| `machine_picker`                              | `state`        | Client 本地的机器选择。                                                                      |
+| `machine_picker::paint`                       | `presentation` | 捕获输入的机器选择器、其 Agent 控件和查询行的绘制。                                          |
+| `machine_picker::pointer`                     | `input`        | 应用到已绘制机器选择器目标上的释放和滚轮移动。                                               |
 | `machine_spaces`                              | `workflow`     | 通过机器观测读取的 Workspace 元数据和本地 Git 检查点。                                       |
 | `machine_ssh`                                 | `workflow`     | 为已保存机器构建并运行 SSH 命令的适配器。                                                    |
 | `machine_tunnel`                              | `workflow`     | 已保存机器的 carrier 适配器。                                                                |
@@ -170,4 +172,4 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 可列出每个环和每个指向高层的引用及其源码位置样本；[Lint](../../../../../docs/zh-CN/LINTING.md)
 拥有该命令。
 
-<!-- documentation-pairing: english-sha256=14f0a47197c6c1800afbbb5c518b148c2aa3f0fe6b8edf1c3a9ea10d0e470bb8 zh-cn-sha256=f7aceaa3f84c053dc06d286d57ca83178df09b09443e5efb856f0416966c3fb7 -->
+<!-- documentation-pairing: english-sha256=5f5bc30882684a05034a80e09f38cafed744e0b471b99ad8c1539e3de181a759 zh-cn-sha256=ae81a3624a840127097b401c7f3e010ac0881749517b99cccf3f295207828d5e -->

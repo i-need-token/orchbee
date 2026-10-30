@@ -1,12 +1,7 @@
 //! Workspace-name filtering and its local editor; typing never becomes list shortcuts or effects.
-use super::{
-    Control, Frame, KeyCode, Locale, Mode, Modifiers, Picker, PickerAction, PickerSource, Rect,
-    Row, Selection, Theme, agents::AgentAction, picker_interaction,
-};
+use super::{KeyCode, Mode, Modifiers, Picker, Row, Selection};
 use crate::{
-    terminal_text::{display_width, sanitize_terminal_text, unique_identity_suffix},
-    tui_pointer::{HitLayer, HitMapBuilder},
-    tui_render::controls::{ActionKind, QueryField, render_query_field},
+    terminal_text::{sanitize_terminal_text, unique_identity_suffix},
     workbench_client::ClientContextLocation,
 };
 use orchbee_workbench_protocol::SessionId;
@@ -130,58 +125,6 @@ impl Picker {
         self.error = None;
         self.filter_workspaces(selected);
         true
-    }
-
-    pub(super) fn render_workspace_query(
-        &self,
-        frame: &mut Frame<'_>,
-        inner: &mut Rect,
-        locale: Locale,
-        theme: &Theme,
-        source: &PickerSource,
-        hits: &mut HitMapBuilder,
-    ) {
-        if self.mode != Mode::Workspaces || inner.height < 4 {
-            return;
-        }
-        let mut field = Rect::new(inner.x, inner.y, inner.width, 1);
-        let clear_label = locale.machine_picker_text("picker-clear-hint");
-        let clear_width = u16::try_from(display_width(clear_label) + 4).unwrap_or(u16::MAX);
-        if field.width > clear_width.saturating_add(16) {
-            let area = Rect::new(field.right() - clear_width, field.y, clear_width, 1);
-            if let Some(painted) = self.render_agent_action(
-                frame,
-                AgentAction {
-                    area,
-                    control: Control::Clear,
-                    label: clear_label,
-                    kind: ActionKind::Secondary,
-                },
-                theme,
-                source,
-                hits,
-            ) {
-                field.width = painted.x.saturating_sub(field.x).saturating_sub(1);
-            }
-        }
-        // Typing in Workspaces mode always reaches this query, so it keeps its editing form.
-        let _ = render_query_field(
-            frame,
-            field,
-            QueryField::Editing {
-                label: locale.machine_picker_text("workspace-search"),
-                query: self.workspace_query.text(),
-                cursor: self.workspace_query.cursor(),
-            },
-            theme,
-        );
-        if let Some((target, interaction)) =
-            picker_interaction(source, PickerAction::Control(Control::Search))
-        {
-            hits.record_interaction(HitLayer::Overlay, field, field, target, interaction);
-        }
-        inner.y += 1;
-        inner.height -= 1;
     }
 }
 
