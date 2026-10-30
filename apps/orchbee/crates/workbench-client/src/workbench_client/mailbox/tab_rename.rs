@@ -11,7 +11,7 @@ use super::{
 };
 use crate::workbench_client::state::{
     WorkbenchClientState,
-    rename_draft::RenameDraftToken,
+    rename_draft::DraftToken,
     tab_rename::{RenameOperation, RenameResult},
 };
 
@@ -70,7 +70,7 @@ impl CommandMailbox {
     pub(in crate::workbench_client) fn open_rename_draft_for(
         &self,
         canonical: &mut WorkbenchClientState,
-    ) -> Option<RenameDraftToken> {
+    ) -> Option<DraftToken> {
         let state = self.lock();
         if Self::ensure_open(&state).is_err()
             || state.desired.awaiting_bootstrap()
@@ -93,7 +93,7 @@ impl CommandMailbox {
     pub(in crate::workbench_client) fn try_enqueue_rename_for(
         &self,
         canonical: &mut WorkbenchClientState,
-        token: RenameDraftToken,
+        token: DraftToken,
         deadline: Instant,
         clock: &LocalOperationClock,
     ) -> Result<RenameOperation, MoveAdmissionError<()>> {
@@ -102,7 +102,7 @@ impl CommandMailbox {
     pub(super) fn try_enqueue_rename_for_using(
         &self,
         canonical: &mut WorkbenchClientState,
-        token: RenameDraftToken,
+        token: DraftToken,
         deadline: Instant,
         clock: &dyn MailboxClock,
     ) -> Result<RenameOperation, MoveAdmissionError<()>> {

@@ -11,7 +11,7 @@ use crate::{
         display_width, sanitize_terminal_text, truncate_display, truncate_display_start,
     },
     tui_layout::ViewportTier,
-    tui_pointer::{
+    tui_pointer::hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, ListScrollTarget,
         PrimaryContract, ProjectedPointer,
     },

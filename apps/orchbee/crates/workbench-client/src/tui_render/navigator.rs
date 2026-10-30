@@ -9,7 +9,7 @@ use crate::{
         KeyLabelGlyphs, PrefixAction,
         navigator::{Command, Target, label_with_glyphs},
     },
-    tui_pointer::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
+    tui_pointer::hit_map::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
     tui_theme::GlyphMode,
 };
 
@@ -174,7 +174,9 @@ pub(super) fn render(
             hits.record(
                 HitLayer::OverlaySurface,
                 rect,
-                HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Navigator(row)),
+                HitTarget::ListScroll(crate::tui_pointer::hit_map::ListScrollTarget::Navigator(
+                    row,
+                )),
             );
         }
     }

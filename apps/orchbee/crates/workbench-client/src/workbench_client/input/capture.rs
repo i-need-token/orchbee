@@ -2,13 +2,11 @@
 
 use crate::localization::SetupStage;
 use crate::tui_presentation::PresentationPhase;
-use crate::workbench_client::state::rename_draft;
 use crate::workbench_client::state::workspace_close::WorkspaceCloseToken;
 use crate::workbench_client::state::workspace_setup::SetupToken;
 use crate::workbench_client::state::{CloseConfirmationToken, PanelCloseConfirmationToken};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct RenameDraftToken(pub(in crate::workbench_client) rename_draft::RenameDraftToken);
+pub use crate::workbench_client::state::rename_draft::RenameDraftToken;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CaptureReadiness {

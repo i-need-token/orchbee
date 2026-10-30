@@ -18,8 +18,9 @@ in the `presentation` layer of the [module layers](module-layers.md#components) 
 - Components paint admitted state and return painted rectangles. They never derive an intent from
   copy or glyphs, infer availability, or start a feature effect; the feature owner supplies the
   typed target, availability, and copy.
-- Hit-map registration still goes through `tui_pointer`. It leaves the components when the hit-map
-  and interaction-projection types move to `values`.
+- Compositions record their painted regions into the frame hit map, `tui_pointer::hit_map`. It stays
+  in `presentation` because regions carry their owners' painted witnesses. Control-state types sit in
+  `values` under `tui_render::controls::control_state`.
 
 ## Primitives
 

@@ -8,7 +8,9 @@ use crate::{
     terminal_copy::CopySearchDirection,
     terminal_copy_mode::{CopyControl, CopyModeStatus, CopyModeView},
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
-    tui_pointer::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ProjectedPointer},
+    tui_pointer::hit_map::{
+        HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ProjectedPointer,
+    },
     tui_theme::{GlyphMode, Role, Theme},
 };
 use ratatui::{Frame, layout::Rect, style::Modifier, widgets::Clear};

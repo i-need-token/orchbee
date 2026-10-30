@@ -12,7 +12,7 @@ use super::{
 use crate::client_view::{KeyLabelGlyphs, Overlay};
 use crate::machine_discovery::display_label;
 use crate::tui_layout::{DrawnSidebarWidth, SidebarWidthDrag};
-use crate::tui_pointer::{
+use crate::tui_pointer::hit_map::{
     HitTarget, InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer,
 };
 use ratatui::style::Style;

@@ -27,6 +27,7 @@ mod field_window;
 pub(super) use crate::terminal_text::line_editor;
 mod tab_groups;
 pub(super) use tab_groups::TabSelectionChange;
+pub(crate) use tab_groups::TabStripStart;
 pub(super) mod workspace_close;
 pub(super) mod workspace_setup;
 pub(super) mod worktree_launch;

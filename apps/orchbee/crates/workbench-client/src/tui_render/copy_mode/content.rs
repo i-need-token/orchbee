@@ -4,7 +4,7 @@ use ratatui::{Frame, layout::Rect, widgets::Clear};
 
 use crate::{
     terminal_copy_mode::{CopyModeCursor, CopyModeToken, CopyModeView, Surface},
-    tui_pointer::{HitLayer, HitMapBuilder, HitTarget, ListScrollTarget},
+    tui_pointer::hit_map::{HitLayer, HitMapBuilder, HitTarget, ListScrollTarget},
     tui_theme::{Role, Theme},
     workbench_client::{ViewportSurface, WorkbenchClientView},
 };

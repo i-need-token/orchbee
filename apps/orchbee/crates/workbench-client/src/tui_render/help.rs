@@ -9,7 +9,7 @@ use crate::{
     localization::{Locale, ShellText},
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_layout::place_overlay,
-    tui_pointer::{
+    tui_pointer::hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
         ProjectedPointer,
     },
@@ -230,7 +230,7 @@ pub(super) fn render(
     hits.record(
         HitLayer::OverlaySurface,
         rows_area,
-        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Help(source)),
+        HitTarget::ListScroll(crate::tui_pointer::hit_map::ListScrollTarget::Help(source)),
     );
     hits.record_help_draw(source);
     Some(area)

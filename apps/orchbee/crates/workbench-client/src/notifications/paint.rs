@@ -16,7 +16,7 @@ pub fn render(
     frame: &mut Frame<'_>,
     state: &State,
     theme: &Theme,
-    hits: &mut crate::tui_pointer::HitMapBuilder,
+    hits: &mut crate::tui_pointer::hit_map::HitMapBuilder,
 ) -> Option<Rect> {
     let Some(visible) = &state.visible else {
         return None;
@@ -90,9 +90,9 @@ pub fn render(
         inner,
     );
     hits.record(
-        crate::tui_pointer::HitLayer::Notification,
+        crate::tui_pointer::hit_map::HitLayer::Notification,
         rect,
-        crate::tui_pointer::HitTarget::OverlaySurface,
+        crate::tui_pointer::hit_map::HitTarget::OverlaySurface,
     );
     Some(rect)
 }

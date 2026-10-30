@@ -10,7 +10,7 @@ use crate::{
     client_view::{Binding, KeyCode, Modifiers},
     localization::Locale,
     terminal_text::{sanitize_terminal_text, truncate_display},
-    tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
+    tui_pointer::hit_map::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::{Role, Theme},
     workbench_client::{ModalPresentation, RenameDraftToken, RenameDraftView},
 };

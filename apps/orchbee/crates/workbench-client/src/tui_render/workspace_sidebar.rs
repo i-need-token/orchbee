@@ -17,7 +17,7 @@ use crate::{
     machine_picker::{
         Row, SidebarFixedAction, SidebarPart, SidebarRow, SidebarSource, SidebarTarget,
     },
-    tui_pointer::{
+    tui_pointer::hit_map::{
         InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer, TooltipContent,
         TooltipText,
     },
@@ -1431,7 +1431,7 @@ pub(super) fn render(
                 hits.record(
                     layer,
                     gap,
-                    crate::tui_pointer::HitTarget::MachineWorkspaceSurface(window),
+                    crate::tui_pointer::hit_map::HitTarget::MachineWorkspaceSurface(window),
                 );
             }
         }
@@ -1450,7 +1450,7 @@ pub(super) fn render(
                 hits.record(
                     layer,
                     gap,
-                    crate::tui_pointer::HitTarget::MachineWorkspaceSurface(window),
+                    crate::tui_pointer::hit_map::HitTarget::MachineWorkspaceSurface(window),
                 );
             }
         }
@@ -2034,7 +2034,7 @@ pub(super) fn render(
         hits.record(
             layer,
             Rect::new(body.x, y, body.width, body.bottom().saturating_sub(y)),
-            crate::tui_pointer::HitTarget::MachineWorkspaceSurface(window),
+            crate::tui_pointer::hit_map::HitTarget::MachineWorkspaceSurface(window),
         );
     }
     // A drop below the last row moves to the end: the range footer, or the free rows under a
@@ -2047,7 +2047,7 @@ pub(super) fn render(
     if insertion.is_none()
         && let Some(hits) = hits.as_deref_mut()
     {
-        hits.record_sidebar_reorder_paint(crate::tui_pointer::SidebarReorderPaint {
+        hits.record_sidebar_reorder_paint(crate::tui_pointer::hit_map::SidebarReorderPaint {
             viewport: frame.area(),
             layer,
             body,

@@ -1,5 +1,7 @@
 use super::*;
-use crate::tui_pointer::{HelpControl, HitMapBuilder};
+use crate::tui_pointer::hit_map::TooltipContent;
+use crate::tui_pointer::{HelpControl, HitLayer, HitMapBuilder, HitTarget};
+use ratatui::layout::Rect;
 
 const ROW: Rect = Rect::new(0, 4, 20, 1);
 const CLOSE: Rect = Rect::new(16, 4, 3, 1);

@@ -10,7 +10,7 @@ use super::{
 };
 use crate::client_view::{Binding, KeyCode, Modifiers};
 use crate::terminal_text::{sanitize_terminal_text, truncate_display_middle};
-use crate::tui_pointer::{
+use crate::tui_pointer::hit_map::{
     HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl,
 };
 use crate::tui_theme::Role;
@@ -891,7 +891,9 @@ fn render_checkouts<'a>(
     hits.record(
         HitLayer::OverlaySurface,
         list,
-        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Worktree(picker.token)),
+        HitTarget::ListScroll(crate::tui_pointer::hit_map::ListScrollTarget::Worktree(
+            picker.token,
+        )),
     );
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
     (area, ModalPresentation::Presented(picker.token))

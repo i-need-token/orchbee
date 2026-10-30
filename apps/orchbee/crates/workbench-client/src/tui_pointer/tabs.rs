@@ -1,8 +1,9 @@
 //! A local press/drag/release transaction. Painted geometry and the exact source
 //! snapshot remain fixed; only release can emit one canonical configuration.
+use super::hit_map::tabs::{exposed_regions, tab_regions};
 use super::{
-    FrameHitMap, Gesture, HitResolution, HitTarget, MouseAction, MouseButton, MouseEvent,
-    PointerOutcome, PointerState, contains,
+    FrameHitMap, Gesture, HitTarget, MouseAction, MouseButton, MouseEvent, PointerOutcome,
+    PointerState, TabDragPreview, contains,
 };
 use crate::{
     action_menu::DrawnTabCreate,
@@ -39,19 +40,6 @@ pub(super) struct TabClick {
     at: std::time::Instant,
 }
 
-/// The first token of a paged Tab strip window: a Tab, or the header of that Tab's group.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TabStripStart {
-    pub(crate) tab: WorkbenchTabId,
-    pub(crate) header: bool,
-}
-
-pub struct TabDragPreview {
-    pub(crate) grabbed: Vec<Rect>,
-    pub(crate) marker: Option<(u16, u16)>,
-    pub(crate) count: usize,
-}
-
 enum Phase {
     Pressed { activation_cancelled: bool },
     Dragging(Option<Drop>),
@@ -75,52 +63,6 @@ pub(super) struct TabDrag {
     carries_group: bool,
     pinned: bool,
     phase: Phase,
-}
-
-/// Strip regions exposed at both ends: Tab and group tokens and the create control.
-fn exposed_regions(map: &FrameHitMap) -> impl Iterator<Item = (Rect, &HitTarget)> {
-    map.regions
-        .iter()
-        .filter(|region| {
-            matches!(
-                region.target,
-                HitTarget::Tab(_)
-                    | HitTarget::TabGroup { .. }
-                    | HitTarget::TabCreate(_)
-                    | HitTarget::TabCloseRequest { .. }
-            ) && [region.rect.x, region.rect.right().saturating_sub(1)]
-                .into_iter()
-                .all(|x| {
-                    matches!(
-                        map.hit(x, region.rect.y),
-                        HitResolution::Region(target) if target == &region.target
-                    )
-                })
-        })
-        .map(|region| (region.rect, &region.target))
-}
-
-/// The strip's tokens as a drag sees them. A Tab's close track joins its token whether the control
-/// is revealed or hidden, so a pointer that reveals or hides it never changes the drag's geometry.
-pub(super) fn tab_regions(map: &FrameHitMap) -> Vec<(Rect, HitTarget)> {
-    let mut tokens: Vec<(Rect, HitTarget)> = Vec::new();
-    for (rect, target) in exposed_regions(map) {
-        let target = match target {
-            HitTarget::TabCloseRequest { tab, .. } => HitTarget::Tab(tab.clone()),
-            target => target.clone(),
-        };
-        let adjacent = tokens.iter_mut().find(|(token, token_target)| {
-            *token_target == target
-                && matches!(target, HitTarget::Tab(_))
-                && token.y == rect.y
-                && (token.right() == rect.x || rect.right() == token.x)
-        });
-        match adjacent {
-            Some((token, _)) => *token = token.union(rect),
-            None => tokens.push((rect, target)),
-        }
-    }
-    tokens
 }
 
 impl TabDrag {
@@ -185,7 +127,7 @@ impl TabDrag {
             && tab_regions(map) == self.regions
     }
 
-    pub(super) fn projection_fingerprint(&self) -> Option<super::chrome::Fingerprint> {
+    pub(super) fn projection_fingerprint(&self) -> Option<super::hit_map::chrome::Fingerprint> {
         if !matches!(
             self.phase,
             Phase::Pressed {
@@ -195,7 +137,7 @@ impl TabDrag {
             return None;
         }
         let area = *self.pressed.first()?;
-        super::chrome::Fingerprint::tab(&self.source.drawn, &self.target, area)
+        super::hit_map::chrome::Fingerprint::tab(&self.source.drawn, &self.target, area)
     }
 
     fn over_pressed_target(&self, column: u16, row: u16) -> bool {

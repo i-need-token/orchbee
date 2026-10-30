@@ -2,13 +2,12 @@
 //! Preview never mutates navigation; only a matching release can submit a move.
 use super::{
     FrameHitMap, Gesture, HitRegionResolution, InteractionTarget, MouseAction, MouseButton,
-    MouseEvent, PointerOutcome, PointerState, PrimaryContract, contains,
+    MouseEvent, PointerOutcome, PointerState, PrimaryContract, SidebarReorderDraw,
+    SidebarReorderPaint, contains,
 };
 use crate::{
     client_view::{ClientView, Modifiers},
-    machine_picker::{
-        DrawnSidebarTarget, SidebarPart, SidebarSource, SidebarTarget, SidebarWindow,
-    },
+    machine_picker::{DrawnSidebarTarget, SidebarPart, SidebarSource, SidebarTarget},
     terminal_input::TerminalInputPort,
     workbench_client::ClientContextLocation,
 };
@@ -16,8 +15,6 @@ use orchbee_workbench_protocol::{Navigation, NavigationConfiguration, SessionId,
 use ratatui::layout::Rect;
 use std::time::{Duration, Instant};
 mod destination;
-#[cfg(test)]
-pub(crate) use destination::Placement;
 use destination::{Drop, Item};
 #[cfg(test)]
 mod tests;
@@ -46,28 +43,19 @@ impl SidebarReorderSource {
     }
 }
 
-/// Geometry and semantics published only with the successful sidebar frame.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct SidebarReorderPaint {
-    pub(crate) viewport: Rect,
-    pub(crate) layer: super::HitLayer,
-    pub(crate) body: Rect,
-    pub(crate) footer: Rect,
-    pub(crate) window: SidebarWindow,
-    pub(crate) source: SidebarSource,
-}
-
-pub struct SidebarReorderDraw {
-    pub(crate) grabbed: Option<Rect>,
-    pub(crate) destination: Option<(Rect, destination::Placement, String)>,
-    pub(crate) footer: Rect,
-    pub(crate) workspace: bool,
-}
-
 /// Immutable gesture data; geometry resolves against the candidate frame being painted.
 pub struct SidebarReorderPreview {
     drag: SidebarReorder,
 }
+impl super::HitMapBuilder {
+    pub fn resolve_sidebar_reorder_preview(
+        &self,
+        preview: &SidebarReorderPreview,
+    ) -> Option<SidebarReorderDraw> {
+        preview.resolve(&self.map)
+    }
+}
+
 impl SidebarReorderPreview {
     pub(super) fn resolve(&self, map: &FrameHitMap) -> Option<SidebarReorderDraw> {
         self.drag.preview(map)
@@ -79,7 +67,7 @@ pub(super) struct SidebarReorder {
     pub(super) source: SidebarReorderSource,
     paint: SidebarReorderPaint,
     target: DrawnSidebarTarget,
-    fingerprint: super::interaction::Fingerprint,
+    fingerprint: super::hit_map::interaction::Fingerprint,
     item: Item,
     origin: (u16, u16),
     position: (u16, u16),

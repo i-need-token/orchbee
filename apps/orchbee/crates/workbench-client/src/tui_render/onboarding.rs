@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     onboarding::Action,
-    tui_pointer::{
+    tui_pointer::hit_map::{
         GlobalChromeAction, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
         ProjectedPointer,
     },

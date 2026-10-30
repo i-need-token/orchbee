@@ -1,5 +1,6 @@
 //! Stable-identity drop policy; the shared canonical transition validates every candidate.
 use super::{ClientContextLocation, NavigationConfiguration, SidebarReorderSource, SidebarTarget};
+use crate::tui_pointer::hit_map::sidebar_reorder::Placement;
 use orchbee_workbench_protocol::{WorkbenchProjectId, WorkbenchWorkspaceId, configure_navigation};
 use ratatui::layout::Rect;
 
@@ -20,26 +21,6 @@ impl Item {
             },
             SidebarTarget::Recents { .. } | SidebarTarget::Agent { .. } => return None,
         })
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Placement {
-    Before,
-    After,
-    Into,
-    Ungrouped,
-    End,
-}
-impl From<Placement> for crate::localization::SidebarPlacementLabel {
-    fn from(placement: Placement) -> Self {
-        match placement {
-            Placement::Before => Self::Before,
-            Placement::After => Self::After,
-            Placement::Into => Self::Into,
-            Placement::Ungrouped => Self::Ungrouped,
-            Placement::End => Self::End,
-        }
     }
 }
 

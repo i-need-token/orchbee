@@ -3,7 +3,7 @@
 //! label without a matching Server outcome.
 
 use super::recovery_fence::RecoveryFence;
-use super::rename_draft::{RenameDraftIntent, RenameDraftToken};
+use super::rename_draft::{DraftToken, RenameDraftIntent};
 use super::{AttachmentKey, CarrierFailure, ClientContextTabs};
 use crate::exchange_values::workbench::label_rename::{
     WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameRequest,
@@ -105,7 +105,7 @@ impl super::WorkbenchClientState {
 
     pub(in crate::workbench_client) fn plan_rename(
         &self,
-        token: RenameDraftToken,
+        token: DraftToken,
         request_id: WorkbenchRequestId,
         deadline: Instant,
     ) -> Option<RenameOperation> {
@@ -251,7 +251,7 @@ impl RenameOperation {
     pub(in crate::workbench_client) const fn request_id(&self) -> &WorkbenchRequestId {
         self.request.request_id()
     }
-    pub(in crate::workbench_client) const fn draft_token(&self) -> RenameDraftToken {
+    pub(in crate::workbench_client) const fn draft_token(&self) -> DraftToken {
         self.intent.token()
     }
     pub(in crate::workbench_client) const fn baseline(&self) -> &ClientContextTabs {

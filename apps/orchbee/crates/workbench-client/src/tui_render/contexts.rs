@@ -11,7 +11,7 @@ use ratatui::{
 
 use crate::{
     terminal_text::{sanitize_terminal_text, truncate_display},
-    tui_pointer::ProjectedPointer,
+    tui_pointer::hit_map::ProjectedPointer,
     tui_theme::{Role, Theme},
 };
 

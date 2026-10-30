@@ -50,7 +50,7 @@ use crate::{
         PaneFrame, ShellAreas, SidebarArea, SidebarLayer, ViewportTier, native_terminal_area,
         overlay_area, place_overlay, project_shell_areas, status_chip_area, terminal_area,
     },
-    tui_pointer::{
+    tui_pointer::hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
         ProjectedPointer,
     },
@@ -61,7 +61,7 @@ use crate::{
     },
 };
 
-use crate::tui_pointer::GlobalChromeAction;
+use crate::tui_pointer::hit_map::GlobalChromeAction;
 
 use crate::workbench_client::TerminalStatus;
 
@@ -1956,7 +1956,7 @@ fn render_tab_strip(
                 }
                 tabs::groups::StripPart::Page { header } => Some(InteractionTarget::TabStripPage {
                     source,
-                    start: crate::tui_pointer::TabStripStart { tab, header },
+                    start: crate::workbench_client::state::TabStripStart { tab, header },
                 }),
                 tabs::groups::StripPart::Tab | tabs::groups::StripPart::Header => None,
             }

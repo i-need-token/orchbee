@@ -15,7 +15,7 @@ use crate::{
     client_view::{ClientAction, ClientView, PrefixAction},
     localization::Locale,
     terminal_text::{display_width, truncate_display, truncate_display_middle},
-    tui_pointer::{LegendItem, OpenTooltip, TooltipContent, TooltipText},
+    tui_pointer::hit_map::{LegendItem, OpenTooltip, TooltipContent, TooltipText},
     tui_theme::{Role, Theme},
 };
 

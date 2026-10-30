@@ -4,7 +4,7 @@ use crate::{
     localization::Locale,
     terminal_text::display_width,
     tui_layout::DrawnResize,
-    tui_pointer::{
+    tui_pointer::hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ProjectedPointer,
         ResizeControl,
     },

@@ -1,146 +1,14 @@
 //! Painted modal controls retain their press authority until matching release.
 //! The state owner then validates that exact token before any shared effect.
-use super::{
-    FrameHitMap, Gesture, HitLayer, HitResolution, HitTarget, InteractionAvailability,
-    InteractionTarget, ModalControl, Modifiers, MotionObservability, MouseAction, MouseButton,
-    MouseEvent, PointerOutcome, PointerState, ProjectedPointer, ReleaseOwnership,
-    TerminalInputPort,
+use super::hit_map::modal::{
+    ControlTarget, Fingerprint, Projection, accepts_confirmation, accepts_copy, accepts_modal,
+    accepts_resize,
 };
-use ratatui::layout::Rect;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-enum ControlTarget {
-    Copy(
-        crate::terminal_copy_mode::CopyModeToken,
-        crate::terminal_copy_mode::CopyControl,
-    ),
-    Resize(super::ResizeControl),
-    TabClose(crate::workbench_client::CloseConfirmationToken, bool),
-    PanelClose(crate::workbench_client::PanelCloseConfirmationToken, bool),
-    Rename(crate::workbench_client::RenameDraftToken, bool),
-    Setup(crate::workbench_client::SetupToken, ModalControl),
-    Worktree(crate::workbench_client::WorktreeToken, ModalControl),
-    Close(crate::workbench_client::WorkspaceCloseToken, bool),
-}
-
-impl ControlTarget {
-    fn from_hit(target: &HitTarget) -> Option<Self> {
-        Some(match target {
-            HitTarget::CopyControl { token, control } => Self::Copy(*token, *control),
-            HitTarget::Resize(control) => Self::Resize(control.clone()),
-            HitTarget::TabClose { token, confirm } => Self::TabClose(*token, *confirm),
-            HitTarget::PanelClose { token, confirm } => Self::PanelClose(*token, *confirm),
-            HitTarget::Rename { token, submit } => Self::Rename(*token, *submit),
-            HitTarget::Setup { token, control } => Self::Setup(*token, *control),
-            HitTarget::Worktree { token, control } => Self::Worktree(*token, *control),
-            HitTarget::WorkspaceClose { token, confirm } => Self::Close(*token, *confirm),
-            _ => return None,
-        })
-    }
-
-    fn projectable(&self) -> bool {
-        if matches!(self, Self::Setup(_, ModalControl::Surface)) {
-            return false;
-        }
-        if matches!(self, Self::Worktree(_, ModalControl::Surface)) {
-            return false;
-        }
-        true
-    }
-}
-
-fn accepts_copy(target: &ControlTarget) -> bool {
-    matches!(target, ControlTarget::Copy(..))
-}
-
-fn accepts_resize(target: &ControlTarget) -> bool {
-    matches!(target, ControlTarget::Resize(_))
-}
-
-fn accepts_confirmation(target: &ControlTarget) -> bool {
-    matches!(
-        target,
-        ControlTarget::Close(..) | ControlTarget::TabClose(..) | ControlTarget::PanelClose(..)
-    )
-}
-
-fn accepts_modal(target: &ControlTarget) -> bool {
-    match target {
-        ControlTarget::Rename(..) => true,
-        ControlTarget::Setup(_, control) => *control != ModalControl::Surface,
-        ControlTarget::Worktree(_, control) => *control != ModalControl::Surface,
-        _ => false,
-    }
-}
-
-/// Exact paint identity for one specialized modal control. The target holds
-/// its opaque owner token; geometry and layer prevent a repaint from silently
-/// reusing press or hover presentation for a different painted control.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct Fingerprint {
-    target: ControlTarget,
-    layer: HitLayer,
-    area: Rect,
-    availability: InteractionAvailability,
-}
-
-impl Fingerprint {
-    pub(super) fn from_hit(
-        layer: HitLayer,
-        area: Rect,
-        target: &HitTarget,
-        availability: InteractionAvailability,
-    ) -> Option<Self> {
-        let target = ControlTarget::from_hit(target)?;
-        if !target.projectable() {
-            return None;
-        }
-        Some(Self {
-            target,
-            layer,
-            area,
-            availability,
-        })
-    }
-
-    pub(super) const fn enabled(&self) -> bool {
-        matches!(self.availability, InteractionAvailability::Enabled)
-    }
-
-    pub(super) fn same_control(&self, other: &Self) -> bool {
-        self.target == other.target && self.layer == other.layer && self.area == other.area
-    }
-}
-
-/// Immutable specialized-modal pointer facts captured before one candidate
-/// frame. Effects remain with `control_event`; this value is paint-only.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(super) struct Projection {
-    hovered: Option<Fingerprint>,
-    pressed: Option<Fingerprint>,
-}
-
-impl Projection {
-    pub(super) const fn empty() -> Self {
-        Self {
-            hovered: None,
-            pressed: None,
-        }
-    }
-
-    pub(super) fn project(&self, fingerprint: &Fingerprint) -> ProjectedPointer {
-        if !fingerprint.enabled() {
-            return ProjectedPointer::Rest;
-        }
-        if self.pressed.as_ref() == Some(fingerprint) {
-            ProjectedPointer::Pressed
-        } else if self.hovered.as_ref() == Some(fingerprint) {
-            ProjectedPointer::Hovered
-        } else {
-            ProjectedPointer::Rest
-        }
-    }
-}
+use super::{
+    FrameHitMap, Gesture, HitResolution, InteractionTarget, ModalControl, Modifiers,
+    MotionObservability, MouseAction, MouseButton, MouseEvent, PointerOutcome, PointerState,
+    ReleaseOwnership, TerminalInputPort,
+};
 
 /// Live pointer position and hover for specialized modal controls. Press
 /// authority stays in `PaintedPress`; snapshots combine both without moving
@@ -277,21 +145,6 @@ impl PaintedPress {
             map.modal_fingerprint_at(column, row)
         };
         current.as_ref() == Some(&self.fingerprint)
-    }
-}
-
-impl FrameHitMap {
-    fn modal_backdrop_fingerprint_at(&self, column: u16, row: u16) -> Option<Fingerprint> {
-        if !matches!(self.hit(column, row), HitResolution::OverlayBackdrop) {
-            return None;
-        }
-        let target = self.backdrop_dismissal.as_ref()?;
-        let region = self
-            .regions
-            .iter()
-            .find(|region| region.layer == HitLayer::Overlay && &region.target == target)?;
-        self.modal_fingerprint_for_region(region)
-            .filter(Fingerprint::enabled)
     }
 }
 

@@ -1,7 +1,6 @@
 //! Client-local group disclosure and Tab strip scrolling; canonical metadata remains in the
 //! projection.
 use super::{ClientContextTabs, WorkbenchClientState, WorkbenchClientView};
-use crate::tui_pointer::TabStripStart;
 use orchbee_workbench_protocol::{
     SessionId, WorkbenchTabGroupId, WorkbenchTabId, WorkbenchTerminalContextId,
 };
@@ -281,4 +280,11 @@ impl WorkbenchClientView<'_> {
     pub(in crate::workbench_client) fn group_collapsed(&self, id: &WorkbenchTabGroupId) -> bool {
         self.state.group_collapsed(id)
     }
+}
+
+/// The first token of a paged Tab strip window: a Tab, or the header of that Tab's group.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TabStripStart {
+    pub(crate) tab: WorkbenchTabId,
+    pub(crate) header: bool,
 }

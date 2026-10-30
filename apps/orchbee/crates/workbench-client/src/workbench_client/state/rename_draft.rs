@@ -9,7 +9,7 @@ use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_workbench_protocol::{MAXIMUM_LABEL_LENGTH, WorkbenchLabel};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct RenameDraftToken(u64);
+pub(crate) struct DraftToken(u64);
 
 #[derive(Default)]
 pub(super) struct RenameDraftState {
@@ -18,7 +18,7 @@ pub(super) struct RenameDraftState {
 }
 
 struct RenameDraft {
-    token: RenameDraftToken,
+    token: DraftToken,
     baseline: ClientContextTabs,
     target: AttachmentKey,
     target_index: usize,
@@ -56,7 +56,7 @@ impl<'a> RenameDraftView<'a> {
     ) -> &'a orchbee_workbench_protocol::WorkbenchTabId {
         self.draft.target.tab_id()
     }
-    pub(in crate::workbench_client) const fn token(&self) -> RenameDraftToken {
+    pub(in crate::workbench_client) const fn token(&self) -> DraftToken {
         self.draft.token
     }
     /// The draft's exact raw text — what a submit sends and a cancel discards.
@@ -96,14 +96,14 @@ impl<'a> RenameDraftView<'a> {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct RenameDraftIntent {
-    token: RenameDraftToken,
+    token: DraftToken,
     baseline: ClientContextTabs,
     target: AttachmentKey,
     label: WorkbenchLabel,
 }
 
 impl RenameDraftIntent {
-    pub(in crate::workbench_client) const fn token(&self) -> RenameDraftToken {
+    pub(in crate::workbench_client) const fn token(&self) -> DraftToken {
         self.token
     }
     pub(in crate::workbench_client) const fn baseline(&self) -> &ClientContextTabs {
@@ -152,7 +152,7 @@ impl WorkbenchClientState {
         self.rename.draft.is_some()
     }
 
-    pub(in crate::workbench_client) fn open_rename_draft(&mut self) -> Option<RenameDraftToken> {
+    pub(in crate::workbench_client) fn open_rename_draft(&mut self) -> Option<DraftToken> {
         if self.rename.draft.is_some()
             || !self.rename_authority_available()
             || !self.invariant_holds()
@@ -166,7 +166,7 @@ impl WorkbenchClientState {
             return None;
         }
         let next = self.rename.last_token.checked_add(1)?;
-        let token = RenameDraftToken(next);
+        let token = DraftToken(next);
         self.rename.draft = Some(RenameDraft {
             token,
             baseline: self.cache.clone(),
@@ -212,7 +212,7 @@ impl WorkbenchClientState {
 
     pub(in crate::workbench_client) fn acknowledge_rename_draw(
         &mut self,
-        token: Option<RenameDraftToken>,
+        token: Option<DraftToken>,
     ) {
         if self.current_rename_draft().is_none() {
             self.cancel_rename_draft();
@@ -224,10 +224,7 @@ impl WorkbenchClientState {
         }
     }
 
-    pub(in crate::workbench_client) fn rename_draft_input_ready(
-        &self,
-        token: RenameDraftToken,
-    ) -> bool {
+    pub(in crate::workbench_client) fn rename_draft_input_ready(&self, token: DraftToken) -> bool {
         self.current_rename_draft().is_some_and(|draft| {
             draft.token == token && draft.shown && draft.presentation.interactive()
         })
@@ -235,7 +232,7 @@ impl WorkbenchClientState {
 
     pub(in crate::workbench_client) fn edit_rename_draft(
         &mut self,
-        token: RenameDraftToken,
+        token: DraftToken,
         edit: RenameDraftEdit<'_>,
     ) -> bool {
         if self.current_rename_draft().is_none() {
@@ -295,7 +292,7 @@ impl WorkbenchClientState {
 
     pub(in crate::workbench_client) fn plan_rename_draft(
         &self,
-        token: RenameDraftToken,
+        token: DraftToken,
     ) -> Option<RenameDraftIntent> {
         let draft = self.current_rename_draft()?;
         if draft.token != token
@@ -320,3 +317,7 @@ impl<'a> super::WorkbenchClientView<'a> {
         self.state.rename_draft()
     }
 }
+
+/// The rename draft token that leaves the Workbench Client for paint and input dispatch.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RenameDraftToken(pub(in crate::workbench_client) DraftToken);

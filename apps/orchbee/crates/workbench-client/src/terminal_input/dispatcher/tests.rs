@@ -379,7 +379,8 @@ fn button_free_motion_redraws_only_for_changed_projection_and_never_starves_esca
 
 #[test]
 fn a_key_closes_the_pointer_tooltip_and_still_reaches_its_owner() {
-    use crate::tui_pointer::{HelpControl, HitLayer, HitMapBuilder, HitTarget, TooltipContent};
+    use crate::tui_pointer::hit_map::TooltipContent;
+    use crate::tui_pointer::{HelpControl, HitLayer, HitMapBuilder, HitTarget};
     let calls = Rc::new(RefCell::new(Vec::new()));
     let mut port = UnavailablePort(Rc::clone(&calls));
     let mut dispatcher = InputDispatcher::default();

@@ -15,7 +15,7 @@ use crate::{
     localization::{Locale, ShellText},
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_layout::place_overlay,
-    tui_pointer::{
+    tui_pointer::hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
         ProjectedPointer,
     },
@@ -208,7 +208,7 @@ pub(super) fn render(
     hits.record(
         HitLayer::OverlaySurface,
         body,
-        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::AgentBoard(
+        HitTarget::ListScroll(crate::tui_pointer::hit_map::ListScrollTarget::AgentBoard(
             draw.token().clone(),
         )),
     );

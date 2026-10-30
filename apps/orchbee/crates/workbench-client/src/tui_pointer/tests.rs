@@ -37,6 +37,7 @@ mod tab_groups;
 use orchbee_terminal_protocol::MouseFormat;
 use orchbee_workbench_protocol::WorkbenchPanelId;
 use orchbee_workbench_protocol::WorkbenchRequestId;
+use orchbee_workbench_protocol::WorkbenchTabId;
 
 use crate::terminal_input::PointerLinkAdmission;
 use crate::terminal_input::{

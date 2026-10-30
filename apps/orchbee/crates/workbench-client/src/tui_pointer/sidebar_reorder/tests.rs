@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     machine_discovery::Context,
-    machine_picker::SidebarRow,
+    machine_picker::{SidebarRow, SidebarWindow},
     terminal_input::{PointerProbe, TerminalInputUnavailable},
     tui_pointer::{HitLayer, HitMapBuilder, InteractionSpec},
     workbench_client::ClientContextTarget,
