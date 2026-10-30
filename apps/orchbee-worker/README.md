@@ -164,11 +164,11 @@ Each Worker generation owns three kinds of background jobs. The request loop bor
 pre-Host to Host handoff and Windows Server handoff keep the same owners, so ownership never
 moves to another thread or connection.
 
-| Job | Owner | Platforms | Physical cleanup bound after cancellation |
-| --- | --- | --- | --- |
-| Worktree discovery | `worktree_discovery_job::WorktreeDiscoverySlot` | all | five-second Job/child settlement |
-| Worktree mutation | `worktree_mutation_job::WorktreeMutationSlot` | Windows | five-second Job settlement |
-| Plugin and configured commands | `plugin_jobs::PluginJobs` | Windows | five-second Job settlement |
+| Job                            | Owner                                           | Platforms | Physical cleanup bound after cancellation |
+| ------------------------------ | ----------------------------------------------- | --------- | ----------------------------------------- |
+| Worktree discovery             | `worktree_discovery_job::WorktreeDiscoverySlot` | all       | five-second Job/child settlement          |
+| Worktree mutation              | `worktree_mutation_job::WorktreeMutationSlot`   | Windows   | five-second Job settlement                |
+| Plugin and configured commands | `plugin_jobs::PluginJobs`                       | Windows   | five-second Job settlement                |
 
 Every owner separates the stop request from task completion. `request_stop` closes new
 admission where the owner has admission, signals every running task and never waits.

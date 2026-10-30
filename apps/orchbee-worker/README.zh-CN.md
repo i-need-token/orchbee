@@ -135,11 +135,11 @@ start 将其替换；取消后终态仍可通过 `poll` 观察。
 每个 Worker 代次拥有三类后台任务。请求循环只借用它们；从无 Host 到有 Host 的交接以及 Windows
 Server 交接都保留同一批所有者，所有权不会转移到其他线程或连接。
 
-| 任务 | 所有者 | 平台 | 取消后的物理清理上限 |
-| --- | --- | --- | --- |
-| Worktree 发现 | `worktree_discovery_job::WorktreeDiscoverySlot` | 全部 | 五秒 Job／子进程清理 |
-| Worktree 变更 | `worktree_mutation_job::WorktreeMutationSlot` | Windows | 五秒 Job 清理 |
-| 插件命令与配置命令 | `plugin_jobs::PluginJobs` | Windows | 五秒 Job 清理 |
+| 任务               | 所有者                                          | 平台    | 取消后的物理清理上限 |
+| ------------------ | ----------------------------------------------- | ------- | -------------------- |
+| Worktree 发现      | `worktree_discovery_job::WorktreeDiscoverySlot` | 全部    | 五秒 Job／子进程清理 |
+| Worktree 变更      | `worktree_mutation_job::WorktreeMutationSlot`   | Windows | 五秒 Job 清理        |
+| 插件命令与配置命令 | `plugin_jobs::PluginJobs`                       | Windows | 五秒 Job 清理        |
 
 每个所有者都区分停止请求与任务结束。`request_stop` 在所有者有准入时关闭新准入，通知所有运行中的任务，
 且从不等待。`stop_before(deadline)` 先请求停止，再只 join 已结束的任务：`Ok` 表示所有任务都已结束，
@@ -880,4 +880,4 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 启动前后均可用。[所属模型](docs/windows-server-handoff.zh-CN.md) 定义精确票据、截止点、
 回滚及证据边界。公开 Server 状态／端点交接仍需独立集成；传输回执不是最终 CLI 成功。
 
-<!-- documentation-pairing: english-sha256=30698f3a0fffb854d01ad7c5a7328cccc2cb815bc4b5781ce9e2e7e253034e41 zh-cn-sha256=f75bde4b22a90aab3f2e8c846ae1b2d7cba0b45ca4e5843d5e901d4c7d648c7b -->
+<!-- documentation-pairing: english-sha256=8704a85580413341a62b76f74a20068e6c4d9bac3cf77b3f82fa69420092ec0e zh-cn-sha256=c01575b3867f90ba33a7b89495f14ed8cacc3fad5a6ac402e18c85c75c8ea9a1 -->
