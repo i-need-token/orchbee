@@ -11,6 +11,7 @@ use orchbee_workbench_protocol::{
     WorkbenchWorkspaceId, WorkerId,
 };
 use std::sync::{Arc, atomic::AtomicU64};
+use std::time::Instant;
 
 fn snapshot() -> Snapshot {
     let mut snapshot = tests::context_selection::snapshot(true);
@@ -215,7 +216,7 @@ fn open_creation(ui: &mut WorkbenchClientUi) {
     activate_row(ui, token, action_row(ui, MenuAction::WorkspaceCreation));
     assert_eq!(ui.take_action_menu_action(false), None);
     assert!(matches!(
-        ui.menus.intent.as_ref().unwrap().entry,
+        ui.menus.intent().unwrap().entry(),
         MenuTarget::WorkspaceCreation(_)
     ));
 }
@@ -601,10 +602,7 @@ fn project_menu_requires_addressed_git_proof_even_when_its_workspace_is_current(
         let token = arm(&mut ui);
         activate_row(&mut ui, token, row);
         assert_eq!(ui.take_action_menu_action(false), None);
-        assert!(matches!(
-            ui.menus.intent.as_ref().unwrap().stage,
-            Stage::Open
-        ));
+        assert!(matches!(ui.menus.intent().unwrap().stage(), Stage::Open));
         assert_eq!(Origin::capture(ui.state.as_ref()), origin);
         assert_eq!(mailbox.cursors(), cursors);
         assert!(mailbox.try_recv().unwrap().is_none());
@@ -711,10 +709,7 @@ fn project_menu_empty_and_noncurrent_targets_do_not_invent_a_worktree_or_change_
             let token = arm(&mut ui);
             activate_row(&mut ui, token, row);
             assert_eq!(ui.take_action_menu_action(false), None);
-            assert!(matches!(
-                ui.menus.intent.as_ref().unwrap().stage,
-                Stage::Open
-            ));
+            assert!(matches!(ui.menus.intent().unwrap().stage(), Stage::Open));
             assert_eq!(Origin::capture(ui.state.as_ref()), origin);
             assert_eq!(mailbox.cursors(), cursors);
             assert!(mailbox.try_recv().unwrap().is_none());
@@ -768,7 +763,7 @@ fn project_menu_rejects_stale_drawn_and_replaced_sources_before_confirmation_or_
             if confirmed {
                 activate_row(&mut ui, token, row);
                 assert!(matches!(
-                    ui.menus.intent.as_ref().unwrap().stage,
+                    ui.menus.intent().unwrap().stage(),
                     Stage::Offered(_, _)
                 ));
             }

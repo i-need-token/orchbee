@@ -451,7 +451,7 @@ fn first_geometry_block_refuses_but_an_admitted_child_resumes_with_parent_state(
     let child_row = action_row(&ui, MenuAction::TabCreation);
     activate_row(&mut ui, token, child_row);
     assert_eq!(ui.take_action_menu_action(false), None);
-    assert_eq!(ui.menus.parents.len(), 1);
+    assert_eq!(ui.menus.parent_count(), 1);
     arm(&mut ui);
     ui.capture_action_menu_key(KeyEvent::press(KeyCode::Down, Modifiers::NONE));
     arm(&mut ui);
@@ -469,7 +469,7 @@ fn first_geometry_block_refuses_but_an_admitted_child_resumes_with_parent_state(
     ui.after_action_menu_draw(Some(ModalPresentation::NotPresented));
     let suspended = ui.action_menu_input_context().unwrap();
     assert_eq!(suspended.phase(), PresentationPhase::Suspended);
-    assert_eq!(ui.menus.parents.len(), 1);
+    assert_eq!(ui.menus.parent_count(), 1);
     {
         let view = ui.view();
         let retained = view.action_menu().unwrap();
@@ -541,13 +541,10 @@ fn typed_menu_hover_requires_a_drawn_source_and_never_enters_a_submenu_or_action
     assert_eq!(ui.view().action_menu().unwrap().selected, row);
     assert_eq!(ui.view().action_menu().unwrap().source, &MenuTarget::Global);
     assert_eq!(ui.view().action_menu().unwrap().anchor, Some((7, 4).into()));
-    assert!(ui.menus.parents.is_empty(), "hover cannot open a submenu");
+    assert!(ui.menus.parent_count() == 0, "hover cannot open a submenu");
     assert_eq!(ui.menus.menu.confirmed(), None);
     assert_eq!(ui.take_action_menu_action(false), None);
-    assert!(matches!(
-        ui.menus.intent.as_ref().unwrap().stage,
-        Stage::Open
-    ));
+    assert!(matches!(ui.menus.intent().unwrap().stage(), Stage::Open));
     ui.cancel_action_menu();
     assert!(!ui.hover_action_menu_row(&MenuTarget::Global, token, row));
 }
@@ -1122,7 +1119,7 @@ fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
         action_availability(
             ui.capabilities,
             ui.state.as_ref(),
-            &ui.menus.intent.as_ref().unwrap().target,
+            ui.menus.intent().unwrap().target(),
             MenuAction::WorkspaceDirectory,
             false,
             None
@@ -1413,7 +1410,7 @@ fn pane_open_and_cancel_preserve_focus_then_one_confirmed_action_focuses_exact_p
             ui.state.as_ref().unwrap().focus_pane_ref(),
             Some(old.clone())
         );
-        assert!(ui.menus.intent.as_ref().unwrap().stage.deadline().is_none());
+        assert!(ui.menus.intent().unwrap().stage().deadline().is_none());
         assert_eq!(ui.take_action_menu_action(false), None);
         assert!(mailbox.try_recv().unwrap().is_none());
     }
@@ -1468,16 +1465,7 @@ fn exact_incarnation_modal_priority_resize_and_timeout_revoke_unhanded_authority
     time.store(31_000, std::sync::atomic::Ordering::SeqCst);
     assert!(!timed.drive_action_menu());
     assert!(timed.action_menu_active());
-    assert!(
-        timed
-            .menus
-            .intent
-            .as_ref()
-            .unwrap()
-            .stage
-            .deadline()
-            .is_none()
-    );
+    assert!(timed.menus.intent().unwrap().stage().deadline().is_none());
     let row = timed
         .view()
         .action_menu()
@@ -1489,7 +1477,7 @@ fn exact_incarnation_modal_priority_resize_and_timeout_revoke_unhanded_authority
     let token = arm(&mut timed);
     activate_row(&mut timed, token, row);
     assert!(matches!(
-        timed.menus.intent.as_ref().unwrap().stage,
+        timed.menus.intent().unwrap().stage(),
         Stage::Offered(_, _)
     ));
     time.store(60_999, std::sync::atomic::Ordering::SeqCst);
@@ -1520,11 +1508,8 @@ fn ux_menu_disabled_activation_does_not_start_an_execution_deadline() {
     time.store(300_000, std::sync::atomic::Ordering::SeqCst);
     ui.drive_action_menu();
     assert!(ui.action_menu_active());
-    assert!(matches!(
-        ui.menus.intent.as_ref().unwrap().stage,
-        Stage::Open
-    ));
-    assert!(ui.menus.intent.as_ref().unwrap().stage.deadline().is_none());
+    assert!(matches!(ui.menus.intent().unwrap().stage(), Stage::Open));
+    assert!(ui.menus.intent().unwrap().stage().deadline().is_none());
     assert_eq!(ui.take_action_menu_action(true), None);
 }
 
@@ -1540,7 +1525,7 @@ fn empty_workspace_navigation_uses_owned_refresh_and_exact_cleanup_then_original
     let token = arm(&mut ui);
     let row = action_row(&ui, MenuAction::RenameWorkspace);
     activate_row(&mut ui, token, row);
-    let Stage::Context { generation, .. } = ui.menus.intent.as_ref().unwrap().stage else {
+    let &Stage::Context { generation, .. } = ui.menus.intent().unwrap().stage() else {
         panic!("owned refresh");
     };
     ui.menu_navigation_prepared(NavigationKey::Context(generation + 1), true);
@@ -1745,7 +1730,7 @@ fn drawn_snapshot_source_and_owned_workspace_directory_replacement_are_fenced() 
     let token = arm(&mut ui);
     let row = action_row(&ui, MenuAction::RenameWorkspace);
     activate_row(&mut ui, token, row);
-    let Stage::Context { generation, .. } = ui.menus.intent.as_ref().unwrap().stage else {
+    let &Stage::Context { generation, .. } = ui.menus.intent().unwrap().stage() else {
         panic!("owned generation");
     };
     let mut replacement = tests::context_selection::snapshot(true);
@@ -1813,7 +1798,7 @@ fn carrier_retirement_revokes_members_and_stateless_global_menu_observes_geometr
     }
     let (mut ui, _, _, _) = tests::move_membership::ready_ui();
     ui.state = None;
-    ui.menus.geometry = None;
+    ui.menus.forget_geometry();
     assert!(!ui.open_action_menu(MenuTarget::Global, None, false));
     ui.observe_geometry(Geometry::new(80, 24, 8, 16).unwrap());
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
@@ -1857,8 +1842,8 @@ fn equal_numeric_navigation_generations_cannot_cross_context_and_tab_domains() {
             .unwrap();
         let token = arm(&mut ui);
         activate_row(&mut ui, token, row);
-        let generation = match ui.menus.intent.as_ref().unwrap().stage {
-            Stage::Context { generation, .. } | Stage::Tab { generation, .. } => generation,
+        let generation = match ui.menus.intent().unwrap().stage() {
+            Stage::Context { generation, .. } | Stage::Tab { generation, .. } => *generation,
             _ => panic!("navigation pending"),
         };
         let foreign = if context {
@@ -1869,7 +1854,7 @@ fn equal_numeric_navigation_generations_cannot_cross_context_and_tab_domains() {
         ui.menu_navigation_prepared(foreign, true);
         ui.menu_navigation_installed(foreign);
         assert!(matches!(
-            ui.menus.intent.as_ref().unwrap().stage,
+            ui.menus.intent().unwrap().stage(),
             Stage::Context {
                 prepared: false,
                 ..
@@ -1886,12 +1871,12 @@ fn equal_numeric_navigation_generations_cannot_cross_context_and_tab_domains() {
         };
         ui.menu_navigation_prepared(own, true);
         assert!(matches!(
-            ui.menus.intent.as_ref().unwrap().stage,
+            ui.menus.intent().unwrap().stage(),
             Stage::Context { prepared: true, .. } | Stage::Tab { prepared: true, .. }
         ));
         ui.menu_navigation_installed(foreign);
         assert!(matches!(
-            ui.menus.intent.as_ref().unwrap().stage,
+            ui.menus.intent().unwrap().stage(),
             Stage::Context { prepared: true, .. } | Stage::Tab { prepared: true, .. }
         ));
         assert_eq!(ui.take_action_menu_action(false), None);

@@ -8,7 +8,7 @@ use crate::workbench_client::workbench_projection::ClientTab;
 use orchbee_workbench_protocol::{WorkbenchTabGroupId, WorkbenchTabId};
 
 #[derive(Clone)]
-pub(super) struct TabResolverSource(Vec<Member>);
+pub(in crate::workbench_client::ui::action_menus) struct TabResolverSource(Vec<Member>);
 
 #[derive(Clone)]
 struct Member {
@@ -18,7 +18,7 @@ struct Member {
 }
 
 impl TabResolverSource {
-    pub(super) fn capture(tabs: &[ClientTab]) -> Self {
+    pub(in crate::workbench_client::ui::action_menus) fn capture(tabs: &[ClientTab]) -> Self {
         Self(
             tabs.iter()
                 .map(|tab| Member {
@@ -30,7 +30,10 @@ impl TabResolverSource {
         )
     }
 
-    pub(super) fn matches(&self, tabs: &[ClientTab]) -> bool {
+    pub(in crate::workbench_client::ui::action_menus) fn matches(
+        &self,
+        tabs: &[ClientTab],
+    ) -> bool {
         self.0.len() == tabs.len()
             && self.0.iter().zip(tabs).all(|(captured, current)| {
                 &captured.tab == current.tab_id()

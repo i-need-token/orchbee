@@ -1,71 +1,29 @@
 //! One local menu intent; existing membership and action owners retain all execution authority.
+//! The episode itself belongs to `episode`; this module evaluates its rules against the other
+//! owners and executes what it confirms.
 use super::{
-    ClientAction, ClientPhaseKind, Geometry, ModalPresentation, PaneKey, PaneRef,
-    WorkbenchClientNotice, WorkbenchClientState, WorkbenchClientUi, WorkbenchClientView,
+    ClientAction, ClientPhaseKind, Geometry, ModalPresentation, PaneRef, WorkbenchClientNotice,
+    WorkbenchClientState, WorkbenchClientUi, WorkbenchClientView,
 };
 use crate::action_menu::{
-    ActionMenu, DrawnMenuSource, MenuAction, MenuAnchor, MenuControl, MenuDraw, MenuInputContext,
+    DrawnMenuSource, MenuAction, MenuAnchor, MenuControl, MenuDraw, MenuInputContext,
     MenuInputReadiness, MenuSearchChild, MenuTarget, MenuToken, MenuUnavailable, MenuView,
-    RetainedMenu,
 };
 use crate::action_projection::ActionAvailability;
 use crate::client_view::KeyEvent;
 use crate::tui_presentation::GeometrySettlement;
 use crate::workbench_client::state::TabCloseResumePermit;
-use crate::workbench_client::workbench_projection::{
-    ClientContextLocation, ClientTab, MenuContextSource,
+use crate::workbench_client::workbench_projection::{ClientContextLocation, MenuContextSource};
+use episode::{
+    Discovery, Intent, Origin, ParentMenu, ProjectContext, ResumeHandoff, Stage, TabResolverSource,
+    Target,
 };
-use std::time::{Duration, Instant};
+pub(super) use episode::{MenuEpisode, NavigationKey};
+use std::time::Duration;
+mod episode;
 mod sidebar;
-mod tab_source;
-use tab_source::TabResolverSource;
 #[cfg(test)]
 mod tests;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-enum Origin {
-    Unavailable,
-    Context(Box<ContextOrigin>),
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct ContextOrigin {
-    selected: Vec<ClientTab>,
-    groups: Vec<orchbee_workbench_protocol::TabGroup>,
-    session: orchbee_workbench_protocol::SessionId,
-    location: ClientContextLocation,
-    desired: Option<PaneKey>,
-    focus: Option<PaneRef>,
-    tab: Option<ClientTab>,
-    source: Option<MenuContextSource>,
-}
-
-impl Origin {
-    fn capture(state: Option<&WorkbenchClientState>) -> Self {
-        state.map_or(Self::Unavailable, |state| {
-            Self::Context(Box::new(ContextOrigin {
-                selected: state
-                    .selected_tab_ids()
-                    .iter()
-                    .filter_map(|id| state.cache().tab_index(id))
-                    .filter_map(|index| state.cache().tabs().get(index))
-                    .cloned()
-                    .collect(),
-                groups: state.cache().groups().to_vec(),
-                session: state.cache().session_id().clone(),
-                location: state.cache().location().clone(),
-                desired: state.desired().cloned(),
-                focus: state.focus_pane_ref(),
-                tab: state
-                    .desired()
-                    .and_then(|key| state.cache().tab_index(key.anchor().tab_id()))
-                    .and_then(|i| state.cache().tabs().get(i))
-                    .cloned(),
-                source: state.cache().menu_context_source(state.cache().location()),
-            }))
-        })
-    }
-}
 
 fn selected_presentation(
     state: &WorkbenchClientState,
@@ -77,36 +35,6 @@ fn selected_presentation(
         .get(state.cache().tab_index(pane.anchor().tab_id())?)?;
     let panel = tab.panel(tab.panel_index(pane.pane().panel())?)?;
     Some(state.selected_presentation(panel).presentation_id().clone())
-}
-
-#[derive(Clone)]
-enum Target {
-    Global,
-    Pane {
-        pane: PaneRef,
-        presentation: orchbee_workbench_protocol::TerminalPresentationId,
-        source: MenuContextSource,
-    },
-    Tab {
-        location: ClientContextLocation,
-        tab: Box<ClientTab>,
-        source: MenuContextSource,
-        resolver: TabResolverSource,
-    },
-    Workspace {
-        location: ClientContextLocation,
-        source: MenuContextSource,
-    },
-    Project {
-        project: Box<orchbee_workbench_protocol::Project>,
-        context: Option<Box<ProjectContext>>,
-    },
-}
-
-#[derive(Clone)]
-struct ProjectContext {
-    location: ClientContextLocation,
-    source: MenuContextSource,
 }
 
 fn action_availability(
@@ -333,101 +261,29 @@ fn visible_unavailable(
     }
 }
 
-enum Stage {
-    Open,
-    Confirmed(Instant),
-    Context {
-        generation: u64,
-        prepared: bool,
-        deadline: Instant,
-    },
-    Tab {
-        generation: u64,
-        prepared: bool,
-        deadline: Instant,
-    },
-    Wait(Origin, Instant),
-    Offered(Origin, Instant),
-}
-
-impl Stage {
-    fn deadline(&self) -> Option<Instant> {
-        match self {
-            Self::Open => None,
-            Self::Confirmed(deadline)
-            | Self::Context { deadline, .. }
-            | Self::Tab { deadline, .. }
-            | Self::Wait(_, deadline)
-            | Self::Offered(_, deadline) => Some(*deadline),
-        }
+fn intent_availability(
+    intent: &Intent,
+    state: Option<&WorkbenchClientState>,
+    discovery: Option<&Discovery>,
+    action: MenuAction,
+) -> ActionAvailability<MenuUnavailable> {
+    let availability = action_availability(
+        intent.capabilities(),
+        state,
+        intent.target(),
+        action.clone(),
+        intent.pointer_released(),
+        intent.resume_permit(),
+    );
+    if availability.is_enabled() {
+        ActionAvailability::from_disabled_reason(sidebar::unavailable(
+            intent.entry(),
+            discovery,
+            &action,
+        ))
+    } else {
+        availability
     }
-}
-
-/// Refresh and attachment generations belong to separate monotonic domains.
-#[derive(Clone, Copy, Eq, PartialEq)]
-pub(super) enum NavigationKey {
-    Context(u64),
-    Tab(u64),
-}
-
-struct Intent {
-    capabilities: crate::tui_capabilities::Capabilities,
-    entry: MenuTarget,
-    target: Target,
-    origin: Origin,
-    stage: Stage,
-    zoomed: bool,
-    pointer_released: bool,
-    resume_permit: Option<TabCloseResumePermit>,
-    project_choices: Option<Vec<orchbee_workbench_protocol::Project>>,
-}
-
-impl Intent {
-    fn availability(
-        &self,
-        state: Option<&WorkbenchClientState>,
-        sidebar: Option<&sidebar::Episode>,
-        action: MenuAction,
-    ) -> ActionAvailability<MenuUnavailable> {
-        let availability = action_availability(
-            self.capabilities,
-            state,
-            &self.target,
-            action.clone(),
-            self.pointer_released,
-            self.resume_permit.as_ref(),
-        );
-        if availability.is_enabled() {
-            ActionAvailability::from_disabled_reason(sidebar::unavailable(
-                &self.entry,
-                sidebar,
-                &action,
-            ))
-        } else {
-            availability
-        }
-    }
-}
-
-#[derive(Default)]
-pub(super) struct Coordinator {
-    pub(super) menu: ActionMenu,
-    intent: Option<Intent>,
-    geometry: Option<Geometry>,
-    parents: Vec<ParentMenu>,
-    resume_handoff: Option<ResumeHandoff>,
-    sidebar: Option<sidebar::Episode>,
-    next_sidebar: u64,
-}
-
-struct ParentMenu {
-    target: MenuTarget,
-    anchor: Option<MenuAnchor>,
-    selected: MenuAction,
-    query: Option<String>,
-    resume_permit: Option<TabCloseResumePermit>,
-    /// The painted parent of a cascaded context submenu; a replaced page retains none.
-    retained: Option<RetainedMenu>,
 }
 
 enum ResumePermitSeed {
@@ -435,63 +291,10 @@ enum ResumePermitSeed {
     Inherit(Option<TabCloseResumePermit>),
 }
 
-struct ResumeHandoff {
-    deadline: Instant,
-    location: ClientContextLocation,
-    source: MenuContextSource,
-    tab: Box<ClientTab>,
-    permit: TabCloseResumePermit,
-}
-
 pub(super) enum TabCloseResumeHandoff {
     Direct,
     Menu(TabCloseResumePermit),
     Refused,
-}
-
-impl Coordinator {
-    pub(super) fn view(&self) -> Option<MenuView<'_>> {
-        self.intent.as_ref()?;
-        self.menu.view().map(|mut menu| {
-            menu.has_parent = !self.parents.is_empty();
-            if let Some(parent) = self.parents.first() {
-                menu.context_menu = parent.target.context_menu();
-            }
-            menu
-        })
-    }
-
-    /// The painted parents of a cascade, root first; empty while a child replaces its parent.
-    fn cascade(&self) -> Vec<MenuView<'_>> {
-        if self.intent.is_none() {
-            return Vec::new();
-        }
-        self.parents
-            .iter()
-            .enumerate()
-            .map(|(level, parent)| parent.retained.as_ref().map(|menu| menu.view(level > 0)))
-            .collect::<Option<Vec<_>>>()
-            .unwrap_or_default()
-    }
-
-    /// The target and anchor of the menu a person opened, beneath any submenu.
-    fn root(&self) -> Option<(&MenuTarget, Option<MenuAnchor>)> {
-        self.intent.as_ref()?;
-        match self.parents.first() {
-            Some(parent) => Some((&parent.target, parent.anchor)),
-            None => self.menu.view().map(|menu| (menu.source, menu.anchor)),
-        }
-    }
-
-    fn input_context(&self) -> Option<MenuInputContext> {
-        let intent = self.intent.as_ref()?;
-        let context = self.menu.input_context()?;
-        Some(if matches!(intent.stage, Stage::Open) {
-            context
-        } else {
-            context.recovery_only()
-        })
-    }
 }
 
 impl WorkbenchClientView<'_> {
@@ -506,16 +309,16 @@ impl WorkbenchClientView<'_> {
         })
     }
     pub(crate) fn action_menu(&self) -> Option<MenuView<'_>> {
-        self.menu.and_then(Coordinator::view)
+        self.menu.and_then(MenuEpisode::view)
     }
     pub(crate) fn action_menu_cascade(&self) -> Vec<MenuView<'_>> {
-        self.menu.map(Coordinator::cascade).unwrap_or_default()
+        self.menu.map(MenuEpisode::cascade).unwrap_or_default()
     }
     pub(crate) fn action_menu_root(&self) -> Option<(&MenuTarget, Option<MenuAnchor>)> {
-        self.menu.and_then(Coordinator::root)
+        self.menu.and_then(MenuEpisode::root)
     }
     pub(crate) fn action_menu_input_context(&self) -> Option<MenuInputContext> {
-        self.menu.and_then(Coordinator::input_context)
+        self.menu.and_then(MenuEpisode::input_context)
     }
     pub(crate) fn action_menu_source(&self) -> Option<DrawnMenuSource> {
         if self.retirement.is_some() {
@@ -564,14 +367,7 @@ impl WorkbenchClientUi {
     }
 
     pub(super) fn observe_action_menu_geometry(&mut self, geometry: Geometry) {
-        if self
-            .menus
-            .geometry
-            .replace(geometry)
-            .is_some_and(|old| old != geometry)
-        {
-            self.menus.menu.not_presented();
-        }
+        self.menus.observe_geometry(geometry);
     }
 
     fn menu_carrier_live(&self) -> bool {
@@ -582,11 +378,7 @@ impl WorkbenchClientUi {
     }
 
     pub(in crate::workbench_client) fn cancel_action_menu(&mut self) {
-        self.menus.menu.cancel();
-        self.menus.intent = None;
-        self.menus.parents.clear();
-        self.menus.resume_handoff = None;
-        self.menus.sidebar = None;
+        self.menus.cancel();
     }
 
     pub(super) fn fail_action_menu(&mut self) {
@@ -634,7 +426,7 @@ impl WorkbenchClientUi {
         resume_seed: ResumePermitSeed,
         hidden: bool,
     ) -> bool {
-        self.menus.resume_handoff = None;
+        self.menus.clear_resume_handoff();
         if self.action_menu_active()
             || self.modal_owns_input()
             || self.copy_mode_active()
@@ -643,13 +435,11 @@ impl WorkbenchClientUi {
         {
             return false;
         }
-        if self.menus.geometry.is_none() {
-            self.menus.geometry = self
-                .state
+        if !self.menus.ensure_geometry(|| {
+            self.state
                 .as_ref()
-                .map(WorkbenchClientState::latest_geometry);
-        }
-        if self.menus.geometry.is_none() {
+                .map(WorkbenchClientState::latest_geometry)
+        }) {
             return false;
         }
         let target = match target {
@@ -920,7 +710,7 @@ impl WorkbenchClientUi {
                 )
             });
         }
-        actions = sidebar::actions(&entry, actions, self.menus.sidebar.as_ref());
+        actions = sidebar::actions(&entry, actions, self.menus.discovery());
         if tab_creation {
             actions = vec![
                 MenuAction::NewTab,
@@ -1006,33 +796,30 @@ impl WorkbenchClientUi {
         } else {
             Vec::new()
         };
-        let intent = Intent {
-            capabilities: self.capabilities,
+        let intent = Intent::open(
+            self.capabilities,
             entry,
             target,
-            origin: Origin::capture(state),
-            stage: Stage::Open,
-            zoomed: state.is_some_and(WorkbenchClientState::zoom_active),
+            state,
             pointer_released,
             resume_permit,
             project_choices,
-        };
+        );
         if !self
             .menus
             .menu
-            .open_for(intent.entry.clone(), title, actions, anchor)
+            .open_for(intent.entry().clone(), title, actions, anchor)
         {
             return false;
         }
         self.menus.menu.set_search_children(search_children);
         let choices = sidebar::ChoiceLabels::new(
             self.menus.menu.view().map_or(&[][..], |menu| menu.actions),
-            self.menus.sidebar.as_ref(),
+            self.menus.discovery(),
         );
         self.menus.menu.set_labels(|action| match action {
             MenuAction::JoinWorkspaceProject(id) => intent
-                .project_choices
-                .as_ref()?
+                .project_choices()?
                 .iter()
                 .find(|project| project.project_id == id)
                 .map(|project| project.label.to_string()),
@@ -1057,7 +844,7 @@ impl WorkbenchClientUi {
                 _ => None,
             });
         }
-        if let (Some(state), Target::Tab { tab, .. }) = (state, &intent.target) {
+        if let (Some(state), Target::Tab { tab, .. }) = (state, intent.target()) {
             let Some(scope) = super::tab_groups::menu_scope(state, tab, group_menu) else {
                 self.menus.menu.cancel();
                 return false;
@@ -1078,7 +865,7 @@ impl WorkbenchClientUi {
                 self.menus.menu.hide_candidate();
             }
         } else {
-            if let (Some(state), MenuTarget::Global) = (state, &intent.entry)
+            if let (Some(state), MenuTarget::Global) = (state, intent.entry())
                 && let Some(tab) = super::tab_groups::current_tab(state)
             {
                 // The Tab section names the selected set that the current Tab belongs to.
@@ -1097,13 +884,14 @@ impl WorkbenchClientUi {
                 self.menus.menu.hide_candidate();
             }
         }
-        self.menus.menu.refresh_availability(|action| {
-            visible_unavailable(intent.availability(state, self.menus.sidebar.as_ref(), action))
+        let (menu, _, discovery) = self.menus.menu_with_facts();
+        menu.refresh_availability(|action| {
+            visible_unavailable(intent_availability(&intent, state, discovery, action))
         });
         if !self.menus.menu.active() {
             return false;
         }
-        self.menus.intent = Some(intent);
+        self.menus.begin(intent);
         self.prepare_sidebar_worktrees();
         if let Some(state) = self.state.as_mut() {
             state.cancel_project_quick_entry();
@@ -1136,10 +924,7 @@ impl WorkbenchClientUi {
             && (event.code == crate::client_view::KeyCode::Esc
                 || (current.readiness() != MenuInputReadiness::Recovery
                     && event.code == crate::client_view::KeyCode::Left))
-            && matches!(
-                self.menus.intent.as_ref().map(|intent| &intent.stage),
-                Some(Stage::Open)
-            )
+            && matches!(self.menus.intent().map(Intent::stage), Some(Stage::Open))
             && let Some(ParentMenu {
                 target,
                 anchor,
@@ -1147,15 +932,11 @@ impl WorkbenchClientUi {
                 query,
                 resume_permit,
                 retained: _,
-            }) = self.menus.parents.pop()
+            }) = self.menus.pop_parent()
         {
-            let released = self
-                .menus
-                .intent
-                .as_ref()
-                .is_some_and(|intent| intent.pointer_released);
+            let released = self.menus.intent().is_some_and(Intent::pointer_released);
             self.menus.menu.cancel();
-            self.menus.intent = None;
+            self.menus.release_intent();
             // Returning names the row that opened the submenu as the candidate.
             if self.open_action_menu_with_resume_permit(
                 target,
@@ -1167,7 +948,7 @@ impl WorkbenchClientUi {
                 self.menus.menu.set_query(query.as_deref());
                 self.menus.menu.select_action(selected);
             } else {
-                self.menus.parents.clear();
+                self.menus.clear_parents();
             }
             return true;
         }
@@ -1177,9 +958,7 @@ impl WorkbenchClientUi {
         if is_press && event.code == crate::client_view::KeyCode::Esc {
             let _ = self.menus.menu.key(event);
             if !self.action_menu_active() {
-                self.menus.intent = None;
-                self.menus.parents.clear();
-                self.menus.sidebar = None;
+                self.menus.end();
             }
             return true;
         }
@@ -1187,10 +966,7 @@ impl WorkbenchClientUi {
         // Recovery retains ownership without an ordinary editing lease. Pending, suspended,
         // covered, reopened-parent and transfer states therefore swallow everything except Esc.
         if current.readiness() == MenuInputReadiness::Recovery
-            || !matches!(
-                self.menus.intent.as_ref().map(|intent| &intent.stage),
-                Some(Stage::Open)
-            )
+            || !matches!(self.menus.intent().map(Intent::stage), Some(Stage::Open))
         {
             return true;
         }
@@ -1199,9 +975,7 @@ impl WorkbenchClientUi {
             self.confirm_action_menu();
         }
         if !self.action_menu_active() {
-            self.menus.intent = None;
-            self.menus.parents.clear();
-            self.menus.sidebar = None;
+            self.menus.end();
         }
         true
     }
@@ -1280,26 +1054,21 @@ impl WorkbenchClientUi {
     }
 
     fn confirm_action_menu(&mut self) {
-        let Some(intent) = &mut self.menus.intent else {
-            return;
-        };
-        if !matches!(intent.stage, Stage::Open) {
+        if !matches!(self.menus.intent().map(Intent::stage), Some(Stage::Open)) {
             return;
         }
         let Some(deadline) = self.clock.now().checked_add(Duration::from_secs(30)) else {
             self.fail_action_menu();
             return;
         };
-        intent.stage = Stage::Confirmed(deadline);
+        self.menus.confirm(deadline);
         self.drive_action_menu();
     }
 
     fn settle_blocked_action_menu_geometry(&mut self) {
         match self.menus.menu.geometry_blocked() {
             Some(GeometrySettlement::Refused) => {
-                self.menus.intent = None;
-                self.menus.parents.clear();
-                self.menus.sidebar = None;
+                self.menus.end();
                 self.note_action_menu_unavailable();
             }
             Some(GeometrySettlement::Suspended) | None => {}
@@ -1451,69 +1220,72 @@ impl WorkbenchClientUi {
             self.fail_action_menu();
             return true;
         }
-        let Some(mut intent) = self.menus.intent.take() else {
+        let Some(mut intent) = self.menus.take_intent() else {
             return false;
         };
         let current = Origin::capture(self.state.as_ref());
-        let open = matches!(intent.stage, Stage::Open | Stage::Confirmed(_));
+        let open = matches!(intent.stage(), Stage::Open | Stage::Confirmed(_));
         if intent
-            .stage
+            .stage()
             .deadline()
             .is_some_and(|deadline| self.clock.now() >= deadline)
-            || !self.target_valid(&intent.target)
+            || !self.target_valid(intent.target())
             || !self.sidebar_worktree_source_current()
-            || intent.project_choices.as_ref().is_some_and(|choices| {
+            || intent.project_choices().is_some_and(|choices| {
                 self.state
                     .as_ref()
-                    .and_then(|state| sidebar::project_choices(state, &intent.target))
-                    .is_none_or(|current| &current.0 != choices)
+                    .and_then(|state| sidebar::project_choices(state, intent.target()))
+                    .is_none_or(|current| current.0.as_slice() != choices)
             })
-            || (open && current != intent.origin)
+            || (open && current != *intent.origin())
         {
             self.fail_action_menu();
             return true;
         }
         let mut changed = false;
-        match intent.stage {
+        match intent.stage() {
             Stage::Open => {
                 if self.menus.menu.view().is_some_and(|menu| {
                     menu.actions.iter().any(|action| {
-                        intent
-                            .availability(
-                                self.state.as_ref(),
-                                self.menus.sidebar.as_ref(),
-                                action.clone(),
-                            )
-                            .is_hidden()
+                        intent_availability(
+                            &intent,
+                            self.state.as_ref(),
+                            self.menus.discovery(),
+                            action.clone(),
+                        )
+                        .is_hidden()
                     })
                 }) {
                     self.fail_action_menu();
                     return true;
                 }
-                changed = self.menus.menu.refresh_availability(|action| {
-                    visible_unavailable(intent.availability(
-                        self.state.as_ref(),
-                        self.menus.sidebar.as_ref(),
-                        action,
-                    ))
+                let state = self.state.as_ref();
+                let (menu, _, discovery) = self.menus.menu_with_facts();
+                changed = menu.refresh_availability(|action| {
+                    visible_unavailable(intent_availability(&intent, state, discovery, action))
                 });
             }
             Stage::Confirmed(deadline) => {
+                let deadline = *deadline;
                 if self.menus.menu.confirmed().is_some_and(|action| {
-                    !intent
-                        .availability(self.state.as_ref(), self.menus.sidebar.as_ref(), action)
-                        .is_enabled()
+                    !intent_availability(
+                        &intent,
+                        self.state.as_ref(),
+                        self.menus.discovery(),
+                        action,
+                    )
+                    .is_enabled()
                 }) {
                     self.fail_action_menu();
                     return true;
                 }
-                let next = match &intent.target {
+                let next = match intent.target() {
                     Target::Global => Some(Stage::Offered(current.clone(), deadline)),
                     Target::Project { .. } => self
                         .menus
                         .menu
                         .confirmed()
-                        .filter(|action| self.menu_target_selected(&intent.target, action.clone()))
+                        .filter(|action| self.menu_target_selected(intent.target(), action.clone()))
                         .is_some()
                         .then(|| Stage::Offered(current.clone(), deadline)),
                     Target::Workspace { location, .. }
@@ -1594,11 +1366,12 @@ impl WorkbenchClientUi {
                     self.fail_action_menu();
                     return true;
                 };
-                intent.stage = next;
+                intent.advance(next);
                 changed = true;
             }
-            Stage::Wait(ref expected, deadline) => {
-                if &current != expected {
+            Stage::Wait(expected, deadline) => {
+                let deadline = *deadline;
+                if current != *expected {
                     self.fail_action_menu();
                     return true;
                 }
@@ -1611,19 +1384,17 @@ impl WorkbenchClientUi {
                             | ClientPhaseKind::RetryableAttachUnavailable
                     )
                 }) {
-                    intent.stage = Stage::Offered(current.clone(), deadline);
+                    intent.advance(Stage::Offered(current.clone(), deadline));
                     changed = true;
                 }
             }
-            Stage::Offered(ref expected, _) if &current != expected => {
+            Stage::Offered(expected, _) if current != *expected => {
                 self.fail_action_menu();
                 return true;
             }
             _ => {}
         }
-        if self.menus.menu.active() {
-            self.menus.intent = Some(intent);
-        }
+        self.menus.restore_intent(intent);
         changed
     }
 
@@ -1632,21 +1403,21 @@ impl WorkbenchClientUi {
         pointer_released: bool,
     ) -> Option<crate::workbench_client::InputAction> {
         self.drive_action_menu();
-        let intent = self.menus.intent.as_ref()?;
-        if !matches!(intent.stage, Stage::Offered(_, _)) {
+        let intent = self.menus.intent()?;
+        if !matches!(intent.stage(), Stage::Offered(_, _)) {
             return None;
         }
         let action = self.menus.menu.confirmed()?;
-        if !self.target_valid(&intent.target)
-            || !self.menu_target_selected(&intent.target, action.clone())
-            || sidebar::unavailable(&intent.entry, self.menus.sidebar.as_ref(), &action).is_some()
+        if !self.target_valid(intent.target())
+            || !self.menu_target_selected(intent.target(), action.clone())
+            || sidebar::unavailable(intent.entry(), self.menus.discovery(), &action).is_some()
             || !action_availability(
                 self.capabilities,
                 self.state.as_ref(),
-                &intent.target,
+                intent.target(),
                 action.clone(),
                 pointer_released,
-                intent.resume_permit.as_ref(),
+                intent.resume_permit(),
             )
             .is_enabled()
             || (action == MenuAction::Zoom
@@ -1654,14 +1425,14 @@ impl WorkbenchClientUi {
                     .state
                     .as_ref()
                     .is_some_and(WorkbenchClientState::zoom_active)
-                    != intent.zoomed)
+                    != intent.zoomed())
             || (action == MenuAction::ReleasePointer
-                && (pointer_released || pointer_released != intent.pointer_released))
+                && (pointer_released || pointer_released != intent.pointer_released()))
         {
             self.fail_action_menu();
             return None;
         }
-        let child = match (&intent.target, &action) {
+        let child = match (intent.target(), &action) {
             (_, MenuAction::TabCreation) => {
                 Some(MenuTarget::TabCreate(self.view().tab_create_target()?))
             }
@@ -1690,18 +1461,16 @@ impl WorkbenchClientUi {
             action,
             MenuAction::NewWorktree | MenuAction::OpenWorktreeAt(_) | MenuAction::RemoveWorktree
         ) && matches!(
-            intent.entry,
+            intent.entry(),
             MenuTarget::WorkspaceCreation(_) | MenuTarget::Create(_) | MenuTarget::Workspace(_)
         ) {
-            let discovery = self.menus.sidebar.as_ref()?.ready()?.clone();
+            let discovery = self.menus.discovery()?.ready()?.clone();
             let checkout = match &action {
                 MenuAction::OpenWorktreeAt(path) => Some(path.clone()),
                 _ => None,
             };
             self.menus.menu.take()?;
-            self.menus.intent = None;
-            self.menus.parents.clear();
-            self.menus.sidebar = None;
+            self.menus.end();
             if action == MenuAction::RemoveWorktree {
                 self.remove_sidebar_worktree(discovery);
             } else {
@@ -1710,10 +1479,10 @@ impl WorkbenchClientUi {
             return None;
         }
         let resume_handoff = match (
-            &intent.target,
+            intent.target(),
             action.clone(),
-            intent.resume_permit.as_ref(),
-            intent.stage.deadline(),
+            intent.resume_permit(),
+            intent.stage().deadline(),
         ) {
             (
                 Target::Tab {
@@ -1734,7 +1503,7 @@ impl WorkbenchClientUi {
             }),
             _ => None,
         };
-        let action = match (&intent.target, action) {
+        let action = match (intent.target(), action) {
             (
                 Target::Workspace {
                     location: ClientContextLocation::Workspace { workspace_id, .. },
@@ -1758,7 +1527,7 @@ impl WorkbenchClientUi {
                 crate::workbench_client::WorkspaceDeleteRequest::capture(
                     self.state.as_ref()?,
                     workspace_id,
-                    intent.stage.deadline()?,
+                    intent.stage().deadline()?,
                 )?,
             )),
             (
@@ -1782,14 +1551,14 @@ impl WorkbenchClientUi {
                 let request = crate::workbench_client::WorkspaceOrganizationRequest::workspace(
                     self.state.as_ref()?,
                     workspace_id,
-                    intent.stage.deadline()?,
+                    intent.stage().deadline()?,
                 )?
                 .with_choice(choice)?;
                 crate::workbench_client::InputAction::workspace_organization(Box::new(request))
             }
             (Target::Project { project, .. }, MenuAction::DeleteProject) => {
                 let request = crate::workbench_client::WorkspaceOrganizationRequest::project(
-                    self.state.as_ref()?, project, intent.stage.deadline()?)?
+                    self.state.as_ref()?, project, intent.stage().deadline()?)?
                     .with_choice(crate::workbench_client::state::workspace_setup::OrganizationChoice::DeleteIfIdle)?;
                 crate::workbench_client::InputAction::workspace_organization(Box::new(request))
             }
@@ -1826,7 +1595,7 @@ impl WorkbenchClientUi {
                     self.state.as_ref()?,
                     project,
                     directory,
-                    intent.stage.deadline()?,
+                    intent.stage().deadline()?,
                 )?;
                 if action == MenuAction::WorkspaceAtDirectory {
                     crate::workbench_client::InputAction::workspace_at_directory(Box::new(request))
@@ -1838,17 +1607,14 @@ impl WorkbenchClientUi {
                 let request = crate::workbench_client::ProjectRenameRequest::capture(
                     self.state.as_ref()?,
                     project,
-                    intent.stage.deadline()?,
+                    intent.stage().deadline()?,
                 )?;
                 crate::workbench_client::InputAction::targeted_project_rename(Box::new(request))
             }
             (_, action) => action.client_action()?.into(),
         };
         self.menus.menu.take()?;
-        self.menus.intent = None;
-        self.menus.parents.clear();
-        self.menus.sidebar = None;
-        self.menus.resume_handoff = resume_handoff;
+        self.menus.finish(resume_handoff);
         Some(action)
     }
 
@@ -1860,19 +1626,19 @@ impl WorkbenchClientUi {
         selected: MenuAction,
         pointer_released: bool,
     ) {
-        let Some(intent) = self.menus.intent.as_ref() else {
+        let Some(intent) = self.menus.intent() else {
             return;
         };
         let Some(menu) = self.menus.menu.view() else {
             return;
         };
-        let cascade = intent.entry.context_menu();
+        let cascade = intent.entry().context_menu();
         let parent = ParentMenu {
-            target: intent.entry.clone(),
+            target: intent.entry().clone(),
             anchor: menu.anchor,
             selected,
             query: self.menus.menu.query().map(str::to_owned),
-            resume_permit: intent.resume_permit.clone(),
+            resume_permit: intent.resume_permit().cloned(),
             retained: if cascade {
                 self.menus.menu.retain()
             } else {
@@ -1884,7 +1650,7 @@ impl WorkbenchClientUi {
         if self.menus.menu.take().is_none() {
             return;
         }
-        self.menus.intent = None;
+        self.menus.release_intent();
         if self.open_action_menu_with_resume_permit(
             child,
             parent.anchor,
@@ -1895,9 +1661,9 @@ impl WorkbenchClientUi {
             if !cascade {
                 self.menus.menu.set_query(parent.query.as_deref());
             }
-            self.menus.parents.push(parent);
+            self.menus.push_parent(parent);
         } else {
-            self.menus.parents.clear();
+            self.menus.clear_parents();
         }
     }
 
@@ -1905,7 +1671,7 @@ impl WorkbenchClientUi {
         &mut self,
         action: &ClientAction,
     ) -> TabCloseResumeHandoff {
-        let Some(handoff) = self.menus.resume_handoff.take() else {
+        let Some(handoff) = self.menus.take_resume_handoff() else {
             return TabCloseResumeHandoff::Direct;
         };
         let ClientAction::TabMenu {
@@ -1942,48 +1708,31 @@ impl WorkbenchClientUi {
     }
 
     pub(super) fn menu_navigation_prepared(&mut self, navigation: NavigationKey, accepted: bool) {
-        let Some(intent) = &mut self.menus.intent else {
+        if !self
+            .menus
+            .intent()
+            .is_some_and(|intent| intent.owns_navigation(navigation))
+        {
             return;
-        };
-        match (&mut intent.stage, navigation) {
-            (
-                Stage::Context {
-                    generation: owned,
-                    prepared,
-                    ..
-                },
-                NavigationKey::Context(generation),
-            )
-            | (
-                Stage::Tab {
-                    generation: owned,
-                    prepared,
-                    ..
-                },
-                NavigationKey::Tab(generation),
-            ) if *owned == generation => {
-                if accepted {
-                    *prepared = true;
-                } else {
-                    self.fail_action_menu();
-                }
-            }
-            _ => {}
+        }
+        if accepted {
+            self.menus.mark_navigation_prepared();
+        } else {
+            self.fail_action_menu();
         }
     }
 
     pub(super) fn menu_navigation_installed(&mut self, navigation: NavigationKey) {
-        let Some(intent) = &self.menus.intent else {
+        let Some(intent) = self.menus.intent() else {
             return;
         };
-        let owned = matches!((&intent.stage,navigation), (Stage::Context { generation: g, prepared:true, .. },NavigationKey::Context(generation)) | (Stage::Tab { generation:g, prepared:true, .. },NavigationKey::Tab(generation)) if *g == generation);
-        if !owned {
+        if !intent.navigation_prepared(navigation) {
             return;
         }
         let selected = self
             .state
             .as_ref()
-            .is_some_and(|state| match &intent.target {
+            .is_some_and(|state| match intent.target() {
                 Target::Workspace { location, .. } => state.cache().location() == location,
                 Target::Tab { location, tab, .. } => {
                     state.cache().location() == location
@@ -1998,12 +1747,7 @@ impl WorkbenchClientUi {
             return;
         }
         let expected = Origin::capture(self.state.as_ref());
-        if let Some(intent) = &mut self.menus.intent {
-            let Some(deadline) = intent.stage.deadline() else {
-                return;
-            };
-            intent.stage = Stage::Wait(expected, deadline);
-        }
+        self.menus.await_origin(expected);
     }
 
     pub(super) fn fence_menu_context_candidate(
@@ -2012,13 +1756,15 @@ impl WorkbenchClientUi {
         generation: u64,
         baseline_revision: orchbee_workbench_protocol::WorkbenchRevision,
     ) -> super::super::state::PreparedRefresh {
-        let Some(Intent {
-            target: Target::Workspace { location, source },
-            stage: Stage::Context {
+        let Some(intent) = self.menus.intent() else {
+            return prepared;
+        };
+        let (
+            Target::Workspace { location, source },
+            Stage::Context {
                 generation: owned, ..
             },
-            ..
-        }) = &self.menus.intent
+        ) = (intent.target(), intent.stage())
         else {
             return prepared;
         };
@@ -2049,19 +1795,20 @@ impl WorkbenchClientUi {
         generation: u64,
         candidate: &super::super::state::PreparedMembershipCandidate,
     ) -> bool {
-        let Some(Intent {
-            target:
-                Target::Tab {
-                    location,
-                    tab,
-                    source,
-                    ..
-                },
-            stage: Stage::Tab {
+        let Some(intent) = self.menus.intent() else {
+            return true;
+        };
+        let (
+            Target::Tab {
+                location,
+                tab,
+                source,
+                ..
+            },
+            Stage::Tab {
                 generation: owned, ..
             },
-            ..
-        }) = &self.menus.intent
+        ) = (intent.target(), intent.stage())
         else {
             return true;
         };

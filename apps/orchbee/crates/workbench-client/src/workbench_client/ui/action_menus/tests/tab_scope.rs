@@ -6,6 +6,7 @@ use orchbee_workbench_protocol::{
     Snapshot, TabGroup, TabGroupColor, WorkbenchRevision, WorkbenchSnapshotOutcome,
     WorkbenchTabGroupId,
 };
+use std::time::Instant;
 
 fn key(ui: &mut WorkbenchClientUi, code: KeyCode) {
     ui.capture_action_menu_key(KeyEvent::press(code, Modifiers::NONE));

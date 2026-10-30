@@ -22,7 +22,7 @@ fn draw(ui: &mut WorkbenchClientUi) -> MenuToken {
 }
 
 fn ready_discovery(ui: &WorkbenchClientUi) -> SidebarDiscovery {
-    let addressed = ui.menus.sidebar.as_ref().unwrap().source.clone();
+    let addressed = ui.menus.discovery().unwrap().source().clone();
     let mut discovery = crate::workbench_client::state::worktree_launch::tests::discovery();
     discovery.worker = addressed.primary.as_ref().unwrap().worker_id().clone();
     let result = SidebarDiscovery {
@@ -75,8 +75,8 @@ fn open_creation(ui: &mut WorkbenchClientUi) -> Vec<MenuAction> {
         "a submenu has no product effect"
     );
     assert!(matches!(
-        ui.menus.intent.as_ref().unwrap().entry,
-        MenuTarget::WorkspaceCreation(ref id) if *id == project
+        ui.menus.intent().unwrap().entry(),
+        MenuTarget::WorkspaceCreation(id) if *id == project
     ));
     project_folders(ui.state.as_ref().unwrap(), &project)
         .into_iter()
@@ -114,9 +114,8 @@ fn discovery_appends_checkouts_to_new_workspace_and_requires_a_fresh_draw_withou
         expected
     };
     let old = draw(&mut ui);
-    let episode = ui.menus.sidebar.as_mut().unwrap();
-    episode.state = DiscoveryState::Querying;
-    let id = episode.id;
+    ui.menus.mark_discovery_querying();
+    let id = ui.menus.discovery().unwrap().id();
     let discovery = ready_discovery(&ui);
     ui.settle_sidebar_worktrees(id, Ok(Box::new(discovery)));
     let source = {
@@ -227,19 +226,19 @@ fn cancelled_or_replaced_episode_cannot_reopen_or_populate_a_new_menu() {
     let (mut ui, mailbox, _, _) = context_selection::ready(false);
     let target = project_target(&ui);
     assert!(ui.open_action_menu(target.clone(), None, false));
-    ui.menus.sidebar.as_mut().unwrap().state = DiscoveryState::Querying;
-    let cancelled_id = ui.menus.sidebar.as_ref().unwrap().id;
+    ui.menus.mark_discovery_querying();
+    let cancelled_id = ui.menus.discovery().unwrap().id();
     let stale = ready_discovery(&ui);
     ui.capture_action_menu_key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
     assert!(!ui.action_menu_active());
-    assert!(ui.menus.sidebar.is_none());
+    assert!(ui.menus.discovery().is_none());
     ui.settle_sidebar_worktrees(cancelled_id, Ok(Box::new(stale.clone())));
     assert!(!ui.action_menu_active());
     assert!(ui.open_action_menu(target, None, false));
     let folders = open_creation(&mut ui);
-    assert_ne!(ui.menus.sidebar.as_ref().unwrap().id, cancelled_id);
+    assert_ne!(ui.menus.discovery().unwrap().id(), cancelled_id);
     let token = ui.view().action_menu().unwrap().token;
-    ui.menus.sidebar.as_mut().unwrap().state = DiscoveryState::Querying;
+    ui.menus.mark_discovery_querying();
     ui.settle_sidebar_worktrees(cancelled_id, Ok(Box::new(stale)));
     let view = ui.view();
     let menu = view.action_menu().unwrap();
@@ -249,7 +248,7 @@ fn cancelled_or_replaced_episode_cannot_reopen_or_populate_a_new_menu() {
     assert_eq!(menu.actions, expected, "a stale episode adds no checkout");
     assert!(menu.unavailable[0].is_some());
     assert!(matches!(
-        ui.menus.sidebar.as_ref().unwrap().state,
+        ui.menus.discovery().unwrap().state(),
         DiscoveryState::Querying
     ));
     assert!(mailbox.try_recv().unwrap().is_none());
@@ -262,13 +261,19 @@ fn creation_menu_has_no_orphan_worktree_separator_when_the_checkout_list_is_empt
     assert!(ui.open_action_menu(target, None, false));
     let mut discovery = ready_discovery(&ui);
     discovery.discovery.entries.clear();
-    let episode = ui.menus.sidebar.as_mut().unwrap();
-    episode.state = DiscoveryState::Ready(Box::new(discovery));
-    let SidebarWorktreeTarget::Project(project) = episode.source.target.clone() else {
+    ui.menus.mark_discovery_querying();
+    let id = ui.menus.discovery().unwrap().id();
+    assert!(
+        ui.menus
+            .settle_discovery(id, Some(Box::new(discovery)), || ui.clock.now(), |_| true)
+    );
+    let SidebarWorktreeTarget::Project(project) =
+        ui.menus.discovery().unwrap().source().target.clone()
+    else {
         unreachable!()
     };
     let entry = MenuTarget::Create(Some(project));
-    let composed = actions(&entry, Vec::new(), ui.menus.sidebar.as_ref());
+    let composed = actions(&entry, Vec::new(), ui.menus.discovery());
     assert_eq!(
         composed,
         vec![MenuAction::QuickWorkspace, MenuAction::WorkspaceAtDirectory]
@@ -299,9 +304,8 @@ fn exact_linked_workspace_menu_opens_removal_confirmation_without_selecting_or_c
             .contains(&MenuAction::RemoveWorktree),
         "removal waits for its proof"
     );
-    let episode = ui.menus.sidebar.as_mut().unwrap();
-    episode.state = DiscoveryState::Querying;
-    let id = episode.id;
+    ui.menus.mark_discovery_querying();
+    let id = ui.menus.discovery().unwrap().id();
     ui.settle_sidebar_worktrees(id, Ok(Box::new(discovery)));
     let token = draw(&mut ui);
     let (source, index) = {

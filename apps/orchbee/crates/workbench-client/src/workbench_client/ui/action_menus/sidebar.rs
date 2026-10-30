@@ -1,7 +1,8 @@
 //! Sidebar composition projects exact typed organization choices, never labels as identity.
+use super::episode::DiscoveryState;
 use super::{
-    ClientContextLocation, Duration, Instant, MenuAction, MenuContextSource, MenuTarget, Stage,
-    Target, WorkbenchClientState, WorkbenchClientUi, visible_unavailable,
+    ClientContextLocation, Discovery, MenuAction, MenuContextSource, MenuTarget, Stage, Target,
+    WorkbenchClientState, WorkbenchClientUi, intent_availability, visible_unavailable,
 };
 use crate::workbench_client::{
     SidebarWorktreeTarget,
@@ -14,27 +15,6 @@ use crate::workbench_client::{
 
 #[cfg(test)]
 mod tests;
-
-pub(super) struct Episode {
-    id: u64,
-    source: AddressedWorktreeSource,
-    deadline: Instant,
-    state: DiscoveryState,
-}
-enum DiscoveryState {
-    Waiting,
-    Querying,
-    Ready(Box<SidebarDiscovery>),
-    Absent,
-}
-impl Episode {
-    pub(super) fn ready(&self) -> Option<&SidebarDiscovery> {
-        match &self.state {
-            DiscoveryState::Ready(discovery) => Some(discovery),
-            _ => None,
-        }
-    }
-}
 
 pub(super) fn target(
     entry: &MenuTarget,
@@ -63,8 +43,8 @@ pub(super) fn target(
     }
 }
 
-fn belongs(entry: &MenuTarget, episode: &Episode) -> bool {
-    match (entry, &episode.source.target) {
+fn belongs(entry: &MenuTarget, episode: &Discovery) -> bool {
+    match (entry, &episode.source().target) {
         (MenuTarget::WorkspaceCreation(project), SidebarWorktreeTarget::Project(id)) => {
             project == id
         }
@@ -114,7 +94,7 @@ pub(super) fn project_folders(
 pub(super) struct ChoiceLabels(Vec<(MenuAction, String)>);
 
 impl ChoiceLabels {
-    pub(super) fn new(actions: &[MenuAction], episode: Option<&Episode>) -> Self {
+    pub(super) fn new(actions: &[MenuAction], episode: Option<&Discovery>) -> Self {
         let folders: Vec<_> = actions
             .iter()
             .filter_map(|action| match action {
@@ -148,7 +128,7 @@ impl ChoiceLabels {
             labels.push((MenuAction::WorkspaceInFolder((*path).clone()), label));
         }
         let entries = episode
-            .and_then(Episode::ready)
+            .and_then(Discovery::ready)
             .map_or(&[][..], |ready| &ready.discovery.entries[..]);
         for action in actions {
             let MenuAction::OpenWorktreeAt(path) = action else {
@@ -210,11 +190,11 @@ fn checkout_actions(discovery: &SidebarDiscovery) -> Vec<MenuAction> {
 pub(super) fn actions(
     entry: &MenuTarget,
     actions: Vec<MenuAction>,
-    episode: Option<&Episode>,
+    episode: Option<&Discovery>,
 ) -> Vec<MenuAction> {
     let ready = episode
         .filter(|episode| belongs(entry, episode))
-        .and_then(Episode::ready);
+        .and_then(Discovery::ready);
     match entry {
         // Checkouts join the submenu when discovery proves them; New Worktree… waits disabled.
         MenuTarget::WorkspaceCreation(_) => {
@@ -260,7 +240,7 @@ pub(super) fn actions(
 
 pub(super) fn unavailable(
     entry: &MenuTarget,
-    episode: Option<&Episode>,
+    episode: Option<&Discovery>,
     action: &MenuAction,
 ) -> Option<crate::action_menu::MenuUnavailable> {
     use crate::action_menu::MenuUnavailable;
@@ -269,7 +249,7 @@ pub(super) fn unavailable(
     }
     match episode
         .filter(|episode| belongs(entry, episode))
-        .map(|episode| &episode.state)
+        .map(Discovery::state)
     {
         Some(DiscoveryState::Ready(_)) => None,
         Some(DiscoveryState::Waiting | DiscoveryState::Querying) => {
@@ -314,92 +294,78 @@ pub(super) fn project_choices(
 
 impl WorkbenchClientUi {
     pub(super) fn prepare_sidebar_worktrees(&mut self) {
-        let Some(intent) = self.menus.intent.as_ref() else {
+        let Some(intent) = self.menus.intent() else {
             return;
         };
         let Some(state) = self.state.as_ref() else {
             return;
         };
-        let Some(target) = target(&intent.entry, &intent.target, state) else {
+        let Some(target) = target(intent.entry(), intent.target(), state) else {
             return;
         };
-        if self.menus.sidebar.as_ref().is_some_and(|episode| {
-            episode.source.target == target
-                && episode.source.unchanged(state.cache().canonical_snapshot())
+        if self.menus.discovery().is_some_and(|episode| {
+            episode.source().target == target
+                && episode
+                    .source()
+                    .unchanged(state.cache().canonical_snapshot())
                 && (matches!(
-                    episode.state,
+                    episode.state(),
                     DiscoveryState::Ready(_) | DiscoveryState::Absent
-                ) || self.clock.now() < episode.deadline)
+                ) || self.clock.now() < episode.deadline())
         }) {
             return;
         }
         let Some(source) =
             AddressedWorktreeSource::capture(state.cache().canonical_snapshot(), &target)
         else {
-            self.menus.sidebar = None;
+            self.menus.clear_discovery();
             return;
         };
-        let Some(id) = self.menus.next_sidebar.checked_add(1) else {
+        if !self.menus.begin_discovery(source, || self.clock.now()) {
             return;
-        };
-        let Some(deadline) = self.clock.now().checked_add(Duration::from_secs(10)) else {
-            return;
-        };
-        self.menus.next_sidebar = id;
-        self.menus.sidebar = Some(Episode {
-            id,
-            source,
-            deadline,
-            state: DiscoveryState::Waiting,
-        });
+        }
         // Opening must publish the pending reason before its first paint or input snapshot.
         // Otherwise the first input revises availability and invalidates its own menu proof.
         self.recompose_sidebar_menu();
     }
 
     pub(super) fn sidebar_worktree_source_current(&self) -> bool {
-        self.menus.sidebar.as_ref().is_none_or(|episode| {
-            self.state
-                .as_ref()
-                .is_some_and(|state| episode.source.unchanged(state.cache().canonical_snapshot()))
+        self.menus.discovery().is_none_or(|episode| {
+            self.state.as_ref().is_some_and(|state| {
+                episode
+                    .source()
+                    .unchanged(state.cache().canonical_snapshot())
+            })
         })
     }
 
     pub(in crate::workbench_client::ui) fn drive_sidebar_worktrees(&mut self) -> bool {
-        if !self.action_menu_active() {
+        if !self.action_menu_active() || self.menus.discovery().is_none() {
             return false;
         }
-        let Some(episode) = self.menus.sidebar.as_ref() else {
-            return false;
-        };
         if !self.sidebar_worktree_source_current() {
             self.fail_action_menu();
             return true;
         }
-        if self.clock.now() >= episode.deadline
-            && matches!(
-                episode.state,
-                DiscoveryState::Waiting | DiscoveryState::Querying
-            )
-        {
-            if let Some(episode) = self.menus.sidebar.as_mut() {
-                episode.state = DiscoveryState::Absent;
-            }
+        if self.menus.expire_discovery(self.clock.now()) {
             return self.recompose_sidebar_menu();
         }
-        if !matches!(episode.state, DiscoveryState::Waiting) {
+        let Some((id, source, deadline)) = self
+            .menus
+            .discovery()
+            .filter(|episode| matches!(episode.state(), DiscoveryState::Waiting))
+            .map(|episode| (episode.id(), episode.source().clone(), episode.deadline()))
+        else {
             return false;
-        }
-        let (id, source, deadline) = (episode.id, episode.source.clone(), episode.deadline);
+        };
         if self.issue_worktree_before(
             Action::SidebarQuery {
                 episode: id,
                 source: Box::new(source),
             },
             deadline,
-        ) && let Some(episode) = self.menus.sidebar.as_mut()
-        {
-            episode.state = DiscoveryState::Querying;
+        ) {
+            self.menus.mark_discovery_querying();
         }
         false
     }
@@ -409,37 +375,27 @@ impl WorkbenchClientUi {
         id: u64,
         result: Result<Box<SidebarDiscovery>, WorktreeNotice>,
     ) {
-        let Some(episode) = self.menus.sidebar.as_mut().filter(|episode| {
-            episode.id == id && matches!(episode.state, DiscoveryState::Querying)
-        }) else {
-            return;
-        };
-        episode.state = match result {
-            Ok(discovery)
-                if self.clock.now() < episode.deadline
-                    && discovery.addressed == episode.source
-                    && self.state.as_ref().is_some_and(|state| {
-                        discovery.valid(state.cache().canonical_snapshot())
-                    }) =>
-            {
-                DiscoveryState::Ready(discovery)
-            }
-            _ => DiscoveryState::Absent,
-        };
-        self.recompose_sidebar_menu();
+        let state = self.state.as_ref();
+        if self.menus.settle_discovery(
+            id,
+            result.ok(),
+            || self.clock.now(),
+            |discovery| {
+                state.is_some_and(|state| discovery.valid(state.cache().canonical_snapshot()))
+            },
+        ) {
+            self.recompose_sidebar_menu();
+        }
     }
 
     fn recompose_sidebar_menu(&mut self) -> bool {
-        let Some(intent) = self
-            .menus
-            .intent
-            .as_ref()
-            .filter(|intent| matches!(intent.stage, Stage::Open))
-        else {
+        let state = self.state.as_ref();
+        let (menu, intent, discovery) = self.menus.menu_with_facts();
+        let Some(intent) = intent.filter(|intent| matches!(intent.stage(), Stage::Open)) else {
             return false;
         };
         if !matches!(
-            intent.entry,
+            intent.entry(),
             MenuTarget::Workspace(_)
                 | MenuTarget::Project(_)
                 | MenuTarget::Create(_)
@@ -447,24 +403,16 @@ impl WorkbenchClientUi {
         ) {
             return false;
         }
-        let Some(menu) = self.menus.menu.view() else {
+        let Some(view) = menu.view() else {
             return false;
         };
         // The open rows already omit hidden actions; only discovery rows are recomposed.
-        let actions = actions(
-            &intent.entry,
-            menu.actions.to_vec(),
-            self.menus.sidebar.as_ref(),
-        );
-        let labels = ChoiceLabels::new(&actions, self.menus.sidebar.as_ref());
-        if actions == menu.actions {
-            self.menus.menu.set_labels(|action| labels.label(&action));
-            return self.menus.menu.refresh_availability(|action| {
-                visible_unavailable(intent.availability(
-                    self.state.as_ref(),
-                    self.menus.sidebar.as_ref(),
-                    action,
-                ))
+        let actions = actions(intent.entry(), view.actions.to_vec(), discovery);
+        let labels = ChoiceLabels::new(&actions, discovery);
+        if actions == view.actions {
+            menu.set_labels(|action| labels.label(&action));
+            return menu.refresh_availability(|action| {
+                visible_unavailable(intent_availability(intent, state, discovery, action))
             });
         }
         if actions.is_empty() {
@@ -472,29 +420,25 @@ impl WorkbenchClientUi {
             return true;
         }
         let (entry, title, anchor, selected, hidden) = (
-            intent.entry.clone(),
-            menu.title.to_owned(),
-            menu.anchor,
-            menu.actions[menu.selected].clone(),
-            menu.candidate_hidden,
+            intent.entry().clone(),
+            view.title.to_owned(),
+            view.anchor,
+            view.actions[view.selected].clone(),
+            view.candidate_hidden,
         );
-        self.menus.menu.cancel();
-        if !self.menus.menu.open_for(entry, title, actions, anchor) {
+        menu.cancel();
+        if !menu.open_for(entry, title, actions, anchor) {
             self.fail_action_menu();
             return true;
         }
-        self.menus.menu.set_labels(|action| labels.label(&action));
+        menu.set_labels(|action| labels.label(&action));
         if hidden {
-            self.menus.menu.hide_candidate();
+            menu.hide_candidate();
         } else {
-            self.menus.menu.select_action(selected);
+            menu.select_action(selected);
         }
-        self.menus.menu.refresh_availability(|action| {
-            visible_unavailable(intent.availability(
-                self.state.as_ref(),
-                self.menus.sidebar.as_ref(),
-                action,
-            ))
+        menu.refresh_availability(|action| {
+            visible_unavailable(intent_availability(intent, state, discovery, action))
         });
         true
     }
