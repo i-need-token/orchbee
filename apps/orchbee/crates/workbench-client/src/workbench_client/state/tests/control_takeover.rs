@@ -58,7 +58,7 @@ fn explicit_takeover_keeps_incarnation_and_uses_read_only_leaf_geometry() {
         state
             .live_pane_record(&key)
             .unwrap()
-            .accepted_frame
+            .accepted_frame()
             .is_none()
     );
     assert!(!state.takeover_input_ready());
@@ -92,7 +92,10 @@ fn explicit_takeover_keeps_incarnation_and_uses_read_only_leaf_geometry() {
     assert!(state.stage_drawn_frame(&key, FrameIdentity::new(3)));
     assert!(state.takeover_input_ready());
     assert_eq!(
-        state.live_pane_record(&key).unwrap().last_accepted_geometry,
+        state
+            .live_pane_record(&key)
+            .unwrap()
+            .last_accepted_geometry(),
         Some(geometry(53))
     );
     assert!(state.invariant_holds());

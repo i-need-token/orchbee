@@ -103,12 +103,7 @@ fn replay(phase: u8, actions: &[Action]) -> Result<[usize; 7], Failure> {
             ClientPhase::RetryableAttachUnavailable(selected)
         };
         if let Some(record) = state.focus_record_mut() {
-            record.attached = false;
-            record.projected = false;
-            record.staged_frame = None;
-            record.accepted_frame = None;
-            record.mode = None;
-            record.last_accepted_geometry = None;
+            record.attachment = None;
         }
     }
     let active_id = canonical.terminal_contexts[0].tabs[0].tab_id.clone();

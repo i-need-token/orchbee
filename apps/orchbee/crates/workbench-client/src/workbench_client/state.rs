@@ -332,7 +332,10 @@ pub(super) enum ReconcileStep {
 /// `PaneKey`; at most one record exists per pane. `departing` means the pane
 /// left the desired membership set — it keeps its record (and possibly its
 /// attachment) until a canonical disposal proof drops it, so it is never
-/// silently freed and never double-detached.
+/// silently freed and never double-detached. Membership (`departing`), the
+/// last admitted resize, and the fault are independent of the attachment;
+/// every viewer fact lives inside `attachment`, so a detached record cannot
+/// carry a mode, a projection, frame evidence, or accepted geometry.
 #[derive(Clone, Debug)]
 pub(super) struct PaneRecord {
     key: PaneKey,
@@ -343,17 +346,82 @@ pub(super) struct PaneRecord {
     binding: ClientTerminalBinding,
     provenance: CreateTerminalProvenance,
     observed_geometry: Geometry,
-    attached: bool,
-    projected: bool,
+    attachment: Option<AttachedPane>,
     departing: bool,
+    last_admitted_geometry: Option<Geometry>,
+    fault: Option<PaneFault>,
+}
+
+/// The viewer this Client holds for one pane incarnation. It exists from the
+/// canonical `Attached` proof until a disposal path or a viewer loss drops it.
+#[derive(Clone, Debug)]
+struct AttachedPane {
+    /// Unknown until the attachment's setup configuration reports it.
     mode: Option<ControllerMode>,
-    staged_frame: Option<FrameIdentity>,
-    accepted_frame: Option<FrameIdentity>,
+    projection: PaneProjection,
     // First accepted display for this attachment; a later blocked frame does not undo setup.
     display_initialized: bool,
-    last_admitted_geometry: Option<Geometry>,
     last_accepted_geometry: Option<Geometry>,
-    fault: Option<PaneFault>,
+}
+
+impl AttachedPane {
+    /// A freshly installed viewer: projected, without frame evidence or setup facts.
+    const fn installed() -> Self {
+        Self {
+            mode: None,
+            projection: PaneProjection::Installed(FrameAcknowledgement::Unstaged),
+            display_initialized: false,
+            last_accepted_geometry: None,
+        }
+    }
+
+    /// Withdraws the local projection and the geometry it accepted; the viewer
+    /// stays held until its disposal proof.
+    const fn withdraw_projection(&mut self) {
+        self.projection = PaneProjection::Withdrawn;
+        self.last_accepted_geometry = None;
+    }
+
+    /// Voids frame evidence on an installed projection; a withdrawn projection has none.
+    const fn void_frames(&mut self) {
+        if let PaneProjection::Installed(frame) = &mut self.projection {
+            *frame = FrameAcknowledgement::Unstaged;
+        }
+    }
+}
+
+/// Whether an attached viewer is installed in the local projection. Only an
+/// installed projection carries frame evidence.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PaneProjection {
+    Withdrawn,
+    Installed(FrameAcknowledgement),
+}
+
+/// Draw-receipt evidence for an installed projection. A frame is accepted only
+/// after it was staged, so the accepted frame is always the staged frame.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FrameAcknowledgement {
+    Unstaged,
+    Staged(FrameIdentity),
+    Accepted(FrameIdentity),
+}
+
+impl FrameAcknowledgement {
+    /// The frame awaiting or holding acknowledgement.
+    const fn staged(self) -> Option<FrameIdentity> {
+        match self {
+            Self::Unstaged => None,
+            Self::Staged(frame) | Self::Accepted(frame) => Some(frame),
+        }
+    }
+
+    const fn accepted(self) -> Option<FrameIdentity> {
+        match self {
+            Self::Accepted(frame) => Some(frame),
+            Self::Unstaged | Self::Staged(_) => None,
+        }
+    }
 }
 
 impl PaneRecord {
@@ -390,15 +458,9 @@ impl PaneRecord {
             binding,
             provenance,
             observed_geometry,
-            attached: false,
-            projected: false,
+            attachment: None,
             departing: false,
-            mode: None,
-            staged_frame: None,
-            accepted_frame: None,
-            display_initialized: false,
             last_admitted_geometry: None,
-            last_accepted_geometry: None,
             fault: None,
         }
     }
@@ -438,17 +500,70 @@ impl PaneRecord {
     /// Departure voids the pane's frame claims: a pending draw for a
     /// departing leaf must never stage or be acknowledged — the draw receipt
     /// is proof the frame reached a live leaf, which departure revoked. The
-    /// physical `projected`/`attached` facts survive so a leaf that reappears
+    /// physical projection and attachment survive so a leaf that reappears
     /// before its disposal proof resumes drawing without a re-install path.
-    fn mark_departing(&mut self) {
+    const fn mark_departing(&mut self) {
         self.departing = true;
-        self.staged_frame = None;
-        self.accepted_frame = None;
+        if let Some(attachment) = &mut self.attachment {
+            attachment.void_frames();
+        }
     }
 
-    #[cfg(test)]
     pub(super) const fn attached(&self) -> bool {
-        self.attached
+        self.attachment.is_some()
+    }
+
+    const fn projected(&self) -> bool {
+        matches!(
+            &self.attachment,
+            Some(AttachedPane {
+                projection: PaneProjection::Installed(_),
+                ..
+            })
+        )
+    }
+
+    /// Frame evidence of the installed projection; anything else has none.
+    const fn frame(&self) -> FrameAcknowledgement {
+        match &self.attachment {
+            Some(AttachedPane {
+                projection: PaneProjection::Installed(frame),
+                ..
+            }) => *frame,
+            _ => FrameAcknowledgement::Unstaged,
+        }
+    }
+
+    const fn frame_mut(&mut self) -> Option<&mut FrameAcknowledgement> {
+        match &mut self.attachment {
+            Some(AttachedPane {
+                projection: PaneProjection::Installed(frame),
+                ..
+            }) => Some(frame),
+            _ => None,
+        }
+    }
+
+    const fn staged_frame(&self) -> Option<FrameIdentity> {
+        self.frame().staged()
+    }
+
+    const fn accepted_frame(&self) -> Option<FrameIdentity> {
+        self.frame().accepted()
+    }
+
+    fn mode(&self) -> Option<&ControllerMode> {
+        self.attachment.as_ref()?.mode.as_ref()
+    }
+
+    fn last_accepted_geometry(&self) -> Option<Geometry> {
+        self.attachment.as_ref()?.last_accepted_geometry
+    }
+
+    fn display_initialized(&self) -> bool {
+        self.attachment
+            .as_ref()
+            .is_some_and(|attachment| attachment.display_initialized)
     }
 
     pub(super) const fn fault(&self) -> Option<PaneFault> {
@@ -1436,7 +1551,7 @@ impl WorkbenchClientState {
     /// `has_attachments()` gate: membership cleanup is staged whenever
     /// at least one pane viewer exists.
     pub(super) fn has_attachments(&self) -> bool {
-        self.panes.iter().any(|record| record.attached)
+        self.panes.iter().any(|record| record.attached())
     }
 
     /// The attachment key the single-attachment model exposed: the focus
@@ -1446,10 +1561,10 @@ impl WorkbenchClientState {
     /// several background attachments make the answer ambiguous.
     #[cfg(test)]
     pub(super) fn attached_key(&self) -> Option<&PaneKey> {
-        if let Some(record) = self.focus_record().filter(|record| record.attached) {
+        if let Some(record) = self.focus_record().filter(|record| record.attached()) {
             return Some(record.key());
         }
-        let mut attached = self.panes.iter().filter(|record| record.attached);
+        let mut attached = self.panes.iter().filter(|record| record.attached());
         match (attached.next(), attached.next()) {
             (Some(record), None) => Some(record.key()),
             _ => None,
@@ -1461,7 +1576,7 @@ impl WorkbenchClientState {
     #[cfg(test)]
     pub(super) fn projection_key(&self) -> Option<&PaneKey> {
         self.focus_record()
-            .filter(|record| record.projected)
+            .filter(|record| record.projected())
             .map(PaneRecord::key)
     }
 
@@ -1505,13 +1620,17 @@ impl WorkbenchClientState {
     #[cfg(test)]
     pub(super) fn focus_accepted_frame(&self) -> Option<(AttachmentKey, FrameIdentity)> {
         self.focus_record()
-            .and_then(|record| Some((record.key.anchor().clone(), record.accepted_frame?)))
+            .and_then(|record| Some((record.key.anchor().clone(), record.accepted_frame()?)))
     }
 
     #[cfg(test)]
     pub(super) fn focus_last_accepted_geometry(&self) -> Option<(AttachmentKey, Geometry)> {
-        self.focus_record()
-            .and_then(|record| Some((record.key.anchor().clone(), record.last_accepted_geometry?)))
+        self.focus_record().and_then(|record| {
+            Some((
+                record.key.anchor().clone(),
+                record.last_accepted_geometry()?,
+            ))
+        })
     }
 
     /// The live (non-departing) record for one panel of the focus epoch — the
@@ -1575,7 +1694,7 @@ impl WorkbenchClientState {
     #[cfg(test)]
     pub(super) fn last_accepted_geometry(&self, key: &PaneRef) -> Option<Geometry> {
         self.live_pane_record(key)
-            .and_then(|record| record.last_accepted_geometry)
+            .and_then(|record| record.last_accepted_geometry())
     }
 
     pub(super) const fn notice(&self) -> Option<ClientNotice> {
@@ -1642,7 +1761,7 @@ impl WorkbenchClientState {
 
     pub(super) fn pane_attached(&self, key: &PaneRef) -> bool {
         self.live_pane_record(key)
-            .is_some_and(|record| record.attached)
+            .is_some_and(|record| record.attached())
     }
 
     /// Every pane record's live facts for the pointer probe — exact
@@ -1654,7 +1773,7 @@ impl WorkbenchClientState {
     ) -> impl Iterator<Item = (PaneRef, bool, Option<&ControllerMode>)> + '_ {
         self.panes
             .iter()
-            .map(|record| (record.pane_ref(), record.attached, record.mode.as_ref()))
+            .map(|record| (record.pane_ref(), record.attached(), record.mode()))
     }
 
     /// The exact live incarnation of the focus pane — the key input, resize,
@@ -1676,9 +1795,7 @@ impl WorkbenchClientState {
     pub(super) fn pollable_panes(&self) -> Vec<PaneRef> {
         self.panes
             .iter()
-            .filter(|record| {
-                record.attached && record.projected && !record.departing && record.mode.is_some()
-            })
+            .filter(|record| record.projected() && !record.departing && record.mode().is_some())
             .map(PaneRecord::pane_ref)
             .collect()
     }
@@ -1698,12 +1815,12 @@ impl WorkbenchClientState {
 
     pub(super) fn pane_projected(&self, key: &PaneRef) -> bool {
         self.live_pane_record(key)
-            .is_some_and(|record| record.projected)
+            .is_some_and(|record| record.projected())
     }
 
     pub(super) fn expected_frame_geometry(&self, key: &PaneRef) -> Option<Geometry> {
         let record = self.live_pane_record(key)?;
-        if !record.attached || !record.projected {
+        if !record.projected() {
             return None;
         }
         // A peer can take control and resize without notifying this Client's control plane.
@@ -1711,13 +1828,13 @@ impl WorkbenchClientState {
         // must not freeze observation at the former controller's size. Initial setup and
         // the explicit handoff's first frame still require their acknowledged geometry.
         if matches!(self.phase, ClientPhase::Ready(_))
-            && record.display_initialized
+            && record.display_initialized()
             && self.takeover_input_ready()
         {
             return None;
         }
-        match record.mode.as_ref() {
-            Some(ControllerMode::Controlling(_)) => record.last_accepted_geometry,
+        match record.mode() {
+            Some(ControllerMode::Controlling(_)) => record.last_accepted_geometry(),
             Some(ControllerMode::ReadOnly) | None => None,
         }
     }
@@ -1872,7 +1989,7 @@ impl WorkbenchClientState {
         self.panes.iter().any(|record| {
             record.key.anchor == anchor
                 && (record.departing
-                    || (record.attachable() && !record.attached && record.retryable()))
+                    || (record.attachable() && !record.attached() && record.retryable()))
         })
     }
 
@@ -1905,7 +2022,7 @@ impl WorkbenchClientState {
                 if record.key.anchor == anchor
                     && !record.departing
                     && record.attachable()
-                    && !record.attached
+                    && !record.attached()
                     && record.retryable()
                 {
                     record.fault = Some(PaneFault::ConvergenceExpired);
@@ -1960,8 +2077,9 @@ impl WorkbenchClientState {
     pub(super) fn depart_all_panes(&mut self) {
         for record in &mut self.panes {
             record.mark_departing();
-            record.projected = false;
-            record.last_accepted_geometry = None;
+            if let Some(attachment) = &mut record.attachment {
+                attachment.withdraw_projection();
+            }
         }
     }
 
@@ -2036,7 +2154,7 @@ impl WorkbenchClientState {
             && self.panel_close.confirmation().is_none()
             && self
                 .live_pane_record(key)
-                .is_some_and(|record| record.attached && !record.departing)
+                .is_some_and(|record| record.attached() && !record.departing)
     }
 
     /// A lost focused viewer still owns its selection until canonical membership
@@ -2049,7 +2167,7 @@ impl WorkbenchClientState {
 
     fn focus_has_lost_viewer(&self) -> bool {
         self.focus_record().is_some_and(|record| {
-            !record.attached && !record.departing && record.fault == Some(PaneFault::ViewerLost)
+            !record.attached() && !record.departing && record.fault == Some(PaneFault::ViewerLost)
         })
     }
 
@@ -2073,8 +2191,8 @@ impl WorkbenchClientState {
                 PaneFault::AttachRejected
                 | PaneFault::AttachUnavailable
                 | PaneFault::CapacityExceeded
-                | PaneFault::ConvergenceExpired => !record.attached,
-                PaneFault::ViewerLost | PaneFault::ControlLost => record.attached,
+                | PaneFault::ConvergenceExpired => !record.attached(),
+                PaneFault::ViewerLost | PaneFault::ControlLost => record.attached(),
             });
         if !eligible {
             return false;
@@ -2084,19 +2202,11 @@ impl WorkbenchClientState {
             let Some(record) = self.live_pane_record_mut(key) else {
                 return false;
             };
-            match fault {
-                PaneFault::ViewerLost => {
-                    record.attached = false;
-                    record.projected = false;
-                    record.display_initialized = false;
-                    record.mode = None;
-                    record.staged_frame = None;
-                    record.accepted_frame = None;
-                    record.last_accepted_geometry = None;
-                }
-                PaneFault::ControlLost => {
-                    record.mode = Some(ControllerMode::ReadOnly);
-                    record.last_accepted_geometry = None;
+            match (fault, &mut record.attachment) {
+                (PaneFault::ViewerLost, attachment) => *attachment = None,
+                (PaneFault::ControlLost, Some(attachment)) => {
+                    attachment.mode = Some(ControllerMode::ReadOnly);
+                    attachment.last_accepted_geometry = None;
                 }
                 _ => {}
             }
@@ -2171,8 +2281,8 @@ impl WorkbenchClientState {
                 continue;
             };
             if record.departing
-                || !record.attached
-                || !matches!(record.mode, Some(ControllerMode::Controlling(_)))
+                || !record.attached()
+                || !matches!(record.mode(), Some(ControllerMode::Controlling(_)))
                 || record.last_admitted_geometry == Some(*geometry)
             {
                 continue;
@@ -2187,8 +2297,8 @@ impl WorkbenchClientState {
             return false;
         };
         if record.departing
-            || !record.attached
-            || !matches!(record.mode, Some(ControllerMode::Controlling(_)))
+            || !record.attached()
+            || !matches!(record.mode(), Some(ControllerMode::Controlling(_)))
         {
             return false;
         }
@@ -2202,8 +2312,11 @@ impl WorkbenchClientState {
         mode: ControllerMode,
         applied_geometry: Option<Geometry>,
     ) -> bool {
+        // Every admitting phase below requires the live record to hold a viewer.
         if matches!(&mode, ControllerMode::Controlling(_)) != applied_geometry.is_some()
-            || self.live_pane_record(key).is_none()
+            || self
+                .live_pane_record(key)
+                .is_none_or(|record| !record.attached())
         {
             return false;
         }
@@ -2211,12 +2324,12 @@ impl WorkbenchClientState {
         let background_live = self.desired.as_ref() != Some(key.pane())
             && self
                 .live_pane_record(key)
-                .is_some_and(|record| record.attached && !record.departing);
+                .is_some_and(|record| record.attached() && !record.departing);
         let background_resize = background_live
             && applied_geometry.is_some()
             && self
                 .live_pane_record(key)
-                .is_some_and(|record| record.mode.as_ref() == Some(&mode));
+                .is_some_and(|record| record.mode() == Some(&mode));
         let lost_focus_background_resize = background_resize
             && self.focused_viewer_lost()
             && self
@@ -2302,15 +2415,15 @@ impl WorkbenchClientState {
         {
             self.invalidate_switch_anchor();
         }
-        let Some(record) = self.live_pane_record_mut(key) else {
+        let Some(attachment) = self
+            .live_pane_record_mut(key)
+            .and_then(|record| record.attachment.as_mut())
+        else {
             return false;
         };
-        record.mode = Some(mode);
-        record.last_accepted_geometry = applied_geometry;
-        if record.projected {
-            record.staged_frame = None;
-            record.accepted_frame = None;
-        }
+        attachment.mode = Some(mode);
+        attachment.last_accepted_geometry = applied_geometry;
+        attachment.void_frames();
         true
     }
 
@@ -2329,9 +2442,7 @@ impl WorkbenchClientState {
         if key.anchor().generation() >= desired.anchor().generation()
             || matches!(&mode, ControllerMode::Controlling(_)) != applied_geometry.is_some()
             || !self.pane_attached(key)
-            || self.live_pane_record(key).is_none_or(|record| {
-                record.projected || record.staged_frame.is_some() || record.accepted_frame.is_some()
-            })
+            || self.live_pane_record(key).is_none_or(PaneRecord::projected)
         {
             return None;
         }
@@ -2348,8 +2459,11 @@ impl WorkbenchClientState {
             return None;
         }
         previous.mode = Some(mode.clone());
-        if let Some(record) = self.live_pane_record_mut(key) {
-            record.last_accepted_geometry = applied_geometry;
+        if let Some(attachment) = self
+            .live_pane_record_mut(key)
+            .and_then(|record| record.attachment.as_mut())
+        {
+            attachment.last_accepted_geometry = applied_geometry;
         }
         self.invalidate_switch_anchor();
         Some(SetupEventDisposition::Superseded { desired })
@@ -2359,23 +2473,24 @@ impl WorkbenchClientState {
         let Some(record) = self.live_pane_record_mut(key) else {
             return false;
         };
-        if !record.attached || !record.projected || record.departing {
+        if record.departing {
             return false;
         }
-        record.staged_frame = Some(frame);
-        record.accepted_frame = None;
+        let Some(acknowledgement) = record.frame_mut() else {
+            return false;
+        };
+        *acknowledgement = FrameAcknowledgement::Staged(frame);
         true
     }
 
     pub(super) fn invalidate_projection_frame(&mut self, key: &PaneRef) -> bool {
-        let Some(record) = self.live_pane_record_mut(key) else {
+        let Some(acknowledgement) = self
+            .live_pane_record_mut(key)
+            .and_then(PaneRecord::frame_mut)
+        else {
             return false;
         };
-        if !record.attached || !record.projected {
-            return false;
-        }
-        record.staged_frame = None;
-        record.accepted_frame = None;
+        *acknowledgement = FrameAcknowledgement::Unstaged;
         true
     }
 
@@ -2400,9 +2515,7 @@ impl WorkbenchClientState {
         let Some(record) = self.live_pane_record(key) else {
             return false;
         };
-        if !record.attached
-            || !record.projected
-            || record.accepted_frame != Some(frame)
+        if record.accepted_frame() != Some(frame)
             || self.controller_mode() != Some(&mode)
             || matches!(&mode, ControllerMode::Controlling(_)) != accepted_geometry.is_some()
         {
@@ -2412,7 +2525,8 @@ impl WorkbenchClientState {
             let Some(geometry) = accepted_geometry else {
                 return false;
             };
-            if geometry != self.latest_geometry || record.last_accepted_geometry != Some(geometry) {
+            if geometry != self.latest_geometry || record.last_accepted_geometry() != Some(geometry)
+            {
                 return false;
             }
         }
@@ -2443,8 +2557,7 @@ impl WorkbenchClientState {
         let Some(record) = self.live_pane_record(key) else {
             return Err(CarrierFailure::Protocol);
         };
-        if !record.projected
-            || record.accepted_frame != Some(frame)
+        if record.accepted_frame() != Some(frame)
             || self.controller_mode() != Some(&mode)
             || matches!(&mode, ControllerMode::Controlling(_)) != accepted_geometry.is_some()
         {
@@ -2454,7 +2567,7 @@ impl WorkbenchClientState {
             let Some(geometry) = accepted_geometry else {
                 return Err(CarrierFailure::Protocol);
             };
-            if record.last_accepted_geometry != Some(geometry) {
+            if record.last_accepted_geometry() != Some(geometry) {
                 return Err(CarrierFailure::Protocol);
             }
             if self.latest_geometry != geometry {
@@ -2493,7 +2606,7 @@ impl WorkbenchClientState {
         let Some(record) = self.live_pane_record(key) else {
             return false;
         };
-        if record.attached || record.departing {
+        if record.attached() || record.departing {
             return false;
         }
         self.mark_pane_attached(key)
@@ -2503,11 +2616,7 @@ impl WorkbenchClientState {
         let Some(record) = self.live_pane_record_mut(key) else {
             return false;
         };
-        record.attached = true;
-        record.projected = true;
-        record.display_initialized = false;
-        record.staged_frame = None;
-        record.accepted_frame = None;
+        record.attachment = Some(AttachedPane::installed());
         record.fault = None;
         true
     }
@@ -2533,9 +2642,6 @@ impl WorkbenchClientState {
             && setup.previous.is_none()
             && !self.pane_attached(key)
             && !self.pane_projected(key)
-            && self.live_pane_record(key).is_none_or(|record| {
-                record.staged_frame.is_none() && record.accepted_frame.is_none()
-            })
             && self
                 .cache
                 .tabs()
@@ -2548,11 +2654,17 @@ impl WorkbenchClientState {
         let Some(record) = self.live_pane_record_mut(key) else {
             return false;
         };
-        if !record.attached || !record.projected || record.staged_frame != Some(frame) {
+        let Some(attachment) = record.attachment.as_mut() else {
+            return false;
+        };
+        let PaneProjection::Installed(acknowledgement) = &mut attachment.projection else {
+            return false;
+        };
+        if acknowledgement.staged() != Some(frame) {
             return false;
         }
-        record.accepted_frame = Some(frame);
-        record.display_initialized = true;
+        *acknowledgement = FrameAcknowledgement::Accepted(frame);
+        attachment.display_initialized = true;
         self.accept_takeover_frame(key);
         true
     }
@@ -2583,18 +2695,16 @@ impl WorkbenchClientState {
                 .as_ref()
                 .is_some_and(|previous| previous.selected.key == *key.pane())
             && self.pane_attached(key)
-            && self.live_pane_record(key).is_some_and(|record| {
-                !record.projected
-                    && record.staged_frame.is_none()
-                    && record.accepted_frame.is_none()
-            }))
+            && self
+                .live_pane_record(key)
+                .is_some_and(|record| !record.projected()))
         .then_some(SetupEventDisposition::Superseded { desired })
     }
 
     #[cfg(test)]
     pub(super) fn feedback_accepted(&self) -> bool {
         self.focus_record()
-            .is_some_and(|record| record.accepted_frame.is_some())
+            .is_some_and(|record| record.accepted_frame().is_some())
     }
 
     pub(super) fn begin_create(&mut self, operation: CreateOperation) -> bool {
@@ -2634,15 +2744,11 @@ impl WorkbenchClientState {
         let attachment_ok = match anchor.ready() {
             Some(ready) => {
                 Some(&ready.selected.key) == self.desired.as_ref()
-                    && self
-                        .focus_record()
-                        .is_some_and(|record| record.attached && record.projected)
+                    && self.focus_record().is_some_and(|record| record.projected())
             }
             None => {
                 anchor.selected().map(|selected| &selected.key) == self.desired.as_ref()
-                    && self
-                        .focus_record()
-                        .is_none_or(|record| !record.attached && !record.projected)
+                    && self.focus_record().is_none_or(|record| !record.attached())
             }
         };
         if !attachment_ok
@@ -2707,22 +2813,22 @@ impl WorkbenchClientState {
         let Some(record) = self.pane_record(&pane) else {
             return false;
         };
-        if !record.attached
-            || !record.projected
+        if !record.projected()
             || matches!(&old_ready.mode, ControllerMode::Controlling(_))
                 != applied_geometry.is_some()
         {
             return false;
         }
         if matches!(&old_ready.mode, ControllerMode::Controlling(_)) {
-            let changed = record.last_accepted_geometry != applied_geometry;
-            let Some(record) = self.pane_record_mut(&pane) else {
+            let Some(attachment) = self
+                .pane_record_mut(&pane)
+                .and_then(|record| record.attachment.as_mut())
+            else {
                 return false;
             };
-            record.last_accepted_geometry = applied_geometry;
-            if changed {
-                record.staged_frame = None;
-                record.accepted_frame = None;
+            if attachment.last_accepted_geometry != applied_geometry {
+                attachment.last_accepted_geometry = applied_geometry;
+                attachment.void_frames();
             }
         }
         self.phase = ClientPhase::Ready(old_ready);
@@ -2799,9 +2905,9 @@ impl WorkbenchClientState {
             || settled_at < setup.target.deadlines.forward_cutoff()
             || self.pane_attached(key)
             || self.pane_projected(key)
-            || self.live_pane_record(key).is_none_or(|record| {
-                record.staged_frame.is_some() || record.accepted_frame.is_some()
-            })
+            || self
+                .live_pane_record(key)
+                .is_none_or(|record| record.staged_frame().is_some())
         {
             return None;
         }
@@ -2859,13 +2965,12 @@ impl WorkbenchClientState {
         if setup.target.selected.key != *key.pane()
             || self.panes.iter().any(|record| {
                 &record.key != key.pane()
-                    && record.attached
+                    && record.attached()
                     && record.incarnation != key.incarnation()
             })
-            || self.live_pane_record(key).is_none_or(|record| {
-                record.projected
-                    && (record.staged_frame.is_some() || record.accepted_frame.is_some())
-            })
+            || self
+                .live_pane_record(key)
+                .is_none_or(|record| record.staged_frame().is_some())
             || self.cache.tabs().get(target_index)?.tab_id() != key.anchor().tab_id()
             || !self.pane_provenance_matches(key, target_index, target_provenance)
         {
@@ -2899,7 +3004,7 @@ impl WorkbenchClientState {
                 || setup.selected.index() != target_index
                 || self
                     .live_pane_record(key)
-                    .is_none_or(|record| record.attached || record.projected)
+                    .is_none_or(|record| record.attached() || record.projected())
                 || !self.pane_provenance_matches(key, target_index, target_provenance)
             {
                 return None;
@@ -2938,13 +3043,7 @@ impl WorkbenchClientState {
             self.cancel_duplicate_sequence();
         }
         if let Some(record) = self.pane_record_mut(pane) {
-            record.attached = false;
-            record.projected = false;
-            record.display_initialized = false;
-            record.mode = None;
-            record.staged_frame = None;
-            record.accepted_frame = None;
-            record.last_accepted_geometry = None;
+            record.attachment = None;
         }
     }
 
@@ -3261,7 +3360,7 @@ impl WorkbenchClientState {
             record.key.anchor() == &anchor
                 && !record.departing
                 && record.attachable()
-                && !record.attached
+                && !record.attached()
                 && record.fault == Some(PaneFault::ConvergenceExpired)
         };
         if !self.panes.iter().any(eligible) {
@@ -3507,7 +3606,7 @@ impl WorkbenchClientState {
         };
         self.pane_record(&PaneKey::new(anchor.clone(), panel.clone()))
             .is_some_and(|record| {
-                record.attached && record.projected && !record.departing && record.mode.is_some()
+                record.projected() && !record.departing && record.mode().is_some()
             })
     }
 
@@ -3549,10 +3648,9 @@ impl WorkbenchClientState {
         // refusing here keeps `SelectTab` on the current tab a NoOp.
         let pane = PaneKey::new(active.key().anchor().clone(), panel.panel_id().clone());
         if let Some(record) = self.pane_record(&pane)
-            && record.attached
-            && record.projected
+            && record.projected()
             && !record.departing
-            && record.mode.is_some()
+            && record.mode().is_some()
         {
             return None;
         }
@@ -3587,7 +3685,7 @@ impl WorkbenchClientState {
             let Some(record) = self.pane_record(&pane) else {
                 return false;
             };
-            let Some(mode) = record.mode.clone() else {
+            let Some(mode) = record.mode().cloned() else {
                 return false;
             };
             self.latest_geometry = record.observed_geometry;
@@ -3795,7 +3893,7 @@ impl WorkbenchClientState {
 
     #[cfg(test)]
     pub(super) fn selected_has_viewer(&self) -> bool {
-        self.focus_record().is_some_and(|record| record.attached)
+        self.focus_record().is_some_and(|record| record.attached())
     }
 
     pub(super) fn finalize_retirement(
@@ -3918,14 +4016,14 @@ impl WorkbenchClientState {
         ) && self
             .panes
             .iter()
-            .any(|record| record.projected && Some(&record.key) == self.desired.as_ref())
+            .any(|record| record.projected() && Some(&record.key) == self.desired.as_ref())
         {
             return false;
         }
-        // Per-record shape: at most one record per pane; a projection implies an
-        // attachment; an accepted frame implies the same staged frame; every
-        // non-departing record belongs to the desired anchor; only an attached
-        // record may carry frame or geometry state.
+        // Per-record shape: at most one record per pane, and every non-departing
+        // record belongs to the desired anchor. `AttachedPane` carries the
+        // attachment-scoped facts, so projection, frame, mode, and accepted
+        // geometry state cannot outlive the attachment.
         let unique = !self.panes.iter().enumerate().any(|(index, record)| {
             self.panes[index + 1..]
                 .iter()
@@ -3933,23 +4031,11 @@ impl WorkbenchClientState {
         });
         let records_valid = unique
             && self.panes.iter().all(|record| {
-                (!record.projected || record.attached)
-                    && record
-                        .accepted_frame
-                        .is_none_or(|frame| record.staged_frame == Some(frame))
-                    && (!record.attached
-                        || (record.projected
-                            || (record.staged_frame.is_none() && record.accepted_frame.is_none())))
-                    && (record.departing
-                        || self
-                            .desired
-                            .as_ref()
-                            .is_some_and(|desired| record.key.anchor() == desired.anchor()))
-                    && (record.attached
-                        || (record.staged_frame.is_none()
-                            && record.accepted_frame.is_none()
-                            && record.mode.is_none()
-                            && record.last_accepted_geometry.is_none()))
+                record.departing
+                    || self
+                        .desired
+                        .as_ref()
+                        .is_some_and(|desired| record.key.anchor() == desired.anchor())
             });
         if !records_valid {
             return false;
@@ -3957,10 +4043,10 @@ impl WorkbenchClientState {
         let attachment_shape_valid = match &self.phase {
             ClientPhase::ReconcilingMembership(selected) => {
                 Some(&selected.key) == self.desired.as_ref()
-                    && (self.focus_record().is_some_and(|record| record.attached)
+                    && (self.focus_record().is_some_and(|record| record.attached())
                         || ((self.selected_is_unbound() || self.focus_has_lost_viewer())
                             && self.panes.iter().any(|record| {
-                                record.key.anchor() == selected.key.anchor() && record.attached
+                                record.key.anchor() == selected.key.anchor() && record.attached()
                             })))
             }
             ClientPhase::Empty => {
@@ -3975,32 +4061,22 @@ impl WorkbenchClientState {
             ClientPhase::Ready(ready) => {
                 Some(&ready.selected.key) == self.desired.as_ref()
                     && self.focus_record().is_some_and(|record| {
-                        record.attached
-                            && record.projected
-                            && record.mode.as_ref() == Some(&ready.mode)
+                        record.projected() && record.mode() == Some(&ready.mode)
                     })
             }
             ClientPhase::Creating(barrier) => {
                 barrier.anchor.selected().map(|selected| &selected.key) == self.desired.as_ref()
                     && match barrier.anchor.ready() {
-                        Some(_) => self
-                            .focus_record()
-                            .is_some_and(|record| record.attached && record.projected),
-                        None => self
-                            .focus_record()
-                            .is_none_or(|record| !record.attached && !record.projected),
+                        Some(_) => self.focus_record().is_some_and(|record| record.projected()),
+                        None => self.focus_record().is_none_or(|record| !record.attached()),
                     }
             }
             ClientPhase::CreateCommittedNeedDetach(committed)
             | ClientPhase::ProjectionUnavailableBeforeCleanup(committed) => {
                 committed.anchor.selected().map(|selected| &selected.key) == self.desired.as_ref()
                     && match committed.anchor.ready() {
-                        Some(_) => self
-                            .focus_record()
-                            .is_some_and(|record| record.attached && record.projected),
-                        None => self
-                            .focus_record()
-                            .is_none_or(|record| !record.attached && !record.projected),
+                        Some(_) => self.focus_record().is_some_and(|record| record.projected()),
+                        None => self.focus_record().is_none_or(|record| !record.attached()),
                     }
             }
             ClientPhase::Switching(setup) => {
@@ -4008,14 +4084,14 @@ impl WorkbenchClientState {
                     && match &setup.previous {
                         Some(previous) => self
                             .pane_record(&previous.selected.key)
-                            .is_some_and(|record| record.attached),
+                            .is_some_and(|record| record.attached()),
                         None => setup.target.binding.is_none() || self.focus_record().is_some(),
                     }
             }
             ClientPhase::SelectedWithoutAttachment(selected)
             | ClientPhase::RetryableAttachUnavailable(selected) => {
                 Some(&selected.key) == self.desired.as_ref()
-                    && self.focus_record().is_none_or(|record| !record.attached)
+                    && self.focus_record().is_none_or(|record| !record.attached())
             }
             ClientPhase::Retired(retired) => {
                 let diagnostic_matches_desired = retired

@@ -25,7 +25,7 @@ struct SelectionFence {
 impl SelectionFence {
     fn capture(state: &WorkbenchClientState) -> Option<Self> {
         let record = state.focus_record()?;
-        if !record.attached || !record.projected || record.departing || record.fault.is_some() {
+        if !record.projected() || record.departing || record.fault.is_some() {
             return None;
         }
         let selected = state.active()?;
@@ -251,9 +251,7 @@ impl WorkbenchClientState {
                     .as_ref()
                     .is_some_and(|commit| &commit.operation.key == key)
                 && matches!(self.phase, ClientPhase::Ready(_))
-                && self
-                    .focus_record()
-                    .is_some_and(|record| record.attached && record.projected)
+                && self.focus_record().is_some_and(|record| record.projected())
             {
                 sequence.next += 1;
                 sequence.flight = None;

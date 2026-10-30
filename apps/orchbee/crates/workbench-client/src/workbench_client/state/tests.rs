@@ -419,10 +419,16 @@ fn lost_focus_background_resize_rejects_changed_authority() {
             "read only" => {
                 mode = ControllerMode::ReadOnly;
                 applied = None;
-                state.live_pane_record_mut(&sibling).unwrap().mode = Some(mode.clone());
+                state
+                    .live_pane_record_mut(&sibling)
+                    .unwrap()
+                    .attachment
+                    .as_mut()
+                    .unwrap()
+                    .mode = Some(mode.clone());
             }
             "departing" => state.live_pane_record_mut(&sibling).unwrap().departing = true,
-            "detached" => state.live_pane_record_mut(&sibling).unwrap().attached = false,
+            "detached" => state.live_pane_record_mut(&sibling).unwrap().attachment = None,
             _ => unreachable!(),
         }
         let before = state.last_accepted_geometry(&sibling);
@@ -492,8 +498,8 @@ fn creating_drains_previously_admitted_background_resizes() {
         );
         assert_eq!(state.last_accepted_geometry(&focus), Some(geometry(80)));
         let record = state.live_pane_record(&background).unwrap();
-        assert_eq!(record.staged_frame, None);
-        assert_eq!(record.accepted_frame, None);
+        assert_eq!(record.staged_frame(), None);
+        assert_eq!(record.accepted_frame(), None);
         assert!(state.feedback_accepted());
         assert!(state.invariant_holds());
     }
@@ -555,13 +561,27 @@ fn creating_background_resize_rejects_invalid_authority_and_postcommit_settlemen
                 mode = ControllerMode::Controlling(ControllerId::parse(&id(999)).unwrap());
             }
             "missing geometry" => applied = None,
-            "fresh setup" => state.live_pane_record_mut(&background).unwrap().mode = None,
+            "fresh setup" => {
+                state
+                    .live_pane_record_mut(&background)
+                    .unwrap()
+                    .attachment
+                    .as_mut()
+                    .unwrap()
+                    .mode = None
+            }
             "read only" => {
                 mode = ControllerMode::ReadOnly;
                 applied = None;
-                state.live_pane_record_mut(&background).unwrap().mode = Some(mode.clone());
+                state
+                    .live_pane_record_mut(&background)
+                    .unwrap()
+                    .attachment
+                    .as_mut()
+                    .unwrap()
+                    .mode = Some(mode.clone());
             }
-            "detached" => state.live_pane_record_mut(&background).unwrap().attached = false,
+            "detached" => state.live_pane_record_mut(&background).unwrap().attachment = None,
             "departing" => state.live_pane_record_mut(&background).unwrap().departing = true,
             "changed desired" => {
                 state.desired = Some(PaneKey::new(
@@ -608,14 +628,14 @@ fn creating_background_resize_rejects_invalid_authority_and_postcommit_settlemen
                     (
                         record.key.clone(),
                         record.incarnation,
-                        record.mode.clone(),
-                        record.attached,
-                        record.projected,
+                        record.mode().cloned(),
+                        record.attached(),
+                        record.projected(),
                         record.departing,
                         record.last_admitted_geometry,
-                        record.last_accepted_geometry,
-                        record.staged_frame,
-                        record.accepted_frame,
+                        record.last_accepted_geometry(),
+                        record.staged_frame(),
+                        record.accepted_frame(),
                     )
                 })
                 .collect::<Vec<_>>()

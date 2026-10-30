@@ -63,12 +63,7 @@ impl WorkbenchClientState {
             && self.invariant_holds()
             && self.cache == origin.baseline
             && self.desired.as_ref() == Some(origin.evidence.poll.pane())
-            && self.panes.iter().all(|record| {
-                !record.attached
-                    && !record.projected
-                    && record.staged_frame.is_none()
-                    && record.accepted_frame.is_none()
-            })
+            && self.panes.iter().all(|record| !record.attached())
             && self.close.permits_retired_membership()
             && self.pending_mutation.is_none()
             && !self.setup_blocks_structure()

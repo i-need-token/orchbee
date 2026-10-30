@@ -100,9 +100,12 @@ fn explicit_refresh_install_reopens_expired_pane_without_membership_change() {
     assert_eq!(state.pane_by_panel(&peer).unwrap().fault, None);
     let after = state.pane_record(&focus).unwrap();
     assert_eq!(before.pane_ref(), after.pane_ref());
-    assert_eq!(before.mode, after.mode);
-    assert_eq!(before.accepted_frame, after.accepted_frame);
-    assert_eq!(before.last_accepted_geometry, after.last_accepted_geometry);
+    assert_eq!(before.mode(), after.mode());
+    assert_eq!(before.accepted_frame(), after.accepted_frame());
+    assert_eq!(
+        before.last_accepted_geometry(),
+        after.last_accepted_geometry()
+    );
     assert!(state.pending_refresh_generation().is_none());
     assert!(state.invariant_holds());
 }
@@ -287,7 +290,7 @@ fn user_refresh_preserves_definite_faults_and_departing_viewer_ownership() {
     );
     let record = state.pane_record(reference.pane()).unwrap();
     assert_eq!(record.pane_ref(), reference);
-    assert!(record.attached && record.departing);
+    assert!(record.attached() && record.departing);
     assert_eq!(record.fault, None);
     assert!(state.invariant_holds());
 }
@@ -901,7 +904,7 @@ fn panel_planning_is_refused_while_any_structure_guard_is_active() {
     // A broken invariant refuses planning fail-closed.
     let mut state = ready(1);
     if let Some(record) = state.focus_record_mut() {
-        record.attached = false;
+        record.attachment = None;
     }
     assert!(!state.invariant_holds());
     assert!(

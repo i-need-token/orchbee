@@ -2151,9 +2151,10 @@ every other context's `Pending`/`OutcomeUnknown` evidence entry. Any cleanup fai
 rejected install retires with no fabricated `Detached` proof, no retired origin and no partial
 landing.
 
-Without viewers the install gate already requires a clean pane set: `attached` empty and no
-stray `projected`/`staged`/`accepted` record — the direct leg installs unchanged. A flagged
-record without a viewer has nothing to `Detach` and must not land; it retires honestly.
+Without viewers the install gate already requires a clean pane set: no attached record — the
+direct leg installs unchanged. Projection and frame evidence exist only inside a record's
+attachment, so a record without a viewer cannot carry a stray `projected`/`staged`/`accepted`
+fact.
 
 `ReconcilingMembership` suppresses Ready-based input admission from staging until the commit
 returns; no new gate or phase is added. An input admitted before staging carries its tagged

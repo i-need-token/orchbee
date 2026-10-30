@@ -3,9 +3,10 @@
 //! terminal, or redirect the switch to an unrequested live target.
 
 use super::{
-    AttachTarget, CarrierFailure, ClientPhase, ControllerMode, ExistingAttachment, FrameIdentity,
-    Geometry, PaneKey, PaneRecord, PaneRef, PreparedMembershipCandidate, ReadyAttachment,
-    SelectedTab, SwitchSetup, WorkbenchClientState, WorkbenchSnapshotOutcome,
+    AttachTarget, CarrierFailure, ClientPhase, ControllerMode, ExistingAttachment,
+    FrameAcknowledgement, FrameIdentity, Geometry, PaneKey, PaneProjection, PaneRecord, PaneRef,
+    PreparedMembershipCandidate, ReadyAttachment, SelectedTab, SwitchSetup, WorkbenchClientState,
+    WorkbenchSnapshotOutcome,
 };
 
 /// This record exists only between Switch intent admission and candidate installation.
@@ -44,16 +45,13 @@ struct RetainedProjection {
 
 impl RetainedProjection {
     fn capture(record: &PaneRecord) -> Option<Self> {
-        let mode = record.mode.clone()?;
-        let frame = record.accepted_frame?;
-        if !record.attached
-            || !record.projected
-            || record.departing
-            || record.staged_frame != Some(frame)
+        let mode = record.mode().cloned()?;
+        let frame = record.accepted_frame()?;
+        if record.departing
             || match &mode {
-                ControllerMode::ReadOnly => record.last_accepted_geometry.is_some(),
+                ControllerMode::ReadOnly => record.last_accepted_geometry().is_some(),
                 ControllerMode::Controlling(_) => {
-                    record.last_accepted_geometry != Some(record.observed_geometry)
+                    record.last_accepted_geometry() != Some(record.observed_geometry)
                 }
             }
         {
@@ -65,7 +63,7 @@ impl RetainedProjection {
             mode,
             observed_geometry: record.observed_geometry,
             last_admitted_geometry: record.last_admitted_geometry,
-            accepted_geometry: record.last_accepted_geometry,
+            accepted_geometry: record.last_accepted_geometry(),
             frame,
         })
     }
@@ -73,14 +71,12 @@ impl RetainedProjection {
     fn can_restore(&self, state: &WorkbenchClientState, retained: &[PaneRef]) -> bool {
         retained.contains(&self.pane)
             && state.live_pane_record(&self.pane).is_some_and(|record| {
-                record.attached
+                record.attached()
                     && record.departing
-                    && !record.projected
-                    && record.staged_frame.is_none()
-                    && record.accepted_frame.is_none()
-                    && record.last_accepted_geometry.is_none()
+                    && !record.projected()
+                    && record.last_accepted_geometry().is_none()
                     && record.binding == self.binding
-                    && record.mode.as_ref() == Some(&self.mode)
+                    && record.mode() == Some(&self.mode)
                     && record.observed_geometry == self.observed_geometry
                     && record.last_admitted_geometry == self.last_admitted_geometry
             })
@@ -163,19 +159,19 @@ impl PreparedSwitchRestore<'_> {
                     .find(|saved| saved.pane == record.pane_ref())
                 {
                     record.departing = false;
-                    record.projected = true;
-                    record.staged_frame = Some(saved.frame);
-                    record.accepted_frame = Some(saved.frame);
-                    record.last_accepted_geometry = saved.accepted_geometry;
+                    if let Some(attachment) = &mut record.attachment {
+                        attachment.projection =
+                            PaneProjection::Installed(FrameAcknowledgement::Accepted(saved.frame));
+                        attachment.last_accepted_geometry = saved.accepted_geometry;
+                    }
                 } else if self.projections.is_empty() && record.key() == &self.desired {
                     record.departing = false;
                 }
             } else if !record.departing {
                 record.departing = true;
-                record.projected = false;
-                record.staged_frame = None;
-                record.accepted_frame = None;
-                record.last_accepted_geometry = None;
+                if let Some(attachment) = &mut record.attachment {
+                    attachment.withdraw_projection();
+                }
             }
         }
     }
@@ -197,14 +193,8 @@ impl WorkbenchClientState {
         match &self.phase {
             ClientPhase::Ready(ready) => {
                 let record = self.focus_record()?;
-                record.accepted_frame?;
-                if !record.attached
-                    || !record.projected
-                    || record.staged_frame != record.accepted_frame
-                {
-                    return None;
-                }
-                let accepted_geometry = record.last_accepted_geometry;
+                record.accepted_frame()?;
+                let accepted_geometry = record.last_accepted_geometry();
                 match ready.mode() {
                     ControllerMode::Controlling(_)
                         if accepted_geometry != Some(self.latest_geometry) =>
@@ -267,7 +257,7 @@ impl WorkbenchClientState {
             }),
             ClientPhase::Switching(setup) => setup.previous.clone().or_else(|| {
                 self.pane_record(setup.target.selected.key())
-                    .is_some_and(|record| record.attached)
+                    .is_some_and(|record| record.attached())
                     .then(|| ExistingAttachment {
                         selected: setup.target.selected.clone(),
                         mode: setup.mode.clone(),
@@ -276,14 +266,14 @@ impl WorkbenchClientState {
             ClientPhase::SelectedWithoutAttachment(selected) if self.selected_is_unbound() => self
                 .panes
                 .iter()
-                .find(|record| record.key.anchor() == selected.key.anchor() && record.attached)
+                .find(|record| record.key.anchor() == selected.key.anchor() && record.attached())
                 .map(|record| ExistingAttachment {
                     selected: SelectedTab::new_panel(
                         record.key.clone(),
                         record.index,
                         record.panel_index,
                     ),
-                    mode: record.mode.clone(),
+                    mode: record.mode().cloned(),
                 }),
             ClientPhase::SelectedWithoutAttachment(_)
             | ClientPhase::RetryableAttachUnavailable(_) => None,
@@ -428,54 +418,53 @@ impl WorkbenchClientState {
         {
             return Err(CarrierFailure::Protocol);
         }
-        let observed_geometry = match anchor {
-            StableAnchor::Ready {
-                ready,
-                observed_geometry,
-                ..
-            } => {
-                if self.latest_geometry != *observed_geometry
-                    || setup.previous.as_ref().is_none_or(|previous| {
-                        previous.selected != *ready.selected()
-                            || previous.mode.as_ref() != Some(ready.mode())
-                    })
-                {
-                    return Err(CarrierFailure::Protocol);
-                }
-                *observed_geometry
-            }
-            StableAnchor::Unbound {
-                projections,
-                observed_geometry,
-                ..
-            } => {
-                if self.latest_geometry != *observed_geometry
-                    || setup.previous.as_ref().is_none_or(|previous| {
-                        !projections.iter().any(|saved| {
-                            saved.pane.pane() == previous.selected.key()
-                                && previous.mode.as_ref() == Some(&saved.mode)
+        let observed_geometry =
+            match anchor {
+                StableAnchor::Ready {
+                    ready,
+                    observed_geometry,
+                    ..
+                } => {
+                    if self.latest_geometry != *observed_geometry
+                        || setup.previous.as_ref().is_none_or(|previous| {
+                            previous.selected != *ready.selected()
+                                || previous.mode.as_ref() != Some(ready.mode())
                         })
-                    })
-                {
-                    return Err(CarrierFailure::Protocol);
+                    {
+                        return Err(CarrierFailure::Protocol);
+                    }
+                    *observed_geometry
                 }
-                *observed_geometry
-            }
-            StableAnchor::Selected(_) | StableAnchor::Retryable(_) => {
-                if self
-                    .panes
-                    .iter()
-                    .any(|record| record.key().anchor() == restored.anchor() && record.attached)
-                    || retained_projections
+                StableAnchor::Unbound {
+                    projections,
+                    observed_geometry,
+                    ..
+                } => {
+                    if self.latest_geometry != *observed_geometry
+                        || setup.previous.as_ref().is_none_or(|previous| {
+                            !projections.iter().any(|saved| {
+                                saved.pane.pane() == previous.selected.key()
+                                    && previous.mode.as_ref() == Some(&saved.mode)
+                            })
+                        })
+                    {
+                        return Err(CarrierFailure::Protocol);
+                    }
+                    *observed_geometry
+                }
+                StableAnchor::Selected(_) | StableAnchor::Retryable(_) => {
+                    if self.panes.iter().any(|record| {
+                        record.key().anchor() == restored.anchor() && record.attached()
+                    }) || retained_projections
                         .iter()
                         .any(|key| key.anchor() == restored.anchor())
-                    || setup.previous.is_some()
-                {
-                    return Err(CarrierFailure::Protocol);
+                        || setup.previous.is_some()
+                    {
+                        return Err(CarrierFailure::Protocol);
+                    }
+                    self.latest_geometry
                 }
-                self.latest_geometry
-            }
-        };
+            };
         let authority = SwitchRestoreKey {
             marker: marker.clone(),
             restored: restored.clone(),

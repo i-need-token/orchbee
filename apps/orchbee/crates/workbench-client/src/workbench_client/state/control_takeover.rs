@@ -65,8 +65,8 @@ impl WorkbenchClientState {
     pub(super) fn accept_takeover_frame(&mut self, key: &PaneRef) {
         if self.takeover.awaiting_frame.as_ref() == Some(key)
             && self.live_pane_record(key).is_some_and(|record| {
-                record.accepted_frame.is_some()
-                    && record.last_accepted_geometry == Some(record.observed_geometry)
+                record.accepted_frame().is_some()
+                    && record.last_accepted_geometry() == Some(record.observed_geometry)
             })
         {
             // A handoff gate, not a gate around every subsequent ordinary frame update.
@@ -98,7 +98,7 @@ impl WorkbenchClientState {
         }
         let key = self.focus_pane_ref()?;
         let record = self.live_pane_record(&key)?;
-        if !record.attached || !record.projected || record.departing {
+        if !record.projected() || record.departing {
             return None;
         }
         Some(TakeoverOperation {
@@ -199,13 +199,15 @@ impl WorkbenchClientState {
                 let Some(record) = self.live_pane_record_mut(&evidence.operation.key) else {
                     return false;
                 };
-                record.mode = Some(mode);
-                record.fault = None;
-                record.last_accepted_geometry = matches!(evidence.result, TakeoverResult::Ready(_))
+                let accepted_geometry = matches!(evidence.result, TakeoverResult::Ready(_))
                     .then_some(evidence.operation.geometry);
-                record.last_admitted_geometry = record.last_accepted_geometry;
-                record.staged_frame = None;
-                record.accepted_frame = None;
+                record.fault = None;
+                record.last_admitted_geometry = accepted_geometry;
+                if let Some(attachment) = &mut record.attachment {
+                    attachment.mode = Some(mode);
+                    attachment.last_accepted_geometry = accepted_geometry;
+                    attachment.void_frames();
+                }
             }
             self.pending_refresh = None;
         }

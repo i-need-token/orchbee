@@ -1764,9 +1764,9 @@ worker 释放其槽位一次并报告 `Unavailable`；传输失败同样使清�
 上下文每条 `Pending`/`OutcomeUnknown` 证据条目。任何清理失败、过期或 install 拒绝都如实
 退休：没有捏造的 `Detached` 证明、没有退休 origin、没有部分落点。
 
-没有 viewer 时 install 门已要求干净的 pane 集合：`attached` 为空且无游离的
-`projected`/`staged`/`accepted` 记录——直装腿原样安装。带标志但无 viewer 的记录没有可
-`Detach` 的对象，不得落点；如实退休。
+没有 viewer 时 install 门已要求干净的 pane 集合：没有 attached 记录——直装腿原样安装。
+投影和帧证据只存在于记录的 attachment 之内，因此没有 viewer 的记录不可能带有游离的
+`projected`/`staged`/`accepted` 事实。
 
 `ReconcilingMembership` 从 stage 到提交返回为止抑制基于 Ready 的输入准入；不新增门或
 相位。stage 前已准入的输入携带其 tagged 旧 pane incarnation，只能在该 pane 结算；代次
@@ -1845,4 +1845,4 @@ Client 独立于附着保留精确 Presentation ID。选中的空成员使用 `S
 
 原生分屏默认聚焦已提交的新 Panel。操作冻结此偏好，首次有效快照和后续恢复均按新 Panel ID 通过配对的成员清理／安装流程切换；新 Panel 已消失时执行普通的存续叶子修复。对端分屏保留本地焦点。Windows 设置 `terminal.focus_new_panel = false` 保留原选择；Client 从 Session 的配置快照应用该设置，发布后改变之后的分屏。
 
-<!-- documentation-pairing: english-sha256=476d807e92d924f04368bb0b48b34868caa6d0e670623ccd30f3978c849d3879 zh-cn-sha256=fb4ff9e2f4564140139c3eb3fedc4bfb6004af1b8110b02783935afb20a014db -->
+<!-- documentation-pairing: english-sha256=ad276ef4e45f3c8ae092c5ef2fecdc009254ea7b7bd8dddb1c315a43f8d1e804 zh-cn-sha256=309178e0e44d79fa49ec697eebe2bdc9ff0f2172492afffa1cf55dd5dd9c19b8 -->

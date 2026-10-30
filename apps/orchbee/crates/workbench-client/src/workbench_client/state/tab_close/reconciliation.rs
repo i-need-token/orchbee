@@ -275,7 +275,7 @@ impl WorkbenchClientState {
         marker.membership_recovery()
             && matches!(&self.close.carrier, CloseCarrier::MembershipRecoveryPending(origin) if origin.as_ref() == marker.origin())
             && matches!(self.phase, super::super::ClientPhase::Retired(_))
-            && self.panes.iter().all(|record| !record.attached)
+            && self.panes.iter().all(|record| !record.attached())
     }
 
     pub(in crate::workbench_client) fn close_reconciliation_requested_origin(

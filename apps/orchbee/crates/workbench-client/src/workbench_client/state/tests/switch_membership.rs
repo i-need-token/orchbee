@@ -221,8 +221,10 @@ fn unavailable_cannot_restore_missing_projection_or_ready_without_current_proof(
     assert_eq!(state.desired().map(|pane| pane.anchor()), Some(&marker));
 
     let mut unproven = ready(2);
-    if let Some(record) = unproven.focus_record_mut() {
-        record.accepted_frame = None;
+    if let Some(acknowledgement) = unproven.focus_record_mut().and_then(PaneRecord::frame_mut)
+        && let FrameAcknowledgement::Accepted(frame) = *acknowledgement
+    {
+        *acknowledgement = FrameAcknowledgement::Staged(frame);
     }
     let marker = admit(&mut unproven, 1, 2);
     assert!(
@@ -342,21 +344,22 @@ fn switch_intent_cannot_authorize_setup_before_candidate_installation() {
         .iter_mut()
         .find(|record| record.key.anchor() == &marker)
     {
-        record.attached = true;
-        record.projected = true;
+        record.attachment = Some(AttachedPane::installed());
     }
     assert!(!state.record_setup_configuration_t(&marker, controlling(), Some(geometry(80))));
     let ClientPhase::Switching(setup) = &mut state.phase else {
         panic!("Switch intent retained")
     };
     setup.mode = Some(controlling());
-    if let Some(record) = state
+    if let Some(attachment) = state
         .panes
         .iter_mut()
         .find(|record| record.key.anchor() == &marker)
+        .and_then(|record| record.attachment.as_mut())
     {
-        record.accepted_frame = Some(FrameIdentity::new(1));
-        record.last_accepted_geometry = Some(geometry(80));
+        attachment.projection =
+            PaneProjection::Installed(FrameAcknowledgement::Accepted(FrameIdentity::new(1)));
+        attachment.last_accepted_geometry = Some(geometry(80));
     }
     assert!(!state.publish_ready_t(
         &marker,

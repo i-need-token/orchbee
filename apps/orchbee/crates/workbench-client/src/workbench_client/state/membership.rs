@@ -411,7 +411,7 @@ impl PreparedMembershipInstall<'_> {
         }
         state
             .panes
-            .retain(|record| !record.departing || record.attached);
+            .retain(|record| !record.departing || record.attached());
         match decision {
             MembershipInstallDecision::Attach(target) => {
                 state.install_pane_record(target);
@@ -436,7 +436,7 @@ impl WorkbenchClientState {
             && self.desired.as_ref().is_some_and(|desired| {
                 self.panes
                     .iter()
-                    .any(|record| record.key.anchor() == desired.anchor() && record.attached)
+                    .any(|record| record.key.anchor() == desired.anchor() && record.attached())
             })
     }
 
@@ -773,15 +773,9 @@ impl WorkbenchClientState {
         {
             return Err(CarrierFailure::Protocol);
         }
-        if !preserve
-            && !exact_cleanup
-            && self.panes.iter().any(|record| {
-                record.attached
-                    || record.projected
-                    || record.staged_frame.is_some()
-                    || record.accepted_frame.is_some()
-            })
-        {
+        // Projection and frame evidence live inside the attachment, so no attached
+        // record is a clean pane set.
+        if !preserve && !exact_cleanup && self.panes.iter().any(|record| record.attached()) {
             return Err(CarrierFailure::Protocol);
         }
         let selected_panel_index = prepared.selected_panel.unwrap_or(0);
@@ -1141,7 +1135,7 @@ impl WorkbenchClientState {
                     && self.cache == prepared.baseline
                     && self.desired == prepared.baseline_desired
                     && self.panes.iter().any(|record| {
-                        &record.key.anchor == pending.cleanup.old() && record.attached
+                        &record.key.anchor == pending.cleanup.old() && record.attached()
                     })
                     && committed
                         .anchor
@@ -1187,7 +1181,7 @@ impl WorkbenchClientState {
                         .as_ref()
                         .is_none_or(|prepared| self.cache == prepared.baseline)
                     && self.panes.iter().any(|record| {
-                        &record.key.anchor == pending.cleanup.old() && record.attached
+                        &record.key.anchor == pending.cleanup.old() && record.attached()
                     })
                     && setup.previous.as_ref().is_some_and(|previous| {
                         previous.selected.key().anchor() == &pending.cleanup.old
@@ -1224,7 +1218,7 @@ impl WorkbenchClientState {
             .or_else(|| {
                 self.panes
                     .iter()
-                    .find(|record| record.attached && Some(&record.key) != self.desired.as_ref())
+                    .find(|record| record.attached() && Some(&record.key) != self.desired.as_ref())
                     .map(|record| record.key.anchor().clone())
             })
             .ok_or(CarrierFailure::Protocol)?;
@@ -1274,7 +1268,7 @@ impl WorkbenchClientState {
             .or_else(|| {
                 self.panes
                     .iter()
-                    .find(|record| record.attached && Some(&record.key) != self.desired.as_ref())
+                    .find(|record| record.attached() && Some(&record.key) != self.desired.as_ref())
                     .map(|record| record.key.anchor().clone())
             })
             .ok_or(CarrierFailure::Protocol)?;
@@ -1353,7 +1347,7 @@ impl WorkbenchClientState {
             || !self
                 .panes
                 .iter()
-                .any(|record| &record.key.anchor == cleanup.old() && record.attached)
+                .any(|record| &record.key.anchor == cleanup.old() && record.attached())
         {
             return Err(CarrierFailure::Protocol);
         }

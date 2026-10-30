@@ -69,7 +69,13 @@ fn move_keeps_historical_ready_and_read_only_viewer_through_recovery() {
                 unreachable!()
             };
             ready.mode = ControllerMode::ReadOnly;
-            state.focus_record_mut().unwrap().mode = Some(ControllerMode::ReadOnly);
+            state
+                .focus_record_mut()
+                .unwrap()
+                .attachment
+                .as_mut()
+                .unwrap()
+                .mode = Some(ControllerMode::ReadOnly);
         }
         let key = state.desired().unwrap().clone();
         assert!(state.invalidate_projection_frame_t(&key));
