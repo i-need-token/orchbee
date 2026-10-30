@@ -5,6 +5,7 @@
 mod encoded_fixture;
 
 mod attachment_control;
+mod byte_mutation;
 mod conformance;
 mod connection_control;
 mod creation_control;

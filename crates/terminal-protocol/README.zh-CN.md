@@ -42,6 +42,17 @@ graphics-image 契约。进程信息 payload 往返也经过携带 correlation �
 传输编码／解码，避免已注册 payload 被悄然视为未知必需传输消息。
 Event role 仍被拒绝，已有 payload 上限不变。
 
+## 畸形二进制输入
+
+每个有规范 fixture 的二进制解码器（包括经信封触达的 payload 解码器）都拒绝畸形字节，且不会
+panic。被接受的传输信封重新编码后与原记录完全一致，
+只有已报告并忽略的可选 flag 位除外；被接受的输入消息和 selection-export chunk 重新编码后与
+payload 完全一致，因此畸形变体不会被悄然规范化。`tests/byte_mutation.rs` 在规范二进制 fixture
+上用全部单字节变异和带种子的多处编辑检查这一点，包括插入或删除字节后修复长度字段，以便触达
+嵌套 payload 解码器。失败时打印最小编辑；`ORCHBEE_PROTOCOL_MUTATION_SEED` 可探索其他种子。
+OBTP 流的分帧由各消费方用阻塞 `read_exact` 读取一条经过长度检查的记录，因此传输记录的分块
+不构成单独的解码器状态。
+
 ## 进程样本
 
 `TerminalProcessInfo` 最多 256 行，编码为紧凑的定位数组，按长度严格解码。每个
@@ -54,4 +65,4 @@ Event role 仍被拒绝，已有 payload 上限不变。
 
 80/81 消息使用 graphics-image 编码（5）以及借用视图 `GraphicsDecodeRequest`／`GraphicsDecodeResult`。OBPI 请求有 40 字节头，包含附件、声明尺寸和精确 PNG 长度；OBPX 结果有 56 字节头，包含附件、终端、尺寸和精确 RGBA 长度。绑定检查非零身份、PNG 头一致性、1–4096 尺寸、16 MiB 输入和 32 MiB 解码像素。PNG 内容解码和物理读取授权归 Host 所有；Worker 和 Server 在消费像素前检查信封关联、epoch 和目标。此编码有独立上限，不扩大原始键盘或粘贴限制。
 
-<!-- documentation-pairing: english-sha256=700d07df84197242c25f08f3f4a276d738d69ad8d75e13289423d3947f2e6291 zh-cn-sha256=73e5834cfec1615cc4ee7d81b9517eb5267f64b61857738688de0da139607d09 -->
+<!-- documentation-pairing: english-sha256=cc56065acb1fb79ff67da750b89f6e468d089fef6ed77d6b0c7b95faf00cd4b1 zh-cn-sha256=2a471b42cc09769e6fc66a86a79b4326239d20a40bb23c3b480ba755e285d363 -->

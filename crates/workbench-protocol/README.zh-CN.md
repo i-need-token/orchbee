@@ -30,13 +30,19 @@ stream ID 跨 lane 递增，在同一物理连接内不复用。每代订阅从 
 后续 sequence 递增。请求 stream 只接受一个 Result。显式 lane 和 stream 各最多 64，另有根 lane 1；共享保留
 字节预算为 32 MiB，每条内部记录最多 24 MiB 加 12 字节 header。未知版本、kind、长度、
 tag 和零身份均拒绝。增量解码限制部分输入，避免等待不完整 frame 时阻塞取消／命令唤醒。
-`src/multiplex/tests.rs` 检查部分／相邻 frame 和畸形准入，不证明 Server 资源所有权或交付顺序。
+
+解码结果与读取边界无关。对同一段字节，阻塞读取、整段一次 push 以及任意切分的多次 push
+得到相同的消息和相同的结束状态（完整、不完整或无效），前提是每次 push 后保留的输入不超过
+32 MiB 预算；超过预算的 push 不论如何切分都会被拒绝。每条被接受的记录重新编码后与其消耗的
+字节完全一致，因此畸形输入会被拒绝而不是被规范化。`src/multiplex/tests/` 中的测试用全部单字节
+变异和带种子的多处编辑字节流、在随机切分下做差分检查，失败时打印最小的编辑和切点；
+`ORCHBEE_PROTOCOL_MUTATION_SEED` 可探索其他种子。这些测试不证明 Server 资源所有权或交付顺序。
 
 Client 实现在上述 64 条 stream 中预留一条，并在总预算内预留 256 KiB，供有界空闲进展读取
 使用，不改变线版本或记录 kind。Decoder 输入及临时解析 frame 的上限与保留 stream 队列
 分开。增量输入容量采用几何增长，但不超过 32 MiB。完整大记录出队后，空或最多 16 KiB 的
 后缀会替换超过 64 KiB 的容量，既保留相邻部分 header，也不保留旧的大 scratch 分配。
-既有相邻记录轨迹覆盖这次释放。
+`src/multiplex/tests.rs` 中的大记录轨迹覆盖这次释放。
 
 ## 共享用户偏好
 
@@ -249,4 +255,4 @@ Windows cohort 的整链见证。
 
 `CloseOperationRead` 与 `CloseOperationResult` 在既有 intent 大小上限内使用 OBWP 61/62。它们按原始请求 ID 读取保留 Close，精确关联 会话／request／operation，并使用封闭的 Workspace／Tab／Panel 目标。此读取不创建状态，并保留墓碑。Rust、TypeScript 和 JSON Schema 共享命令语料；[CLI 操作状态](../../apps/orchbee/docs/native-operation-status.zh-CN.md) 负责调用及恢复。
 
-<!-- documentation-pairing: english-sha256=eda6f3aec1ac6508c456eceeebd0cfecfd38f2f0a17869fb20643123279005c2 zh-cn-sha256=a45dee0bb05367c92f5b4bd7f75d93d25b8a953509aed020f4c83ae67aa8ab37 -->
+<!-- documentation-pairing: english-sha256=4869436eb2b9e4260b35544adb6a067fd74886e49746e3618be4b98dfd55b497 zh-cn-sha256=1c95a5bede1ccc816721b028ebe4ee1472479e73655fc091c5278dda6b18cdf1 -->

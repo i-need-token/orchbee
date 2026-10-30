@@ -1,48 +1,13 @@
 use super::*;
 use std::io::Cursor;
 
+mod stream_equivalence;
+
 #[test]
-fn partial_and_adjacent_records_preserve_boundaries_and_identities() {
-    let messages = [
-        MultiplexMessage::LaneOpen {
-            lane_id: MultiplexLaneId::new(2).unwrap(),
-        },
-        MultiplexMessage::StreamOpen {
-            stream_id: MultiplexStreamId::new(3).unwrap(),
-            lane_id: MultiplexLaneId::new(2).unwrap(),
-            mode: StreamMode::Events,
-            request: b"OBWP request".to_vec(),
-        },
-        MultiplexMessage::Gap {
-            stream_id: MultiplexStreamId::new(3).unwrap(),
-            through: NonZeroU64::MIN,
-        },
-        MultiplexMessage::StreamFrame {
-            stream_id: MultiplexStreamId::new(3).unwrap(),
-            sequence: NonZeroU64::new(2).unwrap(),
-            kind: StreamFrameKind::Snapshot,
-            record: vec![0, 255],
-        },
-        MultiplexMessage::Disconnect {
-            reason: MultiplexDisconnectReason::SlowConsumer,
-        },
-    ];
-    let bytes = messages
-        .iter()
-        .flat_map(|message| encode_multiplex_message(message).unwrap())
-        .collect::<Vec<_>>();
-    for chunk in [1, 7, 12, 23, bytes.len()] {
-        let mut decoder = MultiplexDecoder::default();
-        let mut decoded = Vec::new();
-        for slice in bytes.chunks(chunk) {
-            decoder.push(slice).unwrap();
-            while let Some(message) = decoder.next_message().unwrap() {
-                decoded.push(message);
-            }
-        }
-        assert_eq!(decoded, messages);
-        assert!(decoder.is_empty());
-    }
+fn a_delivered_large_record_releases_its_scratch_but_keeps_the_adjacent_header() {
+    let disconnect = MultiplexMessage::Disconnect {
+        reason: MultiplexDisconnectReason::SlowConsumer,
+    };
     let large = MultiplexMessage::StreamFrame {
         stream_id: MultiplexStreamId::new(3).unwrap(),
         sequence: NonZeroU64::MIN,
@@ -50,7 +15,7 @@ fn partial_and_adjacent_records_preserve_boundaries_and_identities() {
         record: vec![7; 512 * 1024],
     };
     let mut bytes = encode_multiplex_message(&large).unwrap();
-    let tail = encode_multiplex_message(&messages[4]).unwrap();
+    let tail = encode_multiplex_message(&disconnect).unwrap();
     bytes.extend_from_slice(&tail[..7]);
     let mut decoder = MultiplexDecoder::default();
     decoder.push(&bytes).unwrap();
@@ -60,7 +25,7 @@ fn partial_and_adjacent_records_preserve_boundaries_and_identities() {
         "a delivered payload cannot leave its large scratch allocation resident"
     );
     decoder.push(&tail[7..]).unwrap();
-    assert_eq!(decoder.next_message().unwrap(), Some(messages[4].clone()));
+    assert_eq!(decoder.next_message().unwrap(), Some(disconnect));
     assert!(decoder.is_empty());
     assert!(decoder.bytes.capacity() <= 64 * 1024);
 }

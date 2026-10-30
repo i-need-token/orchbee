@@ -46,6 +46,19 @@ round trips also pass through transport encoding and decoding with correlation a
 so a registered payload cannot silently become an unknown required transport message. Event roles
 remain rejected and the existing payload bounds remain unchanged.
 
+## Malformed binary input
+
+Each binary decoder with a canonical fixture rejects malformed bytes without panicking, including
+payload decoders reached through the envelope. An accepted transport envelope
+re-encodes to exactly its record except for reported and ignored optional flag bits; accepted
+input messages and selection-export chunks re-encode to exactly their payload, so no malformed
+variant is silently normalized. `tests/byte_mutation.rs` checks this over the canonical binary
+fixtures with every single-byte mutation and seeded multi-edit cases, including inserted or
+deleted bytes whose length fields are repaired so nested payload decoders are reached. A failure
+prints its minimal edits; `ORCHBEE_PROTOCOL_MUTATION_SEED` explores another seed. OBTP stream
+framing reads one length-checked record with blocking `read_exact` at each consumer, so
+transport-record chunking is not a separate decoder state.
+
 ## Process samples
 
 `TerminalProcessInfo` carries at most 256 rows, encoded as compact positional arrays and decoded

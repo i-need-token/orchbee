@@ -33,16 +33,25 @@ subscription generation begins with sequence 1 and Snapshot; subsequent sequence
 Request streams accept one Result. Explicit lanes and streams are bounded to 64 each, with root lane 1 additional; the shared retained
 byte budget is 32 MiB and each inner record is at most 24 MiB plus a 12-byte header. Unknown versions,
 kinds, lengths, tags and zero identities are rejected. Incremental decoding bounds partial input
-and permits cancellation/command wakeups without blocking on an incomplete frame. The tests in
-`src/multiplex/tests.rs` exercise partial/adjacent frames and malformed admission; they do not prove
-Server resource ownership or delivery ordering.
+and permits cancellation/command wakeups without blocking on an incomplete frame.
+
+Decoding is independent of read boundaries. For the same bytes, the blocking reader, one
+whole-buffer push and any partition of pushes yield the same messages and the same clean,
+incomplete or invalid ending, provided each push keeps retained input within the 32 MiB budget;
+a push beyond it is refused whatever the framing. Every accepted record re-encodes to exactly the
+bytes it consumed, so malformed input is rejected rather than normalized. The tests in
+`src/multiplex/tests/` check this differentially with every single-byte mutation and seeded
+multi-edit streams under random partitions, printing the minimal failing edits and cuts;
+`ORCHBEE_PROTOCOL_MUTATION_SEED` explores another seed. They do not prove Server resource
+ownership or delivery ordering.
 
 The Client implementation reserves one of those 64 streams and 256 KiB within the total budget
 for its bounded idle progress read; this changes no wire version or record kind. Decoder input
 and transient parsed frames have separate limits from retained stream queues. Incremental input
 capacity grows geometrically only up to 32 MiB. After a complete large record leaves, empty or
 at-most-16-KiB suffixes replace capacity above 64 KiB, preserving a partial adjacent header without
-keeping the old large scratch allocation. The existing adjacent-record trace covers this release.
+keeping the old large scratch allocation. The large-record trace in `src/multiplex/tests.rs`
+covers this release.
 
 ## Shared user preferences
 
