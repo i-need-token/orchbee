@@ -68,9 +68,58 @@ impl Port {
         self.serial += 1;
         true
     }
+
+    fn submit_worktree(&mut self, token: WorktreeToken) {
+        assert_eq!(token, self.token());
+        if self.complete && !self.fault && self.shown == Some(token) {
+            self.submits += 1;
+            self.stage = WorktreeStage::Waiting;
+            self.shown = None;
+        }
+    }
+
+    fn dismiss_worktree(&mut self, token: WorktreeToken) {
+        assert_eq!(token, self.token());
+        self.active = false;
+    }
+
+    fn choose_worktree(&mut self, token: WorktreeToken, index: usize) {
+        if token != self.token()
+            || self.shown != Some(token)
+            || index >= 8
+            || index == 3
+            || self.stage != WorktreeStage::Checkout
+        {
+            return;
+        }
+        self.selection = i32::try_from(index).unwrap();
+        self.submit_worktree(token);
+    }
 }
 
 impl TerminalInputPort for Port {
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{SurfaceAction, WorktreeAction};
+        match action {
+            SurfaceAction::Worktree(WorktreeAction::Submit(token)) => {
+                self.submit_worktree(token);
+                None
+            }
+            SurfaceAction::Worktree(WorktreeAction::Dismiss(token)) => {
+                self.dismiss_worktree(token);
+                None
+            }
+            SurfaceAction::Worktree(WorktreeAction::Choose { token, index }) => {
+                self.choose_worktree(token, index);
+                None
+            }
+            _ => None,
+        }
+    }
+
     fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
         use crate::terminal_input::SurfaceInput;
         match input {
@@ -116,30 +165,6 @@ impl TerminalInputPort for Port {
         }
         self.active = true;
         Some(ClientActionDisposition::DismissNavigator)
-    }
-    fn submit_worktree(&mut self, token: WorktreeToken) {
-        assert_eq!(token, self.token());
-        if self.complete && !self.fault && self.shown == Some(token) {
-            self.submits += 1;
-            self.stage = WorktreeStage::Waiting;
-            self.shown = None;
-        }
-    }
-    fn dismiss_worktree(&mut self, token: WorktreeToken) {
-        assert_eq!(token, self.token());
-        self.active = false;
-    }
-    fn choose_worktree(&mut self, token: WorktreeToken, index: usize) {
-        if token != self.token()
-            || self.shown != Some(token)
-            || index >= 8
-            || index == 3
-            || self.stage != WorktreeStage::Checkout
-        {
-            return;
-        }
-        self.selection = i32::try_from(index).unwrap();
-        self.submit_worktree(token);
     }
     fn scroll_list(
         &mut self,

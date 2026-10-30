@@ -8,7 +8,7 @@ use super::{
 use crate::{
     action_menu::DrawnTabCreate,
     client_view::{ClientAction, ClientView, Modifiers},
-    terminal_input::TerminalInputPort,
+    terminal_input::{SurfaceAction, SurfaceInput, TabAction, TerminalInputPort},
 };
 use orchbee_workbench_protocol::{
     TabConfiguration, WorkbenchTabGroupId, WorkbenchTabId, WorkbenchTabIdSet,
@@ -426,14 +426,20 @@ impl PointerState {
                                             <= std::time::Duration::from_millis(500)
                                 });
                                 if double {
-                                    if let Some(disposition) =
-                                        port.request_drawn_tab_rename(&drag.source.drawn, &id)
-                                    {
+                                    if let Some(disposition) = port.surface_action(
+                                        SurfaceAction::Tabs(TabAction::RequestRename {
+                                            source: &drag.source.drawn,
+                                            tab: &id,
+                                        }),
+                                    ) {
                                         view.commit_pointer(disposition);
                                     }
                                     None
                                 } else {
-                                    port.follow_drawn_tab_strip(&drag.source.drawn, &id);
+                                    port.surface_input(SurfaceInput::TabStripFollow {
+                                        source: &drag.source.drawn,
+                                        tab: &id,
+                                    });
                                     self.tab_click = Some(TabClick {
                                         source: drag.source.drawn.clone(),
                                         tab: id.clone(),
@@ -464,14 +470,14 @@ impl PointerState {
                 Phase::Dragging(_) => {
                     self.tab_click = None;
                     if let Some(drop) = drag.destination(event.column, event.row) {
-                        port.commit_tab_drag(
-                            &drag.source.drawn,
-                            TabConfiguration::MoveTabsByDrag {
+                        port.surface_action(SurfaceAction::Tabs(TabAction::Drag {
+                            source: &drag.source.drawn,
+                            operation: TabConfiguration::MoveTabsByDrag {
                                 tab_ids: drag.ids,
                                 insert_index: drop.index,
                                 group_id: drop.group,
                             },
-                        );
+                        }));
                         return PointerOutcome::TabGestureEnded;
                     }
                 }

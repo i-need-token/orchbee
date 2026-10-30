@@ -56,20 +56,18 @@ impl TerminalInputPort for RecordingPort<'_> {
             _ => false,
         }
     }
-    fn cancel_rename_draft(&mut self, token: RenameDraftToken) {
-        self.ui.cancel_rename_draft(token)
-    }
-
-    fn submit_rename_draft(&mut self, token: RenameDraftToken) -> Option<ClientActionDisposition> {
-        Some(self.ui.submit_rename_draft(token))
-    }
-
-    fn cancel_setup_draft(&mut self, token: SetupToken) {
-        self.ui.cancel_setup_draft(token)
-    }
-
-    fn submit_setup_draft(&mut self, token: SetupToken) -> Option<ClientActionDisposition> {
-        Some(self.ui.submit_setup_draft(token))
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{RenameAction, SetupAction, SurfaceAction};
+        match action {
+            SurfaceAction::Rename(RenameAction::Cancel(_))
+            | SurfaceAction::Rename(RenameAction::Submit(_))
+            | SurfaceAction::Setup(SetupAction::Cancel(_))
+            | SurfaceAction::Setup(SetupAction::Submit(_)) => self.ui.surface_action(action),
+            _ => None,
+        }
     }
 }
 

@@ -9,6 +9,10 @@ pub use crate::terminal_events::{
 pub(crate) use crate::terminal_events::{PanePointerRoute, route_pane_pointer};
 use crate::terminal_events::{decoder, mouse, utf8};
 pub use crate::workbench_client::input::{
+    BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, RenameAction, SettingsAction,
+    SetupAction, SurfaceAction, TabAction, WorktreeAction,
+};
+pub use crate::workbench_client::input::{
     ModeRequest, PaneAdmission, PaneInput, PointerCaptureRequest, PointerFrameFacts, PointerProbe,
     PointerSelectionIntent, SurfaceInput, TerminalInputPort, TerminalObservation, TextEntry,
     UnavailableTerminalInputPort,

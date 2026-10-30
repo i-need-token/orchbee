@@ -22,8 +22,8 @@ use crate::{
     client_view::{ClientAction, ClientActionDisposition},
     local_client::{LocalClient, LocalClientShutdown},
     workbench_client::input::{
-        PaneAdmission, PaneInput, SurfaceInput, TerminalInputPort, TerminalInputUnavailable,
-        TerminalObservation,
+        LayoutAction, PaneAdmission, PaneInput, RenameAction, SetupAction, SurfaceAction,
+        SurfaceInput, TerminalInputPort, TerminalInputUnavailable, TerminalObservation,
     },
 };
 use orchbee_client_server_protocol::Geometry;
@@ -815,36 +815,44 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    fn click_resize_control(
-        &mut self,
-        target: &crate::tui_layout::DrawnResize,
-        direction: crate::client_view::PanelDirection,
-        fine: bool,
-    ) {
-        if let (Some(native), Some(control)) =
-            (self.backend.native_mut(), self.client_control.as_mut())
-        {
-            control.resize_drawn(native, target, direction, fine);
+    fn surface_action(&mut self, action: SurfaceAction<'_>) -> Option<ClientActionDisposition> {
+        // Close decisions, rename and setup submissions, setup choices, and presentation
+        // activation may request native retirement, which settles before the dispatcher observes
+        // the result. No other committed result retires the native Client.
+        let settles = matches!(
+            action,
+            SurfaceAction::Close(_)
+                | SurfaceAction::Rename(RenameAction::Submit(_))
+                | SurfaceAction::Setup(SetupAction::Submit(_) | SetupAction::Choose { .. })
+                | SurfaceAction::Presentation(_)
+        );
+        let ClientBackend::Native(native) = &mut self.backend;
+        let disposition = match action {
+            // Layout resizing hands off to the client-control lane that this composition owns.
+            SurfaceAction::Layout(LayoutAction::ResizeControl {
+                target,
+                direction,
+                fine,
+            }) => {
+                if let Some(control) = self.client_control.as_mut() {
+                    control.resize_drawn(native, target, direction, fine);
+                }
+                None
+            }
+            SurfaceAction::Layout(LayoutAction::Divider { target, ratio }) => {
+                if let Some(control) = self.client_control.as_mut() {
+                    control.resize_divider(native, target, ratio);
+                }
+                None
+            }
+            action => native.surface_action(action),
+        };
+        if settles {
+            self.finalize_native_retirement();
         }
+        disposition
     }
-    fn click_tab_close(&mut self, token: CloseConfirmationToken, confirm: bool) {
-        if let Some(native) = self.backend.native_mut() {
-            native.click_tab_close(token, confirm);
-        }
-        self.finalize_native_retirement();
-    }
-    fn click_panel_close(&mut self, token: PanelCloseConfirmationToken, confirm: bool) {
-        if let Some(native) = self.backend.native_mut() {
-            native.click_panel_close(token, confirm);
-        }
-        self.finalize_native_retirement();
-    }
-    fn click_workspace_close(&mut self, token: WorkspaceCloseToken, confirm: bool) {
-        if let Some(native) = self.backend.native_mut() {
-            native.click_workspace_close(token, confirm);
-        }
-        self.finalize_native_retirement();
-    }
+
     fn surface_input(&mut self, input: SurfaceInput<'_>) -> bool {
         // A close-confirmation key may request native retirement, which settles before the
         // dispatcher observes the result. No other local input retires the native Client.
@@ -861,15 +869,6 @@ impl TerminalInputPort for WorkbenchClient {
         }
         consumed
     }
-    fn click_settings_control(
-        &mut self,
-        token: crate::native_settings::Token,
-        control: crate::native_settings::Control,
-    ) {
-        if let Some(native) = self.backend.native_mut() {
-            native.click_settings_control(token, control);
-        }
-    }
     fn scroll_list(
         &mut self,
         target: &ListScrollTarget,
@@ -878,15 +877,6 @@ impl TerminalInputPort for WorkbenchClient {
     ) -> Option<ListScrollTarget> {
         let ClientBackend::Native(native) = &mut self.backend;
         native.scroll_list(target, up, lines)
-    }
-    fn click_settings(
-        &mut self,
-        token: crate::native_settings::Token,
-        row: crate::native_settings::Row,
-    ) {
-        if let Some(native) = self.backend.native_mut() {
-            native.click_settings(token, row);
-        }
     }
     fn tab_create_action(
         &mut self,
@@ -904,110 +894,10 @@ impl TerminalInputPort for WorkbenchClient {
             .native_mut()
             .is_some_and(|native| native.open_action_menu(target, anchor, pointer_released))
     }
-    fn activate_action_menu_row(
-        &mut self,
-        source: &crate::action_menu::MenuTarget,
-        token: crate::action_menu::MenuToken,
-        row: usize,
-    ) {
-        if let Some(native) = self.backend.native_mut() {
-            native.activate_action_menu_row(source, token, row);
-        }
-    }
-    fn activate_action_menu_control(
-        &mut self,
-        source: &crate::action_menu::MenuTarget,
-        token: crate::action_menu::MenuToken,
-        control: crate::action_menu::MenuControl,
-    ) {
-        if let Some(native) = self.backend.native_mut() {
-            native.activate_action_menu_control(source, token, control);
-        }
-    }
-    fn cancel_action_menu(&mut self) {
-        if let Some(native) = self.backend.native_mut() {
-            native.cancel_action_menu();
-        }
-    }
     fn take_action_menu_action(&mut self, pointer_released: bool) -> Option<InputAction> {
         self.backend
             .native_mut()?
             .take_action_menu_action(pointer_released)
-    }
-    fn activate_drawn_popup_close(&mut self, target: &DrawnPopupClose) -> bool {
-        self.backend
-            .native_mut()
-            .is_some_and(|native| native.activate_drawn_popup_close(target))
-    }
-
-    fn dismiss_worktree(&mut self, token: WorktreeToken) {
-        if let Some(ui) = self.backend.native_mut() {
-            ui.dismiss_worktree(token);
-        }
-    }
-    fn submit_worktree(&mut self, token: WorktreeToken) {
-        if let Some(ui) = self.backend.native_mut() {
-            ui.submit_worktree(token);
-        }
-    }
-    fn choose_worktree(&mut self, token: WorktreeToken, index: usize) {
-        if let Some(ui) = self.backend.native_mut() {
-            ui.choose_worktree(token, index);
-        }
-    }
-
-    fn cancel_setup_draft(&mut self, token: SetupToken) {
-        if let Some(native) = self.backend.native_mut() {
-            native.cancel_setup_draft(token);
-        }
-    }
-
-    fn choose_setup_project(&mut self, token: SetupToken, index: usize) {
-        if let Some(native) = self.backend.native_mut() {
-            native.choose_setup_project(token, index);
-        }
-        self.finalize_native_retirement();
-    }
-
-    fn submit_setup_draft(&mut self, token: SetupToken) -> Option<ClientActionDisposition> {
-        let disposition = self
-            .backend
-            .native_mut()
-            .map(|native| native.submit_setup_draft(token));
-        self.finalize_native_retirement();
-        disposition
-    }
-
-    fn cancel_rename_draft(&mut self, token: RenameDraftToken) {
-        if let Some(native) = self.backend.native_mut() {
-            native.cancel_rename_draft(token);
-        }
-    }
-
-    fn submit_rename_draft(&mut self, token: RenameDraftToken) -> Option<ClientActionDisposition> {
-        let disposition = match &mut self.backend {
-            ClientBackend::Native(native) => Some(native.submit_rename_draft(token)),
-        };
-        self.finalize_native_retirement();
-        disposition
-    }
-
-    fn agent_board_select(&mut self, target: &AgentBoardRowTarget) -> bool {
-        match &mut self.backend {
-            ClientBackend::Native(native) => native.agent_board_select(target),
-        }
-    }
-
-    fn click_agent_board_control(&mut self, target: &AgentBoardControlTarget) -> bool {
-        self.backend
-            .native_mut()
-            .is_some_and(|native| native.click_agent_board_control(target))
-    }
-
-    fn agent_board_dismiss(&mut self) {
-        if let Some(native) = self.backend.native_mut() {
-            native.agent_board_dismiss();
-        }
     }
 
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
@@ -1079,20 +969,6 @@ impl TerminalInputPort for WorkbenchClient {
         result
     }
 
-    fn activate_drawn_presentation(
-        &mut self,
-        target: &DrawnPresentationTarget,
-    ) -> ClientActionDisposition {
-        let disposition = self
-            .backend
-            .native_mut()
-            .map_or(ClientActionDisposition::KeepNavigator, |native| {
-                native.activate_drawn_presentation(target)
-            });
-        self.finalize_native_retirement();
-        disposition
-    }
-
     fn pane_input(&mut self, input: PaneInput<'_>) -> PaneAdmission {
         // Selection and link steps never retire native state, so only history and scrollbar
         // steps settle retirement.
@@ -1132,80 +1008,9 @@ impl TerminalInputPort for WorkbenchClient {
     fn sidebar_reorder_source(&mut self) -> Option<crate::tui_pointer::SidebarReorderSource> {
         self.backend.native_mut()?.sidebar_reorder_source()
     }
-    fn commit_sidebar_reorder(
-        &mut self,
-        source: &crate::tui_pointer::SidebarReorderSource,
-        operation: orchbee_workbench_protocol::NavigationConfiguration,
-    ) {
-        if let Some(native) = self.backend.native_mut() {
-            native.commit_sidebar_reorder(source, operation);
-        }
-    }
 
     fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
         self.backend.native_mut()?.tab_drag_source()
-    }
-
-    fn request_drawn_tab_rename(
-        &mut self,
-        source: &crate::action_menu::DrawnTabCreate,
-        tab: &orchbee_workbench_protocol::WorkbenchTabId,
-    ) -> Option<ClientActionDisposition> {
-        self.backend
-            .native_mut()?
-            .request_drawn_tab_rename(source, tab)
-    }
-
-    fn request_drawn_tab_close(
-        &mut self,
-        source: &crate::action_menu::DrawnTabCreate,
-        tab: &orchbee_workbench_protocol::WorkbenchTabId,
-    ) {
-        if let Some(native) = self.backend.native_mut() {
-            native.request_drawn_tab_close(source, tab);
-        }
-    }
-
-    fn page_drawn_tab_strip(
-        &mut self,
-        source: &crate::action_menu::DrawnTabCreate,
-        start: &crate::workbench_client::state::TabStripStart,
-    ) {
-        if let Some(native) = self.backend.native_mut() {
-            native.page_drawn_tab_strip(source, start);
-        }
-    }
-
-    fn follow_drawn_tab_strip(
-        &mut self,
-        source: &crate::action_menu::DrawnTabCreate,
-        tab: &orchbee_workbench_protocol::WorkbenchTabId,
-    ) {
-        if let Some(native) = self.backend.native_mut() {
-            native.follow_drawn_tab_strip(source, tab);
-        }
-    }
-
-    fn commit_tab_drag(
-        &mut self,
-        source: &crate::action_menu::DrawnTabCreate,
-        operation: orchbee_workbench_protocol::TabConfiguration,
-    ) {
-        if let Some(native) = self.backend.native_mut() {
-            native.commit_tab_drag(source, operation);
-        }
-    }
-
-    fn pointer_divider_resize(
-        &mut self,
-        target: &crate::tui_layout::DrawnDivider,
-        ratio: orchbee_workbench_protocol::ClientSplitRatio,
-    ) {
-        if let Some(native) = self.backend.native_mut()
-            && let Some(control) = &mut self.client_control
-        {
-            control.resize_divider(native, target, ratio);
-        }
     }
 
     fn pending_resize_projection(
@@ -1226,22 +1031,6 @@ impl TerminalInputPort for WorkbenchClient {
         match &self.backend {
             ClientBackend::Native(native) => native.copy_mode_active(),
         }
-    }
-
-    fn click_copy_control(
-        &mut self,
-        token: crate::terminal_copy_mode::CopyModeToken,
-        control: crate::terminal_copy_mode::CopyControl,
-    ) {
-        if let Some(native) = self.backend.native_mut() {
-            native.click_copy_control(token, control);
-        }
-    }
-
-    fn cancel_copy_mode(&mut self) -> bool {
-        self.backend
-            .native_mut()
-            .is_some_and(ui::WorkbenchClientUi::cancel_copy_mode)
     }
 
     fn apply_client_action(&mut self, command: InputAction) -> Option<ClientActionDisposition> {

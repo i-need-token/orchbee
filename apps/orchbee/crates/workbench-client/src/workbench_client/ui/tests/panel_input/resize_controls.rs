@@ -16,11 +16,7 @@ struct Port {
     bytes: Vec<u8>,
     adjustments: Vec<(DrawnResize, PanelDirection, bool)>,
 }
-impl TerminalInputPort for Port {
-    fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
-        self.bytes.extend_from_slice(bytes);
-        Ok(())
-    }
+impl Port {
     fn click_resize_control(
         &mut self,
         target: &DrawnResize,
@@ -28,6 +24,31 @@ impl TerminalInputPort for Port {
         fine: bool,
     ) {
         self.adjustments.push((target.clone(), direction, fine));
+    }
+}
+
+impl TerminalInputPort for Port {
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{LayoutAction, SurfaceAction};
+        match action {
+            SurfaceAction::Layout(LayoutAction::ResizeControl {
+                target,
+                direction,
+                fine,
+            }) => {
+                self.click_resize_control(target, direction, fine);
+                None
+            }
+            _ => None,
+        }
+    }
+
+    fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
+        self.bytes.extend_from_slice(bytes);
+        Ok(())
     }
 }
 

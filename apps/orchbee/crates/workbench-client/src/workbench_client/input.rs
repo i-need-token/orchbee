@@ -1,8 +1,6 @@
 //! Workbench input capabilities and current pointer/capture facts. The input dispatcher consumes
 //! this contract; the port owns no byte decoder, terminal lifecycle writer or dispatch loop.
 
-use super::state::workspace_setup::SetupToken;
-use super::state::worktree_launch::WorktreeToken;
 mod action;
 mod capture;
 mod surface;
@@ -14,7 +12,10 @@ pub(crate) use capture::{
     CaptureReadiness, ConfirmationCaptureContext, RenameInputContext, SetupCaptureContext,
     WorktreeCaptureContext,
 };
-pub use surface::{SurfaceInput, TextEntry};
+pub use surface::{
+    BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, RenameAction, SettingsAction,
+    SetupAction, SurfaceAction, SurfaceInput, TabAction, TextEntry, WorktreeAction,
+};
 
 use crate::client_view::{ClientAction, ClientActionDisposition};
 use crate::tui_composition::{CaptureClaims, WorkbenchCaptureOwner};
@@ -234,25 +235,12 @@ pub trait TerminalInputPort {
         None
     }
 
-    fn click_resize_control(
-        &mut self,
-        _target: &crate::tui_layout::DrawnResize,
-        _direction: crate::client_view::PanelDirection,
-        _fine: bool,
-    ) {
-    }
     /// Validate a completed tab-create click; the ordinary action path owns its effects.
     fn tab_create_action(
         &mut self,
         _target: &crate::action_menu::DrawnTabCreate,
     ) -> Option<ClientAction> {
         None
-    }
-    fn click_settings_control(
-        &mut self,
-        _token: crate::native_settings::Token,
-        _control: crate::native_settings::Control,
-    ) {
     }
 
     /// Moves one painted list while its painted token still matches and returns the list's new
@@ -267,12 +255,6 @@ pub trait TerminalInputPort {
         None
     }
 
-    fn click_settings(
-        &mut self,
-        _token: crate::native_settings::Token,
-        _row: crate::native_settings::Row,
-    ) {
-    }
     fn open_action_menu(
         &mut self,
         _target: crate::action_menu::MenuTarget,
@@ -281,29 +263,8 @@ pub trait TerminalInputPort {
     ) -> bool {
         false
     }
-    fn activate_action_menu_row(
-        &mut self,
-        _source: &crate::action_menu::MenuTarget,
-        _token: crate::action_menu::MenuToken,
-        _row: usize,
-    ) {
-    }
-    fn activate_action_menu_control(
-        &mut self,
-        _source: &crate::action_menu::MenuTarget,
-        _token: crate::action_menu::MenuToken,
-        _control: crate::action_menu::MenuControl,
-    ) {
-    }
-    fn cancel_action_menu(&mut self) {}
     fn take_action_menu_action(&mut self, _pointer_released: bool) -> Option<InputAction> {
         None
-    }
-    fn activate_drawn_popup_close(
-        &mut self,
-        _target: &crate::workbench_client::DrawnPopupClose,
-    ) -> bool {
-        false
     }
 
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable>;
@@ -317,6 +278,13 @@ pub trait TerminalInputPort {
         false
     }
 
+    /// One committed gesture result; see [`SurfaceAction`]. Returns the layout disposition the
+    /// owner reports, or `None` when it reports none or refused a stale witness. The default
+    /// commits nothing.
+    fn surface_action(&mut self, _action: SurfaceAction<'_>) -> Option<ClientActionDisposition> {
+        None
+    }
+
     fn navigator_catalog(&self) -> Option<crate::client_view::navigator::Catalog> {
         None
     }
@@ -326,13 +294,6 @@ pub trait TerminalInputPort {
         _row: &crate::client_view::navigator::Row,
     ) -> crate::client_view::navigator::Admission {
         crate::client_view::navigator::Admission::Refused
-    }
-
-    fn activate_drawn_presentation(
-        &mut self,
-        _target: &DrawnPresentationTarget,
-    ) -> ClientActionDisposition {
-        ClientActionDisposition::KeepNavigator
     }
 
     /// The current pointer-resolution facts. Ports without a session
@@ -345,53 +306,9 @@ pub trait TerminalInputPort {
     fn sidebar_reorder_source(&mut self) -> Option<crate::tui_pointer::SidebarReorderSource> {
         None
     }
-    fn commit_sidebar_reorder(
-        &mut self,
-        _source: &crate::tui_pointer::SidebarReorderSource,
-        _operation: orchbee_workbench_protocol::NavigationConfiguration,
-    ) {
-    }
 
     fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
         None
-    }
-
-    fn request_drawn_tab_rename(
-        &mut self,
-        _source: &crate::action_menu::DrawnTabCreate,
-        _tab: &orchbee_workbench_protocol::WorkbenchTabId,
-    ) -> Option<ClientActionDisposition> {
-        None
-    }
-
-    fn request_drawn_tab_close(
-        &mut self,
-        _source: &crate::action_menu::DrawnTabCreate,
-        _tab: &orchbee_workbench_protocol::WorkbenchTabId,
-    ) {
-    }
-
-    /// Pages the painted Tab strip; a stale source changes nothing.
-    fn page_drawn_tab_strip(
-        &mut self,
-        _source: &crate::action_menu::DrawnTabCreate,
-        _start: &crate::workbench_client::state::TabStripStart,
-    ) {
-    }
-
-    /// Keeps a paged strip window across a pointer activation of a Tab painted in it.
-    fn follow_drawn_tab_strip(
-        &mut self,
-        _source: &crate::action_menu::DrawnTabCreate,
-        _tab: &orchbee_workbench_protocol::WorkbenchTabId,
-    ) {
-    }
-
-    fn commit_tab_drag(
-        &mut self,
-        _source: &crate::action_menu::DrawnTabCreate,
-        _operation: orchbee_workbench_protocol::TabConfiguration,
-    ) {
     }
 
     /// Revalidates the full painted source without taking input control or submitting work.
@@ -409,14 +326,6 @@ pub trait TerminalInputPort {
         _viewport: (ratatui::layout::Rect, crate::client_view::SidebarSurface),
     ) -> bool {
         false
-    }
-
-    /// Hands off one changed release; the asynchronous local owner reports its eventual result.
-    fn pointer_divider_resize(
-        &mut self,
-        _target: &crate::tui_layout::DrawnDivider,
-        _ratio: orchbee_workbench_protocol::ClientSplitRatio,
-    ) {
     }
 
     /// The local acknowledgement owner may retain released geometry until canonical publication.
@@ -442,78 +351,6 @@ pub trait TerminalInputPort {
     fn copy_mode_active(&self) -> bool {
         false
     }
-
-    fn click_copy_control(
-        &mut self,
-        _token: crate::terminal_copy_mode::CopyModeToken,
-        _control: crate::terminal_copy_mode::CopyControl,
-    ) {
-    }
-
-    fn cancel_copy_mode(&mut self) -> bool {
-        false
-    }
-
-    /// A completed click on an exact, fully painted Workspace/Project close decision.
-    fn click_tab_close(
-        &mut self,
-        _token: crate::workbench_client::CloseConfirmationToken,
-        _confirm: bool,
-    ) {
-    }
-
-    fn click_panel_close(
-        &mut self,
-        _token: crate::workbench_client::PanelCloseConfirmationToken,
-        _confirm: bool,
-    ) {
-    }
-
-    fn click_workspace_close(
-        &mut self,
-        _token: crate::workbench_client::WorkspaceCloseToken,
-        _confirm: bool,
-    ) {
-    }
-
-    /// A press on a painted board row — resolves by stable session
-    /// identity, never by position.
-    fn agent_board_select(
-        &mut self,
-        _target: &crate::workbench_client::AgentBoardRowTarget,
-    ) -> bool {
-        false
-    }
-
-    fn click_agent_board_control(
-        &mut self,
-        _target: &crate::workbench_client::AgentBoardControlTarget,
-    ) -> bool {
-        false
-    }
-
-    /// An outside press dismissed the board's capturing overlay.
-    fn agent_board_dismiss(&mut self) {}
-
-    fn cancel_rename_draft(&mut self, _token: RenameDraftToken) {}
-
-    fn submit_rename_draft(&mut self, _token: RenameDraftToken) -> Option<ClientActionDisposition> {
-        None
-    }
-
-    fn dismiss_worktree(&mut self, _token: WorktreeToken) {}
-    fn submit_worktree(&mut self, _token: WorktreeToken) {}
-    /// Submit an exact checkout from the current successfully painted picker.
-    fn choose_worktree(&mut self, _token: WorktreeToken, _index: usize) {}
-
-    fn cancel_setup_draft(&mut self, _token: SetupToken) {}
-
-    fn submit_setup_draft(&mut self, _token: SetupToken) -> Option<ClientActionDisposition> {
-        None
-    }
-
-    /// Select and submit one exact Project row authorized by the last draw.
-    fn choose_setup_project(&mut self, _token: SetupToken, _index: usize) {}
 }
 
 #[derive(Clone, Copy, Debug, Default)]

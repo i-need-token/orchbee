@@ -3,7 +3,7 @@ use super::*;
 use crate::{
     client_view::{ClientAction, ClientActionDisposition, ClientView},
     localization::Locale,
-    terminal_copy_mode::{CopyControl, CopyModeCursor, CopyModeStatus, CopyModeToken},
+    terminal_copy_mode::{CopyControl, CopyModeCursor, CopyModeStatus},
     terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable},
     tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget},
     tui_theme::Theme,
@@ -33,8 +33,15 @@ impl TerminalInputPort for Port {
             _ => false,
         }
     }
-    fn click_copy_control(&mut self, token: CopyModeToken, control: CopyControl) {
-        self.ui.click_copy_control(token, control);
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{CopyAction, SurfaceAction};
+        match action {
+            SurfaceAction::CopyMode(CopyAction::Control { .. }) => self.ui.surface_action(action),
+            _ => None,
+        }
     }
     fn scroll_list(
         &mut self,

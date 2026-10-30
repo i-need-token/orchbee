@@ -44,8 +44,15 @@ impl TerminalInputPort for ClientInputPort<'_> {
         Ok(())
     }
 
-    fn click_workspace_close(&mut self, token: WorkspaceCloseToken, confirm: bool) {
-        self.ui.click_workspace_close(token, confirm);
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{CloseDecision, SurfaceAction};
+        match action {
+            SurfaceAction::Close(CloseDecision::Workspace { .. }) => self.ui.surface_action(action),
+            _ => None,
+        }
     }
 }
 

@@ -5,9 +5,10 @@ use super::hit_map::modal::{
     accepts_resize,
 };
 use super::{
-    FrameHitMap, Gesture, HitResolution, InteractionTarget, ModalControl, Modifiers,
-    MotionObservability, MouseAction, MouseButton, MouseEvent, PointerOutcome, PointerState,
-    ReleaseOwnership, SurfaceInput, TerminalInputPort,
+    BoardAction, CloseDecision, CopyAction, FrameHitMap, Gesture, HitResolution, InteractionTarget,
+    LayoutAction, ModalControl, Modifiers, MotionObservability, MouseAction, MouseButton,
+    MouseEvent, PointerOutcome, PointerState, ReleaseOwnership, RenameAction, SetupAction,
+    SurfaceAction, SurfaceInput, TerminalInputPort, WorktreeAction,
 };
 
 /// Live pointer position and hover for specialized modal controls. Press
@@ -397,7 +398,10 @@ impl PointerState {
                     crate::client_view::ClientActionDisposition::KeepNavigator,
                 );
             } else {
-                port.click_copy_control(token, control);
+                port.surface_action(SurfaceAction::CopyMode(CopyAction::Control {
+                    token,
+                    control,
+                }));
             }
         }
         self.stale_map();
@@ -434,7 +438,11 @@ impl PointerState {
                     fine,
                 } => {
                     view.clear_resize_notice();
-                    port.click_resize_control(&target, direction, fine);
+                    port.surface_action(SurfaceAction::Layout(LayoutAction::ResizeControl {
+                        target: &target,
+                        direction,
+                        fine,
+                    }));
                 }
                 super::ResizeControl::Step(previous) if view.resize_pointer_fine == previous => {
                     view.resize_pointer_fine = !previous;
@@ -488,7 +496,7 @@ impl PointerState {
                     MouseButton::Left | MouseButton::Right | MouseButton::Middle
                 ) =>
             {
-                port.agent_board_dismiss();
+                port.surface_action(SurfaceAction::AgentBoard(BoardAction::Dismiss));
                 PointerOutcome::RegionsChanged
             }
             _ => PointerOutcome::Ignored,
@@ -532,13 +540,22 @@ impl PointerState {
                 }
                 match target {
                     Some(ControlTarget::Close(token, confirm)) => {
-                        port.click_workspace_close(token, confirm)
+                        port.surface_action(SurfaceAction::Close(CloseDecision::Workspace {
+                            token,
+                            confirm,
+                        }));
                     }
                     Some(ControlTarget::TabClose(token, confirm)) => {
-                        port.click_tab_close(token, confirm)
+                        port.surface_action(SurfaceAction::Close(CloseDecision::Tab {
+                            token,
+                            confirm,
+                        }));
                     }
                     Some(ControlTarget::PanelClose(token, confirm)) => {
-                        port.click_panel_close(token, confirm)
+                        port.surface_action(SurfaceAction::Close(CloseDecision::Panel {
+                            token,
+                            confirm,
+                        }));
                     }
                     _ => {}
                 }
@@ -578,11 +595,11 @@ impl PointerState {
         }
         match target {
             Some(ControlTarget::Rename(token, submit)) => {
-                if submit {
-                    port.submit_rename_draft(token);
+                port.surface_action(SurfaceAction::Rename(if submit {
+                    RenameAction::Submit(token)
                 } else {
-                    port.cancel_rename_draft(token);
-                }
+                    RenameAction::Cancel(token)
+                }));
             }
             Some(ControlTarget::Setup(token, control)) => match control {
                 ModalControl::NextField => {
@@ -591,11 +608,15 @@ impl PointerState {
                         edit: crate::workbench_client::SetupEdit::NextField,
                     });
                 }
-                ModalControl::Choice(index) => port.choose_setup_project(token, index),
-                ModalControl::Submit => {
-                    port.submit_setup_draft(token);
+                ModalControl::Choice(index) => {
+                    port.surface_action(SurfaceAction::Setup(SetupAction::Choose { token, index }));
                 }
-                ModalControl::Cancel => port.cancel_setup_draft(token),
+                ModalControl::Submit => {
+                    port.surface_action(SurfaceAction::Setup(SetupAction::Submit(token)));
+                }
+                ModalControl::Cancel => {
+                    port.surface_action(SurfaceAction::Setup(SetupAction::Cancel(token)));
+                }
                 ModalControl::Surface | ModalControl::Refresh => {}
             },
             Some(ControlTarget::Worktree(token, control)) => match control {
@@ -611,9 +632,18 @@ impl PointerState {
                         edit: crate::workbench_client::WorktreeEdit::ReadStatus,
                     });
                 }
-                ModalControl::Choice(index) => port.choose_worktree(token, index),
-                ModalControl::Submit => port.submit_worktree(token),
-                ModalControl::Cancel => port.dismiss_worktree(token),
+                ModalControl::Choice(index) => {
+                    port.surface_action(SurfaceAction::Worktree(WorktreeAction::Choose {
+                        token,
+                        index,
+                    }));
+                }
+                ModalControl::Submit => {
+                    port.surface_action(SurfaceAction::Worktree(WorktreeAction::Submit(token)));
+                }
+                ModalControl::Cancel => {
+                    port.surface_action(SurfaceAction::Worktree(WorktreeAction::Dismiss(token)));
+                }
                 ModalControl::Surface => {}
             },
             _ => {}

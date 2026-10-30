@@ -18,7 +18,58 @@ struct Port {
     actions: Vec<ClientAction>,
     follows: Vec<WorkbenchTabId>,
 }
+impl Port {
+    fn request_drawn_tab_rename(
+        &mut self,
+        source: &DrawnTabCreate,
+        tab: &WorkbenchTabId,
+    ) -> Option<ClientActionDisposition> {
+        assert_eq!(source, &self.source.drawn);
+        assert_eq!(tab, &id(2));
+        self.actions.push(ClientAction::RequestRenameTab);
+        Some(ClientActionDisposition::KeepNavigator)
+    }
+
+    fn commit_tab_drag(&mut self, source: &DrawnTabCreate, operation: TabConfiguration) {
+        assert_eq!(source, &self.source.drawn);
+        self.writes.push(operation);
+    }
+
+    fn follow_drawn_tab_strip(&mut self, source: &DrawnTabCreate, tab: &WorkbenchTabId) {
+        assert_eq!(source, &self.source.drawn);
+        self.follows.push(tab.clone());
+    }
+}
+
 impl TerminalInputPort for Port {
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        use crate::terminal_input::SurfaceInput;
+        match input {
+            SurfaceInput::TabStripFollow { source, tab } => {
+                self.follow_drawn_tab_strip(source, tab);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{SurfaceAction, TabAction};
+        match action {
+            SurfaceAction::Tabs(TabAction::RequestRename { source, tab }) => {
+                self.request_drawn_tab_rename(source, tab)
+            }
+            SurfaceAction::Tabs(TabAction::Drag { source, operation }) => {
+                self.commit_tab_drag(source, operation);
+                None
+            }
+            _ => None,
+        }
+    }
+
     fn forward(&mut self, _: &[u8]) -> Result<(), TerminalInputUnavailable> {
         panic!("drag cannot forward terminal input")
     }
@@ -39,24 +90,6 @@ impl TerminalInputPort for Port {
     }
     fn tab_drag_source(&mut self) -> Option<TabDragSource> {
         Some(self.source.clone())
-    }
-    fn request_drawn_tab_rename(
-        &mut self,
-        source: &DrawnTabCreate,
-        tab: &WorkbenchTabId,
-    ) -> Option<ClientActionDisposition> {
-        assert_eq!(source, &self.source.drawn);
-        assert_eq!(tab, &id(2));
-        self.actions.push(ClientAction::RequestRenameTab);
-        Some(ClientActionDisposition::KeepNavigator)
-    }
-    fn commit_tab_drag(&mut self, source: &DrawnTabCreate, operation: TabConfiguration) {
-        assert_eq!(source, &self.source.drawn);
-        self.writes.push(operation);
-    }
-    fn follow_drawn_tab_strip(&mut self, source: &DrawnTabCreate, tab: &WorkbenchTabId) {
-        assert_eq!(source, &self.source.drawn);
-        self.follows.push(tab.clone());
     }
     fn apply_client_action(
         &mut self,

@@ -13,7 +13,29 @@ struct Port {
     captured: bool,
     submissions: Vec<(DrawnDivider, ClientSplitRatio)>,
 }
+impl Port {
+    fn pointer_divider_resize(&mut self, target: &DrawnDivider, ratio: ClientSplitRatio) {
+        assert!(self.pointer_divider_ready(target).is_ok());
+        self.submissions.push((target.clone(), ratio));
+        self.busy = true;
+    }
+}
+
 impl TerminalInputPort for Port {
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{LayoutAction, SurfaceAction};
+        match action {
+            SurfaceAction::Layout(LayoutAction::Divider { target, ratio }) => {
+                self.pointer_divider_resize(target, ratio);
+                None
+            }
+            _ => None,
+        }
+    }
+
     fn forward(&mut self, _: &[u8]) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
         panic!("divider gesture must never send program bytes")
     }
@@ -36,11 +58,6 @@ impl TerminalInputPort for Port {
         } else {
             Ok(())
         }
-    }
-    fn pointer_divider_resize(&mut self, target: &DrawnDivider, ratio: ClientSplitRatio) {
-        assert!(self.pointer_divider_ready(target).is_ok());
-        self.submissions.push((target.clone(), ratio));
-        self.busy = true;
     }
 }
 fn target() -> DrawnDivider {

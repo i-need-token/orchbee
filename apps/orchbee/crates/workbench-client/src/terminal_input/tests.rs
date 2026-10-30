@@ -632,9 +632,34 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
             }
             self.mouse.push(id.clone());
         }
+
+        fn activate_drawn_popup_close(
+            &mut self,
+            target: &crate::workbench_client::DrawnPopupClose,
+        ) -> bool {
+            self.close_attempts.push(target.id().clone());
+            if self.id.as_ref() != Some(target.id()) {
+                return false;
+            }
+            self.id = None;
+            true
+        }
     }
 
     impl TerminalInputPort for PopupPort {
+        fn surface_action(
+            &mut self,
+            action: crate::terminal_input::SurfaceAction<'_>,
+        ) -> Option<crate::client_view::ClientActionDisposition> {
+            use crate::terminal_input::SurfaceAction;
+            match action {
+                SurfaceAction::PopupClose(target) => self
+                    .activate_drawn_popup_close(target)
+                    .then_some(crate::client_view::ClientActionDisposition::KeepNavigator),
+                _ => None,
+            }
+        }
+
         fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
             use crate::terminal_input::SurfaceInput;
             match input {
@@ -671,17 +696,6 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
         fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
             self.forwarded.push(bytes.to_vec());
             Ok(())
-        }
-        fn activate_drawn_popup_close(
-            &mut self,
-            target: &crate::workbench_client::DrawnPopupClose,
-        ) -> bool {
-            self.close_attempts.push(target.id().clone());
-            if self.id.as_ref() != Some(target.id()) {
-                return false;
-            }
-            self.id = None;
-            true
         }
     }
     let mut dispatcher = InputDispatcher::default();

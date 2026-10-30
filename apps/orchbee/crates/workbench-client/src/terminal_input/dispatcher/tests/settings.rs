@@ -126,9 +126,43 @@ impl Port {
         }
         true
     }
+
+    fn click_settings(&mut self, token: crate::native_settings::Token, row: Row) {
+        if self.editor.click(token, row).is_some() {
+            self.saves += 1;
+        }
+    }
+
+    fn click_settings_control(
+        &mut self,
+        token: crate::native_settings::Token,
+        control: crate::native_settings::Control,
+    ) {
+        if self.editor.control(token, control).is_some() {
+            self.saves += 1;
+        }
+    }
 }
 
 impl TerminalInputPort for Port {
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{SettingsAction, SurfaceAction};
+        match action {
+            SurfaceAction::Settings(SettingsAction::Row { token, row }) => {
+                self.click_settings(token, row);
+                None
+            }
+            SurfaceAction::Settings(SettingsAction::Control { token, control }) => {
+                self.click_settings_control(token, control);
+                None
+            }
+            _ => None,
+        }
+    }
+
     fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
         use crate::terminal_input::{SurfaceInput, TextEntry};
         match input {
@@ -173,20 +207,6 @@ impl TerminalInputPort for Port {
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.calls.borrow_mut().push(Call::Forward(bytes.to_vec()));
         Ok(())
-    }
-    fn click_settings(&mut self, token: crate::native_settings::Token, row: Row) {
-        if self.editor.click(token, row).is_some() {
-            self.saves += 1;
-        }
-    }
-    fn click_settings_control(
-        &mut self,
-        token: crate::native_settings::Token,
-        control: crate::native_settings::Control,
-    ) {
-        if self.editor.control(token, control).is_some() {
-            self.saves += 1;
-        }
     }
     fn scroll_list(
         &mut self,

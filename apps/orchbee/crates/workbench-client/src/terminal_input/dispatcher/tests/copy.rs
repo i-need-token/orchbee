@@ -94,9 +94,26 @@ impl CopyPort {
         self.pointer_cells.push((cell, start));
         true
     }
+
+    fn cancel_copy_mode(&mut self) -> bool {
+        std::mem::take(&mut self.active)
+    }
 }
 
 impl TerminalInputPort for CopyPort {
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{CopyAction, SurfaceAction};
+        match action {
+            SurfaceAction::CopyMode(CopyAction::Exit) => self
+                .cancel_copy_mode()
+                .then_some(crate::client_view::ClientActionDisposition::KeepNavigator),
+            _ => None,
+        }
+    }
+
     fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
         use crate::terminal_input::{SurfaceInput, TextEntry};
         match input {
@@ -126,9 +143,6 @@ impl TerminalInputPort for CopyPort {
     }
     fn copy_mode_active(&self) -> bool {
         self.active
-    }
-    fn cancel_copy_mode(&mut self) -> bool {
-        std::mem::take(&mut self.active)
     }
 }
 

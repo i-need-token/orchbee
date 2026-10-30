@@ -1127,14 +1127,16 @@ impl crate::terminal_input::TerminalInputPort for RenameInput<'_> {
         }
         Some(self.ui.apply_client_action(command))
     }
-    fn cancel_setup_draft(&mut self, token: crate::workbench_client::SetupToken) {
-        self.ui.cancel_setup_draft(token);
-    }
-    fn submit_setup_draft(
+    fn surface_action(
         &mut self,
-        token: crate::workbench_client::SetupToken,
-    ) -> Option<ClientActionDisposition> {
-        Some(self.ui.submit_setup_draft(token))
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{SetupAction, SurfaceAction};
+        match action {
+            SurfaceAction::Setup(SetupAction::Cancel(_))
+            | SurfaceAction::Setup(SetupAction::Submit(_)) => self.ui.surface_action(action),
+            _ => None,
+        }
     }
 }
 

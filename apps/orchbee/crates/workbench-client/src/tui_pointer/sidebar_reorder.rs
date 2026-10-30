@@ -8,7 +8,7 @@ use super::{
 use crate::{
     client_view::{ClientView, Modifiers},
     machine_picker::{DrawnSidebarTarget, SidebarPart, SidebarSource, SidebarTarget},
-    terminal_input::TerminalInputPort,
+    terminal_input::{LayoutAction, SurfaceAction, TerminalInputPort},
     workbench_client::ClientContextLocation,
 };
 use orchbee_workbench_protocol::{Navigation, NavigationConfiguration, SessionId, Snapshot};
@@ -311,7 +311,10 @@ impl PointerState {
             let map = self.map.as_ref().expect("alive drag has an admitted frame");
             if drag.dragging {
                 if let Some(drop) = drag.destination(map) {
-                    port.commit_sidebar_reorder(&drag.source, drop.operation);
+                    port.surface_action(SurfaceAction::Layout(LayoutAction::SidebarReorder {
+                        source: &drag.source,
+                        operation: drop.operation,
+                    }));
                 }
                 return PointerOutcome::SidebarReorderEnded;
             }

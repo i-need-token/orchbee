@@ -1681,15 +1681,51 @@ impl BoardPort {
         }
         true
     }
+
+    fn cancel_action_menu(&mut self) {
+        self.action_menu.cancel();
+    }
+
+    fn agent_board_select(
+        &mut self,
+        target: &crate::workbench_client::AgentBoardRowTarget,
+    ) -> bool {
+        let expected = crate::workbench_client::AgentBoardRowTarget::for_test(
+            crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
+            target.session().clone(),
+        );
+        if !self.owned.get() || target != &expected {
+            return false;
+        }
+        self.calls
+            .borrow_mut()
+            .push(Call::BoardSelect(target.session().clone()));
+        true
+    }
 }
 
 impl TerminalInputPort for BoardPort {
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{MenuAction, SurfaceAction};
+        match action {
+            SurfaceAction::ActionMenu(MenuAction::Cancel) => {
+                self.cancel_action_menu();
+                None
+            }
+            _ => None,
+        }
+    }
+
     fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
         use crate::terminal_input::SurfaceInput;
         match input {
             SurfaceInput::AgentBoard { episode, key } => {
                 self.capture_agent_board_key_for(episode, key)
             }
+            SurfaceInput::AgentBoardSelect(target) => self.agent_board_select(target),
             _ => false,
         }
     }
@@ -1754,27 +1790,6 @@ impl TerminalInputPort for BoardPort {
             vec![crate::action_menu::MenuAction::Help],
             anchor,
         )
-    }
-
-    fn cancel_action_menu(&mut self) {
-        self.action_menu.cancel();
-    }
-
-    fn agent_board_select(
-        &mut self,
-        target: &crate::workbench_client::AgentBoardRowTarget,
-    ) -> bool {
-        let expected = crate::workbench_client::AgentBoardRowTarget::for_test(
-            crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
-            target.session().clone(),
-        );
-        if !self.owned.get() || target != &expected {
-            return false;
-        }
-        self.calls
-            .borrow_mut()
-            .push(Call::BoardSelect(target.session().clone()));
-        true
     }
 }
 

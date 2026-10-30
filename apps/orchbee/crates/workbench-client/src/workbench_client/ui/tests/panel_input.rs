@@ -56,27 +56,20 @@ impl TerminalInputPort for ClientInputPort<'_> {
             _ => false,
         }
     }
-    fn click_tab_close(&mut self, token: CloseConfirmationToken, confirm: bool) {
-        self.0.click_tab_close(token, confirm);
-    }
-    fn click_panel_close(&mut self, token: PanelCloseConfirmationToken, confirm: bool) {
-        self.0.click_panel_close(token, confirm);
-    }
-
-    fn cancel_rename_draft(&mut self, token: RenameDraftToken) {
-        self.0.cancel_rename_draft(token);
-    }
-
-    fn submit_rename_draft(&mut self, token: RenameDraftToken) -> Option<ClientActionDisposition> {
-        Some(self.0.submit_rename_draft(token))
-    }
-
-    fn cancel_setup_draft(&mut self, token: SetupToken) {
-        self.0.cancel_setup_draft(token);
-    }
-
-    fn submit_setup_draft(&mut self, token: SetupToken) -> Option<ClientActionDisposition> {
-        Some(self.0.submit_setup_draft(token))
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{CloseDecision, RenameAction, SetupAction, SurfaceAction};
+        match action {
+            SurfaceAction::Close(CloseDecision::Tab { .. })
+            | SurfaceAction::Close(CloseDecision::Panel { .. })
+            | SurfaceAction::Rename(RenameAction::Cancel(_))
+            | SurfaceAction::Rename(RenameAction::Submit(_))
+            | SurfaceAction::Setup(SetupAction::Cancel(_))
+            | SurfaceAction::Setup(SetupAction::Submit(_)) => self.0.surface_action(action),
+            _ => None,
+        }
     }
 }
 

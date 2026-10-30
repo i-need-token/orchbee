@@ -19,9 +19,10 @@ use crate::tui_pointer::{
 use crate::workbench_client::SetupStage;
 
 use super::{
-    DispatchOutcome, HostReply, ModeRequest, PaneAdmission, PaneInput, PointerCaptureRequest,
-    RenameDraftToken, RenameEdit, SetupEdit, SetupToken, SurfaceInput, TerminalInputPort,
-    TerminalObservation, TextEntry,
+    BoardAction, CopyAction, DispatchOutcome, HostReply, LayoutAction, MenuAction, ModeRequest,
+    PaneAdmission, PaneInput, PointerCaptureRequest, RenameAction, RenameDraftToken, RenameEdit,
+    SettingsAction, SetupAction, SetupEdit, SetupToken, SurfaceAction, SurfaceInput, TabAction,
+    TerminalInputPort, TerminalObservation, TextEntry, WorktreeAction,
     decoder::{DecodedItem, DecodedKind, LegacyDecoder},
     forward_edit_or_report,
     modal::{ModalCapacity, ModalDecoder, ModalInputEvent},
@@ -420,7 +421,7 @@ impl InputDispatcher {
             let closing = port
                 .native_capture_claims()
                 .contains(WorkbenchCaptureOwner::ActionMenu);
-            port.cancel_action_menu();
+            port.surface_action(SurfaceAction::ActionMenu(MenuAction::Cancel));
             self.menu_release = None;
             if closing {
                 self.settle_action_menu_closed(port);
@@ -987,10 +988,14 @@ impl InputDispatcher {
                             if contract == PrimaryContract::ActivateOnRelease {
                                 match target {
                                     InteractionTarget::SettingsRow { token, row } => {
-                                        port.click_settings(token, row);
+                                        port.surface_action(SurfaceAction::Settings(
+                                            SettingsAction::Row { token, row },
+                                        ));
                                     }
                                     InteractionTarget::SettingsControl { token, control } => {
-                                        port.click_settings_control(token, control);
+                                        port.surface_action(SurfaceAction::Settings(
+                                            SettingsAction::Control { token, control },
+                                        ));
                                     }
                                     _ => {}
                                 }
@@ -1057,14 +1062,27 @@ impl InputDispatcher {
                                 if contract == PrimaryContract::ActivateOnRelease {
                                     match target {
                                         InteractionTarget::ActionMenuRow { source, token, row } => {
-                                            port.activate_action_menu_row(&source, token, row)
+                                            port.surface_action(SurfaceAction::ActionMenu(
+                                                MenuAction::Row {
+                                                    source: &source,
+                                                    token,
+                                                    row,
+                                                },
+                                            ));
                                         }
                                         InteractionTarget::ActionMenuControl {
                                             source,
                                             token,
                                             control,
-                                        } => port
-                                            .activate_action_menu_control(&source, token, control),
+                                        } => {
+                                            port.surface_action(SurfaceAction::ActionMenu(
+                                                MenuAction::Control {
+                                                    source: &source,
+                                                    token,
+                                                    control,
+                                                },
+                                            ));
+                                        }
                                         _ => {}
                                     }
                                 }
@@ -1110,7 +1128,8 @@ impl InputDispatcher {
                                 PrimaryContract::ActivateOnRelease,
                             ) = (target, contract)
                             {
-                                let _activated = port.activate_drawn_popup_close(&target);
+                                let _activated =
+                                    port.surface_action(SurfaceAction::PopupClose(&target));
                             }
                             // Accepted and stale exact releases both retire this
                             // painted authority. Neither may re-hit a replacement.
@@ -1218,13 +1237,16 @@ impl InputDispatcher {
                                     InteractionTarget::AgentBoardRow(target),
                                     PrimaryContract::SelectOnPress,
                                 ) => {
-                                    let _accepted = port.agent_board_select(&target);
+                                    let _accepted =
+                                        port.surface_input(SurfaceInput::AgentBoardSelect(&target));
                                 }
                                 (
                                     InteractionTarget::AgentBoardControl(target),
                                     PrimaryContract::ActivateOnRelease,
                                 ) => {
-                                    let _accepted = port.click_agent_board_control(&target);
+                                    let _accepted = port.surface_action(SurfaceAction::AgentBoard(
+                                        BoardAction::Control(&target),
+                                    ));
                                 }
                                 _ => {}
                             }
@@ -1716,7 +1738,12 @@ impl InputDispatcher {
                             )
                             && let Some(operation) = source.step(&target, up)
                         {
-                            port.commit_sidebar_reorder(&source, operation);
+                            port.surface_action(SurfaceAction::Layout(
+                                LayoutAction::SidebarReorder {
+                                    source: &source,
+                                    operation,
+                                },
+                            ));
                         }
                     }
                     crate::machine_picker::SidebarIntent::OpenMenu(target) => {
@@ -1809,7 +1836,9 @@ impl InputDispatcher {
                         if contract == PrimaryContract::ActivateOnRelease {
                             match target {
                                 InteractionTarget::Presentation(target) => {
-                                    let disposition = port.activate_drawn_presentation(&target);
+                                    let disposition = port
+                                        .surface_action(SurfaceAction::Presentation(&target))
+                                        .unwrap_or(ClientActionDisposition::KeepNavigator);
                                     view.commit_pointer(disposition);
                                     self.reconcile(view, port, now);
                                     if disposition.changes_layout() {
@@ -1848,11 +1877,19 @@ impl InputDispatcher {
 
                                 InteractionTarget::TabCloseRequest { source, tab } => {
                                     self.menu_packet = true;
-                                    port.request_drawn_tab_close(&source, &tab);
+                                    port.surface_action(SurfaceAction::Tabs(
+                                        TabAction::RequestClose {
+                                            source: &source,
+                                            tab: &tab,
+                                        },
+                                    ));
                                 }
                                 InteractionTarget::TabStripPage { source, start } => {
                                     self.menu_packet = true;
-                                    port.page_drawn_tab_strip(&source, &start);
+                                    port.surface_input(SurfaceInput::TabStripPage {
+                                        source: &source,
+                                        start: &start,
+                                    });
                                 }
                                 InteractionTarget::TabCreate(target) => {
                                     // Creation can replace the input target. A stale
@@ -2393,7 +2430,7 @@ impl InputDispatcher {
         };
         if higher_exclusive {
             view.exit_resize_mode();
-            port.cancel_copy_mode();
+            port.surface_action(SurfaceAction::CopyMode(CopyAction::Exit));
         }
         let capture_retains_sidebar =
             projected == Some(CaptureOwner::Native(WorkbenchCaptureOwner::ActionMenu));
@@ -2434,7 +2471,7 @@ impl InputDispatcher {
         self.decoder.choice_keys(choice_keys);
         {
             if higher_exclusive {
-                port.cancel_copy_mode();
+                port.surface_action(SurfaceAction::CopyMode(CopyAction::Exit));
             }
             let owned = port.copy_mode_active();
             if self.copy_owned != owned {
@@ -2608,11 +2645,12 @@ impl InputDispatcher {
                 ModalInputEvent::Fault => RenameEdit::Fault,
                 ModalInputEvent::Completeness(complete) => RenameEdit::Completeness(complete),
                 ModalInputEvent::Submit => {
-                    let _disposition = port.submit_rename_draft(token);
+                    let _disposition =
+                        port.surface_action(SurfaceAction::Rename(RenameAction::Submit(token)));
                     continue;
                 }
                 ModalInputEvent::Cancel => {
-                    port.cancel_rename_draft(token);
+                    port.surface_action(SurfaceAction::Rename(RenameAction::Cancel(token)));
                     continue;
                 }
                 ModalInputEvent::NextField
@@ -2646,14 +2684,18 @@ impl InputDispatcher {
         }
         if context.readiness == CaptureReadiness::Recovery {
             if event == ModalInputEvent::Cancel {
-                port.dismiss_worktree(token);
+                port.surface_action(SurfaceAction::Worktree(WorktreeAction::Dismiss(token)));
             }
             return;
         }
         if matches!(context.stage, S::Remove | S::ResumeRemove) {
             match event {
-                ModalInputEvent::Submit => port.submit_worktree(token),
-                ModalInputEvent::Cancel => port.dismiss_worktree(token),
+                ModalInputEvent::Submit => {
+                    port.surface_action(SurfaceAction::Worktree(WorktreeAction::Submit(token)));
+                }
+                ModalInputEvent::Cancel => {
+                    port.surface_action(SurfaceAction::Worktree(WorktreeAction::Dismiss(token)));
+                }
                 _ => {}
             }
             return;
@@ -2686,11 +2728,11 @@ impl InputDispatcher {
             ModalInputEvent::Fault => E::Fault,
             ModalInputEvent::Completeness(complete) => E::Completeness(complete),
             ModalInputEvent::Submit => {
-                port.submit_worktree(token);
+                port.surface_action(SurfaceAction::Worktree(WorktreeAction::Submit(token)));
                 return;
             }
             ModalInputEvent::Cancel => {
-                port.dismiss_worktree(token);
+                port.surface_action(SurfaceAction::Worktree(WorktreeAction::Dismiss(token)));
                 return;
             }
             ModalInputEvent::InputFailure
@@ -2724,7 +2766,7 @@ impl InputDispatcher {
         }
         if context.readiness == CaptureReadiness::Recovery {
             if event == ModalInputEvent::Cancel {
-                port.cancel_setup_draft(token);
+                port.surface_action(SurfaceAction::Setup(SetupAction::Cancel(token)));
             }
             return;
         }
@@ -2733,9 +2775,12 @@ impl InputDispatcher {
             // admission fact, while text, paste and editing faults never change its question.
             match event {
                 ModalInputEvent::Submit => {
-                    let _ = port.submit_setup_draft(token);
+                    let _disposition =
+                        port.surface_action(SurfaceAction::Setup(SetupAction::Submit(token)));
                 }
-                ModalInputEvent::Cancel => port.cancel_setup_draft(token),
+                ModalInputEvent::Cancel => {
+                    port.surface_action(SurfaceAction::Setup(SetupAction::Cancel(token)));
+                }
                 ModalInputEvent::Completeness(complete) => {
                     port.surface_input(SurfaceInput::Setup {
                         token,
@@ -2775,11 +2820,12 @@ impl InputDispatcher {
             ModalInputEvent::Fault => SetupEdit::Fault,
             ModalInputEvent::Completeness(complete) => SetupEdit::Completeness(complete),
             ModalInputEvent::Submit => {
-                let _disposition = port.submit_setup_draft(token);
+                let _disposition =
+                    port.surface_action(SurfaceAction::Setup(SetupAction::Submit(token)));
                 return;
             }
             ModalInputEvent::Cancel => {
-                port.cancel_setup_draft(token);
+                port.surface_action(SurfaceAction::Setup(SetupAction::Cancel(token)));
                 return;
             }
             ModalInputEvent::InputFailure

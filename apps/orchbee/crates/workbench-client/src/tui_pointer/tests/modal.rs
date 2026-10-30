@@ -5,13 +5,11 @@ use crate::workbench_client::WorkspaceCloseToken;
 struct SetupPort {
     decisions: Vec<ModalControl>,
 }
-impl TerminalInputPort for SetupPort {
-    fn forward(&mut self, _: &[u8]) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
-        panic!("modal controls cannot forward terminal input");
-    }
+impl SetupPort {
     fn choose_setup_project(&mut self, _: crate::workbench_client::SetupToken, index: usize) {
         self.decisions.push(ModalControl::Choice(index));
     }
+
     fn submit_setup_draft(
         &mut self,
         _: crate::workbench_client::SetupToken,
@@ -19,8 +17,34 @@ impl TerminalInputPort for SetupPort {
         self.decisions.push(ModalControl::Submit);
         None
     }
+
     fn cancel_setup_draft(&mut self, _: crate::workbench_client::SetupToken) {
         self.decisions.push(ModalControl::Cancel);
+    }
+}
+
+impl TerminalInputPort for SetupPort {
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{SetupAction, SurfaceAction};
+        match action {
+            SurfaceAction::Setup(SetupAction::Choose { token, index }) => {
+                self.choose_setup_project(token, index);
+                None
+            }
+            SurfaceAction::Setup(SetupAction::Submit(token)) => self.submit_setup_draft(token),
+            SurfaceAction::Setup(SetupAction::Cancel(token)) => {
+                self.cancel_setup_draft(token);
+                None
+            }
+            _ => None,
+        }
+    }
+
+    fn forward(&mut self, _: &[u8]) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+        panic!("modal controls cannot forward terminal input");
     }
 }
 
@@ -89,12 +113,29 @@ fn setup_choice_and_form_actions_resolve_the_painted_cell_on_matching_release() 
 struct ClosePort {
     decisions: Vec<(WorkspaceCloseToken, bool)>,
 }
-impl TerminalInputPort for ClosePort {
-    fn forward(&mut self, _: &[u8]) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
-        panic!("close gestures cannot forward terminal input");
-    }
+impl ClosePort {
     fn click_workspace_close(&mut self, token: WorkspaceCloseToken, confirm: bool) {
         self.decisions.push((token, confirm));
+    }
+}
+
+impl TerminalInputPort for ClosePort {
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{CloseDecision, SurfaceAction};
+        match action {
+            SurfaceAction::Close(CloseDecision::Workspace { token, confirm }) => {
+                self.click_workspace_close(token, confirm);
+                None
+            }
+            _ => None,
+        }
+    }
+
+    fn forward(&mut self, _: &[u8]) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+        panic!("close gestures cannot forward terminal input");
     }
 }
 

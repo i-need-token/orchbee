@@ -13,7 +13,27 @@ struct Port {
     submissions: usize,
     menus: usize,
 }
+impl Port {
+    fn pointer_divider_resize(&mut self, _: &DrawnDivider, _: ClientSplitRatio) {
+        self.submissions += 1;
+    }
+}
+
 impl TerminalInputPort for Port {
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{LayoutAction, SurfaceAction};
+        match action {
+            SurfaceAction::Layout(LayoutAction::Divider { target, ratio }) => {
+                self.pointer_divider_resize(target, ratio);
+                None
+            }
+            _ => None,
+        }
+    }
+
     fn open_action_menu(
         &mut self,
         _: crate::action_menu::MenuTarget,
@@ -33,9 +53,6 @@ impl TerminalInputPort for Port {
         _: &DrawnDivider,
     ) -> Result<(), crate::client_view::Notice> {
         Ok(())
-    }
-    fn pointer_divider_resize(&mut self, _: &DrawnDivider, _: ClientSplitRatio) {
-        self.submissions += 1;
     }
 }
 fn fixture() -> (InputDispatcher, ClientView, Port) {

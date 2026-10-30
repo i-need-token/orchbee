@@ -24,7 +24,32 @@ struct Port {
     source: SidebarReorderSource,
     writes: Vec<NavigationConfiguration>,
 }
+impl Port {
+    fn commit_sidebar_reorder(
+        &mut self,
+        source: &SidebarReorderSource,
+        operation: NavigationConfiguration,
+    ) {
+        assert_eq!(source, &self.source);
+        self.writes.push(operation);
+    }
+}
+
 impl TerminalInputPort for Port {
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{LayoutAction, SurfaceAction};
+        match action {
+            SurfaceAction::Layout(LayoutAction::SidebarReorder { source, operation }) => {
+                self.commit_sidebar_reorder(source, operation);
+                None
+            }
+            _ => None,
+        }
+    }
+
     fn forward(&mut self, _: &[u8]) -> Result<(), TerminalInputUnavailable> {
         panic!("sidebar gestures never enter a pane")
     }
@@ -33,14 +58,6 @@ impl TerminalInputPort for Port {
     }
     fn sidebar_reorder_source(&mut self) -> Option<SidebarReorderSource> {
         Some(self.source.clone())
-    }
-    fn commit_sidebar_reorder(
-        &mut self,
-        source: &SidebarReorderSource,
-        operation: NavigationConfiguration,
-    ) {
-        assert_eq!(source, &self.source);
-        self.writes.push(operation);
     }
 }
 fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {

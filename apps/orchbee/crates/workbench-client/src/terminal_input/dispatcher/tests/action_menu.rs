@@ -749,9 +749,82 @@ impl Port {
             .is_some_and(|view| view.source == source && view.token == token)
             && self.menu.hover(token, row)
     }
+
+    fn commit_tab_drag(
+        &mut self,
+        _: &crate::action_menu::DrawnTabCreate,
+        operation: orchbee_workbench_protocol::TabConfiguration,
+    ) {
+        self.arrangements.push(operation);
+    }
+
+    fn cancel_action_menu(&mut self) {
+        self.menu.cancel();
+    }
+
+    fn activate_action_menu_row(
+        &mut self,
+        source: &MenuTarget,
+        token: crate::action_menu::MenuToken,
+        row: usize,
+    ) {
+        if self
+            .menu
+            .view()
+            .is_some_and(|view| view.source == source && view.token == token)
+        {
+            self.menu.click(token, row);
+        }
+    }
+
+    fn activate_action_menu_control(
+        &mut self,
+        source: &MenuTarget,
+        token: crate::action_menu::MenuToken,
+        control: crate::action_menu::MenuControl,
+    ) {
+        if self
+            .menu
+            .view()
+            .is_some_and(|view| view.source == source && view.token == token)
+            && control == crate::action_menu::MenuControl::Close
+        {
+            self.menu.cancel();
+        }
+    }
 }
 
 impl TerminalInputPort for Port {
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{MenuAction, SurfaceAction, TabAction};
+        match action {
+            SurfaceAction::Tabs(TabAction::Drag { source, operation }) => {
+                self.commit_tab_drag(source, operation);
+                None
+            }
+            SurfaceAction::ActionMenu(MenuAction::Cancel) => {
+                self.cancel_action_menu();
+                None
+            }
+            SurfaceAction::ActionMenu(MenuAction::Row { source, token, row }) => {
+                self.activate_action_menu_row(source, token, row);
+                None
+            }
+            SurfaceAction::ActionMenu(MenuAction::Control {
+                source,
+                token,
+                control,
+            }) => {
+                self.activate_action_menu_control(source, token, control);
+                None
+            }
+            _ => None,
+        }
+    }
+
     fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
         use crate::terminal_input::SurfaceInput;
         match input {
@@ -782,13 +855,6 @@ impl TerminalInputPort for Port {
     fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
         self.drag.clone()
     }
-    fn commit_tab_drag(
-        &mut self,
-        _: &crate::action_menu::DrawnTabCreate,
-        operation: orchbee_workbench_protocol::TabConfiguration,
-    ) {
-        self.arrangements.push(operation);
-    }
     fn tab_create_action(
         &mut self,
         _: &crate::action_menu::DrawnTabCreate,
@@ -811,9 +877,6 @@ impl TerminalInputPort for Port {
         self.target = Some(target);
         self.menu.open(String::new(), self.actions.clone(), anchor)
     }
-    fn cancel_action_menu(&mut self) {
-        self.menu.cancel();
-    }
     fn scroll_list(
         &mut self,
         target: &crate::tui_pointer::ListScrollTarget,
@@ -826,35 +889,6 @@ impl TerminalInputPort for Port {
         self.menu
             .scroll(token, up, lines)
             .map(crate::tui_pointer::ListScrollTarget::Menu)
-    }
-    fn activate_action_menu_row(
-        &mut self,
-        source: &MenuTarget,
-        token: crate::action_menu::MenuToken,
-        row: usize,
-    ) {
-        if self
-            .menu
-            .view()
-            .is_some_and(|view| view.source == source && view.token == token)
-        {
-            self.menu.click(token, row);
-        }
-    }
-    fn activate_action_menu_control(
-        &mut self,
-        source: &MenuTarget,
-        token: crate::action_menu::MenuToken,
-        control: crate::action_menu::MenuControl,
-    ) {
-        if self
-            .menu
-            .view()
-            .is_some_and(|view| view.source == source && view.token == token)
-            && control == crate::action_menu::MenuControl::Close
-        {
-            self.menu.cancel();
-        }
     }
     fn take_action_menu_action(&mut self, _: bool) -> Option<crate::workbench_client::InputAction> {
         self.menu

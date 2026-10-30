@@ -3,8 +3,13 @@
 //! retirement settlement stays with `WorkbenchClient`.
 
 use super::WorkbenchClientUi;
+use crate::client_view::ClientActionDisposition;
 use crate::tui_pointer::hit_map::ListScrollTarget;
-use crate::workbench_client::input::{PaneAdmission, PaneInput, SurfaceInput, TextEntry};
+use crate::workbench_client::input::{
+    BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, PaneAdmission, PaneInput,
+    RenameAction, SettingsAction, SetupAction, SurfaceAction, SurfaceInput, TabAction, TextEntry,
+    WorktreeAction,
+};
 
 impl WorkbenchClientUi {
     /// Selection and link steps report their own admission; history and scrollbar steps report
@@ -97,6 +102,15 @@ impl WorkbenchClientUi {
             SurfaceInput::AgentBoard { episode, key } => {
                 self.capture_agent_board_key(episode, &key)
             }
+            SurfaceInput::AgentBoardSelect(target) => self.agent_board_select(target),
+            SurfaceInput::TabStripPage { source, start } => {
+                self.page_drawn_tab_strip(source, start);
+                true
+            }
+            SurfaceInput::TabStripFollow { source, tab } => {
+                self.follow_drawn_tab_strip(source, tab);
+                true
+            }
             SurfaceInput::Popup { id, item } => {
                 self.popup_input(id, item);
                 true
@@ -108,6 +122,116 @@ impl WorkbenchClientUi {
             SurfaceInput::Rename { token, edit } => self.edit_rename_draft(token, edit),
             SurfaceInput::Setup { token, edit } => self.edit_setup_draft(token, edit),
             SurfaceInput::Worktree { token, edit } => self.edit_worktree(token, edit),
+        }
+    }
+
+    /// Executes one committed gesture result through the feature composition that owns it.
+    /// Results whose owner reports only acceptance answer `KeepNavigator` when accepted. Layout
+    /// resizing needs the client-control lane, so `WorkbenchClient` executes it instead.
+    pub(in crate::workbench_client) fn surface_action(
+        &mut self,
+        action: SurfaceAction<'_>,
+    ) -> Option<ClientActionDisposition> {
+        let accepted = |accepted: bool| accepted.then_some(ClientActionDisposition::KeepNavigator);
+        match action {
+            SurfaceAction::Settings(SettingsAction::Row { token, row }) => {
+                self.click_settings(token, row);
+                None
+            }
+            SurfaceAction::Settings(SettingsAction::Control { token, control }) => {
+                self.click_settings_control(token, control);
+                None
+            }
+            SurfaceAction::ActionMenu(MenuAction::Row { source, token, row }) => {
+                self.activate_action_menu_row(source, token, row);
+                None
+            }
+            SurfaceAction::ActionMenu(MenuAction::Control {
+                source,
+                token,
+                control,
+            }) => {
+                self.activate_action_menu_control(source, token, control);
+                None
+            }
+            SurfaceAction::ActionMenu(MenuAction::Cancel) => {
+                self.cancel_action_menu();
+                None
+            }
+            SurfaceAction::CopyMode(CopyAction::Control { token, control }) => {
+                self.click_copy_control(token, control);
+                None
+            }
+            SurfaceAction::CopyMode(CopyAction::Exit) => accepted(self.cancel_copy_mode()),
+            SurfaceAction::AgentBoard(BoardAction::Control(target)) => {
+                accepted(self.click_agent_board_control(target))
+            }
+            SurfaceAction::AgentBoard(BoardAction::Dismiss) => {
+                self.agent_board_dismiss();
+                None
+            }
+            SurfaceAction::Close(CloseDecision::Tab { token, confirm }) => {
+                self.click_tab_close(token, confirm);
+                None
+            }
+            SurfaceAction::Close(CloseDecision::Panel { token, confirm }) => {
+                self.click_panel_close(token, confirm);
+                None
+            }
+            SurfaceAction::Close(CloseDecision::Workspace { token, confirm }) => {
+                self.click_workspace_close(token, confirm);
+                None
+            }
+            SurfaceAction::Rename(RenameAction::Submit(token)) => {
+                Some(self.submit_rename_draft(token))
+            }
+            SurfaceAction::Rename(RenameAction::Cancel(token)) => {
+                self.cancel_rename_draft(token);
+                None
+            }
+            SurfaceAction::Setup(SetupAction::Submit(token)) => {
+                Some(self.submit_setup_draft(token))
+            }
+            SurfaceAction::Setup(SetupAction::Cancel(token)) => {
+                self.cancel_setup_draft(token);
+                None
+            }
+            SurfaceAction::Setup(SetupAction::Choose { token, index }) => {
+                self.choose_setup_project(token, index);
+                None
+            }
+            SurfaceAction::Worktree(WorktreeAction::Submit(token)) => {
+                self.submit_worktree(token);
+                None
+            }
+            SurfaceAction::Worktree(WorktreeAction::Dismiss(token)) => {
+                self.dismiss_worktree(token);
+                None
+            }
+            SurfaceAction::Worktree(WorktreeAction::Choose { token, index }) => {
+                self.choose_worktree(token, index);
+                None
+            }
+            SurfaceAction::Tabs(TabAction::RequestClose { source, tab }) => {
+                self.request_drawn_tab_close(source, tab);
+                None
+            }
+            SurfaceAction::Tabs(TabAction::RequestRename { source, tab }) => {
+                self.request_drawn_tab_rename(source, tab)
+            }
+            SurfaceAction::Tabs(TabAction::Drag { source, operation }) => {
+                self.commit_tab_drag(source, operation);
+                None
+            }
+            SurfaceAction::Layout(LayoutAction::SidebarReorder { source, operation }) => {
+                self.commit_sidebar_reorder(source, operation);
+                None
+            }
+            SurfaceAction::Layout(
+                LayoutAction::ResizeControl { .. } | LayoutAction::Divider { .. },
+            ) => None,
+            SurfaceAction::Presentation(target) => Some(self.activate_drawn_presentation(target)),
+            SurfaceAction::PopupClose(target) => accepted(self.activate_drawn_popup_close(target)),
         }
     }
 }

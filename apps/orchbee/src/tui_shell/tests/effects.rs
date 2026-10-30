@@ -2,6 +2,7 @@
 use super::*;
 use crate::tui_shell::InputDispatcher;
 use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
+use orchbee_workbench_client::test_support::terminal_input::{CloseDecision, SurfaceAction};
 use orchbee_workbench_client::test_support::terminal_lifecycle::SynchronizedUpdateLeaseTestAccess;
 use orchbee_workbench_client::test_support::tui_pointer::HitMapBuilderTestAccess;
 use std::{
@@ -47,12 +48,14 @@ impl TerminalInputPort for Surface {
     fn forward(&mut self, _: &[u8]) -> Result<(), TerminalInputUnavailable> {
         Ok(())
     }
-    fn click_workspace_close(
+    fn surface_action(
         &mut self,
-        _: orchbee_workbench_client::test_support::workbench_client::WorkspaceCloseToken,
-        confirm: bool,
-    ) {
-        self.events.borrow_mut().push(Event::Confirmation(confirm));
+        action: SurfaceAction<'_>,
+    ) -> Option<orchbee_workbench_client::test_support::client_view::ClientActionDisposition> {
+        if let SurfaceAction::Close(CloseDecision::Workspace { confirm, .. }) = action {
+            self.events.borrow_mut().push(Event::Confirmation(confirm));
+        }
+        None
     }
 }
 

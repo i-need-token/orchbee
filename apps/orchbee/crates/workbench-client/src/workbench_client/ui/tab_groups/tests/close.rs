@@ -508,21 +508,18 @@ impl TerminalInputPort for Port<'_> {
     ) -> bool {
         self.ui.open_action_menu(target, anchor, released)
     }
-    fn activate_action_menu_row(
+    fn surface_action(
         &mut self,
-        source: &crate::action_menu::MenuTarget,
-        token: crate::action_menu::MenuToken,
-        row: usize,
-    ) {
-        self.ui.activate_action_menu_row(source, token, row);
-    }
-    fn activate_action_menu_control(
-        &mut self,
-        source: &crate::action_menu::MenuTarget,
-        token: crate::action_menu::MenuToken,
-        control: crate::action_menu::MenuControl,
-    ) {
-        self.ui.activate_action_menu_control(source, token, control);
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{MenuAction, SurfaceAction};
+        match action {
+            SurfaceAction::ActionMenu(MenuAction::Row { .. })
+            | SurfaceAction::ActionMenu(MenuAction::Control { .. }) => {
+                self.ui.surface_action(action)
+            }
+            _ => None,
+        }
     }
     fn scroll_list(
         &mut self,

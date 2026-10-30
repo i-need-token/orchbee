@@ -46,15 +46,45 @@ impl Port {
         }
         true
     }
+
+    fn click_agent_board_control(&mut self, target: &AgentBoardControlTarget) -> bool {
+        self.board.control_drawn(target)
+    }
+
+    fn agent_board_dismiss(&mut self) {
+        self.board.close();
+    }
+
+    fn agent_board_select(&mut self, target: &AgentBoardRowTarget) -> bool {
+        self.board.select_drawn_row(target)
+    }
 }
 
 impl TerminalInputPort for Port {
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{BoardAction, SurfaceAction};
+        match action {
+            SurfaceAction::AgentBoard(BoardAction::Control(target)) => self
+                .click_agent_board_control(target)
+                .then_some(crate::client_view::ClientActionDisposition::KeepNavigator),
+            SurfaceAction::AgentBoard(BoardAction::Dismiss) => {
+                self.agent_board_dismiss();
+                None
+            }
+            _ => None,
+        }
+    }
+
     fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
         use crate::terminal_input::SurfaceInput;
         match input {
             SurfaceInput::AgentBoard { episode, key } => {
                 self.capture_agent_board_key_for(episode, key)
             }
+            SurfaceInput::AgentBoardSelect(target) => self.agent_board_select(target),
             _ => false,
         }
     }
@@ -78,9 +108,6 @@ impl TerminalInputPort for Port {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
     }
-    fn click_agent_board_control(&mut self, target: &AgentBoardControlTarget) -> bool {
-        self.board.control_drawn(target)
-    }
     fn scroll_list(
         &mut self,
         target: &crate::tui_pointer::ListScrollTarget,
@@ -93,12 +120,6 @@ impl TerminalInputPort for Port {
         self.board
             .scroll_painted(token, up, lines)
             .map(crate::tui_pointer::ListScrollTarget::AgentBoard)
-    }
-    fn agent_board_select(&mut self, target: &AgentBoardRowTarget) -> bool {
-        self.board.select_drawn_row(target)
-    }
-    fn agent_board_dismiss(&mut self) {
-        self.board.close();
     }
 }
 

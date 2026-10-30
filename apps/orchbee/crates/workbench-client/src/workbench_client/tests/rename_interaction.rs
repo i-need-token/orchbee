@@ -343,7 +343,9 @@ fn clipped_draw_suspends_draft_and_cancelled_paste_keeps_its_frame_until_the_bou
         b"\x1b[200~old",
         later,
     );
-    workbench_client.cancel_rename_draft(token);
+    workbench_client.surface_action(crate::terminal_input::SurfaceAction::Rename(
+        crate::terminal_input::RenameAction::Cancel(token),
+    ));
     let quiet = later + Duration::from_secs(3600);
     input(
         &mut dispatcher,

@@ -32,10 +32,14 @@ use orchbee_terminal_protocol::MouseTracking;
 pub use crate::client_view::help::HelpControl;
 use crate::client_view::{ClientAction, ClientView, Modifiers};
 use crate::terminal_input::{
+    BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, RenameAction, SetupAction,
+    SurfaceAction, WorktreeAction, forward_or_report, route_pane_pointer,
+};
+use crate::terminal_input::{
     MouseAction, MouseButton, MouseEvent, PaneAdmission, PaneEncode, PaneInput, PaneMouseEvent,
     PanePointerRoute, PointerFrameFacts, PointerProbe, PointerSelectionCell,
     PointerSelectionIntent, SurfaceInput, TerminalInputPort, encode_cursor_arrows,
-    encode_pane_report, forward_or_report, route_pane_pointer,
+    encode_pane_report,
 };
 use crate::workbench_client::state::PaneRef;
 
@@ -832,12 +836,12 @@ impl PointerState {
                         HitResolution::OverlayBackdrop
                     )
                 {
-                    port.cancel_action_menu();
+                    port.surface_action(SurfaceAction::ActionMenu(MenuAction::Cancel));
                     return PointerOutcome::RegionsChanged;
                 }
             }
             MouseButton::Right => {
-                port.cancel_action_menu();
+                port.surface_action(SurfaceAction::ActionMenu(MenuAction::Cancel));
                 return PointerOutcome::RegionsChanged;
             }
             _ => {}
@@ -1934,7 +1938,7 @@ impl PointerState {
                     // dismisses the board. Other overlays keep their
                     // existing backdrop semantics above.
                     if !matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown) {
-                        port.agent_board_dismiss();
+                        port.surface_action(SurfaceAction::AgentBoard(BoardAction::Dismiss));
                     }
                     return PointerOutcome::RegionsChanged;
                 }
@@ -2179,7 +2183,10 @@ impl PointerState {
                 };
                 drag.update(event.column, event.row);
                 if drag.ratio != drag.target.ratio {
-                    port.pointer_divider_resize(&drag.target, drag.ratio);
+                    port.surface_action(SurfaceAction::Layout(LayoutAction::Divider {
+                        target: &drag.target,
+                        ratio: drag.ratio,
+                    }));
                 }
                 return PointerOutcome::ChromeGestureEnded;
             }

@@ -139,9 +139,58 @@ impl SetupPort {
         }
         true
     }
+
+    fn choose_setup_project(&mut self, token: SetupToken, index: usize) {
+        if token != self.token() || !self.shown || !self.complete || index >= self.choice_count {
+            return;
+        }
+        self.selections = i32::try_from(index).unwrap();
+        self.submit_setup_draft(token);
+    }
+
+    fn cancel_setup_draft(&mut self, token: SetupToken) {
+        assert_eq!(token, self.token());
+        self.active = false;
+    }
+
+    fn submit_setup_draft(&mut self, token: SetupToken) -> Option<ClientActionDisposition> {
+        assert_eq!(token, self.token());
+        if self.shown && self.complete && !self.fault {
+            self.submissions.push(self.stage);
+            match self.stage {
+                SetupStage::ChooseWorkspaceProject
+                    if self.selections == i32::try_from(self.choice_count - 1).unwrap() =>
+                {
+                    self.next_step(SetupStage::WorkspaceProjectName);
+                }
+                SetupStage::QuickProject => self.next_step(SetupStage::QuickName),
+                _ => self.active = false,
+            }
+        }
+        Some(ClientActionDisposition::KeepNavigator)
+    }
 }
 
 impl TerminalInputPort for SetupPort {
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
+        use crate::terminal_input::{SetupAction, SurfaceAction};
+        match action {
+            SurfaceAction::Setup(SetupAction::Choose { token, index }) => {
+                self.choose_setup_project(token, index);
+                None
+            }
+            SurfaceAction::Setup(SetupAction::Cancel(token)) => {
+                self.cancel_setup_draft(token);
+                None
+            }
+            SurfaceAction::Setup(SetupAction::Submit(token)) => self.submit_setup_draft(token),
+            _ => None,
+        }
+    }
+
     fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
         use crate::terminal_input::SurfaceInput;
         match input {
@@ -171,14 +220,6 @@ impl TerminalInputPort for SetupPort {
                 remaining_bytes: 4096_usize.saturating_sub(self.text.len()),
             },
         ))
-    }
-
-    fn choose_setup_project(&mut self, token: SetupToken, index: usize) {
-        if token != self.token() || !self.shown || !self.complete || index >= self.choice_count {
-            return;
-        }
-        self.selections = i32::try_from(index).unwrap();
-        self.submit_setup_draft(token);
     }
 
     fn scroll_list(
@@ -230,34 +271,12 @@ impl TerminalInputPort for SetupPort {
         Some(ClientActionDisposition::KeepNavigator)
     }
 
-    fn cancel_setup_draft(&mut self, token: SetupToken) {
-        assert_eq!(token, self.token());
-        self.active = false;
-    }
-
     fn forward(
         &mut self,
         bytes: &[u8],
     ) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
-    }
-
-    fn submit_setup_draft(&mut self, token: SetupToken) -> Option<ClientActionDisposition> {
-        assert_eq!(token, self.token());
-        if self.shown && self.complete && !self.fault {
-            self.submissions.push(self.stage);
-            match self.stage {
-                SetupStage::ChooseWorkspaceProject
-                    if self.selections == i32::try_from(self.choice_count - 1).unwrap() =>
-                {
-                    self.next_step(SetupStage::WorkspaceProjectName);
-                }
-                SetupStage::QuickProject => self.next_step(SetupStage::QuickName),
-                _ => self.active = false,
-            }
-        }
-        Some(ClientActionDisposition::KeepNavigator)
     }
 }
 
