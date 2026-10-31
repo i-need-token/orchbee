@@ -1,6 +1,9 @@
 //! Noncapturing paint of the one visible notification card.
-use super::{Position, State};
-use crate::tui_theme::{Role, Theme};
+use crate::{
+    client_view::notifications::State,
+    tui_theme::{Role, Theme},
+};
+use orchbee_workbench_protocol::NotificationPosition as Position;
 use ratatui::{
     Frame,
     layout::Rect,
@@ -16,11 +19,9 @@ pub fn render(
     frame: &mut Frame<'_>,
     state: &State,
     theme: &Theme,
-    hits: &mut crate::tui_pointer::hit_map::HitMapBuilder,
+    hits: &mut crate::tui_hit_map::HitMapBuilder,
 ) -> Option<Rect> {
-    let Some(visible) = &state.visible else {
-        return None;
-    };
+    let message = state.visible_message()?;
     let bounds = frame.area();
     // Keep clear of the top chrome row and the last row, where the status chip floats.
     let area = Rect::new(
@@ -32,12 +33,8 @@ pub fn render(
     if area.width < 8 || area.height < 3 {
         return None;
     }
-    let title = crate::terminal_text::escape(&visible.message.title);
-    let body = visible
-        .message
-        .body
-        .as_deref()
-        .map(crate::terminal_text::escape);
+    let title = crate::terminal_text::escape(&message.title);
+    let body = message.body.as_deref().map(crate::terminal_text::escape);
     let width = crate::terminal_text::display_width(&title)
         .max(
             body.as_deref()
@@ -48,11 +45,11 @@ pub fn render(
         .min(usize::from(area.width)) as u16;
     let height = if body.is_some() { 4 } else { 3 }.min(area.height);
     let left = matches!(
-        visible.message.position.unwrap_or(Position::BottomRight),
+        message.position.unwrap_or(Position::BottomRight),
         Position::TopLeft | Position::BottomLeft
     );
     let top = matches!(
-        visible.message.position.unwrap_or(Position::BottomRight),
+        message.position.unwrap_or(Position::BottomRight),
         Position::TopLeft | Position::TopRight
     );
     let rect = Rect::new(
@@ -90,9 +87,9 @@ pub fn render(
         inner,
     );
     hits.record(
-        crate::tui_pointer::hit_map::HitLayer::Notification,
+        crate::tui_hit_map::HitLayer::Notification,
         rect,
-        crate::tui_pointer::hit_map::HitTarget::OverlaySurface,
+        crate::tui_hit_map::HitTarget::OverlaySurface,
     );
     Some(rect)
 }

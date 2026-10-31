@@ -3,10 +3,8 @@
 use crate::{
     client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
     terminal_text::{display_width, line_display_width, truncate_display, wrap_text},
+    tui_hit_map::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ProjectedPointer},
     tui_layout::centered_overlay,
-    tui_pointer::hit_map::{
-        HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ProjectedPointer,
-    },
     tui_theme::{GlyphMode, Role, Theme},
 };
 use ratatui::{

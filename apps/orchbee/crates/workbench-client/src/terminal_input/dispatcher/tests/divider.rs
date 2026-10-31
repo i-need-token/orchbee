@@ -1,7 +1,7 @@
 //! Native decoder timelines for drag ownership, one release CAS, Esc and prefix boundaries.
 use super::*;
+use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
 use crate::tui_layout::{DividerSource, DrawnDivider};
-use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
 use orchbee_workbench_protocol::{
     ClientSplitRatio, PanelOrientation, SessionId, WorkbenchPanelId, WorkbenchPanelSlotId,
     WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId, WorkbenchTerminalContextId,

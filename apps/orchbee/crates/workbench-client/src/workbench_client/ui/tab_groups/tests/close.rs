@@ -3,7 +3,7 @@ use crate::{
     client_view::{ClientKey, ClientView, KeyEvent},
     localization::Locale,
     terminal_input::{InputDispatcher, PointerProbe, TerminalInputPort, TerminalInputUnavailable},
-    tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget},
+    tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget},
     tui_theme::Theme,
 };
 use ratatui::{Terminal, backend::TestBackend};
@@ -523,16 +523,16 @@ impl TerminalInputPort for Port<'_> {
     }
     fn scroll_list(
         &mut self,
-        target: &crate::tui_pointer::ListScrollTarget,
+        target: &crate::tui_hit_map::ListScrollTarget,
         up: bool,
         lines: usize,
-    ) -> Option<crate::tui_pointer::ListScrollTarget> {
-        let &crate::tui_pointer::ListScrollTarget::Menu(token) = target else {
+    ) -> Option<crate::tui_hit_map::ListScrollTarget> {
+        let &crate::tui_hit_map::ListScrollTarget::Menu(token) = target else {
             return None;
         };
         self.ui
             .scroll_action_menu(token, up, lines)
-            .map(crate::tui_pointer::ListScrollTarget::Menu)
+            .map(crate::tui_hit_map::ListScrollTarget::Menu)
     }
     fn take_action_menu_action(
         &mut self,

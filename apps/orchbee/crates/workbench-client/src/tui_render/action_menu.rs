@@ -14,7 +14,7 @@ use crate::{
     terminal_text::{
         display_width, sanitize_terminal_text, truncate_display, truncate_display_middle,
     },
-    tui_pointer::hit_map::{
+    tui_hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
         ProjectedPointer,
     },
@@ -163,7 +163,7 @@ pub(super) fn render(
             inner.width + 2,
             rows_height,
         ),
-        HitTarget::ListScroll(crate::tui_pointer::hit_map::ListScrollTarget::Menu(
+        HitTarget::ListScroll(crate::tui_hit_map::ListScrollTarget::Menu(
             active.menu.token,
         )),
     );

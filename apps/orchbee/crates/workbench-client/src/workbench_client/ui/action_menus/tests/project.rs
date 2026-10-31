@@ -917,7 +917,7 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                             (0..width).any(|x| {
                                 matches!(
                                     hits.hit_target_at(x, *y),
-                                    Some(crate::tui_pointer::HitTarget::ActionMenuRow {
+                                    Some(crate::tui_hit_map::HitTarget::ActionMenuRow {
                                         row,
                                         ..
                                     }) if *row == selected_row

@@ -3,7 +3,7 @@ use crate::{
     machine_discovery::Context,
     machine_picker::{SidebarRow, SidebarWindow},
     terminal_input::{PointerProbe, TerminalInputUnavailable},
-    tui_pointer::{HitLayer, HitMapBuilder, InteractionSpec},
+    tui_hit_map::{HitLayer, HitMapBuilder, InteractionSpec},
     workbench_client::ClientContextTarget,
 };
 use orchbee_workbench_protocol::{

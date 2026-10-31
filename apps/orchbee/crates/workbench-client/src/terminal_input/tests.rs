@@ -788,7 +788,7 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
     // Opening is a recovery capture for keys, but its current painted close
     // control remains an exact pointer authority. A stale map cannot close a
     // replacement, while the current close owns the rest of its read packet.
-    use crate::tui_pointer::{HitLayer, HitMapBuilder};
+    use crate::tui_hit_map::{HitLayer, HitMapBuilder};
     use ratatui::layout::Rect;
     let stale = WorkbenchRequestId::parse(&format!("{:032x}", 19)).unwrap();
     let current = WorkbenchRequestId::parse(&format!("{:032x}", 20)).unwrap();
@@ -807,9 +807,9 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
             HitLayer::Overlay,
             Rect::new(10, 5, 1, 1),
             Rect::new(10, 5, 1, 1),
-            crate::tui_pointer::InteractionTarget::PopupClose(popup.close_target()),
-            crate::tui_pointer::InteractionSpec::enabled(
-                crate::tui_pointer::PrimaryContract::ActivateOnRelease,
+            crate::tui_hit_map::InteractionTarget::PopupClose(popup.close_target()),
+            crate::tui_hit_map::InteractionSpec::enabled(
+                crate::tui_hit_map::PrimaryContract::ActivateOnRelease,
             ),
         );
         hits.finish()

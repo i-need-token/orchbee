@@ -112,7 +112,7 @@ fn popup_pending_and_closing_composition_hide_the_underlying_terminal_cursor() {
                         crate::localization::Locale::EnUs,
                         Some(view),
                         &crate::tui_theme::Theme::rgb_test_dark(),
-                        &mut crate::tui_pointer::HitMapBuilder::new(),
+                        &mut crate::tui_hit_map::HitMapBuilder::new(),
                     );
                 })
                 .unwrap();
@@ -126,7 +126,7 @@ fn too_small_popup_root_frame_shows_plain_recovery_and_restores_the_surface_afte
     use crate::{
         client_view::ClientView,
         localization::Locale,
-        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_hit_map::{HitMapBuilder, HitTarget},
         tui_theme::Theme,
     };
     use ratatui::{Terminal, backend::TestBackend};

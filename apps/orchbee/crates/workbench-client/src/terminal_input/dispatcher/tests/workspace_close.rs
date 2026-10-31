@@ -1,5 +1,5 @@
 use super::*;
-use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
+use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
 use crate::workbench_client::WorkspaceCloseToken;
 use ratatui::layout::Rect;
 
@@ -95,7 +95,7 @@ fn publish_close_control(
             token: WorkspaceCloseToken::for_test(1),
             confirm,
         },
-        crate::tui_pointer::InteractionAvailability::Enabled,
+        crate::tui_hit_map::InteractionAvailability::Enabled,
     );
     dispatcher.publish_hit_map(hits.finish());
 }
@@ -153,7 +153,7 @@ fn backdrop_cancel_owns_split_mouse_decision_and_tail_before_shell_input_resumes
             HitLayer::Overlay,
             Rect::new(36, 5, 3, 1),
             target,
-            crate::tui_pointer::InteractionAvailability::Enabled,
+            crate::tui_hit_map::InteractionAvailability::Enabled,
         );
         dispatcher.publish_hit_map(hits.finish());
         dispatch_all(&mut dispatcher, &mut view, &mut port, &bytes[..split]);

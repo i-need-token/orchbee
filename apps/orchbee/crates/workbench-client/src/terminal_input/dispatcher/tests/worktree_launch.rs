@@ -168,18 +168,18 @@ impl TerminalInputPort for Port {
     }
     fn scroll_list(
         &mut self,
-        target: &crate::tui_pointer::ListScrollTarget,
+        target: &crate::tui_hit_map::ListScrollTarget,
         up: bool,
         lines: usize,
-    ) -> Option<crate::tui_pointer::ListScrollTarget> {
-        let &crate::tui_pointer::ListScrollTarget::Worktree(token) = target else {
+    ) -> Option<crate::tui_hit_map::ListScrollTarget> {
+        let &crate::tui_hit_map::ListScrollTarget::Worktree(token) = target else {
             return None;
         };
         if token == self.token() && self.shown == Some(token) {
             self.selection += if up { -(lines as i32) } else { lines as i32 };
             self.serial += 1;
             self.shown = None;
-            Some(crate::tui_pointer::ListScrollTarget::Worktree(self.token()))
+            Some(crate::tui_hit_map::ListScrollTarget::Worktree(self.token()))
         } else {
             None
         }
@@ -280,7 +280,7 @@ fn removal_confirmations_ignore_text_paste_and_modified_enter_and_capture_confir
 }
 
 fn painted_choice(dispatcher: &mut InputDispatcher, port: &mut Port, index: usize) {
-    use crate::tui_pointer::{
+    use crate::tui_hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl,
     };
     dispatcher.pointer.set_capture(true);
@@ -294,7 +294,7 @@ fn painted_choice(dispatcher: &mut InputDispatcher, port: &mut Port, index: usiz
     hits.record(
         HitLayer::OverlaySurface,
         ratatui::layout::Rect::new(2, 2, 30, 9),
-        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Worktree(port.token())),
+        HitTarget::ListScroll(crate::tui_hit_map::ListScrollTarget::Worktree(port.token())),
     );
     hits.record_modal_control(
         HitLayer::Overlay,

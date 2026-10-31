@@ -9,10 +9,10 @@ use super::{
     Rect, Role, SessionStatus, SidebarArea, SidebarLayer, Theme, display_width,
 };
 use crate::client_view::Overlay;
-use crate::tui_layout::{DrawnSidebarWidth, SidebarWidthDrag};
-use crate::tui_pointer::hit_map::{
+use crate::tui_hit_map::{
     HitTarget, InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer,
 };
+use crate::tui_layout::{DrawnSidebarWidth, SidebarWidthDrag};
 use ratatui::style::Style;
 
 fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation {

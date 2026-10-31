@@ -1,7 +1,7 @@
 use super::*;
 use crate::client_view::{CopyModeKey, KeyEvent, copy_mode_key};
 use crate::terminal_copy_mode::{CopyModeCursor, CopySurfaceToken, EpisodeId, Surface};
-use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
+use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
 use ratatui::layout::Rect;
 use std::num::NonZeroU64;
 
@@ -188,7 +188,7 @@ fn copy_exit_packet_cannot_fall_through_to_retained_resize_mode() {
     );
 }
 
-fn copy_surface_map() -> (crate::tui_pointer::FrameHitMap, Rect) {
+fn copy_surface_map() -> (crate::tui_hit_map::FrameHitMap, Rect) {
     let area = Rect::new(10, 5, 8, 3);
     let surface = Surface::checked(
         crate::terminal_content::TerminalScreen::Primary,

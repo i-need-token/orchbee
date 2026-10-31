@@ -4,8 +4,8 @@ use crate::terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUna
 use crate::{
     client_view::PanelDirection,
     localization::Locale,
+    tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget, ResizeControl},
     tui_layout::DrawnResize,
-    tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget, ResizeControl},
     tui_theme::Theme,
 };
 use ratatui::{Terminal, backend::TestBackend};

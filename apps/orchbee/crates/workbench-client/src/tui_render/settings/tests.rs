@@ -7,7 +7,8 @@ use crate::{
         Basis, Edit, Editor, Page, Reconciliation, SETTINGS, SettingCategory, SettingsHintLabel,
         key_edit,
     },
-    tui_pointer::{FrameHitMap, HelpControl},
+    tui_hit_map::FrameHitMap,
+    tui_pointer::HelpControl,
     tui_theme::{ColorLevel, GlyphSet},
 };
 use orchbee_workbench_protocol::{

@@ -212,7 +212,7 @@ fn selected_tab_configuration_menu_marks_exact_set_and_preserves_active_terminal
     ] {
         let mut terminal =
             ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
-        let mut hits = crate::tui_pointer::HitMapBuilder::new();
+        let mut hits = crate::tui_hit_map::HitMapBuilder::new();
         terminal
             .draw(|frame| {
                 crate::tui_render::render_terminal_shell(
@@ -469,7 +469,7 @@ fn background_tab_group_menu_does_not_select_its_target() {
 fn tab_groups_composed_screen_keeps_headers_members_and_localized_menu_hits() {
     use crate::{
         localization::Locale,
-        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_hit_map::{HitMapBuilder, HitTarget},
         tui_theme::{ColorLevel, GlyphSet, Theme},
     };
     use ratatui::{Terminal, backend::TestBackend};
@@ -614,7 +614,7 @@ fn rendered_text(buffer: &ratatui::buffer::Buffer) -> String {
 fn tab_group_strip_reserves_quick_add_paint_and_hits_after_expanded_or_collapsed_tokens() {
     use crate::{
         localization::Locale,
-        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_hit_map::{HitMapBuilder, HitTarget},
         tui_theme::Theme,
     };
     use ratatui::{Terminal, backend::TestBackend};
@@ -707,7 +707,7 @@ fn tab_group_strip_reserves_quick_add_paint_and_hits_after_expanded_or_collapsed
 fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_routes() {
     use crate::{
         localization::Locale,
-        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_hit_map::{HitMapBuilder, HitTarget},
         tui_theme::Theme,
     };
     use ratatui::{Terminal, backend::TestBackend};

@@ -576,7 +576,7 @@ fn paint(
     theme: &Theme,
     width: u16,
     height: u16,
-) -> (Vec<String>, crate::tui_pointer::FrameHitMap) {
+) -> (Vec<String>, crate::tui_hit_map::FrameHitMap) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut hits = HitMapBuilder::new();
     terminal

@@ -5,8 +5,8 @@ use crate::{
         format_binding_with_glyphs,
     },
     localization::Locale,
+    tui_hit_map::{HitMapBuilder, ProjectedPointer},
     tui_layout::{DividerDrag, project_shell_areas, status_chip_area},
-    tui_pointer::hit_map::{HitMapBuilder, ProjectedPointer},
     tui_theme::{GlyphMode, Role, Theme},
 };
 use ratatui::{Frame, layout::Rect};

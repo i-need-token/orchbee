@@ -6,7 +6,7 @@ use crate::{
         help::{HelpControl, HelpDrawSource},
     },
     localization::Locale,
-    tui_pointer::{FrameHitMap, HitLayer, HitMapBuilder, HitTarget, ListScrollTarget},
+    tui_hit_map::{FrameHitMap, HitLayer, HitMapBuilder, HitTarget, ListScrollTarget},
     tui_theme::{Role, Theme},
 };
 use ratatui::{

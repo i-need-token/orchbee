@@ -8,7 +8,7 @@ use crate::workbench_client::{
     },
 };
 use crate::{
-    client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder,
+    client_view::ClientView, localization::Locale, tui_hit_map::HitMapBuilder,
     tui_render::test_capture::capture_screen, tui_theme::Theme,
 };
 use orchbee_client_server_protocol::ControllerId;

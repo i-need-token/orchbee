@@ -6,7 +6,7 @@ use ratatui::layout::Rect;
 use super::{HitLayer, HitTarget, ProjectedPointer};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::tui_pointer) enum TabTarget {
+pub(crate) enum TabTarget {
     Tab(WorkbenchTabId),
     Group {
         tab: WorkbenchTabId,
@@ -15,7 +15,7 @@ pub(in crate::tui_pointer) enum TabTarget {
 }
 
 impl TabTarget {
-    pub(in crate::tui_pointer) fn from_hit(target: &HitTarget) -> Option<Self> {
+    pub(crate) fn from_hit(target: &HitTarget) -> Option<Self> {
         Some(match target {
             HitTarget::Tab(id) => Self::Tab(id.clone()),
             HitTarget::TabGroup { tab, group } => Self::Group {
@@ -26,7 +26,7 @@ impl TabTarget {
         })
     }
 
-    pub(in crate::tui_pointer) fn hit_target(&self) -> HitTarget {
+    pub(crate) fn hit_target(&self) -> HitTarget {
         match self {
             Self::Tab(id) => HitTarget::Tab(id.clone()),
             Self::Group { tab, group } => HitTarget::TabGroup {
@@ -38,7 +38,7 @@ impl TabTarget {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::tui_pointer) enum Target {
+pub(crate) enum Target {
     Divider(crate::tui_layout::DrawnDivider),
     Tab {
         source: crate::action_menu::DrawnTabCreate,
@@ -49,14 +49,14 @@ pub(in crate::tui_pointer) enum Target {
 /// Exact specialized-chrome paint identity. A different source snapshot,
 /// semantic target, layer, or painted extent cannot inherit presentation.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::tui_pointer) struct Fingerprint {
-    pub(in crate::tui_pointer) target: Target,
-    pub(in crate::tui_pointer) layer: HitLayer,
-    pub(in crate::tui_pointer) area: Rect,
+pub(crate) struct Fingerprint {
+    pub(crate) target: Target,
+    pub(crate) layer: HitLayer,
+    pub(crate) area: Rect,
 }
 
 impl Fingerprint {
-    pub(in crate::tui_pointer) fn divider(target: &crate::tui_layout::DrawnDivider) -> Self {
+    pub(crate) fn divider(target: &crate::tui_layout::DrawnDivider) -> Self {
         Self {
             target: Target::Divider(target.clone()),
             layer: HitLayer::Foreground,
@@ -64,7 +64,7 @@ impl Fingerprint {
         }
     }
 
-    pub(in crate::tui_pointer) fn tab(
+    pub(crate) fn tab(
         source: &crate::action_menu::DrawnTabCreate,
         target: &HitTarget,
         area: Rect,
@@ -79,38 +79,33 @@ impl Fingerprint {
         })
     }
 
-    pub(in crate::tui_pointer) fn hit_target(&self) -> HitTarget {
+    pub(crate) fn hit_target(&self) -> HitTarget {
         match &self.target {
             Target::Divider(target) => HitTarget::Divider(target.clone()),
             Target::Tab { target, .. } => target.hit_target(),
         }
     }
 
-    pub(in crate::tui_pointer) fn matches_region(
-        &self,
-        layer: HitLayer,
-        area: Rect,
-        target: &HitTarget,
-    ) -> bool {
+    pub(crate) fn matches_region(&self, layer: HitLayer, area: Rect, target: &HitTarget) -> bool {
         self.layer == layer && self.area == area && self.hit_target() == *target
     }
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(in crate::tui_pointer) struct Projection {
-    pub(in crate::tui_pointer) hovered: Option<Fingerprint>,
-    pub(in crate::tui_pointer) pressed: Option<Fingerprint>,
+pub(crate) struct Projection {
+    pub(crate) hovered: Option<Fingerprint>,
+    pub(crate) pressed: Option<Fingerprint>,
 }
 
 impl Projection {
-    pub(in crate::tui_pointer) const fn empty() -> Self {
+    pub(crate) const fn empty() -> Self {
         Self {
             hovered: None,
             pressed: None,
         }
     }
 
-    pub(in crate::tui_pointer) fn project(&self, fingerprint: &Fingerprint) -> ProjectedPointer {
+    pub(crate) fn project(&self, fingerprint: &Fingerprint) -> ProjectedPointer {
         if self.pressed.as_ref() == Some(fingerprint) {
             ProjectedPointer::Pressed
         } else if self.hovered.as_ref() == Some(fingerprint) {

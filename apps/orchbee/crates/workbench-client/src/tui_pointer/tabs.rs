@@ -1,10 +1,10 @@
 //! A local press/drag/release transaction. Painted geometry and the exact source
 //! snapshot remain fixed; only release can emit one canonical configuration.
-use super::hit_map::tabs::{exposed_regions, tab_regions};
 use super::{
     FrameHitMap, Gesture, HitTarget, MouseAction, MouseButton, MouseEvent, PointerOutcome,
     PointerState, TabDragPreview, contains,
 };
+use crate::tui_hit_map::tabs::{exposed_regions, tab_regions};
 use crate::{
     action_menu::DrawnTabCreate,
     client_view::{ClientAction, ClientView, Modifiers},
@@ -114,7 +114,7 @@ impl TabDrag {
             && tab_regions(map) == self.regions
     }
 
-    pub(super) fn projection_fingerprint(&self) -> Option<super::hit_map::chrome::Fingerprint> {
+    pub(super) fn projection_fingerprint(&self) -> Option<crate::tui_hit_map::chrome::Fingerprint> {
         if !matches!(
             self.phase,
             Phase::Pressed {
@@ -124,7 +124,7 @@ impl TabDrag {
             return None;
         }
         let area = *self.pressed.first()?;
-        super::hit_map::chrome::Fingerprint::tab(&self.source.drawn, &self.target, area)
+        crate::tui_hit_map::chrome::Fingerprint::tab(&self.source.drawn, &self.target, area)
     }
 
     fn over_pressed_target(&self, column: u16, row: u16) -> bool {

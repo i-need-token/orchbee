@@ -4,10 +4,11 @@ use crate::{
     action_menu::DrawnMenuSource,
     client_view::ClientActionDisposition,
     terminal_input::{PointerProbe, PointerTab, TerminalInputUnavailable},
-    tui_pointer::{
-        HitLayer, HitMapBuilder, InteractionSpec, InteractionTarget, MotionObservability,
-        PrimaryContract, ProjectedPointer,
+    tui_hit_map::{
+        HitLayer, HitMapBuilder, InteractionSpec, InteractionTarget, PrimaryContract,
+        ProjectedPointer,
     },
+    tui_pointer::MotionObservability,
     workbench_client::ClientContextLocation,
 };
 use orchbee_workbench_protocol::{SessionId, WorkbenchRevision, WorkbenchTerminalContextId};

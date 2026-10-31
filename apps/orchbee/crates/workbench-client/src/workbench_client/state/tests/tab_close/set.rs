@@ -329,7 +329,7 @@ fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_eras
     use crate::{
         client_view::ClientView,
         localization::Locale,
-        tui_pointer::HitMapBuilder,
+        tui_hit_map::HitMapBuilder,
         tui_theme::Theme,
         workbench_client::{ClientProjectionStatus, WorkbenchClientView},
     };
@@ -636,7 +636,7 @@ fn close_set_background_resume_draw_uses_its_exact_record_when_active_record_com
                         locale,
                         Some(view),
                         &Theme::terminal_native(),
-                        &mut crate::tui_pointer::HitMapBuilder::new(),
+                        &mut crate::tui_hit_map::HitMapBuilder::new(),
                     );
                 })
                 .unwrap();

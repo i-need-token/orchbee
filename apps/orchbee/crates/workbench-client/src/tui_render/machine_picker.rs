@@ -1,5 +1,9 @@
 //! Machine picker painters: the capturing picker window, its Agent controls and query rows.
-use super::{Choice, Control, DrawnPickerTarget, Mode, Picker, PickerAction, PickerSource};
+//! The inherent `Picker::render` entry lives here so painting reads the picker without the
+//! picker state depending on presentation.
+use crate::machine_picker::{
+    Choice, Control, DrawnPickerTarget, Mode, Picker, PickerAction, PickerSource,
+};
 use crate::{
     client_view::{
         Binding, KeyCode, LabelStyle, Modifiers, format_binding_with_glyphs, join_key_labels,
@@ -9,11 +13,11 @@ use crate::{
     terminal_text::{
         display_width, sanitize_terminal_text, truncate_display, truncate_display_start,
     },
-    tui_layout::ViewportTier,
-    tui_pointer::hit_map::{
+    tui_hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, ListScrollTarget,
         PrimaryContract, ProjectedPointer,
     },
+    tui_layout::ViewportTier,
     tui_render::controls::{
         ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState,
         FocusState, IconActionGlyph, IconActionSpec, InteractionState, KeyHint, NavigationState,
@@ -125,13 +129,13 @@ impl Picker {
         let status = Rect::new(area.x, area.bottom() - 1, area.width, 1);
         frame.render_widget(Clear, status);
         frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), status);
-        let editing = self.mode == Mode::Agents && self.editing_query;
-        let label = if self.mode == Mode::Workspaces {
+        let editing = self.mode() == Mode::Agents && self.editing_query();
+        let label = if self.mode() == Mode::Workspaces {
             locale.machine_picker_text("workspace-search")
         } else if editing {
             locale.machine_picker_text("agent-search")
         } else {
-            self.mode.label(locale)
+            self.mode().label(locale)
         };
         let glyphs = theme.glyphs.key_labels();
         let style = LabelStyle::for_host();
@@ -211,11 +215,11 @@ impl Picker {
         hits.start_modal();
         let width = area.width.saturating_sub(4).min(72);
         let height = area.height.saturating_sub(3).min(
-            ((if self.mode == Mode::Workspaces {
-                self.workspace_rows.len()
+            ((if self.mode() == Mode::Workspaces {
+                self.workspace_rows().len()
             } else {
                 self.visible_rows().len()
-            }) + match self.mode {
+            }) + match self.mode() {
                 Mode::Agents => 13,
                 Mode::Workspaces => 11,
                 Mode::Machines => 10,
@@ -235,8 +239,8 @@ impl Picker {
         frame.render_widget(Clear, panel);
         let title = format!(
             "{} {}/{}",
-            self.mode.label(locale),
-            (self.selected + 1).min(self.visible_rows().len()),
+            self.mode().label(locale),
+            (self.selected() + 1).min(self.visible_rows().len()),
             self.visible_rows().len()
         );
         frame.render_widget(
@@ -288,7 +292,7 @@ impl Picker {
                 );
                 // Mode labels form a tab strip: the active mode is current, not a checked
                 // option, so it needs no checked-glyph track.
-                let current = self.mode == mode;
+                let current = self.mode() == mode;
                 let state = component_state(
                     pointer,
                     NavigationState::None,
@@ -335,12 +339,12 @@ impl Picker {
             .iter()
             .any(|row| matches!(row.choice, Choice::Remote(_)));
         let details = if inner.height >= 9 {
-            if self.mode == Mode::Agents {
+            if self.mode() == Mode::Agents {
                 // Workspace, provider, task, metadata and Copy ID have separate rows.
                 5 + u16::from(has_remote)
             } else if has_remote {
                 5
-            } else if self.mode == Mode::Workspaces {
+            } else if self.mode() == Mode::Workspaces {
                 // Grouping, the exact name and its directory have separate rows.
                 4
             } else {
@@ -377,7 +381,7 @@ impl Picker {
                 String::new()
             };
             let mut identity_suffix = String::new();
-            let name = if let Some(agent) = &row.agent {
+            let name = if let Some(agent) = row.agent() {
                 // The name identifies the Agent; a distinct task title says what it is doing.
                 let identity = display_label(agent.display_name());
                 let title = display_label(agent.title());
@@ -394,7 +398,7 @@ impl Picker {
                         String::new()
                     },
                 )
-            } else if let Some(context) = &row.context {
+            } else if let Some(context) = row.context() {
                 identity_suffix = self.workspace_identity_suffix(row);
                 format!(
                     "{prefix}{}",
@@ -406,9 +410,9 @@ impl Picker {
             } else {
                 name.to_owned()
             };
-            let suffix = if let Some(status) = row.agent_status {
+            let suffix = if let Some(status) = row.agent_status() {
                 locale.machine_picker_text(status).to_owned()
-            } else if let Some(agent) = &row.agent {
+            } else if let Some(agent) = row.agent() {
                 let fallback = locale.machine_picker_text(match agent.display_state() {
                     orchbee_workbench_protocol::MetadataState::Idle => "agent-idle",
                     orchbee_workbench_protocol::MetadataState::Done => "agent-done",
@@ -424,7 +428,7 @@ impl Picker {
                     .unwrap_or_else(|| fallback.into())
             } else if !enabled {
                 locale.machine_picker_text("disabled").to_owned()
-            } else if row.context.is_some() && self.space_checkpoint_stale(row) {
+            } else if row.context().is_some() && self.space_checkpoint_stale(row) {
                 locale.machine_picker_text("stale").to_owned()
             } else if let Some(observation) = &row.observation {
                 locale.machine_picker_text(observation.key()).to_owned()
@@ -433,7 +437,7 @@ impl Picker {
             } else {
                 String::new()
             };
-            let status_width = match self.mode {
+            let status_width = match self.mode() {
                 Mode::Machines => rect.width.min(16),
                 Mode::Agents => rect.width.min(18),
                 Mode::Workspaces => 0,
@@ -461,14 +465,12 @@ impl Picker {
             };
             let status_rect = Rect::new(primary_rect.right(), rect.y, status_width, 1);
             let current = row
-                .agent
-                .as_ref()
+                .agent()
                 .is_some_and(|a| self.current_agent(&row.choice, a))
-                || (self.mode != Mode::Agents
+                || (self.mode() != Mode::Agents
                     && row.choice == self.current
                     && row
-                        .context
-                        .as_ref()
+                        .context()
                         .is_none_or(|c| self.current_context.as_ref() == Some(&c.target)));
             let Some((target, spec)) = picker_interaction(&source, PickerAction::Row(index)) else {
                 continue;
@@ -504,7 +506,7 @@ impl Picker {
             );
             let status_role = if !enabled {
                 Role::TextDisabled
-            } else if row.agent.as_ref().is_some_and(|agent| {
+            } else if row.agent().is_some_and(|agent| {
                 matches!(
                     agent.display_state(),
                     orchbee_workbench_protocol::MetadataState::Error
@@ -515,7 +517,7 @@ impl Picker {
                 Some(Observation::Attention | Observation::Stale)
             ) {
                 Role::StatusWarning
-            } else if row.agent.as_ref().is_some_and(|agent| {
+            } else if row.agent().is_some_and(|agent| {
                 agent.display_state() == orchbee_workbench_protocol::MetadataState::Working
             }) || matches!(
                 row.observation.as_ref(),
@@ -538,7 +540,7 @@ impl Picker {
             };
             let state = component_state(
                 pointer,
-                if index == self.selected {
+                if index == self.selected() {
                     NavigationState::Provisional
                 } else {
                     NavigationState::None
@@ -550,7 +552,7 @@ impl Picker {
                 },
                 CheckedState::Unchecked,
                 availability,
-                if self.busy && index == self.selected {
+                if self.busy && index == self.selected() {
                     OperationState::Pending
                 } else {
                     OperationState::Idle
@@ -592,10 +594,10 @@ impl Picker {
                 HitTarget::ListScroll(ListScrollTarget::MachinePicker(list_source)),
             );
         }
-        if self.mode == Mode::Workspaces && self.workspace_matches.is_empty() && count > 0 {
+        if self.mode() == Mode::Workspaces && self.workspace_matches().is_empty() && count > 0 {
             frame.render_widget(
                 Paragraph::new(locale.machine_picker_text(
-                    if self.workspace_query.text().is_empty() {
+                    if self.workspace_query().text().is_empty() {
                         "no-workspaces"
                     } else {
                         "workspaces-no-matches"
@@ -625,8 +627,8 @@ impl Picker {
             }
             if let Some(agent) = self
                 .visible_rows()
-                .get(self.selected)
-                .and_then(|r| r.agent.as_ref())
+                .get(self.selected())
+                .and_then(|r| r.agent())
             {
                 lines.push(if agent.workspace.is_empty() {
                     locale.machine_picker_text("no-workspace").into()
@@ -651,8 +653,8 @@ impl Picker {
                         .collect::<Vec<_>>()
                         .join(" · "),
                 );
-            } else if let Some(row) = self.visible_rows().get(self.selected)
-                && let Some(context) = &row.context
+            } else if let Some(row) = self.visible_rows().get(self.selected())
+                && let Some(context) = row.context()
             {
                 match (&context.project, &context.workspace) {
                     (Some(project), _) => lines.push(project.clone()),
@@ -687,13 +689,13 @@ impl Picker {
                 }
             } else if let Some(Observation::Online(o)) = self
                 .visible_rows()
-                .get(self.selected)
+                .get(self.selected())
                 .and_then(|r| r.observation.as_ref())
             {
                 lines.push(locale.machine_details(o.projects, o.workspaces, o.tabs));
                 lines.extend(o.labels.iter().take(3).map(|label| format!("  {label}")));
             }
-            if self.row_id(self.selected).is_some() {
+            if self.row_id(self.selected()).is_some() {
                 let label = locale.machine_picker_text("copy-id");
                 let copy_width = display_width(label) as u16;
                 if copy_width <= inner.width {
@@ -704,7 +706,7 @@ impl Picker {
                         1,
                     );
                     if let Some((target, spec)) =
-                        picker_interaction(&source, PickerAction::CopyId(self.selected))
+                        picker_interaction(&source, PickerAction::CopyId(self.selected()))
                     {
                         let hovered =
                             hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec)
@@ -815,11 +817,11 @@ impl Picker {
         source: &PickerSource,
         hits: &mut HitMapBuilder,
     ) {
-        if self.mode != Mode::Agents {
+        if self.mode() != Mode::Agents {
             return;
         }
         if inner.height < 5 {
-            if self.editing_query && inner.height >= 3 {
+            if self.editing_query() && inner.height >= 3 {
                 self.render_agent_query(
                     frame,
                     Rect::new(inner.x, inner.y, inner.width, 1),
@@ -844,7 +846,7 @@ impl Picker {
             {
                 locale.machine_picker_text("agent-source-sort").to_owned()
             } else {
-                locale.machine_agent_control(control_label(control, &self.agent_view))
+                locale.machine_agent_control(control_label(control, self.agent_view()))
             };
             let label = crate::terminal_text::truncate_display(
                 &label,
@@ -880,10 +882,10 @@ impl Picker {
         hits: &mut HitMapBuilder,
     ) {
         for control in [Control::Clear, Control::Done] {
-            if control == Control::Done && !self.editing_query {
+            if control == Control::Done && !self.editing_query() {
                 continue;
             }
-            let label = locale.machine_agent_control(control_label(control, &self.agent_view));
+            let label = locale.machine_agent_control(control_label(control, self.agent_view()));
             let state = component_state(
                 PointerPresentation::Rest,
                 NavigationState::None,
@@ -926,9 +928,9 @@ impl Picker {
             }
         }
         let label = locale.machine_picker_text("agent-search");
-        let query = self.agent_view.query.as_str();
+        let query = self.agent_view().query.as_str();
         let key = search_key_label(theme);
-        let field = if self.editing_query {
+        let field = if self.editing_query() {
             QueryField::Editing {
                 label,
                 query,
@@ -943,7 +945,7 @@ impl Picker {
             QueryField::Retained { label, query }
         };
         let mut field_rect = rect;
-        if !self.editing_query
+        if !self.editing_query()
             && let Some(spec) = self.source_spec()
         {
             let view = format!(
@@ -976,7 +978,7 @@ impl Picker {
             &target,
             interaction,
         ));
-        let primary_role = if self.editing_query {
+        let primary_role = if self.editing_query() {
             Role::TextPrimary
         } else {
             Role::HintLabel
@@ -1012,7 +1014,7 @@ impl Picker {
         source: &PickerSource,
         hits: &mut HitMapBuilder,
     ) {
-        if self.mode != Mode::Workspaces || inner.height < 4 {
+        if self.mode() != Mode::Workspaces || inner.height < 4 {
             return;
         }
         let mut field = Rect::new(inner.x, inner.y, inner.width, 1);
@@ -1041,8 +1043,8 @@ impl Picker {
             field,
             QueryField::Editing {
                 label: locale.machine_picker_text("workspace-search"),
-                query: self.workspace_query.text(),
-                cursor: self.workspace_query.cursor(),
+                query: self.workspace_query().text(),
+                cursor: self.workspace_query().cursor(),
             },
             theme,
         );
@@ -1061,7 +1063,6 @@ fn control_label(
     view: &crate::machine_agents::view::View,
 ) -> crate::localization::MachineControlLabel {
     use crate::machine_agents::view::{Order, Scope};
-    use crate::machine_picker::Control;
     use orchbee_workbench_protocol::MetadataState as State;
     match control {
         Control::Done => crate::localization::MachineControlLabel::Done,

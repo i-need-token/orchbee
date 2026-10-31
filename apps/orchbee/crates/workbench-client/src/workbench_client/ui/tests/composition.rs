@@ -8,7 +8,7 @@ use crate::{
     },
     localization::{Locale, RecoveryVerb},
     native_settings::Basis,
-    tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget, ListScrollTarget},
+    tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget, ListScrollTarget},
     tui_presentation::PresentationPhase,
     tui_theme::Theme,
     workbench_client::{AgentBoardEpisodeToken, DrawReceipt},

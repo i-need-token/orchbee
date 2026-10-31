@@ -3,8 +3,8 @@ use super::*;
 use crate::{
     client_view::{ClientActionDisposition, PrefixInput},
     localization::Locale,
+    tui_hit_map::{HitMapBuilder, HitTarget},
     tui_layout::project_shell_areas,
-    tui_pointer::{HitMapBuilder, HitTarget},
     tui_theme::Theme,
 };
 use ratatui::{Terminal, backend::TestBackend, layout::Rect};
@@ -218,7 +218,7 @@ fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_pa
             dispatcher.set_pointer_capture(&mut view, &mut ClientInputPort(&mut ui), true);
             let mut hits = HitMapBuilder::new();
             hits.record(
-                crate::tui_pointer::HitLayer::Foreground,
+                crate::tui_hit_map::HitLayer::Foreground,
                 content,
                 HitTarget::Pane {
                     pane: key.clone(),
@@ -299,7 +299,7 @@ fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_pa
 }
 
 /// The floating chip on the last row: the status cells that block the pane beneath.
-fn chip_cells(hits: &crate::tui_pointer::FrameHitMap, status: Rect) -> Option<Rect> {
+fn chip_cells(hits: &crate::tui_hit_map::FrameHitMap, status: Rect) -> Option<Rect> {
     let covered = (status.x..status.right())
         .filter(|&x| {
             matches!(

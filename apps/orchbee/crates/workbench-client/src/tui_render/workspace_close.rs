@@ -9,7 +9,7 @@ use crate::{
     client_view::{Binding, KeyCode, Modifiers},
     localization::Locale,
     terminal_text::sanitize_terminal_text,
-    tui_pointer::hit_map::{HitLayer, HitMapBuilder, HitTarget},
+    tui_hit_map::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::Theme,
     workbench_client::{ModalPresentation, WorkspaceCloseConfirmationView, WorkspaceCloseToken},
 };

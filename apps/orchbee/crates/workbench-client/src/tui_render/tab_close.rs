@@ -11,7 +11,7 @@ use crate::{
     client_view::{Binding, KeyCode, Modifiers},
     localization::Locale,
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
-    tui_pointer::hit_map::{HitLayer, HitMapBuilder, HitTarget},
+    tui_hit_map::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::Theme,
     workbench_client::{
         CloseConfirmationToken, CloseConfirmationView, CloseStatusToken, ModalPresentation,

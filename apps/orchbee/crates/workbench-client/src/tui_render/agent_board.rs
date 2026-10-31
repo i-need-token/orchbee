@@ -14,11 +14,11 @@ use crate::workbench_client::{AgentStartCatalogStatus, AgentStartPhase};
 use crate::{
     localization::{Locale, ShellText},
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
-    tui_layout::place_overlay,
-    tui_pointer::hit_map::{
+    tui_hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
         ProjectedPointer,
     },
+    tui_layout::place_overlay,
     tui_theme::{GlyphMode, Role, Theme},
     workbench_client::{
         AgentBoardControl, AgentBoardDraw, AgentBoardRead, AgentBoardRow, AgentBoardView,
@@ -208,7 +208,7 @@ pub(super) fn render(
     hits.record(
         HitLayer::OverlaySurface,
         body,
-        HitTarget::ListScroll(crate::tui_pointer::hit_map::ListScrollTarget::AgentBoard(
+        HitTarget::ListScroll(crate::tui_hit_map::ListScrollTarget::AgentBoard(
             draw.token().clone(),
         )),
     );

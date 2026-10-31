@@ -2,7 +2,7 @@
 use crate::{
     localization::Locale,
     terminal_text::{sanitize_terminal_text, truncate_display},
-    tui_pointer::hit_map::SidebarReorderDraw,
+    tui_hit_map::SidebarReorderDraw,
     tui_theme::{Role, Theme},
 };
 use ratatui::{

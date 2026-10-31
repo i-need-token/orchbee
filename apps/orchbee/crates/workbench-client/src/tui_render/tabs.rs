@@ -12,7 +12,7 @@ pub(super) mod groups;
 
 pub fn render_tab_drag_preview(
     frame: &mut Frame<'_>,
-    preview: &crate::tui_pointer::hit_map::TabDragPreview,
+    preview: &crate::tui_hit_map::TabDragPreview,
     locale: crate::localization::Locale,
     theme: &Theme,
 ) {
@@ -59,7 +59,7 @@ use crate::{
     client_view::{ClientAction, ClientView},
     localization::{Locale, MenuLabel, TooltipLabel},
     terminal_text::{sanitize_terminal_text, truncate_display},
-    tui_pointer::hit_map::{ProjectedPointer, TooltipContent},
+    tui_hit_map::{ProjectedPointer, TooltipContent},
     tui_theme::{Role, Theme},
 };
 
@@ -89,11 +89,10 @@ pub(super) fn strip_tooltip(
 ) -> Option<TooltipContent> {
     match part {
         groups::StripPart::Tab | groups::StripPart::Header => super::tooltip::describe(
-            cue.name
-                .map(|name| crate::tui_pointer::hit_map::TooltipText {
-                    text: name.to_owned(),
-                    middle: false,
-                }),
+            cue.name.map(|name| crate::tui_hit_map::TooltipText {
+                text: name.to_owned(),
+                middle: false,
+            }),
             super::tooltip::legend(
                 cue.states.iter().copied(),
                 cue.unread,

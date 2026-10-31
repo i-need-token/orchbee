@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     terminal_text::display_width,
-    tui_pointer::hit_map::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
+    tui_hit_map::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
     workbench_client::{ClientPanel, DrawnPresentationTarget},
 };
 

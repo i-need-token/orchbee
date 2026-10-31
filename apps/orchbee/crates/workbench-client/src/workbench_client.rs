@@ -16,7 +16,7 @@ mod window_title;
 mod worktree_lane;
 #[cfg(test)]
 use crate::terminal_projection::TerminalProjection;
-use crate::tui_pointer::hit_map::ListScrollTarget;
+use crate::tui_hit_map::ListScrollTarget;
 use crate::{
     background_thread::BackgroundThread,
     client_view::{ClientAction, ClientActionDisposition},

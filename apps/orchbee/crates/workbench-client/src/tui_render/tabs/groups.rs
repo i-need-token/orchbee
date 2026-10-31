@@ -4,7 +4,7 @@ use super::TabDisplay;
 use crate::{
     machine_picker::{TabAgent, urgency},
     terminal_text::{display_width, truncate_display},
-    tui_pointer::hit_map::ProjectedPointer,
+    tui_hit_map::ProjectedPointer,
     tui_render::{
         controls::{Availability, ControlSurface, icon_action_style},
         sidebar_text::state_glyph,

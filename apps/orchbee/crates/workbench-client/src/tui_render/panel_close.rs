@@ -9,7 +9,7 @@ use super::modal::{
 use crate::{
     client_view::{Binding, KeyCode, Modifiers},
     localization::Locale,
-    tui_pointer::hit_map::{HitLayer, HitMapBuilder, HitTarget},
+    tui_hit_map::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::Theme,
     workbench_client::{
         ModalPresentation, PanelCloseConfirmationToken, PanelCloseConfirmationView,

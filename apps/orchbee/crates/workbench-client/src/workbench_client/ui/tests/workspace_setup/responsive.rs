@@ -219,7 +219,7 @@ fn loading_projection_renders_both_locales_and_all_tiers_without_a_modal_or_old_
     use crate::{
         client_view::ClientView,
         localization::Locale,
-        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_hit_map::{HitMapBuilder, HitTarget},
         tui_theme::Theme,
     };
     use ratatui::{Terminal, backend::TestBackend};

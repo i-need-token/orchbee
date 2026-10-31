@@ -184,7 +184,7 @@ fn sidebar_pointer_navigation_defers_current_check_without_picker_and_captures_p
         test_support::{checkpoint, row},
     };
     use crate::machine_picker::{Choice, SidebarPart};
-    use crate::tui_pointer::{
+    use crate::tui_hit_map::{
         HitLayer, HitMapBuilder, InteractionSpec, InteractionTarget, PrimaryContract,
     };
     for current in [false, true] {

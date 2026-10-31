@@ -2,6 +2,7 @@
 //! pointer ownership state. A recording port supplies the probe facts;
 //! each test drives `PointerState::event`/`tick` like the dispatcher does.
 use super::*;
+use crate::tui_hit_map::{InteractionAvailability, InteractionSpec, ProjectedPointer};
 
 #[test]
 fn covered_sidebar_retains_menu_placement_geometry_without_input_authority() {
@@ -2814,7 +2815,7 @@ fn presentation_controls_activate_only_on_exact_generic_release() {
 fn unbound_panel_focus_requires_exact_empty_member_and_never_forwards_input() {
     let id = orchbee_workbench_protocol::TerminalPresentationId::parse(&"8".repeat(32)).unwrap();
     for scenario in 0..7 {
-        let selected = crate::terminal_input::PointerUnboundPane {
+        let selected = crate::tui_hit_map::PointerUnboundPane {
             key: pane_key(1, 1, 1),
             presentation: id.clone(),
         };

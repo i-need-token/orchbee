@@ -202,7 +202,7 @@ fn unavailable_current_tab_is_a_guarded_noop_but_ordinary_selection_can_retry() 
 fn long_navigator_lists_paint_only_complete_scrolled_rows_in_both_locales_and_sizes() {
     use crate::client_view::{ClientActionDisposition, ClientView, navigator::Command};
     use crate::localization::Locale;
-    use crate::tui_pointer::{HitMapBuilder, HitTarget};
+    use crate::tui_hit_map::{HitMapBuilder, HitTarget};
 
     use orchbee_local_runtime::{KeyChord, KeySettings};
     use orchbee_workbench_protocol::*;

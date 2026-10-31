@@ -43,7 +43,7 @@ fn draw_frame(
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(TestBackend::new(width, height))?;
     let mut receipt = DrawReceipt::default();
-    let mut hits = crate::tui_pointer::HitMapBuilder::new();
+    let mut hits = crate::tui_hit_map::HitMapBuilder::new();
     terminal.draw(|frame| {
         receipt = render_terminal_shell(
             frame,

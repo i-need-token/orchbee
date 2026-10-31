@@ -225,7 +225,7 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
         client_view::ClientView,
         local_client::workbench::workspace_setup::WorkbenchSetupCommit,
         localization::Locale,
-        tui_pointer::HitMapBuilder,
+        tui_hit_map::HitMapBuilder,
         tui_theme::Theme,
         workbench_client::{
             ClientBackend, WorkbenchClient, state::workspace_setup::SetupWorkerEvidence,
@@ -449,7 +449,7 @@ fn no_workspace_screen_keeps_content_blank_and_creation_controls_available_acros
     use crate::{
         client_view::ClientView,
         localization::Locale,
-        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_hit_map::{HitMapBuilder, HitTarget},
         tui_theme::Theme,
     };
     use ratatui::{Terminal, backend::TestBackend, layout::Rect};
@@ -545,7 +545,7 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
     use crate::{
         client_view::{ClientView, KeyCode, KeyEvent, Modifiers, PrefixDesc, PrefixInput},
         localization::Locale,
-        tui_pointer::HitMapBuilder,
+        tui_hit_map::HitMapBuilder,
         tui_theme::Theme,
     };
     use orchbee_local_runtime::{KeyChord, KeyOverride, KeySettings, KeyTrigger};
@@ -743,7 +743,7 @@ fn quick_workspace_missing_prepared_directory_refuses_without_creating_or_leavin
 
 #[test]
 fn workspace_at_directory_launches_only_from_a_drawn_review_in_either_locale() {
-    use crate::{client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder};
+    use crate::{client_view::ClientView, localization::Locale, tui_hit_map::HitMapBuilder};
     use ratatui::{Terminal, backend::TestBackend};
     for locale in [Locale::EnUs, Locale::ZhCn] {
         // A host too small for the review creates nothing; Enter cannot accept unseen defaults.
@@ -787,8 +787,8 @@ fn workspace_at_directory_launches_only_from_a_drawn_review_in_either_locale() {
             );
             let map = hits.finish();
             if drawn {
-                use crate::tui_pointer::HitTarget;
-                use crate::tui_pointer::ModalControl;
+                use crate::tui_hit_map::HitTarget;
+                use crate::tui_hit_map::ModalControl;
                 let submit_y = (0..height)
                     .find(|y| {
                         (0..width).any(|x| {

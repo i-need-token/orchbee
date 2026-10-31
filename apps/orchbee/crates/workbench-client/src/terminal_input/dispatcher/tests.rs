@@ -273,17 +273,17 @@ fn button_free_motion_redraws_only_for_changed_projection_and_never_starves_esca
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     dispatcher.set_pointer_motion_observability(crate::tui_pointer::MotionObservability::AnyMotion);
     let target =
-        crate::tui_pointer::InteractionTarget::Fixture(crate::tui_pointer::HitTarget::Help {
+        crate::tui_hit_map::InteractionTarget::Fixture(crate::tui_hit_map::HitTarget::Help {
             page: 1,
             action: crate::tui_pointer::HelpControl::Close,
         });
     let area = ratatui::layout::Rect::new(10, 5, 8, 2);
-    let spec = crate::tui_pointer::InteractionSpec::enabled(
-        crate::tui_pointer::PrimaryContract::ActivateOnRelease,
+    let spec = crate::tui_hit_map::InteractionSpec::enabled(
+        crate::tui_hit_map::PrimaryContract::ActivateOnRelease,
     );
-    let mut hits = crate::tui_pointer::HitMapBuilder::with_pointer(dispatcher.pointer_projection());
+    let mut hits = crate::tui_hit_map::HitMapBuilder::with_pointer(dispatcher.pointer_projection());
     hits.record_interaction(
-        crate::tui_pointer::HitLayer::Foreground,
+        crate::tui_hit_map::HitLayer::Foreground,
         area,
         area,
         target,
@@ -381,8 +381,9 @@ fn button_free_motion_redraws_only_for_changed_projection_and_never_starves_esca
 
 #[test]
 fn a_key_closes_the_pointer_tooltip_and_still_reaches_its_owner() {
-    use crate::tui_pointer::hit_map::TooltipContent;
-    use crate::tui_pointer::{HelpControl, HitLayer, HitMapBuilder, HitTarget};
+    use crate::tui_hit_map::TooltipContent;
+    use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
+    use crate::tui_pointer::HelpControl;
     let calls = Rc::new(RefCell::new(Vec::new()));
     let mut port = UnavailablePort(Rc::clone(&calls));
     let mut dispatcher = InputDispatcher::default();
@@ -472,10 +473,10 @@ fn a_key_closes_the_pointer_tooltip_and_still_reaches_its_owner() {
 
 #[test]
 fn cancelled_generic_press_fences_only_its_exact_late_release_packet() {
-    use crate::tui_pointer::{
-        HelpControl, HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget,
-        PrimaryContract,
+    use crate::tui_hit_map::{
+        HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
     };
+    use crate::tui_pointer::HelpControl;
     use ratatui::layout::Rect;
 
     let publish = |dispatcher: &mut InputDispatcher| {
@@ -1894,20 +1895,20 @@ fn a_board_close_edge_invalidates_the_published_hit_map() {
             Ok::<(), io::Error>(())
         })
         .unwrap();
-    let mut hits = crate::tui_pointer::HitMapBuilder::new();
+    let mut hits = crate::tui_hit_map::HitMapBuilder::new();
     hits.mark_overlay_active();
     hits.record_interaction(
-        crate::tui_pointer::HitLayer::Overlay,
+        crate::tui_hit_map::HitLayer::Overlay,
         ratatui::layout::Rect::new(0, 0, 10, 1),
         ratatui::layout::Rect::new(0, 0, 10, 1),
-        crate::tui_pointer::InteractionTarget::AgentBoardRow(
+        crate::tui_hit_map::InteractionTarget::AgentBoardRow(
             crate::workbench_client::AgentBoardRowTarget::for_test(
                 crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
                 session.clone(),
             ),
         ),
-        crate::tui_pointer::InteractionSpec::enabled(
-            crate::tui_pointer::PrimaryContract::SelectOnPress,
+        crate::tui_hit_map::InteractionSpec::enabled(
+            crate::tui_hit_map::PrimaryContract::SelectOnPress,
         ),
     );
     dispatcher.publish_hit_map(hits.finish());
@@ -1962,18 +1963,18 @@ fn the_board_open_edge_also_invalidates_so_a_click_cannot_miss_the_overlay() {
     // the map is current.
     view.machines.available = true;
     view.machines.observe_agent_sidebar(true);
-    let mut hits = crate::tui_pointer::HitMapBuilder::new();
+    let mut hits = crate::tui_hit_map::HitMapBuilder::new();
     let sidebar_source = view.machines.sidebar_source();
     hits.record_interaction(
-        crate::tui_pointer::HitLayer::Foreground,
+        crate::tui_hit_map::HitLayer::Foreground,
         ratatui::layout::Rect::new(0, 0, 10, 1),
         ratatui::layout::Rect::new(0, 0, 10, 1),
-        crate::tui_pointer::InteractionTarget::SidebarFixed(view.machines.drawn_sidebar_fixed(
+        crate::tui_hit_map::InteractionTarget::SidebarFixed(view.machines.drawn_sidebar_fixed(
             &sidebar_source,
             crate::machine_picker::SidebarFixedAction::Settings,
         )),
-        crate::tui_pointer::InteractionSpec::enabled(
-            crate::tui_pointer::PrimaryContract::ActivateOnRelease,
+        crate::tui_hit_map::InteractionSpec::enabled(
+            crate::tui_hit_map::PrimaryContract::ActivateOnRelease,
         ),
     );
     dispatcher.publish_hit_map(hits.finish());
@@ -2661,11 +2662,11 @@ fn machine_picker_retires_a_cancelled_link_release_before_the_next_pane_press() 
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     let publish = |dispatcher: &mut InputDispatcher| {
         let content = Rect::new(0, 0, 10, 3);
-        let mut hits = crate::tui_pointer::HitMapBuilder::new();
+        let mut hits = crate::tui_hit_map::HitMapBuilder::new();
         hits.record(
-            crate::tui_pointer::HitLayer::Foreground,
+            crate::tui_hit_map::HitLayer::Foreground,
             content,
-            crate::tui_pointer::HitTarget::Pane {
+            crate::tui_hit_map::HitTarget::Pane {
                 pane: pane.clone(),
                 content,
             },

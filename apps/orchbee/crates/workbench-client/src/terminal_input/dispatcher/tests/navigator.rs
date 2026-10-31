@@ -1,6 +1,6 @@
 use super::*;
 use crate::client_view::navigator::{Admission, Catalog, Row, Source, Target};
-use crate::tui_pointer::{
+use crate::tui_hit_map::{
     HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
 };
 use crate::workbench_client::ClientContextLocation;
@@ -105,7 +105,7 @@ fn paint(dispatcher: &mut InputDispatcher, view: &ClientView) {
             hits.record(
                 HitLayer::OverlaySurface,
                 rect,
-                HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Navigator(row)),
+                HitTarget::ListScroll(crate::tui_hit_map::ListScrollTarget::Navigator(row)),
             );
         }
     }

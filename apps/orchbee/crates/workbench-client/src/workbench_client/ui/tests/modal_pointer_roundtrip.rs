@@ -4,7 +4,8 @@ use crate::{
     client_view::{ClientAction, ClientActionDisposition, ClientView},
     localization::Locale,
     terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable},
-    tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget, MotionObservability},
+    tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget},
+    tui_pointer::MotionObservability,
     tui_theme::{Role, Theme},
     workbench_client::{CaptureContext, SetupStage, WorkspaceCloseToken},
 };

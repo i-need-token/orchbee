@@ -9,7 +9,7 @@ use crate::{
         PrefixAction,
         navigator::{Command, Target, label_with_glyphs},
     },
-    tui_pointer::hit_map::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
+    tui_hit_map::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
 };
 
 #[expect(
@@ -173,9 +173,7 @@ pub(super) fn render(
             hits.record(
                 HitLayer::OverlaySurface,
                 rect,
-                HitTarget::ListScroll(crate::tui_pointer::hit_map::ListScrollTarget::Navigator(
-                    row,
-                )),
+                HitTarget::ListScroll(crate::tui_hit_map::ListScrollTarget::Navigator(row)),
             );
         }
     }

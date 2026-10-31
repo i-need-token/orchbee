@@ -37,7 +37,7 @@ pub enum InteractionTarget {
     },
     AgentBoardRow(crate::workbench_client::AgentBoardRowTarget),
     AgentBoardControl(crate::workbench_client::AgentBoardControlTarget),
-    Presentation(crate::workbench_client::DrawnPresentationTarget),
+    Presentation(crate::tui_hit_map::DrawnPresentationTarget),
 
     Sidebar(crate::machine_picker::DrawnSidebarTarget),
     SidebarFixed(crate::machine_picker::DrawnSidebarFixedTarget),
@@ -59,41 +59,41 @@ pub enum InteractionTarget {
 }
 
 impl InteractionTarget {
-    pub(in crate::tui_pointer) const fn is_help(&self) -> bool {
+    pub(crate) const fn is_help(&self) -> bool {
         matches!(self, Self::Help(_))
     }
 
-    pub(in crate::tui_pointer) const fn is_settings(&self) -> bool {
+    pub(crate) const fn is_settings(&self) -> bool {
         matches!(
             self,
             Self::SettingsRow { .. } | Self::SettingsControl { .. }
         )
     }
 
-    pub(in crate::tui_pointer) const fn is_agent_board(&self) -> bool {
+    pub(crate) const fn is_agent_board(&self) -> bool {
         matches!(self, Self::AgentBoardRow(_) | Self::AgentBoardControl(_))
     }
 
-    pub(in crate::tui_pointer) const fn is_action_menu(&self) -> bool {
+    pub(crate) const fn is_action_menu(&self) -> bool {
         matches!(
             self,
             Self::ActionMenuRow { .. } | Self::ActionMenuControl { .. }
         )
     }
 
-    pub(in crate::tui_pointer) const fn is_navigator(&self) -> bool {
+    pub(crate) const fn is_navigator(&self) -> bool {
         matches!(self, Self::NavigatorRow(_) | Self::NavigatorClose(_))
     }
 
-    pub(in crate::tui_pointer) const fn is_machine_picker(&self) -> bool {
+    pub(crate) const fn is_machine_picker(&self) -> bool {
         matches!(self, Self::MachinePicker(_))
     }
 
-    pub(in crate::tui_pointer) const fn is_popup(&self) -> bool {
+    pub(crate) const fn is_popup(&self) -> bool {
         matches!(self, Self::PopupClose(_))
     }
 
-    pub(in crate::tui_pointer) const fn is_global_chrome(&self) -> bool {
+    pub(crate) const fn is_global_chrome(&self) -> bool {
         if matches!(self, Self::Presentation(_)) {
             return true;
         }
@@ -116,7 +116,7 @@ impl InteractionTarget {
         false
     }
 
-    pub(in crate::tui_pointer) fn hit_target(&self) -> HitTarget {
+    pub(crate) fn hit_target(&self) -> HitTarget {
         match self {
             Self::Help(target) => HitTarget::Help {
                 page: target.source().page(),
@@ -206,17 +206,17 @@ impl InteractionTarget {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::tui_pointer) struct PaintedInteraction {
-    pub(in crate::tui_pointer) target: InteractionTarget,
-    pub(in crate::tui_pointer) paint_rect: Rect,
-    pub(in crate::tui_pointer) spec: InteractionSpec,
+pub(crate) struct PaintedInteraction {
+    pub(crate) target: InteractionTarget,
+    pub(crate) paint_rect: Rect,
+    pub(crate) spec: InteractionSpec,
 }
 
 impl PaintedInteraction {
-    pub(in crate::tui_pointer) const fn target(&self) -> &InteractionTarget {
+    pub(crate) const fn target(&self) -> &InteractionTarget {
         &self.target
     }
-    pub(in crate::tui_pointer) const fn new(
+    pub(crate) const fn new(
         target: InteractionTarget,
         paint_rect: Rect,
         spec: InteractionSpec,
@@ -228,7 +228,7 @@ impl PaintedInteraction {
         }
     }
 
-    pub(in crate::tui_pointer) fn fingerprint(
+    pub(crate) fn fingerprint(
         &self,
         layer: HitLayer,
         hit_rect: Rect,
@@ -244,7 +244,7 @@ impl PaintedInteraction {
         }
     }
 
-    pub(in crate::tui_pointer) const fn paint_rect(&self) -> Rect {
+    pub(crate) const fn paint_rect(&self) -> Rect {
         self.paint_rect
     }
 }
@@ -253,30 +253,30 @@ impl PaintedInteraction {
 /// extent. Presentation-only content is absent; only geometry and semantic
 /// ownership that can change the target's effective hit shape participate.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(in crate::tui_pointer) struct ExposureSignature(pub(in crate::tui_pointer) Vec<ExposurePatch>);
+pub(crate) struct ExposureSignature(pub(crate) Vec<ExposurePatch>);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::tui_pointer) struct ExposurePatch {
-    pub(in crate::tui_pointer) rect: Rect,
-    pub(in crate::tui_pointer) winner: ExposureWinner,
+pub(crate) struct ExposurePatch {
+    pub(crate) rect: Rect,
+    pub(crate) winner: ExposureWinner,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::tui_pointer) enum ExposureWinner {
+pub(crate) enum ExposureWinner {
     Region(Box<ExposureRegion>),
     OverlayBackdrop,
     Dead,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::tui_pointer) struct ExposureRegion {
-    pub(in crate::tui_pointer) layer: HitLayer,
-    pub(in crate::tui_pointer) target: HitTarget,
-    pub(in crate::tui_pointer) interaction: Option<PaintedInteraction>,
+pub(crate) struct ExposureRegion {
+    pub(crate) layer: HitLayer,
+    pub(crate) target: HitTarget,
+    pub(crate) interaction: Option<PaintedInteraction>,
 }
 
 impl ExposureWinner {
-    pub(in crate::tui_pointer) fn region(
+    pub(crate) fn region(
         layer: HitLayer,
         target: HitTarget,
         interaction: Option<PaintedInteraction>,
@@ -292,17 +292,17 @@ impl ExposureWinner {
 /// Stable semantic identity plus every interaction property whose change
 /// invalidates an armed click. Frame sequence is deliberately absent.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::tui_pointer) struct Fingerprint {
-    pub(in crate::tui_pointer) target: InteractionTarget,
-    pub(in crate::tui_pointer) layer: HitLayer,
-    pub(in crate::tui_pointer) hit_rect: Rect,
-    pub(in crate::tui_pointer) paint_rect: Rect,
-    pub(in crate::tui_pointer) spec: InteractionSpec,
-    pub(in crate::tui_pointer) exposure: ExposureSignature,
+pub(crate) struct Fingerprint {
+    pub(crate) target: InteractionTarget,
+    pub(crate) layer: HitLayer,
+    pub(crate) hit_rect: Rect,
+    pub(crate) paint_rect: Rect,
+    pub(crate) spec: InteractionSpec,
+    pub(crate) exposure: ExposureSignature,
 }
 
 impl Fingerprint {
-    pub(in crate::tui_pointer) fn enabled(&self) -> bool {
+    pub(crate) fn enabled(&self) -> bool {
         self.spec.enabled_for_pointer()
     }
 }
@@ -310,25 +310,22 @@ impl Fingerprint {
 /// Immutable transient facts captured before one candidate render begins.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PointerProjection {
-    pub(in crate::tui_pointer) revision: u64,
-    pub(in crate::tui_pointer) hovered: Option<Fingerprint>,
-    pub(in crate::tui_pointer) pressed: Option<Fingerprint>,
-    pub(in crate::tui_pointer) modal: super::modal::Projection,
-    pub(in crate::tui_pointer) chrome: super::chrome::Projection,
-    pub(in crate::tui_pointer) tooltip: Option<super::tooltip::Shown>,
+    pub(crate) revision: u64,
+    pub(crate) hovered: Option<Fingerprint>,
+    pub(crate) pressed: Option<Fingerprint>,
+    pub(crate) modal: super::modal::Projection,
+    pub(crate) chrome: super::chrome::Projection,
+    pub(crate) tooltip: Option<super::tooltip::Shown>,
 }
 
 impl PointerProjection {
-    pub(in crate::tui_pointer) fn with_specialized_owner(
-        mut self,
-        pressed: Option<Fingerprint>,
-    ) -> Self {
+    pub(crate) fn with_specialized_owner(mut self, pressed: Option<Fingerprint>) -> Self {
         self.pressed = pressed;
         self.hovered = None;
         self
     }
 
-    pub(in crate::tui_pointer) const fn empty() -> Self {
+    pub(crate) const fn empty() -> Self {
         Self {
             revision: 0,
             hovered: None,
@@ -339,55 +336,52 @@ impl PointerProjection {
         }
     }
 
-    pub(in crate::tui_pointer) const fn revision(&self) -> u64 {
+    pub(crate) const fn revision(&self) -> u64 {
         self.revision
     }
 
-    pub(in crate::tui_pointer) fn with_modal(mut self, modal: super::modal::Projection) -> Self {
+    pub(crate) fn with_modal(mut self, modal: super::modal::Projection) -> Self {
         self.modal = modal;
         self
     }
 
-    pub(in crate::tui_pointer) const fn modal(&self) -> &super::modal::Projection {
+    pub(crate) const fn modal(&self) -> &super::modal::Projection {
         &self.modal
     }
 
-    pub(in crate::tui_pointer) fn project_modal(
+    pub(crate) fn project_modal(
         &self,
         fingerprint: &super::modal::Fingerprint,
     ) -> ProjectedPointer {
         self.modal.project(fingerprint)
     }
 
-    pub(in crate::tui_pointer) fn with_chrome(mut self, chrome: super::chrome::Projection) -> Self {
+    pub(crate) fn with_chrome(mut self, chrome: super::chrome::Projection) -> Self {
         self.chrome = chrome;
         self
     }
 
-    pub(in crate::tui_pointer) const fn chrome(&self) -> &super::chrome::Projection {
+    pub(crate) const fn chrome(&self) -> &super::chrome::Projection {
         &self.chrome
     }
 
-    pub(in crate::tui_pointer) fn with_tooltip(
-        mut self,
-        tooltip: Option<super::tooltip::Shown>,
-    ) -> Self {
+    pub(crate) fn with_tooltip(mut self, tooltip: Option<super::tooltip::Shown>) -> Self {
         self.tooltip = tooltip;
         self
     }
 
-    pub(in crate::tui_pointer) const fn tooltip(&self) -> Option<&super::tooltip::Shown> {
+    pub(crate) const fn tooltip(&self) -> Option<&super::tooltip::Shown> {
         self.tooltip.as_ref()
     }
 
-    pub(in crate::tui_pointer) fn project_chrome(
+    pub(crate) fn project_chrome(
         &self,
         fingerprint: &super::chrome::Fingerprint,
     ) -> ProjectedPointer {
         self.chrome.project(fingerprint)
     }
 
-    pub(in crate::tui_pointer) fn project(&self, fingerprint: &Fingerprint) -> ProjectedPointer {
+    pub(crate) fn project(&self, fingerprint: &Fingerprint) -> ProjectedPointer {
         if !fingerprint.enabled() {
             return ProjectedPointer::Rest;
         }

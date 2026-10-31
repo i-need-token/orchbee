@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     action_menu::{ActionMenu, MenuToken},
     client_view::{ClientAction, ClientView, KeyEvent, PrefixAction},
-    tui_pointer::{FrameHitMap, HitLayer, HitTarget},
+    tui_hit_map::{FrameHitMap, HitLayer, HitTarget},
 };
 use orchbee_local_runtime::{KeyChord, KeySettings};
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Style, text::Span};

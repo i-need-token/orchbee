@@ -17,7 +17,7 @@ fn notification_subscription_uses_one_admission_and_cancels_its_stream() {
     let message = Notification::normalize(
         "ready",
         Some("done"),
-        super::super::Position::BottomRight,
+        orchbee_workbench_protocol::NotificationPosition::BottomRight,
         NotificationSound::None,
     )
     .unwrap();
@@ -100,7 +100,7 @@ fn ui_handoff_is_once_and_an_intervening_modal_discards_the_message() {
     let message = Notification::normalize(
         "title",
         None,
-        super::super::Position::TopRight,
+        orchbee_workbench_protocol::NotificationPosition::TopRight,
         NotificationSound::None,
     )
     .unwrap();

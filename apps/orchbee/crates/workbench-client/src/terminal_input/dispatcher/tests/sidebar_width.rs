@@ -2,11 +2,11 @@
 use super::*;
 use crate::{
     client_view::ClientActionDisposition,
-    tui_layout::{DrawnSidebarWidth, SidebarWidth},
-    tui_pointer::{
+    tui_hit_map::{
         FrameHitMap, GlobalChromeAction, HitLayer, HitMapBuilder, HitTarget, InteractionSpec,
         InteractionTarget, PrimaryContract,
     },
+    tui_layout::{DrawnSidebarWidth, SidebarWidth},
 };
 use ratatui::layout::Rect;
 

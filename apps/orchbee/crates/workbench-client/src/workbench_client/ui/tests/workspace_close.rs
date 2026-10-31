@@ -3,7 +3,7 @@ use crate::{
     client_view::{ClientKey, ClientView},
     localization::Locale,
     terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable},
-    tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget},
+    tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget},
     tui_theme::Theme,
     workbench_client::{
         state::{

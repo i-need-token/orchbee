@@ -3,7 +3,7 @@ use crate::tui_render::{project_shell_areas, render_terminal_shell};
 use crate::{
     machine_discovery::Context as NavigationContext,
     machine_picker::Choice,
-    tui_pointer::HitTarget,
+    tui_hit_map::HitTarget,
     workbench_client::{ClientContextLocation, ClientContextTarget},
 };
 use orchbee_workbench_protocol::*;
@@ -143,7 +143,7 @@ fn paint(
     theme: &Theme,
     width: u16,
     height: u16,
-) -> (Vec<String>, crate::tui_pointer::FrameHitMap) {
+) -> (Vec<String>, crate::tui_hit_map::FrameHitMap) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut hits = HitMapBuilder::new();
     terminal
@@ -188,7 +188,7 @@ fn hit_belongs_to_sidebar_target(hit: Option<&HitTarget>, target: &SidebarTarget
 }
 
 fn sidebar_target_rows(
-    hits: &crate::tui_pointer::FrameHitMap,
+    hits: &crate::tui_hit_map::FrameHitMap,
     width: u16,
     height: u16,
     target: &SidebarTarget,
@@ -830,7 +830,7 @@ fn paint_navigation_buffers(
 ) -> (
     ratatui::buffer::Buffer,
     ratatui::buffer::Buffer,
-    crate::tui_pointer::FrameHitMap,
+    crate::tui_hit_map::FrameHitMap,
 ) {
     paint_navigation_buffers_with_pointer(view, locale, theme, width, height, Default::default())
 }
@@ -841,11 +841,11 @@ fn paint_navigation_buffers_with_pointer(
     theme: &Theme,
     width: u16,
     height: u16,
-    pointer: crate::tui_pointer::PointerProjection,
+    pointer: crate::tui_hit_map::PointerProjection,
 ) -> (
     ratatui::buffer::Buffer,
     ratatui::buffer::Buffer,
-    crate::tui_pointer::FrameHitMap,
+    crate::tui_hit_map::FrameHitMap,
 ) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut hits = HitMapBuilder::with_pointer(pointer);
@@ -888,7 +888,7 @@ fn paint_navigation(
     theme: &Theme,
     width: u16,
     height: u16,
-) -> (ratatui::buffer::Buffer, crate::tui_pointer::FrameHitMap) {
+) -> (ratatui::buffer::Buffer, crate::tui_hit_map::FrameHitMap) {
     let (_, sink, hits) = paint_navigation_buffers(view, locale, theme, width, height);
     (sink, hits)
 }

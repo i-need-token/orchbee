@@ -208,7 +208,7 @@ fn render_workbench_client(
             Locale::EnUs,
             Some(workbench_client.view()),
             &crate::tui_theme::Theme::terminal_native(),
-            &mut crate::tui_pointer::HitMapBuilder::new(),
+            &mut crate::tui_hit_map::HitMapBuilder::new(),
         );
     })?;
     let buffer = terminal.backend().buffer();

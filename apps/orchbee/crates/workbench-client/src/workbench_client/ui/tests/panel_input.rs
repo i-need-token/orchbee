@@ -148,7 +148,7 @@ fn draw_panel_prompt(ui: &mut WorkbenchClientUi) {
 
 #[test]
 fn painted_tab_and_panel_buttons_require_an_uninterrupted_release_and_capture_its_tail() {
-    use crate::tui_pointer::{HitMapBuilder, HitTarget};
+    use crate::tui_hit_map::{HitMapBuilder, HitTarget};
     use crate::{localization::Locale, tui_theme::Theme};
     use ratatui::{Terminal, backend::TestBackend};
     for (kind, action) in [

@@ -4,7 +4,7 @@ use crate::{
     client_view::ClientView,
     localization::Locale,
     terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable},
-    tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget},
+    tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget},
     tui_theme::{Role, Theme},
 };
 
@@ -110,16 +110,16 @@ impl TerminalInputPort for Port {
     }
     fn scroll_list(
         &mut self,
-        target: &crate::tui_pointer::ListScrollTarget,
+        target: &crate::tui_hit_map::ListScrollTarget,
         up: bool,
         lines: usize,
-    ) -> Option<crate::tui_pointer::ListScrollTarget> {
-        let crate::tui_pointer::ListScrollTarget::AgentBoard(token) = target else {
+    ) -> Option<crate::tui_hit_map::ListScrollTarget> {
+        let crate::tui_hit_map::ListScrollTarget::AgentBoard(token) = target else {
             return None;
         };
         self.board
             .scroll_painted(token, up, lines)
-            .map(crate::tui_pointer::ListScrollTarget::AgentBoard)
+            .map(crate::tui_hit_map::ListScrollTarget::AgentBoard)
     }
 }
 

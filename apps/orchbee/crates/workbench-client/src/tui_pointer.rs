@@ -2,13 +2,13 @@
 //!
 //! Three contracts live here, matching `docs/tui/mouse-input.md`:
 //!
-//! - The **hit map** the renderer records while painting (`HitMapBuilder`)
-//!   and the shell publishes only after a complete successful draw
-//!   (`FrameHitMap`). Pointer events resolve against the last published
-//!   frame's regions — never a predicted layout — and regions carry stable
-//!   identities, re-resolved to positions at click time via the port's
+//! - **Resolution against the published hit map** that `tui_hit_map` owns:
+//!   the renderer records painted regions, the shell publishes the map only
+//!   after a complete successful draw, and pointer events resolve against the
+//!   last published frame's regions — never a predicted layout. Regions carry
+//!   stable identities, re-resolved to positions at click time via the port's
 //!   `PointerProbe`.
-//! - The **interaction projection** explicitly attached to successfully
+//! - The **interaction projection** handed to each candidate frame for
 //!   painted controls: hover and armed presentation stay transient, while a
 //!   matching release emits only the feature-declared semantic intent.
 //! - The **gesture lifecycle**: idle → pane / pending-focus, with the
@@ -42,19 +42,12 @@ use crate::workbench_client::input::{
 };
 use crate::workbench_client::state::PaneRef;
 
-pub(crate) mod hit_map;
-pub use hit_map::{
-    FrameHitMap, GlobalChromeAction, HitLayer, HitMapBuilder, HitTarget, InteractionTarget,
-    ModalControl, PrimaryContract, ResizeControl,
-};
-#[cfg(any(test, feature = "test-support"))]
-pub use hit_map::{
-    HitMapBuilderTestAccess, InteractionAvailability, InteractionSpec, InteractionSpecTestAccess,
-    ProjectedPointer,
-};
-use hit_map::{HitRegionResolution, HitResolution, contains};
-pub(crate) use hit_map::{
-    ListScrollTarget, PointerProjection, SidebarReorderDraw, SidebarReorderPaint, TabDragPreview,
+/// The application facade names the builder through this module.
+pub use crate::tui_hit_map::HitMapBuilder;
+use crate::tui_hit_map::{
+    FrameHitMap, HitLayer, HitRegionResolution, HitResolution, HitTarget, InteractionTarget,
+    ListScrollTarget, ModalControl, PointerProjection, PrimaryContract, ResizeControl,
+    SidebarReorderDraw, SidebarReorderPaint, TabDragPreview, contains,
 };
 
 mod chrome;
@@ -68,8 +61,6 @@ pub(crate) use modal::CancelledModalEvent;
 mod scrollbar;
 mod sidebar_reorder;
 mod tabs;
-#[cfg(test)]
-pub(crate) use hit_map::sidebar_reorder::Placement as SidebarDropPlacement;
 pub(crate) use sidebar_reorder::SidebarReorderPreview;
 mod sidebar_width;
 mod tooltip;
@@ -858,9 +849,9 @@ impl PointerState {
         PointerOutcome::Ignored
     }
 
-    fn chrome_pressed_fingerprint(&self) -> Option<hit_map::chrome::Fingerprint> {
+    fn chrome_pressed_fingerprint(&self) -> Option<crate::tui_hit_map::chrome::Fingerprint> {
         match &self.gesture {
-            Gesture::Divider(drag) => Some(hit_map::chrome::Fingerprint::divider(
+            Gesture::Divider(drag) => Some(crate::tui_hit_map::chrome::Fingerprint::divider(
                 &drag.projected_target(),
             )),
             Gesture::Tab(drag) => drag.projection_fingerprint(),
@@ -876,7 +867,7 @@ impl PointerState {
             || self.modal_release_ownership() != ReleaseOwnership::None
     }
 
-    fn chrome_projection(&self) -> hit_map::chrome::Projection {
+    fn chrome_projection(&self) -> crate::tui_hit_map::chrome::Projection {
         let pressed = self.chrome_pressed_fingerprint();
         let suppress_hover = self.suppress_chrome_hover(pressed.is_some());
         self.chrome_projection.snapshot(pressed, suppress_hover)

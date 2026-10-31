@@ -13,6 +13,7 @@ mod copy;
 pub(crate) mod help;
 use crate::terminal_events::keys;
 pub(crate) mod navigator;
+pub(crate) mod notifications;
 mod resize;
 
 pub use bindings::Bindings;
@@ -156,7 +157,7 @@ pub struct ClientView {
     host_colors: crate::host_appearance::HostColors,
     color_level: crate::tui_theme::ColorLevel,
     no_color: bool,
-    pub notifications: crate::notifications::State,
+    pub notifications: notifications::State,
     pub window_title: Option<orchbee_workbench_protocol::WindowTitleSnapshot>,
     notice: Option<Notice>,
     notice_timer: crate::transient_notice::NoticeTimer<Notice>,
@@ -208,7 +209,7 @@ impl ClientView {
             host_colors: crate::host_appearance::HostColors::default(),
             color_level: crate::tui_theme::ColorLevel::Ansi16,
             no_color: false,
-            notifications: crate::notifications::State::default(),
+            notifications: notifications::State::default(),
             window_title: None,
             onboarding: crate::onboarding::State::default(),
             notice: None,

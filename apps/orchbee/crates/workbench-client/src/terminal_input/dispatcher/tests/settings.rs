@@ -3,7 +3,7 @@ use super::*;
 use crate::{
     client_view::{KeyEvent, Overlay},
     native_settings::{Basis, Edit, Editor, Row},
-    tui_pointer::{
+    tui_hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
     },
 };
@@ -210,16 +210,16 @@ impl TerminalInputPort for Port {
     }
     fn scroll_list(
         &mut self,
-        target: &crate::tui_pointer::ListScrollTarget,
+        target: &crate::tui_hit_map::ListScrollTarget,
         up: bool,
         lines: usize,
-    ) -> Option<crate::tui_pointer::ListScrollTarget> {
-        let &crate::tui_pointer::ListScrollTarget::Settings(token) = target else {
+    ) -> Option<crate::tui_hit_map::ListScrollTarget> {
+        let &crate::tui_hit_map::ListScrollTarget::Settings(token) = target else {
             return None;
         };
         self.editor
             .scroll(token, up, lines)
-            .map(crate::tui_pointer::ListScrollTarget::Settings)
+            .map(crate::tui_hit_map::ListScrollTarget::Settings)
     }
 }
 
@@ -257,7 +257,7 @@ fn render_settings_map(
     port: &mut Port,
     width: u16,
     height: u16,
-) -> crate::tui_pointer::FrameHitMap {
+) -> crate::tui_hit_map::FrameHitMap {
     let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height))
         .expect("settings test terminal");
     let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
@@ -285,7 +285,7 @@ fn render_settings_map(
 }
 
 fn target_cell(
-    map: &crate::tui_pointer::FrameHitMap,
+    map: &crate::tui_hit_map::FrameHitMap,
     target: &HitTarget,
     width: u16,
     height: u16,
@@ -365,7 +365,7 @@ fn settings_wheel_never_wraps_or_edits_values_and_keyboard_cancels_backlog() {
         .repeat(count)
         .into_bytes()
     };
-    let painted_list_cell = |map: &crate::tui_pointer::FrameHitMap, port: &Port| {
+    let painted_list_cell = |map: &crate::tui_hit_map::FrameHitMap, port: &Port| {
         let crate::native_settings::View::Draft(draft) = port.editor.view().expect("painted draft")
         else {
             panic!("loaded settings draft")
@@ -374,7 +374,7 @@ fn settings_wheel_never_wraps_or_edits_values_and_keyboard_cancels_backlog() {
         // including its blank/scrollbar track, rather than indexing a separate settings catalog.
         target_cell(
             map,
-            &HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Settings(draft.token)),
+            &HitTarget::ListScroll(crate::tui_hit_map::ListScrollTarget::Settings(draft.token)),
             WIDTH,
             HEIGHT,
         )

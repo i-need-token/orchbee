@@ -2,7 +2,7 @@ use super::*;
 use crate::action_menu::{ActionMenu, MenuAction, MenuDraw, MenuTarget};
 use crate::client_view::{KeyEvent, Overlay};
 use crate::terminal_input::{PointerPane, PointerProbe};
-use crate::tui_pointer::{
+use crate::tui_hit_map::{
     HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
 };
 use ratatui::layout::Rect;
@@ -78,11 +78,11 @@ fn sidebar_view_with_agent() -> (ClientView, crate::machine_picker::SidebarTarge
     (view, target)
 }
 
-fn rendered_sidebar_map(view: &ClientView) -> crate::tui_pointer::FrameHitMap {
+fn rendered_sidebar_map(view: &ClientView) -> crate::tui_hit_map::FrameHitMap {
     rendered_sidebar_map_at(view, 120)
 }
 
-fn rendered_sidebar_map_at(view: &ClientView, width: u16) -> crate::tui_pointer::FrameHitMap {
+fn rendered_sidebar_map_at(view: &ClientView, width: u16) -> crate::tui_hit_map::FrameHitMap {
     rendered_sidebar_map_with(view, width, HitMapBuilder::new())
 }
 
@@ -90,7 +90,7 @@ fn rendered_sidebar_map_with(
     view: &ClientView,
     width: u16,
     mut hits: HitMapBuilder,
-) -> crate::tui_pointer::FrameHitMap {
+) -> crate::tui_hit_map::FrameHitMap {
     let mut terminal =
         ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, 40)).unwrap();
     terminal
@@ -113,7 +113,7 @@ fn rendered_sidebar_map_with(
 }
 
 fn sidebar_primary_cell(
-    map: &crate::tui_pointer::FrameHitMap,
+    map: &crate::tui_hit_map::FrameHitMap,
     target: &crate::machine_picker::SidebarTarget,
 ) -> (u16, u16) {
     for y in 0..40 {
@@ -149,7 +149,7 @@ fn disclosure_packet(rect: Rect, twice: bool) -> Vec<u8> {
 }
 
 fn disclosure_cell(
-    map: &crate::tui_pointer::FrameHitMap,
+    map: &crate::tui_hit_map::FrameHitMap,
     target: &crate::machine_picker::SidebarTarget,
 ) -> Rect {
     let expected = HitTarget::SidebarDisclosure(target.clone());
@@ -207,7 +207,7 @@ fn sidebar_project_target() -> crate::machine_picker::SidebarTarget {
     }
 }
 
-fn sidebar_menu_map() -> crate::tui_pointer::FrameHitMap {
+fn sidebar_menu_map() -> crate::tui_hit_map::FrameHitMap {
     sidebar_target_map(crate::machine_picker::SidebarTarget::Context {
         machine: crate::machine_picker::Choice::Local,
         target: sidebar_context(),
@@ -216,7 +216,7 @@ fn sidebar_menu_map() -> crate::tui_pointer::FrameHitMap {
 
 fn sidebar_target_map(
     target: crate::machine_picker::SidebarTarget,
-) -> crate::tui_pointer::FrameHitMap {
+) -> crate::tui_hit_map::FrameHitMap {
     let mut hits = HitMapBuilder::new();
     hits.record_action_menu_source(Some(crate::action_menu::DrawnMenuSource {
         session: sidebar_context().session_id,
@@ -510,7 +510,7 @@ fn workspace_close_is_pointer_revealed_and_requests_the_existing_confirmation() 
         target: sidebar_context(),
     };
     let close = HitTarget::SidebarClose(target.clone());
-    let close_cell = |map: &crate::tui_pointer::FrameHitMap| {
+    let close_cell = |map: &crate::tui_hit_map::FrameHitMap| {
         (0..40).find_map(|y| {
             (0..30)
                 .find(|x| map.hit_target_at(*x, y) == Some(&close))
@@ -879,16 +879,16 @@ impl TerminalInputPort for Port {
     }
     fn scroll_list(
         &mut self,
-        target: &crate::tui_pointer::ListScrollTarget,
+        target: &crate::tui_hit_map::ListScrollTarget,
         up: bool,
         lines: usize,
-    ) -> Option<crate::tui_pointer::ListScrollTarget> {
-        let &crate::tui_pointer::ListScrollTarget::Menu(token) = target else {
+    ) -> Option<crate::tui_hit_map::ListScrollTarget> {
+        let &crate::tui_hit_map::ListScrollTarget::Menu(token) = target else {
             return None;
         };
         self.menu
             .scroll(token, up, lines)
-            .map(crate::tui_pointer::ListScrollTarget::Menu)
+            .map(crate::tui_hit_map::ListScrollTarget::Menu)
     }
     fn take_action_menu_action(&mut self, _: bool) -> Option<crate::workbench_client::InputAction> {
         self.menu

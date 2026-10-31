@@ -67,7 +67,7 @@ fn tab_strip_create_is_disjoint_from_tabs_breadcrumb_and_hidden_tiers() {
                     .filter(|x| {
                         matches!(
                             hits.hit_target_at(*x, 0),
-                            Some(crate::tui_pointer::HitTarget::TabCreate(_))
+                            Some(crate::tui_hit_map::HitTarget::TabCreate(_))
                         )
                     })
                     .collect();
@@ -78,14 +78,14 @@ fn tab_strip_create_is_disjoint_from_tabs_breadcrumb_and_hidden_tiers() {
                     for x in cells {
                         assert_eq!(
                             hits.hit_target_at(x, 0),
-                            Some(&crate::tui_pointer::HitTarget::TabCreate(
+                            Some(&crate::tui_hit_map::HitTarget::TabCreate(
                                 ui.view().tab_create_target().unwrap()
                             ))
                         );
                     }
                     assert!((0..width).any(|x| matches!(
                         hits.hit_target_at(x, 0),
-                        Some(crate::tui_pointer::HitTarget::Tab(_))
+                        Some(crate::tui_hit_map::HitTarget::Tab(_))
                     )));
                 } else {
                     assert!(cells.is_empty());

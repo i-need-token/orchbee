@@ -20,7 +20,7 @@ fn present_settings(ui: &mut WorkbenchClientUi) {
                 crate::localization::Locale::EnUs,
                 Some(ui.view()),
                 &crate::tui_theme::Theme::terminal_native(),
-                &mut crate::tui_pointer::HitMapBuilder::new(),
+                &mut crate::tui_hit_map::HitMapBuilder::new(),
             );
         })
         .unwrap();
@@ -135,7 +135,7 @@ fn settings_owns_its_hints_without_repeating_them_in_global_status() {
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
             terminal
                 .draw(|frame| {
-                    let mut hits = crate::tui_pointer::HitMapBuilder::new();
+                    let mut hits = crate::tui_hit_map::HitMapBuilder::new();
                     crate::tui_render::render_terminal_shell(
                         frame,
                         &shell,
@@ -207,7 +207,7 @@ fn captures_whole_shell_settings_alignment_frames() {
                     locale,
                     Some(ui.view()),
                     &theme,
-                    &mut crate::tui_pointer::HitMapBuilder::new(),
+                    &mut crate::tui_hit_map::HitMapBuilder::new(),
                 );
             })
             .unwrap();
@@ -313,7 +313,7 @@ fn retained_drafts_render_their_failure_instead_of_covering_it_with_key_hints() 
                         locale,
                         Some(ui.view()),
                         &theme,
-                        &mut crate::tui_pointer::HitMapBuilder::new(),
+                        &mut crate::tui_hit_map::HitMapBuilder::new(),
                     );
                 })
                 .unwrap();
@@ -434,7 +434,7 @@ fn settings_draft_cancel_and_small_draw_have_no_live_application() {
                     locale,
                     Some(ui.view()),
                     &crate::tui_theme::Theme::terminal_native(),
-                    &mut crate::tui_pointer::HitMapBuilder::new(),
+                    &mut crate::tui_hit_map::HitMapBuilder::new(),
                 );
             })
             .unwrap();
@@ -462,7 +462,7 @@ fn settings_draft_cancel_and_small_draw_have_no_live_application() {
                     locale,
                     Some(ui.view()),
                     &crate::tui_theme::Theme::terminal_native(),
-                    &mut crate::tui_pointer::HitMapBuilder::new(),
+                    &mut crate::tui_hit_map::HitMapBuilder::new(),
                 );
             })
             .unwrap();
@@ -494,7 +494,7 @@ fn initial_too_small_settings_is_refused_without_cancelling_its_read() {
         let shell = ClientView::new(120);
         let mut terminal = Terminal::new(TestBackend::new(120, 9)).unwrap();
         let mut receipt = DrawReceipt::default();
-        let mut hits = crate::tui_pointer::HitMapBuilder::new();
+        let mut hits = crate::tui_hit_map::HitMapBuilder::new();
         terminal
             .draw(|frame| {
                 receipt = crate::tui_render::render_terminal_shell(
@@ -513,8 +513,8 @@ fn initial_too_small_settings_is_refused_without_cancelling_its_read() {
                 !matches!(
                     map.hit_target_at(x, y),
                     Some(
-                        crate::tui_pointer::HitTarget::SettingsRow { .. }
-                            | crate::tui_pointer::HitTarget::SettingsControl { .. }
+                        crate::tui_hit_map::HitTarget::SettingsRow { .. }
+                            | crate::tui_hit_map::HitTarget::SettingsControl { .. }
                     )
                 )
             })
@@ -536,7 +536,7 @@ fn initial_too_small_settings_is_refused_without_cancelling_its_read() {
                     locale,
                     Some(ui.view()),
                     &crate::tui_theme::Theme::terminal_native(),
-                    &mut crate::tui_pointer::HitMapBuilder::new(),
+                    &mut crate::tui_hit_map::HitMapBuilder::new(),
                 );
                 candidate = Some(frame.buffer_mut().clone());
             })

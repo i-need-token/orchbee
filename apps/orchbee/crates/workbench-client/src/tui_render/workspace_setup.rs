@@ -13,10 +13,8 @@ use crate::{
     localization::Locale,
     terminal_text::sanitize_terminal_text,
     terminal_text::{display_width, truncate_display},
+    tui_hit_map::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl},
     tui_layout::centered_overlay,
-    tui_pointer::hit_map::{
-        HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl,
-    },
     tui_theme::{GlyphMode, Role, Theme},
     workbench_client::{
         DisplayPhase, LocationLabelStatus, ModalPresentation, SetupDraftView, SetupStage,
@@ -775,9 +773,7 @@ fn render_projects<'a>(
     hits.record(
         HitLayer::OverlaySurface,
         list,
-        HitTarget::ListScroll(crate::tui_pointer::hit_map::ListScrollTarget::Setup(
-            picker.token,
-        )),
+        HitTarget::ListScroll(crate::tui_hit_map::ListScrollTarget::Setup(picker.token)),
     );
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
     (area, ModalPresentation::Presented(picker.token))

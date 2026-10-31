@@ -1,5 +1,7 @@
 use super::*;
-use crate::{tui_pointer::SidebarDropPlacement, tui_theme::ColorLevel};
+use crate::{
+    tui_hit_map::sidebar_reorder::Placement as SidebarDropPlacement, tui_theme::ColorLevel,
+};
 use ratatui::{Terminal, backend::TestBackend, style::Color, widgets::Block};
 
 fn row_text(buffer: &ratatui::buffer::Buffer, area: Rect) -> String {

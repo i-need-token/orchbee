@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     client_view::{ClientAction, ClientView},
     localization::Locale,
-    tui_pointer::HitMapBuilder,
+    tui_hit_map::HitMapBuilder,
 };
 use ratatui::{Terminal, backend::TestBackend};
 

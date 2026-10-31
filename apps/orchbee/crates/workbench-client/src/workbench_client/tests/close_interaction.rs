@@ -1,5 +1,5 @@
 use super::*;
-use crate::tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget};
+use crate::tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

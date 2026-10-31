@@ -5,7 +5,7 @@ use crate::{
     client_view::{ClientAction, ClientActionDisposition, ClientKey, ClientView},
     local_client::{LocalClient, LocalOperationClock, test_support::server::FakeServer},
     localization::Locale,
-    tui_pointer::HitMapBuilder,
+    tui_hit_map::HitMapBuilder,
     tui_theme::Theme,
     workbench_client::{
         WorkspaceCloseStatus,

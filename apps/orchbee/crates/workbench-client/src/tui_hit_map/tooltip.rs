@@ -7,7 +7,7 @@ use crate::{tui_theme::Role, workbench_client::state::PaneRef};
 
 /// What offers one tooltip. A target that moves or changes what it does is a different key.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::tui_pointer) enum Key {
+pub(crate) enum Key {
     /// A recorded region, over its whole rectangle: its layer, where it is, and what it does.
     Region {
         layer: HitLayer,
@@ -21,11 +21,7 @@ pub(in crate::tui_pointer) enum Key {
 }
 
 impl Key {
-    pub(in crate::tui_pointer) const fn new(
-        layer: HitLayer,
-        rect: Rect,
-        target: HitTarget,
-    ) -> Self {
+    pub(crate) const fn new(layer: HitLayer, rect: Rect, target: HitTarget) -> Self {
         Self::Region {
             layer,
             rect,
@@ -33,22 +29,22 @@ impl Key {
         }
     }
 
-    pub(in crate::tui_pointer) const fn pane_title(rect: Rect, pane: PaneRef) -> Self {
+    pub(crate) const fn pane_title(rect: Rect, pane: PaneRef) -> Self {
         Self::PaneTitle { rect, pane }
     }
 
-    pub(in crate::tui_pointer) const fn rect(&self) -> Rect {
+    pub(crate) const fn rect(&self) -> Rect {
         match self {
             Self::Region { rect, .. } | Self::PaneTitle { rect, .. } => *rect,
         }
     }
 
-    pub(in crate::tui_pointer) fn names(&self, region: &HitRegion) -> bool {
+    pub(crate) fn names(&self, region: &HitRegion) -> bool {
         matches!(self, Self::Region { layer, rect, target }
             if *layer == region.layer && *rect == region.rect && *target == region.target)
     }
 
-    pub(in crate::tui_pointer) fn spans(&self, column: u16, row: u16) -> bool {
+    pub(crate) fn spans(&self, column: u16, row: u16) -> bool {
         matches!(self, Self::PaneTitle { rect, .. } if super::contains(*rect, column, row))
     }
 }
@@ -84,9 +80,9 @@ pub(crate) struct LegendItem {
 
 /// The open tooltip one candidate frame paints: its target and the pointer cell it opened at.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(in crate::tui_pointer) struct Shown {
-    pub(in crate::tui_pointer) key: Key,
-    pub(in crate::tui_pointer) pointer: (u16, u16),
+pub(crate) struct Shown {
+    pub(crate) key: Key,
+    pub(crate) pointer: (u16, u16),
 }
 
 /// An open tooltip whose target this frame painted again, ready to place and paint.
@@ -101,7 +97,7 @@ impl FrameHitMap {
     /// The tooltip key of the frontmost region at a cell, when that region offers one, else of a
     /// pane title over the base layer or dead space there. An open overlay resolves only its own
     /// regions, so nothing beneath it offers a tooltip.
-    pub(in crate::tui_pointer) fn tooltip_at(&self, column: u16, row: u16) -> Option<Key> {
+    pub(crate) fn tooltip_at(&self, column: u16, row: u16) -> Option<Key> {
         let base = match self.hit_region(column, row) {
             HitRegionResolution::Region(region) => {
                 if let Some(key) = self.tooltips.iter().find(|key| key.names(region)) {
@@ -122,7 +118,7 @@ impl FrameHitMap {
     }
 
     /// Whether this frame painted the target a shown tooltip belongs to.
-    pub(in crate::tui_pointer) fn paints_tooltip_target(&self, shown: &Shown) -> bool {
+    pub(crate) fn paints_tooltip_target(&self, shown: &Shown) -> bool {
         self.tooltips.contains(&shown.key)
             && (matches!(shown.key, Key::PaneTitle { .. })
                 || self.regions.iter().any(|region| shown.key.names(region)))
@@ -130,14 +126,11 @@ impl FrameHitMap {
 }
 
 impl Shown {
-    pub(in crate::tui_pointer) const fn key(&self) -> &Key {
+    pub(crate) const fn key(&self) -> &Key {
         &self.key
     }
 
-    pub(in crate::tui_pointer) const fn open<'a>(
-        &self,
-        content: &'a TooltipContent,
-    ) -> OpenTooltip<'a> {
+    pub(crate) const fn open<'a>(&self, content: &'a TooltipContent) -> OpenTooltip<'a> {
         OpenTooltip {
             target: self.key.rect(),
             pointer: self.pointer,

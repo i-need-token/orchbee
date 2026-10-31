@@ -1,12 +1,16 @@
 use super::paint::render;
-use super::*;
-use crate::client_view::ClientView;
-use crate::tui_pointer::{HitMapBuilder, HitTarget};
+use crate::client_view::{ClientView, notifications::State};
+use crate::tui_hit_map::{HitMapBuilder, HitTarget};
 use crate::tui_theme::Theme;
 #[cfg(windows)]
 use crate::workbench_client::notification_available as available;
+use orchbee_local_runtime::{NotificationDelivery as Delivery, NotificationSettings};
+use orchbee_workbench_protocol::{
+    Notification, NotificationPosition as Position, NotificationSound,
+};
 use ratatui::layout::Rect;
 use ratatui::{Terminal, backend::TestBackend};
+use std::time::{Duration, Instant};
 fn message(position: Position) -> Notification {
     Notification::normalize(
         "通知 ready \u{202e}abc",
@@ -109,7 +113,7 @@ fn all_corner_cards_keep_status_and_top_chrome_unicode_safe_at_required_sizes() 
 }
 
 fn assert_card_shield(
-    map: &crate::tui_pointer::FrameHitMap,
+    map: &crate::tui_hit_map::FrameHitMap,
     painted: Option<Rect>,
     width: u16,
     height: u16,
@@ -197,14 +201,14 @@ fn notification_policy_inherits_position_explicit_wins_and_off_keeps_custom_soun
     let now = Instant::now();
     let custom = Notification::normalize("Ready", None, None, NotificationSound::Done).unwrap();
     state.install(custom.clone(), now);
-    assert!(state.visible.is_none());
+    assert!(state.visible_message().is_none());
     let effect = state.take_effect().unwrap();
     assert_eq!(effect.delivery, Delivery::Off);
     assert_eq!(effect.message.sound, NotificationSound::Done);
     state.configure(cards());
     state.install(custom.clone(), now);
     assert_eq!(
-        state.visible.as_ref().unwrap().message.position,
+        state.visible_message().unwrap().position,
         Some(Position::BottomRight)
     );
     state.configure(NotificationSettings::default());
@@ -212,7 +216,7 @@ fn notification_policy_inherits_position_explicit_wins_and_off_keeps_custom_soun
     state.configure(cards());
     state.install(message(Position::TopLeft), now);
     assert_eq!(
-        state.visible.as_ref().unwrap().message.position,
+        state.visible_message().unwrap().position,
         Some(Position::TopLeft)
     );
     for delivery in [Delivery::Terminal, Delivery::System] {
@@ -221,7 +225,7 @@ fn notification_policy_inherits_position_explicit_wins_and_off_keeps_custom_soun
         state.configure(policy);
         assert!(state.install(custom.clone(), now));
         assert!(!state.install(custom.clone(), now));
-        assert!(state.visible.is_none());
+        assert!(state.visible_message().is_none());
         assert_eq!(state.take_effect().unwrap().delivery, delivery);
         assert!(state.take_effect().is_none());
     }

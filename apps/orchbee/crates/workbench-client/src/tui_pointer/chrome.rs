@@ -4,8 +4,8 @@
 //! module projects only exact hover/pressed presentation from their painted
 //! semantic witness; it never emits an action or starts a gesture.
 
-use super::hit_map::chrome::{Fingerprint, Projection};
 use super::{FrameHitMap, MotionObservability, MouseAction, MouseEvent};
+use crate::tui_hit_map::chrome::{Fingerprint, Projection};
 
 #[derive(Default)]
 pub(super) struct ProjectionState {

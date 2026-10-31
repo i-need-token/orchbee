@@ -3,11 +3,11 @@ use crate::{
     client_view::{ClientView, PanelDirection},
     localization::Locale,
     terminal_text::display_width,
-    tui_layout::DrawnResize,
-    tui_pointer::hit_map::{
+    tui_hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ProjectedPointer,
         ResizeControl,
     },
+    tui_layout::DrawnResize,
     tui_theme::{Role, Theme},
     workbench_client::WorkbenchClientView,
 };

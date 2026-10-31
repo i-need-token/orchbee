@@ -418,7 +418,7 @@ fn toolbar_mode<'a>(
 }
 
 fn map_contains_control(
-    map: &crate::tui_pointer::FrameHitMap,
+    map: &crate::tui_hit_map::FrameHitMap,
     width: u16,
     height: u16,
     token: crate::terminal_copy_mode::CopyModeToken,

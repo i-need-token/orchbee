@@ -37,7 +37,7 @@ fn revealed_frame(
     (locale, theme): (Locale, &Theme),
     (width, height): (u16, u16),
     target: &SidebarTarget,
-) -> (ratatui::buffer::Buffer, crate::tui_pointer::FrameHitMap) {
+) -> (ratatui::buffer::Buffer, crate::tui_hit_map::FrameHitMap) {
     let (_, _, map) = paint_navigation_buffers_with_pointer(
         view,
         locale,

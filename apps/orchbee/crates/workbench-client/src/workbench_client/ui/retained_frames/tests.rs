@@ -8,7 +8,7 @@ fn retained_renderer_has_no_cursor_selection_graphics_input_or_ack() {
         client_view::ClientView,
         localization::Locale,
         terminal_input::{PaneAdmission, PointerSelectionIntent},
-        tui_pointer::HitMapBuilder,
+        tui_hit_map::HitMapBuilder,
         tui_theme::{Role, Theme},
         workbench_client::{
             PaneGraphicsCanvas,

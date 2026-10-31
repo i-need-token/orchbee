@@ -9,7 +9,7 @@ use crate::{
     terminal_text::{
         display_width, project_terminal_text, sanitize_terminal_text, truncate_display,
     },
-    tui_pointer::hit_map::{
+    tui_hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
         ProjectedPointer,
     },
@@ -908,9 +908,7 @@ fn render_draft(
         hits.record(
             HitLayer::OverlaySurface,
             regions.list,
-            HitTarget::ListScroll(crate::tui_pointer::hit_map::ListScrollTarget::Settings(
-                draft.token,
-            )),
+            HitTarget::ListScroll(crate::tui_hit_map::ListScrollTarget::Settings(draft.token)),
         );
     }
     if draft.page == Page::General {
@@ -1194,9 +1192,7 @@ fn render_child(
                 inner.width,
                 u16::try_from(height).expect("bounded choice viewport"),
             ),
-            HitTarget::ListScroll(crate::tui_pointer::hit_map::ListScrollTarget::Settings(
-                draft.token,
-            )),
+            HitTarget::ListScroll(crate::tui_hit_map::ListScrollTarget::Settings(draft.token)),
         );
         for (index, choice) in choices.iter().copied().enumerate().skip(first).take(height) {
             let area = Rect::new(

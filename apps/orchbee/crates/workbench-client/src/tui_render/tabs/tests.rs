@@ -46,7 +46,7 @@ fn rendered_with_focus(
             tab_at,
             &theme,
             &mut (),
-            &mut |_, _, _| crate::tui_pointer::ProjectedPointer::Rest,
+            &mut |_, _, _| crate::tui_hit_map::ProjectedPointer::Rest,
             &mut |_, _, _| {},
         );
     }));
@@ -173,7 +173,7 @@ fn navigator_keeps_current_and_provisional_focus_as_independent_tracks() {
 #[test]
 fn navigator_pointer_surface_keeps_current_and_provisional_tracks_independent() {
     use crate::{
-        tui_pointer::ProjectedPointer,
+        tui_hit_map::ProjectedPointer,
         tui_theme::{Role, Theme},
     };
 
@@ -241,7 +241,7 @@ fn navigator_preflights_the_complete_visible_source_before_paint_and_hits() {
             },
             &crate::tui_theme::Theme::rgb_test_dark(),
             &mut (),
-            &mut |_, _, _| crate::tui_pointer::ProjectedPointer::Rest,
+            &mut |_, _, _| crate::tui_hit_map::ProjectedPointer::Rest,
             &mut |_, index, rect| rows.push((index, rect)),
         );
     }));

@@ -2,7 +2,7 @@ use super::super::modal::ModalAction;
 use super::{PreparedContent, confirmation_text, render_content, render_prepared};
 use crate::{
     localization::{CloseImpact, Locale},
-    tui_pointer::HitMapBuilder,
+    tui_hit_map::HitMapBuilder,
     tui_theme::Theme,
     workbench_client::{ModalPresentation, PanelCloseConfirmationToken},
 };

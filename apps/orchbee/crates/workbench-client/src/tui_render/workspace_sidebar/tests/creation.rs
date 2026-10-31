@@ -145,7 +145,7 @@ fn paint_creation_members(
     theme: &Theme,
     creation: WorkspaceCreationPreview<'_>,
     height: u16,
-) -> (ratatui::buffer::Buffer, crate::tui_pointer::FrameHitMap) {
+) -> (ratatui::buffer::Buffer, crate::tui_hit_map::FrameHitMap) {
     let mut terminal = Terminal::new(TestBackend::new(64, height)).unwrap();
     let mut hits = HitMapBuilder::new();
     let mut candidate = None;
@@ -179,7 +179,7 @@ fn paint_creation_members(
 
 fn assert_creation_member_surface(
     buffer: &ratatui::buffer::Buffer,
-    hits: &crate::tui_pointer::FrameHitMap,
+    hits: &crate::tui_hit_map::FrameHitMap,
     target: &SidebarTarget,
     theme: &Theme,
     surface: Role,

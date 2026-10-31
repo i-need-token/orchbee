@@ -209,7 +209,7 @@ impl Picker {
                 .is_some_and(|row| row.git_stale)
     }
 
-    pub(super) fn workspace_row_available(&self, row: &Row) -> bool {
+    pub(crate) fn workspace_row_available(&self, row: &Row) -> bool {
         row.enabled
             && (row.context.is_none()
                 || row.choice == Choice::Local

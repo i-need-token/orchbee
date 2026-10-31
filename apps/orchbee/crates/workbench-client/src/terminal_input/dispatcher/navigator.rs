@@ -5,7 +5,8 @@ use crate::client_view::{
     navigator::{Admission, Command, Reconcile, Row},
 };
 use crate::terminal_input::{MouseAction, MouseButton};
-use crate::tui_pointer::{InteractionTarget, PointerOutcome, PrimaryContract};
+use crate::tui_hit_map::{InteractionTarget, PrimaryContract};
+use crate::tui_pointer::PointerOutcome;
 
 #[derive(Default)]
 pub(super) struct Capture {

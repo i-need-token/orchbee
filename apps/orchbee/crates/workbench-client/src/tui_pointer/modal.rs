@@ -1,14 +1,14 @@
 //! Painted modal controls retain their press authority until matching release.
 //! The state owner then validates that exact token before any shared effect.
-use super::hit_map::modal::{
-    ControlTarget, Fingerprint, Projection, accepts_confirmation, accepts_copy, accepts_modal,
-    accepts_resize,
-};
 use super::{
     BoardAction, CloseDecision, CopyAction, FrameHitMap, Gesture, HitResolution, InteractionTarget,
     LayoutAction, ModalControl, Modifiers, MotionObservability, MouseAction, MouseButton,
     MouseEvent, PointerOutcome, PointerState, ReleaseOwnership, RenameAction, SetupAction,
     SurfaceAction, SurfaceInput, TerminalInputPort, WorktreeAction,
+};
+use crate::tui_hit_map::modal::{
+    ControlTarget, Fingerprint, Projection, accepts_confirmation, accepts_copy, accepts_modal,
+    accepts_resize,
 };
 
 /// Live pointer position and hover for specialized modal controls. Press

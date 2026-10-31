@@ -58,6 +58,7 @@ mod transient_notice;
 mod tui_capabilities;
 mod tui_composition;
 mod tui_graphics;
+mod tui_hit_map;
 mod tui_layout;
 mod tui_pointer;
 mod tui_presentation;
@@ -390,7 +391,7 @@ pub mod application {
     }
 
     pub mod tui_pointer {
-        pub use crate::tui_pointer::HitMapBuilder;
+        pub use crate::tui_hit_map::HitMapBuilder;
     }
 
     pub mod tui_render {
@@ -482,7 +483,7 @@ pub mod test_support {
     }
 
     pub mod notifications {
-        pub use crate::notifications::StateTestAccess;
+        pub use crate::client_view::notifications::StateTestAccess;
     }
 
     pub mod terminal_device {
@@ -575,11 +576,12 @@ pub mod test_support {
     }
 
     pub mod tui_pointer {
+        pub use crate::tui_hit_map::{
+            HitLayer, HitMapBuilderTestAccess, HitTarget, InteractionAvailability, InteractionSpec,
+            InteractionSpecTestAccess, InteractionTarget, PrimaryContract, ProjectedPointer,
+        };
         pub use crate::tui_pointer::{
-            HelpControl, HitLayer, HitMapBuilderTestAccess, HitTarget, InteractionAvailability,
-            InteractionSpec, InteractionSpecTestAccess, InteractionTarget, MotionObservability,
-            PointerOutcome, PointerState, PointerStateTestAccess, PrimaryContract,
-            ProjectedPointer,
+            HelpControl, MotionObservability, PointerOutcome, PointerState, PointerStateTestAccess,
         };
     }
 

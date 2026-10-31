@@ -7,8 +7,8 @@ use super::{
 
 use crate::{
     terminal_text::{display_width, truncate_display},
+    tui_hit_map::TooltipText,
     tui_layout::LeafArea,
-    tui_pointer::hit_map::TooltipText,
 };
 use ratatui::{
     style::Modifier,

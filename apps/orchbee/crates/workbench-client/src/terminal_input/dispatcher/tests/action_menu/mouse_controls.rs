@@ -473,7 +473,7 @@ fn help_map(
     dispatcher: &mut InputDispatcher,
     view: &mut ClientView,
     locale: Locale,
-) -> crate::tui_pointer::FrameHitMap {
+) -> crate::tui_hit_map::FrameHitMap {
     let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 16)).unwrap();
     let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
     let theme = Theme::terminal_native();
@@ -648,7 +648,7 @@ fn help_mouse_pages_and_close_capture_only_their_own_surface_and_packet() {
                     matches!(
                         map.hit_target_at(x, y),
                         Some(HitTarget::ListScroll(
-                            crate::tui_pointer::ListScrollTarget::Help(_)
+                            crate::tui_hit_map::ListScrollTarget::Help(_)
                         ))
                     )
                     .then_some((x + 1, y + 1))

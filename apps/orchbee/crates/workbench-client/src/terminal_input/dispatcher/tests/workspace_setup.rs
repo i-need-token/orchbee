@@ -224,11 +224,11 @@ impl TerminalInputPort for SetupPort {
 
     fn scroll_list(
         &mut self,
-        target: &crate::tui_pointer::ListScrollTarget,
+        target: &crate::tui_hit_map::ListScrollTarget,
         up: bool,
         lines: usize,
-    ) -> Option<crate::tui_pointer::ListScrollTarget> {
-        let &crate::tui_pointer::ListScrollTarget::Setup(token) = target else {
+    ) -> Option<crate::tui_hit_map::ListScrollTarget> {
+        let &crate::tui_hit_map::ListScrollTarget::Setup(token) = target else {
             return None;
         };
         if token == self.token() && self.shown {
@@ -240,7 +240,7 @@ impl TerminalInputPort for SetupPort {
             };
             self.token += 1;
             self.shown = false;
-            Some(crate::tui_pointer::ListScrollTarget::Setup(self.token()))
+            Some(crate::tui_hit_map::ListScrollTarget::Setup(self.token()))
         } else {
             None
         }
@@ -283,9 +283,9 @@ impl TerminalInputPort for SetupPort {
 fn painted_setup_control(
     dispatcher: &mut InputDispatcher,
     port: &mut SetupPort,
-    control: crate::tui_pointer::ModalControl,
+    control: crate::tui_hit_map::ModalControl,
 ) {
-    use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability};
+    use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability};
     dispatcher.pointer.set_capture(true);
     dispatcher
         .synchronize(&mut ClientView::new(120), port, Instant::now(), &mut |_| {
@@ -298,7 +298,7 @@ fn painted_setup_control(
     hits.record(
         HitLayer::OverlaySurface,
         ratatui::layout::Rect::new(2, 2, 30, 8),
-        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Setup(token)),
+        HitTarget::ListScroll(crate::tui_hit_map::ListScrollTarget::Setup(token)),
     );
     hits.record_modal_control(
         HitLayer::Overlay,
@@ -311,7 +311,7 @@ fn painted_setup_control(
 
 #[test]
 fn organization_click_submits_existing_or_no_project_and_new_only_opens_one_name_field() {
-    use crate::tui_pointer::ModalControl;
+    use crate::tui_hit_map::ModalControl;
     for index in 0..4 {
         let now = Instant::now();
         let mut port = SetupPort::new(SetupStage::ChooseWorkspaceProject);
@@ -368,7 +368,7 @@ fn organization_click_submits_existing_or_no_project_and_new_only_opens_one_name
 
 #[test]
 fn organization_press_waits_for_release_and_intervening_input_or_resize_cancels_it() {
-    use crate::tui_pointer::ModalControl;
+    use crate::tui_hit_map::ModalControl;
     for change in 0..5 {
         let mut port = SetupPort::new(SetupStage::ChooseWorkspaceProject);
         port.choice_count = 4;
@@ -401,7 +401,7 @@ fn organization_press_waits_for_release_and_intervening_input_or_resize_cancels_
 
 #[test]
 fn project_arrows_and_wheel_replace_selection_without_arming_an_unpainted_submit() {
-    use crate::tui_pointer::ModalControl;
+    use crate::tui_hit_map::ModalControl;
     let now = Instant::now();
     let mut port = SetupPort::new(SetupStage::ChooseWorkspaceProject);
     port.shown = true;
@@ -443,7 +443,7 @@ fn project_arrows_and_wheel_replace_selection_without_arming_an_unpainted_submit
 
 #[test]
 fn project_mouse_reports_respect_split_frames_modifiers_bounds_and_invalidated_geometry() {
-    use crate::tui_pointer::ModalControl;
+    use crate::tui_hit_map::ModalControl;
     for rejected in [
         b"\x1b[<4;6;6M\x1b[<0;6;6m".as_slice(),
         b"\x1b[<0;21;6M\x1b[<0;21;6m",
@@ -502,7 +502,7 @@ fn visible_setup_cancel_owns_its_packet_and_a_split_release() {
     painted_setup_control(
         &mut dispatcher,
         &mut port,
-        crate::tui_pointer::ModalControl::Cancel,
+        crate::tui_hit_map::ModalControl::Cancel,
     );
     dispatch(&mut dispatcher, &mut port, b"\x1b[<0;6;6M\x1b[<0;", now);
     assert!(port.active);

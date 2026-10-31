@@ -1,7 +1,7 @@
 //! App-private controls own fixed cell geometry and semantic interaction styling.
 //!
 //! Feature owners retain semantic identity, availability reasons, and typed
-//! [`crate::tui_pointer::hit_map::HitTarget`] values. This module paints admitted state and returns the
+//! [`crate::tui_hit_map::HitTarget`] values. This module paints admitted state and returns the
 //! complete painted rectangle; it never derives an intent from product copy or glyphs.
 use crate::{
     terminal_text::display_width,

@@ -4,7 +4,7 @@
 
 use super::WorkbenchClientUi;
 use crate::client_view::ClientActionDisposition;
-use crate::tui_pointer::hit_map::ListScrollTarget;
+use crate::tui_hit_map::ListScrollTarget;
 use crate::workbench_client::input::{
     BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, PaneAdmission, PaneInput,
     RenameAction, SettingsAction, SetupAction, SurfaceAction, SurfaceInput, TabAction, TextEntry,

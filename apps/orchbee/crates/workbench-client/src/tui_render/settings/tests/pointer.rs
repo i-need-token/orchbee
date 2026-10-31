@@ -3,7 +3,8 @@ use super::*;
 use crate::{
     client_view::Modifiers,
     terminal_input::{MouseAction, MouseButton, MouseEvent},
-    tui_pointer::{MotionObservability, PointerOutcome, PointerProjection, PointerState},
+    tui_hit_map::PointerProjection,
+    tui_pointer::{MotionObservability, PointerOutcome, PointerState},
 };
 use ratatui::style::Modifier;
 

@@ -10,7 +10,7 @@ use orchbee_workbench_protocol::{
 #[test]
 fn automatic_tab_chrome_keeps_localized_and_fixed_names_without_a_second_title_row() {
     use crate::{
-        client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme,
+        client_view::ClientView, localization::Locale, tui_hit_map::HitMapBuilder, tui_theme::Theme,
     };
     for (locale, first, second) in [
         (Locale::EnUs, "Tab 1", "Tab 2"),
@@ -98,7 +98,7 @@ fn automatic_tab_chrome_keeps_localized_and_fixed_names_without_a_second_title_r
 #[test]
 fn tab_strip_uses_the_tab_identity_without_an_additional_location_breadcrumb() {
     use crate::{
-        client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme,
+        client_view::ClientView, localization::Locale, tui_hit_map::HitMapBuilder, tui_theme::Theme,
     };
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [Theme::terminal_native(), Theme::one_light()] {
@@ -195,7 +195,7 @@ fn prefix_choice_queues_exact_child_and_does_not_display_primary_report() {
                 crate::localization::Locale::EnUs,
                 Some(ui.view()),
                 &crate::tui_theme::Theme::rgb_test_dark(),
-                &mut crate::tui_pointer::HitMapBuilder::new(),
+                &mut crate::tui_hit_map::HitMapBuilder::new(),
             );
         })
         .unwrap();
@@ -258,12 +258,12 @@ fn painted_selector(
     capture: Option<&str>,
 ) -> (
     ratatui::buffer::Buffer,
-    crate::tui_pointer::FrameHitMap,
+    crate::tui_hit_map::FrameHitMap,
     usize,
 ) {
     let mut terminal =
         ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height)).unwrap();
-    let mut hits = crate::tui_pointer::HitMapBuilder::new();
+    let mut hits = crate::tui_hit_map::HitMapBuilder::new();
     let locale = crate::localization::Locale::EnUs;
     let theme = crate::tui_theme::Theme::terminal_native();
     terminal
@@ -308,7 +308,8 @@ fn activate_painted_presentation(
 ) -> ClientActionDisposition {
     use crate::{
         terminal_input::{MouseAction, MouseButton, MouseEvent},
-        tui_pointer::{InteractionTarget, PointerOutcome, PrimaryContract},
+        tui_hit_map::{InteractionTarget, PrimaryContract},
+        tui_pointer::PointerOutcome,
     };
     let mut view = crate::client_view::ClientView::new(120);
     let now = std::time::Instant::now();
@@ -409,7 +410,8 @@ fn drawn_presentation_activation_revalidates_live_member_and_unbound_source() {
 
 #[test]
 fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() {
-    use crate::tui_pointer::{HitTarget, PointerState};
+    use crate::tui_hit_map::HitTarget;
+    use crate::tui_pointer::PointerState;
     for layout in 0..3 {
         let (mut ui, mailbox, clock, _) =
             super::super::tests::move_membership::ready_ui_with_snapshot(child_source(layout != 0));
@@ -536,7 +538,7 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
 }
 #[test]
 fn selector_degrades_in_minimal_view_and_exact_targets_reject_selected_or_foreign_members() {
-    use crate::tui_pointer::HitTarget;
+    use crate::tui_hit_map::HitTarget;
     let (mut ui, mailbox, _, _) =
         super::super::tests::move_membership::ready_ui_with_snapshot(child_source(false));
     let (_, hits, _) = painted_selector(&ui, 59, 11, None);
@@ -578,7 +580,7 @@ fn selector_degrades_in_minimal_view_and_exact_targets_reject_selected_or_foreig
 
 #[test]
 fn narrow_split_titles_drop_controls_without_covering_terminal_content() {
-    use crate::tui_pointer::HitTarget;
+    use crate::tui_hit_map::HitTarget;
     use orchbee_workbench_protocol::{
         PanelOrientation, PanelSlot, WorkbenchPanelSlotId, WorkbenchSplitId,
     };
@@ -833,7 +835,8 @@ fn empty_ui() -> (
 
 #[test]
 fn unbound_bootstrap_paints_empty_guidance_and_clickable_member_selector_without_viewer() {
-    use crate::tui_pointer::{HitTarget, PointerState};
+    use crate::tui_hit_map::HitTarget;
+    use crate::tui_pointer::PointerState;
     use crate::workbench_client::DrawnPresentationTarget;
     let (mut ui, mailbox, _) = empty_ui();
     assert!(ui.state.as_ref().unwrap().invariant_holds());

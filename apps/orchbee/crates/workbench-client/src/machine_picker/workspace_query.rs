@@ -39,7 +39,7 @@ impl Picker {
 
     /// Same-named Workspaces on one session carry the shortest unique ID suffix, as in
     /// the Sidebar, so a search result names its exact target before it opens.
-    pub(super) fn workspace_identity_suffix(&self, row: &Row) -> String {
+    pub(crate) fn workspace_identity_suffix(&self, row: &Row) -> String {
         let Some((session, label, id)) = workspace_identity(row) else {
             return String::new();
         };

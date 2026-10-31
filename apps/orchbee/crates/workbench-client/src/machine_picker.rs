@@ -9,7 +9,6 @@ use crate::{
 use std::{num::NonZeroU64, sync::Arc};
 mod agents;
 mod navigation;
-mod paint;
 mod pointer;
 mod sidebar;
 mod spaces;
@@ -204,7 +203,7 @@ impl PickerSource {
 }
 
 impl Mode {
-    fn label(self, locale: Locale) -> &'static str {
+    pub(crate) fn label(self, locale: Locale) -> &'static str {
         locale.machine_picker_text(match self {
             Self::Machines => "machines-mode",
             Self::Workspaces => "workspaces-mode",
@@ -223,6 +222,15 @@ pub struct Row {
     agent_status: Option<&'static str>,
 }
 impl Row {
+    pub(crate) fn context(&self) -> Option<&Context> {
+        self.context.as_ref()
+    }
+    pub(crate) fn agent(&self) -> Option<&crate::machine_agents::Row> {
+        self.agent.as_ref()
+    }
+    pub(crate) const fn agent_status(&self) -> Option<&'static str> {
+        self.agent_status
+    }
     pub(crate) fn selection(&self) -> Selection {
         Selection {
             machine: self.choice.clone(),
@@ -333,7 +341,29 @@ impl Default for Picker {
     }
 }
 impl Picker {
-    fn visible_rows(&self) -> &[Row] {
+    /// Read access for the picker painter in `tui_render`; only this module writes these fields.
+    pub(crate) const fn mode(&self) -> Mode {
+        self.mode
+    }
+    pub(crate) const fn selected(&self) -> usize {
+        self.selected
+    }
+    pub(crate) const fn editing_query(&self) -> bool {
+        self.editing_query
+    }
+    pub(crate) const fn workspace_query(&self) -> &crate::terminal_text::line_editor::LineEditor {
+        &self.workspace_query
+    }
+    pub(crate) fn workspace_rows(&self) -> &[Row] {
+        &self.workspace_rows
+    }
+    pub(crate) fn workspace_matches(&self) -> &[Row] {
+        &self.workspace_matches
+    }
+    pub(crate) const fn agent_view(&self) -> &crate::machine_agents::view::View {
+        &self.agent_view
+    }
+    pub(crate) fn visible_rows(&self) -> &[Row] {
         match self.mode {
             Mode::Machines => &self.rows,
             Mode::Workspaces => &self.workspace_matches,
@@ -400,7 +430,7 @@ impl Picker {
         })))
     }
 
-    fn picker_window(&self, capacity: usize) -> SidebarWindow {
+    pub(crate) fn picker_window(&self, capacity: usize) -> SidebarWindow {
         let total = self.visible_rows().len();
         let maximum = total.saturating_sub(capacity);
         let mut top = self.top.min(maximum);
@@ -649,7 +679,7 @@ impl Picker {
     }
 
     /// All keys, paste and malformed events are consumed by the caller while open.
-    fn row_id(&self, index: usize) -> Option<&str> {
+    pub(crate) fn row_id(&self, index: usize) -> Option<&str> {
         let row = self.visible_rows().get(index)?;
         if let Some(agent) = &row.agent {
             return Some(agent.target.member.as_str());

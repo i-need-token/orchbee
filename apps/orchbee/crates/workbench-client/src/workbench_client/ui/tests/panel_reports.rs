@@ -2,7 +2,7 @@ use super::super::*;
 use crate::{
     client_view::ClientView,
     localization::Locale,
-    tui_pointer::HitMapBuilder,
+    tui_hit_map::HitMapBuilder,
     workbench_client::panel_reports::{PanelReport, Round, Scope},
 };
 use orchbee_workbench_protocol::WorkbenchRevision;
@@ -160,7 +160,7 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
                         .find(|x| {
                             matches!(
                                 hits.hit_target_at(*x, areas.tabs.y),
-                                Some(crate::tui_pointer::HitTarget::Tab(_))
+                                Some(crate::tui_hit_map::HitTarget::Tab(_))
                             ) && buffer[(*x, areas.tabs.y)].symbol() != " "
                         })
                         .unwrap();
@@ -180,7 +180,7 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
                 assert_eq!(
                     (0..height).any(|y| (0..width).any(|x| matches!(
                         hits.hit_target_at(x, y),
-                        Some(crate::tui_pointer::HitTarget::SettingsButton)
+                        Some(crate::tui_hit_map::HitTarget::SettingsButton)
                     ))),
                     areas.sidebar.is_some()
                 );

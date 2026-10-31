@@ -1,6 +1,6 @@
 //! Stable-identity drop policy; the shared canonical transition validates every candidate.
 use super::{ClientContextLocation, NavigationConfiguration, SidebarReorderSource, SidebarTarget};
-use crate::tui_pointer::hit_map::sidebar_reorder::Placement;
+use crate::tui_hit_map::sidebar_reorder::Placement;
 use orchbee_workbench_protocol::{WorkbenchProjectId, WorkbenchWorkspaceId, configure_navigation};
 use ratatui::layout::Rect;
 

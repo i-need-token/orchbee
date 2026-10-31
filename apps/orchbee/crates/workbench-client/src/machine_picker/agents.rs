@@ -29,7 +29,7 @@ pub(super) enum NavigationTarget {
 }
 
 impl Picker {
-    pub(super) fn source_spec(&self) -> Option<&orchbee_workbench_protocol::AgentViewSpec> {
+    pub(crate) fn source_spec(&self) -> Option<&orchbee_workbench_protocol::AgentViewSpec> {
         self.agent_observations
             .iter()
             .find(|(id, _)| id == &self.current)

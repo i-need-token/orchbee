@@ -7,7 +7,7 @@ use crate::{
     client_view::ClientView,
     localization::Locale,
     tui_graphics::Surface,
-    tui_pointer::HitMapBuilder,
+    tui_hit_map::HitMapBuilder,
     tui_theme::Theme,
     workbench_client::{DrawReceipt, pane_graphics::Layer},
 };

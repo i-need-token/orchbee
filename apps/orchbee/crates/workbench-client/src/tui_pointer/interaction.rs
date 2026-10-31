@@ -4,8 +4,8 @@
 //! Feature effects remain with the dispatcher and their domain owners, while
 //! specialized drags keep their dedicated state machines.
 
-use super::hit_map::interaction::{Fingerprint, PointerProjection};
 use super::{FrameHitMap, InteractionTarget, PrimaryContract};
+use crate::tui_hit_map::interaction::{Fingerprint, PointerProjection};
 use crate::{
     client_view::Modifiers,
     terminal_events::{MouseAction, MouseButton, MouseEvent},
@@ -117,8 +117,8 @@ impl State {
                 .as_ref()
                 .filter(|arm| arm.active() && !arm.backdrop)
                 .map(|arm| arm.fingerprint.clone()),
-            modal: super::hit_map::modal::Projection::empty(),
-            chrome: super::hit_map::chrome::Projection::empty(),
+            modal: crate::tui_hit_map::modal::Projection::empty(),
+            chrome: crate::tui_hit_map::chrome::Projection::empty(),
             tooltip: None,
         }
     }

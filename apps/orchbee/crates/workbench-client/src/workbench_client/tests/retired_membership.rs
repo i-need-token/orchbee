@@ -160,7 +160,7 @@ fn arm_uncommitted_panel_close(
             Locale::EnUs,
             Some(workbench_client.view()),
             &crate::tui_theme::Theme::terminal_native(),
-            &mut crate::tui_pointer::HitMapBuilder::new(),
+            &mut crate::tui_hit_map::HitMapBuilder::new(),
         );
     })?;
     workbench_client.after_close_draw(receipt);

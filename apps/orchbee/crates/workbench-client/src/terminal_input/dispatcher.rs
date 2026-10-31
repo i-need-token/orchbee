@@ -12,9 +12,9 @@ use crate::tui_composition::{
     CaptureOwner, ClientCaptureClaims, WorkbenchCaptureOwner, client_chrome_overlay_allowed,
     project_capture,
 };
+use crate::tui_hit_map::{FrameHitMap, InteractionTarget, PrimaryContract};
 use crate::tui_pointer::{
-    CancelledModalEvent, FrameHitMap, InteractionTarget, MotionObservability, PointerOutcome,
-    PointerState, PrimaryContract, ReleaseOwnership,
+    CancelledModalEvent, MotionObservability, PointerOutcome, PointerState, ReleaseOwnership,
 };
 use crate::workbench_client::SetupStage;
 
@@ -443,7 +443,7 @@ impl InputDispatcher {
         self.pointer.set_motion_observability(observability);
     }
 
-    pub fn pointer_projection(&self) -> crate::tui_pointer::PointerProjection {
+    pub fn pointer_projection(&self) -> crate::tui_hit_map::PointerProjection {
         self.pointer.projection()
     }
 
@@ -517,7 +517,7 @@ impl InputDispatcher {
         self.pointer.divider_preview()
     }
 
-    pub fn tab_drag_preview(&self) -> Option<crate::tui_pointer::TabDragPreview> {
+    pub fn tab_drag_preview(&self) -> Option<crate::tui_hit_map::TabDragPreview> {
         self.pointer.tab_drag_preview()
     }
 
@@ -1848,15 +1848,15 @@ impl InputDispatcher {
                                 InteractionTarget::GlobalChrome(action) => {
                                     if Self::projected_capture(view, port).is_none() {
                                         let action = match action {
-                                            crate::tui_pointer::GlobalChromeAction::Onboarding(action) => view.onboarding.visible.then(|| action.client()),
-                                            crate::tui_pointer::GlobalChromeAction::RestoreSidebar
+                                            crate::tui_hit_map::GlobalChromeAction::Onboarding(action) => view.onboarding.visible.then(|| action.client()),
+                                            crate::tui_hit_map::GlobalChromeAction::RestoreSidebar
                                                 if view.machines.available
                                                     && view.sidebar_surface()
                                                         == crate::client_view::SidebarSurface::Hidden =>
                                             {
                                                 Some(ClientAction::ToggleBusinessSidebar)
                                             }
-                                            crate::tui_pointer::GlobalChromeAction::RestoreSidebar => {
+                                            crate::tui_hit_map::GlobalChromeAction::RestoreSidebar => {
                                                 None
                                             }
                                         };

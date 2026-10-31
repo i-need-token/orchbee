@@ -2,7 +2,7 @@ use super::super::{tests::move_membership::ready_ui, tests::viewport::install_pr
 use super::*;
 use crate::workbench_client::agent_read_lane::AttentionRound;
 use crate::{
-    client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder,
+    client_view::ClientView, localization::Locale, tui_hit_map::HitMapBuilder,
     workbench_client::DrawReceipt,
 };
 use orchbee_agent_observation_protocol::{AgentChangesCursor, AgentSessionSummary};

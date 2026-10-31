@@ -155,7 +155,7 @@ fn missing_project_rows_never_acquire_a_click_target() {
     assert!(matches!(
         map.hit_target_at(inner.x, inner.y + 3),
         Some(HitTarget::ListScroll(
-            crate::tui_pointer::ListScrollTarget::Setup(_)
+            crate::tui_hit_map::ListScrollTarget::Setup(_)
         ))
     ));
     assert!(matches!(

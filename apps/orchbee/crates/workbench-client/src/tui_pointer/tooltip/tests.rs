@@ -1,6 +1,7 @@
 use super::*;
-use crate::tui_pointer::hit_map::TooltipContent;
-use crate::tui_pointer::{HelpControl, HitLayer, HitMapBuilder, HitTarget};
+use crate::tui_hit_map::TooltipContent;
+use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
+use crate::tui_pointer::HelpControl;
 use ratatui::layout::Rect;
 
 const ROW: Rect = Rect::new(0, 4, 20, 1);

@@ -5,7 +5,7 @@ use crate::workbench_client::ui::{
 };
 use crate::workbench_client::{ClientActionDisposition, DisplayPhase, DrawReceipt};
 use crate::{
-    client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme,
+    client_view::ClientView, localization::Locale, tui_hit_map::HitMapBuilder, tui_theme::Theme,
 };
 use ratatui::{Terminal, backend::TestBackend};
 
@@ -647,7 +647,7 @@ fn notifications_follow_the_real_pending_admitted_and_released_menu_capture() {
 fn global_menu_renders_the_resolved_configured_binding_with_ascii_fallback() {
     use crate::{
         client_view::{ClientView, KeyLabelGlyphs, PrefixAction},
-        tui_pointer::HitTarget,
+        tui_hit_map::HitTarget,
         tui_theme::GlyphSet,
     };
     use orchbee_local_runtime::{KeyChord, KeyOverride, KeySettings, KeyTrigger};
@@ -720,7 +720,7 @@ fn global_menu_renders_the_resolved_configured_binding_with_ascii_fallback() {
 
 #[test]
 fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() {
-    use crate::{client_view::ClientView, tui_layout::project_shell_areas, tui_pointer::HitTarget};
+    use crate::{client_view::ClientView, tui_hit_map::HitTarget, tui_layout::project_shell_areas};
     use ratatui::layout::Rect;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
@@ -948,7 +948,7 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
                             .find(|x| {
                                 matches!(
                                     hits.hit_target_at(*x, y),
-                                    Some(crate::tui_pointer::HitTarget::ActionMenuRow {
+                                    Some(crate::tui_hit_map::HitTarget::ActionMenuRow {
                                         row,
                                         ..
                                     }) if *row == menu.selected
@@ -1006,7 +1006,7 @@ fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint
         terminal: &mut Terminal<TestBackend>,
         width: u16,
         locale: Locale,
-    ) -> crate::tui_pointer::FrameHitMap {
+    ) -> crate::tui_hit_map::FrameHitMap {
         let mut hits = HitMapBuilder::new();
         let mut receipt = crate::workbench_client::DrawReceipt::default();
         terminal
@@ -1055,13 +1055,13 @@ fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint
                     .find(|x| {
                         matches!(
                             hits.hit_target_at(*x, y),
-                            Some(crate::tui_pointer::HitTarget::ActionMenuRow { row, .. }) if *row == selected
+                            Some(crate::tui_hit_map::HitTarget::ActionMenuRow { row, .. }) if *row == selected
                         )
                     })
                     .map(|x| (x, y))
             })
             .expect("selected row visible in the first resized paint");
-        let Some(crate::tui_pointer::HitTarget::ActionMenuRow { token, row }) =
+        let Some(crate::tui_hit_map::HitTarget::ActionMenuRow { token, row }) =
             hits.hit_target_at(x + 2, y)
         else {
             panic!("selected label retains a painted menu hit");
@@ -1378,9 +1378,9 @@ fn ux_status_menu_uses_a_search_cursor_and_cancel_restores_the_pane_cursor() {
             let hits = hits.finish();
             let target = hits.hit_target_at(cursor.x, cursor.y);
             if capturing {
-                assert_eq!(target, Some(&crate::tui_pointer::HitTarget::OverlaySurface));
+                assert_eq!(target, Some(&crate::tui_hit_map::HitTarget::OverlaySurface));
             } else {
-                assert_ne!(target, Some(&crate::tui_pointer::HitTarget::OverlaySurface));
+                assert_ne!(target, Some(&crate::tui_hit_map::HitTarget::OverlaySurface));
             }
         }
     }
@@ -1684,14 +1684,14 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
                     let map = hits.finish();
                     assert!((0..height).all(|y| (0..width).all(|x| !matches!(
                         map.hit_target_at(x, y),
-                        Some(crate::tui_pointer::HitTarget::ActionMenuControl { .. })
+                        Some(crate::tui_hit_map::HitTarget::ActionMenuControl { .. })
                     ))));
                     let rows = (0..height)
                         .flat_map(|y| (0..width).map(move |x| (x, y)))
                         .filter(|(x, y)| {
                             matches!(
                                 map.hit_target_at(*x, *y),
-                                Some(crate::tui_pointer::HitTarget::ActionMenuRow { .. })
+                                Some(crate::tui_hit_map::HitTarget::ActionMenuRow { .. })
                             )
                         })
                         .count();

@@ -45,7 +45,7 @@ pub(super) struct SidebarReorder {
     pub(super) source: SidebarReorderSource,
     paint: SidebarReorderPaint,
     target: DrawnSidebarTarget,
-    fingerprint: super::hit_map::interaction::Fingerprint,
+    fingerprint: crate::tui_hit_map::interaction::Fingerprint,
     item: Item,
     origin: (u16, u16),
     position: (u16, u16),

@@ -234,7 +234,7 @@ fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
     use crate::{
         action_menu::{ActionMenu, MenuAction, MenuUnavailable},
         terminal_text::display_width,
-        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_hit_map::{HitMapBuilder, HitTarget},
         tui_theme::{Role, Theme},
         workbench_client::ModalPresentation,
     };
@@ -514,8 +514,8 @@ fn root_chrome_actions_use_canonical_geometry_roles_and_exact_targets() {
     use crate::{
         client_view::{ClientAction, SidebarSurface},
         terminal_text::display_width,
+        tui_hit_map::{HitMapBuilder, HitTarget},
         tui_layout::{ViewportTier, project_shell_areas},
-        tui_pointer::{HitMapBuilder, HitTarget},
         tui_theme::{Role, Theme},
     };
     use ratatui::{layout::Rect, style::Modifier};
@@ -602,7 +602,7 @@ fn root_chrome_actions_use_canonical_geometry_roles_and_exact_targets() {
 #[test]
 fn too_small_root_compositor_paints_only_the_notice_and_status() {
     use crate::{
-        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_hit_map::{HitMapBuilder, HitTarget},
         tui_theme::Theme,
     };
 
@@ -1564,10 +1564,8 @@ fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
         terminal_input::{
             MouseAction, MouseButton, MouseEvent, TerminalInputPort, TerminalInputUnavailable,
         },
-        tui_pointer::{
-            HitMapBuilder, HitTarget, InteractionTarget, MotionObservability, PointerOutcome,
-            PointerState, PrimaryContract,
-        },
+        tui_hit_map::{HitMapBuilder, HitTarget, InteractionTarget, PrimaryContract},
+        tui_pointer::{MotionObservability, PointerOutcome, PointerState},
         tui_theme::{GlyphSet, Theme},
         workbench_client::PopupView,
     };
@@ -1771,7 +1769,7 @@ fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
 fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
     use crate::{
         terminal_projection::TerminalProjection,
-        tui_pointer::HitMapBuilder,
+        tui_hit_map::HitMapBuilder,
         tui_theme::{ColorLevel, Theme},
         workbench_client::PopupView,
     };
@@ -1893,7 +1891,7 @@ fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
 
 #[test]
 fn popup_draw_rejects_incomplete_geometry_before_clearing_or_publishing_targets() {
-    use crate::{tui_pointer::HitMapBuilder, workbench_client::PopupView};
+    use crate::{tui_hit_map::HitMapBuilder, workbench_client::PopupView};
     use orchbee_workbench_protocol::WorkbenchRequestId;
     use ratatui::{layout::Rect, widgets::Paragraph};
 
@@ -1940,8 +1938,9 @@ fn divider_hover_and_press_style_every_exact_target_cell_without_leaking_to_the_
         terminal_input::{
             MouseAction, MouseButton, MouseEvent, TerminalInputPort, TerminalInputUnavailable,
         },
+        tui_hit_map::HitMapBuilder,
         tui_layout::{DividerSource, DrawnDivider, divide_panes},
-        tui_pointer::{HitMapBuilder, MotionObservability, PointerState},
+        tui_pointer::{MotionObservability, PointerState},
         tui_theme::{Role, Theme},
     };
     use orchbee_workbench_protocol::{

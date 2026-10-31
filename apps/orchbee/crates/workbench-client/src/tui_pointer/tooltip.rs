@@ -8,7 +8,7 @@
 use std::time::{Duration, Instant};
 
 use super::FrameHitMap;
-use super::hit_map::tooltip::{Key, Shown};
+use crate::tui_hit_map::tooltip::{Key, Shown};
 
 /// How long the pointer rests on a target before its tooltip opens.
 const OPEN_DELAY: Duration = Duration::from_millis(300);

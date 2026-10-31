@@ -46,13 +46,13 @@ use crate::{
         CaptureClaims, CaptureOwner, ClientCaptureClaims, WorkbenchCaptureOwner,
         client_chrome_overlay_allowed, project_capture,
     },
+    tui_hit_map::{
+        HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
+        ProjectedPointer,
+    },
     tui_layout::{
         PaneFrame, ShellAreas, SidebarArea, SidebarLayer, ViewportTier, native_terminal_area,
         overlay_area, place_overlay, project_shell_areas, status_chip_area, terminal_area,
-    },
-    tui_pointer::hit_map::{
-        HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
-        ProjectedPointer,
     },
     tui_theme::{Role, Theme},
     workbench_client::{
@@ -61,7 +61,7 @@ use crate::{
     },
 };
 
-use crate::tui_pointer::hit_map::GlobalChromeAction;
+use crate::tui_hit_map::GlobalChromeAction;
 
 use crate::workbench_client::TerminalStatus;
 
@@ -90,6 +90,7 @@ pub(crate) mod controls;
 mod copy_mode;
 mod divider_resize;
 mod help;
+mod machine_picker;
 mod modal;
 pub(crate) use modal::{OverlayFrame, overlay_surface, titled_overlay};
 use modal::{overlay_block, overlay_heading, overlay_title};

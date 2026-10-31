@@ -55,7 +55,7 @@ pub enum ModeRequest {
     /// One bounded OSC 10/11 host-default color query at terminal admission.
     AppearanceQuery(crate::terminal_host_appearance::Query),
     WindowTitle(Option<orchbee_workbench_protocol::WindowTitle>),
-    Notification(crate::notifications::Effect),
+    Notification(crate::client_view::notifications::Effect),
     /// Bracketed-paste lease for modal capture.
     BracketedPaste(bool),
     /// One complete outer pointer level, or release of every owned pointer mode.
@@ -96,7 +96,7 @@ pub struct PointerFrameFacts {
 }
 
 pub use super::terminal_selection::{PointerSelectionCell, PointerSelectionIntent};
-pub use crate::tui_pointer::hit_map::{DrawnPresentationTarget, PointerUnboundPane};
+pub use crate::tui_hit_map::{DrawnPresentationTarget, PointerUnboundPane};
 
 /// Input that the focused pane's own viewport owns: provisional selection, link activation and
 /// non-Live history movement. Each step names the exact painted incarnation it resolves against.
@@ -313,10 +313,10 @@ pub trait TerminalInputPort {
     /// and the default moves nothing.
     fn scroll_list(
         &mut self,
-        _target: &crate::tui_pointer::hit_map::ListScrollTarget,
+        _target: &crate::tui_hit_map::ListScrollTarget,
         _up: bool,
         _lines: usize,
-    ) -> Option<crate::tui_pointer::hit_map::ListScrollTarget> {
+    ) -> Option<crate::tui_hit_map::ListScrollTarget> {
         None
     }
 

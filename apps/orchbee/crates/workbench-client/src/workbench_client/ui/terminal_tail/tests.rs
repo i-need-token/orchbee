@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme,
+    client_view::ClientView, localization::Locale, tui_hit_map::HitMapBuilder, tui_theme::Theme,
 };
 use orchbee_terminal_protocol::{
     HistoryAnchorStatus, HistoryChanged, TerminalTextFrame, TerminalTextStyle,

@@ -3,7 +3,7 @@
 use ratatui::{Frame, layout::Rect, widgets::Clear};
 
 use crate::{
-    tui_pointer::hit_map::{HitLayer, HitMapBuilder, HitTarget},
+    tui_hit_map::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::{Role, Theme},
     workbench_client::WorkbenchClientView,
 };

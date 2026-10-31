@@ -2,7 +2,7 @@
 use super::*;
 use crate::{
     localization::Locale,
-    tui_pointer::{HitMapBuilder, HitTarget},
+    tui_hit_map::{HitMapBuilder, HitTarget},
     tui_render::test_capture::capture_screen,
     tui_theme::{Role, Theme},
 };
@@ -12,10 +12,10 @@ fn painted_map(
     ui: &WorkbenchClientUi,
     key: &PaneRef,
     content: Rect,
-) -> crate::tui_pointer::FrameHitMap {
+) -> crate::tui_hit_map::FrameHitMap {
     let mut hits = HitMapBuilder::new();
     hits.record(
-        crate::tui_pointer::HitLayer::Foreground,
+        crate::tui_hit_map::HitLayer::Foreground,
         content,
         HitTarget::Pane {
             pane: key.clone(),
@@ -23,7 +23,7 @@ fn painted_map(
         },
     );
     hits.record(
-        crate::tui_pointer::HitLayer::Foreground,
+        crate::tui_hit_map::HitLayer::Foreground,
         Rect::new(content.right(), content.y, 1, content.height),
         HitTarget::Scrollbar {
             pane: key.clone(),
@@ -99,7 +99,7 @@ fn paint(
     height: u16,
     locale: Locale,
     theme: &Theme,
-) -> (ratatui::buffer::Buffer, crate::tui_pointer::FrameHitMap) {
+) -> (ratatui::buffer::Buffer, crate::tui_hit_map::FrameHitMap) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut hits = HitMapBuilder::new();
     terminal

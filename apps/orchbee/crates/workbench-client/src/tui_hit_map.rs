@@ -12,14 +12,14 @@ use orchbee_workbench_protocol::WorkbenchTabId;
 use crate::client_view::help::HelpControl;
 use crate::workbench_client::state::{PaneRef, TabStripStart};
 
-pub(super) mod chrome;
-pub(super) mod interaction;
-pub(super) mod list_scroll;
-pub(super) mod modal;
+pub(crate) mod chrome;
+pub(crate) mod interaction;
+pub(crate) mod list_scroll;
+pub(crate) mod modal;
 mod presentation;
-pub(super) mod sidebar_reorder;
-pub(super) mod tabs;
-pub(super) mod tooltip;
+pub(crate) mod sidebar_reorder;
+pub(crate) mod tabs;
+pub(crate) mod tooltip;
 
 pub use interaction::InteractionTarget;
 pub(crate) use interaction::PointerProjection;
@@ -50,8 +50,8 @@ pub enum PrimaryContract {
 /// Typed interaction metadata supplied by the feature that owns the target.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct InteractionSpec {
-    pub(in crate::tui_pointer) primary: PrimaryContract,
-    pub(in crate::tui_pointer) availability: InteractionAvailability,
+    pub(crate) primary: PrimaryContract,
+    pub(crate) availability: InteractionAvailability,
 }
 
 impl InteractionSpec {
@@ -73,7 +73,7 @@ impl InteractionSpec {
         Self::new(primary, InteractionAvailability::Disabled)
     }
 
-    pub(in crate::tui_pointer) const fn enabled_for_pointer(self) -> bool {
+    pub(crate) const fn enabled_for_pointer(self) -> bool {
         matches!(self.availability, InteractionAvailability::Enabled)
     }
 }
@@ -226,10 +226,10 @@ pub enum HitTarget {
         source: crate::terminal_scrollbar::ScrollbarSnapshot,
     },
     /// Exact painted incarnation and stable destination within that Panel.
-    Presentation(crate::workbench_client::DrawnPresentationTarget),
+    Presentation(crate::tui_hit_map::DrawnPresentationTarget),
     /// Empty members carry exact structural identity and no runtime incarnation.
     Unbound {
-        selected: crate::terminal_input::PointerUnboundPane,
+        selected: crate::tui_hit_map::PointerUnboundPane,
         presentation: Option<orchbee_workbench_protocol::TerminalPresentationId>,
     },
     /// Painted overlay body with no action — swallows the click so it
@@ -314,7 +314,7 @@ impl HitTarget {
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct HitRegion {
+pub(crate) struct HitRegion {
     pub(super) layer: HitLayer,
     pub(super) rect: Rect,
     pub(super) target: HitTarget,
@@ -322,7 +322,7 @@ pub(super) struct HitRegion {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum HitResolution<'a> {
+pub(crate) enum HitResolution<'a> {
     Region(&'a HitTarget),
     /// A capturing overlay was active and the cell hit nothing — an
     /// outside click: dismiss, never fall through.
@@ -332,13 +332,13 @@ pub(super) enum HitResolution<'a> {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(super) enum HitRegionResolution<'a> {
+pub(crate) enum HitRegionResolution<'a> {
     Region(&'a HitRegion),
     OverlayBackdrop,
     Dead,
 }
 
-pub(super) fn contains(rect: Rect, column: u16, row: u16) -> bool {
+pub(crate) fn contains(rect: Rect, column: u16, row: u16) -> bool {
     u32::from(column) >= u32::from(rect.x)
         && u32::from(column) < u32::from(rect.x) + u32::from(rect.width)
         && u32::from(row) >= u32::from(rect.y)

@@ -180,7 +180,7 @@ fn install_capture_read(
 
 struct CapturedBoardFrame {
     terminal: Terminal<TestBackend>,
-    hits: crate::tui_pointer::FrameHitMap,
+    hits: crate::tui_hit_map::FrameHitMap,
     receipt: DrawReceipt,
     width: u16,
     height: u16,
@@ -209,7 +209,7 @@ impl CapturedBoardFrame {
     ) -> Option<(u16, u16, crate::workbench_client::AgentBoardRowTarget)> {
         for y in 0..self.height {
             for x in 0..self.width {
-                if let Some(crate::tui_pointer::HitTarget::AgentBoardRow(target)) =
+                if let Some(crate::tui_hit_map::HitTarget::AgentBoardRow(target)) =
                     self.hits.hit_target_at(x, y)
                     && target.session().as_str() == session
                 {
@@ -226,7 +226,7 @@ impl CapturedBoardFrame {
     ) -> Option<crate::workbench_client::AgentBoardControlTarget> {
         for y in 0..self.height {
             for x in 0..self.width {
-                if let Some(crate::tui_pointer::HitTarget::AgentBoardControl(target)) =
+                if let Some(crate::tui_hit_map::HitTarget::AgentBoardControl(target)) =
                     self.hits.hit_target_at(x, y)
                     && target.control() == control
                 {
@@ -255,7 +255,7 @@ fn render_board_frame(
 ) -> CapturedBoardFrame {
     let shell = crate::client_view::ClientView::new(width);
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-    let mut hits = crate::tui_pointer::HitMapBuilder::new();
+    let mut hits = crate::tui_hit_map::HitMapBuilder::new();
     let mut receipt = DrawReceipt::default();
     terminal
         .draw(|frame| {

@@ -3,8 +3,8 @@ use super::*;
 use crate::{
     client_view::{ClientView, Notice, PanelDirection},
     localization::Locale,
+    tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget},
     tui_layout::{DividerDrag, DrawnDivider, ResizeProjection},
-    tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget},
 };
 use orchbee_workbench_protocol::{
     ClientLayoutChange, ClientSplitRatio, PanelNode, WorkbenchAction, WorkbenchRevision,

@@ -7,7 +7,6 @@ pub use crate::terminal_events::{
     PaneEncode, PaneMouseEvent, encode_cursor_arrows, encode_pane_report,
 };
 use crate::terminal_events::{decoder, mouse, utf8};
-pub(crate) use crate::workbench_client::input::PointerUnboundPane;
 pub use crate::workbench_client::input::{
     BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, RenameAction, SettingsAction,
     SetupAction, SurfaceAction, TabAction, WorktreeAction,

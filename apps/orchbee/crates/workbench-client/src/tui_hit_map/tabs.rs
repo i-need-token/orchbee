@@ -10,9 +10,7 @@ pub struct TabDragPreview {
 }
 
 /// Strip regions exposed at both ends: Tab and group tokens and the create control.
-pub(in crate::tui_pointer) fn exposed_regions(
-    map: &FrameHitMap,
-) -> impl Iterator<Item = (Rect, &HitTarget)> {
+pub(crate) fn exposed_regions(map: &FrameHitMap) -> impl Iterator<Item = (Rect, &HitTarget)> {
     map.regions
         .iter()
         .filter(|region| {
@@ -36,7 +34,7 @@ pub(in crate::tui_pointer) fn exposed_regions(
 
 /// The strip's tokens as a drag sees them. A Tab's close track joins its token whether the control
 /// is revealed or hidden, so a pointer that reveals or hides it never changes the drag's geometry.
-pub(in crate::tui_pointer) fn tab_regions(map: &FrameHitMap) -> Vec<(Rect, HitTarget)> {
+pub(crate) fn tab_regions(map: &FrameHitMap) -> Vec<(Rect, HitTarget)> {
     let mut tokens: Vec<(Rect, HitTarget)> = Vec::new();
     for (rect, target) in exposed_regions(map) {
         let target = match target {

@@ -3,7 +3,7 @@ use crate::workbench_client::state::worktree_launch::{
     WorktreeEdit, WorktreeMode, WorktreeToken, tests::discovery,
 };
 use crate::{
-    tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget, ModalControl},
+    tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget, ModalControl},
     tui_theme::Role,
 };
 use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorkbenchRequestId, WorktreeSource};

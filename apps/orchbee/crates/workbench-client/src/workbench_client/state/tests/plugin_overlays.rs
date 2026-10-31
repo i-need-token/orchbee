@@ -498,7 +498,7 @@ fn overlay_close_ownership_is_exact_fair_and_never_automatically_resubmitted() {
 #[test]
 fn overlay_render_draws_and_hit_tests_only_the_focused_overlay_incarnation() {
     use crate::client_view::ClientView;
-    use crate::tui_pointer::{HitMapBuilder, HitTarget};
+    use crate::tui_hit_map::{HitMapBuilder, HitTarget};
     use crate::workbench_client::{
         ClientProjectionStatus, WorkbenchClientView, ui::KeyedProjection,
     };
