@@ -6,7 +6,10 @@ On Windows, New Worktree and `Ctrl+B W` create a checkout with a generated branc
 base after read-only source discovery. No Project chooser or branch/name form blocks this intent.
 Use the CLI for an explicit branch, base or destination. `Ctrl+B O` opens an exact checkout
 selected from the repository listing. F1 and `[keys].new_worktree` / `open_worktree` use the
-existing binding registry.
+existing binding registry. Both start only from a settled Workspace view. Without one, such as
+in a Workspace whose terminals ended while its close waits on a failed removal, they start
+nothing and the status line says the Workspace is not ready; while another local operation
+owns the structure, it says the Client is busy. A retained result still reopens first.
 
 Default creation gives the Workspace a short localized name (Worktree 1, Worktree 2, and so on),
 choosing the first unused name across the current snapshot. The generated Git branch retains its

@@ -633,6 +633,7 @@ impl<'a> WorkbenchClientView<'a> {
             }
             ClientNotice::WorkspaceChanged => WorkbenchClientNotice::WorkspaceChanged,
             ClientNotice::NoWorkspace => WorkbenchClientNotice::NoWorkspace,
+            ClientNotice::WorkspaceNotReady => WorkbenchClientNotice::WorkspaceNotReady,
             ClientNotice::ConfirmationCancelled => WorkbenchClientNotice::ConfirmationCancelled,
             ClientNotice::DraftCancelled => WorkbenchClientNotice::DraftCancelled,
             ClientNotice::ModalOwnsInput => WorkbenchClientNotice::ModalOwnsInput,

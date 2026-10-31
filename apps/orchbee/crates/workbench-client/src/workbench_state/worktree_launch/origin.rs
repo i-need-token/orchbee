@@ -1,7 +1,9 @@
 //! Exact native origin and primary source sampling facts, independent of Git execution.
 use super::{WorktreeMode, WorktreeToken};
 use crate::workbench_projection::{ClientContextTabs, ClientMemberTarget, ClientTerminalBinding};
-use crate::workbench_state::{ClientPhaseKind, OperationDeadlines, PaneRef, WorkbenchClientState};
+use crate::workbench_state::{
+    ClientNotice, ClientPhaseKind, OperationDeadlines, PaneRef, WorkbenchClientState,
+};
 use orchbee_client_server_protocol::Geometry;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Origin {
@@ -41,14 +43,20 @@ pub(crate) struct Preparation {
     pub(crate) deadlines: OperationDeadlines,
 }
 impl WorkbenchClientState {
+    /// Why W and O cannot start from this Client state, such as a Workspace whose
+    /// terminal is unavailable while its close waits on a failed removal.
+    pub(crate) fn worktree_refusal(&self) -> Option<ClientNotice> {
+        if !matches!(
+            self.phase_kind(),
+            ClientPhaseKind::Ready | ClientPhaseKind::Empty
+        ) {
+            return Some(ClientNotice::WorkspaceNotReady);
+        }
+        (self.mutation_blocks_structure() || self.pending_refresh_generation().is_some())
+            .then_some(ClientNotice::LocalBusy)
+    }
     pub(crate) fn worktree_origin(&self) -> Option<Origin> {
-        if self.mutation_blocks_structure()
-            || self.pending_refresh_generation().is_some()
-            || !matches!(
-                self.phase_kind(),
-                ClientPhaseKind::Ready | ClientPhaseKind::Empty
-            )
-        {
+        if self.worktree_refusal().is_some() {
             return None;
         }
         let member = self.active().and_then(|active| {

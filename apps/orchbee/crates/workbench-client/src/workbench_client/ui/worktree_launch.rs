@@ -232,6 +232,11 @@ impl WorkbenchClientUi {
         let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
             return ClientActionDisposition::KeepNavigator;
         };
+        // A refused W or O starts nothing; say why instead of dropping the key.
+        if let Some(notice) = state.worktree_refusal() {
+            state.set_notice(notice);
+            return ClientActionDisposition::KeepNavigator;
+        }
         if !self.worktrees.ensure_lane(&self.clock) {
             return ClientActionDisposition::KeepNavigator;
         }
@@ -248,6 +253,9 @@ impl WorkbenchClientUi {
             self.worktrees.read_at = None;
             ClientActionDisposition::DismissNavigator
         } else {
+            if !self.worktrees.launcher.visible() {
+                state.set_notice(ClientNotice::LocalBusy);
+            }
             ClientActionDisposition::KeepNavigator
         }
     }

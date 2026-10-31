@@ -1101,3 +1101,56 @@ fn pending_removal_status_is_read_again_with_bounded_backoff_until_it_settles() 
     assert!(ui.worktrees.close());
     server.finish().unwrap();
 }
+
+#[test]
+fn worktree_keys_in_a_workspace_without_a_ready_view_say_why_and_start_nothing() {
+    use crate::workbench_client::mailbox::EventDeadline;
+    use crate::workbench_state::ClientPhaseKind;
+    // Bootstrapped but never attached, like a Workspace whose terminals ended
+    // while its close waits on a failed removal.
+    let clock = crate::local_client::test_support::server::adjustable_operation_clock(Arc::new(
+        std::sync::atomic::AtomicU64::new(0),
+    ));
+    let mailbox = Arc::new(CommandMailbox::new(
+        10,
+        Geometry::new(80, 24, 8, 16).unwrap(),
+    ));
+    let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::Bootstrap {
+                selection: None,
+                cache: crate::workbench_projection::project_preferred_workspace(
+                    &super::membership::snapshot(2, 1),
+                )
+                .unwrap(),
+            },
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    assert_eq!(
+        ui.state.as_ref().unwrap().phase_kind(),
+        ClientPhaseKind::Starting
+    );
+    for mode in [WorktreeMode::Create, WorktreeMode::Open] {
+        assert_eq!(
+            ui.request_worktree(mode),
+            ClientActionDisposition::KeepNavigator
+        );
+        assert_eq!(
+            ui.view().notice(),
+            Some(crate::localization::WorkbenchClientNotice::WorkspaceNotReady)
+        );
+        assert!(!ui.worktrees.launcher.visible());
+        assert!(
+            ui.state
+                .as_ref()
+                .unwrap()
+                .pending_refresh_generation()
+                .is_none()
+        );
+    }
+}

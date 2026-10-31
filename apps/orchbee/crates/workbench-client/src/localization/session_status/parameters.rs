@@ -58,6 +58,7 @@ pub(crate) enum WorkbenchClientNotice {
     WorkspaceCloseUnavailable,
     WorkspaceChanged,
     NoWorkspace,
+    WorkspaceNotReady,
     ConfirmationCancelled,
     DraftCancelled,
     ModalOwnsInput,

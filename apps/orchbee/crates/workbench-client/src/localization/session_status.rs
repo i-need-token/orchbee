@@ -251,6 +251,10 @@ impl Locale {
                 Self::ZhCn => "工作区已变化，请重试".to_owned(),
             },
             WorkbenchClientNotice::NoWorkspace => self.no_current_workspace().to_owned(),
+            WorkbenchClientNotice::WorkspaceNotReady => match self {
+                Self::EnUs => "Workspace not ready · no worktree action started".to_owned(),
+                Self::ZhCn => "工作区未就绪 · 未开始工作树操作".to_owned(),
+            },
             WorkbenchClientNotice::RenameNotRenamed => match self {
                 Self::EnUs => "Tab not renamed".to_owned(),
                 Self::ZhCn => "标签页未重命名".to_owned(),

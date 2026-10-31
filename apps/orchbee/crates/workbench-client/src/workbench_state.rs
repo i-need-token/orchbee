@@ -690,6 +690,8 @@ pub(crate) enum ClientNotice {
     /// A conditional Workspace Close reply no longer matched its target; nothing was closed.
     WorkspaceChanged,
     NoWorkspace,
+    /// The current Workspace has no settled view to start a Worktree action from.
+    WorkspaceNotReady,
     PanelNotApplied,
     ConfirmationCancelled,
     DraftCancelled,
