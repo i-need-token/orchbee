@@ -149,6 +149,38 @@ fn plugin_pane_resolution_freezes_root_relative_argv_and_protected_target_contex
     );
 }
 
+/// The catalog stores the canonical verbatim root, which cmd.exe refuses as a UNC path. A plugin
+/// process must still be able to enter its root through `ORCHBEE_PLUGIN_ROOT`.
+#[test]
+fn plugin_pane_root_variable_lets_cmd_enter_the_plugin_root() {
+    use std::os::windows::process::CommandExt;
+    let (root, registry, snapshot, command, selector) = fixture();
+    let frozen = resolve_from(&registry, &snapshot, &command, &selector).unwrap();
+    // cmd.exe parses its own argv0, where a forward slash would read as a switch.
+    let shell = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+        .join("System32")
+        .join("cmd.exe");
+    let output = std::process::Command::new(shell)
+        .args(["/d", "/c"])
+        .raw_arg(r#""cd /d %ORCHBEE_PLUGIN_ROOT% && cd""#)
+        .envs(frozen.environment.entries().iter().cloned())
+        .current_dir(std::env::temp_dir())
+        .output()
+        .unwrap();
+    let reported = String::from_utf8_lossy(&output.stdout)
+        .trim_end()
+        .to_owned();
+    assert!(
+        output.status.success() && !reported.is_empty(),
+        "cmd could not enter ORCHBEE_PLUGIN_ROOT: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        fs::canonicalize(&reported).unwrap(),
+        fs::canonicalize(&root.0).unwrap()
+    );
+}
+
 #[test]
 fn plugin_pane_resolution_refuses_disabled_missing_and_incompatible_platform() {
     let (root, registry, snapshot, command, selector) = fixture();

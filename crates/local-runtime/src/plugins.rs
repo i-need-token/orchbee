@@ -1,5 +1,6 @@
 //! Shared Windows plugin catalog. Executing declared commands belongs to the runtime.
 mod manifest;
+mod root_spelling;
 mod source;
 mod store;
 pub use manifest::{

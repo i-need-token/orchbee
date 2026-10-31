@@ -266,3 +266,29 @@ fn plugin_catalog_user_paths_are_stable_distinct_and_windows_safe() {
     }
     assert!(registry.config_dir("../outside").is_err());
 }
+
+#[test]
+fn plugin_root_process_spelling_drops_only_a_faithful_verbatim_prefix() {
+    use super::root_spelling::process_spelling;
+    for (stored, process) in [
+        (r"\\?\C:\work\plugin", r"C:\work\plugin"),
+        (r"\\?\C:\", r"C:\"),
+        (r"\\?\UNC\server\share\plugin", r"\\server\share\plugin"),
+        (r"C:\work\plugin", r"C:\work\plugin"),
+    ] {
+        assert_eq!(process_spelling(stored), process);
+    }
+    for kept in [
+        r"\\?\C:\work\trailing.",
+        r"\\?\C:\work\trailing \plugin",
+        r"\\?\C:\work\..\plugin",
+        r"\\?\C:\work\NUL",
+        r"\\?\C:\work\com1.txt",
+        r"\\?\C:/work",
+        r"\\?\C:\work\\plugin",
+        r"\\?\UNC\",
+        r"\\?\GLOBALROOT\Device",
+    ] {
+        assert_eq!(process_spelling(kept), kept);
+    }
+}

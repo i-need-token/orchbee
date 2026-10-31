@@ -126,7 +126,7 @@ fn freeze(
         .ok_or(unavailable)?;
     let mut environment = vec![
         ("ORCHBEE_PLUGIN_ID".into(), entry.manifest.id.clone()),
-        ("ORCHBEE_PLUGIN_ROOT".into(), entry.plugin_root.clone()),
+        ("ORCHBEE_PLUGIN_ROOT".into(), entry.process_root()),
         ("ORCHBEE_PLUGIN_ENTRYPOINT_ID".into(), pane.id.clone()),
         ("ORCHBEE_PLUGIN_CONFIG_DIR".into(), path(&config)?),
         ("ORCHBEE_PLUGIN_STATE_DIR".into(), path(&state)?),

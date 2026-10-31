@@ -36,6 +36,14 @@ pub struct PluginRegistryEntry {
     #[serde(deserialize_with = "Option::deserialize")]
     pub source: Option<PluginManagedSource>,
 }
+impl PluginRegistryEntry {
+    /// The plugin root as plugin processes receive it: the ordinary Win32 spelling of the stored
+    /// canonical root whenever that names the same directory, otherwise the stored spelling.
+    #[must_use]
+    pub fn process_root(&self) -> String {
+        super::root_spelling::process_spelling(&self.plugin_root)
+    }
+}
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Catalog {
