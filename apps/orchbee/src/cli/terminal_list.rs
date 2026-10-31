@@ -514,15 +514,11 @@ mod tests {
         assert!(optional_report_unavailable(PanelAgentFailure::Unavailable));
         assert!(!optional_report_unavailable(PanelAgentFailure::Denied));
         assert_eq!(
-            metadata_failure(
-                crate::local_client::workbench::metadata_exchange::MetadataExchangeReason::Read
-            ),
+            metadata_failure(crate::local_client::MetadataExchangeReason::Read),
             FailureKind::TransportLoss
         );
         assert_eq!(
-            metadata_failure(
-                crate::local_client::workbench::metadata_exchange::MetadataExchangeReason::Protocol
-            ),
+            metadata_failure(crate::local_client::MetadataExchangeReason::Protocol),
             FailureKind::ProtocolInvalid
         );
     }

@@ -9,7 +9,7 @@ use crate::{
         query, worktree_source,
     },
     invocation::{OutputFormat, WorktreeQueryCommand},
-    local_client::workbench::worktree_query::WorktreeQueryError,
+    local_client::WorktreeQueryError,
     localization::Locale,
 };
 use orchbee_workbench_protocol::{WorkbenchWorktreeQuery, WorkbenchWorktreeQueryResult};

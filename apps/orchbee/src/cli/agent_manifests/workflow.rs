@@ -10,7 +10,7 @@ use crate::{
         failure_output, query,
     },
     invocation::{ManifestCommand, OutputFormat},
-    local_client::workbench::metadata_exchange::MetadataExchangeReason,
+    local_client::MetadataExchangeReason,
     localization::Locale,
 };
 use orchbee_workbench_protocol::{

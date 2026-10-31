@@ -304,7 +304,7 @@ fn exchange(
     action: Action,
     signal: &ArmedSignals,
 ) -> Result<SemanticEventsResult, Failure> {
-    use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason as E;
+    use crate::local_client::MetadataExchangeReason as E;
     if signal.requested() {
         return Err(Failure::new(FailureKind::Cancelled));
     }

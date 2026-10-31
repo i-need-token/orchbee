@@ -1,6 +1,6 @@
 //! Complete canonical pages overlap one physical checkpoint and its final revision fence.
 use super::{MAXIMUM_BYTES, Row};
-use crate::local_client::cancellation::Cancellation;
+use crate::local_client::Cancellation;
 use crate::{local_client::LocalClient, machine_agents, machine_observation, machines::ProfileId};
 use orchbee_agent_observation_protocol::{
     AgentListCursor, AgentListOutcome, AgentListRejectionReason, AgentReadRequest, AgentReadResult,

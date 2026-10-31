@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     invocation::CreationDirectory,
-    local_client::{LocalClient, workbench::metadata_exchange::MetadataExchangeReason},
+    local_client::{LocalClient, MetadataExchangeReason},
 };
 use orchbee_workbench_protocol::{
     ConfigurationAction, ConfigurationFailure, ConfigurationOutcome, ConfigurationRequest,

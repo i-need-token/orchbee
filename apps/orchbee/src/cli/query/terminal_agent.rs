@@ -3,7 +3,7 @@ use super::{
     BorrowedFd, Failure, FailureKind, Instant, LocalClient, ProtocolVersion, Snapshot, request_id,
 };
 use crate::cli::results::terminal_agent::TerminalAgentRead;
-use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason;
+use crate::local_client::MetadataExchangeReason;
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::{
     PanelAgentAction, PanelAgentFailure, PanelAgentOutcome, PanelAgentRequest, WorkbenchRevision,

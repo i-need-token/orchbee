@@ -377,43 +377,43 @@ mod workflow {
         Target, TerminalListFilter,
     };
     use crate::local_client::LocalClient;
-    use crate::local_client::workbench::label_rename::{
-        WorkbenchLabelRenameNotSubmitted, WorkbenchLabelRenameOutcomeUnknownReason,
-        WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameRequest, WorkbenchLabelRenameSubmission,
-    };
-    use crate::local_client::workbench::launch_profile::{
+    use crate::local_client::{
         LaunchProfileMutationNotSubmitted, LaunchProfileOutcomeUnknownReason,
         WorkbenchLaunchProfileCreateRequest, WorkbenchLaunchProfileDeleteRequest,
         WorkbenchLaunchProfileMutationPrecommit, WorkbenchLaunchProfileMutationSubmission,
     };
-    use crate::local_client::workbench::panel_close::{
+    use crate::local_client::{
+        WorkbenchLabelRenameNotSubmitted, WorkbenchLabelRenameOutcomeUnknownReason,
+        WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameRequest, WorkbenchLabelRenameSubmission,
+    };
+    use crate::local_client::{
         WorkbenchPanelCloseAccepted, WorkbenchPanelCloseFailure, WorkbenchPanelCloseNotSubmitted,
         WorkbenchPanelClosePrecommit, WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission,
     };
-    use crate::local_client::workbench::panel_input::{
+    use crate::local_client::{
         WorkbenchPanelInputNotSubmitted, WorkbenchPanelInputOutcomeUnknownReason,
         WorkbenchPanelInputPrecommit, WorkbenchPanelInputRequest, WorkbenchPanelInputSubmission,
     };
-    use crate::local_client::workbench::panel_placement::{
+    use crate::local_client::{
         WorkbenchPanelPlacementCommit, WorkbenchPanelPlacementNotSubmitted,
         WorkbenchPanelPlacementOutcomeUnknownReason, WorkbenchPanelPlacementPrecommit,
         WorkbenchPanelPlacementRequest, WorkbenchPanelPlacementSubmission,
     };
-    use crate::local_client::workbench::panel_relocate::{
+    use crate::local_client::{
         WorkbenchPanelRelocateCommit, WorkbenchPanelRelocateNotSubmitted,
         WorkbenchPanelRelocateOutcomeUnknownReason, WorkbenchPanelRelocatePrecommit,
         WorkbenchPanelRelocateRequest, WorkbenchPanelRelocateSubmission,
     };
-    use crate::local_client::workbench::panel_split::{
+    use crate::local_client::{
         WorkbenchPanelSplitCommit, WorkbenchPanelSplitNotSubmitted,
         WorkbenchPanelSplitOutcomeUnknownReason, WorkbenchPanelSplitPrecommit,
         WorkbenchPanelSplitRequest, WorkbenchPanelSplitSubmission,
     };
-    use crate::local_client::workbench::workspace_setup::{
+    use crate::local_client::{
         WorkbenchSetupCommit, WorkbenchSetupNotSubmitted, WorkbenchSetupOutcomeUnknownReason,
         WorkbenchSetupPrecommit, WorkbenchSetupRequest, WorkbenchSetupSubmission,
     };
-    use crate::local_client::workbench::{
+    use crate::local_client::{
         WorkbenchTabCloseAccepted, WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted,
         WorkbenchTabClosePrecommit, WorkbenchTabCloseRequest, WorkbenchTabCloseSubmission,
         WorkbenchTabCreateCommit, WorkbenchTabCreateNotSubmitted,
@@ -1553,9 +1553,7 @@ mod workflow {
                 }
             }
             WorkbenchAction::WorkspaceLaunch { options, .. } => {
-                use crate::local_client::workbench::workspace_launch::{
-                    WorkspaceLaunchRequest, WorkspaceLaunchSubmission,
-                };
+                use crate::local_client::{WorkspaceLaunchRequest, WorkspaceLaunchSubmission};
                 let request = WorkspaceLaunchRequest::try_from(command).map_err(|_| internal())?;
                 let submission = if wake.is_some() {
                     client.submit_workspace_launch_with_wake(request, deadline, wake)

@@ -14,7 +14,7 @@ use orchbee_terminal_protocol::{
 use std::{collections::HashSet, sync::Arc};
 
 mod rejection;
-pub use rejection::{ProjectionOperation, ProjectionRejection, ProjectionStage};
+pub use rejection::ProjectionRejection;
 use rejection::{ProjectionOperation as Operation, ProjectionStage as Stage};
 
 #[derive(Clone)]

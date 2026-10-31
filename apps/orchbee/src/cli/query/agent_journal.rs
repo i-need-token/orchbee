@@ -4,7 +4,7 @@ use super::{
     agent_protocol_invalid, agent_unavailable_details, obap_request_id,
 };
 use crate::cli::results::agent_source;
-use crate::local_client::agent::{AgentExchangeError, AgentReadOperation};
+use crate::local_client::{AgentExchangeError, AgentReadOperation};
 use orchbee_agent_observation_protocol::{
     AgentChange, AgentChangesCursor, AgentChangesOutcome, AgentChangesRejectionReason,
     AgentChangesRequest, AgentChangesResult,

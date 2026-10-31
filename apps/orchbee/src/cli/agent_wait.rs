@@ -32,7 +32,7 @@ use crate::cli::results::{AgentWaitDoc, AgentWaitHistory, Projection, agent_sour
 use crate::cli::wait_deadline::WaitDeadline;
 use crate::cli::{Failure, FailureKind};
 use crate::invocation::AgentWaitCondition;
-use crate::local_client::agent::{AgentExchangeError, AgentExchangeFailure, AgentReadOperation};
+use crate::local_client::{AgentExchangeError, AgentExchangeFailure, AgentReadOperation};
 use crate::local_client::{LocalClient, exchange_wake_fault, exchange_wake_ready};
 
 /// The private first poll interval — no public flag exposes it.

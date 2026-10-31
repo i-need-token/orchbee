@@ -77,7 +77,7 @@ fn observe_close(
     generation: Option<WorkbenchTabCloseAttemptGeneration>,
     signals: &mut ArmedSignals,
 ) -> Result<(Value, u8), Failure> {
-    use crate::local_client::workbench::{
+    use crate::local_client::{
         WorkbenchTabCloseResumeSubmission as Tab,
         WorkbenchWorkspaceCloseResumeSubmission as Workspace,
     };

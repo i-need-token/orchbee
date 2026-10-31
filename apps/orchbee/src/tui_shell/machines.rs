@@ -3,7 +3,7 @@ use super::{SurfaceSlot, TerminalSurface, terminal_geometry};
 use crate::background_thread::BackgroundThread;
 use crate::{
     client_view::ClientView,
-    local_client::{LocalClient, cancellation::OwnedCancellation},
+    local_client::{LocalClient, OwnedCancellation},
     machine_discovery::{Connection, Context, Discovery, display_label, same_endpoint},
     machine_picker::{Choice, SelectionOrigin, SelectionScope},
     machines::{Profile, Store},

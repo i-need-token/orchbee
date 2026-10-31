@@ -376,7 +376,7 @@ fn run_prepared_surface(
         .set_focus_reporting(true)
         .map_err(TuiFailure::Runtime)?;
 
-    let mut system_notifications = crate::notifications::system::SystemNotifications::new();
+    let mut system_notifications = crate::notifications::SystemNotifications::new();
     let mut surface = SurfaceSlot::Owned(terminal_input);
     let mut machines = None;
     let run_result = run_surface_loop(
@@ -480,7 +480,7 @@ fn run_prepared_surface(
 fn settle_background_exit(
     surface: &mut SurfaceSlot<'_>,
     machines: Option<&mut machines::Manager>,
-    system_notifications: &mut crate::notifications::system::SystemNotifications,
+    system_notifications: &mut crate::notifications::SystemNotifications,
 ) -> io::Result<()> {
     system_notifications.request_stop();
     let deadline = Instant::now() + crate::background_thread::EXIT_BUDGET;

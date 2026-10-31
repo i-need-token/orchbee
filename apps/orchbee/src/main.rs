@@ -37,7 +37,6 @@ use orchbee_workbench_client::application::machine_tunnel;
 use orchbee_workbench_client::application::machines;
 use orchbee_workbench_client::application::notifications;
 use orchbee_workbench_client::application::onboarding;
-use orchbee_workbench_client::application::terminal_buffer_text;
 use orchbee_workbench_client::application::terminal_content;
 use orchbee_workbench_client::application::terminal_copy;
 use orchbee_workbench_client::application::terminal_device;

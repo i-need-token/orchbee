@@ -2,10 +2,7 @@
 use super::error;
 use crate::{
     cli::{Failure, FailureKind, query},
-    local_client::{
-        LocalClient,
-        workbench::creation::{CreationRequest, CreationSubmission},
-    },
+    local_client::{CreationRequest, CreationSubmission, LocalClient},
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,

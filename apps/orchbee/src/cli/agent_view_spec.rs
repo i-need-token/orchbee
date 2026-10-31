@@ -2,7 +2,7 @@
 use super::{Failure, FailureKind, Output, failure_output, output, query};
 use crate::cli::console_interrupt::{ArmedSignals, Finish, SignalWatch};
 use crate::cli_text::CliText;
-use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason;
+use crate::local_client::MetadataExchangeReason;
 use crate::{invocation::OutputFormat, localization::Locale};
 use orchbee_workbench_protocol::{
     AgentViewAction, AgentViewFailure, AgentViewOutcome, AgentViewRequest, AgentViewResult,

@@ -8,7 +8,7 @@ use super::{
 };
 use crate::cli_text::CliText;
 use crate::{
-    local_client::{LocalClient, workbench::metadata_exchange::MetadataExchangeReason},
+    local_client::{LocalClient, MetadataExchangeReason},
     localization::Locale,
 };
 use orchbee_workbench_protocol::{

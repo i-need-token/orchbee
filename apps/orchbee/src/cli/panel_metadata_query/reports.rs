@@ -1,7 +1,7 @@
 //! Read explicit reports under the enclosing metadata query's deadline and aggregate budget.
 use super::{Failure, FailureKind, changed, expected};
 use crate::cli::{console_interrupt::SignalWatch, query};
-use crate::local_client::{LocalClient, workbench::metadata_exchange::MetadataExchangeReason};
+use crate::local_client::{LocalClient, MetadataExchangeReason};
 use orchbee_workbench_protocol::{
     MAXIMUM_PANEL_AGENT_READ_ROWS, PanelAgentAction, PanelAgentFailure, PanelAgentOutcome,
     PanelAgentRequest, PanelAgentRow, PanelAgentView, Snapshot, WorkbenchPanelId,

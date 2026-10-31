@@ -549,10 +549,9 @@ fn journal_failure(
     effect: Instant,
 ) -> Failure {
     let failure = match error {
-        query::JournalError::Exchange(error) => query::classify_agent_read(
-            error,
-            crate::local_client::agent::AgentReadOperation::Changes,
-        ),
+        query::JournalError::Exchange(error) => {
+            query::classify_agent_read(error, crate::local_client::AgentReadOperation::Changes)
+        }
         query::JournalError::Failure(failure) => failure,
     };
     let reason = if failure.kind == FailureKind::Timeout {

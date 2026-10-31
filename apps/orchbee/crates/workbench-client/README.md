@@ -11,9 +11,11 @@ loop and backend that hold the host terminal. This crate is the Client runtime t
 compose. It never depends on the binary, never parses invocations, and never writes command output.
 
 Every implementation module is private. [`src/lib.rs`](src/lib.rs) re-exports, by explicit name,
-only the items the application's production code uses, through the `application` facade whose
-submodules mirror the implementation module paths. The facade never re-exports a whole module or
-uses a glob. Items the application does not name keep crate or narrower visibility.
+only the items the application's production code uses, through the `application` facade. Each
+facade submodule is the top-level implementation module that owns its items; a nested submodule
+appears only where that owner's children export the same names, such as `Error` or `read`. The
+facade never mirrors deeper implementation paths, re-exports a whole module, or uses a glob. Items
+the application does not name keep crate or narrower visibility.
 
 ## Contents
 

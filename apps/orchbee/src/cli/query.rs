@@ -72,8 +72,8 @@ use super::{
     Failure, FailureKind, SourceFinalization, stage_details, stage_reason_details, target_details,
 };
 use crate::invocation::{Resource, Target};
-use crate::local_client::agent::{AgentExchangeError, AgentExchangeFailure, AgentReadOperation};
-use crate::local_client::workbench::{
+use crate::local_client::{AgentExchangeError, AgentExchangeFailure, AgentReadOperation};
+use crate::local_client::{
     LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure, SnapshotReadError,
     SnapshotReadFailure, WorkbenchWorkspaceCloseFailure, WorkbenchWorkspaceCloseNotSubmitted,
     WorkbenchWorkspaceCloseReadError, WorktreeListReadError, WorktreeListReadFailure,

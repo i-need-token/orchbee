@@ -3,7 +3,7 @@
 use super::{Answer, Wait};
 use crate::{
     cli::{Failure, FailureKind, console_interrupt::SignalWatch, query},
-    local_client::{LocalClient, workbench::client_view::ClientViewExchangeError},
+    local_client::{ClientViewExchangeError, LocalClient},
 };
 use orchbee_workbench_protocol::{
     ClientViewAction, ClientViewControl, ClientViewControlStatus, ClientViewOutcome,

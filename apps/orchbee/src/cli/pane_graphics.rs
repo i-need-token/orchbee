@@ -10,9 +10,7 @@ use crate::{
         OutputFormat, QueryCommand,
         pane_graphics::{Action as CommandAction, Command},
     },
-    local_client::{
-        LocalClient, workbench::metadata_exchange::MetadataExchangeReason as ExchangeReason,
-    },
+    local_client::{LocalClient, MetadataExchangeReason as ExchangeReason},
     localization::Locale,
 };
 use orchbee_workbench_protocol::{

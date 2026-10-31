@@ -9,7 +9,7 @@ use super::{
 use super::{NETWORK_BUDGET, Projection, deadline_after, snapshot_session_until};
 use crate::cli::caller_context::PanelTarget;
 use crate::cli::results;
-use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason;
+use crate::local_client::MetadataExchangeReason;
 use orchbee_workbench_protocol::PanelAgentFailure;
 use serde_json::{Value, json};
 

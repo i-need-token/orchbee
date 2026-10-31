@@ -7,7 +7,7 @@ use crate::{
         query,
     },
     invocation::{WorktreeStartCommand, WorktreeStartKind},
-    local_client::{LocalClient, workbench::worktree_query::WorktreeQueryError},
+    local_client::{LocalClient, WorktreeQueryError},
 };
 use orchbee_workbench_protocol::{
     Snapshot, WorkbenchDirectoryPath, WorkbenchRequestId, WorkbenchWorktreeQuery,

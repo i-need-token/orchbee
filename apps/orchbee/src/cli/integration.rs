@@ -150,10 +150,10 @@ pub(super) fn run_job(
 /// started is never reported as a definite refusal.
 #[cfg(any(unix, windows))]
 fn settle(
-    end: crate::local_client::agent_integration::AgentIntegrationJobEnd,
+    end: crate::local_client::AgentIntegrationJobEnd,
     mutating: bool,
 ) -> Result<crate::agent_integrations::IntegrationReport, Failure> {
-    use crate::local_client::agent_integration::AgentIntegrationJobEnd as End;
+    use crate::local_client::AgentIntegrationJobEnd as End;
     use orchbee_workbench_protocol::AgentIntegrationFailure as Reason;
     let failure = |kind, reason| {
         Failure::new(kind).details(stage_reason_details("agent-integration", reason))

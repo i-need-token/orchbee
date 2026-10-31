@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     invocation::{OutputFormat, Target, panel_terminal_creation::PanelTerminalCreationCommand},
-    local_client::workbench::creation::{CreationRequest, CreationSubmission},
+    local_client::{CreationRequest, CreationSubmission},
     localization::Locale,
 };
 use orchbee_workbench_protocol::{

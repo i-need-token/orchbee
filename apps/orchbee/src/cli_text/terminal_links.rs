@@ -1,6 +1,6 @@
 //! Localized safe link receipts and public immutable viewport help.
 use crate::localization::Locale;
-use crate::{terminal_buffer_text::TerminalTextPoint, terminal_links::ResolvedLink};
+use crate::{terminal_copy::TerminalTextPoint, terminal_links::ResolvedLink};
 impl super::CliText {
     pub(crate) fn cli_terminal_link_activation(
         self,

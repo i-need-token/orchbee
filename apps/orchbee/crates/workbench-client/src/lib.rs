@@ -68,7 +68,8 @@ mod windows_signal;
 mod workbench_client;
 mod worktree_destination;
 
-/// The surface the `orchbee` application consumes, mirroring the owning module paths. Every
+/// The surface the `orchbee` application consumes, grouped by the top-level module that owns each
+/// item. A nested module appears only where an owner's children export the same names. Every
 /// other item stays inside its private implementation module.
 pub mod application {
     pub mod agent_provider {
@@ -144,133 +145,77 @@ pub mod application {
     }
 
     pub mod local_client {
+        pub use crate::local_client::agent::{
+            AgentExchangeError, AgentExchangeFailure, AgentReadOperation,
+        };
+        pub use crate::local_client::cancellation::{Cancellation, OwnedCancellation};
+        pub use crate::local_client::workbench::agent_integration::AgentIntegrationJobEnd;
+        pub use crate::local_client::workbench::client_view::ClientViewExchangeError;
+        pub use crate::local_client::workbench::creation::{CreationRequest, CreationSubmission};
+        pub use crate::local_client::workbench::label_rename::{
+            WorkbenchLabelRenameNotSubmitted, WorkbenchLabelRenameOutcomeUnknownReason,
+            WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameRequest,
+            WorkbenchLabelRenameSubmission,
+        };
+        pub use crate::local_client::workbench::launch_profile::{
+            LaunchProfileMutationNotSubmitted, LaunchProfileOutcomeUnknownReason,
+            WorkbenchLaunchProfileCreateRequest, WorkbenchLaunchProfileDeleteRequest,
+            WorkbenchLaunchProfileMutationPrecommit, WorkbenchLaunchProfileMutationSubmission,
+        };
+        pub use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason;
+        pub use crate::local_client::workbench::panel_close::{
+            WorkbenchPanelCloseAccepted, WorkbenchPanelCloseFailure,
+            WorkbenchPanelCloseNotSubmitted, WorkbenchPanelClosePrecommit,
+            WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission,
+        };
+        pub use crate::local_client::workbench::panel_input::{
+            WorkbenchPanelInputNotSubmitted, WorkbenchPanelInputOutcomeUnknownReason,
+            WorkbenchPanelInputPrecommit, WorkbenchPanelInputRequest,
+            WorkbenchPanelInputSubmission,
+        };
+        pub use crate::local_client::workbench::panel_placement::{
+            WorkbenchPanelPlacementCommit, WorkbenchPanelPlacementNotSubmitted,
+            WorkbenchPanelPlacementOutcomeUnknownReason, WorkbenchPanelPlacementPrecommit,
+            WorkbenchPanelPlacementRequest, WorkbenchPanelPlacementSubmission,
+        };
+        pub use crate::local_client::workbench::panel_relocate::{
+            WorkbenchPanelRelocateCommit, WorkbenchPanelRelocateNotSubmitted,
+            WorkbenchPanelRelocateOutcomeUnknownReason, WorkbenchPanelRelocatePrecommit,
+            WorkbenchPanelRelocateRequest, WorkbenchPanelRelocateSubmission,
+        };
+        pub use crate::local_client::workbench::panel_split::{
+            WorkbenchPanelSplitCommit, WorkbenchPanelSplitNotSubmitted,
+            WorkbenchPanelSplitOutcomeUnknownReason, WorkbenchPanelSplitPrecommit,
+            WorkbenchPanelSplitRequest, WorkbenchPanelSplitSubmission,
+        };
+        pub use crate::local_client::workbench::workspace_launch::{
+            WorkspaceLaunchRequest, WorkspaceLaunchSubmission,
+        };
+        pub use crate::local_client::workbench::workspace_setup::{
+            WorkbenchSetupCommit, WorkbenchSetupNotSubmitted, WorkbenchSetupOutcomeUnknownReason,
+            WorkbenchSetupPrecommit, WorkbenchSetupRequest, WorkbenchSetupSubmission,
+        };
+        pub use crate::local_client::workbench::worktree_query::WorktreeQueryError;
+        pub use crate::local_client::workbench::{
+            LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure, SnapshotReadError,
+            SnapshotReadFailure, WorkbenchTabCloseAccepted, WorkbenchTabCloseFailure,
+            WorkbenchTabCloseNotSubmitted, WorkbenchTabClosePrecommit, WorkbenchTabCloseRequest,
+            WorkbenchTabCloseResumeSubmission, WorkbenchTabCloseSubmission,
+            WorkbenchTabCreateCommit, WorkbenchTabCreateNotSubmitted,
+            WorkbenchTabCreateOutcomeUnknownReason, WorkbenchTabCreatePrecommit,
+            WorkbenchTabCreateRequest, WorkbenchTabCreateSubmission, WorkbenchTabMoveCommit,
+            WorkbenchTabMoveNotSubmitted, WorkbenchTabMoveOutcomeUnknownReason,
+            WorkbenchTabMovePrecommit, WorkbenchTabMoveRequest, WorkbenchTabMoveSubmission,
+            WorkbenchWorkspaceCloseAccepted, WorkbenchWorkspaceCloseFailure,
+            WorkbenchWorkspaceCloseNotSubmitted, WorkbenchWorkspaceClosePrecommit,
+            WorkbenchWorkspaceCloseReadError, WorkbenchWorkspaceCloseRequest,
+            WorkbenchWorkspaceCloseResumeSubmission, WorkbenchWorkspaceCloseSubmission,
+            WorktreeListReadError, WorktreeListReadFailure,
+        };
         pub use crate::local_client::{
             LocalClient, LocalClientConnectError, LocalClientOrigin, LocalOperationClock,
             OutcomeUnknownReason, SubmissionError, exchange_wake_fault, exchange_wake_ready,
         };
-
-        pub mod agent {
-            pub use crate::local_client::agent::{
-                AgentExchangeError, AgentExchangeFailure, AgentReadOperation,
-            };
-        }
-
-        pub mod agent_integration {
-            pub use crate::local_client::workbench::agent_integration::AgentIntegrationJobEnd;
-        }
-
-        pub mod cancellation {
-            pub use crate::local_client::cancellation::{Cancellation, OwnedCancellation};
-        }
-
-        pub mod workbench {
-            pub use crate::local_client::workbench::{
-                LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure, SnapshotReadError,
-                SnapshotReadFailure, WorkbenchTabCloseAccepted, WorkbenchTabCloseFailure,
-                WorkbenchTabCloseNotSubmitted, WorkbenchTabClosePrecommit,
-                WorkbenchTabCloseRequest, WorkbenchTabCloseResumeSubmission,
-                WorkbenchTabCloseSubmission, WorkbenchTabCreateCommit,
-                WorkbenchTabCreateNotSubmitted, WorkbenchTabCreateOutcomeUnknownReason,
-                WorkbenchTabCreatePrecommit, WorkbenchTabCreateRequest,
-                WorkbenchTabCreateSubmission, WorkbenchTabMoveCommit, WorkbenchTabMoveNotSubmitted,
-                WorkbenchTabMoveOutcomeUnknownReason, WorkbenchTabMovePrecommit,
-                WorkbenchTabMoveRequest, WorkbenchTabMoveSubmission,
-                WorkbenchWorkspaceCloseAccepted, WorkbenchWorkspaceCloseFailure,
-                WorkbenchWorkspaceCloseNotSubmitted, WorkbenchWorkspaceClosePrecommit,
-                WorkbenchWorkspaceCloseReadError, WorkbenchWorkspaceCloseRequest,
-                WorkbenchWorkspaceCloseResumeSubmission, WorkbenchWorkspaceCloseSubmission,
-                WorktreeListReadError, WorktreeListReadFailure,
-            };
-
-            pub mod client_view {
-                pub use crate::local_client::workbench::client_view::ClientViewExchangeError;
-            }
-
-            pub mod creation {
-                pub use crate::local_client::workbench::creation::{
-                    CreationRequest, CreationSubmission,
-                };
-            }
-
-            pub mod label_rename {
-                pub use crate::local_client::workbench::label_rename::{
-                    WorkbenchLabelRenameNotSubmitted, WorkbenchLabelRenameOutcomeUnknownReason,
-                    WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameRequest,
-                    WorkbenchLabelRenameSubmission,
-                };
-            }
-
-            pub mod launch_profile {
-                pub use crate::local_client::workbench::launch_profile::{
-                    LaunchProfileMutationNotSubmitted, LaunchProfileOutcomeUnknownReason,
-                    WorkbenchLaunchProfileCreateRequest, WorkbenchLaunchProfileDeleteRequest,
-                    WorkbenchLaunchProfileMutationPrecommit,
-                    WorkbenchLaunchProfileMutationSubmission,
-                };
-            }
-
-            pub mod metadata_exchange {
-                pub use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason;
-            }
-
-            pub mod panel_close {
-                pub use crate::local_client::workbench::panel_close::{
-                    WorkbenchPanelCloseAccepted, WorkbenchPanelCloseFailure,
-                    WorkbenchPanelCloseNotSubmitted, WorkbenchPanelClosePrecommit,
-                    WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission,
-                };
-            }
-
-            pub mod panel_input {
-                pub use crate::local_client::workbench::panel_input::{
-                    WorkbenchPanelInputNotSubmitted, WorkbenchPanelInputOutcomeUnknownReason,
-                    WorkbenchPanelInputPrecommit, WorkbenchPanelInputRequest,
-                    WorkbenchPanelInputSubmission,
-                };
-            }
-
-            pub mod panel_placement {
-                pub use crate::local_client::workbench::panel_placement::{
-                    WorkbenchPanelPlacementCommit, WorkbenchPanelPlacementNotSubmitted,
-                    WorkbenchPanelPlacementOutcomeUnknownReason, WorkbenchPanelPlacementPrecommit,
-                    WorkbenchPanelPlacementRequest, WorkbenchPanelPlacementSubmission,
-                };
-            }
-
-            pub mod panel_relocate {
-                pub use crate::local_client::workbench::panel_relocate::{
-                    WorkbenchPanelRelocateCommit, WorkbenchPanelRelocateNotSubmitted,
-                    WorkbenchPanelRelocateOutcomeUnknownReason, WorkbenchPanelRelocatePrecommit,
-                    WorkbenchPanelRelocateRequest, WorkbenchPanelRelocateSubmission,
-                };
-            }
-
-            pub mod panel_split {
-                pub use crate::local_client::workbench::panel_split::{
-                    WorkbenchPanelSplitCommit, WorkbenchPanelSplitNotSubmitted,
-                    WorkbenchPanelSplitOutcomeUnknownReason, WorkbenchPanelSplitPrecommit,
-                    WorkbenchPanelSplitRequest, WorkbenchPanelSplitSubmission,
-                };
-            }
-
-            pub mod workspace_launch {
-                pub use crate::local_client::workbench::workspace_launch::{
-                    WorkspaceLaunchRequest, WorkspaceLaunchSubmission,
-                };
-            }
-
-            pub mod workspace_setup {
-                pub use crate::local_client::workbench::workspace_setup::{
-                    WorkbenchSetupCommit, WorkbenchSetupNotSubmitted,
-                    WorkbenchSetupOutcomeUnknownReason, WorkbenchSetupPrecommit,
-                    WorkbenchSetupRequest, WorkbenchSetupSubmission,
-                };
-            }
-
-            pub mod worktree_query {
-                pub use crate::local_client::workbench::worktree_query::WorktreeQueryError;
-            }
-        }
     }
 
     pub mod localization {
@@ -321,20 +266,12 @@ pub mod application {
 
     pub mod notifications {
         pub use crate::notifications::paint::render;
-        pub use crate::notifications::system::sound;
+        pub use crate::notifications::system::{SystemNotifications, sound};
         pub use crate::workbench_client::notification_available as available;
-
-        pub mod system {
-            pub use crate::notifications::system::SystemNotifications;
-        }
     }
 
     pub mod onboarding {
         pub use crate::onboarding::State;
-    }
-
-    pub mod terminal_buffer_text {
-        pub use crate::terminal_buffer_text::TerminalTextPoint;
     }
 
     pub mod terminal_content {
@@ -398,9 +335,7 @@ pub mod application {
     }
 
     pub mod terminal_projection {
-        pub use crate::terminal_projection::{
-            ProjectionOperation, ProjectionRejection, ProjectionStage, TerminalProjection,
-        };
+        pub use crate::terminal_projection::TerminalProjection;
     }
 
     pub mod terminal_text {

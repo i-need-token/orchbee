@@ -8,8 +8,8 @@ use orchbee_local_runtime::Cohort;
 
 use crate::{
     cli::{Failure, FailureKind, query::AgentQueryError, results::Projection},
+    local_client::AgentReadOperation,
     local_client::LocalClient,
-    local_client::agent::AgentReadOperation,
 };
 
 pub(super) fn run(

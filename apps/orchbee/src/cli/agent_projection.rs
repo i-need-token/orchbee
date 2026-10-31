@@ -11,7 +11,7 @@ use crate::{
         read::{Checkpoint, Error},
     },
     invocation::{AgentSelector, QueryCommand, Target},
-    local_client::{LocalClient, cancellation::Cancellation},
+    local_client::{Cancellation, LocalClient},
     localization::Locale,
 };
 use orchbee_agent_observation_protocol::AgentNameTarget;

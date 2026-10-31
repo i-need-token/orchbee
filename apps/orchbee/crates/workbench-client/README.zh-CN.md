@@ -10,8 +10,10 @@ crate。
 Client 运行时。它从不依赖二进制，从不解析调用，也从不写入命令输出。
 
 所有实现模块都是私有的。[`src/lib.rs`](src/lib.rs) 通过 `application` 门面按名称显式重导出
-应用生产代码实际使用的条目，门面的子模块与实现模块路径一一对应。门面从不重导出整个模块，
-也不使用 glob。应用未直接使用的条目都保持 crate 级或更窄的可见性。
+应用生产代码实际使用的条目。门面的每个子模块对应拥有这些条目的顶层实现模块；只有当该模块的
+子模块导出同名条目（例如 `Error` 或 `read`）时，门面才保留一层嵌套子模块。门面从不映射更深的
+实现路径，从不重导出整个模块，也不使用 glob。应用未直接使用的条目都保持 crate 级或更窄的
+可见性。
 
 ## 内容
 
@@ -86,4 +88,4 @@ Client 的每个后台线程都通过 `background_thread::BackgroundThread` 持�
 [仓库验证门禁](../../../../docs/zh-CN/VERIFICATION.md)。
 导出的模块和条目必须对应真实应用消费者，并保留私有测试的归属。
 
-<!-- documentation-pairing: english-sha256=9a52595557040d062deab33d4b132ebdddd7d4b3ed603b90c49ad50d8f787cb1 zh-cn-sha256=f2192c2dd7ca842babfd6193d3447a8bbc057cd3e9e8071313f0c1630a68c498 -->
+<!-- documentation-pairing: english-sha256=b201e2c0cdb5be52b905c6986f152fc905ecba5f80582c8522a3439636294397 zh-cn-sha256=fd7737a2a820c363d0bb09167af111ae1fbb1e7fa1941ae33d6210c40d07ffc0 -->

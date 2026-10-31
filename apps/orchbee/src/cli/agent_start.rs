@@ -172,7 +172,7 @@ fn integration_preflight(
         IntegrationId, IntegrationOperation, IntegrationReport, IntegrationRequest, State,
         model::{Availability, ManagementMode},
     };
-    use crate::local_client::agent_integration::AgentIntegrationJobEnd;
+    use crate::local_client::AgentIntegrationJobEnd;
     let id = IntegrationId::parse(crate::agent_provider::integration_id(provider)?)?;
     let budget = deadline
         .saturating_duration_since(Instant::now())

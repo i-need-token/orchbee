@@ -11,11 +11,8 @@ use crate::{
         ClientNavigationTarget, OutputFormat, PanelSwapCommand, PanelSwapDestination, Target,
     },
     local_client::{
-        LocalClient,
-        workbench::panel_placement::{
-            WorkbenchPanelPlacementNotSubmitted, WorkbenchPanelPlacementPrecommit,
-            WorkbenchPanelPlacementRequest, WorkbenchPanelPlacementSubmission,
-        },
+        LocalClient, WorkbenchPanelPlacementNotSubmitted, WorkbenchPanelPlacementPrecommit,
+        WorkbenchPanelPlacementRequest, WorkbenchPanelPlacementSubmission,
     },
     localization::Locale,
 };
