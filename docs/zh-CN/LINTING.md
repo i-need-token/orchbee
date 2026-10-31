@@ -87,6 +87,10 @@ Knip 不会自动发现 `.mjs` 配置。每次调用都必须传入
 这些报告选项不改变分析范围或私有入口检查旗标。证据封装包含实际报告类别、计数、配置提示和
 标签提示；Knip 内置 JSON reporter 单独使用时不包含这些提示。
 
+Knip 沿工作区包的入口追踪到构建产物 `dist`，所以要在 `pnpm build:packages` 之后运行本命令，
+`pnpm verify` 就是这个顺序。在未构建的检出中，每个未构建包的入口导出都会显示为未使用；这是
+前置条件缺失，不是失效的 API。
+
 完整图必须正常结束、原始退出码为零且没有诊断。完整图非零时立即失败，不执行 strict。
 strict 原始退出码为零时，只有不存在保留记录才接受。strict 原始退出码为一时，只有全部诊断
 逐条精确等于已批准、归包所有的 `(kind, file, name)` 记录，且每条记录仍有对应诊断，才能作出
@@ -133,4 +137,4 @@ strict 原始退出码为零时，只有不存在保留记录才接受。strict 
 
 每次自定义规则变更都要同时更新其实现、权威来源、诊断和回归测试。
 
-<!-- documentation-pairing: english-sha256=0b32680c832ed38cf763a104b97f7e949ffe737a615612e7f68d227865be17ea zh-cn-sha256=d29b67b8fe2a11fa206ac7c1f7a8f9cce608ef09d444d73f8ac107c9feaa961b -->
+<!-- documentation-pairing: english-sha256=db554727626c89383781948e14e148536380bad5b339ef50462774f9f00c96b7 zh-cn-sha256=ae1ddb2793b9f519f7d54e0dee3b6d12003877d5522359d8525000ca1745ab54 -->

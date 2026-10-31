@@ -98,6 +98,10 @@ options do not change the analysis scope or private-entry flags.
 The evidence envelope includes the actual report categories, counters, configuration and tag hints;
 Knip's built-in JSON reporter alone does not include those hints.
 
+Knip follows workspace package entries to their built `dist` files, so run the command after
+`pnpm build:packages`, as `pnpm verify` does. In an unbuilt checkout, the entry exports of every
+unbuilt package appear unused; that result is a missing precondition, not a dead API.
+
 The complete run must finish with raw exit zero and no diagnostics. A nonzero complete run fails
 before strict execution. Strict raw exit zero is accepted only with no retention records. Strict
 raw exit one may receive a separate aggregate acceptance only when every diagnostic exactly equals
