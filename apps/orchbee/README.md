@@ -804,6 +804,8 @@ and writes them after terminal restoration; it records no input bytes or pane te
 [timing contract](docs/native-terminal-environment.md#tui-timing-observations) defines the schema,
 failure and truncation rules, packet correlation, and the limits of internal completion times.
 Compare enabled and disabled runs before attributing delay to the measured runtime.
+Per-stage CPU costs without terminal I/O come from the
+[frame-pipeline benchmarks](crates/workbench-client/README.md#benchmarks).
 
 Collect the reference release baseline from the repository root:
 

@@ -705,6 +705,7 @@ Authored help 与 diagnostic 同时提供 `en-US` 和 `zh-CN`。Locale selection
 记录有界计时和计数样本，终端恢复后才写出；不记录输入字节或 pane 文本。
 [计时契约](docs/native-terminal-environment.zh-CN.md#tui-计时观测)定义 schema、失败与截断规则、
 数据包关联及内部完成时间的证据边界。把延迟归因于被测运行时前，先比较启用与禁用采集的运行。
+不含终端 I/O 的各环节 CPU 成本由[帧管线基准](crates/workbench-client/README.zh-CN.md#基准)给出。
 
 从仓库根目录收集 reference release baseline：
 
@@ -943,4 +944,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=bea32de7830a4a813c7046369cb09fc2080b267168f4c36c5768c2c88a6377e0 zh-cn-sha256=2b0b70a75ea8e3b3c750598127fc72f4db2d6fadcd8c8024257aaa2e5fa7ac9e -->
+<!-- documentation-pairing: english-sha256=93c0338d21c5a458a6c1a507300d26b9a87670c126570866ed057d9624389838 zh-cn-sha256=c0c6256cd8612128b9cbe14cf50019bcfcc34f1efafcd29aac95ad640364aec5 -->

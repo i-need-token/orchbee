@@ -81,6 +81,34 @@ Client 的每个后台线程都通过 `background_thread::BackgroundThread` 持�
 只有应用的开发依赖会开启此 feature，并同时开启 `orchbee-local-client/test-support`。发布构建
 和生产边界都不包含它，应用代码只消费生产边界。
 
+## 基准
+
+[`benches/frame_pipeline`](benches/frame_pipeline/main.rs) 通过 `application` 门面和公开的
+协议 crate 测量 TUI 帧管线各环节的耗时，遵循[基准规则](../../../../docs/zh-CN/TESTING.md#基准)。
+在仓库根目录运行：
+
+```sh
+cargo bench -p orchbee-workbench-client --bench frame_pipeline --locked
+cargo bench -p orchbee-workbench-client --bench frame_pipeline --locked -- apply/delta --samples 100
+```
+
+| 用例            | 阶段   | 被测操作                                                                                           |
+| --------------- | ------ | -------------------------------------------------------------------------------------------------- |
+| `decode/*`      | 两者   | 对一个 OBTF payload 调用 `decode_terminal_text_frame`；`snapshot` 属于初始化，`delta-*` 属于稳态。 |
+| `apply/init`    | 初始化 | 新建的 `TerminalProjection` 接收第一份完整快照记录。                                               |
+| `apply/full`    | 稳态   | 活动投影接收下一份完整快照记录，与重新同步后的情形相同。                                           |
+| `apply/delta-*` | 稳态   | 活动投影接收下一份增量记录：信封与路由检查、解码、行合并、行校验和 `FrameApplied` 反馈。           |
+
+记录是确定性合成的 OBTF 帧，尺寸为 80×24、120×32 和 240×64 个单元格，内容包含 ASCII、双宽
+CJK 字符和带样式的片段。增量替换一行（`delta-1`）、四分之一的行（`delta-quarter`）或全部行
+（`delta-all`）。基准不包含传输读取、布局、绘制、缓冲区比较、后端编码和控制台输出；实际循环
+由 [TUI 计时观测](../../docs/native-terminal-environment.zh-CN.md#tui-计时观测)覆盖。
+
+每次调用单独计时，用例返回的状态在计时停止后释放；表头报告读取时钟本身的开销。每行按单次
+调用报告：一次冷启动的首次调用，以及各样本的最小值、中位数、第 90 百分位数和中位数绝对偏差，
+另附输入字节数和中位吞吐量。`--list` 列出用例；`--samples <n>`、`--sample-ms <n>` 和
+`--warmup-ms <n>` 的默认值分别为 50、2 和 300；其他参数按子串选择用例。
+
 ## 维护
 
 此 crate 继承仓库工具链、lint 和共享依赖版本。在仓库根目录遵循
@@ -88,4 +116,4 @@ Client 的每个后台线程都通过 `background_thread::BackgroundThread` 持�
 [仓库验证门禁](../../../../docs/zh-CN/VERIFICATION.md)。
 导出的模块和条目必须对应真实应用消费者，并保留私有测试的归属。
 
-<!-- documentation-pairing: english-sha256=b201e2c0cdb5be52b905c6986f152fc905ecba5f80582c8522a3439636294397 zh-cn-sha256=fd7737a2a820c363d0bb09167af111ae1fbb1e7fa1941ae33d6210c40d07ffc0 -->
+<!-- documentation-pairing: english-sha256=6c5bfaaffcc9d1cb6cf66c67f8b8066871df5818edd95fc572302936d7b581a0 zh-cn-sha256=2cbbf6164c5a637f75c10cee5b69eb1c14a6b055be3d9ac83ad4049bc99311ed -->

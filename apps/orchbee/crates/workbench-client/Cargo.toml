@@ -73,3 +73,9 @@ rustix = { workspace = true, features = ["process"] }
 
 [lints]
 workspace = true
+
+# Standard-library stage timings: `cargo bench` measures; the test gate runs each case once.
+[[bench]]
+name = "frame_pipeline"
+path = "benches/frame_pipeline/main.rs"
+harness = false

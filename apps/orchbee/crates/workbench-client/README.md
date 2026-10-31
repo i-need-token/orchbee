@@ -98,6 +98,37 @@ Only the application's development dependency enables the feature, together with
 `orchbee-local-client/test-support`. Release builds and the production boundary never include it,
 and application code consumes only the production boundary.
 
+## Benchmarks
+
+[`benches/frame_pipeline`](benches/frame_pipeline/main.rs) times TUI frame-pipeline stages through
+the `application` facade and the public protocol crates, following the
+[benchmark rules](../../../../docs/TESTING.md#benchmarks). Run it from the repository root:
+
+```sh
+cargo bench -p orchbee-workbench-client --bench frame_pipeline --locked
+cargo bench -p orchbee-workbench-client --bench frame_pipeline --locked -- apply/delta --samples 100
+```
+
+| Case            | Phase  | Measured operation                                                                                                                              |
+| --------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `decode/*`      | both   | `decode_terminal_text_frame` on one OBTF payload; `snapshot` is initialization, `delta-*` steady state.                                         |
+| `apply/init`    | init   | A new `TerminalProjection` receiving its first complete snapshot record.                                                                        |
+| `apply/full`    | steady | A live projection receiving the next complete snapshot record, as after a resynchronization.                                                    |
+| `apply/delta-*` | steady | A live projection receiving the next delta record: envelope and route checks, decoding, row merge, row validation, and `FrameApplied` feedback. |
+
+Records are deterministic synthetic OBTF frames at 80×24, 120×32, and 240×64 cells with ASCII,
+double-width CJK, and styled runs. A delta replaces one row (`delta-1`), a quarter of the rows
+(`delta-quarter`), or every row (`delta-all`). The benchmark excludes transport reads, layout,
+painting, buffer diffing, backend encoding, and console output; the
+[TUI timing observations](../../docs/native-terminal-environment.md#tui-timing-observations) cover
+the actual loop.
+
+Every call is timed separately, and state that a case returns is released after its clock stops;
+the header reports the clock-read cost. Each row reports, per call, a single cold first call and the
+minimum, median, 90th percentile, and median absolute deviation over samples, plus input bytes and
+median throughput. `--list` prints the cases; `--samples <n>`, `--sample-ms <n>`, and
+`--warmup-ms <n>` default to 50, 2, and 300; other arguments select cases by substring.
+
 ## Maintenance
 
 The crate inherits the repository toolchain, lints, and shared dependency versions. Follow
