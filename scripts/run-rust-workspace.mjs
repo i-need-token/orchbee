@@ -620,9 +620,10 @@ function tomlEntries(manifest, section) {
 	const rest = manifest.slice(match.index + match[0].length);
 	const nextSection = /^\s*\[/mu.exec(rest);
 	const body = nextSection === null ? rest : rest.slice(0, nextSection.index);
+	// Full-line and trailing comments are not entries.
 	return body
 		.split(/\r?\n/u)
-		.map((line) => line.replace(/\s+#.*$/u, '').trim())
+		.map((line) => line.replace(/(?:^|\s+)#.*$/u, '').trim())
 		.filter((line) => line.length > 0);
 }
 

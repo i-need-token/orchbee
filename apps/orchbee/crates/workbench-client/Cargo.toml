@@ -25,8 +25,6 @@ orchbee-terminal-protocol = { path = "../../../../crates/terminal-protocol" }
 orchbee-local-client-protocol = { path = "../../../../crates/local-client-protocol" }
 orchbee-workbench-protocol = { path = "../../../../crates/workbench-protocol" }
 ratatui.workspace = true
-# Provider onboarding: capsule payload digests are canonical sha256.
-sha2.workspace = true
 unicode-segmentation.workspace = true
 # Copy-mode search and link-plugin patterns use the linear-time engine.
 regex.workspace = true
@@ -47,10 +45,6 @@ clipboard-win = { version = "5.4.1", default-features = false, features = ["std"
 orchbee-windows-console-host = { path = "../../../../crates/windows-console-host" }
 # Original console-title capture/restoration through safe UTF-16 Windows wrappers.
 win32console.workspace = true
-# Windows hook configuration documents reuse the workspace-pinned serde.
-serde_core = { version = "1.0.229", default-features = false, features = ["std"] }
-# Complete, bounded provider-owned TOML configuration inspection.
-toml.workspace = true
 # Suspended Job Object assignment and bounded process-tree cancellation.
 process-wrap.workspace = true
 windows.workspace = true
