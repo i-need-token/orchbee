@@ -19,7 +19,7 @@ manifest_check = true
 
 只有本文记录的配置段和键会影响 Orchbee，包括下文的 `[keys]` 与 `[ui]` 配置族。未知配置段、字段和动作会警告并忽略；加载配置绝不会启用插件、安装 Provider 或运行配置命令。
 
-`terminal.new_cwd` 接受 `follow`、`home`、`current`、`workspace` 或路径。空值表示 `follow`。路径使用 Windows CLI 路径适配器：相对路径基于配置文件父目录，波浪线路径使用 Windows 主目录，拒绝有歧义的驱动器相对路径、UNC 和设备路径。路径还必须是 workbench 目录路径，因此 `\\?\C:` 这类裸 verbatim 驱动器无效；`worktrees.directory` 适用相同规则。非法路径仅让该叶字段回退。缺少 `APPDATA` 时仍可使用默认值；显式值无效时不会静默回退。
+`terminal.new_cwd` 接受 `follow`、`home`、`current`、`workspace` 或路径。空值表示 `follow`。路径使用 Windows CLI 路径适配器：相对路径基于配置文件父目录，波浪线路径使用 Windows 主目录，拒绝有歧义的驱动器相对路径、UNC 和设备路径。路径还必须是 workbench 目录路径，因此 `\\?\C:` 这类裸 verbatim 驱动器无效；`worktrees.directory` 适用相同规则。非法路径仅让该叶字段回退。缺少 `APPDATA` 时 `config check` 仍使用默认值，但 Session 激活没有可用于 Session 偏好作用域的配置位置：它在提交激活标记前以配置失败 `APPDATA`/`missing`（退出码 1）拒绝。显式值无效时不会静默回退。
 
 警告使用有界的规范原因语法和封闭的处置词汇，只携带有界的规范点分字段路径。警告按字段和原因去重、排序。一份结果最多携带 128 条警告及精确的省略数量，因此截断始终可见。未知路径段会转义并在 UTF-8 边界截短；不同原始字段在显示截短前去重。
 
@@ -346,4 +346,4 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 
 `terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 从每次发布的配置快照应用该偏好，发布后的下一次分屏即使用新值。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。
 
-<!-- documentation-pairing: english-sha256=efb7d749cfe2735d11ee799a52d752edb706698aebb12a56c48333c33698be07 zh-cn-sha256=982008a9b47d1284beadfd367c05290534bfc60d3e80adb676fb4c55ae9c85d7 -->
+<!-- documentation-pairing: english-sha256=65dc16527c57f810db47ef7bac8940949df3e978b6fd47ca27bfd1f9c65b402d zh-cn-sha256=e4cafa90ef7ac6d2545ad155d8e005f05b6b3171f650a0658e6289d2da7558c7 -->

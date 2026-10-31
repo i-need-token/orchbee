@@ -252,6 +252,18 @@ fn connect_or_activate(
                                 ActivationCause::Configuration(error),
                             )
                         })?;
+                // The Server freezes its preference scope from this location and exits without
+                // one, so an environment that names no location is a configuration failure here,
+                // before the marker commits, rather than a Server exit that reads as a wedge.
+                #[cfg(windows)]
+                if settings.path.is_none() {
+                    return Err(ActivationFailure::caused(
+                        StartupFailure::Configuration,
+                        ActivationCause::Configuration(orchbee_local_runtime::SettingsError::new(
+                            "APPDATA", "missing",
+                        )),
+                    ));
+                }
                 #[cfg(windows)]
                 if let Some(catalog) = catalog {
                     let mut activation_id = [0; 16];

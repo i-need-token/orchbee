@@ -57,3 +57,23 @@ fn long_labels_take_their_own_line_and_descriptions_keep_their_column() {
         .unwrap();
     assert!(continuation.starts_with(&" ".repeat(28)));
 }
+
+#[test]
+fn source_line_breaks_after_wide_closing_punctuation_render_no_space() {
+    let document = Document {
+        title: String::new(),
+        summary: String::new(),
+        sections: vec![Section::Paragraphs {
+            heading: String::new(),
+            paragraphs: vec![
+                "覆盖 cohort adapter 载荷。\nWindows --outdated-only 只显示自有条目，\n保留诊断。\n'--format json' 输出\norchbee.agent.integrations 封套。".into(),
+            ],
+        }],
+        footer: Vec::new(),
+    };
+    let text = render_at_width(&document, 200);
+    assert!(
+        text.contains("载荷。Windows --outdated-only 只显示自有条目，保留诊断。'--format json' 输出 orchbee.agent.integrations 封套。"),
+        "{text}"
+    );
+}

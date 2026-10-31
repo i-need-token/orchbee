@@ -6,6 +6,9 @@ use unicode_segmentation::UnicodeSegmentation;
 
 pub(crate) const WIDTH: usize = 78;
 const MAX_LABEL_WIDTH: usize = 24;
+/// Wide closing punctuation already carries its trailing gap, so it joins the preceding token and
+/// a source line break after it renders no extra space.
+const CLOSING_PUNCTUATION: &str = "，。！？：；、）》】”’";
 
 /// One help page, independent of terminal state and output transport.
 pub(crate) struct Document {
@@ -160,9 +163,9 @@ fn tokens(text: &str) -> Vec<Token> {
                 });
             }
             if whitespace {
-                pending_space = true;
+                pending_space |= !tokens.last().is_some_and(closes_with_gap);
             } else if !pending_space
-                && "，。！？：；、）》】”’".contains(grapheme)
+                && CLOSING_PUNCTUATION.contains(grapheme)
                 && let Some(previous) = tokens.last_mut()
             {
                 previous.text.push_str(grapheme);
@@ -188,6 +191,14 @@ fn tokens(text: &str) -> Vec<Token> {
         });
     }
     tokens
+}
+
+fn closes_with_gap(token: &Token) -> bool {
+    token
+        .text
+        .graphemes(true)
+        .next_back()
+        .is_some_and(|last| cells(last) > 1 && CLOSING_PUNCTUATION.contains(last))
 }
 
 fn flow(output: &mut String, text: &str, first: &str, continuation: &str, width: usize) {

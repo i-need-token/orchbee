@@ -470,13 +470,20 @@ fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
         .env_remove("APPDATA")
         .output()
         .unwrap();
-    // A Windows Session cannot start without APPDATA, which names its preference scope, so the
-    // verb is refused before any job and no profile fallback appears.
-    assert_ne!(
+    // A Windows Session cannot start without APPDATA, which names its preference scope, so
+    // activation reports the missing location as configuration before any marker or job, and no
+    // profile fallback appears.
+    assert_eq!(
         absent.status.code(),
-        Some(0),
+        Some(1),
         "{}",
         String::from_utf8_lossy(&absent.stdout)
+    );
+    let refused: Value = serde_json::from_slice(&absent.stdout).unwrap();
+    assert_eq!(refused["schema"], "orchbee.cli.failure.configuration");
+    assert_eq!(
+        refused["failure"]["details"],
+        serde_json::json!({ "field": "APPDATA", "reason": "missing" })
     );
     assert!(!fixture.home().join(".config/devin").exists());
 }
