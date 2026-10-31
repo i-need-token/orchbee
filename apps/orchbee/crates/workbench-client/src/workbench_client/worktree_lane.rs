@@ -8,7 +8,7 @@ use orchbee_workbench_protocol::{
     ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchDirectoryPath, WorkbenchRequestId,
     WorkbenchSnapshotOutcome, WorkbenchWorktreeAction, WorkbenchWorktreeOutcome,
     WorkbenchWorktreeQuery, WorkbenchWorktreeQueryOutcome, WorkbenchWorktreeRequest,
-    WorktreeSource,
+    WorktreeListStage, WorktreeQueryFailure, WorktreeSource,
 };
 use std::{
     io,
@@ -223,6 +223,19 @@ fn snapshot(
         }
     }
 }
+/// Names the one listing failure a person can act on directly; others stay generic.
+fn listing_failure(outcome: &WorkbenchWorktreeQueryOutcome) -> WorktreeNotice {
+    match outcome {
+        WorkbenchWorktreeQueryOutcome::Failed {
+            reason:
+                WorktreeQueryFailure::GitFailed {
+                    stage: WorktreeListStage::Probe,
+                    ..
+                },
+        } => WorktreeNotice::NotRepository,
+        _ => WorktreeNotice::ListingUnavailable,
+    }
+}
 pub(super) fn configured_root(directory: Option<&str>) -> ConfiguredRoot {
     directory
         .map(WorkbenchDirectoryPath::parse)
@@ -276,6 +289,7 @@ fn execute(
                         Some(wake.as_local_io()),
                     )
                     .map_err(|_| WorktreeNotice::ListingUnavailable)?;
+                let failure = listing_failure(&reply.outcome);
                 let WorkbenchWorktreeQueryOutcome::Found {
                     session_id,
                     workbench_revision,
@@ -284,7 +298,7 @@ fn execute(
                     entries,
                 } = reply.outcome
                 else {
-                    return Err(WorktreeNotice::ListingUnavailable);
+                    return Err(failure);
                 };
                 if session_id != *origin.cache.session_id()
                     || workbench_revision < origin.cache.revision()

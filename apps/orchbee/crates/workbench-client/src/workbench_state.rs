@@ -687,6 +687,8 @@ pub(crate) enum ClientNotice {
     RenameNotRenamed,
     CloseRequestNotApplied,
     WorkspaceCloseUnavailable,
+    /// A conditional Workspace Close reply no longer matched its target; nothing was closed.
+    WorkspaceChanged,
     NoWorkspace,
     PanelNotApplied,
     ConfirmationCancelled,

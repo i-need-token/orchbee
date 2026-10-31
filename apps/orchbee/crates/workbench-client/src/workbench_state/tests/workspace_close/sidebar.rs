@@ -1,5 +1,5 @@
 use super::*;
-use crate::workbench_state::workspace_close::WorkspaceDeleteRequest;
+use crate::workbench_state::workspace_close::{SidebarDeleteReview, WorkspaceDeleteRequest};
 
 #[test]
 fn sidebar_delete_has_a_distinct_conditional_request_and_needs_a_new_draw_to_escalate() {
@@ -42,8 +42,9 @@ fn sidebar_delete_has_a_distinct_conditional_request_and_needs_a_new_draw_to_esc
     ));
     assert!(retains_close_result(&evidence.result, &evidence.result));
     assert!(state.finish_workspace_close(&evidence));
-    assert!(
-        !state.review_sidebar_workspace_delete(&evidence),
+    assert_eq!(
+        state.review_sidebar_workspace_delete(&evidence),
+        SidebarDeleteReview::NotApplicable,
         "pending refresh still owns settlement"
     );
     state.apply_prepared_refresh(
@@ -53,7 +54,10 @@ fn sidebar_delete_has_a_distinct_conditional_request_and_needs_a_new_draw_to_esc
         },
         Instant::now(),
     );
-    assert!(state.review_sidebar_workspace_delete(&evidence));
+    assert_eq!(
+        state.review_sidebar_workspace_delete(&evidence),
+        SidebarDeleteReview::Confirm
+    );
     let status = state.workspace_close_status().unwrap();
     assert_eq!(
         status.status(),
@@ -124,7 +128,10 @@ fn conditional_delete_refusal_unknown_and_stale_source_never_mint_confirmation_o
             )
             .unwrap();
         let evidence = WorkspaceCloseEvidence { operation, result };
-        assert!(!state.review_sidebar_workspace_delete(&evidence));
+        assert_eq!(
+            state.review_sidebar_workspace_delete(&evidence),
+            SidebarDeleteReview::NotApplicable
+        );
         assert!(state.workspace_close_confirmation().is_none());
         assert!(state.workspace_close.pending.is_none());
         assert!(state.begin_workspace_close(evidence.operation.clone()));

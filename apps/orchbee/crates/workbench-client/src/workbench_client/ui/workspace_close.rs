@@ -5,14 +5,18 @@
 use super::{ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
 use crate::client_view::{ClientActionDisposition, ClientKey};
 use crate::workbench_client::mailbox::{CommandMailbox, UiWaitKey};
-use crate::workbench_state::workspace_close::WorkspaceCloseEvidence;
 #[cfg(test)]
 pub(crate) use crate::workbench_state::workspace_close::WorkspaceCloseStatus;
 pub use crate::workbench_state::workspace_close::WorkspaceCloseToken;
+use crate::workbench_state::workspace_close::{
+    SidebarDeleteReview, WorkspaceCloseEvidence, WorkspaceDeleteRequest,
+};
 pub(crate) use crate::workbench_state::workspace_close::{
     WorkspaceCloseConfirmationView, WorkspaceCloseStatusView,
 };
-use crate::workbench_state::{CarrierFailure, OperationDeadlines, WorkbenchClientState};
+use crate::workbench_state::{
+    CarrierFailure, ClientNotice, OperationDeadlines, WorkbenchClientState,
+};
 use orchbee_workbench_protocol::{
     WorkbenchProjectId, WorkbenchSnapshotOutcome, WorkbenchWorkspaceId,
 };
@@ -31,7 +35,7 @@ impl<'a> WorkbenchClientView<'a> {
 impl WorkbenchClientUi {
     pub(super) fn request_sidebar_workspace_delete(
         &mut self,
-        request: &crate::workbench_state::workspace_close::WorkspaceDeleteRequest,
+        request: &WorkspaceDeleteRequest,
     ) -> ClientActionDisposition {
         if self.modal_owns_input() {
             return ClientActionDisposition::KeepNavigator;
@@ -46,6 +50,8 @@ impl WorkbenchClientUi {
         {
             ClientActionDisposition::DismissNavigator
         } else {
+            // A refused admission sends nothing; say so instead of dropping the request.
+            state.set_notice(ClientNotice::LocalBusy);
             ClientActionDisposition::KeepNavigator
         }
     }
@@ -80,12 +86,16 @@ impl WorkbenchClientUi {
             return ClientActionDisposition::KeepNavigator;
         };
         let Some(request) = self.state.as_ref().and_then(|state| {
-            crate::workbench_state::workspace_close::WorkspaceDeleteRequest::capture(
-                state,
-                workspace_id,
-                deadlines.total(),
-            )
+            WorkspaceDeleteRequest::capture(state, workspace_id, deadlines.total())
         }) else {
+            if let Some(state) = self.state.as_mut() {
+                let notice = if state.close_scope_available() {
+                    ClientNotice::WorkspaceCloseUnavailable
+                } else {
+                    ClientNotice::LocalBusy
+                };
+                state.set_notice(notice);
+            }
             return ClientActionDisposition::KeepNavigator;
         };
         self.request_sidebar_workspace_delete(&request)
@@ -251,9 +261,36 @@ impl WorkbenchClientUi {
         }
         let changed =
             self.apply_refresh_event(mailbox, wait, evidence.operation.generation, outcome);
-        if let Some(state) = self.state.as_mut() {
-            state.review_sidebar_workspace_delete(&evidence);
+        let review = self
+            .state
+            .as_mut()
+            .map(|state| state.review_sidebar_workspace_delete(&evidence));
+        if let Some(SidebarDeleteReview::Recheck(workspace_id)) = review {
+            self.recheck_sidebar_workspace_delete(&workspace_id);
         }
         changed
+    }
+
+    /// Re-asks the Server once after the target changed under its confirmation reply. The
+    /// conditional request has no effect before confirmation, so asking again is safe.
+    fn recheck_sidebar_workspace_delete(&mut self, workspace_id: &WorkbenchWorkspaceId) {
+        let admitted = OperationDeadlines::from_sample(self.clock.now()).is_some_and(|deadlines| {
+            let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+                return false;
+            };
+            WorkspaceDeleteRequest::recheck(state, workspace_id, deadlines.total()).is_some_and(
+                |request| {
+                    mailbox.try_enqueue_sidebar_workspace_delete_for(
+                        state,
+                        &request,
+                        deadlines,
+                        &self.clock,
+                    )
+                },
+            )
+        });
+        if !admitted && let Some(state) = self.state.as_mut() {
+            state.settle_sidebar_workspace_delete_changed();
+        }
     }
 }

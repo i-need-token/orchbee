@@ -337,6 +337,52 @@ fn worktree_checkout_picker_windows_selection_and_disambiguates_duplicate_branch
 }
 
 #[test]
+fn reading_the_repository_is_stated_only_until_the_checkout_picker_is_drawn() {
+    use crate::localization::Locale;
+    for (locale, reading) in [
+        (Locale::EnUs, "Reading repository…"),
+        (Locale::ZhCn, "正在读取仓库…"),
+    ] {
+        let (mut ui, _, clock, _) = super::super::tests::workspace_setup::ready(true);
+        let p = ui
+            .state
+            .as_ref()
+            .unwrap()
+            .worktree_preparation(
+                WorktreeMode::Open,
+                1,
+                WorktreeToken::for_test(0),
+                OperationDeadlines::from_sample(clock.now()).unwrap(),
+            )
+            .unwrap();
+        assert!(ui.worktrees.launcher.open(p));
+        assert_eq!(ui.view().status(locale, 80).text, reading);
+        let p = ui.worktrees.launcher.preparation().unwrap().clone();
+        assert!(ui.worktrees.launcher.prepared(
+            &p,
+            Some(WorktreeSource::Directory {
+                path: WorkbenchDirectoryPath::parse("C:/repo").unwrap()
+            })
+        ));
+        assert_eq!(ui.view().status(locale, 80).text, reading);
+        let mut listing = discovery();
+        listing.worker = p.primary.as_ref().unwrap().worker_id().clone();
+        assert!(
+            ui.worktrees
+                .launcher
+                .discovered(ui.worktrees.launcher.token().unwrap(), Ok(listing))
+        );
+        assert_eq!(
+            ui.view().worktree().unwrap().stage(),
+            WorktreeStage::Checkout
+        );
+        let text = draw(&mut ui, locale, 80, 24);
+        assert!(text.contains("1/2"), "the picker list is drawn");
+        assert_ne!(ui.view().status(locale, 80).text, reading);
+        assert!(!text.contains(&reading.replace(' ', "")));
+    }
+}
+#[test]
 fn a_geometry_change_revokes_the_draw_without_submitting_or_changing_source() {
     let mut ui = ready(WorktreeMode::Create);
     draw(&mut ui, crate::localization::Locale::EnUs, 120, 40);

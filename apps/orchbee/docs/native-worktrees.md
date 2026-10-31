@@ -188,7 +188,10 @@ reopen is refused; both withdraw automatic entry while retaining the operation a
 An Opened result without current presentation proof reports that the Workspace is ready and directs
 the user to select it in the existing navigator; uncovering never replays automatic entry. Directory
 comparison uses the Server association policy without inventing filesystem identity or dropping the
-Worker guard.
+Worker guard. When Git's probe refuses the listing source, the picker says the directory is not in a
+Git repository or Git does not trust its owner; other listing failures keep the generic listing notice.
+The surface and status line say the repository is being read only while the source and listing are
+read; a drawn form or checkout picker states no Worktree notice until a refusal or result.
 
 The receipt snapshot fixes the target's first Tab, Panel, primary Presentation, terminal binding
 and directory ID. Every accepted source refresh must still prove them. The context-selection

@@ -56,6 +56,7 @@ pub(crate) enum WorkbenchClientNotice {
     RenameNotRenamed,
     CloseRequestNotApplied,
     WorkspaceCloseUnavailable,
+    WorkspaceChanged,
     NoWorkspace,
     ConfirmationCancelled,
     DraftCancelled,

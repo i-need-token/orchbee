@@ -314,6 +314,9 @@ impl<'a> WorktreeView<'a> {
     pub(crate) fn notice(&self) -> WorktreeNotice {
         self.launcher.notice
     }
+    pub(crate) fn stated_notice(&self) -> Option<WorktreeNotice> {
+        self.launcher.stated_notice()
+    }
     pub(crate) fn text(&self) -> &'a str {
         match &self.launcher.phase {
             Phase::Draft(d) => d.field().text(),

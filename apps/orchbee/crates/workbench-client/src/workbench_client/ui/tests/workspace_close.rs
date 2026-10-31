@@ -1106,3 +1106,187 @@ fn confirmed_workspace_close_shows_pending_through_the_ui_tick_after_200_ms() {
         }
     }
 }
+
+/// Answers the queued conditional Close with `confirmation-required` and installs `snapshot`
+/// as the read that follows the reply, as the worker does.
+fn reply_confirmation_required(
+    ui: &mut WorkbenchClientUi,
+    mailbox: &CommandMailbox,
+    clock: &LocalOperationClock,
+    snapshot: Snapshot,
+) {
+    let lease = mailbox
+        .try_recv()
+        .unwrap()
+        .expect("one conditional Close request");
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("conditional Workspace close refresh");
+    };
+    let operation = marker.workspace_close().unwrap();
+    assert!(matches!(
+        operation.workspace_command().unwrap().action,
+        WorkbenchAction::WorkspaceCloseIfIdle { .. }
+    ));
+    assert_eq!(
+        mailbox
+            .mark_refresh_in_flight(operation.generation)
+            .unwrap(),
+        MutationResult::Applied
+    );
+    assert!(
+        mailbox
+            .retain_workspace_close_result(operation, WorkspaceCloseResult::ConfirmationRequired)
+    );
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::WorkspaceCloseResult {
+                evidence: mailbox.workspace_close_worker_loss().unwrap(),
+                outcome: Box::new(WorkbenchSnapshotOutcome::Available { snapshot }),
+            },
+            super::super::super::mailbox::EventDeadline::PlacementOnly(
+                operation.deadlines.forward_cutoff(),
+            ),
+            clock,
+        )
+        .unwrap();
+    assert!(ui.tick());
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.finish_lease(lease).unwrap();
+}
+
+/// The snapshot a peer publishes while the conditional request is in flight.
+fn drifted(snapshot: &Snapshot, revision: u64, target_label: Option<&str>) -> Snapshot {
+    let mut next = snapshot.clone();
+    next.revision = WorkbenchRevision::new(revision);
+    next.navigation.projects[0].label = format!("Project 项目 r{revision}");
+    if let Some(label) = target_label {
+        next.navigation.workspaces[1].label = label.into();
+    }
+    next
+}
+
+#[test]
+fn conditional_workspace_close_confirms_through_unrelated_snapshot_drift() {
+    let (mut ui, mailbox, clock, snapshot) = ready_with_background_target(true);
+    let target = snapshot.navigation.workspaces[1].clone();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestWorkspaceCloseAt(
+            target.workspace_id.clone()
+        )),
+        ClientActionDisposition::DismissNavigator
+    );
+    // A peer publication lands between the Server's reply and the read that follows it.
+    reply_confirmation_required(&mut ui, &mailbox, &clock, drifted(&snapshot, 2, None));
+    let prompt = ui
+        .view()
+        .workspace_close_confirmation()
+        .expect("unrelated drift keeps the confirmation");
+    assert!(prompt.destructive());
+    assert_eq!(prompt.label(), target.label);
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "no automatic recheck"
+    );
+    let token = prompt.token();
+    ui.after_workspace_close_draw(Some(ModalPresentation::Presented(token)));
+    assert!(ui.capture_confirmation_key(ClientKey::Enter));
+    let lease = mailbox.try_recv().unwrap().expect("explicit Close");
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("explicit Workspace close refresh");
+    };
+    let operation = marker.workspace_close().unwrap();
+    assert_eq!(
+        operation.workspace_command().unwrap().action,
+        WorkbenchAction::WorkspaceClose {
+            workspace_id: target.workspace_id
+        }
+    );
+    assert_eq!(operation.baseline.revision(), WorkbenchRevision::new(2));
+}
+
+#[test]
+fn conditional_workspace_close_rechecks_once_when_its_target_changes_in_flight() {
+    let (mut ui, mailbox, clock, snapshot) = ready_with_background_target(true);
+    let target = snapshot.navigation.workspaces[1].clone();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestWorkspaceCloseAt(
+            target.workspace_id.clone()
+        )),
+        ClientActionDisposition::DismissNavigator
+    );
+    let renamed = drifted(&snapshot, 2, Some("项目 space 界 2"));
+    reply_confirmation_required(&mut ui, &mailbox, &clock, renamed.clone());
+    assert!(ui.view().workspace_close_confirmation().is_none());
+    // The recheck is a fresh conditional request over the current snapshot.
+    reply_confirmation_required(&mut ui, &mailbox, &clock, drifted(&renamed, 3, None));
+    assert_eq!(
+        ui.view().workspace_close_confirmation().unwrap().label(),
+        "项目 space 界 2"
+    );
+}
+#[test]
+fn conditional_workspace_close_reports_a_target_that_keeps_changing_instead_of_dropping_it() {
+    let (mut ui, mailbox, clock, snapshot) = ready_with_background_target(true);
+    let target = snapshot.navigation.workspaces[1].clone();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestWorkspaceCloseAt(
+            target.workspace_id.clone()
+        )),
+        ClientActionDisposition::DismissNavigator
+    );
+    let first = drifted(&snapshot, 2, Some("项目 space 界 2"));
+    reply_confirmation_required(&mut ui, &mailbox, &clock, first.clone());
+    reply_confirmation_required(
+        &mut ui,
+        &mailbox,
+        &clock,
+        drifted(&first, 3, Some("项目 space 界 3")),
+    );
+    assert!(ui.view().workspace_close_confirmation().is_none());
+    assert!(mailbox.try_recv().unwrap().is_none(), "only one recheck");
+    assert!(
+        ui.view().workspace_close_status().is_none(),
+        "no stale confirmation-required status beside the notice"
+    );
+    assert_eq!(
+        ui.view().notice(),
+        Some(crate::localization::WorkbenchClientNotice::WorkspaceChanged)
+    );
+    for (locale, expected) in [
+        (Locale::EnUs, "Workspace changed; try again"),
+        (Locale::ZhCn, "工作区已变化，请重试"),
+    ] {
+        assert_eq!(
+            locale.native_notice(crate::localization::WorkbenchClientNotice::WorkspaceChanged),
+            expected
+        );
+    }
+    // The user's retry starts a fresh conditional request.
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestWorkspaceCloseAt(target.workspace_id)),
+        ClientActionDisposition::DismissNavigator
+    );
+    assert!(mailbox.try_recv().unwrap().is_some());
+}
+#[test]
+fn conditional_workspace_close_reports_a_busy_client_instead_of_dropping_the_request() {
+    let (mut ui, mailbox, _, snapshot) = ready_with_background_target(true);
+    // A peer publication keeps one refresh in flight when Close is requested.
+    ui.state.as_mut().unwrap().note_publication_hint();
+    ui.tick();
+    let refresh = mailbox.try_recv().unwrap().expect("publication refresh");
+    assert_eq!(ui.view().notice(), None);
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestWorkspaceCloseAt(
+            snapshot.navigation.workspaces[1].workspace_id.clone()
+        )),
+        ClientActionDisposition::KeepNavigator
+    );
+    assert_eq!(
+        ui.view().notice(),
+        Some(crate::localization::WorkbenchClientNotice::LocalBusy)
+    );
+    assert!(ui.view().workspace_close_confirmation().is_none());
+    assert!(mailbox.try_recv().unwrap().is_none());
+    drop(refresh);
+}

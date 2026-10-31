@@ -19,6 +19,8 @@ pub(crate) enum WorktreeNotice {
     InputLimit,
     SourceUnavailable,
     ListingUnavailable,
+    /// Git's probe refused the source: not a repository, or an untrusted owner.
+    NotRepository,
     ConfigurationUnavailable,
     Busy,
     NotSubmitted,
@@ -120,6 +122,12 @@ impl Locale {
             }
             (Self::ZhCn, N::ListingUnavailable) => {
                 "无法列举 Git 检出目录。请用 orchbee worktree list 检查。"
+            }
+            (Self::EnUs, N::NotRepository) => {
+                "This directory is not in a Git repository, or Git does not trust its owner. Run git status there to see which."
+            }
+            (Self::ZhCn, N::NotRepository) => {
+                "这个目录不在 Git 仓库中，或 Git 不信任其所有者。请在该目录运行 git status 查看原因。"
             }
             (Self::EnUs, N::ConfigurationUnavailable) => {
                 "Could not read worktree configuration. Run orchbee config check."

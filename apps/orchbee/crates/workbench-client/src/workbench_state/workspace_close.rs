@@ -16,7 +16,7 @@ use orchbee_workbench_protocol::{
 };
 use std::time::{Duration, Instant};
 mod sidebar;
-pub(crate) use sidebar::WorkspaceDeleteRequest;
+pub(crate) use sidebar::{SidebarDeleteReview, WorkspaceDeleteRequest};
 
 /// Identifies exactly one fully drawn destructive confirmation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -87,6 +87,8 @@ impl WorkspaceCloseTarget {
 pub(crate) struct WorkspaceCloseOperation {
     conditional: bool,
     destructive: bool,
+    /// The automatic follow-up of a conditional request whose target changed in flight.
+    recheck: bool,
     pub(crate) target: WorkspaceCloseTarget,
     pub(crate) request_id: WorkbenchRequestId,
     pub(crate) generation: u64,
@@ -567,6 +569,7 @@ impl WorkbenchClientState {
         Some(WorkspaceCloseOperation {
             conditional: false,
             destructive: prompt.destructive,
+            recheck: false,
             target: prompt.target.clone(),
             request_id,
             generation,
@@ -713,10 +716,19 @@ impl WorkbenchClientState {
                 WorkspaceCloseResult::ProjectObserved(reply) => &reply.operation_id,
                 _ => &evidence.operation.request_id,
             };
+            // Viewer cleanup keeps the removed Workspace installed and drawn as current until
+            // the validated removal lands; announce Closed with that landing, not before it.
+            let status = if evidence.result.is_closed()
+                && self.refresh_install_awaits_cleanup(evidence.operation.generation)
+            {
+                WorkspaceCloseStatus::Closing
+            } else {
+                evidence.result.status()
+            };
             return Some(WorkspaceCloseStatusView {
                 operation: &evidence.operation,
                 operation_id,
-                status: evidence.result.status(),
+                status,
             });
         }
         let pending = self

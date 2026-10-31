@@ -729,6 +729,12 @@ impl Launcher {
     pub(crate) fn notice(&self) -> WorktreeNotice {
         self.notice
     }
+    /// `Preparing` also marks a quiet draft; it is stated only while the source is being read.
+    pub(crate) fn stated_notice(&self) -> Option<WorktreeNotice> {
+        (self.notice != WorktreeNotice::Preparing
+            || matches!(self.phase, Phase::Preparing(_) | Phase::Querying { .. }))
+        .then_some(self.notice)
+    }
     pub(crate) fn view(&self) -> Option<WorktreeView<'_>> {
         self.visible.then_some(WorktreeView { launcher: self })
     }

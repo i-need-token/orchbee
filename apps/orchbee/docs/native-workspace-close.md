@@ -74,6 +74,14 @@ refusal/retry instruction under the fresh decision. This definite no-effect stat
 Close operation ID or close-status recovery command. Ordinary refusal and unknown outcomes retain
 their separate feedback and recovery rules.
 
+A peer publication can change the snapshot between the Server's reply and the read that follows it.
+The reply speaks only for the addressed Workspace record and its complete terminal Context in the
+same Session. When those are unchanged, the confirmation opens over the current snapshot. When they
+changed, the Client repeats the conditional request once; it has no effect before confirmation. A
+second mismatch, or a Client that cannot review or repeat it, shows the localized Workspace changed
+notice instead of the confirmation-required status, and the user retries. A conditional request the
+Client cannot admit shows the localized busy or unavailable notice. No path discards a request silently.
+
 ## Inputs and ownership
 
 | Fact                                                      | Owner and validation                                                                                                                                                                                     |
@@ -162,7 +170,8 @@ retires it, including on return. Closed is a settled one-shot result: its notice
 four-second notice lifetime in [operation status](native-operation-status.md), counted from its
 first display and carried across the automatic landing. Expiry and navigation retire only the
 notice; the retained Closed evidence and its fences remain. Pending and unknown outcomes retain
-their existing guards.
+their existing guards. While viewer cleanup still defers that install, a Closed receipt reads as
+Closing, so Closed never appears beside the removed Workspace still drawn as current.
 
 State, carrier and UI tests cover single Workspace scope including ungrouped membership, explicit
 Project member capture and empty Projects, exact drawn confirmation, token-bound mouse controls, packet-tail capture, source

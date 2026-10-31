@@ -164,6 +164,7 @@ fn notice_role(notice: WorktreeNotice) -> Role {
         | WorktreeNotice::InputLimit
         | WorktreeNotice::SourceUnavailable
         | WorktreeNotice::ListingUnavailable
+        | WorktreeNotice::NotRepository
         | WorktreeNotice::ConfigurationUnavailable
         | WorktreeNotice::NotSubmitted
         | WorktreeNotice::Failed => Role::StatusError,
@@ -245,7 +246,7 @@ fn render_form(
             theme,
         ));
     }
-    if view.notice() != WorktreeNotice::Preparing || stage == WorktreeStage::Preparing {
+    if view.stated_notice().is_some() {
         let notice = if removal.is_some() && view.notice() == WorktreeNotice::Failed {
             view.removal_failure().map_or_else(
                 || locale.worktree_stage_notice(view.notice(), stage),

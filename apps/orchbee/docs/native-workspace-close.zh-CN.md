@@ -58,6 +58,12 @@ Workspace 升级状态说明需要确认，不会在新决策下方显示普通�
 没有已准入的 Close 操作 ID，也不显示 close-status 恢复命令。普通拒绝与未知结果保留各自独立的
 反馈和恢复规则。
 
+在 Server 回复与随后的 read 之间，对端发布可能改变 snapshot。回复只针对同一 Session 中被指定的
+Workspace 记录及其完整终端 Context。这些事实未变时，确认框基于当前 snapshot 打开。事实已变时，
+Client 重新发起一次条件请求；条件请求在确认前没有效果。第二次仍不匹配，或 Client 无法审核或重发时，
+显示本地化的“工作区已变化”提示，替代“关闭前需要确认”状态，由用户重试。Client 无法准入的条件请求
+显示本地化的忙碌或不可用提示。任何路径都不会静默丢弃请求。
+
 ## 输入与归属
 
 | 事实                                         | 所有者与校验                                                                                                                                                        |
@@ -134,7 +140,8 @@ pane 保留完整状态。
 之后手动切换 Context 会使其失效，返回时也不会恢复。Closed 是已结算的一次性结果：其提示按
 [操作状态](native-operation-status.zh-CN.md)中四秒的提示生命周期到期，从首次显示开始计时，
 并跨越自动落点继续计算。到期和导航只使提示失效；保留的 Closed 证据及其围栏仍然保留。
-Pending 与 unknown 结果保留现有守卫。
+Pending 与 unknown 结果保留现有守卫。查看器清理仍在推迟该安装时，Closed 回执显示为 Closing，
+因此 Closed 不会与仍按当前项绘制的已移除 Workspace 同时出现。
 
 状态、carrier 和 UI 测试覆盖单个 Workspace 范围及未分组成员、显式 Project 成员捕获与
 空 Project、确切绘制确认、绑定 token 的鼠标控件、packet 尾部捕获、来源漂移、准入/read/publication 丢失、
@@ -153,4 +160,4 @@ Minimal 和被拒绝的几何。适用的仓库 gate 仍是权威；定向开发
 这些受控实现轨迹不证明全部交错、物理终端外观或未测试的平台。共享身份与提交协议仍由
 已注册模型负责。
 
-<!-- documentation-pairing: english-sha256=f32fb800ddaf851fe66bed5496239c69f372ecb1c6fdd2449141017a2e142aaf zh-cn-sha256=31c90f13faa0c583375607cc22eb20ce4f00f83355726392fc13d97d06efd530 -->
+<!-- documentation-pairing: english-sha256=c94a781413be13166e860fcfe17c2d5474f686e49b89eb58181480066995bd8e zh-cn-sha256=8a95491dcd617413cd632f0c6d71a61bd10a0d1edc1dac7e2e1022bf3b56bc8a -->

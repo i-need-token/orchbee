@@ -1,8 +1,8 @@
 //! Sidebar Delete retains exact source evidence and asks the Server for conditional admission.
 use super::{
-    ClientContextTabs, Instant, OperationDeadlines, PaneKey, WorkbenchClientState,
-    WorkbenchRequestId, WorkbenchWorkspaceId, WorkspaceCloseEvidence, WorkspaceCloseOperation,
-    WorkspaceCloseResult, WorkspaceCloseTarget,
+    ClientContextTabs, ClientNotice, ClientPhase, Instant, OperationDeadlines, PaneKey,
+    WorkbenchClientState, WorkbenchRequestId, WorkbenchWorkspaceId, WorkspaceCloseEvidence,
+    WorkspaceCloseOperation, WorkspaceCloseResult, WorkspaceCloseTarget,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -11,6 +11,7 @@ pub(crate) struct WorkspaceDeleteRequest {
     desired: Option<PaneKey>,
     workspace: orchbee_workbench_protocol::Workspace,
     deadline: Instant,
+    recheck: bool,
 }
 
 impl WorkspaceDeleteRequest {
@@ -30,11 +31,64 @@ impl WorkspaceDeleteRequest {
                 .workspace(workspace)?
                 .clone(),
             deadline,
+            recheck: false,
+        })
+    }
+    /// The single automatic follow-up after the target changed under a confirmation reply.
+    pub(crate) fn recheck(
+        state: &WorkbenchClientState,
+        workspace: &WorkbenchWorkspaceId,
+        deadline: Instant,
+    ) -> Option<Self> {
+        Self::capture(state, workspace, deadline).map(|request| Self {
+            recheck: true,
+            ..request
         })
     }
     pub(crate) fn deadline(&self) -> Instant {
         self.deadline
     }
+}
+
+/// The next step after a conditional Close reply. No variant discards a confirmation silently.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum SidebarDeleteReview {
+    /// The reply asks for no confirmation, or its own refresh still owns settlement.
+    NotApplicable,
+    /// The destructive confirmation is open over the current snapshot.
+    Confirm,
+    /// The target changed while the request was in flight; ask the Server once more.
+    Recheck(WorkbenchWorkspaceId),
+    /// The target changed again or cannot be reviewed now; a notice asks the user to retry.
+    Changed,
+}
+
+/// The facts a conditional reply speaks for: the addressed Workspace and its whole terminal Context.
+fn target_facts<'a>(
+    cache: &'a ClientContextTabs,
+    workspace_id: &WorkbenchWorkspaceId,
+) -> Option<(
+    &'a orchbee_workbench_protocol::Workspace,
+    &'a orchbee_workbench_protocol::TerminalContext,
+)> {
+    let snapshot = cache.canonical_snapshot();
+    let workspace = snapshot.navigation.workspace(workspace_id)?;
+    let context = snapshot
+        .terminal_contexts
+        .iter()
+        .find(|context| context.terminal_context_id == workspace.terminal_context_id)?;
+    Some((workspace, context))
+}
+
+/// Unrelated snapshot changes keep the reply valid; a change to the target itself does not.
+fn target_unchanged(
+    before: &ClientContextTabs,
+    after: &ClientContextTabs,
+    workspace_id: &WorkbenchWorkspaceId,
+) -> bool {
+    before.session_id() == after.session_id()
+        && target_facts(before, workspace_id)
+            .is_some_and(|facts| target_facts(after, workspace_id) == Some(facts))
 }
 
 impl WorkbenchClientState {
@@ -61,6 +115,7 @@ impl WorkbenchClientState {
         Some(WorkspaceCloseOperation {
             conditional: true,
             destructive: true,
+            recheck: request.recheck,
             target: WorkspaceCloseTarget::Workspace {
                 workspace_id: request.workspace.workspace_id.clone(),
                 terminal_context_id: request.workspace.terminal_context_id.clone(),
@@ -88,30 +143,60 @@ impl WorkbenchClientState {
             && matches!(operation.target, WorkspaceCloseTarget::Workspace { .. })
     }
 
+    /// Reviews a settled `confirmation-required` reply against the snapshot installed after it.
+    /// Unrelated drift still opens the confirmation from the current snapshot; target drift asks
+    /// once more, because a conditional request has no effect before confirmation.
     pub(crate) fn review_sidebar_workspace_delete(
         &mut self,
         evidence: &WorkspaceCloseEvidence,
-    ) -> bool {
+    ) -> SidebarDeleteReview {
+        let WorkspaceCloseTarget::Workspace { workspace_id, .. } = &evidence.operation.target
+        else {
+            return SidebarDeleteReview::NotApplicable;
+        };
         if !matches!(evidence.result, WorkspaceCloseResult::ConfirmationRequired)
             || !evidence.operation.conditional
-            || evidence.operation.baseline != self.cache
-            || evidence.operation.desired != self.desired
-            || !self.close_scope_available()
+            || self.pending_refresh_generation() == Some(evidence.operation.generation)
+            || matches!(self.phase, ClientPhase::Retired(_))
         {
-            return false;
+            return SidebarDeleteReview::NotApplicable;
         }
+        let available = self.close_scope_available();
+        if available && target_unchanged(&evidence.operation.baseline, &self.cache, workspace_id) {
+            if self
+                .open_workspace_scope_close_confirmation(
+                    evidence.operation.target.clone(),
+                    evidence.operation.label.clone(),
+                )
+                .is_some()
+            {
+                if let Some(prompt) = &mut self.workspace_close.confirmation {
+                    prompt.destructive = true;
+                }
+                return SidebarDeleteReview::Confirm;
+            }
+        } else if available
+            && !evidence.operation.recheck
+            && target_facts(&self.cache, workspace_id).is_some()
+        {
+            return SidebarDeleteReview::Recheck(workspace_id.clone());
+        }
+        self.settle_sidebar_workspace_delete_changed();
+        SidebarDeleteReview::Changed
+    }
+
+    /// Ends a conditional reply that cannot become a confirmation with a visible retry notice.
+    pub(crate) fn settle_sidebar_workspace_delete_changed(&mut self) {
         if self
-            .open_workspace_scope_close_confirmation(
-                evidence.operation.target.clone(),
-                evidence.operation.label.clone(),
-            )
-            .is_none()
+            .workspace_close
+            .evidence
+            .as_ref()
+            .is_some_and(|evidence| {
+                matches!(evidence.result, WorkspaceCloseResult::ConfirmationRequired)
+            })
         {
-            return false;
+            self.workspace_close.evidence = None;
         }
-        if let Some(prompt) = &mut self.workspace_close.confirmation {
-            prompt.destructive = true;
-        }
-        true
+        self.set_notice(ClientNotice::WorkspaceChanged);
     }
 }

@@ -246,6 +246,10 @@ impl Locale {
                 }
                 Self::ZhCn => "请选择要关闭的工作区".to_owned(),
             },
+            WorkbenchClientNotice::WorkspaceChanged => match self {
+                Self::EnUs => "Workspace changed; try again".to_owned(),
+                Self::ZhCn => "工作区已变化，请重试".to_owned(),
+            },
             WorkbenchClientNotice::NoWorkspace => self.no_current_workspace().to_owned(),
             WorkbenchClientNotice::RenameNotRenamed => match self {
                 Self::EnUs => "Tab not renamed".to_owned(),

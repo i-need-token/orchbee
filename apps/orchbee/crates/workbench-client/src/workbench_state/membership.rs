@@ -420,6 +420,12 @@ impl PreparedMembershipInstall<'_> {
 }
 
 impl WorkbenchClientState {
+    /// The refresh's validated candidate still waits for attachment cleanup before installing.
+    pub(super) fn refresh_install_awaits_cleanup(&self, generation: u64) -> bool {
+        self.pending_membership.as_ref().is_some_and(|pending| {
+            pending.cleanup.result == MembershipResultKey::Refresh(generation)
+        })
+    }
     /// Selection may be empty while this epoch still owns live sibling viewers.
     pub(super) fn membership_cleanup_ready(&self) -> bool {
         (matches!(self.phase, ClientPhase::Ready(_))

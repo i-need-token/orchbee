@@ -29,7 +29,7 @@ impl WorkbenchClientView<'_> {
     /// Select one current status without changing the retained operation or its outcome.
     pub(crate) fn status(&self, locale: Locale, columns: u16) -> NativeStatus {
         let view = self;
-        if let Some(notice) = view.worktree_notice() {
+        if let Some(notice) = view.worktree_stated_notice() {
             return NativeStatus::fact(
                 locale.worktree_status_line(notice, view.worktree().map(|v| v.stage())),
             );

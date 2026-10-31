@@ -2,7 +2,8 @@
 use super::{
     AddressedWorktreeSource, AsLocalIo, Discovery, Duration, Instant, LocalClient,
     LocalOperationClock, LocalStream, ProtocolVersion, SidebarDiscovery, WorkbenchRequestId,
-    WorkbenchWorktreeQuery, WorkbenchWorktreeQueryOutcome, WorktreeNotice, snapshot,
+    WorkbenchWorktreeQuery, WorkbenchWorktreeQueryOutcome, WorktreeNotice, listing_failure,
+    snapshot,
 };
 use crate::primary_directory::{RootDirectory, decode_root};
 use orchbee_client_server_protocol::{
@@ -156,6 +157,7 @@ pub(super) fn discover(
                 Some(wake.as_local_io()),
             )
             .map_err(|_| WorktreeNotice::ListingUnavailable)?;
+        let failure = listing_failure(&reply.outcome);
         let WorkbenchWorktreeQueryOutcome::Found {
             session_id,
             workbench_revision,
@@ -164,7 +166,7 @@ pub(super) fn discover(
             entries,
         } = reply.outcome
         else {
-            return Err(WorktreeNotice::ListingUnavailable);
+            return Err(failure);
         };
         if session_id != *addressed.cache.session_id()
             || workbench_revision < addressed.cache.revision()

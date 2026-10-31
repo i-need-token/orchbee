@@ -356,83 +356,97 @@ fn addressed_lane_samples_first_root_around_git_and_always_releases_its_own_view
 
 #[test]
 fn non_git_first_project_member_never_queries_a_later_repository_or_starts_an_operation() {
-    let mut canonical = fixture();
-    canonical.terminal_contexts[1].tabs.clear();
-    let expected = canonical.clone();
-    let addressed = AddressedWorktreeSource::capture(
-        &canonical,
-        &SidebarWorktreeTarget::Project(canonical.navigation.projects[0].project_id.clone()),
-    )
-    .unwrap();
-    let expected_workspace = canonical.navigation.workspaces[1].workspace_id.clone();
-    let server = FakeServer::start_connections(2, move |index, mut stream| {
-        handshake(&mut stream, index as u64 + 1)?;
-        if index == 0 {
-            return Ok(());
-        }
-        let WorkbenchRequest::SnapshotRead(request) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
-        else {
-            panic!("first prove exact addressed membership");
-        };
-        write_workbench_response(
-            &mut stream,
-            &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-                protocol_version: ProtocolVersion,
-                request_id: request.request_id,
-                outcome: WorkbenchSnapshotOutcome::Available {
-                    snapshot: expected.clone(),
-                },
-            }),
+    // Git's probe refusal names its reason; other listing failures stay generic.
+    for (reason, notice) in [
+        (
+            WorktreeQueryFailure::GitFailed {
+                stage: WorktreeListStage::Probe,
+                status: Some(128),
+            },
+            WorktreeNotice::NotRepository,
+        ),
+        (
+            WorktreeQueryFailure::NotFound {},
+            WorktreeNotice::ListingUnavailable,
+        ),
+    ] {
+        let mut canonical = fixture();
+        canonical.terminal_contexts[1].tabs.clear();
+        let expected = canonical.clone();
+        let addressed = AddressedWorktreeSource::capture(
+            &canonical,
+            &SidebarWorktreeTarget::Project(canonical.navigation.projects[0].project_id.clone()),
         )
-        .map_err(io::Error::other)?;
-        let WorkbenchRequest::WorktreeQuery(request) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
-        else {
-            panic!("only addressed first member discovery");
-        };
-        assert_eq!(
-            request.source,
-            WorktreeSource::Workspace {
-                workspace_id: expected_workspace.clone()
+        .unwrap();
+        let expected_workspace = canonical.navigation.workspaces[1].workspace_id.clone();
+        let server = FakeServer::start_connections(2, move |index, mut stream| {
+            handshake(&mut stream, index as u64 + 1)?;
+            if index == 0 {
+                return Ok(());
             }
-        );
-        write_workbench_response(
-            &mut stream,
-            &WorkbenchResponse::WorktreeQuery(WorkbenchWorktreeQueryResult {
-                protocol_version: ProtocolVersion,
-                request_id: request.request_id,
-                outcome: WorkbenchWorktreeQueryOutcome::Failed {
-                    reason: WorktreeQueryFailure::NotFound {},
-                },
-            }),
-        )
-        .map_err(io::Error::other)?;
-        let mut byte = [0];
-        assert_eq!(
-            stream.read(&mut byte)?,
-            0,
-            "no fallback query, Viewer, or Start after a non-Git first member"
-        );
-        Ok(())
-    })
-    .unwrap();
-    let mut lane = lane(&server);
-    assert!(lane.submit(job(Action::SidebarQuery {
-        episode: 7,
-        source: Box::new(addressed)
-    })));
-    assert!(matches!(
-        take(&lane),
-        Reply::SidebarQuery {
+            let WorkbenchRequest::SnapshotRead(request) =
+                read_workbench_request(&mut stream).map_err(io::Error::other)?
+            else {
+                panic!("first prove exact addressed membership");
+            };
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    outcome: WorkbenchSnapshotOutcome::Available {
+                        snapshot: expected.clone(),
+                    },
+                }),
+            )
+            .map_err(io::Error::other)?;
+            let WorkbenchRequest::WorktreeQuery(request) =
+                read_workbench_request(&mut stream).map_err(io::Error::other)?
+            else {
+                panic!("only addressed first member discovery");
+            };
+            assert_eq!(
+                request.source,
+                WorktreeSource::Workspace {
+                    workspace_id: expected_workspace.clone()
+                }
+            );
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::WorktreeQuery(WorkbenchWorktreeQueryResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    outcome: WorkbenchWorktreeQueryOutcome::Failed {
+                        reason: reason.clone(),
+                    },
+                }),
+            )
+            .map_err(io::Error::other)?;
+            let mut byte = [0];
+            assert_eq!(
+                stream.read(&mut byte)?,
+                0,
+                "no fallback query, Viewer, or Start after a non-Git first member"
+            );
+            Ok(())
+        })
+        .unwrap();
+        let mut lane = lane(&server);
+        assert!(lane.submit(job(Action::SidebarQuery {
             episode: 7,
-            result: Err(WorktreeNotice::ListingUnavailable)
-        }
-    ));
-    assert!(lane.close());
-    server.finish().unwrap();
+            source: Box::new(addressed)
+        })));
+        assert!(matches!(
+            take(&lane),
+            Reply::SidebarQuery {
+                episode: 7,
+                result: Err(actual)
+            } if actual == notice
+        ));
+        assert!(lane.close());
+        server.finish().unwrap();
+    }
 }
-
 #[test]
 fn source_membership_drift_before_sampling_refuses_without_query_or_viewer() {
     let canonical = fixture();

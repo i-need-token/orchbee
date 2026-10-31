@@ -152,6 +152,8 @@ Client 不能将 Project 复制到 Workspace 来源的 Start；严格 wire 契�
 对于已接受的操作，获准界面变得无法呈现时会暂停，首次受阻的重新打开则会被拒绝；两者都会撤销自动进入权限，
 同时保留操作与回执。缺少当前呈现凭证的 Opened 结果会告知用户工作区已就绪，并指引用户从现有导航器选择它；
 界面重新显示后也不会重放自动进入。目录比较沿用 Server 关联策略，不虚构文件系统身份，也不取消 Worker 围栏。
+Git 探测拒绝列举来源时，选择器说明该目录不在 Git 仓库中或 Git 不信任其所有者；其他列举失败保留通用列举提示。
+界面与状态行只在读取来源和列表期间说明正在读取仓库；表单或检出选择器绘制后，在出现拒绝或结果之前不再显示 Worktree 提示。
 
 回执 snapshot 固定目标的首个 Tab、Panel、主 Presentation、终端绑定和目录 ID。
 每次接受来源刷新后仍须证明这些事实。上下文选择 snapshot 在清理旧 Viewer 或安装选择之前再次检查，
@@ -181,4 +183,4 @@ Server 重启遵循[现有保留限制](windows-worktrees.zh-CN.md#保留续执�
 
 Windows 原生工作树表单使用反斜杠显示检出路径。这仅是显示投影；选择和操作保留精确的规范路径。
 
-<!-- documentation-pairing: english-sha256=3657f44335f082add54d19a473781e27def22f6667c87eee9b5519e13f9ce09b zh-cn-sha256=53b6617f7cda87ef27e6a929d2fa65dea9b96bf79cc8ad60507741d629b12cc0 -->
+<!-- documentation-pairing: english-sha256=6d0234b252ef9e445445fca7655564c3a0b41a8fc043ec9672d6d3d780a0e675 zh-cn-sha256=960f601752b323fab15b3c360f6680ef2d622b6b38011a25a6b236c064ec9c5c -->

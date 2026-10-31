@@ -901,6 +901,85 @@ fn closed_receipt_survives_exact_automatic_canonical_landing_but_not_manual_navi
 }
 
 #[test]
+fn closed_current_workspace_reads_as_closing_until_its_viewer_cleanup_installs_the_landing() {
+    // Live viewers on the closed current Workspace defer the validated removal behind
+    // attachment cleanup. The status must not announce Closed while that Workspace is
+    // still the installed, drawn current location.
+    let mut state = background_state(false);
+    let closed = state.cache().location().clone();
+    let old = state.desired().unwrap().clone();
+    let operation = start(&mut state, false);
+    let WorkspaceCloseTarget::Workspace { workspace_id, .. } = &operation.target else {
+        panic!("Workspace target");
+    };
+    assert!(state.finish_workspace_close(&WorkspaceCloseEvidence {
+        operation: operation.clone(),
+        result: observed(&operation, true),
+    }));
+    let mut published = operation.baseline.canonical_snapshot().clone();
+    published.revision = WorkbenchRevision::new(2);
+    let removed = published
+        .navigation
+        .workspace(workspace_id)
+        .unwrap()
+        .terminal_context_id
+        .clone();
+    published
+        .navigation
+        .workspaces
+        .retain(|workspace| &workspace.workspace_id != workspace_id);
+    published
+        .navigation
+        .workspace_order
+        .retain(|workspace| workspace != workspace_id);
+    published
+        .terminal_contexts
+        .retain(|context| context.terminal_context_id != removed);
+    let PreparedRefresh::Membership { prepared, .. } = state.prepare_refresh(
+        operation.generation,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: published,
+        },
+    ) else {
+        panic!("exact removal candidate");
+    };
+    assert!(state.has_attachments() && !prepared.preserves_selection());
+    let cleanup = state
+        .stage_refresh_membership_cleanup(
+            operation.generation,
+            prepared,
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
+        )
+        .unwrap();
+    assert_eq!(
+        state.cache().location(),
+        &closed,
+        "cleanup precedes landing"
+    );
+    assert_eq!(
+        state.workspace_close_status().unwrap().status(),
+        crate::workbench_client::WorkspaceCloseStatus::Closing
+    );
+    let prepared = state
+        .prepare_cleaned_membership_candidate(&cleanup, old.anchor())
+        .unwrap();
+    let landing = prepared
+        .selected_tab_id()
+        .map(|tab| AttachmentKey::new(old.generation() + 1, tab.clone()));
+    state
+        .prepare_cleaned_membership_install(&cleanup, prepared, landing)
+        .unwrap()
+        .commit();
+    assert_ne!(state.cache().location(), &closed);
+    let view = state.workspace_close_status().unwrap();
+    assert_eq!(
+        view.status(),
+        crate::workbench_client::WorkspaceCloseStatus::Closed
+    );
+    assert_eq!(view.operation_id(), Some(&operation.request_id));
+    assert!(state.invariant_holds());
+}
+#[test]
 fn automatic_nonempty_sibling_workspace_landing_uses_the_same_permit_without_new_ids_or_controller_authority()
  {
     let mut source = close_snapshot();
