@@ -97,6 +97,40 @@ pub(in crate::workbench_client::ui) fn settle_background_read(
     mailbox.finish_lease(lease).unwrap();
 }
 
+/// O-9: a click on another Workspace is admitted but its refresh has not landed, so focus still
+/// names the pane being left. Typed bytes must reach no pane rather than that one.
+#[test]
+fn typed_input_never_reaches_the_workspace_an_admitted_switch_is_leaving() {
+    let (mut ui, mailbox, _) = controlling();
+    let leaving = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
+    assert!(
+        ui.forward(b"x"),
+        "input reaches the focused pane before navigation"
+    );
+    let input = mailbox.try_recv().unwrap().unwrap();
+    assert!(matches!(input.record(), QueuedCommand::Input(_)));
+    mailbox.finish_lease(input).unwrap();
+
+    let destination = target(&ui, 1);
+    assert_eq!(ui.navigate_context(&destination), Admission::Admitted);
+    assert_eq!(
+        ui.state.as_ref().unwrap().focus_pane_ref(),
+        Some(leaving),
+        "focus moves only when the switch lands"
+    );
+    for bytes in [b"abc".as_slice(), b"\x1b[200~ls\x1b[201~", b"\r"] {
+        assert!(
+            !ui.forward(bytes),
+            "{bytes:?} must not reach the Workspace the user is leaving"
+        );
+    }
+    let lease = mailbox.try_recv().unwrap().expect("the switch's own read");
+    assert!(
+        matches!(lease.record(), QueuedCommand::Refresh(_)),
+        "no Input was queued behind the switch"
+    );
+}
+
 /// O-9: with output in another Workspace, a background read is in flight whenever a sidebar click
 /// arrives, and a new one used to start the moment the previous one settled. The Shell retries
 /// the queued click every loop; it must be admitted once the read in flight settles.
@@ -145,4 +179,58 @@ fn background_reads_keep_divider_and_worktree_sources_available() {
     assert_eq!(ui.navigate_context(&target(&ui, 1)), Admission::Admitted);
     assert_eq!(phase(&ui), ClientViewPhase::Busy);
     assert!(ui.state.as_ref().unwrap().worktree_origin().is_none());
+}
+
+/// F-1 and O-2: a click switched Workspace, and its tab strip already shows while its terminal
+/// still attaches. `Ctrl+b D` and `Ctrl+b O` pressed then wait for the switch instead of being
+/// refused as busy or not ready, and the close request starts once the switch lands.
+#[test]
+fn close_and_worktree_keys_wait_for_a_landing_switch() {
+    use super::context_selection::{make_desired_ready, ready, settle_nonempty_context_selection};
+    for action in [
+        ClientAction::RequestWorkspaceClose,
+        ClientAction::RequestWorktreeOpen,
+    ] {
+        let (mut ui, mailbox, clock, _) = ready(false);
+        settle_nonempty_context_selection(&mut ui, mailbox.as_ref(), &clock, true, snapshot(false));
+        assert_eq!(ui.view().phase(), DisplayPhase::Switching);
+        let landed = ui.state.as_ref().unwrap().cache().location().clone();
+        ui.apply_client_action(action.clone());
+        assert_eq!(
+            ui.view().notice(),
+            None,
+            "{action:?} during a switch is held, not refused"
+        );
+        assert!(
+            mailbox.try_recv().unwrap().is_none(),
+            "nothing starts against a terminal that is still attaching"
+        );
+        make_desired_ready(&mut ui, 2);
+        ui.tick();
+        if action == ClientAction::RequestWorkspaceClose {
+            let lease = mailbox
+                .try_recv()
+                .unwrap()
+                .expect("the held close request starts once the switch lands");
+            let QueuedCommand::Refresh(marker) = lease.record() else {
+                panic!("conditional Workspace close refresh");
+            };
+            let crate::workbench_projection::ClientContextLocation::Workspace {
+                workspace_id, ..
+            } = landed
+            else {
+                panic!("the switch lands on a Workspace");
+            };
+            assert_eq!(
+                marker
+                    .workspace_close()
+                    .expect("conditional Close")
+                    .workspace_command()
+                    .unwrap()
+                    .action,
+                WorkbenchAction::WorkspaceCloseIfIdle { workspace_id },
+                "the key closes the Workspace the switch landed on"
+            );
+        }
+    }
 }

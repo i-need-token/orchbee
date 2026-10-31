@@ -61,11 +61,27 @@ fn forward_edit_or_report(
     editing: bool,
     terminal_input: &mut (impl TerminalInputPort + ?Sized),
 ) {
+    if navigation_holds_input(view, terminal_input) {
+        return;
+    }
     match terminal_input.forward(input) {
         Ok(()) if editing => terminal_input.observe_terminal(TerminalObservation::TerminalEdited),
         Ok(()) => {}
         Err(_) => view.report_terminal_input_unavailable(),
     }
+}
+
+/// Input during a requested navigation reaches no pane: the focused pane is the one being left,
+/// and replaying it later would reach a destination the user has not seen. The refusal is visible.
+pub(crate) fn navigation_holds_input(
+    view: &mut ClientView,
+    terminal_input: &(impl TerminalInputPort + ?Sized),
+) -> bool {
+    if view.machines.direct_selection_pending() || terminal_input.navigation_pending() {
+        view.report_input_held_for_navigation();
+        return true;
+    }
+    false
 }
 
 #[cfg(test)]

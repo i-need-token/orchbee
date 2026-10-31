@@ -62,6 +62,13 @@ const cases = [
 		/Invariant (?:FramesAreCurrent|EffectsUseCurrentIncarnation) is violated/u,
 	],
 	[
+		'native-client-pane-membership',
+		'typed input reaches the pane a pending navigation is leaving',
+		'(p = s.focus /\\ s.intent = 0)',
+		'p = s.focus',
+		/Invariant InputFollowsSettledNavigation is violated/u,
+	],
+	[
 		'local-terminal-relay',
 		'feedback acknowledges another flight',
 		'/\\ identity = s.frameFlight[c]',

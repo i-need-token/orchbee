@@ -1728,6 +1728,18 @@ impl WorkbenchClientState {
         )
     }
 
+    /// Whether the user's own Context or Tab switch is still landing: its read is in flight or
+    /// the terminal it lands on still attaches. Like a background read, it settles on its own,
+    /// so an action pressed meanwhile waits for it instead of being refused as busy.
+    pub(crate) const fn switch_landing(&self) -> bool {
+        self.context_selection_pending() || matches!(self.phase, ClientPhase::Switching(_))
+    }
+
+    /// What a held invocation waits out before it runs through its ordinary entry point.
+    pub(crate) const fn settling_for_user_action(&self) -> bool {
+        self.background_refresh_only() || self.switch_landing()
+    }
+
     /// A refresh this Client started for its own intent: an explicit refresh or the recovery
     /// read of its own selection or mutation.
     pub(crate) const fn own_refresh_pending(&self) -> bool {

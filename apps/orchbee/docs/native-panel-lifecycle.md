@@ -97,7 +97,11 @@ focus at enqueue time; resize and polls admit every exact non-departing incarnat
 desired set. The state owner requests sizes only for attached controlling panes in the visible
 set: all unzoomed leaves, or the focused leaf under zoom. Read-only and hidden panes do not resize. An admitted command keeps the `PaneRef` it captured at enqueue — dispatch fences on
 that exact reference and does not re-check focus, so accepted input still lands on its original
-pane after a focus move and never migrates to the newly focused pane. Commands or worker events
+pane after a focus move and never migrates to the newly focused pane. A requested Workspace or
+Context navigation does not move focus until its own refresh lands, so terminal input is refused
+with a visible notice from the request until the landing — whether the request waits in the Shell
+selection queue or already owns the refresh — and never reaches the pane the user is leaving.
+Commands or worker events
 that arrive tagged with a retired incarnation — queued before a rebind or settled late — are
 dropped or refused at the exact `PaneRef` and never replay onto the re-bound attachment. A poll
 result waits as a pending draw until a completed draw on the exact live record stages it;
@@ -133,11 +137,11 @@ other refusal reasons and transport/protocol failures retain their existing hand
 
 ## Finite model evidence
 
-`PaneIncarnationFencing.tla/.cfg` checks two logical panes, at most two incarnations per pane, two selection anchors, one queued command and one execution flight. `Mint`/`Depart`/`Cleanup` map to membership replacement and retirement; `Admit`/`Start`/`Complete` preserve the captured pane, incarnation and anchor; `Draw` consumes only a current frame. Cleanup, start and completion use weak fairness. The model checks current frames/effects, successor preservation under late cleanup, and eventual settlement of departing membership.
+`PaneIncarnationFencing.tla/.cfg` checks two logical panes, at most two incarnations per pane, two selection anchors, one queued command and one execution flight. `Mint`/`Depart`/`Cleanup` map to membership replacement and retirement; `Admit`/`Start`/`Complete` preserve the captured pane, incarnation and anchor; `Draw` consumes only a current frame; `Intend`/`Land`/`Abandon` map to a requested navigation that moves focus only when it lands. Cleanup, start, completion and landing use weak fairness. The model checks current frames/effects, successor preservation under late cleanup, input admission only after a pending navigation settles, and eventual settlement of departing membership and pending navigation.
 
 `workbench_state/tests/generated.rs` exercises `ReincarnationFence` against production reducers. `reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation` and `same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs` in `state/tests.rs` cover wrong-incarnation and wrong-pane effects. Mailbox, connection and workbench-projection tests own panel-operation results, receipt correlation, membership repair, draw acknowledgements and failure handling. Those detailed compositions are implementation-test claims, not exhaustive TLC claims.
 
-The maintained mutation control removes the completion identity guard and must fail `FramesAreCurrent` or `EffectsUseCurrentIncarnation`. Run `node scripts/tla/run-models.mjs --models native-client-pane-membership` and the owning Cargo tests.
+The maintained mutation controls remove the completion identity guard, which must fail `FramesAreCurrent` or `EffectsUseCurrentIncarnation`, and the pending-navigation input guard, which must fail `InputFollowsSettledNavigation`. Run `node scripts/tla/run-models.mjs --models native-client-pane-membership` and the owning Cargo tests.
 
 ## Terminal settlement
 

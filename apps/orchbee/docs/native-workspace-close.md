@@ -81,9 +81,12 @@ changed, the Client repeats the conditional request once; it has no effect befor
 second mismatch, or a Client that cannot review or repeat it, shows the localized Workspace changed
 notice instead of the confirmation-required status, and the user retries. A conditional request that
 meets a background publication read waits for that read and then starts over the projection it
-installed; one that a newer projection or `RevisionMismatch` kept from admission is repeated once
-under the same rule. A conditional request the Client cannot admit shows the localized busy or
-unavailable notice. No path discards a request silently.
+installed; one that a newer projection or `RevisionMismatch` kept from admission while its target
+facts stayed unchanged is repeated over the newer projection, up to four times, because commits
+elsewhere in the Workbench keep advancing the revision while other Workspaces work. A request
+pressed while the user's own switch is still landing waits for the switch; `Ctrl+b D` then
+addresses the Workspace the switch landed on. A conditional request the Client cannot admit shows
+the localized busy or unavailable notice. No path discards a request silently.
 
 ## Inputs and ownership
 
@@ -114,8 +117,9 @@ captured terminal Context; disappearance or identity replacement invalidates con
 the current Context and revision are unchanged. Before handoff, a fresh snapshot must equal the
 frozen projection, including background membership. A newer snapshot, or a `RevisionMismatch`
 answer to the Workspace command, commits nothing: the Client installs that projection and submits
-the same confirmed action once more, with a new request identity, when the scope's facts are
-unchanged; otherwise it reports the changed Workspace. Unavailable input refuses submission.
+the same confirmed action again, with a new request identity, when the scope's facts are
+unchanged, up to four times; otherwise it reports the changed Workspace. Unavailable input
+refuses submission.
 This read and Server admission remain separate boundaries: Project membership is captured atomically
 at Start, without claiming a transaction spanning the preceding Client read.
 

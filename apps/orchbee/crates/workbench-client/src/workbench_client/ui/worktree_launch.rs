@@ -237,6 +237,11 @@ impl WorkbenchClientUi {
         let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
             return ClientActionDisposition::KeepNavigator;
         };
+        // A landing switch settles on its own: the key waits for it rather than being refused.
+        if state.switch_landing() {
+            self.hold_intent(super::held_intent::HeldIntent::Worktree(mode));
+            return ClientActionDisposition::DismissNavigator;
+        }
         // A refused W or O starts nothing; say why instead of dropping the key.
         if let Some(notice) = state.worktree_refusal() {
             state.set_notice(notice);

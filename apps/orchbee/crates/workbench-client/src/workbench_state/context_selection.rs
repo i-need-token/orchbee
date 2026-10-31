@@ -202,6 +202,12 @@ impl WorkbenchClientState {
         true
     }
 
+    /// A requested Context switch owns the refresh but has not landed: focus still names the
+    /// pane the user is leaving, so terminal input must not reach it.
+    pub(crate) const fn context_selection_pending(&self) -> bool {
+        self.context_selection.is_some()
+    }
+
     pub(crate) fn context_selection_deadlines(&self) -> Option<OperationDeadlines> {
         self.context_selection
             .as_ref()

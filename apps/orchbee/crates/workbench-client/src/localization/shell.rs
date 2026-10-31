@@ -394,6 +394,8 @@ impl Locale {
                 "Terminal input unavailable · input was not sent"
             }
             (Self::ZhCn, Some(Notice::TerminalInputUnavailable)) => "终端输入不可用 · 未发送输入",
+            (Self::EnUs, Some(Notice::NavigationInputHeld)) => "Switching · input was not sent",
+            (Self::ZhCn, Some(Notice::NavigationInputHeld)) => "正在切换 · 未发送输入",
             (Self::EnUs, Some(Notice::WorkspaceNavigationUnavailable)) => {
                 "Could not switch · select the destination again to retry"
             }

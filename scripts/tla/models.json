@@ -140,7 +140,10 @@
 				"Admit",
 				"Start",
 				"Complete",
-				"Draw"
+				"Draw",
+				"Intend",
+				"Land",
+				"Abandon"
 			]
 		},
 		{

@@ -880,7 +880,10 @@ impl<'a> WorkbenchClientView<'a> {
             return None;
         }
         let key = self.state.as_ref()?.pane_by_panel(panel)?.pane_ref();
-        let projection = self.panes.iter().find(|projection| projection.key == key)?;
+        let Some(projection) = self.panes.iter().find(|projection| projection.key == key) else {
+            // The returning viewer is still connecting.
+            return self.saved_reading_image(panel, None);
+        };
         if projection.tail.is_some() {
             return None;
         }
@@ -896,13 +899,49 @@ impl<'a> WorkbenchClientView<'a> {
             .flatten(),
             // Not yet examined: the same bookmark the restore driver would accept.
             None if !history.examined(&key) => {
+                let Some(frame) = projection.value.frame() else {
+                    return self.saved_reading_image(panel, projection.value.host_terminal_id());
+                };
                 let source = self.painted_content_source(panel)?;
                 let saved = history.bank.get(&source.member)?;
-                saved.restorable(&source, projection.value.frame()?)?;
+                saved.restorable(&source, frame)?;
                 saved.image().map(AsRef::as_ref)
             }
             None => None,
         }
+    }
+
+    /// Before the returning viewer's first live frame nothing proves the live tail current
+    /// either, so a member saved at a reading position shows that reading screen instead of
+    /// retained live pixels. The first frame then decides restoration as usual.
+    fn saved_reading_image(
+        &self,
+        panel: &WorkbenchPanelId,
+        host_terminal: Option<&str>,
+    ) -> Option<&ViewportWindow> {
+        // A failed or retired viewer shows its failure, never an old reading screen.
+        let record = self.state.as_ref()?.pane_by_panel(panel)?;
+        if self.retirement.is_some()
+            || record.fault().is_some()
+            || matches!(record.provenance(), CreateTerminalProvenance::Failed(_))
+        {
+            return None;
+        }
+        let saved = self
+            .history_positions?
+            .bank
+            .get(&self.painted_member(panel)?)?;
+        if !matches!(saved.choice, history_positions::Choice::History(_))
+            || host_terminal.is_some_and(|id| {
+                orchbee_client_server_protocol::HostTerminalId::parse(id)
+                    .ok()
+                    .as_ref()
+                    != Some(&saved.source.host_terminal)
+            })
+        {
+            return None;
+        }
+        saved.image().map(AsRef::as_ref)
     }
 
     /// Capture the exact canonical member and terminal row surface this view
@@ -923,18 +962,16 @@ impl<'a> WorkbenchClientView<'a> {
         self.content_source(panel_id, false)
     }
 
-    fn content_source(
+    /// The canonical member this view paints for one panel: the active Tab's selected
+    /// presentation, bound to the panel's current record.
+    fn painted_member(
         &self,
         panel_id: &WorkbenchPanelId,
-        crop_live: bool,
-    ) -> Option<crate::terminal_content::ContentSource> {
-        use crate::terminal_content::{ContentSource, PaintedRows, SnapshotMember, TerminalScreen};
-
+    ) -> Option<crate::terminal_content::SnapshotMember> {
         let state = self.state.as_ref()?;
         let record = state.pane_by_panel(panel_id)?;
-        let pane = record.pane_ref();
         let tab = self.tab(self.active_position()?.checked_sub(1)?)?;
-        if tab.tab_id() != pane.anchor().tab_id() {
+        if tab.tab_id() != record.pane_ref().anchor().tab_id() {
             return None;
         }
         let panel = (0..tab.panel_count())
@@ -945,6 +982,28 @@ impl<'a> WorkbenchClientView<'a> {
         if record.binding() != binding {
             return None;
         }
+        Some(crate::terminal_content::SnapshotMember {
+            session: state.session_id().clone(),
+            context: state.terminal_context_id()?.clone(),
+            tab: tab.tab_id().clone(),
+            panel: panel_id.clone(),
+            presentation: selected.presentation_id().clone(),
+            worker: binding.worker_id().clone(),
+            terminal: binding.terminal_id().clone(),
+        })
+    }
+
+    fn content_source(
+        &self,
+        panel_id: &WorkbenchPanelId,
+        crop_live: bool,
+    ) -> Option<crate::terminal_content::ContentSource> {
+        use crate::terminal_content::{ContentSource, PaintedRows, TerminalScreen};
+
+        let state = self.state.as_ref()?;
+        let record = state.pane_by_panel(panel_id)?;
+        let pane = record.pane_ref();
+        let member = self.painted_member(panel_id)?;
         let projection = self.pane_projection(panel_id)?;
         if self
             .panes
@@ -998,15 +1057,7 @@ impl<'a> WorkbenchClientView<'a> {
         };
         Some(ContentSource {
             pane,
-            member: SnapshotMember {
-                session: state.session_id().clone(),
-                context: state.terminal_context_id()?.clone(),
-                tab: tab.tab_id().clone(),
-                panel: panel_id.clone(),
-                presentation: selected.presentation_id().clone(),
-                worker: binding.worker_id().clone(),
-                terminal: binding.terminal_id().clone(),
-            },
+            member,
             host_terminal,
             screen,
             rows,
@@ -2169,7 +2220,7 @@ impl WorkbenchClientUi {
     }
 
     pub(super) fn forward(&mut self, input: &[u8]) -> bool {
-        if self.retirement_failure.is_some() {
+        if self.retirement_failure.is_some() || self.navigation_pending() {
             return false;
         }
         let Some(state) = self.state.as_ref() else {
@@ -3236,6 +3287,14 @@ impl WorkbenchClientUi {
             self.end_navigation_yield();
         }
         super::ContextNavigationAdmission::Busy
+    }
+
+    /// Whether a requested navigation has not landed: the focused pane is the one being left.
+    pub(super) fn navigation_pending(&self) -> bool {
+        self.state
+            .as_ref()
+            .is_some_and(WorkbenchClientState::context_selection_pending)
+            || self.held_navigation()
     }
 
     fn select_context(&mut self, next: bool) -> ClientActionDisposition {

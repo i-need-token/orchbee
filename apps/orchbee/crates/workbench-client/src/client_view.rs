@@ -740,6 +740,11 @@ impl ClientView {
         self.notice = Some(Notice::TerminalInputUnavailable);
     }
 
+    /// A requested navigation has not landed; the refused input was sent nowhere.
+    pub(crate) fn report_input_held_for_navigation(&mut self) {
+        self.notice = Some(Notice::NavigationInputHeld);
+    }
+
     /// The pending-focus queue overflowed or expired — the queued pointer
     /// input was dropped and the user sees why.
     pub(crate) fn report_pointer_input_dropped(&mut self) {

@@ -294,6 +294,12 @@ pub trait TerminalInputPort {
 
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable>;
 
+    /// Whether a requested navigation that changes the focused terminal has not landed yet.
+    /// Focus still names the pane being left, so passthrough input belongs to no terminal.
+    fn navigation_pending(&self) -> bool {
+        false
+    }
+
     /// One host or input-stream fact; see [`TerminalObservation`].
     fn observe_terminal(&mut self, _observation: TerminalObservation) {}
 

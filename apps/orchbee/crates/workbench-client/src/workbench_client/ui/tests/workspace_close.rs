@@ -1115,6 +1115,22 @@ fn reply_confirmation_required(
     clock: &LocalOperationClock,
     snapshot: Snapshot,
 ) {
+    reply_conditional(
+        ui,
+        mailbox,
+        clock,
+        snapshot,
+        WorkspaceCloseResult::ConfirmationRequired,
+    );
+}
+
+fn reply_conditional(
+    ui: &mut WorkbenchClientUi,
+    mailbox: &CommandMailbox,
+    clock: &LocalOperationClock,
+    snapshot: Snapshot,
+    result: WorkspaceCloseResult,
+) {
     let lease = mailbox
         .try_recv()
         .unwrap()
@@ -1133,10 +1149,7 @@ fn reply_confirmation_required(
             .unwrap(),
         MutationResult::Applied
     );
-    assert!(
-        mailbox
-            .retain_workspace_close_result(operation, WorkspaceCloseResult::ConfirmationRequired)
-    );
+    assert!(mailbox.retain_workspace_close_result(operation, result));
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::WorkspaceCloseResult {
@@ -1267,6 +1280,72 @@ fn conditional_workspace_close_reports_a_target_that_keeps_changing_instead_of_d
         ClientActionDisposition::DismissNavigator
     );
     assert!(mailbox.try_recv().unwrap().is_some());
+}
+/// F-1: while other Workspaces keep committing, each conditional request meets a newer revision
+/// than the one it named although nothing about its target changed. It is asked again over each
+/// newer projection instead of ending in「工作区已变化，请重试」after a single retry.
+#[test]
+fn conditional_workspace_close_outlasts_commits_outside_its_target() {
+    let (mut ui, mailbox, clock, snapshot) = ready_with_background_target(true);
+    let target = snapshot.navigation.workspaces[1].clone();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestWorkspaceCloseAt(
+            target.workspace_id.clone()
+        )),
+        ClientActionDisposition::DismissNavigator
+    );
+    let limit = u64::from(crate::workbench_state::workspace_close::STALE_RETRY_LIMIT);
+    let mut current = snapshot;
+    let mut revision = 1;
+    for _ in 0..limit {
+        revision += 1;
+        current = drifted(&current, revision, None);
+        reply_conditional(
+            &mut ui,
+            &mailbox,
+            &clock,
+            current.clone(),
+            WorkspaceCloseResult::Stale,
+        );
+        assert_eq!(
+            ui.view().notice(),
+            None,
+            "a commit outside the target is no reason to give up"
+        );
+    }
+    reply_confirmation_required(&mut ui, &mailbox, &clock, current.clone());
+    assert_eq!(
+        ui.view().workspace_close_confirmation().unwrap().label(),
+        target.label.to_string()
+    );
+
+    // Retries stay bounded: past the bound the request ends with the visible retry notice.
+    assert!(ui.capture_confirmation_key(ClientKey::Escape));
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestWorkspaceCloseAt(
+            target.workspace_id.clone()
+        )),
+        ClientActionDisposition::DismissNavigator
+    );
+    for _ in 0..=limit {
+        revision += 1;
+        current = drifted(&current, revision, None);
+        reply_conditional(
+            &mut ui,
+            &mailbox,
+            &clock,
+            current.clone(),
+            WorkspaceCloseResult::Stale,
+        );
+    }
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "no request past the bound"
+    );
+    assert_eq!(
+        ui.view().notice(),
+        Some(crate::localization::WorkbenchClientNotice::WorkspaceChanged)
+    );
 }
 /// F-1: another Workspace's output keeps a publication read in flight when `Ctrl+b D` arrives.
 /// The request waits for that read and then starts over the read's projection.

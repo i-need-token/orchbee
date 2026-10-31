@@ -23,11 +23,11 @@ pub(crate) use sidebar::{SidebarDeleteReview, WorkspaceDeleteRequest};
 pub(crate) enum StaleCloseReview {
     /// The result is not stale, or its own refresh still owns settlement.
     NotApplicable,
-    /// The confirmed scope is unchanged: submit it once more against the newer projection.
+    /// The confirmed scope is unchanged: submit it again against the newer projection.
     Retry,
-    /// The conditional target is unchanged: ask the Server once more.
+    /// The conditional target is unchanged: ask the Server again.
     Recheck(WorkbenchWorkspaceId),
-    /// The scope changed, or the single retry met another newer projection.
+    /// The scope changed, or the bounded retries kept meeting newer projections.
     Changed,
 }
 
@@ -127,13 +127,22 @@ fn project_facts<'a>(
     ))
 }
 
+/// Retries of a request that only a newer projection kept from admission, while its scope stays
+/// unchanged. Each takes one read round trip, so the bound stays within a few seconds.
+pub(crate) const STALE_RETRY_LIMIT: u8 = 4;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkspaceCloseOperation {
     conditional: bool,
     destructive: bool,
-    /// The single automatic follow-up after the target changed under a conditional reply, or
-    /// after a newer projection kept the Server from admitting the first request.
+    /// An automatic follow-up: the single one after the target changed under a conditional
+    /// reply, or one of the bounded ones after a newer projection kept the Server from admitting
+    /// the previous request.
     recheck: bool,
+    /// How many earlier requests a newer projection kept from admission, every one over an
+    /// unchanged scope. Commits elsewhere in the Workbench advance the revision continuously
+    /// while other Workspaces work, so one retry is not enough; the bound keeps it finite.
+    pub(crate) stale_retries: u8,
     pub(crate) target: WorkspaceCloseTarget,
     pub(crate) request_id: WorkbenchRequestId,
     pub(crate) generation: u64,
@@ -646,6 +655,7 @@ impl WorkbenchClientState {
             conditional: false,
             destructive: prompt.destructive,
             recheck: false,
+            stale_retries: 0,
             target: prompt.target.clone(),
             request_id,
             generation,
@@ -714,8 +724,9 @@ impl WorkbenchClientState {
             .filter(|evidence| matches!(evidence.result, WorkspaceCloseResult::Stale))
             .map(|evidence| &evidence.operation)
     }
-    /// Re-plans a confirmed close once against the newer projection after its first request
-    /// named an outdated revision. The user already confirmed this exact unchanged scope.
+    /// Re-plans a confirmed close against the newer projection after its request named an
+    /// outdated revision, up to the stale retry bound. The user already confirmed this exact
+    /// unchanged scope.
     pub(crate) fn plan_workspace_close_retry(
         &self,
         prior: &WorkspaceCloseOperation,
@@ -724,7 +735,7 @@ impl WorkbenchClientState {
         deadlines: OperationDeadlines,
     ) -> Option<WorkspaceCloseOperation> {
         if prior.conditional
-            || prior.recheck
+            || prior.stale_retries >= STALE_RETRY_LIMIT
             || generation == 0
             || self.stale_workspace_close() != Some(prior)
             || !self.close_scope_available()
@@ -736,6 +747,7 @@ impl WorkbenchClientState {
             conditional: false,
             destructive: prior.destructive,
             recheck: true,
+            stale_retries: prior.stale_retries.saturating_add(1),
             target: prior.target.clone(),
             request_id,
             generation,
@@ -757,7 +769,7 @@ impl WorkbenchClientState {
         {
             return StaleCloseReview::NotApplicable;
         }
-        if !evidence.operation.recheck
+        if evidence.operation.stale_retries < STALE_RETRY_LIMIT
             && self.close_scope_available()
             && evidence
                 .operation

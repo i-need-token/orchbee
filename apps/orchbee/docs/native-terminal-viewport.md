@@ -282,9 +282,12 @@ navigation; Esc and typing keep their recover-before-input behavior. No old atta
 pending command, grant or selection is replayed.
 
 A bookmark also keeps an image of the committed window last painted at it, counted against the
-same 16 MiB budget. From the first live frame of a return until restoration installs a window or
-recovery begins, the pane paints that image under the history badge instead of the live tail or the
-loading indicator, so a return shows the last reading screen first. The image is render-only: it
+same 16 MiB budget. From a return until restoration installs a window or recovery begins, the pane
+paints that image under the history badge instead of the live tail, retained live pixels or the
+loading indicator, so a return shows the last reading screen first. Before the returning viewer's
+first live frame, the image needs only the saved reading choice and, once attached, the same Host
+terminal; a failed or retiring viewer shows its failure instead. The first live frame then applies
+the full restoration check. The image is render-only: it
 carries no position readout, link source, selection, acknowledgement or input authority. The
 restoration behind it still validates fresh facts and witness rows, and a refusal replaces it
 through ordinary recovery. Input forwarded before restoration begins records Live and drops the

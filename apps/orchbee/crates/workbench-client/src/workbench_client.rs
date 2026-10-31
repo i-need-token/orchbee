@@ -892,6 +892,12 @@ impl TerminalInputPort for WorkbenchClient {
         accepted.then_some(()).ok_or(TerminalInputUnavailable)
     }
 
+    fn navigation_pending(&self) -> bool {
+        match &self.backend {
+            ClientBackend::Native(native) => native.navigation_pending(),
+        }
+    }
+
     fn observe_terminal(&mut self, observation: TerminalObservation) {
         match observation {
             TerminalObservation::Focus(focused) => {

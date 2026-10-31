@@ -61,6 +61,8 @@ pub enum Notice {
     NotificationUnsupported,
     BackendUnavailable(BackendAction),
     TerminalInputUnavailable,
+    /// Terminal input arrived while a requested navigation had not landed and was not sent.
+    NavigationInputHeld,
     UnknownPrefix,
     /// A pointer gesture's queued input was dropped: the pending-focus
     /// queue overflowed or its bounded wait expired.

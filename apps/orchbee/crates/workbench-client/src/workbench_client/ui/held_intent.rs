@@ -1,19 +1,21 @@
 //! Holds one user invocation whose admission needs the refresh slot while a background
-//! publication read owns it, and replays it through its ordinary entry point once that read
-//! settles, before another background read starts. Background work never makes the action
-//! unavailable and never drops it: a hold that outlives its bound ends with the visible busy
-//! refusal.
+//! publication read owns it, or while the user's own switch is still landing, and replays it
+//! through its ordinary entry point once that settles, before another background read starts.
+//! Background work and a landing switch never make the action unavailable and never drop it: a
+//! hold that outlives its bound ends with the visible busy refusal.
 
 use super::WorkbenchClientUi;
 use super::worktree_launch::WorktreeMode;
 use crate::client_view::ClientKey;
 use crate::workbench_state::workspace_close::{WorkspaceCloseToken, WorkspaceDeleteRequest};
 use crate::workbench_state::{ClientNotice, WorkbenchClientState};
+use orchbee_workbench_protocol::WorkbenchWorkspaceId;
 use std::time::{Duration, Instant};
 
-/// A background read settles within one read round trip. A hold past this bound no longer
-/// reads as a response to the key, so it ends with a refusal instead.
-const HOLD: Duration = Duration::from_secs(2);
+/// A background read settles within one read round trip, and a switch within its terminal's
+/// attach, which takes a few seconds on a loaded host. A hold past this bound no longer reads as
+/// a response to the key, so it ends with a refusal instead.
+const HOLD: Duration = Duration::from_secs(5);
 
 /// An invocation whose effect waits for the refresh slot.
 #[derive(Clone, Debug)]
@@ -22,6 +24,10 @@ pub(super) enum HeldIntent {
     WorkspaceClose(WorkspaceCloseToken),
     /// A conditional Workspace close request, rebased on replay.
     WorkspaceDelete(Box<WorkspaceDeleteRequest>),
+    /// Close of a named Workspace requested before a landing switch let it be captured.
+    WorkspaceCloseAt(WorkbenchWorkspaceId),
+    /// Close of the current Workspace: the one the landing switch lands on, resolved on replay.
+    CurrentWorkspaceClose,
     /// A Worktree form or listing was requested.
     Worktree(WorktreeMode),
     /// The next or previous Context was requested. Terminal input waits with it.
@@ -42,8 +48,8 @@ pub(super) struct HeldIntents {
 }
 
 impl WorkbenchClientUi {
-    /// Holds `intent` behind the background read that owns the refresh slot. A later
-    /// invocation replaces the earlier one, as a second key press would.
+    /// Holds `intent` behind the background read that owns the refresh slot, or behind the
+    /// landing switch. A later invocation replaces the earlier one, as a second key press would.
     pub(super) fn hold_intent(&mut self, intent: HeldIntent) {
         let until = self.clock.now() + HOLD;
         self.held_intents.held = Some(Hold { intent, until });
@@ -78,8 +84,17 @@ impl WorkbenchClientUi {
                 .is_some_and(|until| self.clock.now() < until)
     }
 
+    /// Whether a requested Context switch is held: input belongs to no terminal until it lands.
+    pub(super) fn held_navigation(&self) -> bool {
+        self.held_intents
+            .held
+            .as_ref()
+            .is_some_and(|held| matches!(held.intent, HeldIntent::Context { .. }))
+    }
+
     /// Replays the held invocation through its ordinary entry point once the background read
-    /// settled. Replay revalidates everything; it never reuses an earlier admission.
+    /// or the landing switch settled. Replay revalidates everything; it never reuses an earlier
+    /// admission.
     pub(super) fn replay_held_intent(&mut self) -> bool {
         let Some(held) = self.held_intents.held.as_ref() else {
             return false;
@@ -87,7 +102,7 @@ impl WorkbenchClientUi {
         if self
             .state
             .as_ref()
-            .is_some_and(WorkbenchClientState::background_refresh_only)
+            .is_some_and(WorkbenchClientState::settling_for_user_action)
         {
             if self.clock.now() < held.until {
                 return false;
@@ -107,6 +122,12 @@ impl WorkbenchClientUi {
             }
             HeldIntent::WorkspaceDelete(request) => {
                 let _disposition = self.request_sidebar_workspace_delete(&request);
+            }
+            HeldIntent::WorkspaceCloseAt(workspace_id) => {
+                let _disposition = self.request_workspace_close_at(&workspace_id);
+            }
+            HeldIntent::CurrentWorkspaceClose => {
+                let _disposition = self.request_workspace_close();
             }
             HeldIntent::Worktree(mode) => {
                 let _disposition = self.request_worktree(mode);

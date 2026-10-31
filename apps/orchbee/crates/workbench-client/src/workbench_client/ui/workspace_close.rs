@@ -102,6 +102,14 @@ impl WorkbenchClientUi {
         let Some(request) = self.state.as_ref().and_then(|state| {
             WorkspaceDeleteRequest::capture(state, workspace_id, deadlines.total())
         }) else {
+            if self
+                .state
+                .as_ref()
+                .is_some_and(WorkbenchClientState::switch_landing)
+            {
+                self.hold_intent(HeldIntent::WorkspaceCloseAt(workspace_id.clone()));
+                return ClientActionDisposition::DismissNavigator;
+            }
             if let Some(state) = self.state.as_mut() {
                 let notice = if state.close_scope_available() {
                     ClientNotice::WorkspaceCloseUnavailable
@@ -145,6 +153,11 @@ impl WorkbenchClientUi {
         let Some(state) = self.state.as_ref() else {
             return ClientActionDisposition::KeepNavigator;
         };
+        // The key names what the landing switch shows; resolve the Workspace once it landed.
+        if state.switch_landing() {
+            self.hold_intent(HeldIntent::CurrentWorkspaceClose);
+            return ClientActionDisposition::DismissNavigator;
+        }
         let crate::workbench_projection::ClientContextLocation::Workspace { workspace_id, .. } =
             state.cache().location()
         else {
@@ -299,7 +312,7 @@ impl WorkbenchClientUi {
             .as_mut()
             .map(|state| state.review_sidebar_workspace_delete(&evidence));
         if let Some(SidebarDeleteReview::Recheck(workspace_id)) = review {
-            self.recheck_sidebar_workspace_delete(&workspace_id);
+            self.recheck_sidebar_workspace_delete(&workspace_id, &evidence);
         }
         match self
             .state
@@ -308,7 +321,7 @@ impl WorkbenchClientUi {
         {
             Some(StaleCloseReview::Retry) => self.retry_workspace_close(&evidence.operation),
             Some(StaleCloseReview::Recheck(workspace_id)) => {
-                self.recheck_sidebar_workspace_delete(&workspace_id);
+                self.recheck_sidebar_workspace_delete(&workspace_id, &evidence);
             }
             Some(StaleCloseReview::NotApplicable | StaleCloseReview::Changed) | None => {}
         }
@@ -329,23 +342,28 @@ impl WorkbenchClientUi {
         }
     }
 
-    /// Re-asks the Server once after the target changed under its confirmation reply. The
-    /// conditional request has no effect before confirmation, so asking again is safe.
-    fn recheck_sidebar_workspace_delete(&mut self, workspace_id: &WorkbenchWorkspaceId) {
+    /// Re-asks the Server after `prior`'s reply: once after the target changed under its
+    /// confirmation reply, or within the stale retry bound after a newer projection kept it from
+    /// admission. The conditional request has no effect before confirmation, so asking again is
+    /// safe.
+    fn recheck_sidebar_workspace_delete(
+        &mut self,
+        workspace_id: &WorkbenchWorkspaceId,
+        prior: &WorkspaceCloseEvidence,
+    ) {
         let admitted = OperationDeadlines::from_sample(self.clock.now()).is_some_and(|deadlines| {
             let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
                 return false;
             };
-            WorkspaceDeleteRequest::recheck(state, workspace_id, deadlines.total()).is_some_and(
-                |request| {
+            WorkspaceDeleteRequest::recheck(state, workspace_id, prior, deadlines.total())
+                .is_some_and(|request| {
                     mailbox.try_enqueue_sidebar_workspace_delete_for(
                         state,
                         &request,
                         deadlines,
                         &self.clock,
                     )
-                },
-            )
+                })
         });
         if !admitted && let Some(state) = self.state.as_mut() {
             state.settle_sidebar_workspace_delete_changed();

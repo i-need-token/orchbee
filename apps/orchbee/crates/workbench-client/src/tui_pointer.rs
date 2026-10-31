@@ -230,6 +230,9 @@ fn forward_or_report(
     input: &[u8],
     terminal_input: &mut (impl TerminalInputPort + ?Sized),
 ) {
+    if crate::terminal_input::navigation_holds_input(view, terminal_input) {
+        return;
+    }
     if terminal_input.forward(input).is_err() {
         view.report_terminal_input_unavailable();
     }

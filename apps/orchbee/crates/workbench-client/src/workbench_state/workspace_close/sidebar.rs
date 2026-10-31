@@ -12,6 +12,7 @@ pub(crate) struct WorkspaceDeleteRequest {
     workspace: orchbee_workbench_protocol::Workspace,
     deadline: Instant,
     recheck: bool,
+    stale_retries: u8,
 }
 
 impl WorkspaceDeleteRequest {
@@ -32,16 +33,28 @@ impl WorkspaceDeleteRequest {
                 .clone(),
             deadline,
             recheck: false,
+            stale_retries: 0,
         })
     }
-    /// The single automatic follow-up after the target changed under a confirmation reply.
+    /// The automatic follow-up to `prior`'s reply: after the target changed under a confirmation
+    /// reply, or after a newer projection kept `prior` from admission, which counts toward the
+    /// stale retry bound.
     pub(crate) fn recheck(
         state: &WorkbenchClientState,
         workspace: &WorkbenchWorkspaceId,
+        prior: &WorkspaceCloseEvidence,
         deadline: Instant,
     ) -> Option<Self> {
+        let stale_retries = prior
+            .operation
+            .stale_retries
+            .saturating_add(u8::from(matches!(
+                prior.result,
+                WorkspaceCloseResult::Stale
+            )));
         Self::capture(state, workspace, deadline).map(|request| Self {
             recheck: true,
+            stale_retries,
             ..request
         })
     }
@@ -132,6 +145,7 @@ impl WorkbenchClientState {
             conditional: true,
             destructive: true,
             recheck: request.recheck,
+            stale_retries: request.stale_retries,
             target: WorkspaceCloseTarget::Workspace {
                 workspace_id: request.workspace.workspace_id.clone(),
                 terminal_context_id: request.workspace.terminal_context_id.clone(),

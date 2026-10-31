@@ -120,9 +120,18 @@ Ownership rules:
   another surface, but those actions still resolve through the normal binding owner. Ordinary keys
   and paste remain with the overlay, and this route never bypasses an exclusive capture above it.
 - Bytes that no higher owner consumes reach the focused terminal unchanged and in order. The Client
-  never reorders, merges, or drops passthrough input. In particular, `Esc` remains pane input when
-  a terminal pane owns the keyboard; a named owner resolves `Esc` through its own local return
+  never reorders or merges passthrough input and never drops it silently; a refused event shows a
+  transient notice that says nothing was sent. In particular, `Esc` remains pane input when a
+  terminal pane owns the keyboard; a named owner resolves `Esc` through its own local return
   contract.
+- A requested navigation that changes the focused terminal, such as a Workspace or Context switch
+  from the sidebar, a picker, or a shortcut, holds passthrough from the request until the
+  destination pane accepts input or the request fails, is cancelled, or expires. In that window
+  keys, paste, and pointer reports reach no pane: the pane being left no longer names the user's
+  target, and every refused event shows the switching notice. The Client intercepts rather than
+  queues: replaying held bytes would deliver them to a destination the user has not yet seen.
+  `Esc` still cancels a navigation request that has not been admitted; it never reaches the pane
+  being left.
 - Ownership is a pure decision over the last presented interaction state and one event. Network
   progress and background work do not silently move ownership. A completed frame may establish a
   new owner for later events; it never reroutes an event already being dispatched.

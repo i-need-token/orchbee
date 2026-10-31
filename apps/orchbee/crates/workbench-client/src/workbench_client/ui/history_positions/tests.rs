@@ -530,6 +530,31 @@ fn returning_bookmark_paints_its_last_window_instead_of_the_live_tail() {
     assert!(ui.history_positions.restoring_image(&key).is_none());
 }
 
+/// O-8 step 7: typing right after the return breaks the navigation hold, so a frame is drawn
+/// while the returning viewer is still connecting. It shows the reading screen, not the live tail.
+#[test]
+fn a_return_before_the_first_live_frame_paints_the_bookmark_instead_of_live_pixels() {
+    let (mut ui, _mailbox, key) = reading_ui();
+    ui.clear_projections();
+    let panel = key.pane().panel().clone();
+    let stand_in = |ui: &WorkbenchClientUi| {
+        ui.view()
+            .pane_history_stand_in(&panel)
+            .map(|window| window.route.start_row)
+    };
+    let history = |ui: &WorkbenchClientUi| {
+        painted(ui).contains(crate::localization::Locale::EnUs.terminal_history_badge())
+    };
+    assert_eq!(stand_in(&ui), Some(100), "the viewer is still connecting");
+    assert!(
+        history(&ui),
+        "the reading screen paints instead of the live tail"
+    );
+    install_projection(&mut ui, None, 0);
+    assert_eq!(stand_in(&ui), Some(100), "attached, before its first frame");
+    assert!(history(&ui));
+}
+
 #[test]
 fn typing_before_restoration_chooses_live_and_drops_the_bookmark_image() {
     let (ui, mailbox, _, _) = super::super::test_support::controlling_ui();

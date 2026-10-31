@@ -160,6 +160,10 @@ unless the owning workflow explicitly defines that behavior.
   work settles, before admitting further background work. The hold is bounded; expiry ends with a
   visible busy refusal, and the replay revalidates every fact. An invocation is never dropped
   because unrelated background work was in flight.
+- The user's own switch that is still landing settles the same way: an invocation pressed while
+  the destination's read or terminal attach is in flight waits for the switch and then runs
+  against the destination, resolving "current" targets only after the switch lands. The switch is
+  no reason to report the invocation as busy or its target as not ready.
 - A commit refused only because the projection advanced past the invocation's baseline is retried
   once against the newer projection when the targeted facts are unchanged; otherwise, or when the
   retry is refused the same way, the action ends with the localized changed-target notice.
