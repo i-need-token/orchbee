@@ -3,17 +3,10 @@ use super::{
     OperationDeadlines, SetupOperation, WorkbenchAction, WorkbenchClientState, WorkbenchCommand,
     WorkbenchRequestId, WorkbenchSetupCommit, WorkbenchSetupRequest,
 };
+use crate::machine_spaces::navigation_projection::SidebarNavigationProjection;
 use orchbee_workbench_protocol::{
     Navigation, NavigationConfiguration, ProtocolVersion, configure_navigation,
 };
-
-/// The active Client's canonical topology and its one admitted, reversible sidebar move.
-/// Metadata observations and terminal selection remain with their existing owners.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SidebarNavigationProjection {
-    pub(crate) snapshot: std::sync::Arc<orchbee_workbench_protocol::Snapshot>,
-    pub(crate) pending: Option<NavigationConfiguration>,
-}
 
 impl super::super::WorkbenchClientView<'_> {
     pub(crate) fn sidebar_navigation(&self) -> SidebarNavigationProjection {

@@ -4,8 +4,8 @@
 
 use super::{
     BarrierFence, BarrierKind, COMMAND_CAPACITY, CommandMailbox, EventDeadline, EventError,
-    Instant, LocalOperationClock, MailboxClock, MailboxClosed, MailboxState, MembershipResultKey,
-    MoveAdmissionError, MutationResult, PaneKey, PendingRefreshStage, QueuedCommand, QueuedRecord,
+    Instant, MailboxClock, MailboxClosed, MailboxState, MembershipResultKey, MoveAdmissionError,
+    MutationResult, PaneKey, PendingRefreshStage, QueuedCommand, QueuedRecord,
     StructuralMutationFlight, UiCorrelation, UiWaitKey, WorkbenchRequestId, WorkerEvent,
     workbench_identity_candidate,
 };
@@ -67,7 +67,7 @@ impl CommandMailbox {
         &self,
         canonical: &mut Canonical,
         deadline: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
         build: impl FnOnce(&Canonical, WorkbenchRequestId) -> Result<PanelOperation, BuildError>,
         commit: impl FnOnce(&mut Canonical, &PanelOperation) -> Result<(), BuildError>,
     ) -> Result<PanelOperation, MoveAdmissionError<BuildError>> {
@@ -171,7 +171,7 @@ impl CommandMailbox {
         operation: PanelOperation,
         outcome: PanelResult,
         deadline: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<UiWaitKey, EventError> {
         self.publish_event_before(
             WorkerEvent::PanelResult { operation, outcome },

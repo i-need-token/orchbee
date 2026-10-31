@@ -1,9 +1,20 @@
 //! Active-Client topology bridges slow metadata reads without promoting a pending move to authority.
-use super::{Checkpoint, ProjectSummary, Row};
-use crate::workbench_projection::{ClientContextLocation, ClientContextTarget};
-use crate::workbench_state::workspace_setup::SidebarNavigationProjection;
-use orchbee_workbench_protocol::{MetadataTokens, WorkbenchRevision, configure_navigation};
+//! The Client state supplies its topology and pending move as a value; this projection never
+//! reads that state.
+use super::checkpoint::{Checkpoint, ProjectSummary, Row};
+use crate::client_context::{ClientContextLocation, ClientContextTarget};
+use orchbee_workbench_protocol::{
+    MetadataTokens, NavigationConfiguration, WorkbenchRevision, configure_navigation,
+};
 use std::collections::HashMap;
+
+/// The active Client's canonical topology and its one admitted, reversible sidebar move.
+/// Metadata observations and terminal selection remain with their existing owners.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SidebarNavigationProjection {
+    pub(crate) snapshot: std::sync::Arc<orchbee_workbench_protocol::Snapshot>,
+    pub(crate) pending: Option<NavigationConfiguration>,
+}
 
 impl Checkpoint {
     /// Newer observed topology supersedes speculation. Older observations contribute metadata

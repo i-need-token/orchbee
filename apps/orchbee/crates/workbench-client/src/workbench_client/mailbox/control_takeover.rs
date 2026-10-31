@@ -1,9 +1,9 @@
 //! One refresh barrier and an evidence sidecar for the explicit control gesture.
+use super::MailboxClock;
 use super::{
     COMMAND_CAPACITY, CommandMailbox, PendingRefreshStage, QueuedCommand, QueuedRecord,
     RefreshFlight, RefreshMarker, RefreshPurpose, workbench_identity_candidate,
 };
-use crate::local_client::LocalOperationClock;
 use crate::workbench_state::control_takeover::{
     TakeoverEvidence, TakeoverOperation, TakeoverResult,
 };
@@ -19,7 +19,7 @@ impl CommandMailbox {
         &self,
         canonical: &mut WorkbenchClientState,
         deadlines: OperationDeadlines,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> bool {
         let Some((mut state, _)) = self.lock_before(deadlines.forward_cutoff(), clock) else {
             return false;

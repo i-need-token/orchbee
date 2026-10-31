@@ -85,7 +85,7 @@ fn view(width: u16, height: u16) -> ClientView {
     );
     view.machines.observe_spaces(vec![(
         Choice::Local,
-        crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+        crate::machine_spaces::checkpoint::Observation::Ready(std::sync::Arc::new(
             crate::machine_spaces::Checkpoint {
                 session_id: session,
                 revision: WorkbenchRevision::new(1),
@@ -714,7 +714,7 @@ fn long_branch_and_custom_text_shrink_before_fixed_divergence_counts() {
         .collect::<Vec<_>>();
     view.machines.observe_spaces(vec![(
         Choice::Local,
-        crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+        crate::machine_spaces::checkpoint::Observation::Ready(std::sync::Arc::new(
             crate::machine_spaces::Checkpoint {
                 session_id: SessionId::parse(&id(1)).unwrap(),
                 revision: WorkbenchRevision::new(1),
@@ -766,7 +766,7 @@ fn folder_location_uses_the_whole_row_and_keeps_both_ends_beside_agents() {
     let target = rows[0].target.clone();
     view.machines.observe_spaces(vec![(
         Choice::Local,
-        crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+        crate::machine_spaces::checkpoint::Observation::Ready(std::sync::Arc::new(
             crate::machine_spaces::Checkpoint {
                 session_id: SessionId::parse(&id(1)).unwrap(),
                 revision: WorkbenchRevision::new(1),
@@ -1291,7 +1291,7 @@ fn ungrouped_view(label: &str) -> ClientView {
     let current = rows[0].target.clone();
     view.machines.observe_spaces(vec![(
         Choice::Local,
-        crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+        crate::machine_spaces::checkpoint::Observation::Ready(std::sync::Arc::new(
             crate::machine_spaces::Checkpoint {
                 session_id: current.session_id.clone(),
                 revision: WorkbenchRevision::new(3),
@@ -1469,7 +1469,7 @@ fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_
     }
     view.machines.observe_spaces(vec![(
         Choice::Local,
-        crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+        crate::machine_spaces::checkpoint::Observation::Ready(std::sync::Arc::new(
             crate::machine_spaces::Checkpoint {
                 session_id: SessionId::parse(&id(1)).unwrap(),
                 revision: WorkbenchRevision::new(2),

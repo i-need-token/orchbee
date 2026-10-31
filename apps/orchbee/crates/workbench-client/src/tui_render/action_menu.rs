@@ -18,8 +18,8 @@ use crate::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
         ProjectedPointer,
     },
+    tui_presentation::ModalPresentation,
     tui_theme::{GlyphMode, Role, Theme},
-    workbench_client::ModalPresentation,
 };
 use ratatui::{
     Frame,

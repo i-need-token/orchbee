@@ -7,14 +7,16 @@ impl Picker {
     pub fn observe_native_navigation(
         &mut self,
         machine: Choice,
-        navigation: Option<crate::workbench_state::workspace_setup::SidebarNavigationProjection>,
+        navigation: Option<
+            crate::machine_spaces::navigation_projection::SidebarNavigationProjection,
+        >,
     ) -> bool {
         let navigation = navigation.or_else(|| {
             // Carrier loss revokes speculation, not already validated topology. Keep
             // its revision floor until endpoint replacement explicitly forgets it.
             let (owner, known) = self.native_navigation.as_ref()?;
             (owner == &machine).then(|| {
-                crate::workbench_state::workspace_setup::SidebarNavigationProjection {
+                crate::machine_spaces::navigation_projection::SidebarNavigationProjection {
                     snapshot: std::sync::Arc::clone(&known.snapshot),
                     pending: None,
                 }
@@ -33,11 +35,13 @@ impl Picker {
     fn observed_space_checkpoint(
         &self,
         machine: &Choice,
-    ) -> Option<&crate::machine_spaces::Checkpoint> {
+    ) -> Option<&crate::machine_spaces::checkpoint::Checkpoint> {
         self.space_observations
             .iter()
             .find_map(|(choice, observation)| match observation {
-                crate::machine_spaces::Observation::Ready(checkpoint) if choice == machine => {
+                crate::machine_spaces::checkpoint::Observation::Ready(checkpoint)
+                    if choice == machine =>
+                {
                     Some(checkpoint.as_ref())
                 }
                 _ => None,
@@ -47,7 +51,7 @@ impl Picker {
     pub(super) fn space_checkpoint(
         &self,
         machine: &Choice,
-    ) -> Option<&crate::machine_spaces::Checkpoint> {
+    ) -> Option<&crate::machine_spaces::checkpoint::Checkpoint> {
         self.space_projection
             .as_ref()
             .filter(|(choice, _)| choice == machine)
@@ -60,7 +64,7 @@ impl Picker {
             .native_navigation
             .as_ref()
             .and_then(|(machine, source)| {
-                crate::machine_spaces::Checkpoint::project_navigation(
+                crate::machine_spaces::checkpoint::Checkpoint::project_navigation(
                     source,
                     self.observed_space_checkpoint(machine),
                 )
@@ -122,9 +126,9 @@ impl Picker {
     }
     pub fn observe_spaces(
         &mut self,
-        observations: Vec<(Choice, crate::machine_spaces::Observation)>,
+        observations: Vec<(Choice, crate::machine_spaces::checkpoint::Observation)>,
     ) -> bool {
-        use crate::machine_spaces::Observation;
+        use crate::machine_spaces::checkpoint::Observation;
         if self.space_updates == observations
             && (!observations.is_empty()
                 || self.wants_spaces()
@@ -225,7 +229,10 @@ impl Picker {
     pub(crate) fn space_rows(&self) -> &[Row] {
         &self.workspace_rows
     }
-    pub(crate) fn space_checkpoint_row(&self, row: &Row) -> Option<&crate::machine_spaces::Row> {
+    pub(crate) fn space_checkpoint_row(
+        &self,
+        row: &Row,
+    ) -> Option<&crate::machine_spaces::checkpoint::Row> {
         let context = row.context.as_ref()?;
         self.space_checkpoint(&row.choice)
             .filter(|checkpoint| checkpoint.session_id == context.target.session_id)
@@ -239,7 +246,7 @@ impl Picker {
         let Some(context) = row.context.as_ref() else {
             return Vec::new();
         };
-        let Some(crate::machine_agents::Observation::Ready(cp)) = self
+        let Some(crate::machine_agents::checkpoint::Observation::Ready(cp)) = self
             .agent_observations
             .iter()
             .find(|(c, _)| c == &row.choice)
@@ -255,7 +262,7 @@ impl Picker {
             .rows
             .iter()
             .filter(|r| r.target.context == context.target)
-            .map(crate::machine_agents::Row::display_state)
+            .map(crate::machine_agents::checkpoint::Row::display_state)
             .collect::<Vec<_>>();
         states.sort_by_key(|state| urgency(*state));
         states
@@ -265,7 +272,7 @@ impl Picker {
         &self,
         tab: &orchbee_workbench_protocol::WorkbenchTabId,
     ) -> Option<TabAgent> {
-        let Some(crate::machine_agents::Observation::Ready(cp)) = self
+        let Some(crate::machine_agents::checkpoint::Observation::Ready(cp)) = self
             .agent_observations
             .iter()
             .find(|(c, _)| c == &self.current)
@@ -275,7 +282,7 @@ impl Picker {
         };
         let rows = || cp.rows.iter().filter(|r| &r.target.tab == tab);
         Some(TabAgent {
-            state: most_urgent(rows().map(crate::machine_agents::Row::display_state))?,
+            state: most_urgent(rows().map(crate::machine_agents::checkpoint::Row::display_state))?,
             unread: rows().any(|r| !r.seen),
         })
     }
@@ -283,7 +290,7 @@ impl Picker {
         row.context.as_ref().is_some_and(|context| {
             self.agent_observations.iter().any(|(choice, observation)| {
                 *choice == row.choice
-                    && matches!(observation, crate::machine_agents::Observation::Ready(cp)
+                    && matches!(observation, crate::machine_agents::checkpoint::Observation::Ready(cp)
                         if cp.session_id == context.target.session_id
                             && cp.rows.iter().any(|agent| agent.target.context == context.target && !agent.seen))
             })

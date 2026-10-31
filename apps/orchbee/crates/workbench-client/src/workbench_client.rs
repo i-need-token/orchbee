@@ -78,8 +78,8 @@ pub use ui::{
     WorkbenchClientView, WorkspaceCloseToken, notification_available,
 };
 pub(crate) use ui::{
-    CaptureReadiness, ClientTabView, CloseConfirmationView, ModalPresentation,
-    PanelCloseConfirmationView, PersistentStatus, RenameDraftView, RenameEdit, ViewportSurface,
+    CaptureReadiness, ClientTabView, CloseConfirmationView, PanelCloseConfirmationView,
+    RenameDraftView, RenameEdit, ViewportSurface,
 };
 
 pub use crate::localization::TerminalStatus;
@@ -95,6 +95,13 @@ pub enum ContextNavigationAdmission {
 
 enum ClientBackend {
     Native(Box<ui::WorkbenchClientUi>),
+}
+
+/// The mailbox samples the Client Connection's operation clock through its own clock port.
+impl mailbox::MailboxClock for crate::local_client::LocalOperationClock {
+    fn now(&self) -> std::time::Instant {
+        crate::local_client::LocalOperationClock::now(self)
+    }
 }
 
 impl ClientBackend {

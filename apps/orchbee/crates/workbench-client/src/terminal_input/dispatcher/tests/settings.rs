@@ -273,7 +273,7 @@ fn render_settings_map(
                 &crate::tui_theme::Theme::terminal_native(),
                 &mut hits,
             );
-            let crate::workbench_client::ModalPresentation::Presented(draw) = presentation else {
+            let crate::tui_presentation::ModalPresentation::Presented(draw) = presentation else {
                 panic!("settings geometry is admitted")
             };
             presented = Some(draw);

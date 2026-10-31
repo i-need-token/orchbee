@@ -4,10 +4,10 @@
 
 use super::{
     BarrierFence, BarrierKind, COMMAND_CAPACITY, CommandMailbox, EventDeadline, EventError,
-    Instant, LocalOperationClock, MailboxClock, MailboxClosed, MailboxState, MembershipResultKey,
-    MoveAdmissionError, MutationResult, PaneKey, PendingRefreshStage, QueuedCommand, QueuedRecord,
-    RefreshDecision, StructuralMutationFlight, UiCorrelation, UiWaitKey, WorkbenchRequestId,
-    WorkerEvent, workbench_identity_candidate,
+    Instant, MailboxClock, MailboxClosed, MailboxState, MembershipResultKey, MoveAdmissionError,
+    MutationResult, PaneKey, PendingRefreshStage, QueuedCommand, QueuedRecord, RefreshDecision,
+    StructuralMutationFlight, UiCorrelation, UiWaitKey, WorkbenchRequestId, WorkerEvent,
+    workbench_identity_candidate,
 };
 use crate::workbench_state::WorkbenchClientState;
 use crate::workbench_state::rename_draft::DraftToken;
@@ -93,7 +93,7 @@ impl CommandMailbox {
         canonical: &mut WorkbenchClientState,
         token: DraftToken,
         deadline: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<RenameOperation, MoveAdmissionError<()>> {
         self.try_enqueue_rename_for_using(canonical, token, deadline, clock)
     }
@@ -184,7 +184,7 @@ impl CommandMailbox {
         operation: RenameOperation,
         outcome: RenameResult,
         deadline: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<UiWaitKey, EventError> {
         self.publish_event_before(
             WorkerEvent::RenameResult { operation, outcome },

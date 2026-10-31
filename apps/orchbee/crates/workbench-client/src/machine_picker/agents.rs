@@ -2,10 +2,8 @@
 use super::{
     Choice, ClientContextTarget, ClientMemberTarget, KeyCode, Mode, Modifiers, Picker, Row,
 };
-use crate::machine_agents::{
-    Observation as Agents,
-    view::{Entry, Scope},
-};
+use crate::machine_agents::checkpoint::Observation as Agents;
+use crate::machine_agents::view::{Entry, Scope};
 use std::time::{Duration, Instant};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Control {
@@ -216,7 +214,11 @@ impl Picker {
         self.agent_attention.observe_edits(&self.current, edits)
             && self.project_agent_observations(self.agent_sources.clone())
     }
-    pub(crate) fn current_agent(&self, machine: &Choice, row: &crate::machine_agents::Row) -> bool {
+    pub(crate) fn current_agent(
+        &self,
+        machine: &Choice,
+        row: &crate::machine_agents::checkpoint::Row,
+    ) -> bool {
         machine == &self.current
             && self.current_context.as_ref() == Some(&row.target.context)
             && self.current_member.as_ref().is_some_and(|m| {

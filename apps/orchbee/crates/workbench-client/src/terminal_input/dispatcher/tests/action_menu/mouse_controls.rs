@@ -1,6 +1,6 @@
 //! Real renderer maps drive bounded wheel work and complete pointer gestures.
 use super::*;
-use crate::{localization::Locale, tui_theme::Theme, workbench_client::ModalPresentation};
+use crate::{localization::Locale, tui_presentation::ModalPresentation, tui_theme::Theme};
 
 #[test]
 fn hover_moves_only_the_menu_candidate_and_one_click_activates_the_painted_row() {

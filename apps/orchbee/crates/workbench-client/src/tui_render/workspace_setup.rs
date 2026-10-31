@@ -14,8 +14,8 @@ use crate::tui_hit_map::{
     HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl,
 };
 use crate::tui_layout::centered_overlay;
+use crate::tui_presentation::ModalPresentation;
 use crate::tui_theme::{GlyphMode, Role, Theme};
-use crate::workbench_client::ModalPresentation;
 use crate::workbench_state::workspace_setup::{
     LocationLabelStatus, SetupDraftView, SetupStage, SetupStatus, SetupToken,
 };

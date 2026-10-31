@@ -27,7 +27,7 @@ pub enum SidebarTarget {
     },
     Agent {
         machine: Choice,
-        target: Box<crate::machine_agents::Target>,
+        target: Box<crate::machine_agents::checkpoint::Target>,
     },
 }
 impl SidebarTarget {

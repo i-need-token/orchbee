@@ -14,30 +14,9 @@ use crate::workbench_state::{
 };
 use std::sync::Arc;
 
+pub(crate) use crate::tui_presentation::ModalPresentation;
 pub use crate::workbench_state::CloseConfirmationToken;
 pub(crate) use crate::workbench_state::{CloseConfirmationKind, CloseStatusKind, CloseStatusToken};
-
-/// The renderer's geometry verdict for one modal surface in a completed draw.
-/// `Presented` proves the complete surface was written. `NotPresented` means
-/// only that the renderer evaluated this surface and the offered geometry could
-/// not present it; the owning UI state decides whether that is a first-draw
-/// refusal or a temporary suspension. An absent receipt means the surface was
-/// absent or covered and revokes draw authority without making a geometry
-/// verdict. Rendering itself never mutates UI state.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ModalPresentation<T> {
-    Presented(T),
-    NotPresented,
-}
-
-impl<T> ModalPresentation<T> {
-    pub(crate) fn into_presented(self) -> Option<T> {
-        match self {
-            Self::Presented(token) => Some(token),
-            Self::NotPresented => None,
-        }
-    }
-}
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct DrawReceipt {

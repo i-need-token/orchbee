@@ -106,7 +106,7 @@ impl<S> Sidebar<S> {
 }
 
 impl Row {
-    pub(crate) fn sidebar_agent(&self) -> Option<&crate::machine_agents::Row> {
+    pub(crate) fn sidebar_agent(&self) -> Option<&crate::machine_agents::checkpoint::Row> {
         self.agent.as_ref()
     }
     pub(crate) fn sidebar_status(&self) -> Option<&'static str> {
@@ -360,7 +360,7 @@ impl Picker {
         board_animates: bool,
     ) -> bool {
         let working = board_animates || self.agent_observations.iter().any(|(_, observation)| {
-            matches!(observation, crate::machine_agents::Observation::Ready(checkpoint)
+            matches!(observation, crate::machine_agents::checkpoint::Observation::Ready(checkpoint)
             if checkpoint.rows.iter().any(|row| {
                 matches!(row.display_state(), orchbee_workbench_protocol::MetadataState::Working | orchbee_workbench_protocol::MetadataState::Blocked)
             }))

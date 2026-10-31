@@ -5,10 +5,9 @@ use crate::{
         ClientAction, ClientActionDisposition, ClientView, KeyCode, KeyEvent, KeyLabelGlyphs,
         LabelStyle, Modifiers, Notice, PrefixAction, PrefixInput,
     },
-    localization::{Locale, TerminalEnd},
+    localization::{Locale, PersistentStatus, TerminalEnd},
     tui_layout::ViewportTier,
     tui_theme::{GlyphSet, Role, Theme},
-    workbench_client::PersistentStatus,
 };
 
 use super::{StatusFacts, StatusPaint, render};

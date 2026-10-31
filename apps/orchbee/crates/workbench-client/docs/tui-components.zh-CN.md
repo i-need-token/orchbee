@@ -15,7 +15,7 @@
   `tui_render` 的其余部分。
 - 组件绘制已准入的状态并返回已绘制的矩形。它们从不根据文案或字形推导意图、推断可用性或启动功能副作用；
   类型化目标、可用性和文案由功能所有者提供。
-- 重复组合把绘制出的区域记录到帧命中图 `tui_pointer::hit_map`。区域携带各所有者绘制时的见证，所以
+- 重复组合把绘制出的区域记录到帧命中图 `tui_hit_map`。区域携带各所有者绘制时的见证，所以
   命中图留在 `presentation`。控件状态类型位于 `values`，在 `tui_render::controls::control_state` 下。
 
 ## 基础控件
@@ -49,4 +49,4 @@
 - 新增、重命名、移动或删除共享组件时，在同一变更中以两种语言更新本参考中对应的行。其渲染证据位于
   `tui_render/controls/tests.rs` 或 `tui_render/modal/tests.rs`。
 
-<!-- documentation-pairing: english-sha256=dc68874f02373cc42575361565e6bcff21302a0f087bd17f9e71414aa3960b8a zh-cn-sha256=00a29d74ad16b26200961daebbdb4b42708a93a771a7c1841a4aee3270eba1c2 -->
+<!-- documentation-pairing: english-sha256=34b31b67918b5f0c4ef4e7f9953d78f97878f10dfea5ccac16c9bf72265a5092 zh-cn-sha256=cfc0dc0f2b5979e920999c5d18741712f01bf31fb6d6db39b5119e0a7205fa6d -->

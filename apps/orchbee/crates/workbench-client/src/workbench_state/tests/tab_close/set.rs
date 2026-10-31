@@ -588,7 +588,8 @@ fn close_set_targeted_resume_rejects_same_key_rebind_at_plan_and_final_admission
 #[test]
 fn close_set_background_resume_draw_uses_its_exact_record_when_active_record_competes() {
     use crate::localization::ClientProjectionStatus;
-    use crate::workbench_client::{DrawReceipt, ModalPresentation, WorkbenchClientView};
+    use crate::tui_presentation::ModalPresentation;
+    use crate::workbench_client::{DrawReceipt, WorkbenchClientView};
     use crate::{client_view::ClientView, localization::Locale, tui_theme::Theme};
     use ratatui::{Terminal, backend::TestBackend};
 

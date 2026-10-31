@@ -1,6 +1,6 @@
 //! Identity-only Client navigation locations shared by view selection and Workbench projection.
 //! This value grants no snapshot, terminal attachment or mutation authority.
-use orchbee_workbench_protocol::{WorkbenchTerminalContextId, WorkbenchWorkspaceId};
+use orchbee_workbench_protocol::{SessionId, WorkbenchTerminalContextId, WorkbenchWorkspaceId};
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", content = "identity", deny_unknown_fields)]
@@ -25,4 +25,11 @@ impl ClientContextLocation {
             } => Some(terminal_context_id),
         }
     }
+}
+
+/// An explicit destination is bound to a Session as well as its navigation identity.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClientContextTarget {
+    pub session_id: SessionId,
+    pub location: ClientContextLocation,
 }

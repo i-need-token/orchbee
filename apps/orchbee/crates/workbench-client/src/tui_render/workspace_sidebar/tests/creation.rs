@@ -455,7 +455,7 @@ fn a_background_project_creation_above_manual_reading_keeps_the_same_painted_row
             }
             view.machines.observe_spaces(vec![(
                 Choice::Local,
-                crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+                crate::machine_spaces::checkpoint::Observation::Ready(std::sync::Arc::new(
                     crate::machine_spaces::Checkpoint {
                         session_id: session.clone(),
                         revision: WorkbenchRevision::new(if phase == 2 { 2 } else { 1 }),
@@ -577,7 +577,7 @@ fn creation_keeps_its_final_group_order_and_scroll_window_through_observer_hando
                     let committed = phase == WorkspaceCreationPhase::Committed;
                     view.machines.observe_spaces(vec![(
                         Choice::Local,
-                        crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+                        crate::machine_spaces::checkpoint::Observation::Ready(std::sync::Arc::new(
                             crate::machine_spaces::Checkpoint {
                                 session_id: session.clone(),
                                 revision: WorkbenchRevision::new(if committed { 2 } else { 1 }),
@@ -753,7 +753,7 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_never_fills
             for (revision, present) in [(2, false), (3, true), (4, false)] {
                 view.machines.observe_spaces(vec![(
                     Choice::Local,
-                    crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+                    crate::machine_spaces::checkpoint::Observation::Ready(std::sync::Arc::new(
                         crate::machine_spaces::Checkpoint {
                             session_id: session.clone(),
                             revision: WorkbenchRevision::new(revision),

@@ -9,8 +9,9 @@ use super::modal::{
 use crate::client_view::{Binding, KeyCode, Modifiers};
 use crate::localization::Locale;
 use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
+use crate::tui_presentation::ModalPresentation;
 use crate::tui_theme::Theme;
-use crate::workbench_client::{ModalPresentation, PanelCloseConfirmationView};
+use crate::workbench_client::PanelCloseConfirmationView;
 use crate::workbench_state::PanelCloseConfirmationToken;
 use ratatui::{
     Frame,

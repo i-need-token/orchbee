@@ -75,12 +75,12 @@ fn window(picker: &Picker, heights: &[u16], cells: u16, gap: u16) -> SidebarWind
     picker.space_window_for_row_gaps(&rows, heights, &vec![gap; rows.len()], cells)
 }
 
-fn checkpoint(session: u8) -> crate::machine_spaces::Observation {
+fn checkpoint(session: u8) -> crate::machine_spaces::checkpoint::Observation {
     use crate::machine_spaces::{Checkpoint, ProjectSummary, Row as SpaceRow};
     let session_id = SessionId::parse(&format!("{session:032x}")).unwrap();
     let mut target = workspace(1, 21).target;
     target.session_id = session_id.clone();
-    crate::machine_spaces::Observation::Ready(std::sync::Arc::new(Checkpoint {
+    crate::machine_spaces::checkpoint::Observation::Ready(std::sync::Arc::new(Checkpoint {
         session_id,
         revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
         metadata_revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),

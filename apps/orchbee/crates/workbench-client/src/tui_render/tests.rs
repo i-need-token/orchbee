@@ -235,8 +235,8 @@ fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
         action_menu::{ActionMenu, MenuAction, MenuUnavailable},
         terminal_text::display_width,
         tui_hit_map::{HitMapBuilder, HitTarget},
+        tui_presentation::ModalPresentation,
         tui_theme::{Role, Theme},
-        workbench_client::ModalPresentation,
     };
     use ratatui::{
         TerminalOptions, Viewport,

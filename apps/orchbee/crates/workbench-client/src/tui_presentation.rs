@@ -1,8 +1,9 @@
-//! Shared presentation lifetime for Client-owned TUI surface incarnations.
+//! Shared presentation lifetime for Client-owned TUI surface incarnations, and the renderer's
+//! per-surface geometry verdict that drives it.
 //!
 //! Surface owners keep exact successful-frame proof separately. This module
-//! only classifies an evaluated geometry block as refusal before admission or
-//! suspension after admission.
+//! only names the verdict and classifies an evaluated geometry block as refusal
+//! before admission or suspension after admission.
 
 /// Presentation lifetime for one Client-owned TUI surface incarnation.
 ///
@@ -52,5 +53,27 @@ impl PresentationPhase {
     /// ordinary controls. Owners must still require that separate proof.
     pub(crate) const fn interactive(self) -> bool {
         matches!(self, Self::Admitted)
+    }
+}
+
+/// The renderer's geometry verdict for one modal surface in a completed draw.
+/// `Presented` proves the complete surface was written. `NotPresented` means
+/// only that the renderer evaluated this surface and the offered geometry could
+/// not present it; the owning UI state decides whether that is a first-draw
+/// refusal or a temporary suspension. An absent receipt means the surface was
+/// absent or covered and revokes draw authority without making a geometry
+/// verdict. Rendering itself never mutates UI state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ModalPresentation<T> {
+    Presented(T),
+    NotPresented,
+}
+
+impl<T> ModalPresentation<T> {
+    pub(crate) fn into_presented(self) -> Option<T> {
+        match self {
+            Self::Presented(token) => Some(token),
+            Self::NotPresented => None,
+        }
     }
 }

@@ -1,8 +1,9 @@
 //! Pure machine-qualified Agent list projection, independent of network and input ownership.
-use super::{
-    AgentViewSpec, Choice, ClientContextLocation, ClientContextTarget, MetadataState,
-    PanelAgentState, Row, display_label,
-};
+use super::checkpoint::Row;
+use crate::client_context::{ClientContextLocation, ClientContextTarget};
+use crate::machine_discovery::overview::display_label;
+use crate::machines::Choice;
+use orchbee_workbench_protocol::{AgentViewSpec, MetadataState, PanelAgentState};
 mod source;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

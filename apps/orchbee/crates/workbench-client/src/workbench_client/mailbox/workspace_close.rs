@@ -1,9 +1,9 @@
 //! One Close uses the existing Refresh lease, with evidence retained before publication.
+use super::MailboxClock;
 use super::{
     COMMAND_CAPACITY, CommandMailbox, PendingRefreshStage, QueuedCommand, QueuedRecord,
     RefreshFlight, RefreshMarker, workbench_identity_candidate,
 };
-use crate::local_client::LocalOperationClock;
 use crate::workbench_state::workspace_close::{
     WorkspaceCloseEvidence, WorkspaceCloseOperation, WorkspaceCloseResult, WorkspaceCloseToken,
 };
@@ -19,7 +19,7 @@ impl CommandMailbox {
         canonical: &mut WorkbenchClientState,
         token: WorkspaceCloseToken,
         deadlines: OperationDeadlines,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> bool {
         self.enqueue_workspace_close(
             canonical,
@@ -35,7 +35,7 @@ impl CommandMailbox {
         canonical: &mut WorkbenchClientState,
         request: &crate::workbench_state::workspace_close::WorkspaceDeleteRequest,
         deadlines: OperationDeadlines,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> bool {
         let deadlines = deadlines.bounded_by(request.deadline());
         self.enqueue_workspace_close(
@@ -51,7 +51,7 @@ impl CommandMailbox {
         &self,
         canonical: &mut WorkbenchClientState,
         deadlines: OperationDeadlines,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
         plan: impl FnOnce(
             &WorkbenchClientState,
             orchbee_workbench_protocol::WorkbenchRequestId,

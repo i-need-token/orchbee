@@ -1,6 +1,6 @@
 //! Worktree source preparation shares the existing refresh fence and UI settlement.
+use super::MailboxClock;
 use super::{AdmissionError, CommandMailbox, RefreshPurpose};
-use crate::local_client::LocalOperationClock;
 use crate::workbench_state::worktree_launch::{
     Launcher, WorktreeMode, WorktreeNotice, WorktreeToken,
 };
@@ -12,7 +12,7 @@ impl CommandMailbox {
         launcher: &mut Launcher,
         mode: WorktreeMode,
         deadlines: OperationDeadlines,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> bool {
         let Some((state, _)) = self.lock_before(deadlines.forward_cutoff(), clock) else {
             return false;

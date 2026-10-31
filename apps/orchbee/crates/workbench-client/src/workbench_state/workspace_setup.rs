@@ -8,7 +8,6 @@ mod organization;
 pub(crate) use organization::OrganizationChoice;
 pub(crate) use organization::WorkspaceOrganizationRequest;
 mod navigation_configuration;
-pub(crate) use navigation_configuration::SidebarNavigationProjection;
 mod tab_configuration;
 pub(crate) use labels::ProjectRenameRequest;
 mod preview;

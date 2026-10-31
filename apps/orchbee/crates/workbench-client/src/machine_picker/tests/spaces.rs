@@ -182,7 +182,7 @@ fn git_checkpoint(revision: u64) -> std::sync::Arc<crate::machine_spaces::Checkp
 
 #[test]
 fn failed_and_missing_workspace_rounds_retain_git_groups_scroll_and_current_identity() {
-    use crate::machine_spaces::Observation as Spaces;
+    use crate::machine_spaces::checkpoint::Observation as Spaces;
     for collapsed in [false, true] {
         let mut picker = picker(3);
         picker.observe_spaces(vec![(Choice::Local, Spaces::Ready(git_checkpoint(2)))]);
@@ -493,7 +493,7 @@ fn workspace_state_priority_uses_explicit_facts_without_acknowledgement() {
 /// truncating only the name, and details show the distinguishing tail of each directory.
 #[test]
 fn long_duplicate_workspace_results_keep_identity_suffix_and_directory_tail() {
-    use crate::machine_spaces::{Checkpoint, Observation as Spaces, Row};
+    use crate::machine_spaces::checkpoint::{Checkpoint, Observation as Spaces, Row};
     let long = "shared-long-workspace-name-used-for-reviewing-search-disambiguation-with-a-full-width-terminal-result";
     let mut contexts = contexts(2);
     for context in &mut contexts {

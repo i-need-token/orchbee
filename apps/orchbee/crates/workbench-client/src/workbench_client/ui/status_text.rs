@@ -2,16 +2,9 @@
 //! Text renders selected facts; it never reads a view, retains commands or changes retirement.
 
 use super::WorkbenchClientView;
+pub(crate) use crate::localization::PersistentStatus;
 use crate::localization::{Locale, WorkbenchClientNotice};
 use crate::workbench_state::workspace_setup::{LocationLabelStatus, SetupStatus};
-
-/// A lasting state the floating status names in a word or two beside the action that fixes it.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PersistentStatus {
-    DirectoryMissing,
-    Disconnected,
-    TerminalEnded(crate::localization::TerminalEnd),
-}
 
 /// One selected status fact, with its short form when it names a lasting state.
 #[derive(Debug, Eq, PartialEq)]

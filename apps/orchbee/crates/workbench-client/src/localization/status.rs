@@ -116,3 +116,11 @@ impl Locale {
         }
     }
 }
+
+/// A lasting state the floating status names in a word or two beside the action that fixes it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PersistentStatus {
+    DirectoryMissing,
+    Disconnected,
+    TerminalEnded(super::TerminalEnd),
+}

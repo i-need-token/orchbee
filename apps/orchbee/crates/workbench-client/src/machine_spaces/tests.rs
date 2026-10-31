@@ -1,5 +1,6 @@
 use super::*;
 use crate::local_client::cancellation::OwnedCancellation;
+use orchbee_workbench_protocol::{GitDivergence, MetadataTokens, SessionId, WorkbenchProjectId};
 mod navigation_projection;
 use crate::{local_client::test_support::server::FakeServer, machine_agents::tests::accept};
 use orchbee_workbench_protocol::{

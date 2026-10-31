@@ -2,7 +2,8 @@ use super::super::Origin;
 use super::*;
 use crate::action_menu::{ActionMenu, MenuDraw, MenuToken};
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
-use crate::workbench_client::{ModalPresentation, ui::tests::context_selection};
+use crate::tui_presentation::ModalPresentation;
+use crate::workbench_client::ui::tests::context_selection;
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
 fn draw(ui: &mut WorkbenchClientUi) -> MenuToken {

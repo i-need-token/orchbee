@@ -4,9 +4,9 @@
 
 use super::{
     AttachTarget, AttachmentKey, CarrierFailure, CommandLease, CommandMailbox, EventDeadline,
-    Instant, LocalOperationClock, MailboxState, MembershipCleanup, MembershipResultKey, PaneKey,
-    PollKey, QueuedCommand, RequestId, UiCorrelation, UiReplyTransaction, UiWaitKey,
-    WorkbenchRequestId, WorkerEvent, obcs_identity_candidate, workbench_identity_candidate,
+    Instant, MailboxClock, MailboxState, MembershipCleanup, MembershipResultKey, PaneKey, PollKey,
+    QueuedCommand, RequestId, UiCorrelation, UiReplyTransaction, UiWaitKey, WorkbenchRequestId,
+    WorkerEvent, obcs_identity_candidate, workbench_identity_candidate,
 };
 
 pub(in crate::workbench_client) struct SwitchAdmissionFacts {
@@ -180,7 +180,7 @@ impl CommandMailbox {
         &self,
         lease: &CommandLease,
         target: &AttachTarget,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<Option<SwitchExpiryPermit>, CarrierFailure> {
         let (state, now) = self.lock_with_fresh_sample(clock);
         if !matches!(lease.record(), QueuedCommand::Switch(original) if original.target() == target)
@@ -221,7 +221,7 @@ impl CommandMailbox {
         &self,
         lease: &CommandLease,
         target: &AttachTarget,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<Option<SwitchSnapshotPermit>, CarrierFailure> {
         let (mut state, now) = self.lock_with_fresh_sample(clock);
         let marker = target.selected().key();
@@ -275,7 +275,7 @@ impl CommandMailbox {
         lease: &CommandLease,
         cleanup: &MembershipCleanup,
         attached: &AttachmentKey,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<Option<SwitchCleanupPermit>, CarrierFailure> {
         let (mut state, now) = self.lock_with_fresh_sample(clock);
         let MembershipResultKey::Switch(marker) = cleanup.result() else {

@@ -7,7 +7,7 @@ impl WorkbenchClientView<'_> {
     /// A retired carrier cannot keep speculative navigation alive in another view.
     pub fn sidebar_navigation(
         &self,
-    ) -> Option<crate::workbench_state::workspace_setup::SidebarNavigationProjection> {
+    ) -> Option<crate::machine_spaces::navigation_projection::SidebarNavigationProjection> {
         if self.retirement_requested || self.retirement.is_some() {
             return None;
         }

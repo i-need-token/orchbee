@@ -2,78 +2,33 @@
 use crate::local_client::LocalClient;
 use crate::local_client::cancellation::Cancellation;
 use crate::machine_discovery::display_label;
-use crate::machines::Choice;
 use crate::workbench_projection::{ClientContextLocation, ClientContextTarget};
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::{
-    AgentViewAction, AgentViewOutcome, AgentViewRequest, AgentViewSnapshot, AgentViewSpec,
-    ClientTerminalAgentAttentionSnapshot, MAXIMUM_PANEL_AGENT_READ_ROWS,
-    MAXIMUM_PANEL_METADATA_READ_ROWS, MAXIMUM_TERMINAL_AGENT_STATE_ROWS,
-    MAXIMUM_TERMINAL_TITLE_ROWS, MetadataState, MetadataTokens, PanelAgentAction,
-    PanelAgentOutcome, PanelAgentRequest, PanelAgentState, PanelAgentView, PanelMetadataAction,
-    PanelMetadataEffective, PanelMetadataOutcome, PanelMetadataRequest, PanelMetadataRow,
-    PanelNode, PresentationAgentRow, PresentationBinding, PresentationMetadataRow, ProtocolVersion,
-    SessionId, Snapshot, TerminalAgentStateRow, TerminalAgentStateSnapshot, TerminalPresentationId,
-    TerminalTitleObservation, WorkbenchPanelId, WorkbenchRevision, WorkbenchTabId,
+    AgentViewAction, AgentViewOutcome, AgentViewRequest, AgentViewSnapshot,
+    MAXIMUM_PANEL_AGENT_READ_ROWS, MAXIMUM_PANEL_METADATA_READ_ROWS,
+    MAXIMUM_TERMINAL_AGENT_STATE_ROWS, MAXIMUM_TERMINAL_TITLE_ROWS, MetadataTokens,
+    PanelAgentAction, PanelAgentOutcome, PanelAgentRequest, PanelAgentState, PanelAgentView,
+    PanelMetadataAction, PanelMetadataEffective, PanelMetadataOutcome, PanelMetadataRequest,
+    PanelMetadataRow, PanelNode, PresentationAgentRow, PresentationBinding,
+    PresentationMetadataRow, ProtocolVersion, SessionId, Snapshot, TerminalAgentStateRow,
+    TerminalAgentStateSnapshot, TerminalPresentationId, TerminalTitleObservation, WorkbenchPanelId,
+    WorkbenchRevision, WorkbenchTabId,
 };
 use std::{sync::Arc, time::Instant};
 
-mod attention;
+pub(crate) mod attention;
+pub(crate) mod checkpoint;
 mod metadata;
 mod names;
 mod titles;
 pub(crate) mod view;
-pub(crate) use attention::Attention;
 
-const MAXIMUM_ROWS: usize = 4096;
+pub use checkpoint::{Checkpoint, Observation, Row, Target};
+pub(crate) use checkpoint::{MAXIMUM_ROWS, PlacementOrder};
+
 const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Target {
-    pub(crate) context: ClientContextTarget,
-    pub(crate) tab: WorkbenchTabId,
-    pub(crate) panel: WorkbenchPanelId,
-    pub(crate) member: TerminalPresentationId,
-    pub(crate) terminal: PresentationBinding,
-    pub(crate) physical: AgentLaunchBinding,
-    pub(crate) agent: String,
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Row {
-    pub(crate) seen: bool,
-    pub(crate) name: Option<String>,
-    pub(crate) order: PlacementOrder,
-    pub(crate) target: Target,
-    pub(crate) label: String,
-    pub(crate) workspace: String,
-    pub(crate) tab_label: Option<String>,
-    pub(crate) terminal_title: TerminalTitleObservation,
-    pub(crate) state: PanelAgentState,
-    pub(crate) sequence: WorkbenchRevision,
-    pub(crate) metadata: PanelMetadataEffective,
-    pub(crate) tokens: MetadataTokens,
-}
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(crate) struct PlacementOrder {
-    pub(crate) workspace: Option<u64>,
-    pub(crate) tab: u64,
-    pub(crate) pane: u64,
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Checkpoint {
-    pub(crate) session_id: SessionId,
-    pub(crate) report_revision: WorkbenchRevision,
-    pub(crate) contexts: Arc<[ClientContextTarget]>,
-    pub(crate) view: AgentViewSnapshot,
-    pub(crate) rows: Arc<[Row]>,
-}
-impl std::ops::Deref for Checkpoint {
-    type Target = [Row];
-    fn deref(&self) -> &[Row] {
-        &self.rows
-    }
-}
-pub type Observation = crate::machine_observation::Observation<Checkpoint>;
 pub type Collector = crate::machine_observation::Collector<Checkpoint>;
 pub(crate) use crate::machine_observation::snapshot;
 use crate::machine_observation::{check, request_id};

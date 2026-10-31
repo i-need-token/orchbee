@@ -1,4 +1,5 @@
 //! Common bounded, cancellable observation lifecycle for Agent and Workspace consumers.
+pub(crate) mod outcome;
 use crate::background_thread::BackgroundThread;
 use crate::local_client::LocalClient;
 use crate::local_client::cancellation::{Cancellation, OwnedCancellation};
@@ -9,6 +10,7 @@ use crate::ui_wakeup::UiWakeup;
 use orchbee_workbench_protocol::{
     ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchRequestId, WorkbenchSnapshotOutcome,
 };
+pub use outcome::Observation;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -23,12 +25,6 @@ fn retry_after(failures: &mut u8) -> Duration {
     let delay = Duration::from_millis((500_u64 << (*failures).min(6)).min(30_000));
     *failures = failures.saturating_add(1);
     delay
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Observation<T> {
-    Loading,
-    Ready(Arc<T>),
-    Unavailable,
 }
 #[derive(Clone)]
 pub struct Source {

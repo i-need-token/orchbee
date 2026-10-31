@@ -1,7 +1,7 @@
 //! Identity-based machine selection and painted input ownership; no storage or network effects.
 use crate::client_view::{KeyCode, KeyEvent, KeyKind, Modifiers};
 use crate::localization::Locale;
-use crate::machine_discovery::{Context, Observation};
+use crate::machine_discovery::overview::{Context, Observation};
 use crate::machines::{Profile, ProfileId};
 use crate::startup_directory::ClientStartupTarget;
 use crate::workbench_projection::{ClientContextTarget, ClientMemberTarget};
@@ -217,14 +217,14 @@ pub struct Row {
     pub(crate) enabled: bool,
     pub(crate) observation: Option<Observation>,
     context: Option<Context>,
-    agent: Option<crate::machine_agents::Row>,
+    agent: Option<crate::machine_agents::checkpoint::Row>,
     agent_status: Option<&'static str>,
 }
 impl Row {
     pub(crate) fn context(&self) -> Option<&Context> {
         self.context.as_ref()
     }
-    pub(crate) fn agent(&self) -> Option<&crate::machine_agents::Row> {
+    pub(crate) fn agent(&self) -> Option<&crate::machine_agents::checkpoint::Row> {
         self.agent.as_ref()
     }
     pub(crate) const fn agent_status(&self) -> Option<&'static str> {
@@ -260,26 +260,26 @@ pub struct Picker {
     workspace_matches: std::sync::Arc<[Row]>,
     workspace_query: crate::terminal_text::line_editor::LineEditor,
     agent_rows: std::sync::Arc<[Row]>,
-    agent_observations: Vec<(Choice, crate::machine_agents::Observation)>,
-    agent_sources: Vec<(Choice, crate::machine_agents::Observation)>,
+    agent_observations: Vec<(Choice, crate::machine_agents::checkpoint::Observation)>,
+    agent_sources: Vec<(Choice, crate::machine_agents::checkpoint::Observation)>,
     agent_attention_key: Option<(Choice, Option<(u64, usize)>)>,
     agent_attention_refresh: bool,
     mode: Mode,
-    agent_attention: crate::machine_agents::Attention,
+    agent_attention: crate::machine_agents::attention::Attention,
     agent_view: crate::machine_agents::view::View,
     agent_sidebar: sidebar::AgentSidebar,
     spaces: sidebar::Sidebar<orchbee_local_runtime::SpaceSidebarSettings>,
     sidebar_width: crate::sidebar_width::SidebarWidth,
     navigation: navigation::SidebarNavigation,
     working_motion: sidebar::Motion,
-    space_observations: Vec<(Choice, crate::machine_spaces::Observation)>,
-    space_updates: Vec<(Choice, crate::machine_spaces::Observation)>,
+    space_observations: Vec<(Choice, crate::machine_spaces::checkpoint::Observation)>,
+    space_updates: Vec<(Choice, crate::machine_spaces::checkpoint::Observation)>,
     space_stale: Vec<Choice>,
     native_navigation: Option<(
         Choice,
-        crate::workbench_state::workspace_setup::SidebarNavigationProjection,
+        crate::machine_spaces::navigation_projection::SidebarNavigationProjection,
     )>,
-    space_projection: Option<(Choice, Arc<crate::machine_spaces::Checkpoint>)>,
+    space_projection: Option<(Choice, Arc<crate::machine_spaces::checkpoint::Checkpoint>)>,
     editing_query: bool,
     current_member: Option<ClientMemberTarget>,
     pending_navigation: Option<Navigation>,
@@ -322,7 +322,7 @@ impl Default for Picker {
             agent_attention_key: None,
             agent_attention_refresh: false,
             mode: Mode::Machines,
-            agent_attention: crate::machine_agents::Attention::default(),
+            agent_attention: crate::machine_agents::attention::Attention::default(),
             agent_view: crate::machine_agents::view::View::default(),
             agent_sidebar: sidebar::AgentSidebar::default(),
             spaces: sidebar::Sidebar::default(),
@@ -381,15 +381,17 @@ impl Picker {
             .iter()
             .find(|(choice, _)| choice == &self.current)
             .and_then(|(_, observation)| match observation {
-                crate::machine_agents::Observation::Ready(checkpoint) => Some(AgentSourceBasis {
-                    session: checkpoint.session_id.clone(),
-                    view_revision: checkpoint.view.revision,
-                    source_order_locked: checkpoint
-                        .view
-                        .spec
-                        .as_ref()
-                        .is_some_and(|spec| !spec.sort.is_empty()),
-                }),
+                crate::machine_agents::checkpoint::Observation::Ready(checkpoint) => {
+                    Some(AgentSourceBasis {
+                        session: checkpoint.session_id.clone(),
+                        view_revision: checkpoint.view.revision,
+                        source_order_locked: checkpoint
+                            .view
+                            .spec
+                            .as_ref()
+                            .is_some_and(|spec| !spec.sort.is_empty()),
+                    })
+                }
                 _ => None,
             })
     }
@@ -515,7 +517,7 @@ impl Picker {
     }
     pub fn observe_agents(
         &mut self,
-        observations: Vec<(Choice, crate::machine_agents::Observation)>,
+        observations: Vec<(Choice, crate::machine_agents::checkpoint::Observation)>,
     ) -> bool {
         self.agent_attention
             .retain(|id| self.rows.iter().any(|r| r.enabled && &r.choice == id));
@@ -528,16 +530,16 @@ impl Picker {
     }
     pub(super) fn project_agent_observations(
         &mut self,
-        observations: Vec<(Choice, crate::machine_agents::Observation)>,
+        observations: Vec<(Choice, crate::machine_agents::checkpoint::Observation)>,
     ) -> bool {
         let observations = observations
             .into_iter()
             .map(|(id, o)| {
                 let projected = match o {
-                    crate::machine_agents::Observation::Ready(round) => {
+                    crate::machine_agents::checkpoint::Observation::Ready(round) => {
                         self.agent_attention.project(&id, &round).map_or(
-                            crate::machine_agents::Observation::Unavailable,
-                            crate::machine_agents::Observation::Ready,
+                            crate::machine_agents::checkpoint::Observation::Unavailable,
+                            crate::machine_agents::checkpoint::Observation::Ready,
                         )
                     }
                     other => other,

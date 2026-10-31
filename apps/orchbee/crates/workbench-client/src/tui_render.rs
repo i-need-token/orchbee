@@ -57,8 +57,9 @@ use crate::tui_layout::{
     PaneFrame, ShellAreas, SidebarArea, SidebarLayer, ViewportTier, native_terminal_area,
     overlay_area, place_overlay, project_shell_areas, status_chip_area, terminal_area,
 };
+use crate::tui_presentation::ModalPresentation;
 use crate::tui_theme::{Role, Theme};
-use crate::workbench_client::{ClientTabView, DrawReceipt, ModalPresentation, WorkbenchClientView};
+use crate::workbench_client::{ClientTabView, DrawReceipt, WorkbenchClientView};
 use crate::workbench_state::CloseStatusToken;
 
 use crate::tui_hit_map::GlobalChromeAction;

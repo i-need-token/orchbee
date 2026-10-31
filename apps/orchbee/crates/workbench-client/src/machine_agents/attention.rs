@@ -1,9 +1,13 @@
 //! Endpoint-qualified Client acknowledgements; complete reads never mark changed versions seen.
-use super::{
-    AgentLaunchBinding, Arc, Checkpoint, Choice, ClientTerminalAgentAttentionSnapshot,
-    MAXIMUM_ROWS, PanelAgentState, SessionId, TerminalPresentationId, WorkbenchRevision,
+use super::checkpoint::{Checkpoint, MAXIMUM_ROWS};
+use crate::machines::Choice;
+use orchbee_agent_observation_protocol::AgentLaunchBinding;
+use orchbee_workbench_protocol::{
+    ClientTerminalAgentAttentionSnapshot, PanelAgentState, SessionId, TerminalPresentationId,
+    WorkbenchRevision,
 };
 use std::collections::BTreeMap;
+use std::sync::Arc;
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Version {
     binding: AgentLaunchBinding,

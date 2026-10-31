@@ -232,7 +232,7 @@ fn project_gap_view(label: &str) -> ClientView {
         .collect::<Vec<_>>();
     view.machines.observe_spaces(vec![(
         Choice::Local,
-        crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+        crate::machine_spaces::checkpoint::Observation::Ready(std::sync::Arc::new(
             crate::machine_spaces::Checkpoint {
                 session_id: SessionId::parse(&id(1)).unwrap(),
                 revision: WorkbenchRevision::new(3),

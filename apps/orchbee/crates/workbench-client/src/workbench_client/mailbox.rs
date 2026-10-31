@@ -15,7 +15,6 @@ use crate::{
     exchange_values::workbench::{
         WorkbenchTabCreateCommit, WorkbenchTabCreatePrecommit, WorkbenchTabCreateRequest,
     },
-    local_client::LocalOperationClock,
     terminal_projection::TerminalProjection,
     terminal_viewport::{ViewportReadRejection, ViewportStep},
 };
@@ -70,17 +69,13 @@ mod switch_membership;
 pub(super) use switch_membership::{SwitchAdmissionFacts, SwitchExpiryPermit};
 use switch_membership::{SwitchAnchorInvalidation, SwitchHandoffRecord};
 
-trait MailboxClock {
+/// The monotonic clock the mailbox samples for admission deadlines. The composition supplies the
+/// Client Connection's operation clock, so the mailbox never reaches the transport.
+pub(super) trait MailboxClock {
     fn now(&self) -> Instant;
 
     #[cfg(test)]
     fn after_mailbox_contention(&self) {}
-}
-
-impl MailboxClock for LocalOperationClock {
-    fn now(&self) -> Instant {
-        self.now()
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -2042,7 +2037,7 @@ impl CommandMailbox {
         &self,
         canonical: &mut Canonical,
         deadlines: OperationDeadlines,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
         prepare: impl FnOnce(&mut Canonical, u64) -> Result<(), BuildError>,
         finish: impl FnOnce(&mut Canonical, &Result<u64, AdmissionError<BuildError>>),
     ) -> Result<Option<u64>, AdmissionError<BuildError>> {
@@ -2131,7 +2126,7 @@ impl CommandMailbox {
         &self,
         canonical: &mut Canonical,
         deadline: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
         build: impl FnOnce(&Canonical, WorkbenchRequestId) -> Result<MoveOperation, BuildError>,
         commit: impl FnOnce(&mut Canonical, &MoveOperation) -> Result<(), BuildError>,
     ) -> Result<MoveOperation, MoveAdmissionError<BuildError>> {
@@ -2225,7 +2220,7 @@ impl CommandMailbox {
         operation: MoveOperation,
         outcome: MoveResult,
         deadline: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<UiWaitKey, EventError> {
         self.publish_event_before(
             WorkerEvent::MoveResult { operation, outcome },
@@ -2382,7 +2377,7 @@ impl CommandMailbox {
         &self,
         key: &PaneRef,
         cutoff: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<DesiredFence, EventError> {
         self.await_startup_change_before_using(key, cutoff, clock)
     }
@@ -2430,7 +2425,7 @@ impl CommandMailbox {
         &self,
         lease: &CommandLease,
         cutoff: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<ExecutionFence, MailboxClosed> {
         self.await_execution_change_before_using(lease, cutoff, clock)
     }
@@ -2506,7 +2501,7 @@ impl CommandMailbox {
         &self,
         event: WorkerEvent,
         deadline: EventDeadline,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<UiWaitKey, EventError> {
         self.publish_event_before_using(event, deadline, clock)
     }
@@ -2656,7 +2651,7 @@ impl CommandMailbox {
         &self,
         event: WorkerEvent,
         cutoff: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<MutationResult, EventError> {
         debug_assert!(matches!(
             event,
@@ -2704,7 +2699,7 @@ impl CommandMailbox {
         generation: u64,
         outcome: WorkbenchSnapshotOutcome,
         deadline: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<UiWaitKey, EventError> {
         self.publish_event_before(
             WorkerEvent::RefreshSnapshotResult {
@@ -2722,7 +2717,7 @@ impl CommandMailbox {
         record: Option<Vec<u8>>,
         publication_hint: bool,
         cutoff: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<MutationResult, EventError> {
         self.publish_poll_result_with_hint_using(poll_key, record, publication_hint, cutoff, clock)
     }
@@ -2812,7 +2807,7 @@ impl CommandMailbox {
 
     pub(super) fn take_event_before(
         &self,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<Option<TakenEvent>, EventError> {
         self.take_event_before_using(clock)
     }
@@ -2820,7 +2815,7 @@ impl CommandMailbox {
     #[cfg(test)]
     pub(super) fn await_event_before(
         &self,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
         wall_deadline: Instant,
     ) -> Result<Option<TakenEvent>, EventError> {
         self.await_event_before_using(clock, wall_deadline)
@@ -3172,7 +3167,7 @@ impl CommandMailbox {
     pub(super) fn deposit_ui_reply_before<Settle>(
         &self,
         wait_key: &UiWaitKey,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
         settle: Settle,
     ) -> Result<MutationResult, EventError>
     where
@@ -3229,7 +3224,7 @@ impl CommandMailbox {
     pub(super) fn deposit_bootstrap_reply_before<Settle>(
         &self,
         wait_key: &UiWaitKey,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
         settle: Settle,
     ) -> Result<MutationResult, EventError>
     where
@@ -3309,7 +3304,7 @@ impl CommandMailbox {
         &self,
         wait_key: &UiWaitKey,
         deadline: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<Option<UiReply>, EventError> {
         self.await_ui_reply_before_using(wait_key, deadline, clock)
     }
@@ -3466,7 +3461,7 @@ impl CommandMailbox {
         &self,
         poll_key: &PollKey,
         cutoff: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<Option<CausalSettlement>, EventError> {
         let settlement = self.take_causal_before_using(poll_key, cutoff, clock);
         #[cfg(test)]

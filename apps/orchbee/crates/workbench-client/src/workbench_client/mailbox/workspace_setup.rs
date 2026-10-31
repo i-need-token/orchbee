@@ -8,7 +8,6 @@ use super::{
     MutationResult, PaneKey, QueuedCommand, QueuedRecord, RefreshFlight, StructuralMutationFlight,
     UiCorrelation, UiWaitKey, WorkerEvent, workbench_identity_candidate,
 };
-use crate::local_client::LocalOperationClock;
 use crate::workbench_state::WorkbenchClientState;
 use crate::workbench_state::workspace_setup::{
     SetupIntent, SetupOperation, SetupResult, SetupToken, SetupWorkerEvidence,
@@ -38,7 +37,7 @@ impl CommandMailbox {
         &self,
         canonical: &mut WorkbenchClientState,
         deadlines: OperationDeadlines,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
         request: Option<
             crate::workbench_state::workspace_setup::quick::ProjectQuickWorkspaceRequest,
         >,
@@ -50,7 +49,7 @@ impl CommandMailbox {
         &self,
         canonical: &mut WorkbenchClientState,
         deadlines: OperationDeadlines,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
         request: Option<
             crate::workbench_state::workspace_setup::quick::ProjectQuickWorkspaceRequest,
         >,
@@ -104,7 +103,7 @@ impl CommandMailbox {
         &self,
         canonical: &mut WorkbenchClientState,
         request: Box<crate::workbench_state::workspace_setup::ProjectRenameRequest>,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Option<SetupToken> {
         self.open_project_rename_draft_for_using(canonical, request, clock)
     }
@@ -150,7 +149,7 @@ impl CommandMailbox {
         canonical: &mut WorkbenchClientState,
         token: SetupToken,
         deadlines: OperationDeadlines,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<(), MoveAdmissionError<()>> {
         self.try_enqueue_setup_for_using(canonical, token, deadlines, clock)
     }
@@ -175,7 +174,7 @@ impl CommandMailbox {
         canonical: &mut WorkbenchClientState,
         operation: orchbee_workbench_protocol::TabConfiguration,
         deadlines: OperationDeadlines,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<(), MoveAdmissionError<()>> {
         self.enqueue_setup(
             canonical,
@@ -191,7 +190,7 @@ impl CommandMailbox {
         canonical: &mut WorkbenchClientState,
         request: &crate::workbench_state::workspace_setup::WorkspaceOrganizationRequest,
         deadlines: OperationDeadlines,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<(), MoveAdmissionError<()>> {
         let deadlines = deadlines.bounded_by(request.deadline());
         if clock.now() >= deadlines.forward_cutoff() {
@@ -211,7 +210,7 @@ impl CommandMailbox {
         canonical: &mut WorkbenchClientState,
         operation: orchbee_workbench_protocol::NavigationConfiguration,
         deadlines: OperationDeadlines,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<(), MoveAdmissionError<()>> {
         self.enqueue_setup(
             canonical,
@@ -322,7 +321,7 @@ impl CommandMailbox {
         &self,
         operation: SetupOperation,
         outcome: SetupResult,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<UiWaitKey, EventError> {
         let deadline = operation.deadlines.forward_cutoff();
         self.publish_event_before(

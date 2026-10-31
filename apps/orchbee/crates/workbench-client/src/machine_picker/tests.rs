@@ -508,8 +508,8 @@ fn workspace_search_names_same_labelled_workspaces_by_identity_and_grouping() {
     let painted = paint(&picker, Locale::ZhCn, 80, 24);
     assert!(painted.contains("demo") && !painted.contains("未分组"));
 }
-fn agent_row() -> crate::machine_agents::Row {
-    crate::machine_agents::Row {
+fn agent_row() -> crate::machine_agents::checkpoint::Row {
+    crate::machine_agents::checkpoint::Row {
         seen: true,
         name: None,
         order: crate::machine_agents::PlacementOrder::default(),
@@ -526,7 +526,7 @@ fn agent_row() -> crate::machine_agents::Row {
 }
 #[test]
 fn agent_mode_routes_duplicate_local_and_remote_identities_and_invalidates_stale_hits() {
-    use crate::machine_agents::Observation as Agents;
+    use crate::machine_agents::checkpoint::Observation as Agents;
     let a = profile(1, "same machine", true);
     let b = profile(2, "same machine", true);
     let mut picker = Picker {
@@ -577,7 +577,7 @@ fn agent_mode_routes_duplicate_local_and_remote_identities_and_invalidates_stale
 }
 #[test]
 fn agent_mode_distinguishes_empty_loading_and_unavailable_without_fallback_selection() {
-    use crate::machine_agents::Observation as Agents;
+    use crate::machine_agents::checkpoint::Observation as Agents;
     let mut picker = Picker {
         available: true,
         ..Picker::default()

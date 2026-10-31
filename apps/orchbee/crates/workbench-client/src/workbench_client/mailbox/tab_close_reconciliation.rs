@@ -4,10 +4,10 @@
 
 use super::{
     COMMAND_CAPACITY, CloseAdmissionError, CloseLeaseAcknowledgement, CloseReconciliationMarker,
-    CommandMailbox, EventDeadline, EventError, Instant, LocalOperationClock, MailboxClock,
-    MailboxClosed, MailboxState, MutationResult, PaneKey, PendingRefreshStage, QueuedCommand,
-    QueuedRecord, RefreshDecision, RefreshSettlement, UiCorrelation, UiWaitKey,
-    WorkbenchSnapshotOutcome, WorkerEvent, workbench_identity_candidate,
+    CommandMailbox, EventDeadline, EventError, Instant, MailboxClock, MailboxClosed, MailboxState,
+    MutationResult, PaneKey, PendingRefreshStage, QueuedCommand, QueuedRecord, RefreshDecision,
+    RefreshSettlement, UiCorrelation, UiWaitKey, WorkbenchSnapshotOutcome, WorkerEvent,
+    workbench_identity_candidate,
 };
 
 pub(super) struct CloseReconciliationFlight {
@@ -110,7 +110,7 @@ impl CommandMailbox {
         &self,
         canonical: &mut crate::workbench_state::WorkbenchClientState,
         deadline: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<
         CloseReconciliationMarker,
         CloseAdmissionError<crate::workbench_state::CloseStateError>,
@@ -199,7 +199,7 @@ impl CommandMailbox {
         marker: CloseReconciliationMarker,
         outcome: WorkbenchSnapshotOutcome,
         deadline: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<UiWaitKey, EventError> {
         self.publish_event_before(
             WorkerEvent::CloseReconciliationSnapshot { marker, outcome },

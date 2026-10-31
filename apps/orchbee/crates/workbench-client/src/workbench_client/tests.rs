@@ -10,6 +10,7 @@ use super::test_support::*;
 use super::*;
 use crate::local_client::test_support::multiplex_peer::Peer as UnixStream;
 use crate::localization::{ClientProjectionStatus, RefreshStatus, WorkbenchClientNotice};
+use crate::tui_presentation::ModalPresentation;
 use crate::{
     client_view::{ClientActionDisposition, ClientView},
     local_client::test_support::server::FakeServer,

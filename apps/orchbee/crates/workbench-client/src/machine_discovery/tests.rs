@@ -1,4 +1,5 @@
 use super::*;
+use crate::client_context::ClientContextLocation;
 use crate::local_client::cancellation::OwnedCancellation;
 use crate::local_client::test_support::multiplex_peer::{admit, read_open, respond};
 use crate::{local_client::test_support::server::FakeServer, machines::Draft};
@@ -8,6 +9,7 @@ use orchbee_workbench_protocol::{
     WorkbenchTerminalContextId, read_multiplex_message, read_workbench_request,
     write_multiplex_message,
 };
+use orchbee_workbench_protocol::{Snapshot, WorkbenchProjectId};
 use std::{num::NonZeroU64, thread, time::Duration};
 
 fn profile(n: u8) -> Profile {

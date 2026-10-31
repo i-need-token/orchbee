@@ -10,8 +10,9 @@ use crate::client_view::{Binding, KeyCode, Modifiers};
 use crate::localization::Locale;
 use crate::terminal_text::{sanitize_terminal_text, truncate_display};
 use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
+use crate::tui_presentation::ModalPresentation;
 use crate::tui_theme::{Role, Theme};
-use crate::workbench_client::{ModalPresentation, RenameDraftView};
+use crate::workbench_client::RenameDraftView;
 use crate::workbench_state::rename_draft::RenameDraftToken;
 use ratatui::{
     Frame,

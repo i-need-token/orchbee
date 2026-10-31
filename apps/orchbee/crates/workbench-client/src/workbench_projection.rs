@@ -35,14 +35,7 @@ pub(crate) struct ClientContextTabs {
     projects: std::sync::Arc<[orchbee_workbench_protocol::Project]>,
 }
 
-pub use crate::client_context::ClientContextLocation;
-
-/// An explicit destination is bound to a Session as well as its navigation identity.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ClientContextTarget {
-    pub session_id: SessionId,
-    pub location: ClientContextLocation,
-}
+pub use crate::client_context::{ClientContextLocation, ClientContextTarget};
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]

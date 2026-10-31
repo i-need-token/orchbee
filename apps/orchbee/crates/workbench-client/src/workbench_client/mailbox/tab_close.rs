@@ -4,10 +4,10 @@
 
 use super::{
     BarrierFence, BarrierKind, COMMAND_CAPACITY, CloseFlightKey, CloseOperation, CloseResult,
-    CommandMailbox, EventDeadline, EventError, Geometry, Instant, LocalOperationClock,
-    MailboxClock, MailboxClosed, MailboxMembership, MailboxState, MutationResult,
-    PendingRefreshStage, QueuedCommand, QueuedRecord, UiCorrelation, UiWaitKey, WorkbenchRequestId,
-    WorkerEvent, workbench_identity_candidate,
+    CommandMailbox, EventDeadline, EventError, Geometry, Instant, MailboxClock, MailboxClosed,
+    MailboxMembership, MailboxState, MutationResult, PendingRefreshStage, QueuedCommand,
+    QueuedRecord, UiCorrelation, UiWaitKey, WorkbenchRequestId, WorkerEvent,
+    workbench_identity_candidate,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -137,7 +137,7 @@ impl CommandMailbox {
         &self,
         canonical: &mut Canonical,
         deadline: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
         build: impl FnOnce(
             &Canonical,
             WorkbenchRequestId,
@@ -236,7 +236,7 @@ impl CommandMailbox {
         operation: CloseOperation,
         outcome: CloseResult,
         deadline: Instant,
-        clock: &LocalOperationClock,
+        clock: &dyn MailboxClock,
     ) -> Result<UiWaitKey, EventError> {
         self.publish_event_before(
             WorkerEvent::CloseResult { operation, outcome },

@@ -9,8 +9,8 @@ use crate::client_view::{Binding, KeyCode, Modifiers};
 use crate::localization::Locale;
 use crate::terminal_text::sanitize_terminal_text;
 use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
+use crate::tui_presentation::ModalPresentation;
 use crate::tui_theme::Theme;
-use crate::workbench_client::ModalPresentation;
 use crate::workbench_state::workspace_close::{
     WorkspaceCloseConfirmationView, WorkspaceCloseToken,
 };
