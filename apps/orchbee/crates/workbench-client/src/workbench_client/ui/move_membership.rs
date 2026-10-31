@@ -3,12 +3,12 @@
 //! projection still requires recovery.
 
 use super::WorkbenchClientUi;
-use crate::workbench_client::{
-    mailbox::{CommandMailbox, DesiredInstall, MoveSettlement, MutationResult, UiReply, UiWaitKey},
-    state::{
-        CarrierFailure, MembershipInstallDecision, MoveDecision, MoveOperation, MoveResult,
-        OperationDeadlines,
-    },
+use crate::workbench_client::mailbox::{
+    CommandMailbox, DesiredInstall, MoveSettlement, MutationResult, UiReply, UiWaitKey,
+};
+use crate::workbench_state::{
+    CarrierFailure, MembershipInstallDecision, MoveDecision, MoveOperation, MoveResult,
+    OperationDeadlines,
 };
 use std::sync::Arc;
 

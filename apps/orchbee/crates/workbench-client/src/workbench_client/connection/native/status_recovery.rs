@@ -3,10 +3,9 @@
 //! close or infer physical disposal when observation fails.
 
 use super::{ClientConnectionExit, ClientExecutor, WorkerExit};
-use crate::{
-    local_client::{LocalClientOrigin, LocalClientShutdown, LocalOperationClock},
-    workbench_client::{mailbox::CommandMailbox, state::CarrierFailure},
-};
+use crate::local_client::{LocalClientOrigin, LocalClientShutdown, LocalOperationClock};
+use crate::workbench_client::mailbox::CommandMailbox;
+use crate::workbench_state::CarrierFailure;
 use std::{
     io,
     sync::{Arc, Mutex},

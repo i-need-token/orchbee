@@ -3,23 +3,19 @@
 //! prompt, executing physical closure, or acknowledging a merely prepared frame.
 
 use super::{PanelCloseConfirmationToken, WorkbenchClientUi, WorkbenchClientView};
-use crate::workbench_client::state::{self, TabCloseResumePermit};
-use crate::{
-    client_view::{ClientActionDisposition, ClientKey},
-    localization::CloseImpact,
-    workbench_client::{
-        mailbox::{CloseAdmissionError, CommandMailbox, MutationResult, UiReply, UiWaitKey},
-        state::{
-            CarrierFailure, CloseOperation, CloseResult, OPERATION_TOTAL, WorkbenchClientState,
-        },
-    },
+use crate::client_view::{ClientActionDisposition, ClientKey};
+use crate::localization::CloseImpact;
+use crate::workbench_client::mailbox::{
+    CloseAdmissionError, CommandMailbox, MutationResult, UiReply, UiWaitKey,
+};
+use crate::workbench_state::{self, TabCloseResumePermit};
+use crate::workbench_state::{
+    CarrierFailure, CloseOperation, CloseResult, OPERATION_TOTAL, WorkbenchClientState,
 };
 use std::sync::Arc;
 
-pub use crate::workbench_client::state::CloseConfirmationToken;
-pub(crate) use crate::workbench_client::state::{
-    CloseConfirmationKind, CloseStatusKind, CloseStatusToken,
-};
+pub use crate::workbench_state::CloseConfirmationToken;
+pub(crate) use crate::workbench_state::{CloseConfirmationKind, CloseStatusKind, CloseStatusToken};
 
 /// The renderer's geometry verdict for one modal surface in a completed draw.
 /// `Presented` proves the complete surface was written. `NotPresented` means
@@ -47,7 +43,7 @@ impl<T> ModalPresentation<T> {
 pub struct DrawReceipt {
     settings: Option<ModalPresentation<crate::native_settings::SettingsDraw>>,
     menu: Option<ModalPresentation<crate::action_menu::MenuDraw>>,
-    position: Option<crate::workbench_client::startup_preference::Draw>,
+    position: Option<crate::startup_preference::Draw>,
     prompt: Option<ModalPresentation<CloseConfirmationToken>>,
     status: Option<CloseStatusToken>,
     rename: Option<ModalPresentation<super::RenameDraftToken>>,
@@ -78,13 +74,10 @@ impl DrawReceipt {
         self.menu = draw;
         self
     }
-    pub(crate) fn position(&self) -> Option<&crate::workbench_client::startup_preference::Draw> {
+    pub(crate) fn position(&self) -> Option<&crate::startup_preference::Draw> {
         self.position.as_ref()
     }
-    pub fn with_position(
-        mut self,
-        position: Option<crate::workbench_client::startup_preference::Draw>,
-    ) -> Self {
+    pub fn with_position(mut self, position: Option<crate::startup_preference::Draw>) -> Self {
         self.position = position;
         self
     }
@@ -179,7 +172,7 @@ impl DrawReceipt {
 type SetEntry<'a> = (usize, &'a str, Option<super::ClientTabView<'a>>);
 
 pub struct CloseConfirmationView<'a> {
-    inner: state::CloseConfirmationView<'a>,
+    inner: workbench_state::CloseConfirmationView<'a>,
     impact: CloseImpact,
     tab: Option<super::ClientTabView<'a>>,
     set: Vec<SetEntry<'a>>,
@@ -237,16 +230,14 @@ impl<'a> CloseConfirmationView<'a> {
     pub(crate) fn resume_status(&self) -> Option<CloseStatusView<'a>> {
         self.resume
     }
-    pub(crate) fn resume_set_status(
-        &self,
-    ) -> Option<crate::workbench_client::state::CloseSetStatus> {
+    pub(crate) fn resume_set_status(&self) -> Option<crate::workbench_state::CloseSetStatus> {
         self.inner.resume_set_status()
     }
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct CloseStatusView<'a> {
-    inner: state::CloseStatusView<'a>,
+    inner: workbench_state::CloseStatusView<'a>,
     tab: Option<super::ClientTabView<'a>>,
 }
 
@@ -301,9 +292,7 @@ impl<'a> From<&CloseStatusView<'a>> for crate::localization::CloseStatusText<'a>
 }
 
 impl<'a> WorkbenchClientView<'a> {
-    pub(crate) fn close_set_status(
-        &self,
-    ) -> Option<crate::workbench_client::state::CloseSetStatus> {
+    pub(crate) fn close_set_status(&self) -> Option<crate::workbench_state::CloseSetStatus> {
         self.state.as_ref()?.close_set_status()
     }
     pub(crate) fn close_confirmation(&self) -> Option<CloseConfirmationView<'a>> {
@@ -333,7 +322,10 @@ impl<'a> WorkbenchClientView<'a> {
             .close_status()
             .map(|inner| self.close_status_view(inner))
     }
-    fn close_status_view(&self, inner: state::CloseStatusView<'a>) -> CloseStatusView<'a> {
+    fn close_status_view(
+        &self,
+        inner: workbench_state::CloseStatusView<'a>,
+    ) -> CloseStatusView<'a> {
         CloseStatusView {
             tab: self.tab_by_id(inner.target_tab_id()),
             inner,
@@ -387,9 +379,9 @@ impl WorkbenchClientUi {
     }
     pub(in crate::workbench_client) fn close_worker_loss(
         &self,
-    ) -> crate::workbench_client::state::CloseWorkerReturn {
+    ) -> crate::workbench_state::CloseWorkerReturn {
         self.mailbox.as_ref().map_or(
-            crate::workbench_client::state::CloseWorkerReturn::Missing {
+            crate::workbench_state::CloseWorkerReturn::Missing {
                 queued: None,
                 deposited: None,
             },
@@ -400,7 +392,7 @@ impl WorkbenchClientUi {
     #[cfg(test)]
     pub(in crate::workbench_client) fn settled_close_identity(
         &self,
-    ) -> Option<&crate::workbench_client::state::CloseFlightKey> {
+    ) -> Option<&crate::workbench_state::CloseFlightKey> {
         self.state.as_ref()?.settled_close_identity()
     }
 
@@ -408,7 +400,7 @@ impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn uncertain_close_identity(
         &self,
     ) -> Option<(
-        &crate::workbench_client::state::CloseFlightKey,
+        &crate::workbench_state::CloseFlightKey,
         Option<&orchbee_workbench_protocol::WorkbenchRequestId>,
     )> {
         self.state.as_ref()?.uncertain_close_identity()

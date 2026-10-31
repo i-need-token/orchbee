@@ -14,7 +14,7 @@ pub(in crate::workbench_client) enum DesiredInstall {
         key: AttachmentKey,
         panel: WorkbenchPanelId,
     },
-    RestoreSwitch(crate::workbench_client::state::SwitchRestoreKey),
+    RestoreSwitch(crate::workbench_state::SwitchRestoreKey),
     Fresh {
         tab_id: WorkbenchTabId,
         panel: WorkbenchPanelId,

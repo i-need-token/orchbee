@@ -3,7 +3,7 @@ use crate::client_view::{KeyCode, Modifiers};
 use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::workbench_client::mailbox::EventDeadline;
 use crate::workbench_client::ui::CommandMailbox;
-use crate::workbench_client::{SetupEdit, SetupStage};
+use crate::workbench_state::workspace_setup::{SetupEdit, SetupStage};
 use orchbee_workbench_protocol::WorkbenchAction;
 use orchbee_workbench_protocol::{
     Directory, Project, SessionId, Snapshot, TerminalContext, WorkbenchDirectoryId,
@@ -149,10 +149,8 @@ fn dissolve_project(snapshot: &mut Snapshot, project: &WorkbenchProjectId) {
 }
 
 fn install(ui: &mut WorkbenchClientUi, snapshot: &Snapshot, location: &ClientContextLocation) {
-    let cache = crate::workbench_client::workbench_projection::project_native_context_tabs(
-        snapshot, location,
-    )
-    .unwrap();
+    let cache =
+        crate::workbench_projection::project_native_context_tabs(snapshot, location).unwrap();
     ui.state = Some(
         WorkbenchClientState::bootstrap(cache, 10, Geometry::new(80, 24, 8, 16).unwrap())
             .unwrap()
@@ -176,12 +174,10 @@ fn ready(
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: crate::workbench_client::workbench_projection::project_native_context_tabs(
-                    snapshot, location,
-                )
-                .unwrap(),
+                cache: crate::workbench_projection::project_native_context_tabs(snapshot, location)
+                    .unwrap(),
             },
-            EventDeadline::Startup(clock.now() + crate::workbench_client::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();

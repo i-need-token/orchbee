@@ -2,12 +2,10 @@
 mod adjustment;
 mod divider;
 use super::WorkbenchClientUi;
-use crate::{
-    client_view::SidebarSurface,
-    tui_layout::{self, ViewportTier},
-    workbench_client::workbench_projection::{
-        ClientTab, project_native_context_tabs, project_preferred_workspace,
-    },
+use crate::client_view::SidebarSurface;
+use crate::tui_layout::{self, ViewportTier};
+use crate::workbench_projection::{
+    ClientTab, project_native_context_tabs, project_preferred_workspace,
 };
 use orchbee_workbench_protocol::{
     ClientCellRect, ClientPanelArea, ClientPanelLayout, ClientPanelNeighbors, ClientSplitArea,

@@ -15,7 +15,7 @@ fn publish(
     let wait = mailbox
         .publish_event_before(
             event,
-            EventDeadline::Forward(clock.now() + crate::workbench_client::state::OPERATION_TOTAL),
+            EventDeadline::Forward(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             clock,
         )
         .unwrap();
@@ -167,7 +167,7 @@ fn configured_starting_defers_ordinary_work_until_ready_then_resumes_once() {
                 frame: FrameIdentity::new(1),
             },
         ),
-        UiReply::Ready(crate::workbench_client::state::ReadyDecision::CatchUpResize(actual))
+        UiReply::Ready(crate::workbench_state::ReadyDecision::CatchUpResize(actual))
             if actual == latest
     ));
     assert!(ui.state.as_ref().unwrap().ready().is_none());
@@ -209,7 +209,7 @@ fn configured_starting_defers_ordinary_work_until_ready_then_resumes_once() {
                 frame: FrameIdentity::new(2),
             },
         ),
-        UiReply::Ready(crate::workbench_client::state::ReadyDecision::Ready)
+        UiReply::Ready(crate::workbench_state::ReadyDecision::Ready)
     ));
     assert!(ui.state.as_ref().unwrap().ready().is_some());
 

@@ -16,7 +16,7 @@ impl WorkbenchClientUi {
         wait: super::super::mailbox::UiWaitKey,
         generation: u64,
         operation: CreateOperationKey,
-        prepared: super::super::state::PreparedMembershipCandidate,
+        prepared: crate::workbench_state::PreparedMembershipCandidate,
         deadlines: Option<OperationDeadlines>,
         index_snapshot: Option<orchbee_workbench_protocol::Snapshot>,
     ) -> bool {
@@ -72,14 +72,14 @@ impl WorkbenchClientUi {
             desired.commit();
             installed = true;
             let decision = match decision {
-                super::super::state::MembershipInstallDecision::Attach(target) => {
+                crate::workbench_state::MembershipInstallDecision::Attach(target) => {
                     RefreshDecision::AttachRecovered(target)
                 }
-                super::super::state::MembershipInstallDecision::Empty
-                | super::super::state::MembershipInstallDecision::SelectedWithoutAttachment => {
+                crate::workbench_state::MembershipInstallDecision::Empty
+                | crate::workbench_state::MembershipInstallDecision::SelectedWithoutAttachment => {
                     RefreshDecision::SettledWithoutAttachment
                 }
-                super::super::state::MembershipInstallDecision::Preserved => {
+                crate::workbench_state::MembershipInstallDecision::Preserved => {
                     unreachable!("Create recovery always installs")
                 }
             };
@@ -93,8 +93,7 @@ impl WorkbenchClientUi {
                 // The snapshot that drove this accepted recovery is the
                 // freshest canonical feed the board's index may see.
                 if let Some(snapshot) = &index_snapshot {
-                    self.agent_index =
-                        super::super::agent_board::PresentationIndex::rebuild(snapshot);
+                    self.agent_index = crate::agent_board::PresentationIndex::rebuild(snapshot);
                 }
                 if installed {
                     self.clear_projections();
@@ -128,7 +127,7 @@ impl WorkbenchClientUi {
             | orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Unavailable { .. } => None,
         };
         let prepared = state.prepare_create_snapshot(&operation, outcome);
-        if let super::super::state::PreparedCreateSnapshot::Available {
+        if let crate::workbench_state::PreparedCreateSnapshot::Available {
             baseline,
             committed,
             projection,
@@ -189,14 +188,14 @@ impl WorkbenchClientUi {
                 desired.commit();
                 installed = true;
                 Ok(UiReply::CreateProjection(match decision {
-                    super::super::state::MembershipInstallDecision::Attach(target) => {
+                    crate::workbench_state::MembershipInstallDecision::Attach(target) => {
                         CreateProjectionDecision::Attach(target)
                     }
-                    super::super::state::MembershipInstallDecision::SelectedWithoutAttachment
-                    | super::super::state::MembershipInstallDecision::Empty => {
+                    crate::workbench_state::MembershipInstallDecision::SelectedWithoutAttachment
+                    | crate::workbench_state::MembershipInstallDecision::Empty => {
                         CreateProjectionDecision::SettledWithoutAttachment
                     }
-                    super::super::state::MembershipInstallDecision::Preserved => {
+                    crate::workbench_state::MembershipInstallDecision::Preserved => {
                         unreachable!("Create always installs a new selection")
                     }
                 }))
@@ -204,8 +203,7 @@ impl WorkbenchClientUi {
             return match result {
                 Ok(MutationResult::Applied) => {
                     if let Some(snapshot) = &index_snapshot {
-                        self.agent_index =
-                            super::super::agent_board::PresentationIndex::rebuild(snapshot);
+                        self.agent_index = crate::agent_board::PresentationIndex::rebuild(snapshot);
                     }
                     if installed {
                         self.clear_projections();

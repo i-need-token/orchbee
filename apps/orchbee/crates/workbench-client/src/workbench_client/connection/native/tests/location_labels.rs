@@ -2,9 +2,9 @@ use super::{
     commands::{drive_controlling_after_attach, drive_controlling_ready_from_snapshot},
     setup::*,
 };
-use crate::workbench_client::state::{
-    RefreshDecision,
-    workspace_setup::{LocationLabelStatus, LocationLabelTarget, SetupStatus},
+use crate::workbench_state::RefreshDecision;
+use crate::workbench_state::workspace_setup::{
+    LocationLabelStatus, LocationLabelTarget, SetupStatus,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerResult,

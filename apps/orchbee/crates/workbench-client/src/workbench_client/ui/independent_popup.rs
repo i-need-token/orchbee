@@ -10,7 +10,7 @@ use orchbee_workbench_protocol::{
 use ratatui::layout::Rect;
 
 impl super::WorkbenchClientView<'_> {
-    pub(crate) fn popup(&self) -> Option<crate::workbench_client::PopupView<'_>> {
+    pub(crate) fn popup(&self) -> Option<crate::independent_popup::PopupView<'_>> {
         self.popup?.view()
     }
     pub(crate) fn popup_capture_claim(&self) -> bool {
@@ -18,7 +18,7 @@ impl super::WorkbenchClientView<'_> {
     }
     pub(crate) fn popup_input_context(
         &self,
-    ) -> Option<super::super::independent_popup::PopupInputContext> {
+    ) -> Option<crate::independent_popup::PopupInputContext> {
         self.popup?.input_context()
     }
 }
@@ -49,7 +49,7 @@ impl WorkbenchClientUi {
     }
     pub(in crate::workbench_client) fn activate_drawn_popup_close(
         &mut self,
-        target: &super::super::independent_popup::DrawnPopupClose,
+        target: &crate::independent_popup::DrawnPopupClose,
     ) -> bool {
         self.popup.activate_drawn_close(target)
     }

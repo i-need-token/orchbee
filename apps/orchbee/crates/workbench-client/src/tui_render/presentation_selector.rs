@@ -8,11 +8,11 @@ use super::{
         icon_action_rect, render_icon_action,
     },
 };
-use crate::{
-    terminal_text::display_width,
-    tui_hit_map::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
-    workbench_client::{ClientPanel, DrawnPresentationTarget},
+use crate::terminal_text::display_width;
+use crate::tui_hit_map::{
+    DrawnPresentationTarget, InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer,
 };
+use crate::workbench_projection::ClientPanel;
 
 pub(super) struct PresentationSelector {
     pub(super) area: Rect,

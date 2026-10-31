@@ -1,10 +1,10 @@
 //! Worktree source preparation shares the existing refresh fence and UI settlement.
 use super::{AdmissionError, CommandMailbox, RefreshPurpose};
 use crate::local_client::LocalOperationClock;
-use crate::workbench_client::state::{
-    OperationDeadlines, WorkbenchClientState,
-    worktree_launch::{Launcher, WorktreeMode, WorktreeNotice, WorktreeToken},
+use crate::workbench_state::worktree_launch::{
+    Launcher, WorktreeMode, WorktreeNotice, WorktreeToken,
 };
+use crate::workbench_state::{OperationDeadlines, WorkbenchClientState};
 impl CommandMailbox {
     pub(in crate::workbench_client) fn try_enqueue_worktree_preparation_for(
         &self,

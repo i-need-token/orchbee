@@ -1,18 +1,17 @@
 //! Root-compositor evidence: one painted owner and one exact draw settlement per frame.
 
 use super::super::*;
-use crate::tui_theme::Role;
-use crate::{
-    client_view::{
-        Binding, ClientView, KeyCode, KeyEvent, LabelStyle, Modifiers, PrefixDesc, format_binding,
-    },
-    localization::{Locale, RecoveryVerb},
-    native_settings::Basis,
-    tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget, ListScrollTarget},
-    tui_presentation::PresentationPhase,
-    tui_theme::Theme,
-    workbench_client::{AgentBoardEpisodeToken, DrawReceipt},
+use crate::agent_board::AgentBoardEpisodeToken;
+use crate::client_view::{
+    Binding, ClientView, KeyCode, KeyEvent, LabelStyle, Modifiers, PrefixDesc, format_binding,
 };
+use crate::localization::{Locale, RecoveryVerb};
+use crate::native_settings::Basis;
+use crate::tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget, ListScrollTarget};
+use crate::tui_presentation::PresentationPhase;
+use crate::tui_theme::Role;
+use crate::tui_theme::Theme;
+use crate::workbench_client::DrawReceipt;
 use orchbee_workbench_protocol::UserPreferencesValues;
 use ratatui::layout::Rect;
 use ratatui::{Terminal, backend::TestBackend};

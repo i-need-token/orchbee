@@ -1,10 +1,8 @@
 //! Complete immutable canvases, visible source scope and one cancellable read owner.
-use super::{
-    ClientPanel, ClientPresentation,
-    agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome},
-    state::WorkbenchClientState,
-};
+use super::agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome};
+use super::{ClientPanel, ClientPresentation};
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
+use crate::workbench_state::WorkbenchClientState;
 use orchbee_workbench_protocol::{
     MAXIMUM_GRAPHICS_LAYERS, MAXIMUM_GRAPHICS_RESIDENT_BYTES, WorkbenchPanelId,
 };

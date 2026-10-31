@@ -9,15 +9,11 @@ use crate::action_menu::{
     ActionMenu, MenuAction, MenuAnchor, MenuInputContext, MenuTarget, MenuView, RetainedMenu,
 };
 use crate::tui_capabilities::Capabilities;
-use crate::workbench_client::state::worktree_launch::addressed::{
+use crate::workbench_projection::{ClientContextLocation, ClientTab, MenuContextSource};
+use crate::workbench_state::worktree_launch::addressed::{
     AddressedWorktreeSource, SidebarDiscovery,
 };
-use crate::workbench_client::state::{
-    PaneKey, PaneRef, TabCloseResumePermit, WorkbenchClientState,
-};
-use crate::workbench_client::workbench_projection::{
-    ClientContextLocation, ClientTab, MenuContextSource,
-};
+use crate::workbench_state::{PaneKey, PaneRef, TabCloseResumePermit, WorkbenchClientState};
 use orchbee_client_server_protocol::Geometry;
 use std::time::{Duration, Instant};
 mod tab_source;

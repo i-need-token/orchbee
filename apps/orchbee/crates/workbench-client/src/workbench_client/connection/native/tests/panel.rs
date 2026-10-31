@@ -5,12 +5,10 @@ use super::{
     },
     setup::*,
 };
-use crate::workbench_client::{
-    mailbox::{QueuedCommand, Tagged, WorkerEvent},
-    state::{
-        CarrierFailure, ClientNotice, ClientPhaseKind, ControllerMode, PaneFault, PaneRef,
-        PanelDecision, PanelIntent, PanelOperation, PanelRequestKind, PanelResult, RefreshDecision,
-    },
+use crate::workbench_client::mailbox::{QueuedCommand, Tagged, WorkerEvent};
+use crate::workbench_state::{
+    CarrierFailure, ClientNotice, ClientPhaseKind, ControllerMode, PaneFault, PaneRef,
+    PanelDecision, PanelIntent, PanelOperation, PanelRequestKind, PanelResult, RefreshDecision,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, ControlUnavailableReason, ControllerId, Geometry, ServerMessage,
@@ -586,7 +584,7 @@ fn panel_close_runtime_loss_before_publication_preserves_the_survivor() -> TestR
         mailbox
             .try_enqueue_refresh_for(
                 state,
-                Instant::now() + crate::workbench_client::state::OPERATION_TOTAL,
+                Instant::now() + crate::workbench_state::OPERATION_TOTAL,
                 |state, generation| {
                     state
                         .start_publication_drain(generation)
@@ -842,11 +840,9 @@ fn panel_terminal_busy_is_a_definite_not_applied_notice() -> TestResult {
         assert_eq!(settled, operation);
         assert!(matches!(
             outcome,
-            PanelResult::Precommit(
-                crate::workbench_client::state::PanelPrecommit::Unavailable {
-                    reason: WorkbenchCommandUnavailableReason::TerminalBusy,
-                }
-            )
+            PanelResult::Precommit(crate::workbench_state::PanelPrecommit::Unavailable {
+                reason: WorkbenchCommandUnavailableReason::TerminalBusy,
+            })
         ));
         assert!(harness.ui.state().selected_has_viewer());
         harness.finish()?;

@@ -1,4 +1,4 @@
-use super::state::CarrierFailure;
+use crate::workbench_state::CarrierFailure;
 mod close_interaction;
 mod close_recovery;
 mod close_retirement;
@@ -9,6 +9,7 @@ mod retirement_redraw;
 use super::test_support::*;
 use super::*;
 use crate::local_client::test_support::multiplex_peer::Peer as UnixStream;
+use crate::localization::{ClientProjectionStatus, RefreshStatus, WorkbenchClientNotice};
 use crate::{
     client_view::{ClientActionDisposition, ClientView},
     local_client::test_support::server::FakeServer,

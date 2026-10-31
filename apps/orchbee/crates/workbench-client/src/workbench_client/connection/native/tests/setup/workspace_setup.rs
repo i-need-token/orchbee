@@ -1,11 +1,9 @@
 use super::*;
-use crate::workbench_client::{
-    mailbox::DesiredInstall,
-    state::{
-        MembershipInstallDecision, PreparedRefresh,
-        workspace_setup::{SetupEdit, SetupResult, SetupStatus, SetupToken, SetupWorkerEvidence},
-    },
+use crate::workbench_client::mailbox::DesiredInstall;
+use crate::workbench_state::workspace_setup::{
+    SetupEdit, SetupResult, SetupStatus, SetupToken, SetupWorkerEvidence,
 };
+use crate::workbench_state::{MembershipInstallDecision, PreparedRefresh};
 
 impl UiDriver {
     pub(in crate::workbench_client::connection::native::tests) fn setup_group_draft(
@@ -15,13 +13,13 @@ impl UiDriver {
     ) -> TestResult<SetupToken> {
         let mailbox = Arc::clone(&self.mailbox);
         let state = self.state_mut();
-        let intent = crate::workbench_client::state::workspace_setup::SetupIntent::TabGroupName(
-            Box::new(orchbee_workbench_protocol::TabConfiguration::CreateGroup {
+        let intent = crate::workbench_state::workspace_setup::SetupIntent::TabGroupName(Box::new(
+            orchbee_workbench_protocol::TabConfiguration::CreateGroup {
                 tab_id: state.cache().tabs()[0].tab_id().clone(),
                 label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse(label).unwrap(),
                 color: orchbee_workbench_protocol::TabGroupColor::Blue,
-            }),
-        );
+            },
+        ));
         let token = mailbox
             .open_setup_draft_for(state, intent)
             .ok_or_else(|| test_error("group draft admission"))?;
@@ -204,10 +202,10 @@ impl Harness {
 impl UiDriver {
     pub(in crate::workbench_client::connection::native::tests) fn location_label_draft(
         &mut self,
-        target: crate::workbench_client::state::workspace_setup::LocationLabelTarget,
+        target: crate::workbench_state::workspace_setup::LocationLabelTarget,
         replacement: Option<&str>,
     ) -> TestResult<SetupToken> {
-        use crate::workbench_client::state::workspace_setup::SetupIntent;
+        use crate::workbench_state::workspace_setup::SetupIntent;
         let mailbox = Arc::clone(&self.mailbox);
         let state = self.state_mut();
         let token = mailbox

@@ -5,13 +5,14 @@ use super::modal::{
     ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
     paint_modal_frame,
 };
-use crate::{
-    client_view::{Binding, KeyCode, Modifiers},
-    localization::Locale,
-    terminal_text::sanitize_terminal_text,
-    tui_hit_map::{HitLayer, HitMapBuilder, HitTarget},
-    tui_theme::Theme,
-    workbench_client::{ModalPresentation, WorkspaceCloseConfirmationView, WorkspaceCloseToken},
+use crate::client_view::{Binding, KeyCode, Modifiers};
+use crate::localization::Locale;
+use crate::terminal_text::sanitize_terminal_text;
+use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
+use crate::tui_theme::Theme;
+use crate::workbench_client::ModalPresentation;
+use crate::workbench_state::workspace_close::{
+    WorkspaceCloseConfirmationView, WorkspaceCloseToken,
 };
 use ratatui::{
     Frame,

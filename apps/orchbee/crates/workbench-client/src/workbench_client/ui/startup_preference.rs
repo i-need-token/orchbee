@@ -1,6 +1,6 @@
 //! Painted position proofs feed only the owning Client's startup preference.
 use super::{ClientNotice, DisplayPhase, PaneRef, WorkbenchClientUi, WorkbenchClientView};
-use crate::workbench_client::startup_preference::{Draw, Position};
+use crate::startup_preference::{Draw, Position};
 
 impl WorkbenchClientView<'_> {
     pub(crate) fn position_draw<'a>(

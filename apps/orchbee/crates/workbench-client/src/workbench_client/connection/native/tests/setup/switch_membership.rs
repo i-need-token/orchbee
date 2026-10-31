@@ -1,9 +1,7 @@
 use super::*;
+use crate::workbench_client::mailbox::DesiredInstall;
 use crate::workbench_client::mailbox::UiWaitKey;
-use crate::workbench_client::{
-    mailbox::DesiredInstall,
-    state::{MembershipCleanup, MembershipInstallDecision, MembershipResultKey},
-};
+use crate::workbench_state::{MembershipCleanup, MembershipInstallDecision, MembershipResultKey};
 
 impl UiDriver {
     pub(super) fn settle_switch_snapshot(
@@ -107,7 +105,7 @@ impl UiDriver {
     pub(super) fn settle_switch_forward_expired(
         &mut self,
         wait: UiWaitKey,
-        target: crate::workbench_client::state::AttachTarget,
+        target: crate::workbench_state::AttachTarget,
     ) -> TestResult<UiEvent> {
         let marker = target.selected().key().clone();
         let mailbox = Arc::clone(&self.mailbox);

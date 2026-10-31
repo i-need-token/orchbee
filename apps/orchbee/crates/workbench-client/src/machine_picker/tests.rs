@@ -351,7 +351,7 @@ fn context(n: u8) -> Context {
                         "{n:032x}"
                     ))
                     .unwrap();
-                crate::workbench_client::ClientContextLocation::Workspace {
+                crate::workbench_projection::ClientContextLocation::Workspace {
                     workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                         fixture_context_id.as_str(),
                     )
@@ -464,7 +464,7 @@ fn workspace_search_names_same_labelled_workspaces_by_identity_and_grouping() {
         target: ClientContextTarget {
             session_id: orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 9))
                 .unwrap(),
-            location: crate::workbench_client::ClientContextLocation::Workspace {
+            location: crate::workbench_projection::ClientContextLocation::Workspace {
                 workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!(
                     "{n:032x}"
                 ))

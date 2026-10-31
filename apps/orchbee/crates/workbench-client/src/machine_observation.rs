@@ -1,15 +1,11 @@
 //! Common bounded, cancellable observation lifecycle for Agent and Workspace consumers.
 use crate::background_thread::BackgroundThread;
+use crate::local_client::LocalClient;
 use crate::local_client::cancellation::{Cancellation, OwnedCancellation};
-use crate::{
-    local_client::{
-        LocalClient,
-        subscription::{ChangeEvent, ChangeSubscription},
-    },
-    machine_discovery::Connection,
-    machines::{Choice, ProfileId},
-    workbench_client::UiWakeup,
-};
+use crate::local_client::subscription::{ChangeEvent, ChangeSubscription};
+use crate::machine_discovery::Connection;
+use crate::machines::{Choice, ProfileId};
+use crate::ui_wakeup::UiWakeup;
 use orchbee_workbench_protocol::{
     ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchRequestId, WorkbenchSnapshotOutcome,
 };

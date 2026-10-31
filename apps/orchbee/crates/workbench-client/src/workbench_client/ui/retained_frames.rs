@@ -3,10 +3,8 @@
 
 use crate::localization::ClientProjectionStatus;
 use crate::terminal_projection::TerminalProjection;
-use crate::workbench_client::{
-    state::{ClientPhaseKind, PaneRef, WorkbenchClientState},
-    workbench_projection::ClientTerminalBinding,
-};
+use crate::workbench_projection::ClientTerminalBinding;
+use crate::workbench_state::{ClientPhaseKind, PaneRef, WorkbenchClientState};
 use orchbee_terminal_protocol::{TerminalTextCell, TerminalTextFrame, TerminalTextRow};
 use orchbee_workbench_protocol::{
     SessionId, TerminalPresentationId, WorkbenchPanelId, WorkbenchTabId, WorkbenchTerminalContextId,
@@ -115,8 +113,8 @@ impl RetainedFrames {
     /// A verified physical replacement cannot reuse pixels from an earlier Host incarnation.
     pub(super) fn fence_selection(
         &mut self,
-        context: &crate::workbench_client::ClientContextTarget,
-        selection: &crate::workbench_client::workbench_projection::ClientMemberSelection,
+        context: &crate::workbench_projection::ClientContextTarget,
+        selection: &crate::workbench_projection::ClientMemberSelection,
     ) {
         let Some(expected) = &selection.expected_host else {
             return;
@@ -230,7 +228,7 @@ impl<'a> RetainedView<'a> {
     pub(super) fn title(
         &self,
         tab: &WorkbenchTabId,
-        panel: &crate::workbench_client::ClientPanel,
+        panel: &crate::workbench_projection::ClientPanel,
         epoch: Option<&orchbee_terminal_protocol::HostEpoch>,
         held: bool,
     ) -> Option<&'a str> {

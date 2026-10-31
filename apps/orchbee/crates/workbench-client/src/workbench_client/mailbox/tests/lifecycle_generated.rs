@@ -6,27 +6,23 @@ use super::super::{
     UiReplyKind, UiReplyTransaction, UiWaitKey, WorkerEvent,
 };
 use super::fixture_viewer_id;
-use crate::{
-    client_view::PanelDirection,
-    local_client::workbench::{
-        WorkbenchTabCreateCommit, WorkbenchTabCreatePrecommit, WorkbenchTabCreateRequest,
-        panel_close::WorkbenchPanelCloseAccepted, panel_placement::WorkbenchPanelPlacementCommit,
-        panel_split::WorkbenchPanelSplitCommit,
-    },
-    terminal_projection::TerminalProjection,
-    workbench_client::{
-        state::{
-            AttachTarget, AttachmentKey, CarrierFailure, CleanupContinuation, ClientNotice,
-            ClientPhaseKind, ControllerMode, CreateOperation, CreateOperationKey,
-            CreateProjectionDecision, CreateTerminalProvenance, FrameIdentity, MembershipCleanup,
-            MembershipInstallDecision, MembershipResultKey, NavigatorRefreshStatus,
-            OperationDeadlines, PaneRef, PanelCommit, PanelDecision, PanelIntent, PanelOperation,
-            PanelPrecommit, PanelRequestKind, PanelResult, PendingCreateCommit,
-            PendingRefreshStage, ReadyDecision, RefreshDecision, SetupEventDisposition,
-            WorkbenchClientState,
-        },
-        workbench_projection::project_preferred_workspace,
-    },
+use crate::client_view::PanelDirection;
+use crate::local_client::workbench::panel_close::WorkbenchPanelCloseAccepted;
+use crate::local_client::workbench::panel_placement::WorkbenchPanelPlacementCommit;
+use crate::local_client::workbench::panel_split::WorkbenchPanelSplitCommit;
+use crate::local_client::workbench::{
+    WorkbenchTabCreateCommit, WorkbenchTabCreatePrecommit, WorkbenchTabCreateRequest,
+};
+use crate::terminal_projection::TerminalProjection;
+use crate::workbench_projection::project_preferred_workspace;
+use crate::workbench_state::{
+    AttachTarget, AttachmentKey, CarrierFailure, CleanupContinuation, ClientNotice,
+    ClientPhaseKind, ControllerMode, CreateOperation, CreateOperationKey, CreateProjectionDecision,
+    CreateTerminalProvenance, FrameIdentity, MembershipCleanup, MembershipInstallDecision,
+    MembershipResultKey, NavigatorRefreshStatus, OperationDeadlines, PaneRef, PanelCommit,
+    PanelDecision, PanelIntent, PanelOperation, PanelPrecommit, PanelRequestKind, PanelResult,
+    PendingCreateCommit, PendingRefreshStage, ReadyDecision, RefreshDecision,
+    SetupEventDisposition, WorkbenchClientState,
 };
 use orchbee_client_server_protocol::{
     ControlInput, ControllerId, Geometry, MAXIMUM_CONTROL_INPUT_BYTES, TerminalViewerAction,
@@ -1281,7 +1277,7 @@ impl Trace {
             if actual == operation && actual_outcome == outcome),
             "snapshot identity changed",
         )?;
-        let crate::workbench_client::state::PreparedCreateSnapshot::Available {
+        let crate::workbench_state::PreparedCreateSnapshot::Available {
             baseline,
             committed,
             projection,
@@ -1348,9 +1344,9 @@ impl Trace {
             let plan = session.prepare_cleaned_membership_install(&cleanup, prepared, desired.desired().map(|pane| pane.anchor().clone()))?;
             let installed = plan.commit();
             desired.commit();
-            if installed != crate::workbench_client::state::MembershipInstallDecision::SelectedWithoutAttachment { return Err(CarrierFailure::Protocol); }
+            if installed != crate::workbench_state::MembershipInstallDecision::SelectedWithoutAttachment { return Err(CarrierFailure::Protocol); }
             Ok(UiReply::Membership(crate::workbench_client::mailbox::RefreshSettlement::new(
-                crate::workbench_client::state::RefreshDecision::SettledWithoutAttachment, session.desired().cloned(),
+                crate::workbench_state::RefreshDecision::SettledWithoutAttachment, session.desired().cloned(),
             )))
         }), "install committed membership")? == MutationResult::Applied, "stale Create install")?;
         require(
@@ -1786,8 +1782,7 @@ impl Trace {
         )?;
         let decision = plan.commit();
         desired.commit();
-        let crate::workbench_client::state::MembershipInstallDecision::Attach(target) = decision
-        else {
+        let crate::workbench_state::MembershipInstallDecision::Attach(target) = decision else {
             return violation("Switch candidate must be attachable");
         };
         Ok(target)
@@ -3117,23 +3112,24 @@ impl Trace {
 
         // Mirrors `WorkbenchClientUi::apply_refresh_event`'s membership arms.
         let prepared = self.workbench_client.prepare_refresh(generation, outcome);
-        let recovery_deadlines =
-            match &prepared {
-                crate::workbench_client::state::PreparedRefresh::Membership {
-                    prepared, ..
-                } if !prepared.preserves_selection() => Some(
+        let recovery_deadlines = match &prepared {
+            crate::workbench_state::PreparedRefresh::Membership { prepared, .. }
+                if !prepared.preserves_selection() =>
+            {
+                Some(
                     OperationDeadlines::from_sample(self.base)
                         .ok_or_else(|| violation_error("drain deadline overflow"))?,
-                ),
-                _ => None,
-            };
+                )
+            }
+            _ => None,
+        };
         let session = &mut self.workbench_client;
         require(
             observed(
                 self.mailbox
                     .deposit_ui_reply_before_using(&wait, &self.clock, |transaction| {
                         let decision =
-                            if let crate::workbench_client::state::PreparedRefresh::Membership {
+                            if let crate::workbench_state::PreparedRefresh::Membership {
                                 generation,
                                 prepared,
                             } = prepared

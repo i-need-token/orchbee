@@ -1,9 +1,8 @@
 //! Admit verified sidebar Agent targets into the existing Client selection and cleanup owners.
 use super::{Arc, OperationDeadlines, WorkbenchClientUi, finish_action};
-use crate::workbench_client::{
-    ClientMemberTarget, ContextNavigationAdmission as Admission,
-    workbench_projection::{ClientMemberSelection, project_native_context_tabs},
-};
+use crate::workbench_client::ContextNavigationAdmission as Admission;
+use crate::workbench_projection::ClientMemberTarget;
+use crate::workbench_projection::{ClientMemberSelection, project_native_context_tabs};
 
 impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn navigate_agent(

@@ -18,9 +18,9 @@ mod workspace_setup;
 
 use self::setup::*;
 use super::*;
-use crate::workbench_client::{
-    mailbox::{MutationResult, QueuedCommand, Tagged, TakenEvent},
-    state::{CarrierFailure, CleanupContinuation, ClientPhaseKind, ControllerMode, ReadyDecision},
+use crate::workbench_client::mailbox::{MutationResult, QueuedCommand, Tagged, TakenEvent};
+use crate::workbench_state::{
+    CarrierFailure, CleanupContinuation, ClientPhaseKind, ControllerMode, ReadyDecision,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ControlRejectedReason, ServerMessage, TerminalControlAction,
@@ -728,7 +728,7 @@ fn drive_controlling_startup(
     harness: &mut Harness,
     geometry: Geometry,
     tab_count: usize,
-) -> TestResult<crate::workbench_client::state::AttachmentKey> {
+) -> TestResult<crate::workbench_state::AttachmentKey> {
     let key = drive_snapshot_bootstrap(harness, tab_count)?;
     assert_eq!(drive_attach(harness, 0)?, key);
 
@@ -1369,7 +1369,7 @@ fn run_switch_supersession_cut(cut: SwitchSupersessionCut) -> TestResult {
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::CleanupSettled {
             key,
-            continuation: crate::workbench_client::state::CleanupContinuation::Superseded {
+            continuation: crate::workbench_state::CleanupContinuation::Superseded {
                 desired,
             },
         } if key == first_installed && desired == newest.key
@@ -1380,7 +1380,7 @@ fn run_switch_supersession_cut(cut: SwitchSupersessionCut) -> TestResult {
 
 fn settle_newest_as_attach_unavailable(
     harness: &mut Harness,
-    newest: &crate::workbench_client::state::AttachmentKey,
+    newest: &crate::workbench_state::AttachmentKey,
     cut: SwitchSupersessionCut,
 ) -> TestResult {
     assert!(matches!(
@@ -1410,7 +1410,7 @@ fn settle_newest_as_attach_unavailable(
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::SetupWithoutAttachment {
             key,
-            continuation: crate::workbench_client::state::CleanupContinuation::Stable,
+            continuation: crate::workbench_state::CleanupContinuation::Stable,
         } if key == installed
     ));
     assert_eq!(

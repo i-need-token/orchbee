@@ -6,16 +6,10 @@ use super::{
     CommandMailbox, OperationDeadlines, RefreshDecision, RefreshSettlement, UiReply,
     WorkbenchClientUi,
 };
-use crate::{
-    local_client::LocalOperationClock,
-    workbench_client::{
-        mailbox::{DesiredInstall, MutationResult, UiWaitKey},
-        state::{
-            CarrierFailure, MembershipInstallDecision,
-            retired_membership::{RetiredMembershipOrigin, UnavailablePoll},
-        },
-    },
-};
+use crate::local_client::LocalOperationClock;
+use crate::workbench_client::mailbox::{DesiredInstall, MutationResult, UiWaitKey};
+use crate::workbench_state::retired_membership::{RetiredMembershipOrigin, UnavailablePoll};
+use crate::workbench_state::{CarrierFailure, MembershipInstallDecision};
 use orchbee_workbench_protocol::WorkbenchSnapshotOutcome;
 use std::{sync::Arc, time::Instant};
 
@@ -188,8 +182,7 @@ impl WorkbenchClientUi {
         match result {
             Ok(MutationResult::Applied) if installed => {
                 if let Some(snapshot) = &index_snapshot {
-                    self.agent_index =
-                        super::super::agent_board::PresentationIndex::rebuild(snapshot);
+                    self.agent_index = crate::agent_board::PresentationIndex::rebuild(snapshot);
                 }
                 self.retired_peer = None;
                 self.retired_peer_attempt = None;

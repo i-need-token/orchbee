@@ -2,11 +2,9 @@
 //! This owner retains no viewer, controller, pending command, selection, or paintable window;
 //! `history_restore` captures and restores choices through the ordinary viewport gates.
 
-use crate::{
-    terminal_content::{ContentSource, SnapshotMember},
-    terminal_viewport::ReadingPosition,
-    workbench_client::state::{PaneRef, WorkbenchClientState},
-};
+use crate::terminal_content::{ContentSource, SnapshotMember};
+use crate::terminal_viewport::ReadingPosition;
+use crate::workbench_state::{PaneRef, WorkbenchClientState};
 
 const MAXIMUM_WITNESS_BYTES: usize = 16 * 1024 * 1024;
 

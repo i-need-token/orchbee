@@ -7,7 +7,7 @@ use super::{
     Result, SetupEntryExpiry, SetupOwner, SetupTarget, TerminalViewerAction, TerminalViewerOutcome,
     UiReply, WorkerEvent,
 };
-use crate::workbench_client::state::MembershipCleanup;
+use crate::workbench_state::MembershipCleanup;
 
 impl ClientExecutor {
     pub(super) fn run_membership_cleanup(
@@ -17,7 +17,7 @@ impl ClientExecutor {
     ) -> Result<()> {
         if matches!(
             cleanup.result(),
-            crate::workbench_client::state::MembershipResultKey::Switch(_)
+            crate::workbench_state::MembershipResultKey::Switch(_)
         ) {
             return self.run_switch_membership_cleanup(lease, cleanup);
         }
@@ -59,7 +59,7 @@ impl ClientExecutor {
         }
         let decision = match (&origin, &reply) {
             (
-                crate::workbench_client::state::MembershipResultKey::Rename(id),
+                crate::workbench_state::MembershipResultKey::Rename(id),
                 UiReply::Rename(settlement),
             ) if settlement.request_id() == id => settlement.decision(),
             (_, UiReply::Membership(settlement)) => settlement.decision(),
@@ -81,10 +81,7 @@ impl ClientExecutor {
 
     /// True when every live attachment sits under `anchor` — the multi-pane
     /// form of the old "the attached key is the retiring one" gate.
-    pub(super) fn attachments_under(
-        &self,
-        anchor: &crate::workbench_client::state::AttachmentKey,
-    ) -> bool {
+    pub(super) fn attachments_under(&self, anchor: &crate::workbench_state::AttachmentKey) -> bool {
         !self.attachments.is_empty()
             && self
                 .attachments
@@ -98,7 +95,7 @@ impl ClientExecutor {
     fn detach_anchor_panes(
         &mut self,
         lease: &CommandLease,
-        anchor: &crate::workbench_client::state::AttachmentKey,
+        anchor: &crate::workbench_state::AttachmentKey,
         total: Instant,
     ) -> Result<()> {
         loop {
@@ -131,7 +128,7 @@ impl ClientExecutor {
     fn dispose_anchor_panes(
         &mut self,
         _lease: &CommandLease,
-        anchor: &crate::workbench_client::state::AttachmentKey,
+        anchor: &crate::workbench_state::AttachmentKey,
         _total: Instant,
     ) -> Result<()> {
         while let Some(pane) = self
@@ -148,7 +145,7 @@ impl ClientExecutor {
     fn finish_close_membership_cleanup(
         &mut self,
         lease: &CommandLease,
-        marker: &crate::workbench_client::state::CloseReconciliationMarker,
+        marker: &crate::workbench_state::CloseReconciliationMarker,
         reply: UiReply,
     ) -> Result<()> {
         let UiReply::CloseReconciliation(reply) = reply else {

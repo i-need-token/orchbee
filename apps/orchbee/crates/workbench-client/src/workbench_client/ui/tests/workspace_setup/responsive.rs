@@ -1,6 +1,6 @@
 //! Controlled completion order for immediate creation feedback and canonical handoff.
 use super::*;
-use crate::workbench_client::WorkspaceCreationPhase;
+use crate::workbench_state::workspace_setup::WorkspaceCreationPhase;
 
 fn rendered_text(buffer: &ratatui::buffer::Buffer) -> String {
     let mut text = String::new();
@@ -25,11 +25,11 @@ fn every_creation_entry_projects_immediately_without_changing_canonical_selectio
             "create" => ClientAction::RequestWorkspaceCreate.into(),
             "quick" => ClientAction::RequestQuickWorkspace.into(),
             _ => crate::workbench_client::InputAction::project_quick_workspace(Box::new(
-                crate::workbench_client::ProjectQuickWorkspaceRequest::capture(
+                crate::workbench_state::workspace_setup::quick::ProjectQuickWorkspaceRequest::capture(
                     ui.state.as_ref().unwrap(),
                     &snapshot.navigation.projects[0],
                     None,
-                    clock.now() + super::super::super::super::state::OPERATION_TOTAL,
+                    clock.now() + crate::workbench_state::OPERATION_TOTAL,
                 )
                 .unwrap(),
             )),
@@ -141,9 +141,8 @@ fn pending_creation_never_forwards_typing_to_the_hidden_source_terminal() {
 
 #[test]
 fn noncreation_setup_continuation_keeps_its_existing_capture() {
-    use crate::workbench_client::{
-        WorkspaceOrganizationRequest, state::workspace_setup::SetupIntent,
-    };
+    use crate::workbench_state::workspace_setup::SetupIntent;
+    use crate::workbench_state::workspace_setup::WorkspaceOrganizationRequest;
 
     let (mut ui, mailbox, clock, snapshot) = ready(true);
     let deadlines = OperationDeadlines::from_sample(clock.now()).unwrap();
@@ -188,12 +187,10 @@ fn definite_refusal_removes_the_preview_and_unknown_or_failed_commits_keep_recov
             assert_eq!(ui.view().setup_status(), Some(SetupStatus::NotApplied));
         } else {
             let evidence = if failure == "unknown" {
-                super::super::super::super::state::workspace_setup::SetupWorkerEvidence::Unknown(
-                    operation,
-                )
+                crate::workbench_state::workspace_setup::SetupWorkerEvidence::Unknown(operation)
             } else {
                 let (_, commit) = launched(&snapshot, &lease);
-                super::super::super::super::state::workspace_setup::SetupWorkerEvidence::Known(
+                crate::workbench_state::workspace_setup::SetupWorkerEvidence::Known(
                     operation.known_commit(commit).unwrap(),
                 )
             };

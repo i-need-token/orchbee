@@ -1,14 +1,15 @@
 //! Existing status-precedence witnesses owned by the feature selection policy.
 use super::{Locale, status_with_setup};
-use crate::workbench_client::{
+use crate::localization::WorkbenchClientNotice;
+use crate::workbench_state::workspace_setup::{
     LocationLabelStatus as Status, LocationLabelTarget as Target, SetupStatus,
-    WorkbenchClientNotice,
 };
 
 #[cfg(unix)]
 #[test]
 fn settled_setup_notices_never_hide_later_failures_or_retirement() {
-    use crate::workbench_client::{SetupStatus, WorkbenchClientNotice};
+    use crate::localization::WorkbenchClientNotice;
+    use crate::workbench_state::workspace_setup::SetupStatus;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for setup in [
             SetupStatus::ProjectCreated,
@@ -51,7 +52,8 @@ fn settled_setup_notices_never_hide_later_failures_or_retirement() {
 #[cfg(unix)]
 #[test]
 fn current_failure_keeps_the_known_setup_recovery_fact() {
-    use crate::workbench_client::{SetupStatus, WorkbenchClientNotice};
+    use crate::localization::WorkbenchClientNotice;
+    use crate::workbench_state::workspace_setup::SetupStatus;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for setup in [
             SetupStatus::CommittedNeedRefresh,
@@ -90,7 +92,7 @@ fn current_failure_keeps_the_known_setup_recovery_fact() {
 #[cfg(unix)]
 #[test]
 fn workspace_created_only_offers_directory_setup_for_an_eligible_current_context() {
-    use crate::workbench_client::SetupStatus;
+    use crate::workbench_state::workspace_setup::SetupStatus;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let setup = SetupStatus::WorkspaceCreated;
         let eligible =

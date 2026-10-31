@@ -2,7 +2,7 @@ use super::Locale;
 
 #[test]
 fn native_prebootstrap_starting_remains_connecting_without_a_selected_tab() {
-    use crate::workbench_client::{ClientProjectionStatus, TerminalStatus};
+    use crate::localization::{ClientProjectionStatus, TerminalStatus};
 
     for locale in [Locale::EnUs, Locale::ZhCn] {
         assert_eq!(
@@ -23,7 +23,8 @@ fn native_prebootstrap_starting_remains_connecting_without_a_selected_tab() {
 
 #[test]
 fn native_prebootstrap_retirement_overrides_the_synthetic_starting_phase() {
-    use crate::workbench_client::{ClientProjectionStatus, DisplayPhase, DisplayRetirement};
+    use crate::localization::{ClientProjectionStatus, DisplayPhase};
+    use crate::workbench_client::DisplayRetirement;
 
     for (locale, unavailable, outcome_unknown) in [
         (

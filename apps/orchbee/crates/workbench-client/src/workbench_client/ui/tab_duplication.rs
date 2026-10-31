@@ -1,9 +1,7 @@
 //! The selected-set adapter only admits the next ordinary Create; it owns no worker effects.
 use super::{ActionBuildError, ClientActionDisposition, WorkbenchClientUi, build_create};
-use crate::workbench_client::{
-    mailbox::{AdmissionError, CommandMailbox},
-    state::{DuplicateProgress, DuplicateStop},
-};
+use crate::workbench_client::mailbox::{AdmissionError, CommandMailbox};
+use crate::workbench_state::{DuplicateProgress, DuplicateStop};
 use orchbee_workbench_protocol::{TabCreationPlacement, WorkbenchTabId};
 use std::sync::Arc;
 #[cfg(test)]

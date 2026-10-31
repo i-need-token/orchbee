@@ -1,5 +1,5 @@
 use super::*;
-use crate::workbench_client::ClientContextLocation;
+use crate::workbench_projection::ClientContextLocation;
 use orchbee_workbench_protocol::{
     SessionId, WorkbenchProjectId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
 };
@@ -451,7 +451,7 @@ fn context_keyboard_disclosure_enters_and_leaves_exact_agent_without_activating_
         key(&mut picker, KeyCode::Enter),
         SidebarIntent::Activate(Selection {
             machine: Choice::Local,
-            context: Some(crate::workbench_client::ClientStartupTarget::Agent(
+            context: Some(crate::startup_directory::ClientStartupTarget::Agent(
                 Box::new(agent_target)
             ))
         })

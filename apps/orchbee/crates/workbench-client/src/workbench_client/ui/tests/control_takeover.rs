@@ -1,12 +1,8 @@
 use super::super::tests::move_membership::ready_ui;
 use super::super::*;
-use crate::workbench_client::{
-    mailbox::EventDeadline,
-    state::{
-        OPERATION_TOTAL,
-        control_takeover::{TakeoverEvidence, TakeoverResult},
-    },
-};
+use crate::workbench_client::mailbox::EventDeadline;
+use crate::workbench_state::OPERATION_TOTAL;
+use crate::workbench_state::control_takeover::{TakeoverEvidence, TakeoverResult};
 use crate::{
     client_view::ClientView, localization::Locale, tui_hit_map::HitMapBuilder,
     tui_render::test_capture::capture_screen, tui_theme::Theme,
@@ -133,7 +129,7 @@ fn takeover_rearmed_snapshot_restores_typing_paste_and_control_without_reselecti
         mailbox.finish_lease(lease).unwrap();
         assert_eq!(
             ui.view().takeover_status().unwrap().0,
-            crate::workbench_client::TakeoverStatus::WaitingForFrame
+            crate::workbench_state::control_takeover::TakeoverStatus::WaitingForFrame
         );
         assert!(!ui.forward(b"still waiting"));
         poll_snapshot(&mut ui, &mailbox, &clock, sequence);
@@ -143,7 +139,7 @@ fn takeover_rearmed_snapshot_restores_typing_paste_and_control_without_reselecti
         );
         assert_eq!(
             ui.view().takeover_status().unwrap().0,
-            crate::workbench_client::TakeoverStatus::Ready
+            crate::workbench_state::control_takeover::TakeoverStatus::Ready
         );
         for bytes in [b"x".as_slice(), b"\x1b[200~paste\x1b[201~", b"\x03"] {
             assert!(ui.forward(bytes));
@@ -261,7 +257,7 @@ fn control_takeover_status_renders_both_locales_themes_and_size_tiers() {
                 ui.tick();
                 assert_eq!(
                     ui.view().takeover_status().unwrap().0,
-                    crate::workbench_client::TakeoverStatus::Pending
+                    crate::workbench_state::control_takeover::TakeoverStatus::Pending
                 );
                 assert!(!ui.forward(b"no queued replay"));
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();

@@ -167,9 +167,9 @@ fn remote_custom_selection_is_literal_and_local_system_selection_still_checks_pr
 fn failed_default_and_one_shot_launches_keep_their_exact_created_presentation_description() {
     use crate::local_client::workbench::WorkbenchTabCreateCommit;
     use crate::workbench_client::mailbox::{EventDeadline, QueuedCommand, UiReply, WorkerEvent};
-    use crate::workbench_client::state::CreateProjectionDecision;
     use crate::workbench_client::ui::tests::membership::snapshot;
     use crate::workbench_client::{LaunchProfile, ui::DisplayPhase};
+    use crate::workbench_state::CreateProjectionDecision;
     use orchbee_workbench_protocol::{
         PanelNode, WorkbenchSnapshotOutcome, WorkbenchTerminalFailureReason,
         WorkbenchTerminalOutcome,
@@ -305,7 +305,8 @@ fn failed_default_and_one_shot_launches_keep_their_exact_created_presentation_de
 
 #[test]
 fn unknown_launch_profile_is_distinct_from_known_system_default_in_both_locales() {
-    use crate::workbench_client::{LaunchFailure, LaunchProfile};
+    use crate::localization::LaunchFailure;
+    use crate::workbench_client::LaunchProfile;
     for (locale, unknown_name, system_name, obsolete_guidance) in [
         (
             Locale::EnUs,

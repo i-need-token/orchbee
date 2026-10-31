@@ -1,9 +1,11 @@
 use super::super::{tests::context_selection, tests::move_membership, tests::publication_hint};
 use super::*;
+use crate::client_view::ClientActionDisposition;
+use crate::localization::DisplayPhase;
+use crate::workbench_client::DrawReceipt;
 use crate::workbench_client::ui::{
     CarrierFailure, QueuedCommand, RefreshDecision, UiReply, WorkerEvent,
 };
-use crate::workbench_client::{ClientActionDisposition, DisplayPhase, DrawReceipt};
 use crate::{
     client_view::ClientView, localization::Locale, tui_hit_map::HitMapBuilder, tui_theme::Theme,
 };
@@ -193,7 +195,7 @@ fn empty_ui_without_focused_panel() -> WorkbenchClientUi {
         Geometry::new(120, 40, 8, 16).unwrap(),
     ));
     let mut ui = WorkbenchClientUi::new(std::sync::Arc::clone(&mailbox), clock.clone());
-    let cache = crate::workbench_client::workbench_projection::project_preferred_workspace(
+    let cache = crate::workbench_projection::project_preferred_workspace(
         &super::super::tests::membership::snapshot(0, 1),
     )
     .unwrap();
@@ -204,7 +206,7 @@ fn empty_ui_without_focused_panel() -> WorkbenchClientUi {
                 cache,
             },
             crate::workbench_client::mailbox::EventDeadline::Startup(
-                clock.now() + crate::workbench_client::state::OPERATION_TOTAL,
+                clock.now() + crate::workbench_state::OPERATION_TOTAL,
             ),
             &clock,
         )
@@ -1095,9 +1097,7 @@ fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
         path: WorkbenchDirectoryPath::parse("C:/project").unwrap(),
     });
     snapshot.navigation.workspaces[1].primary_directory_id = Some(directory_id);
-    let cache =
-        crate::workbench_client::workbench_projection::project_preferred_workspace(&snapshot)
-            .unwrap();
+    let cache = crate::workbench_projection::project_preferred_workspace(&snapshot).unwrap();
     ui.state = Some(
         WorkbenchClientState::bootstrap(cache, 1, Geometry::new(80, 24, 8, 16).unwrap())
             .unwrap()
@@ -1616,10 +1616,7 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
                 let mut snapshot = tests::context_selection::snapshot(true);
                 snapshot.navigation.workspaces[1].label = "猫 🐝 workspace".into();
                 let cache =
-                    crate::workbench_client::workbench_projection::project_preferred_workspace(
-                        &snapshot,
-                    )
-                    .unwrap();
+                    crate::workbench_projection::project_preferred_workspace(&snapshot).unwrap();
                 let location = cache.navigation()[1].location.clone();
                 ui.state = Some(
                     WorkbenchClientState::bootstrap(cache, 10, geometry)

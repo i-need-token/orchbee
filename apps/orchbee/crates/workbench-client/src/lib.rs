@@ -5,6 +5,7 @@
 
 mod action_menu;
 mod action_projection;
+mod agent_board;
 mod agent_provider;
 mod agent_runtime;
 mod agent_start;
@@ -16,6 +17,7 @@ mod exchange_values;
 mod host_appearance;
 mod host_capabilities;
 mod host_graphics;
+mod independent_popup;
 mod local_activation;
 mod local_client;
 mod localization;
@@ -31,7 +33,10 @@ mod native_settings;
 mod notifications;
 mod onboarding;
 mod pane_canvas;
+mod primary_directory;
 mod sidebar_width;
+mod startup_directory;
+mod startup_preference;
 mod startup_status;
 mod terminal_buffer_text;
 mod terminal_content;
@@ -65,11 +70,14 @@ mod tui_presentation;
 mod tui_render;
 mod tui_shortcut_help;
 mod tui_theme;
+mod ui_wakeup;
 #[cfg(windows)]
 mod windows_console_input;
 #[cfg(windows)]
 mod windows_signal;
 mod workbench_client;
+mod workbench_projection;
+mod workbench_state;
 mod worktree_destination;
 
 /// The surface the `orchbee` application consumes, grouped by the top-level module that owns each
@@ -618,7 +626,7 @@ pub mod test_support {
         }
 
         pub mod state {
-            pub use crate::workbench_client::state::{
+            pub use crate::workbench_state::{
                 AttachmentKey, AttachmentKeyTestAccess, PaneKey, PaneKeyTestAccess, PaneRef,
                 PaneRefTestAccess,
             };

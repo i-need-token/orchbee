@@ -59,7 +59,7 @@ impl WorkbenchClientUi {
             )));
             return ClientActionDisposition::KeepNavigator;
         };
-        let description = crate::workbench_client::state::LaunchDescription {
+        let description = crate::workbench_state::LaunchDescription {
             profile_name: profile.name.clone(),
             executable: Some(launch.executable().to_owned()),
         };

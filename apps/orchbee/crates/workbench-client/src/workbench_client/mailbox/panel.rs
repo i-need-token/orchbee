@@ -9,7 +9,7 @@ use super::{
     StructuralMutationFlight, UiCorrelation, UiWaitKey, WorkbenchRequestId, WorkerEvent,
     workbench_identity_candidate,
 };
-use crate::workbench_client::state::{PanelDecision, PanelOperation, PanelResult};
+use crate::workbench_state::{PanelDecision, PanelOperation, PanelResult};
 
 pub(super) struct PanelFlight {
     pub(super) serial: u64,

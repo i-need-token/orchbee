@@ -240,7 +240,7 @@ fn refused_project_picker_preserves_the_underlay_and_prior_hit_map() {
 #[test]
 fn directory_actions_only_replace_a_live_empty_panel() {
     use crate::client_view::{ClientAction, PrefixAction, PrefixDesc};
-    use crate::workbench_client::DisplayPhase as Phase;
+    use crate::localization::DisplayPhase as Phase;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for phase in [
             Phase::Starting,
@@ -280,7 +280,9 @@ fn directory_actions_only_replace_a_live_empty_panel() {
 #[test]
 fn directory_guidance_uses_the_effective_action_binding_only_without_a_capture_owner() {
     use super::*;
-    use crate::{client_view::ClientView, tui_theme::Theme, workbench_client::DisplayPhase};
+    use crate::client_view::ClientView;
+    use crate::localization::DisplayPhase;
+    use crate::tui_theme::Theme;
     use orchbee_local_runtime::{KeyChord, KeySettings};
 
     let mut client = ClientView::new(100);

@@ -390,11 +390,9 @@ fn divider_live_frames_share_program_geometry_and_preserve_pane_paint() {
 
 #[test]
 fn held_viewport_observations_keep_the_cas_source_and_resize_only_its_controller() {
-    use crate::workbench_client::{
-        mailbox::{CausalSettlement, QueuedCommand},
-        state::{ControllerMode, OPERATION_TOTAL},
-        ui::tests::publication_hint::ready_split_ui_with_mode,
-    };
+    use crate::workbench_client::mailbox::{CausalSettlement, QueuedCommand};
+    use crate::workbench_client::ui::tests::publication_hint::ready_split_ui_with_mode;
+    use crate::workbench_state::{ControllerMode, OPERATION_TOTAL};
     for controlling in [false, true] {
         let mode = if controlling {
             ControllerMode::Controlling(

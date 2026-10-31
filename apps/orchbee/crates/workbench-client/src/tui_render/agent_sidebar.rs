@@ -45,7 +45,8 @@ pub(super) struct RenderContext<'a> {
     pub(super) backend_status: SessionStatus<'a>,
     pub(super) theme: &'a Theme,
     pub(super) input: SidebarInput,
-    pub(super) creation: Option<crate::workbench_client::WorkspaceCreationPreview<'a>>,
+    pub(super) creation:
+        Option<crate::workbench_state::workspace_setup::WorkspaceCreationPreview<'a>>,
     /// The row whose pointer-opened menu is open keeps its hover presentation.
     pub(super) held: Option<&'a crate::machine_picker::SidebarTarget>,
 }

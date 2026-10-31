@@ -5,10 +5,9 @@ use super::{
     Arc, AtomicBool, Instant, LaneFailure, LocalClient, LocalClientOrigin, LocalOperationClock,
     Ordering, mint_request_id,
 };
-use crate::{
-    pane_canvas::{Canvas, Layer, Source},
-    workbench_client::{ClientPanel, ClientPresentation, state::WorkbenchClientState},
-};
+use crate::pane_canvas::{Canvas, Layer, Source};
+use crate::workbench_projection::{ClientPanel, ClientPresentation};
+use crate::workbench_state::WorkbenchClientState;
 use base64::Engine;
 use orchbee_workbench_protocol::{
     MAXIMUM_GRAPHICS_CHUNK_BYTES, MAXIMUM_GRAPHICS_LAYERS, MAXIMUM_GRAPHICS_RESIDENT_BYTES,

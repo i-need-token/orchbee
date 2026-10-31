@@ -8,7 +8,7 @@ use orchbee_workbench_protocol::WorkbenchPanelId;
 use super::{ClientProjectionStatus, KeyedProjection, WorkbenchClientUi, WorkbenchClientView};
 use crate::terminal_scrollbar::ScrollbarSnapshot;
 use crate::terminal_viewport::{ViewportNav, ViewportSurface};
-use crate::workbench_client::state::PaneRef;
+use crate::workbench_state::PaneRef;
 
 impl KeyedProjection {
     fn scrollbar_snapshot(&self) -> Option<ScrollbarSnapshot> {

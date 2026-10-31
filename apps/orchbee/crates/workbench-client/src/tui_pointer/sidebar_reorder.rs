@@ -5,14 +5,12 @@ use super::{
     MouseEvent, PointerOutcome, PointerState, PrimaryContract, SidebarReorderDraw,
     SidebarReorderPaint, contains,
 };
-use crate::{
-    client_view::{ClientView, Modifiers},
-    machine_picker::{DrawnSidebarTarget, SidebarPart, SidebarTarget},
-    workbench_client::ClientContextLocation,
-    workbench_client::input::{
-        LayoutAction, SidebarReorderSource, SurfaceAction, TerminalInputPort,
-    },
+use crate::client_view::{ClientView, Modifiers};
+use crate::machine_picker::{DrawnSidebarTarget, SidebarPart, SidebarTarget};
+use crate::workbench_client::input::{
+    LayoutAction, SidebarReorderSource, SurfaceAction, TerminalInputPort,
 };
+use crate::workbench_projection::ClientContextLocation;
 use orchbee_workbench_protocol::NavigationConfiguration;
 use ratatui::layout::Rect;
 use std::time::{Duration, Instant};

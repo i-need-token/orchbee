@@ -4,10 +4,8 @@ use super::super::{
 };
 use super::*;
 use crate::local_client::test_support::server::adjustable_operation_clock;
-use crate::workbench_client::{
-    mailbox::{CommandLease, EventDeadline, UiWaitKey},
-    state::{ControllerMode, FrameIdentity},
-};
+use crate::workbench_client::mailbox::{CommandLease, EventDeadline, UiWaitKey};
+use crate::workbench_state::{ControllerMode, FrameIdentity};
 use std::sync::atomic::AtomicU64;
 
 fn ready() -> (
@@ -27,12 +25,12 @@ fn ready() -> (
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: crate::workbench_client::workbench_projection::project_preferred_workspace(
+                cache: crate::workbench_projection::project_preferred_workspace(
                     &crate::workbench_client::ui::tests::membership::snapshot(2, 1),
                 )
                 .unwrap(),
             },
-            EventDeadline::Startup(clock.now() + crate::workbench_client::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();

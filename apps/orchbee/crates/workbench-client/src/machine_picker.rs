@@ -1,11 +1,10 @@
 //! Identity-based machine selection and painted input ownership; no storage or network effects.
-use crate::{
-    client_view::{KeyCode, KeyEvent, KeyKind, Modifiers},
-    localization::Locale,
-    machine_discovery::{Context, Observation},
-    machines::{Profile, ProfileId},
-    workbench_client::{ClientContextTarget, ClientMemberTarget, ClientStartupTarget},
-};
+use crate::client_view::{KeyCode, KeyEvent, KeyKind, Modifiers};
+use crate::localization::Locale;
+use crate::machine_discovery::{Context, Observation};
+use crate::machines::{Profile, ProfileId};
+use crate::startup_directory::ClientStartupTarget;
+use crate::workbench_projection::{ClientContextTarget, ClientMemberTarget};
 use std::{num::NonZeroU64, sync::Arc};
 mod agents;
 mod navigation;
@@ -276,7 +275,10 @@ pub struct Picker {
     space_observations: Vec<(Choice, crate::machine_spaces::Observation)>,
     space_updates: Vec<(Choice, crate::machine_spaces::Observation)>,
     space_stale: Vec<Choice>,
-    native_navigation: Option<(Choice, crate::workbench_client::SidebarNavigationProjection)>,
+    native_navigation: Option<(
+        Choice,
+        crate::workbench_state::workspace_setup::SidebarNavigationProjection,
+    )>,
     space_projection: Option<(Choice, Arc<crate::machine_spaces::Checkpoint>)>,
     editing_query: bool,
     current_member: Option<ClientMemberTarget>,
@@ -686,9 +688,10 @@ impl Picker {
         }
         if let Some(context) = &row.context {
             return Some(match &context.target.location {
-                crate::workbench_client::ClientContextLocation::NoWorkspace => return None,
-                crate::workbench_client::ClientContextLocation::Workspace {
-                    workspace_id, ..
+                crate::workbench_projection::ClientContextLocation::NoWorkspace => return None,
+                crate::workbench_projection::ClientContextLocation::Workspace {
+                    workspace_id,
+                    ..
                 } => workspace_id.as_str(),
             });
         }

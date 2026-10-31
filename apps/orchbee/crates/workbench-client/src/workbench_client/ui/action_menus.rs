@@ -12,8 +12,8 @@ use crate::action_menu::{
 use crate::action_projection::ActionAvailability;
 use crate::client_view::KeyEvent;
 use crate::tui_presentation::GeometrySettlement;
-use crate::workbench_client::state::TabCloseResumePermit;
-use crate::workbench_client::workbench_projection::{ClientContextLocation, MenuContextSource};
+use crate::workbench_projection::{ClientContextLocation, MenuContextSource};
+use crate::workbench_state::TabCloseResumePermit;
 use episode::{
     Discovery, Intent, Origin, ParentMenu, ProjectContext, ResumeHandoff, Stage, TabResolverSource,
     Target,
@@ -45,7 +45,7 @@ fn action_availability(
     pointer_released: bool,
     resume_permit: Option<&TabCloseResumePermit>,
 ) -> ActionAvailability<MenuUnavailable> {
-    use super::super::state::workspace_setup::DirectoryConfigurationUnavailable;
+    use crate::workbench_state::workspace_setup::DirectoryConfigurationUnavailable;
     if action
         .client_action()
         .as_ref()
@@ -73,7 +73,7 @@ fn action_availability(
                 .is_none_or(|tab| tab.panel_count() < 2),
             MenuAction::Takeover => !state.pane_facts().any(|(record, _, mode)| {
                 record == *pane
-                    && matches!(mode, Some(super::super::state::ControllerMode::ReadOnly))
+                    && matches!(mode, Some(crate::workbench_state::ControllerMode::ReadOnly))
             }),
             _ => false,
         };
@@ -325,7 +325,10 @@ impl WorkbenchClientView<'_> {
             return None;
         }
         let state = self.state.as_ref()?;
-        Some(state.action_menu_source())
+        Some(DrawnMenuSource {
+            session: state.session_id().clone(),
+            revision: state.revision(),
+        })
     }
 }
 
@@ -1524,7 +1527,7 @@ impl WorkbenchClientUi {
                 },
                 MenuAction::DeleteWorkspace,
             ) => crate::workbench_client::InputAction::sidebar_workspace_delete(Box::new(
-                crate::workbench_client::WorkspaceDeleteRequest::capture(
+                crate::workbench_state::workspace_close::WorkspaceDeleteRequest::capture(
                     self.state.as_ref()?,
                     workspace_id,
                     intent.stage().deadline()?,
@@ -1539,7 +1542,7 @@ impl WorkbenchClientUi {
                 | MenuAction::LeaveWorkspaceProject
                 | MenuAction::JoinWorkspaceProject(_)),
             ) => {
-                use crate::workbench_client::state::workspace_setup::OrganizationChoice;
+                use crate::workbench_state::workspace_setup::OrganizationChoice;
                 let choice = match choice {
                     MenuAction::CreateWorkspaceProject => OrganizationChoice::NewProject,
                     MenuAction::LeaveWorkspaceProject => OrganizationChoice::SetProject(None),
@@ -1548,7 +1551,7 @@ impl WorkbenchClientUi {
                     }
                     _ => unreachable!(),
                 };
-                let request = crate::workbench_client::WorkspaceOrganizationRequest::workspace(
+                let request = crate::workbench_state::workspace_setup::WorkspaceOrganizationRequest::workspace(
                     self.state.as_ref()?,
                     workspace_id,
                     intent.stage().deadline()?,
@@ -1557,9 +1560,15 @@ impl WorkbenchClientUi {
                 crate::workbench_client::InputAction::workspace_organization(Box::new(request))
             }
             (Target::Project { project, .. }, MenuAction::DeleteProject) => {
-                let request = crate::workbench_client::WorkspaceOrganizationRequest::project(
-                    self.state.as_ref()?, project, intent.stage().deadline()?)?
-                    .with_choice(crate::workbench_client::state::workspace_setup::OrganizationChoice::DeleteIfIdle)?;
+                let request =
+                    crate::workbench_state::workspace_setup::WorkspaceOrganizationRequest::project(
+                        self.state.as_ref()?,
+                        project,
+                        intent.stage().deadline()?,
+                    )?
+                    .with_choice(
+                        crate::workbench_state::workspace_setup::OrganizationChoice::DeleteIfIdle,
+                    )?;
                 crate::workbench_client::InputAction::workspace_organization(Box::new(request))
             }
             (
@@ -1591,7 +1600,7 @@ impl WorkbenchClientUi {
                     MenuAction::WorkspaceInFolder(directory) => Some(directory.clone()),
                     _ => None,
                 };
-                let request = crate::workbench_client::ProjectQuickWorkspaceRequest::capture(
+                let request = crate::workbench_state::workspace_setup::quick::ProjectQuickWorkspaceRequest::capture(
                     self.state.as_ref()?,
                     project,
                     directory,
@@ -1604,11 +1613,12 @@ impl WorkbenchClientUi {
                 }
             }
             (Target::Project { project, .. }, MenuAction::RenameProject) => {
-                let request = crate::workbench_client::ProjectRenameRequest::capture(
-                    self.state.as_ref()?,
-                    project,
-                    intent.stage().deadline()?,
-                )?;
+                let request =
+                    crate::workbench_state::workspace_setup::ProjectRenameRequest::capture(
+                        self.state.as_ref()?,
+                        project,
+                        intent.stage().deadline()?,
+                    )?;
                 crate::workbench_client::InputAction::targeted_project_rename(Box::new(request))
             }
             (_, action) => action.client_action()?.into(),
@@ -1752,10 +1762,10 @@ impl WorkbenchClientUi {
 
     pub(super) fn fence_menu_context_candidate(
         &self,
-        prepared: super::super::state::PreparedRefresh,
+        prepared: crate::workbench_state::PreparedRefresh,
         generation: u64,
         baseline_revision: orchbee_workbench_protocol::WorkbenchRevision,
-    ) -> super::super::state::PreparedRefresh {
+    ) -> crate::workbench_state::PreparedRefresh {
         let Some(intent) = self.menus.intent() else {
             return prepared;
         };
@@ -1772,7 +1782,7 @@ impl WorkbenchClientUi {
             return prepared;
         }
         match &prepared {
-            super::super::state::PreparedRefresh::Membership {
+            crate::workbench_state::PreparedRefresh::Membership {
                 prepared: candidate,
                 ..
             } if candidate.context_location() == location
@@ -1780,8 +1790,8 @@ impl WorkbenchClientUi {
             {
                 prepared
             }
-            super::super::state::PreparedRefresh::Membership { .. } => {
-                super::super::state::PreparedRefresh::DefiniteFailure {
+            crate::workbench_state::PreparedRefresh::Membership { .. } => {
+                crate::workbench_state::PreparedRefresh::DefiniteFailure {
                     generation,
                     baseline_revision,
                 }
@@ -1793,7 +1803,7 @@ impl WorkbenchClientUi {
     pub(super) fn menu_switch_candidate_valid(
         &self,
         generation: u64,
-        candidate: &super::super::state::PreparedMembershipCandidate,
+        candidate: &crate::workbench_state::PreparedMembershipCandidate,
     ) -> bool {
         let Some(intent) = self.menus.intent() else {
             return true;

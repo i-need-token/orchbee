@@ -35,8 +35,8 @@ pub enum InteractionTarget {
         token: crate::action_menu::MenuToken,
         control: crate::action_menu::MenuControl,
     },
-    AgentBoardRow(crate::workbench_client::AgentBoardRowTarget),
-    AgentBoardControl(crate::workbench_client::AgentBoardControlTarget),
+    AgentBoardRow(crate::agent_board::AgentBoardRowTarget),
+    AgentBoardControl(crate::agent_board::AgentBoardControlTarget),
     Presentation(crate::tui_hit_map::DrawnPresentationTarget),
 
     Sidebar(crate::machine_picker::DrawnSidebarTarget),
@@ -51,9 +51,9 @@ pub enum InteractionTarget {
     },
     TabStripPage {
         source: crate::action_menu::DrawnTabCreate,
-        start: crate::workbench_client::state::TabStripStart,
+        start: crate::workbench_state::TabStripStart,
     },
-    PopupClose(crate::workbench_client::DrawnPopupClose),
+    PopupClose(crate::independent_popup::DrawnPopupClose),
     #[cfg(any(test, feature = "test-support"))]
     Fixture(HitTarget),
 }

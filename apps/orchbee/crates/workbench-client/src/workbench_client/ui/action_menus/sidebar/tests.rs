@@ -23,11 +23,11 @@ fn draw(ui: &mut WorkbenchClientUi) -> MenuToken {
 
 fn ready_discovery(ui: &WorkbenchClientUi) -> SidebarDiscovery {
     let addressed = ui.menus.discovery().unwrap().source().clone();
-    let mut discovery = crate::workbench_client::state::worktree_launch::tests::discovery();
+    let mut discovery = crate::workbench_state::worktree_launch::tests::discovery();
     discovery.worker = addressed.primary.as_ref().unwrap().worker_id().clone();
     let result = SidebarDiscovery {
         addressed,
-        sample: crate::workbench_client::primary_directory::RootDirectory::Available(Some(
+        sample: crate::primary_directory::RootDirectory::Available(Some(
             WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
         )),
         source: orchbee_workbench_protocol::WorktreeSource::Directory {
@@ -288,8 +288,7 @@ fn creation_menu_has_no_orphan_worktree_separator_when_the_checkout_list_is_empt
 
 #[test]
 fn exact_linked_workspace_menu_opens_removal_confirmation_without_selecting_or_closing_it() {
-    let (_, origin, discovery) =
-        crate::workbench_client::state::worktree_launch::tests::removal::fixture();
+    let (_, origin, discovery) = crate::workbench_state::worktree_launch::tests::removal::fixture();
     let (mut ui, mailbox, _, _) =
         crate::workbench_client::ui::tests::move_membership::ready_ui_with_snapshot(
             origin.cache.canonical_snapshot().clone(),
@@ -324,7 +323,7 @@ fn exact_linked_workspace_menu_opens_removal_confirmation_without_selecting_or_c
     assert!(!ui.action_menu_active());
     assert_eq!(
         ui.worktrees.launcher.view().unwrap().stage(),
-        crate::workbench_client::WorktreeStage::Remove
+        crate::workbench_state::worktree_launch::WorktreeStage::Remove
     );
     assert_eq!(
         ui.worktrees

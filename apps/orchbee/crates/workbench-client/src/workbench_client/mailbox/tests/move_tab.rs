@@ -346,8 +346,7 @@ fn canonical_move_a_settlement_then_b_queued_preserves_exact_a_commit_at_retirem
         .unwrap();
     assert_ne!(first.request_id(), second.request_id());
     assert!(mailbox.try_recv().unwrap().is_none());
-    let pending =
-        crate::workbench_client::state::PendingMoveCommit::new(first.clone(), commit.clone());
+    let pending = crate::workbench_state::PendingMoveCommit::new(first.clone(), commit.clone());
     mailbox.close(CarrierFailure::Closed);
     assert!(state.retain_pending_move(pending));
     assert!(state.finalize_retirement(CarrierFailure::Closed, None));
@@ -358,9 +357,7 @@ fn canonical_move_a_settlement_then_b_queued_preserves_exact_a_commit_at_retirem
     let mut wrong = commit;
     wrong.revision = WorkbenchRevision::new(3);
     assert!(
-        !state.retain_pending_move(crate::workbench_client::state::PendingMoveCommit::new(
-            first, wrong
-        ))
+        !state.retain_pending_move(crate::workbench_state::PendingMoveCommit::new(first, wrong))
     );
     drop(lease);
 }

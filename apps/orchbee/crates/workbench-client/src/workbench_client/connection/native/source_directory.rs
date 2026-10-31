@@ -3,10 +3,10 @@ use super::{
     CarrierFailure, ClientExecutor, Instant, OperationDeadlines, PaneRef, Result,
     TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, closed, submission,
 };
-use crate::workbench_client::workbench_projection::{ClientContextTabs, ClientTerminalBinding};
+use crate::workbench_projection::{ClientContextTabs, ClientTerminalBinding};
 
-pub(super) use crate::workbench_client::primary_directory::RootDirectory;
-use crate::workbench_client::primary_directory::decode_root;
+pub(super) use crate::primary_directory::RootDirectory;
+use crate::primary_directory::decode_root;
 
 impl ClientExecutor {
     fn source_viewer(

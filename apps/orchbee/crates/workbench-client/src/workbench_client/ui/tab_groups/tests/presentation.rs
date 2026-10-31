@@ -1,6 +1,6 @@
 use super::*;
 use crate::client_view::{ClientKey, KeyCode, KeyEvent, Modifiers};
-use crate::workbench_client::state::TabSelectionChange;
+use crate::workbench_state::TabSelectionChange;
 
 fn scopes_snapshot() -> Snapshot {
     let mut snapshot = super::super::super::tests::membership::snapshot(5, 1);

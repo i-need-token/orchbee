@@ -21,20 +21,18 @@ pub(in crate::workbench_client) use agent_attention::tests::focused_physical_age
 mod agent_focus;
 mod client_control;
 mod client_layout;
-use super::{
-    mailbox::{
-        AdmissionError, CausalSettlement, CommandMailbox, CreateMarker, CreatePrecommitOutcome,
-        EventError, MoveAdmissionError, MutationResult, QueuedCommand, RefreshSettlement,
-        SwitchMarker, Tagged, UiReply, ViewportOutcome, WorkerEvent,
-    },
-    state::{
-        AttachmentKey, CarrierFailure, ClientNotice, ClientPhaseKind,
-        ClientTabView as StateTabView, ControllerMode, CreateOperation, CreateOperationKey,
-        CreateProjectionDecision, CreateTerminalProvenance, FrameIdentity, NavigatorRefreshStatus,
-        OperationDeadlines, PaneKey, PaneRef, PanelRequestKind, PendingCreateCommit,
-        PendingMoveCommit, PendingPanelCommit, RefreshDecision, SelectionPlan,
-        SetupEventDisposition, WorkbenchClientState, WorkbenchClientView as ClientStateView,
-    },
+use super::mailbox::{
+    AdmissionError, CausalSettlement, CommandMailbox, CreateMarker, CreatePrecommitOutcome,
+    EventError, MoveAdmissionError, MutationResult, QueuedCommand, RefreshSettlement, SwitchMarker,
+    Tagged, UiReply, ViewportOutcome, WorkerEvent,
+};
+use crate::workbench_state::{
+    AttachmentKey, CarrierFailure, ClientNotice, ClientPhaseKind, ClientTabView as StateTabView,
+    ControllerMode, CreateOperation, CreateOperationKey, CreateProjectionDecision,
+    CreateTerminalProvenance, FrameIdentity, NavigatorRefreshStatus, OperationDeadlines, PaneKey,
+    PaneRef, PanelRequestKind, PendingCreateCommit, PendingMoveCommit, PendingPanelCommit,
+    RefreshDecision, SelectionPlan, SetupEventDisposition, WorkbenchClientState,
+    WorkbenchClientView as ClientStateView,
 };
 use crate::{
     client_view::{ClientAction, ClientActionDisposition, PanelDirection},
@@ -59,15 +57,14 @@ use std::sync::Arc;
 mod agent_board;
 mod close_reconciliation;
 mod control_takeover;
+mod history_positions;
+mod history_restore;
 mod membership;
 mod move_membership;
 mod navigator;
 mod panel;
 mod panel_close;
 mod presentations;
-pub(crate) use super::input::DrawnPresentationTarget;
-mod history_positions;
-mod history_restore;
 mod retained_frames;
 /// Volatile Client view data carried across a targeted context surface replacement.
 #[derive(Clone, Default)]
@@ -94,18 +91,11 @@ pub(in crate::workbench_client) mod tests;
 mod workspace_close;
 mod workspace_setup;
 mod worktree_launch;
-pub(crate) use workspace_close::WorkspaceCloseConfirmationView;
 #[cfg(test)]
 pub(crate) use workspace_close::WorkspaceCloseStatus;
 pub use workspace_close::WorkspaceCloseToken;
-pub(crate) use workspace_setup::{
-    LocationLabelStatus, LocationLabelTarget, SetupDraftView, SetupEdit, SetupStage, SetupStatus,
-    SetupToken,
-};
-pub(crate) use workspace_setup::{WorkspaceCreationPhase, WorkspaceCreationPreview};
-pub(crate) use worktree_launch::{
-    WorktreeEdit, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
-};
+pub(crate) use workspace_setup::{LocationLabelTarget, SetupStatus, SetupToken};
+pub(crate) use worktree_launch::{WorktreeMode, WorktreeNotice, WorktreeToken};
 mod copy_mode;
 mod tab_rename;
 mod terminal_effects;
@@ -124,7 +114,7 @@ pub(crate) use panel_close::{PanelCloseConfirmationToken, PanelCloseConfirmation
 #[cfg(test)]
 pub(crate) use tab_close::{CloseConfirmationKind, CloseStatusKind};
 pub use tab_close::{CloseConfirmationToken, DrawReceipt};
-pub(crate) use tab_close::{CloseConfirmationView, CloseStatusToken, ModalPresentation};
+pub(crate) use tab_close::{CloseConfirmationView, ModalPresentation};
 pub(crate) use tab_rename::RenameDraftView;
 mod create_membership;
 mod direct_navigation;
@@ -132,13 +122,8 @@ mod startup_preference;
 mod switch_membership;
 
 #[cfg(test)]
-pub(crate) use super::agent_board::AgentBoardInputContext;
-pub(crate) use super::agent_board::{
-    AgentBoardActualDraw, AgentBoardControl, AgentBoardControlTarget, AgentBoardDraw,
-    AgentBoardEpisodeToken, AgentBoardRead, AgentBoardRow, AgentBoardRowTarget, AgentBoardSummary,
-    AgentBoardToken, AgentBoardView, PresentationPlacement,
-};
-pub(crate) use super::agent_board::{AgentStartCatalogStatus, AgentStartPhase};
+pub(crate) use crate::agent_board::AgentBoardInputContext;
+pub(crate) use crate::agent_board::{AgentBoardDraw, AgentBoardSummary, AgentBoardView};
 
 pub use crate::localization::DisplayPhase;
 
@@ -312,7 +297,7 @@ pub struct WorkbenchClientView<'a> {
     retirement: Option<DisplayRetirement>,
     retirement_requested: bool,
     board: Option<AgentBoardView<'a>>,
-    worktree: Option<&'a crate::workbench_client::state::worktree_launch::Launcher>,
+    worktree: Option<&'a crate::workbench_state::worktree_launch::Launcher>,
     board_summary: Option<&'a AgentBoardSummary>,
     copy_mode: Option<&'a super::copy_episode::CopyModeEpisodes>,
     attention: Option<&'a super::agent_attention::AgentAttention>,
@@ -322,7 +307,7 @@ pub struct WorkbenchClientView<'a> {
     popup_failed: bool,
     command_notice: Option<WorkbenchClientNotice>,
     notice_context: Option<&'a NoticeContext>,
-    popup: Option<&'a super::independent_popup::Driver>,
+    popup: Option<&'a crate::independent_popup::Driver>,
 }
 
 pub(crate) use crate::localization::LaunchFailure;
@@ -391,13 +376,20 @@ impl<'a> WorkbenchClientView<'a> {
             .is_some_and(|state| state.group_collapsed(id))
     }
     /// The start of the window the person paged the Tab strip to, while it applies.
-    pub(crate) fn tab_strip_start(&self) -> Option<crate::workbench_client::state::TabStripStart> {
+    pub(crate) fn tab_strip_start(&self) -> Option<crate::workbench_state::TabStripStart> {
         self.state.as_ref()?.tab_strip_start().cloned()
     }
 
     /// Immutable selected layout identity for a divider painted from this view.
     pub(crate) fn divider_source(&self) -> Option<crate::tui_layout::DividerSource> {
-        self.state.as_ref()?.divider_source()
+        let state = self.state.as_ref()?;
+        Some(crate::tui_layout::DividerSource {
+            session: state.session_id().clone(),
+            context: state.terminal_context_id()?.clone(),
+            tab: state.active_tab_id()?.clone(),
+            focus: state.focus_panel_id()?.clone(),
+            revision: state.revision(),
+        })
     }
     pub(super) fn window_title_context(
         &self,
@@ -461,7 +453,10 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.as_ref()?.active_context_position()
     }
 
-    pub fn context_at(&self, index: usize) -> Option<super::state::ClientContextView<'a>> {
+    pub fn context_at(
+        &self,
+        index: usize,
+    ) -> Option<crate::workbench_state::ClientContextView<'a>> {
         self.state.as_ref()?.context_at(index)
     }
 
@@ -1090,7 +1085,7 @@ impl<'a> WorkbenchClientView<'a> {
     /// report — the exact shape `pane_geometries`, `arranged_pane_area`, and
     /// the renderer consume.
     #[cfg(test)]
-    pub(super) fn test_view(
+    pub(crate) fn test_view(
         state: &'a WorkbenchClientState,
         panes: &'a [KeyedProjection],
         projection_status: ClientProjectionStatus,
@@ -1166,7 +1161,7 @@ impl KeyedProjection {
 impl KeyedProjection {
     /// Test-only record for [`WorkbenchClientView::test_view`]: a live
     /// projection bound to an exact pane incarnation.
-    pub(super) fn for_test(
+    pub(crate) fn for_test(
         key: PaneRef,
         value: TerminalProjection,
         status: ClientProjectionStatus,
@@ -1219,11 +1214,11 @@ pub(super) struct WorkbenchClientUi {
     clock: LocalOperationClock,
     outer_focused: Option<bool>,
     state: Option<WorkbenchClientState>,
-    board: super::agent_board::AgentBoard,
+    board: crate::agent_board::AgentBoard,
     /// The Board's read lane; its answers settle into `board`.
     board_reads: agent_board::BoardReads,
     /// The Board's catalog and startup jobs; they settle into `board`'s start state.
-    start_jobs: super::agent_board::start::jobs::Jobs,
+    start_jobs: crate::agent_board::start::jobs::Jobs,
     worktrees: worktree_launch::Coordinator,
     attention: super::agent_attention::AgentAttention,
     reports: super::panel_reports::PanelReports,
@@ -1233,12 +1228,12 @@ pub(super) struct WorkbenchClientUi {
     copy_mode: super::copy_episode::CopyModeEpisodes,
     /// The copy motion and search driver whose answers settle into `copy_mode`.
     copy_query: crate::terminal_copy_query::lane::Driver,
-    popup: super::independent_popup::Driver,
+    popup: crate::independent_popup::Driver,
     command_notice: super::command_notice::CommandNotice,
     /// `presentation_id → workbench placement` over the freshest observed
     /// canonical snapshot — a pure function of that snapshot, rebuilt
     /// whole on every snapshot-bearing event.
-    agent_index: super::agent_board::PresentationIndex,
+    agent_index: crate::agent_board::PresentationIndex,
     projections: Vec<KeyedProjection>,
     retained_frames: retained_frames::RetainedFrames,
     normal_exits: super::normal_exit_hold::NormalExitHolds<PaneRef>,
@@ -1257,7 +1252,7 @@ pub(super) struct WorkbenchClientUi {
     retirement: Option<DisplayRetirement>,
     retired_mailbox_seed: Option<super::mailbox::RetiredMailboxSeed>,
     retirement_poll_serial: Option<u64>,
-    retired_peer: Option<super::state::retired_membership::RetiredMembershipOrigin>,
+    retired_peer: Option<crate::workbench_state::retired_membership::RetiredMembershipOrigin>,
     retired_peer_attempt: Option<retired_membership::RetiredMembershipAttempt>,
 }
 
@@ -1338,7 +1333,7 @@ impl WorkbenchClientUi {
         Self {
             capabilities,
             mailbox: Some(mailbox),
-            board: super::agent_board::AgentBoard::new(
+            board: crate::agent_board::AgentBoard::new(
                 capabilities.supports(crate::tui_capabilities::Capability::AgentLaunch),
             ),
             board_reads: agent_board::BoardReads::new(clock.clone()),
@@ -1360,9 +1355,9 @@ impl WorkbenchClientUi {
             links: crate::terminal_link_activation::Driver::new(clock.clone()),
             copy_mode: super::copy_episode::CopyModeEpisodes::default(),
             copy_query: crate::terminal_copy_query::lane::Driver::new(clock.clone()),
-            popup: super::independent_popup::Driver::new(clock.clone()),
+            popup: crate::independent_popup::Driver::new(clock.clone()),
             command_notice: super::command_notice::CommandNotice::default(),
-            agent_index: super::agent_board::PresentationIndex::default(),
+            agent_index: crate::agent_board::PresentationIndex::default(),
             clock,
             state: None,
             outer_focused: None,
@@ -1609,7 +1604,7 @@ impl WorkbenchClientUi {
         pending_create: Option<PendingCreateCommit>,
         pending_move: Option<PendingMoveCommit>,
         pending_panel: Option<PendingPanelCommit>,
-        close_return: super::state::CloseWorkerReturn,
+        close_return: crate::workbench_state::CloseWorkerReturn,
     ) -> bool {
         if self.retirement_finalized {
             return pending_create.is_none()
@@ -1617,7 +1612,7 @@ impl WorkbenchClientUi {
                 && pending_panel.is_none()
                 && matches!(
                     close_return,
-                    super::state::CloseWorkerReturn::Returned(None)
+                    crate::workbench_state::CloseWorkerReturn::Returned(None)
                 );
         }
         let failure = self
@@ -2820,7 +2815,7 @@ impl WorkbenchClientUi {
             ClientAction::RequestWorkspaceDirectory
             | ClientAction::RequestWorkspaceRename
             | ClientAction::RequestProjectRename => {
-                use super::state::workspace_setup::SetupIntent;
+                use crate::workbench_state::workspace_setup::SetupIntent;
                 let intent = match action {
                     ClientAction::RequestWorkspaceDirectory => SetupIntent::ConfigureDirectory,
                     ClientAction::RequestWorkspaceRename => {
@@ -2960,7 +2955,7 @@ impl WorkbenchClientUi {
         &self,
     ) -> (
         Option<orchbee_workbench_protocol::LaunchSelection>,
-        Option<super::state::LaunchDescription>,
+        Option<crate::workbench_state::LaunchDescription>,
     ) {
         let profile = self
             .preferences
@@ -2988,7 +2983,7 @@ impl WorkbenchClientUi {
             // Preserve Worker resolution without claiming unpinned launch facts.
             return (None, None);
         };
-        let description = super::state::LaunchDescription {
+        let description = crate::workbench_state::LaunchDescription {
             profile_name: profile.name.clone(),
             executable: Some(launch.executable().to_owned()),
         };
@@ -2999,7 +2994,7 @@ impl WorkbenchClientUi {
         &mut self,
         placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
         launch: Option<orchbee_workbench_protocol::LaunchSelection>,
-        description: Option<super::state::LaunchDescription>,
+        description: Option<crate::workbench_state::LaunchDescription>,
     ) -> ClientActionDisposition {
         if self.view().no_current_workspace() {
             if placement.is_some() {
@@ -3274,7 +3269,11 @@ impl WorkbenchClientUi {
 
     fn move_tab(&mut self, direction: WorkbenchTabMoveDirection) -> ClientActionDisposition {
         // Capture the entire transport budget before attempting the admission mutex.
-        let Some(deadline) = self.clock.now().checked_add(super::state::OPERATION_TOTAL) else {
+        let Some(deadline) = self
+            .clock
+            .now()
+            .checked_add(crate::workbench_state::OPERATION_TOTAL)
+        else {
             return ClientActionDisposition::KeepNavigator;
         };
         let (Some(mailbox), Some(state)) =
@@ -3315,7 +3314,11 @@ impl WorkbenchClientUi {
             return ClientActionDisposition::KeepNavigator;
         }
         // Capture the entire transport budget before attempting the admission mutex.
-        let Some(deadline) = self.clock.now().checked_add(super::state::OPERATION_TOTAL) else {
+        let Some(deadline) = self
+            .clock
+            .now()
+            .checked_add(crate::workbench_state::OPERATION_TOTAL)
+        else {
             return ClientActionDisposition::KeepNavigator;
         };
         let (Some(mailbox), Some(state)) =
@@ -3422,7 +3425,11 @@ impl WorkbenchClientUi {
         if pending {
             return ClientActionDisposition::KeepNavigator;
         }
-        let Some(deadline) = self.clock.now().checked_add(super::state::OPERATION_TOTAL) else {
+        let Some(deadline) = self
+            .clock
+            .now()
+            .checked_add(crate::workbench_state::OPERATION_TOTAL)
+        else {
             self.retire(CarrierFailure::Deadline);
             return ClientActionDisposition::KeepNavigator;
         };
@@ -3524,7 +3531,7 @@ impl WorkbenchClientUi {
                         .state
                         .as_mut()
                         .is_some_and(|state| state.settle_pane_fault(&key, fault));
-                    if applied && fault == super::state::PaneFault::ViewerLost {
+                    if applied && fault == crate::workbench_state::PaneFault::ViewerLost {
                         self.clear_pane_projection(&key);
                     }
                     applied
@@ -3567,7 +3574,7 @@ impl WorkbenchClientUi {
                     self.state = installed;
                     // The accepted bootstrap seeds the board's index —
                     // only installed canonical state may feed it.
-                    self.agent_index = super::agent_board::PresentationIndex::default();
+                    self.agent_index = crate::agent_board::PresentationIndex::default();
                     if let Some(state) = self.state.as_ref() {
                         self.agent_index.install_context(state.cache());
                     }
@@ -3876,7 +3883,10 @@ impl WorkbenchClientUi {
         );
         let prepared =
             self.fence_menu_context_candidate(prepared, generation, state.cache().revision());
-        let menu_membership = matches!(prepared, super::state::PreparedRefresh::Membership { .. });
+        let menu_membership = matches!(
+            prepared,
+            crate::workbench_state::PreparedRefresh::Membership { .. }
+        );
         let recovery_deadlines = state
             .workspace_close_deadlines()
             .or_else(|| state.setup_deadlines())
@@ -3887,7 +3897,7 @@ impl WorkbenchClientUi {
                     .then(|| OperationDeadlines::from_sample(self.clock.now()))
                     .flatten()
             });
-        if let super::state::PreparedRefresh::CreateMembership {
+        if let crate::workbench_state::PreparedRefresh::CreateMembership {
             generation,
             operation,
             prepared,
@@ -3913,13 +3923,13 @@ impl WorkbenchClientUi {
         let rebuild_index = index_snapshot.is_some()
             && matches!(
                 prepared,
-                super::state::PreparedRefresh::Membership { .. }
-                    | super::state::PreparedRefresh::Append { .. }
+                crate::workbench_state::PreparedRefresh::Membership { .. }
+                    | crate::workbench_state::PreparedRefresh::Append { .. }
             );
         let mut clear_projection = false;
         let mut retire_after_reply = None;
         let result = mailbox.deposit_ui_reply_before(&wait_key, &self.clock, |transaction| {
-            let decision = if let super::state::PreparedRefresh::Membership {
+            let decision = if let crate::workbench_state::PreparedRefresh::Membership {
                 generation,
                 prepared,
             } = prepared
@@ -3966,12 +3976,12 @@ impl WorkbenchClientUi {
                 let decision = state_plan.commit();
                 desired_plan.commit();
                 match decision {
-                    super::state::MembershipInstallDecision::Preserved => RefreshDecision::Continue,
-                    super::state::MembershipInstallDecision::Attach(target) => {
+                    crate::workbench_state::MembershipInstallDecision::Preserved => RefreshDecision::Continue,
+                    crate::workbench_state::MembershipInstallDecision::Attach(target) => {
                         RefreshDecision::AttachRecovered(target)
                     }
-                    super::state::MembershipInstallDecision::SelectedWithoutAttachment
-                    | super::state::MembershipInstallDecision::Empty => {
+                    crate::workbench_state::MembershipInstallDecision::SelectedWithoutAttachment
+                    | crate::workbench_state::MembershipInstallDecision::Empty => {
                         clear_projection = true;
                         RefreshDecision::SettledWithoutAttachment
                     }
@@ -4006,7 +4016,7 @@ impl WorkbenchClientUi {
                 }
                 if rebuild_index && let Some(snapshot) = &index_snapshot {
                     self.observe_worktree_entry_snapshot(snapshot);
-                    self.agent_index = super::agent_board::PresentationIndex::rebuild(snapshot);
+                    self.agent_index = crate::agent_board::PresentationIndex::rebuild(snapshot);
                     if let Some(state) = self.state.as_mut() {
                         state.observe_overlay_snapshot(snapshot);
                     }
@@ -4125,7 +4135,7 @@ impl WorkbenchClientUi {
                 {
                     state.settle_pane_fault(
                         poll_key.pane_ref(),
-                        super::state::PaneFault::ControlLost,
+                        crate::workbench_state::PaneFault::ControlLost,
                     );
                 }
                 self.pending_draws.push(PendingDraw {
@@ -4306,7 +4316,11 @@ impl WorkbenchClientUi {
         if !state.publication_debt_pending() {
             return;
         }
-        let Some(deadline) = self.clock.now().checked_add(super::state::OPERATION_TOTAL) else {
+        let Some(deadline) = self
+            .clock
+            .now()
+            .checked_add(crate::workbench_state::OPERATION_TOTAL)
+        else {
             self.retire(CarrierFailure::Deadline);
             return;
         };
@@ -4482,7 +4496,7 @@ impl WorkbenchClientUi {
         self.popup.shutdown();
         if let Some(state) = &mut self.state {
             state.close_carrier_retired();
-            state.stop_duplicate_sequence(super::state::DuplicateStop::Recovery);
+            state.stop_duplicate_sequence(crate::workbench_state::DuplicateStop::Recovery);
             state.cancel_panel_close_confirmation();
             state.cancel_workspace_close();
             state.cancel_rename_draft();
@@ -4535,7 +4549,7 @@ fn build_create_launch(
     deadlines: OperationDeadlines,
     placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
     launch: Option<orchbee_workbench_protocol::LaunchSelection>,
-    description: Option<super::state::LaunchDescription>,
+    description: Option<crate::workbench_state::LaunchDescription>,
 ) -> Result<CreateMarker, ActionBuildError> {
     if !state.invariant_holds() {
         return Err(ActionBuildError::Protocol);
@@ -4595,14 +4609,14 @@ fn build_create_launch(
     .with_placement(placement.clone())
     .with_launch_description(description)
     .with_origin(if state.phase_kind() == ClientPhaseKind::Empty {
-        super::state::CreateOriginKind::Empty
+        crate::workbench_state::CreateOriginKind::Empty
     } else if matches!(
         state.phase_kind(),
         ClientPhaseKind::SelectedWithoutAttachment | ClientPhaseKind::RetryableAttachUnavailable
     ) {
-        super::state::CreateOriginKind::Unattached
+        crate::workbench_state::CreateOriginKind::Unattached
     } else {
-        super::state::CreateOriginKind::Ready
+        crate::workbench_state::CreateOriginKind::Ready
     });
     if automatic_label {
         operation = operation.with_automatic_label();

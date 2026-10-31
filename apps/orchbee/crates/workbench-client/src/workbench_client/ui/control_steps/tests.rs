@@ -930,12 +930,9 @@ fn directional_focus_pins_one_neighbor_preserves_zoom_and_requires_draw() {
 
 #[test]
 fn no_neighbor_in_an_inactive_tab_has_no_selection_attachment_resize_or_draw_effect() {
-    use crate::{
-        client_view::SidebarSurface,
-        workbench_client::{
-            ui::tests::membership::snapshot, workbench_projection::project_preferred_workspace,
-        },
-    };
+    use crate::client_view::SidebarSurface;
+    use crate::workbench_client::ui::tests::membership::snapshot;
+    use crate::workbench_projection::project_preferred_workspace;
     use orchbee_workbench_protocol::ClientPanelDirection;
     use ratatui::layout::Rect;
     for shell_busy in [false, true] {
@@ -1260,9 +1257,8 @@ fn panel_focus_validates_canonical_target_before_cancelling_modes() {
 
 #[test]
 fn panel_focus_preflight_accepts_a_new_canonical_target_before_local_refresh() {
-    use crate::workbench_client::{
-        ui::tests::membership::snapshot, workbench_projection::project_preferred_workspace,
-    };
+    use crate::workbench_client::ui::tests::membership::snapshot;
+    use crate::workbench_projection::project_preferred_workspace;
     let (native, _, clock, _) = ready_ui();
     let mut control = controller(clock);
     control.observed = Some(native.control_observation(false).unwrap().1);

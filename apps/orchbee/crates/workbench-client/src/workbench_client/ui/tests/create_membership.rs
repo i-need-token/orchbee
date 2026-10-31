@@ -2,7 +2,7 @@ use super::super::tests::membership::{canonical_snapshot, place_refresh, snapsho
 use super::super::*;
 use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::workbench_client::mailbox::EventDeadline;
-use crate::workbench_client::state::{ControllerMode, FrameIdentity};
+use crate::workbench_state::{ControllerMode, FrameIdentity};
 use orchbee_workbench_protocol::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -350,16 +350,13 @@ fn ready_create_ui_from(
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: super::super::super::workbench_projection::project_native_context_tabs(
+                cache: crate::workbench_projection::project_native_context_tabs(
                     &snapshot,
-                    &super::super::super::workbench_projection::preferred_workspace_location(
-                        &snapshot,
-                    )
-                    .unwrap(),
+                    &crate::workbench_projection::preferred_workspace_location(&snapshot).unwrap(),
                 )
                 .unwrap(),
             },
-            EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();

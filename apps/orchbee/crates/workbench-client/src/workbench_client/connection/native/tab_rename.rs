@@ -9,10 +9,8 @@ use super::{
 use crate::local_client::workbench::label_rename::{
     WorkbenchLabelRenameNotSubmitted, WorkbenchLabelRenameSubmission,
 };
-use crate::workbench_client::{
-    mailbox::MutationResult,
-    state::tab_rename::{RenameOperation, RenameResult, RenameWorkerEvidence},
-};
+use crate::workbench_client::mailbox::MutationResult;
+use crate::workbench_state::tab_rename::{RenameOperation, RenameResult, RenameWorkerEvidence};
 
 impl ClientExecutor {
     pub(super) fn run_rename(
@@ -57,7 +55,7 @@ impl ClientExecutor {
                     operation
                         .prepare(RenameResult::Unchanged(revision))
                         .result(),
-                    crate::workbench_client::state::tab_rename::RenamePreparation::Unchanged
+                    crate::workbench_state::tab_rename::RenamePreparation::Unchanged
                 ) {
                     return Err(CarrierFailure::AuthorityDivergence);
                 }

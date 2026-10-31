@@ -6,10 +6,8 @@ use super::{
     Arc, CarrierFailure, CommandMailbox, MutationResult, PaneKey, RefreshDecision,
     RefreshSettlement, UiReply, WorkbenchClientUi,
 };
-use crate::workbench_client::{
-    mailbox::DesiredInstall,
-    state::{MembershipCleanup, MembershipInstallDecision},
-};
+use crate::workbench_client::mailbox::DesiredInstall;
+use crate::workbench_state::{MembershipCleanup, MembershipInstallDecision};
 use orchbee_workbench_protocol::WorkbenchSnapshotOutcome;
 
 #[cfg(test)]
@@ -20,7 +18,7 @@ impl WorkbenchClientUi {
         &mut self,
         mailbox: &Arc<CommandMailbox>,
         wait: super::super::mailbox::UiWaitKey,
-        target: super::super::state::AttachTarget,
+        target: crate::workbench_state::AttachTarget,
     ) -> bool {
         let Some(state) = self.state.as_mut() else {
             self.retire(CarrierFailure::Protocol);
@@ -202,8 +200,7 @@ impl WorkbenchClientUi {
                     }
                 }
                 if snapshot_consumed && let Some(snapshot) = &index_snapshot {
-                    self.agent_index =
-                        super::super::agent_board::PresentationIndex::rebuild(snapshot);
+                    self.agent_index = crate::agent_board::PresentationIndex::rebuild(snapshot);
                 }
                 if installed {
                     self.clear_projections();

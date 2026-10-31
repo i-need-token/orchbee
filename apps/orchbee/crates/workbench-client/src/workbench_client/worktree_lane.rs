@@ -1,6 +1,8 @@
 //! Bounded Worktree commands share the Client carrier and retain joined domain cancellation.
-use super::state::worktree_launch::{Discovery, Origin, Plan, WorktreeNotice, WorktreeToken};
 use crate::local_client::{LocalClient, LocalClientOrigin, LocalOperationClock};
+use crate::workbench_state::worktree_launch::{
+    Discovery, Origin, Plan, WorktreeNotice, WorktreeToken,
+};
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::{
     ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchDirectoryPath, WorkbenchRequestId,
@@ -14,8 +16,10 @@ use std::{
     time::{Duration, Instant},
 };
 mod sidebar;
-use super::state::worktree_launch::addressed::{AddressedWorktreeSource, SidebarDiscovery};
 use crate::background_thread::BackgroundThread;
+use crate::workbench_state::worktree_launch::addressed::{
+    AddressedWorktreeSource, SidebarDiscovery,
+};
 /// The single exchange whose receipt is settling; Read never submits a mutation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Exchange {
@@ -330,7 +334,8 @@ fn execute(
                         || current.discovery.worker != addressed.discovery.worker
                         || current.discovery.configured_root != addressed.discovery.configured_root
                         || plan.removal.as_ref().is_some_and(|target| {
-                            super::state::worktree_launch::Removal::capture(current).as_ref()
+                            crate::workbench_state::worktree_launch::Removal::capture(current)
+                                .as_ref()
                                 != Some(target)
                         })
                 }) {

@@ -1,6 +1,6 @@
 //! Quick Workspace directory defaults under the ordinary bounded refresh lease.
 use super::{ClientExecutor, Result, WorkbenchSnapshotOutcome};
-use crate::workbench_client::state::workspace_setup::quick::QuickPreparation;
+use crate::workbench_state::workspace_setup::quick::QuickPreparation;
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
 impl ClientExecutor {

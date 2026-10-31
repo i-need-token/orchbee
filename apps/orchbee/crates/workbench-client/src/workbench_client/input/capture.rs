@@ -2,11 +2,11 @@
 
 use crate::localization::SetupStage;
 use crate::tui_presentation::PresentationPhase;
-use crate::workbench_client::state::workspace_close::WorkspaceCloseToken;
-use crate::workbench_client::state::workspace_setup::SetupToken;
-use crate::workbench_client::state::{CloseConfirmationToken, PanelCloseConfirmationToken};
+use crate::workbench_state::workspace_close::WorkspaceCloseToken;
+use crate::workbench_state::workspace_setup::SetupToken;
+use crate::workbench_state::{CloseConfirmationToken, PanelCloseConfirmationToken};
 
-pub use crate::workbench_client::state::rename_draft::RenameDraftToken;
+pub use crate::workbench_state::rename_draft::RenameDraftToken;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CaptureReadiness {
@@ -34,9 +34,9 @@ pub struct SetupCaptureContext {
 
 #[derive(Clone, Copy)]
 pub struct WorktreeCaptureContext {
-    pub(crate) token: crate::workbench_client::state::worktree_launch::WorktreeToken,
+    pub(crate) token: crate::workbench_state::worktree_launch::WorktreeToken,
     pub(crate) readiness: CaptureReadiness,
-    pub(crate) stage: crate::workbench_client::state::worktree_launch::WorktreeStage,
+    pub(crate) stage: crate::workbench_state::worktree_launch::WorktreeStage,
     pub(crate) remaining_bytes: usize,
 }
 
@@ -51,14 +51,14 @@ pub struct ConfirmationCaptureContext<Token> {
 pub enum CaptureContext {
     Settings(crate::native_settings::SettingsInputContext),
     ActionMenu(crate::action_menu::MenuInputContext),
-    Popup(crate::workbench_client::independent_popup::PopupInputContext),
+    Popup(crate::independent_popup::PopupInputContext),
     Worktree(WorktreeCaptureContext),
     Setup(SetupCaptureContext),
     Rename(RenameCaptureContext),
     PanelClose(ConfirmationCaptureContext<PanelCloseConfirmationToken>),
     TabClose(ConfirmationCaptureContext<CloseConfirmationToken>),
     WorkspaceClose(ConfirmationCaptureContext<WorkspaceCloseToken>),
-    AgentBoard(crate::workbench_client::agent_board::AgentBoardInputContext),
+    AgentBoard(crate::agent_board::AgentBoardInputContext),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

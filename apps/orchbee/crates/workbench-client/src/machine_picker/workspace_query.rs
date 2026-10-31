@@ -1,9 +1,7 @@
 //! Workspace-name filtering and its local editor; typing never becomes list shortcuts or effects.
 use super::{KeyCode, Mode, Modifiers, Picker, Row, Selection};
-use crate::{
-    terminal_text::{sanitize_terminal_text, unique_identity_suffix},
-    workbench_client::ClientContextLocation,
-};
+use crate::terminal_text::{sanitize_terminal_text, unique_identity_suffix};
+use crate::workbench_projection::ClientContextLocation;
 use orchbee_workbench_protocol::SessionId;
 
 impl Picker {

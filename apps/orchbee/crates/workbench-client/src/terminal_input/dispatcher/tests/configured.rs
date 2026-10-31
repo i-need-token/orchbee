@@ -191,7 +191,7 @@ fn sidebar_pointer_navigation_defers_current_check_without_picker_and_captures_p
         let agent = row(23);
         let selected = crate::machine_picker::Selection {
             machine: Choice::Local,
-            context: Some(crate::workbench_client::ClientStartupTarget::Agent(
+            context: Some(crate::startup_directory::ClientStartupTarget::Agent(
                 Box::new(agent.target.clone()),
             )),
         };
@@ -213,7 +213,7 @@ fn sidebar_pointer_navigation_defers_current_check_without_picker_and_captures_p
             view.machines.observe_focus(
                 Choice::Local,
                 Some(agent.target.context.clone()),
-                Some(crate::workbench_client::ClientMemberTarget {
+                Some(crate::workbench_projection::ClientMemberTarget {
                     tab: agent.target.tab.clone(),
                     panel: agent.target.panel.clone(),
                     presentation: agent.target.member.clone(),
@@ -397,7 +397,7 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
     impl Port {
         fn capture_workspace_confirmation_key_for(
             &mut self,
-            _: crate::workbench_client::WorkspaceCloseToken,
+            _: crate::workbench_state::workspace_close::WorkspaceCloseToken,
             _: ClientKey,
         ) -> bool {
             self.owner == 1
@@ -405,7 +405,7 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
 
         fn capture_agent_board_key_for(
             &mut self,
-            _: crate::workbench_client::AgentBoardEpisodeToken,
+            _: crate::agent_board::AgentBoardEpisodeToken,
             _: crate::client_view::KeyEvent,
         ) -> bool {
             self.owner == 2
@@ -435,14 +435,14 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
             &self,
             owner: crate::tui_composition::WorkbenchCaptureOwner,
         ) -> Option<crate::workbench_client::CaptureContext> {
-            use crate::{
-                tui_composition::WorkbenchCaptureOwner,
-                tui_presentation::PresentationPhase,
-                workbench_client::{
-                    AgentBoardEpisodeToken, AgentBoardInputContext, CaptureContext,
-                    CaptureReadiness, ConfirmationCaptureContext, WorkspaceCloseToken,
-                },
+            use crate::agent_board::AgentBoardEpisodeToken;
+            use crate::tui_composition::WorkbenchCaptureOwner;
+            use crate::tui_presentation::PresentationPhase;
+            use crate::workbench_client::{
+                AgentBoardInputContext, CaptureContext, CaptureReadiness,
+                ConfirmationCaptureContext,
             };
+            use crate::workbench_state::workspace_close::WorkspaceCloseToken;
 
             match (self.owner, owner) {
                 (1, WorkbenchCaptureOwner::WorkspaceClose) => {

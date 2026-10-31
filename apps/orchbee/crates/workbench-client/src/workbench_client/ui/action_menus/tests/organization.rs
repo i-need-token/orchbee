@@ -170,8 +170,8 @@ fn deleting_noncurrent_workspace_submits_only_conditional_admission_without_navi
 
 #[test]
 fn workspace_delete_menu_reviews_only_a_known_resumable_guard_refusal() {
-    use crate::workbench_client::state::workspace_close::WorkspaceCloseResult;
     use crate::workbench_client::ui::tests::workspace_close as close_ui;
+    use crate::workbench_state::workspace_close::WorkspaceCloseResult;
     use orchbee_workbench_protocol::{
         WorkbenchSnapshotOutcome, WorkbenchTabCloseBlockedReason as Reason, WorkbenchTabClosePhase,
         WorkbenchTabCloseStatus as Status, WorkbenchWorkspaceCloseReadOutcome,

@@ -6,13 +6,9 @@ use super::{ClientExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, c
 use crate::local_client::workbench::workspace_setup::{
     WorkbenchSetupNotSubmitted, WorkbenchSetupPrecommit, WorkbenchSetupSubmission,
 };
-use crate::workbench_client::state::workspace_setup::{
-    SetupOperation, SetupResult, SetupWorkerEvidence,
-};
-use crate::workbench_client::{
-    mailbox::{CommandLease, MutationResult, UiReply},
-    state::{CarrierFailure, RefreshDecision},
-};
+use crate::workbench_client::mailbox::{CommandLease, MutationResult, UiReply};
+use crate::workbench_state::workspace_setup::{SetupOperation, SetupResult, SetupWorkerEvidence};
+use crate::workbench_state::{CarrierFailure, RefreshDecision};
 
 impl ClientExecutor {
     pub(super) fn run_workspace_setup(

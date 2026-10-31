@@ -90,7 +90,7 @@ fn automatic_tab_chrome_keeps_localized_and_fixed_names_without_a_second_title_r
                     }
                 }
             }
-            mailbox.close(crate::workbench_client::state::CarrierFailure::WorkerExited);
+            mailbox.close(crate::workbench_state::CarrierFailure::WorkerExited);
         }
     }
 }
@@ -499,7 +499,7 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
         assert_eq!(view.focus_panel_id(), Some(&panel_id));
         assert_eq!(
             view.focused_member(),
-            Some(crate::workbench_client::ClientMemberTarget {
+            Some(crate::workbench_projection::ClientMemberTarget {
                 tab: view.tab(0).unwrap().tab_id().clone(),
                 panel: panel_id.clone(),
                 presentation: destination.clone(),
@@ -816,15 +816,14 @@ fn empty_ui() -> (
     ));
     let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
     let source = empty_source();
-    let cache = crate::workbench_client::workbench_projection::project_preferred_workspace(&source)
-        .unwrap();
+    let cache = crate::workbench_projection::project_preferred_workspace(&source).unwrap();
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 cache,
                 selection: None,
             },
-            EventDeadline::Startup(clock.now() + crate::workbench_client::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();
@@ -835,9 +834,9 @@ fn empty_ui() -> (
 
 #[test]
 fn unbound_bootstrap_paints_empty_guidance_and_clickable_member_selector_without_viewer() {
+    use crate::tui_hit_map::DrawnPresentationTarget;
     use crate::tui_hit_map::HitTarget;
     use crate::tui_pointer::PointerState;
-    use crate::workbench_client::DrawnPresentationTarget;
     let (mut ui, mailbox, _) = empty_ui();
     assert!(ui.state.as_ref().unwrap().invariant_holds());
     assert!(ui.pointer_probe().panes.is_empty());

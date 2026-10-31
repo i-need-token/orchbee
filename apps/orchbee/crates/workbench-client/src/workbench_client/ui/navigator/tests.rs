@@ -77,9 +77,7 @@ fn admitted_tab_generation_is_distinct_from_a_highlighted_pending_target() {
 fn unavailable_current_tab_is_a_guarded_noop_but_ordinary_selection_can_retry() {
     use super::super::{ClientActionDisposition, RefreshDecision, SelectionPlan};
     use crate::workbench_client::mailbox::{EventDeadline, UiReply, WorkerEvent};
-    use crate::workbench_client::state::{
-        CleanupContinuation, ClientPhaseKind, CreateTerminalProvenance,
-    };
+    use crate::workbench_state::{CleanupContinuation, ClientPhaseKind, CreateTerminalProvenance};
     use orchbee_workbench_protocol::WorkbenchSnapshotOutcome;
 
     let (mut ui, mailbox, clock, _) = ready(false);

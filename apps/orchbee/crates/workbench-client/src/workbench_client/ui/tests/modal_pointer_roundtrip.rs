@@ -1,14 +1,14 @@
 use super::super::*;
-use crate::{
-    action_menu::{MenuAction, MenuTarget},
-    client_view::{ClientAction, ClientActionDisposition, ClientView},
-    localization::Locale,
-    terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable},
-    tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget},
-    tui_pointer::MotionObservability,
-    tui_theme::{Role, Theme},
-    workbench_client::{CaptureContext, SetupStage, WorkspaceCloseToken},
-};
+use crate::action_menu::{MenuAction, MenuTarget};
+use crate::client_view::{ClientAction, ClientActionDisposition, ClientView};
+use crate::localization::Locale;
+use crate::terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable};
+use crate::tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget};
+use crate::tui_pointer::MotionObservability;
+use crate::tui_theme::{Role, Theme};
+use crate::workbench_client::CaptureContext;
+use crate::workbench_state::workspace_close::WorkspaceCloseToken;
+use crate::workbench_state::workspace_setup::SetupStage;
 use ratatui::{
     Terminal,
     backend::TestBackend,
@@ -390,7 +390,8 @@ fn text_position(buffer: &Buffer, area: Rect, text: &str) -> (u16, u16) {
 
 #[test]
 fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hierarchy() {
-    use crate::{tui_theme::ColorLevel, workbench_client::SetupEdit};
+    use crate::tui_theme::ColorLevel;
+    use crate::workbench_state::workspace_setup::SetupEdit;
     use ratatui::style::Modifier;
 
     for locale in [Locale::EnUs, Locale::ZhCn] {

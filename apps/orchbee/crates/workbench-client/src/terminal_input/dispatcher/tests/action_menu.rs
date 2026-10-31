@@ -26,11 +26,11 @@ struct Port {
     settings_capture: bool,
 }
 
-fn sidebar_context() -> crate::workbench_client::ClientContextTarget {
+fn sidebar_context() -> crate::workbench_projection::ClientContextTarget {
     use orchbee_workbench_protocol::*;
-    crate::workbench_client::ClientContextTarget {
+    crate::workbench_projection::ClientContextTarget {
         session_id: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
-        location: crate::workbench_client::ClientContextLocation::Workspace {
+        location: crate::workbench_projection::ClientContextLocation::Workspace {
             workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 3)).unwrap(),
             terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{:032x}", 4)).unwrap(),
         },
@@ -125,7 +125,7 @@ fn sidebar_primary_cell(
                     crate::machine_picker::SidebarTarget::Context { machine, target },
                 ) => {
                     &selected.machine == machine
-                        && matches!(&selected.context, Some(crate::workbench_client::ClientStartupTarget::Context(row)) if row == target)
+                        && matches!(&selected.context, Some(crate::startup_directory::ClientStartupTarget::Context(row)) if row == target)
                 }
                 _ => false,
             };
@@ -196,7 +196,8 @@ fn revealed_disclosure(
 
 fn sidebar_project_target() -> crate::machine_picker::SidebarTarget {
     let target = sidebar_context();
-    let crate::workbench_client::ClientContextLocation::Workspace { .. } = target.location else {
+    let crate::workbench_projection::ClientContextLocation::Workspace { .. } = target.location
+    else {
         unreachable!()
     };
     crate::machine_picker::SidebarTarget::Project {
@@ -563,7 +564,7 @@ fn workspace_close_is_pointer_revealed_and_requests_the_existing_confirmation() 
         y = close_y + 1
     );
     dispatch_all(&mut dispatcher, &mut view, &mut port, click.as_bytes());
-    let crate::workbench_client::ClientContextLocation::Workspace { workspace_id, .. } =
+    let crate::workbench_projection::ClientContextLocation::Workspace { workspace_id, .. } =
         sidebar_context().location
     else {
         unreachable!()

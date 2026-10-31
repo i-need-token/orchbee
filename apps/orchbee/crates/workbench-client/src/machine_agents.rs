@@ -1,11 +1,9 @@
 //! Bounded physical Agent checkpoints and UI-owned cross-machine observation jobs.
+use crate::local_client::LocalClient;
 use crate::local_client::cancellation::Cancellation;
-use crate::{
-    local_client::LocalClient,
-    machine_discovery::display_label,
-    machines::Choice,
-    workbench_client::{ClientContextLocation, ClientContextTarget},
-};
+use crate::machine_discovery::display_label;
+use crate::machines::Choice;
+use crate::workbench_projection::{ClientContextLocation, ClientContextTarget};
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::{
     AgentViewAction, AgentViewOutcome, AgentViewRequest, AgentViewSnapshot, AgentViewSpec,

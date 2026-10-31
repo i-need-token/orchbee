@@ -1,6 +1,6 @@
 //! The creation projection joins canonical rows only by exact Session and committed identity.
 use super::*;
-use crate::workbench_client::{WorkspaceCreationPhase, WorkspaceCreationPreview};
+use crate::workbench_state::workspace_setup::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 
 #[test]
 fn creation_preview_keeps_current_fill_without_bolding_identity_or_pending_copy() {
@@ -127,7 +127,7 @@ fn admit_creation_current(view: &mut ClientView, target: &SidebarTarget) -> bool
         SidebarTarget::Context { target, .. } => (target.clone(), None),
         SidebarTarget::Agent { target, .. } => (
             target.context.clone(),
-            Some(crate::workbench_client::ClientMemberTarget {
+            Some(crate::workbench_projection::ClientMemberTarget {
                 tab: target.tab.clone(),
                 panel: target.panel.clone(),
                 presentation: target.member.clone(),

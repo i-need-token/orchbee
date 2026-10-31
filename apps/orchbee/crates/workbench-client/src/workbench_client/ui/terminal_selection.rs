@@ -1,13 +1,11 @@
 //! Selection admission and record intake for the installed pane incarnation.
 use super::{ClientProjectionStatus, ViewportSurface, WorkbenchClientUi};
 use crate::workbench_client::input::{PaneAdmission, PointerSelectionIntent};
+use crate::workbench_client::mailbox::{AdmissionError, CommandMailbox, QueuedCommand, Tagged};
 use crate::workbench_client::terminal_selection::{
     self as selection, Command, Driver, Event, Failure, Reply,
 };
-use crate::workbench_client::{
-    mailbox::{AdmissionError, CommandMailbox, QueuedCommand, Tagged},
-    state::{CarrierFailure, ClientNotice, PaneRef},
-};
+use crate::workbench_state::{CarrierFailure, ClientNotice, PaneRef};
 use orchbee_client_server_protocol::TerminalViewerOutcome;
 use std::sync::Arc;
 

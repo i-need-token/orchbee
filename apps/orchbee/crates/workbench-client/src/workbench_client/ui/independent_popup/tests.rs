@@ -98,9 +98,7 @@ fn popup_pending_and_closing_composition_hide_the_underlying_terminal_cursor() {
             None,
             Some(orchbee_workbench_protocol::PluginPopupSize::Percent(100)),
         ] {
-            ui.popup = crate::workbench_client::independent_popup::Driver::composition_fixture(
-                popup, size,
-            );
+            ui.popup = crate::independent_popup::Driver::composition_fixture(popup, size);
             let mut terminal =
                 ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
             terminal
@@ -133,8 +131,7 @@ fn too_small_popup_root_frame_shows_plain_recovery_and_restores_the_surface_afte
 
     let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui();
     super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
-    ui.popup =
-        crate::workbench_client::independent_popup::Driver::composition_fixture(Some(false), None);
+    ui.popup = crate::independent_popup::Driver::composition_fixture(Some(false), None);
 
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let theme = Theme::one_dark();

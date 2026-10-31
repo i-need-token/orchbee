@@ -6,17 +6,17 @@ use super::{
     Arc, CarrierFailure, CommandMailbox, MutationResult, OperationDeadlines, RefreshDecision,
     UiReply, WorkbenchClientState, WorkbenchClientUi,
 };
-use crate::workbench_client::{
-    mailbox::{CloseAdmissionError, CloseReconciliationSettlement, DesiredInstall, UiWaitKey},
-    state::{CloseReconciliationMarker, MembershipInstallDecision},
+use crate::workbench_client::mailbox::{
+    CloseAdmissionError, CloseReconciliationSettlement, DesiredInstall, UiWaitKey,
 };
+use crate::workbench_state::{CloseReconciliationMarker, MembershipInstallDecision};
 
 impl WorkbenchClientUi {
     pub(super) fn schedule_close_reconciliation(&mut self, mailbox: &Arc<CommandMailbox>) {
         let Some(deadline) = self
             .clock
             .now()
-            .checked_add(super::super::state::OPERATION_TOTAL)
+            .checked_add(crate::workbench_state::OPERATION_TOTAL)
         else {
             return;
         };
@@ -152,8 +152,7 @@ impl WorkbenchClientUi {
         match result {
             Ok(MutationResult::Applied) => {
                 if snapshot_consumed && let Some(snapshot) = &index_snapshot {
-                    self.agent_index =
-                        super::super::agent_board::PresentationIndex::rebuild(snapshot);
+                    self.agent_index = crate::agent_board::PresentationIndex::rebuild(snapshot);
                 }
                 if clear {
                     self.clear_projections();

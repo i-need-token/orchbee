@@ -1,9 +1,8 @@
 //! Exact cross-machine Agent startup over the real native worker/mailbox protocol.
 use super::{commands::drive_controlling_after_attach, setup::*};
-use crate::{
-    machine_agents,
-    workbench_client::{ClientStartupTarget, state::CarrierFailure},
-};
+use crate::machine_agents;
+use crate::startup_directory::ClientStartupTarget;
+use crate::workbench_state::CarrierFailure;
 use orchbee_agent_observation_protocol::{AgentHostEpoch, AgentHostTerminalId};
 use orchbee_client_server_protocol::*;
 use orchbee_workbench_protocol::*;

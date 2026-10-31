@@ -3,28 +3,20 @@
 //! membership or replay an uncertain structural effect.
 
 use super::{ClientExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
-use crate::{
-    local_client::workbench::{
-        panel_close::{
-            WorkbenchPanelCloseNotSubmitted, WorkbenchPanelCloseRequest,
-            WorkbenchPanelCloseSubmission,
-        },
-        panel_placement::{
-            WorkbenchPanelPlacementNotSubmitted, WorkbenchPanelPlacementPrecommit,
-            WorkbenchPanelPlacementRequest, WorkbenchPanelPlacementSubmission,
-        },
-        panel_split::{
-            WorkbenchPanelSplitNotSubmitted, WorkbenchPanelSplitRequest,
-            WorkbenchPanelSplitSubmission,
-        },
-    },
-    workbench_client::{
-        mailbox::{CommandLease, MutationResult, UiReply},
-        state::{
-            CarrierFailure, MembershipResultKey, PaneKey, PanelCommit, PanelDecision, PanelIntent,
-            PanelOperation, PanelResult, PendingPanelCommit,
-        },
-    },
+use crate::local_client::workbench::panel_close::{
+    WorkbenchPanelCloseNotSubmitted, WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission,
+};
+use crate::local_client::workbench::panel_placement::{
+    WorkbenchPanelPlacementNotSubmitted, WorkbenchPanelPlacementPrecommit,
+    WorkbenchPanelPlacementRequest, WorkbenchPanelPlacementSubmission,
+};
+use crate::local_client::workbench::panel_split::{
+    WorkbenchPanelSplitNotSubmitted, WorkbenchPanelSplitRequest, WorkbenchPanelSplitSubmission,
+};
+use crate::workbench_client::mailbox::{CommandLease, MutationResult, UiReply};
+use crate::workbench_state::{
+    CarrierFailure, MembershipResultKey, PaneKey, PanelCommit, PanelDecision, PanelIntent,
+    PanelOperation, PanelResult, PendingPanelCommit,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchRejectionReason,

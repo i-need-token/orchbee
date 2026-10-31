@@ -3,11 +3,9 @@ use super::{
     Choice, ClientContextTarget, Context, KeyCode, KeyEvent, KeyKind, Modifiers, Picker, Row,
     Selection,
 };
-use crate::{
-    client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
-    sidebar_width::SidebarWidthChange,
-    workbench_client::ClientContextLocation,
-};
+use crate::client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs};
+use crate::sidebar_width::SidebarWidthChange;
+use crate::workbench_projection::ClientContextLocation;
 use orchbee_workbench_protocol::{SessionId, WorkbenchProjectId};
 use std::sync::Arc;
 
@@ -63,7 +61,7 @@ impl SidebarTarget {
             }),
             Self::Agent { machine, target } => Some(Selection {
                 machine: machine.clone(),
-                context: Some(crate::workbench_client::ClientStartupTarget::Agent(
+                context: Some(crate::startup_directory::ClientStartupTarget::Agent(
                     target.clone(),
                 )),
             }),
@@ -1339,7 +1337,7 @@ impl Picker {
                 {
                     return SidebarIntent::Activate(Selection {
                         machine: machine.clone(),
-                        context: Some(crate::workbench_client::ClientStartupTarget::Agent(
+                        context: Some(crate::startup_directory::ClientStartupTarget::Agent(
                             target.clone(),
                         )),
                     });

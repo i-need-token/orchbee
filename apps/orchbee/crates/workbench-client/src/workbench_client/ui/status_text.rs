@@ -2,10 +2,8 @@
 //! Text renders selected facts; it never reads a view, retains commands or changes retirement.
 
 use super::WorkbenchClientView;
-use crate::{
-    localization::Locale,
-    workbench_client::{LocationLabelStatus, SetupStatus, WorkbenchClientNotice},
-};
+use crate::localization::{Locale, WorkbenchClientNotice};
+use crate::workbench_state::workspace_setup::{LocationLabelStatus, SetupStatus};
 
 /// A lasting state the floating status names in a word or two beside the action that fixes it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -11,13 +11,11 @@ use orchbee_local_ipc::LocalStream;
 
 use super::{Driver, Lane, Pending};
 use crate::background_thread::BackgroundThread;
-use crate::{
-    terminal_content::{ContentSource, PaintedRows, SnapshotMember, TerminalScreen},
-    terminal_copy::{CopySearchDirection, TerminalTextPoint},
-    terminal_copy_mode::{EpisodeId, QueryId},
-    terminal_copy_query::{Action, Admission, Failure, Outcome, QueryIdentity, Request},
-    workbench_client::state::{AttachmentKey, PaneKey, PaneRef},
-};
+use crate::terminal_content::{ContentSource, PaintedRows, SnapshotMember, TerminalScreen};
+use crate::terminal_copy::{CopySearchDirection, TerminalTextPoint};
+use crate::terminal_copy_mode::{EpisodeId, QueryId};
+use crate::terminal_copy_query::{Action, Admission, Failure, Outcome, QueryIdentity, Request};
+use crate::workbench_state::{AttachmentKey, PaneKey, PaneRef};
 
 #[test]
 fn oversized_query_is_refused_before_a_lane_or_connection_exists() {

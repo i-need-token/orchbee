@@ -96,9 +96,9 @@ impl MailboxState {
 impl CommandMailbox {
     pub(in crate::workbench_client) fn close_worker_loss(
         &self,
-    ) -> crate::workbench_client::state::CloseWorkerReturn {
+    ) -> crate::workbench_state::CloseWorkerReturn {
         let state = self.lock();
-        crate::workbench_client::state::CloseWorkerReturn::Missing {
+        crate::workbench_state::CloseWorkerReturn::Missing {
             queued: state.close_queued_key.clone(),
             deposited: state.close_deposited_result.clone(),
         }

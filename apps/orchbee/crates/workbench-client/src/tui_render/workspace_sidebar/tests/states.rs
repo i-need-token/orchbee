@@ -42,7 +42,7 @@ fn current_agent_view() -> (ClientView, SidebarTarget, SidebarTarget) {
     view.machines.observe_focus(
         Choice::Local,
         Some(target.clone()),
-        Some(crate::workbench_client::ClientMemberTarget {
+        Some(crate::workbench_projection::ClientMemberTarget {
             tab: member.tab.clone(),
             panel: member.panel.clone(),
             presentation: member.member.clone(),

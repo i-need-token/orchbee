@@ -1,10 +1,8 @@
 use super::setup::*;
-use crate::workbench_client::{
-    mailbox::{QueuedCommand, Tagged},
-    state::{
-        CarrierFailure, ClientNotice, ClientPhaseKind, ControllerMode, CreateProjectionDecision,
-        CreateTerminalProvenance, NavigatorRefreshStatus, PendingRefreshStage, RefreshDecision,
-    },
+use crate::workbench_client::mailbox::{QueuedCommand, Tagged};
+use crate::workbench_state::{
+    CarrierFailure, ClientNotice, ClientPhaseKind, ControllerMode, CreateProjectionDecision,
+    CreateTerminalProvenance, NavigatorRefreshStatus, PendingRefreshStage, RefreshDecision,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, ControlUnavailableReason, Geometry, ServerMessage,
@@ -87,7 +85,7 @@ fn empty_create_started_reads_candidate_without_detach_then_attaches_reserved_ge
     candidate.terminal_contexts[0].tabs.remove(0);
     set_tab_labels(&mut candidate, 0, "1", "1")?;
     let created = &candidate.terminal_contexts[0].tabs[0];
-    let expected = crate::workbench_client::state::AttachmentKey::new(
+    let expected = crate::workbench_state::AttachmentKey::new(
         operation.reserved_generation(),
         created.tab_id.clone(),
     );
@@ -972,7 +970,7 @@ fn run_non_attachable_commit(case: NonAttachableCommit) -> TestResult {
         Some(&expected_provenance)
     );
 
-    let published = crate::workbench_client::state::AttachmentKey::new(
+    let published = crate::workbench_state::AttachmentKey::new(
         operation.reserved_generation(),
         created.tab_id.clone(),
     );
@@ -1186,9 +1184,9 @@ fn superseded_non_attachable_switch_skips_unattached_settlement_and_newest_gets_
 
 pub(super) fn drive_pending_create_to_selected_without_attachment(
     harness: &mut Harness,
-    old_key: &crate::workbench_client::state::AttachmentKey,
+    old_key: &crate::workbench_state::AttachmentKey,
 ) -> TestResult<(
-    crate::workbench_client::state::AttachmentKey,
+    crate::workbench_state::AttachmentKey,
     orchbee_workbench_protocol::Snapshot,
 )> {
     let operation = harness.ui.admit_create()?;
@@ -1202,7 +1200,7 @@ pub(super) fn drive_pending_create_to_selected_without_attachment(
     else {
         return Err(test_error("created fixture must have one Panel root"));
     };
-    let committed_key = crate::workbench_client::state::AttachmentKey::new(
+    let committed_key = crate::workbench_state::AttachmentKey::new(
         operation.reserved_generation(),
         created.tab_id.clone(),
     );
@@ -1356,7 +1354,7 @@ fn started_create_accepts_a_later_renamed_snapshot_and_attaches_the_exact_bindin
     );
     assert_eq!(harness.ui.state().desired().unwrap(), &old_key);
 
-    let new_key = crate::workbench_client::state::AttachmentKey::new(
+    let new_key = crate::workbench_state::AttachmentKey::new(
         operation.reserved_generation(),
         expected_new_tab.clone(),
     );
@@ -2856,9 +2854,9 @@ fn drive_started_create_to_projection_unavailable(
     harness: &mut Harness,
     geometry: Geometry,
 ) -> TestResult<(
-    crate::workbench_client::state::CreateOperationKey,
+    crate::workbench_state::CreateOperationKey,
     orchbee_workbench_protocol::Snapshot,
-    crate::workbench_client::state::AttachmentKey,
+    crate::workbench_state::AttachmentKey,
 )> {
     let (old_key, _controller) = drive_controlling_ready(harness, geometry)?;
     let operation = harness.ui.admit_create()?;
@@ -2883,7 +2881,7 @@ fn drive_started_create_to_projection_unavailable(
     else {
         return Err(test_error("created fixture must have one Panel root"));
     };
-    let committed_key = crate::workbench_client::state::AttachmentKey::new(
+    let committed_key = crate::workbench_state::AttachmentKey::new(
         operation.reserved_generation(),
         created.tab_id.clone(),
     );
@@ -2962,7 +2960,7 @@ fn drive_controlling_ready(
     harness: &mut Harness,
     geometry: Geometry,
 ) -> TestResult<(
-    crate::workbench_client::state::AttachmentKey,
+    crate::workbench_state::AttachmentKey,
     orchbee_client_server_protocol::ControllerId,
 )> {
     let key = drive_snapshot_bootstrap(harness, 1)?;
@@ -2998,7 +2996,7 @@ fn set_tab_labels(
 pub(super) fn drive_bootstrap_from_snapshot(
     harness: &mut Harness,
     initial: orchbee_workbench_protocol::Snapshot,
-) -> TestResult<crate::workbench_client::state::AttachmentKey> {
+) -> TestResult<crate::workbench_state::AttachmentKey> {
     let request = harness.carrier.take_read()?;
     harness.carrier.respond_read(
         &request,
@@ -3015,7 +3013,7 @@ pub(super) fn drive_controlling_ready_from_snapshot(
     initial: orchbee_workbench_protocol::Snapshot,
     geometry: Geometry,
 ) -> TestResult<(
-    crate::workbench_client::state::AttachmentKey,
+    crate::workbench_state::AttachmentKey,
     orchbee_client_server_protocol::ControllerId,
 )> {
     let key = drive_bootstrap_from_snapshot(harness, initial)?;
@@ -3026,7 +3024,7 @@ pub(super) fn drive_controlling_ready_from_snapshot(
 
 pub(super) fn drive_controlling_after_attach(
     harness: &mut Harness,
-    key: &crate::workbench_client::state::AttachmentKey,
+    key: &crate::workbench_state::AttachmentKey,
     geometry: Geometry,
 ) -> TestResult<orchbee_client_server_protocol::ControllerId> {
     let ClientMessage::TerminalControl(acquire) = harness.carrier.take_obcs()? else {
@@ -3125,7 +3123,7 @@ pub(super) fn drive_controlling_after_attach(
     ));
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
-        UiEvent::Ready(crate::workbench_client::state::ReadyDecision::Ready)
+        UiEvent::Ready(crate::workbench_state::ReadyDecision::Ready)
     ));
     Ok(controller)
 }
@@ -3603,7 +3601,7 @@ fn mid_starting_pane_observation_defers_ordinary_work_until_ready() -> TestResul
     // the convergence debt, but the ordinary queue must stay empty.
     assert_eq!(
         harness.ui.state().phase_kind(),
-        crate::workbench_client::state::ClientPhaseKind::Starting
+        crate::workbench_state::ClientPhaseKind::Starting
     );
     let focus_panel = harness.ui.state().focus_panel_id().unwrap().clone();
     let peer_panel = WorkbenchPanelId::parse(&identity(3_010))?;
@@ -3789,7 +3787,7 @@ fn reconcile_deadline_expiry_parks_pending_panes_until_new_membership() -> TestR
         .ok_or_else(|| test_error("expired peer record must survive as terminal state"))?;
     assert_eq!(
         record.fault(),
-        Some(crate::workbench_client::state::PaneFault::ConvergenceExpired),
+        Some(crate::workbench_state::PaneFault::ConvergenceExpired),
         "the expired pane must park with the explainable terminal fault",
     );
     assert!(!harness.ui.state().reconcile_pending());

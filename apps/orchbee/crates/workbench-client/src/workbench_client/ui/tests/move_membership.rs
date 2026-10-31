@@ -2,9 +2,7 @@ use super::super::*;
 use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::local_client::workbench::WorkbenchTabMoveCommit;
 use crate::workbench_client::mailbox::{CommandLease, EventDeadline, UiWaitKey};
-use crate::workbench_client::state::{
-    CleanupContinuation, MoveDecision, MoveOperation, MoveResult,
-};
+use crate::workbench_state::{CleanupContinuation, MoveDecision, MoveOperation, MoveResult};
 use orchbee_workbench_protocol::{Snapshot, WorkbenchRevision, WorkbenchSnapshotOutcome};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -36,12 +34,9 @@ pub(in crate::workbench_client) fn ready_ui_with_snapshot(
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: crate::workbench_client::workbench_projection::project_preferred_workspace(
-                    &source,
-                )
-                .unwrap(),
+                cache: crate::workbench_projection::project_preferred_workspace(&source).unwrap(),
             },
-            EventDeadline::Startup(clock.now() + crate::workbench_client::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();

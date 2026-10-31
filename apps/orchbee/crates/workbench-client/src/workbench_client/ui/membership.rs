@@ -6,9 +6,7 @@ use super::{
     Arc, AttachmentKey, CarrierFailure, CommandMailbox, MutationResult, RefreshDecision,
     RefreshSettlement, UiReply, WorkbenchClientUi,
 };
-use crate::workbench_client::state::{
-    MembershipCleanup, MembershipInstallDecision, MembershipResultKey,
-};
+use crate::workbench_state::{MembershipCleanup, MembershipInstallDecision, MembershipResultKey};
 
 impl WorkbenchClientUi {
     pub(super) fn apply_membership_detached(

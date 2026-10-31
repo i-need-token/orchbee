@@ -24,7 +24,7 @@ use orchbee_agent_observation_protocol::{
     ObapRequestId,
 };
 
-use super::agent_board::{
+use crate::agent_board::{
     AgentBoardReadAnswer, AgentBoardReadRequest, AgentListRound, AgentReadFailure,
 };
 

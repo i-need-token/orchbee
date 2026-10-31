@@ -3,22 +3,16 @@
 //! unpresented confirmation.
 
 use super::{ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
+use crate::client_view::{ClientActionDisposition, ClientKey};
+use crate::workbench_client::mailbox::{CommandMailbox, UiWaitKey};
+use crate::workbench_state::workspace_close::WorkspaceCloseEvidence;
 #[cfg(test)]
-pub(crate) use crate::workbench_client::state::workspace_close::WorkspaceCloseStatus;
-pub use crate::workbench_client::state::workspace_close::WorkspaceCloseToken;
-pub(crate) use crate::workbench_client::state::workspace_close::{
+pub(crate) use crate::workbench_state::workspace_close::WorkspaceCloseStatus;
+pub use crate::workbench_state::workspace_close::WorkspaceCloseToken;
+pub(crate) use crate::workbench_state::workspace_close::{
     WorkspaceCloseConfirmationView, WorkspaceCloseStatusView,
 };
-use crate::{
-    client_view::{ClientActionDisposition, ClientKey},
-    workbench_client::{
-        mailbox::{CommandMailbox, UiWaitKey},
-        state::{
-            CarrierFailure, OperationDeadlines, WorkbenchClientState,
-            workspace_close::WorkspaceCloseEvidence,
-        },
-    },
-};
+use crate::workbench_state::{CarrierFailure, OperationDeadlines, WorkbenchClientState};
 use orchbee_workbench_protocol::{
     WorkbenchProjectId, WorkbenchSnapshotOutcome, WorkbenchWorkspaceId,
 };
@@ -37,7 +31,7 @@ impl<'a> WorkbenchClientView<'a> {
 impl WorkbenchClientUi {
     pub(super) fn request_sidebar_workspace_delete(
         &mut self,
-        request: &crate::workbench_client::WorkspaceDeleteRequest,
+        request: &crate::workbench_state::workspace_close::WorkspaceDeleteRequest,
     ) -> ClientActionDisposition {
         if self.modal_owns_input() {
             return ClientActionDisposition::KeepNavigator;
@@ -86,7 +80,7 @@ impl WorkbenchClientUi {
             return ClientActionDisposition::KeepNavigator;
         };
         let Some(request) = self.state.as_ref().and_then(|state| {
-            crate::workbench_client::WorkspaceDeleteRequest::capture(
+            crate::workbench_state::workspace_close::WorkspaceDeleteRequest::capture(
                 state,
                 workspace_id,
                 deadlines.total(),
@@ -127,10 +121,8 @@ impl WorkbenchClientUi {
         let Some(state) = self.state.as_ref() else {
             return ClientActionDisposition::KeepNavigator;
         };
-        let crate::workbench_client::workbench_projection::ClientContextLocation::Workspace {
-            workspace_id,
-            ..
-        } = state.cache().location()
+        let crate::workbench_projection::ClientContextLocation::Workspace { workspace_id, .. } =
+            state.cache().location()
         else {
             if let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) {
                 let _ =

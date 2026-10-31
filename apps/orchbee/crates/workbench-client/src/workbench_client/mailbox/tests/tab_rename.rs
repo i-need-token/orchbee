@@ -1,5 +1,5 @@
 use super::*;
-use crate::workbench_client::state::rename_draft::RenameDraftEdit;
+use crate::workbench_state::rename_draft::RenameDraftEdit;
 
 #[test]
 fn rename_real_admission_refuses_unseen_and_full_without_burning_identity_or_draft() {
@@ -148,7 +148,7 @@ fn rename_typed_placement_has_one_cutoff_but_ui_ack_can_be_late_with_b_queued() 
         .deposit_ui_reply_before_using(&wait, &clock, |_| {
             state.settle_rename_without_membership(
                 &first,
-                crate::workbench_client::state::tab_rename::RenamePreparation::Unchanged,
+                crate::workbench_state::tab_rename::RenamePreparation::Unchanged,
             )?;
             Ok(UiReply::Rename(RenameSettlement::new(
                 first.request_id().clone(),
@@ -179,7 +179,7 @@ fn rename_typed_placement_has_one_cutoff_but_ui_ack_can_be_late_with_b_queued() 
 
 #[test]
 fn rename_missing_worker_preserves_exact_handoff_evidence_through_mailbox_close() {
-    use crate::workbench_client::state::tab_rename::RenameWorkerEvidence;
+    use crate::workbench_state::tab_rename::RenameWorkerEvidence;
     for cut in 0..3 {
         let base = Instant::now();
         let deadline = base + Duration::from_secs(50);

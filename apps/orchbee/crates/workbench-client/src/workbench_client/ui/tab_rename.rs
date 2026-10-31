@@ -10,8 +10,8 @@ use super::{
     WorkbenchClientUi, WorkbenchClientView,
 };
 use crate::workbench_client::input::{RenameDraftToken, RenameEdit, RenameInputContext};
-use crate::workbench_client::state::FieldWindow;
-use crate::workbench_client::state::rename_draft::{self, RenameDraftEdit};
+use crate::workbench_state::FieldWindow;
+use crate::workbench_state::rename_draft::{self, RenameDraftEdit};
 use orchbee_workbench_protocol::MAXIMUM_LABEL_LENGTH;
 
 pub(crate) struct RenameDraftView<'a>(
@@ -80,9 +80,9 @@ impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn rename_receipts_for_test(
         &self,
     ) -> (
-        Option<&crate::workbench_client::state::tab_rename::RenameOperation>,
-        Option<&crate::workbench_client::state::tab_rename::PendingRenameCommit>,
-        Option<&crate::workbench_client::state::tab_rename::RenameOperation>,
+        Option<&crate::workbench_state::tab_rename::RenameOperation>,
+        Option<&crate::workbench_state::tab_rename::PendingRenameCommit>,
+        Option<&crate::workbench_state::tab_rename::RenameOperation>,
     ) {
         self.state.as_ref().map_or(
             (None, None, None),
@@ -91,14 +91,14 @@ impl WorkbenchClientUi {
     }
     pub(in crate::workbench_client) fn rename_worker_loss(
         &self,
-    ) -> Option<crate::workbench_client::state::tab_rename::RenameWorkerEvidence> {
+    ) -> Option<crate::workbench_state::tab_rename::RenameWorkerEvidence> {
         self.mailbox
             .as_ref()
             .and_then(|mailbox| mailbox.rename_worker_loss())
     }
     pub(in crate::workbench_client) fn finalize_rename_worker(
         &mut self,
-        evidence: Option<crate::workbench_client::state::tab_rename::RenameWorkerEvidence>,
+        evidence: Option<crate::workbench_state::tab_rename::RenameWorkerEvidence>,
     ) -> bool {
         evidence.is_none_or(|evidence| {
             self.state
@@ -202,7 +202,7 @@ impl WorkbenchClientUi {
         let Some(deadline) = self
             .clock
             .now()
-            .checked_add(super::super::state::OPERATION_TOTAL)
+            .checked_add(crate::workbench_state::OPERATION_TOTAL)
         else {
             return ClientActionDisposition::KeepNavigator;
         };
@@ -221,13 +221,9 @@ impl WorkbenchClientUi {
         }
     }
 }
-use crate::workbench_client::{
-    mailbox::{DesiredInstall, RenameSettlement},
-    state::{
-        MembershipInstallDecision,
-        tab_rename::{RenameOperation, RenamePreparation, RenameResult},
-    },
-};
+use crate::workbench_client::mailbox::{DesiredInstall, RenameSettlement};
+use crate::workbench_state::MembershipInstallDecision;
+use crate::workbench_state::tab_rename::{RenameOperation, RenamePreparation, RenameResult};
 
 impl WorkbenchClientUi {
     pub(super) fn apply_rename_event(

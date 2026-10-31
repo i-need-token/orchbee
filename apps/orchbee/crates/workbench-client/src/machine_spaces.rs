@@ -1,10 +1,8 @@
 //! Complete canonical Workspace metadata and local Git checkpoints. No paint-time I/O.
+use crate::local_client::LocalClient;
 use crate::local_client::cancellation::Cancellation;
-use crate::{
-    local_client::LocalClient,
-    machine_observation::{check, request_id, snapshot},
-    workbench_client::{ClientContextLocation, ClientContextTarget},
-};
+use crate::machine_observation::{check, request_id, snapshot};
+use crate::workbench_projection::{ClientContextLocation, ClientContextTarget};
 use orchbee_workbench_protocol::{
     GitDivergence, MAXIMUM_WORKSPACE_METADATA_READ_ROWS, MetadataTokens, ProtocolVersion,
     SessionId, Snapshot, WorkbenchProjectId, WorkbenchRevision, WorkbenchWorkspaceId,

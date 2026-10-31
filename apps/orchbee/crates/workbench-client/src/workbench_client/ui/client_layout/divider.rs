@@ -64,7 +64,7 @@ impl WorkbenchClientUi {
             && state.pending_refresh_generation().is_some()
             && matches!(
                 state.phase_kind(),
-                crate::workbench_client::state::ClientPhaseKind::Ready
+                crate::workbench_state::ClientPhaseKind::Ready
             )
             && !self.popup.captured()
             && !self.control_modal()

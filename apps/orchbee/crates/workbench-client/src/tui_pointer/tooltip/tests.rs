@@ -162,7 +162,7 @@ fn a_published_frame_closes_a_moved_target_but_retargets_what_the_same_arrival_r
 
 #[test]
 fn a_pane_title_offers_one_over_its_divider_or_dead_frame_but_never_under_chrome() {
-    use crate::workbench_client::state::{AttachmentKey, PaneKey, PaneRef};
+    use crate::workbench_state::{AttachmentKey, PaneKey, PaneRef};
     use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
     let pane = PaneRef::new(
         PaneKey::new(

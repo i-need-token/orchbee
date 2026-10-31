@@ -1,15 +1,13 @@
 //! Actual framed control and native UI; the Server stub never supplies a UI verdict.
 use super::super::{AttachedTerminal, ClientExecutor};
 use super::setup::{TestResult, admit};
-use crate::{
-    client_view::ClientAction,
-    local_client::{LocalClient, test_support::server::FakeServer},
-    workbench_client::{
-        mailbox::QueuedCommand,
-        state::{CarrierFailure, ControllerMode, control_takeover::TakeoverResult},
-        ui::tests::move_membership::ready_ui,
-    },
-};
+use crate::client_view::ClientAction;
+use crate::local_client::LocalClient;
+use crate::local_client::test_support::server::FakeServer;
+use crate::workbench_client::mailbox::QueuedCommand;
+use crate::workbench_client::ui::tests::move_membership::ready_ui;
+use crate::workbench_state::control_takeover::TakeoverResult;
+use crate::workbench_state::{CarrierFailure, ControllerMode};
 use orchbee_client_server_protocol::*;
 use std::{
     io::{self, Read},
@@ -203,9 +201,9 @@ fn exercise(cut: Cut) -> TestResult {
         assert_eq!(
             ui.view().controller(),
             Some(if cut == Cut::Complete {
-                crate::workbench_client::DisplayController::Controlling
+                crate::localization::DisplayController::Controlling
             } else {
-                crate::workbench_client::DisplayController::ReadOnly
+                crate::localization::DisplayController::ReadOnly
             })
         );
         assert!(

@@ -1,5 +1,5 @@
 use super::*;
-use crate::workbench_client::state::{CloseStateError, CloseStatusKind};
+use crate::workbench_state::{CloseStateError, CloseStatusKind};
 
 #[test]
 fn recovery_copies_burned_allocator_cursors_without_copying_live_mailbox_work() {

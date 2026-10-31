@@ -9,11 +9,9 @@ use super::{
     RefreshDecision, StructuralMutationFlight, UiCorrelation, UiWaitKey, WorkbenchRequestId,
     WorkerEvent, workbench_identity_candidate,
 };
-use crate::workbench_client::state::{
-    WorkbenchClientState,
-    rename_draft::DraftToken,
-    tab_rename::{RenameOperation, RenameResult},
-};
+use crate::workbench_state::WorkbenchClientState;
+use crate::workbench_state::rename_draft::DraftToken;
+use crate::workbench_state::tab_rename::{RenameOperation, RenameResult};
 
 pub(super) struct RenameFlight {
     pub(super) serial: u64,
@@ -238,8 +236,8 @@ impl MailboxState {
 impl CommandMailbox {
     pub(in crate::workbench_client) fn rename_worker_loss(
         &self,
-    ) -> Option<crate::workbench_client::state::tab_rename::RenameWorkerEvidence> {
-        use crate::workbench_client::state::tab_rename::RenameWorkerEvidence;
+    ) -> Option<crate::workbench_state::tab_rename::RenameWorkerEvidence> {
+        use crate::workbench_state::tab_rename::RenameWorkerEvidence;
         let state = self.lock();
         let Some(StructuralMutationFlight::Rename(flight)) = &state.structural_mutation_pending
         else {

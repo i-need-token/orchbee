@@ -49,12 +49,12 @@ fn bootstrap(ui: &mut WorkbenchClientUi, mailbox: &CommandMailbox, clock: &Local
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: super::super::super::workbench_projection::project_preferred_workspace(
+                cache: crate::workbench_projection::project_preferred_workspace(
                     &super::super::tests::membership::snapshot(1, 1),
                 )
                 .unwrap(),
             },
-            EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             clock,
         )
         .unwrap();
@@ -163,15 +163,14 @@ fn an_accepted_refresh_rebuilds_but_an_unaccepted_snapshot_never_feeds() {
 fn a_jump_against_an_unfed_index_waits_instead_of_reporting_gone() {
     let (mut ui, _mailbox, _clock) = fixture();
     ui.board.open();
-    ui.board
-        .force_jump_t(super::super::super::agent_board::BoardJump {
-            serial: 1,
-            stage: super::super::super::agent_board::JumpStage::Navigating {
-                candidates: vec![attachment(0x3ea)].into_boxed_slice(),
-                index: 0,
-            },
-            deadline: std::time::Instant::now() + std::time::Duration::from_secs(30),
-        });
+    ui.board.force_jump_t(crate::agent_board::BoardJump {
+        serial: 1,
+        stage: crate::agent_board::JumpStage::Navigating {
+            candidates: vec![attachment(0x3ea)].into_boxed_slice(),
+            index: 0,
+        },
+        deadline: std::time::Instant::now() + std::time::Duration::from_secs(30),
+    });
     let actual = ui.agent_board_view().unwrap().actual_draw(4).unwrap();
     ui.after_agent_board_draw(Some(AgentBoardDraw::Presented(actual)));
     // No canonical snapshot has ever fed the index: resolving now could
@@ -184,7 +183,7 @@ fn a_jump_against_an_unfed_index_waits_instead_of_reporting_gone() {
     };
     assert!(matches!(
         jump.stage,
-        super::super::super::agent_board::JumpStage::Navigating { index: 0, .. }
+        crate::agent_board::JumpStage::Navigating { index: 0, .. }
     ));
     assert!(ui.board.notice().is_none());
     assert!(ui.board.jumping());
@@ -232,15 +231,14 @@ fn a_covered_board_keeps_an_accepted_jump_without_moving_workbench_focus() {
     bootstrap(&mut ui, &mailbox, &clock);
     ready(&mut ui);
     ui.board.open();
-    ui.board
-        .force_jump_t(super::super::super::agent_board::BoardJump {
-            serial: 1,
-            stage: super::super::super::agent_board::JumpStage::Navigating {
-                candidates: vec![attachment(0x3ea)].into_boxed_slice(),
-                index: 0,
-            },
-            deadline: std::time::Instant::now() + std::time::Duration::from_secs(30),
-        });
+    ui.board.force_jump_t(crate::agent_board::BoardJump {
+        serial: 1,
+        stage: crate::agent_board::JumpStage::Navigating {
+            candidates: vec![attachment(0x3ea)].into_boxed_slice(),
+            index: 0,
+        },
+        deadline: std::time::Instant::now() + std::time::Duration::from_secs(30),
+    });
     let actual = ui.agent_board_view().unwrap().actual_draw(4).unwrap();
     ui.after_agent_board_draw(Some(AgentBoardDraw::Presented(actual)));
     assert!(ui.board.input_context().unwrap().interactive());
@@ -254,7 +252,7 @@ fn a_covered_board_keeps_an_accepted_jump_without_moving_workbench_focus() {
     );
     assert!(matches!(
         ui.board.jump().map(|jump| &jump.stage),
-        Some(super::super::super::agent_board::JumpStage::Navigating { index: 0, .. })
+        Some(crate::agent_board::JumpStage::Navigating { index: 0, .. })
     ));
 
     ui.after_agent_board_draw(None);
@@ -268,7 +266,7 @@ fn a_covered_board_keeps_an_accepted_jump_without_moving_workbench_focus() {
     );
     assert!(matches!(
         ui.board.jump().map(|jump| &jump.stage),
-        Some(super::super::super::agent_board::JumpStage::Navigating { index: 0, .. })
+        Some(crate::agent_board::JumpStage::Navigating { index: 0, .. })
     ));
 }
 
@@ -278,15 +276,14 @@ fn a_new_higher_capture_blocks_a_jump_before_the_next_cover_receipt() {
     bootstrap(&mut ui, &mailbox, &clock);
     ready(&mut ui);
     ui.board.open();
-    ui.board
-        .force_jump_t(super::super::super::agent_board::BoardJump {
-            serial: 1,
-            stage: super::super::super::agent_board::JumpStage::Navigating {
-                candidates: vec![attachment(0x3ea)].into_boxed_slice(),
-                index: 0,
-            },
-            deadline: std::time::Instant::now() + std::time::Duration::from_secs(30),
-        });
+    ui.board.force_jump_t(crate::agent_board::BoardJump {
+        serial: 1,
+        stage: crate::agent_board::JumpStage::Navigating {
+            candidates: vec![attachment(0x3ea)].into_boxed_slice(),
+            index: 0,
+        },
+        deadline: std::time::Instant::now() + std::time::Duration::from_secs(30),
+    });
     let actual = ui.agent_board_view().unwrap().actual_draw(4).unwrap();
     ui.after_agent_board_draw(Some(AgentBoardDraw::Presented(actual)));
     assert!(ui.board.input_context().unwrap().interactive());
@@ -310,6 +307,6 @@ fn a_new_higher_capture_blocks_a_jump_before_the_next_cover_receipt() {
     );
     assert!(matches!(
         ui.board.jump().map(|jump| &jump.stage),
-        Some(super::super::super::agent_board::JumpStage::Navigating { index: 0, .. })
+        Some(crate::agent_board::JumpStage::Navigating { index: 0, .. })
     ));
 }

@@ -10,7 +10,7 @@ use ratatui::layout::Rect;
 use orchbee_workbench_protocol::WorkbenchTabId;
 
 use crate::client_view::help::HelpControl;
-use crate::workbench_client::state::{PaneRef, TabStripStart};
+use crate::workbench_state::{PaneRef, TabStripStart};
 
 pub(crate) mod chrome;
 pub(crate) mod interaction;
@@ -133,28 +133,28 @@ pub enum HitTarget {
         action: HelpControl,
     },
     TabClose {
-        token: crate::workbench_client::CloseConfirmationToken,
+        token: crate::workbench_state::CloseConfirmationToken,
         confirm: bool,
     },
     PanelClose {
-        token: crate::workbench_client::PanelCloseConfirmationToken,
+        token: crate::workbench_state::PanelCloseConfirmationToken,
         confirm: bool,
     },
     Rename {
-        token: crate::workbench_client::RenameDraftToken,
+        token: crate::workbench_state::rename_draft::RenameDraftToken,
         submit: bool,
     },
     WorkspaceClose {
-        token: crate::workbench_client::WorkspaceCloseToken,
+        token: crate::workbench_state::workspace_close::WorkspaceCloseToken,
         confirm: bool,
     },
     /// A control actually painted by the Workspace setup owner.
     Setup {
-        token: crate::workbench_client::SetupToken,
+        token: crate::workbench_state::workspace_setup::SetupToken,
         control: ModalControl,
     },
     Worktree {
-        token: crate::workbench_client::WorktreeToken,
+        token: crate::workbench_state::worktree_launch::WorktreeToken,
         control: ModalControl,
     },
     NavigatorRow(crate::client_view::navigator::Row),
@@ -169,7 +169,7 @@ pub enum HitTarget {
         control: crate::native_settings::Control,
     },
     ListScroll(ListScrollTarget),
-    AgentBoardControl(crate::workbench_client::AgentBoardControlTarget),
+    AgentBoardControl(crate::agent_board::AgentBoardControlTarget),
     SettingsButton,
     NewWorkspaceButton,
     CreateMenu(Option<crate::machine_picker::SidebarTarget>),
@@ -192,7 +192,7 @@ pub enum HitTarget {
         id: orchbee_workbench_protocol::WorkbenchRequestId,
         content: Rect,
     },
-    PopupClose(crate::workbench_client::DrawnPopupClose),
+    PopupClose(crate::independent_popup::DrawnPopupClose),
     /// A compact tab-strip token (also a non-Windows navigator row).
     Tab(WorkbenchTabId),
     TabCloseRequest {
@@ -237,7 +237,7 @@ pub enum HitTarget {
     OverlaySurface,
     /// An Agent board row from one exact successfully presented Board view.
     /// Press-time selection validates this complete witness with the owner.
-    AgentBoardRow(crate::workbench_client::AgentBoardRowTarget),
+    AgentBoardRow(crate::agent_board::AgentBoardRowTarget),
     MachineGroupRow {
         target: crate::machine_picker::SidebarTarget,
         window: crate::machine_picker::SidebarWindow,
@@ -300,7 +300,7 @@ impl HitTarget {
             | Self::SidebarClose(target)
             | Self::CreateMenu(Some(target)) => Some(target.clone()),
             Self::MachineWorkspaceRow { selected, .. } => match &selected.context {
-                Some(crate::workbench_client::ClientStartupTarget::Context(target)) => {
+                Some(crate::startup_directory::ClientStartupTarget::Context(target)) => {
                     Some(SidebarTarget::Context {
                         machine: selected.machine.clone(),
                         target: target.clone(),

@@ -3,6 +3,7 @@ use super::super::*;
 use super::*;
 use crate::action_menu::{MenuDraw, MenuToken};
 use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
+use crate::workbench_state::workspace_setup::SetupEdit;
 
 use crate::workbench_client::mailbox::CommandLease;
 use orchbee_workbench_protocol::{
@@ -327,10 +328,7 @@ fn tab_group_toggle_all_clear_and_stale_menu_proof_stay_client_local() {
     ui.state
         .as_mut()
         .unwrap()
-        .mark_tabs(
-            &ids[2],
-            super::super::super::state::TabSelectionChange::Toggle,
-        )
+        .mark_tabs(&ids[2], crate::workbench_state::TabSelectionChange::Toggle)
         .unwrap();
     ui.activate_action_menu_row(&source, token, row);
     assert_eq!(

@@ -3,7 +3,7 @@ use crate::client_view::navigator::{Admission, Catalog, Row, Source, Target};
 use crate::tui_hit_map::{
     HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
 };
-use crate::workbench_client::ClientContextLocation;
+use crate::workbench_projection::ClientContextLocation;
 use orchbee_workbench_protocol::{
     SessionId, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
 };

@@ -1,8 +1,6 @@
 use super::*;
-use crate::workbench_client::{
-    state::{AttachmentKey, PaneKey, PaneRef},
-    terminal_effects::Queue,
-};
+use crate::workbench_client::terminal_effects::Queue;
+use crate::workbench_state::{AttachmentKey, PaneKey, PaneRef};
 use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
 use std::thread;
 use std::{

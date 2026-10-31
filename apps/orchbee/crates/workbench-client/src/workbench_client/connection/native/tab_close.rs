@@ -3,17 +3,13 @@
 //! loss or repeat a possibly delivered close.
 
 use super::{ClientExecutor, Result, closed, event, io_failure};
-use crate::{
-    local_client::workbench::{
-        WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted, WorkbenchTabCloseReadError,
-        WorkbenchTabCloseRequest, WorkbenchTabCloseResumeSubmission, WorkbenchTabCloseSubmission,
-    },
-    workbench_client::{
-        mailbox::{CommandLease, MutationResult, UiReply},
-        state::{
-            CarrierFailure, CloseOperation, CloseOperationKind, CloseResult, PendingCloseResult,
-        },
-    },
+use crate::local_client::workbench::{
+    WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted, WorkbenchTabCloseReadError,
+    WorkbenchTabCloseRequest, WorkbenchTabCloseResumeSubmission, WorkbenchTabCloseSubmission,
+};
+use crate::workbench_client::mailbox::{CommandLease, MutationResult, UiReply};
+use crate::workbench_state::{
+    CarrierFailure, CloseOperation, CloseOperationKind, CloseResult, PendingCloseResult,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchTabCloseRead,

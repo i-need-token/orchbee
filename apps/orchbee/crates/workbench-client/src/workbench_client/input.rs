@@ -104,7 +104,7 @@ pub enum PaneInput<'a> {
     /// One cell-semantic selection step for the exact painted pane. Only `Start` has an admission
     /// decision; callers ignore the result of later steps after an admitted start.
     Selection {
-        pane: &'a crate::workbench_client::state::PaneRef,
+        pane: &'a crate::workbench_state::PaneRef,
         intent: PointerSelectionIntent,
     },
     /// One Ctrl+click from an exact successfully painted pane source. This read-only path never
@@ -119,12 +119,12 @@ pub enum PaneInput<'a> {
     /// A wheel notch (three rows) over the non-Live history core of the exact focus incarnation
     /// the pointer already probed.
     HistoryWheel {
-        pane: &'a crate::workbench_client::state::PaneRef,
+        pane: &'a crate::workbench_state::PaneRef,
         up: bool,
     },
     /// A bounded tail jump; the pane revalidates the exact painted scrollbar source first.
     Scrollbar {
-        pane: &'a crate::workbench_client::state::PaneRef,
+        pane: &'a crate::workbench_state::PaneRef,
         source: crate::terminal_scrollbar::ScrollbarSnapshot,
         offset: u32,
     },
@@ -161,7 +161,7 @@ pub struct PointerPane {
     pub(crate) right_click_reporting: bool,
     pub(crate) right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     /// The record's exact incarnation (logical pane + incarnation).
-    pub(crate) record: crate::workbench_client::state::PaneRef,
+    pub(crate) record: crate::workbench_state::PaneRef,
     /// The record's attachment is live for this incarnation.
     pub(crate) attached: bool,
     /// The record's controller mode once known: `Some(true)` admits input
@@ -187,10 +187,10 @@ pub struct PointerProbe {
     /// The focus pane's exact live incarnation — `None` when the focus
     /// pane departed or has no record. Compared bit for bit with a
     /// gesture's recorded target.
-    pub(crate) focus: Option<crate::workbench_client::state::PaneRef>,
+    pub(crate) focus: Option<crate::workbench_state::PaneRef>,
     /// The selection's desired pane key — its anchor names the active tab
     /// for stale-map edge resolution.
-    pub(crate) desired: Option<crate::workbench_client::state::PaneKey>,
+    pub(crate) desired: Option<crate::workbench_state::PaneKey>,
     /// Per-leaf live facts for every pane record, keyed by exact
     /// incarnation — the pending settler looks up its recorded target.
     pub(crate) panes: Vec<PointerPane>,
@@ -391,8 +391,8 @@ impl InputActionTestAccess for InputAction {
 pub trait PointerProbeTestAccess {
     fn panes(&self) -> &[PointerPane];
     fn panes_mut(&mut self) -> &mut Vec<PointerPane>;
-    fn focus_mut(&mut self) -> &mut Option<crate::workbench_client::state::PaneRef>;
-    fn desired_mut(&mut self) -> &mut Option<crate::workbench_client::state::PaneKey>;
+    fn focus_mut(&mut self) -> &mut Option<crate::workbench_state::PaneRef>;
+    fn desired_mut(&mut self) -> &mut Option<crate::workbench_state::PaneKey>;
     fn frame_mut(&mut self) -> &mut Option<PointerFrameFacts>;
 }
 
@@ -404,10 +404,10 @@ impl PointerProbeTestAccess for PointerProbe {
     fn panes_mut(&mut self) -> &mut Vec<PointerPane> {
         &mut self.panes
     }
-    fn focus_mut(&mut self) -> &mut Option<crate::workbench_client::state::PaneRef> {
+    fn focus_mut(&mut self) -> &mut Option<crate::workbench_state::PaneRef> {
         &mut self.focus
     }
-    fn desired_mut(&mut self) -> &mut Option<crate::workbench_client::state::PaneKey> {
+    fn desired_mut(&mut self) -> &mut Option<crate::workbench_state::PaneKey> {
         &mut self.desired
     }
     fn frame_mut(&mut self) -> &mut Option<PointerFrameFacts> {
@@ -418,14 +418,14 @@ impl PointerProbeTestAccess for PointerProbe {
 /// Crate-internal `PointerPane` state the application's tests read and adjust.
 #[cfg(any(test, feature = "test-support"))]
 pub trait PointerPaneTestAccess {
-    fn record(&self) -> &crate::workbench_client::state::PaneRef;
+    fn record(&self) -> &crate::workbench_state::PaneRef;
     fn attached(&self) -> bool;
     fn frame_available_mut(&mut self) -> &mut bool;
 }
 
 #[cfg(any(test, feature = "test-support"))]
 impl PointerPaneTestAccess for PointerPane {
-    fn record(&self) -> &crate::workbench_client::state::PaneRef {
+    fn record(&self) -> &crate::workbench_state::PaneRef {
         &self.record
     }
     fn attached(&self) -> bool {
@@ -489,7 +489,7 @@ impl From<PointerTabFixture> for PointerTab {
 pub struct PointerPaneFixture {
     pub right_click_reporting: bool,
     pub right_click: orchbee_workbench_protocol::PanelRightClickTarget,
-    pub record: crate::workbench_client::state::PaneRef,
+    pub record: crate::workbench_state::PaneRef,
     pub attached: bool,
     pub controlling: Option<bool>,
     pub frame_available: bool,
@@ -522,8 +522,8 @@ impl From<PointerPaneFixture> for PointerPane {
 #[derive(Default)]
 pub struct PointerProbeFixture {
     pub input_captured: bool,
-    pub focus: Option<crate::workbench_client::state::PaneRef>,
-    pub desired: Option<crate::workbench_client::state::PaneKey>,
+    pub focus: Option<crate::workbench_state::PaneRef>,
+    pub desired: Option<crate::workbench_state::PaneKey>,
     pub panes: Vec<PointerPane>,
     pub unbound: Vec<PointerUnboundPane>,
     pub input_ready: bool,

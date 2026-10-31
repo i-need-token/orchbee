@@ -1,16 +1,13 @@
 use super::*;
-use crate::workbench_client::input::TabDragTab;
-use crate::{
-    action_menu::DrawnMenuSource,
-    client_view::ClientActionDisposition,
-    terminal_input::{PointerProbe, PointerTab, TerminalInputUnavailable},
-    tui_hit_map::{
-        HitLayer, HitMapBuilder, InteractionSpec, InteractionTarget, PrimaryContract,
-        ProjectedPointer,
-    },
-    tui_pointer::MotionObservability,
-    workbench_client::ClientContextLocation,
+use crate::action_menu::DrawnMenuSource;
+use crate::client_view::ClientActionDisposition;
+use crate::terminal_input::{PointerProbe, PointerTab, TerminalInputUnavailable};
+use crate::tui_hit_map::{
+    HitLayer, HitMapBuilder, InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer,
 };
+use crate::tui_pointer::MotionObservability;
+use crate::workbench_client::input::TabDragTab;
+use crate::workbench_projection::ClientContextLocation;
 use orchbee_workbench_protocol::{SessionId, WorkbenchRevision, WorkbenchTerminalContextId};
 use std::time::Instant;
 

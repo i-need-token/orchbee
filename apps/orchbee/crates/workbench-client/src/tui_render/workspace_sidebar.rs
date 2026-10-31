@@ -552,10 +552,10 @@ fn identity(target: &SidebarTarget) -> Option<&str> {
         SidebarTarget::Project { project_id, .. } => Some(project_id.as_str()),
         SidebarTarget::Recents { .. } => None,
         SidebarTarget::Context { target, .. } => match &target.location {
-            crate::workbench_client::ClientContextLocation::NoWorkspace => None,
-            crate::workbench_client::ClientContextLocation::Workspace { workspace_id, .. } => {
-                Some(workspace_id.as_str())
-            }
+            crate::workbench_projection::ClientContextLocation::NoWorkspace => None,
+            crate::workbench_projection::ClientContextLocation::Workspace {
+                workspace_id, ..
+            } => Some(workspace_id.as_str()),
         },
         SidebarTarget::Agent { target, .. } => Some(target.member.as_str()),
     }
@@ -736,7 +736,8 @@ pub(super) struct RenderContext<'a> {
     pub(super) trailing_padding: u16,
     pub(super) owns_keyboard: bool,
     pub(super) source: &'a SidebarSource,
-    pub(super) creation: Option<crate::workbench_client::WorkspaceCreationPreview<'a>>,
+    pub(super) creation:
+        Option<crate::workbench_state::workspace_setup::WorkspaceCreationPreview<'a>>,
     /// The row whose pointer-opened menu is open keeps its hover presentation.
     pub(super) held: Option<&'a SidebarTarget>,
 }
@@ -744,14 +745,14 @@ pub(super) struct RenderContext<'a> {
 fn creation_target_matches(
     view: &ClientView,
     row: &SidebarRow<'_>,
-    preview: crate::workbench_client::WorkspaceCreationPreview<'_>,
+    preview: crate::workbench_state::workspace_setup::WorkspaceCreationPreview<'_>,
 ) -> bool {
     let target = row.target();
     target.machine() == &view.machines.current
         && target.session_id() == preview.session
         && match target {
             SidebarTarget::Context { target, .. } => matches!(&target.location,
-                crate::workbench_client::ClientContextLocation::Workspace { workspace_id, .. }
+                crate::workbench_projection::ClientContextLocation::Workspace { workspace_id, .. }
                     if preview.committed.is_some_and(|(workspace, _)| workspace_id == workspace)),
             // A folded destination heading stands in for the hidden provisional row.
             SidebarTarget::Project { .. } | SidebarTarget::Recents { .. } => {
@@ -778,7 +779,7 @@ fn creation_target_matches(
 fn creation_insertion(
     view: &ClientView,
     rows: &[SidebarRow<'_>],
-    preview: crate::workbench_client::WorkspaceCreationPreview<'_>,
+    preview: crate::workbench_state::workspace_setup::WorkspaceCreationPreview<'_>,
 ) -> usize {
     let belongs = |row: &SidebarRow<'_>| {
         let target = row.target();
@@ -824,7 +825,7 @@ fn render_creation(
     frame: &mut Frame<'_>,
     row: Rect,
     sidebar_width: u16,
-    preview: crate::workbench_client::WorkspaceCreationPreview<'_>,
+    preview: crate::workbench_state::workspace_setup::WorkspaceCreationPreview<'_>,
     locale: Locale,
     theme: &Theme,
 ) {
@@ -838,7 +839,8 @@ fn render_creation(
         return;
     };
     let name = super::workspace_creation::label(preview, locale);
-    let pending = preview.phase != crate::workbench_client::WorkspaceCreationPhase::Committed;
+    let pending =
+        preview.phase != crate::workbench_state::workspace_setup::WorkspaceCreationPhase::Committed;
     let mut lines = vec![fit(
         Line::from(vec![
             Span::styled(display_label(name), theme.style(Role::TextPrimary)),
@@ -1402,7 +1404,10 @@ pub(super) fn render(
                     frame,
                     row,
                     sidebar_width,
-                    crate::workbench_client::WorkspaceCreationPreview { current, ..preview },
+                    crate::workbench_state::workspace_setup::WorkspaceCreationPreview {
+                        current,
+                        ..preview
+                    },
                     locale,
                     theme,
                 );

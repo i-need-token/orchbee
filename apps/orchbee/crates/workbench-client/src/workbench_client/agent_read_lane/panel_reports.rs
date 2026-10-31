@@ -3,7 +3,8 @@ use super::{
     Arc, AtomicBool, Instant, LaneFailure, LocalClient, LocalClientOrigin, LocalOperationClock,
     Ordering, mint_request_id,
 };
-use crate::workbench_client::{ClientPanel, ClientPresentation, state::WorkbenchClientState};
+use crate::workbench_projection::{ClientPanel, ClientPresentation};
+use crate::workbench_state::WorkbenchClientState;
 use orchbee_workbench_protocol::{
     MAXIMUM_PANEL_AGENT_READ_ROWS, MAXIMUM_PANEL_METADATA_READ_ROWS, PanelAgentAction,
     PanelAgentOutcome, PanelAgentRequest, PanelMetadataAction, PanelMetadataOutcome,

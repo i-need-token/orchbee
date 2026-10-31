@@ -250,7 +250,8 @@ fn no_results_keeps_a_drawn_query_surface_without_an_activatable_row() {
 
 #[test]
 fn object_rename_rows_use_short_localized_copy_for_their_exact_actions() {
-    use crate::{action_menu::MenuTarget, workbench_client::ClientContextLocation};
+    use crate::action_menu::MenuTarget;
+    use crate::workbench_projection::ClientContextLocation;
     use orchbee_workbench_protocol::{
         WorkbenchProjectId, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
     };

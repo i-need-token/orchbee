@@ -3,14 +3,12 @@
 //! topology or retarget a stale result to the current Panel.
 
 use super::WorkbenchClientUi;
-use crate::workbench_client::{
-    mailbox::{
-        CommandMailbox, DesiredInstall, MutationResult, PanelSettlement, UiReply, UiWaitKey,
-    },
-    state::{
-        CarrierFailure, MembershipInstallDecision, OperationDeadlines, PanelDecision,
-        PanelOperation, PanelResult,
-    },
+use crate::workbench_client::mailbox::{
+    CommandMailbox, DesiredInstall, MutationResult, PanelSettlement, UiReply, UiWaitKey,
+};
+use crate::workbench_state::{
+    CarrierFailure, MembershipInstallDecision, OperationDeadlines, PanelDecision, PanelOperation,
+    PanelResult,
 };
 use std::sync::Arc;
 

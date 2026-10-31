@@ -449,7 +449,7 @@ fn agent_focus_cancels_only_after_validating_its_source_and_does_not_discard_his
     assert!(ui.view().close_confirmation().is_none());
     assert!(
         ui.request_setup_draft(
-            crate::workbench_client::state::workspace_setup::SetupIntent::TabGroupName(Box::new(
+            crate::workbench_state::workspace_setup::SetupIntent::TabGroupName(Box::new(
                 orchbee_workbench_protocol::TabConfiguration::CreateGroup {
                     tab_id: ui.state.as_ref().unwrap().cache().tabs()[0]
                         .tab_id()

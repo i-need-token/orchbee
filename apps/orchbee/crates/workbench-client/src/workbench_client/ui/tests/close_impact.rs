@@ -60,7 +60,7 @@ fn a_close_names_only_settled_terminals_as_ended_and_every_unobserved_one_as_run
     ui.state
         .as_mut()
         .unwrap()
-        .mark_tabs(&ids[0], super::super::super::state::TabSelectionChange::All)
+        .mark_tabs(&ids[0], crate::workbench_state::TabSelectionChange::All)
         .unwrap();
     ui.apply_client_action(ClientAction::TabMenu {
         action: MenuAction::CloseSelectedTabs,

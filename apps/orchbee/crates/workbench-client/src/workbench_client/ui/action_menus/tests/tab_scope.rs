@@ -1,7 +1,7 @@
 use super::*;
 use crate::client_view::{ClientKey, KeyCode, KeyEvent, Modifiers};
-use crate::workbench_client::state::PreparedRefresh;
 use crate::workbench_client::ui::tests::{membership::snapshot, workspace_setup::ready_snapshot};
+use crate::workbench_state::PreparedRefresh;
 use orchbee_workbench_protocol::{
     Snapshot, TabGroup, TabGroupColor, WorkbenchRevision, WorkbenchSnapshotOutcome,
     WorkbenchTabGroupId,

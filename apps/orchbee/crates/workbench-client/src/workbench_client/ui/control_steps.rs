@@ -507,7 +507,7 @@ impl ClientControl {
             self.pending = Some(Pending {
                 command,
                 execution,
-                deadline: self.clock.now() + crate::workbench_client::state::OPERATION_TOTAL,
+                deadline: self.clock.now() + crate::workbench_state::OPERATION_TOTAL,
                 interrupted: false,
                 awaiting_draw: false,
             });

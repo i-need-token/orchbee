@@ -2,7 +2,7 @@
 use super::*;
 use crate::action_menu::{DrawnMenuSource, DrawnTabCreate};
 use crate::tui_hit_map::HitRegion;
-use crate::workbench_client::ClientContextLocation;
+use crate::workbench_projection::ClientContextLocation;
 use orchbee_workbench_protocol::{SessionId, WorkbenchRevision, WorkbenchTerminalContextId};
 
 fn target() -> DrawnTabCreate {

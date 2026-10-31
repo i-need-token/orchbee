@@ -69,9 +69,7 @@ fn program_effect_before_first_frame_survives_starting_and_uses_no_feedback() {
             let wait = mailbox
                 .publish_event_before(
                     event,
-                    EventDeadline::Startup(
-                        clock.now() + super::super::super::state::OPERATION_TOTAL,
-                    ),
+                    EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
                     &clock,
                 )
                 .unwrap();
@@ -84,7 +82,7 @@ fn program_effect_before_first_frame_survives_starting_and_uses_no_feedback() {
         );
         assert!(ui.projections[0].value.frame().is_none());
         let poll = mailbox.allocate_startup_poll_key(&key).unwrap();
-        let cutoff = clock.now() + super::super::super::state::OPERATION_TOTAL;
+        let cutoff = clock.now() + crate::workbench_state::OPERATION_TOTAL;
         mailbox
             .publish_poll_result_before(
                 poll.clone(),

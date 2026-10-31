@@ -57,7 +57,7 @@ fn publish(
     let wait = mailbox
         .publish_event_before(
             event,
-            EventDeadline::Forward(clock.now() + crate::workbench_client::state::OPERATION_TOTAL),
+            EventDeadline::Forward(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             clock,
         )
         .unwrap();
@@ -417,7 +417,7 @@ fn removed_projection_drops_late_history_facts_and_viewport_outcomes() {
     let lease = mailbox.try_recv().unwrap().unwrap();
     let poll_key = lease.poll_key().unwrap();
     ui.clear_pane_projection(&key);
-    let cutoff = clock.now() + crate::workbench_client::state::OPERATION_TOTAL;
+    let cutoff = clock.now() + crate::workbench_state::OPERATION_TOTAL;
     assert_eq!(
         mailbox
             .publish_poll_result_before(poll_key.clone(), Some(record), false, cutoff, &clock)
@@ -552,7 +552,7 @@ fn viewport_outcome_notice_survives_publish_take_apply() {
                 key: key.clone(),
                 outcome: ViewportOutcome::Enter { applied: true },
             },
-            clock.now() + crate::workbench_client::state::OPERATION_TOTAL,
+            clock.now() + crate::workbench_state::OPERATION_TOTAL,
             &clock,
         )
         .expect("the fire-and-forget outcome publishes");

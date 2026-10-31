@@ -1,7 +1,7 @@
 use super::super::commands::drive_controlling_ready_from_snapshot;
 use super::*;
 use crate::workbench_client::mailbox::UiWaitKey;
-use crate::workbench_client::state::{
+use crate::workbench_state::{
     CloseFlightKey, CloseLeaseAcknowledgement, CloseOperation, CloseOperationKind, CloseReadMode,
     CloseResult, CloseSelection, CloseTarget, PendingCloseResult,
 };

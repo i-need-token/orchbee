@@ -3,13 +3,9 @@
 //! Client selection or bypass a stale switch handoff.
 
 use super::{ClientExecutor, Result, closed, event, submission};
-use crate::{
-    local_client::SubmissionError,
-    workbench_client::{
-        mailbox::{CommandLease, EventDeadline, UiReply, WorkerEvent},
-        state::{AttachTarget, CarrierFailure, MembershipCleanup, RefreshDecision},
-    },
-};
+use crate::local_client::SubmissionError;
+use crate::workbench_client::mailbox::{CommandLease, EventDeadline, UiReply, WorkerEvent};
+use crate::workbench_state::{AttachTarget, CarrierFailure, MembershipCleanup, RefreshDecision};
 use orchbee_client_server_protocol::{
     TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerUnavailableReason,
 };
@@ -113,7 +109,7 @@ impl ClientExecutor {
                 // A newer marker already discarded this unsubmitted candidate under the same gate.
                 return Ok(());
             };
-            let pending: Vec<crate::workbench_client::state::PaneRef> = self
+            let pending: Vec<crate::workbench_state::PaneRef> = self
                 .attachments
                 .iter()
                 .filter(|attached| attached.key.pane().anchor() == cleanup.old())

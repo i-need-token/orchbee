@@ -1,12 +1,10 @@
 //! Pending Workspace chrome projects one local launch without inventing actionable resource IDs.
 
 use super::{Frame, Locale, Paragraph, Role, Span, Theme, tabs};
-use crate::{
-    machine_picker::SidebarCommand,
-    tui_hit_map::ProjectedPointer,
-    tui_layout::{PaneFrame, ShellAreas, native_terminal_area},
-    workbench_client::WorkspaceCreationPreview,
-};
+use crate::machine_picker::SidebarCommand;
+use crate::tui_hit_map::ProjectedPointer;
+use crate::tui_layout::{PaneFrame, ShellAreas, native_terminal_area};
+use crate::workbench_state::workspace_setup::WorkspaceCreationPreview;
 use ratatui::text::Line;
 
 pub(super) fn label<'a>(preview: WorkspaceCreationPreview<'a>, locale: Locale) -> &'a str {

@@ -7,6 +7,7 @@ pub use crate::terminal_events::{
     PaneEncode, PaneMouseEvent, encode_cursor_arrows, encode_pane_report,
 };
 use crate::terminal_events::{decoder, mouse, utf8};
+use crate::workbench_client::RenameEdit;
 pub use crate::workbench_client::input::{
     BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, RenameAction, SettingsAction,
     SetupAction, SurfaceAction, TabAction, WorktreeAction,
@@ -18,7 +19,8 @@ pub use crate::workbench_client::input::{
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use crate::workbench_client::input::{PointerPane, PointerTab, TerminalInputUnavailable};
-use crate::workbench_client::{RenameDraftToken, RenameEdit, SetupEdit, SetupToken};
+use crate::workbench_state::rename_draft::RenameDraftToken;
+use crate::workbench_state::workspace_setup::{SetupEdit, SetupToken};
 mod dispatcher;
 mod modal;
 pub use dispatcher::InputDispatcher;

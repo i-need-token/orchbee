@@ -239,7 +239,7 @@ fn mailbox_retirement_interrupts_the_bound_ui_waiter() {
 
 #[test]
 fn one_shot_notices_expire_without_discarding_unknown_outcomes() {
-    use crate::workbench_client::state::ClientNotice;
+    use crate::workbench_state::ClientNotice;
     use std::sync::atomic::Ordering;
     let (mut ui, _mailbox, _clock, elapsed) = move_membership::ready_ui();
     ui.state

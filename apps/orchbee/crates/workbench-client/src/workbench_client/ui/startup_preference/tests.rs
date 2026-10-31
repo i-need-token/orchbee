@@ -36,8 +36,7 @@ fn an_empty_workspace_publishes_its_exact_position_even_while_a_status_notice_is
         assert!(proof.position.member.is_none());
         assert!(ui.view().accepts_position_draw(proof));
         let (restored, member, fallback) =
-            crate::workbench_client::startup_preference::resolve(&snapshot, &proof.position)
-                .unwrap();
+            crate::startup_preference::resolve(&snapshot, &proof.position).unwrap();
         assert_eq!(restored.location(), &proof.position.location);
         assert!(restored.tabs().is_empty());
         assert!(member.is_none());

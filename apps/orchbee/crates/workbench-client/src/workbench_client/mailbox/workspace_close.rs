@@ -3,16 +3,11 @@ use super::{
     COMMAND_CAPACITY, CommandMailbox, PendingRefreshStage, QueuedCommand, QueuedRecord,
     RefreshFlight, RefreshMarker, workbench_identity_candidate,
 };
-use crate::{
-    local_client::LocalOperationClock,
-    workbench_client::state::{
-        OperationDeadlines, WorkbenchClientState,
-        workspace_close::{
-            WorkspaceCloseEvidence, WorkspaceCloseOperation, WorkspaceCloseResult,
-            WorkspaceCloseToken,
-        },
-    },
+use crate::local_client::LocalOperationClock;
+use crate::workbench_state::workspace_close::{
+    WorkspaceCloseEvidence, WorkspaceCloseOperation, WorkspaceCloseResult, WorkspaceCloseToken,
 };
+use crate::workbench_state::{OperationDeadlines, WorkbenchClientState};
 
 pub(super) struct WorkspaceCloseFlight {
     serial: u64,
@@ -38,7 +33,7 @@ impl CommandMailbox {
     pub(in crate::workbench_client) fn try_enqueue_sidebar_workspace_delete_for(
         &self,
         canonical: &mut WorkbenchClientState,
-        request: &crate::workbench_client::WorkspaceDeleteRequest,
+        request: &crate::workbench_state::workspace_close::WorkspaceDeleteRequest,
         deadlines: OperationDeadlines,
         clock: &LocalOperationClock,
     ) -> bool {
@@ -139,7 +134,7 @@ impl CommandMailbox {
         {
             return false;
         }
-        if !crate::workbench_client::state::workspace_close::retains_close_result(
+        if !crate::workbench_state::workspace_close::retains_close_result(
             &flight.evidence.result,
             &result,
         ) {

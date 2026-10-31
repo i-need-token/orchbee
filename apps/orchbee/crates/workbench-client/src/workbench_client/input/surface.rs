@@ -6,8 +6,8 @@
 //! against, and the owner refuses it once that incarnation is gone; the witness-free `Cancel`,
 //! `Exit`, and `Dismiss` end whichever episode is current.
 
-use crate::workbench_client::state::workspace_setup::{SetupEdit, SetupToken};
-use crate::workbench_client::state::worktree_launch::{WorktreeEdit, WorktreeToken};
+use crate::workbench_state::workspace_setup::{SetupEdit, SetupToken};
+use crate::workbench_state::worktree_launch::{WorktreeEdit, WorktreeToken};
 
 use super::{DrawnPresentationTarget, RenameDraftToken, RenameEdit};
 use crate::action_menu::{DrawnTabCreate, MenuTarget, MenuToken};
@@ -54,31 +54,31 @@ pub enum SurfaceInput<'a> {
     },
     /// A key for the exact captured Tab close confirmation.
     TabClose {
-        token: crate::workbench_client::CloseConfirmationToken,
+        token: crate::workbench_state::CloseConfirmationToken,
         key: ClientKey,
     },
     /// A key for the exact captured Panel close confirmation.
     PanelClose {
-        token: crate::workbench_client::PanelCloseConfirmationToken,
+        token: crate::workbench_state::PanelCloseConfirmationToken,
         key: ClientKey,
     },
     /// A key for the exact captured Workspace or Project close confirmation.
     WorkspaceClose {
-        token: crate::workbench_client::WorkspaceCloseToken,
+        token: crate::workbench_state::workspace_close::WorkspaceCloseToken,
         key: ClientKey,
     },
     /// A key for the exact Agent board capture episode.
     AgentBoard {
-        episode: crate::workbench_client::AgentBoardEpisodeToken,
+        episode: crate::agent_board::AgentBoardEpisodeToken,
         key: KeyEvent,
     },
     /// A press on a painted board row: provisional selection by stable session identity, never
     /// by position.
-    AgentBoardSelect(&'a crate::workbench_client::AgentBoardRowTarget),
+    AgentBoardSelect(&'a crate::agent_board::AgentBoardRowTarget),
     /// Pages the painted Tab strip window; a stale source changes nothing.
     TabStripPage {
         source: &'a DrawnTabCreate,
-        start: &'a crate::workbench_client::state::TabStripStart,
+        start: &'a crate::workbench_state::TabStripStart,
     },
     /// Keeps a paged strip window across a pointer activation of a Tab painted in it.
     TabStripFollow {
@@ -129,7 +129,7 @@ pub enum SurfaceAction<'a> {
     /// Activates one painted presentation target.
     Presentation(&'a DrawnPresentationTarget),
     /// Closes an independent popup through its painted close control.
-    PopupClose(&'a crate::workbench_client::DrawnPopupClose),
+    PopupClose(&'a crate::independent_popup::DrawnPopupClose),
 }
 
 /// Committed Settings gestures on the exact painted Settings surface.
@@ -174,7 +174,7 @@ pub enum CopyAction {
 
 /// Committed Agent board gestures.
 pub enum BoardAction<'a> {
-    Control(&'a crate::workbench_client::AgentBoardControlTarget),
+    Control(&'a crate::agent_board::AgentBoardControlTarget),
     /// An outside press dismissed the board's capturing overlay.
     Dismiss,
 }
@@ -183,15 +183,15 @@ pub enum BoardAction<'a> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CloseDecision {
     Tab {
-        token: crate::workbench_client::CloseConfirmationToken,
+        token: crate::workbench_state::CloseConfirmationToken,
         confirm: bool,
     },
     Panel {
-        token: crate::workbench_client::PanelCloseConfirmationToken,
+        token: crate::workbench_state::PanelCloseConfirmationToken,
         confirm: bool,
     },
     Workspace {
-        token: crate::workbench_client::WorkspaceCloseToken,
+        token: crate::workbench_state::workspace_close::WorkspaceCloseToken,
         confirm: bool,
     },
 }

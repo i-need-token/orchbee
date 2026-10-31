@@ -1,8 +1,7 @@
 use super::{commands::drive_controlling_after_attach, setup::*};
-use crate::workbench_client::{
-    ClientStartupTarget, StartupDirectory, startup_directory::tests as fixtures,
-    state::CarrierFailure,
-};
+use crate::startup_directory::tests as fixtures;
+use crate::startup_directory::{ClientStartupTarget, StartupDirectory};
+use crate::workbench_state::CarrierFailure;
 use orchbee_client_server_protocol::*;
 use orchbee_workbench_protocol::*;
 use std::sync::{Arc, atomic::AtomicBool};
@@ -13,7 +12,7 @@ fn harness(steps: Vec<WireKind>, directory: StartupDirectory) -> TestResult<Harn
 fn harness_at(
     steps: Vec<WireKind>,
     directory: StartupDirectory,
-    position: Option<crate::workbench_client::startup_preference::Position>,
+    position: Option<crate::startup_preference::Position>,
 ) -> TestResult<Harness> {
     Harness::start_at(
         steps,
@@ -106,11 +105,10 @@ fn directory_startup_actual_carrier_creates_in_cwd_before_bootstrap_without_init
     for saved_empty in [false, true] {
         let mut steps = vec![WireKind::Workbench; 3];
         steps.extend([WireKind::Obcs; 5]);
-        let position =
-            saved_empty.then_some(crate::workbench_client::startup_preference::Position {
-                location: crate::workbench_client::ClientContextLocation::NoWorkspace,
-                member: None,
-            });
+        let position = saved_empty.then_some(crate::startup_preference::Position {
+            location: crate::workbench_projection::ClientContextLocation::NoWorkspace,
+            member: None,
+        });
         let mut harness = harness_at(steps, fixtures::directory(), position)?;
         let command = launch(&harness)?;
         reply(&harness, &command, workspace(&command, false)?)?;

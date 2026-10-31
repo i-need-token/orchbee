@@ -1,16 +1,14 @@
 //! Local entry after a known canonical Opened receipt, using existing native membership and attachment owners.
 use super::{WorkbenchClientUi, WorktreeNotice};
-use crate::workbench_client::{
-    state::{ClientPhaseKind, OperationDeadlines},
-    ui::{ActionBuildError, ClientProjectionStatus, finish_action},
-};
+use crate::workbench_client::ui::{ActionBuildError, ClientProjectionStatus, finish_action};
+use crate::workbench_state::{ClientPhaseKind, OperationDeadlines};
 use orchbee_workbench_protocol::{Snapshot, WorkbenchWorktreeOutcome, WorktreeOperationStatus};
 use std::time::{Duration, Instant};
 pub(super) struct Entry {
-    member: crate::workbench_client::ClientMemberTarget,
-    binding: crate::workbench_client::workbench_projection::ClientTerminalBinding,
+    member: crate::workbench_projection::ClientMemberTarget,
+    binding: crate::workbench_projection::ClientTerminalBinding,
     directory: orchbee_workbench_protocol::WorkbenchDirectoryId,
-    location: crate::workbench_client::ClientContextLocation,
+    location: crate::workbench_projection::ClientContextLocation,
     minimum_revision: orchbee_workbench_protocol::WorkbenchRevision,
     stage: EntryStage,
     deadline: Instant,
@@ -271,7 +269,7 @@ impl WorkbenchClientUi {
     }
 }
 fn entry(
-    op: &crate::workbench_client::state::worktree_launch::Operation,
+    op: &crate::workbench_state::worktree_launch::Operation,
     snapshot: &Snapshot,
     now: Instant,
 ) -> Option<Entry> {
@@ -280,7 +278,7 @@ fn entry(
     let panel = tab.panel(0)?;
     let binding = panel.primary().binding()?.clone();
     Some(Entry {
-        member: crate::workbench_client::ClientMemberTarget {
+        member: crate::workbench_projection::ClientMemberTarget {
             tab: tab.tab_id().clone(),
             panel: panel.panel_id().clone(),
             presentation: panel.primary().presentation_id().clone(),
@@ -295,10 +293,10 @@ fn entry(
 }
 
 fn target_context(
-    op: &crate::workbench_client::state::worktree_launch::Operation,
+    op: &crate::workbench_state::worktree_launch::Operation,
     snapshot: &Snapshot,
 ) -> Option<(
-    crate::workbench_client::workbench_projection::ClientContextTabs,
+    crate::workbench_projection::ClientContextTabs,
     orchbee_workbench_protocol::WorkbenchDirectoryId,
 )> {
     let WorkbenchWorktreeOutcome::Available { status, .. } = op.outcome.as_ref()? else {
@@ -333,14 +331,12 @@ fn target_context(
     {
         return None;
     }
-    let location = crate::workbench_client::ClientContextLocation::Workspace {
+    let location = crate::workbench_projection::ClientContextLocation::Workspace {
         workspace_id: workspace_id.clone(),
         terminal_context_id: workspace.terminal_context_id.clone(),
     };
-    let candidate = crate::workbench_client::workbench_projection::project_native_context_tabs(
-        snapshot, &location,
-    )
-    .ok()?;
+    let candidate =
+        crate::workbench_projection::project_native_context_tabs(snapshot, &location).ok()?;
     Some((candidate, directory.directory_id.clone()))
 }
 

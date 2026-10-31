@@ -1,5 +1,5 @@
 use super::*;
-use crate::workbench_client::state::{AttachmentKey, PaneKey};
+use crate::workbench_state::{AttachmentKey, PaneKey};
 use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
 
 fn pane(incarnation: u32) -> PaneRef {

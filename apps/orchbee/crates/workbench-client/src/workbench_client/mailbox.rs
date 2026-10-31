@@ -2,17 +2,14 @@
 //! handoffs, and atomic admission with Client state. It performs no protocol I/O and does not
 //! let stale replies or expired leases authorize a different attachment or operation.
 
-use super::{
-    state::{
-        AttachTarget, AttachmentKey, BootstrapTarget, CarrierFailure, CleanupContinuation,
-        CloseFlightKey, CloseLeaseAcknowledgement, CloseOperation, CloseReconciliationMarker,
-        CloseResult, ControllerMode, CreateOperation, CreateOperationKey, CreateProjectionDecision,
-        CreateTerminalProvenance, FrameIdentity, MembershipCleanup, MembershipResultKey,
-        MoveDecision, MoveOperation, MoveResult, OperationDeadlines, PaneKey, PaneRef,
-        PendingRefreshStage, ReadyDecision, ReconcileStep, ReconcileTarget, RefreshDecision,
-        SetupEventDisposition,
-    },
-    workbench_projection::ClientContextTabs,
+use crate::workbench_projection::ClientContextTabs;
+use crate::workbench_state::{
+    AttachTarget, AttachmentKey, BootstrapTarget, CarrierFailure, CleanupContinuation,
+    CloseFlightKey, CloseLeaseAcknowledgement, CloseOperation, CloseReconciliationMarker,
+    CloseResult, ControllerMode, CreateOperation, CreateOperationKey, CreateProjectionDecision,
+    CreateTerminalProvenance, FrameIdentity, MembershipCleanup, MembershipResultKey, MoveDecision,
+    MoveOperation, MoveResult, OperationDeadlines, PaneKey, PaneRef, PendingRefreshStage,
+    ReadyDecision, ReconcileStep, ReconcileTarget, RefreshDecision, SetupEventDisposition,
 };
 use crate::{
     exchange_values::workbench::{
@@ -45,7 +42,7 @@ const UI_REPLY_DEPOSIT_SAMPLE_BOUND: Duration = Duration::from_secs(5);
 mod tab_close;
 mod workspace_setup;
 mod worktree_launch;
-use super::state::workspace_setup::{SetupOperation, SetupResult};
+use crate::workbench_state::workspace_setup::{SetupOperation, SetupResult};
 use workspace_setup::SetupFlight;
 mod workspace_close;
 use workspace_close::WorkspaceCloseFlight;
@@ -53,7 +50,7 @@ mod control_takeover;
 use control_takeover::TakeoverFlight;
 pub(super) use workspace_setup::WorkspaceSetupMarker;
 mod tab_rename;
-use super::state::tab_rename::{RenameOperation, RenameResult};
+use crate::workbench_state::tab_rename::{RenameOperation, RenameResult};
 use tab_rename::RenameFlight;
 pub(super) use tab_rename::{RenameMarker, RenameSettlement};
 mod tab_close_reconciliation;
@@ -166,10 +163,10 @@ pub(super) struct RefreshMarker {
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum RefreshPurpose {
     Snapshot,
-    Quick(Box<super::state::workspace_setup::quick::QuickPreparation>),
-    Worktree(Box<super::state::worktree_launch::Preparation>),
-    WorkspaceClose(Box<super::state::workspace_close::WorkspaceCloseOperation>),
-    Takeover(Box<super::state::control_takeover::TakeoverOperation>),
+    Quick(Box<crate::workbench_state::workspace_setup::quick::QuickPreparation>),
+    Worktree(Box<crate::workbench_state::worktree_launch::Preparation>),
+    WorkspaceClose(Box<crate::workbench_state::workspace_close::WorkspaceCloseOperation>),
+    Takeover(Box<crate::workbench_state::control_takeover::TakeoverOperation>),
 }
 
 impl RefreshMarker {
@@ -196,7 +193,7 @@ impl RefreshMarker {
 
     pub(super) fn quick_preparation(
         &self,
-    ) -> Option<&super::state::workspace_setup::quick::QuickPreparation> {
+    ) -> Option<&crate::workbench_state::workspace_setup::quick::QuickPreparation> {
         match &self.purpose {
             RefreshPurpose::Quick(preparation) => Some(preparation),
             _ => None,
@@ -205,7 +202,7 @@ impl RefreshMarker {
 
     pub(super) fn worktree_preparation(
         &self,
-    ) -> Option<&super::state::worktree_launch::Preparation> {
+    ) -> Option<&crate::workbench_state::worktree_launch::Preparation> {
         match &self.purpose {
             RefreshPurpose::Worktree(p) => Some(p),
             _ => None,
@@ -214,14 +211,16 @@ impl RefreshMarker {
 
     pub(super) fn workspace_close(
         &self,
-    ) -> Option<&super::state::workspace_close::WorkspaceCloseOperation> {
+    ) -> Option<&crate::workbench_state::workspace_close::WorkspaceCloseOperation> {
         match &self.purpose {
             RefreshPurpose::WorkspaceClose(operation) => Some(operation),
             _ => None,
         }
     }
 
-    pub(super) fn takeover(&self) -> Option<&super::state::control_takeover::TakeoverOperation> {
+    pub(super) fn takeover(
+        &self,
+    ) -> Option<&crate::workbench_state::control_takeover::TakeoverOperation> {
         match &self.purpose {
             RefreshPurpose::Takeover(operation) => Some(operation),
             _ => None,
@@ -582,7 +581,7 @@ impl CommandLease {
     }
 }
 
-pub(super) use super::state::PollKey;
+pub(super) use crate::workbench_state::PollKey;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum SetupPollKey {
@@ -682,19 +681,19 @@ impl UiWaitKey {
 
 pub(super) enum WorkerEvent {
     ControlTakeoverResult {
-        evidence: super::state::control_takeover::TakeoverEvidence,
+        evidence: crate::workbench_state::control_takeover::TakeoverEvidence,
     },
     WorkspaceCloseResult {
-        evidence: super::state::workspace_close::WorkspaceCloseEvidence,
+        evidence: crate::workbench_state::workspace_close::WorkspaceCloseEvidence,
         outcome: Box<WorkbenchSnapshotOutcome>,
     },
     WorktreePrepared {
-        preparation: Box<super::state::worktree_launch::Preparation>,
+        preparation: Box<crate::workbench_state::worktree_launch::Preparation>,
         source: Option<orchbee_workbench_protocol::WorktreeSource>,
         outcome: Box<WorkbenchSnapshotOutcome>,
     },
     QuickWorkspacePrepared {
-        preparation: Box<super::state::workspace_setup::quick::QuickPreparation>,
+        preparation: Box<crate::workbench_state::workspace_setup::quick::QuickPreparation>,
         cwd: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
         outcome: Box<WorkbenchSnapshotOutcome>,
     },
@@ -712,7 +711,7 @@ pub(super) enum WorkerEvent {
     },
     MembershipGone {
         cleanup: MembershipCleanup,
-        proof: std::sync::Arc<super::state::DefinitiveClosedAttachment>,
+        proof: std::sync::Arc<crate::workbench_state::DefinitiveClosedAttachment>,
     },
     SwitchForwardExpired {
         permit: SwitchExpiryPermit,
@@ -737,12 +736,12 @@ pub(super) enum WorkerEvent {
         outcome: MoveResult,
     },
     PanelResult {
-        operation: super::state::PanelOperation,
-        outcome: super::state::PanelResult,
+        operation: crate::workbench_state::PanelOperation,
+        outcome: crate::workbench_state::PanelResult,
     },
     Bootstrap {
         cache: ClientContextTabs,
-        selection: Option<super::workbench_projection::ClientMemberTarget>,
+        selection: Option<crate::workbench_projection::ClientMemberTarget>,
     },
     SetupConfigured {
         key: PaneRef,
@@ -804,7 +803,7 @@ pub(super) enum WorkerEvent {
     /// incarnation. The state layer decides retryable vs definite handling.
     PaneFailed {
         key: PaneRef,
-        fault: super::state::PaneFault,
+        fault: crate::workbench_state::PaneFault,
     },
     PollResult {
         poll_key: PollKey,
@@ -1288,7 +1287,7 @@ struct MailboxState {
     close_reconciliation: Option<CloseReconciliationFlight>,
     close_acknowledgement: Option<CloseLeaseAcknowledgement>,
     close_queued_key: Option<CloseFlightKey>,
-    close_deposited_result: Option<super::state::PendingCloseResult>,
+    close_deposited_result: Option<crate::workbench_state::PendingCloseResult>,
     /// Coalescing ingress latch: the Worker executor sets it once a committed peer
     /// publication has been folded into the baseline, before any stale/wait branch can
     /// drop the hint. The native UI captures it into canonical refresh debt; it is never
@@ -2632,7 +2631,7 @@ impl CommandMailbox {
             return Err(self.close_protocol(&mut state));
         }
         if let WorkerEvent::CloseResult { operation, outcome } = &event {
-            state.close_deposited_result = Some(super::state::PendingCloseResult::new(
+            state.close_deposited_result = Some(crate::workbench_state::PendingCloseResult::new(
                 operation.clone(),
                 outcome.clone(),
             ));
@@ -3086,7 +3085,7 @@ impl CommandMailbox {
                 }
                 if !matches!(
                     settlement.decision(),
-                    crate::workbench_client::state::PanelDecision::Cleanup(_)
+                    crate::workbench_state::PanelDecision::Cleanup(_)
                 ) {
                     state.structural_mutation_pending = None;
                 }

@@ -3,13 +3,11 @@ use super::{
     COMMAND_CAPACITY, CommandMailbox, PendingRefreshStage, QueuedCommand, QueuedRecord,
     RefreshFlight, RefreshMarker, RefreshPurpose, workbench_identity_candidate,
 };
-use crate::{
-    local_client::LocalOperationClock,
-    workbench_client::state::{
-        OperationDeadlines, WorkbenchClientState,
-        control_takeover::{TakeoverEvidence, TakeoverOperation, TakeoverResult},
-    },
+use crate::local_client::LocalOperationClock;
+use crate::workbench_state::control_takeover::{
+    TakeoverEvidence, TakeoverOperation, TakeoverResult,
 };
+use crate::workbench_state::{OperationDeadlines, WorkbenchClientState};
 use orchbee_client_server_protocol::RequestId;
 
 pub(super) struct TakeoverFlight {

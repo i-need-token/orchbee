@@ -1,6 +1,7 @@
 //! Opt-in full-shell Agent Board captures and their real protocol-backed fixtures.
 
 use super::*;
+use crate::agent_board::AgentBoardControl;
 use orchbee_agent_observation_protocol::{
     AgentExecutionLocation, AgentExecutionLocationId, AgentLifecycle, AgentListOutcome,
     AgentListOutcomeEnvelope, AgentObservation, AgentObservationFidelity,
@@ -166,7 +167,7 @@ fn install_capture_read(
         board.rows().len() != expected_rows
             || !matches!(
                 board.read(),
-                crate::workbench_client::AgentBoardRead::Ready { .. }
+                crate::agent_board::AgentBoardRead::Ready { .. }
             )
     }) {
         assert!(
@@ -206,7 +207,7 @@ impl CapturedBoardFrame {
     fn row_hit(
         &self,
         session: &str,
-    ) -> Option<(u16, u16, crate::workbench_client::AgentBoardRowTarget)> {
+    ) -> Option<(u16, u16, crate::agent_board::AgentBoardRowTarget)> {
         for y in 0..self.height {
             for x in 0..self.width {
                 if let Some(crate::tui_hit_map::HitTarget::AgentBoardRow(target)) =
@@ -223,7 +224,7 @@ impl CapturedBoardFrame {
     fn control_hit(
         &self,
         control: AgentBoardControl,
-    ) -> Option<crate::workbench_client::AgentBoardControlTarget> {
+    ) -> Option<crate::agent_board::AgentBoardControlTarget> {
         for y in 0..self.height {
             for x in 0..self.width {
                 if let Some(crate::tui_hit_map::HitTarget::AgentBoardControl(target)) =
@@ -387,7 +388,7 @@ fn empty_board_renders_the_client_path_candidate_route_in_both_locales() {
     ));
     assert_eq!(
         ui.agent_board_view().unwrap().start_phase(),
-        Some(crate::workbench_client::agent_board::AgentStartPhase::Cancelling),
+        Some(crate::agent_board::AgentStartPhase::Cancelling),
     );
     assert!(ui.capture_agent_board_key(
         context.episode(),

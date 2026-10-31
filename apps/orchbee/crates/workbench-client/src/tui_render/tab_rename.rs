@@ -6,14 +6,13 @@ use super::modal::{
     ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
     paint_modal_close, paint_modal_frame, set_modal_cursor, status_line,
 };
-use crate::{
-    client_view::{Binding, KeyCode, Modifiers},
-    localization::Locale,
-    terminal_text::{sanitize_terminal_text, truncate_display},
-    tui_hit_map::{HitLayer, HitMapBuilder, HitTarget},
-    tui_theme::{Role, Theme},
-    workbench_client::{ModalPresentation, RenameDraftToken, RenameDraftView},
-};
+use crate::client_view::{Binding, KeyCode, Modifiers};
+use crate::localization::Locale;
+use crate::terminal_text::{sanitize_terminal_text, truncate_display};
+use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
+use crate::tui_theme::{Role, Theme};
+use crate::workbench_client::{ModalPresentation, RenameDraftView};
+use crate::workbench_state::rename_draft::RenameDraftToken;
 use ratatui::{
     Frame,
     layout::Rect,

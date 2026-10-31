@@ -5,11 +5,11 @@
 
 use std::{io, time::Instant};
 
-use crate::local_client::{LocalClientOrigin, LocalOperationClock};
-use crate::workbench_client::agent_board::{
+use crate::agent_board::{
     AgentBoard, AgentBoardEpisodeToken, AgentBoardReadEvent, AgentBoardReadRefusal,
     AgentBoardReadRequest,
 };
+use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use crate::workbench_client::agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome};
 
 #[cfg(test)]

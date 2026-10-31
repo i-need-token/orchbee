@@ -1,11 +1,9 @@
 use super::*;
+use crate::machine_discovery::Context as NavigationContext;
+use crate::machine_picker::Choice;
+use crate::tui_hit_map::HitTarget;
 use crate::tui_render::{project_shell_areas, render_terminal_shell};
-use crate::{
-    machine_discovery::Context as NavigationContext,
-    machine_picker::Choice,
-    tui_hit_map::HitTarget,
-    workbench_client::{ClientContextLocation, ClientContextTarget},
-};
+use crate::workbench_projection::{ClientContextLocation, ClientContextTarget};
 use orchbee_workbench_protocol::*;
 use ratatui::{Terminal, backend::TestBackend, style::Modifier};
 mod creation;
@@ -334,7 +332,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     assert!(matches!(
                         hits.hit_target_at(x, agent_y),
                         Some(HitTarget::MachineAgentRow { selected: actual, .. })
-                            if matches!(&actual.context, Some(crate::workbench_client::ClientStartupTarget::Agent(target)) if target.as_ref() == &selected)
+                            if matches!(&actual.context, Some(crate::startup_directory::ClientStartupTarget::Agent(target)) if target.as_ref() == &selected)
                     ));
                 }
                 assert!(view.machines.request.is_none());
@@ -597,7 +595,7 @@ fn compact_sidebar_keeps_current_workspace_and_agent_unclipped() {
             unreachable!()
         };
         let agent = agent_for(target.clone(), 23);
-        let member = crate::workbench_client::ClientMemberTarget {
+        let member = crate::workbench_projection::ClientMemberTarget {
             tab: agent.target.tab.clone(),
             panel: agent.target.panel.clone(),
             presentation: agent.target.member.clone(),
@@ -1417,7 +1415,7 @@ fn shortest_sidebar_keeps_complete_current_context_and_agent_when_both_fit() {
                 unreachable!()
             };
             let agent = agent_for(target.clone(), 23);
-            let member = crate::workbench_client::ClientMemberTarget {
+            let member = crate::workbench_projection::ClientMemberTarget {
                 tab: agent.target.tab.clone(),
                 panel: agent.target.panel.clone(),
                 presentation: agent.target.member.clone(),
@@ -1630,7 +1628,7 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
         view.machines.observe_focus(
             Choice::Local,
             Some(context_target.clone()),
-            Some(crate::workbench_client::ClientMemberTarget {
+            Some(crate::workbench_projection::ClientMemberTarget {
                 tab: member.tab.clone(),
                 panel: member.panel.clone(),
                 presentation: member.member.clone(),
@@ -1845,7 +1843,7 @@ fn alignment_sidebar_tree_keeps_current_focus_children_and_whole_shell_evidence(
         assert!((0..height).any(|y| (0..width).any(|x| matches!(
             hits.hit_target_at(x, y),
             Some(HitTarget::MachineAgentRow { selected, .. })
-                if matches!(&selected.context, Some(crate::workbench_client::ClientStartupTarget::Agent(target)) if target.as_ref() == &agent_selection)
+                if matches!(&selected.context, Some(crate::startup_directory::ClientStartupTarget::Agent(target)) if target.as_ref() == &agent_selection)
         ))));
         assert!((0..height).all(|y| {
             (0..width).all(|x| !matches!(hits.hit_target_at(x, y), Some(HitTarget::SidebarMenu(_))))

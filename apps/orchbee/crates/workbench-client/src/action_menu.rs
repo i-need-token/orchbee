@@ -23,12 +23,12 @@ pub enum MenuTarget {
     TabCreate(DrawnTabCreate),
     /// The new-Tab button's saved launch profiles, the default first.
     TabProfiles(DrawnTabCreate),
-    Pane(crate::workbench_client::state::PaneRef),
+    Pane(crate::workbench_state::PaneRef),
     Tab(orchbee_workbench_protocol::WorkbenchTabId),
     /// Organization actions address the Project directly; terminal actions require a member.
     Project(orchbee_workbench_protocol::WorkbenchProjectId),
-    Workspace(crate::workbench_client::ClientContextLocation),
-    WorkspaceProjects(crate::workbench_client::ClientContextLocation),
+    Workspace(crate::workbench_projection::ClientContextLocation),
+    WorkspaceProjects(crate::workbench_projection::ClientContextLocation),
     /// One Project's New Workspace submenu: a new Worktree, its folders and its Git Worktrees.
     WorkspaceCreation(orchbee_workbench_protocol::WorkbenchProjectId),
     /// An object entry must still belong to the exact Session snapshot that painted it.
@@ -59,7 +59,7 @@ pub struct DrawnMenuSource {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DrawnTabCreate {
     pub(crate) source: DrawnMenuSource,
-    pub(crate) location: crate::workbench_client::ClientContextLocation,
+    pub(crate) location: crate::workbench_projection::ClientContextLocation,
 }
 
 /// Where a context menu opens; a menu without an anchor is centered in the overlay area.

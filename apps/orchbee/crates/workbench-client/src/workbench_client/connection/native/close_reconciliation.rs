@@ -6,7 +6,7 @@ use super::{
     CarrierFailure, ClientExecutor, CommandLease, MutationResult, RefreshDecision, Result,
     SetupEntryExpiry, SetupOwner, SetupTarget, UiReply, closed, event,
 };
-use crate::workbench_client::state::CloseReconciliationMarker;
+use crate::workbench_state::CloseReconciliationMarker;
 
 impl ClientExecutor {
     pub(super) fn run_close_reconciliation(

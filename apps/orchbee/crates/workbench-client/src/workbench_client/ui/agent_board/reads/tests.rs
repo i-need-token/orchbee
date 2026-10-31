@@ -3,8 +3,8 @@ use std::sync::{Arc, atomic::AtomicU64};
 use orchbee_agent_observation_protocol::{AgentGetOutcome, AgentSessionRejectionReason};
 
 use super::*;
+use crate::agent_board::AgentBoardReadAnswer;
 use crate::local_client::test_support::server::adjustable_operation_clock;
-use crate::workbench_client::agent_board::AgentBoardReadAnswer;
 
 fn reads_with(episode: AgentBoardEpisodeToken, outcomes: Vec<LaneOutcome>) -> BoardReads {
     let mut reads = BoardReads::new(adjustable_operation_clock(Arc::new(AtomicU64::new(0))));

@@ -1,7 +1,7 @@
 use super::super::*;
-use crate::workbench_client::state::worktree_launch::{
-    WorktreeEdit, WorktreeMode, WorktreeToken, tests::discovery,
-};
+use crate::workbench_state::worktree_launch::WorktreeStage;
+use crate::workbench_state::worktree_launch::tests::discovery;
+use crate::workbench_state::worktree_launch::{WorktreeEdit, WorktreeMode, WorktreeToken};
 use crate::{
     tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget, ModalControl},
     tui_theme::Role,
@@ -498,7 +498,7 @@ fn removal_confirmation_shows_full_target_scope_and_retained_branch_without_auto
                 (12, 3, false),
             ] {
                 let (launcher, origin, _) =
-                    crate::workbench_client::state::worktree_launch::tests::removal::fixture();
+                    crate::workbench_state::worktree_launch::tests::removal::fixture();
                 let mut ui = ready(WorktreeMode::Open);
                 ui.worktrees.launcher = launcher;
                 let token = ui.worktrees.launcher.token().unwrap();
@@ -552,7 +552,7 @@ fn removal_confirmation_shows_full_target_scope_and_retained_branch_without_auto
 
 #[test]
 fn dirty_removal_offers_resume_and_canceling_resume_restores_the_retained_result() {
-    use crate::workbench_client::state::worktree_launch::tests::{confirm, removal};
+    use crate::workbench_state::worktree_launch::tests::{confirm, removal};
     for locale in [
         crate::localization::Locale::EnUs,
         crate::localization::Locale::ZhCn,

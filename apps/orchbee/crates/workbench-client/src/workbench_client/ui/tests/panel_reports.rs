@@ -76,7 +76,7 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
                 shell
                     .machines
                     .observe_agent_sidebar(areas.sidebar.is_some());
-                let target = crate::workbench_client::ClientContextTarget {
+                let target = crate::workbench_projection::ClientContextTarget {
                     session_id: ui.state.as_ref().unwrap().cache().session_id().clone(),
                     location: ui.view().context_at(0).unwrap().location().clone(),
                 };

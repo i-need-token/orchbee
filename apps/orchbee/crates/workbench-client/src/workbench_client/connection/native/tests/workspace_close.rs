@@ -1,23 +1,20 @@
 //! Real framed exchanges prove the destructive scope, retained evidence, and WorkbenchClientUi settlement.
 use super::super::ClientExecutor;
 use super::setup::{TestResult, admit};
-use crate::{
-    client_view::{ClientAction, ClientActionDisposition, ClientKey, ClientView},
-    local_client::{LocalClient, LocalOperationClock, test_support::server::FakeServer},
-    localization::Locale,
-    tui_hit_map::HitMapBuilder,
-    tui_theme::Theme,
-    workbench_client::{
-        WorkspaceCloseStatus,
-        mailbox::{CommandLease, CommandMailbox, EventDeadline, QueuedCommand, WorkerEvent},
-        state::{
-            CarrierFailure, OPERATION_TOTAL,
-            workspace_close::{WorkspaceCloseOperation, WorkspaceCloseResult},
-        },
-        ui::WorkbenchClientUi,
-        workbench_projection::{ClientContextLocation, project_native_context_tabs},
-    },
+use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey, ClientView};
+use crate::local_client::test_support::server::FakeServer;
+use crate::local_client::{LocalClient, LocalOperationClock};
+use crate::localization::Locale;
+use crate::tui_hit_map::HitMapBuilder;
+use crate::tui_theme::Theme;
+use crate::workbench_client::WorkspaceCloseStatus;
+use crate::workbench_client::mailbox::{
+    CommandLease, CommandMailbox, EventDeadline, QueuedCommand, WorkerEvent,
 };
+use crate::workbench_client::ui::WorkbenchClientUi;
+use crate::workbench_projection::{ClientContextLocation, project_native_context_tabs};
+use crate::workbench_state::workspace_close::{WorkspaceCloseOperation, WorkspaceCloseResult};
+use crate::workbench_state::{CarrierFailure, OPERATION_TOTAL};
 use orchbee_client_server_protocol::Geometry;
 use orchbee_workbench_protocol::*;
 use ratatui::{Terminal, backend::TestBackend};

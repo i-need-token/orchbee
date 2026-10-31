@@ -519,7 +519,7 @@ fn title(measured: &Measured<'_>, area: Rect, locale: Locale, theme: &Theme) -> 
     }
     let legacy = matches!(
         menu.source,
-        MenuTarget::Workspace(crate::workbench_client::ClientContextLocation::NoWorkspace)
+        MenuTarget::Workspace(crate::workbench_projection::ClientContextLocation::NoWorkspace)
     );
     Some(
         if matches!(

@@ -114,7 +114,7 @@ impl WorkbenchClientUi {
         command: &ClientViewControl,
         snapshot: &orchbee_workbench_protocol::Snapshot,
     ) -> Result<(), Reason> {
-        use crate::workbench_client::workbench_projection::{
+        use crate::workbench_projection::{
             project_native_context_tabs, project_preferred_workspace,
         };
         let ClientViewIntent::Panel {

@@ -3,12 +3,10 @@
 //! known commits or pending closes merely because the connection ended.
 
 use super::TerminalStatus;
-use super::workbench_projection::ClientTerminalBinding;
-use crate::{
-    local_client::LocalClient,
-    workbench_client::state::{
-        PendingCloseResult, PendingCreateCommit, PendingMoveCommit, PendingPanelCommit,
-    },
+use crate::local_client::LocalClient;
+use crate::workbench_projection::ClientTerminalBinding;
+use crate::workbench_state::{
+    PendingCloseResult, PendingCreateCommit, PendingMoveCommit, PendingPanelCommit,
 };
 use orchbee_client_server_protocol::{
     Geometry, SessionId as ObcsSessionId, TerminalId as ObcsTerminalId,
@@ -27,70 +25,71 @@ pub(super) fn run_native(
     client: LocalClient,
     initial_geometry: Geometry,
     mailbox: Arc<CommandMailbox>,
-    context: Option<super::startup_directory::ClientStartupTarget>,
+    context: Option<crate::startup_directory::ClientStartupTarget>,
 ) -> ClientConnectionExit {
     native::run_at(client, initial_geometry, mailbox, context)
 }
 
 pub(super) struct ClientConnectionExit {
-    unavailable_poll: Option<super::state::retired_membership::UnavailablePoll>,
+    unavailable_poll: Option<crate::workbench_state::retired_membership::UnavailablePoll>,
     pending_create: Option<PendingCreateCommit>,
     pending_move: Option<PendingMoveCommit>,
     pending_panel: Option<PendingPanelCommit>,
     pending_close: Option<PendingCloseResult>,
-    pending_rename: Option<super::state::tab_rename::RenameWorkerEvidence>,
-    pending_setup: Option<super::state::workspace_setup::SetupWorkerEvidence>,
-    pending_workspace_close: Option<super::state::workspace_close::WorkspaceCloseEvidence>,
-    pending_takeover: Option<super::state::control_takeover::TakeoverEvidence>,
+    pending_rename: Option<crate::workbench_state::tab_rename::RenameWorkerEvidence>,
+    pending_setup: Option<crate::workbench_state::workspace_setup::SetupWorkerEvidence>,
+    pending_workspace_close:
+        Option<crate::workbench_state::workspace_close::WorkspaceCloseEvidence>,
+    pending_takeover: Option<crate::workbench_state::control_takeover::TakeoverEvidence>,
 }
 
 impl ClientConnectionExit {
     fn with_takeover(
         mut self,
-        evidence: Option<super::state::control_takeover::TakeoverEvidence>,
+        evidence: Option<crate::workbench_state::control_takeover::TakeoverEvidence>,
     ) -> Self {
         self.pending_takeover = evidence;
         self
     }
     pub(super) fn take_takeover_result(
         &mut self,
-    ) -> Option<super::state::control_takeover::TakeoverEvidence> {
+    ) -> Option<crate::workbench_state::control_takeover::TakeoverEvidence> {
         self.pending_takeover.take()
     }
     fn with_workspace_close(
         mut self,
-        evidence: Option<super::state::workspace_close::WorkspaceCloseEvidence>,
+        evidence: Option<crate::workbench_state::workspace_close::WorkspaceCloseEvidence>,
     ) -> Self {
         self.pending_workspace_close = evidence;
         self
     }
     pub(super) fn take_workspace_close_result(
         &mut self,
-    ) -> Option<super::state::workspace_close::WorkspaceCloseEvidence> {
+    ) -> Option<crate::workbench_state::workspace_close::WorkspaceCloseEvidence> {
         self.pending_workspace_close.take()
     }
     fn with_setup(
         mut self,
-        evidence: Option<super::state::workspace_setup::SetupWorkerEvidence>,
+        evidence: Option<crate::workbench_state::workspace_setup::SetupWorkerEvidence>,
     ) -> Self {
         self.pending_setup = evidence;
         self
     }
     pub(super) fn take_setup_result(
         &mut self,
-    ) -> Option<super::state::workspace_setup::SetupWorkerEvidence> {
+    ) -> Option<crate::workbench_state::workspace_setup::SetupWorkerEvidence> {
         self.pending_setup.take()
     }
     fn with_unavailable_poll(
         mut self,
-        evidence: Option<super::state::retired_membership::UnavailablePoll>,
+        evidence: Option<crate::workbench_state::retired_membership::UnavailablePoll>,
     ) -> Self {
         self.unavailable_poll = evidence;
         self
     }
     pub(super) fn take_unavailable_poll(
         &mut self,
-    ) -> Option<super::state::retired_membership::UnavailablePoll> {
+    ) -> Option<crate::workbench_state::retired_membership::UnavailablePoll> {
         self.unavailable_poll.take()
     }
 
@@ -99,7 +98,7 @@ impl ClientConnectionExit {
         pending_move: Option<PendingMoveCommit>,
         pending_panel: Option<PendingPanelCommit>,
         pending_close: Option<PendingCloseResult>,
-        pending_rename: Option<super::state::tab_rename::RenameWorkerEvidence>,
+        pending_rename: Option<crate::workbench_state::tab_rename::RenameWorkerEvidence>,
     ) -> Self {
         Self {
             unavailable_poll: None,
@@ -147,7 +146,7 @@ pub(super) struct PendingWorkerResults {
     pub(super) moved: Option<PendingMoveCommit>,
     pub(super) panel: Option<PendingPanelCommit>,
     pub(super) close: Option<PendingCloseResult>,
-    pub(super) renamed: Option<super::state::tab_rename::RenameWorkerEvidence>,
+    pub(super) renamed: Option<crate::workbench_state::tab_rename::RenameWorkerEvidence>,
 }
 
 fn attach_binding(

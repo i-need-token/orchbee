@@ -21,7 +21,7 @@ impl WorkbenchClientUi {
                 if self.request_quick_workspace_for(Some(*request)) {
                     return ClientActionDisposition::LayoutChanged;
                 } else if let Some(state) = self.state.as_mut() {
-                    state.set_notice(crate::workbench_client::state::ClientNotice::DraftCancelled);
+                    state.set_notice(crate::workbench_state::ClientNotice::DraftCancelled);
                 }
                 ClientActionDisposition::KeepNavigator
             }
@@ -29,7 +29,7 @@ impl WorkbenchClientUi {
                 if self.request_project_rename(request).is_none()
                     && let Some(state) = self.state.as_mut()
                 {
-                    state.set_notice(crate::workbench_client::state::ClientNotice::DraftCancelled);
+                    state.set_notice(crate::workbench_state::ClientNotice::DraftCancelled);
                 }
                 ClientActionDisposition::KeepNavigator
             }
@@ -37,7 +37,7 @@ impl WorkbenchClientUi {
                 if !self.request_workspace_organization(request)
                     && let Some(state) = self.state.as_mut()
                 {
-                    state.set_notice(crate::workbench_client::state::ClientNotice::DraftCancelled);
+                    state.set_notice(crate::workbench_state::ClientNotice::DraftCancelled);
                 }
                 ClientActionDisposition::KeepNavigator
             }

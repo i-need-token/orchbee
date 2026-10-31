@@ -38,39 +38,39 @@ pub(crate) fn render_settings_for_test(
     settings::render(frame, content, view, pending, locale, theme, hits)
 }
 
-use crate::{
-    client_view::{ClientView, Overlay},
-    localization::{Locale, RecoveryVerb, ShellText},
-    terminal_text::{display_width, truncate_display, wrap_text},
-    tui_composition::{
-        CaptureClaims, CaptureOwner, ClientCaptureClaims, WorkbenchCaptureOwner,
-        client_chrome_overlay_allowed, project_capture,
-    },
-    tui_hit_map::{
-        HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
-        ProjectedPointer,
-    },
-    tui_layout::{
-        PaneFrame, ShellAreas, SidebarArea, SidebarLayer, ViewportTier, native_terminal_area,
-        overlay_area, place_overlay, project_shell_areas, status_chip_area, terminal_area,
-    },
-    tui_theme::{Role, Theme},
-    workbench_client::{
-        AgentBoardDraw, ClientProjectionStatus, ClientTabView, CloseStatusToken, DisplayController,
-        DisplayPhase, DrawReceipt, ModalPresentation, RefreshStatus, WorkbenchClientView,
-    },
+use crate::agent_board::AgentBoardDraw;
+use crate::client_view::{ClientView, Overlay};
+use crate::localization::{
+    ClientProjectionStatus, DisplayController, DisplayPhase, Locale, RecoveryVerb, RefreshStatus,
+    ShellText,
 };
+use crate::terminal_text::{display_width, truncate_display, wrap_text};
+use crate::tui_composition::{
+    CaptureClaims, CaptureOwner, ClientCaptureClaims, WorkbenchCaptureOwner,
+    client_chrome_overlay_allowed, project_capture,
+};
+use crate::tui_hit_map::{
+    HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
+    ProjectedPointer,
+};
+use crate::tui_layout::{
+    PaneFrame, ShellAreas, SidebarArea, SidebarLayer, ViewportTier, native_terminal_area,
+    overlay_area, place_overlay, project_shell_areas, status_chip_area, terminal_area,
+};
+use crate::tui_theme::{Role, Theme};
+use crate::workbench_client::{ClientTabView, DrawReceipt, ModalPresentation, WorkbenchClientView};
+use crate::workbench_state::CloseStatusToken;
 
 use crate::tui_hit_map::GlobalChromeAction;
 
-use crate::workbench_client::TerminalStatus;
+use crate::localization::TerminalStatus;
 
 mod agent_board;
 #[cfg(test)]
 pub(crate) fn render_agent_board_for_test(
     frame: &mut Frame<'_>,
     locale: Locale,
-    board: &crate::workbench_client::AgentBoardView<'_>,
+    board: &crate::agent_board::AgentBoardView<'_>,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> AgentBoardDraw {
@@ -138,7 +138,7 @@ pub(crate) fn render_tab_rename_for_test(
     theme: &Theme,
 ) -> (
     Rect,
-    ModalPresentation<crate::workbench_client::RenameDraftToken>,
+    ModalPresentation<crate::workbench_state::rename_draft::RenameDraftToken>,
 ) {
     tab_rename::render(
         frame,
@@ -787,8 +787,12 @@ pub fn render_terminal_shell_with_resize<'a>(
                     (
                         view.presentation(),
                         match view.stage() {
-                            crate::workbench_client::WorktreeStage::Waiting => RecoveryVerb::Hide,
-                            crate::workbench_client::WorktreeStage::Result => RecoveryVerb::Close,
+                            crate::workbench_state::worktree_launch::WorktreeStage::Waiting => {
+                                RecoveryVerb::Hide
+                            }
+                            crate::workbench_state::worktree_launch::WorktreeStage::Result => {
+                                RecoveryVerb::Close
+                            }
                             _ => RecoveryVerb::Cancel,
                         },
                     )
@@ -1113,9 +1117,9 @@ pub fn render_terminal_shell_with_resize<'a>(
                 if native.settings_presentation()
                     == Some(crate::tui_presentation::PresentationPhase::Pending)
                 {
-                    crate::workbench_client::SettingsNotice::PresentationUnavailable
+                    crate::localization::SettingsNotice::PresentationUnavailable
                 } else {
-                    crate::workbench_client::SettingsNotice::TooSmall
+                    crate::localization::SettingsNotice::TooSmall
                 },
             )
         } else {
@@ -1125,15 +1129,15 @@ pub fn render_terminal_shell_with_resize<'a>(
         // surface. The status chip carries only a distinct notice or recovery.
         let line = notice.map(|notice| {
             let role = match notice {
-                crate::workbench_client::SettingsNotice::Saved => Role::StatusSuccess,
-                crate::workbench_client::SettingsNotice::Failed => Role::StatusError,
-                crate::workbench_client::SettingsNotice::SourceChanged
-                | crate::workbench_client::SettingsNotice::Unknown
-                | crate::workbench_client::SettingsNotice::PresentationUnavailable
-                | crate::workbench_client::SettingsNotice::TooSmall => Role::StatusWarning,
-                crate::workbench_client::SettingsNotice::Busy
-                | crate::workbench_client::SettingsNotice::Background => Role::StatusPending,
-                crate::workbench_client::SettingsNotice::NoChange => Role::StatusInfo,
+                crate::localization::SettingsNotice::Saved => Role::StatusSuccess,
+                crate::localization::SettingsNotice::Failed => Role::StatusError,
+                crate::localization::SettingsNotice::SourceChanged
+                | crate::localization::SettingsNotice::Unknown
+                | crate::localization::SettingsNotice::PresentationUnavailable
+                | crate::localization::SettingsNotice::TooSmall => Role::StatusWarning,
+                crate::localization::SettingsNotice::Busy
+                | crate::localization::SettingsNotice::Background => Role::StatusPending,
+                crate::localization::SettingsNotice::NoChange => Role::StatusInfo,
             };
             (locale.settings_notice(notice), role)
         });
@@ -1175,7 +1179,7 @@ pub fn render_terminal_shell_with_resize<'a>(
 fn render_popup(
     frame: &mut Frame<'_>,
     area: Rect,
-    popup: &crate::workbench_client::PopupView<'_>,
+    popup: &crate::independent_popup::PopupView<'_>,
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -1840,7 +1844,7 @@ fn render_native_workbench(
 fn render_panel_graphics(
     frame: &mut Frame<'_>,
     area: Rect,
-    panel: &crate::workbench_client::ClientPanel,
+    panel: &crate::workbench_projection::ClientPanel,
     native: &WorkbenchClientView<'_>,
     draws: &mut Vec<crate::workbench_client::PaneGraphicsDraw>,
 ) {
@@ -1957,7 +1961,7 @@ fn render_tab_strip(
                 }
                 tabs::groups::StripPart::Page { header } => Some(InteractionTarget::TabStripPage {
                     source,
-                    start: crate::workbench_client::state::TabStripStart { tab, header },
+                    start: crate::workbench_state::TabStripStart { tab, header },
                 }),
                 tabs::groups::StripPart::Tab | tabs::groups::StripPart::Header => None,
             }
@@ -2521,7 +2525,7 @@ fn sidebar_menu_hold(
         },
         MenuTarget::Workspace(location) => SidebarTarget::Context {
             machine,
-            target: crate::workbench_client::ClientContextTarget {
+            target: crate::workbench_projection::ClientContextTarget {
                 session_id,
                 location: location.clone(),
             },

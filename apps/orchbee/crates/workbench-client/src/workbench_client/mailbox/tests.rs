@@ -1,11 +1,7 @@
 use super::*;
-use crate::{
-    client_view::ClientAction,
-    workbench_client::{
-        state::{ClientNotice, ClientPhaseKind, SelectionPlan, WorkbenchClientState},
-        workbench_projection::project_preferred_workspace,
-    },
-};
+use crate::client_view::ClientAction;
+use crate::workbench_projection::project_preferred_workspace;
+use crate::workbench_state::{ClientNotice, ClientPhaseKind, SelectionPlan, WorkbenchClientState};
 use orchbee_client_server_protocol::{ControllerId, ViewerId};
 use orchbee_workbench_protocol::{
     Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion, SessionId, Snapshot,
@@ -2607,7 +2603,7 @@ fn retryable_two_tab_state(base: Instant) -> WorkbenchClientState {
             .prepare_cleaned_membership_install(&cleanup, prepared, Some(target_key.clone()))
             .unwrap()
             .commit(),
-        crate::workbench_client::state::MembershipInstallDecision::Attach(_)
+        crate::workbench_state::MembershipInstallDecision::Attach(_)
     ));
     assert_eq!(
         state.settle_unattached_setup_t(&target_key, 1, &CreateTerminalProvenance::BindingOnly,),

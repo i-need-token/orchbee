@@ -6,20 +6,17 @@ use super::{
     ActionBuildError, ModalPresentation, WorkbenchClientUi, WorkbenchClientView, finish_action,
 };
 use crate::client_view::ClientActionDisposition;
-pub(crate) use crate::workbench_client::state::workspace_setup::{
-    LocationLabelStatus, LocationLabelTarget, SetupDraftView, SetupEdit, SetupStage, SetupStatus,
-    SetupToken,
+use crate::workbench_client::mailbox::{
+    CommandMailbox, MoveAdmissionError, MutationResult, RefreshSettlement, UiReply,
 };
-use crate::workbench_client::state::workspace_setup::{
+pub(crate) use crate::workbench_state::workspace_setup::WorkspaceCreationPreview;
+pub(crate) use crate::workbench_state::workspace_setup::{
+    LocationLabelTarget, SetupDraftView, SetupEdit, SetupStage, SetupStatus, SetupToken,
+};
+use crate::workbench_state::workspace_setup::{
     SetupIntent, SetupOperation, SetupResult, SetupWorkerEvidence,
 };
-pub(crate) use crate::workbench_client::state::workspace_setup::{
-    WorkspaceCreationPhase, WorkspaceCreationPreview,
-};
-use crate::workbench_client::{
-    mailbox::{CommandMailbox, MoveAdmissionError, MutationResult, RefreshSettlement, UiReply},
-    state::{CarrierFailure, OperationDeadlines},
-};
+use crate::workbench_state::{CarrierFailure, OperationDeadlines};
 use orchbee_workbench_protocol::{MAXIMUM_DIRECTORY_PATH_BYTES, MAXIMUM_LABEL_LENGTH};
 use std::sync::Arc;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -53,7 +50,7 @@ impl<'a> WorkbenchClientView<'a> {
     }
     pub(crate) fn quick_workspace_recovery(
         &self,
-    ) -> Option<super::super::state::workspace_setup::quick::QuickRecovery<'a>> {
+    ) -> Option<crate::workbench_state::workspace_setup::quick::QuickRecovery<'a>> {
         self.state.as_ref()?.quick_workspace_recovery()
     }
     pub(crate) fn setup_draft(&self) -> Option<SetupDraftView<'a>> {
@@ -137,7 +134,7 @@ impl WorkbenchClientUi {
 
     pub(super) fn request_workspace_organization(
         &mut self,
-        request: Box<crate::workbench_client::WorkspaceOrganizationRequest>,
+        request: Box<crate::workbench_state::workspace_setup::WorkspaceOrganizationRequest>,
     ) -> bool {
         if self.clock.now() >= request.deadline() {
             return false;
@@ -194,7 +191,7 @@ impl WorkbenchClientUi {
 
     pub(super) fn request_project_rename(
         &mut self,
-        request: Box<crate::workbench_client::ProjectRenameRequest>,
+        request: Box<crate::workbench_state::workspace_setup::ProjectRenameRequest>,
     ) -> Option<SetupToken> {
         if self.retirement_failure.is_some() {
             return None;
@@ -210,7 +207,9 @@ impl WorkbenchClientUi {
     }
     pub(super) fn request_quick_workspace_for(
         &mut self,
-        request: Option<crate::workbench_client::ProjectQuickWorkspaceRequest>,
+        request: Option<
+            crate::workbench_state::workspace_setup::quick::ProjectQuickWorkspaceRequest,
+        >,
     ) -> bool {
         // Quick creation submits its prepared defaults; only the explicit
         // at-directory request opens the directory review.
@@ -219,7 +218,9 @@ impl WorkbenchClientUi {
 
     pub(super) fn request_quick_workspace_with_review(
         &mut self,
-        request: Option<crate::workbench_client::ProjectQuickWorkspaceRequest>,
+        request: Option<
+            crate::workbench_state::workspace_setup::quick::ProjectQuickWorkspaceRequest,
+        >,
         review_directory: bool,
     ) -> bool {
         if !self.admit_capability(crate::tui_capabilities::Capability::DirectoryInput) {
@@ -250,7 +251,7 @@ impl WorkbenchClientUi {
         &mut self,
         mailbox: &Arc<CommandMailbox>,
         wait: super::super::mailbox::UiWaitKey,
-        preparation: super::super::state::workspace_setup::quick::QuickPreparation,
+        preparation: crate::workbench_state::workspace_setup::quick::QuickPreparation,
         cwd: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
         outcome: orchbee_workbench_protocol::WorkbenchSnapshotOutcome,
     ) -> bool {
@@ -485,7 +486,7 @@ impl WorkbenchClientUi {
                     if !state.settle_setup_refusal(&operation, stale) {
                         return Err(CarrierFailure::Protocol);
                     }
-                    let prepared = super::super::state::PreparedRefresh::DefiniteFailure {
+                    let prepared = crate::workbench_state::PreparedRefresh::DefiniteFailure {
                         generation: operation.generation,
                         baseline_revision: state.cache().revision(),
                     };

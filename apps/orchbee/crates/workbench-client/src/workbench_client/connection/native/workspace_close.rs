@@ -1,20 +1,15 @@
 //! Submit the confirmed scope once, retain admission, and observe it without replaying effects.
 use super::{ClientExecutor, Result, closed, event};
-use crate::{
-    local_client::workbench::{
-        WorkbenchWorkspaceClosePrecommit, WorkbenchWorkspaceCloseRequest,
-        WorkbenchWorkspaceCloseSubmission,
-    },
-    workbench_client::{
-        mailbox::{CommandLease, EventDeadline, MutationResult, RefreshMarker, WorkerEvent},
-        state::{
-            CarrierFailure,
-            workspace_close::{
-                WorkspaceCloseEvidence, WorkspaceCloseOperation, WorkspaceCloseResult,
-                retains_close_result,
-            },
-        },
-    },
+use crate::local_client::workbench::{
+    WorkbenchWorkspaceClosePrecommit, WorkbenchWorkspaceCloseRequest,
+    WorkbenchWorkspaceCloseSubmission,
+};
+use crate::workbench_client::mailbox::{
+    CommandLease, EventDeadline, MutationResult, RefreshMarker, WorkerEvent,
+};
+use crate::workbench_state::CarrierFailure;
+use crate::workbench_state::workspace_close::{
+    WorkspaceCloseEvidence, WorkspaceCloseOperation, WorkspaceCloseResult, retains_close_result,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchSnapshotOutcome, WorkbenchWorkspaceCloseRead,

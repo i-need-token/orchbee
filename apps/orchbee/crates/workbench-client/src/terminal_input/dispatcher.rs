@@ -16,7 +16,7 @@ use crate::tui_hit_map::{FrameHitMap, InteractionTarget, PrimaryContract};
 use crate::tui_pointer::{
     CancelledModalEvent, MotionObservability, PointerOutcome, PointerState, ReleaseOwnership,
 };
-use crate::workbench_client::SetupStage;
+use crate::workbench_state::workspace_setup::SetupStage;
 
 use super::{
     BoardAction, CopyAction, DispatchOutcome, HostReply, LayoutAction, MenuAction, ModeRequest,
@@ -103,7 +103,7 @@ pub struct InputDispatcher {
 enum ModalEpoch {
     Rename(RenameDraftToken),
     Setup(SetupToken),
-    Worktree(crate::workbench_client::WorktreeToken),
+    Worktree(crate::workbench_state::worktree_launch::WorktreeToken),
 }
 
 struct ProjectedCaptureItem {
@@ -2466,7 +2466,7 @@ impl InputDispatcher {
         });
         let choice_keys = choice_keys
             || worktree.is_some_and(|context| {
-                context.stage == crate::workbench_client::WorktreeStage::Checkout
+                context.stage == crate::workbench_state::worktree_launch::WorktreeStage::Checkout
             });
         self.decoder.choice_keys(choice_keys);
         {
@@ -2668,12 +2668,11 @@ impl InputDispatcher {
     fn apply_worktree_event(
         &mut self,
         port: &mut (impl TerminalInputPort + ?Sized),
-        token: crate::workbench_client::WorktreeToken,
+        token: crate::workbench_state::worktree_launch::WorktreeToken,
         event: ModalInputEvent,
     ) {
-        use crate::workbench_client::{
-            CaptureContext, CaptureReadiness, WorktreeEdit as E, WorktreeStage as S,
-        };
+        use crate::workbench_client::{CaptureContext, CaptureReadiness};
+        use crate::workbench_state::worktree_launch::{WorktreeEdit as E, WorktreeStage as S};
         let Some(CaptureContext::Worktree(context)) =
             port.native_capture_context(WorkbenchCaptureOwner::Worktree)
         else {

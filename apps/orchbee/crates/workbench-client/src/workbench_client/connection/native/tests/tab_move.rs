@@ -5,12 +5,10 @@ use super::{
     },
     setup::*,
 };
-use crate::workbench_client::{
-    mailbox::{QueuedCommand, Tagged, WorkerEvent},
-    state::{
-        CarrierFailure, ClientPhaseKind, MoveDecision, MoveOperation, MoveResult, PanelDecision,
-        PanelRequestKind, RefreshDecision,
-    },
+use crate::workbench_client::mailbox::{QueuedCommand, Tagged, WorkerEvent};
+use crate::workbench_state::{
+    CarrierFailure, ClientPhaseKind, MoveDecision, MoveOperation, MoveResult, PanelDecision,
+    PanelRequestKind, RefreshDecision,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, Geometry, ServerMessage, SessionId as ObcsSessionId,

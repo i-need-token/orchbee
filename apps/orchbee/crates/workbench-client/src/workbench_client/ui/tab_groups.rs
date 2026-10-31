@@ -2,8 +2,8 @@
 //! The existing setup lane owns admission, unknown outcomes, publication recovery and selection.
 use super::{ClientActionDisposition, OperationDeadlines, WorkbenchClientState, WorkbenchClientUi};
 use crate::action_menu::{MenuAction, MenuTarget, TabMenuScope};
-use crate::workbench_client::state::workspace_setup::SetupIntent;
-use crate::workbench_client::workbench_projection::ClientTab;
+use crate::workbench_projection::ClientTab;
+use crate::workbench_state::workspace_setup::SetupIntent;
 use orchbee_workbench_protocol::{
     TabConfiguration, TabGroupColor, WorkbenchTabGroupId, WorkbenchTabGroupLabel, WorkbenchTabId,
     WorkbenchTabIdSet, WorkbenchTabMoveDirection,
@@ -178,7 +178,7 @@ pub(super) fn close_tab_ids(
     target: &WorkbenchTabId,
     action: MenuAction,
 ) -> Option<Vec<WorkbenchTabId>> {
-    use super::super::state::{CloseSetKind, close_set_targets};
+    use crate::workbench_state::{CloseSetKind, close_set_targets};
     let kind = match action {
         MenuAction::CloseSelectedTabs => CloseSetKind::Selected,
         MenuAction::CloseOtherTabs => CloseSetKind::Other,
@@ -260,7 +260,7 @@ impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn page_drawn_tab_strip(
         &mut self,
         source: &crate::action_menu::DrawnTabCreate,
-        start: &crate::workbench_client::state::TabStripStart,
+        start: &crate::workbench_state::TabStripStart,
     ) {
         if self
             .tab_drag_source()
@@ -437,9 +437,9 @@ impl WorkbenchClientUi {
             return self.request_close_set(&ids);
         }
         let selection_change = match action {
-            SelectTab => Some(super::super::state::TabSelectionChange::Toggle),
-            SelectAllTabs => Some(super::super::state::TabSelectionChange::All),
-            ClearTabSelection => Some(super::super::state::TabSelectionChange::Clear),
+            SelectTab => Some(crate::workbench_state::TabSelectionChange::Toggle),
+            SelectAllTabs => Some(crate::workbench_state::TabSelectionChange::All),
+            ClearTabSelection => Some(crate::workbench_state::TabSelectionChange::Clear),
             _ => None,
         };
         if let Some(change) = selection_change {

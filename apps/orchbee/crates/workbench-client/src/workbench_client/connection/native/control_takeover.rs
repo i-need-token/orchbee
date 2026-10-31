@@ -3,16 +3,14 @@
 //! delivered takeover.
 
 use super::{ClientExecutor, Result, closed, event, submission};
-use crate::{
-    local_client::SubmissionError,
-    workbench_client::{
-        mailbox::{CommandLease, EventDeadline, MutationResult, RefreshMarker, WorkerEvent},
-        state::{
-            CarrierFailure, ControllerMode,
-            control_takeover::{TakeoverEvidence, TakeoverOperation, TakeoverResult},
-        },
-    },
+use crate::local_client::SubmissionError;
+use crate::workbench_client::mailbox::{
+    CommandLease, EventDeadline, MutationResult, RefreshMarker, WorkerEvent,
 };
+use crate::workbench_state::control_takeover::{
+    TakeoverEvidence, TakeoverOperation, TakeoverResult,
+};
+use crate::workbench_state::{CarrierFailure, ControllerMode};
 use orchbee_client_server_protocol::{
     ControlRejectedReason, ProjectionDemand, TerminalControlAction, TerminalControlOutcome,
     TerminalControlRequest, TerminalViewerAction, TerminalViewerOutcome,

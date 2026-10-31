@@ -13,12 +13,21 @@ pub(crate) enum ControlTarget {
         crate::terminal_copy_mode::CopyControl,
     ),
     Resize(super::ResizeControl),
-    TabClose(crate::workbench_client::CloseConfirmationToken, bool),
-    PanelClose(crate::workbench_client::PanelCloseConfirmationToken, bool),
-    Rename(crate::workbench_client::RenameDraftToken, bool),
-    Setup(crate::workbench_client::SetupToken, ModalControl),
-    Worktree(crate::workbench_client::WorktreeToken, ModalControl),
-    Close(crate::workbench_client::WorkspaceCloseToken, bool),
+    TabClose(crate::workbench_state::CloseConfirmationToken, bool),
+    PanelClose(crate::workbench_state::PanelCloseConfirmationToken, bool),
+    Rename(crate::workbench_state::rename_draft::RenameDraftToken, bool),
+    Setup(
+        crate::workbench_state::workspace_setup::SetupToken,
+        ModalControl,
+    ),
+    Worktree(
+        crate::workbench_state::worktree_launch::WorktreeToken,
+        ModalControl,
+    ),
+    Close(
+        crate::workbench_state::workspace_close::WorkspaceCloseToken,
+        bool,
+    ),
 }
 
 impl ControlTarget {

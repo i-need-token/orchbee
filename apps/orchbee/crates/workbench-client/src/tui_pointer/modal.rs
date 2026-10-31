@@ -605,7 +605,7 @@ impl PointerState {
                 ModalControl::NextField => {
                     port.surface_input(SurfaceInput::Setup {
                         token,
-                        edit: crate::workbench_client::SetupEdit::NextField,
+                        edit: crate::workbench_state::workspace_setup::SetupEdit::NextField,
                     });
                 }
                 ModalControl::Choice(index) => {
@@ -623,13 +623,13 @@ impl PointerState {
                 ModalControl::NextField => {
                     port.surface_input(SurfaceInput::Worktree {
                         token,
-                        edit: crate::workbench_client::WorktreeEdit::NextField,
+                        edit: crate::workbench_state::worktree_launch::WorktreeEdit::NextField,
                     });
                 }
                 ModalControl::Refresh => {
                     port.surface_input(SurfaceInput::Worktree {
                         token,
-                        edit: crate::workbench_client::WorktreeEdit::ReadStatus,
+                        edit: crate::workbench_state::worktree_launch::WorktreeEdit::ReadStatus,
                     });
                 }
                 ModalControl::Choice(index) => {

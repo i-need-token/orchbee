@@ -4,7 +4,7 @@ use super::{
     LocalOperationClock, LocalStream, ProtocolVersion, SidebarDiscovery, WorkbenchRequestId,
     WorkbenchWorktreeQuery, WorkbenchWorktreeQueryOutcome, WorktreeNotice, snapshot,
 };
-use crate::workbench_client::primary_directory::{RootDirectory, decode_root};
+use crate::primary_directory::{RootDirectory, decode_root};
 use orchbee_client_server_protocol::{
     RequestId, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
 };

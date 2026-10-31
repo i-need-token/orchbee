@@ -2,10 +2,8 @@ use super::*;
 use std::thread;
 mod sidebar;
 use crate::local_client::test_support::server::FakeServer;
-use crate::workbench_client::state::worktree_launch::{
-    WorktreeMode,
-    tests::{canonical, confirm, discovery, fixture},
-};
+use crate::workbench_state::worktree_launch::WorktreeMode;
+use crate::workbench_state::worktree_launch::tests::{canonical, confirm, discovery, fixture};
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::*;
 use std::{io::Read, num::NonZeroU64, sync::mpsc};
@@ -123,11 +121,11 @@ fn reads_use_retained_operation_and_reject_foreign_or_missing_replies_without_st
 #[test]
 fn removal_resume_sends_one_fenced_resume_and_reads_without_source_discovery_or_start_replay() {
     let (mut launcher, origin, _) =
-        crate::workbench_client::state::worktree_launch::tests::removal::fixture();
+        crate::workbench_state::worktree_launch::tests::removal::fixture();
     let plan = confirm(&mut launcher, &origin).unwrap();
     let operation = plan.operation_id.clone();
     let expected = operation.clone();
-    let outcome = crate::workbench_client::state::worktree_launch::tests::removal::failure(2, true);
+    let outcome = crate::workbench_state::worktree_launch::tests::removal::failure(2, true);
     let reply = outcome.clone();
     let server = FakeServer::start_connections(2, move |index, mut stream| {
         handshake(&mut stream, index as u64 + 1)?;

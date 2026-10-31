@@ -9,11 +9,11 @@ use super::{
     UiCorrelation, UiWaitKey, WorkerEvent, workbench_identity_candidate,
 };
 use crate::local_client::LocalOperationClock;
-use crate::workbench_client::state::{OperationDeadlines, PendingRefreshStage};
-use crate::workbench_client::state::{
-    WorkbenchClientState,
-    workspace_setup::{SetupIntent, SetupOperation, SetupResult, SetupToken, SetupWorkerEvidence},
+use crate::workbench_state::WorkbenchClientState;
+use crate::workbench_state::workspace_setup::{
+    SetupIntent, SetupOperation, SetupResult, SetupToken, SetupWorkerEvidence,
 };
+use crate::workbench_state::{OperationDeadlines, PendingRefreshStage};
 
 pub(super) struct SetupFlight {
     serial: u64,
@@ -22,7 +22,7 @@ pub(super) struct SetupFlight {
     stage: PendingRefreshStage,
     not_applied: bool,
     confirmation_required: bool,
-    known: Option<crate::workbench_client::state::workspace_setup::SetupKnownCommit>,
+    known: Option<crate::workbench_state::workspace_setup::SetupKnownCommit>,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct WorkspaceSetupMarker(
@@ -39,7 +39,9 @@ impl CommandMailbox {
         canonical: &mut WorkbenchClientState,
         deadlines: OperationDeadlines,
         clock: &LocalOperationClock,
-        request: Option<crate::workbench_client::ProjectQuickWorkspaceRequest>,
+        request: Option<
+            crate::workbench_state::workspace_setup::quick::ProjectQuickWorkspaceRequest,
+        >,
     ) -> bool {
         self.try_enqueue_quick_preparation_with_review(canonical, deadlines, clock, request, false)
     }
@@ -49,7 +51,9 @@ impl CommandMailbox {
         canonical: &mut WorkbenchClientState,
         deadlines: OperationDeadlines,
         clock: &LocalOperationClock,
-        request: Option<crate::workbench_client::ProjectQuickWorkspaceRequest>,
+        request: Option<
+            crate::workbench_state::workspace_setup::quick::ProjectQuickWorkspaceRequest,
+        >,
         review_directory: bool,
     ) -> bool {
         let admission_cutoff = request
@@ -99,7 +103,7 @@ impl CommandMailbox {
     pub(in crate::workbench_client) fn open_project_rename_draft_for(
         &self,
         canonical: &mut WorkbenchClientState,
-        request: Box<crate::workbench_client::ProjectRenameRequest>,
+        request: Box<crate::workbench_state::workspace_setup::ProjectRenameRequest>,
         clock: &LocalOperationClock,
     ) -> Option<SetupToken> {
         self.open_project_rename_draft_for_using(canonical, request, clock)
@@ -107,7 +111,7 @@ impl CommandMailbox {
     pub(super) fn open_project_rename_draft_for_using(
         &self,
         canonical: &mut WorkbenchClientState,
-        request: Box<crate::workbench_client::ProjectRenameRequest>,
+        request: Box<crate::workbench_state::workspace_setup::ProjectRenameRequest>,
         clock: &dyn MailboxClock,
     ) -> Option<SetupToken> {
         let deadline = request.deadline();
@@ -185,7 +189,7 @@ impl CommandMailbox {
     pub(in crate::workbench_client) fn try_enqueue_sidebar_organization_for(
         &self,
         canonical: &mut WorkbenchClientState,
-        request: &crate::workbench_client::WorkspaceOrganizationRequest,
+        request: &crate::workbench_state::workspace_setup::WorkspaceOrganizationRequest,
         deadlines: OperationDeadlines,
         clock: &LocalOperationClock,
     ) -> Result<(), MoveAdmissionError<()>> {
@@ -348,7 +352,7 @@ impl CommandMailbox {
     }
     pub(in crate::workbench_client) fn retain_setup_known(
         &self,
-        known: &crate::workbench_client::state::workspace_setup::SetupKnownCommit,
+        known: &crate::workbench_state::workspace_setup::SetupKnownCommit,
     ) -> bool {
         let prepared = known.clone();
         let mut state = self.lock();

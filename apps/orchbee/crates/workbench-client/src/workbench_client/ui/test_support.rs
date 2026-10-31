@@ -153,12 +153,10 @@ pub(in crate::workbench_client) fn controlling_ui() -> (
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: crate::workbench_client::workbench_projection::project_preferred_workspace(
-                    &snapshot(2, 1),
-                )
-                .unwrap(),
+                cache: crate::workbench_projection::project_preferred_workspace(&snapshot(2, 1))
+                    .unwrap(),
             },
-            EventDeadline::Startup(clock.now() + crate::workbench_client::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();
@@ -244,12 +242,9 @@ pub(in crate::workbench_client) fn ready_snapshot(
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: crate::workbench_client::workbench_projection::project_preferred_workspace(
-                    &snapshot,
-                )
-                .unwrap(),
+                cache: crate::workbench_projection::project_preferred_workspace(&snapshot).unwrap(),
             },
-            EventDeadline::Startup(clock.now() + super::super::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();

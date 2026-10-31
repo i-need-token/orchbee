@@ -2,31 +2,24 @@ use super::super::*;
 use orchbee_local_ipc::LocalStream as UnixStream;
 mod tab_close;
 mod workspace_setup;
-use crate::{
-    local_client::{
-        LocalClientShutdown, LocalOperationClock,
-        test_support::server::{
-            FakeServer, PrewriteGate, connect_with_adjustable_clock,
-            connect_with_gated_prewrite_clock, connect_with_switchable_ceiling_clock,
-        },
-        workbench::WorkbenchTabCreateRequest,
-    },
-    terminal_projection::TerminalProjection,
-    workbench_client::{
-        mailbox::{
-            CausalSettlement, CommandMailbox, CreateMarker, EventError, MoveSettlement,
-            MutationResult, PanelSettlement, PollKey, QueuedCommand, RefreshSettlement,
-            SwitchMarker, Tagged, TakenEvent, UiReply, WorkerEvent,
-        },
-        state::{
-            AttachmentKey, CarrierFailure, CleanupContinuation, CreateOperation,
-            CreateOperationKey, CreateProjectionDecision, FrameIdentity, MoveDecision,
-            MoveOperation, MoveResult, OPERATION_TOTAL, OperationDeadlines, PaneKey, PaneRef,
-            PanelDecision, PanelOperation, PanelRequestKind, PanelResult, PendingCreateCommit,
-            PendingMoveCommit, PendingPanelCommit, ReadyDecision, RefreshDecision,
-            SetupEventDisposition, WorkbenchClientState,
-        },
-    },
+use crate::local_client::test_support::server::{
+    FakeServer, PrewriteGate, connect_with_adjustable_clock, connect_with_gated_prewrite_clock,
+    connect_with_switchable_ceiling_clock,
+};
+use crate::local_client::workbench::WorkbenchTabCreateRequest;
+use crate::local_client::{LocalClientShutdown, LocalOperationClock};
+use crate::terminal_projection::TerminalProjection;
+use crate::workbench_client::mailbox::{
+    CausalSettlement, CommandMailbox, CreateMarker, EventError, MoveSettlement, MutationResult,
+    PanelSettlement, PollKey, QueuedCommand, RefreshSettlement, SwitchMarker, Tagged, TakenEvent,
+    UiReply, WorkerEvent,
+};
+use crate::workbench_state::{
+    AttachmentKey, CarrierFailure, CleanupContinuation, CreateOperation, CreateOperationKey,
+    CreateProjectionDecision, FrameIdentity, MoveDecision, MoveOperation, MoveResult,
+    OPERATION_TOTAL, OperationDeadlines, PaneKey, PaneRef, PanelDecision, PanelOperation,
+    PanelRequestKind, PanelResult, PendingCreateCommit, PendingMoveCommit, PendingPanelCommit,
+    ReadyDecision, RefreshDecision, SetupEventDisposition, WorkbenchClientState,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, ControllerId, Geometry, HostEpoch as ObcsHostEpoch, ServerMessage,
@@ -431,7 +424,7 @@ impl Harness {
     pub(super) fn start_at(
         steps: Vec<WireKind>,
         initial_geometry: Geometry,
-        target: crate::workbench_client::ClientStartupTarget,
+        target: crate::startup_directory::ClientStartupTarget,
     ) -> TestResult<Self> {
         Self::start_inner(
             steps,
@@ -449,7 +442,7 @@ impl Harness {
         ceiling_clock: Option<Arc<AtomicBool>>,
         prewrite_gate: Option<Arc<PrewriteGate>>,
         identity_seed: u128,
-        target: Option<crate::workbench_client::ClientStartupTarget>,
+        target: Option<crate::startup_directory::ClientStartupTarget>,
     ) -> TestResult<Self> {
         let carrier = ScriptedCarrier::start(steps)?;
         let elapsed_millis = Arc::new(AtomicU64::new(0));
@@ -817,7 +810,7 @@ impl UiDriver {
     pub(super) fn pane_ref(
         &self,
         anchor: &AttachmentKey,
-    ) -> TestResult<crate::workbench_client::state::PaneRef> {
+    ) -> TestResult<crate::workbench_state::PaneRef> {
         self.state()
             .pane_ref_for_anchor(anchor)
             .ok_or_else(|| test_error("no live pane for attachment anchor"))
@@ -991,12 +984,10 @@ impl UiDriver {
                         deadlines,
                     )
                     .with_origin(
-                        if state.phase_kind()
-                            == crate::workbench_client::state::ClientPhaseKind::Empty
-                        {
-                            crate::workbench_client::state::CreateOriginKind::Empty
+                        if state.phase_kind() == crate::workbench_state::ClientPhaseKind::Empty {
+                            crate::workbench_state::CreateOriginKind::Empty
                         } else {
-                            crate::workbench_client::state::CreateOriginKind::Ready
+                            crate::workbench_state::CreateOriginKind::Ready
                         },
                     );
                     if !state.begin_create(operation.clone()) {
@@ -1262,7 +1253,7 @@ impl UiDriver {
         let resizes = {
             let state = self.state_mut();
             state.sync_pane_set(observed, sampled_at);
-            if state.phase_kind() == crate::workbench_client::state::ClientPhaseKind::Starting {
+            if state.phase_kind() == crate::workbench_state::ClientPhaseKind::Starting {
                 Vec::new()
             } else {
                 state.admit_observed_geometries(observed)
@@ -1289,7 +1280,7 @@ impl UiDriver {
                 }
             }
         }
-        if self.state().phase_kind() == crate::workbench_client::state::ClientPhaseKind::Starting {
+        if self.state().phase_kind() == crate::workbench_state::ClientPhaseKind::Starting {
             return Ok(());
         }
         let Some((anchor, targets, deadlines)) = self.state_mut().reconcile_targets(clock.now())
@@ -1509,7 +1500,7 @@ impl UiDriver {
             WorkerEvent::MembershipDetached { cleanup, detached } => {
                 if matches!(
                     cleanup.result(),
-                    crate::workbench_client::state::MembershipResultKey::Switch(_)
+                    crate::workbench_state::MembershipResultKey::Switch(_)
                 ) {
                     if cleanup.old() != &detached {
                         return Err(test_error("Switch detached key mismatch"));
@@ -1570,7 +1561,7 @@ impl UiDriver {
                             )?;
                             let installed = state_plan.commit();
                             desired.commit();
-                            use crate::workbench_client::state::MembershipInstallDecision;
+                            use crate::workbench_state::MembershipInstallDecision;
                             match installed {
                                 MembershipInstallDecision::Attach(target) => {
                                     RefreshDecision::AttachRecovered(target)
@@ -1593,18 +1584,16 @@ impl UiDriver {
                 self.projection_pane = None;
                 let decision = decision.ok_or_else(|| test_error("membership decision"))?;
                 match result_key {
-                    crate::workbench_client::state::MembershipResultKey::Rename(_) => {
-                        Err(test_error(
-                            "Rename membership requires the actual WorkbenchClientUi consumer",
-                        ))
-                    }
-                    crate::workbench_client::state::MembershipResultKey::Refresh(generation) => {
+                    crate::workbench_state::MembershipResultKey::Rename(_) => Err(test_error(
+                        "Rename membership requires the actual WorkbenchClientUi consumer",
+                    )),
+                    crate::workbench_state::MembershipResultKey::Refresh(generation) => {
                         Ok(UiEvent::Refresh {
                             generation,
                             decision,
                         })
                     }
-                    crate::workbench_client::state::MembershipResultKey::Create(operation) => {
+                    crate::workbench_state::MembershipResultKey::Create(operation) => {
                         Ok(UiEvent::CreateProjection {
                             operation,
                             decision: match decision {
@@ -1619,14 +1608,14 @@ impl UiDriver {
                             },
                         })
                     }
-                    crate::workbench_client::state::MembershipResultKey::Switch(_) => {
+                    crate::workbench_state::MembershipResultKey::Switch(_) => {
                         Err(test_error("Switch membership cleanup is staged"))
                     }
-                    crate::workbench_client::state::MembershipResultKey::Close(_) => {
+                    crate::workbench_state::MembershipResultKey::Close(_) => {
                         Err(test_error("use the exact Close transport consumer"))
                     }
-                    crate::workbench_client::state::MembershipResultKey::Move(_)
-                    | crate::workbench_client::state::MembershipResultKey::Panel(_) => {
+                    crate::workbench_state::MembershipResultKey::Move(_)
+                    | crate::workbench_state::MembershipResultKey::Panel(_) => {
                         Ok(UiEvent::Membership(decision))
                     }
                 }
@@ -1668,8 +1657,8 @@ impl UiDriver {
                             let installed = plan.commit();
                             desired.commit();
                             match installed {
-                                crate::workbench_client::state::MembershipInstallDecision::Attach(target) => MoveDecision::AttachRecovered(target),
-                                crate::workbench_client::state::MembershipInstallDecision::Preserved => MoveDecision::Continue,
+                                crate::workbench_state::MembershipInstallDecision::Attach(target) => MoveDecision::AttachRecovered(target),
+                                crate::workbench_state::MembershipInstallDecision::Preserved => MoveDecision::Continue,
                                 _ => MoveDecision::SettledWithoutAttachment,
                             }
                         }
@@ -1713,8 +1702,8 @@ impl UiDriver {
                             let installed = plan.commit();
                             desired.commit();
                             match installed {
-                                crate::workbench_client::state::MembershipInstallDecision::Attach(target) => PanelDecision::AttachRecovered(target),
-                                crate::workbench_client::state::MembershipInstallDecision::Preserved => PanelDecision::Continue,
+                                crate::workbench_state::MembershipInstallDecision::Attach(target) => PanelDecision::AttachRecovered(target),
+                                crate::workbench_state::MembershipInstallDecision::Preserved => PanelDecision::Continue,
                                 _ => PanelDecision::SettledWithoutAttachment,
                             }
                         }
@@ -2060,7 +2049,7 @@ impl UiDriver {
                 let clock = self.clock.clone();
                 let state = self.state_mut();
                 let prepared = state.prepare_create_snapshot(&operation, outcome);
-                if let crate::workbench_client::state::PreparedCreateSnapshot::Available {
+                if let crate::workbench_state::PreparedCreateSnapshot::Available {
                     baseline,
                     committed,
                     projection,
@@ -2094,10 +2083,10 @@ impl UiDriver {
                             let installed = plan.commit();
                             desired.commit();
                             match installed {
-                                crate::workbench_client::state::MembershipInstallDecision::Attach(target) => CreateProjectionDecision::Attach(target),
-                                crate::workbench_client::state::MembershipInstallDecision::Empty
-                                | crate::workbench_client::state::MembershipInstallDecision::SelectedWithoutAttachment => CreateProjectionDecision::SettledWithoutAttachment,
-                                crate::workbench_client::state::MembershipInstallDecision::Preserved => unreachable!("Create changes selection"),
+                                crate::workbench_state::MembershipInstallDecision::Attach(target) => CreateProjectionDecision::Attach(target),
+                                crate::workbench_state::MembershipInstallDecision::Empty
+                                | crate::workbench_state::MembershipInstallDecision::SelectedWithoutAttachment => CreateProjectionDecision::SettledWithoutAttachment,
+                                crate::workbench_state::MembershipInstallDecision::Preserved => unreachable!("Create changes selection"),
                             }
                         };
                         decision = Some(settled.clone());
@@ -2147,30 +2136,67 @@ impl UiDriver {
                     &clock,
                     |_transaction| {
                         let settled =
-                            if let crate::workbench_client::state::PreparedRefresh::CreateMembership { generation, operation, prepared } = prepared {
-                                RefreshDecision::Cleanup(state.stage_create_refresh_cleanup(generation, &operation, prepared, recovery_deadlines.ok_or(CarrierFailure::Deadline)?)?)
-                            } else if let crate::workbench_client::state::PreparedRefresh::Membership {
+                            if let crate::workbench_state::PreparedRefresh::CreateMembership {
+                                generation,
+                                operation,
+                                prepared,
+                            } = prepared
+                            {
+                                RefreshDecision::Cleanup(state.stage_create_refresh_cleanup(
+                                    generation,
+                                    &operation,
+                                    prepared,
+                                    recovery_deadlines.ok_or(CarrierFailure::Deadline)?,
+                                )?)
+                            } else if let crate::workbench_state::PreparedRefresh::Membership {
                                 generation,
                                 prepared,
                             } = prepared
                             {
                                 if state.has_attachments() && !prepared.preserves_selection() {
-                                    RefreshDecision::Cleanup(state.stage_refresh_membership_cleanup(generation, prepared, recovery_deadlines.ok_or(CarrierFailure::Deadline)?)?)
+                                    RefreshDecision::Cleanup(
+                                        state.stage_refresh_membership_cleanup(
+                                            generation,
+                                            prepared,
+                                            recovery_deadlines.ok_or(CarrierFailure::Deadline)?,
+                                        )?,
+                                    )
                                 } else {
-                                    use crate::workbench_client::{mailbox::DesiredInstall, state::MembershipInstallDecision};
-                                    let install = if prepared.preserves_selection() { DesiredInstall::Preserve }
-                                        else if let Some(tab) = prepared.selected_tab_id() {
-                                            let panel = prepared.focus_panel_id().ok_or(CarrierFailure::Protocol)?;
-                                            DesiredInstall::Fresh { tab_id: tab.clone(), panel: panel.clone() }
-                                        } else { DesiredInstall::Empty };
+                                    use crate::workbench_client::mailbox::DesiredInstall;
+                                    use crate::workbench_state::MembershipInstallDecision;
+                                    let install = if prepared.preserves_selection() {
+                                        DesiredInstall::Preserve
+                                    } else if let Some(tab) = prepared.selected_tab_id() {
+                                        let panel = prepared
+                                            .focus_panel_id()
+                                            .ok_or(CarrierFailure::Protocol)?;
+                                        DesiredInstall::Fresh {
+                                            tab_id: tab.clone(),
+                                            panel: panel.clone(),
+                                        }
+                                    } else {
+                                        DesiredInstall::Empty
+                                    };
                                     let desired = _transaction.prepare_desired_install(install)?;
-                                    let plan = state.prepare_refresh_membership_install(generation, prepared, desired.desired().map(|key| key.anchor().clone()), recovery_deadlines)?;
+                                    let plan = state.prepare_refresh_membership_install(
+                                        generation,
+                                        prepared,
+                                        desired.desired().map(|key| key.anchor().clone()),
+                                        recovery_deadlines,
+                                    )?;
                                     let installed = plan.commit();
                                     desired.commit();
                                     match installed {
-                                        MembershipInstallDecision::Attach(target) => RefreshDecision::AttachRecovered(target),
-                                        MembershipInstallDecision::Preserved => RefreshDecision::Continue,
-                                        MembershipInstallDecision::Empty | MembershipInstallDecision::SelectedWithoutAttachment => RefreshDecision::SettledWithoutAttachment,
+                                        MembershipInstallDecision::Attach(target) => {
+                                            RefreshDecision::AttachRecovered(target)
+                                        }
+                                        MembershipInstallDecision::Preserved => {
+                                            RefreshDecision::Continue
+                                        }
+                                        MembershipInstallDecision::Empty
+                                        | MembershipInstallDecision::SelectedWithoutAttachment => {
+                                            RefreshDecision::SettledWithoutAttachment
+                                        }
                                     }
                                 }
                             } else {
@@ -2612,8 +2638,8 @@ fn panel() -> WorkbenchPanelId {
 }
 
 /// The fabricated pane key the mailbox fixtures admit for `anchor`.
-fn pane_key(anchor: &AttachmentKey) -> crate::workbench_client::state::PaneKey {
-    crate::workbench_client::state::PaneKey::new(anchor.clone(), panel())
+fn pane_key(anchor: &AttachmentKey) -> crate::workbench_state::PaneKey {
+    crate::workbench_state::PaneKey::new(anchor.clone(), panel())
 }
 
 pub(super) fn assert_strictly_sequential_ids(ids: &[String], seed: u128) -> TestResult {

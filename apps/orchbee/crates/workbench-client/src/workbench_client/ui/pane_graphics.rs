@@ -7,10 +7,9 @@ use super::{WorkbenchClientUi, WorkbenchClientView};
 pub(super) mod test_support;
 #[cfg(test)]
 mod tests;
-use crate::workbench_client::{
-    ClientPanel, PaneGraphicsCanvas, PaneGraphicsDraw,
-    pane_graphics::{Scope, Source},
-};
+use crate::workbench_client::pane_graphics::{Scope, Source};
+use crate::workbench_client::{PaneGraphicsCanvas, PaneGraphicsDraw};
+use crate::workbench_projection::ClientPanel;
 
 impl WorkbenchClientView<'_> {
     pub fn set_graphics_surface(&mut self, surface: Option<crate::tui_graphics::Surface>) {

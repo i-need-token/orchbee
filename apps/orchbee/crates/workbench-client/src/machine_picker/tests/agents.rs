@@ -184,7 +184,7 @@ fn active_source_view_drives_list_and_global_cycle_and_failed_source_never_clear
     assert!(picker.drive_agent_navigation(Instant::now()));
     assert_eq!(
         picker.request.take().unwrap().context,
-        Some(crate::workbench_client::ClientStartupTarget::Agent(
+        Some(crate::startup_directory::ClientStartupTarget::Agent(
             Box::new(blocked.target)
         ))
     );

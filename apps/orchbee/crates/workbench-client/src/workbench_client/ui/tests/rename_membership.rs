@@ -1,6 +1,6 @@
 use super::super::*;
 use crate::workbench_client::mailbox::EventDeadline;
-use crate::workbench_client::state::tab_rename::RenameResult;
+use crate::workbench_state::tab_rename::RenameResult;
 use crate::{localization::Locale, tui_render::render_tab_rename_for_test, tui_theme::Theme};
 use orchbee_workbench_protocol::{WorkbenchRevision, WorkbenchSnapshotOutcome};
 use ratatui::{Terminal, backend::TestBackend};

@@ -71,7 +71,7 @@ fn reorder_projects_before_dequeue_and_settles_without_a_metadata_poll() {
         assert_eq!(ui.state.as_ref().unwrap().desired(), selection.as_ref());
         assert!(!picker.observe_native_navigation(Choice::Local, ui.view().sidebar_navigation()));
 
-        let wakeup = crate::workbench_client::UiWakeup::current();
+        let wakeup = crate::ui_wakeup::UiWakeup::current();
         ui.set_ui_wakeup(Some(wakeup.clone()));
         wakeup.take();
         let lease = mailbox.try_recv().unwrap().unwrap();

@@ -73,7 +73,7 @@ impl View {
         candidates: impl IntoIterator<Item = Entry<'a>>,
         current: &Choice,
         context: Option<&ClientContextTarget>,
-        member: Option<&crate::workbench_client::ClientMemberTarget>,
+        member: Option<&crate::workbench_projection::ClientMemberTarget>,
         spec: Option<&AgentViewSpec>,
     ) -> Vec<Entry<'a>> {
         let evaluation_context = Context {

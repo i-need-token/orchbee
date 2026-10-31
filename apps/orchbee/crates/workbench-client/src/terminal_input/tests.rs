@@ -95,10 +95,10 @@ fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() 
     impl ModalInput {
         fn capture_tab_confirmation_key_for(
             &mut self,
-            token: crate::workbench_client::CloseConfirmationToken,
+            token: crate::workbench_state::CloseConfirmationToken,
             key: crate::client_view::ClientKey,
         ) -> bool {
-            if token != crate::workbench_client::CloseConfirmationToken::for_test(1) {
+            if token != crate::workbench_state::CloseConfirmationToken::for_test(1) {
                 return false;
             }
             if !self.active {
@@ -136,7 +136,7 @@ fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() 
             }
             Some(crate::workbench_client::CaptureContext::TabClose(
                 crate::workbench_client::ConfirmationCaptureContext {
-                    token: crate::workbench_client::CloseConfirmationToken::for_test(1),
+                    token: crate::workbench_state::CloseConfirmationToken::for_test(1),
                     phase: crate::tui_presentation::PresentationPhase::Admitted,
                     readiness: crate::workbench_client::CaptureReadiness::Interactive,
                 },
@@ -201,10 +201,10 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
     impl ConfirmTail {
         fn capture_tab_confirmation_key_for(
             &mut self,
-            token: crate::workbench_client::CloseConfirmationToken,
+            token: crate::workbench_state::CloseConfirmationToken,
             key: crate::client_view::ClientKey,
         ) -> bool {
-            if token != crate::workbench_client::CloseConfirmationToken::for_test(1) {
+            if token != crate::workbench_state::CloseConfirmationToken::for_test(1) {
                 return false;
             }
             if !self.active {
@@ -241,7 +241,7 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
             }
             Some(crate::workbench_client::CaptureContext::TabClose(
                 crate::workbench_client::ConfirmationCaptureContext {
-                    token: crate::workbench_client::CloseConfirmationToken::for_test(1),
+                    token: crate::workbench_state::CloseConfirmationToken::for_test(1),
                     phase: crate::tui_presentation::PresentationPhase::Admitted,
                     readiness: crate::workbench_client::CaptureReadiness::Interactive,
                 },
@@ -635,7 +635,7 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
 
         fn activate_drawn_popup_close(
             &mut self,
-            target: &crate::workbench_client::DrawnPopupClose,
+            target: &crate::independent_popup::DrawnPopupClose,
         ) -> bool {
             self.close_attempts.push(target.id().clone());
             if self.id.as_ref() != Some(target.id()) {
@@ -795,7 +795,7 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
     let close_map = |id: WorkbenchRequestId| {
         let mut hits = HitMapBuilder::new();
         hits.start_modal();
-        let popup = crate::workbench_client::PopupView {
+        let popup = crate::independent_popup::PopupView {
             id: &id,
             title: "Dashboard",
             projection: None,

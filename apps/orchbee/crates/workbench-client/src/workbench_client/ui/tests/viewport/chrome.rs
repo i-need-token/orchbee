@@ -558,10 +558,7 @@ fn ended_single_terminal_names_its_exit_in_the_floating_chip_beside_its_fix() {
                     })
                     .unwrap();
                     assert_eq!(projection.value.receive_lifecycle(&record), Ok(true));
-                    assert_eq!(
-                        ui.view().phase(),
-                        crate::workbench_client::DisplayPhase::Ready
-                    );
+                    assert_eq!(ui.view().phase(), crate::localization::DisplayPhase::Ready);
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                     for _ in 0..2 {
                         let mut hits = HitMapBuilder::new();

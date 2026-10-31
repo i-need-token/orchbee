@@ -138,7 +138,7 @@ fn live_raw_and_stripped_titles_and_custom_title_keep_distinct_values_and_exact_
                     })
                     .collect();
                 assert_eq!(exact.len(), expected_height);
-                assert!(exact.iter().all(|s|matches!(&s.context,Some(crate::workbench_client::ClientStartupTarget::Agent(t)) if t.as_ref()==&target)));
+                assert!(exact.iter().all(|s|matches!(&s.context,Some(crate::startup_directory::ClientStartupTarget::Agent(t)) if t.as_ref()==&target)));
             }
         }
     }
@@ -298,7 +298,7 @@ fn configured_sidebar_values_share_metadata_labels_and_keep_provider_identity_fo
             let rendered = (0..40)
                 .filter_map(|y| match hits.hit_target_at(2, y) {
                     Some(HitTarget::MachineAgentRow { selected, .. })
-                        if matches!(&selected.context,Some(crate::workbench_client::ClientStartupTarget::Agent(actual)) if actual.as_ref()==&target) =>
+                        if matches!(&selected.context,Some(crate::startup_directory::ClientStartupTarget::Agent(actual)) if actual.as_ref()==&target) =>
                     {
                         Some(rows[y as usize].as_str())
                     }
@@ -322,7 +322,7 @@ fn configured_sidebar_values_share_metadata_labels_and_keep_provider_identity_fo
                     .count(),
                 4
             );
-            assert!((0..40).filter_map(|y| match hits.hit_target_at(2,y) {Some(HitTarget::MachineAgentRow{selected,..})=>Some(selected),_=>None}).all(|selected| matches!(&selected.context,Some(crate::workbench_client::ClientStartupTarget::Agent(t)) if t.as_ref()==&target)));
+            assert!((0..40).filter_map(|y| match hits.hit_target_at(2,y) {Some(HitTarget::MachineAgentRow{selected,..})=>Some(selected),_=>None}).all(|selected| matches!(&selected.context,Some(crate::startup_directory::ClientStartupTarget::Agent(t)) if t.as_ref()==&target)));
         }
     }
 }
@@ -362,7 +362,7 @@ fn configured_sidebar_hides_raw_token_matches_and_missing_rows_without_hiding_na
         .collect::<Vec<_>>();
     assert_eq!(hits.len(), 1);
     assert!(
-        matches!(&hits[0].context,Some(crate::workbench_client::ClientStartupTarget::Agent(t)) if t.as_ref()==&target)
+        matches!(&hits[0].context,Some(crate::startup_directory::ClientStartupTarget::Agent(t)) if t.as_ref()==&target)
     );
 }
 
@@ -390,7 +390,7 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
     let mut spans = std::collections::BTreeMap::new();
     for y in 0..40 {
         if let Some(HitTarget::MachineAgentRow { selected, .. }) = hits.hit_target_at(2, y) {
-            let Some(crate::workbench_client::ClientStartupTarget::Agent(t)) = &selected.context
+            let Some(crate::startup_directory::ClientStartupTarget::Agent(t)) = &selected.context
             else {
                 panic!()
             };
@@ -447,7 +447,7 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
             // visible entry owns no leading gap (three Claude rows), then the
             // custom entry owns its one-row gap plus two content rows.
             assert_eq!((window.top, window.end()), (3, 5));
-            let Some(crate::workbench_client::ClientStartupTarget::Agent(target)) =
+            let Some(crate::startup_directory::ClientStartupTarget::Agent(target)) =
                 &selected.context
             else {
                 panic!()
@@ -733,7 +733,7 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
             assert!(!rows.join("\n").contains("space /"));
             assert!(
                 matches!(hits.hit_target_at(2, y), Some(HitTarget::MachineAgentRow { selected, .. })
-                if matches!(&selected.context, Some(crate::workbench_client::ClientStartupTarget::Agent(actual)) if actual.as_ref() == &target))
+                if matches!(&selected.context, Some(crate::startup_directory::ClientStartupTarget::Agent(actual)) if actual.as_ref() == &target))
             );
         }
     }
@@ -1165,7 +1165,7 @@ fn sidebar_shares_source_order_and_never_lists_unavailable_rows() {
         })
         .unwrap();
     assert!(
-        matches!(&selected.context,Some(crate::workbench_client::ClientStartupTarget::Agent(t)) if t.member==row(24).target.member)
+        matches!(&selected.context,Some(crate::startup_directory::ClientStartupTarget::Agent(t)) if t.member==row(24).target.member)
     );
 }
 
@@ -1188,7 +1188,7 @@ fn sidebar_truncates_wide_and_unsafe_text_without_changing_navigation_identity()
     let rendered = (0..40)
         .filter_map(|y| match hits.hit_target_at(2, y) {
             Some(HitTarget::MachineAgentRow { selected, .. })
-                if matches!(&selected.context,Some(crate::workbench_client::ClientStartupTarget::Agent(actual)) if actual.as_ref()==&target) =>
+                if matches!(&selected.context,Some(crate::startup_directory::ClientStartupTarget::Agent(actual)) if actual.as_ref()==&target) =>
             {
                 Some(rows[y as usize].as_str())
             }
@@ -1211,7 +1211,7 @@ fn sidebar_truncates_wide_and_unsafe_text_without_changing_navigation_identity()
         })
         .unwrap();
     assert!(
-        matches!(&selected.context,Some(crate::workbench_client::ClientStartupTarget::Agent(t)) if t.as_ref()==&target)
+        matches!(&selected.context,Some(crate::startup_directory::ClientStartupTarget::Agent(t)) if t.as_ref()==&target)
     );
 }
 
@@ -1229,7 +1229,7 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
         view.machines.observe_focus(
             Choice::Local,
             Some(agent.target.context.clone()),
-            Some(crate::workbench_client::ClientMemberTarget {
+            Some(crate::workbench_projection::ClientMemberTarget {
                 tab: agent.target.tab,
                 panel: agent.target.panel,
                 presentation: agent.target.member,

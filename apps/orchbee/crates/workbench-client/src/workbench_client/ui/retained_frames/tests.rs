@@ -1,6 +1,6 @@
 use super::super::{ClientAction, ClientActionDisposition, DisplayPhase, WorkbenchClientUi};
 use super::*;
-use crate::workbench_client::state::ControllerMode;
+use crate::workbench_state::ControllerMode;
 
 #[test]
 fn retained_renderer_has_no_cursor_selection_graphics_input_or_ack() {
@@ -199,7 +199,7 @@ fn revisiting_a_tab_paints_its_own_pixels_without_reusing_input_or_feedback() {
         ui.pending_draws.is_empty(),
         "retained pixels never mint feedback"
     );
-    ui.retire(crate::workbench_client::state::CarrierFailure::Protocol);
+    ui.retire(crate::workbench_state::CarrierFailure::Protocol);
     assert!(ui.retained_frames.entries.is_empty());
     assert!(ui.view().retained_pane_frame(&panel, 80, 24).is_none());
 }
@@ -356,7 +356,7 @@ fn retained_images_have_count_and_byte_bounds_and_never_truncate() {
 }
 
 fn ready_for_retained_handoff(
-    cache: crate::workbench_client::workbench_projection::ClientContextTabs,
+    cache: crate::workbench_projection::ClientContextTabs,
 ) -> WorkbenchClientUi {
     use crate::{
         local_client::test_support::server::adjustable_operation_clock,
@@ -378,7 +378,7 @@ fn ready_for_retained_handoff(
                 selection: None,
                 cache,
             },
-            EventDeadline::Startup(clock.now() + crate::workbench_client::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();
@@ -386,7 +386,7 @@ fn ready_for_retained_handoff(
     mailbox.take_deposited_reply(&wait).unwrap().unwrap();
     let state = ui.state.as_mut().unwrap();
     let key = state.desired().unwrap().clone();
-    let frame = crate::workbench_client::state::FrameIdentity::new(1);
+    let frame = crate::workbench_state::FrameIdentity::new(1);
     assert!(state.install_projection_t(&key));
     assert!(state.record_setup_configuration_t(&key, ControllerMode::ReadOnly, None));
     assert!(state.stage_drawn_frame_t(&key, frame));
@@ -396,7 +396,7 @@ fn ready_for_retained_handoff(
 }
 
 fn identity_at(
-    cache: &crate::workbench_client::workbench_projection::ClientContextTabs,
+    cache: &crate::workbench_projection::ClientContextTabs,
     tab_index: usize,
 ) -> Identity {
     let tab = &cache.tabs()[tab_index];
@@ -420,9 +420,7 @@ fn marked_frame(template: &TerminalTextFrame, marker: &str) -> Arc<TerminalTextF
 
 #[test]
 fn fresh_targeted_surface_keeps_canonical_context_bank_and_newer_pixels_win() {
-    use crate::workbench_client::workbench_projection::{
-        project_native_context_tabs, project_preferred_workspace,
-    };
+    use crate::workbench_projection::{project_native_context_tabs, project_preferred_workspace};
 
     let snapshot = super::super::tests::context_selection::snapshot(false);
     let alpha = project_preferred_workspace(&snapshot).unwrap();
@@ -517,9 +515,7 @@ fn fresh_targeted_surface_keeps_canonical_context_bank_and_newer_pixels_win() {
 
 #[test]
 fn inherited_pixels_reject_wrong_binding_and_known_host_epoch() {
-    use crate::workbench_client::workbench_projection::{
-        project_native_context_tabs, project_preferred_workspace,
-    };
+    use crate::workbench_projection::{project_native_context_tabs, project_preferred_workspace};
     use orchbee_terminal_protocol::HostEpoch;
 
     let snapshot = super::super::tests::context_selection::snapshot(false);
@@ -589,7 +585,7 @@ fn inherited_pixels_reject_wrong_binding_and_known_host_epoch() {
 
 #[test]
 fn invalid_inherited_lru_entries_cannot_evict_valid_pixels() {
-    use crate::workbench_client::workbench_projection::project_preferred_workspace;
+    use crate::workbench_projection::project_preferred_workspace;
 
     let snapshot = super::super::tests::context_selection::snapshot(false);
     let alpha = project_preferred_workspace(&snapshot).unwrap();

@@ -4,12 +4,13 @@ use super::setup::{TestResult, admit, fixture_geometry, snapshot};
 use crate::local_client::LocalClient;
 use crate::local_client::test_support::server::FakeServer;
 use crate::workbench_client::mailbox::CommandMailbox;
-use crate::workbench_client::state::OperationDeadlines;
-use crate::workbench_client::state::workspace_setup::{SetupToken, quick::QuickPreparation};
-use crate::workbench_client::workbench_projection::{
+use crate::workbench_projection::{
     ClientContextLocation, ClientContextTabs, project_native_context_tabs,
     project_preferred_workspace,
 };
+use crate::workbench_state::OperationDeadlines;
+use crate::workbench_state::workspace_setup::SetupToken;
+use crate::workbench_state::workspace_setup::quick::QuickPreparation;
 use orchbee_workbench_protocol::{
     Directory, TerminalContext, WorkbenchDirectoryId, WorkbenchDirectoryPath,
     WorkbenchSnapshotOutcome, WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,

@@ -3,7 +3,7 @@ use super::{
     ClientPanelLayout, ClientPanelNeighbors, ClientViewControl, ClientViewIntent, Reason, Rect,
     SidebarSurface, Snapshot, WorkbenchClientUi, cell, project_geometry,
 };
-use crate::workbench_client::ClientPanelTree;
+use crate::workbench_projection::ClientPanelTree;
 use orchbee_workbench_protocol::{
     ClientLayoutAdjustment, ClientLayoutChange, ClientSplitChange, ClientSplitPath,
     ClientViewObservation, PanelNode, WorkbenchPanelSlotId, WorkbenchSplitId,

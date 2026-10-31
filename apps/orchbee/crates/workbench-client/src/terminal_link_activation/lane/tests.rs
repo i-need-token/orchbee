@@ -7,10 +7,8 @@ use super::{
     Admission, BrowserError, BrowserPort, Driver, EffectHandoff, Notice, browser_url,
     settle_browser, settle_effect,
 };
-use crate::{
-    terminal_link_activation::{Activation, PaintedLinkSource, PaintedRows, SnapshotMember},
-    workbench_client::state::{AttachmentKey, PaneKey, PaneRef},
-};
+use crate::terminal_link_activation::{Activation, PaintedLinkSource, PaintedRows, SnapshotMember};
+use crate::workbench_state::{AttachmentKey, PaneKey, PaneRef};
 
 #[derive(Default)]
 struct RecordingBrowser {

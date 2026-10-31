@@ -2,8 +2,9 @@
 //! task is absent, preserving its origin and recovery mailbox seed. It does not replay close
 //! mutations or replace the Server's retained status authority.
 
-use super::{ClientTask, WorkbenchClient, connection, state};
+use super::{ClientTask, WorkbenchClient, connection};
 use crate::background_thread::BackgroundThread;
+use crate::workbench_state;
 
 impl WorkbenchClient {
     pub(super) fn start_status_recovery(&mut self) -> bool {
@@ -19,13 +20,13 @@ impl WorkbenchClient {
         let (mailbox, clock, deadline, membership) = if let Some((mailbox, clock)) =
             native.begin_status_recovery()
         {
-            let Some(deadline) = clock.now().checked_add(state::OPERATION_TOTAL) else {
-                native.close(state::CarrierFailure::Deadline);
+            let Some(deadline) = clock.now().checked_add(workbench_state::OPERATION_TOTAL) else {
+                native.close(workbench_state::CarrierFailure::Deadline);
                 native.finalize_retirement(
                     None,
                     None,
                     None,
-                    state::CloseWorkerReturn::Returned(None),
+                    workbench_state::CloseWorkerReturn::Returned(None),
                 );
                 native.release_mailbox();
                 return true;
@@ -56,12 +57,12 @@ impl WorkbenchClient {
             Err(_) => {
                 shutdown.close();
                 native.finish_retired_peer_join(None, true);
-                native.close(state::CarrierFailure::WorkerExited);
+                native.close(workbench_state::CarrierFailure::WorkerExited);
                 native.finalize_retirement(
                     None,
                     None,
                     None,
-                    state::CloseWorkerReturn::Returned(None),
+                    workbench_state::CloseWorkerReturn::Returned(None),
                 );
                 native.release_mailbox();
             }

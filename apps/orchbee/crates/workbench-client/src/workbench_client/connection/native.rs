@@ -3,36 +3,29 @@
 //! evidence without mutating canonical UI state directly or replaying uncertain effects.
 
 use super::{ClientConnectionExit, attach_binding};
-use crate::{
-    local_client::{
-        LocalClient, LocalOperationClock, SubmissionError,
-        workbench::{
-            PublicationReadError, PublicationReadFailure, SnapshotReadError, SnapshotReadFailure,
-            WorkbenchTabCreateNotSubmitted, WorkbenchTabCreateOutcomeUnknownReason,
-            WorkbenchTabCreateRequest, WorkbenchTabCreateSubmission,
-        },
-    },
-    terminal_projection::TerminalProjection,
-    terminal_viewport::{
-        ViewportReadRejection, ViewportStep, ViewportWindowFailure, decode_viewport_window,
-    },
-    workbench_client::{
-        mailbox::{
-            AdmissionError, BarrierKind, CausalSettlement, CommandLease, CommandMailbox,
-            CreatePrecommitOutcome, EventDeadline, EventError, MailboxClosed, MutationResult,
-            PollKey, QueuedCommand, ReconcileMarker, SetupPollKey, Tagged, UiReply,
-            ViewportOutcome, WorkerEvent,
-        },
-        startup_directory::ClientStartupTarget,
-        state::{
-            AttachTarget, BootstrapTarget, CarrierFailure, CleanupContinuation, ControllerMode,
-            CreateOperation, CreateProjectionDecision, CreateTerminalProvenance, FrameIdentity,
-            OperationDeadlines, PaneFault, PaneKey, PaneRef, PendingCloseResult,
-            PendingCreateCommit, PendingMoveCommit, ReadyDecision, ReconcileStep, ReconcileTarget,
-            RefreshDecision, SetupEventDisposition,
-        },
-        workbench_projection::{project_native_context_tabs, project_preferred_workspace},
-    },
+use crate::local_client::workbench::{
+    PublicationReadError, PublicationReadFailure, SnapshotReadError, SnapshotReadFailure,
+    WorkbenchTabCreateNotSubmitted, WorkbenchTabCreateOutcomeUnknownReason,
+    WorkbenchTabCreateRequest, WorkbenchTabCreateSubmission,
+};
+use crate::local_client::{LocalClient, LocalOperationClock, SubmissionError};
+use crate::startup_directory::ClientStartupTarget;
+use crate::terminal_projection::TerminalProjection;
+use crate::terminal_viewport::{
+    ViewportReadRejection, ViewportStep, ViewportWindowFailure, decode_viewport_window,
+};
+use crate::workbench_client::mailbox::{
+    AdmissionError, BarrierKind, CausalSettlement, CommandLease, CommandMailbox,
+    CreatePrecommitOutcome, EventDeadline, EventError, MailboxClosed, MutationResult, PollKey,
+    QueuedCommand, ReconcileMarker, SetupPollKey, Tagged, UiReply, ViewportOutcome, WorkerEvent,
+};
+use crate::workbench_projection::{project_native_context_tabs, project_preferred_workspace};
+use crate::workbench_state::{
+    AttachTarget, BootstrapTarget, CarrierFailure, CleanupContinuation, ControllerMode,
+    CreateOperation, CreateProjectionDecision, CreateTerminalProvenance, FrameIdentity,
+    OperationDeadlines, PaneFault, PaneKey, PaneRef, PendingCloseResult, PendingCreateCommit,
+    PendingMoveCommit, ReadyDecision, ReconcileStep, ReconcileTarget, RefreshDecision,
+    SetupEventDisposition,
 };
 use orchbee_client_server_protocol::{
     ControlRejectedReason, ControlUnavailableReason, Geometry, HistoryDemand, ProjectionDemand,
@@ -143,7 +136,7 @@ struct ClientExecutor {
     initial_context: Option<ClientStartupTarget>,
     status_only: bool,
     membership_recovery: bool,
-    unavailable_poll: Option<crate::workbench_client::state::retired_membership::UnavailablePoll>,
+    unavailable_poll: Option<crate::workbench_state::retired_membership::UnavailablePoll>,
     client: LocalClient,
     clock: LocalOperationClock,
     mailbox: Arc<CommandMailbox>,
@@ -155,13 +148,13 @@ struct ClientExecutor {
     publications: Option<crate::local_client::multiplex::Subscription>,
     pending_create: Option<PendingCreateCommit>,
     pending_move: Option<PendingMoveCommit>,
-    pending_panel: Option<crate::workbench_client::state::PendingPanelCommit>,
+    pending_panel: Option<crate::workbench_state::PendingPanelCommit>,
     pending_close: Option<PendingCloseResult>,
-    pending_rename: Option<crate::workbench_client::state::tab_rename::RenameWorkerEvidence>,
-    pending_setup: Option<crate::workbench_client::state::workspace_setup::SetupWorkerEvidence>,
+    pending_rename: Option<crate::workbench_state::tab_rename::RenameWorkerEvidence>,
+    pending_setup: Option<crate::workbench_state::workspace_setup::SetupWorkerEvidence>,
     pending_workspace_close:
-        Option<crate::workbench_client::state::workspace_close::WorkspaceCloseEvidence>,
-    pending_takeover: Option<crate::workbench_client::state::control_takeover::TakeoverEvidence>,
+        Option<crate::workbench_state::workspace_close::WorkspaceCloseEvidence>,
+    pending_takeover: Option<crate::workbench_state::control_takeover::TakeoverEvidence>,
 }
 
 /// The wall-clock backoff before a reconcile that yielded on `ServerBusy`
@@ -431,13 +424,11 @@ impl ClientExecutor {
                 crate::local_client::cancellation::Cancellation::new(None),
             )
             .map_err(|_| CarrierFailure::AuthorityDivergence)?;
-            selection = Some(
-                crate::workbench_client::workbench_projection::ClientMemberTarget {
-                    tab: target.tab.clone(),
-                    panel: target.panel.clone(),
-                    presentation: target.member.clone(),
-                },
-            );
+            selection = Some(crate::workbench_projection::ClientMemberTarget {
+                tab: target.tab.clone(),
+                panel: target.panel.clone(),
+                presentation: target.member.clone(),
+            });
         }
         self.publish_and_wait(
             WorkerEvent::Bootstrap { cache, selection },
@@ -450,23 +441,21 @@ impl ClientExecutor {
     fn remembered_startup(
         &self,
         snapshot: &orchbee_workbench_protocol::Snapshot,
-        selection: &mut Option<crate::workbench_client::ClientMemberTarget>,
-    ) -> Result<Option<crate::workbench_client::workbench_projection::ClientContextTabs>> {
+        selection: &mut Option<crate::workbench_projection::ClientMemberTarget>,
+    ) -> Result<Option<crate::workbench_projection::ClientContextTabs>> {
         if let Some(ClientStartupTarget::LocalDirectory {
             position, fallback, ..
         }) = &self.initial_context
         {
             let Some(position) = position else {
-                let location =
-                    super::super::workbench_projection::preferred_workspace_location(snapshot)
-                        .map_err(|_| CarrierFailure::AuthorityDivergence)?;
+                let location = crate::workbench_projection::preferred_workspace_location(snapshot)
+                    .map_err(|_| CarrierFailure::AuthorityDivergence)?;
                 return project_native_context_tabs(snapshot, &location)
                     .map(Some)
                     .map_err(|_| CarrierFailure::AuthorityDivergence);
             };
-            let (cache, member, changed) =
-                crate::workbench_client::startup_preference::resolve(snapshot, position)
-                    .map_err(|_| CarrierFailure::AuthorityDivergence)?;
+            let (cache, member, changed) = crate::startup_preference::resolve(snapshot, position)
+                .map_err(|_| CarrierFailure::AuthorityDivergence)?;
             *selection = member;
             fallback.store(changed, std::sync::atomic::Ordering::Release);
             return Ok(Some(cache));
@@ -855,8 +844,8 @@ impl ClientExecutor {
             if self.status_only
                 && !matches!(lease.record(), QueuedCommand::ReconcileClose(marker) if marker.membership_recovery())
                 && !matches!(lease.record(), QueuedCommand::Close(marker)
-                if matches!(marker.operation().kind(), crate::workbench_client::state::CloseOperationKind::Read { .. }
-                    | crate::workbench_client::state::CloseOperationKind::Resume { .. }))
+                if matches!(marker.operation().kind(), crate::workbench_state::CloseOperationKind::Read { .. }
+                    | crate::workbench_state::CloseOperationKind::Resume { .. }))
             {
                 return Err(CarrierFailure::Protocol);
             }
@@ -1413,7 +1402,7 @@ impl ClientExecutor {
             )
         {
             self.unavailable_poll = Some(
-                crate::workbench_client::state::retired_membership::UnavailablePoll {
+                crate::workbench_state::retired_membership::UnavailablePoll {
                     request_id,
                     poll: poll_key.clone(),
                 },
@@ -1679,7 +1668,7 @@ impl ClientExecutor {
         outcome: CreatePrecommitOutcome,
     ) -> Result<()> {
         let applied_geometry = match operation.origin() {
-            crate::workbench_client::state::CreateOriginKind::Ready => {
+            crate::workbench_state::CreateOriginKind::Ready => {
                 let focus = self
                     .execution_desired(lease)?
                     .ok_or(CarrierFailure::Protocol)?;
@@ -1689,8 +1678,8 @@ impl ClientExecutor {
                     .ok_or(CarrierFailure::Protocol)?
                     .accepted_geometry
             }
-            crate::workbench_client::state::CreateOriginKind::Unattached => None,
-            crate::workbench_client::state::CreateOriginKind::Empty => {
+            crate::workbench_state::CreateOriginKind::Unattached => None,
+            crate::workbench_state::CreateOriginKind::Empty => {
                 if !self.attachments.is_empty() {
                     return Err(CarrierFailure::Protocol);
                 }

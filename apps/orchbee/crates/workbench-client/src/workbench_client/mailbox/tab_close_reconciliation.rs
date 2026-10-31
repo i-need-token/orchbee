@@ -108,21 +108,25 @@ impl CommandMailbox {
     }
     pub(in crate::workbench_client) fn try_enqueue_close_reconciliation_for(
         &self,
-        canonical: &mut super::super::state::WorkbenchClientState,
+        canonical: &mut crate::workbench_state::WorkbenchClientState,
         deadline: Instant,
         clock: &LocalOperationClock,
-    ) -> Result<CloseReconciliationMarker, CloseAdmissionError<super::super::state::CloseStateError>>
-    {
+    ) -> Result<
+        CloseReconciliationMarker,
+        CloseAdmissionError<crate::workbench_state::CloseStateError>,
+    > {
         self.try_enqueue_close_reconciliation_using(canonical, deadline, clock)
     }
 
     pub(super) fn try_enqueue_close_reconciliation_using(
         &self,
-        canonical: &mut super::super::state::WorkbenchClientState,
+        canonical: &mut crate::workbench_state::WorkbenchClientState,
         deadline: Instant,
         clock: &dyn MailboxClock,
-    ) -> Result<CloseReconciliationMarker, CloseAdmissionError<super::super::state::CloseStateError>>
-    {
+    ) -> Result<
+        CloseReconciliationMarker,
+        CloseAdmissionError<crate::workbench_state::CloseStateError>,
+    > {
         let (mut state, _) = self
             .lock_before(deadline, clock)
             .ok_or(CloseAdmissionError::Deadline)?;

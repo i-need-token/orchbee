@@ -160,7 +160,7 @@ pub(super) fn paint(
 /// Custom and metadata titles win over the creation label; a numeric creation label keeps the
 /// localized Terminal prefix. Without room for the selector, a member still shows its position.
 fn name(
-    panel: &crate::workbench_client::ClientPanel,
+    panel: &crate::workbench_projection::ClientPanel,
     native: &WorkbenchClientView<'_>,
     text: ShellText<'_>,
     separator: &str,

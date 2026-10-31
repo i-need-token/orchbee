@@ -4,7 +4,7 @@
 //! A peer change retires the captured menu before input or handoff; a later CloseSet decision
 //! remains independently owned by its existing complete-set confirmation.
 
-use crate::workbench_client::workbench_projection::ClientTab;
+use crate::workbench_projection::ClientTab;
 use orchbee_workbench_protocol::{WorkbenchTabGroupId, WorkbenchTabId};
 
 #[derive(Clone)]

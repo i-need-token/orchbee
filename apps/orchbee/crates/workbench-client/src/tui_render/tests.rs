@@ -64,7 +64,7 @@ fn close_request_notice_does_not_replace_the_exact_status_text() {
 fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let notice =
-            locale.native_notice(crate::workbench_client::WorkbenchClientNotice::MenuUnavailable);
+            locale.native_notice(crate::localization::WorkbenchClientNotice::MenuUnavailable);
         for status in [notice.clone(), format!("{notice} · recovery")] {
             for shell_notice in [
                 None,
@@ -1560,15 +1560,13 @@ fn history_preserves_styles_defaults_wide_cells_and_sanitization() {
 
 #[test]
 fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
-    use crate::{
-        terminal_input::{
-            MouseAction, MouseButton, MouseEvent, TerminalInputPort, TerminalInputUnavailable,
-        },
-        tui_hit_map::{HitMapBuilder, HitTarget, InteractionTarget, PrimaryContract},
-        tui_pointer::{MotionObservability, PointerOutcome, PointerState},
-        tui_theme::{GlyphSet, Theme},
-        workbench_client::PopupView,
+    use crate::independent_popup::PopupView;
+    use crate::terminal_input::{
+        MouseAction, MouseButton, MouseEvent, TerminalInputPort, TerminalInputUnavailable,
     };
+    use crate::tui_hit_map::{HitMapBuilder, HitTarget, InteractionTarget, PrimaryContract};
+    use crate::tui_pointer::{MotionObservability, PointerOutcome, PointerState};
+    use crate::tui_theme::{GlyphSet, Theme};
     use orchbee_workbench_protocol::{PluginPopupSize, WorkbenchRequestId};
     use ratatui::{layout::Rect, widgets::Paragraph};
     struct Port(Vec<(WorkbenchRequestId, Rect)>);
@@ -1767,12 +1765,10 @@ fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
 
 #[test]
 fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
-    use crate::{
-        terminal_projection::TerminalProjection,
-        tui_hit_map::HitMapBuilder,
-        tui_theme::{ColorLevel, Theme},
-        workbench_client::PopupView,
-    };
+    use crate::independent_popup::PopupView;
+    use crate::terminal_projection::TerminalProjection;
+    use crate::tui_hit_map::HitMapBuilder;
+    use crate::tui_theme::{ColorLevel, Theme};
     use orchbee_workbench_protocol::{
         PluginPopupSize, TerminalDisplayAppearance, UserPreferencesValues, WorkbenchRequestId,
     };
@@ -1891,7 +1887,8 @@ fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
 
 #[test]
 fn popup_draw_rejects_incomplete_geometry_before_clearing_or_publishing_targets() {
-    use crate::{tui_hit_map::HitMapBuilder, workbench_client::PopupView};
+    use crate::independent_popup::PopupView;
+    use crate::tui_hit_map::HitMapBuilder;
     use orchbee_workbench_protocol::WorkbenchRequestId;
     use ratatui::{layout::Rect, widgets::Paragraph};
 

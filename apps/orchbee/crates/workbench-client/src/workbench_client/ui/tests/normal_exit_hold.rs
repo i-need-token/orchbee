@@ -48,7 +48,7 @@ pub(super) fn poll(
         .expect("Poll admission");
     let lease = mailbox.try_recv().unwrap().expect("queued Poll");
     let poll_key = lease.poll_key().expect("Poll key");
-    let cutoff = clock.now() + crate::workbench_client::state::OPERATION_TOTAL;
+    let cutoff = clock.now() + crate::workbench_state::OPERATION_TOTAL;
     assert_eq!(
         mailbox
             .publish_poll_result_before(poll_key, Some(record), false, cutoff, clock)

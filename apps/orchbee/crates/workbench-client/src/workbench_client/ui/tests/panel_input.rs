@@ -6,7 +6,7 @@ use crate::client_view::{ClientKey, ClientView};
 use crate::terminal_input::{
     DispatchOutcome, InputDispatcher, TerminalInputPort, TerminalInputUnavailable,
 };
-use crate::workbench_client::state::{CarrierFailure, PanelIntent};
+use crate::workbench_state::{CarrierFailure, PanelIntent};
 use orchbee_workbench_protocol::{WorkbenchPanelSplitDirection, WorkbenchSnapshotOutcome};
 use std::{
     io,

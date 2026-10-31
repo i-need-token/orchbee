@@ -4,7 +4,7 @@ use super::super::*;
 use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::terminal_projection::TerminalProjection;
 use crate::workbench_client::mailbox::EventDeadline;
-use crate::workbench_client::workbench_projection::project_preferred_workspace;
+use crate::workbench_projection::project_preferred_workspace;
 use orchbee_client_server_protocol::MAXIMUM_CONTROL_INPUT_BYTES;
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use orchbee_workbench_protocol::{
@@ -36,7 +36,7 @@ fn run_poll(
         .expect("Poll admission");
     let lease = mailbox.try_recv().unwrap().expect("queued Poll");
     let poll_key = lease.poll_key().expect("Poll lease carries a poll key");
-    let cutoff = clock.now() + crate::workbench_client::state::OPERATION_TOTAL;
+    let cutoff = clock.now() + crate::workbench_state::OPERATION_TOTAL;
     assert_eq!(
         mailbox
             .publish_poll_result_before(poll_key.clone(), None, publication_hint, cutoff, clock)
@@ -82,7 +82,7 @@ pub(in crate::workbench_client) fn settle_queued_refresh(
 /// the draft closes installs the folded publication without a new hint.
 #[test]
 fn pushed_membership_hints_recover_a_lost_focused_viewer_without_periodic_reads() {
-    use crate::workbench_client::state::{OPERATION_TOTAL, PaneFault};
+    use crate::workbench_state::{OPERATION_TOTAL, PaneFault};
     use std::sync::atomic::Ordering;
 
     let (mut ui, mailbox, clock, elapsed) =
@@ -156,7 +156,7 @@ fn pushed_membership_hints_recover_a_lost_focused_viewer_without_periodic_reads(
 
 #[test]
 fn focused_runtime_loss_keeps_the_sibling_poll_owner() {
-    use crate::workbench_client::state::{OPERATION_TOTAL, PaneFault};
+    use crate::workbench_state::{OPERATION_TOTAL, PaneFault};
     let (mut ui, mailbox, clock, elapsed) = ready_split_ui();
     attach_split_peer(&mut ui, &mailbox, &clock);
     let state = ui.state.as_ref().unwrap();
@@ -305,7 +305,7 @@ fn full_refused_publication_hint_survives_until_queue_drains() {
         "queue must be at capacity"
     );
 
-    let cutoff = clock.now() + crate::workbench_client::state::OPERATION_TOTAL;
+    let cutoff = clock.now() + crate::workbench_state::OPERATION_TOTAL;
     assert_eq!(
         mailbox
             .publish_poll_result_before(poll_key.clone(), None, true, cutoff, &clock)
@@ -382,7 +382,7 @@ fn hint_during_debt_flight_leaves_exactly_one_follow_up_demand() {
     // arriving now is late demand, not a second debt. The executor-side setup
     // poll derived from the refresh lease can still publish while the flight is
     // live, exactly as the setup path does in production.
-    let cutoff = clock.now() + crate::workbench_client::state::OPERATION_TOTAL;
+    let cutoff = clock.now() + crate::workbench_state::OPERATION_TOTAL;
     let crate::workbench_client::mailbox::SetupPollKey::Allocated(setup_key) = mailbox
         .allocate_setup_poll_key(&lease, &pane_ref(&mailbox, key.anchor()))
         .expect("setup poll key")
@@ -398,7 +398,7 @@ fn hint_during_debt_flight_leaves_exactly_one_follow_up_demand() {
     ui.tick();
     assert_eq!(
         ui.state.as_ref().unwrap().publication_debt_kind(),
-        crate::workbench_client::state::PublicationDebt::InFlight { late: true }
+        crate::workbench_state::PublicationDebt::InFlight { late: true }
     );
     assert!(matches!(
         mailbox
@@ -429,7 +429,7 @@ fn hint_during_debt_flight_leaves_exactly_one_follow_up_demand() {
     assert!(mailbox.pending_refresh_stage().is_some());
     assert_eq!(
         ui.state.as_ref().unwrap().publication_debt_kind(),
-        crate::workbench_client::state::PublicationDebt::InFlight { late: false }
+        crate::workbench_state::PublicationDebt::InFlight { late: false }
     );
 
     // The follow-up flight installs the late publication and settles the debt.
@@ -520,7 +520,7 @@ fn parked_debt_rearms_on_explicit_manual_refresh() {
     assert_eq!(mailbox.pending_refresh_stage(), None);
     assert_eq!(
         ui.state.as_ref().unwrap().publication_debt_kind(),
-        crate::workbench_client::state::PublicationDebt::Parked
+        crate::workbench_state::PublicationDebt::Parked
     );
 
     // The parked demand does not drain on its own.
@@ -528,14 +528,14 @@ fn parked_debt_rearms_on_explicit_manual_refresh() {
     assert!(mailbox.try_recv().unwrap().is_none());
     assert_eq!(
         ui.state.as_ref().unwrap().publication_debt_kind(),
-        crate::workbench_client::state::PublicationDebt::Parked
+        crate::workbench_state::PublicationDebt::Parked
     );
 
     // The real manual refresh entry point re-arms and adopts the parked debt.
     ui.apply_client_action(ClientAction::OpenWorkbenchNavigator);
     assert_eq!(
         ui.state.as_ref().unwrap().publication_debt_kind(),
-        crate::workbench_client::state::PublicationDebt::InFlight { late: false }
+        crate::workbench_state::PublicationDebt::InFlight { late: false }
     );
     assert!(mailbox.pending_refresh_stage().is_some());
 
@@ -575,7 +575,7 @@ fn manual_clean_flight_hint_stays_pending_through_refusal_and_drains_once() {
     let first_generation = marker.generation();
     assert_eq!(
         ui.state.as_ref().unwrap().publication_debt_kind(),
-        crate::workbench_client::state::PublicationDebt::Clean
+        crate::workbench_state::PublicationDebt::Clean
     );
     assert_eq!(
         mailbox.mark_refresh_in_flight(marker.generation()).unwrap(),
@@ -586,7 +586,7 @@ fn manual_clean_flight_hint_stays_pending_through_refusal_and_drains_once() {
     // executor-side setup Poll derived from the refresh lease publishes it, the
     // fair tick captures the latch, and the demand pends: it is not adopted by
     // the running flight.
-    let cutoff = clock.now() + crate::workbench_client::state::OPERATION_TOTAL;
+    let cutoff = clock.now() + crate::workbench_state::OPERATION_TOTAL;
     let crate::workbench_client::mailbox::SetupPollKey::Allocated(setup_key) = mailbox
         .allocate_setup_poll_key(&lease, &pane_ref(&mailbox, key.anchor()))
         .expect("setup poll key")
@@ -602,7 +602,7 @@ fn manual_clean_flight_hint_stays_pending_through_refusal_and_drains_once() {
     ui.tick();
     assert_eq!(
         ui.state.as_ref().unwrap().publication_debt_kind(),
-        crate::workbench_client::state::PublicationDebt::Pending
+        crate::workbench_state::PublicationDebt::Pending
     );
     assert!(matches!(
         mailbox
@@ -632,7 +632,7 @@ fn manual_clean_flight_hint_stays_pending_through_refusal_and_drains_once() {
     // Exactly one follow-up refresh was admitted, under a fresh generation.
     assert_eq!(
         ui.state.as_ref().unwrap().publication_debt_kind(),
-        crate::workbench_client::state::PublicationDebt::InFlight { late: false }
+        crate::workbench_state::PublicationDebt::InFlight { late: false }
     );
     let follow_up = mailbox.try_recv().unwrap().expect("one follow-up Refresh");
     let QueuedCommand::Refresh(follow_up_marker) = follow_up.record() else {
@@ -730,7 +730,7 @@ pub(in crate::workbench_client::ui) fn starting_split_ui() -> (
                 selection: None,
                 cache: project_preferred_workspace(&split).unwrap(),
             },
-            EventDeadline::Startup(clock.now() + crate::workbench_client::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();
@@ -771,9 +771,7 @@ pub(in crate::workbench_client) fn ready_split_ui_with_mode(
         let wait = mailbox
             .publish_event_before(
                 event,
-                EventDeadline::Forward(
-                    clock.now() + crate::workbench_client::state::OPERATION_TOTAL,
-                ),
+                EventDeadline::Forward(clock.now() + crate::workbench_state::OPERATION_TOTAL),
                 &clock,
             )
             .unwrap();
@@ -832,7 +830,7 @@ pub(in crate::workbench_client) fn ready_split_ui_with_mode(
 
 #[test]
 fn explicit_refresh_install_uses_transaction_clock_and_publication_does_not_reopen() {
-    use crate::workbench_client::state::{OPERATION_TOTAL, PaneFault};
+    use crate::workbench_state::{OPERATION_TOTAL, PaneFault};
     use std::sync::atomic::Ordering;
 
     for explicit in [false, true] {
@@ -1028,7 +1026,7 @@ fn departed_pane_pending_draw_settles_no_feedback_not_frame_applied() {
 
     let (mut ui, mailbox, clock, _elapsed) = ready_split_ui();
     let geometry = Geometry::new(80, 24, 8, 16).unwrap();
-    let cutoff = clock.now() + crate::workbench_client::state::OPERATION_TOTAL;
+    let cutoff = clock.now() + crate::workbench_state::OPERATION_TOTAL;
     let focus_panel = ui.state.as_ref().unwrap().focus_panel_id().unwrap().clone();
     let peer_panel = WorkbenchPanelId::parse(&format!("{:032x}", 3_010)).unwrap();
 
@@ -1169,9 +1167,7 @@ pub(in crate::workbench_client) fn attach_split_peer(
         let wait = mailbox
             .publish_event_before(
                 event,
-                EventDeadline::Forward(
-                    clock.now() + crate::workbench_client::state::OPERATION_TOTAL,
-                ),
+                EventDeadline::Forward(clock.now() + crate::workbench_state::OPERATION_TOTAL),
                 clock,
             )
             .unwrap();
@@ -1212,9 +1208,9 @@ fn remote_panel_focus_refuses_a_faulted_peer_instead_of_waiting_or_reattaching()
         .publish_notice_before(
             WorkerEvent::PaneFailed {
                 key,
-                fault: crate::workbench_client::state::PaneFault::ViewerLost,
+                fault: crate::workbench_state::PaneFault::ViewerLost,
             },
-            clock.now() + crate::workbench_client::state::OPERATION_TOTAL,
+            clock.now() + crate::workbench_state::OPERATION_TOTAL,
             &clock,
         )
         .unwrap();

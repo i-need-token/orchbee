@@ -36,8 +36,8 @@ fn paint(
     (terminal.backend().buffer().clone(), hits.finish())
 }
 
-fn workspace() -> crate::workbench_client::ClientContextLocation {
-    crate::workbench_client::ClientContextLocation::Workspace {
+fn workspace() -> crate::workbench_projection::ClientContextLocation {
+    crate::workbench_projection::ClientContextLocation::Workspace {
         workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 1)).unwrap(),
         terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap(),
     }

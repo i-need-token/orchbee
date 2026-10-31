@@ -44,7 +44,7 @@ use crate::terminal_input::{
     PaneAdmission, PaneInput, PointerPane, PointerSelectionIntent, PointerTab,
 };
 use crate::workbench_client::input::PointerSelectionCell;
-use crate::workbench_client::state::{AttachmentKey, PaneKey};
+use crate::workbench_state::{AttachmentKey, PaneKey};
 
 use crate::client_view::{
     ClientActionDisposition, KeyCode, KeyEvent, Modifiers, Overlay, PrefixInput,
@@ -108,7 +108,7 @@ fn render_sidebar_map(view: &ClientView) -> FrameHitMap {
 #[test]
 fn sidebar_gestures_require_exact_plain_release_and_obey_capture_and_modals() {
     use crate::machine_picker::{SidebarPart, SidebarTarget};
-    use crate::workbench_client::ClientStartupTarget;
+    use crate::startup_directory::ClientStartupTarget;
 
     for (action, button, mods) in [
         (MouseAction::Press, MouseButton::Middle, Modifiers::NONE),
@@ -2740,12 +2740,12 @@ fn primary_wheel_enters_history_only_over_focused_content_without_shift() {
 fn presentation_controls_activate_only_on_exact_generic_release() {
     let presentation =
         orchbee_workbench_protocol::TerminalPresentationId::parse(&"9".repeat(32)).unwrap();
-    let target = crate::workbench_client::DrawnPresentationTarget::Attached {
+    let target = crate::tui_hit_map::DrawnPresentationTarget::Attached {
         pane: pane_ref(1, 1, 1, 0),
         presentation,
     };
     let area = Rect::new(4, 2, 3, 1);
-    let paint = |target: crate::workbench_client::DrawnPresentationTarget, area| {
+    let paint = |target: crate::tui_hit_map::DrawnPresentationTarget, area| {
         let mut builder = HitMapBuilder::new();
         builder.record_interaction(
             HitLayer::Foreground,
@@ -2786,7 +2786,7 @@ fn presentation_controls_activate_only_on_exact_generic_release() {
         pointer.event(&mut view, &mut port, now(), press(5, 2)),
         PointerOutcome::Handled,
     );
-    let replacement = crate::workbench_client::DrawnPresentationTarget::Attached {
+    let replacement = crate::tui_hit_map::DrawnPresentationTarget::Attached {
         pane: pane_ref(1, 1, 1, 1),
         presentation: target.presentation().clone(),
     };
@@ -2867,10 +2867,8 @@ fn workspace_fixture(count: u64) -> (ClientView, FrameHitMap) {
 }
 
 fn workspace_fixture_with_legacy(count: u64, legacy: bool) -> (ClientView, FrameHitMap) {
-    use crate::{
-        machine_discovery::Context,
-        workbench_client::{ClientContextLocation, ClientContextTarget},
-    };
+    use crate::machine_discovery::Context;
+    use crate::workbench_projection::{ClientContextLocation, ClientContextTarget};
     use orchbee_workbench_protocol::*;
     let (mut view, _) = sidebar_fixture(10);
     let mut contexts = (0..count)
@@ -2933,7 +2931,7 @@ fn workspace_fixture_with_legacy(count: u64, legacy: bool) -> (ClientView, Frame
 #[test]
 fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
     use crate::action_menu::{DrawnMenuSource, MenuTarget};
-    use crate::workbench_client::ClientStartupTarget;
+    use crate::startup_directory::ClientStartupTarget;
     use orchbee_workbench_protocol::{SessionId, WorkbenchRevision};
     for (invalid, legacy) in
         (0..4).flat_map(|invalid| [false, true].map(|legacy| (invalid, legacy)))
@@ -2946,7 +2944,7 @@ fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
                 HitTarget::MachineWorkspaceRow { selected, .. } => matches!(
                     &selected.context,
                     Some(ClientStartupTarget::Context(context))
-                        if matches!(&context.location, crate::workbench_client::ClientContextLocation::Workspace { workspace_id, .. } if workspace_id.as_str() == format!("{:032x}", 900)) == legacy
+                        if matches!(&context.location, crate::workbench_projection::ClientContextLocation::Workspace { workspace_id, .. } if workspace_id.as_str() == format!("{:032x}", 900)) == legacy
                 ),
                 _ => false,
             })
@@ -3012,7 +3010,7 @@ fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
 #[test]
 fn workspace_sidebar_release_emits_the_exact_drawn_target_without_mutating_navigation() {
     use crate::machine_picker::{SidebarPart, SidebarTarget};
-    use crate::workbench_client::ClientStartupTarget;
+    use crate::startup_directory::ClientStartupTarget;
 
     let (mut view, map) = workspace_fixture(2);
     let region = map
@@ -3780,8 +3778,8 @@ impl TerminalInputPort for PopupPointerPort {
     }
 }
 
-fn popup_close_target(id: &WorkbenchRequestId) -> crate::workbench_client::DrawnPopupClose {
-    crate::workbench_client::PopupView {
+fn popup_close_target(id: &WorkbenchRequestId) -> crate::independent_popup::DrawnPopupClose {
+    crate::independent_popup::PopupView {
         id,
         title: "Popup",
         projection: None,
@@ -3793,7 +3791,7 @@ fn popup_close_target(id: &WorkbenchRequestId) -> crate::workbench_client::Drawn
 }
 
 fn popup_close_map(
-    target: crate::workbench_client::DrawnPopupClose,
+    target: crate::independent_popup::DrawnPopupClose,
     rect: Rect,
     availability: InteractionAvailability,
 ) -> FrameHitMap {

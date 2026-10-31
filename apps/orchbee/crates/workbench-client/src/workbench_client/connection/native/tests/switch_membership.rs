@@ -1,6 +1,6 @@
 use super::setup::snapshot;
 use super::*;
-use crate::workbench_client::state::RefreshDecision;
+use crate::workbench_state::RefreshDecision;
 use orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason;
 
 fn startup_steps() -> Vec<WireKind> {

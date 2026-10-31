@@ -3,7 +3,8 @@
 use ratatui::{layout::Rect, style::Style};
 
 use super::{FrameHitMap, HitLayer, HitRegion, HitRegionResolution, HitTarget};
-use crate::{tui_theme::Role, workbench_client::state::PaneRef};
+use crate::tui_theme::Role;
+use crate::workbench_state::PaneRef;
 
 /// What offers one tooltip. A target that moves or changes what it does is a different key.
 #[derive(Clone, Debug, Eq, PartialEq)]

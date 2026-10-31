@@ -4,15 +4,11 @@
 use super::{
     FrameHitMap, Gesture, HitResolution, HitTarget, PointerOutcome, PointerState, contains,
 };
-use crate::{
-    client_view::{ClientAction, ClientView, Modifiers},
-    terminal_events::{MouseAction, MouseButton, MouseEvent},
-    terminal_scrollbar::ScrollbarSnapshot,
-    workbench_client::{
-        input::{PaneAdmission, PaneInput, PointerProbe, TerminalInputPort},
-        state::PaneRef,
-    },
-};
+use crate::client_view::{ClientAction, ClientView, Modifiers};
+use crate::terminal_events::{MouseAction, MouseButton, MouseEvent};
+use crate::terminal_scrollbar::ScrollbarSnapshot;
+use crate::workbench_client::input::{PaneAdmission, PaneInput, PointerProbe, TerminalInputPort};
+use crate::workbench_state::PaneRef;
 use ratatui::layout::Rect;
 
 pub(super) struct ScrollbarDrag {

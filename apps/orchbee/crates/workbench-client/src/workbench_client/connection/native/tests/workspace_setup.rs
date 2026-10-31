@@ -1,11 +1,7 @@
 use super::{commands::drive_controlling_ready_from_snapshot, setup::*};
-use crate::workbench_client::{
-    mailbox::WorkerEvent,
-    state::{
-        CarrierFailure,
-        workspace_setup::{SetupResult, SetupStatus},
-    },
-};
+use crate::workbench_client::mailbox::WorkerEvent;
+use crate::workbench_state::CarrierFailure;
+use crate::workbench_state::workspace_setup::{SetupResult, SetupStatus};
 use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, ServerMessage, TerminalControlOutcome, TerminalControlResult,
 };

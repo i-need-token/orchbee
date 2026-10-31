@@ -1,9 +1,9 @@
 //! One cancellable read/close job, with submission identity owned before the thread receives it.
-use super::state::{OverlayJob, OverlayResult, WorkbenchClientState};
 use crate::local_client::{
     LocalClientOrigin, LocalOperationClock,
     workbench::panel_close::{WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission},
 };
+use crate::workbench_state::{OverlayJob, OverlayResult, WorkbenchClientState};
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 
 use crate::background_thread::BackgroundThread;

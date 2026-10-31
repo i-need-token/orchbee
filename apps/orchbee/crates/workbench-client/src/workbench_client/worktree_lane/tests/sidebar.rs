@@ -1,8 +1,7 @@
 use super::*;
-use crate::workbench_client::primary_directory::tests::process_record;
-use crate::workbench_client::state::worktree_launch::addressed::{
-    SidebarWorktreeTarget, tests::fixture,
-};
+use crate::primary_directory::tests::process_record;
+use crate::workbench_state::worktree_launch::addressed::SidebarWorktreeTarget;
+use crate::workbench_state::worktree_launch::addressed::tests::fixture;
 use orchbee_client_server_protocol::{
     ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerResult, read_client_message, write_server_message,
@@ -81,7 +80,8 @@ fn attach_reply(
 
 #[test]
 fn changed_first_root_at_start_is_no_effect_and_never_queries_the_replacement_repository() {
-    use crate::workbench_client::state::worktree_launch::{Launcher, tests::sidebar_fixture};
+    use crate::workbench_state::worktree_launch::Launcher;
+    use crate::workbench_state::worktree_launch::tests::sidebar_fixture;
     let canonical = fixture();
     let (origin, sidebar) = sidebar_fixture();
     let addressed = sidebar.addressed.clone();
@@ -341,7 +341,7 @@ fn addressed_lane_samples_first_root_around_git_and_always_releases_its_own_view
                 assert!(result.valid(&canonical));
                 assert_eq!(
                     result.sample,
-                    crate::workbench_client::primary_directory::RootDirectory::Available(Some(
+                    crate::primary_directory::RootDirectory::Available(Some(
                         WorkbenchDirectoryPath::parse("C:/repo").unwrap()
                     ))
                 );

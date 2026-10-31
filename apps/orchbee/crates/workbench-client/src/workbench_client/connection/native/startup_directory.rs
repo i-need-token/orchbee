@@ -3,17 +3,14 @@
 //! implicit fallback Workspace or install UI membership from an unvalidated result.
 
 use super::{ClientExecutor, Result};
-use crate::{
-    local_client::workbench::workspace_launch::{
-        WorkspaceLaunchRequest, WorkspaceLaunchSubmission,
-    },
-    workbench_client::{
-        ClientMemberTarget, ClientStartupTarget,
-        startup_directory::{Progress, validate_workspace},
-        state::CarrierFailure,
-        workbench_projection::{ClientContextTabs, project_preferred_workspace},
-    },
+use crate::local_client::workbench::workspace_launch::{
+    WorkspaceLaunchRequest, WorkspaceLaunchSubmission,
 };
+use crate::startup_directory::ClientStartupTarget;
+use crate::startup_directory::{Progress, validate_workspace};
+use crate::workbench_projection::ClientMemberTarget;
+use crate::workbench_projection::{ClientContextTabs, project_preferred_workspace};
+use crate::workbench_state::CarrierFailure;
 use orchbee_client_server_protocol::Geometry;
 use orchbee_workbench_protocol::{
     LaunchOptions, ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand,

@@ -1,5 +1,5 @@
 //! Bounded external-effect FIFO, cancelled before dispatch and never replayed afterwards.
-use super::state::PaneRef;
+use crate::workbench_state::PaneRef;
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use std::{
     collections::VecDeque,

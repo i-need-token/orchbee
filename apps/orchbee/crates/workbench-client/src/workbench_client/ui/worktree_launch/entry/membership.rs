@@ -1,11 +1,11 @@
 //! Exact target proof joins accepted refreshes and fences context installation before cleanup.
 use super::{Entry, EntryStage, WorkbenchClientUi, WorktreeNotice, target_context};
-use crate::workbench_client::state::PreparedRefresh;
+use crate::workbench_state::PreparedRefresh;
 use orchbee_workbench_protocol::{Snapshot, WorkbenchRevision};
 
 fn matches_target(
     expected: &Entry,
-    op: &crate::workbench_client::state::worktree_launch::Operation,
+    op: &crate::workbench_state::worktree_launch::Operation,
     snapshot: &Snapshot,
 ) -> bool {
     let Some((candidate, directory)) = target_context(op, snapshot) else {

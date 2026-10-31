@@ -3,10 +3,8 @@ use crate::action_menu::MenuAction;
 use crate::local_client::{
     test_support::server::adjustable_operation_clock, workbench::WorkbenchTabCreateCommit,
 };
-use crate::workbench_client::{
-    mailbox::{CommandLease, EventDeadline},
-    state::{DuplicateStop, PaneRef, TabSelectionChange},
-};
+use crate::workbench_client::mailbox::{CommandLease, EventDeadline};
+use crate::workbench_state::{DuplicateStop, PaneRef, TabSelectionChange};
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use orchbee_workbench_protocol::*;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -343,7 +341,7 @@ fn candidate(
     clock: &LocalOperationClock,
     key: &CreateOperationKey,
     snapshot: Snapshot,
-) -> crate::workbench_client::state::MembershipCleanup {
+) -> crate::workbench_state::MembershipCleanup {
     let UiReply::CreateProjection(CreateProjectionDecision::Cleanup(cleanup)) = reply(
         ui,
         mailbox,
@@ -362,7 +360,7 @@ fn install(
     ui: &mut WorkbenchClientUi,
     mailbox: &Arc<CommandMailbox>,
     clock: &LocalOperationClock,
-    cleanup: crate::workbench_client::state::MembershipCleanup,
+    cleanup: crate::workbench_state::MembershipCleanup,
 ) -> PaneRef {
     let detached = cleanup.old().clone();
     assert!(matches!(
@@ -927,7 +925,7 @@ fn selected_duplicate_unknown_submission_halts_immediately_and_join_only_refines
             pending,
             None,
             None,
-            crate::workbench_client::state::CloseWorkerReturn::Returned(None)
+            crate::workbench_state::CloseWorkerReturn::Returned(None)
         ));
         let expected = usize::from(late_commit);
         let progress = ui.view().duplicate_progress().unwrap();

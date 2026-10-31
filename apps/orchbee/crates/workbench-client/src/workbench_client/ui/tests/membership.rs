@@ -3,11 +3,11 @@ use super::super::test_support::snapshot_terminal;
 use super::super::*;
 use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::workbench_client::mailbox::{EventDeadline, SwitchMarker};
-use crate::workbench_client::state::{
+use crate::workbench_projection::ClientContextLocation;
+use crate::workbench_state::{
     CleanupContinuation, ClientNotice, ControllerMode, FrameIdentity, PaneKey, SelectedTab,
     SetupEventDisposition,
 };
-use crate::workbench_client::workbench_projection::ClientContextLocation;
 use orchbee_workbench_protocol::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -21,22 +21,20 @@ fn close_snapshot_waiting_ui(
     super::super::super::mailbox::UiWaitKey,
 ) {
     use crate::local_client::workbench::WorkbenchTabCloseAccepted;
-    use crate::workbench_client::state::CloseResult;
+    use crate::workbench_state::CloseResult;
     let clock = adjustable_operation_clock(elapsed);
     let mailbox = Arc::new(CommandMailbox::new(
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
     let mut ui = WorkbenchClientUi::new(Arc::clone(&mailbox), clock.clone());
-    let deadline = clock.now() + super::super::super::state::OPERATION_TOTAL;
+    let deadline = clock.now() + crate::workbench_state::OPERATION_TOTAL;
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: super::super::super::workbench_projection::project_preferred_workspace(
-                    &snapshot(1, 1),
-                )
-                .unwrap(),
+                cache: crate::workbench_projection::project_preferred_workspace(&snapshot(1, 1))
+                    .unwrap(),
             },
             EventDeadline::Startup(deadline),
             &clock,
@@ -94,9 +92,9 @@ fn close_snapshot_waiting_ui(
             }),
         )
         .unwrap();
-    state.acknowledge_close_lease(
-        crate::workbench_client::state::CloseLeaseAcknowledgement::Exchange(read.key().clone()),
-    );
+    state.acknowledge_close_lease(crate::workbench_state::CloseLeaseAcknowledgement::Exchange(
+        read.key().clone(),
+    ));
     ui.schedule_close_reconciliation(&mailbox);
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::ReconcileClose(marker) = lease.record() else {
@@ -232,12 +230,12 @@ fn actual_attached_refresh_freezes_until_exact_cleanup_and_never_installs_after_
             .publish_event_before(
                 WorkerEvent::Bootstrap {
                     selection: None,
-                    cache: super::super::super::workbench_projection::project_preferred_workspace(
-                        &snapshot(1, 1),
-                    )
+                    cache: crate::workbench_projection::project_preferred_workspace(&snapshot(
+                        1, 1,
+                    ))
                     .unwrap(),
                 },
-                EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
+                EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
                 &clock,
             )
             .unwrap();
@@ -314,17 +312,15 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
                 selection: None,
                 cache: {
                     let snapshot = canonical_snapshot(2, 1);
-                    super::super::super::workbench_projection::project_native_context_tabs(
+                    crate::workbench_projection::project_native_context_tabs(
                         &snapshot,
-                        &super::super::super::workbench_projection::preferred_workspace_location(
-                            &snapshot,
-                        )
-                        .unwrap(),
+                        &crate::workbench_projection::preferred_workspace_location(&snapshot)
+                            .unwrap(),
                     )
                     .unwrap()
                 },
             },
-            EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();
@@ -470,7 +466,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
     };
     assert_eq!(
         marker.operation().origin(),
-        super::super::super::state::CreateOriginKind::Empty
+        crate::workbench_state::CreateOriginKind::Empty
     );
     let wait = mailbox
         .publish_event_before(
@@ -541,12 +537,10 @@ fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_initial_wor
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: super::super::super::workbench_projection::project_preferred_workspace(
-                    &split_snapshot(),
-                )
-                .unwrap(),
+                cache: crate::workbench_projection::project_preferred_workspace(&split_snapshot())
+                    .unwrap(),
             },
-            EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();

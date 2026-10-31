@@ -10,22 +10,22 @@
 //! cache, and the panel against the live pane records. Nothing moves on
 //! cached positions, and no stage ever mints a panel.
 
-#[cfg(test)]
-use super::super::agent_board::AgentBoardInputContext;
-use super::super::agent_board::{
-    AgentBoardControlTarget, AgentBoardDraw, AgentBoardEpisodeToken, AgentBoardKeyAction,
-    AgentBoardRowTarget, AgentBoardToken, AgentBoardView, JumpStage, JumpStep, board_key_action,
-    plan_jump_step,
-};
-use super::super::agent_board::{AgentStartKeyAction, agent_start_key_action};
 use super::{
     ActionBuildError, Arc, CarrierFailure, ClientAction, ClientActionDisposition, ClientNotice,
     ClientPhaseKind, OperationDeadlines, WorkbenchClientUi, WorkbenchTabId, build_switch_for_panel,
     finish_action,
 };
+#[cfg(test)]
+use crate::agent_board::AgentBoardInputContext;
+use crate::agent_board::{
+    AgentBoardControlTarget, AgentBoardDraw, AgentBoardEpisodeToken, AgentBoardKeyAction,
+    AgentBoardRowTarget, AgentBoardToken, AgentBoardView, JumpStage, JumpStep, board_key_action,
+    plan_jump_step,
+};
+use crate::agent_board::{AgentStartKeyAction, agent_start_key_action};
 use crate::client_view::KeyEvent;
 use crate::tui_composition::{WorkbenchCaptureOwner, project_native_capture};
-use crate::workbench_client::workbench_projection::ClientContextLocation;
+use crate::workbench_projection::ClientContextLocation;
 use orchbee_agent_observation_protocol::AgentPresentationAttachment;
 use std::time::Instant;
 
@@ -215,7 +215,7 @@ impl WorkbenchClientUi {
         &mut self,
         target: &AgentBoardControlTarget,
     ) -> bool {
-        if target.control() == super::super::agent_board::AgentBoardControl::Start {
+        if target.control() == crate::agent_board::AgentBoardControl::Start {
             let Some(panel) = self
                 .state
                 .as_ref()
@@ -281,7 +281,7 @@ impl WorkbenchClientUi {
         let Some(deadline) = self
             .clock
             .now()
-            .checked_add(crate::workbench_client::state::OPERATION_TOTAL)
+            .checked_add(crate::workbench_state::OPERATION_TOTAL)
         else {
             return;
         };

@@ -1,5 +1,6 @@
 use super::super::tests::workspace_setup::{finish_preparation, finish_preparation_with_directory};
 use super::super::*;
+use crate::workbench_state::workspace_setup::{SetupEdit, SetupStage};
 use orchbee_workbench_protocol::Snapshot;
 
 fn no_workspace() -> (
@@ -39,17 +40,14 @@ pub(in crate::workbench_client::ui) fn empty_ui(
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: crate::workbench_client::workbench_projection::project_native_context_tabs(
+                cache: crate::workbench_projection::project_native_context_tabs(
                     &snapshot,
-                    &crate::workbench_client::workbench_projection::preferred_workspace_location(
-                        &snapshot,
-                    )
-                    .unwrap(),
+                    &crate::workbench_projection::preferred_workspace_location(&snapshot).unwrap(),
                 )
                 .unwrap(),
             },
             super::super::super::mailbox::EventDeadline::Startup(
-                clock.now() + super::super::super::state::OPERATION_TOTAL,
+                clock.now() + crate::workbench_state::OPERATION_TOTAL,
             ),
             &clock,
         )
@@ -221,17 +219,14 @@ fn after_last_workspace_close() -> (
 #[test]
 fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_newer_focus_wins() {
     use super::super::tests::workspace_setup::{launched, place};
-    use crate::{
-        client_view::ClientView,
-        local_client::workbench::workspace_setup::WorkbenchSetupCommit,
-        localization::Locale,
-        tui_hit_map::HitMapBuilder,
-        tui_theme::Theme,
-        workbench_client::{
-            ClientBackend, WorkbenchClient, state::workspace_setup::SetupWorkerEvidence,
-            workbench_projection::ClientContextLocation,
-        },
-    };
+    use crate::client_view::ClientView;
+    use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
+    use crate::localization::Locale;
+    use crate::tui_hit_map::HitMapBuilder;
+    use crate::tui_theme::Theme;
+    use crate::workbench_client::{ClientBackend, WorkbenchClient};
+    use crate::workbench_projection::ClientContextLocation;
+    use crate::workbench_state::workspace_setup::SetupWorkerEvidence;
     use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 
     for width in [80, 120] {
@@ -659,7 +654,7 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
                 };
                 assert_eq!(
                     marker.operation().origin(),
-                    super::super::super::state::CreateOriginKind::Empty
+                    crate::workbench_state::CreateOriginKind::Empty
                 );
             } else {
                 finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);

@@ -111,10 +111,7 @@ fn source() -> PaintedLinkSource {
     let panel = WorkbenchPanelId::parse(&id(2)).unwrap();
     PaintedLinkSource {
         pane: PaneRef::new(
-            crate::workbench_client::state::PaneKey::new(
-                AttachmentKey::new(1, tab.clone()),
-                panel.clone(),
-            ),
+            crate::workbench_state::PaneKey::new(AttachmentKey::new(1, tab.clone()), panel.clone()),
             0,
         ),
         member: SnapshotMember {

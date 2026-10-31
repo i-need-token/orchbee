@@ -1,11 +1,9 @@
 use super::*;
-use crate::{
-    machine_discovery::Context,
-    machine_picker::{SidebarRow, SidebarWindow},
-    terminal_input::{PointerProbe, TerminalInputUnavailable},
-    tui_hit_map::{HitLayer, HitMapBuilder, InteractionSpec},
-    workbench_client::ClientContextTarget,
-};
+use crate::machine_discovery::Context;
+use crate::machine_picker::{SidebarRow, SidebarWindow};
+use crate::terminal_input::{PointerProbe, TerminalInputUnavailable};
+use crate::tui_hit_map::{HitLayer, HitMapBuilder, InteractionSpec};
+use crate::workbench_projection::ClientContextTarget;
 use orchbee_workbench_protocol::{
     Navigation, Project, ProtocolVersion, SessionId, Snapshot, TerminalContext, WorkbenchProjectId,
     WorkbenchRevision, WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace,

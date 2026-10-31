@@ -16,9 +16,9 @@ fn halted_close(
 ) -> (
     orchbee_workbench_protocol::WorkbenchTabId,
     orchbee_workbench_protocol::WorkbenchRequestId,
-    crate::workbench_client::state::CloseOperation,
+    crate::workbench_state::CloseOperation,
 ) {
-    use crate::workbench_client::state::{CloseLeaseAcknowledgement, CloseResult};
+    use crate::workbench_state::{CloseLeaseAcknowledgement, CloseResult};
     use orchbee_workbench_protocol::{
         WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseReadOutcome,
     };
@@ -76,7 +76,7 @@ fn halted_close(
 
 #[test]
 fn close_set_menu_resumes_the_presented_exact_close_without_navigation_or_set_restart() {
-    use crate::workbench_client::state::{CloseConfirmationKind, CloseOperationKind};
+    use crate::workbench_state::{CloseConfirmationKind, CloseOperationKind};
     use orchbee_workbench_protocol::{WorkbenchTabCloseBlockedReason, WorkbenchTabCloseStatus};
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for (width, height, target_index) in [(120, 40, 0), (80, 24, 0), (120, 40, 1), (80, 24, 1)]
@@ -222,7 +222,7 @@ fn close_set_menu_resumes_the_presented_exact_close_without_navigation_or_set_re
 
 #[test]
 fn close_set_menu_rejects_a_handoff_after_its_exact_close_observation_changes() {
-    use crate::workbench_client::state::{
+    use crate::workbench_state::{
         CloseOperation, CloseOperationKind, CloseReadMode, CloseResult, PendingCloseResult,
     };
     use orchbee_workbench_protocol::{
@@ -424,7 +424,7 @@ fn close_set_menu_never_offers_resume_for_unknown_close_facts() {
 
 #[test]
 fn close_set_keyboard_recovery_addresses_the_presented_background_member() {
-    use crate::workbench_client::state::CloseOperationKind;
+    use crate::workbench_state::CloseOperationKind;
     use orchbee_workbench_protocol::{WorkbenchTabCloseBlockedReason, WorkbenchTabCloseStatus};
     let (mut ui, mailbox, _, _) = ready_snapshot(grouped());
     let original = ui.state.as_ref().unwrap().desired().cloned();
@@ -612,7 +612,7 @@ fn draw_themed(
 #[test]
 fn close_set_maximum_names_are_bounded_previews_with_full_warning_and_frozen_targets() {
     use crate::terminal_text::{display_width, sanitize_terminal_text, truncate_display};
-    use crate::workbench_client::state::TabSelectionChange;
+    use crate::workbench_state::TabSelectionChange;
     let names = [
         "A".repeat(512),
         "界".repeat(512),
@@ -838,10 +838,7 @@ fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_co
                         ui.state
                             .as_mut()
                             .unwrap()
-                            .mark_tabs(
-                                &ids[2],
-                                crate::workbench_client::state::TabSelectionChange::Toggle,
-                            )
+                            .mark_tabs(&ids[2], crate::workbench_state::TabSelectionChange::Toggle)
                             .unwrap();
                     }
                     ui.apply_client_action(ClientAction::ToggleTabGroup(group));

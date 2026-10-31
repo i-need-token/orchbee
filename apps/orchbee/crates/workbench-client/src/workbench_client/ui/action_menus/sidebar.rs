@@ -4,14 +4,12 @@ use super::{
     ClientContextLocation, Discovery, MenuAction, MenuContextSource, MenuTarget, Stage, Target,
     WorkbenchClientState, WorkbenchClientUi, intent_availability, visible_unavailable,
 };
-use crate::workbench_client::{
-    SidebarWorktreeTarget,
-    state::worktree_launch::{
-        Removal, WorktreeNotice,
-        addressed::{AddressedWorktreeSource, SidebarDiscovery},
-    },
-    worktree_lane::Action,
+use crate::workbench_client::worktree_lane::Action;
+use crate::workbench_state::worktree_launch::addressed::SidebarWorktreeTarget;
+use crate::workbench_state::worktree_launch::addressed::{
+    AddressedWorktreeSource, SidebarDiscovery,
 };
+use crate::workbench_state::worktree_launch::{Removal, WorktreeNotice};
 
 #[cfg(test)]
 mod tests;

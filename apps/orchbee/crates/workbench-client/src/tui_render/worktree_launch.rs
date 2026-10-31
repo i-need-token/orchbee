@@ -14,7 +14,7 @@ use crate::tui_hit_map::{
     HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl,
 };
 use crate::tui_theme::Role;
-use crate::workbench_client::{
+use crate::workbench_state::worktree_launch::{
     WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
 };
 use ratatui::text::{Span, Text};

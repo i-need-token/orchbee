@@ -4,12 +4,10 @@ mod policy;
 mod tests;
 mod worker;
 use crate::local_client::cancellation::Cancellation;
-use crate::{
-    local_client::{LocalClient, LocalClientOrigin, LocalOperationClock},
-    machines::{Profile, ProfileId},
-    terminal_text::sanitize_terminal_text,
-    workbench_client::{ClientContextLocation, ClientContextTarget},
-};
+use crate::local_client::{LocalClient, LocalClientOrigin, LocalOperationClock};
+use crate::machines::{Profile, ProfileId};
+use crate::terminal_text::sanitize_terminal_text;
+use crate::workbench_projection::{ClientContextLocation, ClientContextTarget};
 use orchbee_workbench_protocol::{SessionId, Snapshot, WorkbenchProjectId, WorkbenchRevision};
 use policy::{Phase, Policy};
 use std::{io, time::Instant};

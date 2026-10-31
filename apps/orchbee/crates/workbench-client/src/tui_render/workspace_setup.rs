@@ -5,21 +5,19 @@ use super::modal::{
     single_modal_layout, status_line,
 };
 mod project_delete;
-use crate::{
-    client_view::{
-        Binding, Bindings, ClientAction, KeyCode, KeyLabelGlyphs, Modifiers, PrefixAction,
-        PrefixDesc,
-    },
-    localization::Locale,
-    terminal_text::sanitize_terminal_text,
-    terminal_text::{display_width, truncate_display},
-    tui_hit_map::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl},
-    tui_layout::centered_overlay,
-    tui_theme::{GlyphMode, Role, Theme},
-    workbench_client::{
-        DisplayPhase, LocationLabelStatus, ModalPresentation, SetupDraftView, SetupStage,
-        SetupStatus, SetupToken,
-    },
+use crate::client_view::{
+    Binding, Bindings, ClientAction, KeyCode, KeyLabelGlyphs, Modifiers, PrefixAction, PrefixDesc,
+};
+use crate::localization::{DisplayPhase, Locale};
+use crate::terminal_text::{display_width, sanitize_terminal_text, truncate_display};
+use crate::tui_hit_map::{
+    HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl,
+};
+use crate::tui_layout::centered_overlay;
+use crate::tui_theme::{GlyphMode, Role, Theme};
+use crate::workbench_client::ModalPresentation;
+use crate::workbench_state::workspace_setup::{
+    LocationLabelStatus, SetupDraftView, SetupStage, SetupStatus, SetupToken,
 };
 use ratatui::{
     Frame,

@@ -2,26 +2,24 @@
 //! selection-export and clipboard identities.
 
 use super::{ClientProjectionStatus, WorkbenchClientUi};
+use crate::client_view::{
+    CopyModeKey, CopySearchCommand, KeyCode, KeyEvent, KeyKind, Modifiers, copy_mode_key,
+    copy_search_command,
+};
+use crate::terminal_content::{ContentSource, TerminalScreen};
+use crate::terminal_copy::TerminalTextPoint;
+use crate::terminal_copy_mode::{
+    CopyModeView, Effect, Mode, Navigation, Refusal, SearchEdit, Surface,
+};
+use crate::terminal_copy_query::{
+    Action as QueryAction, Admission as QueryAdmission, Failure as QueryFailure, QueryIdentity,
+    Request as QueryRequest, Value as QueryValue,
+};
 use crate::terminal_viewport::{TerminalViewport, ViewportNav, ViewportStep};
 use crate::workbench_client::copy_episode::PendingQuery;
-use crate::{
-    client_view::{
-        CopyModeKey, CopySearchCommand, KeyCode, KeyEvent, KeyKind, Modifiers, copy_mode_key,
-        copy_search_command,
-    },
-    terminal_content::{ContentSource, TerminalScreen},
-    terminal_copy::TerminalTextPoint,
-    terminal_copy_mode::{CopyModeView, Effect, Mode, Navigation, Refusal, SearchEdit, Surface},
-    terminal_copy_query::{
-        Action as QueryAction, Admission as QueryAdmission, Failure as QueryFailure, QueryIdentity,
-        Request as QueryRequest, Value as QueryValue,
-    },
-    workbench_client::{
-        mailbox::{AdmissionError, CommandMailbox, QueuedCommand, Tagged},
-        state::{CarrierFailure, ClientNotice, PaneRef},
-        terminal_selection,
-    },
-};
+use crate::workbench_client::mailbox::{AdmissionError, CommandMailbox, QueuedCommand, Tagged};
+use crate::workbench_client::terminal_selection;
+use crate::workbench_state::{CarrierFailure, ClientNotice, PaneRef};
 use orchbee_terminal_protocol::TerminalTextRow;
 use std::{num::NonZeroU64, sync::Arc};
 mod pointer;

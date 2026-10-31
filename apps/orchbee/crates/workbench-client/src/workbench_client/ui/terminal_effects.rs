@@ -1,9 +1,7 @@
 //! Pane effect intake and post-flush dispatch through one lifecycle-owned FIFO.
 use super::{ClientProjectionStatus, WorkbenchClientUi};
-use crate::workbench_client::{
-    state::ClientNotice,
-    terminal_effects::{Kind, Outcome, Payload, Scope},
-};
+use crate::workbench_client::terminal_effects::{Kind, Outcome, Payload, Scope};
+use crate::workbench_state::ClientNotice;
 use std::io;
 
 impl WorkbenchClientUi {
@@ -59,7 +57,7 @@ impl WorkbenchClientUi {
                         .is_some_and(|provenance| {
                             matches!(
                                 provenance,
-                                crate::workbench_client::state::CreateTerminalProvenance::Failed(_)
+                                crate::workbench_state::CreateTerminalProvenance::Failed(_)
                             )
                         })
                     && !state.close_suppresses_attachment(key.pane().anchor());

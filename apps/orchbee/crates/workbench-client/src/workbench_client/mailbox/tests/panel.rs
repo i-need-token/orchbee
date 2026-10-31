@@ -1,14 +1,11 @@
 use super::*;
-use crate::{
-    client_view::PanelDirection,
-    local_client::workbench::{
-        panel_close::WorkbenchPanelCloseAccepted, panel_placement::WorkbenchPanelPlacementCommit,
-        panel_split::WorkbenchPanelSplitCommit,
-    },
-    workbench_client::state::{
-        MembershipInstallDecision, PanelCommit, PanelDecision, PanelIntent, PanelOperation,
-        PanelRequestKind, PanelResult, PendingPanelCommit,
-    },
+use crate::client_view::PanelDirection;
+use crate::local_client::workbench::panel_close::WorkbenchPanelCloseAccepted;
+use crate::local_client::workbench::panel_placement::WorkbenchPanelPlacementCommit;
+use crate::local_client::workbench::panel_split::WorkbenchPanelSplitCommit;
+use crate::workbench_state::{
+    MembershipInstallDecision, PanelCommit, PanelDecision, PanelIntent, PanelOperation,
+    PanelRequestKind, PanelResult, PendingPanelCommit,
 };
 use orchbee_workbench_protocol::{
     PanelOrientation, PanelSlot, WorkbenchPanelSlotId, WorkbenchSplitId,

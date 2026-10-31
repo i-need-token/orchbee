@@ -4,11 +4,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::{
-    agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome},
-    state::PaneRef,
-};
+use super::agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome};
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
+use crate::workbench_state::PaneRef;
 use orchbee_agent_observation_protocol::AgentChangesCursor;
 
 mod physical;
@@ -62,7 +60,7 @@ pub(super) struct AgentAttention {
     redraw: bool,
 }
 
-impl super::agent_board::AgentRowAttention for AgentAttention {
+impl crate::agent_board::AgentRowAttention for AgentAttention {
     fn session_unread(&self, session: &orchbee_agent_observation_protocol::AgentSessionId) -> bool {
         self.state.session_unread(session)
     }

@@ -4,15 +4,13 @@ use super::super::ClientExecutor;
 use super::setup::{TestResult, admit, fixture_geometry, snapshot};
 use crate::local_client::LocalClient;
 use crate::local_client::test_support::server::FakeServer;
-use crate::workbench_client::primary_directory::tests::process_record;
-use crate::workbench_client::state::{AttachmentKey, ControllerMode, PaneKey, PaneRef};
-use crate::workbench_client::workbench_projection::{
+use crate::primary_directory::tests::process_record;
+use crate::workbench_client::mailbox::CommandMailbox;
+use crate::workbench_projection::{
     ClientContextTabs, ClientTerminalBinding, project_preferred_workspace,
 };
-use crate::workbench_client::{
-    mailbox::CommandMailbox,
-    state::{CarrierFailure, OperationDeadlines},
-};
+use crate::workbench_state::{AttachmentKey, ControllerMode, PaneKey, PaneRef};
+use crate::workbench_state::{CarrierFailure, OperationDeadlines};
 use orchbee_client_server_protocol::{
     ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerResult, ViewerId, read_client_message, write_server_message,

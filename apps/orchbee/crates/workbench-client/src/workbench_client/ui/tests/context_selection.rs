@@ -50,12 +50,10 @@ pub(in crate::workbench_client::ui) fn ready(
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: crate::workbench_client::workbench_projection::project_preferred_workspace(
-                    &snapshot(empty),
-                )
-                .unwrap(),
+                cache: crate::workbench_projection::project_preferred_workspace(&snapshot(empty))
+                    .unwrap(),
             },
-            EventDeadline::Startup(clock.now() + crate::workbench_client::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();
@@ -161,7 +159,8 @@ fn settle_accepted_selection(
 
 #[test]
 fn direct_context_admission_guards_exact_identity_and_busy_current_before_round_trip() {
-    use crate::workbench_client::{ClientContextTarget, ContextNavigationAdmission as Admission};
+    use crate::workbench_client::ContextNavigationAdmission as Admission;
+    use crate::workbench_projection::ClientContextTarget;
     let (mut ui, mailbox, clock, _) = ready(false);
     let target = |ui: &WorkbenchClientUi, index| ClientContextTarget {
         session_id: ui.view().navigation_session().unwrap().clone(),

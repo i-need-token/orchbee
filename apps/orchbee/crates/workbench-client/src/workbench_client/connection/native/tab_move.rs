@@ -3,17 +3,13 @@
 //! retarget an unknown move.
 
 use super::{ClientExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
-use crate::{
-    local_client::workbench::{
-        WorkbenchTabMoveNotSubmitted, WorkbenchTabMoveOutcomeUnknownReason,
-        WorkbenchTabMovePrecommit, WorkbenchTabMoveRequest, WorkbenchTabMoveSubmission,
-    },
-    workbench_client::{
-        mailbox::{CommandLease, MutationResult, UiReply},
-        state::{
-            CarrierFailure, MoveDecision, MoveOperation, MoveResult, PaneKey, PendingMoveCommit,
-        },
-    },
+use crate::local_client::workbench::{
+    WorkbenchTabMoveNotSubmitted, WorkbenchTabMoveOutcomeUnknownReason, WorkbenchTabMovePrecommit,
+    WorkbenchTabMoveRequest, WorkbenchTabMoveSubmission,
+};
+use crate::workbench_client::mailbox::{CommandLease, MutationResult, UiReply};
+use crate::workbench_state::{
+    CarrierFailure, MoveDecision, MoveOperation, MoveResult, PaneKey, PendingMoveCommit,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchRejectionReason,
@@ -118,7 +114,7 @@ impl ClientExecutor {
             MoveDecision::Cleanup(cleanup) => {
                 if cleanup.old() != operation.target()
                     || cleanup.result()
-                        != &crate::workbench_client::state::MembershipResultKey::Move(
+                        != &crate::workbench_state::MembershipResultKey::Move(
                             operation.request_id().clone(),
                         )
                     || settlement.desired().map(PaneKey::anchor) != Some(operation.target())

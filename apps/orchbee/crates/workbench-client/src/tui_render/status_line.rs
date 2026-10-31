@@ -1,20 +1,21 @@
 //! Typed projection and painting for the shell status: a floating chip, and the TooSmall row.
 
 use crate::client_view::PrefixDesc;
-use crate::{
-    client_view::{
-        ClientAction, ClientView, KeyLabelGlyphs, LabelStyle, Notice, PanelDirection, PrefixAction,
-        format_binding_with_glyphs, join_key_labels,
-    },
-    localization::{Locale, TerminalEnd},
-    terminal_text::{display_width, sanitize_terminal_text},
-    tui_composition::CaptureOwner,
-    tui_layout::ViewportTier,
-    tui_theme::{Role, Theme},
-    workbench_client::{
-        DisplayController, DisplayPhase, DisplayProvenance, LocationLabelStatus,
-        LocationLabelTarget, PersistentStatus, SetupStatus, TakeoverStatus, WorkbenchClientView,
-    },
+use crate::client_view::{
+    ClientAction, ClientView, KeyLabelGlyphs, LabelStyle, Notice, PanelDirection, PrefixAction,
+    format_binding_with_glyphs, join_key_labels,
+};
+use crate::localization::{
+    DisplayController, DisplayPhase, DisplayProvenance, Locale, TerminalEnd,
+};
+use crate::terminal_text::{display_width, sanitize_terminal_text};
+use crate::tui_composition::CaptureOwner;
+use crate::tui_layout::ViewportTier;
+use crate::tui_theme::{Role, Theme};
+use crate::workbench_client::{PersistentStatus, WorkbenchClientView};
+use crate::workbench_state::control_takeover::TakeoverStatus;
+use crate::workbench_state::workspace_setup::{
+    LocationLabelStatus, LocationLabelTarget, SetupStatus,
 };
 use ratatui::{
     Frame,

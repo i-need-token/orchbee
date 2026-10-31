@@ -1,11 +1,10 @@
 use super::super::modal::ModalAction;
 use super::{PreparedContent, confirmation_text, render_content, render_prepared};
-use crate::{
-    localization::{CloseImpact, Locale},
-    tui_hit_map::HitMapBuilder,
-    tui_theme::Theme,
-    workbench_client::{ModalPresentation, PanelCloseConfirmationToken},
-};
+use crate::localization::{CloseImpact, Locale};
+use crate::tui_hit_map::HitMapBuilder;
+use crate::tui_theme::Theme;
+use crate::workbench_client::ModalPresentation;
+use crate::workbench_state::PanelCloseConfirmationToken;
 use ratatui::{
     Terminal,
     backend::TestBackend,

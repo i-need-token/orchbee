@@ -1,7 +1,7 @@
 use super::{commands::drive_controlling_after_attach, setup::*};
-use crate::workbench_client::{
-    ClientMemberTarget, ClientStartupTarget, startup_preference::Position,
-};
+use crate::startup_directory::ClientStartupTarget;
+use crate::startup_preference::Position;
+use crate::workbench_projection::ClientMemberTarget;
 use orchbee_client_server_protocol::*;
 use orchbee_workbench_protocol::*;
 
@@ -26,7 +26,7 @@ fn startup_preference_actual_carrier_restores_second_tab_without_open_or_agent_v
                 }),
             }),
             fallback: std::sync::Arc::clone(&fallback),
-            directory: Box::new(crate::workbench_client::StartupDirectory::new(
+            directory: Box::new(crate::startup_directory::StartupDirectory::new(
                 None,
                 crate::localization::Locale::EnUs,
                 true,

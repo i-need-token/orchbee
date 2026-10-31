@@ -2,10 +2,9 @@
 //! the Client reducer. A decided action can consume the matching capture once on the same call.
 
 use crate::client_view::ClientAction;
-use crate::workbench_client::{
-    ProjectQuickWorkspaceRequest, ProjectRenameRequest, WorkspaceDeleteRequest,
-    WorkspaceOrganizationRequest,
-};
+use crate::workbench_state::workspace_close::WorkspaceDeleteRequest;
+use crate::workbench_state::workspace_setup::quick::ProjectQuickWorkspaceRequest;
+use crate::workbench_state::workspace_setup::{ProjectRenameRequest, WorkspaceOrganizationRequest};
 
 /// An input action carries either a plain view intent or an opaque Workbench-owned capture.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -63,9 +62,7 @@ impl InputAction {
         )))
     }
 
-    pub(in crate::workbench_client) fn project_quick_workspace(
-        request: Box<ProjectQuickWorkspaceRequest>,
-    ) -> Self {
+    pub(crate) fn project_quick_workspace(request: Box<ProjectQuickWorkspaceRequest>) -> Self {
         Self::Captured(CapturedClientAction(
             CapturedRequest::ProjectQuickWorkspace(request),
         ))

@@ -237,7 +237,7 @@ impl TerminalInputPort for BoardOwnershipPort {
             || {
                 crate::workbench_client::CaptureContext::AgentBoard(
                     crate::workbench_client::AgentBoardInputContext::for_test(
-                        crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
+                        crate::agent_board::AgentBoardEpisodeToken::for_test(1),
                         crate::tui_presentation::PresentationPhase::Admitted,
                         true,
                     ),
@@ -1664,12 +1664,10 @@ impl BoardPort {
 impl BoardPort {
     fn capture_agent_board_key_for(
         &mut self,
-        episode: crate::workbench_client::AgentBoardEpisodeToken,
+        episode: crate::agent_board::AgentBoardEpisodeToken,
         key: crate::client_view::KeyEvent,
     ) -> bool {
-        if !self.owned.get()
-            || episode != crate::workbench_client::AgentBoardEpisodeToken::for_test(1)
-        {
+        if !self.owned.get() || episode != crate::agent_board::AgentBoardEpisodeToken::for_test(1) {
             return false;
         }
         if crate::client_view::Binding::new(
@@ -1687,12 +1685,9 @@ impl BoardPort {
         self.action_menu.cancel();
     }
 
-    fn agent_board_select(
-        &mut self,
-        target: &crate::workbench_client::AgentBoardRowTarget,
-    ) -> bool {
-        let expected = crate::workbench_client::AgentBoardRowTarget::for_test(
-            crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
+    fn agent_board_select(&mut self, target: &crate::agent_board::AgentBoardRowTarget) -> bool {
+        let expected = crate::agent_board::AgentBoardRowTarget::for_test(
+            crate::agent_board::AgentBoardEpisodeToken::for_test(1),
             target.session().clone(),
         );
         if !self.owned.get() || target != &expected {
@@ -1751,7 +1746,7 @@ impl TerminalInputPort for BoardPort {
             .then(|| {
                 crate::workbench_client::CaptureContext::AgentBoard(
                     crate::workbench_client::AgentBoardInputContext::for_test(
-                        crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
+                        crate::agent_board::AgentBoardEpisodeToken::for_test(1),
                         crate::tui_presentation::PresentationPhase::Admitted,
                         true,
                     ),
@@ -1801,7 +1796,7 @@ struct ConfirmationBoardPort {
 impl ConfirmationBoardPort {
     fn capture_panel_confirmation_key_for(
         &mut self,
-        _token: crate::workbench_client::PanelCloseConfirmationToken,
+        _token: crate::workbench_state::PanelCloseConfirmationToken,
         key: crate::client_view::ClientKey,
     ) -> bool {
         self.calls.borrow_mut().push(Call::Confirmation(key));
@@ -1810,7 +1805,7 @@ impl ConfirmationBoardPort {
 
     fn capture_agent_board_key_for(
         &mut self,
-        _episode: crate::workbench_client::AgentBoardEpisodeToken,
+        _episode: crate::agent_board::AgentBoardEpisodeToken,
         _key: crate::client_view::KeyEvent,
     ) -> bool {
         true
@@ -1850,7 +1845,7 @@ impl TerminalInputPort for ConfirmationBoardPort {
             crate::tui_composition::WorkbenchCaptureOwner::PanelClose => {
                 Some(crate::workbench_client::CaptureContext::PanelClose(
                     crate::workbench_client::ConfirmationCaptureContext {
-                        token: crate::workbench_client::PanelCloseConfirmationToken::for_test(2),
+                        token: crate::workbench_state::PanelCloseConfirmationToken::for_test(2),
                         phase: crate::tui_presentation::PresentationPhase::Admitted,
                         readiness: crate::workbench_client::CaptureReadiness::Interactive,
                     },
@@ -1859,7 +1854,7 @@ impl TerminalInputPort for ConfirmationBoardPort {
             crate::tui_composition::WorkbenchCaptureOwner::AgentBoard => {
                 Some(crate::workbench_client::CaptureContext::AgentBoard(
                     crate::workbench_client::AgentBoardInputContext::for_test(
-                        crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
+                        crate::agent_board::AgentBoardEpisodeToken::for_test(1),
                         crate::tui_presentation::PresentationPhase::Admitted,
                         true,
                     ),
@@ -1902,8 +1897,8 @@ fn a_board_close_edge_invalidates_the_published_hit_map() {
         ratatui::layout::Rect::new(0, 0, 10, 1),
         ratatui::layout::Rect::new(0, 0, 10, 1),
         crate::tui_hit_map::InteractionTarget::AgentBoardRow(
-            crate::workbench_client::AgentBoardRowTarget::for_test(
-                crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
+            crate::agent_board::AgentBoardRowTarget::for_test(
+                crate::agent_board::AgentBoardEpisodeToken::for_test(1),
                 session.clone(),
             ),
         ),
@@ -2378,10 +2373,10 @@ fn board_continuation_accepts_two_moves_but_not_stale_activation_in_one_packet()
     impl Port {
         fn capture_agent_board_key_for(
             &mut self,
-            episode: crate::workbench_client::AgentBoardEpisodeToken,
+            episode: crate::agent_board::AgentBoardEpisodeToken,
             key: crate::client_view::KeyEvent,
         ) -> bool {
-            if episode != crate::workbench_client::AgentBoardEpisodeToken::for_test(7) {
+            if episode != crate::agent_board::AgentBoardEpisodeToken::for_test(7) {
                 return false;
             }
             match key.normalized() {
@@ -2422,7 +2417,7 @@ fn board_continuation_accepts_two_moves_but_not_stale_activation_in_one_packet()
             (owner == crate::tui_composition::WorkbenchCaptureOwner::AgentBoard).then(|| {
                 crate::workbench_client::CaptureContext::AgentBoard(
                     crate::workbench_client::AgentBoardInputContext::for_test(
-                        crate::workbench_client::AgentBoardEpisodeToken::for_test(7),
+                        crate::agent_board::AgentBoardEpisodeToken::for_test(7),
                         crate::tui_presentation::PresentationPhase::Admitted,
                         true,
                     ),
@@ -2580,7 +2575,7 @@ impl TerminalInputPort for ModalLinkPort {
 }
 
 fn dispatcher_link_source(
-    pane: crate::workbench_client::state::PaneRef,
+    pane: crate::workbench_state::PaneRef,
 ) -> crate::terminal_link_activation::PaintedLinkSource {
     fn id(value: u128) -> String {
         format!("{value:032x}")
@@ -2835,8 +2830,8 @@ fn delivered_console_motion_survives_an_unavailable_vt_query_without_rearming_ca
     );
 }
 
-fn pane_ref() -> crate::workbench_client::state::PaneRef {
-    use crate::workbench_client::state::{AttachmentKey, PaneKey, PaneRef};
+fn pane_ref() -> crate::workbench_state::PaneRef {
+    use crate::workbench_state::{AttachmentKey, PaneKey, PaneRef};
     use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
     PaneRef::new(
         PaneKey::new(

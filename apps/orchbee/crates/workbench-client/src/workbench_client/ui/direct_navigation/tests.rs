@@ -1,12 +1,11 @@
 use super::*;
-use crate::workbench_client::{
-    mailbox::{CommandMailbox, EventDeadline, MutationResult, QueuedCommand, UiReply, WorkerEvent},
-    state::{ControllerMode, FrameIdentity, RefreshDecision},
-    ui::{
-        DisplayPhase,
-        tests::{context_selection::make_desired_ready, move_membership::ready_ui_with_snapshot},
-    },
+use crate::workbench_client::mailbox::{
+    CommandMailbox, EventDeadline, MutationResult, QueuedCommand, UiReply, WorkerEvent,
 };
+use crate::workbench_client::ui::DisplayPhase;
+use crate::workbench_client::ui::tests::context_selection::make_desired_ready;
+use crate::workbench_client::ui::tests::move_membership::ready_ui_with_snapshot;
+use crate::workbench_state::{ControllerMode, FrameIdentity, RefreshDecision};
 use orchbee_workbench_protocol::{SessionId, TerminalId, WorkbenchSnapshotOutcome};
 
 fn first() -> crate::machine_agents::Target {
@@ -171,7 +170,7 @@ fn direct_cross_context_agent_installs_exact_child_without_intermediate_default_
     snapshot.terminal_contexts.push(workspace.clone());
     let (mut ui, mailbox, clock, _) = ready_ui_with_snapshot(snapshot.clone());
     let mut target = crate::machine_agents::test_support::target();
-    target.context.location = crate::workbench_client::ClientContextLocation::Workspace {
+    target.context.location = crate::workbench_projection::ClientContextLocation::Workspace {
         workspace_id,
         terminal_context_id: workspace.terminal_context_id,
     };
@@ -291,7 +290,7 @@ fn same_tab_agent_focus_requires_the_live_peer_host_before_local_focus() {
         let member = state.selected_presentation(panel);
         let binding = member.binding().unwrap();
         let mut target = crate::machine_agents::test_support::target();
-        target.context = crate::workbench_client::ClientContextTarget {
+        target.context = crate::workbench_projection::ClientContextTarget {
             session_id: state.cache().session_id().clone(),
             location: state.cache().location().clone(),
         };

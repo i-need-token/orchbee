@@ -2,10 +2,10 @@
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Target {
-    Setup(crate::workbench_client::SetupToken),
-    Worktree(crate::workbench_client::WorktreeToken),
+    Setup(crate::workbench_state::workspace_setup::SetupToken),
+    Worktree(crate::workbench_state::worktree_launch::WorktreeToken),
     Copy(crate::terminal_copy_mode::CopyModeToken),
-    AgentBoard(crate::workbench_client::AgentBoardToken),
+    AgentBoard(crate::agent_board::AgentBoardToken),
     Help(crate::client_view::help::HelpDrawSource),
     Settings(crate::native_settings::Token),
     Menu(crate::action_menu::MenuToken),

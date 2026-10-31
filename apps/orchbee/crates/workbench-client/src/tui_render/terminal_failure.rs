@@ -1,10 +1,7 @@
 //! Failed launch guidance wraps independently of terminal bytes and retains effective action hints.
-use crate::{
-    client_view::ClientView,
-    localization::Locale,
-    tui_theme::{Role, Theme},
-    workbench_client::LaunchFailure,
-};
+use crate::client_view::ClientView;
+use crate::localization::{LaunchFailure, Locale};
+use crate::tui_theme::{Role, Theme};
 use ratatui::{Frame, layout::Rect, text::Line, widgets::Paragraph};
 
 pub(super) fn render(

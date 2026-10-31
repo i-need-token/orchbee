@@ -3,7 +3,7 @@ use super::{
     CarrierFailure, ClientExecutor, CommandLease, EventDeadline, MutationResult, Result,
     WorkbenchSnapshotOutcome, WorkerEvent, closed, event,
 };
-use crate::workbench_client::state::worktree_launch::Preparation;
+use crate::workbench_state::worktree_launch::Preparation;
 use orchbee_workbench_protocol::WorktreeSource;
 impl ClientExecutor {
     pub(super) fn run_worktree_preparation(
@@ -52,9 +52,8 @@ impl ClientExecutor {
             return Ok(None);
         }
         if p.origin.cache.directory().is_some() {
-            let crate::workbench_client::workbench_projection::ClientContextLocation::Workspace {
-                workspace_id,
-                ..
+            let crate::workbench_projection::ClientContextLocation::Workspace {
+                workspace_id, ..
             } = p.origin.cache.location()
             else {
                 return Err(CarrierFailure::Protocol);

@@ -1,6 +1,6 @@
 use super::*;
 use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
-use crate::workbench_client::WorkspaceCloseToken;
+use crate::workbench_state::workspace_close::WorkspaceCloseToken;
 use ratatui::layout::Rect;
 
 struct ClosePort {

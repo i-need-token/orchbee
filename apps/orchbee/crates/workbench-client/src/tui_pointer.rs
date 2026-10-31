@@ -40,7 +40,7 @@ use crate::workbench_client::input::{
     PointerFrameFacts, PointerProbe, PointerSelectionCell, PointerSelectionIntent, RenameAction,
     SetupAction, SurfaceAction, SurfaceInput, TerminalInputPort, WorktreeAction,
 };
-use crate::workbench_client::state::PaneRef;
+use crate::workbench_state::PaneRef;
 
 /// The application facade names the builder through this module.
 pub use crate::tui_hit_map::HitMapBuilder;

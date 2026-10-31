@@ -30,19 +30,15 @@ use orchbee_client_server_protocol::Geometry;
 use std::{io, sync::Arc};
 
 mod agent_attention;
-mod agent_board;
 mod agent_notifications;
-mod independent_popup;
 mod pane_graphics;
 mod panel_reports;
 pub use pane_graphics::Canvas as PaneGraphicsCanvas;
 pub(crate) use pane_graphics::Draw as PaneGraphicsDraw;
 mod plugin_overlays;
 #[cfg(test)]
-pub(crate) use independent_popup::PopupInputContext;
-pub(crate) use independent_popup::{
-    DrawnPopupClose, PopupView, resolve_geometry as popup_geometry,
-};
+pub(crate) use crate::independent_popup::PopupInputContext;
+pub(crate) use crate::independent_popup::resolve_geometry as popup_geometry;
 #[cfg(test)]
 pub(crate) use panel_reports::PanelReport;
 pub(crate) use panel_reports::PanelReportView;
@@ -50,64 +46,41 @@ mod agent_read_lane;
 mod connection;
 mod mailbox;
 mod normal_exit_hold;
-mod primary_directory;
-mod startup_directory;
-mod startup_preference;
-pub use startup_directory::{ClientStartupTarget, StartupDirectory};
-pub(crate) mod state;
-pub(crate) use state::control_takeover::TakeoverStatus;
-pub(crate) use state::workspace_close::WorkspaceDeleteRequest;
-pub(crate) use state::workspace_setup::ProjectRenameRequest;
-pub(crate) use state::workspace_setup::SidebarNavigationProjection;
-pub(crate) use state::workspace_setup::WorkspaceOrganizationRequest;
-pub(crate) use state::workspace_setup::quick::ProjectQuickWorkspaceRequest;
-pub(crate) use state::worktree_launch::addressed::SidebarWorktreeTarget;
+pub use crate::startup_directory::{ClientStartupTarget, StartupDirectory};
 mod status_recovery;
 mod terminal_clipboard;
 mod terminal_effects;
 mod terminal_selection;
 mod terminal_tail;
 mod ui;
-pub(crate) use ui::settings::Notice as SettingsNotice;
-pub(crate) use ui::{WorkspaceCreationPhase, WorkspaceCreationPreview};
-mod wakeup;
-mod workbench_projection;
-pub use wakeup::UiWakeup;
+pub use crate::ui_wakeup::UiWakeup;
 
-pub use workbench_projection::{ClientContextLocation, ClientContextTarget, ClientMemberTarget};
-pub(crate) use workbench_projection::{ClientPanel, ClientPanelTree, ClientPresentation};
-
-pub(crate) use ui::{
-    WorktreeEdit, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
+pub use crate::workbench_projection::{
+    ClientContextLocation, ClientContextTarget, ClientMemberTarget,
 };
+pub(crate) use crate::workbench_projection::{ClientPanel, ClientPanelTree, ClientPresentation};
 
+#[cfg(any(test, feature = "test-support"))]
+pub use crate::workbench_projection::ClientMemberTargetFixture;
+#[cfg(test)]
+pub(crate) use ui::KeyedProjection;
 #[cfg(any(test, feature = "test-support"))]
 pub use ui::WorkbenchClientViewTestAccess;
 #[cfg(test)]
 pub(crate) use ui::WorktreeCaptureContext;
-pub(crate) use ui::{
-    AgentBoardActualDraw, AgentBoardControl, AgentBoardControlTarget, AgentBoardDraw,
-    AgentBoardEpisodeToken, AgentBoardRead, AgentBoardRow, AgentBoardRowTarget, AgentBoardToken,
-    AgentBoardView, CaptureReadiness, ClientProjectionStatus, ClientTabView, CloseConfirmationView,
-    CloseStatusToken, DisplayController, DisplayProvenance, DrawnPresentationTarget, LaunchFailure,
-    LocationLabelStatus, LocationLabelTarget, ModalPresentation, PanelCloseConfirmationToken,
-    PanelCloseConfirmationView, PersistentStatus, PresentationPlacement, RefreshStatus,
-    RenameDraftToken, RenameDraftView, RenameEdit, SetupDraftView, SetupEdit, SetupStage,
-    SetupStatus, SetupToken, ViewportSurface, WorkbenchClientNotice,
-    WorkspaceCloseConfirmationView,
-};
 #[cfg(test)]
 pub(crate) use ui::{
     AgentBoardInputContext, CloseConfirmationKind, CloseStatusKind, ConfirmationCaptureContext,
     DisplayRetirement, LaunchProfile, SetupCaptureContext, WorkspaceCloseStatus,
 };
-pub(crate) use ui::{AgentStartCatalogStatus, AgentStartPhase};
 pub use ui::{
     CaptureContext, CloseConfirmationToken, DisplayPhase, DrawReceipt, RetainedFrameBank,
     WorkbenchClientView, WorkspaceCloseToken, notification_available,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub use workbench_projection::ClientMemberTargetFixture;
+pub(crate) use ui::{
+    CaptureReadiness, ClientTabView, CloseConfirmationView, ModalPresentation,
+    PanelCloseConfirmationView, PersistentStatus, RenameDraftView, RenameEdit, ViewportSurface,
+};
 
 pub use crate::localization::TerminalStatus;
 
@@ -137,8 +110,8 @@ enum ClientTask {
 }
 
 pub struct WorkbenchClient {
-    position_writer: Option<startup_preference::store::Writer>,
-    position_startup: Option<startup_preference::Startup>,
+    position_writer: Option<crate::startup_preference::store::Writer>,
+    position_startup: Option<crate::startup_preference::Startup>,
     configuration: Option<configuration::Watcher>,
     notifications: Option<crate::notifications::subscription::Subscription>,
     window_title: Option<window_title::Subscription>,
@@ -257,7 +230,7 @@ impl WorkbenchClient {
         if !crate::tui_capabilities::Capability::PositionStorage.available() {
             return Self::start(client, geometry);
         }
-        let preferences = startup_preference::store::Preferences::load(runtime);
+        let preferences = crate::startup_preference::store::Preferences::load(runtime);
         let fallback = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let context = Some(ClientStartupTarget::LocalDirectory {
             position: preferences.position.clone(),
@@ -275,7 +248,7 @@ impl WorkbenchClient {
         };
         let mut workbench_client = Self::start_with_context(client, geometry, context)?;
         workbench_client.position_writer = writer;
-        workbench_client.position_startup = Some(startup_preference::Startup {
+        workbench_client.position_startup = Some(crate::startup_preference::Startup {
             fallback,
             failed,
             saved,
@@ -311,7 +284,7 @@ impl WorkbenchClient {
     fn start_with_context(
         client: LocalClient,
         geometry: Geometry,
-        context: Option<startup_directory::ClientStartupTarget>,
+        context: Option<crate::startup_directory::ClientStartupTarget>,
     ) -> io::Result<Self> {
         let client = client.into_multiplexed()?;
         let shutdown = client.connection_shutdown_handle()?;
@@ -392,7 +365,7 @@ impl WorkbenchClient {
         let position_failed = self
             .position_writer
             .as_ref()
-            .is_some_and(startup_preference::store::Writer::take_failure);
+            .is_some_and(crate::startup_preference::store::Writer::take_failure);
         let changed = match &mut self.backend {
             ClientBackend::Native(native) => native.tick_with_client_capture(client_capture),
         };
@@ -681,7 +654,7 @@ impl WorkbenchClient {
                             pending.create,
                             pending.moved,
                             pending.panel,
-                            state::CloseWorkerReturn::Returned(pending.close),
+                            crate::workbench_state::CloseWorkerReturn::Returned(pending.close),
                             pending.renamed,
                             setup,
                         )
@@ -726,7 +699,10 @@ impl WorkbenchClient {
             && queued_workspace_close_return.is_none()
             && takeover_return.is_none()
             && queued_takeover_return.is_none()
-            && matches!(close_return, state::CloseWorkerReturn::Returned(None));
+            && matches!(
+                close_return,
+                crate::workbench_state::CloseWorkerReturn::Returned(None)
+            );
         let rename_accepted = native.finalize_rename_worker(rename_return);
         let setup_accepted = native.finalize_setup_worker(setup_return);
         let queued_setup_accepted = native.finalize_setup_worker(queued_setup_return);

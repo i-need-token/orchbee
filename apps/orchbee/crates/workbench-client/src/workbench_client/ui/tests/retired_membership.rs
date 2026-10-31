@@ -1,11 +1,10 @@
 use super::super::tests::membership::snapshot;
 use super::super::*;
 use crate::local_client::test_support::server::adjustable_operation_clock;
-use crate::workbench_client::{
-    mailbox::{CommandLease, EventDeadline},
-    state::{CloseWorkerReturn, retired_membership::UnavailablePoll},
-    workbench_projection::project_preferred_workspace,
-};
+use crate::workbench_client::mailbox::{CommandLease, EventDeadline};
+use crate::workbench_projection::project_preferred_workspace;
+use crate::workbench_state::CloseWorkerReturn;
+use crate::workbench_state::retired_membership::UnavailablePoll;
 use orchbee_client_server_protocol::ControllerId;
 use orchbee_workbench_protocol::{
     PanelNode, Snapshot, WorkbenchSnapshotOutcome, WorkbenchTerminalContextId,
@@ -28,7 +27,7 @@ fn ready(
 
 fn ready_with_cache(
     elapsed: Arc<AtomicU64>,
-    cache: crate::workbench_client::workbench_projection::ClientContextTabs,
+    cache: crate::workbench_projection::ClientContextTabs,
 ) -> (
     WorkbenchClientUi,
     Arc<CommandMailbox>,
@@ -47,7 +46,7 @@ fn ready_with_cache(
                 cache,
                 selection: None,
             },
-            EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();
@@ -117,9 +116,9 @@ fn removed_origin_context_lands_on_the_surviving_context_and_consumes_the_permit
         let (mut ui, _old, _lease, evidence) = if canonical {
             let source = super::context_selection::snapshot(false);
             let workspace = &source.navigation.workspaces[1];
-            let cache = crate::workbench_client::workbench_projection::project_native_context_tabs(
+            let cache = crate::workbench_projection::project_native_context_tabs(
                 &source,
-                &crate::workbench_client::ClientContextLocation::Workspace {
+                &crate::workbench_projection::ClientContextLocation::Workspace {
                     workspace_id: workspace.workspace_id.clone(),
                     terminal_context_id: workspace.terminal_context_id.clone(),
                 },
@@ -254,7 +253,7 @@ fn stale_poll_close_confirmation_structural_flight_and_missing_return_never_gran
                 state.open_rename_draft().unwrap();
             }
             2 => {
-                let deadline = ui.clock.now() + super::super::super::state::OPERATION_TOTAL;
+                let deadline = ui.clock.now() + crate::workbench_state::OPERATION_TOTAL;
                 mailbox
                     .try_enqueue_refresh_for(
                         state,
@@ -493,7 +492,7 @@ fn ready_controlling(
                 selection: None,
                 cache: project_preferred_workspace(&snapshot(3, 1)).unwrap(),
             },
-            EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();
@@ -762,7 +761,7 @@ fn empty_install_stays_inert_and_ready_control_admits_pending_reconcile() {
 #[test]
 fn status_only_carrier_suppresses_ordinary_reconcile_until_install() {
     use crate::local_client::workbench::WorkbenchTabCloseAccepted;
-    use crate::workbench_client::state::CloseResult;
+    use crate::workbench_state::CloseResult;
     use orchbee_workbench_protocol::{
         WorkbenchRequestId, WorkbenchRevision, WorkbenchTabCloseAttemptGeneration,
         WorkbenchTabCloseReadOutcome, WorkbenchTabCloseStatus,
@@ -1013,9 +1012,7 @@ fn status_only_carrier_suppresses_ordinary_reconcile_until_install() {
 
 #[test]
 fn retired_workspace_replacement_attaches_same_panel_only_with_fresh_physical_identity() {
-    use crate::workbench_client::workbench_projection::{
-        ClientContextLocation, project_native_context_tabs,
-    };
+    use crate::workbench_projection::{ClientContextLocation, project_native_context_tabs};
     use orchbee_workbench_protocol::{
         Project, TerminalContext, TerminalId, TerminalPresentationId, WorkbenchProjectId,
         WorkbenchWorkspaceId, Workspace,

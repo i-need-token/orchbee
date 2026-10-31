@@ -1,10 +1,8 @@
 //! Windows selected-Presentation observations on an isolated, cancellable read lane.
-use super::{
-    ClientPanel, ClientPresentation,
-    agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome},
-    state::WorkbenchClientState,
-};
+use super::agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome};
+use super::{ClientPanel, ClientPresentation};
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
+use crate::workbench_state::WorkbenchClientState;
 use std::time::{Duration, Instant};
 
 // Selected presentations include Host process/output detection with no event source. Keep this

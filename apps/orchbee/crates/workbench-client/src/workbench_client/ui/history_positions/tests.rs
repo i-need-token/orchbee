@@ -387,7 +387,7 @@ fn canonical_removal_or_rebinding_prunes_the_old_reading_choice() {
 
 #[test]
 fn each_terminal_retains_its_own_choice_and_newer_live_overrides_an_older_bookmark() {
-    use crate::workbench_client::state::{AttachmentKey, PaneKey};
+    use crate::workbench_state::{AttachmentKey, PaneKey};
     let (mut ui, _, _) = reading_ui();
     let first = ui.history_positions.bank.entries[0].clone();
     let tab = &ui.state.as_ref().unwrap().cache().tabs()[1];

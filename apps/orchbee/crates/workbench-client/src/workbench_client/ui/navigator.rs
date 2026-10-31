@@ -5,16 +5,31 @@ use super::{
 };
 use crate::client_view::{
     ClientAction,
-    navigator::{Admission, Catalog, Row, Target},
+    navigator::{Admission, Catalog, Row, Source, Target},
 };
 use std::sync::Arc;
 
 #[cfg(test)]
 mod tests;
 
+/// The navigator's catalog of the current navigation and Tabs, fenced by session and revision.
+fn catalog(state: &WorkbenchClientState) -> Catalog {
+    let view = state.view();
+    Catalog {
+        source: Source {
+            session: view.session_id().clone(),
+            revision: view.revision(),
+            location: view.location().clone(),
+        },
+        locations: view.navigation_locations().cloned().collect(),
+        tabs: view.tab_ids().cloned().collect(),
+        current_tab: view.active_tab_id().cloned(),
+    }
+}
+
 // Runs under the mailbox admission lock, before a no-op or generation is accepted.
 fn admitted_catalog(state: &WorkbenchClientState, row: &Row) -> Result<Catalog, ActionBuildError> {
-    let catalog = state.navigator_catalog();
+    let catalog = catalog(state);
     if catalog.source != row.source
         || !catalog.contains(&row.target)
         || !state.context_selection_available()
@@ -29,7 +44,7 @@ impl WorkbenchClientUi {
         if self.retirement.is_some() {
             return None;
         }
-        self.state.as_ref().map(|state| state.navigator_catalog())
+        self.state.as_ref().map(catalog)
     }
 
     pub(in crate::workbench_client) fn activate_navigator(&mut self, row: &Row) -> Admission {

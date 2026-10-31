@@ -1,6 +1,6 @@
 use super::*;
 use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
-use crate::workbench_client::state::workspace_setup::{
+use crate::workbench_state::workspace_setup::{
     SetupEdit, SetupResult, SetupToken, SetupWorkerEvidence,
 };
 use orchbee_workbench_protocol::WorkbenchProjectId;
@@ -8,7 +8,7 @@ use orchbee_workbench_protocol::WorkbenchProjectId;
 #[test]
 fn conditional_project_review_requires_the_exact_retained_no_effect_reason_before_placement() {
     use crate::local_client::workbench::workspace_setup::WorkbenchSetupPrecommit;
-    use crate::workbench_client::state::workspace_setup::OrganizationChoice;
+    use crate::workbench_state::workspace_setup::OrganizationChoice;
     use orchbee_workbench_protocol::WorkbenchRejectionReason;
     let clock = crate::local_client::test_support::server::adjustable_operation_clock(Arc::new(
         std::sync::atomic::AtomicU64::new(0),
@@ -16,7 +16,7 @@ fn conditional_project_review_requires_the_exact_retained_no_effect_reason_befor
     let deadlines = OperationDeadlines::from_sample(clock.now()).unwrap();
     let (mut canonical, _) = project_rename_fixture(deadlines.total());
     let project = canonical.cache().canonical_snapshot().navigation.projects[0].clone();
-    let request = crate::workbench_client::WorkspaceOrganizationRequest::project(
+    let request = crate::workbench_state::workspace_setup::WorkspaceOrganizationRequest::project(
         &canonical,
         &project,
         deadlines.total(),
@@ -114,7 +114,7 @@ fn project_rename_fixture(
     deadline: Instant,
 ) -> (
     WorkbenchClientState,
-    Box<crate::workbench_client::ProjectRenameRequest>,
+    Box<crate::workbench_state::workspace_setup::ProjectRenameRequest>,
 ) {
     let project = orchbee_workbench_protocol::Project {
         project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
@@ -160,8 +160,10 @@ fn project_rename_fixture(
     )
     .unwrap()
     .0;
-    let request =
-        crate::workbench_client::ProjectRenameRequest::capture(&state, &project, deadline).unwrap();
+    let request = crate::workbench_state::workspace_setup::ProjectRenameRequest::capture(
+        &state, &project, deadline,
+    )
+    .unwrap();
     (state, Box::new(request))
 }
 
@@ -244,7 +246,7 @@ fn targeted_project_rename_rechecks_deadline_after_acquiring_lock() {
 fn draft(state: &mut WorkbenchClientState) -> SetupToken {
     let token = state
         .open_setup_draft(
-            crate::workbench_client::state::workspace_setup::SetupIntent::TabGroupName(Box::new(
+            crate::workbench_state::workspace_setup::SetupIntent::TabGroupName(Box::new(
                 orchbee_workbench_protocol::TabConfiguration::CreateGroup {
                     tab_id: state.cache().tabs()[0].tab_id().clone(),
                     label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse("Group")
@@ -392,6 +394,6 @@ fn queued_setup_is_definitely_not_applied_when_earlier_carrier_work_retires() {
     assert!(!state.setup_blocks_structure());
     assert_eq!(
         state.setup_status(),
-        Some(crate::workbench_client::state::workspace_setup::SetupStatus::TabsNotApplied)
+        Some(crate::workbench_state::workspace_setup::SetupStatus::TabsNotApplied)
     );
 }

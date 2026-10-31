@@ -2,7 +2,8 @@ pub(in crate::workbench_client::ui) use super::super::test_support::{ready, read
 use super::super::*;
 use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
 use crate::workbench_client::mailbox::{CommandLease, EventDeadline, UiWaitKey};
-use crate::workbench_client::state::workspace_setup::SetupResult;
+use crate::workbench_state::workspace_setup::SetupResult;
+use crate::workbench_state::workspace_setup::{SetupEdit, SetupStage};
 use orchbee_workbench_protocol::{
     Snapshot, TerminalContext, WorkbenchDirectoryPath, WorkbenchRevision, WorkbenchSnapshotOutcome,
     WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace,
@@ -297,7 +298,7 @@ fn suspended_setup_submit_is_consumed_until_the_same_surface_is_drawn_again() {
     let (mut ui, mailbox, _clock, _snapshot) = ready(false);
     let intent = {
         let state = ui.state.as_ref().unwrap();
-        crate::workbench_client::state::workspace_setup::SetupIntent::TabGroupName(Box::new(
+        crate::workbench_state::workspace_setup::SetupIntent::TabGroupName(Box::new(
             TabConfiguration::CreateGroup {
                 tab_id: state.cache().tabs()[0].tab_id().clone(),
                 label: WorkbenchTabGroupLabel::parse("Preserved").unwrap(),
@@ -339,7 +340,7 @@ fn setup_capture_claim_tracks_presence_while_context_requires_a_live_frame() {
 
     let intent = |ui: &WorkbenchClientUi| {
         let state = ui.state.as_ref().unwrap();
-        crate::workbench_client::state::workspace_setup::SetupIntent::TabGroupName(Box::new(
+        crate::workbench_state::workspace_setup::SetupIntent::TabGroupName(Box::new(
             TabConfiguration::CreateGroup {
                 tab_id: state.cache().tabs()[0].tab_id().clone(),
                 label: WorkbenchTabGroupLabel::parse("Capture").unwrap(),
@@ -409,7 +410,8 @@ fn setup_capture_claim_tracks_presence_while_context_requires_a_live_frame() {
 fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them() {
     use crate::client_view::ClientView;
     use crate::localization::Locale;
-    use crate::workbench_client::{ClientBackend, ProjectQuickWorkspaceRequest, WorkbenchClient};
+    use crate::workbench_client::{ClientBackend, WorkbenchClient};
+    use crate::workbench_state::workspace_setup::quick::ProjectQuickWorkspaceRequest;
     use ratatui::layout::Rect;
 
     for width in [80, 160] {
@@ -448,7 +450,7 @@ fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them()
                                 .unwrap(),
                             &snapshot.navigation.projects[0],
                             None,
-                            clock.now() + super::super::super::state::OPERATION_TOTAL,
+                            clock.now() + crate::workbench_state::OPERATION_TOTAL,
                         )
                         .unwrap(),
                     )),
@@ -550,7 +552,7 @@ fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them()
                         .as_ref()
                         .unwrap();
                     assert!(
-                        matches!(state.cache().location(), crate::workbench_client::ClientContextLocation::Workspace { workspace_id, terminal_context_id }
+                        matches!(state.cache().location(), crate::workbench_projection::ClientContextLocation::Workspace { workspace_id, terminal_context_id }
                         if workspace_id == &expected.workspace_id && terminal_context_id == &expected.terminal_context_id)
                     );
                     assert_eq!(state.desired().unwrap().anchor().tab_id(), &expected.tab_id);

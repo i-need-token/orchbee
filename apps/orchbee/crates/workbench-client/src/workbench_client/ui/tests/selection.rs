@@ -2,7 +2,7 @@ use super::super::tests::move_membership::ready_ui;
 use super::super::*;
 use crate::terminal_input::{PaneAdmission, PointerSelectionIntent};
 use crate::workbench_client::input::PointerSelectionCell;
-use crate::workbench_client::state;
+use crate::workbench_state;
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, MessageRole, PayloadEncoding,
     SelectionChanged, SelectionChangedState, SelectionControl, SelectionPoint,
@@ -243,7 +243,7 @@ fn selection_start_on_a_ready_read_only_pane_enters_the_real_command_mailbox() {
                 command,
                 outcome: orchbee_client_server_protocol::TerminalViewerOutcome::Record(record),
             },
-            ui.clock.now() + state::OPERATION_TOTAL,
+            ui.clock.now() + workbench_state::OPERATION_TOTAL,
             &ui.clock,
         )
         .unwrap();
@@ -284,7 +284,7 @@ fn selection_poll_keeps_the_frame_and_uses_the_normal_no_feedback_settlement() {
         .unwrap();
     let lease = mailbox.try_recv().unwrap().unwrap();
     let poll = lease.poll_key().unwrap();
-    let cutoff = clock.now() + state::OPERATION_TOTAL;
+    let cutoff = clock.now() + workbench_state::OPERATION_TOTAL;
     mailbox
         .publish_poll_result_before(poll.clone(), Some(record), false, cutoff, &clock)
         .unwrap();
@@ -351,7 +351,7 @@ fn pane_effect_poll_keeps_the_frame_and_settles_without_frame_feedback() {
             .unwrap();
         let lease = mailbox.try_recv().unwrap().unwrap();
         let poll = lease.poll_key().unwrap();
-        let cutoff = clock.now() + state::OPERATION_TOTAL;
+        let cutoff = clock.now() + workbench_state::OPERATION_TOTAL;
         mailbox
             .publish_poll_result_before(poll.clone(), Some(record), false, cutoff, &clock)
             .unwrap();

@@ -1,5 +1,7 @@
 use super::Locale;
-use crate::workbench_client::{LocationLabelStatus as Status, LocationLabelTarget as Target};
+use crate::workbench_state::workspace_setup::{
+    LocationLabelStatus as Status, LocationLabelTarget as Target,
+};
 
 #[test]
 fn blank_workspace_names_have_localized_validation_and_recoverable_display_names() {

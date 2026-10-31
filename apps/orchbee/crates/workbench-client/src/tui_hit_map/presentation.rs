@@ -9,7 +9,7 @@
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DrawnPresentationTarget {
     Attached {
-        pane: crate::workbench_client::state::PaneRef,
+        pane: crate::workbench_state::PaneRef,
         presentation: orchbee_workbench_protocol::TerminalPresentationId,
     },
     Unbound {
@@ -37,6 +37,6 @@ impl DrawnPresentationTarget {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PointerUnboundPane {
-    pub(crate) key: crate::workbench_client::state::PaneKey,
+    pub(crate) key: crate::workbench_state::PaneKey,
     pub(crate) presentation: orchbee_workbench_protocol::TerminalPresentationId,
 }

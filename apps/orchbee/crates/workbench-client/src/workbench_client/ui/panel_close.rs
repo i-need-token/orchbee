@@ -3,18 +3,18 @@
 //! stale confirmation.
 
 use super::{ActionBuildError, ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
-use crate::workbench_client::state::{self, OPERATION_TOTAL, WorkbenchClientState};
+use crate::workbench_state::{self, OPERATION_TOTAL, WorkbenchClientState};
 use crate::{
     client_view::{ClientActionDisposition, ClientKey},
     workbench_client::mailbox::MoveAdmissionError,
 };
 use std::sync::Arc;
 
-pub(crate) use crate::workbench_client::state::PanelCloseConfirmationToken;
+pub(crate) use crate::workbench_state::PanelCloseConfirmationToken;
 
 #[derive(Clone, Copy)]
 pub(crate) struct PanelCloseConfirmationView<'a> {
-    inner: state::PanelCloseConfirmationView<'a>,
+    inner: workbench_state::PanelCloseConfirmationView<'a>,
     impact: crate::localization::CloseImpact,
     tab: Option<super::ClientTabView<'a>>,
 }

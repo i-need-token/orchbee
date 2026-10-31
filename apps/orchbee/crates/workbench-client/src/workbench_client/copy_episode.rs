@@ -4,13 +4,11 @@
 //! The composition root holds the copy query driver and cancels it whenever an episode begins or
 //! ends; this owner never reaches the driver.
 
-use crate::{
-    terminal_content::ContentSource,
-    terminal_copy::TerminalTextPoint,
-    terminal_copy_mode::{CopyModeStatus, CopyModeView, EpisodeId, Mode, Surface},
-    terminal_copy_query::QueryIdentity,
-    workbench_client::state::PaneRef,
-};
+use crate::terminal_content::ContentSource;
+use crate::terminal_copy::TerminalTextPoint;
+use crate::terminal_copy_mode::{CopyModeStatus, CopyModeView, EpisodeId, Mode, Surface};
+use crate::terminal_copy_query::QueryIdentity;
+use crate::workbench_state::PaneRef;
 use std::num::NonZeroU64;
 
 /// A query the driver admitted, matched exactly once against its outcome.

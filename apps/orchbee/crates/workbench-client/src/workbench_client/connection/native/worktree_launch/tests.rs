@@ -1,6 +1,6 @@
 use super::*;
 use crate::workbench_client::connection::native::tests::source_root::{self, SourceFixture};
-use crate::workbench_client::state::worktree_launch::{Origin, WorktreeMode, WorktreeToken};
+use crate::workbench_state::worktree_launch::{Origin, WorktreeMode, WorktreeToken};
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
 fn prepare(

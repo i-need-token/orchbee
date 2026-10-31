@@ -87,7 +87,7 @@ fn source_view_uses_canonical_agent_exact_member_and_raw_multikey_ties() {
         1
     );
     let spec=parse_agent_view_spec(br#"{"source":"x","filter":{"op":"eq","field":"tab_id","value":{"context":"current_tab_id"}}}"#).unwrap();
-    let current = crate::workbench_client::ClientMemberTarget {
+    let current = crate::workbench_projection::ClientMemberTarget {
         tab: first.target.tab.clone(),
         panel: first.target.panel.clone(),
         presentation: first.target.member.clone(),

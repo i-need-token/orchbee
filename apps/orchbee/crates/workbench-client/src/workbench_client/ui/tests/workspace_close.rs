@@ -1,20 +1,14 @@
 use super::super::*;
-use crate::{
-    client_view::{ClientKey, ClientView},
-    localization::Locale,
-    terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable},
-    tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget},
-    tui_theme::Theme,
-    workbench_client::{
-        state::{
-            ControllerMode, FrameIdentity,
-            workspace_close::{
-                WorkspaceCloseOperation, WorkspaceCloseResult, WorkspaceCloseTarget,
-            },
-        },
-        workbench_projection::{ClientContextLocation, project_native_context_tabs},
-    },
+use crate::client_view::{ClientKey, ClientView};
+use crate::localization::Locale;
+use crate::terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable};
+use crate::tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget};
+use crate::tui_theme::Theme;
+use crate::workbench_projection::{ClientContextLocation, project_native_context_tabs};
+use crate::workbench_state::workspace_close::{
+    WorkspaceCloseOperation, WorkspaceCloseResult, WorkspaceCloseTarget,
 };
+use crate::workbench_state::{ControllerMode, FrameIdentity};
 use orchbee_workbench_protocol::*;
 use ratatui::{Terminal, backend::TestBackend};
 use std::{io, time::Instant};
@@ -172,7 +166,7 @@ fn ready_with_background_target(
                 cache: project_native_context_tabs(&snapshot, &location).unwrap(),
             },
             super::super::super::mailbox::EventDeadline::Startup(
-                clock.now() + super::super::super::state::OPERATION_TOTAL,
+                clock.now() + crate::workbench_state::OPERATION_TOTAL,
             ),
             &clock,
         )

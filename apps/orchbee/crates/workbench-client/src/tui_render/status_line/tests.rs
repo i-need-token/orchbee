@@ -520,7 +520,7 @@ fn recoverable_status_receipt_requires_the_complete_raw_fact() {
 /// Compact sidebar; retrying is a separate hint on the effective rename binding.
 #[test]
 fn stale_rename_fact_fits_compact_content_and_retry_is_a_separate_rename_hint() {
-    use crate::workbench_client::{
+    use crate::workbench_state::workspace_setup::{
         LocationLabelStatus as Status, LocationLabelTarget as Target, SetupStatus,
     };
     let theme = Theme::rgb_test_dark();

@@ -1,8 +1,8 @@
 use super::*;
-use crate::workbench_client::state::worktree_launch::{Plan, WorktreeMode, WorktreeStage};
 use crate::workbench_client::ui::tests::{
     context_selection, membership, viewport, worktree_launch,
 };
+use crate::workbench_state::worktree_launch::{Plan, WorktreeMode, WorktreeStage};
 use orchbee_workbench_protocol::{
     Directory, PanelNode, PresentationBinding, Project, TerminalContext, TerminalId,
     TerminalPresentationId, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchPanelId,
@@ -104,10 +104,9 @@ fn case_with_mode(mode: WorktreeMode) -> (WorkbenchClientUi, Plan, Snapshot) {
 
 #[test]
 fn completed_create_entry_accepts_one_fresh_noncurrent_project_checkout_after_dismissal() {
-    use crate::workbench_client::{
-        mailbox::{EventDeadline, UiReply, WorkerEvent},
-        state::{RefreshDecision, worktree_launch::addressed},
-    };
+    use crate::workbench_client::mailbox::{EventDeadline, UiReply, WorkerEvent};
+    use crate::workbench_state::RefreshDecision;
+    use crate::workbench_state::worktree_launch::addressed;
     use orchbee_workbench_protocol::{WorkbenchProjectId, WorktreeIntent, WorktreeSelector};
     let (mut ui, created, mut snapshot) = case_with_mode(WorktreeMode::Create);
     let old_token = ui.worktrees.launcher.token().unwrap();
@@ -218,7 +217,7 @@ fn completed_create_entry_accepts_one_fresh_noncurrent_project_checkout_after_di
     assert_ne!(addressed.cache.location(), origin.cache.location());
     let sidebar = addressed::SidebarDiscovery {
         addressed,
-        sample: crate::workbench_client::primary_directory::RootDirectory::Available(Some(
+        sample: crate::primary_directory::RootDirectory::Available(Some(
             WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
         )),
         source: created.source.clone(),
@@ -312,7 +311,7 @@ fn worktree_entry_waits_for_inflight_publication_refresh_then_enters_exact_conte
 
 #[test]
 fn a_retained_entry_owner_prevents_success_replacement_from_both_routes() {
-    use crate::workbench_client::state::worktree_launch::addressed;
+    use crate::workbench_state::worktree_launch::addressed;
     let (mut ui, created, snapshot) = case_with_mode(WorktreeMode::Create);
     ui.begin_worktree_entry(Some(snapshot.clone()));
     assert!(ui.worktrees.entry.is_some());
@@ -335,7 +334,7 @@ fn a_retained_entry_owner_prevents_success_replacement_from_both_routes() {
     .unwrap();
     let sidebar = addressed::SidebarDiscovery {
         addressed,
-        sample: crate::workbench_client::primary_directory::RootDirectory::Available(Some(
+        sample: crate::primary_directory::RootDirectory::Available(Some(
             WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
         )),
         source: created.source.clone(),
@@ -357,7 +356,7 @@ fn a_retained_entry_owner_prevents_success_replacement_from_both_routes() {
     );
     assert_eq!(
         ui.request_worktree(WorktreeMode::Create),
-        crate::workbench_client::ClientActionDisposition::DismissNavigator
+        crate::client_view::ClientActionDisposition::DismissNavigator
     );
     assert_eq!(
         ui.worktrees.launcher.operation().unwrap().plan.operation_id,
@@ -485,7 +484,8 @@ fn source_refresh(ui: &mut WorkbenchClientUi) -> crate::workbench_client::mailbo
 
 #[test]
 fn worktree_entry_real_refresh_reply_admits_context_once_before_source_lease_ack() {
-    use crate::workbench_client::{mailbox::UiReply, state::RefreshDecision};
+    use crate::workbench_client::mailbox::UiReply;
+    use crate::workbench_state::RefreshDecision;
     let (mut ui, _, snapshot) = case();
     let mailbox = ui.mailbox.as_ref().unwrap().clone();
     let source = source_refresh(&mut ui);
@@ -572,7 +572,8 @@ fn worktree_entry_rejects_replaced_target_in_accepted_source_refresh_without_foc
 
 #[test]
 fn worktree_entry_fences_target_replacement_in_context_snapshot_before_cleanup() {
-    use crate::workbench_client::{mailbox::UiReply, state::RefreshDecision};
+    use crate::workbench_client::mailbox::UiReply;
+    use crate::workbench_state::RefreshDecision;
     for change in 0..3 {
         let (mut ui, _, snapshot) = case();
         let mailbox = ui.mailbox.as_ref().unwrap().clone();
@@ -627,10 +628,8 @@ fn insert_new_first_tab(snapshot: &mut Snapshot) {
 
 #[test]
 fn worktree_entry_reordered_target_selects_frozen_member_through_actual_cleanup_install() {
-    use crate::workbench_client::{
-        mailbox::{EventDeadline, UiReply, WorkerEvent},
-        state::RefreshDecision,
-    };
+    use crate::workbench_client::mailbox::{EventDeadline, UiReply, WorkerEvent};
+    use crate::workbench_state::RefreshDecision;
     let (mut ui, _, mut snapshot) = case();
     let mailbox = ui.mailbox.as_ref().unwrap().clone();
     let source = source_refresh(&mut ui);
@@ -684,7 +683,8 @@ fn worktree_entry_reordered_target_selects_frozen_member_through_actual_cleanup_
 
 #[test]
 fn worktree_entry_fence_leaves_a_foreign_context_generation_untouched() {
-    use crate::workbench_client::{mailbox::UiReply, state::RefreshDecision};
+    use crate::workbench_client::mailbox::UiReply;
+    use crate::workbench_state::RefreshDecision;
     let (mut ui, _, snapshot) = case();
     let mailbox = ui.mailbox.as_ref().unwrap().clone();
     let source = source_refresh(&mut ui);
@@ -749,11 +749,11 @@ fn worktree_entry_failed_context_admission_keeps_result_visible_and_does_not_own
 
 #[test]
 fn worktree_entry_current_context_child_uses_existing_primary_presentation_switch() {
-    use crate::workbench_client::{
-        mailbox::{CommandMailbox, EventDeadline, QueuedCommand, WorkerEvent},
-        state::{ControllerMode, FrameIdentity},
-        workbench_projection::project_native_context_tabs,
+    use crate::workbench_client::mailbox::{
+        CommandMailbox, EventDeadline, QueuedCommand, WorkerEvent,
     };
+    use crate::workbench_projection::project_native_context_tabs;
+    use crate::workbench_state::{ControllerMode, FrameIdentity};
     use orchbee_workbench_protocol::Presentation;
     use std::sync::Arc;
     let (original, _, mut snapshot) = case();
