@@ -1,8 +1,8 @@
 //! Table-driven witnesses for the mapping arms a scripted peer cannot
 //! stage deterministically: pre-handoff refusals, the per-variant
-//! unknown-reason tokens, and every terminal outcome arm.
+//! unknown-reason tokens, every terminal outcome arm, and close-wait expiry.
 
-use std::io;
+use std::{cell::Cell, io, time::Duration};
 
 use orchbee_workbench_protocol::{
     WorkbenchTabCloseAttemptGeneration, WorkbenchTabId, WorkbenchTerminalContextId,
@@ -294,4 +294,43 @@ fn panel_move_scopes_target_panel_to_the_source_tab() {
     let failure = action(&move_command("@panel:0xff"), &snapshot)
         .expect_err("out-of-scope identity must miss");
     assert_eq!(failure.kind, FailureKind::NotFound);
+}
+
+#[test]
+fn a_close_wait_observation_that_outlasts_the_deadline_settles_as_the_wait_timeout() {
+    let start = Instant::now();
+    let deadline = start + Duration::from_secs(30);
+    // The second observation's session check fails when it returns; only one that
+    // returns before the deadline keeps its own classification.
+    for (returned_at, expired) in [
+        (deadline - Duration::from_millis(1), false),
+        (deadline, true),
+    ] {
+        let clock = Cell::new(start + Duration::from_secs(29));
+        let calls = Cell::new(0);
+        let end = await_close(
+            deadline,
+            || clock.get(),
+            || {
+                calls.set(calls.get() + 1);
+                if calls.get() == 1 {
+                    return Ok(true);
+                }
+                clock.set(returned_at);
+                Err(Failure::new(FailureKind::CheckFailed).details(stage_details("cohort")))
+            },
+            |pause| clock.set(clock.get() + pause),
+        );
+        if expired {
+            assert!(
+                matches!(end, CloseWaitEnd::Expired { observations: 1 }),
+                "{end:?}"
+            );
+        } else {
+            assert!(
+                matches!(&end, CloseWaitEnd::Failed(failure) if failure.kind == FailureKind::CheckFailed),
+                "{end:?}"
+            );
+        }
+    }
 }

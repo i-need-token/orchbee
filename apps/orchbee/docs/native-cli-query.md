@@ -2156,7 +2156,8 @@ Safety contract:
   default 30000). The text receipt then reports the closed name and terminal count. Expiry exits
   with a `timeout` failure (`details:{stage:"wait",timeoutMs,observed}`) while the close
   continues in the session; the text diagnostic names the `tab list` or `workspace close-status`
-  command. `--detach` keeps the `accepted` receipt returned at acceptance and conflicts with
+  command. An observation step that fails only after the total deadline, such as a cohort check
+  that ran out the remaining time, outlasted the wait and settles as that same `timeout`. `--detach` keeps the `accepted` receipt returned at acceptance and conflicts with
   `--timeout`. `--dry-run` submits nothing and returns the `terminal list` result filtered to that
   Tab or Workspace, with text opened by one dry-run sentence; it conflicts with `--detach` and
   `--timeout`. The JSON receipt shape is unchanged.

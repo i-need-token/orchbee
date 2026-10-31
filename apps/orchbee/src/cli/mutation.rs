@@ -777,7 +777,6 @@ mod workflow {
         timeout_ms: u32,
         locale: Locale,
     ) -> Result<Receipt, Box<(Failure, String)>> {
-        const INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
         let deadline = started + std::time::Duration::from_millis(u64::from(timeout_ms));
         let (key, workspace) = if receipt.action == "workspace.close" {
             ("workspaceId", true)
@@ -791,37 +790,31 @@ mod workflow {
             .and_then(|(_, id)| id.clone())
             .unwrap_or_default();
         let hint = CliText::new(locale).cli_close_wait_hint(workspace, &id, timeout_ms);
-        let mut observations = 0_u64;
-        loop {
-            let present = match snapshot_session_until(deadline) {
-                Ok((client, _, snapshot)) => {
-                    drop(client);
-                    observations += 1;
-                    if workspace {
-                        snapshot
-                            .navigation
-                            .workspaces
-                            .iter()
-                            .any(|candidate| candidate.workspace_id.as_str() == id)
-                    } else {
-                        snapshot
-                            .terminal_contexts
-                            .iter()
-                            .any(|context| context.tabs.iter().any(|tab| tab.tab_id.as_str() == id))
-                    }
-                }
-                Err(failure) if failure.kind == FailureKind::Timeout => true,
-                Err(failure) => return Err(Box::new((failure.source(receipt.source()), hint))),
-            };
-            if !present {
+        let present = || {
+            let (client, _, snapshot) = snapshot_session_until(deadline)?;
+            drop(client);
+            Ok(if workspace {
+                snapshot
+                    .navigation
+                    .workspaces
+                    .iter()
+                    .any(|candidate| candidate.workspace_id.as_str() == id)
+            } else {
+                snapshot
+                    .terminal_contexts
+                    .iter()
+                    .any(|context| context.tabs.iter().any(|tab| tab.tab_id.as_str() == id))
+            })
+        };
+        match await_close(deadline, Instant::now, present, std::thread::sleep) {
+            CloseWaitEnd::Closed => {
                 let closing = receipt.closing.clone().map(|closing| Closing {
                     finished: true,
                     ..closing
                 });
-                return Ok(Receipt { closing, ..receipt });
+                Ok(Receipt { closing, ..receipt })
             }
-            let now = Instant::now();
-            if now >= deadline {
+            CloseWaitEnd::Expired { observations } => {
                 let failure = Failure::new(FailureKind::Timeout)
                     .details(Map::from_iter([
                         ("stage".to_owned(), json!("wait")),
@@ -832,9 +825,47 @@ mod workflow {
                         ),
                     ]))
                     .source(receipt.source());
-                return Err(Box::new((failure, hint)));
+                Err(Box::new((failure, hint)))
             }
-            std::thread::sleep((deadline - now).min(INTERVAL));
+            CloseWaitEnd::Failed(failure) => {
+                Err(Box::new((failure.source(receipt.source()), hint)))
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    enum CloseWaitEnd {
+        Closed,
+        Expired { observations: u64 },
+        Failed(Failure),
+    }
+
+    /// Repeat `present` until it reports the closed target gone or the total
+    /// deadline passes. An observation that returns at or after the deadline
+    /// outlasted the wait, so it settles as the wait's own expiry rather than
+    /// as that late step's classification.
+    fn await_close(
+        deadline: Instant,
+        now: impl Fn() -> Instant,
+        mut present: impl FnMut() -> Result<bool, Failure>,
+        mut pause: impl FnMut(std::time::Duration),
+    ) -> CloseWaitEnd {
+        const INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
+        let mut observations = 0_u64;
+        loop {
+            match present() {
+                Ok(false) => return CloseWaitEnd::Closed,
+                Ok(true) => observations += 1,
+                Err(failure) if failure.kind != FailureKind::Timeout && now() < deadline => {
+                    return CloseWaitEnd::Failed(failure);
+                }
+                Err(_) => {}
+            }
+            let observed_at = now();
+            if observed_at >= deadline {
+                return CloseWaitEnd::Expired { observations };
+            }
+            pause((deadline - observed_at).min(INTERVAL));
         }
     }
 
