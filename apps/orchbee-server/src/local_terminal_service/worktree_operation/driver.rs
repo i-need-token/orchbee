@@ -56,6 +56,13 @@ pub(super) fn run(
                     && matches!(reason, Failure::Git {
                         error: orchbee_workbench_protocol::WorktreeGitError::CheckoutNotFound,
                         ..
+                    }))
+                // The Worker already settles absent or empty residue, so a checkout it still
+                // cannot find would fail every later attempt the same way.
+                && !(matches!(driver.plan.intent, WorktreeIntent::Remove { .. })
+                    && matches!(reason, Failure::Git {
+                        error: orchbee_workbench_protocol::WorktreeGitError::CheckoutNotFound,
+                        ..
                     }));
             Status::Failed {
                 reason,
@@ -144,32 +151,23 @@ impl Driver<'_> {
                         .path
                         .clone()
                         .ok_or(Failure::Internal {})?;
-                    let checkout = self.checkout_job(WorktreeMutation::InspectRemove {
+                    match self.checkout_job(WorktreeMutation::InspectRemove {
                         path: absolute(&path)?,
-                    })?;
-                    if let Some(previous) = &self.plan.progress.checkout
-                        && previous.common_directory != checkout.common_directory
-                    {
-                        return Err(Failure::SourceChanged {});
-                    }
-                    self.observed(checkout);
-                    let WorktreeIntent::Remove { force, .. } = self.plan.intent else {
-                        return Err(Failure::Internal {});
-                    };
-                    if !force
-                        && self
-                            .plan
-                            .progress
-                            .checkout
-                            .as_ref()
-                            .is_some_and(|checkout| checkout.dirty)
-                    {
-                        return Err(Failure::Git {
-                            stage: orchbee_workbench_protocol::WorktreeGitStage::DirtyCheck,
-                            error: orchbee_workbench_protocol::WorktreeGitError::Dirty,
-                            status: None,
-                            diagnostics: vec![],
-                        });
+                    }) {
+                        Ok(checkout) => self.inspected_for_removal(checkout)?,
+                        // Git deletes the registration even when it cannot delete the directory.
+                        // Once the Close began, resume keeps the retained facts and lets the
+                        // Worker's Remove settle or refuse the residue.
+                        Err(Failure::Git {
+                            error: orchbee_workbench_protocol::WorktreeGitError::CheckoutNotFound,
+                            ..
+                        }) if self.plan.progress.checkout.is_some()
+                            && matches!(
+                                self.plan.progress.workspace,
+                                WorktreeWorkspaceDisposition::Closing { .. }
+                                    | WorktreeWorkspaceDisposition::Closed { .. }
+                            ) => {}
+                        Err(reason) => return Err(reason),
                     }
                     if matches!(
                         self.plan.progress.workspace,
@@ -285,6 +283,34 @@ impl Driver<'_> {
     fn observed(&mut self, checkout: WorktreeCheckoutFacts) {
         self.plan.progress.path = Some(checkout.path.clone());
         self.plan.progress.checkout = Some(checkout);
+    }
+    /// Retains a registered checkout's facts and applies the dirty guard before any close.
+    fn inspected_for_removal(&mut self, checkout: WorktreeCheckoutFacts) -> Result<(), Failure> {
+        if let Some(previous) = &self.plan.progress.checkout
+            && previous.common_directory != checkout.common_directory
+        {
+            return Err(Failure::SourceChanged {});
+        }
+        self.observed(checkout);
+        let WorktreeIntent::Remove { force, .. } = self.plan.intent else {
+            return Err(Failure::Internal {});
+        };
+        if !force
+            && self
+                .plan
+                .progress
+                .checkout
+                .as_ref()
+                .is_some_and(|checkout| checkout.dirty)
+        {
+            return Err(Failure::Git {
+                stage: orchbee_workbench_protocol::WorktreeGitStage::DirtyCheck,
+                error: orchbee_workbench_protocol::WorktreeGitError::Dirty,
+                status: None,
+                diagnostics: vec![],
+            });
+        }
+        Ok(())
     }
     fn advance(&mut self, phase: Phase) -> Result<(), Failure> {
         self.plan.phase = phase;

@@ -356,3 +356,151 @@ fn failed_checkout_verification_preserves_original_git_failure_and_starts_no_she
         .unwrap();
     assert!(read_message(&mut fixture.peer).is_err());
 }
+
+fn checkout_not_found(stage: WorktreeMutationStage) -> Completion {
+    Completion::Failed(
+        WorktreeMutationFailure::new(
+            stage,
+            WorktreeMutationEffect::None,
+            WorktreeMutationError::CheckoutNotFound,
+            vec![],
+        )
+        .unwrap(),
+    )
+}
+
+/// Git deleted the registration and contents, but a locked directory survived. The first
+/// attempt ends with the Workspace still closing and an unverifiable checkout.
+fn half_removed(fixture: &mut Fixture) {
+    add_shell(fixture, 1);
+    fixture.start(WorktreeIntent::Remove {
+        workspace_id: fixture.workspace.clone(),
+        force: false,
+        trust_repository: false,
+    });
+    fixture.finish_job(checkout(false));
+    let remove = disposed_before_remove(fixture, 1);
+    complete_job(fixture, &remove, git_failed());
+    fixture.finish_job(checkout_not_found(WorktreeMutationStage::Select));
+    assert!(matches!(
+        fixture.settled(),
+        Status::Failed {
+            resumable: true,
+            progress,
+            ..
+        } if matches!(progress.workspace, WorktreeWorkspaceDisposition::Closing { .. })
+    ));
+}
+
+/// Resume re-inspects the vanished registration, keeps the original checkout facts, and asks
+/// the Worker to settle the residue without closing or launching anything again.
+fn resume_to_remove(fixture: &mut Fixture, expected_attempt: u32) -> WorktreeMutationRequest {
+    assert!(matches!(
+        fixture.apply(Action::Resume {
+            operation_id: id(40),
+            expected_attempt,
+        }),
+        Outcome::Available { attempt, .. } if attempt == expected_attempt + 1
+    ));
+    let inspect = fixture.finish_job(checkout_not_found(WorktreeMutationStage::Select));
+    assert!(
+        matches!(&inspect.action, WorktreeMutationJobAction::Start(intent) if matches!(intent.mutation(), WorktreeMutation::InspectRemove { .. }))
+    );
+    let remove = disposed_before_remove(fixture, 0);
+    assert!(
+        matches!(&remove.action, WorktreeMutationJobAction::Start(intent)
+            if intent.source().as_str() == "C:/repo"
+                && matches!(intent.mutation(), WorktreeMutation::Remove { path, expected_common_directory, force: false }
+                    if path.as_str() == "C:/w" && expected_common_directory.as_str() == "C:/repo/.git"))
+    );
+    remove
+}
+
+#[test]
+fn resumed_half_removal_settles_the_unregistered_residue_and_finishes_the_close() {
+    let mut fixture = Fixture::new();
+    half_removed(&mut fixture);
+    // The surviving directory is still locked: a retryable filesystem failure.
+    let remove = resume_to_remove(&mut fixture, 1);
+    complete_job(
+        &mut fixture,
+        &remove,
+        Completion::Failed(
+            WorktreeMutationFailure::new(
+                WorktreeMutationStage::Mutate,
+                WorktreeMutationEffect::None,
+                WorktreeMutationError::Io,
+                vec![],
+            )
+            .unwrap(),
+        ),
+    );
+    fixture.finish_job(checkout_not_found(WorktreeMutationStage::Select));
+    let status = fixture.settled();
+    assert!(
+        matches!(&status, Status::Failed {
+            reason: Failure::Git { error: WorktreeGitError::Io, .. },
+            resumable: true,
+            progress,
+        } if matches!(progress.workspace, WorktreeWorkspaceDisposition::Closing { .. })),
+        "{status:?}"
+    );
+    // After the lock is released, the Worker proves absence and the held close completes.
+    let remove = resume_to_remove(&mut fixture, 2);
+    complete_job(
+        &mut fixture,
+        &remove,
+        Completion::Removed {
+            path: AbsoluteCwd::new("C:/w").unwrap(),
+        },
+    );
+    let status = fixture.settled();
+    assert!(
+        matches!(&status, Status::Removed { workspace_id, .. } if *workspace_id == fixture.workspace),
+        "{status:?}"
+    );
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while !snapshot(&fixture.service).navigation.workspaces.is_empty() {
+        assert!(Instant::now() < deadline, "the held Workspace close ends");
+        thread::sleep(Duration::from_millis(10));
+    }
+    fixture
+        .peer
+        .set_read_timeout(Some(Duration::from_millis(40)))
+        .unwrap();
+    assert!(read_message(&mut fixture.peer).is_err());
+}
+
+#[test]
+fn unprovable_residue_is_not_resumable_and_keeps_the_held_workspace_for_explicit_close() {
+    let mut fixture = Fixture::new();
+    half_removed(&mut fixture);
+    let remove = resume_to_remove(&mut fixture, 1);
+    complete_job(
+        &mut fixture,
+        &remove,
+        checkout_not_found(WorktreeMutationStage::Select),
+    );
+    fixture.finish_job(checkout_not_found(WorktreeMutationStage::Select));
+    let status = fixture.settled();
+    assert!(
+        matches!(&status, Status::Failed {
+            reason: Failure::Git { error: WorktreeGitError::CheckoutNotFound, .. },
+            resumable: false,
+            progress,
+        } if matches!(progress.workspace, WorktreeWorkspaceDisposition::Closing { .. })),
+        "{status:?}"
+    );
+    assert!(matches!(
+        fixture.apply(Action::Resume {
+            operation_id: id(40),
+            expected_attempt: 2,
+        }),
+        Outcome::Available { attempt: 2, .. }
+    ));
+    fixture
+        .peer
+        .set_read_timeout(Some(Duration::from_millis(40)))
+        .unwrap();
+    assert!(read_message(&mut fixture.peer).is_err(), "no Git replay");
+}

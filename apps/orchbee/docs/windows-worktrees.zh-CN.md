@@ -18,7 +18,7 @@ Create 与 Open 接受 `--workspace <target>` 或 `--cwd <path>` 二选一。均
 
 Create 接受可选的 `--branch`、`--base`、`--path` 与 `--label`。默认分支为 `worktree/<full-operation-id>`，base 为 `HEAD`，路径为 `<main-repository-parent>/<main-repository-name>-worktrees/<branch-slug>`。路径名将 ASCII 字母、数字、`_`、`-` 以外的字符替换为 `-`；绝不覆盖已有路径。已有本地分支忽略 base。Open 必须提供 `--path` 或 `--branch` 之一；分支有歧义须使用路径。主检出与关联检出均可打开。选中 checkout 已全局关联唯一 Workspace 时复用，`--label` 也会重命名它。新关联创建 Workspace 并启动其首个默认 shell 终端。可选四项尺寸参数遵循 `tab create`；Workspace 已提交但终端启动失败或不确定时仍保留在结果中。
 
-Remove 要求 `--workspace` 与 `--confirm`。关闭 Workspace 前检查登记关系、公共 Git 目录与脏状态。`--force` 明确允许 Git 丢弃检出目录中的改动。拒绝主检出、裸仓库及关联到其他已知 Workspace 的检出目录。移除成功保留分支，不使用递归文件系统删除兜底。
+Remove 要求 `--workspace` 与 `--confirm`。关闭 Workspace 前检查登记关系、公共 Git 目录与脏状态。`--force` 明确允许 Git 丢弃检出目录中的改动。拒绝主检出、裸仓库及关联到其他已知 Workspace 的检出目录。移除成功保留分支，不使用递归文件系统删除兜底。其他进程仍占用目录时，Git 可能已删除检出的登记与内容却留下目录；只有该未登记路径已不存在或为空的普通目录时，Remove 才以非递归删除结算这一残留。目录仍有内容、为链接或 Git 仍登记该路径时保持失败。
 
 `--trust-repository` 仅对此次 Git 命令授予信任，不修改全局或仓库配置。Windows Worktree 的 `--cwd` 及 create/open 的 `--path` 接受绝对驱动器路径、相对最终执行 CLI 当前目录的路径，以及开头的 `~`、`~/` 或 `~\`。绝对路径拼写保留。主目录按非空 `USERPROFILE`、`HOMEDRIVE` 加 `HOMEPATH`、`HOME` 的顺序选择；已选择但格式错误的主目录直接失败，不再回退。完整语法校验与机器路由先于上下文解析。发送端与中继保留原始操作数；只有最终执行的 CLI 为显式主目录操作数读取这些变量，Worker 不读取。解析失败先于请求标识生成、配置读取、信号所有权及运行时访问。输入及展开后的 UTF-8 路径均不超过 4096 字节。路径解析不打开或 canonicalize 文件，新检出目标无需已存在。不支持的 UNC／设备命名空间和驱动器相对路径会被拒绝。原始路径语法无效时，在读取主目录或当前目录上下文之前拒绝。不执行 shell、通配符、`$VAR` 或 `%VAR%` 替换，普通路径分量中的这些字符保持字面含义。其他命令沿用各自声明的路径策略。源路径可位于检出目录内部。引用参数非空、至多 1024 UTF-8 字节，不能以 `-` 开头或包含 ASCII 控制字符；分支语法由 Git 校验。Create 和 Open 可用 `--focus` 聚焦已有 Client，默认 `--no-focus`。Mac/Linux 变更执行与 Desktop 命令暴露不在此 Windows 实现范围内。
 
@@ -65,7 +65,7 @@ Create 和 Open 接受互斥的 `--focus` 与 `--no-focus`（默认）。聚焦�
 | Read 或断线  | 只读保留状态；断线不取消续执行                                               | 不重复 Git 或 Workspace 创建                     |
 | Session stop | Close 维护及 Worker 冻结前停止并 join 保留提交者                             | 取消不等于回滚；Worker 拥有物理收尾              |
 
-Server 最多保留 64 个操作，每个操作至多 64 次尝试。Worker 作业另有独立的 64 次保留准入上限。续执行的协作式工作预算为 120 秒，每个 Git 步骤上限 40 秒；Worker 拥有自己的 30 秒执行及五秒物理清理预算。新准入满时仍可读取和重复观察。不确定的物理或传输收尾不允许恢复。可能已有 Git 副作用的 Create 通过观察保留路径及分支恢复，而不是再次 Git add。Remove 在已知 Git 成功前保留规范布局。终端释放并完成清理后，保留精确 Close 发布；删除结果未知时保持保留及已有结构栅栏。已知 Git 失败会启动下述 shell 恢复。Resume 从保留仓库根目录重新检查；复用仍保留的 Close，或在 shell 恢复后捕获新的 Close。Worktree 失败后，显式普通 Workspace Close 可不执行 Git 而释放保留；pending 时返回 busy。已知 Git 删除成功先保留再释放发布，因此最终 Close 的重试不会重复 Git。恢复保留 Workspace、Tab 和 Panel 身份，同时替换 Presentation 和物理终端身份。
+Server 最多保留 64 个操作，每个操作至多 64 次尝试。Worker 作业另有独立的 64 次保留准入上限。续执行的协作式工作预算为 120 秒，每个 Git 步骤上限 40 秒；Worker 拥有自己的 30 秒执行及五秒物理清理预算。新准入满时仍可读取和重复观察。不确定的物理或传输收尾不允许恢复。可能已有 Git 副作用的 Create 通过观察保留路径及分支恢复，而不是再次 Git add。Remove 在已知 Git 成功前保留规范布局。终端释放并完成清理后，保留精确 Close 发布；删除结果未知时保持保留及已有结构栅栏。已知 Git 失败会启动下述 shell 恢复。Resume 从保留仓库根目录重新检查；复用仍保留的 Close，或在 shell 恢复后捕获新的 Close。Close 开始后若该检查已找不到检出，Resume 保留已记录的检出事实，交由 Remove 结算残留。Remove 仍找不到检出时不可恢复；其 Workspace 仍处于关闭中时，状态文本会给出 `orchbee workspace close <workspace-id> --confirm`。Worktree 失败后，显式普通 Workspace Close 可不执行 Git 而释放保留；pending 时返回 busy。已知 Git 删除成功先保留再释放发布，因此最终 Close 的重试不会重复 Git。恢复保留 Workspace、Tab 和 Panel 身份，同时替换 Presentation 和物理终端身份。
 
 ## 移除失败后的 shell 恢复
 
@@ -123,4 +123,4 @@ Start/Resume 使用同一个总预算（默认 120000 毫秒，允许 1–360000
 
 语法、精确副作用进程测试、空成员和部分/未知 schema 测试覆盖 CLI 契约。Server 与真实终端验收拥有捕获成员执行、物理终端清理及 Git 路径/分支保留验证。这些有界测试不宣称 Git/UI 原子事务或穷尽竞态。
 
-<!-- documentation-pairing: english-sha256=94e1ed25eaef38a631e9773fe70378f954dbd2378796c662e16e440d5db28445 zh-cn-sha256=84bef55a54caec06288037127280aa3c539246c2345a275ab9d5b88d5728cdd1 -->
+<!-- documentation-pairing: english-sha256=3ab1094dafe8ab397b67082e37249f2e5c48e0a593b6b2706ccf93fa83054802 zh-cn-sha256=2604d5d432c60776c40719d775254e657beed5399a46d159e72df40a42d2e2ce -->

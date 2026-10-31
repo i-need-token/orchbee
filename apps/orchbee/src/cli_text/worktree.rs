@@ -176,6 +176,18 @@ impl super::CliText {
                 Locale::ZhCn => "原 checkout 已不存在，此操作无法恢复。请检查 `git worktree list` 和保留的分支，解决 Git 错误后重新运行 `orchbee worktree create`。\n",
             });
         }
+        // A Remove that can no longer find its checkout keeps the Workspace close held.
+        if status["resumable"] == false
+            && status["reason"]["error"] == "checkout-not-found"
+            && status["progress"]["workspace"]["kind"] == "closing"
+            && let Some(workspace) = status["progress"]["workspace"]["workspaceId"].as_str()
+        {
+            let workspace = escape(workspace);
+            text.push_str(&match self.locale {
+                Locale::EnUs => format!("Git no longer lists this checkout as a worktree; this removal cannot resume. Inspect the directory and `git worktree list`, then close the held Workspace:\norchbee workspace close {workspace} --confirm\n"),
+                Locale::ZhCn => format!("Git 已不再将此 checkout 登记为工作树，此移除无法恢复。请检查该目录和 `git worktree list`，然后关闭仍保持关闭中的工作区：\norchbee workspace close {workspace} --confirm\n"),
+            });
+        }
         if let Some(post) = result.get("postOpen") {
             text.push_str(match (self.locale, post["outcome"].as_str()) {
                 (Locale::EnUs, Some("completed")) => "TUI focus completed.\n",
