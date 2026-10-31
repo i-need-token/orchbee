@@ -159,11 +159,19 @@ fn execute(
             if expected != repository.common {
                 return Err(context.failure(Error::RepositoryChanged, vec![]));
             }
-            let entry = context.select(
+            let entry = match context.select(
                 &repository,
                 &WorktreeCheckoutSelector::Path(path.clone()),
                 true,
-            )?;
+            ) {
+                Ok(entry) => entry,
+                Err(Abort::Known(failure)) if failure.error == Error::CheckoutNotFound => {
+                    return context
+                        .retire_unregistered(&repository, path)
+                        .unwrap_or(Err(Abort::Known(failure)));
+                }
+                Err(abort) => return Err(abort),
+            };
             let checkout = context.observe(&repository, entry)?;
             if checkout.dirty() && !force {
                 return Err(context.failure(Error::Dirty, vec![]));
@@ -176,12 +184,7 @@ fn execute(
             context.required(source.as_str(), &args, Stage::Mutate, true)?;
             let observed = context.repository(source.as_str())?;
             if observed.common != repository.common
-                || observed.entries.iter().any(|entry| {
-                    entry
-                        .path
-                        .as_str()
-                        .eq_ignore_ascii_case(checkout.path().as_str())
-                })
+                || registered(&observed, checkout.path())
                 || std::fs::symlink_metadata(checkout.path().as_str()).is_ok()
             {
                 return Err(context.failure(Error::RepositoryChanged, vec![]));
@@ -323,6 +326,71 @@ impl Context<'_> {
         )
         .map_err(|_| self.failure(Error::TooLarge, vec![]))
     }
+
+    /// Settles a checkout Git no longer lists. Git deletes the registration and contents even
+    /// when the directory itself cannot be deleted, so only an absent path or an empty ordinary
+    /// directory is accepted as that residue; `None` keeps the original failure.
+    fn retire_unregistered(
+        &mut self,
+        repository: &Repository,
+        path: &AbsoluteCwd,
+    ) -> Option<Result<Completion, Abort>> {
+        let target = Path::new(path.as_str());
+        if !crate::git_repository_windows::is_drive_path(target) || registered(repository, path) {
+            return None;
+        }
+        if let Err(abort) = self.check() {
+            return Some(Err(abort));
+        }
+        self.stage = Stage::Mutate;
+        match std::fs::symlink_metadata(target) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            // A link or reparse point is never a directory here, so it is never followed.
+            Ok(metadata) if metadata.file_type().is_dir() => {
+                match std::fs::read_dir(target).map(|mut entries| entries.next().is_none()) {
+                    Ok(true) => {}
+                    Ok(false) => return None,
+                    Err(_) => return Some(Err(self.failure(Error::Io, vec![]))),
+                }
+                // Non-recursive: a directory that gained content is refused by the filesystem.
+                match std::fs::remove_dir(target) {
+                    Ok(()) => self.changed = true,
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::DirectoryNotEmpty => {
+                        return None;
+                    }
+                    Err(_) => return Some(Err(self.failure(Error::Io, vec![]))),
+                }
+            }
+            Ok(_) => return None,
+            Err(_) => return Some(Err(self.failure(Error::Io, vec![]))),
+        }
+        // Permission errors and pending deletion are not absence proofs.
+        Some(
+            if std::fs::symlink_metadata(target)
+                .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+            {
+                Ok(Completion::Removed { path: path.clone() })
+            } else {
+                Err(self.failure(Error::Io, vec![]))
+            },
+        )
+    }
+}
+
+/// Git lists checkout paths as recorded; compare them without touching the filesystem.
+fn registered(repository: &Repository, path: &AbsoluteCwd) -> bool {
+    let spelling = |value: &str| {
+        value
+            .replace('\\', "/")
+            .trim_end_matches('/')
+            .to_ascii_lowercase()
+    };
+    let path = spelling(path.as_str());
+    repository
+        .entries
+        .iter()
+        .any(|entry| spelling(entry.path.as_str()) == path)
 }
 
 fn failed(stage: Stage, changed: bool, error: Error, diagnostics: Vec<u8>) -> Abort {

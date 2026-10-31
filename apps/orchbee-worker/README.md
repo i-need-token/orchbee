@@ -902,7 +902,11 @@ Create checks an existing local branch before choosing checkout or `-b` with bas
 is ignored for an existing branch. Open selects one registered checkout
 by path or branch. InspectRemove observes registration and dirty state. Remove rechecks
 common-directory identity, excludes the main checkout and invokes Git's dirty/force
-policy without deleting the branch or using a recursive filesystem fallback. Checkout
+policy without deleting the branch or using a recursive filesystem fallback. Git can delete a
+checkout's registration and contents yet leave a directory another process still holds; when Git
+no longer lists the checkout, Remove succeeds only if the path is absent or an empty ordinary
+directory, which it deletes non-recursively. Content, links or a path Git still lists keep
+CheckoutNotFound, and residue that cannot be deleted fails as Io. Checkout
 and common-directory facts are canonical observations, not a transaction against another
 Git process or filesystem writer. A post-mutation observation failure preserves possible
 effects instead of claiming rollback.

@@ -182,8 +182,95 @@ fn native_create_open_dirty_refusal_force_remove_and_branch_preservation() {
             .git(&["show-ref", "--verify", "refs/heads/topic/one"])
             .is_empty()
     );
+    // An already removed checkout is a settled removal, not a missing target.
+    assert_eq!(
+        fixture.execute(remove(true)),
+        Completion::Removed {
+            path: checkout.path().clone()
+        }
+    );
+}
+
+#[test]
+fn locked_removal_residue_is_retired_after_the_lock_ends() {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_SHARE_READ: u32 = 0x1;
+    const FILE_SHARE_WRITE: u32 = 0x2;
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    let fixture = Fixture::new();
+    let checkout = fixture.create("locked", "locked", "HEAD");
+    let directory = fixture.root.join("locked");
+    let remove = || WorktreeMutation::Remove {
+        path: checkout.path().clone(),
+        expected_common_directory: checkout.common_directory().clone(),
+        force: false,
+    };
+    // Holds the directory the way another process's working directory does: no delete sharing.
+    let lock = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+        .open(&directory)
+        .unwrap();
+    let failed = fixture.execute(remove());
     assert!(
-        matches!(fixture.execute(remove(true)), Completion::Failed(failure) if failure.error == Error::CheckoutNotFound)
+        matches!(&failed, Completion::Failed(failure) if matches!(failure.error, Error::GitFailed(_)) && failure.effect == WorktreeMutationEffect::MayHaveChanged),
+        "{failed:?}"
+    );
+    // Git removed the registration and contents before failing on the directory itself.
+    assert!(directory.is_dir());
+    assert_eq!(fs::read_dir(&directory).unwrap().count(), 0);
+    assert!(
+        matches!(fixture.execute(WorktreeMutation::InspectRemove { path: checkout.path().clone() }),
+        Completion::Failed(failure) if failure.error == Error::CheckoutNotFound)
+    );
+    let busy = fixture.execute(remove());
+    assert!(
+        matches!(&busy, Completion::Failed(failure) if failure.error == Error::Io && failure.effect == WorktreeMutationEffect::None),
+        "{busy:?}"
+    );
+    assert!(directory.is_dir());
+    drop(lock);
+    assert_eq!(
+        fixture.execute(remove()),
+        Completion::Removed {
+            path: checkout.path().clone()
+        }
+    );
+    assert!(!directory.exists());
+    assert!(
+        !fixture
+            .git(&["show-ref", "--verify", "refs/heads/locked"])
+            .is_empty()
+    );
+}
+
+#[test]
+fn unregistered_content_and_registered_missing_checkouts_are_never_settled() {
+    let fixture = Fixture::new();
+    let remove = |checkout: &WorktreeCheckout| WorktreeMutation::Remove {
+        path: checkout.path().clone(),
+        expected_common_directory: checkout.common_directory().clone(),
+        force: true,
+    };
+    let orphan = fixture.create("orphan", "orphan", "HEAD");
+    // Only Git's registration disappears; the checkout's files remain.
+    fs::remove_dir_all(fixture.root.join("repo/.git/worktrees/orphan")).unwrap();
+    let missing = fixture.create("missing", "missing", "HEAD");
+    // Only the directory disappears; Git still lists the checkout as prunable.
+    fs::remove_dir_all(fixture.root.join("missing")).unwrap();
+    for checkout in [&orphan, &missing] {
+        let result = fixture.execute(remove(checkout));
+        assert!(
+            matches!(&result, Completion::Failed(failure) if failure.error == Error::CheckoutNotFound && failure.effect == WorktreeMutationEffect::None),
+            "{result:?}"
+        );
+    }
+    assert!(fixture.root.join("orphan/seed.txt").is_file());
+    assert!(
+        String::from_utf8(fixture.git(&["worktree", "list", "--porcelain"]))
+            .unwrap()
+            .contains("/missing")
     );
 }
 

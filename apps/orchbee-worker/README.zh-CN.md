@@ -796,7 +796,10 @@ index 或配置。显式信任只作用于本命令的源仓库，绝不修改�
 
 Create 检查已有本地分支，再选择检出或使用 `-b` 与 base；已有分支忽略 base。Open 按路径或分支选择一个已登记 checkout。InspectRemove 观测登记及
 脏状态。Remove 复查公共目录身份、排除主 checkout，并调用 Git 的 dirty／force 策略，
-不删除分支，也不使用递归文件系统回退删除。Checkout 和公共目录事实是规范化观测，
+不删除分支，也不使用递归文件系统回退删除。其他进程仍占用目录时，Git 可能已删除 checkout 的
+登记与内容却留下目录；Git 不再登记该 checkout 时，只有路径已不存在或为空的普通目录，Remove 才以
+非递归删除完成。目录仍有内容、为链接或 Git 仍登记该路径时保持 CheckoutNotFound，无法删除的残留
+以 Io 失败。Checkout 和公共目录事实是规范化观测，
 不是对其他 Git 进程或文件系统写入者的事务。变更后观测失败保留可能发生的副作用，
 不宣称回滚。
 
@@ -891,4 +894,4 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 启动前后均可用。[所属模型](docs/windows-server-handoff.zh-CN.md) 定义精确票据、截止点、
 回滚及证据边界。公开 Server 状态／端点交接仍需独立集成；传输回执不是最终 CLI 成功。
 
-<!-- documentation-pairing: english-sha256=1aaf7bba2f0275a7132998fee08c4d04a19f9740d62b38fcd793be79ad84f1a3 zh-cn-sha256=6335607a8b0cde8b15d4e0936f787a511e5804793bd95c327feea13422d28b5b -->
+<!-- documentation-pairing: english-sha256=ab831087c0a9131435faa1e53ba9025b5b3115583aad9c8116a67f8e952dd971 zh-cn-sha256=dee32897d5de1626e6c6769443f8385adcd8e563ad4aedf1e9aa280c8ba56e04 -->
