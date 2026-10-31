@@ -33,7 +33,10 @@ impl ClientControl {
         direction: PanelDirection,
         fine: bool,
     ) {
-        if native.view().divider_source().as_ref() != Some(&target.source)
+        if !native
+            .view()
+            .divider_source()
+            .is_some_and(|source| source.same_layout(&target.source))
             || self.viewport != Some((target.viewport, target.sidebar))
         {
             self.local_resize_feedback = Some(LocalResizeFeedback::Notice(Notice::ResizeFailed));

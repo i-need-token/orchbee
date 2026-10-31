@@ -173,18 +173,24 @@ fn divider_native_preparation_pins_every_painted_identity_and_geometry_without_e
                     orchbee_workbench_protocol::WorkbenchPanelSlotId::parse(other).unwrap()
             }
         }
-        assert!(
-            native
-                .prepare_divider_adjustment(
-                    &stale,
-                    ClientSplitRatio::new(0.7).unwrap(),
-                    Some(viewport)
-                )
-                .is_err(),
-            "dimension {dimension}"
+        let prepared = native.prepare_divider_adjustment(
+            &stale,
+            ClientSplitRatio::new(0.7).unwrap(),
+            Some(viewport),
         );
-        assert!(
-            !native.divider_projection_current(&stale, viewport),
+        if dimension == 4 {
+            // A commit outside the split advances only the revision: the split is the same,
+            // and the CAS names the newest projection rather than the painted one.
+            assert_eq!(
+                prepared.unwrap().1.workbench_revision,
+                native.state.as_ref().unwrap().cache().revision()
+            );
+        } else {
+            assert!(prepared.is_err(), "dimension {dimension}");
+        }
+        assert_eq!(
+            native.divider_projection_current(&stale, viewport),
+            dimension == 4,
             "projection dimension {dimension}"
         );
     }

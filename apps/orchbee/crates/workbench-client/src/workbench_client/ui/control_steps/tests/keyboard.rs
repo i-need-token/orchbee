@@ -49,7 +49,8 @@ fn painted_resize_rejects_changed_source_or_geometry_and_uses_the_keyboard_lane(
         }
         control.resize_drawn(&native, &target, PanelDirection::Right, true);
         let mutation = control.lane.as_ref().unwrap().take_layout_for_test();
-        if changed == "current" {
+        // A commit outside the layout advances only the revision; the toolbar still names it.
+        if changed == "current" || changed == "revision" {
             assert!(
                 matches!(mutation.unwrap().action, WorkbenchAction::SplitRatioSet { ratio, .. } if (ratio.value() - 0.51).abs() < 1e-9)
             );

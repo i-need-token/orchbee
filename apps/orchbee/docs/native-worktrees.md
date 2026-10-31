@@ -186,10 +186,12 @@ integration evidence.
 | Newer input, hide or source change   | Revoke entry permission permanently for this operation; retain facts                            |
 | Failed/unknown terminal or lost read | Preserve checkout/Workspace evidence; never recreate or compensate                              |
 
-Entry waits for an in-flight publication refresh and then rechecks the origin. Missing membership
-allows at most one extra read-only refresh within the original entry deadline. For an accepted
-operation, an admitted surface that becomes unpresentable is suspended, while a first blocked
-reopen is refused; both withdraw automatic entry while retaining the operation and receipt.
+Preparation judges the source by the origin's own facts: its Context member, zoom, geometry and
+primary pane. A commit elsewhere in the Workbench advances only the revision and leaves the source
+current. Entry waits for an in-flight publication refresh and then rechecks the origin. Missing
+membership allows at most one extra read-only refresh within the original entry deadline. For an
+accepted operation, an admitted surface that becomes unpresentable is suspended, while a first
+blocked reopen is refused; both withdraw automatic entry while retaining the operation and receipt.
 An Opened result without current presentation proof reports that the Workspace is ready and directs
 the user to select it in the existing navigator; uncovering never replays automatic entry. Directory
 comparison uses the Server association policy without inventing filesystem identity or dropping the

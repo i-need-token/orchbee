@@ -1157,7 +1157,7 @@ impl FrameHitMap {
             && self.regions.iter().any(|region| {
                 region.layer == HitLayer::Foreground
                     && region.rect == target.divider
-                    && matches!(&region.target, HitTarget::Divider(painted) if painted == target)
+                    && matches!(&region.target, HitTarget::Divider(painted) if painted.same_split(target))
             })
     }
 }

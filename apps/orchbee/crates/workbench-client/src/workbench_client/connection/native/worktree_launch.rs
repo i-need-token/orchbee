@@ -48,7 +48,12 @@ impl ClientExecutor {
         let WorkbenchSnapshotOutcome::Available { snapshot } = outcome else {
             return Ok(None);
         };
-        if p.origin.cache.project_snapshot(snapshot).ok().as_ref() != Some(&p.origin.cache) {
+        if !p
+            .origin
+            .cache
+            .project_snapshot(snapshot)
+            .is_ok_and(|projected| p.origin.source_current_in(&projected))
+        {
             return Ok(None);
         }
         if p.origin.cache.directory().is_some() {

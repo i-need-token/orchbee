@@ -18,6 +18,17 @@ pub struct DividerSource {
     pub(crate) revision: WorkbenchRevision,
 }
 
+impl DividerSource {
+    /// Whether `other` names the same focused layout. Every commit anywhere in the Workbench
+    /// advances the revision, so a commit outside this layout leaves it the same.
+    pub(crate) fn same_layout(&self, other: &Self) -> bool {
+        self.session == other.session
+            && self.context == other.context
+            && self.tab == other.tab
+            && self.focus == other.focus
+    }
+}
+
 /// A resize toolbar refers to one focused layout and its painted viewport.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DrawnResize {
@@ -63,6 +74,20 @@ impl DrawnDivider {
             area,
             divider,
         })
+    }
+
+    /// Whether `other` paints the same split at the same place, whatever the Workbench revision
+    /// it was painted under. A drag on it survives commits outside its layout.
+    pub(crate) fn same_split(&self, other: &Self) -> bool {
+        self.source.same_layout(&other.source)
+            && self.viewport == other.viewport
+            && self.split == other.split
+            && self.first == other.first
+            && self.second == other.second
+            && self.orientation == other.orientation
+            && self.ratio == other.ratio
+            && self.area == other.area
+            && self.divider == other.divider
     }
 }
 

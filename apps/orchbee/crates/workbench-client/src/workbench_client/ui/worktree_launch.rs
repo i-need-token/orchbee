@@ -292,7 +292,7 @@ impl WorkbenchClientUi {
             .state
             .as_ref()
             .and_then(|s| s.worktree_origin())
-            .is_some_and(|current| p.origin.unchanged(&current) && current.cache == p.origin.cache);
+            .is_some_and(|current| p.origin.unchanged(&current));
         changed
             | self
                 .worktrees

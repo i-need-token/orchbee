@@ -39,3 +39,23 @@ fn worktree_primary_sample_releases_temporary_viewer_and_never_falls_back_to_hom
 fn worktree_source_borrows_live_primary_and_retains_it_even_on_identity_failure() {
     source_root::borrow(prepare).unwrap();
 }
+/// O-2: a commit elsewhere in the Workbench, such as another Workspace's rename, lands between the
+/// key and the preparation read and advances only the revision. The source is the focused
+/// Workspace's own, so the preparation still samples it instead of reporting it unavailable.
+#[test]
+fn worktree_source_survives_a_commit_outside_its_scope() {
+    source_root::sample(|executor, sample, outcome| {
+        let WorkbenchSnapshotOutcome::Available { snapshot } = outcome else {
+            panic!("the fixture reads an available snapshot");
+        };
+        let mut later = snapshot.clone();
+        later.revision =
+            orchbee_workbench_protocol::WorkbenchRevision::new(snapshot.revision.value() + 1);
+        prepare(
+            executor,
+            sample,
+            &WorkbenchSnapshotOutcome::Available { snapshot: later },
+        )
+    })
+    .unwrap();
+}

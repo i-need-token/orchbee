@@ -24,6 +24,14 @@ impl Origin {
             && self.primary_pane == current.primary_pane
             && self.primary_binding() == current.primary_binding()
     }
+    /// Whether `projected`, this Context read again later, still names the same source. A commit
+    /// elsewhere in the Workbench advances only the revision and leaves the source current.
+    pub(crate) fn source_current_in(&self, projected: &ClientContextTabs) -> bool {
+        self.unchanged(&Self {
+            cache: projected.clone(),
+            ..self.clone()
+        })
+    }
     pub(super) fn primary_binding(&self) -> Option<&ClientTerminalBinding> {
         let member = self.member.as_ref()?;
         let tab = self.cache.tabs().get(self.cache.tab_index(&member.tab)?)?;

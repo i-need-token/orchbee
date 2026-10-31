@@ -27,12 +27,19 @@ impl WorkbenchClientUi {
             return Err(Reason::Busy);
         }
         self.validate_divider_geometry(target, viewport)?;
+        // The split is unchanged; the CAS names the newest projection, not the painted one.
+        let revision = self
+            .state
+            .as_ref()
+            .ok_or(Reason::ProjectionUnavailable)?
+            .cache()
+            .revision();
         Ok((
             session,
             ClientLayoutAdjustment {
                 terminal_context_id: target.source.context.clone(),
                 tab_id: target.source.tab.clone(),
-                workbench_revision: target.source.revision,
+                workbench_revision: revision,
                 selected: true,
                 change: ClientLayoutChange::Split {
                     split: ClientSplitChange {
@@ -82,7 +89,11 @@ impl WorkbenchClientUi {
         target: &DrawnDivider,
         viewport: Option<(Rect, SidebarSurface)>,
     ) -> Result<(), Reason> {
-        if self.view().divider_source().as_ref() != Some(&target.source) {
+        if !self
+            .view()
+            .divider_source()
+            .is_some_and(|source| source.same_layout(&target.source))
+        {
             return Err(Reason::StaleView);
         }
         let (viewport, sidebar) = viewport.ok_or(Reason::ProjectionUnavailable)?;

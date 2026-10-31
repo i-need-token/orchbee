@@ -148,8 +148,17 @@ fn divider_projection_uses_exact_painted_source_and_clears_on_transport_loss() {
     pointer.publish(map(&target));
     assert_eq!(projected(&pointer, &target), ProjectedPointer::Pressed);
 
+    let mut unrelated = target.clone();
+    unrelated.source.revision = WorkbenchRevision::new(2);
+    pointer.publish(map(&unrelated));
+    assert_eq!(
+        projected(&pointer, &target),
+        ProjectedPointer::Pressed,
+        "a commit outside the split repaints the same divider"
+    );
+
     let mut replacement = target.clone();
-    replacement.source.revision = WorkbenchRevision::new(2);
+    replacement.source.tab = tab_id(9);
     pointer.publish(map(&replacement));
     assert_eq!(projected(&pointer, &target), ProjectedPointer::Rest);
     assert_eq!(
@@ -654,4 +663,44 @@ fn divider_generated_timelines_have_replay_shrinking_and_all_event_classes() {
         }
     }
     assert_eq!(coverage, (1 << 14) - 1);
+}
+
+/// 问题 5: while other Workspaces commit, frames repaint the same split under a newer Workbench
+/// revision. The drag is on an unchanged split, so it survives those frames and its release
+/// submits once instead of being cancelled without a word.
+#[test]
+fn divider_drag_survives_commits_outside_its_split() {
+    let (mut pointer, mut view, mut port) = fixture();
+    let origin = port.target.clone();
+    let (x, y) = (origin.divider.x, origin.divider.y);
+    report(&mut pointer, &mut view, &mut port, MouseAction::Press, x, y);
+    for (step, delta) in [4, 8].into_iter().enumerate() {
+        report(
+            &mut pointer,
+            &mut view,
+            &mut port,
+            MouseAction::Motion,
+            x + delta,
+            y,
+        );
+        let mut repainted = pointer.divider_preview().unwrap().projected_target();
+        repainted.source.revision =
+            WorkbenchRevision::new(origin.source.revision.value() + 1 + step as u64);
+        pointer.publish(map(&repainted));
+        pointer.tick(&mut view, &mut port, Instant::now(), None);
+        assert!(
+            pointer.divider_preview().is_some(),
+            "a commit outside the split keeps the drag"
+        );
+    }
+    let ratio = pointer.divider_preview().unwrap().ratio;
+    report(
+        &mut pointer,
+        &mut view,
+        &mut port,
+        MouseAction::Release,
+        x + 8,
+        y,
+    );
+    assert_eq!(port.submissions, vec![(origin, ratio)]);
 }
