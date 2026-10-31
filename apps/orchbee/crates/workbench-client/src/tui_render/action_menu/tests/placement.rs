@@ -176,6 +176,15 @@ fn pointer_menu_opens_at_the_pressed_column_below_its_trigger_else_above_and_shi
     let first = painted.row(painted.draw().first);
     assert_eq!(first.y - 1, row.bottom(), "the trigger row stays uncovered");
 
+    // A window shrunk below the pressed cell keeps the frame inside the new viewport.
+    let menu = project_menu(MenuAnchor::Pointer {
+        column: 100,
+        row: 30,
+    });
+    let painted = paint((80, 24), None, menu.view().unwrap(), &[], &theme);
+    let frame = painted.frame(PROJECT_LINES);
+    assert!(frame.right() <= 80 && frame.bottom() <= 24);
+
     // Fewer than three rows on either side refuses the menu and its input.
     let (row, target) = sidebar_row(1);
     let menu = project_menu(MenuAnchor::Pointer { column: 6, row: 2 });

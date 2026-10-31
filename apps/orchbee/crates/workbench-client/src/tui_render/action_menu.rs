@@ -345,10 +345,22 @@ fn measure<'v>(
 }
 
 /// The complete trigger that owns an anchor cell in the frame being drawn, else the cell itself.
+/// A resize can leave the anchor outside the content; the nearest content cell then stands in,
+/// so placement never derives a frame beyond the viewport.
 fn trigger(hits: &HitMapBuilder, content: Rect, column: u16, row: u16) -> Rect {
-    hits.context_menu_anchor_rect(column, row)
+    let trigger = hits
+        .context_menu_anchor_rect(column, row)
         .unwrap_or(Rect::new(column, row, 1, 1))
-        .intersection(content)
+        .intersection(content);
+    if !trigger.is_empty() {
+        return trigger;
+    }
+    Rect::new(
+        column.clamp(content.x, content.right().saturating_sub(1).max(content.x)),
+        row.clamp(content.y, content.bottom().saturating_sub(1).max(content.y)),
+        1,
+        1,
+    )
 }
 
 fn place_root(measured: &Measured<'_>, content: Rect, hits: &HitMapBuilder) -> Option<Rect> {
