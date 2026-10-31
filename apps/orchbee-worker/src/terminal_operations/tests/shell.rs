@@ -970,10 +970,15 @@ fn lazy_exit_after_disconnect_or_host_start_failure_settles_running_plugin_proce
             start_plugin_process(&mut peer, &driver_work);
             let fault = Instant::now();
             if host_start_failure {
-                // The fixture cohort's Host executable is not runnable, so startup fails
-                // after admission and the loop ends through the same fallback exit.
-                send(&mut peer, &launch(91, "cmd.exe"));
-                let _failed_or_closed = node::read_message(&mut peer);
+                // A valid Launch passes preparation; the fixture cohort's Host executable is
+                // not runnable, so startup fails and the loop ends through the fallback exit.
+                send(&mut peer, &launch(91, "C:/Windows/System32/cmd.exe"));
+                assert_eq!(
+                    outcome(&mut peer),
+                    TerminalLaunchOutcome::Failed(
+                        TerminalLaunchFailure::HostUnavailableBeforeHandoff
+                    )
+                );
             }
             drop(peer);
             fault
@@ -993,6 +998,15 @@ fn lazy_exit_after_disconnect_or_host_start_failure_settles_running_plugin_proce
             error.kind() == io::ErrorKind::TimedOut || error.to_string().contains("cleanup unknown")
         });
         assert!(!cleanup, "exit settlement proved cleanup: {error}");
+        // Only the Host-start branch prepares the Host directory, so a preparation refusal
+        // followed by the disconnect cannot satisfy the start-failure case.
+        assert_eq!(
+            orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::host_runtime_directory(
+                &runtime
+            )
+            .exists(),
+            host_start_failure
+        );
         // Fault-to-exit stays within the six-second shared settlement window plus slack.
         assert!(exited.saturating_duration_since(fault) < Duration::from_secs(8));
         // Settlement terminated the Job: the process can no longer reach its final write.
