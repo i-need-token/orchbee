@@ -693,8 +693,10 @@ does not create a second lifecycle or permit an unsafe normal classification. Th
 Job accounting at a quiet monotonic cadence until the active count reaches zero or two consecutive
 readings find no console holder, because a console program reports its creator until its console
 connection completes. While holders remain, it re-reads console ownership when accounting changes
-and at least once per second. Once containment has observed no holder, a holder or a failed
-reading here is a containment race and falls back to terminating the whole Job instead of waiting.
+and at least once per second. Once containment or force termination has observed no holder, a
+holder or a failed reading here is a race and falls back to terminating the whole Job instead of
+waiting. Force termination can miss a console program its holder started just before ending: the
+program still reports that creator, reads as detached, and becomes a holder only when it connects.
 Natural process exit does not signal the Job handle. A signaled handle after force termination
 cannot bypass that predicate or turn its retry into a busy loop.
 

@@ -33,6 +33,10 @@ pub const ConsoleTree = if (builtin.os.tag != .windows) void else struct {
     host: ?windows.HANDLE = null,
     /// Set once containment observes no member holding the Terminal console.
     contained: std.atomic.Value(bool) = .init(false),
+    /// Set once force termination ends every console holder it can see. A console
+    /// program started just before its creator ended still reports that creator, so
+    /// the round reads it as detached; when it then connects it is a late holder.
+    holders_ended: std.atomic.Value(bool) = .init(false),
 
     pub fn deinit(self: *ConsoleTree) void {
         if (self.host) |handle| _ = windows.CloseHandle(handle);
@@ -88,6 +92,7 @@ pub const ConsoleTree = if (builtin.os.tag != .windows) void else struct {
             for (0..close_rounds) |_| {
                 const found = self.members(job, root, .terminate) catch break;
                 if (!found.empty()) continue;
+                self.holders_ended.store(true, .release);
                 termination.recordForceSubmission();
                 return;
             }
@@ -142,13 +147,14 @@ pub const ConsoleTree = if (builtin.os.tag != .windows) void else struct {
         }
     }
 
-    /// After containment has observed no holder, a holder or a failed reading is a
-    /// containment race, so closing falls back to the whole Job instead of waiting.
+    /// After containment, or force termination, has observed no holder, a holder or a
+    /// failed reading is a race, so closing falls back to the whole Job instead of
+    /// waiting on a late holder that may never exit.
     fn quiet(self: *ConsoleTree, job: windows.HANDLE, root: windows.HANDLE, termination: *Termination) bool {
-        const contained = self.contained.load(.acquire);
+        const settled = self.contained.load(.acquire) or self.holders_ended.load(.acquire);
         const found = self.members(job, root, .observe) catch null;
         const none = if (found) |value| value.empty() else false;
-        if (!none and contained) termination.terminateJob(job) catch {};
+        if (!none and settled) termination.terminateJob(job) catch {};
         return none;
     }
 
