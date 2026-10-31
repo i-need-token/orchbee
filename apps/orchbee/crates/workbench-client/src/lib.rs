@@ -30,6 +30,8 @@ mod machines;
 mod native_settings;
 mod notifications;
 mod onboarding;
+mod pane_canvas;
+mod sidebar_width;
 mod startup_status;
 mod terminal_buffer_text;
 mod terminal_content;

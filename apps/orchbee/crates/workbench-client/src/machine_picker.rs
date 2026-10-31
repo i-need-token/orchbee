@@ -25,11 +25,7 @@ pub(crate) use navigation::{
 pub(crate) use spaces::TabAgent;
 pub(crate) use spaces::{most_urgent, urgency};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Choice {
-    Local,
-    Remote(ProfileId),
-}
+pub use crate::machines::Choice;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Selection {
     pub machine: Choice,
@@ -266,7 +262,7 @@ pub struct Picker {
     agent_view: crate::machine_agents::view::View,
     agent_sidebar: sidebar::AgentSidebar,
     spaces: sidebar::Sidebar<orchbee_local_runtime::SpaceSidebarSettings>,
-    sidebar_width: crate::tui_layout::SidebarWidth,
+    sidebar_width: crate::sidebar_width::SidebarWidth,
     navigation: navigation::SidebarNavigation,
     working_motion: sidebar::Motion,
     space_observations: Vec<(Choice, crate::machine_spaces::Observation)>,
@@ -320,7 +316,7 @@ impl Default for Picker {
             agent_view: crate::machine_agents::view::View::default(),
             agent_sidebar: sidebar::AgentSidebar::default(),
             spaces: sidebar::Sidebar::default(),
-            sidebar_width: crate::tui_layout::SidebarWidth::DEFAULT,
+            sidebar_width: crate::sidebar_width::SidebarWidth::DEFAULT,
             navigation: navigation::SidebarNavigation::default(),
             working_motion: sidebar::Motion::default(),
             space_observations: Vec::new(),
@@ -767,7 +763,7 @@ pub trait PickerTestAccess {
     fn show(&mut self);
     fn key(&mut self, key: KeyEvent);
     fn enter_sidebar_navigation(&mut self) -> bool;
-    fn sidebar_width(&self) -> crate::tui_layout::SidebarWidth;
+    fn sidebar_width(&self) -> crate::sidebar_width::SidebarWidth;
     fn activate_sidebar_agent(&mut self, selected: &Selection) -> bool;
     fn show_workspaces(&mut self);
     fn activate_sidebar_workspace(&mut self, selected: &Selection) -> bool;
@@ -790,7 +786,7 @@ impl PickerTestAccess for Picker {
     fn enter_sidebar_navigation(&mut self) -> bool {
         Picker::enter_sidebar_navigation(self)
     }
-    fn sidebar_width(&self) -> crate::tui_layout::SidebarWidth {
+    fn sidebar_width(&self) -> crate::sidebar_width::SidebarWidth {
         Picker::sidebar_width(self)
     }
     fn activate_sidebar_agent(&mut self, selected: &Selection) -> bool {

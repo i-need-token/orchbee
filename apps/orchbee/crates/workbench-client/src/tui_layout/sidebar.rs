@@ -1,48 +1,10 @@
 //! Bounded sidebar width and reversible painted-edge geometry; no input or terminal effects.
 use super::{SidebarArea, project_shell_areas};
-use crate::client_view::SidebarSurface;
+use crate::{
+    client_view::SidebarSurface,
+    sidebar_width::{SidebarWidth, SidebarWidthChange},
+};
 use ratatui::layout::Rect;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct SidebarWidth(u16);
-
-impl SidebarWidth {
-    pub(crate) const DEFAULT: Self = Self(30);
-    const MINIMUM: u16 = 24;
-    const MAXIMUM: u16 = 60;
-
-    pub(crate) const fn new(columns: u16) -> Option<Self> {
-        if columns >= Self::MINIMUM && columns <= Self::MAXIMUM {
-            Some(Self(columns))
-        } else {
-            None
-        }
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub const fn columns(self) -> u16 {
-        self.0
-    }
-    /// The narrowest host that docks this sidebar beside Compact-minimum content.
-    pub(crate) const fn docked_host_columns(self) -> u16 {
-        self.0 + super::COMPACT_MINIMUM_COLUMNS
-    }
-    pub(super) fn effective_columns(self, host_columns: u16) -> u16 {
-        self.0.min(host_columns / 2)
-    }
-}
-
-impl Default for SidebarWidth {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SidebarWidthChange {
-    Narrower,
-    Wider,
-    Reset,
-}
 
 /// Both preferred surface and effective rectangle belong to this exact painted source.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

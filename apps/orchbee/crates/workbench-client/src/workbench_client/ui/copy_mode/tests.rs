@@ -2,10 +2,11 @@ use super::*;
 mod mouse;
 use crate::{
     terminal_copy_mode::EpisodeId,
-    terminal_input::{
-        DecodedKind, LegacyDecoder, PaneAdmission, PointerSelectionCell, PointerSelectionIntent,
+    terminal_input::{DecodedKind, LegacyDecoder, PaneAdmission, PointerSelectionIntent},
+    workbench_client::{
+        input::PointerSelectionCell,
+        state::{AttachmentKey, PaneKey},
     },
-    workbench_client::state::{AttachmentKey, PaneKey},
 };
 use orchbee_client_server_protocol::{
     TerminalViewerAction, TerminalViewerOutcome, ViewerId, ViewerRejectedReason,

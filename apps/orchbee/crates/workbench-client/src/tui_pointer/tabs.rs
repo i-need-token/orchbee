@@ -8,7 +8,9 @@ use super::{
 use crate::{
     action_menu::DrawnTabCreate,
     client_view::{ClientAction, ClientView, Modifiers},
-    terminal_input::{SurfaceAction, SurfaceInput, TabAction, TerminalInputPort},
+    workbench_client::input::{
+        SurfaceAction, SurfaceInput, TabAction, TabDragSource, TerminalInputPort,
+    },
 };
 use orchbee_workbench_protocol::{
     TabConfiguration, WorkbenchTabGroupId, WorkbenchTabId, WorkbenchTabIdSet,
@@ -17,21 +19,6 @@ use orchbee_workbench_protocol::{
 use ratatui::layout::Rect;
 #[cfg(test)]
 mod tests;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct TabDragTab {
-    pub(crate) id: WorkbenchTabId,
-    pub(crate) pinned: bool,
-    pub(crate) group: Option<WorkbenchTabGroupId>,
-    pub(crate) selected: bool,
-    pub(crate) collapsed: bool,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TabDragSource {
-    pub(crate) drawn: DrawnTabCreate,
-    pub(crate) tabs: Vec<TabDragTab>,
-}
 
 pub(super) struct TabClick {
     source: DrawnTabCreate,

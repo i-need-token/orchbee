@@ -1,8 +1,8 @@
 //! One bounded Windows graphics surface shares the fixed backend's frame and restoration lease.
 use crate::{
+    pane_canvas::{Canvas as PaneGraphicsCanvas, Draw as PaneGraphicsDraw},
     terminal_graphics::{Facts, Reply},
     terminal_lifecycle::{SynchronizedUpdateLease, graphics::delete},
-    workbench_client::{PaneGraphicsCanvas, PaneGraphicsDraw},
 };
 use base64::{Engine, engine::general_purpose::STANDARD};
 use orchbee_workbench_protocol::{SessionId, WorkbenchRevision};

@@ -8,7 +8,7 @@ use super::hit_map::interaction::{Fingerprint, PointerProjection};
 use super::{FrameHitMap, InteractionTarget, PrimaryContract};
 use crate::{
     client_view::Modifiers,
-    terminal_input::{MouseAction, MouseButton, MouseEvent},
+    terminal_events::{MouseAction, MouseButton, MouseEvent},
 };
 
 /// Whether the settled outer transport can report button-free movement.

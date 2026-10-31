@@ -198,7 +198,8 @@ fn minimal_global_actions_leave_the_projected_first_row_and_live_cursor_to_the_t
 
 #[test]
 fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_packet() {
-    use crate::terminal_input::{PaneAdmission, PointerSelectionCell, PointerSelectionIntent};
+    use crate::terminal_input::{PaneAdmission, PointerSelectionIntent};
+    use crate::workbench_client::input::PointerSelectionCell;
 
     for same_packet in [true, false] {
         for history in [false, true] {

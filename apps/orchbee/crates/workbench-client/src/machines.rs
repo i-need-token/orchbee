@@ -9,6 +9,13 @@ const MAX_REVISION: u64 = 9_007_199_254_740_991;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProfileId(String);
+
+/// The machine a selection names: this host or one saved endpoint.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Choice {
+    Local,
+    Remote(ProfileId),
+}
 impl ProfileId {
     pub fn parse(value: &str) -> Option<Self> {
         (value.len() == 32

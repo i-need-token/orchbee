@@ -3,6 +3,7 @@
 
 mod action;
 mod capture;
+mod drag_sources;
 mod surface;
 pub(crate) use action::CapturedClientAction;
 pub(in crate::workbench_client) use action::CapturedRequest;
@@ -12,6 +13,8 @@ pub(crate) use capture::{
     CaptureReadiness, ConfirmationCaptureContext, RenameInputContext, SetupCaptureContext,
     WorktreeCaptureContext,
 };
+pub(crate) use drag_sources::TabDragTab;
+pub use drag_sources::{SidebarReorderSource, TabDragSource};
 pub use surface::{
     BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, RenameAction, SettingsAction,
     SetupAction, SurfaceAction, SurfaceInput, TabAction, TextEntry, WorktreeAction,
@@ -249,11 +252,11 @@ pub trait TerminalInputPort {
         PointerProbe::default()
     }
 
-    fn sidebar_reorder_source(&mut self) -> Option<crate::tui_pointer::SidebarReorderSource> {
+    fn sidebar_reorder_source(&mut self) -> Option<SidebarReorderSource> {
         None
     }
 
-    fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
+    fn tab_drag_source(&mut self) -> Option<TabDragSource> {
         None
     }
 

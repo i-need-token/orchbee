@@ -258,7 +258,7 @@ pub enum LayoutAction<'a> {
     },
     /// Commits a released sidebar reorder.
     SidebarReorder {
-        source: &'a crate::tui_pointer::SidebarReorderSource,
+        source: &'a super::SidebarReorderSource,
         operation: orchbee_workbench_protocol::NavigationConfiguration,
     },
 }

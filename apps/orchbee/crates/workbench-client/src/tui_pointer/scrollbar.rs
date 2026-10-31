@@ -6,9 +6,12 @@ use super::{
 };
 use crate::{
     client_view::{ClientAction, ClientView, Modifiers},
-    terminal_input::{MouseAction, MouseButton, MouseEvent, PointerProbe, TerminalInputPort},
+    terminal_events::{MouseAction, MouseButton, MouseEvent},
     terminal_scrollbar::ScrollbarSnapshot,
-    workbench_client::state::PaneRef,
+    workbench_client::{
+        input::{PaneAdmission, PaneInput, PointerProbe, TerminalInputPort},
+        state::PaneRef,
+    },
 };
 use ratatui::layout::Rect;
 
@@ -58,11 +61,11 @@ impl ScrollbarDrag {
         if self.last_offset == Some(offset) {
             return true;
         }
-        if port.pane_input(crate::terminal_input::PaneInput::Scrollbar {
+        if port.pane_input(PaneInput::Scrollbar {
             pane: &self.pane,
             source: self.source,
             offset,
-        }) != crate::terminal_input::PaneAdmission::Admitted
+        }) != PaneAdmission::Admitted
         {
             return false;
         }

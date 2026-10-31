@@ -6,7 +6,7 @@
 pub(crate) use bindings::PREFIX_GROUPS;
 /// Wide hosts show the sidebar by default: the default width still docks beside usable content.
 pub(crate) const WIDE_VIEWPORT_MINIMUM_COLUMNS: u16 =
-    crate::tui_layout::SidebarWidth::DEFAULT.docked_host_columns();
+    crate::sidebar_width::SidebarWidth::DEFAULT.docked_host_columns();
 
 mod bindings;
 mod copy;
@@ -135,9 +135,9 @@ impl ClientTransition {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SidebarSurface {
-    Docked(crate::tui_layout::SidebarWidth),
+    Docked(crate::sidebar_width::SidebarWidth),
     Hidden,
-    Overlay(crate::tui_layout::SidebarWidth),
+    Overlay(crate::sidebar_width::SidebarWidth),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

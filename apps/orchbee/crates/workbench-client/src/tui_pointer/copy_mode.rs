@@ -4,7 +4,7 @@ use super::{
     MouseEvent, PointerState, Rect, TerminalInputPort, plain_primary_press,
 };
 use crate::terminal_copy_mode::{CopyModeCursor, CopySurfaceToken};
-use crate::terminal_input::SurfaceInput;
+use crate::workbench_client::input::SurfaceInput;
 
 #[derive(Clone, Copy)]
 pub(super) struct Drag {

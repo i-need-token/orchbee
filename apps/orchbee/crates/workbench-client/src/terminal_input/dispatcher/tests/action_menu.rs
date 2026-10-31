@@ -21,7 +21,7 @@ struct Port {
     selections: Vec<crate::terminal_input::PointerSelectionIntent>,
     focus_on_request: bool,
     tab_create_available: bool,
-    drag: Option<crate::tui_pointer::TabDragSource>,
+    drag: Option<crate::workbench_client::input::TabDragSource>,
     arrangements: Vec<orchbee_workbench_protocol::TabConfiguration>,
     settings_capture: bool,
 }
@@ -852,7 +852,7 @@ impl TerminalInputPort for Port {
             .flatten()
             .map(crate::workbench_client::CaptureContext::ActionMenu)
     }
-    fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
+    fn tab_drag_source(&mut self) -> Option<crate::workbench_client::input::TabDragSource> {
         self.drag.clone()
     }
     fn tab_create_action(

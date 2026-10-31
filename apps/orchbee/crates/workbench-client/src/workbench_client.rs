@@ -1004,11 +1004,11 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    fn sidebar_reorder_source(&mut self) -> Option<crate::tui_pointer::SidebarReorderSource> {
+    fn sidebar_reorder_source(&mut self) -> Option<input::SidebarReorderSource> {
         self.backend.native_mut()?.sidebar_reorder_source()
     }
 
-    fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
+    fn tab_drag_source(&mut self) -> Option<input::TabDragSource> {
         self.backend.native_mut()?.tab_drag_source()
     }
 

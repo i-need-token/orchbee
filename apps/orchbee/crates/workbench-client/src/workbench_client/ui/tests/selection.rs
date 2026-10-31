@@ -1,6 +1,7 @@
 use super::super::tests::move_membership::ready_ui;
 use super::super::*;
-use crate::terminal_input::{PaneAdmission, PointerSelectionCell, PointerSelectionIntent};
+use crate::terminal_input::{PaneAdmission, PointerSelectionIntent};
+use crate::workbench_client::input::PointerSelectionCell;
 use crate::workbench_client::state;
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, MessageRole, PayloadEncoding,

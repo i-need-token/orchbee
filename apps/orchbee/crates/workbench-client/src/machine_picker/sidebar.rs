@@ -114,14 +114,14 @@ impl Row {
     }
 }
 impl Picker {
-    pub(crate) const fn sidebar_width(&self) -> crate::tui_layout::SidebarWidth {
+    pub(crate) const fn sidebar_width(&self) -> crate::sidebar_width::SidebarWidth {
         self.sidebar_width
     }
     /// The input owner first validates a live painted source; this compares its preference.
     pub(crate) fn set_sidebar_width(
         &mut self,
-        expected: crate::tui_layout::SidebarWidth,
-        next: crate::tui_layout::SidebarWidth,
+        expected: crate::sidebar_width::SidebarWidth,
+        next: crate::sidebar_width::SidebarWidth,
     ) -> bool {
         if !self.available
             || !self.spaces.visible()

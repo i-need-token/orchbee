@@ -40,8 +40,9 @@ use orchbee_workbench_protocol::WorkbenchRequestId;
 use orchbee_workbench_protocol::WorkbenchTabId;
 
 use crate::terminal_input::{
-    PaneAdmission, PaneInput, PointerPane, PointerSelectionCell, PointerSelectionIntent, PointerTab,
+    PaneAdmission, PaneInput, PointerPane, PointerSelectionIntent, PointerTab,
 };
+use crate::workbench_client::input::PointerSelectionCell;
 use crate::workbench_client::state::{AttachmentKey, PaneKey};
 
 use crate::client_view::{

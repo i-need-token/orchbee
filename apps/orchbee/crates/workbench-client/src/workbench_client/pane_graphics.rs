@@ -14,10 +14,11 @@ use std::{
 };
 const RETRY_DELAY: Duration = Duration::from_millis(100);
 const DEADLINE: Duration = Duration::from_secs(5);
+pub(super) use super::agent_read_lane::pane_graphics::{BATCH, Job, Scope};
 #[cfg(any(test, feature = "test-support"))]
-pub(super) use super::agent_read_lane::pane_graphics::Layer;
-pub(super) use super::agent_read_lane::pane_graphics::{BATCH, Job, Scope, Source};
-pub use super::agent_read_lane::pane_graphics::{Canvas, Draw};
+pub(super) use crate::pane_canvas::Layer;
+pub(super) use crate::pane_canvas::Source;
+pub use crate::pane_canvas::{Canvas, Draw};
 pub(super) struct Driver {
     host: crate::terminal_graphics::Facts,
     clock: LocalOperationClock,

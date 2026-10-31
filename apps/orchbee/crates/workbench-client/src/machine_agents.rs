@@ -3,7 +3,7 @@ use crate::local_client::cancellation::Cancellation;
 use crate::{
     local_client::LocalClient,
     machine_discovery::display_label,
-    machine_picker::Choice,
+    machines::Choice,
     workbench_client::{ClientContextLocation, ClientContextTarget},
 };
 use orchbee_agent_observation_protocol::AgentLaunchBinding;

@@ -7,8 +7,8 @@ use crate::{
     workbench_client::ClientContextTarget,
 };
 use orchbee_workbench_protocol::{
-    Project, ProtocolVersion, Snapshot, TerminalContext, WorkbenchProjectId, WorkbenchRevision,
-    WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace,
+    Navigation, Project, ProtocolVersion, SessionId, Snapshot, TerminalContext, WorkbenchProjectId,
+    WorkbenchRevision, WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace,
 };
 
 fn identity(value: usize) -> String {
@@ -21,16 +21,19 @@ fn workspace(value: usize) -> WorkbenchWorkspaceId {
     WorkbenchWorkspaceId::parse(&identity(20 + value)).unwrap()
 }
 struct Port {
-    source: SidebarReorderSource,
+    snapshot: std::sync::Arc<Snapshot>,
     writes: Vec<NavigationConfiguration>,
 }
 impl Port {
+    fn source(&self) -> SidebarReorderSource {
+        SidebarReorderSource::from_snapshot(self.snapshot.clone())
+    }
     fn commit_sidebar_reorder(
         &mut self,
         source: &SidebarReorderSource,
         operation: NavigationConfiguration,
     ) {
-        assert_eq!(source, &self.source);
+        assert_eq!(source, &self.source());
         self.writes.push(operation);
     }
 }
@@ -57,7 +60,7 @@ impl TerminalInputPort for Port {
         PointerProbe::default()
     }
     fn sidebar_reorder_source(&mut self) -> Option<SidebarReorderSource> {
-        Some(self.source.clone())
+        Some(self.source())
     }
 }
 fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
@@ -184,7 +187,7 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
         pointer,
         view,
         Port {
-            source: SidebarReorderSource::from_snapshot(std::sync::Arc::new(Snapshot {
+            snapshot: std::sync::Arc::new(Snapshot {
                 protocol_version: ProtocolVersion,
                 session_id,
                 revision: WorkbenchRevision::new(1),
@@ -199,7 +202,7 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
                     })
                     .collect(),
                 navigation,
-            })),
+            }),
             writes: vec![],
         },
         map,
@@ -395,8 +398,8 @@ fn project_drag_and_keyboard_sort_share_the_same_canonical_move() {
         .find(|row| matches!(row,SidebarRow::Project {project_id,..} if **project_id==project(1)))
         .unwrap()
         .target();
-    let keyboard = port.source.step(&target_semantic, false).unwrap();
-    assert!(port.source.step(&target_semantic, true).is_none());
+    let keyboard = port.source().step(&target_semantic, false).unwrap();
+    assert!(port.source().step(&target_semantic, true).is_none());
     send(
         &mut pointer,
         &mut view,
@@ -459,7 +462,7 @@ fn cancelled_stale_resized_and_modified_drags_retain_only_release_cleanup() {
                 pointer.set_capture(false);
             }
             3 => {
-                std::sync::Arc::make_mut(&mut port.source.0).revision = WorkbenchRevision::new(2);
+                std::sync::Arc::make_mut(&mut port.snapshot).revision = WorkbenchRevision::new(2);
             }
             4 => {
                 let mut changed = map.clone();
@@ -641,7 +644,7 @@ fn an_old_painted_canonical_revision_cannot_arm_or_keep_a_reorder() {
     let (mut pointer, mut view, mut port, map) = fixture();
     let origin = row(&map, Item::Workspace(workspace(0)));
     let target = row(&map, Item::Project(project(2)));
-    std::sync::Arc::make_mut(&mut port.source.0).revision = WorkbenchRevision::new(2);
+    std::sync::Arc::make_mut(&mut port.snapshot).revision = WorkbenchRevision::new(2);
     send(
         &mut pointer,
         &mut view,
@@ -658,7 +661,7 @@ fn an_old_painted_canonical_revision_cannot_arm_or_keep_a_reorder() {
         origin,
     );
     assert!(port.writes.is_empty());
-    std::sync::Arc::make_mut(&mut port.source.0).revision = WorkbenchRevision::new(1);
+    std::sync::Arc::make_mut(&mut port.snapshot).revision = WorkbenchRevision::new(1);
     send(
         &mut pointer,
         &mut view,
@@ -717,7 +720,7 @@ fn a_current_native_revision_cannot_authorize_stale_sidebar_membership_or_displa
     for fault in 0..3 {
         let (mut pointer, mut view, mut port, mut map) = fixture();
         let origin = row(&map, Item::Workspace(workspace(0)));
-        let canonical = std::sync::Arc::make_mut(&mut port.source.0);
+        let canonical = std::sync::Arc::make_mut(&mut port.snapshot);
         canonical.revision = WorkbenchRevision::new(2);
         if fault == 0 {
             canonical.navigation.workspaces[2].project_id = Some(project(2));
@@ -731,7 +734,7 @@ fn a_current_native_revision_cannot_authorize_stale_sidebar_membership_or_displa
         pointer.publish(map);
         assert!(
             !port
-                .source
+                .source()
                 .matches_sidebar(&view.machines.sidebar_source(), &view.machines.current)
         );
         send(

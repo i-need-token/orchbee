@@ -6,8 +6,8 @@ pub use crate::terminal_events::{
     DecodedItem, DecodedKind, HostReply, LegacyDecoder, MouseAction, MouseButton, MouseEvent,
     PaneEncode, PaneMouseEvent, encode_cursor_arrows, encode_pane_report,
 };
-pub(crate) use crate::terminal_events::{PanePointerRoute, route_pane_pointer};
 use crate::terminal_events::{decoder, mouse, utf8};
+pub(crate) use crate::workbench_client::input::PointerUnboundPane;
 pub use crate::workbench_client::input::{
     BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, RenameAction, SettingsAction,
     SetupAction, SurfaceAction, TabAction, WorktreeAction,
@@ -19,7 +19,6 @@ pub use crate::workbench_client::input::{
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use crate::workbench_client::input::{PointerPane, PointerTab, TerminalInputUnavailable};
-pub(crate) use crate::workbench_client::input::{PointerSelectionCell, PointerUnboundPane};
 use crate::workbench_client::{RenameDraftToken, RenameEdit, SetupEdit, SetupToken};
 mod dispatcher;
 mod modal;
@@ -51,16 +50,6 @@ pub(crate) fn dispatch_input<Port: TerminalInputPort + ?Sized, LayoutError>(
         |view, port| after_layout_change(view, port).map(|()| false),
         &mut |_| Ok(()),
     )
-}
-
-pub(crate) fn forward_or_report(
-    view: &mut ClientView,
-    input: &[u8],
-    terminal_input: &mut (impl TerminalInputPort + ?Sized),
-) {
-    if terminal_input.forward(input).is_err() {
-        view.report_terminal_input_unavailable();
-    }
 }
 
 fn forward_edit_or_report(

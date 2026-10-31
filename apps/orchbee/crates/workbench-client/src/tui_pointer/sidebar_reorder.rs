@@ -7,41 +7,19 @@ use super::{
 };
 use crate::{
     client_view::{ClientView, Modifiers},
-    machine_picker::{DrawnSidebarTarget, SidebarPart, SidebarSource, SidebarTarget},
-    terminal_input::{LayoutAction, SurfaceAction, TerminalInputPort},
+    machine_picker::{DrawnSidebarTarget, SidebarPart, SidebarTarget},
     workbench_client::ClientContextLocation,
+    workbench_client::input::{
+        LayoutAction, SidebarReorderSource, SurfaceAction, TerminalInputPort,
+    },
 };
-use orchbee_workbench_protocol::{Navigation, NavigationConfiguration, SessionId, Snapshot};
+use orchbee_workbench_protocol::NavigationConfiguration;
 use ratatui::layout::Rect;
 use std::time::{Duration, Instant};
 mod destination;
 use destination::{Drop, Item};
 #[cfg(test)]
 mod tests;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SidebarReorderSource(std::sync::Arc<Snapshot>);
-impl SidebarReorderSource {
-    pub(crate) fn from_snapshot(snapshot: std::sync::Arc<Snapshot>) -> Self {
-        Self(snapshot)
-    }
-    pub(crate) fn matches_sidebar(
-        &self,
-        source: &SidebarSource,
-        machine: &crate::machine_picker::Choice,
-    ) -> bool {
-        source.matches_navigation(machine, self.session_id(), self.navigation())
-    }
-    pub(crate) fn matches_menu_source(&self, source: &crate::action_menu::DrawnMenuSource) -> bool {
-        source.session == self.0.session_id && source.revision == self.0.revision
-    }
-    pub(crate) fn navigation(&self) -> &Navigation {
-        &self.0.navigation
-    }
-    pub(crate) fn session_id(&self) -> &SessionId {
-        &self.0.session_id
-    }
-}
 
 /// Immutable gesture data; geometry resolves against the candidate frame being painted.
 pub struct SidebarReorderPreview {

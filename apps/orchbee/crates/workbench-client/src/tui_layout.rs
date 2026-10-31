@@ -3,6 +3,7 @@ mod divider;
 mod pane_geometry;
 mod resize;
 mod sidebar;
+pub use crate::sidebar_width::SidebarWidth;
 pub(crate) use divider::DrawnResize;
 pub use divider::{DividerDrag, DividerSource, DrawnDivider};
 #[cfg(any(test, feature = "test-support"))]
@@ -13,8 +14,7 @@ pub(crate) use pane_geometry::{PaneArrangement, TabPanes, pane_geometries};
 pub use pane_geometry::{active_pane_area, terminal_geometry};
 use ratatui::layout::{Constraint, Layout, Rect};
 pub use resize::ResizeProjection;
-pub(crate) use sidebar::SidebarWidthChange;
-pub use sidebar::{DrawnSidebarWidth, SidebarWidth, SidebarWidthDrag};
+pub use sidebar::{DrawnSidebarWidth, SidebarWidthDrag};
 
 use orchbee_workbench_protocol::{
     ClientSplitRatio, PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId,
@@ -24,7 +24,7 @@ use crate::{client_view::SidebarSurface, workbench_client::ClientPanelTree};
 
 pub(crate) const FULL_MINIMUM_COLUMNS: u16 = 100;
 pub(crate) const FULL_MINIMUM_ROWS: u16 = 24;
-pub(crate) const COMPACT_MINIMUM_COLUMNS: u16 = 60;
+pub(crate) use crate::sidebar_width::COMPACT_MINIMUM_COLUMNS;
 pub(crate) const COMPACT_MINIMUM_ROWS: u16 = 12;
 pub(crate) const TOO_SMALL_MINIMUM_COLUMNS: u16 = 20;
 pub(crate) const TOO_SMALL_MINIMUM_ROWS: u16 = 5;

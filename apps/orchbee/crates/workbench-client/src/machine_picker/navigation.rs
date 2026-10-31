@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
-    tui_layout::SidebarWidthChange,
+    sidebar_width::SidebarWidthChange,
     workbench_client::ClientContextLocation,
 };
 use orchbee_workbench_protocol::{SessionId, WorkbenchProjectId};

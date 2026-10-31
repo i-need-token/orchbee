@@ -31,15 +31,14 @@ use orchbee_terminal_protocol::MouseTracking;
 
 pub use crate::client_view::help::HelpControl;
 use crate::client_view::{ClientAction, ClientView, Modifiers};
-use crate::terminal_input::{
-    BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, RenameAction, SetupAction,
-    SurfaceAction, WorktreeAction, forward_or_report, route_pane_pointer,
+use crate::terminal_events::{
+    MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, PanePointerRoute,
+    encode_cursor_arrows, encode_pane_report, route_pane_pointer,
 };
-use crate::terminal_input::{
-    MouseAction, MouseButton, MouseEvent, PaneAdmission, PaneEncode, PaneInput, PaneMouseEvent,
-    PanePointerRoute, PointerFrameFacts, PointerProbe, PointerSelectionCell,
-    PointerSelectionIntent, SurfaceInput, TerminalInputPort, encode_cursor_arrows,
-    encode_pane_report,
+use crate::workbench_client::input::{
+    BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, PaneAdmission, PaneInput,
+    PointerFrameFacts, PointerProbe, PointerSelectionCell, PointerSelectionIntent, RenameAction,
+    SetupAction, SurfaceAction, SurfaceInput, TerminalInputPort, WorktreeAction,
 };
 use crate::workbench_client::state::PaneRef;
 
@@ -67,12 +66,11 @@ mod list_scroll;
 mod modal;
 pub(crate) use modal::CancelledModalEvent;
 mod scrollbar;
-mod tabs;
-pub(crate) use tabs::{TabDragSource, TabDragTab};
 mod sidebar_reorder;
+mod tabs;
 #[cfg(test)]
 pub(crate) use hit_map::sidebar_reorder::Placement as SidebarDropPlacement;
-pub(crate) use sidebar_reorder::{SidebarReorderPreview, SidebarReorderSource};
+pub(crate) use sidebar_reorder::SidebarReorderPreview;
 mod sidebar_width;
 mod tooltip;
 
@@ -233,6 +231,17 @@ struct SelectionClick {
     cell: PointerSelectionCell,
     at: Instant,
     count: u8,
+}
+
+/// Forwards pointer-encoded bytes; a refused forward becomes the Client's input-unavailable notice.
+fn forward_or_report(
+    view: &mut ClientView,
+    input: &[u8],
+    terminal_input: &mut (impl TerminalInputPort + ?Sized),
+) {
+    if terminal_input.forward(input).is_err() {
+        view.report_terminal_input_unavailable();
+    }
 }
 
 fn selection_cell(viewport: Rect, event: MouseEvent) -> Option<PointerSelectionCell> {

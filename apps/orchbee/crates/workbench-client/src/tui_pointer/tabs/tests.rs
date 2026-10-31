@@ -1,4 +1,5 @@
 use super::*;
+use crate::workbench_client::input::TabDragTab;
 use crate::{
     action_menu::DrawnMenuSource,
     client_view::ClientActionDisposition,

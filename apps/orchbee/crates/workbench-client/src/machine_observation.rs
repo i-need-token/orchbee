@@ -7,8 +7,7 @@ use crate::{
         subscription::{ChangeEvent, ChangeSubscription},
     },
     machine_discovery::Connection,
-    machine_picker::Choice,
-    machines::ProfileId,
+    machines::{Choice, ProfileId},
     workbench_client::UiWakeup,
 };
 use orchbee_workbench_protocol::{

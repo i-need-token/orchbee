@@ -1,5 +1,5 @@
 use super::*;
-use crate::tui_pointer::{TabDragSource, TabDragTab};
+use crate::workbench_client::input::{TabDragSource, TabDragTab};
 use orchbee_workbench_protocol::{WorkbenchRevision, WorkbenchTabId};
 
 #[test]

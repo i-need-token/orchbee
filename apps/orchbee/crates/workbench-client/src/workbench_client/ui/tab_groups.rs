@@ -197,7 +197,7 @@ pub(super) fn close_tab_ids(
 impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn tab_drag_source(
         &mut self,
-    ) -> Option<crate::tui_pointer::TabDragSource> {
+    ) -> Option<crate::workbench_client::input::TabDragSource> {
         if self.retirement_failure.is_some()
             || self.action_menu_active()
             || self.modal_owns_input()
@@ -212,13 +212,13 @@ impl WorkbenchClientUi {
             return None;
         }
         let selected = state.selected_tab_ids();
-        Some(crate::tui_pointer::TabDragSource {
+        Some(crate::workbench_client::input::TabDragSource {
             drawn: self.view().tab_create_target()?,
             tabs: state
                 .cache()
                 .tabs()
                 .iter()
-                .map(|tab| crate::tui_pointer::TabDragTab {
+                .map(|tab| crate::workbench_client::input::TabDragTab {
                     id: tab.tab_id().clone(),
                     pinned: tab.pinned(),
                     group: tab.group().map(|group| group.group_id.clone()),

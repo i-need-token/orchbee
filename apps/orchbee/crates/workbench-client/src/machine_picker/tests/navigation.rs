@@ -1075,7 +1075,7 @@ fn entering_on_a_collapsed_active_workspace_focuses_its_parent_without_disclosur
 
 #[test]
 fn width_keys_only_emit_intents_including_empty_owned_navigation() {
-    use crate::tui_layout::SidebarWidthChange;
+    use crate::sidebar_width::SidebarWidthChange;
     let mut picker = picker();
     picker.observe_local(Vec::new());
     picker.enter_sidebar_navigation();

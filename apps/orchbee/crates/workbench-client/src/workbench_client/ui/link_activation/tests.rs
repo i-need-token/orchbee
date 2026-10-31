@@ -5,8 +5,9 @@ use super::*;
 use crate::{
     local_client::test_support::server::adjustable_operation_clock,
     terminal_content::TerminalScreen,
-    terminal_input::{PaneAdmission, PointerSelectionCell},
+    terminal_input::PaneAdmission,
     terminal_link_activation::{Notice, PaintedLinkSource, PaintedRows, SnapshotMember},
+    workbench_client::input::PointerSelectionCell,
 };
 use std::{
     num::NonZeroU64,
