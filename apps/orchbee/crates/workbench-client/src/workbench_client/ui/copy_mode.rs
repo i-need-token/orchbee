@@ -385,11 +385,21 @@ impl WorkbenchClientUi {
                 .mode_mut()
                 .ok_or(Refusal::Busy)
                 .and_then(|mode| mode.begin_search(direction)),
-            CopyModeKey::RepeatSearch { reverse } => self
-                .copy_mode
-                .mode_mut()
-                .ok_or(Refusal::Busy)
-                .and_then(|mode| mode.repeat_search(reverse)),
+            CopyModeKey::RepeatSearch { reverse } => {
+                let repeated = self
+                    .copy_mode
+                    .mode_mut()
+                    .ok_or(Refusal::Busy)
+                    .and_then(|mode| mode.repeat_search(reverse));
+                // Without an earlier search there is no match to repeat; the generic invalid
+                // refusal would otherwise ask the user to start a selection before copying.
+                if matches!(repeated, Err(Refusal::Invalid)) {
+                    self.copy_notice(ClientNotice::CopyModeNoMatch);
+                    self.drive_copy_effects();
+                    return;
+                }
+                repeated
+            }
             CopyModeKey::ToggleSelection => self
                 .copy_mode
                 .mode_mut()

@@ -62,16 +62,17 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn sidebar_delete_label(self) -> &'static str {
+    /// Confirms Dissolve Project, the menu action that opens this decision.
+    pub(crate) const fn project_dissolve_label(self) -> &'static str {
         match self {
-            Self::EnUs => "Delete",
-            Self::ZhCn => "删除",
+            Self::EnUs => "Dissolve",
+            Self::ZhCn => "解散",
         }
     }
     pub(crate) const fn project_delete_title(self) -> &'static str {
         match self {
-            Self::EnUs => "Delete Project?",
-            Self::ZhCn => "删除项目？",
+            Self::EnUs => "Dissolve Project?",
+            Self::ZhCn => "解散项目？",
         }
     }
     pub(crate) const fn project_delete_warning(self) -> &'static str {

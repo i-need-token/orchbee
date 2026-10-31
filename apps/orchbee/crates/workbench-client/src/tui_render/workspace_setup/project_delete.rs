@@ -28,12 +28,12 @@ pub(super) fn render(
             true,
         )
         .with_shortcut(&escape),
+        // Dissolving keeps every Workspace, terminal and program, so it carries no destructive tone.
         ModalAction::new(
-            locale.sidebar_delete_label(),
+            locale.project_dissolve_label(),
             super::super::controls::ActionKind::Primary,
             true,
         )
-        .with_tone(crate::action_projection::ActionTone::Destructive)
         .with_shortcut(&enter),
     ];
     let title = locale.project_delete_title();
@@ -193,7 +193,7 @@ mod tests {
                         );
                         for complete in [
                             locale.project_delete_warning(),
-                            locale.sidebar_delete_label(),
+                            locale.project_dissolve_label(),
                             locale.setup_cancel_label(),
                             "Project 界",
                             "Esc",

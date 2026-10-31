@@ -47,12 +47,9 @@ pub(super) fn render(
             true,
         )
         .with_shortcut(&escape),
+        // The button repeats the title's verb; the menu offers this same action as Close Workspace.
         ModalAction::new(
-            if confirmation.destructive() {
-                locale.sidebar_delete_label()
-            } else {
-                locale.workspace_close_confirm_label()
-            },
+            locale.workspace_close_confirm_label(),
             super::controls::ActionKind::Primary,
             true,
         )

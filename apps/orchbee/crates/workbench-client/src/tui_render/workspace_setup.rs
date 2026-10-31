@@ -9,7 +9,9 @@ use crate::client_view::{
     Binding, Bindings, ClientAction, KeyCode, KeyLabelGlyphs, Modifiers, PrefixAction, PrefixDesc,
 };
 use crate::localization::{DisplayPhase, Locale};
-use crate::terminal_text::{display_width, sanitize_terminal_text, truncate_display};
+use crate::terminal_text::{
+    display_width, sanitize_terminal_text, truncate_display, truncate_display_middle,
+};
 use crate::tui_hit_map::{
     HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl,
 };
@@ -832,10 +834,11 @@ fn render_quick(
         } else {
             " "
         };
+        // A path keeps its distinguishing tail: it truncates in the middle.
         lines.push(Line::from(format!(
             "{marker} {} {}",
             index + 1,
-            truncate_display(
+            truncate_display_middle(
                 &sanitize_terminal_text(path.as_str()),
                 usize::from(content_area.width.saturating_sub(16).min(44)),
                 theme.glyphs.ellipsis
