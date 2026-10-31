@@ -165,7 +165,7 @@ target receipts cannot overwrite valid admission evidence.
 The framed peer asserts that ordinary Close never sends group Start and that neither path replays
 mutations. Snapshot fixtures retain Project metadata and shared checkout directories.
 
-Maintain witnesses in `crates/workbench-client/src/workbench_client/state/tests/workspace_close.rs`,
+Maintain witnesses in `crates/workbench-client/src/workbench_state/tests/workspace_close.rs`,
 `crates/workbench-client/src/workbench_client/connection/native/tests/workspace_close.rs`,
 `crates/workbench-client/src/workbench_client/ui/tests/workspace_close.rs` and the local-client Close adapter suites.
 Render evidence covers both locales, terminal-native and RGB themes, Standard, Compact, Minimal and

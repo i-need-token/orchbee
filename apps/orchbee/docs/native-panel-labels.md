@@ -23,7 +23,7 @@ does not add restart persistence.
 
 The owning implementation consists of the protocol label types and Presentation/action contracts,
 the Server's pure Workbench authority, the shared native label-rename carrier, the CLI mutation
-adapter, and `workbench_client/workbench_projection.rs`'s display projection. Maintain this
+adapter, and `workbench_projection.rs`'s display projection. Maintain this
 reference with those owners and the independent TypeScript contracts and JSON schemas.
 
 ## Command model
@@ -70,7 +70,7 @@ existing rejection behavior. Custom labels are not attachment identity and never
 
 [Server authority tests](../../orchbee-server/src/workbench_authority/tests/panel_labels.rs) cover
 normalized set/clear, no-op, replay, non-target preservation, pending creation, authorization and
-capacity. [Native projection traces](../crates/workbench-client/src/workbench_client/workbench_projection/tests/label_evolution.rs)
+capacity. [Native projection traces](../crates/workbench-client/src/workbench_projection/tests/label_evolution.rs)
 cover custom-label evolution and immutable identity rejection. These maintained tests do not run
 two native TUIs against one Session.
 

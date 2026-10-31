@@ -209,7 +209,7 @@ state, and the shared OBAP protocol owns wire validation.
 Host envelope and process payload validation is covered in
 `crates/workbench-client/src/agent_runtime/startup/processes/tests.rs`. `src/cli/agent_start/tests.rs` drives the existing
 receipt matrix through the production domain-to-CLI conversion; Workbench recovery precedence
-remains covered in `crates/workbench-client/src/workbench_client/agent_board/start/tests.rs`. The existing tests also
+remains covered in `crates/workbench-client/src/agent_board/start/tests.rs`. The existing tests also
 exercise real Windows exe/ps1/cmd argument boundaries, parser and completion scope, competing
 reservations, exact expiry, stale bindings, canonical readiness, interrupted delivery and lost
 replies. Windows CLI named-pipe tests retain receipts and prove no automatic replay.

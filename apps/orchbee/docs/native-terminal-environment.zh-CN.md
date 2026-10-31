@@ -39,7 +39,7 @@ UTF-16 文本先完成组装，再编码为 UTF-8。高代理项跨读取边界�
 Shell payload。空闲轮询不会完成或替换待定高代理项。用户直接输入的 U+FFFD 仍是普通文本。
 `windows_console_input/records/tests/unicode.rs` 覆盖原生记录分段、无字符记录交错及有界 UTF-8
 重复尾部；`workbench_client/ui/tests/input_provenance.rs` 和
-`workbench_client/state/tests/location_labels.rs` 覆盖精确重命名请求、字素编辑、取消及位置标签
+`workbench_state/tests/location_labels.rs` 覆盖精确重命名请求、字素编辑、取消及位置标签
 发布。这些受控实现见证不提供穷尽 TLC 保证，也不能证明真实窗口的字形渲染效果。
 
 raw mode 保持 `ENABLE_VIRTUAL_TERMINAL_INPUT` 开启并关闭 cooked 处理。关闭 VT 输入会让
@@ -298,4 +298,4 @@ Windows 控制台记录不提供到达时间戳。这些样本不测量操作系
 
 用户成功离开（包括配置的 d/q 退出别名）后，先恢复终端模式、光标和备用屏幕，再向标准错误写入一行本地化提示。提示说明离开界面会让终端程序继续运行，并给出返回命令；远程机器的命令包含其稳定配置选择器。文案使用退出时已保存的实际语言。信号退出及运行或恢复失败时不打印成功离开提示。标准输出与机器文档不增加文本。
 
-<!-- documentation-pairing: english-sha256=4e6df47dc064e050027e350e0e504d1dc807064368638cc10c8e2056085820ed zh-cn-sha256=e5d8cd8bd3600e70d6413e7a8cdcfa6efd14eda5a45adca70254771099086663 -->
+<!-- documentation-pairing: english-sha256=adc680866dbe144e68c8960426a3af506d9144a79340f8ad6edb341a18353114 zh-cn-sha256=0689d82a99d6250fd508e02fa4e4ad0b6d5a5f3d93fd897a44d97683a78371b6 -->

@@ -32,8 +32,8 @@ Server 拥有 canonical 导航和终端准入。启动精确提交一次带修�
 
 ## 证据与边界
 
-`crates/workbench-client/src/workbench_client/startup_directory/tests.rs` 覆盖空 Project 准入、已有空 Workspace 拒绝、路径/名称规则、精确作用域及两种语言的保留证据。`crates/workbench-client/src/workbench_client/connection/native/tests/startup_directory.rs` 检查 Bootstrap 前只提交一次 launch、不执行隐式终端打开或 ProjectCreate、读取失败后保留已知回执，以及未知交接后不继续或重放。
+`crates/workbench-client/src/startup_directory/tests.rs` 覆盖空 Project 准入、已有空 Workspace 拒绝、路径/名称规则、精确作用域及两种语言的保留证据。`crates/workbench-client/src/workbench_client/connection/native/tests/startup_directory.rs` 检查 Bootstrap 前只提交一次 launch、不执行隐式终端打开或 ProjectCreate、读取失败后保留已知回执，以及未知交接后不继续或重放。
 
 使用匹配的原生依赖构建运行所属 `startup_directory` Rust 测试。这些测试覆盖有界实现轨迹；真实终端显示和完整 cohort 验收属于原生端到端测试，不宣称穷尽并发交错或覆盖其他平台。
 
-<!-- documentation-pairing: english-sha256=188c793ec2c99ef08e98087315ea45616ca7d0dc04e74a759276767b0e6c20b7 zh-cn-sha256=153a55121c6f1d64d699285c84f9abaa0291f12da10a26ca52e180772d8cb746 -->
+<!-- documentation-pairing: english-sha256=a1f1e44b46374feac17d49ee2ac99144d154ca6acd22529c804a7c21bb7fa00b zh-cn-sha256=360c5c0fff52a6793f967e5f1a389e820b369bc4510038465d65b1b27e2b2833 -->

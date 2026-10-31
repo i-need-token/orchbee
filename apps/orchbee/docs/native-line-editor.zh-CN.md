@@ -38,7 +38,7 @@ grapheme 移动与删除使用已锁定于 1.13.3 的 `unicode-segmentation`；�
 剥离控制字符可能合并相邻的簇。不单独解析原始文本的前缀或序列中段切片。
 
 对重命名与 Workspace 初始化，
-[`field_window(editor, field_width)`](../crates/workbench-client/src/workbench_client/state/field_window.rs) 在*可见*文本上
+[`field_window(editor, field_width)`](../crates/workbench-client/src/workbench_state/field_window.rs) 在*可见*文本上
 按完整字素簇选择窗口。返回的窗口是可绘制文本加严格落在字段宽度内的光标列；零宽
 字段返回 `None` 而非伪造位置，宽于剩余空间的簇从不被拆分。
 
@@ -61,4 +61,4 @@ emoji、组合符与零宽字段。草稿级测试覆盖文末预填编辑、导
 变体选择符合并成簇、正常宽字形及文末光标。[设置输入轨迹](../crates/workbench-client/src/terminal_input/dispatcher/tests/settings.rs)
 让字面粘贴与 Ctrl+W 经过解码器，验证删词且不保存、不向窗格转发。
 
-<!-- documentation-pairing: english-sha256=3853b9fd381ed13a9d3e112b6ce7fd9d2caaae6a4a67c49ad1e57118cdedf5a8 zh-cn-sha256=3d5127eec2589cfc70694772e781f8a2c5e1487709fe624e8f22e1500b187eb5 -->
+<!-- documentation-pairing: english-sha256=0304488f5872ed24f122c3b939c6ea3c3a63e9e1e575bd1f3cc2a79acdb5f314 zh-cn-sha256=800aeda5608e3ac76bf8652a4020a238a44b9891fb4b4ba4f11a695a000f0560 -->

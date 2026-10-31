@@ -29,11 +29,11 @@ The native Client admits at most one structural panel mutation — split, move, 
 selected leaf — per accepted operation, transports it over the native carrier, and settles its
 typed result through the UI mailbox. This reference governs the panel-operation extension of the
 [native Tab Session](workbench-client-runtime.md) and the pane-membership collection that holds one
-attachment incarnation per visible leaf. Maintain it with `workbench_client/state/panel.rs`,
+attachment incarnation per visible leaf. Maintain it with `workbench_state/panel.rs`,
 `workbench_client/mailbox/panel.rs`, `workbench_client/ui/panel.rs`, the pane record and reconcile
-machinery in `workbench_client/state.rs` and `workbench_client/state/membership.rs`, the
+machinery in `workbench_state.rs` and `workbench_state/membership.rs`, the
 projection validators in
-`workbench_client/workbench_projection.rs`, the native executor in
+`workbench_projection.rs`, the native executor in
 `workbench_client/connection/native/panel.rs`, and the local-client workbench panel modules.
 
 The Client never merges a panel result it cannot correlate. Admission requires a stable Session
@@ -121,13 +121,13 @@ other refusal reasons and transport/protocol failures retain their existing hand
 
 ## Source correspondence
 
-| Runtime owner                                          | Evidence obligation                                                                                                      |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `workbench_client/state/panel.rs` and membership state | Admission exclusion, exact result correlation, retained commits, stale-input preservation, legal superseding-leaf repair |
-| `workbench_client/mailbox/panel.rs`                    | FIFO handoff, at most one submission and honest unknown outcomes                                                         |
-| `workbench_client/connection/native/panel.rs`          | Concrete result validation, typed attach failures and bounded cleanup                                                    |
-| `workbench_client/workbench_projection`                | Exact-next and later-publication validation, selection and Empty installation                                            |
-| `workbench_client/state/tests.rs` and generated tests  | Pane incarnation fencing, replacement and wrong-pane negative controls                                                   |
+| Runtime owner                                   | Evidence obligation                                                                                                      |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `workbench_state/panel.rs` and membership state | Admission exclusion, exact result correlation, retained commits, stale-input preservation, legal superseding-leaf repair |
+| `workbench_client/mailbox/panel.rs`             | FIFO handoff, at most one submission and honest unknown outcomes                                                         |
+| `workbench_client/connection/native/panel.rs`   | Concrete result validation, typed attach failures and bounded cleanup                                                    |
+| `workbench_projection`                          | Exact-next and later-publication validation, selection and Empty installation                                            |
+| `workbench_state/tests.rs` and generated tests  | Pane incarnation fencing, replacement and wrong-pane negative controls                                                   |
 
 `PaneIncarnationFencing` abstracts only the final identity/cleanup boundary. Concrete geometry, payloads, operation receipts and complete panel lifecycle composition stay in these implementation suites.
 
@@ -135,7 +135,7 @@ other refusal reasons and transport/protocol failures retain their existing hand
 
 `PaneIncarnationFencing.tla/.cfg` checks two logical panes, at most two incarnations per pane, two selection anchors, one queued command and one execution flight. `Mint`/`Depart`/`Cleanup` map to membership replacement and retirement; `Admit`/`Start`/`Complete` preserve the captured pane, incarnation and anchor; `Draw` consumes only a current frame. Cleanup, start and completion use weak fairness. The model checks current frames/effects, successor preservation under late cleanup, and eventual settlement of departing membership.
 
-`workbench_client/state/tests/generated.rs` exercises `ReincarnationFence` against production reducers. `reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation` and `same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs` in `state/tests.rs` cover wrong-incarnation and wrong-pane effects. Mailbox, connection and workbench-projection tests own panel-operation results, receipt correlation, membership repair, draw acknowledgements and failure handling. Those detailed compositions are implementation-test claims, not exhaustive TLC claims.
+`workbench_state/tests/generated.rs` exercises `ReincarnationFence` against production reducers. `reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation` and `same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs` in `state/tests.rs` cover wrong-incarnation and wrong-pane effects. Mailbox, connection and workbench-projection tests own panel-operation results, receipt correlation, membership repair, draw acknowledgements and failure handling. Those detailed compositions are implementation-test claims, not exhaustive TLC claims.
 
 The maintained mutation control removes the completion identity guard and must fail `FramesAreCurrent` or `EffectsUseCurrentIncarnation`. Run `node scripts/tla/run-models.mjs --models native-client-pane-membership` and the owning Cargo tests.
 

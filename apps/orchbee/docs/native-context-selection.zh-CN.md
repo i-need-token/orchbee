@@ -146,7 +146,7 @@ provenance、不启动或销毁终端、不改 checkpoint，也不移动其他�
 旧 pane 和控制授权再安装。由同伴新增的成员需要全新 attachment；可见性本身不授予输入，
 也不恢复存活进程。
 
-在 `crates/workbench-client/src/workbench_client/state/context_selection.rs`、`crates/workbench-client/src/workbench_client/mailbox/tests/context_selection.rs`、`crates/workbench-client/src/workbench_client/connection/native/tests/context_selection.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `crates/workbench-client/src/workbench_state/context_selection.rs`、`crates/workbench-client/src/workbench_client/mailbox/tests/context_selection.rs`、`crates/workbench-client/src/workbench_client/connection/native/tests/context_selection.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
@@ -154,4 +154,4 @@ provenance、不启动或销毁终端、不改 checkpoint，也不移动其他�
 control-takeover 和 viewport 模型保留原有 grant 与 epoch 防护。这些抽象不证明 Workspace
 排序、兼容过滤、启动接纳或 adapter/UI 行为；这些仍需具体实现测试及原生验收提供证据。
 
-<!-- documentation-pairing: english-sha256=0ec3831449df916e8540c6a9f7bf439151ea31fe65965574b8ee8566bb77e7ed zh-cn-sha256=0bc3530a474d4e4a32bf843b9481f22c95eaaff9000684d3841e5521b159c88e -->
+<!-- documentation-pairing: english-sha256=7a718b505714647524e9f746c143b1cbed1f0877aa0d61d22a5be8b8b0ebe3a2 zh-cn-sha256=8da23a63a60fbeb37b6e16b606308b933ed175975260b004063454781827b777 -->

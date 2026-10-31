@@ -466,11 +466,11 @@ Presentation 标签，Tab 标签/顺序可变。叶子 close 同样表现为更�
 
 上文 Close 行为仍是合约。其 Server、Worker 和原生流程模型已退役；以下所有者测试套件提供具体实现证据。它们不穷尽全部交错顺序，也不证明 Host 清理最终成功。
 
-| 所有者 | 实现证据                                                                                                                                                                       | 必需主张                                                                                                                    |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| Server | `src/workbench_authority/terminal_tab_close/tests`、`reservation/tests.rs`、`continuation/tests.rs`；`src/local_terminal_service/tab_close/tests`                              | 预留 revision/ledger 额度、准确别名和 Resume 代次、保留迟到回执、基于当前状态移除、准确 Create 引用结算、发布失败及目标围栏 |
-| Worker | `src/terminal_lifecycle_operation/tests.rs`、`src/host_connection/target_cleanup/tests.rs`、`src/terminal_authorization/lifecycle/tests.rs`                                    | 准确请求/目标/epoch、模糊与已知效果、缓存和预留边界、迟到 Acquire 与准确旧租约清理                                          |
-| Native | `src/workbench_client/state/tests/tab_close`、`src/workbench_client/mailbox/tests/tab_close.rs`、`crates/local-client/src/local_client/tests/workbench/tab_close/transport.rs` | Empty 与剩余选择、attachment 代次围栏、排队结果、结构屏障、别名、固定截止时间及畸形/部分传输交接                            |
+| 所有者 | 实现证据                                                                                                                                                                | 必需主张                                                                                                                    |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Server | `src/workbench_authority/terminal_tab_close/tests`、`reservation/tests.rs`、`continuation/tests.rs`；`src/local_terminal_service/tab_close/tests`                       | 预留 revision/ledger 额度、准确别名和 Resume 代次、保留迟到回执、基于当前状态移除、准确 Create 引用结算、发布失败及目标围栏 |
+| Worker | `src/terminal_lifecycle_operation/tests.rs`、`src/host_connection/target_cleanup/tests.rs`、`src/terminal_authorization/lifecycle/tests.rs`                             | 准确请求/目标/epoch、模糊与已知效果、缓存和预留边界、迟到 Acquire 与准确旧租约清理                                          |
+| Native | `src/workbench_state/tests/tab_close`、`src/workbench_client/mailbox/tests/tab_close.rs`、`crates/local-client/src/local_client/tests/workbench/tab_close/transport.rs` | Empty 与剩余选择、attachment 代次围栏、排队结果、结构屏障、别名、固定截止时间及畸形/部分传输交接                            |
 
 路径相对于各自所属应用；Server 的 reservation 与 continuation 路径位于同一 `terminal_tab_close` 所有者下。从仓库根目录运行：
 
@@ -568,4 +568,4 @@ Panel、Tab 和 Workspace Close 按规范 Tab／树顺序捕获全部已绑定�
 
 OBWP 61/62 在既有 会话 读取权限下，按原始请求 ID 读取精确保留 Close 账本项，包括空范围及已完成范围。它返回原始目标和 generation，不解析当前布局成员。[CLI 状态与恢复](../../orchbee/docs/native-operation-status.zh-CN.md) 复用既有 generation 围栏恢复准入；读取本身不续期尝试，也不调度清理。
 
-<!-- documentation-pairing: english-sha256=6d7059102361a4cd7ff6e484c272fce44cb54ba436e19e2fd4ada3fbf525b3d2 zh-cn-sha256=94ecbcf719d59fa251a2d0b9f41d2f97757ca81ad421b7d4a804a0488536e320 -->
+<!-- documentation-pairing: english-sha256=869270d28bc2c7a5f0e03e88237cc44fffa9783667776cebda9a994d5ca28ee4 zh-cn-sha256=293b580c545c4cff030802bb1eb9794e4b1d024469f34291f5da1845cf2d2487 -->

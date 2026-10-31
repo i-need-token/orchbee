@@ -137,7 +137,7 @@ revision 相同，目标 Context 缺失或被替换也会在提交前被拒绝�
 覆盖有效准入证据。Framed peer 断言普通 Close 从不发送 group Start，且
 两条路径都不重放变更。Snapshot fixture 保留 Project 元数据和共享检出目录。
 
-在 `crates/workbench-client/src/workbench_client/state/tests/workspace_close.rs`、
+在 `crates/workbench-client/src/workbench_state/tests/workspace_close.rs`、
 `crates/workbench-client/src/workbench_client/connection/native/tests/workspace_close.rs`、
 `crates/workbench-client/src/workbench_client/ui/tests/workspace_close.rs` 和 local-client Close adapter 套件中维护
 证据。渲染证据覆盖两种 locale、terminal-native 与 RGB 主题，以及 Standard、Compact、
@@ -146,4 +146,4 @@ Minimal 和被拒绝的几何。适用的仓库 gate 仍是权威；定向开发
 这些受控实现轨迹不证明全部交错、物理终端外观或未测试的平台。共享身份与提交协议仍由
 已注册模型负责。
 
-<!-- documentation-pairing: english-sha256=f9e55b434770930027708978a30c43eef2611572afe42b9345f4d692844c20d9 zh-cn-sha256=bde30b5daca9ec20b85d65dc06c1f65c7523730125b649216439c001ea0b7af5 -->
+<!-- documentation-pairing: english-sha256=8e5f1756f711ab27004a8107c818918940d5468cbc178a8e3ef2930948d124f9 zh-cn-sha256=85cc15134b8525abb71cc5730538bccc8833ce7b50e1251a1699b67d379085dd -->

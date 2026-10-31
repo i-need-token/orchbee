@@ -156,7 +156,7 @@ Paste／可选 Codex Right／Enter 序列只提交一次。
 
 Host envelope 与进程 payload 校验证据位于 `crates/workbench-client/src/agent_runtime/startup/processes/tests.rs`。
 `src/cli/agent_start/tests.rs` 让既有回执矩阵经过真实的领域到 CLI 转换；Workbench 恢复
-优先级仍由 `crates/workbench-client/src/workbench_client/agent_board/start/tests.rs` 覆盖。既有测试还覆盖真实
+优先级仍由 `crates/workbench-client/src/agent_board/start/tests.rs` 覆盖。既有测试还覆盖真实
 Windows exe/ps1/cmd 参数边界、解析与补全范围、竞争预留、精确到期、旧绑定、canonical
 就绪、输入中断及响应丢失。Windows CLI 命名管道测试保留回执并证明没有自动重放。
 真实 Session/Worker/Host 验证单独检查组合运行时。本 Windows 切片不要求执行 TLA 模型。
@@ -169,4 +169,4 @@ Pending 状态携带原始预留及当前 blocked 标志。读取不延长期限
 
 原生表单在检测尚无结果时不预选提供商，也不生成自动名称。已发现的提供商排在手动选项之前；显式选择按提供商身份固定，不随目录更新改变。没有显式选择时，首个发现的提供商成为默认项；检测结束且未发现候选时选择首个手动提供商。启动反馈仅在看板状态行显示一次，结果未确认时引导用户查看终端。只有固定身份的规范关注观察才声明需要输入；进程存在本身不能证明就绪。
 
-<!-- documentation-pairing: english-sha256=5cde432a0326d65c0ccc61a68012d6c2a46dbc95102001b46126dd2755af1236 zh-cn-sha256=7dedc02b5ef4e0e043ab6a9b1fdafd96f50c66e75978f9c0265e760b51feb8a7 -->
+<!-- documentation-pairing: english-sha256=142b251a397174ac191dc368d05640359f339d7fb77edaec1dd5c470af679a75 zh-cn-sha256=62fdfe8ee5f5f8facc20532fee478e4e26a05fa068536f661bd0ae80b2d8e6d2 -->

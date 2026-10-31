@@ -57,7 +57,7 @@ marker 只有一种类型化用途；接管不伪装为 Workbench 快照修改�
 
 | 声明                                                                       | 维护中的证据                                                                                                                                 |
 | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| 显式准入、捕获的几何、帧先于输入及退出后的单调回执                         | [`state/tests/control_takeover.rs`](../crates/workbench-client/src/workbench_client/state/tests/control_takeover.rs)                         |
+| 显式准入、捕获的几何、帧先于输入及退出后的单调回执                         | [`workbench_state/tests/control_takeover.rs`](../crates/workbench-client/src/workbench_state/tests/control_takeover.rs)                      |
 | 拒绝、未知结果不重新提交、resize／demand 丢失及 UI 投递丢失后保留授权      | [`connection/native/tests/control_takeover.rs`](../crates/workbench-client/src/workbench_client/connection/native/tests/control_takeover.rs) |
 | 绘制／反馈恢复输入且不重放；对端几何不授予权限                             | [`ui/tests/control_takeover.rs`](../crates/workbench-client/src/workbench_client/ui/tests/control_takeover.rs)                               |
 | 待处理预留排除竞争者；迟到清理保留替代授权                                 | [Server 预留测试](../../orchbee-server/src/local_terminal_service/controller_connection/tests.rs)                                            |
@@ -70,4 +70,4 @@ marker 只有一种类型化用途；接管不伪装为 Workbench 快照修改�
 Windows Terminal 或真实 Agent provider 验收，也不建立主动更新控制标签的通知契约。
 同作者审读不等同独立确认。
 
-<!-- documentation-pairing: english-sha256=588ae9655fda5fa24d2b59c7f8214b3c4dbcb0210e5667ec8c42c143e39bc80d zh-cn-sha256=5314f51718e1ed742a549508a0f7fe7f1506bccd6a23264045b32e81334542bf -->
+<!-- documentation-pairing: english-sha256=a77003528de019b6457d79ce330944ba623e77f3ce891c46e656f767102243c0 zh-cn-sha256=bc6214e5e02c1fdc57d6f7e4e835bda2d04a25c73b9a6a263f43b91f1996785e -->

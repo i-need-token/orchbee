@@ -99,8 +99,8 @@ Server 发布 owner 仅在移除关闭 Tab 后其源组变空时删除该组。
 回执保留、取消、不明结果、对端移除和幸存者选择。`workbench_client/ui/tests/close_impact.rs`
 覆盖已结束、混合与未观察的关闭影响计数，以及提示打开期间到达的结算。
 
-在 `crates/workbench-client/src/workbench_client/state/tab_close.rs`、`crates/workbench-client/src/workbench_client/mailbox/tests/tab_close.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `crates/workbench-client/src/workbench_state/tab_close.rs`、`crates/workbench-client/src/workbench_client/mailbox/tests/tab_close.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=5fa0b7d01d5bb44028c3bfe6f5bcea8776fb14d25c15b586db8ae252091107df zh-cn-sha256=de9ae199b57fd6616f9ab39d11b93461296d3a74b16c7fae86fecf2e97179a29 -->
+<!-- documentation-pairing: english-sha256=8d164ef9585c01425f278ff9039a520b9a6491e8929cbb7edefd30a69dae3f7f zh-cn-sha256=f25786953025de13b055224c785076488d97adf6bea4a5d90be885810f9c61c9 -->

@@ -221,9 +221,9 @@ Snapshot Denied 后手动以全新 ID 重试 → Empty。这些见证不证明 p
 控制与 UI 交接使用确定性 state、mailbox、connection 测试，显式控制迟到完成和退役。pane incarnation 核心覆盖跨 incarnation 的效果；具体操作的本地调度、焦点和显示决策仍由实现测试负责。
 
 退役及过期 incarnation 的拒绝测试在移除前保存精确 `PaneRef`，并直接调用生产状态操作。
-[旧单窗格适配器](../crates/workbench-client/src/workbench_client/state/tests/pane_identity_compatibility.rs)解析当前 key，可能在进入生产代码前就拒绝，
-因此不能证明移除后或过期 incarnation 的拒绝。[退役交接测试](../crates/workbench-client/src/workbench_client/state/tests/retirement_handoff.rs)
-使用保留的精确引用；[生成状态轨迹](../crates/workbench-client/src/workbench_client/state/tests/generated.rs)另行覆盖移除及以新 incarnation 重新附着。
+[旧单窗格适配器](../crates/workbench-client/src/workbench_state/tests/pane_identity_compatibility.rs)解析当前 key，可能在进入生产代码前就拒绝，
+因此不能证明移除后或过期 incarnation 的拒绝。[退役交接测试](../crates/workbench-client/src/workbench_state/tests/retirement_handoff.rs)
+使用保留的精确引用；[生成状态轨迹](../crates/workbench-client/src/workbench_state/tests/generated.rs)另行覆盖移除及以新 incarnation 重新附着。
 
 ## 规范成员实现边界
 
@@ -532,7 +532,7 @@ Server 所有的 Workbench 快照仍是 Tab 顺序、标签、Panel 与 Presenta
 
 ## 纯函数严格投影
 
-纯 Workspace 投影位于 `workbench_client/workbench_projection.rs`：
+纯 Workspace 投影位于 `workbench_projection.rs`：
 
 ```rust
 struct ClientContextTabs {
@@ -739,7 +739,7 @@ Windows 从输入到回显的路径为：继承控制台的单一记录读取器
 切换设置在快照、detach、attach、配置、帧、反馈和 readiness 阶段反复交接，因此连续 UI
 交接可能各自承担一次等待。这是调度原因，不是 PTY 回显缓慢的证据。
 
-`workbench_client/wakeup.rs` 将一个可合并通知和 unpark token 绑定到活动 UI 线程。邮箱发布
+`ui_wakeup.rs` 将一个可合并通知和 unpark token 绑定到活动 UI 线程。邮箱发布
 事件、释放 lease 及关闭时发出通知。Windows 控制台读取器在空闲时检查通知，每次控制台探测
 之间最多 park 1 ms；发布可打断 park。已有待处理记录、UTF-16 状态、重复键尾部和括号粘贴
 字节继续由同一读取器持有，并保留原有每批 4096 字节／记录及 4 ms 的边界。
@@ -914,7 +914,7 @@ Switching 期间暂停了终端 Resize 准入。每个 pane 的报告还会在�
 规则。提交前拒绝会恢复旧控制器；如果测量值已变化，则在恢复轮询前准入一次追赶 Resize。
 只读查看器永远不发送 Resize。
 
-结构流程共享 `crates/workbench-client/src/workbench_client/state/recovery_fence.rs` 中的同一张恢复围栏表。
+结构流程共享 `crates/workbench-client/src/workbench_state/recovery_fence.rs` 中的同一张恢复围栏表。
 已知的 Move、Panel 或 Rename 提交在规范投影安装前保留恢复记录；不确定的 Rename 保留其操作。
 提交另一项变更须等待所有投影恢复。上下文移除和 Workspace Close 还须等待不确定的 Rename。
 上下文选择和退役成员修复等待 Move 与 Rename 恢复以及不确定的 Rename，但不等待 Panel 恢复。
@@ -1845,4 +1845,4 @@ Client 独立于附着保留精确 Presentation ID。选中的空成员使用 `S
 
 原生分屏默认聚焦已提交的新 Panel。操作冻结此偏好，首次有效快照和后续恢复均按新 Panel ID 通过配对的成员清理／安装流程切换；新 Panel 已消失时执行普通的存续叶子修复。对端分屏保留本地焦点。Windows 设置 `terminal.focus_new_panel = false` 保留原选择；Client 从 Session 的配置快照应用该设置，发布后改变之后的分屏。
 
-<!-- documentation-pairing: english-sha256=ad276ef4e45f3c8ae092c5ef2fecdc009254ea7b7bd8dddb1c315a43f8d1e804 zh-cn-sha256=309178e0e44d79fa49ec697eebe2bdc9ff0f2172492afffa1cf55dd5dd9c19b8 -->
+<!-- documentation-pairing: english-sha256=3fd8eee99566cf2a7c6a57ae7110433b9ddbbde5e615416c68b720f855b92e65 zh-cn-sha256=fb96b7b81f342254aed1578f0d1038d7f6aa1d0dae9fe79eb218c88d8837d6f9 -->

@@ -27,10 +27,10 @@ Server 通过类型化放置让终端创建共用 Split 实现。Split 分配五
 carrier 传输，并通过 UI 信箱结算其类型化结果。本规范管辖
 [native Tab Session](workbench-client-runtime.zh-CN.md) 的面板操作扩展，以及为每个可见叶子持有一条
 附着 incarnation 的 pane 成员集合。维护时请与
-`workbench_client/state/panel.rs`、`workbench_client/mailbox/panel.rs`、
-`workbench_client/ui/panel.rs`、`workbench_client/state.rs` 与
-`workbench_client/state/membership.rs` 中的 pane 记录与调和机制、
-`workbench_client/workbench_projection.rs` 中的投影验证器、
+`workbench_state/panel.rs`、`workbench_client/mailbox/panel.rs`、
+`workbench_client/ui/panel.rs`、`workbench_state.rs` 与
+`workbench_state/membership.rs` 中的 pane 记录与调和机制、
+`workbench_projection.rs` 中的投影验证器、
 `workbench_client/connection/native/panel.rs` 中的本地执行器以及 local-client workbench 面板
 模块保持一致。
 
@@ -108,11 +108,11 @@ setup、变更、显式刷新、已武装的 panel-close 确认或恢复仍保�
 
 | 运行时所有者                                  | 证据义务                                                       |
 | --------------------------------------------- | -------------------------------------------------------------- |
-| `workbench_client/state/panel.rs` 与成员状态  | 接纳排他、准确结果关联、保留提交、过期输入保留、合法后续叶修复 |
+| `workbench_state/panel.rs` 与成员状态         | 接纳排他、准确结果关联、保留提交、过期输入保留、合法后续叶修复 |
 | `workbench_client/mailbox/panel.rs`           | FIFO 交接、最多一次提交和准确的不明结果                        |
 | `workbench_client/connection/native/panel.rs` | 实际结果校验、类型化 attach 失败及有界清理                     |
-| `workbench_client/workbench_projection`       | 准确下一修订及后续发布校验、选择和 Empty 安装                  |
-| `workbench_client/state/tests.rs` 及生成测试  | Pane incarnation 隔离、替换和错误 pane 负向控制                |
+| `workbench_projection`                        | 准确下一修订及后续发布校验、选择和 Empty 安装                  |
+| `workbench_state/tests.rs` 及生成测试         | Pane incarnation 隔离、替换和错误 pane 负向控制                |
 
 `PaneIncarnationFencing` 仅抽象最后一项身份/清理边界。实际几何、载荷、操作回执和完整面板生命周期组合由这些实现套件负责。
 
@@ -120,7 +120,7 @@ setup、变更、显式刷新、已武装的 panel-close 确认或恢复仍保�
 
 `PaneIncarnationFencing.tla/.cfg` 检查两个逻辑 pane、每个 pane 最多两个 incarnation、两个选择 anchor、一个排队命令和一个执行 flight。`Mint`/`Depart`/`Cleanup` 对应成员替换与退役；`Admit`/`Start`/`Complete` 保留捕获的 pane、incarnation 和 anchor；`Draw` 只消费当前帧。清理、启动和完成采用弱公平。模型检查帧/效果属于当前身份、迟到清理保留后继实例，以及离开中的成员最终收敛。
 
-`workbench_client/state/tests/generated.rs` 用生产 reducer 执行 `ReincarnationFence`。`state/tests.rs` 的 `reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation` 与 `same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs` 覆盖错误 incarnation 和错误 pane 的效果。Mailbox、connection、workbench-projection 测试负责面板操作结果、回执关联、成员修复、绘制确认和失败处理。这些详细组合由实现测试支撑，不属于 TLC 穷举声明。
+`workbench_state/tests/generated.rs` 用生产 reducer 执行 `ReincarnationFence`。`state/tests.rs` 的 `reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation` 与 `same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs` 覆盖错误 incarnation 和错误 pane 的效果。Mailbox、connection、workbench-projection 测试负责面板操作结果、回执关联、成员修复、绘制确认和失败处理。这些详细组合由实现测试支撑，不属于 TLC 穷举声明。
 
 维护中的变异控制删除完成身份检查，必须触发 `FramesAreCurrent` 或 `EffectsUseCurrentIncarnation`。运行 `node scripts/tla/run-models.mjs --models native-client-pane-membership` 及所属 Cargo 测试。
 
@@ -155,4 +155,4 @@ viewer 拒绝则停放为稳定导航视图，并进入普通命令循环。不�
 传输、协议、结果不明和清理失败沿用原边界。投影／状态测试覆盖精确目标结束与选择恢复；
 真实窗口评审覆盖 exit 0、非零退出、普通输入、返回主成员、重新进入及窄窗口状态展示。
 
-<!-- documentation-pairing: english-sha256=c2711ec4910e2cbacc1cec1ef8f5a9cd115929585bbb9895763e8ec5abce5fce zh-cn-sha256=22adecbe74f80859643488eb416754b8d49137691d427ec57d38a3f72ec3f36b -->
+<!-- documentation-pairing: english-sha256=d1279419f844845c7c0826418f791d8c42f20cc55169782a97102f64d6c0e9be zh-cn-sha256=dbc818b6a868ddcaf16277ca53f2371f332978546fcede4bd42f5d358da32691 -->

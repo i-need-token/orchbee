@@ -276,10 +276,10 @@ These obligations do not authorize the manual focus-stealing native-window test.
 Control and UI handoff use deterministic state, mailbox and connection tests with explicit delayed completion and retirement. The pane-incarnation core covers cross-incarnation effects; operation-specific local scheduling, focus and display decisions remain implementation-test obligations.
 
 Retirement and stale-incarnation rejection tests capture the exact `PaneRef` before removal and
-invoke the production state operation directly. The [legacy single-pane adapters](../crates/workbench-client/src/workbench_client/state/tests/pane_identity_compatibility.rs)
+invoke the production state operation directly. The [legacy single-pane adapters](../crates/workbench-client/src/workbench_state/tests/pane_identity_compatibility.rs)
 resolve current keys and can reject before entering production code, so they cannot establish
-post-removal or stale-incarnation rejection. The [retirement handoff tests](../crates/workbench-client/src/workbench_client/state/tests/retirement_handoff.rs)
-use retained references; [generated state traces](../crates/workbench-client/src/workbench_client/state/tests/generated.rs)
+post-removal or stale-incarnation rejection. The [retirement handoff tests](../crates/workbench-client/src/workbench_state/tests/retirement_handoff.rs)
+use retained references; [generated state traces](../crates/workbench-client/src/workbench_state/tests/generated.rs)
 separately cover removal and reattachment with a fresh incarnation.
 
 ## Canonical membership implementation boundary
@@ -663,7 +663,7 @@ Transport delivery uses the shared multiplexed Client carrier and subscription r
 
 ## Pure strict projection
 
-The pure Workspace projection lives in `workbench_client/workbench_projection.rs`:
+The pure Workspace projection lives in `workbench_projection.rs`:
 
 ```rust
 struct ClientContextTabs {
@@ -899,7 +899,7 @@ for the shell's input-only 50 ms wait even when the console was empty. Switch se
 handoff for snapshot, detach, attach, configuration, frame, feedback and readiness, so successive
 UI handoffs could each incur the wait. This is a scheduling cause, not evidence of slow PTY echo.
 
-`workbench_client/wakeup.rs` binds one coalesced notification and an unpark token to the active UI
+`ui_wakeup.rs` binds one coalesced notification and an unpark token to the active UI
 thread. Mailbox event publication, lease release and closure signal it. The Windows console
 reader checks it while empty and parks for at most 1 ms between console probes; a publication
 interrupts that park. Existing pending records, UTF-16 state, repeat tails and bracketed-paste
@@ -1105,7 +1105,7 @@ at its atomic admission; a later successful Acquire begins with a Resize carryin
 measured geometry and uses the setup catch-up rule below for subsequent observations. A precommit refusal resumes the old controller and, if measurements changed,
 admits one catch-up Resize before polling resumes. Read-only viewers never send Resize.
 
-Structural flows share one recovery fence table in `crates/workbench-client/src/workbench_client/state/recovery_fence.rs`.
+Structural flows share one recovery fence table in `crates/workbench-client/src/workbench_state/recovery_fence.rs`.
 A known Move, Panel or Rename commit whose canonical projection has not installed yet keeps a
 recovery record, and an uncertain Rename keeps its operation. Another mutation waits for every
 projection recovery. Context removal and Workspace Close also wait for an uncertain Rename. Context

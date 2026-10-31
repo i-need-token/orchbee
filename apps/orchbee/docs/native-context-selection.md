@@ -174,7 +174,7 @@ legacy content without changing canonical focus. Removal landing on an empty can
 must release the old pane and controller authority before installation. Fresh peer-added membership
 requires a fresh attachment; visibility alone never grants input or recovers a live process.
 
-Maintain the concrete witnesses in `crates/workbench-client/src/workbench_client/state/context_selection.rs`, `crates/workbench-client/src/workbench_client/mailbox/tests/context_selection.rs`, `crates/workbench-client/src/workbench_client/connection/native/tests/context_selection.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+Maintain the concrete witnesses in `crates/workbench-client/src/workbench_state/context_selection.rs`, `crates/workbench-client/src/workbench_client/mailbox/tests/context_selection.rs`, `crates/workbench-client/src/workbench_client/connection/native/tests/context_selection.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
 

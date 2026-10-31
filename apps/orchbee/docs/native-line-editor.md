@@ -45,7 +45,7 @@ snaps the mapped cursor to the visible grapheme boundary at or before it: stripp
 merge neighboring clusters. No raw prefix or mid-sequence slice is parsed independently.
 
 For rename and workspace setup,
-[`field_window(editor, field_width)`](../crates/workbench-client/src/workbench_client/state/field_window.rs) chooses a window
+[`field_window(editor, field_width)`](../crates/workbench-client/src/workbench_state/field_window.rs) chooses a window
 over the _visible_ text by whole grapheme clusters. The returned window is the
 drawable text plus the cursor column strictly inside the field width; a zero-width field yields
 `None` rather than a fake position, and a cluster wider than the remaining space is never split.
