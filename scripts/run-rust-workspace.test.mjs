@@ -728,6 +728,47 @@ test('the Rust gate rejects production module globs and accepts explicit imports
 	});
 });
 
+test('the Rust lint gate sees product-only warnings that a test-support dependency would hide', () => {
+	withFixture((root) => {
+		// A sibling's development dependency enables test-support, as an application's tests do;
+		// feature unification under --all-targets would then mask the product build.
+		const rootManifest = join(root, 'Cargo.toml');
+		writeFileSync(
+			rootManifest,
+			readFileSync(rootManifest, 'utf8').replace(
+				'members = ["fixture"]',
+				'members = ["fixture", "consumer"]',
+			),
+		);
+		const fixtureManifest = join(root, 'fixture/Cargo.toml');
+		writeFileSync(
+			fixtureManifest,
+			`${readFileSync(fixtureManifest, 'utf8')}[features]\ntest-support = []\n`,
+		);
+		mkdirSync(join(root, 'consumer/src'), { recursive: true });
+		writeFileSync(
+			join(root, 'consumer/Cargo.toml'),
+			'[package]\nname = "runner-consumer"\nversion = "0.0.0"\nedition.workspace = true\nrust-version.workspace = true\npublish = false\n[lints]\nworkspace = true\n[dev-dependencies]\nrunner-fixture = { path = "../fixture", features = ["test-support"] }\n',
+		);
+		writeFileSync(join(root, 'consumer/src/lib.rs'), 'pub fn consumer() {}\n');
+		const source = validLibrary.replace(
+			'pub fn value() -> u8 { 7 }',
+			'mod values { pub(crate) const SEVEN: u8 = 7; }\nuse values::SEVEN;\npub fn value() -> u8 { 7 }\n#[cfg(feature = "test-support")]\npub fn support() -> u8 { SEVEN }',
+		);
+		writeFileSync(join(root, 'fixture/src/lib.rs'), source);
+		const hidden = lintDependencyFixture(root);
+		assert.equal(hidden.status, 101, hidden.output);
+		assert.match(hidden.output, /unused import/u);
+
+		writeFileSync(
+			join(root, 'fixture/src/lib.rs'),
+			source.replace('pub fn value() -> u8 { 7 }', 'pub fn value() -> u8 { SEVEN }'),
+		);
+		const used = runTask(root, 'lint');
+		assert.equal(used.status, 0, used.output);
+	});
+});
+
 for (const [name, declaration] of [
 	['active', 'mod values;\npub fn value() -> u8 { values::seven() }'],
 	['inactive target', '#[cfg(target_os = "none")]\nmod values;\npub fn value() -> u8 { 7 }'],

@@ -361,12 +361,12 @@ Rust、TypeScript 与 Zig binding 绝不能成为同一 serialized contract 的�
 Cargo fixture 验证该边界、依赖继承与默认 feature、源模块文件名及自有 unsafe 代码策略，
 包括必须导致 runner 失败的情况。
 
-| 仓库任务            | Cargo 证据                                                                                                                      |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm format:check` | `cargo fmt --all -- --check`                                                                                                    |
-| `pnpm lint`         | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`                                                 |
-| `pnpm build:full`   | 显式本机构建：`cargo build --workspace --all-targets --all-features --locked`                                                   |
-| `pnpm test`         | `cargo test --workspace --all-targets --all-features --locked`，随后执行 `cargo test --workspace --doc --all-features --locked` |
+| 仓库任务            | Cargo 证据                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check` | `cargo fmt --all -- --check`                                                                                                                 |
+| `pnpm lint`         | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`，随后执行 `cargo clippy --workspace --locked -- -D warnings` |
+| `pnpm build:full`   | 显式本机构建：`cargo build --workspace --all-targets --all-features --locked`                                                                |
+| `pnpm test`         | `cargo test --workspace --all-targets --all-features --locked`，随后执行 `cargo test --workspace --doc --all-features --locked`              |
 
 Clippy 和 Cargo 测试自行编译输入；普通验证不预先执行完整 Cargo 构建。根测试门禁只准备
 被选中的真实进程测试所需的 Host 和配套可执行文件。变更涉及的交付或平台契约需要此类证据时，
@@ -375,10 +375,12 @@ Clippy 和 Cargo 测试自行编译输入；普通验证不预先执行完整 Ca
 `--all-features` 不证明每种受支持的 feature 组合或操作系统 target。引入 feature 或扩大支持
 范围时，所属方声明受支持的默认、最小和发布配置，以及所需的编译和原生运行证据。
 workspace 构建统一后的依赖 feature，不能证明独立交付的 package 仅凭自身声明的配置也能构建。
+第二遍 lint 以默认 feature 编译库和二进制 target，因为 `--all-targets` 下开发依赖会重新启用
+test-support feature。
 
 聚焦迭代可以使用按 package 选择的 Cargo 命令，但完成时使用根门禁。发布自动化通过固定工具链、
 `--locked` 和 `--release` 构建确切 package 与 binary，再把已验证 artifact 暂存到所属 distribution
 cohort。它绝不把 `target/` 下碰巧已有的文件视为 release input。Supported target、signing、
 install path、update cohort 与 rollback 仍由每个已接受的应用发布切片负责。
 
-<!-- documentation-pairing: english-sha256=efee2e5b31c5da6d7afa56bcca56ba8c2a9527b91133e096edefa75f75db4f39 zh-cn-sha256=bb89b40df000730f16ae1b3f1c85d7840e04cad1d87de857e34423b0df242d93 -->
+<!-- documentation-pairing: english-sha256=e195829a668d35aecf1290157e3e08acc0f0a798df86a0fab4283c4c8a1c0395 zh-cn-sha256=dd3f496a5c754c633bebfb4bc1a6088ea479bf0c0b4bd25949be69cea5524d43 -->

@@ -430,12 +430,12 @@ doctests. `pnpm test:rust-runner` exercises that boundary, dependency inheritanc
 source-module filenames, and the authored unsafe-code policy with isolated Cargo fixtures,
 including failures that must make the runner fail.
 
-| Repository task     | Cargo evidence                                                                                                                     |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm format:check` | `cargo fmt --all -- --check`                                                                                                       |
-| `pnpm lint`         | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`                                                    |
-| `pnpm build:full`   | Explicit host build: `cargo build --workspace --all-targets --all-features --locked`                                               |
-| `pnpm test`         | `cargo test --workspace --all-targets --all-features --locked`, followed by `cargo test --workspace --doc --all-features --locked` |
+| Repository task     | Cargo evidence                                                                                                                                  |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check` | `cargo fmt --all -- --check`                                                                                                                    |
+| `pnpm lint`         | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`, followed by `cargo clippy --workspace --locked -- -D warnings` |
+| `pnpm build:full`   | Explicit host build: `cargo build --workspace --all-targets --all-features --locked`                                                            |
+| `pnpm test`         | `cargo test --workspace --all-targets --all-features --locked`, followed by `cargo test --workspace --doc --all-features --locked`              |
 
 Clippy and Cargo tests compile their own inputs; ordinary verification does not run a preceding
 full Cargo build. The root test gate prepares only the host and peer executables required by
@@ -446,7 +446,9 @@ platform contract needs that evidence, as governed by [Verification](VERIFICATIO
 When introducing a feature or expanding support, the owner declares the supported default,
 minimal, and release configurations and the compilation and native runtime evidence they need.
 A workspace build's unified dependency features do not prove that an independently shipped package
-builds with its own declared configuration.
+builds with its own declared configuration. The second lint pass compiles library and binary
+targets with default features because development dependencies re-enable test-support features
+under `--all-targets`.
 
 Focused iteration may use a package-selected Cargo command, but completion uses the root gate.
 Release automation builds an exact package and binary with the pinned toolchain, `--locked`, and

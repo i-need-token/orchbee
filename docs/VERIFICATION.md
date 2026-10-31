@@ -181,6 +181,11 @@ results remain unchanged.
 - `scripts/run-rust-workspace.mjs` connects the root pnpm gate to Cargo. Before the first accepted
   Rust member exists, it validates the pinned toolchain and empty workspace metadata; afterward the
   same tasks run rustfmt, Clippy, build, and tests over every member with `--locked`.
+- The Rust lint task runs Clippy twice: over every target with all features, then over the
+  default-feature library and binary targets of every member. Development dependencies re-enable
+  test-support features under `--all-targets`, so only the second pass compiles the product feature
+  set and reports the warnings a release build would emit, such as imports that only test-support
+  code reads.
 - Native cross-compilation checks prove source and dependency compilation for the declared target;
   platform behavior still requires a native runner.
 - `verify:rust-native` reuses the same Rust runner tasks and native test preparation as `lint` and

@@ -147,6 +147,9 @@ stdout/stderr 证据仍然可用。
 - `scripts/run-rust-workspace.mjs` 把根 pnpm 门禁连接到 Cargo。第一个已接受 Rust member 存在前，
   它验证固定工具链和 empty workspace metadata；之后同一批 task 使用 `--locked` 对每个 member
   运行 rustfmt、Clippy、build 与 test。
+- Rust lint 任务运行两遍 Clippy：先以全部 feature 检查每个 target，再以默认 feature 检查每个 member
+  的库和二进制 target。`--all-targets` 下开发依赖会重新启用 test-support feature，因此只有第二遍按
+  产品 feature 集编译，并报告 release 构建会产生的警告，例如只有 test-support 代码读取的导入。
 - 原生交叉编译检查只证明源码和依赖可为已声明目标编译；平台行为仍然需要原生 runner。
 - `verify:rust-native` 复用 `lint` 与 `test` 中相同的 Rust runner 任务和原生测试准备，自身不新增步骤，
   因此 Windows 本机门禁和 Windows CI Job 不会与 Linux 根门禁漂移。修改受平台条件编译约束的 Rust
@@ -209,4 +212,4 @@ stdout/stderr 证据仍然可用。
 | 变更前         | 先测量瓶颈。                                                           |
 | 全局策略检查   | 即使包任务改为仅运行受影响项，也保留显式输入。                         |
 
-<!-- documentation-pairing: english-sha256=16774c2de61f2fa2369c10b7d03bc8ff3cc9193736aef8f9224bd50b9a8d0342 zh-cn-sha256=c0a465dba16a5ecc9d038b9a5aef51038620dddf6ac82c126e2ea1b67c6c9495 -->
+<!-- documentation-pairing: english-sha256=b4413622806f0a94a8fb612a2e8b2dd65c272fc4ac88e70da829a7e86d92d282 zh-cn-sha256=778417508d5342ca4217a6006802751223cfc63bfce22bbf3905e5016873eafe -->

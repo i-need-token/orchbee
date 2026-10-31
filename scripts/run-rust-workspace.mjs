@@ -57,6 +57,9 @@ const commands = new Map([
 	],
 	['test', ['test', '--workspace', '--all-targets', '--all-features', '--locked']],
 ]);
+// Development dependencies re-enable test-support features under --all-targets, so only library
+// and binary targets with default features compile the product shape a release build sees.
+const productLint = ['clippy', '--workspace', '--locked', '--', '-D', 'warnings'];
 const command = commands.get(task);
 
 if (command === undefined) {
@@ -155,6 +158,9 @@ if (metadata.packages.length === 0) {
 		name: `rust:${task}`,
 		steps: [
 			{ name: `cargo ${task}`, command: 'cargo', args: scopedCommand },
+			...(task === 'lint'
+				? [{ name: 'cargo lint product targets', command: 'cargo', args: productLint }]
+				: []),
 			...(task === 'test' && documentationArguments.length
 				? [
 						{
