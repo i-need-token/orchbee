@@ -118,7 +118,7 @@ A read-capable attachment may request a fresh process sample for its exact retai
 On Windows, the engine enumerates only its retained Job Object (at most 256 processes) within a 250 ms budget, opens each candidate with limited query rights, and verifies membership on the opened handle before observing it. PID plus creation time identifies an observation, and every row carries both. The sample keeps these invariants:
 
 - **No hidden member.** A member that denies limited query rights is an opaque row: no image, command line, or directory, and console `unknown`. Its creation time and parent come from one system process snapshot taken only for such members; the snapshot is read for those PIDs alone and discarded. A second Job enumeration then confirms each opaque PID is still a member, so a recycled PID never inherits a published identity.
-- **Churn is not failure.** A member that exits between enumeration and reading is omitted because it is no longer a member; a process that joins later appears in the next sample. Membership change never fails the sample.
+- **Churn is not failure.** A member that exits between enumeration and reading is omitted because it is no longer a member; a process that joins later appears in the next sample. Job accounting can still count a member whose exit is under way after the Job's process list has dropped it, so the list, not the count, is the membership and that lag is not over-capacity. Membership change never fails the sample.
 - **Anchor liveness.** Because every row, opaque or readable, carries PID and creation time, a consumer's anchor is live exactly when a row matches both.
 - **Limited rights first.** Image, creation time, parent, command line (`ProcessCommandLineInformation`), and console come from `PROCESS_QUERY_LIMITED_INFORMATION`. Only the current directory, and the command line where the limited query is unavailable, read process memory; a denied read leaves that field absent. The engine never enables privileges.
 - **Console attachment.** Each readable row compares its console host with the live root's: `attached` when equal, `detached` for another console or a GUI-subsystem program (which reports its creator rather than a console host), `none` for a console program started without a console, and `unknown` when unobservable or after root exit. A console program reports its creator until its console connection completes, so a just-started member can briefly read `detached`.
@@ -712,7 +712,10 @@ A later graceful request is then an idempotent no-op even while Windows is still
 Force requests always still target the console holders, or the whole Job after the fallback,
 including after a graceful receipt, because descendants may remain. A failed syscall never creates a
 receipt. Without one, a failed graceful root termination is
-ignored only when a zero-time observation of the retained process handle proves exit. A failed
+ignored only when a zero-time observation of the retained process handle proves exit, or when the
+native status proves the root's exit already under way (`STATUS_PROCESS_IS_TERMINATING`, which
+Win32 reports as `ACCESS_DENIED`), as after a concurrent force whose console-holder round has not
+yet seen the root signal. A failed
 force termination falls back to Job termination, whose failure always remains an error, even if the
 root has exited. Exit status 259 is not a
 liveness test. The receipt proves accepted termination submission only: actual child exit, Job

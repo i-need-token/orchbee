@@ -21,16 +21,26 @@ pub const Termination = if (builtin.os.tag != .windows) void else struct {
             defer self.mutex.unlock();
             // A successful force may not yet have signaled the root handle.
             if (self.root_submitted) return;
-            if (windows_api.TerminateProcess(process, 1).toBool()) {
-                self.root_submitted = true;
-                return;
+            // The native status separates a root whose exit is already under way, such as
+            // after a concurrent force that has not signaled the handle yet, from a refused
+            // right; Win32 TerminateProcess reports both as ACCESS_DENIED.
+            switch (windows.ntdll.NtTerminateProcess(process, @enumFromInt(1))) {
+                .SUCCESS => {
+                    self.root_submitted = true;
+                    return;
+                },
+                .PROCESS_IS_TERMINATING => return,
+                else => |status| {
+                    if (windows_api.WaitForSingleObject(process, 0) == windows_api.WAIT_OBJECT_0) return;
+                    break :submission status;
+                },
             }
-            const last_error = windows.GetLastError();
-            if (windows_api.WaitForSingleObject(process, 0) == windows_api.WAIT_OBJECT_0) return;
-            break :submission last_error;
         };
         // Known permission refusal is not an unexpected runtime diagnostic.
-        return submissionFailure(failure);
+        return switch (failure) {
+            .ACCESS_DENIED => error.AccessDenied,
+            else => windows.unexpectedStatus(failure),
+        };
     }
 
     /// Records a force termination that ended the root and every console holder.

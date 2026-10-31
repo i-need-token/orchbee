@@ -25,7 +25,10 @@ struct ob_process_facts {
 _Static_assert(offsetof(struct ob_process_facts, image) == 32, "process facts ABI");
 _Static_assert(sizeof(struct ob_process_facts) == 24608, "process facts size");
 
-/* A full fixed-capacity list or an explicit error, never a truncated list.
+/* A full fixed-capacity list or an explicit error, never a truncated list: a list
+ * that does not fit fails with ERROR_MORE_DATA. Job accounting can still count a
+ * member whose exit is under way after the list has dropped it, so the listed
+ * members, not the accounting, are the membership.
  * Return 1 for success, 2 for capacity, 0 for an unavailable OS observation. */
 int ob_windows_job_process_ids(HANDLE job, uint32_t *ids, uint32_t *count) {
     struct {
@@ -37,7 +40,7 @@ int ob_windows_job_process_ids(HANDLE job, uint32_t *ids, uint32_t *count) {
             &list, sizeof(list), NULL)) {
         return GetLastError() == ERROR_MORE_DATA ? 2 : 0;
     }
-    if (list.assigned > OB_PROCESS_LIMIT || list.listed != list.assigned) return 2;
+    if (list.assigned > OB_PROCESS_LIMIT || list.listed > OB_PROCESS_LIMIT) return 2;
     for (DWORD i = 0; i < list.listed; ++i) {
         if (list.ids[i] == 0 || list.ids[i] > UINT32_MAX) return 0;
         ids[i] = (uint32_t)list.ids[i];
