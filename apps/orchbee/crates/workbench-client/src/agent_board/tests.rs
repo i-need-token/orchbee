@@ -6,6 +6,7 @@
 
 use super::*;
 mod mouse;
+mod rows;
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::workbench_projection::ClientContextLocation;

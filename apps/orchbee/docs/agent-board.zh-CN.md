@@ -99,7 +99,9 @@ worker 失联、Pending 或 Unknown 预留、已接受或部分接受输入，�
 不同 revision 的行绝不拼接。不完整读取保留标记为 stale 的 `last_good`；没有 `last_good` 时
 只可展示同 revision 的行并标记 incomplete——且保留 `last_good` 绝不改写其安装年龄，因此
 保留行在多次读取以及关闭重开之间保持真实新鲜度。需要注意的行排在普通行之前，组内仍保持
-规范顺序；每行原样携带不透明 Agent 会话 id，连同状态、provider、新鲜度与解析出的位置。
+规范顺序。每行以不透明 Agent 会话 id 维持选择与跳转，但从不显示该 id：行内显示状态、所关联终端的
+标题、provider、新鲜度与解析出的 Workspace 位置（与标题相同的 Tab 标签不重复显示）；没有可跳转面板
+的会话在位置处显示本地化占位文案。
 侧栏只展示最后一次已完成读取的计数、时间戳与完整性标记——关闭或未读绝不意味着存活或为
 零。Get 新鲜度与 List 新鲜度是独立域，绝不互相替代。
 
@@ -120,4 +122,4 @@ worker 失联、Pending 或 Unknown 预留、已接受或部分接受输入，�
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=1e31f798f1653ed2d4841cb268375c3e3035f4d7b78603e710fc1ebe0ae73d08 zh-cn-sha256=1aa8540a493da2bcc231c1048332e3128cd93e9a9954e9dc2c7795c01f7350e4 -->
+<!-- documentation-pairing: english-sha256=a30dc7c1e8730400d44ff890295e7c1580bcfa39fd5a06930bbc4474fc0d77bc zh-cn-sha256=bf729ef7df067579b27ec9853f007d6244e126d0165119e4d142febafaffa19f -->

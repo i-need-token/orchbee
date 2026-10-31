@@ -557,8 +557,10 @@ fn captures_whole_shell_agent_board_alignment_frames() {
     );
     let wide_text = wide.text();
     assert!(wide_text.contains(crate::localization::Locale::EnUs.shell().board.title));
-    assert!(wide_text.contains("agent-review"));
-    assert!(wide_text.contains("agent-validation"));
+    // Rows name sessions by provider and location; the session ids stay internal.
+    assert!(!wide_text.contains("agent-review") && !wide_text.contains("agent-validation"));
+    assert!(wide_text.contains("grok") && wide_text.contains("devin"));
+    assert!(wide_text.contains(crate::localization::Locale::EnUs.shell().board.no_panel));
     assert!(wide_text.contains("Workspace"));
     let board = ui.agent_board_view().unwrap();
     assert!(
