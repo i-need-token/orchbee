@@ -17,15 +17,15 @@ function nodeStep(name, args) {
 }
 
 function nativeTestPreparation(scope, platform) {
-	// Worker witnesses launch the real Host; Linux CLI startup also loads sibling peers.
-	// Keep these inputs fresh without building unrelated apps or every Cargo target.
+	// Worker witnesses launch the real Host; Linux and Windows CLI witnesses also start sibling
+	// peers. Keep these inputs fresh without building unrelated apps or every Cargo target.
 	const selected = (name) => scope === undefined || scope.all || scope.cargo.includes(name);
-	const linuxCohort = platform === 'linux' && selected('orchbee');
+	const cliCohort = (platform === 'linux' || platform === 'win32') && selected('orchbee');
 	return [
-		...(selected('orchbee-worker') || linuxCohort
+		...(selected('orchbee-worker') || cliCohort
 			? [pnpmStep('prepare native test host', ['--filter', '@orchbee/terminal-host', 'build'])]
 			: []),
-		...(linuxCohort
+		...(cliCohort
 			? [
 					{
 						name: 'prepare native test peers',

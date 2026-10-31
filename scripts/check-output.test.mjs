@@ -288,7 +288,7 @@ test('the daily gate retains host tests while full builds and cross checks requi
 		],
 	);
 	const steps = checkSteps('test', undefined, 'win32');
-	assert.equal(steps.length, 4);
+	assert.equal(steps.length, 5);
 	assert.deepEqual(
 		steps[0].concurrent.map((step) => step.name),
 		[
@@ -308,16 +308,19 @@ test('the daily gate retains host tests while full builds and cross checks requi
 	assert.deepEqual(steps[1].args.slice(-2), ['-r', 'test']);
 	assert.equal(steps[2].name, 'prepare native test host');
 	assert.deepEqual(steps[2].args.slice(-3), ['--filter', '@orchbee/terminal-host', 'build']);
-	assert.equal(steps[3].name, 'Rust workspace tests');
-	assert.deepEqual(steps[3].args, ['scripts/run-rust-workspace.mjs', 'test']);
+	assert.equal(steps[3].name, 'prepare native test peers');
+	assert.equal(steps[4].name, 'Rust workspace tests');
+	assert.deepEqual(steps[4].args, ['scripts/run-rust-workspace.mjs', 'test']);
 	assert.doesNotMatch(JSON.stringify(steps), /test:cross|build:full|manual:native-window/u);
-	for (const [platform, preparation] of [
-		['win32', ['prepare native test host']],
-		['linux', ['prepare native test host', 'prepare native test peers']],
-	])
+	for (const platform of ['win32', 'linux'])
 		assert.deepEqual(
 			checkSteps('verify:rust-native', undefined, platform).map((step) => step.name),
-			['Rust workspace lint', ...preparation, 'Rust workspace tests'],
+			[
+				'Rust workspace lint',
+				'prepare native test host',
+				'prepare native test peers',
+				'Rust workspace tests',
+			],
 		);
 	assert.doesNotMatch(
 		JSON.stringify(checkSteps('verify:rust-native', undefined, 'win32')),

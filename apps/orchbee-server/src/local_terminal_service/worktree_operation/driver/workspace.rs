@@ -424,11 +424,13 @@ impl Driver<'_> {
                     };
                     return Ok(());
                 }
+                // Only an active Close is progress; a parked one waits for resume.
                 WorkbenchTabCloseStatus::Closing { .. }
                 | WorkbenchTabCloseStatus::DisposedAwaitingPublication {
                     reason:
-                        orchbee_workbench_protocol::WorkbenchTabClosePublicationReason::Preparing,
-                    ..
+                        orchbee_workbench_protocol::WorkbenchTabClosePublicationReason::Preparing
+                        | orchbee_workbench_protocol::WorkbenchTabClosePublicationReason::TargetCleanupPending,
+                    resumable: false,
                 } => thread::sleep(Duration::from_millis(50)),
                 WorkbenchTabCloseStatus::CleanupBlocked {
                     resumable: true, ..

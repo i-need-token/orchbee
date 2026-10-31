@@ -713,6 +713,17 @@ impl CloseContinuation {
         ) && self.pending.is_none()
     }
 
+    /// A Worktree hold kept this ready publication from running, so its release
+    /// starts the publication's attempt budget at the release instant.
+    pub(super) fn renew_publication(&mut self, now: Instant) {
+        if let Some(deadline) = now
+            .checked_add(ATTEMPT_DURATION)
+            .filter(|_| self.publication_ready())
+        {
+            self.deadline = deadline;
+        }
+    }
+
     pub(super) fn publication_failed(&mut self, reason: PublicationReason) {
         if let Progress::Disposed { stage, .. } = self.progress {
             self.progress = Progress::Disposed {

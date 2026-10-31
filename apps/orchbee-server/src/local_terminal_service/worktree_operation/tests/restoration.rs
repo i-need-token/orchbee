@@ -392,6 +392,32 @@ fn half_removed(fixture: &mut Fixture) {
     ));
 }
 
+/// A Close maintenance turn long after the 30 s attempt budget. A failed removal holds its
+/// Workspace close while the user decides; that turn must leave the held close ready.
+fn age_held_close(fixture: &Fixture) {
+    let Outcome::Available { status, .. } = fixture.read() else {
+        panic!("retained status")
+    };
+    let Status::Failed { progress, .. } = *status else {
+        panic!("failed removal")
+    };
+    let WorktreeWorkspaceDisposition::Closing {
+        close_request_id, ..
+    } = progress.workspace
+    else {
+        panic!("held close")
+    };
+    let mut session = fixture.service.coordinator.lock().unwrap();
+    let authority = session.worktree_authority().unwrap();
+    let late = Instant::now() + Duration::from_secs(31);
+    assert_eq!(
+        authority
+            .next_terminal_tab_close_step(&close_request_id, late)
+            .unwrap(),
+        orchbee_server::CloseContinuationNext::Parked
+    );
+}
+
 /// Resume re-inspects the vanished registration, keeps the original checkout facts, and asks
 /// the Worker to settle the residue without closing or launching anything again.
 fn resume_to_remove(fixture: &mut Fixture, expected_attempt: u32) -> WorktreeMutationRequest {
@@ -420,6 +446,7 @@ fn resume_to_remove(fixture: &mut Fixture, expected_attempt: u32) -> WorktreeMut
 fn resumed_half_removal_settles_the_unregistered_residue_and_finishes_the_close() {
     let mut fixture = Fixture::new();
     half_removed(&mut fixture);
+    age_held_close(&fixture);
     // The surviving directory is still locked: a retryable filesystem failure.
     let remove = resume_to_remove(&mut fixture, 1);
     complete_job(
@@ -446,6 +473,7 @@ fn resumed_half_removal_settles_the_unregistered_residue_and_finishes_the_close(
         "{status:?}"
     );
     // After the lock is released, the Worker proves absence and the held close completes.
+    age_held_close(&fixture);
     let remove = resume_to_remove(&mut fixture, 2);
     complete_job(
         &mut fixture,
@@ -475,6 +503,7 @@ fn resumed_half_removal_settles_the_unregistered_residue_and_finishes_the_close(
 fn unprovable_residue_is_not_resumable_and_keeps_the_held_workspace_for_explicit_close() {
     let mut fixture = Fixture::new();
     half_removed(&mut fixture);
+    age_held_close(&fixture);
     let remove = resume_to_remove(&mut fixture, 1);
     complete_job(
         &mut fixture,
@@ -502,5 +531,38 @@ fn unprovable_residue_is_not_resumable_and_keeps_the_held_workspace_for_explicit
         .peer
         .set_read_timeout(Some(Duration::from_millis(40)))
         .unwrap();
+    assert!(read_message(&mut fixture.peer).is_err(), "no Git replay");
+    // The explicit close the failure names ends the held Workspace on its own, even
+    // after the hold outlasted the Close's original attempt budget.
+    age_held_close(&fixture);
+    let current = snapshot(&fixture.service);
+    let accepted = fixture
+        .service
+        .execute_workspace_close(WorkbenchCommand {
+            protocol_version: ProtocolVersion,
+            request_id: id(70),
+            session_id: current.session_id,
+            expected_revision: current.revision,
+            action: WorkbenchAction::WorkspaceClose {
+                workspace_id: fixture.workspace.clone(),
+            },
+        })
+        .unwrap();
+    assert!(
+        matches!(
+            accepted.outcome,
+            WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. }
+        ),
+        "{:?}",
+        accepted.outcome
+    );
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while !snapshot(&fixture.service).navigation.workspaces.is_empty() {
+        assert!(
+            Instant::now() < deadline,
+            "the explicit close ends the held Workspace"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
     assert!(read_message(&mut fixture.peer).is_err(), "no Git replay");
 }

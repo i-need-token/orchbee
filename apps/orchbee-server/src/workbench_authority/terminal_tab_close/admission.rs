@@ -326,7 +326,11 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
                                     continuation.confirmed();
                                 }
                             }
-                            self.authority.release_failed_worktree_close(&close_id);
+                            // Only a confirmed explicit Close ends a failed removal's
+                            // hold; its publication budget restarts from that sample.
+                            if let Some(now) = confirmed_at {
+                                self.authority.release_failed_worktree_close(&close_id, now);
+                            }
                             result
                         }
                         Err(response) => *response,

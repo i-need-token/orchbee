@@ -108,8 +108,18 @@ fn held_publication_preserves_zero_and_multi_terminal_layout_and_fences_stale_at
             }
             assert!(authority.worktree_close_quiesced(&plan, &close.request_id));
             assert!(!authority.worktree_close_quiesced(&stale, &close.request_id));
+            // A failed removal can hold the Close far past its attempt budget; the
+            // hold defers publication without parking it on that budget.
+            let late = now + Duration::from_secs(31);
+            assert_eq!(
+                authority
+                    .next_terminal_tab_close_step(&close.request_id, late)
+                    .unwrap(),
+                CloseContinuationNext::Parked
+            );
+            assert!(authority.worktree_close_quiesced(&plan, &close.request_id));
             assert!(matches!(
-                authority.prepare_terminal_tab_close_publication(&close.request_id, now),
+                authority.prepare_terminal_tab_close_publication(&close.request_id, late),
                 Err(WorkbenchTabClosePublicationError::NotReady)
             ));
             assert_eq!(authority.snapshot(), &before);
@@ -121,9 +131,12 @@ fn held_publication_preserves_zero_and_multi_terminal_layout_and_fences_stale_at
                     progress: plan.progress.clone()
                 }
             ));
-            assert!(!authority.complete_worktree_removal(&mut stale));
+            // Release happens after the original budget expired; publication then
+            // runs under a budget restarted by the release itself.
+            let released = now + Duration::from_secs(40);
+            assert!(!authority.complete_worktree_removal(&mut stale, released));
             if !explicit_close {
-                assert!(authority.complete_worktree_removal(&mut plan));
+                assert!(authority.complete_worktree_removal(&mut plan, released));
             }
             assert!(authority.publish_worktree_operation(
                 &plan,
@@ -149,7 +162,7 @@ fn held_publication_preserves_zero_and_multi_terminal_layout_and_fences_stale_at
                     panic!("manual admission");
                 };
                 assert!(matches!(
-                    admission.resolve_after_composition(),
+                    admission.resolve_after_confirmation(released),
                     WorkbenchTabCloseResolution::Ready(WorkbenchCommandResult {
                         outcome: WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. },
                         ..
@@ -171,10 +184,17 @@ fn held_publication_preserves_zero_and_multi_terminal_layout_and_fences_stale_at
                 assert!(resumed.removal_complete);
                 assert_eq!(resumed.phase, Phase::Removing);
                 assert!(!authority.hold_worktree_close(&resumed, &close.request_id));
-                assert!(!authority.complete_worktree_removal(&mut plan));
+                assert!(!authority.complete_worktree_removal(&mut plan, released));
             }
+            let publishing = released + Duration::from_secs(1);
+            assert_eq!(
+                authority
+                    .next_terminal_tab_close_step(&close.request_id, publishing)
+                    .unwrap(),
+                CloseContinuationNext::Publication
+            );
             let status = authority
-                .prepare_terminal_tab_close_publication(&close.request_id, now)
+                .prepare_terminal_tab_close_publication(&close.request_id, publishing)
                 .unwrap()
                 .commit();
             assert!(matches!(status, WorkbenchTabCloseStatus::Closed { .. }));

@@ -15,7 +15,7 @@ canonical projection and Workspace membership.
 
 ## User outcome and lifetime authority
 
-Worktree Remove can hold canonical Workspace Close publication while the existing continuation disposes every captured terminal and finishes local cleanup. The Worktree owner installs the exact operation/Close association under the same gate as Close admission. Both scheduled and direct publication refuse the hold; only exact publication-ready evidence permits Git removal. A known Git failure retains the Workspace structure and its Close fences. After a failed Worktree, an explicitly accepted ordinary Workspace Close may release the hold without Git; a competing Close during a pending Worktree is busy. Reads and failed Close admission never release it. Successful Git deletion retains a monotonic completion marker before releasing publication, so a later Worktree Resume only finishes canonical Close. This boundary preserves layout for restoration; it does not restart shells. The [CLI Worktree model](../../orchbee/docs/windows-worktrees.md) owns the user-visible partial outcome and recovery.
+Worktree Remove can hold canonical Workspace Close publication while the existing continuation disposes every captured terminal and finishes local cleanup. The Worktree owner installs the exact operation/Close association under the same gate as Close admission. Both scheduled and direct publication refuse the hold; only exact publication-ready evidence permits Git removal. A known Git failure retains the Workspace structure and its Close fences. After a failed Worktree, an explicitly confirmed ordinary Workspace Close may release the hold without Git; a competing Close during a pending Worktree is busy. Reads, failed Close admission and a conditional or composition-only join never release it. A hold can outlast the attempt budget by any amount, so it pauses the held publication's budget: maintenance leaves a publication-ready held Close unparked, and the last release restarts that budget at the release instant. Successful Git deletion retains a monotonic completion marker before releasing publication, so a later Worktree Resume only finishes canonical Close. This boundary preserves layout for restoration; it does not restart shells. The [CLI Worktree model](../../orchbee/docs/windows-worktrees.md) owns the user-visible partial outcome and recovery.
 
 ### Unbound and mixed scopes
 
@@ -331,7 +331,8 @@ An attempt has **30 seconds**, **32 submitted Host steps**, and **at least 250 m
 submissions**. Sample Server-monotonic time at atomic primary acceptance or successful Resume;
 checked-add the deadline before commit. Queueing, backpressure, grace and all pages consume that
 same elapsed budget. Before the next step, require `now < deadline` and remaining step allowance;
-count a step when admitted to the carrier. Backpressure consumes time without a Host step, clock
+count a step when admitted to the carrier. A Worktree hold is the one exception: it defers a
+publication-ready Close without spending this budget, and its release restarts the deadline. Backpressure consumes time without a Host step, clock
 reset or busy loop. Each lifecycle step contains at most one Host request; no hidden page/retry loop.
 
 Preserve the existing independent budgets: Worker HostExchange is **1s**; Server carrier frame I/O
@@ -623,7 +624,8 @@ stale/foreign ownership, duplicate bindings, repeated replacement/cancellation,
 unchanged layout identities, old-binding fences, direct publication and Resume
 refusal, and a fresh ordinary Close after cancellation. Session and Windows driver
 witnesses additionally establish reserve-before-dispatch, generation fencing,
-known-failure verification, partial launches and retry behavior. These are bounded
+known-failure verification, partial launches, retry behavior, and Resume or explicit Close
+finishing a hold that outlasted the attempt budget. These are bounded
 tests; full platform acceptance remains a separate obligation. This workflow has no separate TLA model.
 
 ## Failed launch removal

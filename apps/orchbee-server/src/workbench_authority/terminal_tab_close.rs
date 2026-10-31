@@ -646,6 +646,32 @@ impl CloseRecord {
         }
     }
 
+    /// A Worktree hold defers a ready publication without letting a maintenance
+    /// turn spend its attempt budget; lifecycle work keeps its own budget.
+    fn held_step(&mut self, now: Instant) -> WorkbenchTabCloseStepTarget {
+        if !self.targets.is_empty() && !self.is_finished() && self.publication_ready() {
+            return WorkbenchTabCloseStepTarget {
+                target: None,
+                next: CloseContinuationNext::Parked,
+            };
+        }
+        let mut step = self.next_step(now);
+        if step.next() == CloseContinuationNext::Publication {
+            step.next = CloseContinuationNext::Parked;
+        }
+        step
+    }
+
+    /// The released hold restarts the budget of every publication it deferred.
+    fn renew_held_publication(&mut self, now: Instant) {
+        if self.is_finished() {
+            return;
+        }
+        for continuation in &mut self.continuations {
+            continuation.renew_publication(now);
+        }
+    }
+
     fn commit_closed(&mut self, revision: WorkbenchRevision) {
         self.closed_revision = Some(revision);
         for index in 0..self.target_count() {

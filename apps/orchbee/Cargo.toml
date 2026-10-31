@@ -102,6 +102,11 @@ path = "tests/cli_windows_agent_names.rs"
 name = "cli_windows_creation"
 path = "tests/cli_windows_creation.rs"
 
+# Keep this real Session's 35-second hold and process load away from aggregate suite deadlines.
+[[test]]
+name = "cli_windows_worktree_removal"
+path = "tests/cli_windows_worktree_removal.rs"
+
 # Keep short-deadline PROCESS_WITNESS_LOCK scheduling isolated.
 [[test]]
 name = "local_startup_process"

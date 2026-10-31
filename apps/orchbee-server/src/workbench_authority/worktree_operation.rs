@@ -7,7 +7,7 @@ use orchbee_workbench_protocol::{
     WorktreeOperationPhase, WorktreeOperationStatus, WorktreeProgress, WorktreeSource,
     WorktreeWorkspaceDisposition,
 };
-use std::{collections::BTreeMap, num::NonZeroU64};
+use std::{collections::BTreeMap, num::NonZeroU64, time::Instant};
 
 const MAXIMUM_OPERATIONS: usize = 64;
 
@@ -444,13 +444,25 @@ impl WorkbenchAuthority {
     }
 
     /// A committed explicit Workspace Close can release a failed operation's hold without Git.
-    pub(super) fn release_failed_worktree_close(&mut self, close: &WorkbenchRequestId) {
+    pub(super) fn release_failed_worktree_close(
+        &mut self,
+        close: &WorkbenchRequestId,
+        now: Instant,
+    ) {
         for record in self.worktrees.records.values_mut() {
             if record.close_hold.as_ref() == Some(close)
                 && matches!(record.status, WorktreeOperationStatus::Failed { .. })
             {
                 record.close_hold = None;
             }
+        }
+        self.release_worktree_close(close, now);
+    }
+
+    /// The hold paused the Close's publication budget; the last release restarts it.
+    fn release_worktree_close(&mut self, close: &WorkbenchRequestId, now: Instant) {
+        if !self.worktree_holds_close(close) {
+            self.renew_released_close_publication(close, now);
         }
     }
 
@@ -468,7 +480,11 @@ impl WorkbenchAuthority {
     }
 
     /// The retained driver supplies known successful Git completion; never inferred from a failed job.
-    pub fn complete_worktree_removal(&mut self, plan: &mut WorktreeOperationPlan) -> bool {
+    pub fn complete_worktree_removal(
+        &mut self,
+        plan: &mut WorktreeOperationPlan,
+        now: Instant,
+    ) -> bool {
         let Some(record) = self.worktrees.records.get_mut(&plan.operation_id) else {
             return false;
         };
@@ -485,8 +501,11 @@ impl WorkbenchAuthority {
             return false;
         }
         record.plan.removal_complete = true;
-        record.close_hold = None;
+        let released = record.close_hold.take();
         plan.removal_complete = true;
+        if let Some(close) = released {
+            self.release_worktree_close(&close, now);
+        }
         true
     }
 

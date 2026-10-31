@@ -252,7 +252,7 @@ impl Driver<'_> {
                                 .map_err(|_| Failure::Internal {})?
                                 .worktree_authority()
                                 .ok_or(Failure::Internal {})?
-                                .complete_worktree_removal(self.plan)
+                                .complete_worktree_removal(self.plan, Instant::now())
                             {
                                 return Err(Failure::Internal {});
                             }

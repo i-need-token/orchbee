@@ -387,12 +387,13 @@ test('affected gate preserves check prerequisites and Node-before-Rust ordering 
 test('native test prerequisites follow their real consumers and host platform even in scoped or fallback runs', () => {
 	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
 	for (const platform of ['win32', 'linux', 'darwin']) {
+		const cliCohort = platform !== 'darwin';
 		for (const [changed, host, peers] of [
-			['apps/orchbee/src/main.rs', platform === 'linux', platform === 'linux'],
-			['apps/orchbee-worker/src/main.rs', true, platform === 'linux'],
+			['apps/orchbee/src/main.rs', cliCohort, cliCohort],
+			['apps/orchbee-worker/src/main.rs', true, cliCohort],
 			['apps/desktop/src/main.ts', false, false],
 			['scripts/run-checks.mjs', false, false],
-			['pnpm-lock.yaml', true, platform === 'linux'],
+			['pnpm-lock.yaml', true, cliCohort],
 		]) {
 			const scope = selectVerificationScope(actual, [changed]);
 			const steps = checkSteps('test', scope, platform);

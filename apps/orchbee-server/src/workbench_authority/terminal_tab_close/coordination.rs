@@ -42,6 +42,16 @@ impl WorkbenchAuthority {
         self.close_record(close)
             .is_some_and(|record| !record.is_finished() && record.publication_ready())
     }
+    /// Called once no Worktree operation holds this Close any longer.
+    pub(in crate::workbench_authority) fn renew_released_close_publication(
+        &mut self,
+        close: &WorkbenchRequestId,
+        now: Instant,
+    ) {
+        if let Some(record) = self.close_record_mut(close) {
+            record.renew_held_publication(now);
+        }
+    }
     pub(in crate::workbench_authority) fn retain_quiescent_workspace(
         &mut self,
         close: &WorkbenchRequestId,
@@ -160,14 +170,14 @@ impl WorkbenchAuthority {
         now: Instant,
     ) -> Result<WorkbenchTabCloseStepTarget, CloseStepTokenMismatch> {
         let held = self.worktree_holds_close(close_request_id);
-        let mut step = self
+        let record = self
             .close_record_mut(close_request_id)
-            .ok_or(CloseStepTokenMismatch)?
-            .next_step(now);
-        if held && step.next() == CloseContinuationNext::Publication {
-            step.next = CloseContinuationNext::Parked;
-        }
-        Ok(step)
+            .ok_or(CloseStepTokenMismatch)?;
+        Ok(if held {
+            record.held_step(now)
+        } else {
+            record.next_step(now)
+        })
     }
 
     pub fn reserve_terminal_tab_close_step(
