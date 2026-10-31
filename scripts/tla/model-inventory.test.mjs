@@ -387,11 +387,11 @@ test('direct model inputs and both claim languages retain each protocol owner', 
 test('protocol owner paths select their core while UI copy and deterministic local flows use implementation tests', async () => {
 	const cases = [
 		[
-			'apps/orchbee/crates/workbench-client/src/workbench_client/terminal_viewport/window.rs',
+			'apps/orchbee/crates/workbench-client/src/terminal_viewport/window.rs',
 			'native-terminal-viewport',
 		],
 		[
-			'apps/orchbee/crates/workbench-client/src/workbench_client/state/membership.rs',
+			'apps/orchbee/crates/workbench-client/src/workbench_state/membership.rs',
 			'native-client-pane-membership',
 		],
 		['apps/orchbee-server/src/local_terminal_service/configuration.rs', 'native-settings-save'],
