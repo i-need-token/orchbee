@@ -139,12 +139,35 @@ fn update_provider(
     row.cached_version = Some(display);
     Ok(Disposition::Updated)
 }
-/// Cached remote rules have confirmable provenance only while a valid catalog is configured.
-pub(crate) fn remote_cache(source: &Source) -> RemoteCache {
-    if matches!(source, Ok(Some(_))) {
-        RemoteCache::Admitted
-    } else {
-        RemoteCache::Ignored
+fn remote_root(root: &Path) -> std::path::PathBuf {
+    root.join("agent-detection").join("remote")
+}
+fn parse_status(bytes: &[u8]) -> Result<UpdateReport, Failure> {
+    let report: UpdateReport = serde_json::from_slice(bytes).map_err(|_| Failure::Cache)?;
+    report.validate().map_err(|_| Failure::Cache)?;
+    Ok(report)
+}
+/// The persisted status of the configured catalog. A status recorded for another catalog
+/// describes no rules this Session may use, so it reads as absent.
+fn configured_status(root: &Path, source: &CatalogUrl) -> Result<Option<UpdateReport>, Failure> {
+    let Some(bytes) = PrivateCache::read_existing(&remote_root(root), "status.json", LIMIT)
+        .map_err(|_| Failure::Cache)?
+    else {
+        return Ok(None);
+    };
+    let report = parse_status(&bytes)?;
+    Ok((report.catalog_url == source.as_str()).then_some(report))
+}
+/// Cached remote rules join selection only when the unique updater recorded the configured
+/// catalog as their source; a missing, unreadable, or foreign record means no cache.
+pub(crate) fn remote_cache(root: Option<&Path>, source: &Source) -> RemoteCache {
+    match (root, source) {
+        (Some(root), Ok(Some(source)))
+            if matches!(configured_status(root, source), Ok(Some(_))) =>
+        {
+            RemoteCache::Admitted
+        }
+        _ => RemoteCache::Ignored,
     }
 }
 /// Startup and explicit reload inspect existing status without creating the cache.
@@ -152,23 +175,10 @@ pub(crate) fn maintenance(
     root: Option<&Path>,
     source: &Source,
 ) -> orchbee_workbench_protocol::AgentManifestMaintenance {
-    let loaded = (|| {
-        let Some(root) = root.filter(|_| remote_cache(source) == RemoteCache::Admitted) else {
-            return Ok(None);
-        };
-        let Some(bytes) = PrivateCache::read_existing(
-            &root.join("agent-detection").join("remote"),
-            "status.json",
-            LIMIT,
-        )
-        .map_err(|_| Failure::Cache)?
-        else {
-            return Ok(None);
-        };
-        let report: UpdateReport = serde_json::from_slice(&bytes).map_err(|_| Failure::Cache)?;
-        report.validate().map_err(|_| Failure::Cache)?;
-        Ok(Some(report))
-    })();
+    let loaded = match (root, source) {
+        (Some(root), Ok(Some(source))) => configured_status(root, source),
+        _ => Ok(None),
+    };
     let (last_update, status_error) = match loaded {
         Ok(report) => (report, None),
         Err(error) => (None, Some(error)),
@@ -225,25 +235,29 @@ fn run_with_fetch(
             .duration_since(UNIX_EPOCH)
             .map_err(|_| Failure::Clock)?
             .as_secs();
-        cache = Some(
-            PrivateCache::acquire(&root.join("agent-detection").join("remote")).map_err(|e| {
-                if e.kind() == std::io::ErrorKind::WouldBlock {
-                    Failure::Busy
-                } else {
-                    Failure::Cache
-                }
-            })?,
-        );
-        if let Some(bytes) = cache
-            .as_ref()
-            .ok_or(Failure::Cache)?
+        let writer = cache.insert(PrivateCache::acquire(&remote_root(root)).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::WouldBlock {
+                Failure::Busy
+            } else {
+                Failure::Cache
+            }
+        })?);
+        let recorded = match writer
             .read("status.json", LIMIT)
             .map_err(|_| Failure::Cache)?
         {
-            let previous: UpdateReport =
-                serde_json::from_slice(&bytes).map_err(|_| Failure::Cache)?;
-            if previous.validate().is_err() {
-                return Err(Failure::Cache);
+            Some(bytes) => Some(parse_status(&bytes)?.catalog_url),
+            None => None,
+        };
+        // This updater is the only writer of the cache and its status. Rules cached for another or
+        // an unrecorded catalog are removed before this catalog's status can claim the cache; a
+        // failed removal leaves the previous record, which this catalog does not admit.
+        if recorded.as_deref() != Some(source.as_str()) {
+            let bundled = ScreenDetector::bundled().map_err(|_| Failure::InvalidManifest)?;
+            for manifest in &bundled.0 {
+                writer
+                    .remove(&format!("{}.toml", manifest.provider.report_label()))
+                    .map_err(|_| Failure::Cache)?;
             }
         }
         status_admitted = true;

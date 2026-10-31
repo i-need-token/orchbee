@@ -73,7 +73,7 @@ impl ProcessObserver {
         let root = settings.path.as_deref().and_then(std::path::Path::parent);
         // One startup read freezes the catalog for both rule selection and maintenance.
         let source = updating::configured_source();
-        let detector = ScreenDetector::load(root, updating::remote_cache(&source))
+        let detector = ScreenDetector::load(root, updating::remote_cache(root, &source))
             .map_err(io::Error::other)?;
         // Validate the complete authoritative rev0 response before manifest policy or its schedule
         // can become visible. Installation remains after manifest initialization so a later

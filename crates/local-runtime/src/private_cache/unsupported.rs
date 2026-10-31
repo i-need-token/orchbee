@@ -28,6 +28,11 @@ impl PrivateCache {
     pub fn replace(&mut self, _name: &str, _bytes: &[u8]) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
+
+    /// Refuses removal without deleting any file.
+    pub fn remove(&mut self, _name: &str) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
 }
 
 /// No value can be produced without an admitted platform read.

@@ -118,6 +118,50 @@ fn cache_updates_preserve_versions_bytes_partial_outcomes_and_corrupt_inputs() {
     assert_eq!(fs::read(status).unwrap(), b"corrupt status");
 }
 #[test]
+fn cached_rules_serve_only_the_catalog_recorded_by_their_updater() {
+    let root = Root::new();
+    let first = CatalogUrl::parse(CATALOG).unwrap();
+    let other = CatalogUrl::parse("https://example.com/other/index.toml").unwrap();
+    let cached = root.0.join("agent-detection/remote/codex.toml");
+    let status = root.0.join("agent-detection/remote/status.json");
+    assert_eq!(
+        scripted(&root, &rules("codex", "2099.1")).agents[0].result,
+        Disposition::Updated
+    );
+    assert_eq!(
+        remote_cache(Some(&root.0), &Ok(Some(first.clone()))),
+        RemoteCache::Admitted
+    );
+    assert_eq!(
+        remote_cache(Some(&root.0), &Ok(Some(other.clone()))),
+        RemoteCache::Ignored
+    );
+    let foreign = maintenance(Some(&root.0), &Ok(Some(other.clone())));
+    assert_eq!((foreign.last_update, foreign.status_error), (None, None));
+    // Even a failed catalog fetch discards rules cached for another catalog before recording its own.
+    let report = run_with_fetch(
+        &root.0,
+        &other,
+        &AtomicBool::new(false),
+        Instant::now() + Duration::from_secs(10),
+        |_, _, _| Err(Failure::InvalidCatalog),
+    );
+    assert_eq!(report.failure, Some(Failure::InvalidCatalog));
+    assert!(report.status_saved);
+    assert!(!cached.exists());
+    assert_eq!(
+        remote_cache(Some(&root.0), &Ok(Some(first))),
+        RemoteCache::Ignored
+    );
+    // Rules without a recorded catalog are never admitted.
+    fs::write(&cached, rules("codex", "2099.1")).unwrap();
+    fs::remove_file(status).unwrap();
+    assert_eq!(
+        remote_cache(Some(&root.0), &Ok(Some(other))),
+        RemoteCache::Ignored
+    );
+}
+#[test]
 fn catalog_and_cancellation_fail_before_any_manifest_commit() {
     let source = CatalogUrl::parse(CATALOG).unwrap();
     for path in [

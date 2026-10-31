@@ -532,6 +532,7 @@ cross-process writer lock for Server-owned detection cache updates. Applications
 filenames, content validation, versions and policy. Missing descendants are created only below an
 admitted private parent; unsafe existing data is refused without repair. Bounded reads preserve
 absence. Replacement flushes a complete staging file, then atomically replaces the admitted leaf.
+Removal deletes only an admitted leaf under the writer lock; an absent leaf is already removed.
 The reserved `.orchbee-update.lock` is a persistent cache coordination object;
 `.orchbee-update.pending` is the one owned staging leaf, removed after settlement or recovered under
 the next exclusive lock. Cleanup failures are returned, never converted into successful publication.

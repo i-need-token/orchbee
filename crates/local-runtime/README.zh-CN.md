@@ -445,6 +445,7 @@ reader 准入要求标准 PSReadLine 模块／导出身份和已识别的定义�
 `PrivateCache` 为 Server 识别缓存更新拥有固定的私有祖先目录、不跟随链接的单硬链接普通文件，
 以及跨进程写入锁。应用仍拥有逻辑文件名、内容校验、版本和策略。仅在已准入私有父目录下创建缺失子目录；
 不安全的已有数据直接拒绝，不修复。有界读取保留不存在的事实。替换先刷盘完整暂存文件，再原子替换准入叶文件。
+删除只在写入锁下删除已准入的叶文件；叶文件不存在即视为已删除。
 保留名 `.orchbee-update.lock` 是持久缓存协调对象；`.orchbee-update.pending` 是唯一自有暂存叶，
 在收尾后删除，或在下一次独占锁下恢复。清理失败向调用者返回，不转为发布成功。
 Server 更新器是真实消费者；此适配器本身不代表已实现远程更新。
@@ -483,4 +484,4 @@ cohort 准入、备用租约及进程／Server 所有权；普通 client／worke
 原生管道测试验证 scope／票据地址隔离，以及长 Unicode runtime 输入下仍有界的名称。
 [Worker 契约](../../apps/orchbee-worker/docs/windows-server-handoff.zh-CN.md) 负责连接转移。
 
-<!-- documentation-pairing: english-sha256=fab1bfa334efd09d1b217a81a9f1c1f3d9b2f774909bb6b1e4ac0dbca7a6498a zh-cn-sha256=33604c73ee1b752bcec764c33b6aa2df5d6a348b859668708327a8418f1291e5 -->
+<!-- documentation-pairing: english-sha256=2f56eb387f8d164538b13bc1f146c4bab8724afc73444b6de4de8c4b8e62a411 zh-cn-sha256=21ac639adb1550d538fcfe92559f674a51ce955445e4dac83da8dd10be8fdee0 -->

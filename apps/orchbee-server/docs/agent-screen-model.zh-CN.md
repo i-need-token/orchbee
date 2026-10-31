@@ -47,8 +47,9 @@ Working 转普通 idle 时保持状态，直到再确认三次或达到 700 毫�
 已接受的规则维护模型由 Server 拥有一份不可变的已编译规则及其来源。Windows 启动复用共享
 配置文件父目录的解析，不改写用户设置。每个内置 provider 的
 `<config>/agent-detection/<report-label>.toml` 优先于
-`<config>/agent-detection/remote/<report-label>.toml`，再回退内置规则。只有配置了有效的更新目录源时，
-远程缓存才参与选择；否则 Server 从不读取 `agent-detection/remote`，本地覆盖之后直接是内置规则。只读取不超过 256 KiB
+`<config>/agent-detection/remote/<report-label>.toml`，再回退内置规则。只有配置了有效的更新目录源，
+并且缓存状态记录的规则来源正是该目录源时，远程缓存才参与选择；否则不读取其中的规则，本地覆盖之后直接是内置规则。
+未配置目录源时，Server 从不读取 `agent-detection/remote`。只读取不超过 256 KiB
 的普通 UTF-8 文件，沿用 provider、引擎版本及复杂度校验。存在的版本必须为点分数字；远程缓存还必须声明引擎版本且
 不低于内置版本，尾部零段视为等价。清单标识或别名规范化后均可匹配 provider。无效覆盖／缓存产生类型化告警并回退到下一个有效来源。
 没有内置规则的 provider 保留未知回退。采样器与 Explain 消费同一份已安装规则；Explain
@@ -99,6 +100,12 @@ Orchbee 不内置默认规则目录源。只有 Server 启动时 `ORCHBEE_AGENT_
 没有升版的内容变更失败。每个有效新版本原子提交，因此各 provider 的部分失败保留独立结果，
 不得表示为整个更新成功。
 
+更新器是远程缓存及其 `status.json` 的唯一写入方，该状态文件记录每次更新所用的目录源 URL。
+如果本次目录源与已记录的不同，或者没有状态文件，更新器会在记录本次目录源之前删除所有内置 provider 的缓存规则，
+因此已记录的目录源就是全部缓存规则的来源。删除失败时不写入任何记录。状态文件缺失或记录了其他目录源时，
+视为没有缓存：规则选择和维护状态都忽略它，直到已配置目录源下一次更新。无法读取的状态文件仍报告为缓存状态错误，
+并拒绝更新。
+
 Server 拥有逻辑缓存和更新状态。Windows 文件适配器固定已准入的私有祖先目录和文件，
 在共享远程缓存目录下提供跨进程写入锁，保留畸形或不安全的用户数据而不修复。
 有界的命名 pending 文件归缓存所有者负责；子进程和文件消费者结束后显式清理，
@@ -147,4 +154,4 @@ Client 激活只传递已校验的配置路径和是否显式指定。Server 在
 
 自动启用遵循缓存重载条件：provider 有新提交，或成功检查的当前缓存版本与已加载缓存版本不同，才需要启用。无变化的当前检查记录 NotAttempted，保留检测器修订和稳定状态。显式 Update 保持其请求启用的行为。
 
-<!-- documentation-pairing: english-sha256=bf052ca4b07e5c50bed39f80e26cdbe259bcba86e894edc10636ceed0b2871fb zh-cn-sha256=0cf24a190abc679e8cf7017fa851f77940abc96a6466263b7892bdaa164c826b -->
+<!-- documentation-pairing: english-sha256=8608232a958fd09369d604e9e51063d3a7915043f19e6a7e17b0df69dd00d1df zh-cn-sha256=bd76b53b46805f5634652e332121ad7668f6d66716740051f3afb0ff48aef8a0 -->

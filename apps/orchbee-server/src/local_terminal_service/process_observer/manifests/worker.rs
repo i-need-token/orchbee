@@ -49,7 +49,7 @@ impl Worker {
                 .map(|_| {
                     ScreenDetector::load(
                         running.work.root.as_deref(),
-                        updating::remote_cache(&running.work.source),
+                        updating::remote_cache(running.work.root.as_deref(), &running.work.source),
                     )
                 });
             wake.manifests
@@ -64,8 +64,10 @@ impl Worker {
             return;
         };
         if work.kind == Kind::Reload {
-            let next =
-                ScreenDetector::load(work.root.as_deref(), updating::remote_cache(&work.source));
+            let next = ScreenDetector::load(
+                work.root.as_deref(),
+                updating::remote_cache(work.root.as_deref(), &work.source),
+            );
             let maintenance = updating::maintenance(work.root.as_deref(), &work.source);
             wake.manifests
                 .complete_reload(work.id, next, Some(maintenance), |next| {

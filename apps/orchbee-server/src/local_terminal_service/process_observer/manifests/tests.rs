@@ -232,7 +232,10 @@ fn reload_installs_changed_rules_once_from_the_original_root() {
             Owner::Manual(id) => id,
             Owner::Automatic => panic!("manual reload"),
         },
-        ScreenDetector::load(work.root.as_deref(), updating::remote_cache(&work.source)),
+        ScreenDetector::load(
+            work.root.as_deref(),
+            updating::remote_cache(work.root.as_deref(), &work.source),
+        ),
         |next| {
             installed = next;
             Ok(())

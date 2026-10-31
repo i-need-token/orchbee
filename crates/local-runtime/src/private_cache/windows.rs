@@ -182,6 +182,16 @@ impl PrivateCache {
         }
         result
     }
+    /// Removes one admitted leaf under the writer lock; an absent leaf is already removed.
+    pub fn remove(&mut self, name: &str) -> io::Result<()> {
+        let target = self.leaf(name)?;
+        match permissions::open_file(&target, false, false) {
+            Ok(file) => drop(file),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error),
+        }
+        fs::remove_file(target)
+    }
     fn leaf(&self, name: &str) -> io::Result<PathBuf> {
         cache_leaf(&self.path, name)
     }
