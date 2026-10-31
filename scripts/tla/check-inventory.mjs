@@ -5,12 +5,14 @@ import { checkSteps } from '../run-checks.mjs';
 import {
 	assertInputAdmission,
 	assertTriggerExclusionAdmission,
+	assertTriggersMatchTrackedFiles,
 	applyConfigConstants,
 	inventoryInputPaths,
 	inventoryPath,
 	inventoryTestPaths,
 	repositoryRoot,
 	toolingCommand,
+	trackedFiles,
 	validateInventory,
 } from './model-inventory.mjs';
 import { validateDocumentScope, validateToolingWorkflow } from './document-scopes.mjs';
@@ -20,6 +22,7 @@ await assertInputAdmission(inventoryInputPaths(inventory));
 await assertTriggerExclusionAdmission(
 	inventory.models.flatMap((model) => model.triggerExclusions ?? []),
 );
+assertTriggersMatchTrackedFiles(inventory, await trackedFiles());
 
 async function requireFile(repositoryPath) {
 	try {

@@ -113,7 +113,8 @@ stdout/stderr 证据仍然可用。
   Unicode 字符；末尾未终止的片段补上换行。每条流等待目标写入完成后才继续转发，
   因而慢速目标不会导致输出队列无限增长。
 - 包装层异步执行子进程并继承现有进程组。未捕获的单项检查继承 stdin；捕获输出或并行管道
-  检查忽略 stdin。不引入重试、超时、后台执行或取消监督器。
+  检查忽略 stdin。不引入重试、超时、后台执行或取消监督器；期限由拥有它的检查命令负责，
+  例如 Knip 子进程和 Zig 测试。
   中断仍由现有终端/job 取消机制负责；只打印开始、没有结果不代表通过。
 
 执行模型是固定有序列表：启动一个阶段的成员，保留输出，分别记录各成员关闭时间，排空整组，
@@ -128,7 +129,7 @@ stdout/stderr 证据仍然可用。
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `format:check`            | Oxfmt 管理的文件与 `.oxfmtrc.json` 一致，并且 rustfmt 与每个应用自有原生 formatter 都接受其所属文件。                          |
 | `lint`                    | 代码、Rust workspace 与 Clippy、文档配对、样式、存储、架构、依赖、项目契约、体验目录、导出和清单规则全部通过。                 |
-| `test:tla:inventory`      | TLA+ 执行清单、产物登记、owner 命令、触发映射以及 runner 负向控制彼此一致。                                                    |
+| `test:tla:inventory`      | TLA+ 执行清单、产物登记、owner 命令、触发映射以及 runner 负向控制彼此一致；每个触发路径都匹配至少一个已跟踪文件。              |
 | `build`, `build:packages` | 共享库工作区生成 lint、类型检查、测试和导出检查消费的产物。                                                                    |
 | `build:full`              | 使用固定工具链和依赖，显式为本机构建每个可构建的 pnpm 与 Cargo 工作区。                                                        |
 | `typecheck`               | 每个具有 TypeScript 契约的工作区都满足该契约。                                                                                 |
@@ -150,6 +151,15 @@ stdout/stderr 证据仍然可用。
 - Rust lint 任务运行两遍 Clippy：先以全部 feature 检查每个 target，再以默认 feature 检查每个 member
   的库和二进制 target。`--all-targets` 下开发依赖会重新启用 test-support feature，因此只有第二遍按
   产品 feature 集编译，并报告 release 构建会产生的警告，例如只有 test-support 代码读取的导入。
+- Terminal Host 的 Zig 测试受两层期限约束，否则一个挂起的测试会让 `pnpm verify` 无限期卡住。
+  Zig 的 `--test-timeout 120s` 限制每个单元测试，按名称报告挂起的测试，并继续运行下一个；
+  最慢的测试二进制总耗时不超过 18 秒，因此该上限留有六倍以上余量。20 分钟期限限制整个
+  `zig build test` 运行，包括编译和 Zig 测试 runner 之外的原生见证。一次冷运行耗时 3.7 分钟，
+  热运行耗时 41 秒，因此该上限留有冷运行五倍以上的余量；它也低于 CI `terminal-host-native`
+  Job 的 30 分钟限制，因此门禁会在 CI 取消 Job 之前给出报告。测量环境：Windows 11 x64、
+  Zig 0.16.0，2026-10-31。期限到达时，runner 列出仍在运行的测试二进制和本次运行启动的进程树，
+  只终止该进程树，并以退出码 124 失败。任一超时都使该阶段失败，绝不算作通过或跳过。修改任一
+  上限前先重新测量。
 - 原生交叉编译检查只证明源码和依赖可为已声明目标编译；平台行为仍然需要原生 runner。
 - `verify:rust-native` 复用 `lint` 与 `test` 中相同的 Rust runner 任务和原生测试准备，自身不新增步骤，
   因此 Windows 本机门禁和 Windows CI Job 不会与 Linux 根门禁漂移。修改受平台条件编译约束的 Rust
@@ -212,4 +222,4 @@ stdout/stderr 证据仍然可用。
 | 变更前         | 先测量瓶颈。                                                           |
 | 全局策略检查   | 即使包任务改为仅运行受影响项，也保留显式输入。                         |
 
-<!-- documentation-pairing: english-sha256=b4413622806f0a94a8fb612a2e8b2dd65c272fc4ac88e70da829a7e86d92d282 zh-cn-sha256=778417508d5342ca4217a6006802751223cfc63bfce22bbf3905e5016873eafe -->
+<!-- documentation-pairing: english-sha256=65f8087783d988aa5a2d03e877a4ece30f073b41aad34600e332ca9e435e1f60 zh-cn-sha256=d275d9b3ff234ce9b5d54dc15ffd6c2e20e76e1ca245b4be096a5f6cf6a463cc -->

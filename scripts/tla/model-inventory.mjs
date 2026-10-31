@@ -97,7 +97,7 @@ export async function assertInputAdmission(paths, revision) {
 
 export async function assertTriggerExclusionAdmission(paths) {
 	if (paths.length === 0) return;
-	const tracked = new Set((await runGitText(['ls-files', '--cached', '-z'])).split('\0'));
+	const tracked = new Set(await trackedFiles());
 	for (const excluded of paths) {
 		assert(tracked.has(excluded), `TLA trigger exclusion must be tracked: ${excluded}`);
 		const stat = await lstat(path.join(repositoryRoot, excluded));
@@ -455,13 +455,35 @@ export function validateInventory(inventory) {
 	return inventory;
 }
 
-export function globMatches(pattern, candidate) {
+function globExpression(pattern) {
 	const escaped = pattern.replaceAll(/[.+?^${}()|[\]\\]/gu, '\\$&');
 	const expression = escaped
 		.replaceAll('**', '\u0000')
 		.replaceAll('*', '[^/]*')
 		.replaceAll('\u0000', '.*');
-	return new RegExp(`^${expression}$`, 'su').test(candidate);
+	return new RegExp(`^${expression}$`, 'su');
+}
+
+export function globMatches(pattern, candidate) {
+	return globExpression(pattern).test(candidate);
+}
+
+/** A trigger that matches no tracked file has gone stale: its owner moved or was deleted. */
+export function assertTriggersMatchTrackedFiles(inventory, tracked) {
+	const stale = [];
+	const check = (owner, trigger) => {
+		const expression = globExpression(trigger);
+		if (!tracked.some((file) => expression.test(file))) stale.push(`- ${owner}: ${trigger}`);
+	};
+	for (const trigger of inventory.sharedTriggers) check('sharedTriggers', trigger);
+	for (const model of inventory.models)
+		for (const trigger of model.triggers) check(model.id, trigger);
+	if (stale.length)
+		throw new Error(`TLA triggers must match at least one tracked file:\n${stale.join('\n')}`);
+}
+
+export async function trackedFiles() {
+	return (await runGitText(['ls-files', '--cached', '-z'])).split('\0').filter(Boolean);
 }
 
 // These are test entrypoints, never inputs to a TLC invocation. They still run in

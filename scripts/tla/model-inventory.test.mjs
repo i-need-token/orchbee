@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
 	applyConfigConstants,
 	assertRequiredCoverage,
+	assertTriggersMatchTrackedFiles,
 	globMatches,
 	inventoryPath,
 	parseStateReport,
@@ -183,6 +184,30 @@ test('inventory rejects malformed shared and model trigger paths before narrowin
 		}
 	}
 	assert.doesNotThrow(() => validateInventory(fixtureInventory()));
+});
+
+test('every shared and model trigger must match a tracked file', () => {
+	const inventory = fixtureInventory();
+	inventory.models[0].triggers.push('packages/example/src/presentation*');
+	const tracked = ['packages/example/src/model.ts', 'scripts/tla/run-models.mjs'];
+	assert.throws(
+		() => assertTriggersMatchTrackedFiles(inventory, tracked),
+		(error) =>
+			error.message.includes('- example: packages/example/src/presentation*') &&
+			!error.message.includes('packages/example/src/**'),
+	);
+	inventory.sharedTriggers.push('docs/MOVED.md');
+	assert.throws(
+		() => assertTriggersMatchTrackedFiles(inventory, tracked),
+		/- sharedTriggers: docs\/MOVED\.md/u,
+	);
+	assert.doesNotThrow(() =>
+		assertTriggersMatchTrackedFiles(inventory, [
+			...tracked,
+			'packages/example/src/presentation.ts',
+			'docs/MOVED.md',
+		]),
+	);
 });
 
 test('inventory validation allows one to eight model-local TLC workers and defaults by omission', () => {

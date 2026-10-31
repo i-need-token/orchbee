@@ -175,12 +175,10 @@
 				"apps/orchbee/crates/workbench-client/src/workbench_client/configuration*",
 				"apps/orchbee-server/src/local_terminal_service/configuration*",
 				"apps/orchbee-server/src/local_terminal_service/configuration/**",
-				"crates/local-runtime/src/user_settings/settings*",
-				"crates/local-runtime/src/user_settings/settings/**",
 				"crates/local-runtime/src/private_cache.rs",
 				"crates/local-runtime/src/private_cache/**",
 				"crates/workbench-protocol/src/command/settings.rs",
-				"packages/workbench-client-protocol/src/workbench-settings-contract.ts",
+				"packages/workbench-client-protocol/src/__tests__/conformance/workbench-settings-contract.ts",
 				"schemas/workbench/v1/workbench-settings*",
 				"apps/orchbee/docs/native-settings.zh-CN.md"
 			],
@@ -491,8 +489,7 @@
 			"claims": ["crates/local-runtime/README.md"],
 			"triggers": [
 				"crates/local-runtime/src/**",
-				"apps/orchbee/src/local_startup*",
-				"apps/orchbee/src/local_startup/**",
+				"apps/orchbee/src/local_startup**",
 				"apps/orchbee/crates/workbench-client/src/local_activation*",
 				"apps/orchbee/tests/local_startup*",
 				"apps/orchbee-server/src/local_worker_service*",

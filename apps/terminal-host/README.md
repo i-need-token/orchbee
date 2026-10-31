@@ -328,6 +328,9 @@ This changes compilation/job scheduling only; all targets, tests, assertions, an
 the same, and the runtime protocol is unchanged. This bounds inherited-pipe risk; it does not
 establish the cause of every runner timeout. Review the limit when the pinned spawn implementation
 restricts child handle inheritance.
+`scripts/run-zig-tests.mjs` runs that Zig build under the per-test and whole-run deadlines in
+[Verification](../../docs/VERIFICATION.md#required-tasks). A timeout lists the test binaries still
+running, terminates only the processes that run started, and fails the command.
 The generated cross-language selection cases admit only `plain` and require HTML/raw VT requests to
 fail strict decoding; `terminal-parity/HS-07-selection-export` adds the real-PTY/Electron clipboard
 consequence from the owning application system suite.

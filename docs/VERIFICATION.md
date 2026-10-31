@@ -143,7 +143,8 @@ always fail. Its separately retained stdout/stderr evidence remains available in
   forwarding more, so slow destinations cannot cause unbounded queued output.
 - The wrapper uses asynchronous child execution and inherits the existing process group.
   Uncaptured single checks inherit stdin; captured or concurrently piped checks ignore stdin. It
-  introduces no retry, timeout, background execution, or cancellation supervisor. Existing
+  introduces no retry, timeout, background execution, or cancellation supervisor; a deadline
+  belongs to the check command that owns it, such as the Knip children and Zig tests. Existing
   terminal/job cancellation still owns interruption; a printed start without a result is not a pass.
 
 The execution model is a fixed ordered list: start a stage's members, retain their output, record
@@ -161,7 +162,7 @@ results remain unchanged.
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `format:check`            | Oxfmt-managed files match `.oxfmtrc.json`, and rustfmt plus every application-owned native formatter accepts its owned files.                                                                    |
 | `lint`                    | Code, Rust workspace and Clippy, documentation pairing, style, storage, architecture, dependency, project-contract, experience-catalog, export, and manifest rules pass.                         |
-| `test:tla:inventory`      | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree.                                                                        |
+| `test:tla:inventory`      | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree; every trigger matches a tracked file.                                  |
 | `build`, `build:packages` | Shared library workspaces produce the artifacts consumed by lint, type checking, tests and export checks.                                                                                        |
 | `build:full`              | Explicitly build every buildable pnpm and Cargo workspace for the host with its pinned toolchain and dependencies.                                                                               |
 | `typecheck`               | Every workspace with a TypeScript contract satisfies it.                                                                                                                                         |
@@ -186,6 +187,17 @@ results remain unchanged.
   test-support features under `--all-targets`, so only the second pass compiles the product feature
   set and reports the warnings a release build would emit, such as imports that only test-support
   code reads.
+- The Terminal Host Zig tests run under two deadlines, because one hung test otherwise stalls
+  `pnpm verify` indefinitely. Zig's `--test-timeout 120s` bounds each unit test, reports a hung test
+  by name, and continues with the next one; the slowest test binary took at most 18 s in total, so
+  the bound leaves more than six times that. A 20-minute deadline bounds the whole `zig build test`
+  run, including compilation and the native witnesses outside Zig's test runner. A cold run took
+  3.7 minutes and a warm run 41 seconds, so the bound leaves over five times the cold run, and it
+  stays below the 30-minute `terminal-host-native` CI job limit so the gate reports before CI
+  cancels the job. Measurements: Windows 11 x64, Zig 0.16.0, 2026-10-31. On expiry the runner lists
+  the test binaries still running and the process tree that run started, terminates only that tree,
+  and fails with exit 124. Either timeout fails the stage, never passes or skips it. Remeasure
+  before changing either bound.
 - Native cross-compilation checks prove source and dependency compilation for the declared target;
   platform behavior still requires a native runner.
 - `verify:rust-native` reuses the same Rust runner tasks and native test preparation as `lint` and
