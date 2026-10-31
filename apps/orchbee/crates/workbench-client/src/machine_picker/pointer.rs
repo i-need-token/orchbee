@@ -47,6 +47,7 @@ impl Picker {
     }
 
     /// Moves at most one painted viewport and returns its replacement witness.
+    /// The selection never moves; the next key returns the viewport to it.
     /// Stale geometry and edge movement fail closed without retaining work.
     pub(crate) fn scroll_drawn_picker(
         &mut self,
@@ -69,13 +70,7 @@ impl Picker {
             return None;
         }
         self.top = top;
-        if window.total > 0 {
-            self.selected = self.selected.clamp(
-                top,
-                top.saturating_add(window.capacity.saturating_sub(1))
-                    .min(window.total - 1),
-            );
-        }
+        self.wheel_capacity = Some(window.capacity);
         source.drawn_list(SidebarWindow { top, ..window })
     }
 }

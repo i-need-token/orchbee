@@ -285,6 +285,9 @@ pub struct Picker {
     pending_navigation: Option<Navigation>,
     selected: usize,
     top: usize,
+    /// The painted list capacity while a wheel step owns the viewport; `None`
+    /// while the window follows the selection.
+    wheel_capacity: Option<usize>,
 }
 impl Default for Picker {
     fn default() -> Self {
@@ -339,6 +342,7 @@ impl Default for Picker {
             pending_navigation: None,
             selected: 0,
             top: 0,
+            wheel_capacity: None,
         }
     }
 }
@@ -438,7 +442,7 @@ impl Picker {
         let total = self.visible_rows().len();
         let maximum = total.saturating_sub(capacity);
         let mut top = self.top.min(maximum);
-        if capacity > 0 {
+        if capacity > 0 && self.wheel_capacity.is_none() {
             if self.selected < top {
                 top = self.selected;
             } else if self.selected >= top.saturating_add(capacity) {
@@ -561,6 +565,7 @@ impl Picker {
         self.pending_navigation = None;
         self.selected = 0;
         self.top = 0;
+        self.wheel_capacity = None;
         self.error = None;
     }
     fn toggle_mode(&mut self) {
@@ -649,6 +654,7 @@ impl Picker {
         self.leave_sidebar_navigation();
         self.open = true;
         self.error = None;
+        self.wheel_capacity = None;
         self.selected = self
             .visible_rows()
             .iter()
@@ -707,6 +713,7 @@ impl Picker {
             return;
         }
         self.pending_navigation = None;
+        let hidden = self.reveal_selection();
         let (code, mods) = key.normalized();
         if code == KeyCode::Char('y') && mods == Modifiers::CTRL {
             self.copy_id_request = self.row_id(self.selected).map(str::to_owned);
@@ -725,7 +732,9 @@ impl Picker {
             return;
         }
         if code == KeyCode::Char('m') && mods == Modifiers::CTRL {
-            self.choose(self.selected);
+            if !hidden {
+                self.choose(self.selected);
+            }
             return;
         }
         if mods != Modifiers::NONE {
@@ -745,9 +754,21 @@ impl Picker {
             }
             KeyCode::Home => self.selected = 0,
             KeyCode::End => self.selected = self.visible_rows().len().saturating_sub(1),
-            KeyCode::Enter => self.choose(self.selected),
+            KeyCode::Enter if !hidden => self.choose(self.selected),
             _ => {}
         }
+    }
+
+    /// Returns the viewport to the selection after a wheel step. True when the
+    /// selection was outside that painted viewport, so this key only reveals it.
+    fn reveal_selection(&mut self) -> bool {
+        let Some(capacity) = self.wheel_capacity.take() else {
+            return false;
+        };
+        let top = self
+            .top
+            .min(self.visible_rows().len().saturating_sub(capacity));
+        !(top..top.saturating_add(capacity)).contains(&self.selected)
     }
     fn choose(&mut self, index: usize) {
         if let Some(row) = self.visible_rows().get(index) {

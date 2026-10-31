@@ -231,7 +231,10 @@ Agent evaluation basis and ordered stable selections; the list scroll target als
 carries the exact painted window. Only a successful terminal draw publishes that
 map. Release and each bounded wheel step revalidate the source against live state;
 a changed episode, query, filter, order or catalog fails closed, while copy, status,
-theme and pointer-only refreshes do not change semantic authority. Explicit
+theme and pointer-only refreshes do not change semantic authority. List wheel moves
+only the viewport and never changes the selection; the next key returns the viewport
+to the selection, and `Enter` accepts only a selection inside the painted viewport,
+so an `Enter` after scrolling it away only reveals it. Explicit
 selection waits at most 60 seconds for a fresh observer, reuses its admitted origin
 on a logical lane of the same carrier, and commits only a drawable candidate. Selection
 failure, expiry or Escape preserves the current surface. Escape cancels the

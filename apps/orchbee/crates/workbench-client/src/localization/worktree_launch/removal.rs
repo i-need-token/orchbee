@@ -14,6 +14,9 @@ impl Locale {
     }
     pub(crate) fn worktree_remove_scope(self, terminals: usize) -> String {
         match self {
+            Self::EnUs if terminals == 1 => {
+                "Remove this checkout and close its Workspace and its 1 terminal.".to_owned()
+            }
             Self::EnUs => format!(
                 "Remove this checkout and close its Workspace and all {terminals} terminals."
             ),

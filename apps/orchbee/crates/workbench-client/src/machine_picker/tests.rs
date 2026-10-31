@@ -126,6 +126,57 @@ fn picker_wheel_is_regional_bounded_reversible_and_keyboard_can_resume() {
 }
 
 #[test]
+fn picker_wheel_moves_only_the_viewport_and_enter_waits_for_a_painted_selection() {
+    let mut picker = Picker {
+        available: true,
+        ..Picker::default()
+    };
+    picker.replace(
+        &(1..=14)
+            .map(|n| profile(n, "same", true))
+            .collect::<Vec<_>>(),
+    );
+    picker.show();
+    assert_eq!(picker.visible_rows().len(), 15);
+    assert_eq!(picker.selected(), 0);
+    let source = picker.picker_source().unwrap();
+    let initial = source.drawn_list(picker.picker_window(13)).unwrap();
+    let scrolled = picker.scroll_drawn_picker(&initial, false, 3).unwrap();
+    assert_eq!(scrolled.window().top, 2);
+    assert_eq!(
+        picker.selected(),
+        0,
+        "the wheel never changes the selection"
+    );
+    assert_eq!(picker.picker_window(13), scrolled.window());
+
+    picker.key(KeyEvent::press(KeyCode::Enter, Modifiers::NONE));
+    assert!(
+        picker.request.is_none(),
+        "Enter does not accept a selection outside the painted viewport"
+    );
+    assert_eq!(
+        picker.picker_window(13).top,
+        0,
+        "Enter reveals the selection"
+    );
+    picker.key(KeyEvent::press(KeyCode::Enter, Modifiers::NONE));
+    assert!(picker.request.is_some());
+
+    picker.show();
+    let source = picker.picker_source().unwrap();
+    let initial = source.drawn_list(picker.picker_window(13)).unwrap();
+    picker.scroll_drawn_picker(&initial, false, 3).unwrap();
+    picker.key(KeyEvent::press(KeyCode::Down, Modifiers::NONE));
+    assert_eq!(picker.selected(), 1);
+    assert_eq!(
+        picker.picker_window(13).top,
+        1,
+        "navigation reveals the selection"
+    );
+}
+
+#[test]
 fn picker_categories_query_controls_and_close_are_visible_mouse_paths() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for (width, height) in [(38, 14), (80, 24), (120, 40)] {
