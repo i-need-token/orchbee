@@ -240,6 +240,14 @@ impl ClientView {
         }
     }
 
+    /// The navigation hold keeps the last flushed frame only while nothing new must be seen.
+    /// Shortcut help, a notification, or a one-shot notice such as dropped input renders now.
+    pub fn permits_navigation_hold(&self) -> bool {
+        self.overlay() != Some(Overlay::ShortcutHelp)
+            && self.notifications.empty()
+            && self.notice.is_none()
+    }
+
     pub(crate) const fn notice(&self) -> Option<Notice> {
         if self.notice.is_some() {
             return self.notice;

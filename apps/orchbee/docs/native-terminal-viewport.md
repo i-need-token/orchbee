@@ -314,8 +314,11 @@ the newly selected Tab is attaching without a live frame. The shell does not pai
 automatic Tab name or connection placeholder; the first staged live frame replaces the old shell
 in one draw. The previous hit map is invalidated and the existing first-frame input gate remains
 in force. Non-frame poll replies continue settling during this hold, without acknowledging any
-unpainted frame. Resize, capturing surfaces, notifications, stable unavailability and failures
-render normally; the existing attachment deadline bounds the wait.
+unpainted frame. Resize, capturing surfaces, notifications, one-shot notices, stable unavailability
+and failures render normally; the existing attachment deadline bounds the wait. The gate keeps
+no type-ahead buffer: a later frame cannot become the owner of keys already dispatched. Typing
+before the selected terminal admits input is not sent, and its input-unavailable notice ends the
+hold so the refusal is visible when it happens.
 Once the first live frame is visible, its pending draw acknowledgement alone does not display a
 connection status footer.
 

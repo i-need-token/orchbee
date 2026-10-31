@@ -714,3 +714,18 @@ fn prefix_tab_toggles_sidebar_focus_without_activating_a_workspace() {
         assert!(!view.prefix_active());
     }
 }
+
+#[test]
+fn dropped_input_notice_ends_the_navigation_hold() {
+    let mut view = ClientView::new(120);
+    assert!(view.permits_navigation_hold());
+    view.configuration_warning(true);
+    assert!(
+        view.permits_navigation_hold(),
+        "a persistent warning was already visible before navigation"
+    );
+    // Typing while the new selection has no live frame is refused; the refusal must paint now.
+    view.report_terminal_input_unavailable();
+    assert_eq!(view.notice(), Some(Notice::TerminalInputUnavailable));
+    assert!(!view.permits_navigation_hold());
+}

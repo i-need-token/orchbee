@@ -1048,9 +1048,7 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         };
         crate::tui_composition::project_capture(client_capture_claims(view), native_claims)
     };
-    let allow_defer = capture_owner.is_none()
-        && view.overlay() != Some(crate::client_view::Overlay::ShortcutHelp)
-        && view.notifications.empty();
+    let allow_defer = capture_owner.is_none() && view.permits_navigation_hold();
     if surface.prepare_draw(terminal.get_frame().area(), allow_defer) {
         // Pixels remain from the last successful frame, but its targets cannot authorize
         // actions against the newly selected terminal. No draw receipt is minted here.
