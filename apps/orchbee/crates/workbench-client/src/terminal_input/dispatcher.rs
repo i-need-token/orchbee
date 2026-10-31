@@ -2687,7 +2687,10 @@ impl InputDispatcher {
             }
             return;
         }
-        if matches!(context.stage, S::Remove | S::ResumeRemove) {
+        if matches!(
+            context.stage,
+            S::Remove | S::ResumeRemove | S::AbandonRemove
+        ) {
             match event {
                 ModalInputEvent::Submit => {
                     port.surface_action(SurfaceAction::Worktree(WorktreeAction::Submit(token)));

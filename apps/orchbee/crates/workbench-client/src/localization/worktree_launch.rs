@@ -42,6 +42,7 @@ pub(crate) enum WorktreeStage {
     Checkout,
     Remove,
     ResumeRemove,
+    AbandonRemove,
     Waiting,
     Result,
 }

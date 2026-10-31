@@ -257,12 +257,30 @@ fn render_form(
         lines.push(status_line(notice, notice_role(view.notice()), theme));
     }
     if let Some(progress) = view.removal_progress() {
-        lines.push(Line::from(
-            locale.worktree_remove_workspace_state(&progress.workspace),
-        ));
+        if let Some(workspace) = view.held_close() {
+            lines.push(Line::from(locale.worktree_remove_held_close()));
+            lines.push(description_line(
+                truncate_display(
+                    &format!(
+                        "orchbee workspace close {} --confirm",
+                        sanitize_terminal_text(workspace)
+                    ),
+                    budget,
+                    theme.glyphs.ellipsis,
+                ),
+                theme,
+            ));
+        } else {
+            lines.push(Line::from(
+                locale.worktree_remove_workspace_state(&progress.workspace),
+            ));
+        }
         if let Some(restoration) = &progress.restoration {
             lines.push(Line::from(locale.worktree_remove_restoration(restoration)));
         }
+    }
+    if stage == WorktreeStage::AbandonRemove {
+        lines.push(Line::from(locale.worktree_remove_abandon_notice()));
     }
     lines.extend([Line::from(""), Line::from(""), Line::from("")]);
 
@@ -271,6 +289,7 @@ fn render_form(
     let refresh = modal_key_label(theme, &Binding::new(KeyCode::Char('r'), Modifiers::NONE));
     let tab = modal_key_label(theme, &Binding::new(KeyCode::Tab, Modifiers::NONE));
     let clear = modal_key_label(theme, &Binding::new(KeyCode::Char('u'), Modifiers::CTRL));
+    let abandon = modal_key_label(theme, &Binding::new(KeyCode::Char('x'), Modifiers::NONE));
     let mut hints = Vec::new();
     match stage {
         WorktreeStage::Branch | WorktreeStage::Base => {
@@ -279,11 +298,18 @@ fn render_form(
                 super::controls::KeyHint::new(&clear, locale.setup_clear_hint()),
             ]);
         }
+        WorktreeStage::Result if view.can_abandon_remove() => {
+            hints.push(super::controls::KeyHint::new(
+                &abandon,
+                locale.worktree_remove_abandon_hint(),
+            ));
+        }
         WorktreeStage::Waiting
         | WorktreeStage::Result
         | WorktreeStage::Preparing
         | WorktreeStage::Remove
-        | WorktreeStage::ResumeRemove => {}
+        | WorktreeStage::ResumeRemove
+        | WorktreeStage::AbandonRemove => {}
         WorktreeStage::Checkout => unreachable!("checkout has its own picker surface"),
     }
     let cancel = ModalAction::new(
@@ -297,7 +323,10 @@ fn render_form(
             let resume = view.can_resume_remove();
             let label = locale.worktree_remove_submit(stage, resume);
             let action = ModalAction::new(label, super::controls::ActionKind::Primary, true);
-            return if confirming || resume {
+            // Abandon forgets only this Client's receipt, so it is not a destructive action.
+            return if stage == WorktreeStage::AbandonRemove {
+                action.with_shortcut(&enter)
+            } else if confirming || resume {
                 action
                     .with_shortcut(&enter)
                     .with_tone(crate::action_projection::ActionTone::Destructive)

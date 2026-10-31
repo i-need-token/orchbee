@@ -867,6 +867,47 @@ fn workspace_close_mailbox_preserves_observed_scope_and_original_cleanup_deadlin
 }
 
 #[test]
+fn closed_workspace_close_notice_expires_while_its_receipt_stays() {
+    use std::sync::atomic::Ordering;
+    for background in [false, true] {
+        let elapsed = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let (mut ui, mailbox, _, _) = ready_at(background, Arc::clone(&elapsed));
+        let lease = submit(&mut ui, &mailbox);
+        let QueuedCommand::Refresh(marker) = lease.record() else {
+            panic!("Close refresh");
+        };
+        let operation = marker.workspace_close().unwrap();
+        assert_eq!(
+            mailbox
+                .mark_refresh_in_flight(operation.generation)
+                .unwrap(),
+            MutationResult::Applied
+        );
+        assert!(mailbox.retain_workspace_close_result(operation, receipt(operation, true)));
+        let evidence = mailbox.workspace_close_worker_loss().unwrap();
+        assert!(ui.finalize_workspace_close_worker(Some(evidence)));
+        assert!(!ui.expire_status_notices(), "{background}");
+        elapsed.store(3999, Ordering::SeqCst);
+        assert!(!ui.expire_status_notices(), "{background}");
+        assert_eq!(
+            ui.view().workspace_close_status().unwrap().status(),
+            WorkspaceCloseStatus::Closed
+        );
+        elapsed.store(4000, Ordering::SeqCst);
+        assert!(ui.expire_status_notices(), "expiry schedules a redraw");
+        assert!(ui.view().workspace_close_status().is_none(), "{background}");
+        // Expiry retires only the notice; the receipt keeps its deadlines and fences.
+        assert_eq!(
+            ui.state.as_ref().unwrap().workspace_close_deadlines(),
+            Some(operation.deadlines)
+        );
+        elapsed.store(60_000, Ordering::SeqCst);
+        assert!(!ui.expire_status_notices(), "{background}");
+        assert!(ui.view().workspace_close_status().is_none(), "{background}");
+    }
+}
+
+#[test]
 fn workspace_close_mailbox_keeps_admission_before_the_first_successful_read() {
     let (mut ui, mailbox, _, _) = ready();
     let lease = submit(&mut ui, &mailbox);

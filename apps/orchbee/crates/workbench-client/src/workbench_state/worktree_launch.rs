@@ -13,6 +13,7 @@ use orchbee_workbench_protocol::{
     WorktreeSource,
 };
 pub(crate) use origin::{Origin, Preparation};
+use removal::Recovery;
 pub(crate) use removal::Removal;
 
 pub(crate) use crate::localization::WorktreeMode;
@@ -69,7 +70,8 @@ enum Phase {
     Starting(Box<Plan>),
     Observing(Box<Operation>),
     Result(Box<Operation>),
-    ConfirmResume(Box<Operation>),
+    /// A retained removal result awaiting one explicit recovery decision.
+    Confirm(Box<Operation>, Recovery),
     Resuming(Box<Operation>),
 }
 pub(crate) struct Launcher {
@@ -411,7 +413,7 @@ impl Launcher {
             Phase::Starting(_)
                 | Phase::Observing(_)
                 | Phase::Result(_)
-                | Phase::ConfirmResume(_)
+                | Phase::Confirm(..)
                 | Phase::Resuming(_)
         );
         if accepted {
@@ -531,7 +533,7 @@ impl Launcher {
         match &self.phase {
             Phase::Observing(op)
             | Phase::Result(op)
-            | Phase::ConfirmResume(op)
+            | Phase::Confirm(op, _)
             | Phase::Resuming(op) => Some(op),
             _ => None,
         }
@@ -718,7 +720,7 @@ impl Launcher {
             }),
             Phase::Observing(op)
             | Phase::Result(op)
-            | Phase::ConfirmResume(op)
+            | Phase::Confirm(op, _)
             | Phase::Resuming(op) => Some(op.as_ref().clone()),
             _ => None,
         };

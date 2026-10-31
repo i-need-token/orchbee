@@ -1210,6 +1210,8 @@ pub(super) struct WorkbenchClientUi {
     capabilities: crate::tui_capabilities::Capabilities,
     notice_timer: crate::transient_notice::NoticeTimer<ClientNotice>,
     setup_notice_timer: crate::transient_notice::NoticeTimer<SetupStatus>,
+    /// Keyed by the Closed operation's generation; the receipt outlives the notice.
+    workspace_closed_timer: crate::transient_notice::NoticeTimer<u64>,
     focus_new_panel: bool,
     settings: settings::Coordinator,
     launch_profiles: launch_profiles::Coordinator,
@@ -1350,6 +1352,7 @@ impl WorkbenchClientUi {
             settings: settings::Coordinator::new(capabilities.login_shell),
             notice_timer: Default::default(),
             setup_notice_timer: Default::default(),
+            workspace_closed_timer: Default::default(),
             focus_new_panel: true,
             launch_profiles: launch_profiles::Coordinator::default(),
             preferences: orchbee_workbench_protocol::UserPreferencesValues::default(),
@@ -2928,15 +2931,20 @@ impl WorkbenchClientUi {
         let setup = state
             .setup_status()
             .filter(|status| status_text::setup_status_transient(*status));
+        let closed = state.closed_workspace_close_notice();
         let notice_expired = self.notice_timer.expired(notice, now);
         let setup_expired = self.setup_notice_timer.expired(setup, now);
+        let closed_expired = self.workspace_closed_timer.expired(closed, now);
         if notice_expired {
             state.clear_notice();
         }
         if setup_expired {
             state.clear_settled_setup_status();
         }
-        notice_expired || setup_expired
+        if closed_expired {
+            state.retire_closed_workspace_close_notice();
+        }
+        notice_expired || setup_expired || closed_expired
     }
 
     fn clear_notice(&mut self) {

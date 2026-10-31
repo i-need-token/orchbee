@@ -171,8 +171,9 @@ Empty, unconfigured Workspace. The path is an existing absolute directory; no sh
 filesystem creation or home fallback occurs. Directory acceptance alone does not launch a shell.
 The Empty-workbench guidance keeps the directory as a localized fact and renders the configured
 effective Workspace Directory or Create Tab chord through the shared key-hint component only while
-no capture owner is active. The menu and draft share the same pure admission query for configured,
-nonempty, absent and busy targets.
+no capture owner is active. Its label is the action's shortcut-help title. Empty guidance appears
+only for a connected Client, so it never repeats the help table's connection qualifier. The menu and
+draft share the same pure admission query for configured, nonempty, absent and busy targets.
 
 [Location label editing](native-location-labels.md) owns Workspace and Project rename. Labels are
 editable presentation, never selection or execution identity. Bare Windows

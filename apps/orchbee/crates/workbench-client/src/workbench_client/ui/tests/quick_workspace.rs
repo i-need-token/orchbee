@@ -538,7 +538,7 @@ fn no_workspace_screen_keeps_content_blank_and_creation_controls_available_acros
 #[test]
 fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_only_for_the_latter() {
     use crate::{
-        client_view::{ClientView, KeyCode, KeyEvent, Modifiers, PrefixDesc, PrefixInput},
+        client_view::{ClientView, KeyCode, KeyEvent, Modifiers, PrefixInput},
         localization::Locale,
         tui_hit_map::HitMapBuilder,
         tui_theme::Theme,
@@ -615,9 +615,9 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
             let main_text = rendered_area(buffer, main);
             let status_text = rendered_area(buffer, areas.status);
             let label = if canonical {
-                (locale.shell().prefix_desc)(PrefixDesc::CreateTab)
+                locale.shortcut_label(crate::localization::ShortcutLabel::NewTab)
             } else {
-                locale.status().create_workspace
+                locale.status().create_workspace.to_owned()
             };
             assert_eq!(
                 main_text.contains(&format!("Ctrl+a n {label}")),

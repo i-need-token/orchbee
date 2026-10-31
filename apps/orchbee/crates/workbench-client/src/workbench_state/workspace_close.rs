@@ -270,6 +270,8 @@ pub(super) struct WorkspaceCloseState {
     evidence: Option<WorkspaceCloseEvidence>,
     automatic_landing: Option<ClosedLanding>,
     show_pending: bool,
+    /// The settled Closed result is a one-shot notice; retiring it keeps the evidence.
+    closed_notice_retired: bool,
 }
 
 /// Display continuity for one validated removal install, never navigation or input authority.
@@ -612,6 +614,7 @@ impl WorkbenchClientState {
         self.workspace_close.evidence = None;
         self.workspace_close.automatic_landing = None;
         self.workspace_close.show_pending = false;
+        self.workspace_close.closed_notice_retired = false;
         self.adopt_publication_debt();
     }
     pub(crate) fn tick_workspace_close_pending(&mut self, sampled: Instant) -> bool {
@@ -685,6 +688,9 @@ impl WorkbenchClientState {
     }
     pub(crate) fn workspace_close_status(&self) -> Option<WorkspaceCloseStatusView<'_>> {
         if let Some(evidence) = &self.workspace_close.evidence {
+            if evidence.result.is_closed() && self.workspace_close.closed_notice_retired {
+                return None;
+            }
             if evidence.result.is_closed()
                 && self.cache.location() != evidence.operation.baseline.location()
                 && !self
@@ -725,6 +731,24 @@ impl WorkbenchClientState {
         })
     }
 
+    /// Identifies the visible Closed notice so its one-shot lifetime survives repaint and landing.
+    pub(crate) fn closed_workspace_close_notice(&self) -> Option<u64> {
+        self.workspace_close_status()
+            .filter(|status| status.status() == WorkspaceCloseStatus::Closed)
+            .map(|status| status.operation.generation)
+    }
+    /// Ends only the Closed notice; the receipt and its fences stay with the operation.
+    pub(crate) fn retire_closed_workspace_close_notice(&mut self) {
+        if self
+            .workspace_close
+            .evidence
+            .as_ref()
+            .is_some_and(|evidence| evidence.result.is_closed())
+        {
+            self.workspace_close.closed_notice_retired = true;
+        }
+    }
+
     pub(super) fn record_workspace_close_landing(
         &mut self,
         permit: Option<&ContextRemovalPermit>,
@@ -735,25 +759,25 @@ impl WorkbenchClientState {
             return;
         }
         // Every later cross-context install, including manual navigation, retires the
-        // prior display witness. Returning to that location cannot revive it.
-        self.workspace_close.automatic_landing = None;
-        let Some(permit) = permit else {
-            return;
-        };
-        let Some(evidence) = self.workspace_close.evidence.as_ref().filter(|evidence| {
-            evidence.result.is_closed()
-                && generation == Some(evidence.operation.generation)
-                && permit.generation() == evidence.operation.generation
-                && permit.removed() == evidence.operation.baseline.location()
-                && permit.authorizes(&self.cache, candidate)
-        }) else {
-            return;
-        };
-        self.workspace_close.automatic_landing = Some(ClosedLanding {
-            request_id: evidence.operation.request_id.clone(),
-            generation: evidence.operation.generation,
-            location: candidate.location().clone(),
+        // prior display witness and its Closed notice. Returning to that location cannot
+        // revive either; only the validated automatic landing keeps the notice.
+        self.workspace_close.automatic_landing = permit.and_then(|permit| {
+            let evidence = self.workspace_close.evidence.as_ref().filter(|evidence| {
+                evidence.result.is_closed()
+                    && generation == Some(evidence.operation.generation)
+                    && permit.generation() == evidence.operation.generation
+                    && permit.removed() == evidence.operation.baseline.location()
+                    && permit.authorizes(&self.cache, candidate)
+            })?;
+            Some(ClosedLanding {
+                request_id: evidence.operation.request_id.clone(),
+                generation: evidence.operation.generation,
+                location: candidate.location().clone(),
+            })
         });
+        if self.workspace_close.automatic_landing.is_none() {
+            self.retire_closed_workspace_close_notice();
+        }
     }
 }
 

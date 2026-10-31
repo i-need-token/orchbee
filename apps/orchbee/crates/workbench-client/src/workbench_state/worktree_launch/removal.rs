@@ -4,7 +4,7 @@ use super::{Launcher, Operation, Phase, Plan, WorktreeNotice, WorktreeToken, Wor
 use orchbee_workbench_protocol::{
     MAXIMUM_WORKTREE_OPERATION_ATTEMPTS, WorkbenchDirectoryPath, WorkbenchRequestId,
     WorkbenchWorkspaceId, WorkbenchWorktreeOutcome, WorktreeEntryText, WorktreeOperationFailure,
-    WorktreeOperationStatus, WorktreeProgress,
+    WorktreeOperationStatus, WorktreeProgress, WorktreeWorkspaceDisposition,
 };
 
 /// The Workspace directory and complete terminal scope shown before destructive submission.
@@ -89,16 +89,55 @@ fn resumable(op: &Operation) -> bool {
                 && progress.restoration.as_ref().is_none_or(|receipt| receipt.unknown == 0)))
 }
 
+/// The explicit decision a retained removal result is waiting for.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Recovery {
+    /// Send one Resume for the failed attempt.
+    Resume,
+    /// Forget the local receipt; Server work and its status remain.
+    Abandon,
+}
+
 impl Launcher {
-    pub(crate) fn prepare_remove_resume(&mut self, token: WorktreeToken) -> bool {
+    /// Close keeps these settled receipts so W, O or the sidebar can reopen their recovery.
+    pub(crate) fn retains_removal(&self) -> bool {
+        matches!(&self.phase, Phase::Result(op) if op.plan.removal.is_some()
+            && (self.notice == WorktreeNotice::Unknown
+                || (matches!(self.notice, WorktreeNotice::Failed | WorktreeNotice::NotSubmitted)
+                    && resumable(op))))
+    }
+
+    /// A settled removal receipt has no local recovery left once its Workspace is
+    /// absent from the canonical snapshot, so it never blocks a new request.
+    pub(crate) fn forget_stale_removal(
+        &mut self,
+        snapshot: &orchbee_workbench_protocol::Snapshot,
+    ) -> bool {
+        if !matches!(&self.phase, Phase::Result(op) if op.plan.removal.as_ref().is_some_and(
+            |target| snapshot.navigation.workspace(&target.workspace_id).is_none()))
+        {
+            return false;
+        }
+        self.forget_terminal();
+        self.shown = None;
+        self.input_frame_live = false;
+        true
+    }
+
+    fn prepare_recovery(&mut self, token: WorktreeToken, recovery: Recovery) -> bool {
+        let eligible = match recovery {
+            Recovery::Resume => {
+                matches!(
+                    self.notice,
+                    WorktreeNotice::Failed | WorktreeNotice::NotSubmitted
+                ) && matches!(&self.phase, Phase::Result(op) if resumable(op))
+            }
+            Recovery::Abandon => self.retains_removal(),
+        };
         if self.token() != Some(token)
             || self.shown != Some(token)
             || !self.presentation.interactive()
-            || !matches!(
-                self.notice,
-                WorktreeNotice::Failed | WorktreeNotice::NotSubmitted
-            )
-            || !matches!(&self.phase, Phase::Result(op) if resumable(op))
+            || !eligible
             || self.advance_token().is_none()
         {
             return false;
@@ -106,8 +145,16 @@ impl Launcher {
         let Phase::Result(op) = std::mem::replace(&mut self.phase, Phase::Idle) else {
             return false;
         };
-        self.phase = Phase::ConfirmResume(op);
+        self.phase = Phase::Confirm(op, recovery);
         true
+    }
+
+    pub(crate) fn prepare_remove_resume(&mut self, token: WorktreeToken) -> bool {
+        self.prepare_recovery(token, Recovery::Resume)
+    }
+
+    pub(crate) fn prepare_remove_abandon(&mut self, token: WorktreeToken) -> bool {
+        self.prepare_recovery(token, Recovery::Abandon)
     }
 
     pub(crate) fn confirm_remove_resume(&mut self, token: WorktreeToken) -> Option<(Plan, u32)> {
@@ -117,14 +164,14 @@ impl Launcher {
         {
             return None;
         }
-        let Phase::ConfirmResume(op) = &self.phase else {
+        let Phase::Confirm(op, Recovery::Resume) = &self.phase else {
             return None;
         };
         if !resumable(op) {
             return None;
         }
         let result = (op.plan.clone(), op.attempt);
-        let Phase::ConfirmResume(mut op) = std::mem::replace(&mut self.phase, Phase::Idle) else {
+        let Phase::Confirm(mut op, _) = std::mem::replace(&mut self.phase, Phase::Idle) else {
             return None;
         };
         op.focus_allowed = false;
@@ -133,11 +180,27 @@ impl Launcher {
         Some(result)
     }
 
-    pub(crate) fn cancel_remove_resume(&mut self) -> bool {
-        if !matches!(self.phase, Phase::ConfirmResume(_)) {
+    /// Forgets only this Client's receipt; `orchbee worktree status` still reads the operation.
+    pub(crate) fn confirm_remove_abandon(&mut self, token: WorktreeToken) -> bool {
+        if self.token() != Some(token)
+            || self.shown != Some(token)
+            || !self.presentation.interactive()
+            || !matches!(self.phase, Phase::Confirm(_, Recovery::Abandon))
+        {
             return false;
         }
-        let Phase::ConfirmResume(op) = std::mem::replace(&mut self.phase, Phase::Idle) else {
+        self.phase = Phase::Idle;
+        self.visible = false;
+        self.shown = None;
+        self.input_frame_live = false;
+        true
+    }
+
+    pub(crate) fn cancel_remove_recovery(&mut self) -> bool {
+        if !matches!(self.phase, Phase::Confirm(..)) {
+            return false;
+        }
+        let Phase::Confirm(op, _) = std::mem::replace(&mut self.phase, Phase::Idle) else {
             return false;
         };
         self.phase = Phase::Result(op);
@@ -201,6 +264,25 @@ impl<'a> WorktreeView<'a> {
             self.launcher.notice,
             WorktreeNotice::Failed | WorktreeNotice::NotSubmitted
         ) && matches!(&self.launcher.phase, Phase::Result(op) if resumable(op))
+    }
+    /// A settled receipt that Close would retain can instead be explicitly abandoned.
+    pub(crate) fn can_abandon_remove(&self) -> bool {
+        self.launcher.retains_removal()
+    }
+    /// The Workspace a settled, nonresumable failure still holds closing.
+    pub(crate) fn held_close(&self) -> Option<&'a str> {
+        if self.launcher.notice != WorktreeNotice::Failed || self.can_resume_remove() {
+            return None;
+        }
+        self.removal_failure()?;
+        match &self.removal_progress()?.workspace {
+            WorktreeWorkspaceDisposition::Closing { workspace_id, .. } => {
+                Some(workspace_id.as_str())
+            }
+            WorktreeWorkspaceDisposition::Unassociated {}
+            | WorktreeWorkspaceDisposition::Open { .. }
+            | WorktreeWorkspaceDisposition::Closed { .. } => None,
+        }
     }
     /// Typed canonical failure; raw Git diagnostics stay outside product copy.
     pub(crate) fn removal_failure(&self) -> Option<&'a WorktreeOperationFailure> {

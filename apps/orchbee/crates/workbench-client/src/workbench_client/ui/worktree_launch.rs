@@ -16,6 +16,13 @@ use std::time::{Duration, Instant};
 mod entry;
 use entry::Entry;
 
+/// Each accepted Start, Resume or explicit read observes its operation for at most this long.
+const OBSERVATION_WINDOW: Duration = Duration::from_secs(120);
+/// Server publishes canonical changes only for Opened and Removed, so a pending status is
+/// re-read with this bounded backoff until it settles or its observation window ends.
+const FIRST_READ_DELAY: Duration = Duration::from_millis(250);
+const MAXIMUM_READ_DELAY: Duration = Duration::from_secs(2);
+
 /// Current token, field owner and exact remaining UTF-8 budget.
 #[derive(Clone, Copy)]
 pub(crate) struct WorktreeInputContext {
@@ -33,6 +40,8 @@ pub(super) struct Coordinator {
     changes: Option<crate::local_client::subscription::ChangeSubscription>,
     changes_dirty: bool,
     observation_until: Option<Instant>,
+    /// The last automatic read delay; zero restarts the backoff.
+    read_delay: Duration,
     entry: Option<Entry>,
     /// Absent until the first Server configuration snapshot is applied.
     configured_root: Option<ConfiguredRoot>,
@@ -42,6 +51,8 @@ impl Coordinator {
         if self.entry.is_some() {
             return false;
         }
+        self.launcher
+            .forget_stale_removal(origin.cache.canonical_snapshot());
         if !self.launcher.hidden_opened_result() && self.launcher.reopen() {
             return true;
         }
@@ -55,17 +66,21 @@ impl Coordinator {
         discovery: SidebarDiscovery,
         checkout: Option<&orchbee_workbench_protocol::WorkbenchDirectoryPath>,
     ) -> bool {
-        self.entry.is_none()
-            && self.launcher.open_sidebar(
-                origin,
-                discovery,
-                if checkout.is_some() {
-                    WorktreeMode::Open
-                } else {
-                    WorktreeMode::Create
-                },
-                checkout,
-            )
+        if self.entry.is_some() {
+            return false;
+        }
+        self.launcher
+            .forget_stale_removal(origin.cache.canonical_snapshot());
+        self.launcher.open_sidebar(
+            origin,
+            discovery,
+            if checkout.is_some() {
+                WorktreeMode::Open
+            } else {
+                WorktreeMode::Create
+            },
+            checkout,
+        )
     }
     pub(super) fn dismiss_focus(&mut self) {
         self.launcher.dismiss();
@@ -165,7 +180,7 @@ impl WorkbenchClientUi {
         else {
             return;
         };
-        self.worktrees.observation_until = Some(self.clock.now() + Duration::from_secs(120));
+        self.observe_worktree();
         self.submit_worktree_start(plan);
     }
 
@@ -195,6 +210,13 @@ impl WorkbenchClientUi {
         }
         if self.worktrees.entry.is_none() && self.worktrees.launcher.hidden_opened_result() {
             self.worktrees.launcher.forget_terminal();
+        }
+        if self.worktrees.entry.is_none()
+            && let Some(state) = self.state.as_ref()
+        {
+            self.worktrees
+                .launcher
+                .forget_stale_removal(state.cache().canonical_snapshot());
         }
         if self.worktrees.launcher.reopen() {
             return ClientActionDisposition::DismissNavigator;
@@ -272,8 +294,14 @@ impl WorkbenchClientUi {
         }
         let stage = self.worktrees.launcher.view().map(|v| v.stage());
         if matches!(stage, Some(WorktreeStage::Waiting | WorktreeStage::Result)) {
-            if matches!(edit, WorktreeEdit::Append("r") | WorktreeEdit::ReadStatus) {
-                self.worktrees.read_at = Some(self.clock.now());
+            match edit {
+                WorktreeEdit::Append("r") | WorktreeEdit::ReadStatus => {
+                    self.worktrees.read_at = Some(self.clock.now());
+                }
+                WorktreeEdit::Append("x") => {
+                    self.worktrees.launcher.prepare_remove_abandon(token);
+                }
+                _ => {}
             }
             return true;
         }
@@ -283,13 +311,19 @@ impl WorkbenchClientUi {
         if self.worktrees.launcher.token() != Some(token) {
             return;
         }
-        if self.worktrees.launcher.cancel_remove_resume() {
+        if self.worktrees.launcher.cancel_remove_recovery() {
             return;
         }
-        if self.worktrees.launcher.view().is_some_and(|view| {
-            view.can_resume_remove()
-                || (view.removal_target().is_some() && view.notice() == WorktreeNotice::Unknown)
-        }) {
+        if let Some(state) = self.state.as_ref()
+            && self
+                .worktrees
+                .launcher
+                .forget_stale_removal(state.cache().canonical_snapshot())
+        {
+            self.worktrees.entry = None;
+            return;
+        }
+        if self.worktrees.launcher.retains_removal() {
             self.worktrees.launcher.dismiss();
             return;
         }
@@ -325,11 +359,16 @@ impl WorkbenchClientUi {
         if self.worktrees.launcher.prepare_remove_resume(token) {
             return;
         }
+        if self.worktrees.launcher.confirm_remove_abandon(token) {
+            self.worktrees.entry = None;
+            self.worktrees.read_at = None;
+            return;
+        }
         if let Some((plan, expected_attempt)) = self.worktrees.launcher.confirm_remove_resume(token)
         {
             let operation = plan.operation_id.clone();
             self.worktrees.read_at = None;
-            self.worktrees.observation_until = Some(self.clock.now() + Duration::from_secs(120));
+            self.observe_worktree();
             if !self.issue_worktree(Action::Resume {
                 plan: Box::new(plan),
                 expected_attempt,
@@ -349,8 +388,31 @@ impl WorkbenchClientUi {
         let Some(plan) = self.worktrees.launcher.confirm(token, operation, &origin) else {
             return;
         };
-        self.worktrees.observation_until = Some(self.clock.now() + Duration::from_secs(120));
+        self.observe_worktree();
         self.submit_worktree_start(plan);
+    }
+    /// Starts one bounded observation window with a fresh read backoff.
+    fn observe_worktree(&mut self) {
+        self.worktrees.observation_until = Some(self.clock.now() + OBSERVATION_WINDOW);
+        self.worktrees.read_delay = Duration::ZERO;
+    }
+    /// Schedules the next automatic read while the observation window is open; an earlier
+    /// read requested by a change notification or the user is kept.
+    fn schedule_worktree_read(&mut self) {
+        if self.worktrees.observation_until.is_none() {
+            return;
+        }
+        let delay = if self.worktrees.read_delay.is_zero() {
+            FIRST_READ_DELAY
+        } else {
+            self.worktrees
+                .read_delay
+                .saturating_mul(2)
+                .min(MAXIMUM_READ_DELAY)
+        };
+        self.worktrees.read_delay = delay;
+        let at = self.clock.now() + delay;
+        self.worktrees.read_at = Some(self.worktrees.read_at.map_or(at, |current| current.min(at)));
     }
     fn worktree_request(&self) -> Option<WorkbenchRequestId> {
         self.mailbox.as_ref()?.allocate_workbench_request_id().ok()
@@ -430,7 +492,7 @@ impl WorkbenchClientUi {
         ) else {
             return false;
         };
-        self.worktrees.observation_until = Some(self.clock.now() + Duration::from_secs(120));
+        self.observe_worktree();
         self.submit_worktree_start(plan);
         true
     }
@@ -494,7 +556,9 @@ impl WorkbenchClientUi {
                         {
                             state.note_publication_hint();
                         }
-                        if !self.worktrees.launcher.pending() {
+                        if self.worktrees.launcher.pending() {
+                            self.schedule_worktree_read();
+                        } else {
                             self.worktrees.read_at = None;
                             if self.worktrees.launcher.notice() == WorktreeNotice::Opened {
                                 self.begin_worktree_entry(snapshot);
@@ -549,8 +613,7 @@ impl WorkbenchClientUi {
         {
             if let Some(plan) = self.worktrees.launcher.begin_read() {
                 if self.worktrees.observation_until.is_none() {
-                    self.worktrees.observation_until =
-                        Some(self.clock.now() + Duration::from_secs(120));
+                    self.observe_worktree();
                 }
                 if self.issue_worktree(Action::Read(Box::new(plan))) {
                     self.worktrees.changes_dirty = false;

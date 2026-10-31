@@ -560,7 +560,10 @@ fn dirty_removal_offers_resume_and_canceling_resume_restores_the_retained_result
         let (mut launcher, origin, _) = removal::fixture();
         let plan = confirm(&mut launcher, &origin).unwrap();
         assert!(launcher.start_settled(&plan.operation_id, Ok(removal::failure(1, true))));
-        let mut ui = ready(WorktreeMode::Open);
+        // The removal target is still a canonical Workspace, so its receipt stays recoverable.
+        let (mut ui, ..) = super::move_membership::ready_ui_with_snapshot(
+            origin.cache.canonical_snapshot().clone(),
+        );
         ui.worktrees.launcher = launcher;
         let text = draw(&mut ui, locale, 120, 40);
         let expected = match locale {
@@ -599,4 +602,365 @@ fn dirty_removal_offers_resume_and_canceling_resume_restores_the_retained_result
         );
         assert!(ui.mailbox.as_ref().unwrap().try_recv().unwrap().is_none());
     }
+}
+
+/// A failed removal of the fixture Workspace, accepted from a drawn confirmation.
+fn failed_removal(
+    outcome: orchbee_workbench_protocol::WorkbenchWorktreeOutcome,
+) -> (
+    crate::workbench_state::worktree_launch::Launcher,
+    crate::workbench_state::worktree_launch::Origin,
+    crate::workbench_state::worktree_launch::Plan,
+) {
+    use crate::workbench_state::worktree_launch::tests::{confirm, removal};
+    let (mut launcher, origin, _) = removal::fixture();
+    let plan = confirm(&mut launcher, &origin).unwrap();
+    assert!(launcher.start_settled(&plan.operation_id, Ok(outcome)));
+    (launcher, origin, plan)
+}
+
+/// Replaces the fixture failure reason and resumability, with the Workspace close held.
+fn removal_failure(
+    reason: orchbee_workbench_protocol::WorktreeOperationFailure,
+    resumable: bool,
+) -> orchbee_workbench_protocol::WorkbenchWorktreeOutcome {
+    use orchbee_workbench_protocol::{
+        WorkbenchWorkspaceId, WorkbenchWorktreeOutcome, WorktreeOperationStatus,
+        WorktreeWorkspaceDisposition,
+    };
+    let mut outcome =
+        crate::workbench_state::worktree_launch::tests::removal::failure(1, resumable);
+    let WorkbenchWorktreeOutcome::Available { status, .. } = &mut outcome else {
+        unreachable!("fixture failure is available")
+    };
+    let WorktreeOperationStatus::Failed {
+        reason: actual,
+        progress,
+        ..
+    } = status.as_mut()
+    else {
+        unreachable!("fixture failure is failed")
+    };
+    *actual = reason;
+    progress.workspace = WorktreeWorkspaceDisposition::Closing {
+        workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 80)).unwrap(),
+        close_request_id: WorkbenchRequestId::parse(&format!("{:032x}", 81)).unwrap(),
+    };
+    outcome
+}
+
+#[test]
+fn removal_failures_name_their_cause_and_a_dead_end_points_to_the_held_close() {
+    use orchbee_workbench_protocol::{
+        WorktreeGitError, WorktreeGitStage, WorktreeOperationFailure,
+    };
+    let git = |stage, error| WorktreeOperationFailure::Git {
+        stage,
+        error,
+        status: None,
+        diagnostics: Vec::new(),
+    };
+    let close = format!("orchbeeworkspaceclose{:032x}--confirm", 80);
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        let english = locale == crate::localization::Locale::EnUs;
+        for (reason, resumable, expected, guidance) in [
+            (
+                git(WorktreeGitStage::Select, WorktreeGitError::CheckoutNotFound),
+                false,
+                if english {
+                    "Git no longer lists this checkout"
+                } else {
+                    "Git 已不再将此检出登记为工作树。"
+                },
+                true,
+            ),
+            (
+                git(WorktreeGitStage::Mutate, WorktreeGitError::Io),
+                true,
+                if english {
+                    "The checkout directory is in use"
+                } else {
+                    "检出目录正被占用或无法删除。"
+                },
+                false,
+            ),
+            (
+                git(WorktreeGitStage::Mutate, WorktreeGitError::GitFailed),
+                true,
+                if english {
+                    "Git could not remove the checkout."
+                } else {
+                    "Git 未能移除检出目录。"
+                },
+                false,
+            ),
+        ] {
+            let (launcher, origin, _) = failed_removal(removal_failure(reason, resumable));
+            let (mut ui, ..) = super::move_membership::ready_ui_with_snapshot(
+                origin.cache.canonical_snapshot().clone(),
+            );
+            ui.worktrees.launcher = launcher;
+            let text = draw(&mut ui, locale, 120, 40);
+            assert!(
+                text.contains(&expected.replace(' ', "")),
+                "{locale:?}: {text}"
+            );
+            assert!(!text.contains("Gitrefused") && !text.contains("Git拒绝移除"));
+            assert_eq!(text.contains(&close), guidance, "{locale:?}: {text}");
+        }
+    }
+}
+
+#[test]
+fn a_failed_removal_whose_workspace_closed_never_blocks_the_launcher() {
+    use crate::workbench_state::worktree_launch::tests::removal;
+    // While the Workspace exists, Close keeps the recoverable receipt and W reopens it.
+    let (launcher, origin, plan) = failed_removal(removal::failure(1, true));
+    let (mut ui, ..) =
+        super::move_membership::ready_ui_with_snapshot(origin.cache.canonical_snapshot().clone());
+    ui.worktrees.launcher = launcher;
+    draw(&mut ui, crate::localization::Locale::EnUs, 120, 40);
+    ui.dismiss_worktree(ui.worktrees.launcher.token().unwrap());
+    assert!(!ui.worktrees.launcher.visible());
+    assert_eq!(
+        ui.request_worktree(WorktreeMode::Open),
+        ClientActionDisposition::DismissNavigator
+    );
+    assert_eq!(
+        ui.worktrees.launcher.operation().unwrap().plan.operation_id,
+        plan.operation_id
+    );
+
+    // After the Workspace closed elsewhere, Close and W both discard the stale receipt.
+    let target = plan.removal.as_ref().unwrap().workspace_id.clone();
+    for hidden in [false, true] {
+        let (launcher, ..) = failed_removal(removal::failure(1, true));
+        let mut ui = ready(WorktreeMode::Open);
+        assert!(
+            ui.state
+                .as_ref()
+                .unwrap()
+                .cache()
+                .canonical_snapshot()
+                .navigation
+                .workspace(&target)
+                .is_none()
+        );
+        ui.worktrees.launcher = launcher;
+        draw(&mut ui, crate::localization::Locale::EnUs, 120, 40);
+        if hidden {
+            ui.worktrees.launcher.dismiss();
+            ui.request_worktree(WorktreeMode::Open);
+        } else {
+            ui.dismiss_worktree(ui.worktrees.launcher.token().unwrap());
+        }
+        assert!(
+            ui.worktrees.launcher.operation().is_none(),
+            "hidden {hidden}"
+        );
+        assert!(!ui.worktrees.launcher.reopen());
+        assert!(ui.mailbox.as_ref().unwrap().try_recv().unwrap().is_none());
+    }
+}
+
+#[test]
+fn abandoning_a_retained_removal_needs_a_drawn_confirmation_and_frees_the_launcher() {
+    use crate::workbench_state::worktree_launch::tests::removal;
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        let (hint, confirm, notice) = match locale {
+            crate::localization::Locale::EnUs => (
+                "xAbandon",
+                "[AbandonEnter]",
+                "Stop tracking this removal in this Client?",
+            ),
+            crate::localization::Locale::ZhCn => {
+                ("x放弃", "[放弃Enter]", "在此客户端放弃跟踪这次移除？")
+            }
+        };
+        let (launcher, origin, _) = failed_removal(removal::failure(1, true));
+        let (mut ui, ..) = super::move_membership::ready_ui_with_snapshot(
+            origin.cache.canonical_snapshot().clone(),
+        );
+        ui.worktrees.launcher = launcher;
+        let text = draw(&mut ui, locale, 120, 40);
+        assert!(text.contains(hint), "{locale:?}: {text}");
+        let token = ui.worktrees.launcher.token().unwrap();
+        assert!(ui.edit_worktree(token, WorktreeEdit::Append("x")));
+        assert_eq!(
+            ui.worktrees.launcher.view().unwrap().stage(),
+            WorktreeStage::AbandonRemove
+        );
+        // Esc returns to the retained receipt instead of abandoning it.
+        let token = ui.worktrees.launcher.token().unwrap();
+        let text = draw(&mut ui, locale, 120, 40);
+        assert!(
+            text.contains(confirm) && text.contains(&notice.replace(' ', "")),
+            "{locale:?}: {text}"
+        );
+        ui.dismiss_worktree(token);
+        assert_eq!(
+            ui.worktrees.launcher.view().unwrap().stage(),
+            WorktreeStage::Result
+        );
+        draw(&mut ui, locale, 120, 40);
+        let token = ui.worktrees.launcher.token().unwrap();
+        assert!(ui.edit_worktree(token, WorktreeEdit::Append("x")));
+        let token = ui.worktrees.launcher.token().unwrap();
+        ui.submit_worktree(token);
+        assert_eq!(
+            ui.worktrees.launcher.view().unwrap().stage(),
+            WorktreeStage::AbandonRemove,
+            "an undrawn confirmation cannot abandon"
+        );
+        draw(&mut ui, locale, 120, 40);
+        ui.submit_worktree(token);
+        assert!(ui.worktrees.launcher.operation().is_none());
+        assert!(!ui.worktrees.launcher.visible());
+        assert!(!ui.worktrees.launcher.reopen());
+        assert!(ui.mailbox.as_ref().unwrap().try_recv().unwrap().is_none());
+    }
+
+    // A failure that Close already releases offers no abandon step.
+    let (launcher, origin, _) = failed_removal(removal::failure(1, false));
+    let (mut ui, ..) =
+        super::move_membership::ready_ui_with_snapshot(origin.cache.canonical_snapshot().clone());
+    ui.worktrees.launcher = launcher;
+    let text = draw(&mut ui, crate::localization::Locale::EnUs, 120, 40);
+    assert!(!text.contains("xAbandon"));
+    let token = ui.worktrees.launcher.token().unwrap();
+    assert!(ui.edit_worktree(token, WorktreeEdit::Append("x")));
+    assert_eq!(
+        ui.worktrees.launcher.view().unwrap().stage(),
+        WorktreeStage::Result
+    );
+}
+
+#[test]
+fn pending_removal_status_is_read_again_with_bounded_backoff_until_it_settles() {
+    use crate::local_client::{LocalClient, test_support::server::FakeServer};
+    use crate::workbench_state::worktree_launch::tests::removal;
+    use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
+    use orchbee_workbench_protocol::{
+        ProtocolVersion, WorkbenchRequest, WorkbenchResponse, WorkbenchWorktreeAction,
+        WorkbenchWorktreeOutcome, WorkbenchWorktreeResult, WorktreeOperationPhase,
+        WorktreeOperationStatus, read_workbench_request, write_workbench_response,
+    };
+    use std::io::{self, Read};
+    use std::sync::{atomic::Ordering, mpsc};
+    use std::time::Duration;
+    let pending = |phase| {
+        let WorkbenchWorktreeOutcome::Available {
+            project_id,
+            attempt,
+            status,
+        } = removal::failure(1, true)
+        else {
+            unreachable!("fixture failure is available")
+        };
+        let WorktreeOperationStatus::Failed { progress, .. } = *status else {
+            unreachable!("fixture failure is failed")
+        };
+        WorkbenchWorktreeOutcome::Available {
+            project_id,
+            attempt,
+            status: Box::new(WorktreeOperationStatus::Pending { phase, progress }),
+        }
+    };
+    let replies = vec![
+        pending(WorktreeOperationPhase::Closing),
+        pending(WorktreeOperationPhase::Removing),
+        removal::failure(1, true),
+    ];
+    let expected = replies.clone();
+    let (launcher, origin, plan) =
+        failed_removal(pending(WorktreeOperationPhase::InspectingRemove));
+    let operation = plan.operation_id.clone();
+    let (reads, observed) = mpsc::channel();
+    let server = FakeServer::start_connections(2, move |index, mut stream| {
+        assert!(matches!(
+            read_message(&mut stream).map_err(io::Error::other)?,
+            LocalClientMessage::ClientHello(_)
+        ));
+        write_message(
+            &mut stream,
+            &LocalClientMessage::ClientAccepted {
+                generation: std::num::NonZeroU64::new(index as u64 + 1).unwrap(),
+            },
+        )
+        .map_err(io::Error::other)?;
+        if index == 0 {
+            return Ok(());
+        }
+        for outcome in &replies {
+            let WorkbenchRequest::WorktreeOperation(request) =
+                read_workbench_request(&mut stream).map_err(io::Error::other)?
+            else {
+                panic!("observation sends only Worktree reads")
+            };
+            assert_eq!(
+                request.action,
+                WorkbenchWorktreeAction::Read {
+                    operation_id: operation.clone()
+                }
+            );
+            let _observed = reads.send(());
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::WorktreeOperation(WorkbenchWorktreeResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    operation_id: operation.clone(),
+                    outcome: outcome.clone(),
+                }),
+            )
+            .map_err(io::Error::other)?;
+        }
+        assert_eq!(stream.read(&mut [0])?, 0);
+        Ok(())
+    })
+    .unwrap();
+    let client = LocalClient::connect(server.endpoint(), "worktree-observation-test").unwrap();
+    let (mut ui, _mailbox, _clock, elapsed) =
+        super::move_membership::ready_ui_with_snapshot(origin.cache.canonical_snapshot().clone());
+    ui.worktrees.set_origin(client.origin());
+    ui.worktrees.launcher = launcher;
+    let applied = |ui: &mut WorkbenchClientUi, outcome: &WorkbenchWorktreeOutcome| {
+        let until = std::time::Instant::now() + Duration::from_secs(3);
+        while ui.worktrees.launcher.operation().unwrap().outcome.as_ref() != Some(outcome) {
+            assert!(std::time::Instant::now() < until, "bounded read reply");
+            ui.drive_worktree();
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    };
+    // A new change subscription reads once; the Server publishes no change for Pending.
+    ui.drive_worktree();
+    observed.recv_timeout(Duration::from_secs(3)).unwrap();
+    applied(&mut ui, &expected[0]);
+    for (delay, reply) in [(250, &expected[1]), (500, &expected[2])] {
+        elapsed.fetch_add(delay - 1, Ordering::SeqCst);
+        ui.drive_worktree();
+        assert!(
+            observed.recv_timeout(Duration::from_millis(50)).is_err(),
+            "read before {delay} ms"
+        );
+        elapsed.fetch_add(1, Ordering::SeqCst);
+        ui.drive_worktree();
+        observed.recv_timeout(Duration::from_secs(3)).unwrap();
+        applied(&mut ui, reply);
+    }
+    assert!(!ui.worktrees.launcher.pending());
+    assert_eq!(ui.worktrees.launcher.notice(), WorktreeNotice::Failed);
+    assert!(ui.worktrees.launcher.view().unwrap().can_resume_remove());
+    // A settled failure is not polled again.
+    elapsed.fetch_add(10_000, Ordering::SeqCst);
+    ui.drive_worktree();
+    assert!(observed.recv_timeout(Duration::from_millis(50)).is_err());
+    assert!(ui.worktrees.close());
+    server.finish().unwrap();
 }

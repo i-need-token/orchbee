@@ -66,13 +66,21 @@ Server 继续拥有 dirty／未跟踪文件、main／bare 检出、其他 Worksp
 此次 Windows 原生 TUI 扩展使用与 CLI 相同的领域操作；Desktop 移除不在本次交付范围内。
 
 界面显示可读失败原因及保留的 Workspace／shell 恢复事实。
+每条原因都指明实际成因，例如 Git 已不再登记该检出、目录仍被占用或 Git 步骤失败，
+而不会把所有 Git 阶段失败都显示为拒绝。Workspace Close 仍被保持的不可恢复失败会给出
+`orchbee workspace close <workspace-id> --confirm`，该命令无需 Git 即可释放这一保持。
 已知且可恢复的失败提供**恢复移除…**，为原目标打开新的确认界面；取消后恢复原失败回执。
 确认后使用原操作 ID 与确切失败 attempt 提交一次 Resume，后续仅进行读取，无需抄录 ID。
 确认必须经过新一次绘制才可执行。尝试次数耗尽、结果未知或不可恢复失败均不提供 Resume。
 Resume 交接丢失时保留回执并围住旧 attempt，绝不重新发送 Start 或自动重试 Resume。
 
-`r` 读取保留操作。Esc 隐藏正在运行的观察界面，或可恢复／未知结果，绝不取消操作；
-W、O 或另一个已寻址的移除入口重新打开该保留任务。
+`r` 读取保留操作。Pending 进度不发布规范变更，因此在 Start、Resume 或读取的 120 秒观察窗口内，
+每次 Pending 回复都会在 250 ms 后安排下一次读取，间隔逐次翻倍，最多 2 s；变更通知或 `r` 可提前读取。
+Esc 隐藏正在运行的观察界面，或可恢复／未知结果，绝不取消操作；
+W、O 或另一个已寻址的移除入口重新打开该保留任务。在此类结果上按**放弃**（`x`）会打开独立的确认界面，
+同样须经过新一次绘制。确认后只丢弃本 Client 的回执：绝不取消或回滚 Server 工作，
+`orchbee worktree status` 仍可读取该操作。目标 Workspace 已不在规范 snapshot 中时，
+关闭、W、O 与已寻址入口会丢弃已结算的移除结果，而不是重新打开它。
 完成与 shell 恢复请求既有规范发布刷新，绝不重新打开界面或选择其他 Workspace。
 当前 Workspace 被移除后，由普通成员关系所有者选择仍存在的导航上下文。
 关闭已完成结果会释放本地回执；Server 原有保留限制不变。
@@ -134,7 +142,7 @@ Client 不能将 Project 复制到 Workspace 来源的 Start；严格 wire 契�
 | 选择 Open                | 完整的当前绘制令牌和已解码输入包授权确切选项              |
 | 取消准备或列表           | 丢弃未提交意图，迟到发现不能启动操作                      |
 | Start → 观察             | 可能失败的结果消费前保留一个操作身份，不确定时只允许 Read |
-| Pending → Read           | 每次观察发出一个有界请求，普通终端输出继续                |
+| Pending → Read           | 每次一个有界请求，250 ms 起翻倍至 2 s 重读，终端输出继续  |
 | Opened → 导航            | 证明已有复用或首个终端启动、确切新鲜成员关系及未变化来源  |
 | 导航 → Ready             | 现有清理、连接、控制、几何和首帧流程                      |
 | 新输入、隐藏或来源变化   | 永久撤销本操作的进入权限，保留事实                        |
@@ -160,7 +168,8 @@ Server 重启遵循[现有保留限制](windows-worktrees.zh-CN.md#保留续执�
 维护默认一步创建、检出选择、当前分组关联、已关闭／关闭中来源拒绝、取消、确切绘制权限、
 不确定交接、已知部分事实、Start／Read 分离、目标替换及有界 Viewer 释放的证据。
 移除证据覆盖确切 linked 目标、禁止自动提交、完整双语确认、dirty 失败、取消恢复、
-受围栏保护的 Resume／Read 分离、旧 attempt，以及隐藏后完成不抢焦点。
+受围栏保护的 Resume／Read 分离、旧 attempt、隐藏后完成不抢焦点、按成因区分的失败文案与保持关闭引导、
+经绘制确认的放弃、Workspace 已消失时释放结果，以及有界的 Pending 重读。
 
 归属套件包括 `state/worktree_launch/tests.rs`、
 `connection/native/worktree_launch/tests.rs`、`ui/tests/worktree_launch.rs` 及相邻状态、传输、输入和渲染套件。
@@ -172,4 +181,4 @@ Server 重启遵循[现有保留限制](windows-worktrees.zh-CN.md#保留续执�
 
 Windows 原生工作树表单使用反斜杠显示检出路径。这仅是显示投影；选择和操作保留精确的规范路径。
 
-<!-- documentation-pairing: english-sha256=627c201f62d992d73c8174974e3e1ab5254e4f4ff55b4d021086b05037439089 zh-cn-sha256=ddeab7f59f7c445cbb0f2b04161f197d25fc47229c24147c691f097288c3c9c0 -->
+<!-- documentation-pairing: english-sha256=3657f44335f082add54d19a473781e27def22f6667c87eee9b5519e13f9ce09b zh-cn-sha256=53b6617f7cda87ef27e6a929d2fa65dea9b96bf79cc8ad60507741d629b12cc0 -->

@@ -82,6 +82,10 @@ its existing independent meaning and never deletes a checkout. This native Windo
 uses the same domain operation as the CLI; Desktop removal remains outside this delivery scope.
 
 The surface shows readable failure reasons and retained Workspace/shell-restoration facts.
+Each reason names its cause, such as a checkout Git no longer lists, a directory still in use or a
+failed Git step, instead of presenting every Git-stage failure as a refusal. A nonresumable failure
+whose Workspace Close is still held names `orchbee workspace close <workspace-id> --confirm`, which
+releases that hold without Git.
 For a known resumable failure, **Resume removal…** opens a new confirmation for the original
 target; cancelling it restores the failure receipt. Confirming sends one Resume with the original
 operation ID and exact failed attempt, followed only by reads. No ID transcription is needed.
@@ -89,8 +93,15 @@ A new draw is required before that confirmation can act. Attempt exhaustion, unk
 nonresumable failures never offer Resume. A lost Resume handoff retains the receipt and fences old
 attempts; it never sends another Start or automatically retries Resume.
 
-`r` reads the retained operation. Esc hides running observation or a resumable/unknown result
-without cancelling it; W, O or another addressed removal entry reopens that retained task.
+`r` reads the retained operation. Pending progress publishes no canonical change, so within the
+120-second observation window of a Start, Resume or read, each Pending reply schedules another read
+after 250 ms, doubling to at most 2 s; a change notification or `r` can read sooner.
+Esc hides running observation or a resumable/unknown result without cancelling it; W, O or another
+addressed removal entry reopens that retained task. **Abandon** (`x`) on such a result opens its own
+confirmation, which also needs a new draw. Confirming forgets only this Client's receipt: it never
+cancels or rolls back Server work, and `orchbee worktree status` still reads the operation. Once the
+target Workspace is absent from the canonical snapshot, Close, W, O and addressed entries discard a
+settled removal result instead of reopening it.
 Completion and shell recovery request the existing canonical publication refresh. They never
 reopen the surface or select another Workspace. After the removed current Workspace disappears,
 the ordinary membership owner chooses the surviving navigation context. Closing a completed result
@@ -164,7 +175,7 @@ integration evidence.
 | Choose Open                          | A complete current draw token and decoded packet authorize that exact choice                    |
 | Cancel preparation or list           | Drop unsubmitted intent; late discovery cannot start an operation                               |
 | Start → observe                      | Retain one operation identity before fallible result consumption; uncertainty permits only Read |
-| Pending → Read                       | One bounded observation request; ordinary terminal output continues                             |
+| Pending → Read                       | One bounded request at a time, re-read after 250 ms doubling to 2 s; output continues           |
 | Opened → navigate                    | Prove existing reuse or first-terminal start, exact fresh membership and unchanged origin       |
 | Navigate → Ready                     | Existing cleanup, attach, control, geometry and first-frame sequence                            |
 | Newer input, hide or source change   | Revoke entry permission permanently for this operation; retain facts                            |
@@ -197,7 +208,9 @@ Maintain witnesses for default one-step creation, checkout selection, current-gr
 closed/closing source refusal, cancellation, exact draw authority, ambiguous handoff, known partial
 facts, Start/Read separation, target replacement and bounded Viewer release. Removal witnesses cover
 exact linked targets, no automatic submission, full bilingual confirmation, dirty failure, cancelled
-recovery, fenced Resume/Read separation, stale attempts and no focus stealing after hidden completion.
+recovery, fenced Resume/Read separation, stale attempts, no focus stealing after hidden completion,
+cause-specific failure copy with held-close guidance, drawn Abandon, release of results whose
+Workspace is gone and bounded Pending re-reads.
 
 Owning suites include `state/worktree_launch/tests.rs`,
 `connection/native/worktree_launch/tests.rs`, `ui/tests/worktree_launch.rs` and adjacent

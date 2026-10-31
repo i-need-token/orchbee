@@ -158,7 +158,11 @@ the pane keeps the complete status.
 A validated removal install retains the known Closed notice at its automatic canonical Workspace
 landing. This private display witness binds the request, refresh generation and exact landing to the
 existing removal permit; it grants no navigation or terminal input. Later manual Context navigation
-retires it, including on return. Pending and unknown outcomes retain their existing guards.
+retires it, including on return. Closed is a settled one-shot result: its notice expires on the
+four-second notice lifetime in [operation status](native-operation-status.md), counted from its
+first display and carried across the automatic landing. Expiry and navigation retire only the
+notice; the retained Closed evidence and its fences remain. Pending and unknown outcomes retain
+their existing guards.
 
 State, carrier and UI tests cover single Workspace scope including ungrouped membership, explicit
 Project member capture and empty Projects, exact drawn confirmation, token-bound mouse controls, packet-tail capture, source

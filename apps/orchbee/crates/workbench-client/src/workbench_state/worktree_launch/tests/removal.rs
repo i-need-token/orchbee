@@ -195,7 +195,7 @@ fn dirty_removal_retains_readable_failure_and_resume_requires_a_new_cancelable_c
     assert!(launcher.confirm_remove_resume(token).is_none());
     assert!(launcher.confirm_remove_resume(resume_token).is_none());
     launcher.draw(Some(resume_token));
-    assert!(launcher.cancel_remove_resume());
+    assert!(launcher.cancel_remove_recovery());
     assert_eq!(
         launcher.operation().unwrap().outcome,
         Some(failure(1, true))
@@ -316,4 +316,66 @@ fn unknown_physical_or_transport_failure_never_offers_resume() {
         assert!(launcher.start_settled(&plan.operation_id, Ok(outcome)));
         assert!(!launcher.view().unwrap().can_resume_remove());
     }
+}
+
+#[test]
+fn abandon_and_stale_discard_release_only_settled_retained_receipts() {
+    let (mut launcher, origin, _) = fixture();
+    let plan = confirm(&mut launcher, &origin).unwrap();
+    let target = plan.removal.as_ref().unwrap().workspace_id.clone();
+    let present = origin.cache.canonical_snapshot().clone();
+    let mut absent = present.clone();
+    absent
+        .navigation
+        .workspaces
+        .retain(|workspace| workspace.workspace_id != target);
+    // An accepted removal that has not settled is never discarded locally.
+    assert!(!launcher.forget_stale_removal(&absent));
+    assert!(launcher.start_settled(&plan.operation_id, Ok(failure(1, true))));
+    assert!(launcher.retains_removal());
+    assert!(!launcher.forget_stale_removal(&present));
+
+    // Abandon needs its own drawn confirmation, and cancelling restores the receipt.
+    let token = launcher.token().unwrap();
+    launcher.draw(Some(token));
+    assert!(launcher.view().unwrap().can_abandon_remove());
+    assert!(launcher.prepare_remove_abandon(token));
+    assert_eq!(
+        launcher.view().unwrap().stage(),
+        WorktreeStage::AbandonRemove
+    );
+    let abandon = launcher.token().unwrap();
+    assert!(!launcher.confirm_remove_abandon(token));
+    assert!(!launcher.confirm_remove_abandon(abandon));
+    assert!(launcher.confirm_remove_resume(abandon).is_none());
+    assert!(launcher.cancel_remove_recovery());
+    assert_eq!(launcher.view().unwrap().stage(), WorktreeStage::Result);
+    let restored = launcher.token().unwrap();
+    assert!(!launcher.prepare_remove_abandon(restored));
+    launcher.draw(Some(restored));
+    assert!(launcher.prepare_remove_abandon(restored));
+    let abandon = launcher.token().unwrap();
+    launcher.draw(Some(abandon));
+    assert!(launcher.confirm_remove_abandon(abandon));
+    assert!(launcher.operation().is_none());
+    assert!(!launcher.visible());
+    assert!(!launcher.reopen());
+
+    // Nothing to abandon when Close already releases the receipt.
+    let (mut launcher, origin, _) = fixture();
+    let plan = confirm(&mut launcher, &origin).unwrap();
+    assert!(launcher.start_settled(&plan.operation_id, Ok(failure(1, false))));
+    let token = launcher.token().unwrap();
+    launcher.draw(Some(token));
+    assert!(!launcher.view().unwrap().can_abandon_remove());
+    assert!(!launcher.prepare_remove_abandon(token));
+
+    // A settled receipt whose Workspace left the snapshot has no local recovery left.
+    let (mut launcher, origin, _) = fixture();
+    let plan = confirm(&mut launcher, &origin).unwrap();
+    assert!(launcher.start_settled(&plan.operation_id, Ok(failure(1, true))));
+    launcher.dismiss();
+    assert!(launcher.forget_stale_removal(&absent));
+    assert!(launcher.operation().is_none());
+    assert!(!launcher.reopen());
 }

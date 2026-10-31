@@ -11,9 +11,9 @@ use rustix::process::{Pid, PidfdFlags, pidfd_open};
 use std::os::fd::AsFd;
 
 const EMPTY: &str = "No terminal tabs";
-const CONFIGURED_EMPTY_ACTION: &str = "Ctrl+b c Create a Tab (requires connection)";
+const CONFIGURED_EMPTY_ACTION: &str = "Ctrl+b c New Tab";
 const UNCONFIGURED_EMPTY_FACT: &str = "No directory configured.";
-const UNCONFIGURED_EMPTY_ACTION: &str = "Ctrl+b e Configure an empty Workspace's first directory";
+const UNCONFIGURED_EMPTY_ACTION: &str = "Ctrl+b e Set Workspace directory";
 const INITIAL_WORKSPACE_LOCATION: &str = "Workspace";
 const CONFIGURED_LOCATION: &str = "Context process / Configured";
 const UNCONFIGURED_LOCATION: &str = "Context process / Unconfigured";

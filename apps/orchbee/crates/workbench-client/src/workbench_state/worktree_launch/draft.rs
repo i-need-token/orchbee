@@ -294,7 +294,8 @@ impl<'a> WorktreeView<'a> {
         match &self.launcher.phase {
             Phase::Preparing(_) | Phase::Querying { .. } => WorktreeStage::Preparing,
             Phase::Draft(d) => d.stage,
-            Phase::ConfirmResume(_) => WorktreeStage::ResumeRemove,
+            Phase::Confirm(_, super::Recovery::Resume) => WorktreeStage::ResumeRemove,
+            Phase::Confirm(_, super::Recovery::Abandon) => WorktreeStage::AbandonRemove,
             Phase::Starting(_) | Phase::Observing(_) | Phase::Resuming(_) => WorktreeStage::Waiting,
             _ => WorktreeStage::Result,
         }

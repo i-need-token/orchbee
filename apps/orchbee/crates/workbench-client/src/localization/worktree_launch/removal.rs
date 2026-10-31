@@ -42,6 +42,8 @@ impl Locale {
             (Self::ZhCn, WorktreeStage::Remove, _) => "移除",
             (Self::EnUs, WorktreeStage::ResumeRemove, _) => "Resume removal",
             (Self::ZhCn, WorktreeStage::ResumeRemove, _) => "恢复移除",
+            (Self::EnUs, WorktreeStage::AbandonRemove, _) => "Abandon",
+            (Self::ZhCn, WorktreeStage::AbandonRemove, _) => "放弃",
             (Self::EnUs, _, true) => "Resume removal…",
             (Self::ZhCn, _, true) => "恢复移除…",
             (Self::EnUs, _, false) => "Read status",
@@ -117,11 +119,59 @@ impl Locale {
                 "The Session is stopping. Read status before continuing."
             }
             (Self::ZhCn, F::SessionStopping { .. }) => "会话正在停止。请先查询状态。",
+            (
+                Self::EnUs,
+                F::Git {
+                    error: WorktreeGitError::CheckoutNotFound,
+                    ..
+                },
+            ) => {
+                "Git no longer lists this checkout as a worktree. Inspect the directory and git worktree list."
+            }
+            (
+                Self::ZhCn,
+                F::Git {
+                    error: WorktreeGitError::CheckoutNotFound,
+                    ..
+                },
+            ) => "Git 已不再将此检出登记为工作树。请检查该目录和 git worktree list。",
+            (
+                Self::EnUs,
+                F::Git {
+                    error: WorktreeGitError::Io,
+                    ..
+                },
+            ) => {
+                "The checkout directory is in use or cannot be deleted. Close programs using it, then resume."
+            }
+            (
+                Self::ZhCn,
+                F::Git {
+                    error: WorktreeGitError::Io,
+                    ..
+                },
+            ) => "检出目录正被占用或无法删除。请关闭占用它的程序，再恢复移除。",
+            (
+                Self::EnUs,
+                F::Git {
+                    error: WorktreeGitError::GitFailed,
+                    ..
+                },
+            ) => {
+                "Git could not remove the checkout. If a program is using its directory, close it, then resume."
+            }
+            (
+                Self::ZhCn,
+                F::Git {
+                    error: WorktreeGitError::GitFailed,
+                    ..
+                },
+            ) => "Git 未能移除检出目录。如有程序正在使用该目录，请先关闭，再恢复移除。",
             (Self::EnUs, F::Git { .. }) => {
-                "Git refused removal. Read status; known checkout and Workspace facts are retained."
+                "Git could not complete the removal. Read status; known checkout and Workspace facts are retained."
             }
             (Self::ZhCn, F::Git { .. }) => {
-                "Git 拒绝移除。请查询状态；已知检出目录和工作区信息已保留。"
+                "Git 未能完成移除。请查询状态；已知检出目录和工作区信息已保留。"
             }
             (Self::EnUs, F::AssociationFailed { .. } | F::Internal { .. }) => {
                 "Removal could not finish. Read status before continuing."
@@ -129,6 +179,28 @@ impl Locale {
             (Self::ZhCn, F::AssociationFailed { .. } | F::Internal { .. }) => {
                 "移除未能完成。请先查询状态。"
             }
+        }
+    }
+    /// Footer hint and confirmation text for forgetting a retained removal in this Client only.
+    pub(crate) fn worktree_remove_abandon_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "Abandon",
+            Self::ZhCn => "放弃",
+        }
+    }
+    pub(crate) fn worktree_remove_abandon_notice(self) -> &'static str {
+        match self {
+            Self::EnUs => {
+                "Stop tracking this removal in this Client? Server work is not cancelled."
+            }
+            Self::ZhCn => "在此客户端放弃跟踪这次移除？服务端操作不会取消。",
+        }
+    }
+    /// A failed removal that cannot resume can still hold its Workspace closing.
+    pub(crate) fn worktree_remove_held_close(self) -> &'static str {
+        match self {
+            Self::EnUs => "The Workspace is still held closing. Close it with:",
+            Self::ZhCn => "工作区仍保持在关闭中。可用以下命令关闭：",
         }
     }
     pub(crate) fn worktree_remove_workspace_state(

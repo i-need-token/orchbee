@@ -14,9 +14,8 @@ pub(super) const INITIAL_WORKSPACE_LOCATION: &str = "Workspace";
 pub(super) const WORKSPACE_LOCATION: &str = "Setup process / Chosen workspace";
 pub(super) const EMPTY: &str = "No terminal tabs";
 pub(super) const DIRECTORY_NEEDED: &str = "No directory configured.";
-pub(super) const DIRECTORY_NEEDED_ACTION: &str =
-    "Ctrl+b e Configure an empty Workspace's first directory";
-pub(super) const DIRECTORY_READY_ACTION: &str = "Ctrl+b c Create a Tab (requires connection)";
+pub(super) const DIRECTORY_NEEDED_ACTION: &str = "Ctrl+b e Set Workspace directory";
+pub(super) const DIRECTORY_READY_ACTION: &str = "Ctrl+b c New Tab";
 pub(super) const DIRECTORY_PATH: &str = "Configure Workspace directory";
 pub(super) const DIRECTORY_INPUT_HINT: &str = "Enter the full path to an existing folder.";
 pub(super) const TEXT_HINTS: &str = "Esc cancel · Enter submit · Backspace delete · Ctrl+u clear";

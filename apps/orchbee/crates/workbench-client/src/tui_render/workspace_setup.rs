@@ -6,9 +6,9 @@ use super::modal::{
 };
 mod project_delete;
 use crate::client_view::{
-    Binding, Bindings, ClientAction, KeyCode, KeyLabelGlyphs, Modifiers, PrefixAction, PrefixDesc,
+    Binding, Bindings, ClientAction, KeyCode, KeyLabelGlyphs, Modifiers, PrefixAction,
 };
-use crate::localization::{DisplayPhase, Locale};
+use crate::localization::{DisplayPhase, Locale, ShortcutLabel};
 use crate::terminal_text::{
     display_width, sanitize_terminal_text, truncate_display, truncate_display_middle,
 };
@@ -32,7 +32,9 @@ use ratatui::{
 pub(super) struct DirectoryGuidance {
     fact: String,
     action: PrefixAction,
-    description: PrefixDesc,
+    /// The action's discovery title. Guidance appears only for a connected Empty workbench,
+    /// so it never repeats the help table's connection qualifier.
+    label: ShortcutLabel,
 }
 
 pub(super) fn directory_guidance(
@@ -48,13 +50,13 @@ pub(super) fn directory_guidance(
     path.map(|path| DirectoryGuidance {
         fact: locale.setup_directory_ready(&sanitize_terminal_text(path)),
         action: PrefixAction::Client(ClientAction::CreateTab),
-        description: PrefixDesc::CreateTab,
+        label: ShortcutLabel::NewTab,
     })
     .or_else(|| {
         unconfigured.then(|| DirectoryGuidance {
             fact: locale.setup_directory_needed().to_owned(),
             action: PrefixAction::Client(ClientAction::RequestWorkspaceDirectory),
-            description: PrefixDesc::WorkspaceDirectory,
+            label: ShortcutLabel::WorkspaceDirectory,
         })
     })
 }
@@ -102,11 +104,11 @@ pub(super) fn render_directory_guidance(
         return;
     };
     let hint_area = Rect::new(area.x, hint_y, area.width, 1);
-    let label = (locale.shell().prefix_desc)(guidance.description);
+    let label = locale.shortcut_label(guidance.label);
     let _ = super::controls::render_key_hints(
         frame,
         hint_area,
-        &[super::controls::KeyHint::new(&key, label)],
+        &[super::controls::KeyHint::new(&key, &label)],
         theme,
     );
 }

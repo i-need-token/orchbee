@@ -135,8 +135,9 @@ Windows 创建菜单和全局动作菜单还提供 **在指定目录新建工作
 Workspace Directory 动作（默认为 `Ctrl+B e`）只为 Empty 且未配置目录的 Workspace 接受首个目录。
 路径必须是现有绝对目录，不进行 shell 展开、文件系统创建或主目录回退。接受目录本身不启动 shell。
 Empty 工作台引导把目录保留为本地化事实，并且仅在没有输入捕获所有者时，通过共享按键提示组件呈现
-实际配置的 Workspace Directory 或 Create Tab 快捷键。菜单与草稿共享同一个纯准入查询，区分
-已配置、非空、不存在和忙碌目标。
+实际配置的 Workspace Directory 或 Create Tab 快捷键。提示文字使用该动作在快捷键帮助中的标题。
+Empty 引导只对已连接的 Client 显示，因此不重复帮助表里的连接限定语。菜单与草稿共享同一个纯准入
+查询，区分已配置、非空、不存在和忙碌目标。
 
 [位置标签编辑](native-location-labels.zh-CN.md)拥有 Workspace 与 Project 重命名。
 标签是可编辑的呈现信息，不是选择或执行身份。裸 Windows
@@ -170,4 +171,4 @@ Empty 工作台引导把目录保留为本地化事实，并且仅在没有输�
 
 显式目录确认表单在内容区绘制至多两条候选路径，随后分别绘制提示行和操作行。候选命中区域不与页脚重叠。宿主无法完整绘制确认表单时，不得提交。
 
-<!-- documentation-pairing: english-sha256=646446220f7602ea67e407022d3977a071c834d0b221c5d8c3ea49fb49c5c9d0 zh-cn-sha256=c1e23f50ad32c145d7a2e7aa01cfdd89d62a5c5fdb27f418eede0f8c77edcb62 -->
+<!-- documentation-pairing: english-sha256=2804de1f0147c9b84cececd32e0359c86809b4264a0aa0e7c43d329afb78a781 zh-cn-sha256=67c1893efd7a16baca416cf3b71f3534c13567e45a759d30cfa456746d127667 -->

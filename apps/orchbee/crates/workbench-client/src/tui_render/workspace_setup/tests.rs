@@ -239,8 +239,9 @@ fn refused_project_picker_preserves_the_underlay_and_prior_hit_map() {
 
 #[test]
 fn directory_actions_only_replace_a_live_empty_panel() {
-    use crate::client_view::{ClientAction, PrefixAction, PrefixDesc};
+    use crate::client_view::{ClientAction, PrefixAction};
     use crate::localization::DisplayPhase as Phase;
+    use crate::localization::ShortcutLabel;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for phase in [
             Phase::Starting,
@@ -268,12 +269,12 @@ fn directory_actions_only_replace_a_live_empty_panel() {
             needed.action,
             PrefixAction::Client(ClientAction::RequestWorkspaceDirectory)
         );
-        assert_eq!(needed.description, PrefixDesc::WorkspaceDirectory);
+        assert_eq!(needed.label, ShortcutLabel::WorkspaceDirectory);
         let ready =
             directory_guidance(locale, Phase::Empty, false, Some("/workspace"), false).unwrap();
         assert_eq!(ready.fact, locale.setup_directory_ready("/workspace"));
         assert_eq!(ready.action, PrefixAction::Client(ClientAction::CreateTab));
-        assert_eq!(ready.description, PrefixDesc::CreateTab);
+        assert_eq!(ready.label, ShortcutLabel::NewTab);
     }
 }
 
@@ -332,13 +333,15 @@ fn directory_guidance_uses_the_effective_action_binding_only_without_a_capture_o
     .unwrap();
     let visible = draw(&ready, true);
     assert!(visible.contains("Directory: C:/workspace"));
-    assert!(visible.contains("Ctrl+a c Create a Tab (requires connection)"));
+    assert!(visible.contains("Ctrl+a c New Tab"));
+    // Shown only to a connected Client, the hint never claims a connection is still required.
+    assert!(!visible.contains("requires connection"));
     assert!(!visible.contains("Ctrl+B c"));
 
     let needed = directory_guidance(Locale::EnUs, DisplayPhase::Empty, false, None, true).unwrap();
     let visible = draw(&needed, true);
     assert!(visible.contains("No directory configured."));
-    assert!(visible.contains("Ctrl+a e Configure an empty Workspace's first directory"));
+    assert!(visible.contains("Ctrl+a e Set Workspace directory"));
     assert!(!visible.contains("Ctrl+B e"));
 
     let covered = draw(&ready, false);
