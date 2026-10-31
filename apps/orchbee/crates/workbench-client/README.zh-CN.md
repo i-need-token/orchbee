@@ -92,17 +92,31 @@ cargo bench -p orchbee-workbench-client --bench frame_pipeline --locked
 cargo bench -p orchbee-workbench-client --bench frame_pipeline --locked -- apply/delta --samples 100
 ```
 
-| 用例            | 阶段   | 被测操作                                                                                           |
-| --------------- | ------ | -------------------------------------------------------------------------------------------------- |
-| `decode/*`      | 两者   | 对一个 OBTF payload 调用 `decode_terminal_text_frame`；`snapshot` 属于初始化，`delta-*` 属于稳态。 |
-| `apply/init`    | 初始化 | 新建的 `TerminalProjection` 接收第一份完整快照记录。                                               |
-| `apply/full`    | 稳态   | 活动投影接收下一份完整快照记录，与重新同步后的情形相同。                                           |
-| `apply/delta-*` | 稳态   | 活动投影接收下一份增量记录：信封与路由检查、解码、行合并、行校验和 `FrameApplied` 反馈。           |
+| 用例                | 阶段   | 被测操作                                                                                                        |
+| ------------------- | ------ | --------------------------------------------------------------------------------------------------------------- |
+| `decode/*`          | 两者   | 对一个 OBTF payload 调用 `decode_terminal_text_frame`；`snapshot` 属于初始化，`delta-*` 属于稳态。              |
+| `apply/init`        | 初始化 | 新建的 `TerminalProjection` 接收第一份完整快照记录。                                                            |
+| `apply/full`        | 稳态   | 活动投影接收下一份完整快照记录，与重新同步后的情形相同。                                                        |
+| `apply/delta-*`     | 稳态   | 活动投影接收下一份增量记录：信封与路由检查、解码、行合并、行校验和 `FrameApplied` 反馈。                        |
+| `layout/init`       | 初始化 | 为窗口新建 `ClientView`，并为第一个 Pane 调用 `terminal_geometry`，与启动时相同。                               |
+| `layout/frame`      | 稳态   | 每次绘制都会重算的外壳投影：`project_shell_areas`、`active_pane_area`，以及分割 Tab 的 `native_terminal_area`。 |
+| `paint/init`        | 初始化 | 新建的 `TestBackend` 终端第一次以 `Terminal::draw` 绘制外壳；这次比较会写入每个单元格。                         |
+| `paint/frame`       | 稳态   | 对未变化的外壳再执行一次 `Terminal::draw`：绘制、比较、后端单元格写入和缓冲区交换。                             |
+| `paint/buffer`      | 稳态   | 只执行绘制闭包：`render_terminal_shell_with_resize` 绘制到已重置的缓冲区。                                      |
+| `multi/<n>/init`    | 初始化 | `n` 个新建投影各自按 Pane 尺寸接收第一份快照，然后新终端执行第一次绘制。                                        |
+| `multi/<n>/delta-1` | 稳态   | `n` 个活动投影在同一轮各接收一份单行增量，然后执行下一次绘制。                                                  |
 
-记录是确定性合成的 OBTF 帧，尺寸为 80×24、120×32 和 240×64 个单元格，内容包含 ASCII、双宽
-CJK 字符和带样式的片段。增量替换一行（`delta-1`）、四分之一的行（`delta-quarter`）或全部行
-（`delta-all`）。基准不包含传输读取、布局、绘制、缓冲区比较、后端编码和控制台输出；实际循环
-由 [TUI 计时观测](../../docs/native-terminal-environment.zh-CN.md#tui-计时观测)覆盖。
+记录是确定性合成的 OBTF 帧，内容包含 ASCII、双宽 CJK 字符和带样式的片段。增量替换一行
+（`delta-1`）、四分之一的行（`delta-quarter`）或全部行（`delta-all`）。`decode` 和 `apply` 的帧
+尺寸为 80×24、120×32 和 240×64 个单元格；其他用例把这些尺寸作为宿主窗口。`multi` 把窗口的分割
+树根区域均分为 1、2、4 或 8 个 Pane 的网格（1×1、2×1、2×2 或 4×2），相邻 Pane 之间留一格分隔
+线，用来近似面板树。
+
+绘制通过 `render_terminal_shell_with_resize` 把 Client 外壳渲染到 ratatui 的 `TestBackend`。
+Workbench Client 视图没有稳定的公开构造方式，因此外壳绘制的是 Workbench 不可用时的内容：不绘制
+Workbench 的 Tab、Pane 框线与分隔线、终端单元格和 Workbench 浮层，也不测量放置分割 Pane 的面板
+树布局。所有用例都不包含传输读取、后端转义编码和控制台输出；实际循环由
+[TUI 计时观测](../../docs/native-terminal-environment.zh-CN.md#tui-计时观测)覆盖。
 
 每次调用单独计时，用例返回的状态在计时停止后释放；表头报告读取时钟本身的开销。每行按单次
 调用报告：一次冷启动的首次调用，以及各样本的最小值、中位数、第 90 百分位数和中位数绝对偏差，
@@ -116,4 +130,4 @@ CJK 字符和带样式的片段。增量替换一行（`delta-1`）、四分之�
 [仓库验证门禁](../../../../docs/zh-CN/VERIFICATION.md)。
 导出的模块和条目必须对应真实应用消费者，并保留私有测试的归属。
 
-<!-- documentation-pairing: english-sha256=6c5bfaaffcc9d1cb6cf66c67f8b8066871df5818edd95fc572302936d7b581a0 zh-cn-sha256=2cbbf6164c5a637f75c10cee5b69eb1c14a6b055be3d9ac83ad4049bc99311ed -->
+<!-- documentation-pairing: english-sha256=04119d4855681ae21498bb27bf9bf77f6a177703b13b1da8a259d576ac1f00b7 zh-cn-sha256=b56af50fe6250f1381a2ca9e3ce121a38a6de57aa75c132d1f4a16ce3154f3ba -->

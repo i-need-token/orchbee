@@ -12,7 +12,7 @@ use orchbee_terminal_protocol::decode_terminal_text_frame;
 use orchbee_workbench_client::application::terminal_projection::TerminalProjection;
 
 /// A classic terminal, the release-baseline PTY size, and a large full-screen pane.
-const SIZES: [Size; 3] = [
+pub const SIZES: [Size; 3] = [
     Size {
         columns: 80,
         rows: 24,
@@ -107,16 +107,16 @@ fn apply(harness: &mut Harness, size: Size) {
 
 /// A live projection and the record it receives next, re-addressed after every application so
 /// sequence and revision keep advancing exactly as one Host stream would.
-struct Stream {
+pub struct Stream {
     projection: TerminalProjection,
     geometry: orchbee_client_server_protocol::Geometry,
-    next: Record,
+    pub next: Record,
     sequence: u64,
     revision: u64,
 }
 
 impl Stream {
-    fn new(size: Size, next: Record) -> Self {
+    pub fn new(size: Size, next: Record) -> Self {
         let geometry = size.geometry();
         let mut projection = TerminalProjection::new(attachment(), epoch());
         applied(
@@ -131,7 +131,7 @@ impl Stream {
         }
     }
 
-    fn receive(&mut self, delta: bool) {
+    pub fn receive(&mut self, delta: bool) {
         let base = delta.then_some(self.revision);
         self.sequence += 1;
         self.revision += 1;
@@ -143,7 +143,7 @@ impl Stream {
     }
 }
 
-fn applied<E: std::fmt::Debug>(feedback: Result<Option<TerminalViewerAction>, E>) {
+pub fn applied<E: std::fmt::Debug>(feedback: Result<Option<TerminalViewerAction>, E>) {
     assert!(
         matches!(
             feedback,

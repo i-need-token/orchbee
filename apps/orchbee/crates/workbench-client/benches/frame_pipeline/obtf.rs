@@ -6,6 +6,8 @@ use orchbee_terminal_protocol::{
     AttachmentId, CURRENT_PROTOCOL_VERSION, Envelope, HostEpoch, MessageRole, PayloadEncoding,
     TRANSPORT_ENVELOPE_HEADER_BYTES, encode_transport_envelope,
 };
+use orchbee_workbench_client::application::terminal_device::WindowDimensions;
+use ratatui::layout::Rect;
 use std::collections::HashMap;
 
 const HEADER_BYTES: usize = 160;
@@ -61,6 +63,20 @@ impl Size {
             CELL_PIXEL_HEIGHT,
         )
         .expect("benchmark geometry within protocol bounds")
+    }
+
+    /// The host window this many cells fill, at the frames' cell pixel size.
+    pub const fn window(self) -> WindowDimensions {
+        WindowDimensions {
+            columns: self.columns,
+            rows: self.rows,
+            pixel_width: self.columns * CELL_PIXEL_WIDTH,
+            pixel_height: self.rows * CELL_PIXEL_HEIGHT,
+        }
+    }
+
+    pub const fn area(self) -> Rect {
+        Rect::new(0, 0, self.columns, self.rows)
     }
 }
 

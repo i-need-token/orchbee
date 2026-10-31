@@ -3,7 +3,10 @@
 
 mod decode_apply;
 mod harness;
+mod layout;
+mod multi_pane;
 mod obtf;
+mod paint;
 
 fn main() {
     let mut harness = match harness::Harness::from_args() {
@@ -15,5 +18,8 @@ fn main() {
     };
     harness.start();
     decode_apply::register(&mut harness);
+    layout::register(&mut harness);
+    paint::register(&mut harness);
+    multi_pane::register(&mut harness);
     harness.finish();
 }

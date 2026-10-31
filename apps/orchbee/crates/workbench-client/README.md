@@ -109,17 +109,32 @@ cargo bench -p orchbee-workbench-client --bench frame_pipeline --locked
 cargo bench -p orchbee-workbench-client --bench frame_pipeline --locked -- apply/delta --samples 100
 ```
 
-| Case            | Phase  | Measured operation                                                                                                                              |
-| --------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `decode/*`      | both   | `decode_terminal_text_frame` on one OBTF payload; `snapshot` is initialization, `delta-*` steady state.                                         |
-| `apply/init`    | init   | A new `TerminalProjection` receiving its first complete snapshot record.                                                                        |
-| `apply/full`    | steady | A live projection receiving the next complete snapshot record, as after a resynchronization.                                                    |
-| `apply/delta-*` | steady | A live projection receiving the next delta record: envelope and route checks, decoding, row merge, row validation, and `FrameApplied` feedback. |
+| Case                | Phase  | Measured operation                                                                                                                              |
+| ------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `decode/*`          | both   | `decode_terminal_text_frame` on one OBTF payload; `snapshot` is initialization, `delta-*` steady state.                                         |
+| `apply/init`        | init   | A new `TerminalProjection` receiving its first complete snapshot record.                                                                        |
+| `apply/full`        | steady | A live projection receiving the next complete snapshot record, as after a resynchronization.                                                    |
+| `apply/delta-*`     | steady | A live projection receiving the next delta record: envelope and route checks, decoding, row merge, row validation, and `FrameApplied` feedback. |
+| `layout/init`       | init   | A new `ClientView` for the window and `terminal_geometry` for its first pane, as at startup.                                                    |
+| `layout/frame`      | steady | The shell projection a drawn frame recomputes: `project_shell_areas`, `active_pane_area`, and `native_terminal_area` for a split Tab.           |
+| `paint/init`        | init   | A new `TestBackend` terminal's first `Terminal::draw` of the shell; its diff writes every cell.                                                 |
+| `paint/frame`       | steady | The next `Terminal::draw` of an unchanged shell: paint, diff, backend cell writes, and buffer swap.                                             |
+| `paint/buffer`      | steady | The paint closure alone: `render_terminal_shell_with_resize` into a reset buffer.                                                               |
+| `multi/<n>/init`    | init   | `n` new projections each receiving a first snapshot at its pane size, then a new terminal's first draw.                                         |
+| `multi/<n>/delta-1` | steady | `n` live projections each receiving a one-row delta in the same turn, then the next draw.                                                       |
 
-Records are deterministic synthetic OBTF frames at 80×24, 120×32, and 240×64 cells with ASCII,
-double-width CJK, and styled runs. A delta replaces one row (`delta-1`), a quarter of the rows
-(`delta-quarter`), or every row (`delta-all`). The benchmark excludes transport reads, layout,
-painting, buffer diffing, backend encoding, and console output; the
+Records are deterministic synthetic OBTF frames with ASCII, double-width CJK, and styled runs. A
+delta replaces one row (`delta-1`), a quarter of the rows (`delta-quarter`), or every row
+(`delta-all`). `decode` and `apply` frames fill 80×24, 120×32, and 240×64 cells; the other cases use
+those sizes as the host window. `multi` divides the window's split-tree root area into an even grid
+of 1, 2, 4, or 8 panes (1×1, 2×1, 2×2, or 4×2) with one divider cell between neighbors, an
+approximation of the panel tree.
+
+Painting renders the Client shell through `render_terminal_shell_with_resize` into ratatui's
+`TestBackend`. A Workbench Client view has no stable public constructor, so the shell paints its
+unavailable-Workbench content: Workbench Tabs, pane frames and dividers, terminal cells, and
+Workbench overlays are not painted, and the panel-tree layout that places split panes is not
+measured. No case includes transport reads, backend escape encoding, or console output; the
 [TUI timing observations](../../docs/native-terminal-environment.md#tui-timing-observations) cover
 the actual loop.
 
