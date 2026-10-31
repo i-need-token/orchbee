@@ -55,7 +55,7 @@ update retained facts in the background; it cannot reopen the shell, submit anot
 focus. Reopening after a refused attempt creates a new presentation attempt for that retained
 operation, and a successful draw restores its newest operation status.
 
-Header X and Cancel use the current stage's cancellation or hide behavior. Editable branch/base fields and their Open/Create button share the keyboard owner. Checkout rows act on matching plain-left release; list-only wheel moves three choices per notch, capped by visible two-line choices per pass without wrapping. Selection changes revoke submission until a fresh draw. Waiting/result surfaces expose Read status and Hide/Close, plus explicit recovery for eligible Remove failures; these never replay Start or cancel accepted Server work.
+Header X and Cancel use the current stage's cancellation or hide behavior. Editable branch/base fields and their Open/Create button share the keyboard owner. Checkout rows act on matching plain-left release; list-only wheel moves three choices per notch, capped by visible two-line choices per pass without wrapping. Selection changes revoke submission until a fresh draw. Waiting/result surfaces expose Read status and Hide/Close, plus explicit recovery for eligible Remove failures; these never replay Start or cancel accepted Server work. A source, listing or pre-Start failure retains no operation, so its result hides Read status and offers only Close.
 
 ## Safe removal
 

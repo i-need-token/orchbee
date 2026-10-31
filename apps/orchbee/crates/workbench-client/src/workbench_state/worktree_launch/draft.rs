@@ -389,6 +389,10 @@ impl<'a> WorktreeView<'a> {
                 _ => None,
             })
     }
+    /// Read status needs a retained operation; a preparation or listing failure has none.
+    pub(crate) fn can_read_status(&self) -> bool {
+        self.operation_id().is_some()
+    }
     pub(crate) fn workspace(&self) -> Option<&'a str> {
         let WorkbenchWorktreeOutcome::Available { status, .. } =
             self.launcher.operation()?.outcome.as_ref()?

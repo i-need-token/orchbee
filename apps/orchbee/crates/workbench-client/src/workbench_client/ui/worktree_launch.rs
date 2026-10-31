@@ -300,7 +300,13 @@ impl WorkbenchClientUi {
         let stage = self.worktrees.launcher.view().map(|v| v.stage());
         if matches!(stage, Some(WorktreeStage::Waiting | WorktreeStage::Result)) {
             match edit {
-                WorktreeEdit::Append("r") | WorktreeEdit::ReadStatus => {
+                WorktreeEdit::Append("r") | WorktreeEdit::ReadStatus
+                    if self
+                        .worktrees
+                        .launcher
+                        .view()
+                        .is_some_and(|view| view.can_read_status()) =>
+                {
                     self.worktrees.read_at = Some(self.clock.now());
                 }
                 WorktreeEdit::Append("x") => {

@@ -514,6 +514,97 @@ fn unknown_worktree_result_retains_one_operation_and_can_be_hidden_without_repla
 }
 
 #[test]
+fn a_result_without_an_operation_offers_only_close() {
+    use crate::localization::Locale;
+    let targets = |drawn: &DrawnWorktree, wanted: ModalControl| {
+        (0..24)
+            .flat_map(|y| (0..80).map(move |x| (x, y)))
+            .filter(|(x, y)| {
+                matches!(
+                    drawn.hits.hit_target_at(*x, *y),
+                    Some(HitTarget::Worktree { control, .. }) if *control == wanted
+                )
+            })
+            .count()
+    };
+    for notice in [
+        WorktreeNotice::SourceUnavailable,
+        WorktreeNotice::ListingUnavailable,
+        WorktreeNotice::NotRepository,
+    ] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let (mut ui, _, clock, _) = super::super::tests::workspace_setup::ready(true);
+            let p = ui
+                .state
+                .as_ref()
+                .unwrap()
+                .worktree_preparation(
+                    WorktreeMode::Open,
+                    1,
+                    WorktreeToken::for_test(0),
+                    OperationDeadlines::from_sample(clock.now()).unwrap(),
+                )
+                .unwrap();
+            assert!(ui.worktrees.launcher.open(p));
+            let p = ui.worktrees.launcher.preparation().unwrap().clone();
+            if notice == WorktreeNotice::SourceUnavailable {
+                assert!(ui.worktrees.launcher.prepared(&p, None));
+            } else {
+                assert!(ui.worktrees.launcher.prepared(
+                    &p,
+                    Some(WorktreeSource::Directory {
+                        path: WorkbenchDirectoryPath::parse("C:/repo").unwrap()
+                    })
+                ));
+                let token = ui.worktrees.launcher.token().unwrap();
+                assert!(ui.worktrees.launcher.discovered(token, Err(notice)));
+            }
+            assert_eq!(ui.worktrees.launcher.notice(), notice);
+            assert!(ui.worktrees.launcher.operation().is_none());
+            assert_eq!(
+                ui.worktrees.launcher.view().unwrap().stage(),
+                WorktreeStage::Result
+            );
+            let drawn = draw_frame_with_theme(
+                &mut ui,
+                locale,
+                80,
+                24,
+                &crate::tui_theme::Theme::rgb_test_dark(),
+            );
+            let close = locale.worktree_cancel_label(WorktreeStage::Result);
+            let read = locale.worktree_submit_label(WorktreeStage::Result);
+            assert!(drawn.text.contains(&format!("[{close}Esc]")), "{notice:?}");
+            assert!(!drawn.text.contains(&read.replace(' ', "")), "{notice:?}");
+            assert_eq!(targets(&drawn, ModalControl::Refresh), 0, "{notice:?}");
+            assert_eq!(targets(&drawn, ModalControl::Submit), 0, "{notice:?}");
+            assert!(targets(&drawn, ModalControl::Cancel) > 0, "{notice:?}");
+        }
+    }
+
+    // A retained operation keeps its Read status action.
+    let mut ui = ready_with_project(WorktreeMode::Open, false);
+    draw(&mut ui, Locale::EnUs, 80, 24);
+    let origin = ui.state.as_ref().unwrap().worktree_origin().unwrap();
+    let operation = WorkbenchRequestId::parse(&format!("{:032x}", 90)).unwrap();
+    let token = ui.worktrees.launcher.token().unwrap();
+    ui.worktrees
+        .launcher
+        .confirm(token, operation.clone(), &origin)
+        .unwrap();
+    assert!(ui.worktrees.launcher.start_settled(&operation, Err(true)));
+    let drawn = draw_frame_with_theme(
+        &mut ui,
+        Locale::EnUs,
+        80,
+        24,
+        &crate::tui_theme::Theme::rgb_test_dark(),
+    );
+    assert!(drawn.text.contains("[Readstatusr]"));
+    assert!(targets(&drawn, ModalControl::Refresh) > 0);
+}
+
+#[test]
 fn removal_confirmation_shows_full_target_scope_and_retained_branch_without_auto_submitting() {
     for (locale, title, branch, cancel, remove) in [
         (

@@ -319,7 +319,11 @@ fn render_form(
         true,
     )
     .with_shortcut(&escape);
-    let submit = (stage != WorktreeStage::Preparing).then(|| {
+    // A result without a retained operation has nothing to read, so it offers only Close.
+    let reads_status = matches!(stage, WorktreeStage::Waiting | WorktreeStage::Result);
+    let offers_submit =
+        stage != WorktreeStage::Preparing && (!reads_status || view.can_read_status());
+    let submit = offers_submit.then(|| {
         if removal.is_some() {
             let resume = view.can_resume_remove();
             let label = locale.worktree_remove_submit(stage, resume);
@@ -490,9 +494,7 @@ fn render_form(
     }
     match layout {
         WorktreeLayout::Pair(layout) => {
-            let primary = if matches!(stage, WorktreeStage::Waiting | WorktreeStage::Result)
-                && !view.can_resume_remove()
-            {
+            let primary = if reads_status && !view.can_resume_remove() {
                 ModalControl::Refresh
             } else {
                 ModalControl::Submit
