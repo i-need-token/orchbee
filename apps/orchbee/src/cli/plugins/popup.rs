@@ -8,17 +8,21 @@ use crate::{
     cli::{
         Failure, FailureKind, Output,
         caller_context::PanelTarget,
-        client_control,
+        client_control::{
+            self, Answer,
+            view_fence::{self, ViewFence},
+        },
         console_interrupt::{ArmedSignals, Finish, SignalWatch},
         failure_output, output, query,
     },
     invocation::{OutputFormat, plugins::panes::Open},
+    local_client::LocalClient,
     localization::Locale,
 };
 use orchbee_workbench_protocol::{
     ClientPopupSource, ClientViewAction, ClientViewControl, ClientViewControlStatus,
-    ClientViewIntent, ClientViewOutcome, ClientViewPhase, PluginInvocationContext, PluginPopupSpec,
-    WorkbenchClientId,
+    ClientViewIntent, ClientViewOutcome, ClientViewPhase, ClientViewRecord,
+    PluginInvocationContext, PluginPopupSpec, Snapshot, WorkbenchClientId, WorkbenchRequestId,
 };
 use std::time::{Duration, Instant};
 
@@ -100,8 +104,13 @@ fn execute(
     };
     let selected = client_control::selection::select(&clients, explicit, caller.as_ref())?.clone();
     let id = query::request_id()?;
-    let intent = if let Some(command) = command {
-        if selected.view.phase != ClientViewPhase::Ready {
+    let answer = if let Some(command) = command {
+        // A busy Client still answers the passive source reads and names why it refuses the
+        // popup itself, such as an open modal surface or a window too small for it.
+        if matches!(
+            selected.view.phase,
+            ClientViewPhase::Starting | ClientViewPhase::Unavailable
+        ) {
             return Err(Reason::ClientNotReady.failure());
         }
         let selection = selected
@@ -147,40 +156,42 @@ fn execute(
         };
         spec.validate()
             .map_err(|_| Reason::InvalidPopupSpec.failure())?;
-        ClientViewIntent::PopupOpen {
-            spec: Box::new(spec),
-        }
+        open_popup(
+            &mut client,
+            &snapshot,
+            &selected,
+            id,
+            spec,
+            deadline,
+            signals,
+        )?
     } else {
-        ClientViewIntent::PopupClose {}
+        if ViewFence::Exact
+            .reread(
+                &mut client,
+                &snapshot.session_id,
+                &selected,
+                deadline,
+                signals,
+            )?
+            .is_none()
+        {
+            return Err(Reason::ClientChanged.failure());
+        }
+        client_control::exchange::submit_control(
+            &mut client,
+            &snapshot.session_id,
+            ClientViewControl {
+                operation_id: id,
+                client_id: selected.client_id,
+                expected_view_revision: selected.view_revision,
+                minimum_workbench_revision: snapshot.revision,
+                intent: ClientViewIntent::PopupClose {},
+            },
+            deadline,
+            signals,
+        )?
     };
-    let current = client_control::exchange::exchange(
-        &mut client,
-        &snapshot.session_id,
-        ClientViewAction::Get {
-            client_id: selected.client_id.clone(),
-        },
-        deadline,
-        signals,
-    )?;
-    if !matches!(current.outcome, ClientViewOutcome::Found { client }
-        if client.view_revision == selected.view_revision && client.view == selected.view
-            && client.availability == orchbee_workbench_protocol::ClientViewAvailability::Current)
-    {
-        return Err(Reason::ClientChanged.failure());
-    }
-    let answer = client_control::exchange::submit_control(
-        &mut client,
-        &snapshot.session_id,
-        ClientViewControl {
-            operation_id: id,
-            client_id: selected.client_id,
-            expected_view_revision: selected.view_revision,
-            minimum_workbench_revision: snapshot.revision,
-            intent,
-        },
-        deadline,
-        signals,
-    )?;
     let mut document = answer.document();
     document["schema"] = serde_json::json!("orchbee.popup.result");
     document["version"] = serde_json::json!(1);
@@ -225,4 +236,59 @@ fn execute(
         stderr: String::new(),
         finalization: None,
     })
+}
+
+/// Opens the popup at the Client's current view. The source reads may have moved its view
+/// revision without changing its selection, so each attempt addresses the Client's current
+/// record; an open the Client refused only because its view moved or a transient step held it
+/// is repeated as a new operation. Any other refusal fails as `client-refused` with the Client's
+/// reason: nothing was opened.
+fn open_popup(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    selected: &ClientViewRecord,
+    mut operation_id: WorkbenchRequestId,
+    mut spec: PluginPopupSpec,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<Answer, Failure> {
+    let mut attempt = 1;
+    loop {
+        let current = ViewFence::Selection
+            .reread(client, &snapshot.session_id, selected, deadline, signals)?
+            .ok_or_else(|| Reason::ClientChanged.failure())?;
+        let answer = client_control::exchange::submit_control(
+            client,
+            &snapshot.session_id,
+            ClientViewControl {
+                operation_id: operation_id.clone(),
+                client_id: current.client_id,
+                expected_view_revision: current.view_revision,
+                minimum_workbench_revision: snapshot.revision,
+                intent: ClientViewIntent::PopupOpen {
+                    spec: Box::new(spec.clone()),
+                },
+            },
+            deadline,
+            signals,
+        )?;
+        let reason = match answer.reply.as_ref().map(|reply| &reply.outcome) {
+            Some(ClientViewOutcome::Operation { operation }) => match operation.status {
+                ClientViewControlStatus::Rejected { reason } => reason,
+                // Every other status keeps the retained receipt for the caller.
+                _ => return Ok(answer),
+            },
+            // Every other reply keeps the retained receipt for the caller.
+            _ => return Ok(answer),
+        };
+        if attempt == view_fence::ADDRESSES || !view_fence::readdressable(Some(reason)) {
+            let mut refused = Failure::new(FailureKind::Rejected);
+            refused.client_refusal = Some(reason);
+            return Err(failure::client_refusal(refused));
+        }
+        view_fence::settle(Some(reason), deadline, signals)?;
+        attempt += 1;
+        operation_id = query::request_id()?;
+        spec.context.correlation_id = Some(operation_id.to_string());
+    }
 }

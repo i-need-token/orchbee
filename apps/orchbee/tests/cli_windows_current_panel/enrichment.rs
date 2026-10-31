@@ -37,6 +37,18 @@ use orchbee_agent_observation_protocol::{
 };
 
 pub(super) fn read(stream: &mut LocalStream, panel: u64, client: Option<u64>, case: &str) {
+    read_source(stream, panel, client, case, None);
+}
+
+/// Like [`read`], for a plugin source fenced on the Client's selection: before the final member
+/// re-read, the CLI re-reads the `listed` Client and addresses its current view.
+pub(super) fn read_source(
+    stream: &mut LocalStream,
+    panel: u64,
+    client: Option<u64>,
+    case: &str,
+    listed: Option<&Value>,
+) {
     if let Some(client) = client {
         member(stream, client, panel, case, false);
         if case == "viewport-moved" {
@@ -73,6 +85,14 @@ pub(super) fn read(stream: &mut LocalStream, panel: u64, client: Option<u64>, ca
     );
     snapshot_reply(stream);
     if let Some(client) = client {
+        if let Some(listed) = listed {
+            let request = view_request(stream);
+            assert_eq!(
+                json!(request.action),
+                json!({"kind":"get","clientId":id(client)})
+            );
+            view_reply(stream, &request, json!({"kind":"found","client":listed}));
+        }
         member(stream, client, panel, case, true);
     }
 }

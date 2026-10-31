@@ -97,17 +97,16 @@ impl super::CliText {
         }
     }
 
-    /// A Client refused one preparation read; `reason` is its closed protocol token.
+    /// A Client refused a plugin request, during preparation or the popup open itself; `reason`
+    /// is its closed protocol token.
     pub(super) fn cli_plugin_client_refused(self, reason: &str) -> String {
         let reason = self.client_control_reason(reason);
         match self.locale {
             Locale::EnUs => format!(
-                "The TUI Client refused a preparation read ({reason}). Nothing was opened; resolve it and retry.\n"
+                "The TUI Client refused the plugin request ({reason}). Nothing was opened; resolve it and retry.\n"
             ),
             Locale::ZhCn => {
-                format!(
-                    "TUI 客户端拒绝了准备阶段的读取（{reason}）。未打开任何内容；处理后再重试。\n"
-                )
+                format!("TUI 客户端拒绝了插件请求（{reason}）。未打开任何内容；处理后再重试。\n")
             }
         }
     }

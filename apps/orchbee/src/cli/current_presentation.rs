@@ -1,12 +1,15 @@
 //! Passive Client-local member reads and exact canonical identity validation.
-use super::{Failure, FailureKind, client_control, console_interrupt::SignalWatch, query, results};
+use super::{
+    Failure, FailureKind, client_control, client_control::view_fence::ViewFence,
+    console_interrupt::SignalWatch, query, results,
+};
 use crate::cli_text::CliText;
 use crate::local_client::LocalClient;
 use orchbee_workbench_protocol::{
-    ClientPresentationSelection, ClientViewControl, ClientViewControlStatus, ClientViewIntent,
-    ClientViewOutcome, ClientViewRecord, PresentationBinding, Snapshot, TerminalId,
-    TerminalPresentationId, WorkbenchClientViewResult, WorkbenchPanelId, WorkbenchRequestId,
-    WorkerId,
+    ClientPresentationSelection, ClientPresentationSnapshot, ClientViewControl,
+    ClientViewControlStatus, ClientViewIntent, ClientViewObservation, ClientViewOutcome,
+    ClientViewRecord, PresentationBinding, Snapshot, TerminalId, TerminalPresentationId,
+    WorkbenchClientViewResult, WorkbenchPanelId, WorkbenchRequestId, WorkerId,
 };
 use std::time::Instant;
 
@@ -14,6 +17,8 @@ use std::time::Instant;
 pub(super) struct Read {
     pub(super) member: ClientPresentationSelection,
     pub(super) operation_id: WorkbenchRequestId,
+    /// The fence every later re-read of this member keeps.
+    pub(super) fence: ViewFence,
 }
 
 pub(super) fn read(
@@ -24,8 +29,16 @@ pub(super) fn read(
     deadline: Instant,
     signals: &mut impl SignalWatch,
 ) -> Result<ClientPresentationSelection, Failure> {
-    read_with_receipt(client, snapshot, selected, panel_id, deadline, signals)
-        .map(|read| read.member)
+    read_with_receipt(
+        client,
+        snapshot,
+        selected,
+        panel_id,
+        ViewFence::Exact,
+        deadline,
+        signals,
+    )
+    .map(|read| read.member)
 }
 
 pub(super) fn read_with_receipt(
@@ -33,49 +46,19 @@ pub(super) fn read_with_receipt(
     snapshot: &Snapshot,
     selected: &ClientViewRecord,
     panel_id: &WorkbenchPanelId,
+    fence: ViewFence,
     deadline: Instant,
     signals: &mut impl SignalWatch,
 ) -> Result<Read, Failure> {
-    signals.check_before(deadline)?;
-    let command = ClientViewControl {
-        operation_id: query::request_id()?,
-        client_id: selected.client_id.clone(),
-        expected_view_revision: selected.view_revision,
-        minimum_workbench_revision: snapshot.revision,
-        intent: ClientViewIntent::Presentation {
-            panel_id: panel_id.clone(),
-        },
-    };
-    let answer = client_control::exchange::submit_control(
+    let (operation_id, presentation, view) = fence.address(
         client,
         &snapshot.session_id,
-        command.clone(),
+        selected,
         deadline,
         signals,
+        |client, record, signals| submit(client, snapshot, record, panel_id, deadline, signals),
     )?;
-    signals.check_before(deadline)?;
-    let outcome = answer.reply.as_ref().map(|reply| &reply.outcome);
-    if let Some(ClientViewOutcome::Operation { operation }) = outcome
-        && operation.command != command
-    {
-        return Err(Failure::new(FailureKind::ProtocolInvalid));
-    }
-    if let Some(failure) =
-        super::client_control::exchange::submission_refusal(answer.exit_code(), outcome)
-    {
-        return Err(failure);
-    }
-    let Some(WorkbenchClientViewResult {
-        outcome: ClientViewOutcome::Operation { operation },
-        ..
-    }) = answer.reply
-    else {
-        return Err(Failure::new(FailureKind::ProtocolInvalid));
-    };
-    let ClientViewControlStatus::PresentationRead { presentation, view } = operation.status else {
-        return Err(Failure::new(FailureKind::ProtocolInvalid));
-    };
-    if presentation.workbench_revision != snapshot.revision || view != selected.view {
+    if presentation.workbench_revision != snapshot.revision || !fence.holds(selected, &view) {
         return Err(super::query::workbench_failure("client-changed"));
     }
     if !presentation.answers(panel_id, &view, snapshot.revision) {
@@ -127,8 +110,67 @@ pub(super) fn read_with_receipt(
     }
     Ok(Read {
         member,
-        operation_id: command.operation_id,
+        operation_id,
+        fence,
     })
+}
+
+/// One passive member read addressed at `record`'s view revision.
+fn submit(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    record: &ClientViewRecord,
+    panel_id: &WorkbenchPanelId,
+    deadline: Instant,
+    signals: &mut impl SignalWatch,
+) -> Result<
+    (
+        WorkbenchRequestId,
+        Box<ClientPresentationSnapshot>,
+        ClientViewObservation,
+    ),
+    Failure,
+> {
+    signals.check_before(deadline)?;
+    let command = ClientViewControl {
+        operation_id: query::request_id()?,
+        client_id: record.client_id.clone(),
+        expected_view_revision: record.view_revision,
+        minimum_workbench_revision: snapshot.revision,
+        intent: ClientViewIntent::Presentation {
+            panel_id: panel_id.clone(),
+        },
+    };
+    let answer = client_control::exchange::submit_control(
+        client,
+        &snapshot.session_id,
+        command.clone(),
+        deadline,
+        signals,
+    )?;
+    signals.check_before(deadline)?;
+    let outcome = answer.reply.as_ref().map(|reply| &reply.outcome);
+    if let Some(ClientViewOutcome::Operation { operation }) = outcome
+        && operation.command != command
+    {
+        return Err(Failure::new(FailureKind::ProtocolInvalid));
+    }
+    if let Some(failure) =
+        super::client_control::exchange::submission_refusal(answer.exit_code(), outcome)
+    {
+        return Err(failure);
+    }
+    let Some(WorkbenchClientViewResult {
+        outcome: ClientViewOutcome::Operation { operation },
+        ..
+    }) = answer.reply
+    else {
+        return Err(Failure::new(FailureKind::ProtocolInvalid));
+    };
+    let ClientViewControlStatus::PresentationRead { presentation, view } = operation.status else {
+        return Err(Failure::new(FailureKind::ProtocolInvalid));
+    };
+    Ok((command.operation_id, presentation, view))
 }
 
 #[derive(Debug, Clone)]

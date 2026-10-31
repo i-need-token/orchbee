@@ -17,6 +17,7 @@ fn plugin_context_preflight_uses_exact_caller_or_client_and_refuses_selection_ra
         let submitted = matches!(case, "client" | "caller-child" | "explicit" | "busy");
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);
+            let mut listed = None;
             if case != "caller-child" {
                 let mut selected = record(10, 6);
                 if case == "busy" {
@@ -25,6 +26,7 @@ fn plugin_context_preflight_uses_exact_caller_or_client_and_refuses_selection_ra
                 if case == "wrong-tab" {
                     selected["view"]["selection"]["tabId"] = json!(id(99));
                 }
+                listed = Some(selected.clone());
                 let mut clients = vec![selected];
                 if case == "ambiguous" {
                     clients.push(record(11, 8));
@@ -32,7 +34,13 @@ fn plugin_context_preflight_uses_exact_caller_or_client_and_refuses_selection_ra
                 list_reply(&mut stream, clients);
             }
             if !matches!(case, "ambiguous" | "wrong-tab") {
-                enrichment::read(&mut stream, 6, (case != "caller-child").then_some(10), case);
+                enrichment::read_source(
+                    &mut stream,
+                    6,
+                    (case != "caller-child").then_some(10),
+                    case,
+                    listed.as_ref(),
+                );
             }
             if submitted {
                 let WorkbenchRequest::Plugin(request) =

@@ -56,8 +56,8 @@ impl Reason {
     }
 }
 
-/// Publish a Client's refusal of one preparation read as `client-refused` with the Client's
-/// typed reason. Every other failure keeps its own contract.
+/// Publish a Client's refusal of one preparation read or of the popup open as `client-refused`
+/// with the Client's typed reason. Every other failure keeps its own contract.
 pub(in crate::cli) fn client_refusal(mut failure: Failure) -> Failure {
     if failure.details.is_none()
         && failure.failure_schema.is_none()

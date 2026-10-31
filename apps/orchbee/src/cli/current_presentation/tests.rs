@@ -35,6 +35,7 @@ fn read() -> Read {
             },
         },
         operation_id: WorkbenchRequestId::parse(&id(10)).unwrap(),
+        fence: ViewFence::Exact,
     }
 }
 #[test]

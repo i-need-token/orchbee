@@ -1405,3 +1405,99 @@ fn busy_client_delivers_panel_and_directional_focus_but_starting_refuses() {
         }
     }
 }
+
+/// Only the Client knows whether a modal surface, a small window or another not-ready state
+/// blocks a popup, so the Server delivers a popup open to a busy Client instead of refusing it as
+/// busy itself; a starting Client and the single effect slot still refuse it.
+#[test]
+fn popup_open_reaches_a_busy_client_so_the_client_names_the_cause() {
+    for phase in [
+        ClientViewPhase::Ready,
+        ClientViewPhase::Busy,
+        ClientViewPhase::Starting,
+    ] {
+        let now = Instant::now();
+        let mut registry = ClientViewRegistry::default();
+        let mut sample = sample();
+        let ClientViewAction::Synchronize { view, .. } = &mut sample else {
+            panic!()
+        };
+        view.phase = phase;
+        execute(&mut registry, 1, sample.clone(), now);
+        let mut popup = command(990, 1);
+        let ClientViewIntent::Panel {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        } = popup.intent
+        else {
+            panic!()
+        };
+        popup.intent = ClientViewIntent::PopupOpen {
+            spec: Box::new(orchbee_workbench_protocol::PluginPopupSpec {
+                selector: orchbee_workbench_protocol::PluginPaneSelector::new(
+                    "tools".into(),
+                    "dashboard".into(),
+                )
+                .unwrap(),
+                source: orchbee_workbench_protocol::ClientPopupSource {
+                    terminal_context_id,
+                    tab_id: tab_id.clone(),
+                    panel_id: panel_id.clone(),
+                    member: serde_json::from_value(serde_json::json!({
+                        "presentationId": "3".repeat(32), "selectionGeneration": "1"
+                    }))
+                    .unwrap(),
+                },
+                context: Box::new(orchbee_workbench_protocol::PluginInvocationContext {
+                    tab_id: Some(tab_id.to_string()),
+                    focused_pane_id: Some(panel_id.to_string()),
+                    ..Default::default()
+                }),
+                cwd: None,
+                environment: Default::default(),
+                width: None,
+                height: None,
+            }),
+        };
+        let outcome = execute(
+            &mut registry,
+            20,
+            ClientViewAction::Submit {
+                command: Box::new(popup.clone()),
+            },
+            now,
+        );
+        if phase == ClientViewPhase::Starting {
+            assert_eq!(
+                status(outcome),
+                ClientViewControlStatus::Rejected {
+                    reason: ClientViewControlReason::Busy
+                }
+            );
+            continue;
+        }
+        assert_eq!(status(outcome), ClientViewControlStatus::Queued {});
+        let mut second = popup.clone();
+        second.operation_id = operation_id(991);
+        assert_eq!(
+            status(execute(
+                &mut registry,
+                20,
+                ClientViewAction::Submit {
+                    command: Box::new(second)
+                },
+                now
+            )),
+            ClientViewControlStatus::Rejected {
+                reason: ClientViewControlReason::Busy
+            }
+        );
+        let ClientViewOutcome::Synchronized { control, .. } =
+            execute(&mut registry, 1, sample, now)
+        else {
+            panic!()
+        };
+        assert_eq!(control, Some(Box::new(popup)));
+    }
+}

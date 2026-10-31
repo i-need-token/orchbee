@@ -390,7 +390,7 @@ impl ClientViewRegistry {
         } else if self.receipts.values().any(|receipt| {
             receipt.operation.command.client_id == command.client_id
                 && receipt.operation.status.pending()
-        }) || command.intent.blocked_by_busy_phase(client.view.phase)
+        }) || command.intent.refused_before_delivery(client.view.phase)
         {
             Some(ClientViewControlReason::Busy)
         } else {
@@ -598,7 +598,7 @@ impl ClientViewRegistry {
                 .operation
                 .command
                 .intent
-                .blocked_by_busy_phase(client.view.phase)
+                .refused_before_delivery(client.view.phase)
             {
                 Some(ClientViewControlReason::Busy)
             } else {

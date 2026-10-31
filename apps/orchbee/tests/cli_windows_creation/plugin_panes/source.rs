@@ -123,6 +123,91 @@ pub(super) fn read(
     original_client: bool,
     changed: bool,
 ) {
+    observe(stream, snapshot, source, presentation);
+    if let Some(source) = source {
+        // The final member re-read addresses the Client's current view.
+        found(stream, source);
+        passive_member(stream, source, snapshot, presentation);
+        if original_client {
+            let request = view_request(stream);
+            assert!(matches!(request.action, ClientViewAction::Get { .. }));
+            let mut fresh = source.clone();
+            if changed {
+                // Only a selection change moves the source; a bare revision step re-addresses it.
+                fresh["viewRevision"] = json!("3");
+                fresh["view"]["selection"]["panelId"] = json!(id(20));
+            }
+            view_reply(stream, &request, json!({"kind":"found","client":fresh}));
+        }
+    }
+}
+
+/// Replays a real Session in which the Client's view moves under the source reads. The source's
+/// own terminal-metadata read commits a read-only viewer on the Server; every TUI refreshes, and
+/// that refresh's ready-busy-ready step advances the view revision by two while the selection
+/// stays put. Output in another Workspace (`ping -t`) keeps stepping it, so the Server refuses the
+/// final member re-read as stale even at the revision the CLI just read. The CLI re-reads the
+/// Client and repeats the read at the Client's current revision; it returns that last record.
+pub(super) fn read_stepped(
+    stream: &mut LocalStream,
+    snapshot: &Snapshot,
+    source: &Value,
+    presentation: u64,
+) -> Value {
+    observe(stream, snapshot, Some(source), presentation);
+    let moved = stepped(source);
+    found(stream, &moved);
+    refuse_stale(stream, &moved);
+    let current = stepped(&moved);
+    found(stream, &current);
+    passive_member(stream, &current, snapshot, presentation);
+    current
+}
+
+/// Answers one Client re-read with `record`.
+pub(super) fn found(stream: &mut LocalStream, record: &Value) {
+    let request = view_request(stream);
+    assert_eq!(
+        json!(request.action),
+        json!({"kind":"get","clientId":record["clientId"]}),
+        "a step re-reads the Client before it addresses the Client's current view"
+    );
+    view_reply(stream, &request, json!({"kind":"found","client":record}));
+}
+
+/// Refuses one control step addressed at `record`'s view revision as stale, as the Server does
+/// once the Client's view moved again.
+pub(super) fn refuse_stale(stream: &mut LocalStream, record: &Value) {
+    let request = view_request(stream);
+    let ClientViewAction::Submit { command } = &request.action else {
+        panic!("one control step")
+    };
+    assert_eq!(
+        json!(command.expected_view_revision),
+        record["viewRevision"]
+    );
+    view_reply(
+        stream,
+        &request,
+        json!({"kind":"operation","operation":{"command":command,"status":{"kind":"rejected","reason":"stale-view"}}}),
+    );
+}
+
+/// The same Client two view revisions later, with an unchanged selection.
+pub(super) fn stepped(source: &Value) -> Value {
+    let revision: u64 = source["viewRevision"].as_str().unwrap().parse().unwrap();
+    let mut stepped = source.clone();
+    stepped["viewRevision"] = json!((revision + 2).to_string());
+    stepped
+}
+
+/// Every source read before the final member re-read.
+fn observe(
+    stream: &mut LocalStream,
+    snapshot: &Snapshot,
+    source: Option<&Value>,
+    presentation: u64,
+) {
     use orchbee_agent_observation_protocol::{
         AgentRequest, AgentResult, read_agent_request, write_agent_result,
     };
@@ -154,18 +239,6 @@ pub(super) fn read(
     source_reports(stream, &panel, presentation, binding, false);
     source_reports(stream, &panel, presentation, None, true);
     snapshot_reply(stream, snapshot.clone());
-    if let Some(source) = source {
-        passive_member(stream, source, snapshot, presentation);
-        if original_client {
-            let request = view_request(stream);
-            assert!(matches!(request.action, ClientViewAction::Get { .. }));
-            let mut fresh = source.clone();
-            if changed {
-                fresh["viewRevision"] = json!("3");
-            }
-            view_reply(stream, &request, json!({"kind":"found","client":fresh}));
-        }
-    }
 }
 
 #[test]

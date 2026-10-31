@@ -251,6 +251,15 @@ impl ClientViewIntent {
                 ClientViewPhase::Ready | ClientViewPhase::Unavailable => false,
             }
     }
+    /// Whether the Server refuses this intent for the Client's published phase instead of
+    /// delivering it. A busy Client still receives a popup intent: only the Client knows whether
+    /// a modal surface, a window too small for the popup or a transient step holds it, and its
+    /// refusal names that cause.
+    #[must_use]
+    pub fn refused_before_delivery(&self, phase: ClientViewPhase) -> bool {
+        self.blocked_by_busy_phase(phase)
+            && !(phase == ClientViewPhase::Busy && self.popup_source().is_some())
+    }
     #[must_use]
     pub fn is_passive_read(&self) -> bool {
         matches!(

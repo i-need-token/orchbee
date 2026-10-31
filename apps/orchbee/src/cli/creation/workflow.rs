@@ -254,7 +254,8 @@ fn execute(
             query::request_id()?.as_str(),
             deadline,
             signals,
-        )?;
+        )
+        .map_err(crate::cli::plugin_preparation::failure::client_refusal)?;
         if let Some(pinned) = overlay_source
             && !observed_member
                 .as_ref()
@@ -263,21 +264,15 @@ fn execute(
             return Err(crate::cli::query::workbench_failure("client-changed"));
         }
         if let Some(original) = &selected {
-            let fresh = control::exchange(
+            // The source reads may move the Client's view revision; only its selection fences
+            // the plugin context.
+            crate::cli::client_control::view_fence::ViewFence::Selection.next_record(
                 &mut client,
                 &snapshot.session_id,
-                ClientViewAction::Get {
-                    client_id: original.client_id.clone(),
-                },
+                original,
                 deadline,
                 signals,
             )?;
-            if !matches!(fresh.outcome, ClientViewOutcome::Found { client }
-                if client.availability == ClientViewAvailability::Current
-                    && client.view_revision == original.view_revision && client.view == original.view)
-            {
-                return Err(crate::cli::query::workbench_failure("client-changed"));
-            }
         }
         match &mut canonical {
             crate::invocation::MutationCommand::TabCreate { options, .. }

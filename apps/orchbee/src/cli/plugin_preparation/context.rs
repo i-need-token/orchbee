@@ -2,7 +2,7 @@
 use crate::{
     cli::{
         Failure, FailureKind,
-        client_control::{exchange::exchange, selection},
+        client_control::{selection, view_fence::ViewFence},
         console_interrupt::SignalWatch,
         current_presentation::{self, Origin, Resolved},
         query, results, workbench_query, workbench_worktrees,
@@ -11,9 +11,8 @@ use crate::{
     local_client::LocalClient,
 };
 use orchbee_workbench_protocol::{
-    ClientViewAction, ClientViewAvailability, ClientViewOutcome, ClientViewPhase, ClientViewRecord,
-    PluginInvocationContext, Snapshot, TerminalId, WorkbenchClientId, WorkbenchPanelId,
-    WorkbenchTerminalContextId,
+    ClientViewPhase, ClientViewRecord, PluginInvocationContext, Snapshot, TerminalId,
+    WorkbenchClientId, WorkbenchPanelId, WorkbenchTerminalContextId,
 };
 use std::time::Instant;
 
@@ -86,8 +85,15 @@ pub(in crate::cli) fn observe(
         };
         let origin = if let Some(record) = &selected {
             let id = WorkbenchPanelId::parse(&panel.row.panel_id).map_err(|_| invalid())?;
+            // A plugin source depends on the Client's selection and member, not its whole view.
             Origin::Client(Box::new(current_presentation::read_with_receipt(
-                client, snapshot, record, &id, deadline, signals,
+                client,
+                snapshot,
+                record,
+                &id,
+                ViewFence::Selection,
+                deadline,
+                signals,
             )?))
         } else {
             terminal.map_or(Origin::Primary, Origin::Caller)
@@ -117,21 +123,13 @@ pub(in crate::cli) fn observe(
             return Err(crate::cli::query::workbench_failure("workbench-changed"));
         }
         if let Some(original) = selected {
-            let reply = exchange(
+            ViewFence::Selection.next_record(
                 client,
                 &snapshot.session_id,
-                ClientViewAction::Get {
-                    client_id: original.client_id.clone(),
-                },
+                &original,
                 deadline,
                 signals,
             )?;
-            if !matches!(reply.outcome, ClientViewOutcome::Found { client }
-                if client.availability == ClientViewAvailability::Current
-                    && client.view_revision == original.view_revision && client.view == original.view)
-            {
-                return Err(crate::cli::query::workbench_failure("client-changed"));
-            }
         }
     }
     if let Some(fence) = fence {

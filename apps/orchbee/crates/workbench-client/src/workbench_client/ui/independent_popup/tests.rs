@@ -222,3 +222,60 @@ fn too_small_popup_root_frame_shows_plain_recovery_and_restores_the_surface_afte
         );
     }
 }
+
+/// An open action menu owns the input a popup would take: the Client stays ready, and a popup open
+/// names the menu as modal instead of opening over it.
+#[test]
+fn popup_admission_names_an_open_action_menu_as_modal() {
+    let source = super::super::tests::membership::snapshot(2, 1);
+    let (mut ui, _, _, _) =
+        super::super::tests::move_membership::ready_ui_with_snapshot(source.clone());
+    super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
+    let (_, observation) = ui.control_observation(false).unwrap();
+    let selected = observation.selection.unwrap();
+    let panel_id = selected.panel_id.unwrap();
+    let mut command = ClientViewControl {
+        operation_id: WorkbenchRequestId::parse(&"a".repeat(32)).unwrap(),
+        client_id: WorkbenchClientId::parse(&"b".repeat(32)).unwrap(),
+        expected_view_revision: ClientViewSequence::new(1).unwrap(),
+        minimum_workbench_revision: source.revision,
+        intent: ClientViewIntent::Presentation {
+            panel_id: panel_id.clone(),
+        },
+    };
+    let member = ui
+        .read_client_presentation(&command, &source)
+        .unwrap()
+        .presentation
+        .unwrap();
+    command.intent = ClientViewIntent::PopupOpen {
+        spec: Box::new(PluginPopupSpec {
+            selector: PluginPaneSelector::new("tools".into(), "dashboard".into()).unwrap(),
+            source: ClientPopupSource {
+                terminal_context_id: selected.terminal_context_id,
+                tab_id: selected.tab_id.clone().unwrap(),
+                panel_id: panel_id.clone(),
+                member,
+            },
+            context: Box::new(PluginInvocationContext {
+                tab_id: Some(selected.tab_id.unwrap().to_string()),
+                focused_pane_id: Some(panel_id.to_string()),
+                ..Default::default()
+            }),
+            cwd: None,
+            environment: Default::default(),
+            width: None,
+            height: None,
+        }),
+    };
+    assert!(ui.open_action_menu(crate::action_menu::MenuTarget::Global, None, false));
+    assert_eq!(
+        ui.control_observation(false).unwrap().1.phase,
+        ClientViewPhase::Ready
+    );
+    assert_eq!(
+        ui.begin_popup_control(&command, Some(&source)),
+        Err(Reason::ModalOpen)
+    );
+    assert!(!ui.popup.busy());
+}

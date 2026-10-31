@@ -60,7 +60,9 @@ fn fence(stream: &mut LocalStream, record: &Value, changed: bool) {
     );
     let mut fresh = record.clone();
     if changed {
+        // Only a selection change moves the source; a bare revision step does not.
         fresh["viewRevision"] = json!("3");
+        fresh["view"]["selection"]["panelId"] = json!(id(20));
     }
     view_reply(stream, &request, json!({"kind":"found","client":fresh}));
 }
@@ -313,6 +315,7 @@ fn plugin_tab_reads_destination_remembered_nonfirst_focus_and_refuses_invalid_or
         "changed-tab",
         "changed-focus",
         "changed-client",
+        "stepped-client",
     ] {
         let fixture = fixture();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
@@ -337,12 +340,20 @@ fn plugin_tab_reads_destination_remembered_nonfirst_focus_and_refuses_invalid_or
                 snapshot_reply(&mut stream, before);
             }
             if case != "headless" {
-                memory(&mut stream, &source, case, true);
+                // The source reads may move the Client's view revision without changing its
+                // selection; the memory re-read addresses the Client's current view.
+                let current = if case == "stepped-client" {
+                    source::stepped(&source)
+                } else {
+                    source.clone()
+                };
+                source::found(&mut stream, &current);
+                memory(&mut stream, &current, case, true);
                 if matches!(case, "changed-tab" | "changed-focus") {
                     assert_closed(&mut stream);
                     return;
                 }
-                fence(&mut stream, &source, case == "changed-client");
+                fence(&mut stream, &current, case == "changed-client");
             }
             if fails {
                 assert_closed(&mut stream);

@@ -4,7 +4,7 @@ use crate::{
     cli::{
         Failure, FailureKind,
         caller_context::PanelTarget,
-        client_control::{exchange as control, selection},
+        client_control::{exchange as control, selection, view_fence::ViewFence},
         console_interrupt::SignalWatch,
         query, results,
     },
@@ -17,6 +17,9 @@ use orchbee_workbench_protocol::{
     WorkbenchClientId, WorkbenchPanelId, WorkbenchTabId, WorkbenchTerminalContextId,
 };
 use std::time::Instant;
+
+/// A plugin source depends on the Client's selection and remembered focus, not its whole view.
+const FENCE: ViewFence = ViewFence::Selection;
 
 enum TargetSource {
     Current,
@@ -226,20 +229,29 @@ impl Memory {
         deadline: Instant,
         signals: &mut impl SignalWatch,
     ) -> Result<Self, Failure> {
-        let ClientViewControlStatus::NavigationRead { navigation, view } = read_status(
+        let ClientViewControlStatus::NavigationRead { navigation, view } = FENCE.address(
             client,
-            snapshot,
+            &snapshot.session_id,
             record,
-            ClientViewIntent::Selections {
-                terminal_context_ids: vec![context.clone()],
-            },
             deadline,
             signals,
+            |client, current, signals| {
+                read_status(
+                    client,
+                    snapshot,
+                    current,
+                    ClientViewIntent::Selections {
+                        terminal_context_ids: vec![context.clone()],
+                    },
+                    deadline,
+                    signals,
+                )
+            },
         )?
         else {
             return Err(invalid());
         };
-        if view != record.view || navigation.workbench_revision != snapshot.revision {
+        if !FENCE.holds(record, &view) || navigation.workbench_revision != snapshot.revision {
             return Err(query::workbench_failure("client-changed"));
         }
         if !navigation.answers(std::slice::from_ref(context), &view, snapshot.revision) {
@@ -260,22 +272,31 @@ impl Memory {
                 .ok_or_else(invalid)?;
             let panels = results::panel_ids_in(&canonical.root);
             let anchor = panels.first().ok_or_else(invalid)?;
-            let ClientViewControlStatus::LayoutRead { layout, view } = read_status(
+            let ClientViewControlStatus::LayoutRead { layout, view } = FENCE.address(
                 client,
-                snapshot,
+                &snapshot.session_id,
                 record,
-                ClientViewIntent::Layout {
-                    terminal_context_id: context.clone(),
-                    tab_id: id.clone(),
-                    panel_id: (*anchor).clone(),
-                },
                 deadline,
                 signals,
+                |client, current, signals| {
+                    read_status(
+                        client,
+                        snapshot,
+                        current,
+                        ClientViewIntent::Layout {
+                            terminal_context_id: context.clone(),
+                            tab_id: id.clone(),
+                            panel_id: (*anchor).clone(),
+                        },
+                        deadline,
+                        signals,
+                    )
+                },
             )?
             else {
                 return Err(invalid());
             };
-            if view != record.view || layout.workbench_revision != snapshot.revision {
+            if !FENCE.holds(record, &view) || layout.workbench_revision != snapshot.revision {
                 return Err(query::workbench_failure("client-changed"));
             }
             if layout.validate().is_err()
@@ -316,10 +337,18 @@ impl Fence {
         signals: &mut impl SignalWatch,
     ) -> Result<(), Failure> {
         if let Some(memory) = self.memory {
+            // The reads since the first observation may have moved the Client's view revision.
+            let current = FENCE.next_record(
+                client,
+                &snapshot.session_id,
+                &self.record,
+                deadline,
+                signals,
+            )?;
             let fresh = Memory::read(
                 client,
                 snapshot,
-                &self.record,
+                &current,
                 &memory.context,
                 deadline,
                 signals,
@@ -328,22 +357,15 @@ impl Fence {
                 return Err(query::workbench_failure("client-changed"));
             }
         }
-        let response = control::exchange(
-            client,
-            &snapshot.session_id,
-            ClientViewAction::Get {
-                client_id: self.record.client_id.clone(),
-            },
-            deadline,
-            signals,
-        )?;
-        if !matches!(response.outcome, ClientViewOutcome::Found { client }
-            if client.availability == ClientViewAvailability::Current
-                && client.view_revision == self.record.view_revision && client.view == self.record.view)
-        {
-            return Err(query::workbench_failure("client-changed"));
-        }
-        Ok(())
+        FENCE
+            .next_record(
+                client,
+                &snapshot.session_id,
+                &self.record,
+                deadline,
+                signals,
+            )
+            .map(drop)
     }
 }
 

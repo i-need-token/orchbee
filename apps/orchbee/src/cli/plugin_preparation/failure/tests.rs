@@ -50,7 +50,7 @@ fn preparation_failures_are_typed_localized_and_closed_to_the_new_version() {
 }
 
 #[test]
-fn a_client_refused_preparation_read_publishes_the_clients_typed_reason() {
+fn a_client_refused_plugin_request_publishes_the_clients_typed_reason() {
     use orchbee_workbench_protocol::ClientViewControlReason;
     let schema: serde_json::Value =
         serde_json::from_str(include_str!("../../schemas/orchbee.cli.failure.json")).unwrap();
@@ -80,8 +80,8 @@ fn a_client_refused_preparation_read_publishes_the_clients_typed_reason() {
         );
         let english = CliText::new(Locale::EnUs).cli_failure(&failure);
         let chinese = CliText::new(Locale::ZhCn).cli_failure(&failure);
-        assert!(english.contains("refused a preparation read"), "{english}");
-        assert!(chinese.contains("拒绝了准备阶段的读取"), "{chinese}");
+        assert!(english.contains("refused the plugin request"), "{english}");
+        assert!(chinese.contains("拒绝了插件请求"), "{chinese}");
         assert!(!english.contains("Unavailable") && !chinese.contains("不可用"));
         document["failure"]["details"]
             .as_object_mut()

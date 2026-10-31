@@ -127,6 +127,7 @@ fn collect(
                     &snapshot,
                     record,
                     &panel_id,
+                    crate::cli::client_control::view_fence::ViewFence::Exact,
                     deadline,
                     signals,
                 )?))

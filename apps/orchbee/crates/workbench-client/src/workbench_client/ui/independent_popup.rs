@@ -126,10 +126,17 @@ impl WorkbenchClientUi {
             _ => Err(Reason::Unsupported),
         }
     }
-    /// Whether another popup, dialog, or history view owns the input a new popup would take;
-    /// overlays and input modes are reported by the caller that observes them.
+    /// Whether another popup, a dialog, a history view, or a native surface that captures input,
+    /// such as the action menu or copy mode, owns the input a new popup would take; Client
+    /// overlays and modes are reported by the caller that observes them.
     pub(in crate::workbench_client) fn popup_modal_open(&self) -> bool {
-        self.popup.busy() || self.control_modal()
+        self.popup.busy()
+            || self.control_modal()
+            || crate::tui_composition::project_capture(
+                crate::tui_composition::ClientCaptureClaims::default(),
+                self.capture_claims(),
+            )
+            .is_some()
     }
     pub(in crate::workbench_client) fn popup_control_outcome(
         &self,

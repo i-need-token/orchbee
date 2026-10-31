@@ -16,6 +16,7 @@ pub(super) mod exchange;
 mod layout;
 pub(super) mod selection;
 mod swap;
+pub(super) mod view_fence;
 mod workflow;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

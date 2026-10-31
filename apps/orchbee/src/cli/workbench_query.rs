@@ -474,11 +474,18 @@ pub(super) fn collect(
             .as_ref()
             .and_then(|member| member.client()),
     ) {
+        // The member reads above may move the Client's view; its fence decides whether only a
+        // selection change, or any view change, fails the final re-read.
+        let current =
+            first
+                .fence
+                .next_record(client, &snapshot.session_id, original, deadline, signals)?;
         let last = super::current_presentation::read_with_receipt(
             client,
             snapshot,
-            original,
+            &current,
             &member.panel_id,
+            first.fence,
             deadline,
             signals,
         )?;
