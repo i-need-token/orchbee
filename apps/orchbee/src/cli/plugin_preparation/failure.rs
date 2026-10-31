@@ -56,5 +56,19 @@ impl Reason {
     }
 }
 
+/// Publish a Client's refusal of one preparation read as `client-refused` with the Client's
+/// typed reason. Every other failure keeps its own contract.
+pub(in crate::cli) fn client_refusal(mut failure: Failure) -> Failure {
+    if failure.details.is_none()
+        && failure.failure_schema.is_none()
+        && let Some(reason) = failure.client_refusal
+    {
+        let mut details = stage_reason_details("plugin", "client-refused");
+        details.insert("clientReason".into(), serde_json::json!(reason));
+        failure.details = Some(details);
+    }
+    failure
+}
+
 #[cfg(test)]
 mod tests;

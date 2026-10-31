@@ -1232,3 +1232,34 @@ fn read_failures_preserve_denial_missing_observation_and_interruption_classes() 
     }
     assert_eq!(exchange::submission_failure(0, None), None);
 }
+
+#[test]
+fn a_refused_read_step_retains_the_clients_typed_reason_without_new_details() {
+    use orchbee_workbench_protocol::{ClientViewControlReason, ClientViewControlStatus};
+    let WorkbenchResponse::ClientView(mut reply) =
+        serde_json::from_value(sample("editor-opened-acknowledged-source")).unwrap()
+    else {
+        panic!()
+    };
+    let ClientViewOutcome::Operation { operation } = &mut reply.outcome else {
+        panic!()
+    };
+    operation.status = ClientViewControlStatus::Rejected {
+        reason: ClientViewControlReason::ModalOpen,
+    };
+    let failure = exchange::submission_refusal(3, Some(&reply.outcome)).unwrap();
+    assert_eq!(
+        (failure.kind, failure.client_refusal),
+        (
+            FailureKind::Rejected,
+            Some(ClientViewControlReason::ModalOpen)
+        )
+    );
+    assert!(failure.details.is_none() && failure.failure_schema.is_none());
+    let denied = exchange::submission_refusal(3, Some(&ClientViewOutcome::Denied {})).unwrap();
+    assert_eq!(
+        (denied.kind, denied.client_refusal),
+        (FailureKind::Denied, None)
+    );
+    assert!(exchange::submission_refusal(0, Some(&reply.outcome)).is_none());
+}

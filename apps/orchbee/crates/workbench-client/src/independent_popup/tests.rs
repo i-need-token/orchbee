@@ -358,7 +358,7 @@ fn popup_lane_trace(editor: bool) -> TestResult {
             WorkbenchRequestId::parse(&id(11))?,
             spec
         ),
-        Err(Reason::Busy)
+        Err(Reason::ModalOpen)
     );
     wait_until(&mut driver, Driver::input_ready);
     assert_eq!(driver.view().unwrap().title, "Trusted dashboard");
@@ -437,6 +437,29 @@ fn popup_lane_trace(editor: bool) -> TestResult {
     );
     assert!(!driver.captured());
     driver.shutdown();
+    server.finish()?;
+    Ok(())
+}
+
+#[test]
+fn popup_open_names_a_surface_that_cannot_fit_the_smallest_frame() -> TestResult {
+    let server = FakeServer::start_connections(1, |_, mut stream| admit(&mut stream))?;
+    let client = LocalClient::connect(server.endpoint(), "popup-space-test")?;
+    let origin = client.origin();
+    drop(client);
+    let mut driver = Driver::new(clock());
+    driver.set_origin(origin);
+    let open = |driver: &mut Driver| -> Result<Result<(), Reason>, Box<dyn std::error::Error>> {
+        Ok(driver.begin_open(
+            SessionId::parse(&id(2))?,
+            WorkbenchRequestId::parse(&id(10))?,
+            spec(),
+        ))
+    };
+    assert_eq!(open(&mut driver)?, Err(Reason::InsufficientSpace));
+    driver.observe_surface(Rect::new(0, 0, 5, 3), (8, 16));
+    assert_eq!(open(&mut driver)?, Err(Reason::InsufficientSpace));
+    assert!(!driver.busy());
     server.finish()?;
     Ok(())
 }

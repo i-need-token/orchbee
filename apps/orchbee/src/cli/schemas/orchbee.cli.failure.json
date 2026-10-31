@@ -643,9 +643,39 @@
 						"client-changed",
 						"context-invalid",
 						"pane-changed",
+						"client-refused",
 						"transport-loss",
 						"invalid-reply"
 					]
+				},
+				"clientReason": {
+					"enum": [
+						"busy",
+						"modal-open",
+						"insufficient-space",
+						"stale-view",
+						"target-unavailable",
+						"projection-unavailable",
+						"interrupted",
+						"client-disconnected",
+						"expired",
+						"unsupported"
+					]
+				}
+			},
+			"if": {
+				"properties": {
+					"reason": {
+						"const": "client-refused"
+					}
+				}
+			},
+			"then": {
+				"required": ["clientReason"]
+			},
+			"else": {
+				"not": {
+					"required": ["clientReason"]
 				}
 			}
 		}
@@ -775,7 +805,8 @@
 												"invalid-popup-spec",
 												"client-changed",
 												"context-invalid",
-												"pane-changed"
+												"pane-changed",
+												"client-refused"
 											]
 										}
 									}

@@ -377,8 +377,8 @@ fn read_status(
     {
         return Err(invalid());
     }
-    if let Some(kind) = control::submission_failure(answer.exit_code(), outcome) {
-        return Err(Failure::new(kind));
+    if let Some(failure) = control::submission_refusal(answer.exit_code(), outcome) {
+        return Err(failure);
     }
     let Some(reply) = answer.reply else {
         return Err(invalid());

@@ -211,7 +211,7 @@ Pane 启动选项增加可选、有界的 `pluginContext`，仅允许与 Tab／�
 
 ## 独立插件 popup 契约
 
-私有插件 PopupOpen／PopupRead／PopupClose 使用既有匹配 cohort 插件传输，返回明确关联的 PopupOpened／PopupState／PopupClosing／PopupClosed／PopupUnknown。PopupOpen 携带封闭目录选择器、精确 context／Tab／Panel 及完整 Client Presentation selection、有界显示上下文、必填可空 cwd／尺寸，复用受保护名称启动环境准入。已绑定 attachment generation／incarnation 和非零未绑定 selection generation 属于来源身份。这些请求不创建规范 Pane 成员。Client PopupOpen／PopupClose 要求明确匹配的完成结果，通用 Applied 不能完成它们。hadPopup=false 的关闭可保留其他 Busy 对话框。Rust、TypeScript 与 JSON 共享有效／无效语料。[独立 popup 行为](../../apps/orchbee/docs/windows-plugins.zh-CN.md#独立终端-popup)负责物理生命周期、UI 输入及验收。对端需成套部署；不授予 Desktop 操作或新增 Host 能力。
+私有插件 PopupOpen／PopupRead／PopupClose 使用既有匹配 cohort 插件传输，返回明确关联的 PopupOpened／PopupState／PopupClosing／PopupClosed／PopupUnknown。PopupOpen 携带封闭目录选择器、精确 context／Tab／Panel 及完整 Client Presentation selection、有界显示上下文、必填可空 cwd／尺寸，复用受保护名称启动环境准入。已绑定 attachment generation／incarnation 和非零未绑定 selection generation 属于来源身份。这些请求不创建规范 Pane 成员。Client PopupOpen／PopupClose 要求明确匹配的完成结果，通用 Applied 不能完成它们。hadPopup=false 的关闭可保留其他 Busy 对话框。Client 拒绝打开 popup 时：其他 popup、浮层、对话框、历史视图或输入模式（如复制、调整大小模式）占用输入时为 `modal-open`；界面缺失或放不下最小 popup 框时为 `insufficient-space`；其他未就绪状态为 `busy`。Rust、TypeScript 与 JSON 共享有效／无效语料。[独立 popup 行为](../../apps/orchbee/docs/windows-plugins.zh-CN.md#独立终端-popup)负责物理生命周期、UI 输入及验收。对端需成套部署；不授予 Desktop 操作或新增 Host 能力。
 
 ## 私有 scrollback 编辑器 popup 契约
 
@@ -255,4 +255,4 @@ Windows cohort 的整链见证。
 
 `CloseOperationRead` 与 `CloseOperationResult` 在既有 intent 大小上限内使用 OBWP 61/62。它们按原始请求 ID 读取保留 Close，精确关联 会话／request／operation，并使用封闭的 Workspace／Tab／Panel 目标。此读取不创建状态，并保留墓碑。Rust、TypeScript 和 JSON Schema 共享命令语料；[CLI 操作状态](../../apps/orchbee/docs/native-operation-status.zh-CN.md) 负责调用及恢复。
 
-<!-- documentation-pairing: english-sha256=4869436eb2b9e4260b35544adb6a067fd74886e49746e3618be4b98dfd55b497 zh-cn-sha256=1c95a5bede1ccc816721b028ebe4ee1472479e73655fc091c5278dda6b18cdf1 -->
+<!-- documentation-pairing: english-sha256=9c5cdbb175a05abca6fa0431d985be9bea60ec59697d03eca0a224d66cdaab6b zh-cn-sha256=f05284984f4ae0f046b9fba2eb2a460e1b972b57214a1b4ab6ec03f8faf4ba77 -->

@@ -379,7 +379,16 @@ impl ClientControl {
             } else if command.expected_view_revision != sample.revision {
                 Some(Reason::StaleView)
             } else if command.intent.blocked_by_busy_phase(sample.view.phase) {
-                Some(Reason::Busy)
+                // A popup refusal names its cause so the requester can act on it.
+                Some(if command.intent.popup_source().is_none() {
+                    Reason::Busy
+                } else if too_small {
+                    Reason::InsufficientSpace
+                } else if shell_mode || native.popup_modal_open() {
+                    Reason::ModalOpen
+                } else {
+                    Reason::Busy
+                })
             } else {
                 None
             };

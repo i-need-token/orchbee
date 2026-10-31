@@ -1478,6 +1478,8 @@
 				"reason": {
 					"enum": [
 						"busy",
+						"modal-open",
+						"insufficient-space",
 						"stale-view",
 						"target-unavailable",
 						"projection-unavailable",
@@ -3784,6 +3786,8 @@
 				"reason": {
 					"enum": [
 						"busy",
+						"modal-open",
+						"insufficient-space",
 						"stale-view",
 						"target-unavailable",
 						"projection-unavailable",

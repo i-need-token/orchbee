@@ -317,7 +317,7 @@ impl super::CliText {
                 text.push_str(&format!(
                     "{}: {}\n",
                     labels[6],
-                    self.client_control_state(reason)
+                    self.client_control_reason(reason)
                 ));
             }
         }
@@ -396,6 +396,20 @@ impl super::CliText {
                 labels[5],
                 self.client_control_state(if zoomed { "on" } else { "off" })
             ));
+        }
+    }
+    /// One Client refusal reason, phrased so the requester knows what to resolve.
+    pub(super) fn client_control_reason(self, value: &str) -> &'static str {
+        match (self.locale, value) {
+            (Locale::EnUs, "busy") => "Client busy or not ready",
+            (Locale::ZhCn, "busy") => "客户端忙碌或尚未就绪",
+            (Locale::EnUs, "modal-open") => {
+                "Another popup, overlay, dialog, or input mode (such as copy mode) is open"
+            }
+            (Locale::ZhCn, "modal-open") => "已有其他 popup、浮层、对话框或输入模式（如复制模式）",
+            (Locale::EnUs, "insufficient-space") => "Client window too small for a popup",
+            (Locale::ZhCn, "insufficient-space") => "客户端窗口太小，放不下 popup",
+            _ => self.client_control_state(value),
         }
     }
     fn client_control_state(self, value: &str) -> &'static str {

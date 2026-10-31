@@ -506,6 +506,10 @@ fn deserialize_expected_split<'de, D: Deserializer<'de>>(
 #[serde(rename_all = "kebab-case")]
 pub enum ClientViewControlReason {
     Busy,
+    /// Another popup, overlay, dialog, history view, or input mode owns the Client's input.
+    ModalOpen,
+    /// The Client surface is absent or smaller than the smallest popup frame.
+    InsufficientSpace,
     StaleView,
     TargetUnavailable,
     ProjectionUnavailable,

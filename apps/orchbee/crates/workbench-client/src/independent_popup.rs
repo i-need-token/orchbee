@@ -345,14 +345,14 @@ impl Driver {
         spec: PopupSpec,
     ) -> Result<(), Reason> {
         if self.busy() {
-            return Err(Reason::Busy);
+            return Err(Reason::ModalOpen);
         }
         let origin = self.origin.clone().ok_or(Reason::ProjectionUnavailable)?;
-        let (surface, width, height) = self.surface.ok_or(Reason::Busy)?;
-        let (_, inner) =
-            resolve_geometry(spec.width(), spec.height(), surface).ok_or(Reason::Busy)?;
-        let geometry =
-            Geometry::new(inner.width, inner.height, width, height).map_err(|_| Reason::Busy)?;
+        let (surface, width, height) = self.surface.ok_or(Reason::InsufficientSpace)?;
+        let (_, inner) = resolve_geometry(spec.width(), spec.height(), surface)
+            .ok_or(Reason::InsufficientSpace)?;
+        let geometry = Geometry::new(inner.width, inner.height, width, height)
+            .map_err(|_| Reason::InsufficientSpace)?;
         self.lane.take();
         let latest = Arc::new(Mutex::new(Latest {
             serial: 1,

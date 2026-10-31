@@ -284,6 +284,8 @@ const ClientViewControlSchema = z
 	.readonly();
 const ClientViewControlReasonSchema = z.enum([
 	'busy',
+	'modal-open',
+	'insufficient-space',
 	'stale-view',
 	'target-unavailable',
 	'projection-unavailable',

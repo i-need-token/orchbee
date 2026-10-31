@@ -1,5 +1,8 @@
 //! Popup commands address one current Client and preserve one mutation's receipt.
-use crate::cli::plugin_preparation::{context, failure::Reason};
+use crate::cli::plugin_preparation::{
+    context,
+    failure::{self, Reason},
+};
 use crate::cli_text::CliText;
 use crate::{
     cli::{
@@ -114,7 +117,8 @@ fn execute(
             id.as_str(),
             deadline,
             signals,
-        )?;
+        )
+        .map_err(failure::client_refusal)?;
         let member = member.ok_or_else(|| Reason::BindingUnavailable.failure())?;
         let spec = PluginPopupSpec {
             selector: command

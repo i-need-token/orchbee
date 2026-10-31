@@ -54,11 +54,17 @@ impl super::CliText {
             (Locale::ZhCn, "popup-target-unsupported") => {
                 "此放置方式使用当前客户端选择。请移除显式目标或启动几何覆盖，并查看 `orchbee plugin pane open --help`。\n"
             }
-            (Locale::EnUs, "client-listing-unavailable" | "client-not-ready") => {
+            (Locale::EnUs, "client-listing-unavailable") => {
                 "The TUI Client selection is unavailable or not ready. Inspect `orchbee client list` and pass --client <id>.\n"
             }
-            (Locale::ZhCn, "client-listing-unavailable" | "client-not-ready") => {
+            (Locale::ZhCn, "client-listing-unavailable") => {
                 "TUI 客户端选择不可用或尚未就绪。请用 `orchbee client list` 查看并传入 --client <id>。\n"
+            }
+            (Locale::EnUs, "client-not-ready") => {
+                "The selected TUI Client is busy or not ready: a popup, dialog, history view, copy mode, pending change, or a window too small is holding it. Resolve it, then retry; `orchbee client list` shows its phase.\n"
+            }
+            (Locale::ZhCn, "client-not-ready") => {
+                "所选 TUI 客户端忙碌或尚未就绪：popup、对话框、历史视图、复制模式、待完成的修改或过小的窗口正占用它。处理后再重试；`orchbee client list` 可查看其阶段。\n"
             }
             (Locale::EnUs, "binding-unavailable") => {
                 "The current Client has no available terminal binding for this popup. Select a terminal panel first.\n"
@@ -88,6 +94,21 @@ impl super::CliText {
                 "Plugin preparation failed before submission. Inspect the plugin configuration.\n"
             }
             (Locale::ZhCn, _) => "插件准备在提交前失败。请检查插件配置。\n",
+        }
+    }
+
+    /// A Client refused one preparation read; `reason` is its closed protocol token.
+    pub(super) fn cli_plugin_client_refused(self, reason: &str) -> String {
+        let reason = self.client_control_reason(reason);
+        match self.locale {
+            Locale::EnUs => format!(
+                "The TUI Client refused a preparation read ({reason}). Nothing was opened; resolve it and retry.\n"
+            ),
+            Locale::ZhCn => {
+                format!(
+                    "TUI 客户端拒绝了准备阶段的读取（{reason}）。未打开任何内容；处理后再重试。\n"
+                )
+            }
         }
     }
 

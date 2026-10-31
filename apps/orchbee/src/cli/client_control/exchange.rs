@@ -284,6 +284,24 @@ pub(super) fn interrupted(
     }
 }
 
+/// The failure of one finished Client view observation step, retaining the Client's typed
+/// refusal reason for owners that publish it.
+pub(in crate::cli) fn submission_refusal(
+    code: u8,
+    outcome: Option<&ClientViewOutcome>,
+) -> Option<Failure> {
+    let kind = submission_failure(code, outcome)?;
+    let mut failure = Failure::new(kind);
+    if kind == FailureKind::Rejected
+        && let Some(ClientViewOutcome::Operation { operation }) = outcome
+        && let ClientViewControlStatus::Rejected { reason }
+        | ClientViewControlStatus::Incomplete { reason, .. } = &operation.status
+    {
+        failure.client_refusal = Some(*reason);
+    }
+    Some(failure)
+}
+
 /// The failure class of one finished Client view submission: its process exit code, refined by
 /// the typed outcome for a rejected observation step.
 pub(in crate::cli) fn submission_failure(

@@ -284,6 +284,7 @@ pub(crate) fn parse_failure(failure: ParseFailure, locale: Locale) -> Output {
         failure_schema: None,
         io_diagnostic: None,
         candidate_display: None,
+        client_refusal: None,
     };
     let format = match failure.envelope {
         crate::invocation::FailureEnvelope::Json => Some(OutputFormat::Json),

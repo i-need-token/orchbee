@@ -361,8 +361,8 @@ pub(super) fn collect(
         {
             return Err(Failure::new(FailureKind::ProtocolInvalid));
         }
-        if let Some(kind) = control::submission_failure(answer.exit_code(), outcome) {
-            return Err(Failure::new(kind));
+        if let Some(failure) = control::submission_refusal(answer.exit_code(), outcome) {
+            return Err(failure);
         }
         let Some(reply) = answer.reply else {
             return Err(Failure::new(FailureKind::ProtocolInvalid));
@@ -371,10 +371,13 @@ pub(super) fn collect(
             return Err(Failure::new(FailureKind::ProtocolInvalid));
         };
         let ClientViewControlStatus::NavigationRead { navigation, view } = operation.status else {
-            return Err(Failure::new(FailureKind::Rejected));
+            return Err(Failure::new(FailureKind::ProtocolInvalid));
         };
-        if navigation.workbench_revision != snapshot.revision || view != record.view {
-            return Err(Failure::new(FailureKind::Rejected));
+        if navigation.workbench_revision != snapshot.revision {
+            return Err(super::query::workbench_failure("workbench-changed"));
+        }
+        if view != record.view {
+            return Err(super::query::workbench_failure("client-changed"));
         }
         verify_membership(snapshot, &view, &navigation.contexts)?;
         document.operations.push(request.operation_id);

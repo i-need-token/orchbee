@@ -22,6 +22,15 @@ impl super::CliText {
                 .and_then(|details| details.get("reason"))
                 .and_then(|reason| reason.as_str())
                 .unwrap_or("");
+            if reason == "client-refused" {
+                let client = failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("clientReason"))
+                    .and_then(|reason| reason.as_str())
+                    .unwrap_or("");
+                return self.cli_plugin_client_refused(client);
+            }
             return self.cli_plugin_preparation_failure(reason).to_owned();
         }
         if failure.failure_schema == Some("orchbee.cli.failure.layout-apply")

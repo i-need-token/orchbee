@@ -143,10 +143,10 @@ Windows 支持独立插件 popup 终端及原生关闭入口。popup 在当前 P
 | Client 退出        | 取消并回收独立通道；准确 lane 关闭把自身已接纳的终端交给 Session 清理，不释放兄弟 owner                 |
 | Session 退出       | 既有物理 Session／Worker 关闭收尾保留的不确定所有者；状态不持久化，也不伪造恢复                         |
 
-`plugin pane open --placement popup [--width CELLS|PERCENT%] [--height CELLS|PERCENT%]` 使用清单尺寸默认值，可由参数覆盖。popup 布局在产生效果前拒绝规范几何、target、Workspace 和 direction 覆盖。`popup close [--client ID] [--timeout MS]` 即使从无规范 Pane 的终端调用，也按 Client 定位。两者使用 `orchbee.popup.result` v1；通用 Client control 使用 v1。打开完成要求已接纳帧及完成绘制；关闭完成等待已知物理释放。没有 popup 时关闭返回 `hadPopup=false`，保留其他对话框。
+`plugin pane open --placement popup [--width CELLS|PERCENT%] [--height CELLS|PERCENT%]` 使用清单尺寸默认值，可由参数覆盖。popup 布局在产生效果前拒绝规范几何、target、Workspace 和 direction 覆盖。`popup close [--client ID] [--timeout MS]` 即使从无规范 Pane 的终端调用，也按 Client 定位。两者使用 `orchbee.popup.result` v1；通用 Client control 使用 v1。打开完成要求已接纳帧及完成绘制；关闭完成等待已知物理释放。没有 popup 时关闭返回 `hadPopup=false`，保留其他对话框。Client 拒绝时会给出原因：结果保留 Client 原因（`modal-open`、`insufficient-space`、`busy` 及其他控制原因）；准备阶段的读取被拒时，以插件原因 `client-refused` 失败，并附带该 `clientReason`；文本输出按当前语言呈现两者。
 
 私有 Workbench 插件协议提供逻辑 lane 归属的 popup 打开、生命周期读取和关闭动作及封闭的有类型结果。Open 需要 read、create 和 lifecycle 权限；Read 需要 read；Close 需要 read 和 lifecycle 权限。自然结束观察按精确独立创建引用附着，不占用独占生命周期关闭所有者。显式关闭先撤销输入并围栏 binding，Session 维护再提交 Force，通过有界 inventory 观察精确目标 exited／failed，最后提交 Dispose。Inventory 观察采用协作式五秒窗口，每次遍历最多八页、最多 32 个生命周期步骤；进行中的 Worker 交换仍有独立传输界限。只有已知 Dispose 才释放保留的 binding。启动或关闭回执丢失时保留不确定状态，不重放变更；UI 显示重启 Session 提示并阻止替代 popup。启动前已知拒绝允许重试。Rust／TypeScript 对端需一起部署；Desktop 功能支持属于独立范围。不引入新 Host 能力、依赖、进程框架或持久化存储。
 
 定向验收覆盖重复准入、来源／目录拒绝时不启动、规范布局不变、丢失启动／关闭答复、完整身份释放、连接退休、尺寸、已解码按键／粘贴／鼠标归属、实际 Ratatui 组合绘制和原生 Windows CLI 传输。测试拥有其根目录、管道、线程和 Job，直到最后消费者结束。定向 fixture 证据不代表已部署 Host／终端模拟器验收；最终集成需通过更广的 Windows 验收流程。
 
-<!-- documentation-pairing: english-sha256=04be36f01fc90f86a3005a0689dbf4857a0fd908c8fc4030d41f3830fec4635b zh-cn-sha256=d50e2c0682d727696e020e838a4134516588bd991c8edd9c79595a30156e1b47 -->
+<!-- documentation-pairing: english-sha256=21907d48a439cd284d0cc4228722e8c96af4ce9f36607f499229d56f44359967 zh-cn-sha256=b9e5f85d5f77a8f41f6c84cda2403ec367cb2806757ac045b98597eeea824138 -->

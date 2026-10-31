@@ -92,6 +92,10 @@ pub(crate) struct Failure {
     /// localized text only; JSON keeps the identifier `candidates` detail.
     /// Boxed so it never enlarges the hot Result.
     pub(crate) candidate_display: Option<Box<CandidateDisplay>>,
+    /// The Client's typed reason when it refused one Client view step. Never
+    /// serialized here: a command owner publishes it only through its own
+    /// closed details vocabulary.
+    pub(crate) client_refusal: Option<orchbee_workbench_protocol::ClientViewControlReason>,
 }
 
 /// Ambiguity candidates rendered for people, in listing order.
@@ -140,6 +144,7 @@ impl Failure {
             failure_schema: None,
             io_diagnostic: None,
             candidate_display: None,
+            client_refusal: None,
         }
     }
 

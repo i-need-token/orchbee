@@ -67,8 +67,8 @@ impl WorkbenchClientUi {
             | ClientViewIntent::PopupOpen { .. }
             | ClientViewIntent::EditorOpen { .. } => {
                 let source = command.intent.popup_source().ok_or(Reason::Unsupported)?;
-                if self.popup.busy() || self.control_modal() {
-                    return Err(Reason::Busy);
+                if self.popup_modal_open() {
+                    return Err(Reason::ModalOpen);
                 }
                 let (session, view) = self
                     .control_observation(false)
@@ -125,6 +125,11 @@ impl WorkbenchClientUi {
             // This handler implements its own ClientView intent subset; other intents belong to their feature handlers.
             _ => Err(Reason::Unsupported),
         }
+    }
+    /// Whether another popup, dialog, or history view owns the input a new popup would take;
+    /// overlays and input modes are reported by the caller that observes them.
+    pub(in crate::workbench_client) fn popup_modal_open(&self) -> bool {
+        self.popup.busy() || self.control_modal()
     }
     pub(in crate::workbench_client) fn popup_control_outcome(
         &self,
