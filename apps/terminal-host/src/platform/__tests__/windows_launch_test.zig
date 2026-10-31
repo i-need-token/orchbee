@@ -87,6 +87,102 @@ test "Windows batch ConPTY launch owns scripts and literal parameters in its Job
     }
 }
 
+// Canonical catalog paths reach the Host in their verbatim spelling. cmd.exe refuses such a
+// current directory as a UNC path and silently runs in the Windows directory instead.
+test "Windows ConPTY launch runs cmd in the directory a verbatim current directory names" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var temporary = std.testing.tmpDir(.{});
+    defer temporary.cleanup();
+    const directory = try temporary.parent_dir.realPathFileAlloc(std.testing.io, &temporary.sub_path, std.testing.allocator);
+    defer std.testing.allocator.free(directory);
+    const verbatim = try std.fmt.allocPrint(std.testing.allocator, "\\\\?\\{s}", .{directory});
+    defer std.testing.allocator.free(verbatim);
+    const executable = try platform.process.environmentVariableOwned(std.testing.allocator, "ComSpec");
+    defer std.testing.allocator.free(executable);
+    var process = try Process.spawn(std.testing.allocator, .{
+        .executable = executable,
+        .arguments = &.{ "/D", "/C", "cd" },
+        .current_directory = verbatim,
+        .environment = &.{},
+        .columns = 240,
+        .rows = 24,
+    });
+    defer process.deinit();
+    var reader: Reader = .{ .process = &process };
+    const thread = try std.Thread.spawn(.{}, Reader.run, .{&reader});
+    var joined = false;
+    defer if (!joined) {
+        process.forceTerminate() catch {};
+        process.abortRead() catch {};
+        thread.join();
+    };
+    process.registerReaderThread(thread.getHandle());
+    var timer = try platform.monotonic.Timer.start();
+    while (!try process.processTreeContained()) {
+        if (timer.read() >= 15 * std.time.ns_per_s) return error.LaunchDidNotExit;
+        platform.monotonic.sleep(10 * std.time.ns_per_ms);
+    }
+    _ = try process.wait();
+    try process.finishPtyAfterChildExit();
+    thread.join();
+    joined = true;
+    // ConPTY may interleave title and cursor sequences with the printed text.
+    var text: [4096]u8 = undefined;
+    const output = printedText(reader.output[0..try reader.result], &text);
+    const reported = try std.fmt.allocPrint(std.testing.allocator, "{s}\r\n", .{directory});
+    defer std.testing.allocator.free(reported);
+    if (std.mem.indexOf(u8, output, "UNC") != null or std.mem.indexOf(u8, output, reported) == null) {
+        std.debug.print("cmd in {s} reported: {s}\n", .{ verbatim, output });
+        return error.UnexpectedCurrentDirectory;
+    }
+}
+
+/// Drops CSI and OSC sequences, keeping the characters a reader would see.
+fn printedText(output: []const u8, buffer: []u8) []const u8 {
+    var length: usize = 0;
+    var index: usize = 0;
+    while (index < output.len) {
+        if (output[index] == 0x1b and index + 1 < output.len and output[index + 1] == '[') {
+            index += 2;
+            while (index < output.len and (output[index] < 0x40 or output[index] > 0x7e)) index += 1;
+            index += 1;
+        } else if (output[index] == 0x1b and index + 1 < output.len and output[index + 1] == ']') {
+            index += 2;
+            while (index < output.len and output[index] != 0x07 and output[index] != 0x1b) index += 1;
+            index += if (index < output.len and output[index] == 0x1b) 2 else 1;
+        } else {
+            buffer[length] = output[index];
+            length += 1;
+            index += 1;
+        }
+    }
+    return buffer[0..length];
+}
+
+test "Windows child current directory keeps a verbatim spelling it cannot shorten faithfully" {
+    const child = platform.process.testing.windowsChildCurrentDirectoryFn;
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    for ([_][2][]const u8{
+        .{ "C:\\work", "C:\\work" },
+        .{ "\\\\?\\C:\\work\\plugin", "C:\\work\\plugin" },
+        .{ "\\\\?\\C:\\", "C:\\" },
+    }) |case| try std.testing.expectEqualStrings(case[1], try child(arena, case[0]));
+    const long = try std.fmt.allocPrint(arena, "\\\\?\\C:\\{s}", .{"x" ** 256});
+    for ([_][]const u8{
+        long,
+        "\\\\?\\C:\\work\\trailing.",
+        "\\\\?\\C:\\work\\trailing \\plugin",
+        "\\\\?\\C:\\work\\..\\plugin",
+        "\\\\?\\C:\\work\\NUL",
+        "\\\\?\\C:\\work\\com1.txt",
+        "\\\\?\\C:/work",
+        "\\\\?\\C:\\work\\\\plugin",
+        "\\\\?\\GLOBALROOT\\Device",
+    }) |kept| try std.testing.expectEqualStrings(kept, try child(arena, kept));
+}
+
 const Reader = struct {
     process: *Process,
     output: [4096]u8 = undefined,

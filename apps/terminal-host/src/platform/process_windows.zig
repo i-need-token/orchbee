@@ -142,6 +142,20 @@ pub fn windowsSearchCandidates(
     return candidates.toOwnedSlice(arena);
 }
 
+/// The spelling a child receives as its current directory. Launch paths stay literal on the wire,
+/// and a canonical verbatim spelling is valid for CreateProcess, but the child inherits it as its
+/// own current directory and cmd.exe then refuses it as a UNC path. The child gets the ordinary
+/// spelling when that names the same directory within the MAX_PATH current-directory limit of a
+/// process without long-path support; otherwise the requested spelling stays unchanged.
+pub fn childCurrentDirectory(arena: std.mem.Allocator, directory: []const u8) ![]const u8 {
+    const ordinary = (try @import("windows_command_line.zig").ordinaryPath(arena, directory)) orelse
+        return directory;
+    // SetCurrentDirectory appends the missing trailing separator and needs room for NUL.
+    const separator: usize = if (std.mem.endsWith(u8, ordinary, "\\")) 0 else 1;
+    const units = std.unicode.calcUtf16LeLen(ordinary) catch return directory;
+    return if (units + separator < std.os.windows.MAX_PATH) ordinary else directory;
+}
+
 pub const Process = if (builtin.os.tag != .windows) void else struct {
     const windows = std.os.windows;
 
@@ -152,12 +166,15 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
     termination: termination_module.Termination = .{},
     console: ConsoleTree = .{},
 
-    pub fn spawn(allocator: std.mem.Allocator, launch: Launch) !Process {
-        var environment = try process_common.environmentForLaunch(allocator, launch.environment);
+    pub fn spawn(allocator: std.mem.Allocator, requested: Launch) !Process {
+        var environment = try process_common.environmentForLaunch(allocator, requested.environment);
         defer environment.deinit();
         var arena_state = std.heap.ArenaAllocator.init(allocator);
         defer arena_state.deinit();
         const arena = arena_state.allocator();
+        var launch = requested;
+        if (requested.current_directory) |directory|
+            launch.current_directory = try childCurrentDirectory(arena, directory);
 
         const shell_arguments = try @import("powershell_integration.zig").arguments(arena, launch.executable, launch.arguments);
         var arguments = try arena.alloc([]const u8, shell_arguments.len + 1);

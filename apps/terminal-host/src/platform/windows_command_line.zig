@@ -49,28 +49,11 @@ pub fn batch(allocator: std.mem.Allocator, script_path: []const u8, arguments: [
     defer output.deinit();
     const writer = &output.writer;
     try writer.writeAll("cmd.exe /e:ON /v:OFF /d /c \"");
-    // Canonical Windows catalog paths use the verbatim prefix. cmd.exe needs
-    // its ordinary spelling; reject components whose meaning would change.
-    var script = script_path;
-    var unc = false;
-    if (std.mem.startsWith(u8, script, "\\\\?\\")) {
-        script = script[4..];
-        if (std.ascii.startsWithIgnoreCase(script, "UNC\\")) {
-            script = script[4..];
-            unc = true;
-        } else if (script.len < 3 or !std.ascii.isAlphabetic(script[0]) or script[1] != ':' or script[2] != '\\') {
-            return error.InvalidBatchPath;
-        }
-        var parts = std.mem.splitScalar(u8, script, '\\');
-        while (parts.next()) |part| {
-            if (part.len != 0 and (std.mem.endsWith(u8, part, ".") or std.mem.endsWith(u8, part, " ")))
-                return error.InvalidBatchPath;
-        }
-    }
+    // cmd.exe needs the ordinary spelling of a canonical catalog path.
+    const script = (try ordinaryPath(allocator, script_path)) orelse return error.InvalidBatchPath;
+    defer allocator.free(script);
     if (std.mem.startsWith(u8, script, "\\\\.\\") or std.mem.endsWith(u8, script, "\\")) return error.InvalidBatchPath;
-    const literal_script = if (unc) try std.fmt.allocPrint(allocator, "\\\\{s}", .{script}) else script;
-    defer if (unc) allocator.free(literal_script);
-    try appendBatchArgument(writer, literal_script);
+    try appendBatchArgument(writer, script);
     for (arguments) |argument| {
         try writer.writeByte(' ');
         try appendBatchArgument(writer, argument);
@@ -80,6 +63,48 @@ pub fn batch(allocator: std.mem.Allocator, script_path: []const u8, arguments: [
     // cmd.exe's smaller limit must be enforced before any process exists.
     if (output.written().len > 8191) return error.BatchCommandTooLong;
     return output.toOwnedSliceSentinel(0);
+}
+
+/// Returns an owned ordinary Win32 spelling of `path`. Canonical Windows catalog paths use the
+/// verbatim drive or UNC prefix, which programs such as cmd.exe refuse; other paths are copied
+/// unchanged. Null means dropping the prefix could change what the path names: a device path,
+/// an empty, `.` or `..` component, a forward slash, a component ending in a dot or space, or a
+/// DOS device name, all of which the Win32 path parser rewrites.
+pub fn ordinaryPath(allocator: std.mem.Allocator, path: []const u8) !?[]u8 {
+    if (!std.mem.startsWith(u8, path, "\\\\?\\")) return try allocator.dupe(u8, path);
+    var rest = path[4..];
+    const unc = std.ascii.startsWithIgnoreCase(rest, "UNC\\");
+    if (unc) {
+        rest = rest[4..];
+        if (rest.len == 0) return null;
+    } else if (rest.len < 3 or !std.ascii.isAlphabetic(rest[0]) or rest[1] != ':' or rest[2] != '\\') {
+        return null;
+    }
+    if (std.mem.indexOfScalar(u8, rest, '/') != null) return null;
+    var parts = std.mem.splitScalar(u8, if (unc) rest else rest[3..], '\\');
+    while (parts.next()) |part| {
+        // Only a trailing separator may leave the final component empty.
+        if (part.len == 0) {
+            if (parts.peek() == null) break;
+            return null;
+        }
+        if (std.mem.endsWith(u8, part, ".") or std.mem.endsWith(u8, part, " ") or isDosDeviceName(part))
+            return null;
+    }
+    return if (unc) try std.fmt.allocPrint(allocator, "\\\\{s}", .{rest}) else try allocator.dupe(u8, rest);
+}
+
+/// Win32 maps these names to devices in any directory, with or without an extension.
+fn isDosDeviceName(component: []const u8) bool {
+    const stem = std.mem.trimEnd(u8, component[0 .. std.mem.indexOfScalar(u8, component, '.') orelse component.len], " ");
+    for ([_][]const u8{ "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$" }) |name| {
+        if (std.ascii.eqlIgnoreCase(stem, name)) return true;
+    }
+    if (stem.len < 4 or !(std.ascii.startsWithIgnoreCase(stem, "COM") or std.ascii.startsWithIgnoreCase(stem, "LPT")))
+        return false;
+    const suffix = stem[3..];
+    return (suffix.len == 1 and std.ascii.isDigit(suffix[0])) or
+        std.mem.eql(u8, suffix, "\u{00B9}") or std.mem.eql(u8, suffix, "\u{00B2}") or std.mem.eql(u8, suffix, "\u{00B3}");
 }
 
 fn appendBatchArgument(writer: *std.Io.Writer, argument: []const u8) !void {
