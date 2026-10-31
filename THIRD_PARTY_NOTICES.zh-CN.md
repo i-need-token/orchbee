@@ -25,6 +25,22 @@ Orchbee 包含以下第三方软件和视觉资产。收录这些内容并不表
 > DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 > OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+## Herdr Agent Screen Detection Rules
+
+- 创建者：Herdr contributors；上游许可证未单独写明版权持有人
+- 来源：<https://github.com/herdrdev/herdr>
+- 固定版本：`e0507237ad8d41f60aece10d00ef29ce2339ca34`（Herdr 0.9.1）
+- 原始路径：`src/detect/manifests/*.toml` 和 `src/detect/manifest.rs`
+- 许可证：Apache License 2.0
+- 在 Orchbee 中的用途：
+  [`apps/orchbee-server/resources/agent-detection/`](apps/orchbee-server/resources/agent-detection/)
+  下随包分发的 Agent 屏幕检测规则，以及
+  [`apps/orchbee-server/src/agent_screen/regions.rs`](apps/orchbee-server/src/agent_screen/regions.rs)
+  中改编的提示区域匹配
+- 修改内容：本地规则修正、解析器和采样集成由 Orchbee 维护；`grok.toml` 增加了浏览器认证阻塞规则和登录状态不确定时的保护；区域匹配使用 UTF-8 安全的 CRLF 偏移
+- 许可证文本与声明：[`LICENSE`](apps/orchbee-server/resources/agent-detection/LICENSE) 和
+  [`NOTICE`](apps/orchbee-server/resources/agent-detection/NOTICE)
+
 ## JetBrains Mono
 
 - 版权声明：Copyright 2020 The JetBrains Mono Project Authors
@@ -102,4 +118,4 @@ OMP 产品名称与商标仍归其各自所有者所有。描述性使用不表�
 > DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 > OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-<!-- documentation-pairing: english-sha256=631359b431416a68fbd7cecdacd532ac8717d32b78c6517e67504b5c08f37cf3 zh-cn-sha256=2eaa44b51a8d5841013ca4a065d6ce95ad43d25c4f186b4abd2c5b4a127cdcc7 -->
+<!-- documentation-pairing: english-sha256=a769e469966d1a5b929882c5fd8cda785e59cc1eff52afccf520800a7018fd67 zh-cn-sha256=31d15447d6217063de31f69a7021ee97ee73f25e9acc6809520f55f0adefbde9 -->

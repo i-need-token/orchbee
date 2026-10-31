@@ -26,6 +26,23 @@ imply endorsement by their creators.
 > DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 > OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+## Herdr Agent Screen Detection Rules
+
+- Creator: Herdr contributors; the upstream license names no separate copyright holder
+- Source: <https://github.com/herdrdev/herdr>
+- Pinned revision: `e0507237ad8d41f60aece10d00ef29ce2339ca34` (Herdr 0.9.1)
+- Original paths: `src/detect/manifests/*.toml` and `src/detect/manifest.rs`
+- License: Apache License 2.0
+- Use in Orchbee: bundled Agent screen detection rules in
+  [`apps/orchbee-server/resources/agent-detection/`](apps/orchbee-server/resources/agent-detection/),
+  and the prompt-region matching adapted in
+  [`apps/orchbee-server/src/agent_screen/regions.rs`](apps/orchbee-server/src/agent_screen/regions.rs)
+- Modifications: Orchbee owns local rule corrections, its parser, and its sampling integration;
+  `grok.toml` adds browser-authentication blockers and an uncertain-login guard; region matching
+  uses UTF-8-safe CRLF offsets
+- License text and notice: [`LICENSE`](apps/orchbee-server/resources/agent-detection/LICENSE) and
+  [`NOTICE`](apps/orchbee-server/resources/agent-detection/NOTICE)
+
 ## JetBrains Mono
 
 - Copyright notice: Copyright 2020 The JetBrains Mono Project Authors
