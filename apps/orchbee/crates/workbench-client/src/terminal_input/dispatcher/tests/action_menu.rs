@@ -1623,10 +1623,34 @@ fn right_menu_does_not_focus_and_policy_chrome_modifiers_and_release_keep_owners
                     target: Box::new(MenuTarget::Pane(pane))
                 })
             );
+            // A host such as VS Code (`rightClickBehavior: copyPaste`) pastes after reporting
+            // the press; the open menu owns that paste and it never reaches the pane.
+            dispatch_all(
+                &mut dispatcher,
+                &mut view,
+                &mut port,
+                b"\x1b[200~F2MARK\x1b[201~",
+            );
+            assert!(forwarded_bytes(&port.calls).is_empty());
+            assert!(port.menu.active());
             port.cancel_action_menu();
             dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<2;5;2m");
             assert!(forwarded_bytes(&port.calls).is_empty());
             assert!(dispatcher.menu_release.is_none());
+        } else if mods == 0 {
+            // Without a menu, the host's paste follows the ordinary route to the pane.
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<2;5;2m");
+            dispatch_all(
+                &mut dispatcher,
+                &mut view,
+                &mut port,
+                b"\x1b[200~F2MARK\x1b[201~",
+            );
+            assert!(
+                forwarded_bytes(&port.calls)
+                    .windows(6)
+                    .any(|bytes| bytes == b"F2MARK")
+            );
         }
     }
 }

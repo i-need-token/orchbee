@@ -157,9 +157,13 @@ cannot observe or undo that action, so the host setting is documented here inste
 around.
 
 - VS Code's integrated terminal on Windows defaults `terminal.integrated.rightClickBehavior` to
-  `copyPaste`. A right click then copies the host selection or pastes the clipboard while the press
-  is still reported, so a right press that opens a Client context menu also delivers the clipboard
-  as input. Set this setting to `nothing` when running a TUI that binds right presses.
+  `copyPaste`, and it keeps that action while the Client has mouse reporting on: xterm.js reports
+  the right press without stopping the event, then VS Code copies its own selection, if one exists,
+  or reads the clipboard and sends it as a bracketed paste after the press report (VS Code 1.143.1).
+  When that press opens a Client context menu, the menu owns the paste like any other input, so the
+  clipboard is discarded and never reaches a pane. When the press opens nothing in the Client, for
+  example in a Panel whose right clicks belong to its program, the paste takes the ordinary input
+  route to the focused pane. Set this setting to `nothing` so a right press is only reported.
 
 ## Output discipline
 
