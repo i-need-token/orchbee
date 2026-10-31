@@ -97,9 +97,13 @@ Theme rules:
   keeps one displayed background even where a host applies `DIM` before reverse video swaps the
   colors. Individual components apply the semantic state but never branch on the palette.
 - Monochrome gives current context an underline, provisional selection a bold reverse band, and
-  focused frames a bold reverse outline. Independent current, navigation and checked markers remain
-  visible; focus and value choices never rely on bold text alone. Renderers retain the complete role
-  style, including its modifiers.
+  focused frames a bold reverse outline. `accent-focus`, the focus cue of an unframed region, its
+  divider or a button marker, adds `BOLD` and `UNDERLINED`, so it never reads as part of an adjacent
+  reverse band. Every cell of the provisional band that is not explicitly plain takes the band's
+  `BOLD` without `DIM`: a host can brighten bold text or apply `DIM` before reverse video, which
+  would otherwise show metadata on a background of its own. Independent current, navigation and
+  checked markers remain visible; focus and value choices never rely on bold text alone. Renderers
+  retain the complete role style, including its modifiers.
 - `accent-destructive` identifies an explicitly destructive action intent, independently of action
   hierarchy, focus, current context, hover, and press. It has its own palette value and never borrows
   `status-error`. Disabled intent uses `text-disabled`. The theme resolver retains the destructive
@@ -155,7 +159,8 @@ Hierarchy describes information priority, not interaction state.
   structure comes from spacing, grouping, or a frame, not from more colors or `ITALIC`.
 - `BOLD` marks a heading, a current item whose owner documents bold identity, such as the active
   Tab, or the label or glyph of a pressed enabled action; it never marks pointer hover or a warning.
-  `UNDERLINED` marks only `accent-link` and current context where no current fill can show.
+  `UNDERLINED` marks only `accent-link`, current context where no current fill can show, and
+  Monochrome `accent-focus`.
   `REVERSED` is available only to the theme resolver as a terminal-native or reduced-color fallback
   for an interactive band; component renderers never request it directly. `BLINK` is forbidden
   everywhere.

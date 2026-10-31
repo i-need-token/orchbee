@@ -107,7 +107,9 @@ sRGB 对比度约为 1.434:1。标题、主要值、快捷键字形与已有的�
 
 [Workspace 行组合器](../crates/workbench-client/src/tui_render/workspace_sidebar.rs) 负责每行唯一的背景，覆盖 padding、
 空白格和续行。[文字组合器](../crates/workbench-client/src/tui_render/sidebar_text.rs) 在应用身份强调前清除继承的整行
-粗体，使辅助行保留自身层级。按下、临时导航、悬停、当前与基底表面依次保持该优先级；焦点、
+粗体，使辅助行保留自身层级。单色模式的临时选择是例外：它是粗体反色带，因此除明确设为不加粗的
+单元格外都共享其粗体并去掉 DIM；Windows Terminal 会提亮粗体文字并在反色前先应用 DIM，这样仍只
+显示一种底色。按下、临时导航、悬停、当前与基底表面依次保持该优先级；焦点、
 运行状态及未读标记互相独立。悬停与按下不会选择实体。
 
 侧栏和设置共同消费主题的 `paired_pointer_surfaces` 投影，将反色指针回退与 chrome 上的主要文字
@@ -216,4 +218,4 @@ Terminal-native 把 `accent-action` 映射为不带修饰的 ANSI 青色。Hover
 
 单色选中背景将终端默认前景与背景显式配对，并使用反色，使不同标签与标记角色保持在同一可见背景带上。
 
-<!-- documentation-pairing: english-sha256=0028593bb2dee16aad9cb41e5ab4d54b47ecd5e1113a34a9c8a271ea314a487c zh-cn-sha256=6847f1b283b55dfe39a598306319e40318adc8a8143518b1b74e1fb4283378bb -->
+<!-- documentation-pairing: english-sha256=61b85d7b79235b517d42a678c05e40a987047f84490f19a949ccb03bb84a1cfc zh-cn-sha256=8df03319a3a926c1350278bbd38268189ad6f9ed6c22a44543eb42153f1b839e -->

@@ -818,6 +818,15 @@ impl Theme {
             }
             return content;
         }
+        // Monochrome's provisional selection is a reverse band as well; the same host order would
+        // give secondary text a darker background of its own, so the band drops DIM.
+        if interaction == Some(Role::SurfaceSelection)
+            && interaction_style
+                .is_some_and(|style| style.add_modifier.contains(Modifier::REVERSED))
+            && content.add_modifier.contains(Modifier::DIM)
+        {
+            content = content.remove_modifier(Modifier::DIM);
+        }
         // Host-relative Working and Idle glyphs follow the host foreground like body text; other
         // status and Agent roles keep their own hue.
         let ordinary = matches!(

@@ -292,12 +292,18 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
                                         expected.fg.unwrap(),
                                         "{surface:?} {x},{y}"
                                     );
+                                }
+                                if band {
+                                    // A host may apply DIM before reverse video swaps the pair.
                                     assert!(!cell.modifier.contains(Modifier::DIM), "{x},{y}");
                                 }
                                 if *y != ys[0] && !cell.symbol().trim().is_empty() {
-                                    assert!(
-                                        !cell.modifier.contains(Modifier::BOLD),
-                                        "metadata inherited row bold at {x},{y}"
+                                    // Metadata never inherits the row's bold, except that a bold
+                                    // reverse band shares its emphasis to keep one background.
+                                    assert_eq!(
+                                        cell.modifier.contains(Modifier::BOLD),
+                                        band && expected.add_modifier.contains(Modifier::BOLD),
+                                        "metadata bold at {surface:?} {x},{y}"
                                     );
                                 }
                             }
@@ -386,6 +392,8 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
                 // An explicit identity color survives fills but joins a reverse band.
                 let band = theme.style(surface);
                 let reverse_band = band.add_modifier.contains(Modifier::REVERSED);
+                // Only a bold reverse band lends metadata its emphasis.
+                let band_emphasis = reverse_band && band.add_modifier.contains(Modifier::BOLD);
                 assert_eq!(
                     lines[0].spans[0].style.fg,
                     if reverse_band { band.fg } else { identity.fg }
@@ -397,17 +405,19 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
                         .contains(Modifier::BOLD),
                     bold != Some(false)
                 );
-                assert!(
-                    !lines[0].spans[1]
+                assert_eq!(
+                    lines[0].spans[1]
                         .style
                         .add_modifier
-                        .contains(Modifier::BOLD)
+                        .contains(Modifier::BOLD),
+                    band_emphasis
                 );
-                assert!(
-                    !lines[1].spans[0]
+                assert_eq!(
+                    lines[1].spans[0]
                         .style
                         .add_modifier
-                        .contains(Modifier::BOLD)
+                        .contains(Modifier::BOLD),
+                    band_emphasis
                 );
                 assert!(
                     lines[1].spans[1]
@@ -427,14 +437,21 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
                         .sub_modifier
                         .contains(Modifier::BOLD)
                 );
-                assert!(!lines[1].style.add_modifier.contains(Modifier::BOLD));
-                assert!(lines[1].style.sub_modifier.contains(Modifier::BOLD));
+                assert_eq!(
+                    lines[1].style.add_modifier.contains(Modifier::BOLD),
+                    band_emphasis
+                );
+                assert_eq!(
+                    lines[1].style.sub_modifier.contains(Modifier::BOLD),
+                    !band_emphasis
+                );
                 assert_eq!(lines[2].spans[0].style.fg, state.fg);
-                assert!(
-                    !lines[2].spans[0]
+                assert_eq!(
+                    lines[2].spans[0]
                         .style
                         .add_modifier
-                        .contains(Modifier::BOLD)
+                        .contains(Modifier::BOLD),
+                    band_emphasis
                 );
                 // Every span shares one background, except that a known state hue keeps its
                 // foreground on the contrast pair in a reverse band.

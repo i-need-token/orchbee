@@ -33,17 +33,31 @@ fn semantic_role(style: Style, theme: &Theme) -> Option<Role> {
 
 /// Compose one row surface without inheriting the row painter's bold across supporting lines.
 /// Explicit token emphasis remains authoritative; pressed emphasis belongs to identity.
+///
+/// A bold reverse band, Monochrome's provisional selection, is the exception: a host that
+/// brightens bold text shows its cells on a lighter background than plain ones, so every cell
+/// that is not explicitly plain takes the band's emphasis and the row keeps one background.
 pub(super) fn compose_lines(
     lines: &mut [Line<'static>],
     interaction: Option<Role>,
     emphasize_identity: bool,
     theme: &Theme,
 ) {
+    let band_emphasis = interaction.is_some_and(|role| {
+        theme
+            .style(role)
+            .add_modifier
+            .contains(Modifier::REVERSED | Modifier::BOLD)
+    });
     for (index, line) in lines.iter_mut().enumerate() {
         let line_role = semantic_role(line.style, theme);
-        line.style = theme
-            .content_on_surface(Role::SurfaceChrome, interaction, line_role, line.style)
-            .remove_modifier(Modifier::BOLD);
+        let composed =
+            theme.content_on_surface(Role::SurfaceChrome, interaction, line_role, line.style);
+        line.style = if band_emphasis {
+            composed
+        } else {
+            composed.remove_modifier(Modifier::BOLD)
+        };
         for span in &mut line.spans {
             let content_bold = span.style.add_modifier.contains(Modifier::BOLD);
             let explicitly_plain = span.style.sub_modifier.contains(Modifier::BOLD);
@@ -58,7 +72,7 @@ pub(super) fn compose_lines(
                 && (emphasize_identity
                     || interaction != Some(Role::SurfaceCurrent)
                         && span.style.add_modifier.contains(Modifier::BOLD));
-            if !explicitly_plain && (content_bold || identity_bold) {
+            if !explicitly_plain && (content_bold || identity_bold || band_emphasis) {
                 span.style = span.style.add_modifier(Modifier::BOLD);
             } else {
                 span.style = span.style.remove_modifier(Modifier::BOLD);

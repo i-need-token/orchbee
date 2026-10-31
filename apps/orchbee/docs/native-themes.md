@@ -136,7 +136,10 @@ separate evidence.
 The [Workspace row compositor](../crates/workbench-client/src/tui_render/workspace_sidebar.rs) owns one background per row,
 including padding, blank cells and continuation lines. The [text compositor](../crates/workbench-client/src/tui_render/sidebar_text.rs)
 clears inherited whole-row bold before applying identity emphasis, so supporting lines keep their
-hierarchy. Pressed, provisional, hover, current and base surfaces retain that order; focus,
+hierarchy. Monochrome's provisional selection is the exception: it is a bold reverse band, so every
+cell that is not explicitly plain shares its bold and drops DIM, and Windows Terminal, which
+brightens bold text and applies DIM before reverse video, still shows one background. Pressed,
+provisional, hover, current and base surfaces retain that order; focus,
 operational state and unread markers remain independent. Hover and press do not select an entity.
 
 The theme's `paired_pointer_surfaces` projection, consumed by the sidebar and Settings, pairs

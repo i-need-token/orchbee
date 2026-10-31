@@ -63,7 +63,9 @@ pub(super) fn render(
             super::controls::ActionKind::Primary,
             true,
         )
-        .with_shortcut(&confirm),
+        .with_shortcut(&confirm)
+        // Closing a Panel ends or discards its terminals, as closing a Tab does.
+        .with_tone(crate::action_projection::ActionTone::Destructive),
     ];
     render_prepared(
         frame,
