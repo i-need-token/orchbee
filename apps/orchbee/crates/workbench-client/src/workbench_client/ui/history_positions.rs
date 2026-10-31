@@ -4,10 +4,8 @@
 
 use crate::{
     terminal_content::{ContentSource, SnapshotMember},
-    workbench_client::{
-        state::{PaneRef, WorkbenchClientState},
-        terminal_viewport::ReadingPosition,
-    },
+    terminal_viewport::ReadingPosition,
+    workbench_client::state::{PaneRef, WorkbenchClientState},
 };
 
 const MAXIMUM_WITNESS_BYTES: usize = 16 * 1024 * 1024;

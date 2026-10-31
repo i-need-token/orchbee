@@ -67,7 +67,6 @@ mod terminal_clipboard;
 mod terminal_effects;
 mod terminal_selection;
 mod terminal_tail;
-pub(crate) mod terminal_viewport;
 mod ui;
 pub(crate) use ui::settings::Notice as SettingsNotice;
 pub(crate) use ui::{WorkspaceCreationPhase, WorkspaceCreationPreview};

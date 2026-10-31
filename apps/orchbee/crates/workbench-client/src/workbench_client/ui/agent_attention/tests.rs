@@ -414,8 +414,8 @@ fn focus_command(
 
 #[test]
 fn agent_focus_cancels_only_after_validating_its_source_and_does_not_discard_history() {
+    use crate::terminal_viewport::ViewportStep;
     use crate::workbench_client::mailbox::QueuedCommand;
-    use crate::workbench_client::terminal_viewport::ViewportStep;
     let (mut ui, _, agent) = physical_fixture();
     let command = focus_command(
         &ui,

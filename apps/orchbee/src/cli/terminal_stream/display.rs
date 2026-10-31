@@ -16,7 +16,7 @@ pub(super) trait Display {
     }
     fn history(
         &mut self,
-        window: &crate::workbench_client::terminal_viewport::ViewportWindow,
+        window: &crate::terminal_viewport::ViewportWindow,
         columns: u16,
         rows: u16,
         gate: &Gate<'_>,

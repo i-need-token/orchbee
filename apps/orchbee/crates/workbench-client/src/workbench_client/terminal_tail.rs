@@ -1,5 +1,5 @@
 //! Conservative live-tail presentation: only a proved empty suffix may reveal retained rows.
-use super::terminal_viewport::ViewportWindow;
+use crate::terminal_viewport::ViewportWindow;
 use orchbee_terminal_protocol::{MouseTracking, TerminalFrameRoute, TerminalTextFrame};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -4,7 +4,7 @@
 
 本参考规范原生 Client 对实时网格的本地展示与保留历史视口：以 `Ctrl+B PageUp`、primary 屏幕向上滚轮或滚动条进入的按窗格滚动回看模式、其
 demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以及呈现面如何生成与围栏。
-与 `workbench_client/terminal_viewport.rs`、`workbench_client/mailbox.rs`、
+与 `terminal_viewport.rs`、`workbench_client/mailbox.rs`、
 `workbench_client/connection/native.rs`、`workbench_client/ui.rs`、`terminal_input/dispatcher.rs`、
 `client_view.rs`、`client_view/bindings.rs`、`tui_pointer.rs`、`tui_render.rs` 及其
 `tui_render/viewport.rs` 画笔、`terminal_live_view.rs`、`tui_backend.rs`、`localization.rs`、`formal/tla/TerminalViewportCoordination.tla` 共同维护。
@@ -369,7 +369,7 @@ read/ACK 权威与取消策略仍由 Orchbee 拥有。
 
 `TerminalViewportCoordination.tla/.cfg` 抽象一个 pane、两次进入/读取尝试、两个匿名输入命令和容量为二的 FIFO。`Enter`（含 `EnterTail`）、`Read`、`Recover` 对应 viewport 暂存命令；`Admit`、`Execute` 对应 mailbox/worker FIFO；`Consume` 对应结果消费；`Detach` 使 pane epoch 失效。进入抽象不区分活动与暂停的投影 demand；该区别由执行器及尾部绘制测试负责。故障注入只能破坏已有窗口响应，不能制造独立结果生产者。
 
-检查范围为有界队列所有权、单一读取 flight、当前 epoch 的显示、恢复时保留已接纳命令，以及在接纳、执行、消费弱公平假设下进入/恢复最终收敛。这是更小的协议抽象，不是所有 viewport 操作的等价证明。实际行边界、导航、期限、滚动条手势和代际/序号校验由 `workbench_client/terminal_viewport/tests.rs`、`window.rs` 及 projection/connection 测试负责。
+检查范围为有界队列所有权、单一读取 flight、当前 epoch 的显示、恢复时保留已接纳命令，以及在接纳、执行、消费弱公平假设下进入/恢复最终收敛。这是更小的协议抽象，不是所有 viewport 操作的等价证明。实际行边界、导航、期限、滚动条手势和代际/序号校验由 `terminal_viewport/tests.rs`、`window.rs` 及 projection/connection 测试负责。
 
 ## 验证
 
@@ -379,4 +379,4 @@ read/ACK 权威与取消策略仍由 Orchbee 拥有。
 
 TUI 将阅读锚点失效表述为正在显示最新输出。这条一次性提示四秒后过期，焦点窗格完成返回实时后立即清除。状态小块浮在终端内容之上，不改变终端几何，恢复协议和保留的操作事实保持不变。
 
-<!-- documentation-pairing: english-sha256=33bd9e2ba4d12d586b51ccbb3b9f82f8d7c721d3884225ce6b0bf57992be9e50 zh-cn-sha256=c1bdc0c61c355a352b9627c20ef4086683e7cc8d63ea8b630bd7acd109471cf1 -->
+<!-- documentation-pairing: english-sha256=289f489129961a4aa64572987ba17fe92e73abe9040c6533fd95fcea309d18b3 zh-cn-sha256=a14e2afc2f912cbb79641eda31aab0629664da513042641a4bc21c7dcacffa43 -->

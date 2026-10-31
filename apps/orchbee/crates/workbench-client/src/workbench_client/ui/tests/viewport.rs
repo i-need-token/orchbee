@@ -138,8 +138,8 @@ fn window(
     sequence: u64,
     generation: u64,
     start_row: u64,
-) -> crate::workbench_client::terminal_viewport::ViewportWindow {
-    crate::workbench_client::terminal_viewport::ViewportWindow {
+) -> crate::terminal_viewport::ViewportWindow {
+    crate::terminal_viewport::ViewportWindow {
         graphics_present: false,
         route: orchbee_terminal_protocol::TerminalRowWindowRoute {
             attachment_id: *projection.attachment(),

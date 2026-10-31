@@ -10,10 +10,9 @@ use orchbee_client_server_protocol::{ViewerRowsRejectedReason, ViewportRowOrigin
 use orchbee_terminal_protocol::{AttachmentId, HistoryAnchorStatus, HistoryChanged, HostEpoch};
 
 use super::{
-    TerminalViewport, ViewportMode, ViewportNav, ViewportReadRejection, ViewportStep,
-    ViewportSurface,
+    TerminalViewport, ViewportMode, ViewportNav, ViewportNotice, ViewportReadRejection,
+    ViewportStep, ViewportSurface,
 };
-use crate::workbench_client::state::ClientNotice;
 
 #[test]
 fn reading_resume_uses_fresh_total_and_requires_matching_rows_then_acknowledgement() {
@@ -68,7 +67,7 @@ fn reading_resume_never_paints_or_acknowledges_recycled_or_changed_rows() {
     let mut replaced = window(request_sequence.get(), 1, 90, 200, 80, 24);
     replaced.rows[0].cells[0].text = "替换后的日志".into();
     let effect = viewport.window(replaced, Instant::now());
-    assert_eq!(effect.notice, Some(ClientNotice::HistoryPositionLost));
+    assert_eq!(effect.notice, Some(ViewportNotice::PositionLost));
     assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
     assert!(matches!(viewport.surface(), ViewportSurface::Recovering));
     assert!(viewport.committed_window().is_none());
@@ -93,7 +92,7 @@ fn reading_resume_rejects_changed_generation_shrinking_history_and_resize() {
         };
         assert_eq!(
             effect.notice,
-            Some(ClientNotice::HistoryPositionLost),
+            Some(ViewportNotice::PositionLost),
             "{changed}"
         );
         assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
@@ -212,9 +211,9 @@ fn window(
     total_rows: u64,
     columns: u16,
     rows: u16,
-) -> crate::workbench_client::terminal_viewport::ViewportWindow {
+) -> crate::terminal_viewport::ViewportWindow {
     let (attachment_id, host_epoch) = ids();
-    crate::workbench_client::terminal_viewport::ViewportWindow {
+    crate::terminal_viewport::ViewportWindow {
         graphics_present: false,
         route: orchbee_terminal_protocol::TerminalRowWindowRoute {
             attachment_id,
@@ -429,7 +428,7 @@ fn t2_rejections_recover_not_kill() {
         assert!(!effect.live, "rejection {rejection:?} must not kill");
         assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
         assert!(viewport.recovering());
-        assert_eq!(effect.notice, Some(ClientNotice::HistoryRecovering));
+        assert_eq!(effect.notice, Some(ViewportNotice::Recovering));
     }
 }
 
@@ -476,7 +475,7 @@ fn t4_anchor_eviction_recovers() {
     let effect = viewport.facts(facts_event(2, 1, HistoryAnchorStatus::Evicted));
     assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
     assert!(viewport.recovering());
-    assert_eq!(effect.notice, Some(ClientNotice::HistoryRecovering));
+    assert_eq!(effect.notice, Some(ViewportNotice::Recovering));
     assert!(viewport.position().is_none());
     // No further reads while recovering.
     viewport.nav(ViewportNav::Lines(-1));
@@ -528,7 +527,7 @@ fn t7_enter_rejected_returns_live() {
     let mut viewport = entering(80, 24);
     let effect = viewport.enter_outcome(false);
     assert!(effect.live);
-    assert_eq!(effect.notice, Some(ClientNotice::HistoryUnavailable));
+    assert_eq!(effect.notice, Some(ViewportNotice::Unavailable));
 }
 
 // T8: a silent facts channel hits the bounded deadline and recovers; a facts
@@ -541,7 +540,7 @@ fn t8_facts_deadline_recovers() {
     let effect = viewport.tick(start + Duration::from_secs(3));
     assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
     assert!(viewport.recovering());
-    assert_eq!(effect.notice, Some(ClientNotice::HistoryRecovering));
+    assert_eq!(effect.notice, Some(ViewportNotice::Recovering));
     // Inside the budget the facts event unblocks the entry read.
     let mut viewport = TerminalViewport::entering(attachment_id, host_epoch, 80, 24, 24, 1, start);
     assert!(
@@ -577,7 +576,7 @@ fn t9_resize_invalidates_and_waits() {
     let effect = viewport.tick(start + Duration::from_secs(3));
     assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
     assert!(viewport.recovering());
-    assert_eq!(effect.notice, Some(ClientNotice::HistoryRecovering));
+    assert_eq!(effect.notice, Some(ViewportNotice::Recovering));
 }
 
 // T10: recovery ends only when recovery demands were applied *and* a frame
@@ -606,7 +605,7 @@ fn stray_window_recovers() {
     let effect = viewport.window(window(99, 1, 0, 200, 80, 24), Instant::now());
     assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
     assert!(viewport.recovering());
-    assert_eq!(effect.notice, Some(ClientNotice::HistoryRecovering));
+    assert_eq!(effect.notice, Some(ViewportNotice::Recovering));
 }
 
 // A window stamped at another attachment or epoch is a wire violation, not
@@ -692,7 +691,7 @@ fn typed_stale_retries_once() {
         } else {
             assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
             assert!(viewport.recovering());
-            assert_eq!(effect.notice, Some(ClientNotice::HistoryRecovering));
+            assert_eq!(effect.notice, Some(ViewportNotice::Recovering));
         }
     }
 }
@@ -754,7 +753,7 @@ fn ack_rejection_recovers() {
     let effect = viewport.ack_outcome(request_sequence, false);
     assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
     assert!(viewport.recovering());
-    assert_eq!(effect.notice, Some(ClientNotice::HistoryRecovering));
+    assert_eq!(effect.notice, Some(ViewportNotice::Recovering));
     assert!(viewport.position().is_none());
 }
 
@@ -1104,7 +1103,7 @@ fn intent_budget_rearms_between_intents() {
         Instant::now(),
     );
     assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
-    assert_eq!(effect.notice, Some(ClientNotice::HistoryRecovering));
+    assert_eq!(effect.notice, Some(ViewportNotice::Recovering));
 }
 
 // `position` reports only the currently validated window: entering has
@@ -1197,7 +1196,7 @@ fn row_response_requires_the_transport_envelope_and_matching_bounded_payload() {
         decode_terminal_render_row_window, encode_transport_envelope,
     };
     const ROWS: &[u8] = include_bytes!(
-        "../../../../../../../schemas/terminal/v1/fixtures/ghostty-render-row-window.bin"
+        "../../../../../../schemas/terminal/v1/fixtures/ghostty-render-row-window.bin"
     );
     let expected = decode_terminal_render_row_window(ROWS).unwrap();
     let envelope = Envelope {
@@ -1254,7 +1253,7 @@ fn row_response_requires_the_transport_envelope_and_matching_bounded_payload() {
     .unwrap();
     assert!(super::decode_viewport_window(&mismatched, u32::MAX).is_err());
     let text =
-        include_bytes!("../../../../../../../schemas/terminal/v1/fixtures/terminal-row-window.bin");
+        include_bytes!("../../../../../../schemas/terminal/v1/fixtures/terminal-row-window.bin");
     let text_record = encode_transport_envelope(&Envelope {
         payload: text,
         ..envelope

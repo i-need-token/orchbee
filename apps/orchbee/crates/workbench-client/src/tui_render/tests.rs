@@ -1188,12 +1188,9 @@ fn keyboard_copy_preserves_first_and_last_served_rows_without_history_chrome() {
 }
 
 /// A styled row window already fenced by the viewport core.
-fn history_window(
-    texts: &[&str],
-    columns: u16,
-) -> crate::workbench_client::terminal_viewport::ViewportWindow {
+fn history_window(texts: &[&str], columns: u16) -> crate::terminal_viewport::ViewportWindow {
     use orchbee_terminal_protocol::{RowWindowDetail, TerminalRowWindowRoute};
-    crate::workbench_client::terminal_viewport::ViewportWindow {
+    crate::terminal_viewport::ViewportWindow {
         graphics_present: false,
         route: TerminalRowWindowRoute {
             attachment_id: AttachmentId::from_bytes([7; 16]).unwrap(),

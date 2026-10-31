@@ -50,6 +50,7 @@ mod terminal_projection;
 mod terminal_scrollbar;
 mod terminal_text;
 mod terminal_title;
+mod terminal_viewport;
 mod termination_signal;
 mod transient_notice;
 mod tui_capabilities;
@@ -349,6 +350,14 @@ pub mod application {
         pub use crate::terminal_title::stripped;
     }
 
+    pub mod terminal_viewport {
+        pub use crate::terminal_viewport::{
+            TerminalViewport, ViewportEffect, ViewportNav, ViewportReadRejection, ViewportStep,
+            ViewportSurface, ViewportWindow, ViewportWindowFailure, decode_history_changed,
+            decode_viewport_window,
+        };
+    }
+
     pub mod termination_signal {
         pub use crate::termination_signal::{TerminationSignal, TerminationSource};
     }
@@ -404,14 +413,6 @@ pub mod application {
             ContextNavigationAdmission, DisplayPhase, DrawReceipt, RetainedFrameBank,
             StartupDirectory, TerminalStatus, UiWakeup, WorkbenchClient, WorkbenchClientView,
         };
-
-        pub mod terminal_viewport {
-            pub use crate::workbench_client::terminal_viewport::{
-                TerminalViewport, ViewportEffect, ViewportNav, ViewportReadRejection, ViewportStep,
-                ViewportSurface, ViewportWindow, ViewportWindowFailure, decode_history_changed,
-                decode_viewport_window,
-            };
-        }
     }
 
     pub mod worktree_destination {

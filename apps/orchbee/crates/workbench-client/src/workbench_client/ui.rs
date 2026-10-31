@@ -21,7 +21,6 @@ pub(in crate::workbench_client) use agent_attention::tests::focused_physical_age
 mod agent_focus;
 mod client_control;
 mod client_layout;
-use super::terminal_viewport::{self, ViewportWindow};
 use super::{
     mailbox::{
         AdmissionError, CausalSettlement, CommandMailbox, CreateMarker, CreatePrecommitOutcome,
@@ -36,9 +35,6 @@ use super::{
         PendingMoveCommit, PendingPanelCommit, RefreshDecision, SelectionPlan,
         SetupEventDisposition, WorkbenchClientState, WorkbenchClientView as ClientStateView,
     },
-    terminal_viewport::{
-        TerminalViewport, ViewportEffect, ViewportNav, ViewportStep, decode_history_changed,
-    },
 };
 use crate::{
     client_view::{ClientAction, ClientActionDisposition, PanelDirection},
@@ -48,6 +44,10 @@ use crate::{
     },
     terminal_projection::TerminalProjection,
     terminal_title::{ChromeName, Program},
+    terminal_viewport::{
+        self, TerminalViewport, ViewportEffect, ViewportNav, ViewportNotice, ViewportStep,
+        ViewportWindow, decode_history_changed,
+    },
 };
 use orchbee_client_server_protocol::{ControlInput, Geometry, TerminalViewerAction};
 use orchbee_workbench_protocol::{
@@ -287,6 +287,15 @@ pub(crate) fn live_tab_label<'a>(
     tab.map_or(std::borrow::Cow::Borrowed(captured), |tab| {
         tab.display_label(locale)
     })
+}
+
+/// The Client notice that shows a viewport core's notice.
+const fn client_notice(notice: ViewportNotice) -> ClientNotice {
+    match notice {
+        ViewportNotice::Recovering => ClientNotice::HistoryRecovering,
+        ViewportNotice::Unavailable => ClientNotice::HistoryUnavailable,
+        ViewportNotice::PositionLost => ClientNotice::HistoryPositionLost,
+    }
 }
 
 pub struct WorkbenchClientView<'a> {
@@ -2502,7 +2511,7 @@ impl WorkbenchClientUi {
         if let Some(notice) = effect.notice
             && let Some(state) = self.state.as_mut()
         {
-            mailbox.apply_local_for(state, |state| state.set_notice(notice));
+            mailbox.apply_local_for(state, |state| state.set_notice(client_notice(notice)));
         }
         if effect.live {
             if let Some(state) = self.state.as_mut()

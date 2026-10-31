@@ -49,6 +49,7 @@ use orchbee_workbench_client::application::terminal_links;
 use orchbee_workbench_client::application::terminal_projection;
 use orchbee_workbench_client::application::terminal_text;
 use orchbee_workbench_client::application::terminal_title;
+use orchbee_workbench_client::application::terminal_viewport;
 use orchbee_workbench_client::application::termination_signal;
 use orchbee_workbench_client::application::tui_capabilities;
 use orchbee_workbench_client::application::tui_composition;

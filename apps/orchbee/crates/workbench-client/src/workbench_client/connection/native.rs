@@ -13,6 +13,9 @@ use crate::{
         },
     },
     terminal_projection::TerminalProjection,
+    terminal_viewport::{
+        ViewportReadRejection, ViewportStep, ViewportWindowFailure, decode_viewport_window,
+    },
     workbench_client::{
         mailbox::{
             AdmissionError, BarrierKind, CausalSettlement, CommandLease, CommandMailbox,
@@ -27,9 +30,6 @@ use crate::{
             OperationDeadlines, PaneFault, PaneKey, PaneRef, PendingCloseResult,
             PendingCreateCommit, PendingMoveCommit, ReadyDecision, ReconcileStep, ReconcileTarget,
             RefreshDecision, SetupEventDisposition,
-        },
-        terminal_viewport::{
-            ViewportReadRejection, ViewportStep, ViewportWindowFailure, decode_viewport_window,
         },
         workbench_projection::{project_native_context_tabs, project_preferred_workspace},
     },

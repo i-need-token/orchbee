@@ -2,6 +2,7 @@
 //! selection-export and clipboard identities.
 
 use super::{ClientProjectionStatus, WorkbenchClientUi};
+use crate::terminal_viewport::{TerminalViewport, ViewportNav, ViewportStep};
 use crate::workbench_client::copy_episode::PendingQuery;
 use crate::{
     client_view::{
@@ -19,7 +20,6 @@ use crate::{
         mailbox::{AdmissionError, CommandMailbox, QueuedCommand, Tagged},
         state::{CarrierFailure, ClientNotice, PaneRef},
         terminal_selection,
-        terminal_viewport::{TerminalViewport, ViewportNav, ViewportStep},
     },
 };
 use orchbee_terminal_protocol::TerminalTextRow;

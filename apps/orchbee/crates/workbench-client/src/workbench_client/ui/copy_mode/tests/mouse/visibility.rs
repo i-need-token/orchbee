@@ -3,8 +3,8 @@ use super::*;
 use crate::{
     terminal_copy::{CopySearchResult, TerminalTextRange},
     terminal_text::display_width,
+    terminal_viewport::ViewportWindow,
     tui_theme::Role,
-    workbench_client::terminal_viewport::ViewportWindow,
 };
 use orchbee_terminal_protocol::{TerminalRowWindowRoute, TerminalTextCell, TerminalTextRow};
 use ratatui::{backend::Backend, layout::Position};

@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn copied_text_budget_counts_unique_ranges_and_fails_before_overallocation() {
     let bytes = include_bytes!(
-        "../../../../../../../../schemas/terminal/v1/fixtures/ghostty-render-row-window.bin"
+        "../../../../../../../schemas/terminal/v1/fixtures/ghostty-render-row-window.bin"
     );
     let view = decode_terminal_render_row_window(bytes).unwrap();
     let mut unique = std::collections::HashSet::new();

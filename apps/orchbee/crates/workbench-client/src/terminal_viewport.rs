@@ -4,9 +4,10 @@
 //! non-Live; its absence means `Live`. The core owns mode transitions, facts
 //! tracking, the installed row window, the single read flight, the single
 //! acknowledgement flight, the committed anchor, navigation coalescing,
-//! bounded committed deltas, facts deadlines, and recovery. It never touches
-//! the mailbox directly: effects are returned to `ui.rs`, and commands are
-//! staged in `pending_commands` for the owner to admit in order.
+//! bounded committed deltas, facts deadlines, and recovery. The Workbench
+//! Client UI and the CLI terminal stream each drive one core per pane. It never
+//! touches the mailbox directly: effects are returned to the owner, and commands
+//! are staged in `pending_commands` for the owner to admit in order.
 //!
 //! Contract: `docs/native-terminal-viewport.md` and
 //! `formal/tla/TerminalClientViewport.tla`.
@@ -18,8 +19,6 @@ use orchbee_terminal_protocol::{
     AttachmentId, CURRENT_PROTOCOL_VERSION, HistoryAnchorStatus, HistoryChanged, HistoryControl,
     HostEpoch, MessageRole, PayloadEncoding, decode_history_control, decode_transport_envelope,
 };
-
-use super::state::ClientNotice;
 
 /// `HistoryChanged` (kind 53) — the wire kind is owned by
 /// `crates/terminal-protocol`'s message contract; the literal mirrors
@@ -180,7 +179,7 @@ pub enum ViewportSurface<'a> {
 /// inside `pending_commands`; `live` drops the core entirely.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ViewportEffect {
-    pub(in crate::workbench_client) notice: Option<ClientNotice>,
+    pub(crate) notice: Option<ViewportNotice>,
     /// Drop the core: the pane returns to Live.
     pub live: bool,
     /// A wire-level violation (undecodable or foreign-route window): the
@@ -188,15 +187,27 @@ pub struct ViewportEffect {
     pub protocol_error: bool,
 }
 
+/// The notice a core transition asks its owner to show.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ViewportNotice {
+    /// The viewport lost its facts or anchor and is returning to live while
+    /// the recovery demand pair is in flight.
+    Recovering,
+    /// Retained history could not be entered; the pane stayed Live.
+    Unavailable,
+    /// The previous reading position could not be reproduced after navigation.
+    PositionLost,
+}
+
 /// A volatile reading position whose retained rows must be reproduced before adoption.
 #[derive(Clone, Debug)]
-pub(super) struct ReadingPosition {
-    pub(super) generation: NonZeroU64,
-    pub(super) columns: u16,
-    pub(super) viewport_rows: u16,
-    pub(super) start_row: u64,
-    pub(super) minimum_total: u64,
-    pub(super) witness: Vec<orchbee_terminal_protocol::TerminalTextRow>,
+pub(crate) struct ReadingPosition {
+    pub(crate) generation: NonZeroU64,
+    pub(crate) columns: u16,
+    pub(crate) viewport_rows: u16,
+    pub(crate) start_row: u64,
+    pub(crate) minimum_total: u64,
+    pub(crate) witness: Vec<orchbee_terminal_protocol::TerminalTextRow>,
 }
 
 impl ReadingPosition {
@@ -298,12 +309,12 @@ impl TerminalViewport {
     }
 
     /// Fence the first read of a newly admitted entry with a saved content witness.
-    pub(super) fn resume_position(&mut self, position: ReadingPosition) {
+    pub(crate) fn resume_position(&mut self, position: ReadingPosition) {
         self.resume = Some(position);
     }
 
     /// Retain only already committed scrollback rows; live screen rows can still mutate.
-    pub(super) fn reading_position(&self) -> Option<ReadingPosition> {
+    pub(crate) fn reading_position(&self) -> Option<ReadingPosition> {
         if self.recovery_pending() || self.resume.is_some() {
             return None;
         }
@@ -329,11 +340,11 @@ impl TerminalViewport {
         })
     }
 
-    pub(super) fn resuming(&self) -> bool {
+    pub(crate) fn resuming(&self) -> bool {
         self.resume.is_some()
     }
 
-    pub(super) fn returning_to_live(&self) -> bool {
+    pub(crate) fn returning_to_live(&self) -> bool {
         self.recovery_pending()
     }
 
@@ -412,7 +423,7 @@ impl TerminalViewport {
             .is_some_and(|position| position.offset(changed, self.read_rows).is_none())
         {
             self.queue_recover();
-            effect.notice = Some(ClientNotice::HistoryPositionLost);
+            effect.notice = Some(ViewportNotice::PositionLost);
             return effect;
         }
         if self.committed && changed.anchor_status != HistoryAnchorStatus::Valid {
@@ -420,7 +431,7 @@ impl TerminalViewport {
             // fake the position from stale absolute offsets.
             self.clear_position();
             self.queue_recover();
-            effect.notice = Some(ClientNotice::HistoryRecovering);
+            effect.notice = Some(ViewportNotice::Recovering);
         } else if matches!(self.mode, ViewportMode::Entering | ViewportMode::Viewing) {
             if self.committed {
                 self.refresh = true;
@@ -508,9 +519,9 @@ impl TerminalViewport {
         } else {
             ViewportEffect {
                 notice: Some(if self.resume.is_some() {
-                    ClientNotice::HistoryPositionLost
+                    ViewportNotice::PositionLost
                 } else {
-                    ClientNotice::HistoryUnavailable
+                    ViewportNotice::Unavailable
                 }),
                 live: true,
                 protocol_error: false,
@@ -539,7 +550,7 @@ impl TerminalViewport {
             // Cannot prove which pending it settled: recovery, never adoption.
             self.queue_recover();
             return ViewportEffect {
-                notice: Some(ClientNotice::HistoryRecovering),
+                notice: Some(ViewportNotice::Recovering),
                 ..ViewportEffect::default()
             };
         }
@@ -578,7 +589,7 @@ impl TerminalViewport {
         {
             self.queue_recover();
             return ViewportEffect {
-                notice: Some(ClientNotice::HistoryPositionLost),
+                notice: Some(ViewportNotice::PositionLost),
                 ..ViewportEffect::default()
             };
         }
@@ -650,7 +661,7 @@ impl TerminalViewport {
         };
         if recover {
             self.queue_recover();
-            effect.notice = Some(ClientNotice::HistoryRecovering);
+            effect.notice = Some(ViewportNotice::Recovering);
         } else {
             self.drive_emissions();
         }
@@ -684,7 +695,7 @@ impl TerminalViewport {
         self.clear_position();
         self.queue_recover();
         ViewportEffect {
-            notice: Some(ClientNotice::HistoryRecovering),
+            notice: Some(ViewportNotice::Recovering),
             ..ViewportEffect::default()
         }
     }
@@ -719,7 +730,7 @@ impl TerminalViewport {
         if self.resume.is_some() {
             self.queue_recover();
             return ViewportEffect {
-                notice: Some(ClientNotice::HistoryPositionLost),
+                notice: Some(ViewportNotice::PositionLost),
                 ..ViewportEffect::default()
             };
         }
@@ -760,7 +771,7 @@ impl TerminalViewport {
             self.facts_deadline = None;
             self.queue_recover();
             return ViewportEffect {
-                notice: Some(ClientNotice::HistoryRecovering),
+                notice: Some(ViewportNotice::Recovering),
                 ..ViewportEffect::default()
             };
         }

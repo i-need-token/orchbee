@@ -12,7 +12,6 @@ use super::{
         PendingRefreshStage, ReadyDecision, ReconcileStep, ReconcileTarget, RefreshDecision,
         SetupEventDisposition,
     },
-    terminal_viewport::{ViewportReadRejection, ViewportStep},
     workbench_projection::ClientContextTabs,
 };
 use crate::{
@@ -21,6 +20,7 @@ use crate::{
     },
     local_client::LocalOperationClock,
     terminal_projection::TerminalProjection,
+    terminal_viewport::{ViewportReadRejection, ViewportStep},
 };
 use orchbee_client_server_protocol::{
     ControlInput, Geometry, MAXIMUM_CONTROL_INPUT_BYTES, RequestId, TerminalViewerAction,
@@ -838,7 +838,7 @@ pub(super) enum ViewportOutcome {
     /// payload. The UI never interprets transport bytes as bare row data.
     Window {
         request_sequence: std::num::NonZeroU64,
-        window: Box<super::terminal_viewport::ViewportWindow>,
+        window: Box<crate::terminal_viewport::ViewportWindow>,
     },
     /// The read was refused: a typed `rows-rejected` reason, or the opaque
     /// host rejection that also covers pending-pin blockage.

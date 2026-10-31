@@ -170,7 +170,7 @@ pub(super) fn render_tail(
     frame: &mut Frame<'_>,
     area: Rect,
     terminal: &TerminalTextFrame,
-    window: &crate::workbench_client::terminal_viewport::ViewportWindow,
+    window: &crate::terminal_viewport::ViewportWindow,
     rows_before: u32,
     show_cursor: bool,
     theme: &Theme,

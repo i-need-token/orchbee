@@ -4,9 +4,9 @@ use super::super::{
     CommandMailbox, ControllerMode, Geometry, ViewportOutcome, ViewportStep, WorkbenchClientUi,
 };
 use super::*;
+use crate::terminal_viewport::ViewportWindow;
 use crate::workbench_client::{
     mailbox::QueuedCommand,
-    terminal_viewport::ViewportWindow,
     ui::{
         RetainedFrameBank, WorkbenchClientNotice,
         tests::{

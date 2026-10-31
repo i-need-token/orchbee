@@ -1,6 +1,6 @@
 //! Full ANSI viewport projection from admitted cells, never raw terminal output.
 use super::super::{Failure, FailureKind, output, terminal_output::ansi};
-use crate::workbench_client::terminal_viewport::ViewportWindow;
+use crate::terminal_viewport::ViewportWindow;
 use base64::Engine;
 use orchbee_terminal_protocol::{TerminalTextFrame, TerminalTextRow};
 use serde_json::{Value, json};
