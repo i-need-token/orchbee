@@ -1047,6 +1047,12 @@ impl<'a> WorkbenchClientView<'a> {
         self.copy_mode
             .and_then(super::copy_episode::CopyModeEpisodes::view)
     }
+
+    /// The crop origin the copy episode's last presented frame painted.
+    pub(crate) fn copy_crop(&self) -> Option<crate::terminal_copy_mode::CopyModeCursor> {
+        self.copy_mode
+            .and_then(super::copy_episode::CopyModeEpisodes::crop)
+    }
 }
 
 #[cfg(any(test, feature = "test-support"))]

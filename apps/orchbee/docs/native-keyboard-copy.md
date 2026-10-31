@@ -44,6 +44,8 @@ Copy mode takes its coordinates from the complete admitted row window or alterna
 independently of the ordinary live crop. Its local display reserves the permanent outer footer and,
 in Minimal layout, the first-row mouse toolbar. It crops the served rows and columns to keep the
 actual cursor glyph fully visible above the footer, including the second cell of a wide glyph.
+The crop moves from the origin the episode last presented only as far as that glyph requires, so a
+cursor moved within the painted surface, including by a pointer press or drag, keeps the crop.
 Search submission and keyboard or toolbar repetition reveal the matching served text and cursor
 together; the cursor never substitutes a footer cell for an obscured result. This display does not
 resize the physical terminal, move a committed history bookmark or change ordinary input-method
@@ -220,6 +222,8 @@ adjacent state, carrier, input and rendering suites. The mouse visibility suite 
 shell at 120×40, 80×24, Compact and Minimal sizes in both locales and native/RGB themes. Controlled
 search completions check visible matching glyphs and a cursor above the footer for primary and
 alternate screens, keyboard/toolbar search and repeat, and translated wide-cell selection/drag.
+A pointer drag from a bottom-row cursor presents a frame after every packet, as the shell does, and
+keeps the footer crop through the press.
 These local crop checks do not exercise query transport. Use controlled completion/clock order and
 generated trace replay where the workflow has multiple outcomes.
 

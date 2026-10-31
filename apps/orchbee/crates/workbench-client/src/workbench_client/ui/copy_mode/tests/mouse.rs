@@ -59,9 +59,16 @@ impl TerminalInputPort for Port {
 }
 
 fn fixture(width: u16) -> (Port, Arc<CommandMailbox>, InputDispatcher, ClientView) {
+    fixture_at(width, None)
+}
+/// `cursor` is the application cursor the copy episode enters on.
+fn fixture_at(
+    width: u16,
+    cursor: Option<(u16, u16)>,
+) -> (Port, Arc<CommandMailbox>, InputDispatcher, ClientView) {
     let (mut ui, mailbox, _, _) = ready_ui();
     install_projection(&mut ui, Some((0, true, 24)), 0);
-    install_wide_tail(&mut ui, 2, 2, None);
+    install_wide_tail(&mut ui, 2, 2, cursor);
     ui.enter_copy_mode();
     let mut port = Port {
         ui,
@@ -101,6 +108,43 @@ fn painted(
         })
         .unwrap();
     (terminal, hits.finish())
+}
+/// Draws one shell frame the way the shell loop does: the frame's receipt is acknowledged and its
+/// hit map serves the next packet. Returns the painted copy surface's rectangle and crop origin.
+fn present(
+    dispatcher: &mut InputDispatcher,
+    view: &ClientView,
+    port: &mut Port,
+    width: u16,
+    height: u16,
+) -> (ratatui::layout::Rect, CopyModeCursor) {
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    let mut receipt = None;
+    terminal
+        .draw(|frame| {
+            receipt = Some(crate::tui_render::render_terminal_shell(
+                frame,
+                view,
+                Locale::EnUs,
+                Some(port.ui.view()),
+                &Theme::one_dark(),
+                &mut hits,
+            ));
+        })
+        .unwrap();
+    port.ui.after_close_draw(receipt.unwrap());
+    let map = hits.finish();
+    let found = cell(&map, width, height, |target| {
+        matches!(target, HitTarget::CopySurface { .. })
+    });
+    let Some(HitTarget::CopySurface { area, origin, .. }) = map.hit_target_at(found.0, found.1)
+    else {
+        unreachable!()
+    };
+    let painted = (*area, *origin);
+    dispatcher.publish_hit_map(map);
+    painted
 }
 fn paint(
     port: &Port,
@@ -422,6 +466,92 @@ fn copy_mouse_drag_normalizes_cells_coalesces_updates_and_exports_only_after_cop
             .ui
             .copy_pointer_cell(token, CopyModeCursor { column: 1, row: 1 }, true)
     );
+}
+
+#[test]
+fn copy_mouse_drag_keeps_its_crop_through_the_frame_after_each_packet() {
+    // The shell draws after every packet. With the cursor on the bottom served row, the footer
+    // crops the surface one row down; the press moves the cursor up, and the next motion must
+    // still resolve against the same painted rectangle and origin.
+    let (width, height) = (80, 25);
+    let (mut port, mailbox, mut dispatcher, mut view) = fixture_at(width, Some((0, 23)));
+    let (area, origin) = present(&mut dispatcher, &view, &mut port, width, height);
+    assert_eq!(
+        (area.height, origin.row),
+        (23, 1),
+        "the footer crops one row"
+    );
+    let row = area.y + 1; // served row 2
+    let mut painted = Vec::new();
+    dispatch(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        report((area.x + 3, row), 0, false).as_bytes(),
+    );
+    let (key, command, action) = take_selection(&mut port.ui, &mailbox);
+    assert!(matches!(
+        action,
+        TerminalViewerAction::SelectionGesture {
+            gesture: ViewerSelectionGestureAction::Start {
+                point: orchbee_client_server_protocol::ViewerSelectionViewportPoint {
+                    column: 2,
+                    row: 2
+                },
+                ..
+            },
+            ..
+        }
+    ));
+    painted.push(present(&mut dispatcher, &view, &mut port, width, height));
+    for column in 4..=7 {
+        dispatch(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            report((area.x + column, row), 32, false).as_bytes(),
+        );
+        painted.push(present(&mut dispatcher, &view, &mut port, width, height));
+    }
+    dispatch(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        report((area.x + 7, row), 0, true).as_bytes(),
+    );
+    painted.push(present(&mut dispatcher, &view, &mut port, width, height));
+    assert_eq!(port.ui.copy_mode.mode().unwrap().desired().col, 7);
+    reply_selection(
+        &mut port.ui,
+        &mailbox,
+        key,
+        command,
+        SelectionChangedState::None,
+    );
+    port.ui.tick_copy_mode();
+    let (key, command, action) = take_selection(&mut port.ui, &mailbox);
+    assert!(matches!(
+        action,
+        TerminalViewerAction::SelectionGesture {
+            gesture: ViewerSelectionGestureAction::Update {
+                point: orchbee_client_server_protocol::ViewerSelectionViewportPoint {
+                    column: 7,
+                    row: 2
+                },
+                ..
+            },
+            ..
+        }
+    ));
+    reply_selection(&mut port.ui, &mailbox, key, command, active_selection());
+    port.ui.tick_copy_mode();
+    let copy = port.ui.copy_mode_view().unwrap();
+    assert_eq!((copy.status, copy.selecting), (CopyModeStatus::Ready, true));
+    assert!(
+        painted.iter().all(|&frame| frame == (area, origin)),
+        "{painted:?}"
+    );
+    assert!(port.forwarded.is_empty());
 }
 
 #[test]

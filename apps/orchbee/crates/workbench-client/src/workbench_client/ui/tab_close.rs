@@ -36,6 +36,7 @@ pub struct DrawReceipt {
     agent_board: Option<super::AgentBoardDraw>,
     attention: Option<crate::workbench_client::agent_attention::AgentAttentionDraw>,
     graphics: Vec<crate::workbench_client::PaneGraphicsDraw>,
+    copy_crop: Option<crate::terminal_copy_mode::CopyCrop>,
 }
 
 impl DrawReceipt {
@@ -77,6 +78,13 @@ impl DrawReceipt {
         self.attention = attention;
         self
     }
+    pub(crate) fn with_copy_crop(
+        mut self,
+        crop: Option<crate::terminal_copy_mode::CopyCrop>,
+    ) -> Self {
+        self.copy_crop = crop;
+        self
+    }
     pub(crate) fn with_agent_board(mut self, agent_board: Option<super::AgentBoardDraw>) -> Self {
         self.agent_board = agent_board;
         self
@@ -114,6 +122,7 @@ impl DrawReceipt {
             agent_board: None,
             attention: None,
             graphics: Vec::new(),
+            copy_crop: None,
         }
     }
     pub(crate) const fn with_rename(
@@ -645,6 +654,9 @@ impl WorkbenchClientUi {
         self.after_settings_draw(receipt.settings);
         self.attention.after_draw();
         self.after_graphics_draw(receipt.graphics);
+        if let Some(crop) = receipt.copy_crop {
+            self.copy_mode.record_crop(crop);
+        }
         if let Some(state) = &mut self.state {
             state.acknowledge_close_draw(
                 receipt.prompt.and_then(ModalPresentation::into_presented),

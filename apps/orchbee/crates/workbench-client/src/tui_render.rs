@@ -306,6 +306,7 @@ pub fn render_terminal_shell_with_resize<'a>(
     let mut help_presented = false;
     let mut board_draw = None;
     let mut graphics_draws = Vec::new();
+    let mut copy_crop = None;
     // The pane cursor is placed after the floating status, so a chip that covers its cell hides it.
     let mut pane_cursor = None;
     let sidebar_status;
@@ -393,6 +394,7 @@ pub fn render_terminal_shell_with_resize<'a>(
                     graphics_uncovered,
                     &mut graphics_draws,
                     &mut pane_cursor,
+                    &mut copy_crop,
                 );
             }
         }
@@ -1000,7 +1002,8 @@ pub fn render_terminal_shell_with_resize<'a>(
         .with_workspace_close(workspace_prompt)
         .with_rename(rename)
         .with_setup(setup)
-        .with_agent_board(board_draw);
+        .with_agent_board(board_draw)
+        .with_copy_crop(copy_crop);
     let receipt = receipt.with_worktree(worktree);
     let receipt = receipt.with_attention(match workbench_client.as_ref() {
         Some(native)
@@ -1406,6 +1409,7 @@ fn render_native_workbench(
     graphics_uncovered: bool,
     graphics_draws: &mut Vec<crate::workbench_client::PaneGraphicsDraw>,
     pane_cursor: &mut Option<Position>,
+    copy_crop: &mut Option<crate::terminal_copy_mode::CopyCrop>,
 ) {
     if let Some(preview) = native
         .workspace_creation_preview()
@@ -1556,6 +1560,7 @@ fn render_native_workbench(
                 theme,
                 hits,
                 pane_cursor,
+                copy_crop,
             );
             // The recorded region carries the pane's exact live
             // incarnation — a press resolves it bit for bit, so it can
@@ -1692,7 +1697,8 @@ fn render_native_workbench(
                 native.copy_mode().is_some(),
             );
             if input_enabled && let Some(copy) = native.copy_mode() {
-                copy_mode::paint_surface(frame, content_area, copy, native, theme, hits);
+                *copy_crop =
+                    copy_mode::paint_surface(frame, content_area, copy, native, theme, hits);
             }
             if let Some(pane) = active_tab
                 .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
@@ -1766,7 +1772,8 @@ fn render_native_workbench(
                 theme.style(Role::SurfaceSelection),
             );
             if input_enabled && let Some(copy) = native.copy_mode() {
-                copy_mode::paint_surface(frame, content_area, copy, native, theme, hits);
+                *copy_crop =
+                    copy_mode::paint_surface(frame, content_area, copy, native, theme, hits);
             }
             // Only the tab strip stays above the terminal. Every content cell
             // carries the pane's exact live incarnation, including the edges.
@@ -2135,6 +2142,7 @@ fn render_leaf(
     theme: &Theme,
     hits: &mut HitMapBuilder,
     pane_cursor: &mut Option<Position>,
+    copy_crop: &mut Option<crate::terminal_copy_mode::CopyCrop>,
 ) {
     // Only the Windows copy-mode surface consumes input ownership and pointer targets here.
 
@@ -2253,7 +2261,7 @@ fn render_leaf(
         && input_enabled
         && let Some(copy) = native.copy_mode()
     {
-        copy_mode::paint_surface(frame, content, copy, native, theme, hits);
+        *copy_crop = copy_mode::paint_surface(frame, content, copy, native, theme, hits);
     }
 }
 

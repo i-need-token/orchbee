@@ -3,12 +3,13 @@ use orchbee_terminal_protocol::TerminalTextRow;
 use ratatui::{Frame, layout::Rect, widgets::Clear};
 
 use crate::{
-    terminal_copy_mode::{CopyModeCursor, CopyModeToken, CopyModeView, Surface},
+    terminal_copy_mode::{CopyCrop, CopyModeCursor, CopyModeView, Surface},
     tui_hit_map::{HitLayer, HitMapBuilder, HitTarget, ListScrollTarget},
     tui_theme::{Role, Theme},
     workbench_client::{ViewportSurface, WorkbenchClientView},
 };
 
+/// Returns the crop this frame painted, for the shell's draw receipt.
 pub(in crate::tui_render) fn paint_surface(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -16,17 +17,12 @@ pub(in crate::tui_render) fn paint_surface(
     native: &WorkbenchClientView<'_>,
     theme: &Theme,
     hits: &mut HitMapBuilder,
-) {
-    let Some(cursor) = mode.cursor else { return };
-    let Some(panel) = native.focus_panel_id() else {
-        return;
-    };
-    let Some(source) = native.copy_content_source(panel) else {
-        return;
-    };
-    let Some(surface) = mode.pointer.and_then(CopyModeToken::content_surface) else {
-        return;
-    };
+) -> Option<CopyCrop> {
+    let cursor = mode.cursor?;
+    let panel = native.focus_panel_id()?;
+    let source = native.copy_content_source(panel)?;
+    let pointer = mode.pointer?;
+    let surface = pointer.content_surface()?;
     if Surface::checked(
         source.screen,
         source.rows.generation,
@@ -37,7 +33,7 @@ pub(in crate::tui_render) fn paint_surface(
         source.rows.row_count,
     ) != Some(surface)
     {
-        return;
+        return None;
     }
     let (rows, terminal_theme) = match native.pane_viewport(panel) {
         Some(ViewportSurface::Window { window, .. }) => (
@@ -45,33 +41,40 @@ pub(in crate::tui_render) fn paint_surface(
             theme.with_host_terminal_colors(window.foreground, window.background),
         ),
         None => {
-            let Some(terminal) = native
-                .pane_projection(panel)
-                .and_then(|value| value.frame())
-            else {
-                return;
-            };
+            let terminal = native.pane_projection(panel)?.frame()?;
             (
                 terminal.rows.as_slice(),
                 theme.with_host_terminal_colors(terminal.foreground, terminal.background),
             )
         }
-        Some(_) => return,
+        Some(_) => return None,
     };
     let content = content_rect(frame.area(), area, surface);
     let glyph_width = cursor_width(rows, cursor);
     if content.is_empty() || glyph_width > content.width {
-        return;
+        return None;
     }
+    // The crop moves from the origin the episode last painted only as far as the cursor glyph
+    // needs. A cursor moved inside the painted surface, as a pointer press or drag moves it, keeps
+    // the rectangle and origin that the gesture's later reports resolve against.
+    let previous = native
+        .copy_crop()
+        .unwrap_or(CopyModeCursor { column: 0, row: 0 });
     let origin = CopyModeCursor {
-        column: cursor
+        column: previous
             .column
-            .saturating_add(glyph_width)
-            .saturating_sub(content.width)
+            .min(cursor.column)
+            .max(
+                cursor
+                    .column
+                    .saturating_add(glyph_width)
+                    .saturating_sub(content.width),
+            )
             .min(surface.columns.saturating_sub(content.width)),
-        row: cursor
+        row: previous
             .row
-            .saturating_sub(content.height - 1)
+            .min(cursor.row)
+            .max(cursor.row.saturating_sub(content.height - 1))
             .min(surface.row_count.saturating_sub(content.height)),
     };
     frame.render_widget(Clear, area);
@@ -103,14 +106,12 @@ pub(in crate::tui_render) fn paint_surface(
         },
         theme,
     );
-    if let Some(token) = mode.pointer
-        && let Some(surface) = token.surface()
-    {
+    if let Some(token) = pointer.surface() {
         hits.record(
             HitLayer::ChromeSurface,
             content,
             HitTarget::CopySurface {
-                token: surface,
+                token,
                 area: content,
                 origin,
             },
@@ -118,9 +119,10 @@ pub(in crate::tui_render) fn paint_surface(
         hits.record(
             HitLayer::ChromeSurface,
             content,
-            HitTarget::ListScroll(ListScrollTarget::Copy(token)),
+            HitTarget::ListScroll(ListScrollTarget::Copy(pointer)),
         );
     }
+    Some(pointer.crop(origin))
 }
 
 fn content_rect(viewport: Rect, mut area: Rect, surface: Surface) -> Rect {

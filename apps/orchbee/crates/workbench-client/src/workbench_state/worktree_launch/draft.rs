@@ -307,7 +307,7 @@ impl<'a> WorktreeView<'a> {
             _ => self
                 .launcher
                 .operation()
-                .map_or(WorktreeMode::Create, |op| intent_mode(&op.plan.intent)),
+                .map_or(self.launcher.requested, |op| intent_mode(&op.plan.intent)),
         }
     }
     pub(crate) fn notice(&self) -> WorktreeNotice {

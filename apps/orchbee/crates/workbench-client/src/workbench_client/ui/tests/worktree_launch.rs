@@ -585,7 +585,9 @@ fn dirty_removal_offers_resume_and_canceling_resume_restores_the_retained_result
             ui.worktrees.launcher.operation().unwrap().outcome,
             Some(removal::failure(1, true))
         );
-        ui.dismiss_worktree(token);
+        let restored = ui.worktrees.launcher.token().unwrap();
+        assert_ne!(restored, token);
+        ui.dismiss_worktree(restored);
         assert!(ui.worktree_input_context().is_none());
         assert_eq!(
             ui.request_worktree(WorktreeMode::Open),

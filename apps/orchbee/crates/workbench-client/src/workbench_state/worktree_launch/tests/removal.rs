@@ -201,9 +201,14 @@ fn dirty_removal_retains_readable_failure_and_resume_requires_a_new_cancelable_c
         Some(failure(1, true))
     );
     assert_eq!(launcher.view().unwrap().stage(), WorktreeStage::Result);
-    assert!(!launcher.prepare_remove_resume(resume_token));
+    // The restored result needs a fresh token so input capture restarts after Esc.
+    let restored = launcher.token().unwrap();
+    assert_ne!(restored, resume_token);
+    assert!(!launcher.prepare_remove_resume(restored));
     launcher.draw(Some(resume_token));
-    assert!(launcher.prepare_remove_resume(resume_token));
+    assert!(!launcher.prepare_remove_resume(resume_token));
+    launcher.draw(Some(restored));
+    assert!(launcher.prepare_remove_resume(restored));
     let token = launcher.token().unwrap();
     launcher.draw(Some(token));
     let (resumed, expected_attempt) = launcher.confirm_remove_resume(token).unwrap();

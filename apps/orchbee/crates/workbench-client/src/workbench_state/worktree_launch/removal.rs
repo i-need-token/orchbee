@@ -141,8 +141,12 @@ impl Launcher {
             return false;
         };
         self.phase = Phase::Result(op);
-        self.shown = None;
-        self.input_frame_live = false;
+        // Cancel ended the modal decoder's input lease. The restored result is
+        // a new incarnation, so its fresh token lets input capture restart.
+        if self.advance_token().is_none() {
+            self.shown = None;
+            self.input_frame_live = false;
+        }
         true
     }
 

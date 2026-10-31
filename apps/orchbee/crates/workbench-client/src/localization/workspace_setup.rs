@@ -121,13 +121,13 @@ impl Locale {
     pub(crate) const fn setup_select_hint(self) -> &'static str {
         match self {
             Self::EnUs => "select",
-            Self::ZhCn => "确定",
+            Self::ZhCn => "选择",
         }
     }
     pub(crate) const fn setup_choose_hint(self) -> &'static str {
         match self {
             Self::EnUs => "choose",
-            Self::ZhCn => "选择",
+            Self::ZhCn => "确定",
         }
     }
     pub(crate) const fn setup_next_field_hint(self) -> &'static str {

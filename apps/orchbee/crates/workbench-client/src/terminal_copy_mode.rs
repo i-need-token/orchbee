@@ -162,7 +162,21 @@ pub struct CopySurfaceToken {
     pub(crate) surface: Surface,
 }
 
+/// The local crop origin one presented frame painted for its copy episode.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct CopyCrop {
+    pub(crate) episode: EpisodeId,
+    pub(crate) origin: CopyModeCursor,
+}
+
 impl CopyModeToken {
+    pub(crate) const fn crop(self, origin: CopyModeCursor) -> CopyCrop {
+        CopyCrop {
+            episode: self.episode,
+            origin,
+        }
+    }
+
     /// Painting retains the admitted surface while search or effects suspend pointer input.
     pub(crate) const fn content_surface(self) -> Option<Surface> {
         self.surface

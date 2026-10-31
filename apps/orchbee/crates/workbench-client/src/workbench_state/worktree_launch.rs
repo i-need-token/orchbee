@@ -85,6 +85,8 @@ pub(crate) struct Launcher {
     focus_revoked: bool,
     presentation: PresentationPhase,
     presentation_notice: Option<WorktreeNotice>,
+    /// The requested mode, kept for a preparation failure that has no draft.
+    requested: WorktreeMode,
 }
 impl Default for Launcher {
     fn default() -> Self {
@@ -98,6 +100,7 @@ impl Default for Launcher {
             focus_revoked: false,
             presentation: PresentationPhase::Pending,
             presentation_notice: None,
+            requested: WorktreeMode::Create,
         }
     }
 }
@@ -254,6 +257,7 @@ impl Launcher {
             return false;
         };
         preparation.token = token;
+        self.requested = preparation.mode;
         self.visible = true;
         self.input_frame_live = false;
         self.notice = WorktreeNotice::Preparing;

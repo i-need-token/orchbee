@@ -1,12 +1,15 @@
 //! The Workbench copy-mode episode: the pane and admitted content source that keyboard copy is
-//! bound to, its entry fence, and the one query whose outcome it still expects.
+//! bound to, its entry fence, the one query whose outcome it still expects, and the crop origin
+//! its last presented frame painted.
 //!
 //! The composition root holds the copy query driver and cancels it whenever an episode begins or
 //! ends; this owner never reaches the driver.
 
 use crate::terminal_content::ContentSource;
 use crate::terminal_copy::TerminalTextPoint;
-use crate::terminal_copy_mode::{CopyModeStatus, CopyModeView, EpisodeId, Mode, Surface};
+use crate::terminal_copy_mode::{
+    CopyCrop, CopyModeCursor, CopyModeStatus, CopyModeView, EpisodeId, Mode, Surface,
+};
 use crate::terminal_copy_query::QueryIdentity;
 use crate::workbench_state::PaneRef;
 use std::num::NonZeroU64;
@@ -47,6 +50,8 @@ struct Episode {
     source: Option<ContentSource>,
     state: EpisodeState,
     pending_query: Option<PendingQuery>,
+    /// The crop origin the last presented frame painted; a frame without the surface keeps it.
+    crop: Option<CopyModeCursor>,
 }
 
 /// The single copy-mode episode slot and its identity sequence.
@@ -88,6 +93,7 @@ impl CopyModeEpisodes {
                 needs_viewport_enter,
             }),
             pending_query: None,
+            crop: None,
         });
         Some(id)
     }
@@ -194,6 +200,20 @@ impl CopyModeEpisodes {
         Some(view)
     }
 
+    /// The crop origin this episode's last presented frame painted.
+    pub(super) fn crop(&self) -> Option<CopyModeCursor> {
+        self.episode.as_ref()?.crop
+    }
+
+    /// Adopts a presented frame's crop for the episode that painted it.
+    pub(super) fn record_crop(&mut self, crop: CopyCrop) {
+        if let Some(episode) = self.episode.as_mut()
+            && episode.id == crop.episode
+        {
+            episode.crop = Some(crop.origin);
+        }
+    }
+
     pub(super) const fn surface_pending(&self) -> bool {
         self.episode.is_some() && self.surface_pending
     }
@@ -240,6 +260,7 @@ impl CopyModeEpisodes {
                 source: None,
                 state: EpisodeState::Active(mode),
                 pending_query: None,
+                crop: None,
             }),
             surface_pending: false,
         }
