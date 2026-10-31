@@ -81,6 +81,22 @@ pub fn respond(
     )
 }
 
+/// A Client may close its carrier before an unsolicited subscription frame or probe answer
+/// arrives, as it may against a real Server; a scripted reply it awaits stays strict.
+fn tolerate_closed_carrier(result: io::Result<()>) -> io::Result<()> {
+    match result {
+        Err(error)
+            if matches!(
+                error.kind(),
+                io::ErrorKind::BrokenPipe | io::ErrorKind::ConnectionReset
+            ) =>
+        {
+            Ok(())
+        }
+        result => result,
+    }
+}
+
 /// Domain scripts can run directly or over the TUI's actual multiplexer. Snapshot subscriptions
 /// observe the same snapshots that the script publishes; they never open an extra Server socket.
 pub struct Peer {
@@ -140,7 +156,7 @@ impl Peer {
             mode: *mode,
             request: Vec::new(),
         };
-        respond(
+        tolerate_closed_carrier(respond(
             &mut self.stream,
             &open,
             &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
@@ -149,7 +165,7 @@ impl Peer {
                 outcome,
             }),
             *sequence,
-        )
+        ))
     }
     fn probe(&mut self, id: MultiplexStreamId, request: &[u8]) -> io::Result<bool> {
         let Ok(WorkbenchRequest::PublicationRead(intent)) =
@@ -183,7 +199,7 @@ impl Peer {
             mode: StreamMode::Request,
             request: Vec::new(),
         };
-        match respond(
+        tolerate_closed_carrier(respond(
             &mut self.stream,
             &open,
             &WorkbenchResponse::Publication(WorkbenchPublicationResult {
@@ -192,15 +208,7 @@ impl Peer {
                 outcome,
             }),
             1,
-        ) {
-            // A Client may close the carrier before its unsolicited probe is answered.
-            Err(error)
-                if matches!(
-                    error.kind(),
-                    io::ErrorKind::BrokenPipe | io::ErrorKind::ConnectionReset
-                ) => {}
-            result => result?,
-        }
+        ))?;
         Ok(true)
     }
     fn accept(&mut self, message: MultiplexMessage) -> io::Result<bool> {

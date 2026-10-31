@@ -428,8 +428,12 @@ pub(crate) fn accept_native_frame_feedback(stream: &mut UnixStream) -> io::Resul
     .map_err(io::Error::other)
 }
 
+/// Failure bound for waits on an observable Workbench Client state. A satisfied wait returns at
+/// once; the bound only absorbs scheduling delay on a heavily loaded test host.
+const SETTLE_BOUND: Duration = Duration::from_secs(10);
+
 pub fn spin(workbench_client: &mut WorkbenchClient, predicate: impl Fn(&WorkbenchClient) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(2);
+    let deadline = Instant::now() + SETTLE_BOUND;
     while !predicate(workbench_client) {
         assert!(Instant::now() < deadline, "session did not settle");
         workbench_client.tick();
@@ -441,7 +445,7 @@ pub fn spin_with_draw(
     workbench_client: &mut WorkbenchClient,
     predicate: impl Fn(&WorkbenchClient) -> bool,
 ) -> bool {
-    let deadline = Instant::now() + Duration::from_secs(2);
+    let deadline = Instant::now() + SETTLE_BOUND;
     while !predicate(workbench_client) {
         if Instant::now() >= deadline {
             return false;
