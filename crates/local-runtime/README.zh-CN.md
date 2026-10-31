@@ -417,7 +417,7 @@ Windows 停止细化将仅不可变启动尝试的解释改为同一个已准入
 
 ## Windows 目录原语
 
-共享纯函数 `windows_reported_directory` 解码并保留有效终端上报的驱动器／UNC 观察；调用方单独执行更窄的启动路径约束。`directory/windows/initialization.ps1` 在原提示符之后同步 PowerShell 进程 cwd，保留状态且不改变非文件系统 provider。普通 Worker shell 与编码恢复 shell 使用同一钩子，以及子进程内的 UTF-8 原生输出解码与向外发送的管道编码。
+共享纯函数 `windows_reported_directory` 解码并保留有效终端上报的驱动器／UNC 观察；调用方单独执行更窄的启动路径约束。`directory/windows/initialization.ps1` 在原提示符之后同步 PowerShell 进程 cwd，保留状态且不改变非文件系统 provider。首次提示符按启动管道自身的历史 ID 清除该管道的会话历史条目，因此 `-NoExit -Command` shell 中的 `Get-History` 只列出用户的命令；PSReadLine 从不读取启动文本，其历史不受影响。普通 Worker shell 与编码恢复 shell 使用同一钩子，以及子进程内的 UTF-8 原生输出解码与向外发送的管道编码。
 
 `windows_interactive_powershell_initialization` 将该公共资产与 `directory/windows/reader.ps1`
 连接，后者包装既有交互 reader 并发送语义读行阶段标记。Worker 为已准入的普通 PowerShell argv
@@ -486,4 +486,4 @@ cohort 准入、备用租约及进程／Server 所有权；普通 client／worke
 原生管道测试验证 scope／票据地址隔离，以及长 Unicode runtime 输入下仍有界的名称。
 [Worker 契约](../../apps/orchbee-worker/docs/windows-server-handoff.zh-CN.md) 负责连接转移。
 
-<!-- documentation-pairing: english-sha256=ce42e7dd778c78b204e1eef61f6eddb61d2f4de971fa57d6dcc5887d2e206dc1 zh-cn-sha256=bb63aad54ac9a9279dafb21566ce3637d524cc38a87a8080ea56535e2e961cae -->
+<!-- documentation-pairing: english-sha256=c3a0b7f1daf14f8c36244cfb014943de9ea46a9eb3cbfbd9c27927b4298dda3c zh-cn-sha256=d3d8f4058fb16145582c8c5c97e6ea4d9ba3568f0c1b38ffc9ed86e8c5172d11 -->

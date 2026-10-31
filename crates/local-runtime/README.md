@@ -497,7 +497,7 @@ stop processes, acquire lifecycle authority, or perform automatic recovery.
 
 ## Windows directory primitives
 
-The shared pure `windows_reported_directory` decoder preserves valid terminal-reported drive/UNC observations; callers separately enforce narrower launch path bounds. `directory/windows/initialization.ps1` synchronizes PowerShell process cwd after the original prompt, preserving status and leaving non-filesystem providers unchanged. Both ordinary Worker shells and encoded resume shells use this single hook and child-local UTF-8 native-output decoding and outgoing pipeline encoding.
+The shared pure `windows_reported_directory` decoder preserves valid terminal-reported drive/UNC observations; callers separately enforce narrower launch path bounds. `directory/windows/initialization.ps1` synchronizes PowerShell process cwd after the original prompt, preserving status and leaving non-filesystem providers unchanged. Its first prompt clears the startup pipeline's own session-history entry by that pipeline's history ID, so `Get-History` in a `-NoExit -Command` shell lists only the user's commands; PSReadLine never reads the startup text, and its history is untouched. Both ordinary Worker shells and encoded resume shells use this single hook and child-local UTF-8 native-output decoding and outgoing pipeline encoding.
 
 `windows_interactive_powershell_initialization` concatenates that common asset with
 `directory/windows/reader.ps1`, which wraps the existing interactive reader with semantic

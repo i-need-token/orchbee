@@ -1,5 +1,10 @@
 use super::*;
-use std::{os::windows::process::CommandExt, path::PathBuf, process::Command};
+use std::{
+    io::Write,
+    os::windows::process::CommandExt,
+    path::PathBuf,
+    process::{Command, Stdio},
+};
 
 #[test]
 fn recognizes_only_plain_interactive_powershell_and_preserves_input_flags() {
@@ -139,5 +144,50 @@ if ([Environment]::CurrentDirectory -ne $last) {{ throw 'non-filesystem cwd' }}
                 "{stdout}"
             );
         }
+    }
+}
+
+#[test]
+fn actual_interactive_powershell_session_history_holds_only_user_commands() {
+    for shell in [
+        PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join("System32/WindowsPowerShell/v1.0/powershell.exe"),
+        PathBuf::from(std::env::var_os("ProgramFiles").unwrap()).join("PowerShell/7/pwsh.exe"),
+    ] {
+        if !shell.is_file() {
+            continue;
+        }
+        let mut arguments = interactive_arguments(
+            &shell.to_string_lossy(),
+            vec!["-NoLogo".to_owned(), "-NoProfile".to_owned()],
+        );
+        // Without module autoloading the reader leaves PSReadLine unloaded, so the host reads
+        // the piped lines below and never opens a PSReadLine history file. The host may echo
+        // those lines, so only the joined output contains the history: marker.
+        let startup = arguments.pop().unwrap();
+        arguments.push(format!(
+            "$PSModuleAutoLoadingPreference = 'None'\n{startup}"
+        ));
+        let mut child = Command::new(&shell)
+            .args(&arguments)
+            .creation_flags(0x0800_0000)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(b"'typed'\nGet-History | ForEach-Object { 'history' + ':' + $_.CommandLine }\nexit\n")
+            .unwrap();
+        let output = child.wait_with_output().unwrap();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let history: Vec<_> = stdout
+            .lines()
+            .filter_map(|line| line.split_once("history:").map(|(_, entry)| entry))
+            .collect();
+        assert_eq!(history, ["'typed'"], "{}: {stdout}", shell.display());
     }
 }

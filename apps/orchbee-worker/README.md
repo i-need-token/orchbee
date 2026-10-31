@@ -944,13 +944,14 @@ and 7. It changes no external shell or stored profile. The wrapper captures the 
 observe the previous command's success, then synchronizes a FileSystem provider location
 to `[Environment]::CurrentDirectory`. Non-filesystem providers and failed assignments leave
 the process directory unchanged. It installs once per process, never writes a user profile,
-never interpolates launch data, and emits the original prompt result. Root process sampling
+never interpolates launch data, and emits the original prompt result. The first prompt also removes the
+startup command's own session-history entry, so `Get-History` and PSReadLine history hold only user commands. Root process sampling
 can then observe directory changes for native CLI creation without acquiring terminal input.
 
 This is launch preparation before the existing Host handoff, not a second shell/process or
 an acknowledgment that a terminal launched. Existing terminals receive no retrofit. Unit
 admission cases and actual Windows PowerShell 5.1/7 prompt and pipeline tests cover native
-UTF-8 decoding, custom prompts, failed
+UTF-8 decoding, custom prompts, session history, failed
 commands, Unicode directories, non-filesystem providers and idempotence. Real ConPTY creation
 checks the root process cwd after Set-Location. Arbitrary custom startup commands remain outside
 this integration; no current-directory accuracy claim is made for their private shell state.

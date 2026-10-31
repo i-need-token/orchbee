@@ -1,10 +1,12 @@
 $global:OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $global:OutputEncoding
+$global:__OrchbeeHistoryId = $MyInvocation.HistoryId
 if ($null -eq $global:__OrchbeeDirectoryPrompt) {
 	$global:__OrchbeeDirectoryPrompt = $function:prompt
 	function global:prompt {
 		param($orchbeeSucceeded = $?)
 		$out = @(& $global:__OrchbeeDirectoryPrompt) -join ' '
+		if ($global:__OrchbeeHistoryId -gt 0) { Microsoft.PowerShell.Core\Clear-History -Id $global:__OrchbeeHistoryId -ErrorAction Ignore; $global:__OrchbeeHistoryId = 0 }
 		if ($null -ne $global:__OrchbeeRunId) {
 			$orchbeeStatus = if ($orchbeeSucceeded) { 0 } else { 1 }
 			$orchbeeEnd = if ($global:__OrchbeeRunTyped) { '' } else { "$([char]27)]133;D;$orchbeeStatus`a" }

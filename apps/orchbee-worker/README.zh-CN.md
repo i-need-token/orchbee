@@ -830,12 +830,13 @@ A/B/C 标记保留上条命令状态、reader 结果、历史和键位钩子。�
 包装捕获 profile 定义的 prompt，首先调用它，使依赖状态的 prompt 能看到上条命令的成功状态，
 随后将 FileSystem provider 位置同步到 `[Environment]::CurrentDirectory`。
 非文件系统 provider 或赋值失败保留进程目录。每进程只安装一次，不写用户 profile，
-不插入启动数据，输出原 prompt 结果。原生 CLI 创建因而可通过根进程采样观察目录变化，
+不插入启动数据，输出原 prompt 结果。首个 prompt 还会移除启动命令自身的会话历史条目，
+使 `Get-History` 与 PSReadLine 历史只含用户命令。原生 CLI 创建因而可通过根进程采样观察目录变化，
 无需获取终端输入权。
 
 这属于既有 Host 交接之前的启动准备，不是第二个 Shell／进程，也不表示终端已启动。
 现有终端不会补装。准入单测和实际 Windows PowerShell 5.1／7 prompt 与管道测试覆盖原生
-UTF-8 解码、自定义 prompt、
+UTF-8 解码、自定义 prompt、会话历史、
 失败命令、Unicode 目录、非文件系统 provider 和幂等。实际 ConPTY 创建检查 Set-Location 后的
 根进程 cwd。任意自定义启动命令不在集成范围内，不声称其 Shell 私有状态的目录准确性。
 
@@ -890,4 +891,4 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 启动前后均可用。[所属模型](docs/windows-server-handoff.zh-CN.md) 定义精确票据、截止点、
 回滚及证据边界。公开 Server 状态／端点交接仍需独立集成；传输回执不是最终 CLI 成功。
 
-<!-- documentation-pairing: english-sha256=9c087231c722f875534606d0915bbacc0610306cdc66b9efae2180aaef51972e zh-cn-sha256=08179a599a57f38ed4bfd55f5ad0d2fd4df9d5b4110841e23b19a305b8ce968c -->
+<!-- documentation-pairing: english-sha256=1aaf7bba2f0275a7132998fee08c4d04a19f9740d62b38fcd793be79ad84f1a3 zh-cn-sha256=6335607a8b0cde8b15d4e0936f787a511e5804793bd95c327feea13422d28b5b -->
