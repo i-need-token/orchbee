@@ -849,3 +849,150 @@ fn released_divider_projection_retires_permanently_on_external_owner_or_geometry
         );
     }
 }
+
+/// Drives the real renderer, published hit map, input decoder and controller with the byte
+/// sequence a terminal sends for press, held drag and release on the painted divider column.
+#[test]
+fn divider_real_mouse_sequence_on_the_painted_column_submits_one_ratio() {
+    use crate::terminal_input::{
+        InputDispatcher, LayoutAction, SurfaceAction, TerminalInputPort, TerminalInputUnavailable,
+    };
+    struct Port<'a> {
+        native: &'a WorkbenchClientUi,
+        control: &'a mut ClientControl,
+        refusals: Vec<Notice>,
+        forwarded: Vec<u8>,
+    }
+    impl TerminalInputPort for Port<'_> {
+        fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
+            self.forwarded.extend_from_slice(bytes);
+            Ok(())
+        }
+        fn pointer_divider_ready(&mut self, target: &DrawnDivider) -> Result<(), Notice> {
+            let result = self.control.divider_ready(self.native, target);
+            if let Err(notice) = result {
+                self.refusals.push(notice);
+            }
+            result
+        }
+        fn surface_action(
+            &mut self,
+            action: SurfaceAction<'_>,
+        ) -> Option<crate::client_view::ClientActionDisposition> {
+            if let SurfaceAction::Layout(LayoutAction::Divider { target, ratio }) = action {
+                self.control.resize_divider(self.native, target, ratio);
+            }
+            None
+        }
+    }
+    fn sgr(button: u8, column: u16, row: u16, release: bool) -> Vec<u8> {
+        format!(
+            "\x1b[<{button};{};{}{}",
+            column + 1,
+            row + 1,
+            if release { 'm' } else { 'M' }
+        )
+        .into_bytes()
+    }
+    for (width, height) in [(112, 32), (120, 40)] {
+        let (mut native, mailbox, clock, _) = ready_split_ui();
+        let poll = mailbox.try_recv().unwrap().unwrap();
+        mailbox.finish_lease(poll).unwrap();
+        let mut view = ClientView::new(width);
+        let (map, mut targets) = painted(&native, &view, width, height);
+        assert_eq!(targets.len(), 1, "{width}x{height}");
+        let target = targets.remove(0);
+        let (column, row) = (
+            target.divider.x,
+            target.divider.y + target.divider.height / 2,
+        );
+        // Only the single divider column starts a drag; its neighbours belong to the panes.
+        assert!(matches!(
+            map.hit_target_at(column, row),
+            Some(HitTarget::Divider(painted)) if painted == &target
+        ));
+        for neighbour in [column - 1, column + 1] {
+            assert!(!matches!(
+                map.hit_target_at(neighbour, row),
+                Some(HitTarget::Divider(_))
+            ));
+        }
+        let mut control = controller(clock);
+        control.observe_geometry(target.viewport, view.sidebar_surface());
+        control.tick(&mut native, false);
+        let mut port = Port {
+            native: &native,
+            control: &mut control,
+            refusals: Vec::new(),
+            forwarded: Vec::new(),
+        };
+        let mut dispatcher = InputDispatcher::default();
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        dispatcher.publish_hit_map(map);
+        let send = |dispatcher: &mut InputDispatcher,
+                    view: &mut ClientView,
+                    port: &mut Port<'_>,
+                    bytes: &[u8]| {
+            dispatcher
+                .dispatch(
+                    view,
+                    bytes,
+                    port,
+                    std::time::Instant::now(),
+                    |_, _| Ok::<bool, std::io::Error>(false),
+                    &mut |_| Ok(()),
+                )
+                .unwrap();
+        };
+        send(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            &sgr(0, column, row, false),
+        );
+        assert!(dispatcher.divider_preview().is_some(), "{width}x{height}");
+        send(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            &sgr(32, column + 6, row, false),
+        );
+        send(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            &sgr(0, column + 6, row, true),
+        );
+        assert!(dispatcher.divider_preview().is_none());
+        assert!(port.refusals.is_empty(), "{:?}", port.refusals);
+        assert!(port.forwarded.is_empty());
+        // Until that submission is published and drawn, a new press is refused with the busy
+        // notice ("Resize pending; input was not queued") instead of starting a drag.
+        dispatcher.publish_hit_map(painted(port.native, &view, width, height).0);
+        send(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            &sgr(0, column, row, false),
+        );
+        assert!(dispatcher.divider_preview().is_none());
+        assert_eq!(port.refusals, [Notice::ResizeBusy]);
+        send(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            &sgr(0, column, row, true),
+        );
+        let mutation = control
+            .lane
+            .as_ref()
+            .unwrap()
+            .take_layout_for_test()
+            .expect("the release submits one ratio");
+        assert!(matches!(
+            mutation.action,
+            WorkbenchAction::SplitRatioSet { previous_ratio, ratio, .. }
+                if previous_ratio == target.ratio && ratio.value() > target.ratio.value()
+        ));
+    }
+}
