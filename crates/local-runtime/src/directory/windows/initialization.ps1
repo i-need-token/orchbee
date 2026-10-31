@@ -1,23 +1,21 @@
 $global:OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $global:OutputEncoding
 if ($null -eq $global:__OrchbeeDirectoryPrompt) {
-    $global:__OrchbeeDirectoryPrompt = $function:prompt
-    function global:prompt {
-        # Capture status during binding; an assignment before the original prompt resets $?.
-        param($orchbeeSucceeded = $?)
-        $out = @(& $global:__OrchbeeDirectoryPrompt) -join ' '
-        if ($null -ne $global:__OrchbeeRunId) {
-            $orchbeeStatus = if ($orchbeeSucceeded) { 0 } else { 1 }
-            # Typed runs leave OSC 133 completion to the user's shell integration.
-            $orchbeeEnd = if ($global:__OrchbeeRunTyped) { '' } else { "$([char]27)]133;D;$orchbeeStatus`a" }
-            [Console]::Write("$orchbeeEnd$([char]27)_orchbee.command.v1;finish;$global:__OrchbeeRunId;$orchbeeStatus$([char]27)\")
-            $global:__OrchbeeRunId = $null
-            Remove-Item -LiteralPath Env:ORCHBEE_RUN_TOKEN -ErrorAction Ignore
-        }
-        $loc = $ExecutionContext.SessionState.Path.CurrentLocation
-        if ($loc.Provider.Name -eq 'FileSystem') {
-            try { [Environment]::CurrentDirectory = $loc.ProviderPath } catch {}
-        }
-        $out
-    }
+	$global:__OrchbeeDirectoryPrompt = $function:prompt
+	function global:prompt {
+		param($orchbeeSucceeded = $?)
+		$out = @(& $global:__OrchbeeDirectoryPrompt) -join ' '
+		if ($null -ne $global:__OrchbeeRunId) {
+			$orchbeeStatus = if ($orchbeeSucceeded) { 0 } else { 1 }
+			$orchbeeEnd = if ($global:__OrchbeeRunTyped) { '' } else { "$([char]27)]133;D;$orchbeeStatus`a" }
+			[Console]::Write("$orchbeeEnd$([char]27)_orchbee.command.v1;finish;$global:__OrchbeeRunId;$orchbeeStatus$([char]27)\")
+			$global:__OrchbeeRunId = $null
+			Remove-Item -LiteralPath Env:ORCHBEE_RUN_TOKEN -ErrorAction Ignore
+		}
+		$loc = $ExecutionContext.SessionState.Path.CurrentLocation
+		if ($loc.Provider.Name -eq 'FileSystem') {
+			try { [Environment]::CurrentDirectory = $loc.ProviderPath } catch {}
+		}
+		$out
+	}
 }

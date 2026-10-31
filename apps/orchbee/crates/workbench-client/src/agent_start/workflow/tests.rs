@@ -44,6 +44,8 @@ fn idle_shell_refuses_commands_unknown_processes_and_incomplete_samples() {
 fn idle_shell_accepts_only_the_complete_runtime_powershell_initialization() {
     for shell in ["powershell.exe", "pwsh.exe"] {
         let prompt = orchbee_local_runtime::windows_interactive_powershell_initialization();
+        // The sampled command line must stay readable for a MAX_PATH executable.
+        let executable = format!("C:\\{}\\{shell}", "p".repeat(255 - shell.len()));
         let mut sample = TerminalProcessInfo {
             attachment_id: orchbee_terminal_protocol::AttachmentId::from_bytes([1; 16]).unwrap(),
             terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes([2; 16]).unwrap(),
@@ -53,9 +55,10 @@ fn idle_shell_accepts_only_the_complete_runtime_powershell_initialization() {
                 parent_pid: None,
                 creation_time: 1,
                 console: orchbee_terminal_protocol::TerminalProcessConsole::Attached,
-                image: Some(shell.into()),
+                image: Some(executable.clone()),
                 command_line: Some(format!(
-                    "{shell} -NoLogo -NoProfile -NoExit -Command {}",
+                    "{} -NoLogo -NoProfile -NoExit -Command {}",
+                    quoted_windows_argument(&executable),
                     quoted_windows_argument(&prompt)
                 )),
                 current_directory: None,

@@ -424,6 +424,8 @@ Windows 停止细化将仅不可变启动尝试的解释改为同一个已准入
 准备这一精确启动命令；Host 构建按同样顺序读取这两个资产，用于注入和精确识别。
 编码启动／恢复帮助函数只使用公共初始化，不安装 reader 钩子。两个资产均不写 profile，也不改变
 外部 PowerShell 进程。实际 5.1／7 管道、prompt 与 PTY 启动证据覆盖托管路径；任意启动脚本不在范围内。
+两个资产保持紧凑：不写注释，用制表符缩进，使带 `MAX_PATH` 可执行路径的完整交互命令行不超过 Host
+4096 个 UTF-16 单元的进程文本上限。命令行更长时会被采样为不可读，Agent 启动就无法再识别空闲的托管 shell。
 
 reader 准入要求标准 PSReadLine 模块／导出身份和已识别的定义指纹；自定义或不受支持的定义保持
 原样，状态为 unknown。重复或跳过 reader 安装不会中止外围初始化。现代适配器在输出标记前保留
@@ -484,4 +486,4 @@ cohort 准入、备用租约及进程／Server 所有权；普通 client／worke
 原生管道测试验证 scope／票据地址隔离，以及长 Unicode runtime 输入下仍有界的名称。
 [Worker 契约](../../apps/orchbee-worker/docs/windows-server-handoff.zh-CN.md) 负责连接转移。
 
-<!-- documentation-pairing: english-sha256=2f56eb387f8d164538b13bc1f146c4bab8724afc73444b6de4de8c4b8e62a411 zh-cn-sha256=21ac639adb1550d538fcfe92559f674a51ce955445e4dac83da8dd10be8fdee0 -->
+<!-- documentation-pairing: english-sha256=ce42e7dd778c78b204e1eef61f6eddb61d2f4de971fa57d6dcc5887d2e206dc1 zh-cn-sha256=bb63aad54ac9a9279dafb21566ce3637d524cc38a87a8080ea56535e2e961cae -->

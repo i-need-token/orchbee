@@ -506,6 +506,9 @@ the Host build reads the same two assets, in the same order, for injection and e
 Encoded launch/resume helpers use only the common initialization and install no reader hook.
 Neither asset writes a profile or changes an external PowerShell process. Actual 5.1/7 pipeline,
 prompt and PTY startup witnesses cover the managed path; arbitrary startup scripts remain outside it.
+The assets stay compact, without comments and with tab indentation, so the complete interactive
+command line with a `MAX_PATH` executable fits the Host's 4096 UTF-16 process-text limit. A longer
+command line is sampled as unreadable, and Agent start can no longer recognize the idle managed shell.
 
 Reader admission requires standard PSReadLine module/export identity and a recognized definition
 fingerprint; custom and unsupported definitions stay untouched and unknown. Repeated/skipped reader

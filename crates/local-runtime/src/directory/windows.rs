@@ -1,8 +1,14 @@
 //! Windows terminal directory observations and process-local PowerShell synchronization.
 
 // Invoke the original prompt first: preceding statements would overwrite `$?`
-// on Windows PowerShell 5.1. Single-quoted constant text also avoids that shell's
-// command-line quoting differences. No launch argument is interpolated here.
+// on Windows PowerShell 5.1, so the wrapper captures it as a parameter default during
+// binding. Single-quoted constant text also avoids that shell's command-line quoting
+// differences. No launch argument is interpolated here. Typed commands get a shell-minted
+// run boundary and leave OSC 133 completion to the user's shell integration.
+//
+// The assets carry no comments and indent with tabs: the interactive startup is one
+// `-Command` argument, and the Host samples a command line longer than 4096 UTF-16 units
+// as unreadable, which hides the idle managed shell from Agent start.
 pub(crate) const WINDOWS_POWERSHELL_INITIALIZATION: &str =
     include_str!("windows/initialization.ps1");
 
