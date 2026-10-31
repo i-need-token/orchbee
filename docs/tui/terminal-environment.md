@@ -150,6 +150,17 @@ enabling.
   and removed when the vendor fixes it. A workaround cannot promote pointer any-motion without one
   of its admitted evidence sources.
 
+## Host-owned pointer actions
+
+Some hosts act on a pointer event themselves while also reporting it to the Client. The Client
+cannot observe or undo that action, so the host setting is documented here instead of being worked
+around.
+
+- VS Code's integrated terminal on Windows defaults `terminal.integrated.rightClickBehavior` to
+  `copyPaste`. A right click then copies the host selection or pastes the clipboard while the press
+  is still reported, so a right press that opens a Client context menu also delivers the clipboard
+  as input. Set this setting to `nothing` when running a TUI that binds right presses.
+
 ## Output discipline
 
 - One output coordinator is the only writer to the host terminal while the interface is active. It
