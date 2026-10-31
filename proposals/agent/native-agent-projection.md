@@ -6,10 +6,7 @@
 | Decision owner    | The active requester acting as Orchbee product and architecture decision owner                                                                                                                                                                                                                                                                                  |
 | Semantic owners   | Agent observation domain, Server semantic ownership, and native Client projection boundaries                                                                                                                                                                                                                                                                    |
 | Current authority | [`agent-runtime-observation.md`](agent-runtime-observation.md), [`native-runtime-topology.md`](../platform/native-runtime-topology.md), [`native-command-surface.md`](../cli/native-command-surface.md)                                                                                                                                                         |
-| Exit condition    | The projection boundary is accepted, the owning slices are implemented with evidence, the maintained contract moves into the owning package and application guides and tests, and this proposal and its translation are deleted                                                                                                                                 |
-
-Simplified Chinese review translation:
-[native-agent-projection.zh-CN.md](native-agent-projection.zh-CN.md). English remains canonical.
+| Exit condition    | The projection boundary is accepted, the owning slices are implemented with evidence, the maintained contract moves into the owning package and application guides and tests, and this proposal is deleted                                                                                                                                                      |
 
 ## Change authorization
 
@@ -118,4 +115,3 @@ The TUI consumes the projection as a peer renderer; it owns presentation only.
 - Schema fixtures for every request and outcome kind, including reset-required, denied, unavailable, and malformed-cursor rejection.
 - Journal conformance evidence: ordered batching, contiguous revision pages, retention overflow, cursor fencing, and coordinator-retirement behavior, mirroring the accepted TypeScript journal tests and bounded model.
 - TUI evidence that absence, refusal, and reset-required degrade truthfully without fabricated statuses; CLI evidence for machine output, exit categories, and bounded invocations.
-- Bilingual documentation pairing for every repository document the slice touches.

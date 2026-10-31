@@ -40,7 +40,7 @@ Inspect the existing interface in a running terminal before choosing a presentat
 change. If the intended experience is unclear, use the relevant flow in the selected reference
 product to establish observable goals for hierarchy, discoverability, feedback and task completion.
 
-A standards-only change is accepted through semantic, bilingual, link, and applicable repository
+A standards-only change is accepted through semantic, link, and applicable repository
 checks. It does not establish runtime conformance. Each affected implementation must supply the
 evidence below before claiming adoption. When using a reference product, distinguish observed
 behavior, source behavior at a named revision, and the proposed Orchbee requirement; differences

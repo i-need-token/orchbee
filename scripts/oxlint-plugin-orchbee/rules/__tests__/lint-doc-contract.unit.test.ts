@@ -1,11 +1,7 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-	discoverDocumentationSources,
-	documentationStructure,
-	localizedPathForSource,
-} from '../../../documentation-pairing.mjs';
 import orchbeePlugin from '../../index';
 
 interface OxlintConfig {
@@ -17,7 +13,6 @@ interface OxlintConfig {
 
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '../../../..');
 const DOCS_ROOT = join(REPOSITORY_ROOT, 'docs');
-const LOCALIZED_DOCS_ROOT = join(DOCS_ROOT, 'zh-CN');
 const RULES_ROOT = resolve(import.meta.dirname, '..');
 const STANDARD_DOMAIN_DIRECTORIES = new Set(['cli', 'frontend', 'tui']);
 
@@ -74,10 +69,19 @@ function localMarkdownTargets(markdown: string): readonly string[] {
 	).filter((target) => !/^(?:[a-z][a-z\d+.-]*:|\/\/)/iu.test(target));
 }
 
-function englishDocumentationFiles(): readonly string[] {
-	return collectFiles(DOCS_ROOT, '.md').filter(
-		(file) => !file.startsWith(`${LOCALIZED_DOCS_ROOT}${sep}`),
-	);
+function documentationFiles(): readonly string[] {
+	return collectFiles(DOCS_ROOT, '.md');
+}
+
+function repositoryMarkdownPaths(): readonly string[] {
+	return execFileSync(
+		'git',
+		['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', '*.md'],
+		{ cwd: REPOSITORY_ROOT, encoding: 'utf8' },
+	)
+		.split('\0')
+		.filter((path) => path !== '' && existsSync(join(REPOSITORY_ROOT, path)))
+		.toSorted();
 }
 
 function documentAnchors(documentPath: string): ReadonlySet<string> {
@@ -124,7 +128,7 @@ function explicitlyEnabledRules(): readonly string[] {
 function documentedEnforcedRules(): readonly string[] {
 	return [
 		...new Set(
-			englishDocumentationFiles().flatMap((file) => {
+			documentationFiles().flatMap((file) => {
 				const documentation = readFileSync(file, 'utf8');
 				return Array.from(
 					documentation.matchAll(/^- `([a-z][a-z0-9-]*\/[a-z0-9-]+)`:/gm),
@@ -161,7 +165,7 @@ describe('lint-doc contract', () => {
 		const claudeGuide = readFileSync(join(REPOSITORY_ROOT, 'CLAUDE.md'), 'utf8');
 		const invalidPaths = [];
 
-		for (const file of englishDocumentationFiles()) {
+		for (const file of documentationFiles()) {
 			const relativePath = relative(DOCS_ROOT, file);
 			const segments = relativePath.split(sep);
 			if (segments.length === 1) {
@@ -199,7 +203,7 @@ describe('lint-doc contract', () => {
 		);
 		const missingWorkspaceReferences = [];
 
-		for (const file of englishDocumentationFiles()) {
+		for (const file of documentationFiles()) {
 			const relativePath = relative(DOCS_ROOT, file);
 			const lines = readFileSync(file, 'utf8').split(/\r?\n/u);
 			for (const [lineIndex, line] of lines.entries()) {
@@ -215,29 +219,15 @@ describe('lint-doc contract', () => {
 		expect(missingWorkspaceReferences).toEqual([]);
 	});
 
-	it('keeps the Simplified Chinese documentation mirror complete and structurally synchronized', () => {
-		const englishFiles = englishDocumentationFiles();
-		const englishPaths = englishFiles.map((file) => relative(DOCS_ROOT, file)).toSorted();
-		const localizedFiles = collectFiles(LOCALIZED_DOCS_ROOT, '.md');
-		const localizedPaths = localizedFiles
-			.map((file) => relative(LOCALIZED_DOCS_ROOT, file))
-			.toSorted();
+	it('admits Chinese Markdown only for the root README and the embedded Agent guide', () => {
+		const chineseMarkdown = repositoryMarkdownPaths().filter((path) =>
+			/(?:^|\/)zh-CN\/|\.zh-CN\.md$/u.test(path),
+		);
 
-		expect(localizedPaths).toEqual(englishPaths);
-		for (const englishFile of englishFiles) {
-			const relativePath = relative(DOCS_ROOT, englishFile);
-			const localizedFile = join(LOCALIZED_DOCS_ROOT, relativePath);
-			const englishMarkdown = readFileSync(englishFile, 'utf8');
-			const localizedMarkdown = readFileSync(localizedFile, 'utf8');
-
-			expect({
-				file: relativePath,
-				structure: documentationStructure(localizedMarkdown),
-			}).toEqual({
-				file: relativePath,
-				structure: documentationStructure(englishMarkdown),
-			});
-		}
+		expect(chineseMarkdown).toEqual([
+			'README.zh-CN.md',
+			'apps/orchbee/docs/cli-agent-skill.zh-CN.md',
+		]);
 	});
 
 	it('checks real local links while excluding code examples and external destinations', () => {
@@ -261,14 +251,10 @@ describe('lint-doc contract', () => {
 		).toEqual(['../README.md#ownership', 'assets/a b.png']);
 	});
 
-	it('keeps local links valid across repository Markdown pairs', () => {
-		const documents = discoverDocumentationSources(REPOSITORY_ROOT).flatMap((sourcePath) => [
-			sourcePath,
-			localizedPathForSource(sourcePath),
-		]);
+	it('keeps local links valid across repository Markdown', () => {
 		const anchorsByPath = new Map<string, ReadonlySet<string>>();
 		const invalidLinks = [];
-		for (const document of documents) {
+		for (const document of repositoryMarkdownPaths()) {
 			const documentPath = join(REPOSITORY_ROOT, document);
 			for (const target of localMarkdownTargets(readFileSync(documentPath, 'utf8'))) {
 				const [relativeTarget = '', encodedAnchor] = target.split('#');
@@ -310,7 +296,7 @@ describe('lint-doc contract', () => {
 	});
 
 	it('documents every explicitly enabled rule', () => {
-		const documentation = englishDocumentationFiles()
+		const documentation = documentationFiles()
 			.map((file) => readFileSync(file, 'utf8'))
 			.join('\n');
 		const undocumentedRules = explicitlyEnabledRules().filter(

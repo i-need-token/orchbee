@@ -117,7 +117,6 @@ export async function cacheRuntimeIdentity(repository, javaCommand, jar, resourc
 				if (
 					name === 'models.json' ||
 					name === 'README.md' ||
-					name === 'README.zh-CN.md' ||
 					name === 'model-cache-cli.test.mjs' ||
 					inventoryTestPaths.has(`scripts/tla/${name}`)
 				)

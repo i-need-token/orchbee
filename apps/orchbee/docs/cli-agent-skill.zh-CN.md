@@ -138,13 +138,13 @@ orchbee workspace list --format json | ConvertFrom-Json
 
 元数据报告、Agent 视图筛选、关注／确认、终端选择／复制／链接／图形、布局导出／应用、通知、配置命令、清单维护、配置重载／重置、更新和 channel 选择均可通过帮助发现。部分能力仅支持 Windows；准入与效果细节由已安装语法规定。`channel set` 保存选择并发起更新，因此应同时检查保存的设置和更新结果。
 
-详细行为与维护契约见[原生 CLI 参考](native-cli-query.zh-CN.md)和[应用 README](../README.zh-CN.md)。可执行能力发现以已安装构建的帮助和 Schema 为准。
+详细行为与维护契约见[原生 CLI 参考](native-cli-query.md)和[应用 README](../README.md)。可执行能力发现以已安装构建的帮助和 Schema 为准。
 
 ## 等待 Shell 命令或新输出
 
 在新初始化的受管 PowerShell 终端中，确认命令行空闲且为空后，使用 `terminal run <target> <command> --wait --timeout 30000 --format json`。它只提交一次，并等待本次调用的 Shell 标记。分别检查 `submission`、`completion`、`failure` 和 `cleanup`。`powershell-success` 表示 Shell 成功状态（0/1），不是原生进程的数值退出码。超时／取消不会撤回已接受输入，不要重放。
 
-要排除保留输出，保存 `terminal read --format json` 的 `result.cursor`，向 `terminal wait-output` 传入 `--after <cursor>`，或在新工作前使用 `--after now`。只匹配后续物理输出行，排除当前行和提示符／输入行。重置、淘汰和窗口间隙会明确拒绝游标；提前增大 `--lines`，自动化使用有限 `--timeout`。参见[命令提交](native-terminal-run.zh-CN.md)。
+要排除保留输出，保存 `terminal read --format json` 的 `result.cursor`，向 `terminal wait-output` 传入 `--after <cursor>`，或在新工作前使用 `--after now`。只匹配后续物理输出行，排除当前行和提示符／输入行。重置、淘汰和窗口间隙会明确拒绝游标；提前增大 `--lines`，自动化使用有限 `--timeout`。参见[命令提交](native-terminal-run.md)。
 
 ## 无头布局操作
 
@@ -167,10 +167,8 @@ Panel 命令族使用位置目标或 `--current`；Agent 使用 `--panel` 或 `-
 
 ## 恢复异步操作
 
-Workspace、Tab、Panel、Project、Worktree、Client 和 Server 操作使用回执 ID 调用 `<family> status <request-id>`。支持的恢复路径使用 `<family> resume <request-id> --generation <n> --confirm`，先检查状态。[保留操作状态](native-operation-status.zh-CN.md) 负责身份映射、边界、兼容路径及 Server stop 优先级。
+Workspace、Tab、Panel、Project、Worktree、Client 和 Server 操作使用回执 ID 调用 `<family> status <request-id>`。支持的恢复路径使用 `<family> resume <request-id> --generation <n> --confirm`，先检查状态。[保留操作状态](native-operation-status.md) 负责身份映射、边界、兼容路径及 Server stop 优先级。
 
 ## 终端输入输出的 Panel 目标
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
-
-<!-- documentation-pairing: english-sha256=c60e632ff1c0ccb97c80d3a5c28113c121761c95ced8e5058c4ebde214c7d69b zh-cn-sha256=a199229eeaa4f6f3c9922c73c4a10e2ed87269bfaa3acba427d986469ec9b1fc -->

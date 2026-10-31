@@ -8,10 +8,6 @@
 | Decision authority | The product owner has accepted the Client-Server-Worker topology; the public Rust Client and four private executable roles used by an Agent-capable installation; the delivered native foundations; code-agnostic launch and 1,024-binding Worker limit; uniform peer Clients and transient terminal attachments; the first relayed path and measured local-direct fallback; Agent observation, managed Worktree, Archive, Launch Profile, SSH-connection, service-lifecycle, cohort-update, and Server-recovery ownership below; and the native CLI, Workbench-package, and Desktop dispositions. Remote enrollment, production human/device identity, TLS/Internet ingress, multi-user tenancy, and mobile background policy remain reserved |
 | Exit condition     | Accept bounded delivery slices, implement them with mapped evidence, move maintained facts into current authorities, resolve every workspace disposition, and delete this proposal after it no longer owns unresolved future-design evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
-Simplified Chinese review translation:
-[native-runtime-topology.zh-CN.md](native-runtime-topology.zh-CN.md).
-English remains canonical.
-
 ## Decision boundary
 
 This proposal refines the parent proposal's physical process topology and explicitly narrows its

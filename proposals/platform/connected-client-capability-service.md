@@ -8,10 +8,6 @@
 | Decision authority | The product owner accepted the uniform peer-Client model, separate public Rust `orchbee` and private Server/Worker/Terminal Host plus optional Rust Agent Bridge roles, Server-relayed first terminal path, bounded lazy activation, accepted local lifecycle and capability refinements in the native topology, and the target dispositions below; exact remote enrollment, production identity, TLS/Internet, multi-user, and mobile-background contracts remain reserved |
 | Exit condition     | Accept and implement bounded owner-specific slices, move maintained facts into their owning guides and tests, then delete proposal                                                                                                                                                                                                                                                                                                                                          |
 
-Simplified Chinese review translation:
-[connected-client-capability-service.zh-CN.md](connected-client-capability-service.zh-CN.md).
-English remains canonical.
-
 ## Product direction
 
 An Orchbee Session is a product-state and coordination boundary with one active Server authority. It

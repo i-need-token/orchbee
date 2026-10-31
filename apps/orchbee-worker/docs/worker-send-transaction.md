@@ -163,7 +163,7 @@ acceptedBytes={0}`: a semantic key legally acknowledged with zero bytes.
 - Model name: `worker-send-transaction`
 - Module: `apps/orchbee-worker/formal/tla/WorkerSendTransaction.tla`
 - Config: `apps/orchbee-worker/formal/tla/WorkerSendTransaction.cfg`
-- Owner record: `apps/orchbee-worker/docs/worker-send-transaction.md` (+ zh-CN)
+- Owner record: `apps/orchbee-worker/docs/worker-send-transaction.md`
 - Source mapping: `src/terminal_send_operation.rs`, `src/terminal_operations.rs`
   dispatch arm, `src/host_connection/exchange.rs` (`exchange_fresh`,
   `PeerFailure`), Host carrier teardown.

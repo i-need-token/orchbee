@@ -7,10 +7,6 @@ local Server adapter now consumes its codec in an application-private post-OBLW 
 Server coordinator submits authorized Create/Start and generation-pinned cwd validation through
 that carrier. It is not a public API or a compatibility promise.
 
-Simplified Chinese maintenance translation:
-[README.zh-CN.md](README.zh-CN.md).
-English remains canonical.
-
 ## Terminal control result pairing
 
 `TerminalControlAction::admits` owns control action/result pairing. Every action may be rejected;
@@ -570,7 +566,6 @@ cargo test -p orchbee-capability-node-protocol --all-targets --all-features --lo
 cargo clippy -p orchbee-capability-node-protocol --all-targets --all-features --locked -- -D warnings
 cargo test --locked -p orchbee-worker --all-targets --all-features
 pnpm test:tla:inventory
-pnpm lint:documentation
 pnpm lint:projects
 ```
 

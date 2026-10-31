@@ -5,11 +5,7 @@
 | Status            | Accepted; the search surface and bounded asynchronous provider coordination are implemented; Agent and Terminal integrations remain future |
 | Owner             | `@orchbee/workbench`, Agent capability, Terminal capability, and application composition maintainers                                       |
 | Current authority | [`packages/workbench/docs/unified-search.md`](../../packages/workbench/docs/unified-search.md)                                             |
-| Exit condition    | Integrate the remaining owned providers, update current authorities and tests, then delete this proposal and its translation               |
-
-Simplified Chinese review translation:
-[unified-search-surface.zh-CN.md](unified-search-surface.zh-CN.md). English remains
-canonical.
+| Exit condition    | Integrate the remaining owned providers, update current authorities and tests, then delete this proposal                                   |
 
 ## Current foundation
 
@@ -72,4 +68,4 @@ delivery commitment here.
    is accepted.
 3. Remove any duplicate callbacks or metadata exposed by those integrations.
 4. Move their maintained behavior and evidence into the owning current guides and tests.
-5. Delete this proposal and its translation.
+5. Delete this proposal.

@@ -26,20 +26,20 @@ const scopedInventory = {
 	models: inventory.models.slice(0, 3).map((model) => ({
 		...model,
 		claims: ['apps/orchbee-server/README.md'],
-		triggers: ['apps/orchbee-server/README.md', 'apps/orchbee-server/README.zh-CN.md'],
-		documentScopes: ['apps/orchbee-server/README.md', 'apps/orchbee-server/README.zh-CN.md'].map(
-			(documentPath) => ({
-				path: documentPath,
+		triggers: ['apps/orchbee-server/README.md'],
+		documentScopes: [
+			{
+				path: 'apps/orchbee-server/README.md',
 				relevantHeadings: ['Owned'],
 				unrelatedHeadings: ['Other'],
-			}),
-		),
+			},
+		],
 	})),
 };
 const scopedIds = scopedInventory.models.map((model) => model.id);
 const scopedText = '# Scope fixture\n\n## Owned\nRelevant.\n\n## Other\nUnrelated.\n';
 
-test('each reviewed unrelated section is excluded in both languages beside every relevant positive control', async () => {
+test('each reviewed unrelated section is excluded beside every relevant positive control', async () => {
 	for (const id of scopedIds) {
 		const model = scopedInventory.models.find((entry) => entry.id === id);
 		for (const scope of model.documentScopes) {

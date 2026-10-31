@@ -502,12 +502,7 @@ export const inventoryTestPaths = new Set([
 export const toolingCommand =
 	'node --test scripts/tla/model-cache-cli.test.mjs scripts/tla/model-mutations.test.mjs';
 const workflowPath = '.github/workflows/verify.yml';
-const toolingStandards = new Set([
-	'docs/VERIFICATION.md',
-	'docs/zh-CN/VERIFICATION.md',
-	'docs/MODELING-AND-CORRECTNESS.md',
-	'docs/zh-CN/MODELING-AND-CORRECTNESS.md',
-]);
+const toolingStandards = new Set(['docs/VERIFICATION.md', 'docs/MODELING-AND-CORRECTNESS.md']);
 function toolingPath(changedPath) {
 	return (
 		changedPath.startsWith('scripts/tla/') ||

@@ -34,10 +34,6 @@ switching, user configuration, and complete-cohort release installation and upda
 linked below. The emitted `orchbee` participates in root Cargo verification. macOS packaging is an
 unsigned, per-user development cohort for Apple Silicon; it does not include release signing or installation.
 
-Simplified Chinese maintenance translation:
-[README.zh-CN.md](README.zh-CN.md).
-English remains canonical.
-
 Use `agent rename <session-id> <name>` to assign a runtime name, `agent names` to list names,
 and `agent resolve <name>` to obtain the full session ID. `agent rename <target> --clear`
 releases a name. `agent get/explain/wait <name>` resolve directly; a wait pins its session
@@ -275,7 +271,7 @@ Shell completion supports bash/zsh/fish/powershell/elvish. In PowerShell, load i
 In interactive Elvish 0.21, use `eval (orchbee completion elvish | slurp)`; the static callback
 registers both `orchbee` and `orchbee.exe` without querying a Session or modifying profiles.
 For Unicode pipelines in Windows PowerShell 5.1, set `$OutputEncoding = [Text.UTF8Encoding]::new($false)` in the invoking script; PowerShell chooses the bytes sent to a native command. Orchbee preserves those bytes and does not repair prior shell encoding loss.
-`orchbee --skill` prints the embedded [Agent guide](docs/cli-agent-skill.md) offline. Operating-system service
+`orchbee --skill` prints the embedded [Agent guide](docs/cli-agent-skill.md) offline, or its [`zh-CN` product copy](docs/cli-agent-skill.zh-CN.md) under that locale. Operating-system service
 installation, release signing, automatic application updates, and live Host adoption remain outside these commands.
 
 ## macOS and Linux local startup

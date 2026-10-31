@@ -64,8 +64,8 @@ private component merely because its Manifest is discoverable. When another owne
 semantic capability, apply the normal extraction and public-boundary decision before moving the
 complete ownership unit.
 
-Package-local Manifest records are English current-authority references. They remain with their
-owning package and therefore do not enter the repository-wide Chinese standards mirror.
+Package-local Manifest records are English current-authority references that remain with their
+owning package.
 
 ## Discovery workflow
 

@@ -4,10 +4,6 @@ Private, experimental Rust adapter for proving that both ends of a local stream 
 same effective operating-system user. Server, Worker, and local Client connection owners consume
 this crate without sharing their framing, handshake, identity, admission, or lifecycle contracts.
 
-Simplified Chinese maintenance translation:
-[README.zh-CN.md](README.zh-CN.md).
-English remains canonical.
-
 ## Contract
 
 `require_same_effective_user` obtains the connected peer identity from the kernel and compares it

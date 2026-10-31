@@ -297,7 +297,6 @@ test('the daily gate retains host tests while full builds and cross checks requi
 			'test:rust-modules',
 			'test:lint-rules',
 			'test:dependency-scope',
-			'test:documentation-pairing',
 			'test:ghostty-source',
 			'test:style-contract',
 			'test:storage-contract',

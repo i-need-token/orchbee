@@ -7,10 +7,6 @@
 | Current authority | [`packages/workbench/docs/project-workspace.md`](../../packages/workbench/docs/project-workspace.md)                                                                                           |
 | Exit condition    | Implement separately accepted platform slices, move maintained facts into their owning application and package guides, then delete this proposal                                               |
 
-Simplified Chinese review translation:
-[project-workspace-experience.zh-CN.md](project-workspace-experience.zh-CN.md). English remains
-canonical.
-
 ## Current foundation
 
 `@orchbee/workbench` already owns the in-memory Project, Directory, Workspace, active-location, Tab,

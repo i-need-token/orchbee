@@ -135,7 +135,5 @@ the task separately authorizes a behavior change.
 
 Keep task-specific inventories in the issue. Maintain this glossary when an accepted concept or
 boundary changes; link to owning references rather than copying their implementation inventory.
-Semantic review must check the English/Chinese pair and the source-backed mapping: documentation
-pairing validates structure and reviewed content, not the correctness of a translation or rename.
-Confirm changed pairs under [Documentation](DOCUMENTATION.md#localization), then run the applicable
-gate under [Verification](VERIFICATION.md#merge-gate).
+Review the English and Chinese terms and their source-backed mapping for meaning, then run the
+applicable gate under [Verification](VERIFICATION.md#merge-gate).

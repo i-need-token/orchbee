@@ -59,14 +59,10 @@ Changes to those relationships must update the resolver and its positive control
 Missing or ambiguous owners fail conservatively. The command reports selected and unaffected suites
 separately from executed results; an unaffected suite is unexecuted, never a pass or a cache hit.
 
-Shared paths need explicit ownership. The existing `docs/tui/` standards and their Chinese
-counterparts select the native terminal client and its consumers. Root verification commands,
-their declared helpers/tests select root tooling evidence; the
-complete prerequisites above still run. New root helpers or standards remain unknown until reviewed.
-Documentation pairing receipts live on each Chinese document’s final line, so receipt edits use
-that document’s ordinary path ownership. There is no separate receipt manifest or history lookup.
-An unknown document owner selects the full test scope. Pairing integrity is still checked for
-every document by the complete lint gate.
+Shared paths need explicit ownership. The existing `docs/tui/` standards select the native
+terminal client and its consumers. Root verification commands, their declared helpers/tests select
+root tooling evidence; the complete prerequisites above still run. New root helpers or standards
+remain unknown until reviewed. An unknown document owner selects the full test scope.
 
 The evidence is Git boundary fixtures, dependency-closure positive and negative controls, command
 selection witnesses and the existing real Cargo runner tests. These establish the supported ownership
@@ -158,18 +154,18 @@ results remain unchanged.
 
 ## Required tasks
 
-| Task                      | Contract                                                                                                                                                                                         |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `format:check`            | Oxfmt-managed files match `.oxfmtrc.json`, and rustfmt plus every application-owned native formatter accepts its owned files.                                                                    |
-| `lint`                    | Code, Rust workspace and Clippy, documentation pairing, style, storage, architecture, dependency, project-contract, experience-catalog, export, and manifest rules pass.                         |
-| `test:tla:inventory`      | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree; every trigger matches a tracked file.                                  |
-| `build`, `build:packages` | Shared library workspaces produce the artifacts consumed by lint, type checking, tests and export checks.                                                                                        |
-| `build:full`              | Explicitly build every buildable pnpm and Cargo workspace for the host with its pinned toolchain and dependencies.                                                                               |
-| `typecheck`               | Every workspace with a TypeScript contract satisfies it.                                                                                                                                         |
-| `test`                    | Contract-checker tests, documentation-pairing negative tests, custom lint-rule and dependency-scope tests, pnpm and Cargo host test suites, and required controlled local system witnesses pass. |
-| `test:cross`              | Explicitly compile the declared native foreign-target test graphs.                                                                                                                               |
-| `verify:rust-native`      | Run Rust workspace Clippy, the native test prerequisites and every Cargo host test suite under the current host's platform configuration.                                                        |
-| `test:exports`            | Every library's packed exports, runtime formats, and declarations are consumable.                                                                                                                |
+| Task                      | Contract                                                                                                                                                        |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format:check`            | Oxfmt-managed files match `.oxfmtrc.json`, and rustfmt plus every application-owned native formatter accepts its owned files.                                   |
+| `lint`                    | Code, Rust workspace and Clippy, style, storage, architecture, dependency, project-contract, experience-catalog, export, and manifest rules pass.               |
+| `test:tla:inventory`      | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree; every trigger matches a tracked file. |
+| `build`, `build:packages` | Shared library workspaces produce the artifacts consumed by lint, type checking, tests and export checks.                                                       |
+| `build:full`              | Explicitly build every buildable pnpm and Cargo workspace for the host with its pinned toolchain and dependencies.                                              |
+| `typecheck`               | Every workspace with a TypeScript contract satisfies it.                                                                                                        |
+| `test`                    | Contract-checker tests, custom lint-rule and dependency-scope tests, pnpm and Cargo host test suites, and required controlled local system witnesses pass.      |
+| `test:cross`              | Explicitly compile the declared native foreign-target test graphs.                                                                                              |
+| `verify:rust-native`      | Run Rust workspace Clippy, the native test prerequisites and every Cargo host test suite under the current host's platform configuration.                       |
+| `test:exports`            | Every library's packed exports, runtime formats, and declarations are consumable.                                                                               |
 
 - `build:packages` precedes `lint` and `typecheck` because dependency analysis and production consumers resolve library artifacts, not another package's source. A clean checkout must produce those exports before Knip classifies dependency usage.
 - `build:full` finishes all shared packages before starting applications; each phase remains topological. Story discovery can consume another owner's package dependencies without a direct runtime dependency from the host, so applications must not race those package builds.

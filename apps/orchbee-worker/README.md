@@ -5,10 +5,6 @@ Linux, and macOS, with explicit-endpoint POSIX support. The emitted `orchbee-wor
 the verified four-artifact cohort and participates in the root Cargo gate. Server owns activation;
 Worker owns its admitted Host connection and authorized job lifetimes.
 
-Simplified Chinese maintenance translation:
-[README.zh-CN.md](README.zh-CN.md).
-English remains canonical.
-
 ## Windows scrollback editor selection
 
 The private editor-command query resolves a launch on the admitted Worker without

@@ -213,12 +213,11 @@ test('shared PowerShell startup assets select the Host and its native process co
 	}
 });
 
-test('paired TUI standards and their colocated receipts retain native ownership without selecting every suite', () => {
+test('TUI standards retain native ownership without selecting every suite', () => {
 	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
 	const selected = selectVerificationScope(actual, [
 		'apps/orchbee/crates/workbench-client/src/workbench_client/ui/action_menus.rs',
 		'docs/tui/terminal-environment.md',
-		'docs/zh-CN/tui/terminal-environment.md',
 	]);
 	assert.equal(selected.all, false, selected.reasons.join('\n'));
 	assert.deepEqual(selected.cargo, ['orchbee', 'orchbee-workbench-client']);
@@ -232,18 +231,11 @@ test('paired TUI standards and their colocated receipts retain native ownership 
 		'verification',
 		'visual-foundations',
 	]) {
-		for (const language of ['', 'zh-CN/']) {
-			const result = selectVerificationScope(actual, [`docs/${language}tui/${standard}.md`]);
-			assert.equal(result.all, false);
-			assert.deepEqual(result.cargo, ['orchbee']);
-		}
+		const result = selectVerificationScope(actual, [`docs/tui/${standard}.md`]);
+		assert.equal(result.all, false);
+		assert.deepEqual(result.cargo, ['orchbee']);
 	}
-	for (const source of [
-		'docs/TESTING.md',
-		'docs/zh-CN/TESTING.md',
-		'docs/tui/new.md',
-		'docs/zh-CN/tui/new.md',
-	]) {
+	for (const source of ['docs/TESTING.md', 'docs/tui/new.md']) {
 		assert.equal(selectVerificationScope(actual, [source]).all, true);
 	}
 });
@@ -258,9 +250,7 @@ test('only declared verification helpers use root tooling evidence; new helpers 
 		'scripts/verification-scope.test.mjs',
 		'scripts/tla/run-models.mjs',
 		'scripts/tla/model-cache-cli.test.mjs',
-		'scripts/tla/README.zh-CN.md',
 		'docs/VERIFICATION.md',
-		'docs/zh-CN/VERIFICATION.md',
 	]) {
 		const selected = selectVerificationScope(actual, [changed]);
 		assert.equal(selected.all, false, changed);

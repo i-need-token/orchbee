@@ -8,10 +8,6 @@
 | Decision authority | The product owner decides the second-level input structure, the provisional key tables, each wire admission request, and the mouse-capture policy. Astra's research verdict already excludes floating panes, plugin systems, configurable keymap files, multiplexer session semantics, and client-side tiling from scope |
 | Exit condition     | An accepted slice of this vocabulary lands in the owning app documentation, input implementation, and tests; this proposal is then retired or reduced to the still-unaccepted remainder                                                                                                                                  |
 
-Simplified Chinese review translation:
-[tui-input-vocabulary.zh-CN.md](tui-input-vocabulary.zh-CN.md).
-English remains canonical.
-
 Windows keyboard resizing now follows the accepted [native keyboard contract](../../apps/orchbee/docs/native-keyboard-resize.md). The broader PANEL vocabulary below remains proposed; its design inventory does not replace current app authority.
 
 ## Purpose

@@ -6,11 +6,7 @@
 | Decision owner    | The active requester acting as Orchbee product and architecture decision owner accepted the observation model, safe transport, private Rust Agent Bridge, Worker ingress/join, Server semantic ownership, and mixed-package migration below; each remaining reserved decision still requires explicit acceptance by its required owner                                                                |
 | Semantic owners   | Agent capability, application runtime, Workbench application composition, and platform notification adapters                                                                                                                                                                                                                                                                                          |
 | Current authority | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md), [`@orchbee/agent`](../../packages/agent/README.md), [`schemas/terminal`](../../schemas/terminal/README.md), [`@orchbee/workbench`](../../packages/workbench/README.md), and the [unified-search contract](../../packages/workbench/docs/unified-search.md)                                                                                      |
-| Exit condition    | Implement separately accepted slices, move maintained state, adapter, presentation, notification, and evidence contracts into their owning package and application guides and tests, resolve or remove every remaining future decision, then delete this proposal and its translation                                                                                                                 |
-
-Simplified Chinese review translation:
-[agent-runtime-observation.zh-CN.md](agent-runtime-observation.zh-CN.md). English remains
-canonical.
+| Exit condition    | Implement separately accepted slices, move maintained state, adapter, presentation, notification, and evidence contracts into their owning package and application guides and tests, resolve or remove every remaining future decision, then delete this proposal                                                                                                                                     |
 
 ## Change authorization
 
@@ -581,7 +577,7 @@ Selected correctness evidence:
    affected slice.
 2. Completed: create `@orchbee/agent` with the accepted model, provider-neutral read model,
    deterministic reducer, projection policy, property evidence, project contract, and
-   owning bilingual reference.
+   owning reference.
 3. Completed: Desktop owns the volatile application runtime, exact snapshot subscription,
    renderer-restart recovery, terminal signal transport, and failure isolation. Loopback HTTP and
    Bearer ingress are removed; the non-persistent generation overlay carries only the Unix-socket

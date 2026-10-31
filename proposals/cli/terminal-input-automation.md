@@ -9,10 +9,6 @@
 | Decision authority | The slice owner accepts: the four grammars, the viewer/controller wire mapping, the key vocabulary and its client-side encoding, the bounded-observation model, the output schemas, and the failure-matrix extensions below. Final option spellings, the complete `wait-output` predicate set, agent control-domain ownership, and exact bound values remain reserved                                                                                   |
 | Exit condition     | Accepted command contracts for all four verbs, implemented under the delivered CLI conventions with scenario evidence, after which this proposal is consumed into the owning implementation record                                                                                                                                                                                                                                                      |
 
-Simplified Chinese review translation:
-[terminal-input-automation.zh-CN.md](terminal-input-automation.zh-CN.md).
-English remains canonical.
-
 ## Position and scope
 
 These four commands are the agent-drivable semantic face of Orchbee terminal automation: the

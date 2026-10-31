@@ -394,14 +394,9 @@ test('tooling and trigger changes recheck the compact full baseline without a wo
 	);
 });
 
-test('direct model inputs and both claim languages retain each protocol owner', () => {
+test('direct model inputs and claims retain each protocol owner', () => {
 	for (const model of repositoryInventory.models) {
-		for (const changed of [
-			model.module,
-			model.config,
-			...model.claims,
-			...model.claims.map((p) => p.replace(/\.md$/u, '.zh-CN.md')),
-		])
+		for (const changed of [model.module, model.config, ...model.claims])
 			assert.ok(
 				selectModelsForChangedPaths(repositoryInventory, [changed]).some((m) => m.id === model.id),
 				changed,

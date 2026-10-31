@@ -9,10 +9,6 @@
 | Decision authority | The product owner decides key bindings, clipboard transport, and presentation details through `m3-input-design`; this proposal decides only the viewport model and its use of existing wire semantics                                                                                                                                                     |
 | Exit condition     | A TUI user can scroll upward through retained terminal history and copy historical text with no wire-protocol changes and no shared-state mutation; this proposal is deleted once the implemented surface is documented in the owning package guides                                                                                                      |
 
-Simplified Chinese review translation:
-[tui-scrollback-viewport.zh-CN.md](tui-scrollback-viewport.zh-CN.md).
-English remains canonical.
-
 ## Purpose and scope
 
 The TUI today renders only the live terminal frame: `TerminalProjection` stores the latest
@@ -459,9 +455,3 @@ Reserved for their owners rather than decided here:
   maintainers.
 - No OBTP wire gap was found: every semantic this viewport needs — history demand, events, row
   windows, anchors, selection, and export — is already on the wire.
-
-## Verification
-
-```sh
-pnpm docs:confirm-pairing -- proposals/cli/tui-scrollback-viewport.md
-```

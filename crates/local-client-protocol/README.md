@@ -38,10 +38,6 @@ Private, experimental Rust connection contract and concrete connecting adapter f
 same-user POSIX Human Client-to-Server process spine. It is not a public API, Worker protocol,
 terminal relay, TUI, activation mechanism, remote protocol, or compatibility promise.
 
-Simplified Chinese maintenance translation:
-[README.zh-CN.md](README.zh-CN.md).
-English remains canonical.
-
 ## Framing and messages
 
 Each connection carries exactly one handshake frame from Client to Server and one response frame

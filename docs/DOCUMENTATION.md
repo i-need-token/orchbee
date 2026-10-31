@@ -5,11 +5,10 @@
 | Content                                                                            | Authority                                                               |
 | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Synchronized project value, capabilities, installation, and first use              | `README.md` and `README.zh-CN.md`                                       |
-| Public package capability, API, installation, and usage                            | `packages/*/README.md` and `packages/*/README.zh-CN.md`                 |
-| Current package-owned behavior, architecture, integration, and maintenance         | Paired Markdown under `packages/<package>/docs/`                        |
-| AI-agent project map, hard rules, and standard links                               | `CLAUDE.md` and `CLAUDE.zh-CN.md`                                       |
+| Public package capability, API, installation, and usage                            | `packages/*/README.md`                                                  |
+| Current package-owned behavior, architecture, integration, and maintenance         | Markdown under `packages/<package>/docs/`                               |
+| AI-agent project map, hard rules, and standard links                               | `CLAUDE.md`                                                             |
 | Repository-wide standards and cross-workspace architecture                         | `docs/UPPER-KEBAB-CASE.md` or `docs/<engineering-domain>/kebab-case.md` |
-| Simplified Chinese standards mirror                                                | `docs/zh-CN/<same-standard-path>`                                       |
 | Workspace identity, responsibility, runtime, stability, and non-goals              | The owning workspace's `project.json`                                   |
 | Product interactions, screen composition, named components, and business decisions | The owning application or package                                       |
 
@@ -41,8 +40,7 @@
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `docs/` root                 | Contains only cross-repository standards indexed by `CLAUDE.md`; filenames use `UPPER-KEBAB-CASE.md`.                                                                      |
 | `docs/<engineering-domain>/` | Covers one stable discipline across workspace boundaries; filenames use `kebab-case.md`. New domains need review and lint-contract admission.                              |
-| `docs/zh-CN/`                | Contains only the complete Simplified Chinese mirror at the same standard paths.                                                                                           |
-| `packages/<package>/docs/`   | Contains package-owned references; English filenames use `kebab-case.md`, and Simplified Chinese filenames use `kebab-case.zh-CN.md`.                                      |
+| `packages/<package>/docs/`   | Contains package-owned references; filenames use `kebab-case.md`.                                                                                                          |
 | `<owner>/docs/experience/`   | Contains schema-backed package-local experience Manifests under [`frontend/experience-components.md`](frontend/experience-components.md); filenames use `kebab-case.json`. |
 
 - Never store one product's or package's behavior under `docs/<product>/` or `docs/<package>/`.
@@ -50,18 +48,11 @@
 - Split files by responsibility, authority, or audience, not line count.
 - Omit an index when focused filenames make a directory clear.
 
-## Localization
+## Language
 
-- Every repository-owned Markdown document ships in English and Simplified Chinese. English is authoritative and uses an unsuffixed `.md` filename.
-- Pair `docs/<path>.md` with `docs/zh-CN/<path>.md`; outside `docs/`, pair `<path>/<name>.md` with `<path>/<name>.zh-CN.md` in the same directory.
-- The contract covers tracked Markdown and untracked, non-ignored Markdown proposed for tracking, including Markdown symlinks. Ignored dependencies, build output, and disposable files are outside repository documentation.
-- Update both languages in the same change for every addition, deletion, move, heading, example, command, link, or content edit; keep meaning, coverage, and structure equal.
-- After reviewing both files for equal meaning, run `pnpm docs:confirm-pairing -- <english-or-zh-CN-markdown-path>` for every added, changed, or moved pair; confirmation updates only the named Chinese documents and cannot judge translation quality. Deleting both files removes the receipt with them.
-- Each Chinese document ends with exactly one receipt line: `<!-- documentation-pairing: english-sha256=<64 lowercase hex digits> zh-cn-sha256=<64 lowercase hex digits> -->`. The digests cover the English document and the Chinese document without that line, with CRLF and lone carriage returns normalized to LF. Confirmation keeps one blank separator before the receipt, included in the Chinese digest. Structure comparison ignores the receipt; either language changing invalidates confirmation.
-- Paired symlink aliases share the target document’s receipt; confirmation preserves the symlink and writes only to a target inside the repository. Different document pairs never update a shared receipt file.
-- Translate all prose; preserve identifiers, paths, commands, configuration keys, rule IDs, and code semantics exactly. English resolves conflicts.
-- Preserve third-party copyright and license text verbatim in both versions; translate the project-authored headings, labels, and explanation around it.
-- Runtime configuration, schemas, lint diagnostics, `CLAUDE.md`, and engineering authorities link to English sources. Localized Markdown may link to localized counterparts.
+- Repository Markdown is written in English and uses an unsuffixed `.md` filename. Do not add Chinese translations of other documents; `pnpm test:lint-rules` rejects Chinese Markdown outside the two files below.
+- `README.zh-CN.md` is the only translated document. Update it with `README.md` in the same change, keeping meaning and coverage equal. English resolves conflicts.
+- `apps/orchbee/docs/cli-agent-skill.zh-CN.md` is product copy that `orchbee --skill` prints under `zh-CN`. Update it with its English source in the same change.
 
 ## Links and anchors
 
@@ -72,13 +63,13 @@
 
 ## Verification
 
-| Change                | Required check                                                                                                                                                                                                                                                                                   |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| New or moved content  | Classify it by the ownership table and confirm every referenced workspace exists.                                                                                                                                                                                                                |
-| Rename or move        | Search for the old term, path, heading, rule ID, and script input.                                                                                                                                                                                                                               |
-| Command or example    | Run it successfully before documenting it.                                                                                                                                                                                                                                                       |
-| Markdown edit         | Update and semantically review the localized counterpart, then run `pnpm docs:confirm-pairing -- <english-or-zh-CN-markdown-path>`.                                                                                                                                                              |
-| Diagnostic edit       | State the action, violated constraint, and repository-relative `path#anchor`.                                                                                                                                                                                                                    |
-| Enforced rule edit    | Update the implementation, configuration, standard, localized mirror, and rule tests together.                                                                                                                                                                                                   |
-| Markdown verification | Run `pnpm lint:documentation` and `pnpm test:lint-rules`; they check confirmed content pairs, standard mirrors, identifiers, and local inline-link paths and Markdown heading anchors across repository-owned document pairs. Fenced and inline code examples are excluded from link resolution. |
-| Contract edit         | Run `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, and relevant tests.                                                                                                                                                                                                                      |
+| Change                | Required check                                                                                                                                                                                                                                           |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New or moved content  | Classify it by the ownership table and confirm every referenced workspace exists.                                                                                                                                                                        |
+| Rename or move        | Search for the old term, path, heading, rule ID, and script input.                                                                                                                                                                                       |
+| Command or example    | Run it successfully before documenting it.                                                                                                                                                                                                               |
+| Root README edit      | Update `README.md` and `README.zh-CN.md` in the same change.                                                                                                                                                                                             |
+| Diagnostic edit       | State the action, violated constraint, and repository-relative `path#anchor`.                                                                                                                                                                            |
+| Enforced rule edit    | Update the implementation, configuration, standard, and rule tests together.                                                                                                                                                                             |
+| Markdown verification | Run `pnpm test:lint-rules`; it checks local inline-link paths and Markdown heading anchors across repository Markdown and the Chinese Markdown allowlist under [Language](#language). Fenced and inline code examples are excluded from link resolution. |
+| Contract edit         | Run `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, and relevant tests.                                                                                                                                                                              |

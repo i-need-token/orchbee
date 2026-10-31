@@ -90,7 +90,6 @@ export function checkSteps(task, scope, platform = process.platform) {
 						'test:rust-modules',
 						'test:lint-rules',
 						'test:dependency-scope',
-						'test:documentation-pairing',
 						'test:ghostty-source',
 						'test:style-contract',
 						'test:storage-contract',
@@ -125,15 +124,6 @@ export function checkSteps(task, scope, platform = process.platform) {
 					'--test',
 					'scripts/check-output.test.mjs',
 					'scripts/verification-scope.test.mjs',
-				]),
-			],
-		],
-		[
-			'test:documentation-pairing',
-			[
-				nodeStep('documentation-pairing tests', [
-					'--test',
-					'scripts/documentation-pairing.test.mjs',
 				]),
 			],
 		],

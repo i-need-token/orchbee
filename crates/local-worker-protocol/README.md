@@ -4,10 +4,6 @@ Private, experimental Rust connection contract for the first same-user POSIX Ser
 spine. `orchbee-server` and `orchbee-worker` are its concrete consumers. It is not a public API, a
 remote protocol, a terminal protocol, or a compatibility promise.
 
-Simplified Chinese maintenance translation:
-[README.zh-CN.md](README.zh-CN.md).
-English remains canonical.
-
 ## Framing and messages
 
 The OBLW portion of each connection carries exactly one handshake frame from Worker to Server and

@@ -54,6 +54,3 @@ must always be executed output.
   port (`include_str!`, decoded with the existing `serde_json` dev-dependency).
 - `packages/agent` owns the generator and may re-run it as evidence when the TypeScript
   model changes.
-
-Simplified Chinese maintenance translation: [README.zh-CN.md](README.zh-CN.md).
-English remains canonical.

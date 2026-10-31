@@ -3,9 +3,6 @@
 Private, experimental Rust boundary for using caller-admitted Windows console handles without
 reopening process-global standard streams. The Orchbee native application is its current consumer.
 
-Simplified Chinese maintenance translation: [README.zh-CN.md](README.zh-CN.md).
-English remains canonical.
-
 ## Retained-handle contract
 
 `ConsoleInput::admit` and `ConsoleOutput::admit` take ownership of exact `OwnedHandle` values cloned

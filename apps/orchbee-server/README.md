@@ -64,10 +64,6 @@ OBCN carrier, local Human Client/Client Connection admission, and an in-memory t
 executable is named `orchbee-server`; it participates in the root Cargo verification gate and is
 consumed by bare Linux `orchbee` development cohorts, but not Desktop, packaging, an installer, or a service manager.
 
-Simplified Chinese maintenance translation:
-[README.zh-CN.md](README.zh-CN.md).
-English remains canonical.
-
 ## Workbench projection store
 
 Sidebar deletion can submit `workspace.close-if-idle` or `project.dissolve-if-idle` with distinct

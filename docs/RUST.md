@@ -59,13 +59,13 @@ after it has a stable semantic owner and real consumers.
 
 Every Cargo member contains these files:
 
-| Path                              | Responsibility                                                                     |
-| --------------------------------- | ---------------------------------------------------------------------------------- |
-| `Cargo.toml`                      | Identity, targets, features, and dependencies; inherits the root workspace package |
-| `project.json`                    | Machine-readable scope and responsibility                                          |
-| `README.md` and `README.zh-CN.md` | Consumer-facing responsibility, public boundary, and maintenance commands          |
-| `src/lib.rs` or `src/main.rs`     | The one crate root; a library root is an explicit re-export allowlist              |
-| `tests/`                          | Integration and conformance tests, present when the crate claims a public boundary |
+| Path                          | Responsibility                                                                     |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| `Cargo.toml`                  | Identity, targets, features, and dependencies; inherits the root workspace package |
+| `project.json`                | Machine-readable scope and responsibility                                          |
+| `README.md`                   | Consumer-facing responsibility, public boundary, and maintenance commands          |
+| `src/lib.rs` or `src/main.rs` | The one crate root; a library root is an explicit re-export allowlist              |
+| `tests/`                      | Integration and conformance tests, present when the crate claims a public boundary |
 
 An application crate may add a `src/lib.rs` beside `src/main.rs` only so that its own `tests/`
 tree can reach the binary's domain operations through one reviewed boundary. That library target

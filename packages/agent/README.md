@@ -102,4 +102,4 @@ Run from the repository root:
 pnpm --filter @orchbee/agent verify:correctness
 ```
 
-The broader future design and still-reserved product decisions remain in the bilingual [Agent runtime observation proposal](../../proposals/agent/agent-runtime-observation.md).
+The broader future design and still-reserved product decisions remain in the [Agent runtime observation proposal](../../proposals/agent/agent-runtime-observation.md).

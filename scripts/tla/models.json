@@ -10,8 +10,6 @@
 		".github/workflows/verify.yml",
 		"docs/MODELING-AND-CORRECTNESS.md",
 		"docs/VERIFICATION.md",
-		"docs/zh-CN/MODELING-AND-CORRECTNESS.md",
-		"docs/zh-CN/VERIFICATION.md",
 		"scripts/tla/**"
 	],
 	"models": [
@@ -38,9 +36,6 @@
 				"apps/web/src/workbench-client/terminal-projection/**",
 				"crates/terminal-protocol/src/**",
 				"packages/workbench-client-protocol/src/**",
-				"apps/desktop/docs/multi-client-session-coordinator.zh-CN.md",
-				"apps/web/README.zh-CN.md",
-				"packages/workbench-client-protocol/README.zh-CN.md",
 				"schemas/terminal/v1/**"
 			],
 			"requiredCoverage": [
@@ -134,8 +129,7 @@
 				"apps/orchbee/crates/workbench-client/src/local_client*",
 				"apps/orchbee/crates/local-client/src/**",
 				"crates/client-server-protocol/src/**",
-				"crates/workbench-protocol/src/**",
-				"apps/orchbee/docs/native-panel-lifecycle.zh-CN.md"
+				"crates/workbench-protocol/src/**"
 			],
 			"requiredCoverage": [
 				"Mint",
@@ -179,8 +173,7 @@
 				"crates/local-runtime/src/private_cache/**",
 				"crates/workbench-protocol/src/command/settings.rs",
 				"packages/workbench-client-protocol/src/__tests__/conformance/workbench-settings-contract.ts",
-				"schemas/workbench/v1/workbench-settings*",
-				"apps/orchbee/docs/native-settings.zh-CN.md"
+				"schemas/workbench/v1/workbench-settings*"
 			],
 			"requiredCoverage": [
 				"Prepare",
@@ -211,8 +204,7 @@
 				"apps/orchbee/crates/workbench-client/src/workbench_client/connection*",
 				"apps/orchbee/crates/workbench-client/src/workbench_client/connection/**",
 				"crates/terminal-protocol/src/**",
-				"crates/client-server-protocol/src/**",
-				"apps/orchbee/docs/native-terminal-viewport.zh-CN.md"
+				"crates/client-server-protocol/src/**"
 			],
 			"requiredCoverage": [
 				"Enter",
@@ -239,9 +231,7 @@
 				"apps/orchbee-server/src/semantic_events/changes.rs",
 				"apps/orchbee/crates/local-client/src/local_client/multiplex.rs",
 				"apps/orchbee/crates/local-client/src/local_client/multiplex/**",
-				"crates/workbench-protocol/src/multiplex.rs",
-				"apps/orchbee-server/README.zh-CN.md",
-				"apps/orchbee/README.zh-CN.md"
+				"crates/workbench-protocol/src/multiplex.rs"
 			],
 			"requiredCoverage": [
 				"Publish",
@@ -273,8 +263,7 @@
 				"apps/orchbee-server/src/worker_obcn_carrier*",
 				"apps/orchbee-server/src/worker_obcn_carrier/**",
 				"crates/client-server-protocol/src/**",
-				"schemas/client-server/**",
-				"apps/orchbee-server/README.zh-CN.md"
+				"schemas/client-server/**"
 			],
 			"requiredCoverage": [
 				"Attach",
@@ -299,8 +288,7 @@
 				"apps/orchbee-server/src/terminal_coordinator.rs",
 				"apps/orchbee-server/src/terminal_coordinator/**",
 				"apps/orchbee-server/src/local_terminal_service.rs",
-				"apps/orchbee-server/tests/client_process/terminal_operations.rs",
-				"apps/orchbee-server/README.zh-CN.md"
+				"apps/orchbee-server/tests/client_process/terminal_operations.rs"
 			],
 			"requiredCoverage": [
 				"IssueCreate",
@@ -342,9 +330,6 @@
 				"crates/client-server-protocol/src/**",
 				"crates/capability-node-protocol/src/**",
 				"schemas/client-server/**",
-				"apps/orchbee-server/README.zh-CN.md",
-				"schemas/terminal/references/protocol.zh-CN.md",
-				"apps/orchbee-worker/README.zh-CN.md",
 				"schemas/terminal/v1/**"
 			],
 			"requiredCoverage": [
@@ -371,7 +356,6 @@
 			],
 			"triggers": [
 				"apps/orchbee-worker/docs/worker-send-transaction.md",
-				"apps/orchbee-worker/docs/worker-send-transaction.zh-CN.md",
 				"apps/orchbee-worker/formal/tla/WorkerSendTransaction.cfg",
 				"apps/orchbee-worker/formal/tla/WorkerSendTransaction.tla",
 				"apps/orchbee-worker/src/host_connection/**",
@@ -379,8 +363,6 @@
 				"apps/orchbee-worker/tests/process/terminal_operations/send.rs",
 				"crates/capability-node-protocol/src/**",
 				"crates/terminal-protocol/src/**",
-				"crates/capability-node-protocol/README.zh-CN.md",
-				"schemas/terminal/references/protocol.zh-CN.md",
 				"schemas/terminal/v1/**"
 			],
 			"requiredCoverage": [
@@ -424,11 +406,7 @@
 			"module": "apps/terminal-host/formal/tla/TerminalHostDelivery.tla",
 			"config": "apps/terminal-host/formal/tla/TerminalHostDelivery.cfg",
 			"claims": ["apps/terminal-host/docs/runtime-model.md"],
-			"triggers": [
-				"apps/terminal-host/src/**",
-				"apps/terminal-host/build.zig",
-				"apps/terminal-host/docs/runtime-model.zh-CN.md"
-			],
+			"triggers": ["apps/terminal-host/src/**", "apps/terminal-host/build.zig"],
 			"requiredCoverage": [
 				"Connect",
 				"Attach",
@@ -454,11 +432,7 @@
 			"module": "apps/terminal-host/formal/tla/TerminalHostProcessIdentity.tla",
 			"config": "apps/terminal-host/formal/tla/TerminalHostProcessIdentity.cfg",
 			"claims": ["apps/terminal-host/docs/runtime-model.md"],
-			"triggers": [
-				"apps/terminal-host/src/**",
-				"apps/terminal-host/build.zig",
-				"apps/terminal-host/docs/runtime-model.zh-CN.md"
-			],
+			"triggers": ["apps/terminal-host/src/**", "apps/terminal-host/build.zig"],
 			"requiredCoverage": [
 				"ChildExited",
 				"RecycleMemberPid",
@@ -499,8 +473,7 @@
 				"apps/orchbee-worker/src/host_connection*",
 				"apps/orchbee-worker/src/host_connection/**",
 				"scripts/stage-local-runtime.mjs",
-				"apps/orchbee-server/src/local_client_service*",
-				"crates/local-runtime/README.zh-CN.md"
+				"apps/orchbee-server/src/local_client_service*"
 			],
 			"requiredCoverage": [
 				"Acquire",
@@ -542,8 +515,7 @@
 				"apps/orchbee/src/cli/schemas/orchbee.session.list.json",
 				"apps/orchbee-server/src/local_worker_service/managed/**",
 				"apps/orchbee-server/src/local_worker_service/managed.rs",
-				"apps/orchbee-worker/src/terminal_operations/lazy.rs",
-				"crates/local-runtime/docs/windows-crash-recovery.zh-CN.md"
+				"apps/orchbee-worker/src/terminal_operations/lazy.rs"
 			],
 			"requiredCoverage": [
 				"Acquire",
@@ -585,8 +557,7 @@
 				"crates/local-runtime/src/tests/**",
 				"crates/local-runtime/docs/windows-checkpoint-storage*",
 				"crates/local-runtime/formal/tla/WindowsCheckpointStorage.*",
-				"apps/orchbee-server/src/local_worker_service/managed/**",
-				"crates/local-runtime/docs/windows-checkpoint-storage.zh-CN.md"
+				"apps/orchbee-server/src/local_worker_service/managed/**"
 			],
 			"requiredCoverage": [
 				"Prepare",

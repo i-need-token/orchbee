@@ -9,10 +9,6 @@
 | Decision authority | The product owner accepted one public Rust `orchbee` for CLI and TUI; the peer-Client TUI model and initial full-screen interaction contract; the resource-first command families below; human and versioned machine output; bounded input and at-most-once mutation rules; one public packaged entry; and the accepted bare local activation and user-service surfaces below                                                                                                                         |
 | Exit condition     | Deliver the remaining accepted native command slices and release boundary, then retire this proposal. Legacy source deletion is authorized independently of new packaging.                                                                                                                                                                                                                                                                                                                            |
 
-Simplified Chinese review translation:
-[native-command-surface.zh-CN.md](native-command-surface.zh-CN.md).
-English remains canonical.
-
 ## Accepted product boundary
 
 - `orchbee` is the only public native executable name. Server, Worker, Terminal Host, and Agent

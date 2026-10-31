@@ -49,7 +49,7 @@ const tuiStandards = new Set(
 		'terminal-environment',
 		'verification',
 		'visual-foundations',
-	].flatMap((name) => [`docs/tui/${name}.md`, `docs/zh-CN/tui/${name}.md`]),
+	].map((name) => `docs/tui/${name}.md`),
 );
 const rootToolInputs = new Set([
 	'scripts/run-checks.mjs',
@@ -59,12 +59,8 @@ const rootToolInputs = new Set([
 	'scripts/check-output.test.mjs',
 	'scripts/verification-scope.mjs',
 	'scripts/verification-scope.test.mjs',
-	'scripts/documentation-pairing.mjs',
-	'scripts/documentation-pairing.test.mjs',
 	'docs/VERIFICATION.md',
-	'docs/zh-CN/VERIFICATION.md',
 	'docs/MODELING-AND-CORRECTNESS.md',
-	'docs/zh-CN/MODELING-AND-CORRECTNESS.md',
 	...[
 		'check-inventory.mjs',
 		'document-scopes.mjs',
@@ -87,7 +83,6 @@ const rootToolInputs = new Set([
 		'model-records.test.mjs',
 		'models.json',
 		'README.md',
-		'README.zh-CN.md',
 		'run-models.mjs',
 		'run-models.test.mjs',
 		'select-changed-models.mjs',
