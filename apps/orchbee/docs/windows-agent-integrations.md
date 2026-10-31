@@ -3,7 +3,9 @@
 This record owns the Windows refinement of native `agent integration list`,
 `explain`, `enable`, and `disable`. Each command activates the local Session and
 runs one Server-authorized job on its Worker, so the user profile, PATH and configuration
-roots below are those of the process that started the Session. The shared provider classifier and mutation workflow remain authoritative
+roots below are those of the process that started the Session. Activation itself
+refuses a missing or non-absolute LOCALAPPDATA or APPDATA before any job runs.
+The shared provider classifier and mutation workflow remain authoritative
 for ownership, payload identity, plans, receipts, and residuals.
 
 ## Model and boundaries

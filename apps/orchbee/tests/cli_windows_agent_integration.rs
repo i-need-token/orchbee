@@ -260,34 +260,36 @@ fn hermes_plugin_activation_repairs_members_and_preserves_python_cache() {
             .unwrap();
         assert_ne!(output.status.code(), Some(0));
     }
-    for (variable, value, expected) in [
-        (
-            "HERMES_DATA_DIR_SUFFIX",
-            "-dev",
-            fixture.0.join("local/hermes-dev"),
-        ),
-        (
-            "LOCALAPPDATA",
-            "",
-            fixture.home().join("AppData/Local/hermes"),
-        ),
-    ] {
-        let output = fixture
-            .command("enable", "hermes", &fixture.config_home(), &[])
-            .env(variable, value)
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stdout)
-        );
-        assert!(
-            expected
-                .join("plugins/orchbee-agent-observation/plugin.yaml")
-                .exists()
-        );
-    }
+    let output = fixture
+        .command("enable", "hermes", &fixture.config_home(), &[])
+        .env("HERMES_DATA_DIR_SUFFIX", "-dev")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    assert!(
+        fixture
+            .0
+            .join("local/hermes-dev/plugins/orchbee-agent-observation/plugin.yaml")
+            .exists()
+    );
+    // The verb activates its Session first, and activation needs an absolute LOCALAPPDATA for
+    // the Session catalog, so an empty value is refused before the Worker resolves Hermes.
+    let empty = fixture
+        .command("enable", "hermes", &fixture.config_home(), &[])
+        .env("LOCALAPPDATA", "")
+        .output()
+        .unwrap();
+    assert_eq!(
+        empty.status.code(),
+        Some(1),
+        "{}",
+        String::from_utf8_lossy(&empty.stdout)
+    );
+    assert!(!fixture.home().join("AppData/Local/hermes").exists());
     let invalid = fixture
         .command("enable", "hermes", &fixture.config_home(), &[])
         .env("HERMES_DATA_DIR_SUFFIX", "../outside")
@@ -456,9 +458,11 @@ fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
     assert_eq!(invoke("enable", &provider_home).0, Some(0));
     assert!(provider_home.join("devin/config.json").exists());
     assert_eq!(fs::read_to_string(&target).unwrap(), restored);
+    // A relative APPDATA already fails the activated Session's user configuration, before the
+    // Worker resolves Devin's directory.
     assert_eq!(
         invoke("enable", Path::new("relative-devin-home")).0,
-        Some(9)
+        Some(1)
     );
     assert_eq!(invoke("disable", &provider_home).0, Some(0));
     let absent = fixture
@@ -466,7 +470,14 @@ fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
         .env_remove("APPDATA")
         .output()
         .unwrap();
-    assert_eq!(absent.status.code(), Some(9));
+    // A Windows Session cannot start without APPDATA, which names its preference scope, so the
+    // verb is refused before any job and no profile fallback appears.
+    assert_ne!(
+        absent.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&absent.stdout)
+    );
     assert!(!fixture.home().join(".config/devin").exists());
 }
 
@@ -1572,6 +1583,9 @@ impl Fixture {
             "explicit Codex home",
             "bin",
             "runtime",
+            // Session activation pins the profile's local application data for its catalog.
+            "local",
+            "roaming",
         ] {
             fs::create_dir_all(root.join(path)).unwrap();
         }
