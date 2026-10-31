@@ -4,7 +4,6 @@
 
 use super::history_positions::Choice;
 use super::{ClientNotice, ClientProjectionStatus, WorkbenchClientUi};
-use crate::terminal_content::TerminalScreen;
 
 impl WorkbenchClientUi {
     /// Capture committed reading choices before navigation and after a successful draw.
@@ -14,6 +13,7 @@ impl WorkbenchClientUi {
         };
         let view = self.view();
         let mut updates = Vec::new();
+        let mut viewed = Vec::new();
         let mut live = Vec::new();
         for projection in &self.projections {
             if !state.pane_projected(&projection.key) {
@@ -29,15 +29,13 @@ impl WorkbenchClientUi {
                 if viewport.returning_to_live() {
                     live.push(projection.key.clone());
                 } else if !viewport.resuming()
-                    && viewport.committed_window().is_some()
+                    && let Some(window) = viewport.committed_window()
                     && let Some(source) = view.painted_content_source(projection.key.pane().panel())
                 {
-                    updates.push((
-                        source,
-                        viewport
-                            .reading_position()
-                            .map_or(Choice::Unavailable, Choice::History),
-                    ));
+                    match viewport.reading_position() {
+                        Some(position) => viewed.push((source, position, window)),
+                        None => updates.push((source, Choice::Unavailable)),
+                    }
                 }
             } else if self.history_positions.examined(&projection.key)
                 && let Some(source) = view.painted_content_source(projection.key.pane().panel())
@@ -45,12 +43,27 @@ impl WorkbenchClientUi {
                 updates.push((source, Choice::Live));
             }
         }
+        let projections = &self.projections;
+        self.history_positions.retain_restoring(|key| {
+            projections.iter().any(|projection| {
+                &projection.key == key
+                    && projection
+                        .viewport
+                        .as_ref()
+                        .is_some_and(|viewport| viewport.resuming())
+            })
+        });
         self.history_positions.bank.prune(state);
         for key in live {
             self.history_positions.bank.live(&key);
         }
         for (source, choice) in updates {
             self.history_positions.bank.set(source, choice);
+        }
+        for (source, position, window) in viewed {
+            self.history_positions
+                .bank
+                .set_viewed(source, position, window);
         }
     }
 
@@ -112,21 +125,7 @@ impl WorkbenchClientUi {
             let Some(frame) = self.projections[index].value.frame() else {
                 continue;
             };
-            let position = match saved.choice {
-                Choice::History(position)
-                    if saved.source.host_terminal == source.host_terminal
-                        && saved.source.rows.host_epoch == source.rows.host_epoch
-                        && position.generation == source.rows.generation
-                        && source.screen == TerminalScreen::Primary
-                        && position.columns == source.rows.columns
-                        && position.viewport_rows == frame.geometry.rows
-                        && source.rows.total_rows >= position.minimum_total =>
-                {
-                    Some(position)
-                }
-                Choice::Live | Choice::History(_) | Choice::Unavailable => None,
-            };
-            let Some(position) = position else {
+            let Some(position) = saved.restorable(&source, frame).cloned() else {
                 self.history_positions.bank.set(source, Choice::Live);
                 self.history_positions.mark_examined(key);
                 if let Some(state) = self.state.as_mut() {
@@ -143,6 +142,8 @@ impl WorkbenchClientUi {
                 .and_then(|p| p.viewport.as_mut())
             {
                 viewport.resume_position(position.clone());
+                self.history_positions
+                    .begin_restore(key.clone(), saved.image().cloned());
                 self.history_positions
                     .bank
                     .set(source, Choice::History(position));

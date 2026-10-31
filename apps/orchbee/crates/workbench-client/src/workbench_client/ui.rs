@@ -292,6 +292,7 @@ pub struct WorkbenchClientView<'a> {
     state: Option<ClientStateView<'a>>,
     panes: &'a [KeyedProjection],
     retained_frames: Option<retained_frames::RetainedView<'a>>,
+    history_positions: Option<&'a history_positions::Coordinator>,
     normal_exits: Option<&'a super::normal_exit_hold::NormalExitHolds<PaneRef>>,
     focus: Option<&'a WorkbenchPanelId>,
     projection_status: ClientProjectionStatus,
@@ -864,6 +865,43 @@ impl<'a> WorkbenchClientView<'a> {
         })
     }
 
+    /// The bookmark image a pane paints while its saved reading position waits for restoration,
+    /// so a return shows the last reading screen instead of the live tail. Render-only: input,
+    /// selection, links and copy keep reading the live projection or the viewport core.
+    pub(crate) fn pane_history_stand_in(
+        &self,
+        panel: &WorkbenchPanelId,
+    ) -> Option<&ViewportWindow> {
+        let history = self.history_positions?;
+        if self.copy_mode().is_some() {
+            return None;
+        }
+        let key = self.state.as_ref()?.pane_by_panel(panel)?.pane_ref();
+        let projection = self.panes.iter().find(|projection| projection.key == key)?;
+        if projection.tail.is_some() {
+            return None;
+        }
+        match &projection.viewport {
+            // Restoration started: the image stays until a window paints or recovery begins.
+            Some(viewport) => (viewport.resuming()
+                && matches!(
+                    viewport.surface(),
+                    terminal_viewport::ViewportSurface::Entering
+                        | terminal_viewport::ViewportSurface::AwaitingWindow
+                ))
+            .then(|| history.restoring_image(&key))
+            .flatten(),
+            // Not yet examined: the same bookmark the restore driver would accept.
+            None if !history.examined(&key) => {
+                let source = self.painted_content_source(panel)?;
+                let saved = history.bank.get(&source.member)?;
+                saved.restorable(&source, projection.value.frame()?)?;
+                saved.image().map(AsRef::as_ref)
+            }
+            None => None,
+        }
+    }
+
     /// Capture the exact canonical member and terminal row surface this view
     /// would paint for one panel. Loading indicators and unbound panes expose
     /// no link source.
@@ -976,6 +1014,10 @@ impl<'a> WorkbenchClientView<'a> {
         &self,
         panel_id: &WorkbenchPanelId,
     ) -> Option<crate::terminal_link_activation::PaintedLinkSource> {
+        // A bookmark image paints rows the live source does not describe.
+        if self.pane_history_stand_in(panel_id).is_some() {
+            return None;
+        }
         self.painted_content_source(panel_id)
     }
 
@@ -1068,6 +1110,7 @@ impl<'a> WorkbenchClientView<'a> {
             resize: None,
             panes: &[],
             retained_frames: None,
+            history_positions: None,
             normal_exits: None,
             focus: None,
             projection_status: ClientProjectionStatus::Empty,
@@ -1106,6 +1149,7 @@ impl<'a> WorkbenchClientView<'a> {
             resize: None,
             panes,
             retained_frames: None,
+            history_positions: None,
             normal_exits: None,
             focus: state.focus_panel_id(),
             projection_status,
@@ -1426,6 +1470,7 @@ impl WorkbenchClientUi {
             state: state.map(WorkbenchClientState::view),
             panes: &self.projections,
             retained_frames: state.map(|state| self.retained_frames.view(state)),
+            history_positions: Some(&self.history_positions),
             normal_exits: Some(&self.normal_exits),
             focus,
             projection_status: focus_status,
@@ -2174,9 +2219,13 @@ impl WorkbenchClientUi {
                 return false;
             }
         }
-        match mailbox.try_enqueue(QueuedCommand::Input(Tagged::new(desired, input))) {
+        match mailbox.try_enqueue(QueuedCommand::Input(Tagged::new(desired.clone(), input))) {
             Ok(_serial) => {
                 self.next_empty_poll = None;
+                // Typing before a saved position restores chooses Live, as it does in history.
+                if !self.history_positions.examined(&desired) {
+                    self.history_positions.mark_examined(desired);
+                }
                 true
             }
             Err(AdmissionError::Full) => false,

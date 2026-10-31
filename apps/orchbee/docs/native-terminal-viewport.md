@@ -281,9 +281,19 @@ produce localized feedback and ordinary recovery to Live. Pending restoration co
 navigation; Esc and typing keep their recover-before-input behavior. No old attachment, sequence,
 pending command, grant or selection is replayed.
 
+A bookmark also keeps an image of the committed window last painted at it, counted against the
+same 16 MiB budget. From the first live frame of a return until restoration installs a window or
+recovery begins, the pane paints that image under the history badge instead of the live tail or the
+loading indicator, so a return shows the last reading screen first. The image is render-only: it
+carries no position readout, link source, selection, acknowledgement or input authority. The
+restoration behind it still validates fresh facts and witness rows, and a refusal replaces it
+through ordinary recovery. Input forwarded before restoration begins records Live and drops the
+image, the same choice typing makes in history.
+
 The core's traces check fresh totals, content refusal before paint/ACK and the commit boundary.
-`ui/history_positions/tests.rs` checks projection replacement, context-bank handoff, explicit Live,
-canonical pruning and terminal/geometry refusal. These are implementation witnesses; the bounded
+`ui/history_positions/tests.rs` checks projection replacement, the bookmark image in place of the
+live tail, typing before restoration, context-bank handoff, explicit Live, canonical pruning and
+terminal/geometry refusal. These are implementation witnesses; the bounded
 coordination model continues to own the existing demand/read/ACK protocol.
 
 ## Direct sidebar switching

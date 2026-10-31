@@ -1677,9 +1677,14 @@ fn render_native_workbench(
         } else {
             None
         };
-        let viewport = native
+        let stand_in = native
             .focus_panel_id()
-            .and_then(|panel_id| native.pane_viewport(panel_id));
+            .and_then(|panel_id| native.pane_history_stand_in(panel_id));
+        let viewport = history_stand_in_surface(stand_in).or_else(|| {
+            native
+                .focus_panel_id()
+                .and_then(|panel_id| native.pane_viewport(panel_id))
+        });
         if let Some(surface) = viewport {
             // A non-Live core owns the whole content area the same way a
             // split leaf does — validated window or mode indicator.
@@ -1693,6 +1698,7 @@ fn render_native_workbench(
                 theme,
                 native
                     .focus_panel_id()
+                    .filter(|_| stand_in.is_none())
                     .and_then(|panel| native.pane_selection(panel)),
                 native.copy_mode().is_some(),
             );
@@ -2123,6 +2129,16 @@ fn render_tab_strip(
     }
 }
 
+/// A pending bookmark repaints its last committed window; it has no current position fence.
+fn history_stand_in_surface(
+    stand_in: Option<&crate::terminal_viewport::ViewportWindow>,
+) -> Option<crate::workbench_client::ViewportSurface<'_>> {
+    stand_in.map(|window| crate::workbench_client::ViewportSurface::Window {
+        window,
+        position: None,
+    })
+}
+
 /// Paints one projected leaf: its own pane's latest frame when the pane's
 /// viewer has delivered one, otherwise the pane-local status. Background
 /// panes keep their real terminal content — focus only changes which pane
@@ -2165,9 +2181,12 @@ fn render_leaf(
             })
             .flatten()
     });
-    let viewport = panel
-        .map(|panel| panel.panel_id())
-        .and_then(|panel_id| native.pane_viewport(panel_id));
+    let stand_in = panel.and_then(|panel| native.pane_history_stand_in(panel.panel_id()));
+    let viewport = history_stand_in_surface(stand_in).or_else(|| {
+        panel
+            .map(|panel| panel.panel_id())
+            .and_then(|panel_id| native.pane_viewport(panel_id))
+    });
     if let Some(surface) = viewport {
         // A non-Live core owns the leaf: its validated window or its mode
         // indicator paints instead of the live frame path.
@@ -2180,7 +2199,9 @@ fn render_leaf(
             cursor_visible && active,
             locale,
             theme,
-            panel.and_then(|panel| native.pane_selection(panel.panel_id())),
+            panel
+                .filter(|_| stand_in.is_none())
+                .and_then(|panel| native.pane_selection(panel.panel_id())),
             copy_active,
         );
         // Only the active leaf yields a cursor.

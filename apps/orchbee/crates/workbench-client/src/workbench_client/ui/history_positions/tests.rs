@@ -26,7 +26,18 @@ fn reading_ui() -> (
     std::sync::Arc<super::super::CommandMailbox>,
     PaneRef,
 ) {
-    let (mut ui, mailbox, _, _) = ready_ui();
+    let (ui, mailbox, _, _) = ready_ui();
+    read_at_bookmark(ui, mailbox)
+}
+
+fn read_at_bookmark(
+    mut ui: WorkbenchClientUi,
+    mailbox: std::sync::Arc<super::super::CommandMailbox>,
+) -> (
+    WorkbenchClientUi,
+    std::sync::Arc<super::super::CommandMailbox>,
+    PaneRef,
+) {
     let key = install_projection(&mut ui, Some((376, false, 24)), 0);
     ui.enter_history();
     let lease = mailbox.try_recv().unwrap().unwrap();
@@ -456,4 +467,88 @@ fn evicted_witness_retains_a_visible_fallback_instead_of_reusing_coordinates() {
         Some(WorkbenchClientNotice::HistoryPositionLost)
     );
     assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+fn painted(ui: &WorkbenchClientUi) -> String {
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 30)).unwrap();
+    let view = crate::client_view::ClientView::new(80);
+    let mut hits = crate::tui_hit_map::HitMapBuilder::new();
+    terminal
+        .draw(|frame| {
+            crate::tui_render::render_terminal_shell(
+                frame,
+                &view,
+                crate::localization::Locale::EnUs,
+                Some(ui.view()),
+                &crate::tui_theme::Theme::terminal_native(),
+                &mut hits,
+            );
+        })
+        .unwrap();
+    terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(ratatui::buffer::Cell::symbol)
+        .collect()
+}
+
+#[test]
+fn returning_bookmark_paints_its_last_window_instead_of_the_live_tail() {
+    let (mut ui, mailbox, _) = reading_ui();
+    ui.clear_projections();
+    let key = install_projection(&mut ui, Some((400, false, 24)), 0);
+    let panel = key.pane().panel().clone();
+    let stand_in = |ui: &WorkbenchClientUi| {
+        ui.view()
+            .pane_history_stand_in(&panel)
+            .map(|window| window.route.start_row)
+    };
+    let history = |ui: &WorkbenchClientUi| {
+        let screen = painted(ui);
+        let locale = crate::localization::Locale::EnUs;
+        screen.contains(locale.terminal_history_badge())
+            && !screen.contains(locale.terminal_history_loading())
+    };
+    assert!(history(&ui), "the first live frame shows the bookmark");
+    assert_eq!(stand_in(&ui), Some(100));
+    assert!(ui.view().painted_link_source(&panel).is_none());
+    assert!(ui.drive_history_positions());
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    mailbox.finish_lease(lease).unwrap();
+    assert_eq!(stand_in(&ui), Some(100), "entry without a window keeps it");
+    assert!(history(&ui));
+    settle_viewing(&mut ui, &mailbox, &key, 1);
+    assert_eq!(
+        stand_in(&ui),
+        None,
+        "the restored window replaces the image"
+    );
+    assert!(history(&ui));
+    ui.remember_history_positions();
+    assert!(ui.history_positions.restoring_image(&key).is_none());
+}
+
+#[test]
+fn typing_before_restoration_chooses_live_and_drops_the_bookmark_image() {
+    let (ui, mailbox, _, _) = super::super::test_support::controlling_ui();
+    let (mut ui, mailbox, _) = read_at_bookmark(ui, mailbox);
+    ui.clear_projections();
+    let key = install_projection(&mut ui, Some((400, false, 24)), 0);
+    assert!(ui.forward(b"a"));
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    assert!(matches!(lease.record(), QueuedCommand::Input(_)));
+    mailbox.finish_lease(lease).unwrap();
+    assert!(
+        ui.view()
+            .pane_history_stand_in(key.pane().panel())
+            .is_none()
+    );
+    assert!(!ui.drive_history_positions());
+    ui.remember_history_positions();
+    assert!(matches!(
+        ui.history_positions.bank.entries[0].choice,
+        Choice::Live
+    ));
 }
