@@ -17,7 +17,7 @@ fn read_only_crop_keeps_complete_hints_beside_actions_and_prompt_above_status() 
             let view = ClientView::new(width);
             let area = Rect::new(0, 0, width, height);
             let areas = project_shell_areas(area, view.sidebar_surface());
-            let pane = crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
+            let pane = crate::tui_layout::arranged_pane_area(&areas, &ui.view()).unwrap();
             ui.observe_geometry(Geometry::new(pane.width, pane.height, 8, 16).unwrap());
             drain(&mailbox);
             let key = install_projection(&mut ui, None, 0);
@@ -114,9 +114,9 @@ fn minimal_global_actions_leave_the_projected_first_row_and_live_cursor_to_the_t
             assert_eq!(areas.tier, ViewportTier::Minimal, "{width}x{height}");
             assert!(areas.tabs.is_empty(), "{width}x{height}");
 
-            let pane = crate::tui_layout::active_pane_area(&areas, Some(ui.view()))
+            let pane = crate::tui_layout::arranged_pane_area(&areas, &ui.view())
                 .expect("Minimal remains a presentable terminal viewport");
-            let geometry = crate::tui_layout::terminal_geometry(
+            let geometry = crate::tui_layout::arranged_terminal_geometry(
                 WindowDimensions {
                     columns: width,
                     pixel_height: height * 16,
@@ -124,7 +124,7 @@ fn minimal_global_actions_leave_the_projected_first_row_and_live_cursor_to_the_t
                     rows: height,
                 },
                 &view,
-                Some(ui.view()),
+                &ui.view(),
             )
             .unwrap()
             .expect("Minimal publishes terminal geometry");
@@ -326,7 +326,7 @@ fn prefix_status_floats_over_the_last_terminal_row_and_restores_it_without_resiz
                 let mut view = taught(width);
                 let area = Rect::new(0, 0, width, height);
                 let areas = project_shell_areas(area, view.sidebar_surface());
-                let pane = crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
+                let pane = crate::tui_layout::arranged_pane_area(&areas, &ui.view()).unwrap();
                 assert_eq!(
                     pane,
                     crate::tui_layout::native_terminal_area(
@@ -424,7 +424,7 @@ fn prefix_status_floats_over_the_last_terminal_row_and_restores_it_without_resiz
                 ));
                 assert_eq!(project_shell_areas(area, view.sidebar_surface()), areas);
                 assert_eq!(
-                    crate::tui_layout::active_pane_area(&areas, Some(ui.view())),
+                    crate::tui_layout::arranged_pane_area(&areas, &ui.view()),
                     Some(pane),
                     "the chip never resizes the terminal"
                 );
@@ -456,7 +456,7 @@ fn launch_chip_hides_only_the_terminal_cursor_beneath_it() {
             view.machines.available = true;
             assert!(view.launch_hint_pending());
             let areas = project_shell_areas(Rect::new(0, 0, width, height), view.sidebar_surface());
-            let pane = crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
+            let pane = crate::tui_layout::arranged_pane_area(&areas, &ui.view()).unwrap();
             ui.observe_geometry(Geometry::new(pane.width, pane.height, 8, 16).unwrap());
             let key = install_projection(&mut ui, None, 0);
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -525,8 +525,7 @@ fn ended_single_terminal_names_its_exit_in_the_floating_chip_beside_its_fix() {
                     view.machines.available = true;
                     let areas =
                         project_shell_areas(Rect::new(0, 0, width, height), view.sidebar_surface());
-                    let pane =
-                        crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
+                    let pane = crate::tui_layout::arranged_pane_area(&areas, &ui.view()).unwrap();
                     let key = install_projection(&mut ui, None, 0);
                     let projection = projection_at(&mut ui, &key);
                     let mut content = frame(&projection.value, 0, false, pane.height);
@@ -638,7 +637,7 @@ fn ended_single_terminal_names_its_exit_in_the_floating_chip_beside_its_fix() {
                             assert_eq!(chip.len(), usize::from(last - first + 1));
                         }
                         assert_eq!(
-                            crate::tui_layout::active_pane_area(&areas, Some(ui.view())),
+                            crate::tui_layout::arranged_pane_area(&areas, &ui.view()),
                             Some(pane)
                         );
                     }

@@ -109,6 +109,16 @@ Every implementation keeps these invariants:
 - Help, the navigator, and the machine picker are view-owned lists; `input` scrolls them without
   the port.
 
+## Pane arrangement port
+
+`tui_layout` projects pane geometry from the same shell layout the renderer paints. A shell without
+a Workbench Client, including startup, uses the shell projection `terminal_geometry` and
+`active_pane_area`. A Workbench Client's panes reach layout only through `PaneArrangement` and
+`TabPanes`, which `workbench_client::ui` implements for the Client view, so layout never
+references the UI composition. `WorkbenchClientView::pane_geometries` is the only production
+entry into the arranged projection; the arranged active-pane area and geometry exist only for
+tests.
+
 ## Agent board reads
 
 `workbench_client::agent_board` never holds a read lane. It issues each list or jump read as a

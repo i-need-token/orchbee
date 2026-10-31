@@ -382,8 +382,8 @@ pub mod application {
     pub mod tui_layout {
         pub use crate::tui_layout::{
             DividerDrag, DrawnSidebarWidth, PaneFrame, ResizeProjection, SidebarWidthDrag,
-            ViewportTier, active_pane_area, native_terminal_area, pane_geometries,
-            project_shell_areas, terminal_geometry,
+            ViewportTier, active_pane_area, native_terminal_area, project_shell_areas,
+            terminal_geometry,
         };
     }
 

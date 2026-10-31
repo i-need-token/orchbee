@@ -96,6 +96,14 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 - owner 只报告是否接受的动作，在接受时回答 `KeepNavigator`，拒绝时不回答任何处置。
 - 帮助、导航器和机器选择器是视图拥有的列表；`input` 不经端口滚动它们。
 
+## 窗格排布端口
+
+`tui_layout` 从渲染器绘制的同一 shell 布局投影窗格几何。没有 Workbench Client 的 shell（包括
+启动阶段）使用 shell 投影 `terminal_geometry` 和 `active_pane_area`。Workbench Client 的窗格
+只经 `PaneArrangement` 和 `TabPanes` 进入布局，由 `workbench_client::ui` 为 Client 视图实现，
+因此布局从不引用 UI 组合。`WorkbenchClientView::pane_geometries` 是排布投影唯一的生产入口；
+排布后的活动窗格区域和几何只供测试使用。
+
 ## Agent 看板读取
 
 `workbench_client::agent_board` 从不持有读取 lane。它把每次列表读取或跳转读取作为类型化请求发出，
@@ -237,4 +245,4 @@ owner 本地契约。[应用二进制](../../../docs/module-layers.zh-CN.md)对�
 可列出每个环和每个指向高层的引用及其源码位置样本；[Lint](../../../../../docs/zh-CN/LINTING.md)
 拥有该命令。
 
-<!-- documentation-pairing: english-sha256=64066c59e58132365831d9584fdaa525b72dc0363508c6138c274ceae386f17b zh-cn-sha256=84359495f9c18b348c87cec5599ecd9333cb716d91e98208ea500c245c9a5f0e -->
+<!-- documentation-pairing: english-sha256=db0bb4bfe848c16c3582fa9de7b63e6358eac2e96ee5cf8ec7d849b74e1087b1 zh-cn-sha256=122d4d21edf463aa55a75d988d544ce243b6999dfff9f35f20da259c6bc55f75 -->

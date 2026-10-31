@@ -399,7 +399,7 @@ impl Manager {
                     Ok(PreparedSelection::Connection(mut client)) => {
                         let startup_deadline = now + Duration::from_secs(30);
                         let candidate = (|| {
-                            let geometry = terminal_geometry(dimensions, &self.template, None)?
+                            let geometry = terminal_geometry(dimensions, &self.template)?
                                 .ok_or_else(|| io::Error::other("viewport too small"))?;
                             client.set_submission_deadline(Some(startup_deadline));
                             match attempt.context.clone() {

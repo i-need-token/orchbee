@@ -131,7 +131,7 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
                         .all(|label| !text.contains(label)),
                     "{theme_name} {width}x{height} {hide}: {text}"
                 );
-                let area = crate::tui_layout::active_pane_area(&areas, Some(ui.view()));
+                let area = crate::tui_layout::arranged_pane_area(&areas, &ui.view());
                 if areas.tier == ViewportTier::TooSmall {
                     assert!(area.is_none());
                     continue;

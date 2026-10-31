@@ -26,7 +26,7 @@ fn actual_shell_paints_installed_canvas_but_acknowledges_only_a_successful_uncov
                     ratatui::layout::Rect::new(0, 0, width, height),
                     client.sidebar_surface(),
                 );
-                let body = crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
+                let body = crate::tui_layout::arranged_pane_area(&areas, &ui.view()).unwrap();
                 // The live crop reads this same per-pane geometry in the production shell.
                 ui.observe_geometry(Geometry::new(body.width, body.height, 8, 16).unwrap());
                 install_projection(&mut ui, Some((9, false, 24)), 0);

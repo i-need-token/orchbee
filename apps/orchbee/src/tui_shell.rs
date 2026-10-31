@@ -35,7 +35,7 @@ use crate::{
     terminal_lifecycle::{InheritedTerminalModes, PointerTrackingLevel, TerminalModeGuard},
     termination_signal::{TerminationSignal, TerminationSource},
     tui_backend::{FixedViewportBackend, ResizableBackend, RestorationGatedWriter},
-    tui_layout::{pane_geometries, terminal_geometry},
+    tui_layout::terminal_geometry,
     tui_pointer::HitMapBuilder,
 };
 
@@ -239,14 +239,13 @@ fn run_with_client(
     let dimensions = inherited.window_dimensions().map_err(TuiFailure::Runtime)?;
     let terminal_input: Box<dyn TerminalSurface> = match connection {
         Some(client) => {
-            let geometry =
-                terminal_geometry(dimensions, &ClientView::new(dimensions.columns), None)
-                    .and_then(|geometry| {
-                        geometry.ok_or_else(|| {
-                            io::Error::other("viewport too small to present a terminal pane")
-                        })
+            let geometry = terminal_geometry(dimensions, &ClientView::new(dimensions.columns))
+                .and_then(|geometry| {
+                    geometry.ok_or_else(|| {
+                        io::Error::other("viewport too small to present a terminal pane")
                     })
-                    .map_err(TuiFailure::Runtime)?;
+                })
+                .map_err(TuiFailure::Runtime)?;
             Box::new(
                 crate::workbench_client::WorkbenchClient::start(client, geometry)
                     .map_err(TuiFailure::Runtime)?,
@@ -1291,7 +1290,7 @@ fn observe_surface_geometry(
     }
     match client_view {
         Some(native) => {
-            let panes = pane_geometries(*dimensions, view, &native)?;
+            let panes = native.pane_geometries(*dimensions, view)?;
             let presentable = crate::tui_layout::project_shell_areas(
                 to_area(*dimensions),
                 native.sidebar_surface(view.sidebar_surface()),
@@ -1331,7 +1330,7 @@ fn observe_surface_geometry(
             }
         }
         _ => {
-            let geometry = terminal_geometry(*dimensions, view, client_view)?;
+            let geometry = terminal_geometry(*dimensions, view)?;
             if let Some(geometry) = geometry {
                 terminal_input.observe_terminal(TerminalObservation::Geometry(geometry));
             }

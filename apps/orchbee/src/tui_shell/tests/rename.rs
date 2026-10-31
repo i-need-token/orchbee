@@ -30,9 +30,9 @@ fn run_native_rename_resize(
     }
     let initial = dimensions(100, 24);
     let resized = dimensions(70, 24);
-    let wide = super::super::terminal_geometry(initial, &ClientView::new(100), None)?
+    let wide = super::super::terminal_geometry(initial, &ClientView::new(100))?
         .expect("a presentable viewport must produce pane geometry");
-    let narrow = super::super::terminal_geometry(resized, &ClientView::new(70), None)?
+    let narrow = super::super::terminal_geometry(resized, &ClientView::new(70))?
         .expect("a presentable viewport must produce pane geometry");
     assert_eq!(wide.columns(), narrow.columns());
     let mut terminal = test_terminal(initial);

@@ -289,8 +289,8 @@ const fn dimensions(columns: u16, rows: u16) -> WindowDimensions {
 fn connected_geometry_requires_real_cell_dimensions() -> io::Result<()> {
     let original = dimensions(120, 32);
     let view = ClientView::new(original.columns);
-    let geometry = super::terminal_geometry(original, &view, None)?
-        .expect("a Full viewport must present a pane");
+    let geometry =
+        super::terminal_geometry(original, &view)?.expect("a Full viewport must present a pane");
     // 32 rows less the tab strip, frame and leaf title; the status reserves no row.
     assert_eq!((geometry.columns(), geometry.rows()), (88, 29));
     assert_eq!(
@@ -309,7 +309,7 @@ fn connected_geometry_requires_real_cell_dimensions() -> io::Result<()> {
             ..original
         },
     ] {
-        assert_eq!(super::terminal_geometry(empty, &view, None)?, None);
+        assert_eq!(super::terminal_geometry(empty, &view)?, None);
     }
     Ok(())
 }
@@ -323,7 +323,7 @@ fn too_small_geometry_withholds_resize_instead_of_fabricating() -> io::Result<()
         dimensions(1, 1),
     ] {
         let view = ClientView::new(dimensions.columns);
-        let geometry = super::terminal_geometry(dimensions, &view, None)?;
+        let geometry = super::terminal_geometry(dimensions, &view)?;
         assert!(
             geometry.is_none(),
             "too-small {dimensions:?} must withhold the resize (Ok(None)), not fabricate one"
@@ -368,7 +368,7 @@ fn connected_geometry_reports_unknown_when_any_cell_pixel_axis_is_missing() -> i
             ..original
         },
     ] {
-        let geometry = super::terminal_geometry(measured, &view, None)?
+        let geometry = super::terminal_geometry(measured, &view)?
             .expect("a Full viewport still presents a pane");
         assert_eq!(
             (geometry.cell_pixel_width(), geometry.cell_pixel_height()),
@@ -384,7 +384,7 @@ fn minimal_geometry_deducts_no_invisible_frame() -> io::Result<()> {
     let view = ClientView::new(50);
     // 50x10 is Minimal: the panel spans the whole host area, which the floating status
     // reserves no row of, with no border cells deducted because none are drawn.
-    let geometry = super::terminal_geometry(dimensions(50, 10), &view, None)?
+    let geometry = super::terminal_geometry(dimensions(50, 10), &view)?
         .expect("a Minimal viewport still presents a pane");
     assert_eq!((geometry.columns(), geometry.rows()), (50, 10));
     Ok(())
@@ -420,7 +420,7 @@ fn too_small_viewport_pauses_resize_and_recovers_with_real_geometry() -> io::Res
         LoopExit::User
     );
 
-    let geometry = super::terminal_geometry(initial, &ClientView::new(100), None)?
+    let geometry = super::terminal_geometry(initial, &ClientView::new(100))?
         .expect("a presentable viewport must produce pane geometry");
     // While too small no resize is issued — the session keeps its last valid
     // geometry, typing still reaches it, and observation resumes unchanged
@@ -701,7 +701,7 @@ fn observes_fresh_geometry_before_initial_draw_tick_and_same_batch_effects() -> 
         LoopExit::User
     );
 
-    let docked = super::terminal_geometry(measured, &ClientView::new(measured.columns), None)?
+    let docked = super::terminal_geometry(measured, &ClientView::new(measured.columns))?
         .expect("a presentable viewport must produce pane geometry");
     let mut expanded_view = ClientView::new(measured.columns);
     use crate::client_view::{KeyCode, Modifiers};
@@ -712,7 +712,7 @@ fn observes_fresh_geometry_before_initial_draw_tick_and_same_batch_effects() -> 
     expanded_view.commit(prefix, ClientActionDisposition::KeepNavigator);
     let toggle = expanded_view.decide(key(KeyCode::Char('b'), Modifiers::NONE));
     expanded_view.commit(toggle, ClientActionDisposition::KeepNavigator);
-    let expanded = super::terminal_geometry(measured, &expanded_view, None)?
+    let expanded = super::terminal_geometry(measured, &expanded_view)?
         .expect("a presentable viewport must produce pane geometry");
     assert_ne!(docked, expanded);
     assert_eq!(
@@ -974,11 +974,11 @@ fn outer_resize_invalidates_close_before_input_even_when_terminal_geometry_is_eq
         )?,
         LoopExit::User
     );
-    let geometry = super::terminal_geometry(initial, &ClientView::new(100), None)?
+    let geometry = super::terminal_geometry(initial, &ClientView::new(100))?
         .expect("a presentable viewport must produce pane geometry");
     assert_eq!(
         geometry,
-        super::terminal_geometry(resized, &ClientView::new(70), None)?
+        super::terminal_geometry(resized, &ClientView::new(70))?
             .expect("a presentable viewport must produce pane geometry")
     );
     assert_eq!(
@@ -1103,7 +1103,7 @@ fn transient_zero_cells_repeat_only_the_last_valid_geometry() -> io::Result<()> 
         )?,
         LoopExit::User
     );
-    let geometry = super::terminal_geometry(initial, &ClientView::new(100), None)?
+    let geometry = super::terminal_geometry(initial, &ClientView::new(100))?
         .expect("an unavailable workbench still projects a pane");
     assert_eq!(
         surface.events,
@@ -1153,8 +1153,7 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                 view.sidebar_surface(),
             );
             let context = format!("{width}x{height} {locale:?} {:?}", areas.tier);
-            let geometry =
-                super::terminal_geometry(dimensions(width, height), &view, None).unwrap();
+            let geometry = super::terminal_geometry(dimensions(width, height), &view).unwrap();
             let mut surface = OrderedSurface::default();
             let mut dispatcher = crate::terminal_input::InputDispatcher::default();
             for (name, expected) in [
@@ -1179,7 +1178,7 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                     "{context} {name:?}: draw"
                 );
                 assert_eq!(
-                    super::terminal_geometry(dimensions(width, height), &view, None).unwrap(),
+                    super::terminal_geometry(dimensions(width, height), &view).unwrap(),
                     geometry,
                     "{context} {name:?}: geometry"
                 );
@@ -1239,7 +1238,7 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                 "{context} Monochrome OneLight: draw"
             );
             assert_eq!(
-                super::terminal_geometry(dimensions(width, height), &view, None).unwrap(),
+                super::terminal_geometry(dimensions(width, height), &view).unwrap(),
                 geometry,
                 "{context} Monochrome OneLight: geometry"
             );

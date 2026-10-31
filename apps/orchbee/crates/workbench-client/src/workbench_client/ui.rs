@@ -1087,7 +1087,7 @@ impl<'a> WorkbenchClientView<'a> {
 
     /// Test-only view over a bare Client state: the caller supplies the
     /// live projections and the focus draw status the paint pass would
-    /// report — the exact shape `pane_geometries`, `active_pane_area`, and
+    /// report — the exact shape `pane_geometries`, `arranged_pane_area`, and
     /// the renderer consume.
     #[cfg(test)]
     pub(super) fn test_view(
@@ -1272,6 +1272,7 @@ mod input_capture;
 mod input_routing;
 mod link_activation;
 mod navigation_draw;
+mod pane_arrangement;
 mod terminal_tail;
 
 impl WorkbenchClientUi {

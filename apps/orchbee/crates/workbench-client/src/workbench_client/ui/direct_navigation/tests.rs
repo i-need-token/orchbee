@@ -368,7 +368,7 @@ fn direct_host_replacement_discards_old_pixels_using_shared_viewport_geometry() 
             Rect::new(0, 0, 120, 32),
             client.sidebar_surface(),
         );
-        let area = crate::tui_layout::active_pane_area(&areas, Some(ui.view())).unwrap();
+        let area = crate::tui_layout::arranged_pane_area(&areas, &ui.view()).unwrap();
         let projection = ui.projections.last_mut().unwrap();
         let mut frame = crate::workbench_client::ui::tests::viewport::frame(
             &projection.value,

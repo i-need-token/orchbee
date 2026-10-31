@@ -122,7 +122,7 @@ fn zero_host_samples_cannot_apply_new_pixels_to_the_retained_viewport() {
         );
         assert_eq!(size, initial);
     }
-    let geometry = super::super::terminal_geometry(initial, &view, None)
+    let geometry = super::super::terminal_geometry(initial, &view)
         .unwrap()
         .unwrap();
     assert_eq!(

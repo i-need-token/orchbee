@@ -52,11 +52,10 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
             StartupWait::Fault(error) => return Err(failure(error, StartupFailure::Terminal)),
         },
     };
-    let geometry =
-        tui_layout::terminal_geometry(dimensions, &ClientView::new(dimensions.columns), None)
-            .ok()
-            .flatten()
-            .ok_or(StartupFailure::Terminal)?;
+    let geometry = tui_layout::terminal_geometry(dimensions, &ClientView::new(dimensions.columns))
+        .ok()
+        .flatten()
+        .ok_or(StartupFailure::Terminal)?;
     let progress = DelayedProgress::start(locale).map_err(|_| StartupFailure::Runtime)?;
     // The shared activation core owns cohort validation, rendezvous, the
     // socket-path budget, and the connect-or-activate loop; the TUI verdict

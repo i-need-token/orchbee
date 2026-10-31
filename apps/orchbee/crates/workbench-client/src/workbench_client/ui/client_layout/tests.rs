@@ -227,7 +227,7 @@ fn minimal_split_scrollbar_width_agrees_across_layout_resize_and_drawing() {
             )
             .unwrap();
         let view = native.view();
-        let displayed = crate::tui_layout::active_pane_area(&areas, Some(view)).unwrap();
+        let displayed = crate::tui_layout::arranged_pane_area(&areas, &view).unwrap();
         assert_eq!(displayed, Rect::new(0, 0, 49, 10));
         assert_eq!(layout.area, cell(displayed));
         let panes = crate::tui_layout::pane_geometries(

@@ -632,11 +632,7 @@ fn startup_presentable_area_reports_drawable_content() {
     pixel_less.pixel_height = 0;
     assert!(startup_presentable_area(pixel_less).is_some());
     assert!(
-        crate::tui_layout::terminal_geometry(
-            pixel_less,
-            &crate::client_view::ClientView::new(80),
-            None,
-        )
-        .is_ok()
+        crate::tui_layout::terminal_geometry(pixel_less, &crate::client_view::ClientView::new(80))
+            .is_ok()
     );
 }
