@@ -96,6 +96,7 @@ fn process_info_uses_exact_child_and_rejects_member_changes_before_publication()
                     if case == "workbench-changed" { 13 } else { 12 },
                 );
                 if case != "workbench-changed" {
+                    get_reply(&mut stream, &record(10, 6));
                     read(
                         &mut stream,
                         10,

@@ -136,10 +136,12 @@ control operation, 64 KiB result envelope and Server capacity accounting.
 
 The CLI resolves query targets first, reads batches on one admitted connection,
 checks exact request/context identities and membership, and verifies an unchanged
-canonical revision and Client view revision before emitting one result. One total
-five-second deadline and signal owner cover every phase. No partial success,
-automatic replay, navigation, acknowledgement, terminal attachment or input effect
-occurs. Selected results include Client/operation/view provenance; unselected
+canonical revision and Client selection before emitting one result. The Client's view
+revision also steps when an unrelated commit refreshes it, so it is not fenced: a read the
+Client refused only as stale or busy is addressed again, under a new operation ID, at the
+Client's current view revision, at most four times in all. One total five-second deadline
+and signal owner cover every phase. No partial success, operation replay, navigation,
+acknowledgement, terminal attachment or input effect occurs. Selected results include Client/operation/view provenance; unselected
 results never invent focused or active fields. Cancellation closes the connection
 and exits130; unavailable or changed observations retain typed failures.
 

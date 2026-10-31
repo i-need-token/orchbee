@@ -41,6 +41,23 @@ pub(super) fn read(
     .map(|read| read.member)
 }
 
+/// Reads the member again at the Client's record that still answers for `original` under
+/// `fence`; a moved Client fails with `client-changed`.
+pub(super) fn reread(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    original: &ClientViewRecord,
+    panel_id: &WorkbenchPanelId,
+    fence: ViewFence,
+    deadline: Instant,
+    signals: &mut impl SignalWatch,
+) -> Result<Read, Failure> {
+    let current = fence.next_record(client, &snapshot.session_id, original, deadline, signals)?;
+    read_with_receipt(
+        client, snapshot, &current, panel_id, fence, deadline, signals,
+    )
+}
+
 pub(super) fn read_with_receipt(
     client: &mut LocalClient,
     snapshot: &Snapshot,
@@ -58,7 +75,11 @@ pub(super) fn read_with_receipt(
         signals,
         |client, record, signals| submit(client, snapshot, record, panel_id, deadline, signals),
     )?;
-    if presentation.workbench_revision != snapshot.revision || !fence.holds(selected, &view) {
+    // The Client never answers below the snapshot's revision; a later one is a Workbench change.
+    if presentation.workbench_revision != snapshot.revision {
+        return Err(super::query::workbench_failure("workbench-changed"));
+    }
+    if !fence.holds(selected, &view) {
         return Err(super::query::workbench_failure("client-changed"));
     }
     if !presentation.answers(panel_id, &view, snapshot.revision) {

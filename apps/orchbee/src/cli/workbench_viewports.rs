@@ -1,12 +1,15 @@
 //! An exact Client supplies scroll facts; a fresh Host viewer cannot substitute for it.
-use super::{Failure, FailureKind, console_interrupt::SignalWatch, query, results::Projection};
+use super::{
+    Failure, FailureKind, client_control::view_fence::ViewFence, console_interrupt::SignalWatch,
+    query, results::Projection,
+};
 use crate::cli_text::CliText;
 use crate::local_client::LocalClient;
 use orchbee_workbench_protocol::{
-    ClientViewControl, ClientViewControlStatus, ClientViewIntent, ClientViewOutcome,
-    ClientViewRecord, ClientViewportMode, ClientViewportObservation, ClientViewportPending,
-    ClientViewportUnavailable, MAXIMUM_CLIENT_VIEWPORT_PANELS, Snapshot, TerminalId,
-    WorkbenchPanelId, WorkbenchRequestId,
+    ClientViewControl, ClientViewControlStatus, ClientViewIntent, ClientViewObservation,
+    ClientViewOutcome, ClientViewRecord, ClientViewportMode, ClientViewportObservation,
+    ClientViewportPending, ClientViewportSnapshot, ClientViewportUnavailable,
+    MAXIMUM_CLIENT_VIEWPORT_PANELS, Snapshot, TerminalId, WorkbenchPanelId, WorkbenchRequestId,
 };
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, time::Instant};
@@ -81,13 +84,16 @@ pub(super) fn unobserved_fixture(projection: &Projection) -> Option<Document> {
             .collect(),
     })
 }
-pub(super) fn read(
+/// Reads the selected Client's viewports for the projected Panels; `fence` decides which later
+/// views of the Client still answer for `selected`.
+pub(super) fn read<S: SignalWatch>(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     projection: &Projection,
     selected: Option<&ClientViewRecord>,
+    fence: ViewFence,
     deadline: Instant,
-    signals: &mut impl SignalWatch,
+    signals: &mut S,
 ) -> Result<Option<Document>, Failure> {
     let rows: Vec<_> = match projection {
         Projection::PanelList(rows) => rows.iter().collect(),
@@ -108,45 +114,19 @@ pub(super) fn read(
             .iter()
             .map(|row| WorkbenchPanelId::parse(&row.panel_id).map_err(|_| invalid()))
             .collect::<Result<Vec<_>, _>>()?;
-        let command = ClientViewControl {
-            operation_id: query::request_id()?,
-            client_id: selected.client_id.clone(),
-            expected_view_revision: selected.view_revision,
-            minimum_workbench_revision: snapshot.revision,
-            intent: ClientViewIntent::Viewports {
-                panel_ids: ids.clone(),
-            },
-        };
-        let outcome = super::client_control::exchange::submit_control(
+        let (operation_id, viewport, view) = fence.address(
             client,
             &snapshot.session_id,
-            command.clone(),
+            selected,
             deadline,
             signals,
-        );
-        signals.check_before(deadline)?;
-        let answer = outcome?;
-        let outcome = answer.reply.as_ref().map(|reply| &reply.outcome);
-        if let Some(ClientViewOutcome::Operation { operation }) = outcome
-            && operation.command != command
-        {
-            return Err(invalid());
+            |client, record, signals| submit(client, snapshot, record, &ids, deadline, signals),
+        )?;
+        // The Client never answers below the snapshot's revision; a later one is a Workbench change.
+        if viewport.workbench_revision != snapshot.revision {
+            return Err(super::query::workbench_failure("workbench-changed"));
         }
-        if let Some(failure) =
-            super::client_control::exchange::submission_refusal(answer.exit_code(), outcome)
-        {
-            return Err(failure);
-        }
-        let Some(reply) = answer.reply else {
-            return Err(invalid());
-        };
-        let ClientViewOutcome::Operation { operation } = reply.outcome else {
-            return Err(invalid());
-        };
-        let ClientViewControlStatus::ViewportRead { viewport, view } = operation.status else {
-            return Err(invalid());
-        };
-        if viewport.workbench_revision != snapshot.revision || view != selected.view {
+        if !fence.holds(selected, &view) {
             return Err(super::query::workbench_failure("client-changed"));
         }
         if !viewport.answers(&ids, &view, snapshot.revision)
@@ -157,7 +137,7 @@ pub(super) fn read(
         {
             return Err(invalid());
         }
-        document.operations.push(command.operation_id);
+        document.operations.push(operation_id);
         for row in viewport.panels {
             document
                 .rows
@@ -165,6 +145,64 @@ pub(super) fn read(
         }
     }
     Ok(Some(document))
+}
+
+/// One viewport read addressed at `record`'s view revision.
+fn submit(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    record: &ClientViewRecord,
+    ids: &[WorkbenchPanelId],
+    deadline: Instant,
+    signals: &mut impl SignalWatch,
+) -> Result<
+    (
+        WorkbenchRequestId,
+        Box<ClientViewportSnapshot>,
+        ClientViewObservation,
+    ),
+    Failure,
+> {
+    let invalid = || Failure::new(FailureKind::ProtocolInvalid);
+    let command = ClientViewControl {
+        operation_id: query::request_id()?,
+        client_id: record.client_id.clone(),
+        expected_view_revision: record.view_revision,
+        minimum_workbench_revision: snapshot.revision,
+        intent: ClientViewIntent::Viewports {
+            panel_ids: ids.to_vec(),
+        },
+    };
+    let outcome = super::client_control::exchange::submit_control(
+        client,
+        &snapshot.session_id,
+        command.clone(),
+        deadline,
+        signals,
+    );
+    signals.check_before(deadline)?;
+    let answer = outcome?;
+    let outcome = answer.reply.as_ref().map(|reply| &reply.outcome);
+    if let Some(ClientViewOutcome::Operation { operation }) = outcome
+        && operation.command != command
+    {
+        return Err(invalid());
+    }
+    if let Some(failure) =
+        super::client_control::exchange::submission_refusal(answer.exit_code(), outcome)
+    {
+        return Err(failure);
+    }
+    let Some(reply) = answer.reply else {
+        return Err(invalid());
+    };
+    let ClientViewOutcome::Operation { operation } = reply.outcome else {
+        return Err(invalid());
+    };
+    let ClientViewControlStatus::ViewportRead { viewport, view } = operation.status else {
+        return Err(invalid());
+    };
+    Ok((command.operation_id, viewport, view))
 }
 pub(super) fn enrich(document: Option<&Document>, result: &mut Value) {
     let mut row = |row: &mut Value| {

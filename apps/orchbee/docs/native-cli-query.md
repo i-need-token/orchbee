@@ -413,7 +413,9 @@ With `--client`, up to 100 matched Sessions per attention batch use the existing
 [authenticated Client join contract](native-client-attention.md#joining-canonical-agent-reads).
 When there are matching Sessions, a later complete Agent list supplies the output; journal continuity, generation and
 sequence corroborate each Client projection. A new Session is explicitly missing,
-not presumed seen. With no initial match, the first complete list is the observation. Workbench and Client view revisions must remain unchanged.
+not presumed seen. With no initial match, the first complete list is the observation. The Workbench
+revision and the Client's selection must remain unchanged under the
+[Client query fence](windows-client-control.md#client-relative-workbench-queries).
 The root preserves canonical summaries and optional per-Session Client projections.
 
 Aggregate priority follows the canonical attention/error/outcome/working/idle/unknown order: blocked, error, done, working, idle, unknown. Idle remains idle, succeeded maps to done, and failed/canceled/interrupted map to error, independently of Client acknowledgement. Stale/disconnected observations contribute unknown and remain explicit in session facts. No matching Sessions yields unknown. The no-Client path never invents seen. Text localizes aggregate status and escapes display data; JSON is locale independent.
@@ -2596,7 +2598,7 @@ Windows current Panel uses `orchbee.panel.current` v1 with an explicit `currentP
 primary for an explicit Panel, exact caller terminal, or the selected Client member. Agent,
 terminal title/cwd/processes, reports, metadata and scroll share this member while canonical
 primary/child structure stays intact. Explicit/caller selection stays headless. The original
-Client view/revision and local member token are fenced; changes fail without a partial result. The
+Client selection and local member token are fenced; changes fail without a partial result. The
 five-second deadline, cancellation, read-only operations, Viewer cleanup and Windows evidence
 are owned by the linked contract. The offline catalog lists the current documents and command paths. No activation, input,
 control-authority or focus effects; non-Windows current retains v1. This workflow uses implementation tests.

@@ -157,7 +157,7 @@ fn client_empty_current_is_observable_and_never_queries_another_terminal() {
             if case != "bound-as-empty" {
                 selected["view"]["selection"]["panelCount"] = json!(1);
             }
-            list_reply(&mut stream, vec![selected]);
+            list_reply(&mut stream, vec![selected.clone()]);
             presentations::read(&mut stream, 10, 6, case == "wrong-member", 7, "unbound");
             if matches!(case, "stable" | "away-and-back") {
                 agents(&mut stream);
@@ -166,6 +166,7 @@ fn client_empty_current_is_observable_and_never_queries_another_terminal() {
                 metadata(&mut stream, "stable", true, true, true);
                 report(&mut stream, "stable", true, true, true);
                 snapshot(&mut stream, true, 12);
+                get_reply(&mut stream, &selected);
                 presentations::read(
                     &mut stream,
                     10,

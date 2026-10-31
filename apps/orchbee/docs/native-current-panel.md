@@ -27,11 +27,16 @@ Context and Tab in the snapshot. Missing or changed membership fails with
 `client-panel-unavailable`; the query never follows that Panel into another location implicitly.
 
 The snapshot and Client record are successive observations. `panel current` pins the
-selected Client record, including its view revision, before joining Agent, terminal, report,
-metadata and viewport observations for its exact current member. It never reselects a Client or redirects to a new
-Panel. Before publication, the canonical revision and selected Client view/revision must still
-match. A move away and back also fails because the view revision advanced. These fences do not
-make Host/process/scroll observations atomic; each retains its own provenance.
+selected Client's selection and current member before joining Agent, terminal, report,
+metadata and viewport observations for that member. It never reselects a Client or redirects to a new
+Panel. Before publication, the canonical revision must still match and the Client must still show
+the same selection and member token. The Client's view revision is not fenced: it also steps when
+an unrelated commit refreshes the Client. A Client read refused only as stale or busy is addressed
+again at the Client's current view revision, at most four times in all, while a changed selection
+fails as `client-changed`. A Client read answered at a later Workbench revision fails as
+`workbench-changed`, like the canonical check. A move away and back therefore passes only when it
+leaves the member token unchanged. These fences do not make Host/process/scroll observations
+atomic; each retains its own provenance.
 
 Explicit/caller `panel current` reads remain headless: they receive resolved-member Agent membership, terminal
 title, directory and process observations, but no inferred Client focus. `scroll` is null with
@@ -94,10 +99,10 @@ membership is unavailable, never a fallback to the primary. Existing process-inf
 identifies the exact terminal and Presentation and remains closed.
 
 The workflow is snapshot → exact member read → Host process read/viewer cleanup → canonical
-revision fence → exact member read. Both Client reads require the original view revision and
-matching observed view; their Presentation ID, binding, attachment generation and incarnation
-must agree. Viewport updates alone do not invalidate process information. Canonical change,
-Client selection change, detach/reattach or away-and-back selection fails before publication.
+revision fence → exact member read. Both Client reads require the original selection under the
+same fence as `panel current`; their Presentation ID, binding, attachment generation and
+incarnation must agree. Viewport updates alone do not invalidate process information. Canonical
+change, Client selection change or detach/reattach fails before publication.
 Explicit/caller reads also fence canonical membership. All phases share the existing session,
 five-second absolute deadline and cancellation owner; reads send no input or focus request.
 
@@ -131,8 +136,8 @@ and whose revision owners are shared with exact-member reads. Aggregate limits a
 read/fence order remain unchanged. Headless reads do not infer Client focus or scroll.
 
 A Client member read brackets the joins and final canonical-revision check. Both receipts require
-the original Client view revision and observation; local member tokens must agree, while viewport
-updates alone are allowed. Both operation IDs are retained in query provenance. Missing member,
+the original Client selection; local member tokens must agree, while viewport updates and
+view-revision steps alone are allowed. Both operation IDs are retained in query provenance. Missing member,
 canonical change, reattachment or selection change yields no partial result. This uses one admitted
 session, the original five-second deadline, and existing signal/viewer cleanup owners. It does not
 claim atomic Host/process/Agent observations, and creates no input or focus effects.

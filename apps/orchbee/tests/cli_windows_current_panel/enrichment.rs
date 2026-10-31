@@ -36,12 +36,20 @@ use orchbee_agent_observation_protocol::{
     AgentRequest, AgentResult, read_agent_request, write_agent_result,
 };
 
+/// A current-member read. The member reads are fenced on the Client's selection: before the final
+/// member re-read, the CLI re-reads the listed Client and addresses its current view.
 pub(super) fn read(stream: &mut LocalStream, panel: u64, client: Option<u64>, case: &str) {
-    read_source(stream, panel, client, case, None);
+    let listed = client.map(|client| {
+        let mut listed = record(client, panel);
+        if case == "busy" {
+            listed["view"]["phase"] = json!("busy");
+        }
+        listed
+    });
+    read_source(stream, panel, client, case, listed.as_ref());
 }
 
-/// Like [`read`], for a plugin source fenced on the Client's selection: before the final member
-/// re-read, the CLI re-reads the `listed` Client and addresses its current view.
+/// Like [`read`], with the `listed` Client record a plugin source re-reads.
 pub(super) fn read_source(
     stream: &mut LocalStream,
     panel: u64,
@@ -85,14 +93,7 @@ pub(super) fn read_source(
     );
     snapshot_reply(stream);
     if let Some(client) = client {
-        if let Some(listed) = listed {
-            let request = view_request(stream);
-            assert_eq!(
-                json!(request.action),
-                json!({"kind":"get","clientId":id(client)})
-            );
-            view_reply(stream, &request, json!({"kind":"found","client":listed}));
-        }
+        get_reply(stream, listed.expect("a listed Client record"));
         member(stream, client, panel, case, true);
     }
 }

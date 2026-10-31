@@ -338,14 +338,22 @@ fn read_control(
                 | ClientViewOutcome::Unavailable { .. } => {}
             }
         }
-        return Err(view_failure(match answer.exit_code() {
+        let kind = match answer.exit_code() {
             3 => FailureKind::Rejected,
             4 => FailureKind::ServiceUnavailable,
             5 | 8 => FailureKind::TransportLoss,
             7 => FailureKind::Timeout,
             130 => FailureKind::Cancelled,
             _ => FailureKind::InternalFailure,
-        }));
+        };
+        let mut failure = view_failure(kind);
+        if kind == FailureKind::Rejected {
+            // A view fence readdresses a read the Client refused only as stale or busy.
+            failure.client_refusal = crate::cli::client_control::exchange::refusal_reason(
+                answer.reply.as_ref().map(|reply| &reply.outcome),
+            );
+        }
+        return Err(failure);
     }
     let Some(orchbee_workbench_protocol::WorkbenchClientViewResult {
         outcome: ClientViewOutcome::Operation { operation },
@@ -361,8 +369,9 @@ fn read_control(
 }
 
 impl ClientAgentRead {
-    pub(in crate::cli) fn matches_view(&self, expected: &ClientViewObservation) -> bool {
-        &self.view == expected
+    /// The Client view this read was answered under.
+    pub(in crate::cli) const fn view(&self) -> &ClientViewObservation {
+        &self.view
     }
     pub(in crate::cli) fn corroborate_summaries(
         &self,

@@ -5,7 +5,7 @@ use super::{
 use crate::cli::{
     Failure, FailureKind,
     caller_context::PanelTarget,
-    client_control::{exchange::exchange, selection},
+    client_control::{exchange::exchange, selection, view_fence::ViewFence},
     console_interrupt::{ArmedSignals, Finish},
     query, results, stage_details, workbench_query,
 };
@@ -122,12 +122,14 @@ fn collect(
                 let panel_id =
                     orchbee_workbench_protocol::WorkbenchPanelId::parse(&doc.row.panel_id)
                         .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+                // The current member depends on the Client's selection and member, not its whole
+                // view, which also steps when unrelated commits refresh the Client.
                 Origin::Client(Box::new(current_presentation::read_with_receipt(
                     &mut client,
                     &snapshot,
                     record,
                     &panel_id,
-                    crate::cli::client_control::view_fence::ViewFence::Exact,
+                    ViewFence::Selection,
                     deadline,
                     signals,
                 )?))
@@ -157,14 +159,18 @@ fn collect(
                 .and_then(|record| record.view.selection.as_ref())
                 .and_then(|selection| selection.panel_id.clone());
             let member = if let (Some(selected), Some(panel_id)) = (&selected, &panel_id) {
-                Some(crate::cli::current_presentation::read(
-                    &mut client,
-                    &snapshot,
-                    selected,
-                    panel_id,
-                    deadline,
-                    signals,
-                )?)
+                Some(
+                    crate::cli::current_presentation::read_with_receipt(
+                        &mut client,
+                        &snapshot,
+                        selected,
+                        panel_id,
+                        ViewFence::Selection,
+                        deadline,
+                        signals,
+                    )?
+                    .member,
+                )
             } else {
                 None
             };
@@ -200,14 +206,16 @@ fn collect(
             if let (Some(selected), Some(panel_id), Some(original)) =
                 (&selected, &panel_id, &member)
             {
-                let final_member = crate::cli::current_presentation::read(
+                let final_member = crate::cli::current_presentation::reread(
                     &mut client,
                     &snapshot,
                     selected,
                     panel_id,
+                    ViewFence::Selection,
                     deadline,
                     signals,
-                )?;
+                )?
+                .member;
                 if !original.same_member(&final_member) {
                     return Err(crate::cli::query::workbench_failure("client-changed"));
                 }

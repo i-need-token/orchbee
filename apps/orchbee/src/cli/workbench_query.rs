@@ -1,5 +1,5 @@
 //! Read-only Workbench queries with Agent facts and optional exact-Client memory.
-use super::client_control::exchange as control;
+use super::client_control::{exchange as control, view_fence::ViewFence};
 use super::{
     Failure, FailureKind, Output,
     console_interrupt::{ArmedSignals, Finish, SignalWatch},
@@ -15,10 +15,10 @@ use crate::{
     localization::Locale,
 };
 use orchbee_workbench_protocol::{
-    ClientContextSelection, ClientViewAction, ClientViewAvailability, ClientViewControl,
-    ClientViewControlStatus, ClientViewIntent, ClientViewOutcome, ClientViewPhase,
-    ClientViewRecord, MAXIMUM_CLIENT_SELECTION_CONTEXTS, Snapshot, WorkbenchClientId,
-    WorkbenchRequestId, WorkbenchTerminalContextId,
+    ClientContextSelection, ClientNavigationSnapshot, ClientViewAction, ClientViewAvailability,
+    ClientViewControl, ClientViewControlStatus, ClientViewIntent, ClientViewObservation,
+    ClientViewOutcome, ClientViewPhase, ClientViewRecord, MAXIMUM_CLIENT_SELECTION_CONTEXTS,
+    Snapshot, WorkbenchClientId, WorkbenchRequestId, WorkbenchTerminalContextId,
 };
 use serde_json::{Map, Value, json};
 use std::time::{Duration, Instant};
@@ -246,9 +246,7 @@ fn execute(
                 signals,
                 true,
             )?;
-            if initial.view_revision != final_client.view_revision
-                || initial.view != final_client.view
-            {
+            if !ViewFence::Selection.holds_record(&initial, &final_client) {
                 return Err(super::query::workbench_failure("client-changed"));
             }
         }
@@ -322,6 +320,13 @@ pub(super) fn collect(
     {
         return Err(Failure::new(FailureKind::InternalFailure));
     }
+    // A Client-relative read depends on the Client's selection, not its whole view: a background
+    // refresh steps the view revision while the selection and every fact read here stay put. A
+    // current member keeps the fence it was read under.
+    let fence = current_member
+        .as_ref()
+        .and_then(|member| member.client())
+        .map_or(ViewFence::Selection, |read| read.fence);
     let mut document = Document::new(projection);
     document.current_member = current_member;
     document.client = original;
@@ -337,57 +342,31 @@ pub(super) fn collect(
             .client
             .as_ref()
             .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
-        signals.check_before(deadline)?;
-        let request = ClientViewControl {
-            operation_id: query::request_id()?,
-            client_id: record.client_id.clone(),
-            expected_view_revision: record.view_revision,
-            minimum_workbench_revision: snapshot.revision,
-            intent: ClientViewIntent::Selections {
-                terminal_context_ids: ids.to_vec(),
-            },
-        };
-        let answer = control::submit_control(
+        let (operation_id, navigation, view) = fence.address(
             client,
             &snapshot.session_id,
-            request.clone(),
+            record,
             deadline,
             signals,
+            |client, current, signals| {
+                read_selections(client, snapshot, current, ids, deadline, signals)
+            },
         )?;
-        signals.check_before(deadline)?;
-        let outcome = answer.reply.as_ref().map(|reply| &reply.outcome);
-        if let Some(ClientViewOutcome::Operation { operation }) = outcome
-            && operation.command != request
-        {
-            return Err(Failure::new(FailureKind::ProtocolInvalid));
-        }
-        if let Some(failure) = control::submission_refusal(answer.exit_code(), outcome) {
-            return Err(failure);
-        }
-        let Some(reply) = answer.reply else {
-            return Err(Failure::new(FailureKind::ProtocolInvalid));
-        };
-        let ClientViewOutcome::Operation { operation } = reply.outcome else {
-            return Err(Failure::new(FailureKind::ProtocolInvalid));
-        };
-        let ClientViewControlStatus::NavigationRead { navigation, view } = operation.status else {
-            return Err(Failure::new(FailureKind::ProtocolInvalid));
-        };
         if navigation.workbench_revision != snapshot.revision {
             return Err(super::query::workbench_failure("workbench-changed"));
         }
-        if view != record.view {
+        if !fence.holds(record, &view) {
             return Err(super::query::workbench_failure("client-changed"));
         }
         verify_membership(snapshot, &view, &navigation.contexts)?;
-        document.operations.push(request.operation_id);
+        document.operations.push(operation_id);
         document.contexts.extend(navigation.contexts);
     }
     document.agents = Some(super::workbench_agents::read(
         client,
         snapshot,
         &document.projection,
-        document.client.as_ref(),
+        document.client.as_ref().map(|record| (record, fence)),
         document.current_member.as_ref(),
         deadline,
         signals,
@@ -417,6 +396,7 @@ pub(super) fn collect(
             snapshot,
             &document.projection,
             document.client.as_ref(),
+            fence,
             deadline,
             signals,
         )?
@@ -476,14 +456,10 @@ pub(super) fn collect(
     ) {
         // The member reads above may move the Client's view; its fence decides whether only a
         // selection change, or any view change, fails the final re-read.
-        let current =
-            first
-                .fence
-                .next_record(client, &snapshot.session_id, original, deadline, signals)?;
-        let last = super::current_presentation::read_with_receipt(
+        let last = super::current_presentation::reread(
             client,
             snapshot,
-            &current,
+            original,
             &member.panel_id,
             first.fence,
             deadline,
@@ -502,14 +478,67 @@ pub(super) fn collect(
             signals,
             panel_read,
         )?;
-        if final_client.view_revision != original.view_revision
-            || final_client.view != original.view
-        {
+        if !fence.holds_record(original, &final_client) {
             return Err(super::query::workbench_failure("client-changed"));
         }
     }
     signals.check_before(deadline)?;
     Ok((results::snapshot_source(snapshot), document))
+}
+
+/// One `Selections` read addressed at `record`'s view revision.
+fn read_selections(
+    client: &mut crate::local_client::LocalClient,
+    snapshot: &Snapshot,
+    record: &ClientViewRecord,
+    ids: &[WorkbenchTerminalContextId],
+    deadline: Instant,
+    signals: &mut impl SignalWatch,
+) -> Result<
+    (
+        WorkbenchRequestId,
+        Box<ClientNavigationSnapshot>,
+        ClientViewObservation,
+    ),
+    Failure,
+> {
+    signals.check_before(deadline)?;
+    let request = ClientViewControl {
+        operation_id: query::request_id()?,
+        client_id: record.client_id.clone(),
+        expected_view_revision: record.view_revision,
+        minimum_workbench_revision: snapshot.revision,
+        intent: ClientViewIntent::Selections {
+            terminal_context_ids: ids.to_vec(),
+        },
+    };
+    let answer = control::submit_control(
+        client,
+        &snapshot.session_id,
+        request.clone(),
+        deadline,
+        signals,
+    )?;
+    signals.check_before(deadline)?;
+    let outcome = answer.reply.as_ref().map(|reply| &reply.outcome);
+    if let Some(ClientViewOutcome::Operation { operation }) = outcome
+        && operation.command != request
+    {
+        return Err(Failure::new(FailureKind::ProtocolInvalid));
+    }
+    if let Some(failure) = control::submission_refusal(answer.exit_code(), outcome) {
+        return Err(failure);
+    }
+    let Some(reply) = answer.reply else {
+        return Err(Failure::new(FailureKind::ProtocolInvalid));
+    };
+    let ClientViewOutcome::Operation { operation } = reply.outcome else {
+        return Err(Failure::new(FailureKind::ProtocolInvalid));
+    };
+    let ClientViewControlStatus::NavigationRead { navigation, view } = operation.status else {
+        return Err(Failure::new(FailureKind::ProtocolInvalid));
+    };
+    Ok((request.operation_id, navigation, view))
 }
 
 fn verify_membership(

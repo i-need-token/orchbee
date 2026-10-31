@@ -78,6 +78,15 @@ fn list_reply(stream: &mut LocalStream, clients: Vec<Value>) {
     assert!(matches!(request.action, ClientViewAction::List {}));
     view_reply(stream, &request, json!({"kind":"listed","clients":clients}));
 }
+/// Answers the re-read of one Client's record that precedes a selection-fenced final member read.
+fn get_reply(stream: &mut LocalStream, client: &Value) {
+    let request = view_request(stream);
+    assert_eq!(
+        json!(request.action),
+        json!({"kind":"get","clientId":client["clientId"]})
+    );
+    view_reply(stream, &request, json!({"kind":"found","client":client}));
+}
 fn viewer(stream: &mut LocalStream) -> c::TerminalViewerRequest {
     let c::ClientMessage::TerminalViewer(request) = c::read_client_message(stream).unwrap() else {
         panic!("read-only viewer");
@@ -231,6 +240,7 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_mutating_contr
                     );
                     snapshot_reply(&mut stream);
                     if let Some(client) = client {
+                        get_reply(&mut stream, &record(client, selected));
                         presentations::read(&mut stream, client, selected, true, 7, "stable");
                     }
                 } else {

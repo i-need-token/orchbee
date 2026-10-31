@@ -2,6 +2,7 @@
 use super::{
     Failure,
     agent_view::workflow as attention,
+    client_control::view_fence::ViewFence,
     console_interrupt::SignalWatch,
     output::{Bounded, TooLarge},
     query,
@@ -168,14 +169,16 @@ fn matches(item: &AgentSessionSummary, presentations: &BTreeSet<String>) -> bool
         })
 }
 
-pub(super) fn read(
+/// Joins Agent summaries to the projection. A selected Client comes with the fence that decides
+/// which of its later views still answer for its attention reads.
+pub(super) fn read<S: SignalWatch>(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     projection: &Projection,
-    selected: Option<&ClientViewRecord>,
+    selected: Option<(&ClientViewRecord, ViewFence)>,
     current: Option<&super::current_presentation::Resolved>,
     deadline: Instant,
-    signals: &mut impl SignalWatch,
+    signals: &mut S,
 ) -> Result<Document, Failure> {
     let rows = if let Some(member) = current {
         BTreeMap::from([(
@@ -200,17 +203,27 @@ pub(super) fn read(
         .collect::<Vec<_>>();
     let mut reads = Vec::new();
     let mut owners = BTreeMap::new();
-    if let Some(selected) = selected {
+    if let Some((selected, fence)) = selected {
         for chunk in ids.chunks(PAGE_SIZE) {
-            let read = attention::read_many(
+            // Each read addresses the Client's current view revision itself.
+            let read = fence.address(
                 client,
-                snapshot,
-                &selected.client_id,
-                chunk,
+                &snapshot.session_id,
+                selected,
                 deadline,
                 signals,
+                |client, _, signals| {
+                    attention::read_many(
+                        client,
+                        snapshot,
+                        &selected.client_id,
+                        chunk,
+                        deadline,
+                        signals,
+                    )
+                },
             )?;
-            if !read.matches_view(&selected.view) {
+            if !fence.holds(selected, read.view()) {
                 return Err(failure("client-changed"));
             }
             for id in chunk {

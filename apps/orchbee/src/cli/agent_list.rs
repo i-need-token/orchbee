@@ -223,7 +223,7 @@ fn client_memory(
             .map(|c| c.session_id.clone())
             .collect::<Vec<_>>();
         let read = attention::read_many(client, snapshot, selected, &ids, deadline, signals)?;
-        if !read.matches_view(&initial.view) {
+        if *read.view() != initial.view {
             return Err(classify(Error::Changed));
         }
         let views = read.corroborate_summaries(

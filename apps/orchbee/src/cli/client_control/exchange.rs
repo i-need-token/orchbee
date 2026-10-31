@@ -6,8 +6,9 @@ use crate::{
     local_client::{ClientViewExchangeError, LocalClient},
 };
 use orchbee_workbench_protocol::{
-    ClientViewAction, ClientViewControl, ClientViewControlStatus, ClientViewOutcome,
-    ProtocolVersion, SessionId, WorkbenchClientViewRequest, WorkbenchClientViewResult,
+    ClientViewAction, ClientViewControl, ClientViewControlReason, ClientViewControlStatus,
+    ClientViewOutcome, ProtocolVersion, SessionId, WorkbenchClientViewRequest,
+    WorkbenchClientViewResult,
 };
 use std::{
     thread,
@@ -292,14 +293,24 @@ pub(in crate::cli) fn submission_refusal(
 ) -> Option<Failure> {
     let kind = submission_failure(code, outcome)?;
     let mut failure = Failure::new(kind);
-    if kind == FailureKind::Rejected
-        && let Some(ClientViewOutcome::Operation { operation }) = outcome
-        && let ClientViewControlStatus::Rejected { reason }
-        | ClientViewControlStatus::Incomplete { reason, .. } = &operation.status
-    {
-        failure.client_refusal = Some(*reason);
+    if kind == FailureKind::Rejected {
+        failure.client_refusal = refusal_reason(outcome);
     }
     Some(failure)
+}
+
+/// The Client's typed reason for refusing, or not finishing, one submitted step.
+pub(in crate::cli) fn refusal_reason(
+    outcome: Option<&ClientViewOutcome>,
+) -> Option<ClientViewControlReason> {
+    match outcome {
+        Some(ClientViewOutcome::Operation { operation }) => match &operation.status {
+            ClientViewControlStatus::Rejected { reason }
+            | ClientViewControlStatus::Incomplete { reason, .. } => Some(*reason),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 /// The failure class of one finished Client view submission: its process exit code, refined by
