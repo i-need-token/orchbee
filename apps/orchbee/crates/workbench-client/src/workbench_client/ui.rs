@@ -110,9 +110,11 @@ pub(crate) use super::input::{ConfirmationCaptureContext, SetupCaptureContext};
 pub(crate) use super::input::{RenameDraftToken, RenameEdit};
 pub use input_capture::notification_available;
 pub(crate) use panel_close::{PanelCloseConfirmationToken, PanelCloseConfirmationView};
+#[cfg(any(test, feature = "test-support"))]
+pub use tab_close::CloseConfirmationToken;
+pub use tab_close::DrawReceipt;
 #[cfg(test)]
 pub(crate) use tab_close::{CloseConfirmationKind, CloseStatusKind};
-pub use tab_close::{CloseConfirmationToken, DrawReceipt};
 pub(crate) use tab_close::{CloseConfirmationView, ModalPresentation};
 pub(crate) use tab_rename::RenameDraftView;
 mod create_membership;

@@ -74,13 +74,15 @@ pub(crate) use ui::{
     DisplayRetirement, LaunchProfile, SetupCaptureContext, WorkspaceCloseStatus,
 };
 pub use ui::{
-    CaptureContext, CloseConfirmationToken, DisplayPhase, DrawReceipt, RetainedFrameBank,
-    WorkbenchClientView, WorkspaceCloseToken, notification_available,
+    CaptureContext, DisplayPhase, DrawReceipt, RetainedFrameBank, WorkbenchClientView,
+    notification_available,
 };
 pub(crate) use ui::{
     CaptureReadiness, ClientTabView, CloseConfirmationView, PanelCloseConfirmationView,
     RenameDraftView, RenameEdit, ViewportSurface,
 };
+#[cfg(any(test, feature = "test-support"))]
+pub use ui::{CloseConfirmationToken, WorkspaceCloseToken};
 
 pub use crate::localization::TerminalStatus;
 

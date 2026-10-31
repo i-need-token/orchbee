@@ -2,7 +2,7 @@
 use super::{
     Choice, ClientContextTarget, ClientMemberTarget, KeyCode, Mode, Modifiers, Picker, Row,
 };
-use crate::machine_agents::checkpoint::Observation as Agents;
+use crate::machine_agents::Observation as Agents;
 use crate::machine_agents::view::{Entry, Scope};
 use std::time::{Duration, Instant};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

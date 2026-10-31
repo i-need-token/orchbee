@@ -4,11 +4,11 @@ use crate::local_client::cancellation::OwnedCancellation;
 use crate::local_client::test_support::server::FakeServer;
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
-    AgentViewResult, MetadataSource, MetadataTokenKey, MetadataTokenValue, PanelAgentResult,
-    PanelAgentRow, PanelMetadataResult, Project, TerminalId, TerminalTitleRow, WorkbenchProjectId,
-    WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
-    WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace, read_workbench_request,
-    write_workbench_response,
+    AgentViewResult, MetadataSource, MetadataTokenKey, MetadataTokenValue, MetadataTokens,
+    PanelAgentResult, PanelAgentRow, PanelAgentState, PanelMetadataResult, Project, TerminalId,
+    TerminalTitleRow, WorkbenchProjectId, WorkbenchRequest, WorkbenchResponse,
+    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchTerminalContextId,
+    WorkbenchWorkspaceId, Workspace, read_workbench_request, write_workbench_response,
 };
 use std::{io, num::NonZeroU64, thread, time::Duration};
 

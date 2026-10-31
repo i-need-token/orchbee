@@ -8,6 +8,7 @@ mod worker;
 use crate::local_client::cancellation::Cancellation;
 use crate::local_client::{LocalClient, LocalClientOrigin, LocalOperationClock};
 use crate::machines::{Profile, ProfileId};
+#[cfg(any(test, feature = "test-support"))]
 use orchbee_workbench_protocol::{SessionId, WorkbenchRevision};
 use policy::{Phase, Policy};
 use std::{io, time::Instant};

@@ -3,15 +3,13 @@ use crate::local_client::LocalClient;
 use crate::local_client::cancellation::Cancellation;
 use crate::machine_discovery::display_label;
 use crate::workbench_projection::{ClientContextLocation, ClientContextTarget};
-use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::{
     AgentViewAction, AgentViewOutcome, AgentViewRequest, AgentViewSnapshot,
     MAXIMUM_PANEL_AGENT_READ_ROWS, MAXIMUM_PANEL_METADATA_READ_ROWS,
-    MAXIMUM_TERMINAL_AGENT_STATE_ROWS, MAXIMUM_TERMINAL_TITLE_ROWS, MetadataTokens,
-    PanelAgentAction, PanelAgentOutcome, PanelAgentRequest, PanelAgentState, PanelAgentView,
-    PanelMetadataAction, PanelMetadataEffective, PanelMetadataOutcome, PanelMetadataRequest,
-    PanelMetadataRow, PanelNode, PresentationAgentRow, PresentationBinding,
-    PresentationMetadataRow, ProtocolVersion, SessionId, Snapshot, TerminalAgentStateRow,
+    MAXIMUM_TERMINAL_AGENT_STATE_ROWS, MAXIMUM_TERMINAL_TITLE_ROWS, PanelAgentAction,
+    PanelAgentOutcome, PanelAgentRequest, PanelAgentView, PanelMetadataAction,
+    PanelMetadataOutcome, PanelMetadataRequest, PanelMetadataRow, PanelNode, PresentationAgentRow,
+    PresentationBinding, PresentationMetadataRow, ProtocolVersion, Snapshot, TerminalAgentStateRow,
     TerminalAgentStateSnapshot, TerminalPresentationId, TerminalTitleObservation, WorkbenchPanelId,
     WorkbenchRevision, WorkbenchTabId,
 };

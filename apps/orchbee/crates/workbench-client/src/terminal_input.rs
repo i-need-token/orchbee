@@ -9,16 +9,18 @@ pub use crate::terminal_events::{
 use crate::terminal_events::{decoder, mouse, utf8};
 use crate::workbench_client::RenameEdit;
 pub use crate::workbench_client::input::{
-    BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, RenameAction, SettingsAction,
-    SetupAction, SurfaceAction, TabAction, WorktreeAction,
-};
-pub use crate::workbench_client::input::{
-    ModeRequest, PaneAdmission, PaneInput, PointerCaptureRequest, PointerFrameFacts, PointerProbe,
-    PointerSelectionIntent, SurfaceInput, TerminalInputPort, TerminalObservation, TextEntry,
-    UnavailableTerminalInputPort,
+    BoardAction, CopyAction, LayoutAction, MenuAction, RenameAction, SettingsAction, SetupAction,
+    SurfaceAction, TabAction, WorktreeAction,
 };
 #[cfg(any(test, feature = "test-support"))]
-pub use crate::workbench_client::input::{PointerPane, PointerTab, TerminalInputUnavailable};
+pub use crate::workbench_client::input::{
+    CloseDecision, PointerFrameFacts, PointerPane, PointerProbe, PointerSelectionIntent,
+    PointerTab, TerminalInputUnavailable,
+};
+pub use crate::workbench_client::input::{
+    ModeRequest, PaneAdmission, PaneInput, PointerCaptureRequest, SurfaceInput, TerminalInputPort,
+    TerminalObservation, TextEntry, UnavailableTerminalInputPort,
+};
 use crate::workbench_state::rename_draft::RenameDraftToken;
 use crate::workbench_state::workspace_setup::{SetupEdit, SetupToken};
 mod dispatcher;
