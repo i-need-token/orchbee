@@ -65,8 +65,15 @@ impl ContextProvenance<'_> {
 
 impl WorkbenchClientState {
     pub(crate) fn context_selection_available(&self) -> bool {
+        self.pending_refresh.is_none() && self.context_selection_quiet()
+    }
+    /// Only a background publication read keeps a Context switch from the refresh slot, so the
+    /// switch can wait for that read instead of being refused.
+    pub(crate) fn context_selection_awaits_background_read(&self) -> bool {
+        self.background_refresh_only() && self.context_selection_quiet()
+    }
+    fn context_selection_quiet(&self) -> bool {
         self.invariant_holds()
-            && self.pending_refresh.is_none()
             && self.pending_mutation.is_none()
             && !self.setup_blocks_structure()
             && !self.workspace_close_blocks_structure()

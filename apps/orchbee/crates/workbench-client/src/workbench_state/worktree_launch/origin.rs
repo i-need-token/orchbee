@@ -52,7 +52,8 @@ impl WorkbenchClientState {
         ) {
             return Some(ClientNotice::WorkspaceNotReady);
         }
-        (self.mutation_blocks_structure() || self.pending_refresh_generation().is_some())
+        // A background publication read is not a refusal; the request waits for it.
+        (self.mutation_blocks_structure() || self.own_refresh_pending())
             .then_some(ClientNotice::LocalBusy)
     }
     pub(crate) fn worktree_origin(&self) -> Option<Origin> {

@@ -79,8 +79,11 @@ The reply speaks only for the addressed Workspace record and its complete termin
 same Session. When those are unchanged, the confirmation opens over the current snapshot. When they
 changed, the Client repeats the conditional request once; it has no effect before confirmation. A
 second mismatch, or a Client that cannot review or repeat it, shows the localized Workspace changed
-notice instead of the confirmation-required status, and the user retries. A conditional request the
-Client cannot admit shows the localized busy or unavailable notice. No path discards a request silently.
+notice instead of the confirmation-required status, and the user retries. A conditional request that
+meets a background publication read waits for that read and then starts over the projection it
+installed; one that a newer projection or `RevisionMismatch` kept from admission is repeated once
+under the same rule. A conditional request the Client cannot admit shows the localized busy or
+unavailable notice. No path discards a request silently.
 
 ## Inputs and ownership
 
@@ -101,11 +104,18 @@ and leaves the localized resize fallback visible. After presentation, the same b
 existing prompt while retaining its token, frozen source and focus: `Enter` and stale pointer releases
 are inert, local `Esc` still cancels, and a later complete draw of the same token restores it. A
 missing receipt only revokes shown authority; it does not classify geometry or discard the prompt.
-A source revision, membership or selection change invalidates the prompt. The addressed
-Workspace must still name the exact captured terminal Context; disappearance or identity replacement
-invalidates confirmation even when the current Context and revision are unchanged. Before handoff,
-a fresh snapshot must equal the frozen projection, including background membership. Changed or
-unavailable input refuses submission.
+A newer projection that leaves the confirmed scope's facts unchanged — the addressed Workspace with
+its whole terminal Context, or the named Project with its ordered members — rebases the prompt onto
+that projection. A change to those facts or to the Session cancels it with the localized
+"Workspace changed; try again" notice, and a selection change cancels it. A background publication
+read neither blocks opening nor cancels the prompt; `Enter` during one waits for it to settle and
+submits before the next background read. The addressed Workspace must still name the exact
+captured terminal Context; disappearance or identity replacement invalidates confirmation even when
+the current Context and revision are unchanged. Before handoff, a fresh snapshot must equal the
+frozen projection, including background membership. A newer snapshot, or a `RevisionMismatch`
+answer to the Workspace command, commits nothing: the Client installs that projection and submits
+the same confirmed action once more, with a new request identity, when the scope's facts are
+unchanged; otherwise it reports the changed Workspace. Unavailable input refuses submission.
 This read and Server admission remain separate boundaries: Project membership is captured atomically
 at Start, without claiming a transaction spanning the preceding Client read.
 
@@ -126,7 +136,8 @@ Project evidence preserves frozen member order and every known child Close ident
 | Geometry block before first draw               | Refuse and remove the new prompt without allocating a Close request or reporting user cancellation                                                                   |
 | Geometry block after a successful draw         | Suspend the same token, frozen source and focus; revoke submit and pointer authority until the same token is completely presented again                              |
 | Missing or covered draw receipt                | Revoke exact shown authority only; preserve the presentation phase and frozen prompt                                                                                 |
-| Esc or stale source                            | Cancel without allocating or submitting a Close request                                                                                                              |
+| Esc, changed scope or selection change         | Cancel without allocating or submitting a Close request; Esc also clears a retained confirmation-required result                                                     |
+| Newer projection with unchanged scope          | Rebase the prompt; a submitted operation is retried once against it with a new request identity                                                                      |
 | Unmodified `Enter` or valid close-button click | Same fully drawn source; atomically allocate and queue one typed operation                                                                                           |
 | Execute                                        | Live lease and original forward cutoff; fresh source proof precedes one ordinary command or Project Start                                                            |
 | Definitely unsent or admission refusal         | Retain evidence without an admission claim or automatic retry                                                                                                        |

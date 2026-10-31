@@ -295,7 +295,7 @@ impl WorkbenchClientUi {
             || self.control_modal()
             || state.mutation_blocks_structure()
             || state.rename_draft_blocks_structure()
-            || state.pending_refresh_generation().is_some()
+            || state.own_refresh_pending()
         {
             ClientViewPhase::Busy
         } else {
@@ -508,6 +508,12 @@ impl WorkbenchClientUi {
             else {
                 return ControlStep::Failed(Reason::TargetUnavailable);
             };
+            // A background read holds the refresh slot only briefly; the step waits for it
+            // within its own deadline instead of failing Busy.
+            if state.context_selection_awaits_background_read() {
+                self.yield_background_reads_to_navigation();
+                return ControlStep::Waiting;
+            }
             self.select_context_at(index);
             if self
                 .state

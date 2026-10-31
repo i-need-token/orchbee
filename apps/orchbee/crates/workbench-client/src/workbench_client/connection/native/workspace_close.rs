@@ -47,7 +47,14 @@ impl ClientExecutor {
         let source_current = matches!(&outcome, WorkbenchSnapshotOutcome::Available { snapshot }
             if operation.baseline.project_snapshot(snapshot).ok().as_ref() == Some(&operation.baseline));
         if !source_current {
-            self.retain_workspace_close(&operation, WorkspaceCloseResult::Refused)?;
+            // A newer projection is not a refusal of the target: the Client installs it and
+            // decides whether the unchanged scope is submitted once more.
+            let result = if matches!(&outcome, WorkbenchSnapshotOutcome::Available { .. }) {
+                WorkspaceCloseResult::Stale
+            } else {
+                WorkspaceCloseResult::Refused
+            };
+            self.retain_workspace_close(&operation, result)?;
         } else {
             self.ensure_before(cutoff)?;
             // A missing result is ambiguous as soon as a handoff can occur. Admission replaces
@@ -112,10 +119,18 @@ impl ClientExecutor {
                 ) && matches!(reason, WorkbenchWorkspaceClosePrecommit::Rejected {
                         revision, reason: orchbee_workbench_protocol::WorkbenchRejectionReason::ConfirmationRequired,
                     } if revision == operation.baseline.revision());
+                // The Server committed nothing: another commit advanced the revision first.
+                let raced =
+                    matches!(reason, WorkbenchWorkspaceClosePrecommit::Rejected {
+                    reason: orchbee_workbench_protocol::WorkbenchRejectionReason::RevisionMismatch,
+                    ..
+                });
                 self.retain_workspace_close(
                     operation,
                     if review {
                         WorkspaceCloseResult::ConfirmationRequired
+                    } else if raced {
+                        WorkspaceCloseResult::Stale
                     } else {
                         WorkspaceCloseResult::Refused
                     },

@@ -534,9 +534,18 @@ Fresh startup still joins the retained Open reference/outcome and selects curren
 active ID. Failed/unavailable/unknown anchor outcome fails before Snapshot; a Started anchor with
 nonattachable moved head fails at that head's AttachBinding. No fallback or scan is allowed.
 Other live Clients learn committed changes through the ready-loop `workbench.publication.read`
-probe, which routes one refresh hint through the same `Ctrl+B w` admission; there is no push or
-terminal switch. A `published` probe sets one coalescing ingress latch inside the still-open
-mailbox before any stale-result or causal-wait handling, so a dropped or stale Poll reply cannot
+probe, which routes one refresh hint through the same `Ctrl+B w` admission; there is no
+terminal switch. The UI also registers one State-mode `workbench.snapshot.read` subscription before
+its first domain read. The Server sends a record only when the snapshot bytes differ, so commits
+that leave the Workbench snapshot unchanged, such as background terminal output, raise no hint.
+A publication refresh is background work and never makes a user action unavailable: availability
+consults only the Client's own refresh. An invocation that needs the single refresh slot while a
+publication refresh holds it — a confirmed Workspace or Project Close, a conditional Workspace
+close, a Worktree form or listing, or a Context step — is held for at most two seconds and replayed
+through its ordinary entry point when that refresh settles, before the next publication refresh is
+admitted. A Context navigation refused only by a publication refresh pauses further publication
+refreshes for the same bound while it retries. An expired hold ends with the localized busy notice.
+A `published` probe sets one coalescing ingress latch inside the still-open mailbox before any stale-result or causal-wait handling, so a dropped or stale Poll reply cannot
 erase the demand. At the next stable point the UI captures that latch into canonical Client
 state as bounded publication debt (`Clean`/`Pending`/`InFlight { late }`/`Parked`) exactly once.
 `Busy` or `Full` refresh admission leaves the debt pending for a later fair tick rather than

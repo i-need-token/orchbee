@@ -79,6 +79,11 @@ strings so every surface formats the same meaning for the effective locale.
   once valid.
 - Availability answers whether an action may start now. Pending, checked, selected, focused, and
   current-context state remain independent and must not be encoded as availability.
+- Unrelated background work never makes an action unavailable. A background read that refreshes a
+  projection the action does not own, such as a publication read prompted by another terminal's
+  output, leaves availability to the facts the action targets. An open confirmation stays open
+  while those facts are unchanged and rebases onto the newer projection; it closes with the
+  localized changed-target notice when they change.
 
 ## Invocation parity
 
@@ -150,6 +155,14 @@ unless the owning workflow explicitly defines that behavior.
   component identity or translated text.
 - The owner defines delayed cancellation, queued-target revalidation, out-of-order completion, and a
   replaced execution that crossed commit. A caller deadline does not silently cancel shared work.
+- When an invocation needs a serialized resource that background work currently holds, the owner
+  holds the invocation and replays it through its ordinary entry point as soon as the background
+  work settles, before admitting further background work. The hold is bounded; expiry ends with a
+  visible busy refusal, and the replay revalidates every fact. An invocation is never dropped
+  because unrelated background work was in flight.
+- A commit refused only because the projection advanced past the invocation's baseline is retried
+  once against the newer projection when the targeted facts are unchanged; otherwise, or when the
+  retry is refused the same way, the action ends with the localized changed-target notice.
 - Closing a foreground surface is refused while that surface must own a required decision, or the
   workflow explicitly parks the task and exposes a return route. Background completion never steals
   focus, changes context, or replaces a newer draft.

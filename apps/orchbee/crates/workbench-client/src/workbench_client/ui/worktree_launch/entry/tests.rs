@@ -372,6 +372,40 @@ fn a_retained_entry_owner_prevents_success_replacement_from_both_routes() {
 }
 
 #[test]
+fn a_settled_opened_result_states_its_notice_for_the_transient_lifetime_only() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    };
+    let (mut ui, _, _) = case_with_mode(WorktreeMode::Create);
+    let elapsed = Arc::new(AtomicU64::new(0));
+    ui.clock =
+        crate::local_client::test_support::server::adjustable_operation_clock(Arc::clone(&elapsed));
+    ui.worktrees.launcher.entry_started();
+    ui.worktrees.launcher.entry_notice(WorktreeNotice::Opened);
+    assert!(ui.worktrees.entry.is_none());
+    assert_eq!(
+        ui.view().worktree_stated_notice(),
+        Some(WorktreeNotice::Opened)
+    );
+    assert!(!ui.expire_status_notices());
+    elapsed.store(3999, Ordering::SeqCst);
+    assert!(!ui.expire_status_notices());
+    assert_eq!(
+        ui.view().worktree_stated_notice(),
+        Some(WorktreeNotice::Opened)
+    );
+    elapsed.store(4000, Ordering::SeqCst);
+    assert!(ui.expire_status_notices(), "expiry schedules a redraw");
+    assert_eq!(ui.view().worktree_stated_notice(), None);
+    // The expired success leaves the Idle launcher a new explicit request would have produced.
+    assert!(ui.worktrees.launcher.operation().is_none());
+    assert!(!ui.worktrees.launcher.terminal_result() && !ui.worktrees.launcher.visible());
+    elapsed.store(60_000, Ordering::SeqCst);
+    assert!(!ui.expire_status_notices());
+}
+
+#[test]
 fn worktree_entry_requests_missing_membership_once_and_waits_without_reissuing() {
     let (mut ui, _, snapshot) = case();
     ui.begin_worktree_entry(Some(snapshot));

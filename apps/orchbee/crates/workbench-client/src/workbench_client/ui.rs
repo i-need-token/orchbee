@@ -81,6 +81,7 @@ impl From<retained_frames::RetainedFrames> for RetainedFrameBank {
         }
     }
 }
+mod held_intent;
 mod retired_membership;
 mod tab_close;
 #[cfg(any(test, feature = "test-support"))]
@@ -1258,6 +1259,8 @@ pub(super) struct WorkbenchClientUi {
     setup_notice_timer: crate::transient_notice::NoticeTimer<SetupStatus>,
     /// Keyed by the Closed operation's generation; the receipt outlives the notice.
     workspace_closed_timer: crate::transient_notice::NoticeTimer<u64>,
+    /// A hidden Opened worktree result states its success like any one-shot notice.
+    worktree_opened_timer: crate::transient_notice::NoticeTimer<()>,
     focus_new_panel: bool,
     settings: settings::Coordinator,
     launch_profiles: launch_profiles::Coordinator,
@@ -1302,6 +1305,7 @@ pub(super) struct WorkbenchClientUi {
     ordinary_poll_serial: Option<u64>,
     next_empty_poll: Option<std::time::Instant>,
     publications: Option<crate::local_client::subscription::ChangeSubscription>,
+    held_intents: held_intent::HeldIntents,
     retirement_failure: Option<CarrierFailure>,
     retirement_finalized: bool,
     retirement: Option<DisplayRetirement>,
@@ -1399,6 +1403,7 @@ impl WorkbenchClientUi {
             notice_timer: Default::default(),
             setup_notice_timer: Default::default(),
             workspace_closed_timer: Default::default(),
+            worktree_opened_timer: Default::default(),
             focus_new_panel: true,
             launch_profiles: launch_profiles::Coordinator::default(),
             preferences: orchbee_workbench_protocol::UserPreferencesValues::default(),
@@ -1431,6 +1436,7 @@ impl WorkbenchClientUi {
             ordinary_poll_serial: None,
             next_empty_poll: None,
             publications: None,
+            held_intents: held_intent::HeldIntents::default(),
             retirement_failure: None,
             retirement_finalized: false,
             retirement: None,
@@ -1797,6 +1803,9 @@ impl WorkbenchClientUi {
                     | state.tick_takeover(self.clock.now())
                     | state.settle_close_set(self.clock.now())
             });
+            // A held invocation takes the refresh slot its background read just released,
+            // before the next background read can.
+            changed |= self.replay_held_intent();
             if self
                 .publications
                 .as_ref()
@@ -2983,9 +2992,16 @@ impl WorkbenchClientUi {
             .setup_status()
             .filter(|status| status_text::setup_status_transient(*status));
         let closed = state.closed_workspace_close_notice();
+        // Once entry completes, a hidden Opened result is kept only so a new request may replace
+        // it; when its success notice expires it becomes Idle, which every request also accepts.
+        let opened = self.worktrees.settled_opened_result().then_some(());
         let notice_expired = self.notice_timer.expired(notice, now);
         let setup_expired = self.setup_notice_timer.expired(setup, now);
         let closed_expired = self.workspace_closed_timer.expired(closed, now);
+        let opened_expired = self.worktree_opened_timer.expired(opened, now);
+        if opened_expired {
+            self.worktrees.launcher.forget_terminal();
+        }
         if notice_expired {
             state.clear_notice();
         }
@@ -2995,7 +3011,7 @@ impl WorkbenchClientUi {
         if closed_expired {
             state.retire_closed_workspace_close_notice();
         }
-        notice_expired || setup_expired || closed_expired
+        notice_expired || setup_expired || closed_expired || opened_expired
     }
 
     fn clear_notice(&mut self) {
@@ -3177,6 +3193,8 @@ impl WorkbenchClientUi {
         target: &super::ClientContextTarget,
     ) -> super::ContextNavigationAdmission {
         self.remember_history_positions();
+        // Each retry re-decides whether background reads keep yielding to it.
+        self.end_navigation_yield();
         use super::ContextNavigationAdmission;
         let Some(state) = self.state.as_ref() else {
             return ContextNavigationAdmission::Unavailable;
@@ -3193,7 +3211,7 @@ impl WorkbenchClientUi {
         };
         // Busy precedes exact-current: A clicked during A -> B must wait to return to A.
         if !state.context_selection_available() {
-            return ContextNavigationAdmission::Busy;
+            return self.context_navigation_busy();
         }
         if view.active_context_position() == Some(index + 1) {
             return ContextNavigationAdmission::Current;
@@ -3205,7 +3223,30 @@ impl WorkbenchClientUi {
         }
     }
 
+    /// A navigation that met only a background read retries next tick, and no further
+    /// background read may start ahead of it; any other blocker waits on its own owner.
+    pub(super) fn context_navigation_busy(&mut self) -> super::ContextNavigationAdmission {
+        if self
+            .state
+            .as_ref()
+            .is_some_and(WorkbenchClientState::context_selection_awaits_background_read)
+        {
+            self.yield_background_reads_to_navigation();
+        } else {
+            self.end_navigation_yield();
+        }
+        super::ContextNavigationAdmission::Busy
+    }
+
     fn select_context(&mut self, next: bool) -> ClientActionDisposition {
+        if self
+            .state
+            .as_ref()
+            .is_some_and(WorkbenchClientState::context_selection_awaits_background_read)
+        {
+            self.hold_intent(held_intent::HeldIntent::Context { next });
+            return ClientActionDisposition::KeepNavigator;
+        }
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
             self.retire(CarrierFailure::Deadline);
             return ClientActionDisposition::KeepNavigator;
@@ -4370,6 +4411,7 @@ impl WorkbenchClientUi {
     /// drains one pending demand into a refresh flight. Busy/Full refusal is a local
     /// no-op: the debt stays pending and a later fair tick retries admission.
     fn drain_publication_refresh(&mut self, mailbox: &Arc<CommandMailbox>) {
+        let user_waits = self.background_reads_yield();
         let Some(state) = self.state.as_mut() else {
             return;
         };
@@ -4379,7 +4421,8 @@ impl WorkbenchClientUi {
             self.retire(closed.failure());
             return;
         }
-        if !state.publication_debt_pending() {
+        // The debt stays pending; the user's own refresh adopts it or a later drain reads it.
+        if !state.publication_debt_pending() || user_waits {
             return;
         }
         let Some(deadline) = self

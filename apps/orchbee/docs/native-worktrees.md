@@ -44,8 +44,10 @@ After submission, Esc hides observation without cancelling Server work. W or O r
 operation; `r` only reads that operation. The operation ID and known checkout/Workspace facts survive
 failed reads and entry failure. Unknown Start is never replayed. Resume, deletion, trust override
 and rollback are never implicit. After successful entry completes, a hidden, correlated Opened result
-with retained focus eligibility may yield to a new explicit operation. Both ordinary and addressed
-routes require no remaining entry owner. Addressed replacement validates the current exact source,
+with retained focus eligibility may yield to a new explicit operation. Its success notice is
+transient: once the notice lifetime ends, that hidden result returns the launcher to Idle, which is
+the state such a replacement would have produced. Both ordinary and addressed routes require no
+remaining entry owner. Addressed replacement validates the current exact source,
 mode, listed non-bare checkout and next token before discarding the old receipt; refusal preserves
 that receipt and its reopen/read recovery. A new draft starts without old draw/input authority and
 requires its own complete draw before Start. Visible, pending, uncertain, failed or focus-retired

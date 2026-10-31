@@ -1715,6 +1715,25 @@ impl WorkbenchClientState {
         }
     }
 
+    /// Whether the refresh in flight is only a background publication read. Its result can
+    /// rebase what an action targets but never claims that target, so it is no reason to make
+    /// an action unavailable; an action that needs the refresh slot waits for it instead.
+    pub(crate) const fn background_refresh_only(&self) -> bool {
+        matches!(
+            self.pending_refresh,
+            Some(PendingRefreshFlight {
+                source: RefreshSource::Publication,
+                ..
+            })
+        )
+    }
+
+    /// A refresh this Client started for its own intent: an explicit refresh or the recovery
+    /// read of its own selection or mutation.
+    pub(crate) const fn own_refresh_pending(&self) -> bool {
+        self.pending_refresh.is_some() && !self.background_refresh_only()
+    }
+
     #[cfg(test)]
     pub(crate) const fn refresh_status(&self) -> Option<NavigatorRefreshStatus> {
         self.refresh_status

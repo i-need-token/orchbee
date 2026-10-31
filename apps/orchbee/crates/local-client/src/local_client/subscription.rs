@@ -65,6 +65,22 @@ impl LocalClientOrigin {
                 ended: std::sync::atomic::AtomicBool::new(false),
             })
     }
+    /// Register before the first domain read. Unlike [`Self::watch_changes`], a commit that
+    /// leaves the Workbench snapshot unchanged, such as background terminal output, wakes no
+    /// reader: the Server sends a record only when the snapshot itself differs.
+    pub fn watch_publications(&self) -> io::Result<ChangeSubscription> {
+        use orchbee_workbench_protocol::{ProtocolVersion, SnapshotReadIntent, WorkbenchRequestId};
+        let request = WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse("fffffffffffffffffffffffffffffffc")
+                .expect("nonzero subscription identity"),
+        });
+        self.subscribe(&request, StreamMode::State)
+            .map(|stream| ChangeSubscription {
+                stream,
+                ended: std::sync::atomic::AtomicBool::new(false),
+            })
+    }
     pub fn subscribe(
         &self,
         request: &WorkbenchRequest,

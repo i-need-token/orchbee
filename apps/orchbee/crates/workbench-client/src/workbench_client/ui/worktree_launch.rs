@@ -47,6 +47,11 @@ pub(super) struct Coordinator {
     configured_root: Option<ConfiguredRoot>,
 }
 impl Coordinator {
+    /// A hidden Opened result whose terminal entry has finished.
+    pub(super) fn settled_opened_result(&self) -> bool {
+        self.entry.is_none() && self.launcher.hidden_opened_result()
+    }
+
     pub(super) fn remove_sidebar(&mut self, origin: Origin, discovery: SidebarDiscovery) -> bool {
         if self.entry.is_some() {
             return false;
@@ -239,6 +244,10 @@ impl WorkbenchClientUi {
         }
         if !self.worktrees.ensure_lane(&self.clock) {
             return ClientActionDisposition::KeepNavigator;
+        }
+        if state.background_refresh_only() {
+            self.hold_intent(super::held_intent::HeldIntent::Worktree(mode));
+            return ClientActionDisposition::DismissNavigator;
         }
         self.board_reads.close_board(&mut self.board);
         if mailbox.try_enqueue_worktree_preparation_for(

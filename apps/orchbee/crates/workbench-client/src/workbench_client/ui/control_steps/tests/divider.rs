@@ -906,6 +906,11 @@ fn divider_real_mouse_sequence_on_the_painted_column_submits_one_ratio() {
             target.divider.x,
             target.divider.y + target.divider.height / 2,
         );
+        // A 112-column host with the default sidebar paints the divider in its 72nd column
+        // (one-based); the 71st belongs to the left pane and holds its scrollbar track.
+        if width == 112 {
+            assert_eq!(column + 1, 72);
+        }
         // Only the single divider column starts a drag; its neighbours belong to the panes.
         assert!(matches!(
             map.hit_target_at(column, row),

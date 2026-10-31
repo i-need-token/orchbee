@@ -9,6 +9,8 @@ impl WorkbenchClientUi {
         &mut self,
         target: &crate::machine_agents::Target,
     ) -> Admission {
+        // Each retry re-decides whether background reads keep yielding to it.
+        self.end_navigation_yield();
         if self.retirement_failure.is_some() || self.modal_owns_input() {
             return Admission::Unavailable;
         }
@@ -20,7 +22,7 @@ impl WorkbenchClientUi {
         }
         // The displayed selection may still be A during A -> B. It cannot consume a new A intent.
         if !state.context_selection_available() {
-            return Admission::Busy;
+            return self.context_navigation_busy();
         }
         let Ok(destination) = project_native_context_tabs(
             state.cache().canonical_snapshot(),

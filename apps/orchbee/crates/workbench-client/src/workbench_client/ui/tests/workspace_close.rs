@@ -1268,25 +1268,133 @@ fn conditional_workspace_close_reports_a_target_that_keeps_changing_instead_of_d
     );
     assert!(mailbox.try_recv().unwrap().is_some());
 }
+/// F-1: another Workspace's output keeps a publication read in flight when `Ctrl+b D` arrives.
+/// The request waits for that read and then starts over the read's projection.
 #[test]
-fn conditional_workspace_close_reports_a_busy_client_instead_of_dropping_the_request() {
-    let (mut ui, mailbox, _, snapshot) = ready_with_background_target(true);
-    // A peer publication keeps one refresh in flight when Close is requested.
-    ui.state.as_mut().unwrap().note_publication_hint();
-    ui.tick();
-    let refresh = mailbox.try_recv().unwrap().expect("publication refresh");
-    assert_eq!(ui.view().notice(), None);
+fn conditional_workspace_close_waits_for_a_background_read_instead_of_refusing() {
+    use super::refresh_gating::{background_read, settle_background_read};
+    let (mut ui, mailbox, clock, snapshot) = ready_with_background_target(true);
+    let read = background_read(&mut ui, &mailbox);
+    let target = snapshot.navigation.workspaces[1].workspace_id.clone();
     assert_eq!(
-        ui.apply_client_action(ClientAction::RequestWorkspaceCloseAt(
-            snapshot.navigation.workspaces[1].workspace_id.clone()
-        )),
-        ClientActionDisposition::KeepNavigator
+        ui.apply_client_action(ClientAction::RequestWorkspaceCloseAt(target.clone())),
+        ClientActionDisposition::DismissNavigator
     );
     assert_eq!(
         ui.view().notice(),
-        Some(crate::localization::WorkbenchClientNotice::LocalBusy)
+        None,
+        "a background read is no reason to refuse"
     );
+    settle_background_read(
+        &mut ui,
+        &mailbox,
+        &clock,
+        read,
+        drifted(&snapshot, 2, None),
+        true,
+    );
+    let lease = mailbox
+        .try_recv()
+        .unwrap()
+        .expect("the held request follows the read before another background read");
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("conditional Workspace close refresh");
+    };
+    let operation = marker.workspace_close().expect("conditional Close");
+    assert_eq!(
+        operation.workspace_command().unwrap().action,
+        WorkbenchAction::WorkspaceCloseIfIdle {
+            workspace_id: target
+        }
+    );
+    assert_eq!(
+        operation.baseline.revision(),
+        WorkbenchRevision::new(2),
+        "the request rebases onto the projection its wait installed"
+    );
+}
+
+/// F-1: a confirmation opens while another Workspace's output keeps a publication read in
+/// flight, survives that read's unrelated commit, and Enter pressed before the read settles
+/// starts the Close as soon as it does, over the read's projection.
+#[test]
+fn close_confirmation_survives_background_reads_and_enter_waits_for_the_read() {
+    use super::refresh_gating::{background_read, settle_background_read};
+    let (mut ui, mailbox, clock, snapshot) = ready();
+    let unrelated = |revision: u64| {
+        let mut next = snapshot.clone();
+        next.revision = WorkbenchRevision::new(revision);
+        next.navigation.workspaces[0].label = format!("peer rename {revision}");
+        next
+    };
+    let project = WorkbenchProjectId::parse(&format!("{:032x}", 270)).unwrap();
+    let open = |ui: &mut WorkbenchClientUi| {
+        assert_eq!(
+            ui.request_project_close_all(&project),
+            ClientActionDisposition::DismissNavigator,
+            "a background read does not make the menu action unavailable"
+        );
+        let token = ui.view().workspace_close_confirmation().unwrap().token();
+        ui.after_workspace_close_draw(Some(ModalPresentation::Presented(token)));
+        token
+    };
+    let read = background_read(&mut ui, &mailbox);
+    let token = open(&mut ui);
+    ui.tick();
+    settle_background_read(&mut ui, &mailbox, &clock, read, unrelated(2), false);
+    assert_eq!(
+        ui.view()
+            .workspace_close_confirmation()
+            .expect("an unrelated commit keeps the confirmation")
+            .token(),
+        token
+    );
+    assert_eq!(ui.view().notice(), None);
+    assert!(ui.capture_confirmation_key(ClientKey::Escape));
+    let read = background_read(&mut ui, &mailbox);
+    open(&mut ui);
+    assert!(ui.capture_confirmation_key(ClientKey::Enter));
+    assert!(
+        ui.view().workspace_close_confirmation().is_some(),
+        "the confirmed prompt stays until its Close starts"
+    );
+    settle_background_read(&mut ui, &mailbox, &clock, read, unrelated(3), true);
+    let lease = mailbox
+        .try_recv()
+        .unwrap()
+        .expect("the confirmed Close follows the read, ahead of another background read");
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("Project close-all refresh");
+    };
+    let operation = marker.workspace_close().expect("Project close-all");
+    assert!(operation.project_request().is_some());
+    assert_eq!(operation.baseline.revision(), WorkbenchRevision::new(3));
     assert!(ui.view().workspace_close_confirmation().is_none());
-    assert!(mailbox.try_recv().unwrap().is_none());
-    drop(refresh);
+}
+
+/// F-1: Esc on a confirmation that a conditional reply opened leaves no
+/// confirmation-required status behind.
+#[test]
+fn cancelled_confirmation_leaves_no_confirmation_required_status() {
+    let (mut ui, mailbox, clock, snapshot) = ready_with_background_target(true);
+    let target = snapshot.navigation.workspaces[1].clone();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestWorkspaceCloseAt(
+            target.workspace_id.clone()
+        )),
+        ClientActionDisposition::DismissNavigator
+    );
+    reply_confirmation_required(&mut ui, &mailbox, &clock, snapshot.clone());
+    let token = ui
+        .view()
+        .workspace_close_confirmation()
+        .expect("a busy Workspace asks first")
+        .token();
+    ui.after_workspace_close_draw(Some(ModalPresentation::Presented(token)));
+    assert!(ui.capture_confirmation_key(ClientKey::Escape));
+    assert!(ui.view().workspace_close_confirmation().is_none());
+    assert!(
+        ui.view().workspace_close_status().is_none(),
+        "no residual confirm-before-closing status"
+    );
 }

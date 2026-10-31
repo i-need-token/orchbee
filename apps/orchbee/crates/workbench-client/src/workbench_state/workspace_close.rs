@@ -18,6 +18,19 @@ use std::time::{Duration, Instant};
 mod sidebar;
 pub(crate) use sidebar::{SidebarDeleteReview, WorkspaceDeleteRequest};
 
+/// The next step after a close that a newer projection kept from admission.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum StaleCloseReview {
+    /// The result is not stale, or its own refresh still owns settlement.
+    NotApplicable,
+    /// The confirmed scope is unchanged: submit it once more against the newer projection.
+    Retry,
+    /// The conditional target is unchanged: ask the Server once more.
+    Recheck(WorkbenchWorkspaceId),
+    /// The scope changed, or the single retry met another newer projection.
+    Changed,
+}
+
 /// Identifies exactly one fully drawn destructive confirmation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WorkspaceCloseToken(u64);
@@ -69,6 +82,22 @@ impl WorkspaceCloseTarget {
             }
         }
     }
+    /// Unrelated snapshot changes keep a frozen scope valid; a change to the scope itself does
+    /// not. A Workspace scope speaks for its Workspace and whole terminal Context; a Project scope
+    /// for the Project and every member Workspace.
+    fn unchanged_between(&self, before: &ClientContextTabs, after: &ClientContextTabs) -> bool {
+        before.session_id() == after.session_id()
+            && self.matches_snapshot(before)
+            && self.matches_snapshot(after)
+            && match self {
+                Self::Workspace { workspace_id, .. } => {
+                    sidebar::target_unchanged(before, after, workspace_id)
+                }
+                Self::Project { project_id, .. } => {
+                    project_facts(before, project_id) == project_facts(after, project_id)
+                }
+            }
+    }
     fn project_member_count(&self) -> Option<usize> {
         match self {
             Self::Project { member_count, .. } => Some(*member_count),
@@ -83,11 +112,27 @@ impl WorkspaceCloseTarget {
     }
 }
 
+type ProjectFacts<'a> = (
+    &'a orchbee_workbench_protocol::Project,
+    Vec<&'a orchbee_workbench_protocol::Workspace>,
+);
+fn project_facts<'a>(
+    cache: &'a ClientContextTabs,
+    project_id: &'a WorkbenchProjectId,
+) -> Option<ProjectFacts<'a>> {
+    let navigation = &cache.canonical_snapshot().navigation;
+    Some((
+        navigation.project(project_id)?,
+        navigation.workspaces_in_project(Some(project_id)).collect(),
+    ))
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkspaceCloseOperation {
     conditional: bool,
     destructive: bool,
-    /// The automatic follow-up of a conditional request whose target changed in flight.
+    /// The single automatic follow-up after the target changed under a conditional reply, or
+    /// after a newer projection kept the Server from admitting the first request.
     recheck: bool,
     pub(crate) target: WorkspaceCloseTarget,
     pub(crate) request_id: WorkbenchRequestId,
@@ -102,6 +147,9 @@ pub(crate) struct WorkspaceCloseOperation {
 pub(crate) enum WorkspaceCloseResult {
     NotSubmitted,
     Refused,
+    /// Nothing was committed: the projection advanced past the operation's baseline before the
+    /// Server admitted it, so the request names an outdated revision rather than a refused target.
+    Stale,
     ConfirmationRequired,
     Unknown,
     WorkspaceAccepted(WorkbenchWorkspaceCloseAccepted),
@@ -150,7 +198,7 @@ impl WorkspaceCloseResult {
     fn unresolved(&self) -> bool {
         !matches!(
             self,
-            Self::NotSubmitted | Self::Refused | Self::ConfirmationRequired
+            Self::NotSubmitted | Self::Refused | Self::Stale | Self::ConfirmationRequired
         ) && !self.is_closed()
     }
     fn status(&self) -> WorkspaceCloseStatus {
@@ -161,7 +209,7 @@ impl WorkspaceCloseResult {
             return WorkspaceCloseStatus::Closing;
         }
         match self {
-            Self::NotSubmitted | Self::Refused => WorkspaceCloseStatus::Refused,
+            Self::NotSubmitted | Self::Refused | Self::Stale => WorkspaceCloseStatus::Refused,
             Self::ConfirmationRequired => WorkspaceCloseStatus::ConfirmationRequired,
             Self::Unknown => WorkspaceCloseStatus::Unknown,
             Self::WorkspaceObserved { outcome, .. }
@@ -230,6 +278,7 @@ impl WorkspaceCloseOperation {
         match result {
             WorkspaceCloseResult::NotSubmitted
             | WorkspaceCloseResult::Refused
+            | WorkspaceCloseResult::Stale
             | WorkspaceCloseResult::Unknown => true,
             WorkspaceCloseResult::ConfirmationRequired => self.conditional,
             WorkspaceCloseResult::WorkspaceAccepted(accepted) => self.admits_accepted(accepted),
@@ -400,7 +449,7 @@ impl WorkbenchClientState {
         self.workspace_close.confirmation.is_some() || self.workspace_close.pending.is_some()
     }
     fn workspace_close_quiet(&self) -> bool {
-        self.pending_refresh.is_none()
+        !self.own_refresh_pending()
             && self.pending_mutation.is_none()
             && self.pending_membership.is_none()
             && !self.setup_blocks_structure()
@@ -508,8 +557,20 @@ impl WorkbenchClientState {
             .as_ref()
             .map(|inner| WorkspaceCloseConfirmationView { inner })
     }
+    /// Ends the confirmation together with the conditional reply it continues, so a cancelled
+    /// prompt leaves no confirmation-required status behind.
     pub(crate) fn cancel_workspace_close(&mut self) {
         self.workspace_close.confirmation = None;
+        if self
+            .workspace_close
+            .evidence
+            .as_ref()
+            .is_some_and(|evidence| {
+                matches!(evidence.result, WorkspaceCloseResult::ConfirmationRequired)
+            })
+        {
+            self.workspace_close.evidence = None;
+        }
     }
     pub(crate) fn acknowledge_workspace_close_draw(&mut self, token: Option<WorkspaceCloseToken>) {
         if let Some(prompt) = &mut self.workspace_close.confirmation {
@@ -530,23 +591,33 @@ impl WorkbenchClientState {
         }
         Some(settlement)
     }
+    /// Keeps an open confirmation across unrelated publications by rebasing its frozen scope; a
+    /// change to the scope itself ends it with the changed-target notice.
     pub(crate) fn settle_stale_workspace_close(&mut self) -> bool {
-        if self
-            .workspace_close
-            .confirmation
-            .as_ref()
-            .is_some_and(|prompt| {
-                prompt.baseline != self.cache
-                    || !prompt.target.matches_snapshot(&prompt.baseline)
-                    || prompt.desired != self.desired
-                    || !self.workspace_close_quiet()
-            })
-        {
+        let Some(prompt) = self.workspace_close.confirmation.as_ref() else {
+            return false;
+        };
+        if prompt.desired != self.desired || !self.workspace_close_quiet() {
             self.cancel_workspace_close();
             self.set_notice(ClientNotice::ConfirmationCancelled);
             return true;
         }
-        false
+        if prompt.baseline == self.cache && prompt.target.matches_snapshot(&prompt.baseline) {
+            return false;
+        }
+        if prompt
+            .target
+            .unchanged_between(&prompt.baseline, &self.cache)
+        {
+            let cache = self.cache.clone();
+            if let Some(prompt) = self.workspace_close.confirmation.as_mut() {
+                prompt.baseline = cache;
+            }
+            return false;
+        }
+        self.cancel_workspace_close();
+        self.set_notice(ClientNotice::WorkspaceChanged);
+        true
     }
     pub(crate) fn plan_workspace_close(
         &self,
@@ -556,10 +627,15 @@ impl WorkbenchClientState {
         deadlines: OperationDeadlines,
     ) -> Option<WorkspaceCloseOperation> {
         let prompt = self.workspace_close.confirmation.as_ref()?;
+        // An unrelated publication since the prompt was drawn rebases the frozen scope; a change
+        // to the scope itself never reaches the Server.
         if !prompt.shown
             || prompt.token != token
-            || prompt.baseline != self.cache
             || !prompt.target.matches_snapshot(&prompt.baseline)
+            || (prompt.baseline != self.cache
+                && !prompt
+                    .target
+                    .unchanged_between(&prompt.baseline, &self.cache))
             || prompt.desired != self.desired
             || !self.workspace_close_quiet()
             || generation == 0
@@ -574,7 +650,7 @@ impl WorkbenchClientState {
             request_id,
             generation,
             deadlines,
-            baseline: prompt.baseline.clone(),
+            baseline: self.cache.clone(),
             desired: prompt.desired.clone(),
             label: prompt.label.clone(),
         })
@@ -582,6 +658,25 @@ impl WorkbenchClientState {
     pub(crate) fn begin_workspace_close(&mut self, operation: WorkspaceCloseOperation) -> bool {
         if operation.conditional {
             if !self.sidebar_workspace_delete_current(&operation) {
+                return false;
+            }
+            self.install_workspace_close(operation);
+            return true;
+        }
+        if operation.recheck {
+            let Some(prior) = self.stale_workspace_close().cloned() else {
+                return false;
+            };
+            if self
+                .plan_workspace_close_retry(
+                    &prior,
+                    operation.request_id.clone(),
+                    operation.generation,
+                    operation.deadlines,
+                )
+                .as_ref()
+                != Some(&operation)
+            {
                 return false;
             }
             self.install_workspace_close(operation);
@@ -610,6 +705,79 @@ impl WorkbenchClientState {
         self.cancel_workspace_close();
         self.install_workspace_close(operation);
         true
+    }
+    /// The operation of a retained close that a newer projection kept from admission.
+    fn stale_workspace_close(&self) -> Option<&WorkspaceCloseOperation> {
+        self.workspace_close
+            .evidence
+            .as_ref()
+            .filter(|evidence| matches!(evidence.result, WorkspaceCloseResult::Stale))
+            .map(|evidence| &evidence.operation)
+    }
+    /// Re-plans a confirmed close once against the newer projection after its first request
+    /// named an outdated revision. The user already confirmed this exact unchanged scope.
+    pub(crate) fn plan_workspace_close_retry(
+        &self,
+        prior: &WorkspaceCloseOperation,
+        request_id: WorkbenchRequestId,
+        generation: u64,
+        deadlines: OperationDeadlines,
+    ) -> Option<WorkspaceCloseOperation> {
+        if prior.conditional
+            || prior.recheck
+            || generation == 0
+            || self.stale_workspace_close() != Some(prior)
+            || !self.close_scope_available()
+            || !prior.target.unchanged_between(&prior.baseline, &self.cache)
+        {
+            return None;
+        }
+        Some(WorkspaceCloseOperation {
+            conditional: false,
+            destructive: prior.destructive,
+            recheck: true,
+            target: prior.target.clone(),
+            request_id,
+            generation,
+            deadlines,
+            baseline: self.cache.clone(),
+            desired: self.desired.clone(),
+            label: prior.label.clone(),
+        })
+    }
+    /// What follows a close that a newer projection kept from admission. No variant leaves the
+    /// outdated request as a refusal status.
+    pub(crate) fn review_stale_workspace_close(
+        &mut self,
+        evidence: &WorkspaceCloseEvidence,
+    ) -> StaleCloseReview {
+        if !matches!(evidence.result, WorkspaceCloseResult::Stale)
+            || self.pending_refresh_generation() == Some(evidence.operation.generation)
+            || matches!(self.phase, ClientPhase::Retired(_))
+        {
+            return StaleCloseReview::NotApplicable;
+        }
+        if !evidence.operation.recheck
+            && self.close_scope_available()
+            && evidence
+                .operation
+                .target
+                .unchanged_between(&evidence.operation.baseline, &self.cache)
+        {
+            return if evidence.operation.conditional {
+                evidence
+                    .operation
+                    .target
+                    .workspace_id()
+                    .map_or(StaleCloseReview::NotApplicable, |workspace| {
+                        StaleCloseReview::Recheck(workspace.clone())
+                    })
+            } else {
+                StaleCloseReview::Retry
+            };
+        }
+        self.settle_sidebar_workspace_delete_changed();
+        StaleCloseReview::Changed
     }
     fn install_workspace_close(&mut self, operation: WorkspaceCloseOperation) {
         self.pending_refresh = Some(PendingRefreshFlight::recovery(operation.generation));
@@ -828,6 +996,7 @@ pub(crate) fn retains_close_result(
         (
             WorkspaceCloseResult::NotSubmitted
             | WorkspaceCloseResult::Refused
+            | WorkspaceCloseResult::Stale
             | WorkspaceCloseResult::Unknown,
             _,
         ) => true,

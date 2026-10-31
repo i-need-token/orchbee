@@ -37,7 +37,8 @@ impl WorkbenchClientUi {
         &mut self,
         origin: crate::local_client::LocalClientOrigin,
     ) {
-        self.publications = origin.watch_changes().ok();
+        // Snapshot publications only: output-only commits must not keep a refresh in flight.
+        self.publications = origin.watch_publications().ok();
         self.launch_profiles.set_origin(&origin);
         self.attention.set_origin(origin.clone());
         self.reports.set_origin(origin.clone());

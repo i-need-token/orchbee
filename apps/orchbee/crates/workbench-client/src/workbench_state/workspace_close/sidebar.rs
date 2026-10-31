@@ -48,6 +48,22 @@ impl WorkspaceDeleteRequest {
     pub(crate) fn deadline(&self) -> Instant {
         self.deadline
     }
+    /// The same request over a newer projection when its target facts are unchanged, so an
+    /// unrelated publication between capture and admission never refuses it.
+    pub(crate) fn rebased(&self, state: &WorkbenchClientState) -> Option<Self> {
+        if self.baseline == state.cache {
+            return Some(self.clone());
+        }
+        if self.desired != state.desired
+            || !target_unchanged(&self.baseline, &state.cache, &self.workspace.workspace_id)
+        {
+            return None;
+        }
+        Some(Self {
+            baseline: state.cache.clone(),
+            ..self.clone()
+        })
+    }
 }
 
 /// The next step after a conditional Close reply. No variant discards a confirmation silently.
@@ -81,7 +97,7 @@ fn target_facts<'a>(
 }
 
 /// Unrelated snapshot changes keep the reply valid; a change to the target itself does not.
-fn target_unchanged(
+pub(super) fn target_unchanged(
     before: &ClientContextTabs,
     after: &ClientContextTabs,
     workspace_id: &WorkbenchWorkspaceId,
@@ -185,14 +201,17 @@ impl WorkbenchClientState {
         SidebarDeleteReview::Changed
     }
 
-    /// Ends a conditional reply that cannot become a confirmation with a visible retry notice.
+    /// Ends a reply that cannot become a confirmation or a retry with a visible retry notice.
     pub(crate) fn settle_sidebar_workspace_delete_changed(&mut self) {
         if self
             .workspace_close
             .evidence
             .as_ref()
             .is_some_and(|evidence| {
-                matches!(evidence.result, WorkspaceCloseResult::ConfirmationRequired)
+                matches!(
+                    evidence.result,
+                    WorkspaceCloseResult::ConfirmationRequired | WorkspaceCloseResult::Stale
+                )
             })
         {
             self.workspace_close.evidence = None;

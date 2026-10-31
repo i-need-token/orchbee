@@ -47,6 +47,24 @@ impl CommandMailbox {
             },
         )
     }
+    /// Submits a confirmed close once more against the newer projection that kept its first
+    /// request from admission. The state owner admits only the single unchanged-scope retry.
+    pub(in crate::workbench_client) fn try_enqueue_workspace_close_retry_for(
+        &self,
+        canonical: &mut WorkbenchClientState,
+        prior: &WorkspaceCloseOperation,
+        deadlines: OperationDeadlines,
+        clock: &dyn MailboxClock,
+    ) -> bool {
+        self.enqueue_workspace_close(
+            canonical,
+            deadlines,
+            clock,
+            |state, request_id, generation| {
+                state.plan_workspace_close_retry(prior, request_id, generation, deadlines)
+            },
+        )
+    }
     fn enqueue_workspace_close(
         &self,
         canonical: &mut WorkbenchClientState,

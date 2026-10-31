@@ -48,6 +48,8 @@ impl Scope {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Cut {
     StaleSource,
+    /// A peer commit advances the revision between the fresh read and the Close command.
+    RevisionRaced,
     StaleTarget,
     RemovedTarget,
     UnknownStart,
@@ -383,6 +385,50 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
         .map_err(|error| io::Error::other(format!("{scope:?} {cut:?} fresh snapshot: {error}")))?;
         if !cut.rejects_source() {
             let start = read_workbench_request(&mut stream).map_err(io::Error::other)?;
+            if cut == Cut::RevisionRaced {
+                assert_eq!(
+                    start,
+                    WorkbenchRequest::Command(expected.workspace_command().unwrap())
+                );
+                write_workbench_response(
+                    &mut stream,
+                    &WorkbenchResponse::Command(WorkbenchCommandResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: expected.request_id.clone(),
+                        outcome: WorkbenchCommandOutcome::Rejected {
+                            revision: WorkbenchRevision::new(2),
+                            reason: WorkbenchRejectionReason::RevisionMismatch,
+                        },
+                    }),
+                )
+                .map_err(io::Error::other)?;
+                let WorkbenchRequest::PublicationRead(read) =
+                    read_workbench_request(&mut stream).map_err(io::Error::other)?
+                else {
+                    return Err(io::Error::other("a raced Close reads the newer projection"));
+                };
+                assert_eq!(read.known_revision, WorkbenchRevision::new(1));
+                let mut raced = snapshot.clone();
+                raced.revision = WorkbenchRevision::new(2);
+                write_workbench_response(
+                    &mut stream,
+                    &WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: read.request_id,
+                        outcome: WorkbenchPublicationOutcome::Published {
+                            publications: vec![WorkbenchPublicationDocument::Snapshot(raced)],
+                        },
+                    }),
+                )
+                .map_err(io::Error::other)?;
+                let mut trailing = [0];
+                assert_eq!(
+                    stream.read(&mut trailing)?,
+                    0,
+                    "the executor never replays a refused command itself"
+                );
+                return Ok(());
+            }
             let initial = if scope.project() {
                 assert_eq!(
                     start,
@@ -572,27 +618,78 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
     if cut.rejects_source()
         || matches!(
             cut,
-            Cut::Complete | Cut::ObservationUnavailable | Cut::ObservationRemoved
+            Cut::RevisionRaced
+                | Cut::Complete
+                | Cut::ObservationUnavailable
+                | Cut::ObservationRemoved
         )
     {
         assert_eq!(result, Ok(()), "{scope:?} {cut:?}");
         assert!(evidence.is_none());
-        let expected_status = match cut {
-            Cut::Complete => WorkspaceCloseStatus::Closed,
-            Cut::StaleSource | Cut::StaleTarget | Cut::RemovedTarget => {
-                WorkspaceCloseStatus::Refused
+        match cut {
+            // A newer projection is not a refusal: the confirmed scope is unchanged, so it is
+            // submitted once more against that projection, with no refusal status meanwhile.
+            Cut::StaleSource | Cut::RevisionRaced => {
+                assert!(
+                    ui.view().workspace_close_status().is_none(),
+                    "{scope:?} {cut:?}: an outdated revision is not shown as a refusal"
+                );
+                let retry = mailbox
+                    .try_recv()
+                    .unwrap()
+                    .unwrap_or_else(|| panic!("{scope:?} {cut:?}: one automatic retry"));
+                let QueuedCommand::Refresh(marker) = retry.record() else {
+                    panic!("{scope:?} {cut:?}: the retry is a Close refresh");
+                };
+                let retried = marker.workspace_close().unwrap();
+                assert_eq!(
+                    mailbox
+                        .workspace_close_worker_loss()
+                        .map(|evidence| evidence.operation),
+                    Some(retried.clone()),
+                    "only the retry is admitted; nothing of the refused attempt remains"
+                );
+                assert_eq!(retried.target, operation.target);
+                assert_eq!(retried.baseline.revision(), WorkbenchRevision::new(2));
+                assert_ne!(retried.request_id, operation.request_id);
+                if let Some(command) = retried.workspace_command() {
+                    assert_eq!(
+                        command.action,
+                        operation.workspace_command().unwrap().action,
+                        "the retry keeps the confirmed destructive action"
+                    );
+                    assert_eq!(command.expected_revision, WorkbenchRevision::new(2));
+                }
             }
-            _ => WorkspaceCloseStatus::Closing,
-        };
-        assert_eq!(
-            ui.view()
-                .workspace_close_status()
-                .unwrap_or_else(|| panic!(
-                    "{scope:?} {cut:?}: close status must retain its admitted result"
-                ))
-                .status(),
-            expected_status
-        );
+            // A changed or removed scope is never resubmitted; the user sees why.
+            Cut::StaleTarget | Cut::RemovedTarget => {
+                assert!(
+                    ui.view().workspace_close_status().is_none(),
+                    "{scope:?} {cut:?}: no refusal status beside the notice"
+                );
+                assert_eq!(
+                    ui.view().notice(),
+                    Some(crate::localization::WorkbenchClientNotice::WorkspaceChanged)
+                );
+                assert!(mailbox.try_recv().unwrap().is_none());
+            }
+            _ => {
+                let expected_status = if cut == Cut::Complete {
+                    WorkspaceCloseStatus::Closed
+                } else {
+                    WorkspaceCloseStatus::Closing
+                };
+                assert_eq!(
+                    ui.view()
+                        .workspace_close_status()
+                        .unwrap_or_else(|| panic!(
+                            "{scope:?} {cut:?}: close status must retain its admitted result"
+                        ))
+                        .status(),
+                    expected_status
+                );
+            }
+        }
         let active = ui
             .view()
             .context_at(ui.view().active_context_position().unwrap() - 1)
@@ -631,7 +728,9 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
                 "the empty compatibility slot is not a navigation row"
             );
         }
-        assert!(mailbox.workspace_close_worker_loss().is_none());
+        if !matches!(cut, Cut::StaleSource | Cut::RevisionRaced) {
+            assert!(mailbox.workspace_close_worker_loss().is_none());
+        }
     } else {
         assert!(result.is_err(), "{scope:?} {cut:?}");
         let evidence = evidence.expect("admission and known facts survive worker exit");
@@ -686,6 +785,7 @@ fn workspace_close_carrier_single_scope_and_every_failure_boundary_preserve_trut
 -> TestResult {
     for cut in [
         Cut::StaleSource,
+        Cut::RevisionRaced,
         Cut::UnknownStart,
         Cut::AcceptedReadLost,
         Cut::PendingReadLost,

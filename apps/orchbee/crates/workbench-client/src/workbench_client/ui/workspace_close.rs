@@ -2,6 +2,7 @@
 //! retained outcomes to Client state. It does not perform physical closure or authorize an
 //! unpresented confirmation.
 
+use super::held_intent::HeldIntent;
 use super::{ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
 use crate::client_view::{ClientActionDisposition, ClientKey};
 use crate::workbench_client::mailbox::{CommandMailbox, UiWaitKey};
@@ -9,7 +10,8 @@ use crate::workbench_client::mailbox::{CommandMailbox, UiWaitKey};
 pub(crate) use crate::workbench_state::workspace_close::WorkspaceCloseStatus;
 pub use crate::workbench_state::workspace_close::WorkspaceCloseToken;
 use crate::workbench_state::workspace_close::{
-    SidebarDeleteReview, WorkspaceCloseEvidence, WorkspaceDeleteRequest,
+    SidebarDeleteReview, StaleCloseReview, WorkspaceCloseEvidence, WorkspaceCloseOperation,
+    WorkspaceDeleteRequest,
 };
 pub(crate) use crate::workbench_state::workspace_close::{
     WorkspaceCloseConfirmationView, WorkspaceCloseStatusView,
@@ -43,10 +45,22 @@ impl WorkbenchClientUi {
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
             return ClientActionDisposition::KeepNavigator;
         };
-        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+        let Some(state) = self.state.as_mut() else {
             return ClientActionDisposition::KeepNavigator;
         };
-        if mailbox.try_enqueue_sidebar_workspace_delete_for(state, request, deadlines, &self.clock)
+        // A held or retried request meets the newer projection its wait installed.
+        let Some(request) = request.rebased(state) else {
+            state.set_notice(ClientNotice::WorkspaceChanged);
+            return ClientActionDisposition::KeepNavigator;
+        };
+        if state.background_refresh_only() {
+            self.hold_intent(HeldIntent::WorkspaceDelete(Box::new(request)));
+            return ClientActionDisposition::DismissNavigator;
+        }
+        let Some(mailbox) = self.mailbox.as_ref() else {
+            return ClientActionDisposition::KeepNavigator;
+        };
+        if mailbox.try_enqueue_sidebar_workspace_delete_for(state, &request, deadlines, &self.clock)
         {
             ClientActionDisposition::DismissNavigator
         } else {
@@ -174,15 +188,9 @@ impl WorkbenchClientUi {
             return true;
         }
         match key {
-            ClientKey::Enter => {
-                if let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now())
-                    && let (Some(mailbox), Some(state)) =
-                        (self.mailbox.as_ref(), self.state.as_mut())
-                {
-                    mailbox.try_enqueue_workspace_close_for(state, token, deadlines, &self.clock);
-                }
-            }
+            ClientKey::Enter => self.submit_workspace_close(token),
             ClientKey::Escape => {
+                self.release_held_workspace_close(token);
                 if let Some(state) = self.state.as_mut() {
                     state.cancel_workspace_close();
                 }
@@ -190,6 +198,31 @@ impl WorkbenchClientUi {
             _ => {}
         }
         true
+    }
+    /// Confirms the drawn prompt. A background read that owns the refresh slot holds the
+    /// confirmation until it settles; any other refusal says that nothing was sent.
+    fn submit_workspace_close(&mut self, token: WorkspaceCloseToken) {
+        if self
+            .state
+            .as_ref()
+            .is_some_and(WorkbenchClientState::background_refresh_only)
+        {
+            self.hold_intent(HeldIntent::WorkspaceClose(token));
+            return;
+        }
+        let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
+            return;
+        };
+        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+            return;
+        };
+        if !mailbox.try_enqueue_workspace_close_for(state, token, deadlines, &self.clock)
+            && state
+                .workspace_close_confirmation()
+                .is_some_and(|prompt| prompt.token() == token)
+        {
+            state.set_notice(ClientNotice::LocalBusy);
+        }
     }
     /// A pointer gesture must still name this exact confirmation at release time.
     pub(crate) fn click_workspace_close(&mut self, token: WorkspaceCloseToken, confirm: bool) {
@@ -268,7 +301,32 @@ impl WorkbenchClientUi {
         if let Some(SidebarDeleteReview::Recheck(workspace_id)) = review {
             self.recheck_sidebar_workspace_delete(&workspace_id);
         }
+        match self
+            .state
+            .as_mut()
+            .map(|state| state.review_stale_workspace_close(&evidence))
+        {
+            Some(StaleCloseReview::Retry) => self.retry_workspace_close(&evidence.operation),
+            Some(StaleCloseReview::Recheck(workspace_id)) => {
+                self.recheck_sidebar_workspace_delete(&workspace_id);
+            }
+            Some(StaleCloseReview::NotApplicable | StaleCloseReview::Changed) | None => {}
+        }
         changed
+    }
+
+    /// Submits a confirmed close once more after a newer projection kept the first request from
+    /// admission. The user confirmed this exact scope, and the state owner proved it unchanged.
+    fn retry_workspace_close(&mut self, prior: &WorkspaceCloseOperation) {
+        let admitted = OperationDeadlines::from_sample(self.clock.now()).is_some_and(|deadlines| {
+            let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+                return false;
+            };
+            mailbox.try_enqueue_workspace_close_retry_for(state, prior, deadlines, &self.clock)
+        });
+        if !admitted && let Some(state) = self.state.as_mut() {
+            state.settle_sidebar_workspace_delete_changed();
+        }
     }
 
     /// Re-asks the Server once after the target changed under its confirmation reply. The

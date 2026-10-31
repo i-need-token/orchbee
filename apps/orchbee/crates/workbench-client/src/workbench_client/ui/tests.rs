@@ -14,6 +14,7 @@ pub(in crate::workbench_client::ui) mod panel_reports;
 pub(in crate::workbench_client::ui) mod program_effect;
 pub(in crate::workbench_client) mod publication_hint;
 pub(in crate::workbench_client::ui) mod quick_workspace;
+pub(in crate::workbench_client::ui) mod refresh_gating;
 pub(in crate::workbench_client::ui) mod rename_membership;
 pub(in crate::workbench_client::ui) mod retired_membership;
 pub(in crate::workbench_client::ui) mod selection;
