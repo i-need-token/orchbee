@@ -9,6 +9,7 @@ pub const editor_document = @import("editor_document.zig");
 
 pub const testing = if (builtin.is_test) struct {
     pub const conpty = @import("conpty_windows.zig").testing;
+    pub const powershell_startup = @import("powershell_integration.zig").script;
     pub const session_signaling = @import("process_session.zig").testing;
     pub const pty = @import("pty.zig");
     pub const windows_api = struct {

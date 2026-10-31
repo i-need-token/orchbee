@@ -934,9 +934,10 @@ interactive shell without injecting it twice. The `-Command` switch alone never 
 classification: a modified script, extra command operand or noninteractive flag remains a program.
 The reader admits only standard PSReadLine module/export identity and known definition fingerprints;
 custom or unsupported definitions remain untouched and unknown for guarded Close. A/B/C markers
-preserve the preceding command's status, reader results, history and key hooks. Skipped or repeated
-installation cannot abort surrounding initialization. Encoded command helpers retain only
-the common UTF-8/directory initialization, with no reader hook.
+preserve the preceding command's status, reader results and key hooks. History keeps the user's
+own lines and handler; a line submitted with the Orchbee run prefix is withheld from PSReadLine
+history for that read only. Skipped or repeated installation cannot abort surrounding
+initialization. Encoded command helpers set only UTF-8 encoding, with no prompt or reader hook.
 
 Initialization sets this child's native-output decoding and outgoing pipeline encoding to
 UTF-8 without a BOM. Native CLI JSON therefore survives PowerShell pipelines on both 5.1
@@ -945,14 +946,18 @@ observe the previous command's success, then synchronizes a FileSystem provider 
 to `[Environment]::CurrentDirectory`. Non-filesystem providers and failed assignments leave
 the process directory unchanged. It installs once per process, never writes a user profile,
 never interpolates launch data, and emits the original prompt result. The first prompt also removes the
-startup command's own session-history entry, so `Get-History` and PSReadLine history hold only user commands. Root process sampling
+startup command's own session-history entry, and each later prompt removes the entry of a
+run-prefixed line, so `Get-History` and PSReadLine history hold only user-typed commands. Root process sampling
 can then observe directory changes for native CLI creation without acquiring terminal input.
 
 This is launch preparation before the existing Host handoff, not a second shell/process or
 an acknowledgment that a terminal launched. Existing terminals receive no retrofit. Unit
 admission cases and actual Windows PowerShell 5.1/7 prompt and pipeline tests cover native
 UTF-8 decoding, custom prompts, session history, failed
-commands, Unicode directories, non-filesystem providers and idempotence. Real ConPTY creation
+commands, Unicode directories, non-filesystem providers and idempotence. A Host engine test
+(`zig build test-powershell-history`) runs real 5.1 and 7 shells under ConPTY with PSReadLine's
+history file in a private temporary directory and checks that a submitted line stays out of
+session history, PSReadLine memory and the file. Real ConPTY creation
 checks the root process cwd after Set-Location. Arbitrary custom startup commands remain outside
 this integration; no current-directory accuracy claim is made for their private shell state.
 

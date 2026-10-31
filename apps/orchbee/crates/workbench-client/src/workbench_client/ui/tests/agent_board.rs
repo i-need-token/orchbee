@@ -310,3 +310,64 @@ fn a_new_higher_capture_blocks_a_jump_before_the_next_cover_receipt() {
         Some(crate::agent_board::JumpStage::Navigating { index: 0, .. })
     ));
 }
+
+/// A board row names an automatic Tab exactly as the Tab strip does, never by its canonical
+/// ordinal: the program while no title is observed, then the program's live title.
+#[test]
+fn rows_name_an_automatic_tab_as_the_tab_strip_does() {
+    use crate::agent_board::LivePlacementNames;
+    use crate::localization::Locale;
+    let mut source = super::super::tests::membership::snapshot(1, 1);
+    let tab = &mut source.terminal_contexts[0].tabs[0];
+    tab.automatic_label = true;
+    tab.label = "1".into();
+    let PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &mut tab.root
+    else {
+        unreachable!()
+    };
+    primary_presentation.label = "1".into();
+    primary_presentation.launch_program =
+        Some(PresentationLaunchProgram::parse("pwsh.exe").unwrap());
+    let presentation = primary_presentation.presentation_id.as_str().to_owned();
+    let index = crate::agent_board::PresentationIndex::rebuild(&source);
+    let placement = index
+        .placement_by_presentation(&presentation)
+        .unwrap()
+        .clone();
+    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
+    let named = |ui: &WorkbenchClientUi, locale| {
+        let view = ui.view();
+        let strip = view.tab(0).unwrap().display_label(locale).into_owned();
+        let live: &dyn LivePlacementNames = &view;
+        (strip, placement.names(&presentation, Some(live), locale))
+    };
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let (strip, names) = named(&ui, locale);
+        assert_eq!(strip, "PowerShell");
+        assert_eq!(names, (strip.clone(), strip.clone()));
+        // Without a live Tab, snapshot facts give the same name.
+        assert_eq!(
+            placement.names(&presentation, None, locale),
+            (strip.clone(), strip)
+        );
+    }
+    let key = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
+    let mut projection = TerminalProjection::new(
+        orchbee_terminal_protocol::AttachmentId::parse(&format!("{:032x}", 7001)).unwrap(),
+        orchbee_terminal_protocol::HostEpoch::parse(&format!("{:032x}", 7002)).unwrap(),
+    );
+    let mut frame = super::super::tests::viewport::frame(&projection, 0, false, 24);
+    frame.title = Some("build log".into());
+    projection.install_frame_for_test(frame);
+    ui.projections.push(KeyedProjection::for_test(
+        key,
+        projection,
+        ClientProjectionStatus::FrameAvailable,
+    ));
+    let (strip, names) = named(&ui, Locale::EnUs);
+    assert_eq!(strip, "build log");
+    assert_eq!(names, (strip.clone(), strip));
+}

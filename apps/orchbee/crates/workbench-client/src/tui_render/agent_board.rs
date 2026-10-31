@@ -998,21 +998,25 @@ fn render_row(
     };
     let ended = row.lifecycle() == AgentLifecycle::Ended;
     // The opaque session id stays internal: selection and jumps use it, but the
-    // row names the session by its terminal title, then provider and Workspace,
-    // and an unplaced session by a localized placeholder.
+    // row names the session by its terminal's Tab-strip name, then provider and
+    // Workspace, and an unplaced session by a localized placeholder.
     let provider = sanitize_terminal_text(row.provider_id().as_str());
     let separator = format!(" {} ", theme.glyphs.middle_dot);
-    let placement = row
+    let placed = row
         .attachments()
         .iter()
         .find(|attachment| attachment.navigable)
-        .and_then(|attachment| board.placement(attachment));
-    let title = placement
-        .map(|placement| sanitize_terminal_text(placement.panel_label.trim()).into_owned())
+        .and_then(|attachment| Some((attachment, board.placement(attachment)?)));
+    let placement = placed.map(|(_, placement)| placement);
+    let names =
+        placed.map(|(attachment, placement)| board.placement_names(attachment, placement, locale));
+    let title = names
+        .as_ref()
+        .map(|(title, _)| sanitize_terminal_text(title.trim()).into_owned())
         .unwrap_or_default();
-    let location = placement.map_or_else(
+    let location = placement.zip(names.as_ref()).map_or_else(
         || text.board.no_panel.to_owned(),
-        |placement| location_label(text, placement, &separator, &title),
+        |(placement, (_, tab))| location_label(text, placement, tab, &separator, &title),
     );
     let detail = [title, provider.into_owned(), freshness.to_owned(), location]
         .into_iter()
@@ -1098,11 +1102,12 @@ fn render_row(
 }
 
 /// The workspace/project context and tab for the row's location cell —
-/// display only; navigation never reads it back. A tab label that repeats the
+/// display only; navigation never reads it back. A tab name that repeats the
 /// row title is omitted. The separator is the active theme's host-safe glyph form.
 fn location_label(
     text: ShellText,
     placement: &PresentationPlacement,
+    tab: &str,
     separator: &str,
     title: &str,
 ) -> String {
@@ -1112,7 +1117,7 @@ fn location_label(
         .or_else(|| placement.project_label.clone())
         .unwrap_or_else(|| text.board.no_workspace.to_owned());
     let context = sanitize_terminal_text(&context);
-    let tab = sanitize_terminal_text(placement.tab_label.trim());
+    let tab = sanitize_terminal_text(tab.trim());
     if tab.is_empty() || tab == title {
         context.into_owned()
     } else {

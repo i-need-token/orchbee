@@ -549,3 +549,36 @@ impl WorkbenchClientUi {
         }
     }
 }
+
+impl crate::agent_board::LivePlacementNames for super::WorkbenchClientView<'_> {
+    /// The strip's own names for a Tab of the current context: the Tab's display name and, for
+    /// the Panel's selected Presentation, the same automatic name the strip derives from it.
+    fn placement_names(
+        &self,
+        presentation_id: &str,
+        placement: &crate::agent_board::PresentationPlacement,
+        locale: crate::localization::Locale,
+    ) -> Option<(String, String)> {
+        if self.state.as_ref()?.location() != &placement.location {
+            return None;
+        }
+        let tab = self.tab_by_id(&placement.tab_id)?;
+        let panel = (0..tab.panel_count())
+            .filter_map(|index| tab.panel(index))
+            .find(|panel| panel.panel_id() == &placement.panel_id)?;
+        let member = panel
+            .presentations()
+            .find(|member| member.presentation_id().as_str() == presentation_id)?;
+        let tab_name = tab.display_label(locale).into_owned();
+        let title = if std::ptr::eq(self.selected_presentation(panel), member) {
+            self.automatic_name(&tab.inner, panel)
+                .map(|name| locale.chrome_name(name).into_owned())
+        } else {
+            let facts = crate::agent_board::NameFacts::of(member);
+            facts
+                .chrome()
+                .map(|name| locale.chrome_name(name).into_owned())
+        };
+        Some((title.unwrap_or_else(|| tab_name.clone()), tab_name))
+    }
+}

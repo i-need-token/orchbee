@@ -1,59 +1,58 @@
 & {
 try {
-	$orchbeeReaderInfo = Get-Command PSConsoleHostReadLine -CommandType Function -ErrorAction Stop
-	$orchbeeReader = $orchbeeReaderInfo.ScriptBlock
-	$orchbeeReaderModule = $orchbeeReaderInfo.Module
-	if ($orchbeeReaderInfo.ModuleName -cne 'PSReadLine' -or
-		$null -eq $orchbeeReaderModule -or
-		-not [Object]::ReferenceEquals($orchbeeReaderModule, $orchbeeReader.Module) -or
-		-not [Object]::ReferenceEquals($orchbeeReader, $orchbeeReaderModule.ExportedFunctions['PSConsoleHostReadLine'].ScriptBlock)) {
+	$info = Get-Command PSConsoleHostReadLine -CommandType Function -ErrorAction Stop
+	$reader = $info.ScriptBlock
+	$module = $info.Module
+	if ($info.ModuleName -cne 'PSReadLine' -or
+		$null -eq $module -or
+		-not [Object]::ReferenceEquals($module, $reader.Module) -or
+		-not [Object]::ReferenceEquals($reader, $module.ExportedFunctions['PSConsoleHostReadLine'].ScriptBlock)) {
 		return
 	}
-	$orchbeeReaderHash = [Security.Cryptography.SHA256]::Create()
-	try {
-		$orchbeeReaderDefinition = $orchbeeReader.ToString().Replace("`r`n", "`n").Trim()
-		$orchbeeReaderDigest = [Convert]::ToBase64String($orchbeeReaderHash.ComputeHash([Text.Encoding]::UTF8.GetBytes($orchbeeReaderDefinition)))
-	}
-	finally { $orchbeeReaderHash.Dispose() }
-	if (@('iAnIyZJ+j/P8fdpOZzmqhTQ1K3JRBZTXtr+RZ1yWZpw=', 'UYpf5gWrwcMQjSQneB/98ZokHI5GG6aaCS/hD4Mp7GM=') -cnotcontains $orchbeeReaderDigest) {
+	$hash = [Security.Cryptography.SHA256]::Create()
+	try { $digest = [Convert]::ToBase64String($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes($reader.ToString().Replace("`r`n", "`n").Trim()))) }
+	finally { $hash.Dispose() }
+	$aware = $digest -ceq 'UYpf5gWrwcMQjSQneB/98ZokHI5GG6aaCS/hD4Mp7GM='
+	if (-not $aware -and $digest -cne 'iAnIyZJ+j/P8fdpOZzmqhTQ1K3JRBZTXtr+RZ1yWZpw=') {
 		return
 	}
-	$orchbeeStatusAwareReader = $orchbeeReaderDigest -ceq 'UYpf5gWrwcMQjSQneB/98ZokHI5GG6aaCS/hD4Mp7GM='
-	$orchbeeReadContext = & $orchbeeReaderModule { $ExecutionContext }
-	$orchbeeWrappedReader = {
+	$context = & $module { $ExecutionContext }
+	$e = [char]27
+	$wrapped = {
 		[System.Diagnostics.DebuggerHidden()]
 		param()
-		$orchbeeLastStatus = $?
+		$status = $?
 		Microsoft.PowerShell.Core\Set-StrictMode -Off
-		[Console]::Write("$([char]27)]133;P`a$([char]27)]133;B`a$([char]27)_orchbee.command.v1;ready$([char]27)\")
-		$orchbeeLine = $null
+		[Console]::Write("$e]133;P`a$e]133;B`a${e}_orchbee.command.v1;ready$e\")
+		$options = [Microsoft.PowerShell.PSConsoleReadLine]::GetOptions()
+		$history = $options.AddToHistoryHandler
+		$options.AddToHistoryHandler = { param($line) if ($line -cmatch '\A<#orchbee-run:[0-9a-f]{32}#> ') { $false } elseif ($history) { $history.Invoke($line) } else { $true } }.GetNewClosure()
+		$line = $null
 		try {
-			if ($orchbeeStatusAwareReader) {
-				$orchbeeLine = [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($host.Runspace, $orchbeeReadContext, $orchbeeLastStatus)
-			}
-			else {
-				$orchbeeLine = & $orchbeeReader @args
-			}
+			$line = if ($aware) { [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($host.Runspace, $context, $status) } else { & $reader @args }
 		}
 		finally {
-			[Console]::Write("$([char]27)]133;C`a")
+			$options.AddToHistoryHandler = $history
+			[Console]::Write("$e]133;C`a")
 		}
-		if ($orchbeeLine -cmatch '\A<#orchbee-run:([0-9a-f]{32})#> ') {
-			$global:__OrchbeeRunId = $Matches[1]
-			$global:__OrchbeeRunTyped = $false
-			$env:ORCHBEE_RUN_TOKEN = $global:__OrchbeeRunId
-			$orchbeeLine = $orchbeeLine.Substring($Matches[0].Length)
-			[Console]::Write("$([char]27)_orchbee.command.v1;start;$global:__OrchbeeRunId$([char]27)\")
+		$id = $null
+		if ($line -cmatch '\A<#orchbee-run:([0-9a-f]{32})#> ') {
+			$id = $Matches[1]
+			$line = $line.Substring($Matches[0].Length)
+			$global:__OrchbeeRunLine = $line
 		}
-		elseif (-not [string]::IsNullOrWhiteSpace($orchbeeLine)) {
-			$global:__OrchbeeRunId = [Guid]::NewGuid().ToString('N')
-			$global:__OrchbeeRunTyped = $true
-			$env:ORCHBEE_RUN_TOKEN = $global:__OrchbeeRunId
-			[Console]::Write("$([char]27)_orchbee.command.v1;start;$global:__OrchbeeRunId$([char]27)\")
+		elseif (-not [string]::IsNullOrWhiteSpace($line)) {
+			$id = [Guid]::NewGuid().ToString('N')
+			$global:__OrchbeeRunLine = $null
 		}
-		$orchbeeLine
+		if ($id) {
+			$global:__OrchbeeRunId = $id
+			$env:ORCHBEE_RUN_TOKEN = $id
+			[Console]::Write("${e}_orchbee.command.v1;start;$id$e\")
+		}
+		$line
 	}.GetNewClosure()
-	Set-Item -LiteralPath Function:\global:PSConsoleHostReadLine -Value $orchbeeWrappedReader -ErrorAction Stop
+	Set-Item -LiteralPath Function:\global:PSConsoleHostReadLine -Value $wrapped -ErrorAction Stop
 }
 catch {
 }

@@ -497,13 +497,17 @@ stop processes, acquire lifecycle authority, or perform automatic recovery.
 
 ## Windows directory primitives
 
-The shared pure `windows_reported_directory` decoder preserves valid terminal-reported drive/UNC observations; callers separately enforce narrower launch path bounds. `directory/windows/initialization.ps1` synchronizes PowerShell process cwd after the original prompt, preserving status and leaving non-filesystem providers unchanged. Its first prompt clears the startup pipeline's own session-history entry by that pipeline's history ID, so `Get-History` in a `-NoExit -Command` shell lists only the user's commands; PSReadLine never reads the startup text, and its history is untouched. Both ordinary Worker shells and encoded resume shells use this single hook and child-local UTF-8 native-output decoding and outgoing pipeline encoding.
+The shared pure `windows_reported_directory` decoder preserves valid terminal-reported drive/UNC observations; callers separately enforce narrower launch path bounds. `directory/windows/initialization.ps1` synchronizes PowerShell process cwd after the original prompt, preserving status and leaving non-filesystem providers unchanged. Its first prompt clears the startup pipeline's own session-history entry by that pipeline's history ID, so `Get-History` in a `-NoExit -Command` shell lists only the user's commands; PSReadLine never reads the startup text. After a line submitted with the `<#orchbee-run:<id>#> ` prefix, the prompt also removes that command's session-history entry. Ordinary Worker shells use this single hook and child-local UTF-8 native-output decoding and outgoing pipeline encoding.
 
 `windows_interactive_powershell_initialization` concatenates that common asset with
 `directory/windows/reader.ps1`, which wraps the existing interactive reader with semantic
-read-phase markers. The Worker prepares this exact startup for admitted plain PowerShell argv;
-the Host build reads the same two assets, in the same order, for injection and exact recognition.
-Encoded launch/resume helpers use only the common initialization and install no reader hook.
+read-phase markers. While it waits for a line, it swaps in a PSReadLine `AddToHistoryHandler`
+that rejects a run-prefixed line and passes every other line to the handler it replaced, then
+restores that handler. Orchbee-submitted lines therefore never reach PSReadLine history, its
+saved file or Up-arrow recall. The Worker prepares this exact startup for admitted plain
+PowerShell argv; the Host build reads the same two assets, in the same order, for injection and
+exact recognition. The noninteractive `windows_encoded_command` helper sets only UTF-8 console and
+pipeline encoding; it carries no prompt or reader asset, so its typed text stays short.
 Neither asset writes a profile or changes an external PowerShell process. Actual 5.1/7 pipeline,
 prompt and PTY startup witnesses cover the managed path; arbitrary startup scripts remain outside it.
 The assets stay compact, without comments and with tab indentation, so the complete interactive

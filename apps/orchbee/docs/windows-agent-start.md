@@ -123,8 +123,11 @@ hexadecimal value. When the shell runs the Worker's managed PowerShell initializ
 start prefixes its one submitted line with `<#orchbee-run:<token>#> `. The verified reader
 wrapper strips that prefix, exports the token as `ORCHBEE_RUN_TOKEN` to that command only, and
 echoes it in the start and finish markers; the prompt removes the variable when the command
-returns. Any other PowerShell reads the prefix as a comment and runs the command unchanged; cmd
-receives no prefix.
+returns. The prefixed line enters neither PSReadLine history (memory, saved file or Up-arrow
+recall) nor `Get-History`. Any other PowerShell reads the prefix as a comment and runs the
+command unchanged, and keeps the line in its own history. cmd receives no prefix; its console
+line history keeps the short provider command, because removing one entry would reset the user's
+whole doskey history.
 
 The Server latches each reservation's receipt from its sampler's latest frame of the same Host
 Terminal: `awaiting`, `started`, then `finished` with PowerShell's `$?`. Inspect returns it as
@@ -154,11 +157,12 @@ foreground for that step and startup keeps polling within its budget.
 
 ## Windows argument boundary
 
-The argument-free native form uses a short provider command: cmd invokes the fixed command name; PowerShell
-resolves Application/ExternalScript explicitly before invocation, excluding functions and aliases.
-No temporary launcher or execution-policy change is needed. The CLI keeps its literal argument
-wrapper; its outer shell receives
-an ASCII PowerShell UTF-16LE encoded command. Script arguments use
+An argument-free start, from the board or the CLI, uses a short provider command so the shell
+echoes one line: cmd invokes the fixed command name; PowerShell resolves Application/ExternalScript
+explicitly before invocation, excluding functions and aliases. No temporary launcher or
+execution-policy change is needed. A start with arguments uses the literal argument wrapper; its
+outer shell receives an ASCII PowerShell UTF-16LE encoded command that sets only UTF-8 encoding
+before dispatch. Script arguments use
 single-quoted values and array splatting. Native executables use Windows argv quoting.
 Batch files use an explicit system cmd with command extensions enabled, delayed expansion
 disabled and AutoRun disabled. Embedded quotes are doubled; percent expansion is interrupted

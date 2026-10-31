@@ -212,6 +212,8 @@ fn placement(location: ClientContextLocation, tab: u64, panel: u64) -> Presentat
         tab_position: 1,
         tab_label: "tab".into(),
         panel_label: "panel".into(),
+        presentation_name: NameFacts::default(),
+        automatic_tab_name: None,
         project_label: None,
         workspace_label: None,
     }

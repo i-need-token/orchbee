@@ -5,6 +5,7 @@ comptime {
     _ = @import("input_ownership_test.zig");
     _ = @import("input_queue_test.zig");
     _ = @import("launch_test.zig");
+    _ = @import("powershell_history_test.zig");
     _ = @import("projection_test.zig");
     _ = @import("runtime_completion_test.zig");
     _ = @import("runtime_containment_test.zig");

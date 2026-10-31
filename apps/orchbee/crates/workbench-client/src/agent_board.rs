@@ -20,6 +20,8 @@ use orchbee_agent_observation_protocol::{
 
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 
+mod names;
+pub(crate) use names::{LivePlacementNames, NameFacts};
 pub(crate) mod start;
 #[cfg(test)]
 mod tests;
@@ -261,6 +263,11 @@ pub(crate) struct PresentationPlacement {
     pub(crate) tab_position: usize,
     pub(crate) tab_label: String,
     pub(crate) panel_label: String,
+    /// The attached Presentation's naming facts for the Tab strip's rule.
+    pub(crate) presentation_name: NameFacts,
+    /// For an automatic Tab, the facts of the member the strip names it after when no live view
+    /// selects one: the first Panel's primary Presentation. `None` keeps a fixed name exact.
+    pub(crate) automatic_tab_name: Option<NameFacts>,
     pub(crate) project_label: Option<String>,
     pub(crate) workspace_label: Option<String>,
 }
@@ -330,6 +337,10 @@ impl PresentationIndex {
             })
             .unwrap_or((None, None));
         for (tab_index, tab) in tabs.tabs().iter().enumerate() {
+            let automatic_tab_name = tab
+                .automatic_label()
+                .then(|| tab.panel(0).map(|panel| NameFacts::of(panel.primary())))
+                .map(Option::unwrap_or_default);
             for panel_index in 0..tab.panel_count() {
                 let Some(panel) = tab.panel(panel_index) else {
                     continue;
@@ -344,6 +355,8 @@ impl PresentationIndex {
                             tab_position: tab_index + 1,
                             tab_label: tab.display_label(tab_index).into_owned(),
                             panel_label: member.display_label().to_owned(),
+                            presentation_name: NameFacts::of(member),
+                            automatic_tab_name: automatic_tab_name.clone(),
                             project_label: project_label.clone(),
                             workspace_label: workspace_label.clone(),
                         },
@@ -1800,6 +1813,7 @@ pub struct AgentBoardView<'a> {
     board: &'a AgentBoard,
     index: &'a PresentationIndex,
     attention: Option<&'a dyn AgentRowAttention>,
+    names: Option<&'a dyn LivePlacementNames>,
 }
 
 impl<'a> AgentBoardView<'a> {
@@ -1808,11 +1822,26 @@ impl<'a> AgentBoardView<'a> {
             board,
             index,
             attention: None,
+            names: None,
         }
     }
     pub(crate) fn with_attention(mut self, attention: &'a dyn AgentRowAttention) -> Self {
         self.attention = Some(attention);
         self
+    }
+    /// Names rows after the Tab strip's live names wherever the view shows the row's Tab.
+    pub(crate) fn with_names(mut self, names: &'a dyn LivePlacementNames) -> Self {
+        self.names = Some(names);
+        self
+    }
+    /// The row title and Tab name for an attachment's placement, by the Tab strip's rule.
+    pub(crate) fn placement_names(
+        &self,
+        attachment: &AgentPresentationAttachment,
+        placement: &PresentationPlacement,
+        locale: crate::localization::Locale,
+    ) -> (String, String) {
+        placement.names(attachment.presentation_id.as_str(), self.names, locale)
     }
     pub(crate) fn unread(&self, row: &AgentBoardRow) -> bool {
         {

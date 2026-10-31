@@ -18,9 +18,10 @@ pub fn windows_encoded_command(program: &str, args: &[String]) -> Option<String>
         .map(|arg| literal(arg))
         .collect::<Vec<_>>()
         .join(",");
+    // The helper never prompts, so it carries only UTF-8 console and pipeline encoding,
+    // not the interactive prompt or reader integration; its echo stays short.
     let script = format!(
-        "{}; & {{ $ErrorActionPreference='Stop';$c=Get-Command {} -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1;$a=@({values});{} }}",
-        crate::directory::WINDOWS_POWERSHELL_INITIALIZATION,
+        "$OutputEncoding=[Text.UTF8Encoding]::new($false);[Console]::OutputEncoding=$OutputEncoding; & {{ $ErrorActionPreference='Stop';$c=Get-Command {} -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1;$a=@({values});{} }}",
         literal(program),
         include_str!("windows.ps1")
     );

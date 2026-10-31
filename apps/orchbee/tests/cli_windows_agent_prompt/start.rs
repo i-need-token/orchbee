@@ -114,11 +114,8 @@ fn input(stream: &mut LocalStream, outcome: TerminalSendOutcome) {
     let SendRecord::Paste { content } = &records[0] else {
         panic!("literal command");
     };
-    assert!(
-        content
-            .as_bytes()
-            .starts_with(b"powershell.exe -NoLogo -NoProfile -EncodedCommand ")
-    );
+    // An argument-free start types only the fixed provider command into cmd.
+    assert_eq!(content.as_bytes(), b"amp");
     assert!(matches!(
         records[1],
         SendRecord::Stroke(stroke) if stroke.key() == orchbee_client_server_protocol::SendStrokeKey::Named(SendKey::Enter) && stroke.modifiers() == 0

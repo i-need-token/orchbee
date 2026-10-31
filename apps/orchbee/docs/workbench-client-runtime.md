@@ -2186,7 +2186,7 @@ composed CLI-to-TUI journey belongs to the workspace-close integration record.
 
 ## Automatic Tab naming
 
-The [Tab label contract](native-tab-labels.md) refines the label facts above: projection retains raw text and naming mode, and display derives from context position. Create checks the requested mode at its commit; reordering preserves metadata. Rename clears automatic mode, so an equal-text automatic rename is a commit and only a fixed equal-text rename is a no-op. The strip, rename draft, close confirmation and Agent board use the effective name at the captured position.
+The [Tab label contract](native-tab-labels.md) refines the label facts above: projection retains raw text and naming mode, and display derives from context position. Create checks the requested mode at its commit; reordering preserves metadata. Rename clears automatic mode, so an equal-text automatic rename is a commit and only a fixed equal-text rename is a no-op. The strip, rename draft, close confirmation and Agent board use the strip's display name for a live Tab.
 
 ## Native grouped and pinned Tab projection
 

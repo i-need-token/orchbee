@@ -126,8 +126,9 @@ stale; without `last_good` it may show only same-revision rows marked incomplete
 `last_good` never rewrites its install age, so preserved rows keep their true freshness across
 reads and across close and reopen. Rows needing attention sort ahead of ordinary rows while
 preserving canonical order inside each group. Every row keys selection and jumps by the opaque Agent
-session id but never displays it: it shows status, the attached terminal title, provider, freshness
-and resolved Workspace location (omitting a Tab label equal to the title), and a session without a
+session id but never displays it: it shows status, the attached terminal's name under the
+[Tab label rule](native-tab-labels.md#canonical-state-and-display), provider, freshness and resolved
+Workspace location (omitting a Tab name equal to the title), and a session without a
 navigable panel shows a localized placeholder in place of the location. The sidebar shows only the
 last completed read's counts, timestamp and completeness mark — closed or unread never implies
 live or zero. Get freshness and List freshness are separate domains and never substitute for each

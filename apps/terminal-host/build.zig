@@ -667,6 +667,13 @@ pub fn build(builder: *std.Build) void {
     });
     scrollback_capture_tests.root_module.link_libc = true;
     scrollback_capture_step.dependOn(&builder.addRunArtifact(scrollback_capture_tests).step);
+    const powershell_history_tests = builder.addTest(.{
+        .root_module = engine_test_module,
+        .filters = &.{"managed PowerShell keeps Orchbee-submitted lines"},
+    });
+    powershell_history_tests.root_module.link_libc = true;
+    builder.step("test-powershell-history", "Run real PowerShell history checks for Orchbee-submitted lines")
+        .dependOn(&builder.addRunArtifact(powershell_history_tests).step);
     const editor_document_tests = builder.addTest(.{
         .root_module = platform_test_module,
         .filters = &.{"Windows editor document"},

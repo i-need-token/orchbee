@@ -601,13 +601,15 @@ pub fn render_terminal_shell_with_resize<'a>(
             && let Some(board) = native.agent_board()
         {
             let working_frame = view.machines.working_frame();
+            // Rows name each Tab of the current context exactly as the Tab strip does.
+            let board = board.with_names(native);
 
             let draw = agent_board::render(
                 frame,
                 overlay_area(&areas),
                 text,
                 locale,
-                board,
+                &board,
                 (theme, working_frame),
                 hits,
             );

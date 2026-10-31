@@ -4,17 +4,15 @@
 // on Windows PowerShell 5.1, so the wrapper captures it as a parameter default during
 // binding. Single-quoted constant text also avoids that shell's command-line quoting
 // differences. No launch argument is interpolated here. Typed commands get a shell-minted
-// run boundary and leave OSC 133 completion to the user's shell integration.
+// run boundary and leave OSC 133 completion to the user's shell integration. A line
+// submitted with the run prefix stays out of PSReadLine history while the reader holds
+// it, and the next prompt removes its session-history entry.
 //
 // The assets carry no comments and indent with tabs: the interactive startup is one
 // `-Command` argument, and the Host samples a command line longer than 4096 UTF-16 units
 // as unreadable, which hides the idle managed shell from Agent start.
-pub(crate) const WINDOWS_POWERSHELL_INITIALIZATION: &str =
-    include_str!("windows/initialization.ps1");
-
 /// Fixed initialization for runtime-owned interactive PowerShell processes.
 /// Shared assets are also the Host's exact interactive-launch recognition input.
-/// Encoded command helpers use only the common initialization, without reader hooks.
 #[must_use]
 pub fn windows_interactive_powershell_initialization() -> String {
     concat!(
