@@ -345,6 +345,10 @@ Rust、TypeScript 与 Zig binding 绝不能成为同一 serialized contract 的�
   使用 property 或 model-based evidence。
 - Integration test 使用 public crate 或 process boundary。Test-only visibility 不得扩大 production
   API 或引入 product behavior。
+- [基准](TESTING.md#基准)是显式声明且设置 `harness = false` 的 `[[bench]]` target，使用
+  `std::time::Instant` 和 `std::hint::black_box` 计时；基准框架属于需要准入的依赖。多文件基准
+  位于 `benches/<name>/main.rs`，子模块放在它旁边。Harness 只在参数包含 `--bench` 时测量，
+  `cargo bench` 会传入该参数；其他调用方式，包括 `cargo test --all-targets`，每个用例只运行一次。
 - 声称可编译或运行的 Rust 文档示例必须参与 doctest。不要用 `ignore` 隐藏错误示例；
   `compile_fail` 或 `no_run` 示例要说明其真实主张。
 - Cross-compilation 只证明可编译。Runtime、IPC、PTY、installer 与 service-lifecycle 主张需要在
@@ -377,4 +381,4 @@ workspace 构建统一后的依赖 feature，不能证明独立交付的 package
 cohort。它绝不把 `target/` 下碰巧已有的文件视为 release input。Supported target、signing、
 install path、update cohort 与 rollback 仍由每个已接受的应用发布切片负责。
 
-<!-- documentation-pairing: english-sha256=27b41bf6d3d73d2dcdc8cf045af71ce9403613baa9ed00d0c0759446fadd00b2 zh-cn-sha256=6c5a47cc6294cd58831b433c51b0b9b7e069163679ca98bf1abdd4b188d99ae2 -->
+<!-- documentation-pairing: english-sha256=efee2e5b31c5da6d7afa56bcca56ba8c2a9527b91133e096edefa75f75db4f39 zh-cn-sha256=bb89b40df000730f16ae1b3f1c85d7840e04cad1d87de857e34423b0df242d93 -->

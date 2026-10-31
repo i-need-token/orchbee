@@ -411,6 +411,12 @@ contracts that compilation cannot establish.
   when ordering or state-space risk justifies it.
 - Integration tests use public crate or process boundaries. Test-only visibility must not widen the
   production API or introduce product behavior.
+- A [benchmark](TESTING.md#benchmarks) is an explicitly declared `[[bench]]` target with
+  `harness = false`, timed with `std::time::Instant` and `std::hint::black_box`; a benchmark
+  framework is a dependency that needs admission. A multi-file benchmark lives at
+  `benches/<name>/main.rs` with its child modules beside it. The harness measures only when its
+  arguments include `--bench`, which `cargo bench` passes; any other invocation, including
+  `cargo test --all-targets`, runs every case once.
 - Rust documentation examples that claim to compile or run participate in doctests. Do not use
   `ignore` to hide a broken example; a `compile_fail` or `no_run` example states its actual claim.
 - Cross-compilation proves only compilation. Runtime, IPC, PTY, installer, and service-lifecycle

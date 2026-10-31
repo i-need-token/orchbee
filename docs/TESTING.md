@@ -85,6 +85,26 @@ depend on execution order.
   affected-test selection, and changes to required checks remain governed by
   [Verification](VERIFICATION.md); a slow test is not permission to skip required evidence.
 
+## Benchmarks
+
+Add a benchmark only for a named performance question with a recurring consumer, such as
+comparing a hot path before and after a change; it is a tracked file under
+[Repository Hygiene](REPOSITORY-HYGIENE.md#tracked-file-admission).
+
+- Reach the measured code through the entries its production consumers use. Measurement never
+  widens visibility or adds a test-access seam.
+- Measure one-time initialization and the cost repeated on every steady-state iteration as
+  separate cases. Keep input construction and release of produced state outside the timed
+  region unless they belong to the measured operation.
+- Build inputs deterministically and pass them through the real decoder or entry point, so format
+  drift fails the benchmark instead of timing a rejection path.
+- The required test gate builds every benchmark and exercises its inputs without measuring.
+  Measurement runs only on explicit request in an optimized build.
+- Report the scenario, operating system and CPU, toolchain, build profile, measurement scope,
+  machine load, and the spread across repeated process runs with each result. Compare only runs
+  with equal inputs and build; on a shared machine, compare medians of repeated runs.
+- Results are point-in-time output. Publish them in the issue or pull request, not in tracked files.
+
 ## Test execution
 
 - `vitest/expect-expect`: Every test must contain an assertion.
