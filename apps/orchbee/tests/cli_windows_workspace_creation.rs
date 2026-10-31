@@ -701,15 +701,16 @@ fn root_cwd(stream: &mut LocalStream, cwd: Option<&str>) {
         command_line: None,
         current_directory: cwd,
     };
+    let processes = vec![
+        row(39, Some("C:/wrong-child".to_owned())),
+        row(40, cwd.map(str::to_owned)),
+    ];
     let payload = t::encode_process_info_control(&t::ProcessInfoControl::ProcessInfo(
         t::TerminalProcessInfo {
             attachment_id: t::AttachmentId::parse(&id(50)).unwrap(),
             terminal_id: t::TerminalId::parse(&id(52)).unwrap(),
             root_pid: 40,
-            processes: vec![
-                row(39, Some("C:/wrong-child".to_owned())),
-                row(40, cwd.map(str::to_owned)),
-            ],
+            processes: processes.clone(),
         },
     ))
     .unwrap();
@@ -731,6 +732,8 @@ fn root_cwd(stream: &mut LocalStream, cwd: Option<&str>) {
         json!({"kind":"detach","attachmentId":id(50)})
     );
     viewer_reply(stream, request, c::TerminalViewerOutcome::Detached {});
+    // Every shared CLI process read is followed by the Server identity read of that Terminal.
+    support::identify_reply(stream, &processes, &id(52));
 }
 
 #[path = "cli_windows_workspace_creation/unified.rs"]

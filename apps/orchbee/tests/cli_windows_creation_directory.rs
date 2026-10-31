@@ -125,6 +125,7 @@ fn observe(stream: &mut LocalStream, cut: Cut) -> bool {
         assert_closed(stream);
         return false;
     }
+    let mut sampled = None;
     if cut == Cut::ReadUnavailable {
         answer(
             stream,
@@ -164,6 +165,7 @@ fn observe(stream: &mut LocalStream, cut: Cut) -> bool {
                 ),
             ],
         };
+        sampled = Some(process.processes.clone());
         let payload =
             t::encode_process_info_control(&t::ProcessInfoControl::ProcessInfo(process)).unwrap();
         let record = t::encode_transport_envelope(&t::Envelope {
@@ -188,6 +190,10 @@ fn observe(stream: &mut LocalStream, cut: Cut) -> bool {
     if cut == Cut::WrongAttachment {
         assert_closed(stream);
         return false;
+    }
+    // Every shared CLI process read is followed by the Server identity read of that Terminal.
+    if let Some(processes) = sampled {
+        support::identify_reply(stream, &processes, &id(30));
     }
     true
 }

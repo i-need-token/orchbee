@@ -159,14 +159,15 @@ fn process_info_machine_contract_preserves_precision_nulls_and_escapes_text() {
         validator.validate(&document).unwrap();
         assert_eq!(document["result"]["identity"], json!(identity));
         // `foreground` is the Server's run: an Agent chain exactly when it names an anchor.
-        let agent = matches!(
-            identity,
-            orchbee_agent_observation_protocol::AgentProcessIdentity::Agent { .. }
-        );
-        assert_eq!(
-            document["result"]["foreground"]["kind"],
-            if agent { "agent-chain" } else { "root" }
-        );
+        // Without one, ambiguous candidates stay explicit; otherwise the sampled root is in front.
+        let expected = match identity {
+            orchbee_agent_observation_protocol::AgentProcessIdentity::Agent { .. } => "agent-chain",
+            orchbee_agent_observation_protocol::AgentProcessIdentity::Unknown(
+                orchbee_agent_observation_protocol::AgentIdentityUnknownReason::AmbiguousCandidates,
+            ) => "ambiguous",
+            _ => "root",
+        };
+        assert_eq!(document["result"]["foreground"]["kind"], expected);
         assert_eq!(
             document["result"]["processes"][0]["creationTime"],
             u64::MAX.to_string()
@@ -188,7 +189,8 @@ fn process_info_machine_contract_preserves_precision_nulls_and_escapes_text() {
             let text = String::from_utf8(output).unwrap();
             assert!(!text.contains('\u{1b}'));
             assert!(!text.contains('\u{7}'));
-            assert!(text.contains("中 😀"));
+            // Only a single foreground process prints its command line.
+            assert_eq!(text.contains("中 😀"), expected != "ambiguous", "{text}");
             assert!(
                 text.lines()
                     .any(|line| line.starts_with(label) && line.ends_with(value)),
