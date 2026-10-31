@@ -781,7 +781,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             let menu_measurement = dispatcher.graphics_facts().measurement;
             let menu_resize = dispatcher.resize_projection();
             let menu_resize_allowed = dispatcher.resize_presentation_allowed();
-            if let Some(outcome) = dispatcher.complete_action_menu(
+            if let Some(outcome) = dispatcher.complete_deferred_input(
                 &mut view,
                 terminal_input,
                 now,

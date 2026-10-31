@@ -471,16 +471,15 @@ fn run(
         };
         if let Some(command) = layout {
             let operation_id = command.request_id.clone();
-            let started = if layout_task.is_none() {
-                split_ratio::Mutation::start(
-                    Arc::clone(shared),
-                    origin.clone(),
-                    clock.clone(),
-                    command,
-                )
-            } else {
-                Err(io::ErrorKind::WouldBlock.into())
-            };
+            // Admission required the previous mutation's delivered completion, so that thread is
+            // only exiting; joining it lets an immediate resubmission start instead of failing.
+            drop(layout_task.take());
+            let started = split_ratio::Mutation::start(
+                Arc::clone(shared),
+                origin.clone(),
+                clock.clone(),
+                command,
+            );
             match started {
                 Ok(task) => layout_task = Some(task),
                 Err(_) => {

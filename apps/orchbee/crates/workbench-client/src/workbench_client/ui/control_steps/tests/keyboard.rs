@@ -312,7 +312,12 @@ fn failed_interrupted_and_stale_keyboard_completions_never_replay_or_complete_an
                 },
                 reply: Err(SplitRatioFailure {
                     may_have_committed: ending == "unknown",
-                    reason: Reason::StaleView,
+                    // A refusal naming only an older revision is resubmitted; see the divider suite.
+                    reason: if ending == "rejected" {
+                        Reason::TargetUnavailable
+                    } else {
+                        Reason::StaleView
+                    },
                 }),
             },
         );

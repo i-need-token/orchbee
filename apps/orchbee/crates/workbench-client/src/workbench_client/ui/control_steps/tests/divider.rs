@@ -738,6 +738,7 @@ fn divider_local_commit_waits_for_shared_publication_and_draw_and_competes_with_
     );
 }
 
+/// A refusal that is not about an older revision, or an unknown outcome, is never replayed.
 #[test]
 fn divider_unknown_or_rejected_resolution_never_replays_and_reports_the_shared_notice() {
     for unknown in [false, true] {
@@ -765,7 +766,11 @@ fn divider_unknown_or_rejected_resolution_never_replays_and_reports_the_shared_n
                 operation_id: mutation.request_id,
                 reply: Err(
                     crate::local_client::workbench::split_ratio::SplitRatioFailure {
-                        reason: Reason::StaleView,
+                        reason: if unknown {
+                            Reason::StaleView
+                        } else {
+                            Reason::TargetUnavailable
+                        },
                         may_have_committed: unknown,
                     },
                 ),
@@ -789,6 +794,118 @@ fn divider_unknown_or_rejected_resolution_never_replays_and_reports_the_shared_n
                 .is_none()
         );
         assert!(completion(&control).is_none());
+    }
+}
+
+/// Another Client's commit moves the Workbench past the revision a release CAS names, so the
+/// Server refuses it without effect. The same move is resubmitted against each newer installed
+/// revision while its split keeps the previous ratio, within a bound, with the draft kept meanwhile.
+#[test]
+fn a_revision_refusal_resubmits_the_same_divider_move_only_while_its_split_is_unchanged() {
+    use crate::workbench_client::ui::tests::publication_hint::{
+        settle_queued_refresh, split_snapshot,
+    };
+    let refuse = |control: &ClientControl, request_id| {
+        control.lane.as_ref().unwrap().finish_layout_for_test(
+            crate::workbench_client::client_control::LayoutCompletion {
+                operation_id: request_id,
+                reply: Err(
+                    crate::local_client::workbench::split_ratio::SplitRatioFailure {
+                        reason: Reason::StaleView,
+                        may_have_committed: false,
+                    },
+                ),
+            },
+        );
+    };
+    for split_moved in [false, true] {
+        let (mut native, mailbox, clock, _) = ready_split_ui();
+        let poll = mailbox.try_recv().unwrap().unwrap();
+        mailbox.finish_lease(poll).unwrap();
+        let view = ClientView::new(120);
+        let target = painted(&native, &view, 120, 40).1.remove(0);
+        let mut control = controller(clock.clone());
+        control.observe_geometry(target.viewport, view.sidebar_surface());
+        control.tick(&mut native, false);
+        control.resize_divider(&native, &target, ClientSplitRatio::new(0.7).unwrap());
+        let mut mutation = control
+            .lane
+            .as_ref()
+            .unwrap()
+            .take_layout_for_test()
+            .unwrap();
+        for revision in [3, 5, 7] {
+            refuse(&control, mutation.request_id.clone());
+            control.tick(&mut native, false);
+            assert!(control.local_resize_pending(), "{split_moved} {revision}");
+            assert!(
+                control
+                    .lane
+                    .as_ref()
+                    .unwrap()
+                    .take_layout_for_test()
+                    .is_none(),
+                "nothing is resubmitted before the newer revision is installed"
+            );
+            assert!(matches!(
+                control.resize_projection(&native, target.viewport, view.sidebar_surface(), true),
+                ResizeProjection::Divider { .. }
+            ));
+            let mut snapshot = split_snapshot(revision);
+            if split_moved {
+                let PanelNode::Split { ratio, .. } =
+                    &mut snapshot.terminal_contexts[0].tabs[0].root
+                else {
+                    panic!()
+                };
+                *ratio = ClientSplitRatio::new(0.6).unwrap();
+            }
+            settle_queued_refresh(
+                &mut native,
+                &mailbox,
+                &clock,
+                WorkbenchSnapshotOutcome::Available { snapshot },
+            );
+            // The installed snapshot schedules the next pane poll; it plays no part here.
+            let poll = mailbox.try_recv().unwrap().unwrap();
+            mailbox.finish_lease(poll).unwrap();
+            control.tick(&mut native, false);
+            if split_moved {
+                break;
+            }
+            mutation = control
+                .lane
+                .as_ref()
+                .unwrap()
+                .take_layout_for_test()
+                .unwrap();
+            assert_eq!(mutation.expected_revision, WorkbenchRevision::new(revision));
+            assert!(
+                matches!(mutation.action, WorkbenchAction::SplitRatioSet { split, previous_ratio, ratio, .. }
+                if split.split_id == target.split && previous_ratio == target.ratio && ratio.value() == 0.7)
+            );
+        }
+        if !split_moved {
+            refuse(&control, mutation.request_id.clone());
+            control.tick(&mut native, false);
+        }
+        assert!(!control.local_resize_pending());
+        let expected = if split_moved {
+            Notice::ResizeFailed
+        } else {
+            Notice::ResizeContended
+        };
+        assert!(
+            matches!(control.take_local_resize_feedback(), Some(LocalResizeFeedback::Notice(notice)) if notice == expected)
+        );
+        assert!(
+            control
+                .lane
+                .as_ref()
+                .unwrap()
+                .take_layout_for_test()
+                .is_none()
+        );
     }
 }
 

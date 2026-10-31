@@ -272,6 +272,10 @@ impl Locale {
                 "Resize outcome unknown; inspect layout before trying again"
             }
             (Self::ZhCn, Some(Notice::ResizeUnknown)) => "大小调整结果不确定；请先检查布局再操作",
+            (Self::EnUs, Some(Notice::ResizeContended)) => {
+                "Resize not applied; the Workbench kept changing"
+            }
+            (Self::ZhCn, Some(Notice::ResizeContended)) => "大小调整未生效；Workbench 一直在变化",
             (Self::EnUs, Some(Notice::ResizeNoSplit)) => "No divider on this axis",
             (Self::ZhCn, Some(Notice::ResizeNoSplit)) => "该方向没有分隔线",
             (Self::EnUs, Some(Notice::ResizeLimit)) => "Divider is at its size limit",

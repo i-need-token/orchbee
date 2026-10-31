@@ -28,6 +28,7 @@ use super::{
     modal::{ModalCapacity, ModalDecoder, ModalInputEvent},
 };
 
+mod fenced_chord;
 mod navigator;
 
 struct ActionDecision {
@@ -86,6 +87,8 @@ pub struct InputDispatcher {
     /// A cancelled menu was still the painted input surface. Capture reads until a fresh frame.
     menu_cancel_capture: bool,
     menu_release: Option<super::MouseButton>,
+    /// Prefix chords a decision packet fenced; they resolve once the keyboard is free again.
+    fenced_chords: fenced_chord::FencedChords,
     popup_owned: Option<orchbee_workbench_protocol::WorkbenchRequestId>,
     /// Pointer ownership: capture flag, last-drawn hit map, gesture
     /// lifecycle, and the bounded wheel stream.
@@ -225,7 +228,23 @@ impl InputDispatcher {
         self.keys.capture_pending();
         self.pointer.invalidate_map_with_port(port);
     }
-    pub fn complete_action_menu<Port: TerminalInputPort + ?Sized, Error>(
+    /// Completes input decided before this packet boundary: an action menu choice that became
+    /// available, then prefix chords a decision packet fenced.
+    pub fn complete_deferred_input<Port: TerminalInputPort + ?Sized, Error>(
+        &mut self,
+        view: &mut ClientView,
+        port: &mut Port,
+        now: Instant,
+        after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
+    ) -> Result<Option<DispatchOutcome>, Error> {
+        if let Some(outcome) = self.complete_action_menu(view, port, now, after_layout, mode)? {
+            return Ok(Some(outcome));
+        }
+        self.replay_fenced_chords(view, port, now, after_layout, mode)
+    }
+
+    fn complete_action_menu<Port: TerminalInputPort + ?Sized, Error>(
         &mut self,
         view: &mut ClientView,
         port: &mut Port,
@@ -615,6 +634,18 @@ impl InputDispatcher {
         self.synchronize_input(view, port, now, mode, true)
     }
 
+    /// A decision in the current packet, or a cancellation not yet repainted, owns the tail.
+    fn packet_fenced(&self) -> bool {
+        let fenced = self.confirm_packet || self.settings_packet || self.pointer_packet;
+        fenced
+            || self.navigator.packet
+            || self.machine_packet
+            || self.sidebar_packet
+            || self.popup_packet
+            || self.copy_packet
+            || self.menu_packet
+    }
+
     fn synchronize_input<Port: TerminalInputPort + ?Sized, Error>(
         &mut self,
         view: &mut ClientView,
@@ -711,7 +742,7 @@ impl InputDispatcher {
         // Ready bytes resolve pending frames before idle timeouts, and a newly
         // available reversal precedes draining the previous list burst.
         if let Some(outcome) =
-            self.complete_action_menu(view, port, now, &mut after_layout, mode)?
+            self.complete_deferred_input(view, port, now, &mut after_layout, mode)?
         {
             redraw = true;
             only_idle_motion = false;
@@ -743,14 +774,7 @@ impl InputDispatcher {
             // A frame opened inside a captured packet carries `owned`
             // provenance: it stays captured even when it completes in a
             // later read, while genuinely later input decodes normally.
-            let owned = self.confirm_packet || self.settings_packet || self.pointer_packet;
-            let owned = owned
-                || self.navigator.packet
-                || self.machine_packet
-                || self.sidebar_packet
-                || self.popup_packet
-                || self.copy_packet
-                || self.menu_packet;
+            let owned = self.packet_fenced();
             for item in self.keys.push(byte, now, owned) {
                 saw_item = true;
                 self.item_idle_motion = None;
@@ -780,7 +804,7 @@ impl InputDispatcher {
         // following byte. Settle that edge before a frame can be published.
         redraw |= self.reconcile(view, port, now);
         if let Some(outcome) =
-            self.complete_action_menu(view, port, now, &mut after_layout, mode)?
+            self.complete_deferred_input(view, port, now, &mut after_layout, mode)?
         {
             redraw = true;
             only_idle_motion = false;
@@ -1288,13 +1312,33 @@ impl InputDispatcher {
         Ok(DispatchOutcome::Continue)
     }
 
+    /// Routes one decoded item, noting whether it raised the packet fence: chords in the tail of a
+    /// pointer decision resolve after it, while a key decision consumes its tail whole.
+    fn handle_item<Port: TerminalInputPort + ?Sized, Error>(
+        &mut self,
+        view: &mut ClientView,
+        port: &mut Port,
+        now: Instant,
+        item: DecodedItem,
+        after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
+    ) -> Result<DispatchOutcome, Error> {
+        let fenced = self.packet_fenced();
+        let pointer = matches!(item.kind, DecodedKind::Mouse(_));
+        let outcome = self.route_item(view, port, now, item, after_layout, mode)?;
+        if !fenced && self.packet_fenced() {
+            self.fenced_chords.fence_raised(pointer);
+        }
+        Ok(outcome)
+    }
+
     /// Routes one decoded item through the ownership order: an open
     /// confirmation packet consumes the whole rest of the chunk, an armed
     /// prefix resolves the item against the binding registry, and anything
     /// else joins `self.pending` so its source bytes forward in order.
     /// the configured prefix arms its layer; configured direct bindings run
     /// after capture and history ownership.
-    fn handle_item<Port: TerminalInputPort + ?Sized, Error>(
+    fn route_item<Port: TerminalInputPort + ?Sized, Error>(
         &mut self,
         view: &mut ClientView,
         port: &mut Port,
@@ -1319,6 +1363,7 @@ impl InputDispatcher {
             self.pointer.set_host_focus(focused);
             if !focused {
                 view.cancel_prefix();
+                self.dismiss_fenced_introducer();
                 self.pointer.cancel_list_scroll();
                 self.pointer.cancel_modal_press();
                 self.pointer.cancel_scrollbar();
@@ -1495,6 +1540,7 @@ impl InputDispatcher {
             // The item completes a frame that began inside a captured
             // packet: consumed by that capture, never forwarded or decided.
             self.flush_pending(view, port);
+            self.fence_chord(view, &item);
             return Ok(DispatchOutcome::Continue);
         }
         let exclusive_packet = self.confirm_packet || self.settings_packet;
@@ -1505,6 +1551,7 @@ impl InputDispatcher {
             || self.menu_packet;
         if exclusive_packet {
             self.flush_pending(view, port);
+            self.fence_chord(view, &item);
             return Ok(DispatchOutcome::Continue);
         }
         let projected = Self::projected_capture(view, port);
@@ -1601,7 +1648,9 @@ impl InputDispatcher {
         }
         if self.navigator.packet || view.navigator_active() {
             self.flush_pending(view, port);
-            if !self.navigator.packet {
+            if self.navigator.packet {
+                self.fence_chord(view, &item);
+            } else {
                 if let Some(transition) = self.navigator_item(view, port, &item) {
                     return self.apply_transition(
                         view,
@@ -1653,7 +1702,9 @@ impl InputDispatcher {
                 && !matches!(item.kind, DecodedKind::Mouse(_)))
         {
             self.flush_pending(view, port);
-            if !self.sidebar_packet {
+            if self.sidebar_packet {
+                self.fence_chord(view, &item);
+            } else {
                 self.pointer.cancel_sidebar_width();
                 // Sidebar navigation keeps ordinary keys and paste, but the configured
                 // prefix still opens the shell binding layer. Exclusive captures above
@@ -1773,7 +1824,9 @@ impl InputDispatcher {
             self.reconcile(view, port, now);
             return Ok(DispatchOutcome::Continue);
         }
-        if view.prefix_active() {
+        let hover = matches!(&item.kind, DecodedKind::Mouse(event)
+            if fenced_chord::button_free_motion(event.action, event.button));
+        if view.prefix_active() && !hover {
             self.flush_pending(view, port);
             match item.kind {
                 DecodedKind::Key(event) if event.kind != KeyKind::Release => {}

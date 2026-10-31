@@ -60,6 +60,33 @@ impl SharedAdjustment {
             self.submission = Some(reply);
         }
     }
+    /// A refusal for an older revision alone: the Server proved the CAS had no effect.
+    pub(super) fn refused_for_revision(&self) -> bool {
+        matches!(
+            self.submission,
+            Some(Err(SplitRatioFailure {
+                may_have_committed: false,
+                reason: Reason::StaleView,
+            }))
+        )
+    }
+    /// Prepares the same split move against the newest installed revision, or `None` while that
+    /// revision is still being read.
+    pub(super) fn rebase(
+        &mut self,
+        native: &mut WorkbenchClientUi,
+    ) -> Result<Option<(Self, WorkbenchCommand)>, Reason> {
+        let Some((session, adjustment, before)) = native.rebase_layout_adjustment(
+            &self.adjustment,
+            &self.before,
+            &mut self.refresh_requested,
+        )?
+        else {
+            return Ok(None);
+        };
+        let request_id = native.local_adjustment_request_id()?;
+        Self::prepare(session, request_id, adjustment, before).map(Some)
+    }
     pub(super) fn had_effect(&self) -> bool {
         !matches!(
             self.submission,

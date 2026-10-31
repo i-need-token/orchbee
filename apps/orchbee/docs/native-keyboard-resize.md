@@ -20,7 +20,8 @@ The captured Session, context, Tab, split, ordered slots, previous ratio and Wor
 | -------------------------------------------- | --------------------------------------------------------------------------- |
 | Idle, valid changed key                      | Submit one mutation; retain original selection and request identity         |
 | Submission pending, more resize keys         | Consume and report busy; never accumulate or replay keys                    |
-| Server rejection                             | Report failure; preserve current canonical state; no retry                  |
+| Rejection for an older revision only         | Resubmit the same move against the newer revision; see divider resizing     |
+| Other Server rejection                       | Report failure; preserve current canonical state; no retry                  |
 | Reply missing or ambiguous after submission  | Report unknown outcome; inspect layout before a new explicit action         |
 | Known commit                                 | Await matching publication and a compatible successful draw                 |
 | Published and drawn exact identity/ratio     | Complete locally; never emit a remote Client-view receipt                   |

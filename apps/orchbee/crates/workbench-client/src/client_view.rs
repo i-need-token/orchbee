@@ -572,6 +572,7 @@ impl ClientView {
                 Notice::ResizeBusy
                     | Notice::ResizeFailed
                     | Notice::ResizeUnknown
+                    | Notice::ResizeContended
                     | Notice::ResizeNoSplit
                     | Notice::ResizeLimit
             )

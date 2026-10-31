@@ -2785,6 +2785,66 @@ fn terminal_paste_retires_prefix_before_the_next_typed_key() {
     assert!(forwarded_bytes(&calls).ends_with(b"x"));
 }
 
+/// Under load one read packet carries a click and the chord typed after it. The decision fences
+/// that tail, yet the chord resolves after the decision instead of losing its introducer and
+/// handing the continuation to the terminal; a literal double prefix stays fenced type-ahead.
+/// Hover between a prefix and its continuation never dismisses the prefix.
+#[test]
+fn a_chord_typed_after_a_fenced_decision_resolves_and_hover_keeps_the_prefix() {
+    use crate::tui_hit_map::{
+        HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
+    };
+    use crate::tui_pointer::HelpControl;
+    use ratatui::layout::Rect;
+
+    let click = b"[<0;13;6M[<0;13;6m".as_slice();
+    let hover = b"[<35;40;20M".as_slice();
+    for (case, packets, zoom) in [
+        (0, vec![[click, b""].concat(), b"z".to_vec()], true),
+        (1, vec![[click, b"z"].concat(), Vec::new()], true),
+        (2, vec![[click, b"z"].concat(), b"z".to_vec()], true),
+        (3, vec![[click, b""].concat(), Vec::new()], false),
+        (4, vec![b"".to_vec(), [hover, b"z"].concat()], true),
+    ] {
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let mut port = UnavailablePort(Rc::clone(&calls));
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(80);
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        let area = Rect::new(10, 5, 8, 2);
+        let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
+        hits.record_interaction(
+            HitLayer::Foreground,
+            area,
+            area,
+            InteractionTarget::Fixture(HitTarget::Help {
+                page: 1,
+                action: HelpControl::Close,
+            }),
+            InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+        );
+        dispatcher.publish_hit_map(hits.finish());
+        calls.borrow_mut().clear();
+        for packet in packets {
+            dispatch_all(&mut dispatcher, &mut view, &mut port, &packet);
+        }
+        // An idle boundary follows the last read.
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"");
+        let zooms = calls
+            .borrow()
+            .iter()
+            .filter(|call| **call == Call::Action(ClientAction::ToggleZoom))
+            .count();
+        assert_eq!(
+            zooms,
+            usize::from(zoom) * (1 + usize::from(case == 2)),
+            "case {case}"
+        );
+        assert!(forwarded_bytes(&calls).is_empty(), "case {case} leaked");
+        assert!(!view.prefix_active(), "case {case}");
+    }
+}
+
 #[test]
 fn delivered_console_motion_survives_an_unavailable_vt_query_without_rearming_capture() {
     let calls = Rc::new(RefCell::new(Vec::new()));

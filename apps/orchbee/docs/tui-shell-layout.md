@@ -252,8 +252,12 @@ End of Projects appends a Project. The highlighted destination and localized sta
 actual before/after/into result. Invalid and unchanged destinations publish no move. Holding at the
 list edge scrolls at most once every 120 ms through the existing bounded list-scroll owner; wheel remains local.
 
+Until movement latches a drag, the press is a click on its row: only that row's painted target, the
+Sidebar catalog and surface decide its release, so a background refresh or another Client's unrelated
+commit and repaint never cancel it. A drag latches against the canonical source painted at that moment.
 Dragging is preview-only until matching plain primary release. Escape, loss of focus/capture,
-resize, an occluding overlay, or changed canonical source cancels it. Cleanup consumes the late
+resize, an occluding overlay, or changed canonical source cancels it; a refresh still in flight does
+not, and the drop rechecks the source. Cleanup consumes the late
 release without selecting another row or entering a terminal. Successful scroll redraws preserve
 the gesture while retaining the same source identities. Preview geometry resolves from the candidate
 frame being painted, so a scroll cannot display a stale insertion target. One `navigation.configure` changes

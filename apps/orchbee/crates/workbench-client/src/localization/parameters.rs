@@ -47,6 +47,7 @@ pub enum Notice {
     ResizeBusy,
     ResizeFailed,
     ResizeUnknown,
+    ResizeContended,
     ResizeNoSplit,
     ResizeLimit,
     CheckpointRecovered,

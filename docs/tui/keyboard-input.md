@@ -106,9 +106,15 @@ Ownership rules:
   higher ownership; the same printable, editing, and signal-key exclusions apply.
 - An armed prefix has no timeout. `Esc` and host focus loss dismiss it. A paste delivered to the
   terminal also dismisses the interrupted prefix before subsequent typed input; paste owned by a
-  capturing surface retains that surface's contract. Host capability replies never dismiss it.
-  An unbound key after the prefix dismisses the
+  capturing surface retains that surface's contract. Host capability replies and pointer motion
+  without a pressed button never dismiss it. An unbound key after the prefix dismisses the
   prefix, forwards nothing, and shows a transient notice naming the effective help binding.
+- A decision consumes the rest of its input packet, as described in
+  [Lifecycle and return](overlays-and-status.md#lifecycle-and-return). Prefix chords in the tail of
+  a pointer decision are Client input rather than type-ahead, because a busy host batches a click
+  with the keys typed after it: they resolve in order after the decision once no packet fence or
+  capture holds the keyboard, and a capturing owner consumes them with the tail. A literal double
+  prefix in that tail remains type-ahead. A key decision consumes its tail whole, chords included.
 - A named mode owns one domain for its duration. Its name and return route stay visible; every key
   resolves to at most one intent; unbound keys are ignored, never forwarded. Modes do not nest:
   entering another mode replaces the current mode through a documented transition.

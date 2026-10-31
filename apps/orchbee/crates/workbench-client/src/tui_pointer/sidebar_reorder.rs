@@ -112,23 +112,36 @@ impl SidebarReorder {
         })
     }
 
+    /// Whether `map` still paints this gesture's surface and catalog. Before a drag latches, the
+    /// press is a click on its row, so only that row's own painted facts matter: a repaint after
+    /// an unrelated canonical commit keeps it. A drag previews against its canonical baseline,
+    /// so the frame must be painted from that source.
     pub(super) fn painted_in(&self, map: &FrameHitMap) -> bool {
         let Some(paint) = &map.sidebar_reorder else {
             return false;
         };
-        (!map.overlay_active || paint.layer == super::HitLayer::Overlay)
-            && map
-                .menu_source
-                .as_ref()
-                .is_some_and(|painted| self.source.matches_menu_source(painted))
+        let surface = (!map.overlay_active || paint.layer == super::HitLayer::Overlay)
             && paint.layer == self.paint.layer
             && paint.viewport == self.paint.viewport
             && paint.body == self.paint.body
             && paint.footer == self.paint.footer
-            && paint.source == self.paint.source
-            && (self.dragging
-                || map.interaction_at(self.origin.0, self.origin.1).as_ref()
-                    == Some(&self.fingerprint))
+            && paint.source == self.paint.source;
+        surface
+            && if self.dragging {
+                map.menu_source
+                    .as_ref()
+                    .is_some_and(|painted| self.source.matches_menu_source(painted))
+            } else {
+                map.interaction_at(self.origin.0, self.origin.1).as_ref() == Some(&self.fingerprint)
+            }
+    }
+
+    /// Whether the live canonical source still admits this gesture. A click owns no canonical
+    /// operation, so background refreshes and unrelated commits never end it. A drag's move is
+    /// computed from its baseline: a changed source ends it, while a refresh still in flight
+    /// (no live source yet) changes nothing it knows, and its drop rechecks the source anyway.
+    fn baseline_current(&self, live: Option<&SidebarReorderSource>) -> bool {
+        !self.dragging || live.is_none_or(|live| *live == self.source)
     }
 
     fn destination(&self, map: &FrameHitMap) -> Option<Drop> {
@@ -269,7 +282,7 @@ impl PointerState {
             && !(event.action == MouseAction::Motion && event.button != MouseButton::Left)
             && !view.resize_mode()
             && view.machines.sidebar_source() == drag.paint.source
-            && port.sidebar_reorder_source().as_ref() == Some(&drag.source)
+            && drag.baseline_current(port.sidebar_reorder_source().as_ref())
             && self.map.as_ref().is_some_and(|map| drag.painted_in(map));
         if !alive
             || (event.action == MouseAction::Press
@@ -306,8 +319,23 @@ impl PointerState {
         }
         if event.action == MouseAction::Motion && event.button == MouseButton::Left {
             drag.position = (event.column, event.row);
-            drag.dragging |=
-                drag.origin.0.abs_diff(event.column) >= 2 || drag.origin.1 != event.row;
+            if !drag.dragging
+                && (drag.origin.0.abs_diff(event.column) >= 2 || drag.origin.1 != event.row)
+            {
+                drag.dragging = true;
+                // The drag begins now, so it previews and moves against the canonical source
+                // painted now; the click it grew from never depended on one.
+                if let Some(live) = port.sidebar_reorder_source()
+                    && self.map.as_ref().is_some_and(|map| {
+                        map.menu_source
+                            .as_ref()
+                            .is_some_and(|painted| live.matches_menu_source(painted))
+                    })
+                    && live.matches_sidebar(&drag.paint.source, &view.machines.current)
+                {
+                    drag.source = live;
+                }
+            }
             if !drag.dragging
                 && self
                     .map
@@ -343,7 +371,7 @@ impl PointerState {
         let Gesture::SidebarReorder(drag) = &self.gesture else {
             return false;
         };
-        if port.sidebar_reorder_source().as_ref() != Some(&drag.source)
+        if !drag.baseline_current(port.sidebar_reorder_source().as_ref())
             || view.machines.sidebar_source() != drag.paint.source
             || view.resize_mode()
             || !self.map.as_ref().is_some_and(|map| drag.painted_in(map))

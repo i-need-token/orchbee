@@ -1776,7 +1776,7 @@ fn escape_timeout_and_idle_action_completion_keep_the_already_polled_packet_capt
     assert!(port.menu.confirm());
     assert_eq!(
         dispatcher
-            .complete_action_menu(
+            .complete_deferred_input(
                 &mut view,
                 &mut port,
                 Instant::now(),

@@ -21,6 +21,8 @@ fn workspace(value: usize) -> WorkbenchWorkspaceId {
 struct Port {
     snapshot: std::sync::Arc<Snapshot>,
     writes: Vec<NavigationConfiguration>,
+    /// A background refresh read holds the setup lane, so no reorder source is admitted.
+    refreshing: bool,
 }
 impl Port {
     fn source(&self) -> SidebarReorderSource {
@@ -58,7 +60,7 @@ impl TerminalInputPort for Port {
         PointerProbe::default()
     }
     fn sidebar_reorder_source(&mut self) -> Option<SidebarReorderSource> {
-        Some(self.source())
+        (!self.refreshing).then(|| self.source())
     }
 }
 fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
@@ -202,6 +204,7 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
                 navigation,
             }),
             writes: vec![],
+            refreshing: false,
         },
         map,
     )
@@ -300,6 +303,49 @@ fn clicks_activate_once_but_drag_returning_to_origin_cannot_click() {
         PointerOutcome::SidebarReorderEnded
     );
     assert!(port.writes.is_empty());
+}
+
+/// Another Client's rename publishes while a row is held: the refresh read it causes, the commit
+/// and the repaint touch no fact of the pressed row, so its release still activates it.
+#[test]
+fn a_click_survives_the_refresh_and_repaint_of_an_unrelated_commit() {
+    let (mut pointer, mut view, mut port, map) = fixture();
+    let origin = row(&map, Item::Workspace(workspace(0)));
+    send(
+        &mut pointer,
+        &mut view,
+        &mut port,
+        MouseAction::Press,
+        origin,
+    );
+    assert!(pointer.sidebar_reorder_captured());
+
+    port.refreshing = true;
+    pointer.tick(&mut view, &mut port, Instant::now(), None);
+    port.refreshing = false;
+    let snapshot = std::sync::Arc::make_mut(&mut port.snapshot);
+    snapshot.revision = WorkbenchRevision::new(2);
+    snapshot.navigation.workspaces[2].label = "Renamed elsewhere".into();
+    let mut repainted = map;
+    repainted.menu_source.as_mut().unwrap().revision = WorkbenchRevision::new(2);
+    pointer.publish(repainted);
+    pointer.tick(&mut view, &mut port, Instant::now(), None);
+
+    assert!(matches!(
+        send(
+            &mut pointer,
+            &mut view,
+            &mut port,
+            MouseAction::Release,
+            origin
+        ),
+        PointerOutcome::Interaction {
+            target: InteractionTarget::Sidebar(_),
+            contract: PrimaryContract::ActivateOnRelease,
+        }
+    ));
+    assert!(port.writes.is_empty());
+    assert!(!pointer.sidebar_reorder_captured());
 }
 
 #[test]

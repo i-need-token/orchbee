@@ -33,7 +33,7 @@ link decoration remain separate decisions.
 
 ## Mouse controls across surfaces
 
-Mouse and keyboard enter the same native state owners. Visible bracketed controls and complete rows have exact hit rectangles; disabled, clipped or covered cells cannot activate an underlying target. Local navigation may act on press. Native form, menu, settings, copy, resize and Agent-board buttons wait for a matching plain-left release with the same painted token and rectangle. Keyboard input, focus loss, capture release and changed drawing authority revoke that press. A decision owns its packet tail and late release, then fresh input returns to the retained terminal focus.
+Mouse and keyboard enter the same native state owners. Visible bracketed controls and complete rows have exact hit rectangles; disabled, clipped or covered cells cannot activate an underlying target. Local navigation may act on press. Native form, menu, settings, copy, resize and Agent-board buttons wait for a matching plain-left release with the same painted token and rectangle. Keyboard input, focus loss, capture release and changed drawing authority revoke that press. A decision owns its packet tail and late release, then fresh input returns to the retained terminal focus. Prefix chords in the tail of a pointer decision resolve after it through `terminal_input/dispatcher/fenced_chord.rs` unless a capture then owns the keyboard, while a key decision consumes its tail whole; hover never dismisses an armed prefix.
 
 Confirmation, rename/setup/worktree forms, Settings, the Machine picker and plugin popups
 register the exact painted X target for outside-backdrop dismissal. A plain-left press and matching

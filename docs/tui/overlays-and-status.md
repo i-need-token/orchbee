@@ -146,7 +146,8 @@ and global action discovery.
 - Replacing or closing a surface releases capture before focus restoration. The decoded input
   packet containing that decision remains owned and is consumed through its end, so trailing bytes
   never reach the new owner. Only a subsequent, separately decoded input event is resolved by the
-  new owner; it is never delivered to the dismissed surface.
+  new owner; it is never delivered to the dismissed surface. Prefix chords in that tail follow
+  [Input ownership](keyboard-input.md#input-ownership).
 - A visible popup may admit dismissal from its outside backdrop. Its feature owner may withhold
   that route to retain an active draft, child task, required decision or pending operation while
   keeping an explicit close or return path. An admitted dismissal reuses its exact painted close

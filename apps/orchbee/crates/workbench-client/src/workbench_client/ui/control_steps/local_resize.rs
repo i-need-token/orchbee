@@ -5,6 +5,12 @@ use super::{
 };
 use crate::client_view::{Notice, PanelDirection};
 use orchbee_workbench_protocol::{ClientLayoutChange, ClientPanelDirection, WorkbenchRequestId};
+use std::time::Duration;
+
+/// Resubmissions of one resize after refusals that named only an older Workbench revision.
+const RESUBMISSIONS: u8 = 3;
+/// Bound on reading the newer revision a refusal proved before the same move is resubmitted.
+const REVISION_WAIT: Duration = Duration::from_secs(2);
 
 pub(super) struct LocalResizePending {
     pub(super) request_id: WorkbenchRequestId,
@@ -13,6 +19,8 @@ pub(super) struct LocalResizePending {
     interrupted: bool,
     awaiting_draw: bool,
     presentation: Option<ReleasedDivider>,
+    resubmissions: u8,
+    refused_at: Option<Instant>,
 }
 
 struct ReleasedDivider {
@@ -23,6 +31,42 @@ struct ReleasedDivider {
 pub(in crate::workbench_client) enum LocalResizeFeedback {
     Clear,
     Notice(Notice),
+}
+
+impl LocalResizePending {
+    /// Another commit moved the Workbench past the revision this CAS named, so the Server refused
+    /// it without effect. The same split move is resubmitted against the newer revision once it is
+    /// installed, while the split keeps its previous ratio; the draft presentation stays meanwhile.
+    fn resubmit(
+        &mut self,
+        native: &mut WorkbenchClientUi,
+        lane: Option<&ClientControlLane>,
+        now: Instant,
+    ) -> Result<(), Notice> {
+        let refused_at = *self.refused_at.get_or_insert(now);
+        if self.resubmissions >= RESUBMISSIONS || now >= refused_at + REVISION_WAIT {
+            return Err(Notice::ResizeContended);
+        }
+        let Some((flow, mutation)) = self.flow.rebase(native).map_err(|_| Notice::ResizeFailed)?
+        else {
+            return Ok(());
+        };
+        let request_id = mutation.request_id.clone();
+        lane.ok_or(Reason::ProjectionUnavailable)
+            .and_then(|lane| lane.submit_layout(mutation))
+            .map_err(|reason| {
+                if reason == Reason::Busy {
+                    Notice::ResizeContended
+                } else {
+                    Notice::ResizeFailed
+                }
+            })?;
+        self.request_id = request_id;
+        self.flow = flow;
+        self.resubmissions += 1;
+        self.refused_at = None;
+        Ok(())
+    }
 }
 
 impl ClientControl {
@@ -157,6 +201,8 @@ impl ClientControl {
                 interrupted: false,
                 awaiting_draw: false,
                 presentation: None,
+                resubmissions: 0,
+                refused_at: None,
             });
             self.local_resize_feedback = Some(LocalResizeFeedback::Clear);
             Ok(())
@@ -229,6 +275,13 @@ impl ClientControl {
             ControlStep::Failed(Reason::Interrupted)
         } else if self.clock.now() >= pending.deadline {
             ControlStep::Failed(Reason::Expired)
+        } else if pending.flow.refused_for_revision() {
+            let Err(notice) = pending.resubmit(native, self.lane.as_ref(), self.clock.now()) else {
+                return false;
+            };
+            self.local_resize_feedback = Some(LocalResizeFeedback::Notice(notice));
+            self.local_resize = None;
+            return true;
         } else {
             pending.flow.step(native)
         };

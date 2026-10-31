@@ -325,6 +325,67 @@ impl WorkbenchClientUi {
                 &split.second_slot_id,
             ) == Some(split.ratio)
     }
+
+    /// Rebases a split change the Server refused only because the Workbench moved past its
+    /// revision. `None` waits for that newer revision to install; the rebased change is the same
+    /// split move, admitted only while the selection is unchanged and the split still has its
+    /// previous ratio.
+    pub(in crate::workbench_client) fn rebase_layout_adjustment(
+        &mut self,
+        adjustment: &ClientLayoutAdjustment,
+        before: &ClientViewObservation,
+        refresh_requested: &mut bool,
+    ) -> Result<
+        Option<(
+            orchbee_workbench_protocol::SessionId,
+            ClientLayoutAdjustment,
+            ClientViewObservation,
+        )>,
+        Reason,
+    > {
+        use crate::workbench_client::ui::control_steps::ControlStep;
+        let (session, view) = self
+            .control_observation(false)
+            .ok_or(Reason::ProjectionUnavailable)?;
+        if view.selection != before.selection {
+            return Err(Reason::Interrupted);
+        }
+        let installed = self
+            .state
+            .as_ref()
+            .ok_or(Reason::ProjectionUnavailable)?
+            .cache()
+            .revision();
+        if installed <= adjustment.workbench_revision {
+            // The refusal proves a newer revision exists; read it rather than wait for a hint.
+            return match self.refresh_layout_adjustment(refresh_requested) {
+                ControlStep::Failed(Reason::ProjectionUnavailable) => {
+                    Err(Reason::ProjectionUnavailable)
+                }
+                _ => Ok(None),
+            };
+        }
+        if view.phase != orchbee_workbench_protocol::ClientViewPhase::Ready {
+            return Ok(None);
+        }
+        let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
+        let ClientLayoutChange::Split { split } = &adjustment.change else {
+            return Err(Reason::Unsupported);
+        };
+        if state.split_ratio(
+            &adjustment.terminal_context_id,
+            &adjustment.tab_id,
+            &split.split_id,
+            &split.first_slot_id,
+            &split.second_slot_id,
+        ) != Some(split.previous_ratio)
+        {
+            return Err(Reason::StaleView);
+        }
+        let mut rebased = adjustment.clone();
+        rebased.workbench_revision = installed;
+        Ok(Some((session, rebased, view)))
+    }
 }
 type SplitIdentity<'a> = (
     &'a WorkbenchSplitId,
