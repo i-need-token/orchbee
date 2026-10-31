@@ -204,7 +204,7 @@ pub(crate) fn render_action(
         theme.style(status_role),
     );
     let shortcut_role = if enabled {
-        Role::TextSecondary
+        theme.action_hint_role(action_role)
     } else {
         Role::TextDisabled
     };

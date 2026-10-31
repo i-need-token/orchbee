@@ -102,12 +102,20 @@ The sidebar's explicit red Delete intent uses independent `accent-destructive` m
 ownership, never `status-error`. Its shipped Light RGB is `[178, 52, 47]`, Dark is `[224, 108, 117]`,
 and terminal-native uses ANSI red. Disabled content resolves to `text-disabled` before action tone;
 it cannot acquire hover or pressed styling. Enabled destructive wording keeps its accent separately
-from surrounding focus, navigation, current, hover and pressed tracks. Where reduced-color or native
-interaction uses reverse video, the theme resolver removes reversal from the destructive content
-band and supplies its own contrasting backing pair. Components neither construct colors nor add
+from surrounding focus, navigation, current, hover and pressed tracks. At rest, terminal-native
+destructive wording is ANSI red directly on the host default background without a backing fill:
+a destructive menu row and a whole destructive confirmation button, including its brackets and key
+hint, read as red text. Reference contrast for ANSI red on the host default is about 3.2:1 in
+Campbell and VS Code Dark+ and 3.3:1 to 3.5:1 in One Half Light. System appearance, including the
+terminal-native styles it adopts without an observed background, still backs destructive wording
+on the host default with the resolver's pair, and every theme other than terminal-native keeps the
+destructive key hint in `text-secondary`. Where reduced-color or native interaction uses reverse
+video, or a known fill falls below 3:1, the theme resolver removes reversal from the destructive
+content band and supplies its own contrasting backing pair. Components neither construct colors nor add
 warning bold, underline or blink. Monochrome retains the localized Delete verb and ordinary markers.
-Nominal palette tests cover overlay, hover, pressed and selection surfaces at truecolor, ANSI-256
-and ANSI-16; customized host palette appearance still requires real-window review.
+Nominal palette tests cover the unpaired terminal-native rest state and the overlay, hover, pressed
+and selection surfaces at truecolor, ANSI-256 and ANSI-16; customized host palette appearance still
+requires real-window review.
 
 Named-theme supporting text uses `[90, 93, 105]` in One Light and `[170, 177, 189]` in One Dark.
 These audited secondary values clear 4.5:1 on every shipped surface, including pressed and
@@ -163,10 +171,14 @@ row remains visible while input belongs to a terminal. This fill remains quieter
 selection and preserves readable text contrast. The most specific visible current row owns the
 fill: when an active Agent is shown, its Workspace takes the quieter related surface instead of
 merging with that Agent's fill. Folding the Agents returns the fill to the Workspace. The fill alone
-marks the current sidebar row: names keep their normal weight and no marker is added; status glyphs
-and explicit token colors remain semantic. When quantization collapses the fill onto chrome, the
-current row is underlined instead, as in Monochrome; the configured token modifiers remain
-unchanged. Keyboard navigation uses `surface-selection`, its paired text and the separate navigation
+marks the current sidebar row in the named themes: names keep their normal weight and no marker is
+added; status glyphs and explicit token colors remain semantic. Terminal-native keeps the ANSI gray
+fill and also underlines the complete current row, as Monochrome does, because ANSI 7 can sit
+within a few steps of a light host's default background, as One Half Light shows. The same
+underline marks every terminal-native current surface: the active Tab, which also keeps its bold
+label, a Settings current row, and navigator or picker current rows. When quantization collapses a
+named theme's fill onto chrome, the current row is underlined instead, as in Monochrome; the
+configured token modifiers remain unchanged. Keyboard navigation uses `surface-selection`, its paired text and the separate navigation
 marker. When the provisional target is also current, `surface-selection` wins the row background
 until navigation leaves that row, and pointer hover likewise replaces the current fill on its own
 row; Agent state and unread glyphs remain in their own cells. Explicit token colors and modifiers

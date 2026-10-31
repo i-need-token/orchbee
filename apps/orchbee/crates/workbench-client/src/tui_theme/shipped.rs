@@ -1,7 +1,7 @@
 //! Shipped RGB palettes project every existing semantic role; no renderer owns colors.
 use super::{
-    AGENT_ATTENTION, AGENT_DONE, AGENT_ERROR, Color, ColorLevel, GlyphSet, Modifier, Polarity,
-    RoleStyles, Style, TabGroupPalette, TerminalColorSource, Theme,
+    AGENT_ATTENTION, AGENT_DONE, AGENT_ERROR, Color, ColorLevel, DestructiveRest, GlyphSet,
+    Modifier, Polarity, RoleStyles, Style, TabGroupPalette, TerminalColorSource, Theme,
 };
 use crate::host_appearance::HostAppearance;
 use ratatui::widgets::BorderType;
@@ -54,6 +54,7 @@ fn named(palette: Palette) -> Theme {
         terminal_colors: None,
         terminal_color_source: TerminalColorSource::Palette,
         terminal_defaults_known: true,
+        destructive_rest: DestructiveRest::Paired,
         no_color: false,
         styles: RoleStyles {
             text_primary: primary,

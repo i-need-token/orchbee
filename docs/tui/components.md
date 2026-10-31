@@ -97,7 +97,7 @@ independent:
 
 - keyboard focus remains visible through `frame-focused` or a stable `accent-focus` marker;
 - current identity remains visible through `BOLD`, a stable current marker, or a fill its owner
-  documents as the only current cue, underlined where no fill can show;
+  documents as the only current cue, underlined in `terminal-native` and wherever no fill can show;
 - a checked value retains its checked glyph using `accent-selection`;
 - disabled content uses `text-disabled`, but a current or checked marker remains recognizable;
 - pending retains focus, current, and checked cues and adds a fixed-width `status-pending` glyph and

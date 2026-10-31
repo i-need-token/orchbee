@@ -76,9 +76,13 @@ Theme rules:
   text, and the host-relative `status-working` and `status-idle` glyphs, adopt the paired foreground
   on this fill. Secondary text and `status-idle` drop DIM there; Working keeps its breathing
   intensity. Other status roles, `agent-*` roles, and explicit token colors retain their meaning.
-  RGB themes keep their text hierarchy. When quantization collapses the fill onto chrome, current
-  identity keeps a cue that configurable text emphasis cannot remove: a stable marker, or an
-  underline across a row whose owner documents the fill as its only current cue.
+  RGB themes keep their text hierarchy. Because ANSI 7 can sit within a few steps of a light host's
+  default background, `terminal-native` current context also underlines its complete band, as
+  Monochrome does, including leading blank cells, status glyphs and checked-value cells; an owner
+  that documents `BOLD` identity, such as the active Tab, keeps it as well. When quantization
+  collapses the fill onto chrome, current identity keeps a cue that configurable text emphasis
+  cannot remove: a stable marker, or an underline across a row whose owner documents the fill as its
+  only current cue.
 - `agent-attention`, `agent-done`, and `agent-error` each have one fixed value shared by every
   theme, including `terminal-native` and host-relative appearances. Quantization maps them to the
   nearest color at each level, which is `Yellow`, `Green`, and `Red` at 16 colors, and to the host
@@ -106,12 +110,17 @@ Theme rules:
   retain the complete role style, including its modifiers.
 - `accent-destructive` identifies an explicitly destructive action intent, independently of action
   hierarchy, focus, current context, hover, and press. It has its own palette value and never borrows
-  `status-error`. Disabled intent uses `text-disabled`. The theme resolver retains the destructive
-  foreground on a contrast pair when a native reverse band, unknown host background, or quantized
-  fill would obscure it; the surrounding interaction band and navigation/focus markers remain.
-  Monochrome retains the explicit localized action wording and ordinary interaction cues, without
-  introducing warning bold, underline, or blink. Named ANSI contrast is checked against the reference
-  palette and actual host evidence; a customized host palette is not inferred from RGB tests.
+  `status-error`. Disabled intent uses `text-disabled`. In `terminal-native`, resting destructive
+  wording is the host palette's red directly on the host default background, without a backing
+  fill: a destructive menu row reads as red text, and so does a destructive button, including its
+  brackets and key hint. Every other theme, including System appearance on the host default
+  background, keeps the destructive key hint in `text-secondary`. The theme resolver retains the
+  destructive foreground on a contrast pair when a native reverse band, a known fill below 3:1, or,
+  outside `terminal-native`, an unknown host background would obscure it; the surrounding
+  interaction band and navigation/focus markers remain. Monochrome retains the explicit localized
+  action wording and ordinary interaction cues, without introducing warning bold, underline, or
+  blink. Named ANSI contrast is checked against the reference palette and actual host evidence; a
+  customized host palette is not inferred from RGB tests.
 - `accent-action` identifies the one primary action in the current decision context while it is at
   rest. It never identifies keyboard focus, selection, or a successful outcome; those meanings keep
   their own roles.
@@ -159,8 +168,8 @@ Hierarchy describes information priority, not interaction state.
   structure comes from spacing, grouping, or a frame, not from more colors or `ITALIC`.
 - `BOLD` marks a heading, a current item whose owner documents bold identity, such as the active
   Tab, or the label or glyph of a pressed enabled action; it never marks pointer hover or a warning.
-  `UNDERLINED` marks only `accent-link`, current context where no current fill can show, and
-  Monochrome `accent-focus`.
+  `UNDERLINED` marks only `accent-link`, `terminal-native` current context, current context where
+  no current fill can show, and Monochrome `accent-focus`.
   `REVERSED` is available only to the theme resolver as a terminal-native or reduced-color fallback
   for an interactive band; component renderers never request it directly. `BLINK` is forbidden
   everywhere.
@@ -176,9 +185,9 @@ Hierarchy describes information priority, not interaction state.
 | Pointer pressed       | `surface-pressed` plus `BOLD` on the enabled action label or glyph while the primary button remains held on the armed target                                                                                                                                                                               |
 | Provisional selection | `surface-selection` across the complete row plus the shared `accent-selection` navigation marker when the component provides one                                                                                                                                                                           |
 | Selected range        | `surface-selection` across the selected cells; endpoints or the active edge use `accent-selection` when they are drawn                                                                                                                                                                                     |
-| Current context       | Neutral `surface-current` across the complete row; current identity adds `BOLD` or a stable marker independently of focus, or its owner documents the fill as the only cue and underlines the row where no fill can show                                                                                   |
+| Current context       | Neutral `surface-current` across the complete row; current identity adds `BOLD` or a stable marker independently of focus, or its owner documents the fill as the only cue and underlines the row where no fill can show; `terminal-native` always underlines the complete row                             |
 | Checked value         | A stable glyph using `accent-selection` for the value at the control's declared boundary; navigation remains independent                                                                                                                                                                                   |
-| Active tab            | Neutral `surface-current` plus `BOLD` or a stable current marker; keyboard focus and provisional navigation remain separate                                                                                                                                                                                |
+| Active tab            | Neutral `surface-current` plus `BOLD` or a stable current marker; `terminal-native` also underlines the Tab; keyboard focus and provisional navigation remain separate                                                                                                                                     |
 | Pending               | Fixed-width `status-pending` glyph plus a localized verb; the control footprint stays fixed                                                                                                                                                                                                                |
 | Disabled              | `text-disabled`; no hover or pressed treatment; the action stays in help with its reason                                                                                                                                                                                                                   |
 

@@ -113,6 +113,56 @@ fn action_shortcut_is_subordinate_inside_the_complete_fixed_button() {
     }
 }
 
+#[test]
+fn terminal_native_destructive_action_rests_wholly_red_and_other_themes_keep_a_secondary_hint() {
+    for (theme, wholly_red) in [
+        (Theme::terminal_native(), true),
+        (Theme::terminal_native().quantize(ColorLevel::Ansi16), true),
+        (Theme::one_dark(), false),
+        (Theme::one_light(), false),
+    ] {
+        let spec = ActionSpec::new(
+            "Close",
+            ActionKind::Primary,
+            ControlSurface::Overlay,
+            idle(PointerPresentation::Rest),
+        )
+        .with_shortcut("Enter")
+        .with_tone(crate::action_projection::ActionTone::Destructive);
+        let mut terminal = Terminal::new(TestBackend::new(40, 1)).unwrap();
+        let mut rect = None;
+        terminal
+            .draw(|frame| rect = render_action(frame, frame.area(), spec, &theme))
+            .unwrap();
+        let rect = rect.unwrap();
+        let buffer = terminal.backend().buffer();
+        let destructive = theme.style(Role::AccentDestructive).fg.unwrap();
+        let hint = if wholly_red {
+            destructive
+        } else {
+            theme.style(Role::TextSecondary).fg.unwrap()
+        };
+        let mut in_hint = false;
+        for x in rect.x..rect.right() {
+            let cell = &buffer[(x, 0)];
+            match cell.symbol() {
+                "E" => in_hint = true,
+                "]" => in_hint = false,
+                _ => {}
+            }
+            if cell.symbol() != " " {
+                let expected = if in_hint { hint } else { destructive };
+                assert_eq!(cell.fg, expected, "{x} {}", cell.symbol());
+            }
+            if wholly_red {
+                // ANSI red directly on the host default background: no backing patch.
+                assert_eq!(cell.bg, Color::Reset, "{x}");
+                assert!(!cell.modifier.contains(Modifier::REVERSED));
+            }
+        }
+    }
+}
+
 fn symbols(terminal: &Terminal<TestBackend>, y: u16, width: u16) -> String {
     (0..width)
         .map(|x| terminal.backend().buffer()[(x, y)].symbol())
@@ -1000,6 +1050,68 @@ fn current_and_hover_remain_independent_on_a_row() {
         theme.style(Role::TextSecondary).fg
     );
     assert!(!buffer[(8, 0)].style().add_modifier.contains(Modifier::BOLD));
+}
+
+#[test]
+fn terminal_native_current_row_underlines_every_cell_and_rgb_rows_keep_the_fill_alone() {
+    for (theme, underlined) in [
+        (Theme::terminal_native(), true),
+        (Theme::terminal_native().quantize(ColorLevel::Ansi16), true),
+        (Theme::one_dark(), false),
+        (Theme::one_light(), false),
+    ] {
+        let row = Rect::new(0, 0, 14, 1);
+        let tracks = RowTracks::new(
+            RowFocusCue::Track(Rect::new(0, 0, 1, 1)),
+            Rect::new(2, 0, 4, 1),
+        );
+        let bands = [RowContentBand::semantic(
+            Rect::new(10, 0, 3, 1),
+            Role::TextSecondary,
+        )];
+        let interaction = state(
+            FocusState::Unfocused,
+            PointerPresentation::Rest,
+            NavigationState::None,
+            CurrentState::Current,
+            CheckedState::Unchecked,
+            Availability::Enabled,
+            OperationState::Idle,
+        );
+        let mut terminal = Terminal::new(TestBackend::new(row.width, row.height)).unwrap();
+        terminal
+            .draw(|frame| {
+                frame
+                    .buffer_mut()
+                    .set_string(2, 0, "Name", theme.style(Role::TextPrimary));
+                frame
+                    .buffer_mut()
+                    .set_string(10, 0, "[x]", theme.style(Role::TextSecondary));
+                assert_eq!(
+                    paint_row_interaction(
+                        frame,
+                        row,
+                        tracks,
+                        &bands,
+                        ControlSurface::Overlay,
+                        interaction,
+                        &theme,
+                    ),
+                    Some(row)
+                );
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        for x in 0..row.width {
+            let cell = buffer[(x, 0)].style();
+            assert_eq!(cell.bg, theme.style(Role::SurfaceCurrent).bg, "x={x}");
+            assert_eq!(
+                cell.add_modifier.contains(Modifier::UNDERLINED),
+                underlined,
+                "x={x}"
+            );
+        }
+    }
 }
 
 #[test]

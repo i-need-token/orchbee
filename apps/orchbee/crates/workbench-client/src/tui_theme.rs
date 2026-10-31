@@ -409,6 +409,16 @@ enum TerminalColorSource {
     OuterHost,
 }
 
+/// How resting destructive wording meets the unpainted host default background.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DestructiveRest {
+    /// The terminal-native contract: the host palette's own red, key hint included, rests on
+    /// the host default without a backing fill.
+    HostRed,
+    /// Every other theme keeps the resolver's contrast pair wherever the background is unknown.
+    Paired,
+}
+
 /// A complete mapping of roles to concrete styles plus the uniform frame
 /// corner option and the resolved glyph set.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -423,6 +433,7 @@ pub struct Theme {
     terminal_colors: Option<(Color, Color)>,
     terminal_color_source: TerminalColorSource,
     terminal_defaults_known: bool,
+    destructive_rest: DestructiveRest,
     styles: RoleStyles,
     pub(crate) tab_groups: TabGroupPalette,
 }
@@ -577,6 +588,7 @@ impl Theme {
             terminal_colors: None,
             terminal_color_source: TerminalColorSource::Palette,
             terminal_defaults_known: true,
+            destructive_rest: DestructiveRest::HostRed,
             no_color: false,
             styles: RoleStyles {
                 text_primary: reset,
@@ -614,7 +626,12 @@ impl Theme {
                 surface_hover: interaction_surface_fallback(),
                 surface_pressed: interaction_surface_fallback(),
                 surface_selection: Style::new().bg(Color::Blue),
-                surface_current: Style::new().fg(Color::Black).bg(Color::Gray),
+                // ANSI 7 can sit within a few steps of a light host's default background, so
+                // current identity also keeps an underline across the row, as in Monochrome.
+                surface_current: Style::new()
+                    .fg(Color::Black)
+                    .bg(Color::Gray)
+                    .add_modifier(Modifier::UNDERLINED),
                 // Unknown host colors cannot promise a softer fill; ancestry keeps its marker.
                 surface_related: Style::new().bg(Color::Reset),
                 surface_inactive: Style::new().bg(Color::Reset),
@@ -640,6 +657,7 @@ impl Theme {
             terminal_colors: None,
             terminal_color_source: TerminalColorSource::Palette,
             terminal_defaults_known: true,
+            destructive_rest: DestructiveRest::Paired,
             no_color: false,
             styles: RoleStyles {
                 text_primary: Style::new().fg(Color::Rgb(211, 218, 232)),
@@ -779,14 +797,15 @@ impl Theme {
         }
 
         // Preserve a destructive label's semantic foreground in reverse-video
-        // bands and on unknown or low-contrast fills. The contrast pair belongs
+        // bands and on low-contrast fills; terminal-native red rests unpaired on
+        // the host default background. The contrast pair belongs
         // to the theme, not a renderer or a status role; surrounding pointer and
         // focus tracks retain their independent state. Monochrome keeps the
         // ordinary control resolver and explicit localized action wording.
         if content_role == Some(Role::AccentDestructive)
             && self.color_level != ColorLevel::Monochrome
         {
-            content = destructive_content_pair(content);
+            content = destructive_content_pair(content, self.destructive_rest);
         }
         // Reverse video would turn an Agent or status hue into a block of its own color behind a
         // glyph drawn in the band's text color. The hue keeps its foreground on the same pair.
@@ -873,6 +892,21 @@ impl Theme {
         style
             .bg(self.color(Role::SurfaceCurrent))
             .add_modifier(surface.add_modifier)
+    }
+
+    /// The key hint inside an action. Terminal-native destructive wording is red across the
+    /// whole button, so its hint keeps that hue; every other theme and Monochrome keep the
+    /// hint as supporting text.
+    pub(crate) fn action_hint_role(&self, action: Role) -> Role {
+        if action == Role::AccentDestructive
+            && self.destructive_rest == DestructiveRest::HostRed
+            && !self.no_color
+            && self.color_level != ColorLevel::Monochrome
+        {
+            Role::AccentDestructive
+        } else {
+            Role::TextSecondary
+        }
     }
 
     /// A surface whose current row is marked by its fill alone underlines that row where
@@ -1334,20 +1368,21 @@ fn interaction_surface_fallback() -> Style {
 
 /// A semantic foreground cannot be a readable foreground after reverse video
 /// swaps its channels. Use one resolver-owned contrast pair on that content
-/// band when the ambient fill is unknown or cannot support the declared hue.
-fn destructive_content_pair(content: Style) -> Style {
+/// band when a known fill cannot support the declared hue, or when the ambient
+/// background is unknown. Terminal-native red is the host palette's own hue,
+/// whose reference contrast on the host default admits it there unpaired.
+fn destructive_content_pair(content: Style, rest: DestructiveRest) -> Style {
     let Some(foreground) = content.fg.and_then(sampled_color) else {
         return content;
     };
-    if !content.add_modifier.contains(Modifier::REVERSED)
-        && content
-            .bg
-            .and_then(sampled_color)
-            .is_some_and(|background| color_contrast(foreground, background) >= 3.0)
-    {
-        return content;
+    if content.add_modifier.contains(Modifier::REVERSED) {
+        return contrast_pair(content);
     }
-    contrast_pair(content)
+    match content.bg.and_then(sampled_color) {
+        Some(background) if color_contrast(foreground, background) >= 3.0 => content,
+        None if rest == DestructiveRest::HostRed => content,
+        _ => contrast_pair(content),
+    }
 }
 
 /// Backs a known foreground with whichever of ANSI black or white contrasts more with it, in place

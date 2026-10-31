@@ -19,8 +19,9 @@ and validation owner.
 
 The root surface groups settings into Appearance, Terminal, Notifications and Launch profiles.
 Each section has a quiet heading and divider; every setting has one stable label track and one
-value track. The current setting uses a neutral current-context band and bold label, while the
-modal frame identifies keyboard ownership. Checked booleans, `~` changed-draft markers, disabled
+value track. The current setting uses a neutral current-context band and bold label, which
+terminal-native also underlines across the row, while the modal frame identifies keyboard
+ownership. Checked booleans, `~` changed-draft markers, disabled
 values and picker navigation have independent cues. Reset all, Reload, Close and Save remain in
 a fixed action area below the list; they never appear among scrolling settings. The root keeps
 one contextual description and one state line rather than a persistent preview paragraph or

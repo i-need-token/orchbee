@@ -224,9 +224,10 @@ last line, excluding separators, group headings and neighboring entries.
 Keyboard focus uses the theme navigation marker in the separate track and `surface-selection` across
 the focused entry. Named palettes retain secondary metadata colors; host-relative text uses the
 surface's paired foreground. Explicit token colors and emphasis retain their authority. The fill
-alone marks the current row: current names keep their normal weight and no marker is added. Where no
-fill can show, because quantization collapses it onto chrome or the host is Monochrome, the current
-row is underlined instead. While keyboard navigation or the pointer is on the current row, its
+alone marks the current row in the named themes: current names keep their normal weight and no
+marker is added. Terminal-native also underlines the complete current row over its ANSI gray fill.
+Where no fill can show, because quantization collapses it onto chrome or the host is Monochrome, the
+current row is underlined instead. While keyboard navigation or the pointer is on the current row, its
 selection or hover surface replaces the current fill until it leaves; Agent state and unread glyphs
 remain in their own cells. Agent continuations retain the same whole-row surface as their identity.
 Project, Recents and eligible Context disclosure use one glyph (`▾`/`▸`, with `v`/`>` ASCII fallbacks) after
@@ -503,8 +504,9 @@ Agent vertical guides occupy a fixed one-cell track under the Workspace name. Co
 continuation rows align with the Workspace name. Secondary rows use metadata text and retain
 explicit token overrides. Current Contexts and Agents use the same neutral current surface; a
 visible current Agent's Workspace uses the quieter related surface. The fill alone marks current
-identity, underlined where a collapsed palette or Monochrome leaves no fill; Agent state, unread
-state and keyboard navigation remain in separate cells.
+identity in the named themes; terminal-native also underlines it, and so does any collapsed palette
+or Monochrome that leaves no fill. Agent state, unread state and keyboard navigation remain in
+separate cells.
 
 Project, Recents and Context disclosure glyphs, identity text and row menus have disjoint painted extents.
 The primary row target covers every continuation, internal configured leading space and all cells

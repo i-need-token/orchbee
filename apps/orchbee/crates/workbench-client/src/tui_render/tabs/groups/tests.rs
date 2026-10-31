@@ -467,6 +467,36 @@ fn terminal_native_pointer_bands_keep_agent_and_unread_hues_off_reverse_video() 
 }
 
 #[test]
+fn terminal_native_active_tab_keeps_bold_and_underlines_its_whole_band() {
+    // ANSI 7 alone can vanish on a light host; RGB fills keep marking the active Tab alone.
+    for (theme, underlined) in [
+        (Theme::terminal_native(), true),
+        (Theme::terminal_native().quantize(ColorLevel::Ansi16), true),
+        (Theme::one_light(), false),
+        (Theme::rgb_test_dark(), false),
+    ] {
+        let tabs = [tab("build", true, None), tab("logs", false, None)];
+        let (buffer, hits) = draw(&tabs, &theme, 60, rest);
+        for (index, _, rect) in hits.iter().filter(|(_, part, _)| *part == StripPart::Tab) {
+            for x in rect.x..rect.right() {
+                assert_eq!(
+                    buffer[(x, 0)].modifier.contains(Modifier::UNDERLINED),
+                    underlined && *index == 0,
+                    "{} tab {index} x={x}",
+                    theme.name
+                );
+            }
+        }
+        let (_, _, active) = hits
+            .iter()
+            .find(|(index, part, _)| *index == 0 && *part == StripPart::Tab)
+            .copied()
+            .unwrap();
+        assert!(buffer[(active.x + 1, 0)].modifier.contains(Modifier::BOLD));
+    }
+}
+
+#[test]
 fn active_and_checked_tabs_keep_their_geometry_and_bands() {
     let theme = Theme::rgb_test_dark();
     let mut tabs = [tab("member", true, None), tab("other", false, None)];

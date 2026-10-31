@@ -80,8 +80,8 @@
 `surface-hover`、`surface-current`，最后是组件基础表面。其他通道保持独立：
 
 - 键盘焦点通过 `frame-focused` 或稳定的 `accent-focus` 标记保持可见；
-- 当前身份通过 `BOLD`、稳定的当前标记，或所有者文档说明为唯一当前提示的填充保持可见；无法显示
-  填充时加下划线；
+- 当前身份通过 `BOLD`、稳定的当前标记，或所有者文档说明为唯一当前提示的填充保持可见；在
+  `terminal-native` 中以及无法显示填充时加下划线；
 - 已勾选值保留使用 `accent-selection` 的勾选字形；
 - 禁用内容使用 `text-disabled`，但当前或已勾选标记仍可辨认；
 - 等待状态保留焦点、当前和已勾选提示，并加入固定宽度的 `status-pending` 字形和本地化操作动词。
@@ -348,4 +348,4 @@
 中的必需几何，以及隐藏目标不留下陈旧命中区域的检查。组件渲染通过不能证明现有屏幕已经采用
 该组件。
 
-<!-- documentation-pairing: english-sha256=b017407fff9f18962162d39dfbf11c8cfd0128072d7ea92ec2e974cf3e9a2ea0 zh-cn-sha256=f247a08599be6063d15417940a8e477759c41c486c7ad95bfdfe47bf8f390aa3 -->
+<!-- documentation-pairing: english-sha256=5b78955e581513c2020767d69c19de185f13d301b2cb7faa772f3e40f3abe612 zh-cn-sha256=2c104b9b164d7407fd6ac3ef9615ce5a868dd75b429aa7579cf8fdedd5e3edb2 -->

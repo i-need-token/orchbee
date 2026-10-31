@@ -1280,7 +1280,42 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
                 _ => None,
             })
             .unwrap();
-        // The fill alone marks the current row, underlined only where no fill can show.
+        // The fill alone marks an RGB current row, underlined only where no fill can show;
+        // terminal-native also underlines every cell of its filled band, from the blank cell
+        // before the state glyph to the row's trailing edge, as Monochrome does.
+        let underlined = theme
+            .underline_collapsed_current()
+            .style(Role::SurfaceCurrent)
+            .add_modifier
+            .contains(Modifier::UNDERLINED);
+        assert_eq!(
+            underlined,
+            theme.name == "terminal-native",
+            "{}",
+            theme.name
+        );
+        if theme.color(Role::SurfaceCurrent) != theme.color(Role::SurfaceChrome) {
+            let band = (0..120)
+                .filter(|x| {
+                    matches!(
+                        hits.hit_target_at(*x, y),
+                        Some(HitTarget::MachineAgentRow { .. })
+                    ) && terminal.backend().buffer()[(*x, y)].bg
+                        == theme.color(Role::SurfaceCurrent)
+                })
+                .collect::<Vec<_>>();
+            assert!(band.len() >= 20, "{} {band:?}", theme.name);
+            for x in band {
+                assert_eq!(
+                    terminal.backend().buffer()[(x, y)]
+                        .modifier
+                        .contains(Modifier::UNDERLINED),
+                    underlined,
+                    "{} x={x}",
+                    theme.name
+                );
+            }
+        }
         assert_eq!(
             terminal.backend().buffer()[(title_x, y)]
                 .modifier
