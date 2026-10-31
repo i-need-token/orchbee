@@ -311,6 +311,7 @@ pub fn render_terminal_shell_with_resize<'a>(
     let sidebar_status;
     let mut sidebar_status_role = Role::StatusWarning;
     let status_text;
+    let mut status_shorter = Vec::new();
     let mut status_persistent = None;
     let mut status_ordinary = false;
     let mut secondary_notice = None;
@@ -334,7 +335,12 @@ pub fn render_terminal_shell_with_resize<'a>(
             let phase_status = native.phase_status_text(locale);
             let close = native.close_status();
             let status = match (native.workspace_close_status(), close.as_ref()) {
-                (Some(status), _) => locale.workspace_close_status(status),
+                (Some(status), _) => {
+                    // The complete status names its executable command, so ordinary widths
+                    // show a documented shorter form instead of dropping the fact.
+                    status_shorter = Vec::from(locale.workspace_close_status_shorter(status));
+                    locale.workspace_close_status(status)
+                }
                 (None, Some(status)) => {
                     let label = status.target_label(locale);
                     locale.native_close_status(status.text(&label))
@@ -448,6 +454,23 @@ pub fn render_terminal_shell_with_resize<'a>(
     }
 
     if tier != ViewportTier::TooSmall {
+        // A presented sidebar overlay owns the pointer before its rows paint, so each row's
+        // draw-time pointer projection resolves against the same overlay layers as the
+        // published frame. Claiming it afterwards left the candidate rows exposed to the
+        // panes below and their hover band never matched.
+        if view
+            .overlay()
+            .filter(|_| client_chrome_overlay_allowed(capture_owner))
+            == Some(Overlay::BusinessSidebar)
+            && let Some(sidebar) = areas.sidebar
+        {
+            hits.mark_overlay_active();
+            hits.record(
+                HitLayer::OverlaySurface,
+                sidebar.area,
+                HitTarget::OverlaySurface,
+            );
+        }
         if let Some(sidebar) = areas.sidebar {
             let agent_line = match workbench_client.as_ref() {
                 Some(native) => native
@@ -551,7 +574,9 @@ pub fn render_terminal_shell_with_resize<'a>(
                 hits,
             )),
 
-            Some(Overlay::BusinessSidebar) => Some(areas.sidebar.map(|sidebar| sidebar.area)),
+            // The sidebar overlay claimed the pointer before its rows painted; without a
+            // sidebar area it is refused.
+            Some(Overlay::BusinessSidebar) => areas.sidebar.is_none().then_some(None),
             None => None,
         };
         if let Some(None) = overlay {
@@ -876,6 +901,7 @@ pub fn render_terminal_shell_with_resize<'a>(
             locale,
             status_line::StatusFacts {
                 primary: &status_text,
+                primary_shorter: &status_shorter,
                 primary_ordinary: status_ordinary || !status_facts,
                 persistent: status_persistent,
                 secondary_notice: notice,

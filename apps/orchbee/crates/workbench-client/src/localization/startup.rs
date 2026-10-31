@@ -32,8 +32,8 @@ impl Locale {
 
     pub const fn startup_wait_hint(self) -> &'static str {
         match self {
-            Self::EnUs => "Press Ctrl+B then q to exit.\n",
-            Self::ZhCn => "按 Ctrl+B 再按 q 退出。\n",
+            Self::EnUs => "Press Ctrl+b then q to exit.\n",
+            Self::ZhCn => "按 Ctrl+b 再按 q 退出。\n",
         }
     }
 

@@ -106,9 +106,21 @@ fn ready_with_background_target(
     LocalOperationClock,
     Snapshot,
 ) {
-    let clock = crate::local_client::test_support::server::adjustable_operation_clock(Arc::new(
-        std::sync::atomic::AtomicU64::new(0),
-    ));
+    ready_at(background, Arc::new(std::sync::atomic::AtomicU64::new(0)))
+}
+
+/// The ready fixture on an injected clock whose elapsed milliseconds the caller advances.
+fn ready_at(
+    background: bool,
+    elapsed_millis: Arc<std::sync::atomic::AtomicU64>,
+) -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Snapshot,
+) {
+    let clock =
+        crate::local_client::test_support::server::adjustable_operation_clock(elapsed_millis);
     let mailbox = Arc::new(CommandMailbox::new(
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
@@ -954,5 +966,102 @@ fn project_close_all_dispatcher_confirms_only_drawn_exact_scope_and_consumes_pac
                 WorkspaceGroupCloseAction::Start { project_id: actual, .. } if actual == project_id));
         }
         assert!(mailbox.try_recv().unwrap().is_none());
+    }
+}
+
+/// Paints the shell for a person who has already used the prefix, so only real status floats.
+fn draw_taught(ui: &mut WorkbenchClientUi, locale: Locale, width: u16, height: u16) -> String {
+    use crate::client_view::{KeyCode, KeyEvent, Modifiers, PrefixInput};
+    let mut view = ClientView::new(width);
+    let prefix = view.bindings().prefix;
+    for key in [
+        KeyEvent::press(prefix.code, prefix.mods),
+        KeyEvent::press(KeyCode::Esc, Modifiers::NONE),
+    ] {
+        let transition = view.decide(PrefixInput::Key(key));
+        view.commit(transition, ClientActionDisposition::KeepNavigator);
+    }
+    assert!(!view.launch_hint_pending());
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    let mut receipt = None;
+    terminal
+        .draw(|frame| {
+            receipt = Some(crate::tui_render::render_terminal_shell(
+                frame,
+                &view,
+                locale,
+                Some(ui.view()),
+                &Theme::terminal_native(),
+                &mut HitMapBuilder::new(),
+            ));
+        })
+        .unwrap();
+    ui.after_close_draw(receipt.unwrap());
+    terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect()
+}
+
+#[test]
+fn confirmed_workspace_close_shows_pending_through_the_ui_tick_after_200_ms() {
+    for background in [false, true] {
+        let elapsed = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let (mut ui, mailbox, _, _) = ready_at(background, Arc::clone(&elapsed));
+        let lease = submit(&mut ui, &mailbox);
+        let QueuedCommand::Refresh(marker) = lease.record() else {
+            panic!("Close refresh");
+        };
+        let operation = marker.workspace_close().unwrap();
+        // The worker owns the Close while the Client keeps ticking on its injected clock.
+        assert_eq!(
+            mailbox
+                .mark_refresh_in_flight(operation.generation)
+                .unwrap(),
+            MutationResult::Applied
+        );
+        elapsed.store(199, std::sync::atomic::Ordering::SeqCst);
+        ui.tick();
+        assert!(ui.view().workspace_close_status().is_none(), "{background}");
+        let early = [Locale::EnUs, Locale::ZhCn].map(|locale| draw_taught(&mut ui, locale, 80, 24));
+        elapsed.store(200, std::sync::atomic::Ordering::SeqCst);
+        assert!(ui.tick(), "the pending status schedules a redraw");
+        let forms = [Locale::EnUs, Locale::ZhCn].map(|locale| {
+            let status = ui.view().workspace_close_status().unwrap();
+            assert_eq!(status.status(), WorkspaceCloseStatus::Closing);
+            (
+                locale,
+                locale.workspace_close_status(status),
+                locale.workspace_close_status_shorter(status),
+            )
+        });
+        for ((locale, complete, [scope, phase]), early) in forms.into_iter().zip(early) {
+            assert!(
+                !alnum(&early).contains(&alnum(&phase)),
+                "{background} {locale:?}"
+            );
+            // The complete status names its status command and cannot fit an ordinary width.
+            assert!(crate::terminal_text::display_width(&complete) > 80);
+            // The floating chip and the TooSmall row both fall back to the scope.
+            for (width, height) in [(80, 24), (60, 4)] {
+                let text = draw_taught(&mut ui, locale, width, height);
+                assert!(
+                    alnum(&text).contains(&alnum(&scope)),
+                    "{background} {locale:?} {width}x{height}: {text}"
+                );
+                assert!(
+                    !text.contains("close-status"),
+                    "a partial status is never drawn"
+                );
+            }
+            let text = draw_taught(&mut ui, locale, 200, 24);
+            assert!(
+                alnum(&text).contains(&alnum(&complete)),
+                "{background} {locale:?}"
+            );
+        }
     }
 }

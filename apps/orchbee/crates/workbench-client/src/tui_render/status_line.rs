@@ -89,6 +89,9 @@ impl Indicator {
 #[derive(Clone, Copy, Debug)]
 pub(super) struct StatusFacts<'a> {
     pub(super) primary: &'a str,
+    /// The owner's documented shorter forms of `primary`, longest first. A partial fact is never
+    /// drawn, so the first form that fits replaces a complete fact that does not.
+    pub(super) primary_shorter: &'a [String],
     /// The ordinary Ready fact. The TooSmall row keeps it; the floating chip omits it, since the
     /// strip already names the current Tab.
     pub(super) primary_ordinary: bool,
@@ -220,6 +223,21 @@ pub(super) fn render(
         let primary = (client_notice.is_some() || !facts.primary_ordinary)
             .then(|| sanitize_terminal_text(primary).into_owned())
             .filter(|primary| !primary.is_empty());
+        // A Client notice replaces the fact, and with it the fact's shorter forms.
+        let shorter = if primary.is_some() && client_notice.is_none() {
+            facts.primary_shorter
+        } else {
+            &[]
+        };
+        let primary = primary
+            .into_iter()
+            .chain(
+                shorter
+                    .iter()
+                    .map(|form| sanitize_terminal_text(form).into_owned())
+                    .filter(|form| !form.is_empty()),
+            )
+            .collect();
         let mut hints = if notice.is_some() {
             HintSet::default()
         } else {
@@ -324,7 +342,8 @@ enum Lead<'a> {
     Notice(StatusNotice<'a>),
     Context {
         notice: Option<StatusNotice<'a>>,
-        primary: Option<String>,
+        /// The complete fact, then its shorter forms; at most one of them is painted.
+        primary: Vec<String>,
         contexts: Vec<&'static str>,
     },
 }
@@ -471,15 +490,19 @@ fn layout_chip(
                     theme.style(Role::TextPrimary),
                 );
             }
-            if let Some(primary) = primary {
+            // The first form that fits leads; only the complete fact is the draw receipt.
+            for (form_index, form) in primary.into_iter().enumerate() {
                 let joint = chip.joint_before(&separator);
-                let width = display_width(&primary);
+                let width = display_width(&form);
                 if chip.width.saturating_add(joint).saturating_add(width) <= available {
                     if joint > 0 {
                         chip.push(separator.text.clone(), theme.style(Role::HintLabel));
                     }
-                    chip.primary = Some((chip.width, width));
-                    chip.push(primary, theme.style(Role::TextPrimary));
+                    if form_index == 0 {
+                        chip.primary = Some((chip.width, width));
+                    }
+                    chip.push(form, theme.style(Role::TextPrimary));
+                    break;
                 }
             }
             for context in contexts {
@@ -640,7 +663,7 @@ pub(super) fn render_context_chip(
         layout_chip(
             Lead::Context {
                 notice: None,
-                primary: None,
+                primary: Vec::new(),
                 contexts,
             },
             &hints,
@@ -816,13 +839,26 @@ fn render_row(
             1,
         )
     });
+    // A partial fact is never drawn: the first shorter form that fits replaces it, without
+    // becoming the complete fact's draw receipt. A Client notice has no shorter forms.
+    let shorter = if primary_visible || client_notice.is_some() {
+        None
+    } else {
+        facts
+            .primary_shorter
+            .iter()
+            .map(|form| sanitize_terminal_text(form).into_owned())
+            .find(|form| !form.is_empty() && super::modal::unwrapped_text_fits(form, left))
+    };
     if primary_visible {
         render_primary(frame, left, &primary, &contexts, locale, theme);
+    } else if let Some(form) = &shorter {
+        render_primary(frame, left, form, &contexts, locale, theme);
     }
 
     if right_width_u16 > 0 {
         let right = Rect::new(area.right() - right_width_u16, area.y, right_width_u16, 1);
-        if primary_visible && left_gap > 0 {
+        if (primary_visible || shorter.is_some()) && left_gap > 0 {
             frame.buffer_mut().set_string(
                 right.x - 1,
                 right.y,

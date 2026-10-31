@@ -17,6 +17,7 @@ const CANVAS: &str = "¤";
 fn facts(primary: &str) -> StatusFacts<'_> {
     StatusFacts {
         primary,
+        primary_shorter: &[],
         primary_ordinary: false,
         persistent: None,
         secondary_notice: None,

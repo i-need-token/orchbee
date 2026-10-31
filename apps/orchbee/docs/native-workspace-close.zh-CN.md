@@ -123,6 +123,10 @@ flight 允许只读规范成员修复。即使最新 Close read 不可用，snap
 超时限制观察，而不是取消 Server 工作。满 200 ms 后，注入的时钟启用本地化 pending
 状态，不打开进度模态。最终回执可以立即显示。
 
+状态行只在放得下时显示完整状态，Closed 之前包括该范围的状态命令。放不下时依次改用已记录的
+更短形式：先是阶段加范围名称，再是只有阶段；绝不绘制残缺的状态。Client Connection 断开后，
+pane 保留完整状态。
+
 ## 正确性与证据
 
 经过验证的移除安装会在自动落到的规范 Workspace 保留已知 Closed 提示。此私有显示凭据
@@ -146,4 +150,4 @@ Minimal 和被拒绝的几何。适用的仓库 gate 仍是权威；定向开发
 这些受控实现轨迹不证明全部交错、物理终端外观或未测试的平台。共享身份与提交协议仍由
 已注册模型负责。
 
-<!-- documentation-pairing: english-sha256=8e5f1756f711ab27004a8107c818918940d5468cbc178a8e3ef2930948d124f9 zh-cn-sha256=85cc15134b8525abb71cc5730538bccc8833ce7b50e1251a1699b67d379085dd -->
+<!-- documentation-pairing: english-sha256=662bf124a07ae2ad87c237bd2ae552696813b9bfcdc5bcb467cad4f642ba89cd zh-cn-sha256=4b70905c3e558a16367907c7bd1958e472c72d316dda62f49f35d619f7d0f6a1 -->

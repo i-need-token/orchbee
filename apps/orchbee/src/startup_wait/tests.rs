@@ -283,7 +283,7 @@ fn waiting_draws_prompt_once_then_admits_valid_geometry() {
     assert_eq!(harness.ops(), expected);
     let drawn = String::from_utf8_lossy(&harness.output);
     assert!(drawn.contains("too small"));
-    assert!(drawn.contains("Ctrl+B"));
+    assert!(drawn.contains("Ctrl+b"));
     assert!(drawn.starts_with("\u{1b}[2J\u{1b}[1;1H"));
     assert_eq!(input.timeouts.len(), 2);
 }
@@ -292,8 +292,14 @@ fn waiting_draws_prompt_once_then_admits_valid_geometry() {
 fn localized_prompt_pairs_exist() {
     assert!(Locale::EnUs.startup_wait_notice().contains("too small"));
     assert!(Locale::ZhCn.startup_wait_notice().contains("终端"));
-    assert!(Locale::EnUs.startup_wait_hint().contains("Ctrl+B"));
-    assert!(Locale::ZhCn.startup_wait_hint().contains("Ctrl+B"));
+    // Drawn key hints display the prefix letter in lowercase, as every TUI key hint does.
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let hint = locale.startup_wait_hint();
+        assert!(
+            hint.contains("Ctrl+b") && !hint.contains("Ctrl+B"),
+            "{hint}"
+        );
+    }
 }
 
 #[test]

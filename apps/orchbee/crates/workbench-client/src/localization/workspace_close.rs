@@ -69,8 +69,42 @@ impl Locale {
         view: impl Into<WorkspaceCloseText<'a>>,
     ) -> String {
         let view = view.into();
+        let mut text = self.workspace_close_scope(view);
+        if view.status != WorkspaceCloseStatus::Closed
+            && let Some(id) = view.operation_id
+        {
+            if let Some(workspace) = view.workspace_id {
+                text.push_str(&format!(
+                    " · orchbee workspace close-status --workspace {workspace}"
+                ));
+            } else {
+                text.push_str(&format!(" · orchbee project close-status --request {id}"));
+            }
+        }
+        text
+    }
+    /// The documented shorter forms, longest first, for a status line too narrow for the complete
+    /// status: the phase and scope label without the status command, then the phase alone.
+    pub(crate) fn workspace_close_status_shorter<'a>(
+        self,
+        view: impl Into<WorkspaceCloseText<'a>>,
+    ) -> [String; 2] {
+        let view = view.into();
+        [
+            self.workspace_close_scope(view),
+            self.workspace_close_phase(view).to_owned(),
+        ]
+    }
+    fn workspace_close_scope(self, view: WorkspaceCloseText<'_>) -> String {
+        format!(
+            "{} · {}",
+            self.workspace_close_phase(view),
+            sanitize_terminal_text(view.label)
+        )
+    }
+    fn workspace_close_phase(self, view: WorkspaceCloseText<'_>) -> &'static str {
         let project = view.workspace_id.is_none();
-        let phase = match (self, view.status, project) {
+        match (self, view.status, project) {
             (Self::EnUs, WorkspaceCloseStatus::ConfirmationRequired, _) => {
                 "Confirmation required before closing"
             }
@@ -111,19 +145,6 @@ impl Locale {
             (Self::ZhCn, WorkspaceCloseStatus::Refused, false) => {
                 "工作区关闭未提交或被拒绝；刷新后重试"
             }
-        };
-        let mut text = format!("{phase} · {}", sanitize_terminal_text(view.label));
-        if view.status != WorkspaceCloseStatus::Closed
-            && let Some(id) = view.operation_id
-        {
-            if let Some(workspace) = view.workspace_id {
-                text.push_str(&format!(
-                    " · orchbee workspace close-status --workspace {workspace}"
-                ));
-            } else {
-                text.push_str(&format!(" · orchbee project close-status --request {id}"));
-            }
         }
-        text
     }
 }

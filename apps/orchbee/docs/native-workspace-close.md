@@ -148,6 +148,11 @@ reserve. Reads never extend the original cutoff; timeout limits observation rath
 Server work. After 200 ms, the injected clock enables a localized pending status without opening a
 progress modal. Final receipts can appear immediately.
 
+The status line shows the complete status, including the scope's status command before Closed, only
+when it fits. Otherwise it shows the documented shorter forms, first the phase with the scope label
+and then the phase alone, and never draws a partial status. After the Client Connection is lost,
+the pane keeps the complete status.
+
 ## Correctness and evidence
 
 A validated removal install retains the known Closed notice at its automatic canonical Workspace

@@ -1216,6 +1216,97 @@ fn sidebar_truncates_wide_and_unsafe_text_without_changing_navigation_identity()
 }
 
 #[test]
+fn compact_overlay_sidebar_rows_and_fixed_actions_paint_the_hover_band_under_the_pointer() {
+    use crate::terminal_input::{
+        MouseAction, MouseButton, MouseEvent, TerminalInputPort, TerminalInputUnavailable,
+    };
+    use crate::tui_pointer::{MotionObservability, PointerState};
+    struct NoInput;
+    impl TerminalInputPort for NoInput {
+        fn forward(&mut self, _: &[u8]) -> Result<(), TerminalInputUnavailable> {
+            panic!("overlay sidebar hover leaked terminal input")
+        }
+    }
+    let (width, height) = (80, 22);
+    for theme in [
+        Theme::terminal_native(),
+        Theme::one_light(),
+        Theme::rgb_test_dark(),
+    ] {
+        let paint = |view: &ClientView, pointer: &PointerState| {
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            let mut hits = HitMapBuilder::with_pointer(pointer.projection());
+            terminal
+                .draw(|frame| {
+                    render_terminal_shell(frame, view, Locale::EnUs, None, &theme, &mut hits);
+                })
+                .unwrap();
+            (terminal.backend().buffer().clone(), hits.finish())
+        };
+        let hover = theme.style(Role::SurfaceHover);
+        let banded = |buffer: &ratatui::buffer::Buffer, y: u16| {
+            (0..width)
+                .filter(|x| {
+                    let cell = &buffer[(*x, y)];
+                    if hover.add_modifier.contains(Modifier::REVERSED) {
+                        cell.modifier.contains(Modifier::REVERSED)
+                    } else {
+                        Some(cell.bg) == hover.bg
+                    }
+                })
+                .count()
+        };
+        for is_target in [
+            (|target: Option<&HitTarget>| {
+                matches!(target, Some(HitTarget::MachineWorkspaceRow { .. }))
+            }) as fn(Option<&HitTarget>) -> bool,
+            |target| matches!(target, Some(HitTarget::SearchButton)),
+        ] {
+            let mut view = view(width, height, 1);
+            assert_eq!(
+                view.overlay(),
+                Some(crate::client_view::Overlay::BusinessSidebar)
+            );
+            let mut pointer = PointerState::default();
+            pointer.set_capture(true);
+            pointer.set_motion_observability(MotionObservability::AnyMotion);
+            let (rest, map) = paint(&view, &pointer);
+            let (x, y) = (0..height)
+                .flat_map(|y| (0..width).map(move |x| (x, y)))
+                .find(|(x, y)| is_target(map.hit_target_at(*x, *y)))
+                .unwrap();
+            assert_eq!(banded(&rest, y), 0, "{}", theme.name);
+            pointer.publish(map);
+            let _ = pointer.event(
+                &mut view,
+                &mut NoInput,
+                std::time::Instant::now(),
+                MouseEvent {
+                    column: x,
+                    row: y,
+                    action: MouseAction::Motion,
+                    button: MouseButton::None,
+                    mods: Modifiers::NONE,
+                },
+            );
+            let (hovered, _) = paint(&view, &pointer);
+            assert!(
+                banded(&hovered, y) >= 6,
+                "{} {:?} at ({x}, {y})",
+                theme.name,
+                row_text(&rest, y)
+            );
+        }
+    }
+}
+
+fn row_text(buffer: &ratatui::buffer::Buffer, y: u16) -> String {
+    (0..buffer.area.width)
+        .map(|x| buffer[(x, y)].symbol())
+        .collect()
+}
+
+#[test]
 fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_explicit() {
     for theme in [
         Theme::terminal_native(),

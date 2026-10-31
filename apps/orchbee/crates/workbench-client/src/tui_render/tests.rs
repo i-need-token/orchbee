@@ -17,6 +17,7 @@ use super::render_shell;
 fn status_facts(primary: &str) -> super::status_line::StatusFacts<'_> {
     super::status_line::StatusFacts {
         primary,
+        primary_shorter: &[],
         primary_ordinary: false,
         persistent: None,
         secondary_notice: None,
