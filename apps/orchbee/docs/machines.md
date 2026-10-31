@@ -142,6 +142,8 @@ the Windows adapter creates the listener, relay task and SSH Jobs. Derived lanes
 retain the same guard without depending on saved-machine profiles. The actor's retained origin
 does not hold the connection actor itself, avoiding a reference/join cycle. Closing a logical
 lane releases its scope; connection shutdown signals actor stop and joins the task once.
+Each Workbench Client surface holds one claim on its carrier, and only the last released claim
+performs that shutdown.
 The observer promotes its initial admission before cloning any retained or published origin;
 secondary query/control lanes are logical scopes on that carrier. Buffers are bounded and
 backpressure pauses reads. The connection actor owns replacement admission after EOF and never
@@ -309,8 +311,11 @@ Queued selection freezes endpoint and destination identity. A candidate replaces
 the current surface only after the selected context is drawable; failure, timeout
 and Escape keep the current surface, with no mutation replay. Local is retained
 when switching away; replacing the same machine retires its previous surface
-only after commit. Cached machine-only selection preserves its selected context,
-including empty workspaces and unbound placeholders.
+only after commit. A candidate derived from the current origin is a lane on the same
+carrier with its own claim, so retiring the previous surface closes only that surface's
+lanes and claim; the carrier and its Client identity continue under the installed surface.
+Cached machine-only selection preserves its selected context, including empty workspaces
+and unbound placeholders.
 
 A targeted fresh lane for the same exact endpoint may inherit the bounded,
 render-only text-image bank from that endpoint's active or cached surface before
@@ -330,6 +335,7 @@ Evidence includes native snapshot-first exact bootstrap, absent/mismatched
 Session/context refusal before effects, empty-context membership, actual machine
 candidate startup and cancellation, duplicate labels and local/remote identity
 separation, same-endpoint active/cached pixel handoff and replacement rejection,
+a running source's shared carrier still serving the installed surface,
 reordered/stale hits, direct closed-picker candidate admission, latest-intent and
 cancel/deadline traces, same-Session round trips, mode keyboard/mouse and narrow rendering. Local
 protocol peers do not establish real SSH or real-host visual acceptance.

@@ -35,14 +35,27 @@ const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(50);
 pub struct LocalClientShutdown(ShutdownTarget);
 enum ShutdownTarget {
     Direct(orchbee_local_ipc::LocalStream),
-    Multiplex(Arc<multiplex::Connection>),
+    /// One surface's lane plus its claim on the carrier it may share with another surface.
+    Carrier {
+        owner: multiplex::Owner,
+        lane: Arc<multiplex::Lane>,
+        stream: orchbee_local_ipc::LocalStream,
+    },
     Lane(Arc<multiplex::Lane>, orchbee_local_ipc::LocalStream),
 }
 impl LocalClientShutdown {
     pub fn close(&self) -> io::Result<()> {
         match &self.0 {
             ShutdownTarget::Direct(stream) => stream.shutdown(std::net::Shutdown::Both),
-            ShutdownTarget::Multiplex(connection) => connection.shutdown(),
+            ShutdownTarget::Carrier {
+                owner,
+                lane,
+                stream,
+            } => {
+                lane.close();
+                let woken = stream.shutdown(std::net::Shutdown::Both);
+                owner.release().and(woken)
+            }
             ShutdownTarget::Lane(lane, stream) => {
                 lane.close();
                 stream.shutdown(std::net::Shutdown::Both)
@@ -308,11 +321,16 @@ impl LocalClient {
         self.submission_deadline = deadline;
     }
 
+    /// Claims this Client's carrier for one surface. Closing the handle closes this lane and
+    /// releases the claim; the carrier stops only with its last claim, so a surface derived from
+    /// this origin keeps the carrier when this surface retires.
     pub fn connection_shutdown_handle(&self) -> io::Result<LocalClientShutdown> {
         match &self.connection {
-            Some(ClientTransport::Lane(lane)) => Ok(LocalClientShutdown(
-                ShutdownTarget::Multiplex(Arc::clone(&lane.connection)),
-            )),
+            Some(ClientTransport::Lane(lane)) => Ok(LocalClientShutdown(ShutdownTarget::Carrier {
+                owner: lane.connection.own()?,
+                lane: Arc::clone(&lane.owner),
+                stream: lane.shutdown.try_clone()?,
+            })),
             _ => self.shutdown_handle(),
         }
     }

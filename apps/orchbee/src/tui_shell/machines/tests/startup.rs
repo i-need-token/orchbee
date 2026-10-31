@@ -640,6 +640,199 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
     })
 }
 
+/// Answers one admitted carrier the way a live Server does for a Workbench Client: snapshot and
+/// publication reads complete, every other observation stays pending until the carrier closes.
+/// The carrier end is reported so a test can tell a handoff close from teardown.
+fn serve_reused_carrier(
+    mut stream: orchbee_local_ipc::LocalStream,
+    snapshot: &Snapshot,
+    ended: &std::sync::mpsc::Sender<&'static str>,
+) -> io::Result<()> {
+    stream.set_read_timeout(Some(Duration::from_secs(10)))?;
+    assert!(matches!(
+        read_message(&mut stream).map_err(io::Error::other)?,
+        LocalClientMessage::ClientHello(_)
+    ));
+    write_message(
+        &mut stream,
+        &LocalClientMessage::ClientAccepted {
+            generation: NonZeroU64::new(1).unwrap(),
+        },
+    )
+    .map_err(io::Error::other)?;
+    loop {
+        let (stream_id, mode, request) = match read_multiplex_message(&mut stream) {
+            Ok(MultiplexMessage::StreamOpen {
+                stream_id,
+                mode,
+                request,
+                ..
+            }) => (stream_id, mode, request),
+            Ok(MultiplexMessage::Disconnect { .. }) => {
+                let _sent = ended.send("disconnect");
+                return Ok(());
+            }
+            Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => {
+                let _sent = ended.send("eof");
+                return Ok(());
+            }
+            Ok(_) => continue,
+            Err(error) => return Err(error),
+        };
+        let Ok(request) = read_workbench_request(&mut io::Cursor::new(&request)) else {
+            // Agent observation reads stay pending like any other live observation.
+            continue;
+        };
+        let (response, kind) = match request {
+            WorkbenchRequest::SnapshotRead(read) => (
+                WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: read.request_id,
+                    outcome: WorkbenchSnapshotOutcome::Available {
+                        snapshot: snapshot.clone(),
+                    },
+                }),
+                if mode == StreamMode::Request {
+                    StreamFrameKind::Result
+                } else {
+                    StreamFrameKind::Snapshot
+                },
+            ),
+            WorkbenchRequest::PublicationRead(read) => (
+                WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: read.request_id,
+                    outcome: WorkbenchPublicationOutcome::Current {
+                        revision: snapshot.revision,
+                    },
+                }),
+                StreamFrameKind::Result,
+            ),
+            _ => continue,
+        };
+        let mut record = Vec::new();
+        write_workbench_response(&mut record, &response).map_err(io::Error::other)?;
+        write_multiplex_message(
+            &mut stream,
+            &MultiplexMessage::StreamFrame {
+                stream_id,
+                sequence: NonZeroU64::MIN,
+                kind,
+                record,
+            },
+        )?;
+    }
+}
+
+/// The real TUI source is a running Workbench Client on a multiplexed carrier, so a local
+/// selection derives its candidate as one more lane on that same carrier. Replacing the source
+/// must leave the reused carrier serving the installed surface.
+#[test]
+fn machine_local_workspace_selection_retains_the_reused_carrier_after_install() -> io::Result<()> {
+    let snapshot = snapshot(true);
+    let destination = target(&snapshot);
+    let served = snapshot.clone();
+    let (ended, carrier_ends) = std::sync::mpsc::channel();
+    let ended = std::sync::Mutex::new(ended);
+    let server = FakeServer::start_optional_connections(2, move |_index, stream| {
+        let ended = ended
+            .lock()
+            .map_err(|_| io::Error::other("carrier end lock poisoned"))?
+            .clone();
+        serve_reused_carrier(stream, &served, &ended)
+    })?;
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let (mut manager, mut view, mut surface) = setup();
+    let geometry = terminal_geometry(dimensions(), &view)?
+        .ok_or_else(|| io::Error::other("test viewport presents no pane"))?;
+    let mut client = LocalClient::connect_before(server.endpoint(), "test-cohort", deadline)
+        .map_err(io::Error::other)?;
+    // Start the source exactly as the TUI does: bounded startup, then a drawable source.
+    client.set_submission_deadline(Some(deadline));
+    let mut source = WorkbenchClient::start(client, geometry)?;
+    while !source.startup_draw_ready() {
+        assert!(
+            Instant::now() < deadline,
+            "the source never became drawable"
+        );
+        thread::sleep(Duration::from_millis(1));
+    }
+    drop(surface.replace(Box::new(source)));
+    view.machines.show();
+    view.machines.request = Some(
+        orchbee_workbench_client::test_support::machine_picker::Selection {
+            machine: Choice::Local,
+            context: Some(destination.clone().into()),
+        },
+    );
+    loop {
+        surface.active().tick();
+        let change = manager.tick(
+            &mut surface,
+            &mut view,
+            dimensions(),
+            Instant::now(),
+            &mut |_| {},
+        );
+        if change.switched {
+            break;
+        }
+        assert!(
+            view.machines.error.is_none(),
+            "machine error={:?}; queued={} attempt={} candidate={:?}",
+            view.machines.error,
+            manager.queued.is_some(),
+            manager.attempt.is_some(),
+            manager
+                .candidate
+                .as_ref()
+                .map(|candidate| candidate.session.status()),
+        );
+        assert!(
+            Instant::now() < deadline,
+            "the candidate never became drawable"
+        );
+        thread::sleep(Duration::from_millis(1));
+    }
+    assert_eq!(active_context(surface.active()), Some(destination));
+    assert!(
+        manager.cached.is_empty(),
+        "a local selection replaces its source"
+    );
+    let (origin, clock) = surface
+        .active()
+        .machine_source()
+        .ok_or_else(|| io::Error::other("installed surface has no origin"))?;
+    assert!(
+        matches!(
+            carrier_ends.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Empty)
+        ),
+        "replacing the source closed the carrier the installed surface reuses"
+    );
+    assert!(
+        origin.is_current(Instant::now()),
+        "the installed surface's carrier stopped during the handoff"
+    );
+    let mut lane = origin
+        .lane_before(deadline, clock)
+        .map_err(io::Error::other)?;
+    let cancel = OwnedCancellation::new()?;
+    assert_eq!(
+        crate::machine_observation::snapshot(&mut lane, deadline, cancel.borrow()),
+        Ok(snapshot),
+        "the reused carrier must keep serving the installed surface"
+    );
+    drop(lane);
+    drop(manager);
+    drop(surface);
+    drop(origin);
+    carrier_ends
+        .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+        .map_err(io::Error::other)?;
+    server.finish()
+}
+
 #[test]
 fn machine_workspace_escape_cancels_pending_native_read_and_retains_current_surface()
 -> io::Result<()> {

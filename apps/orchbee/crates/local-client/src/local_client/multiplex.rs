@@ -297,6 +297,7 @@ struct Commands {
     next: u64,
     next_lane: u64,
     lanes: usize,
+    owners: usize,
     queue: VecDeque<Command>,
 }
 #[derive(Debug)]
@@ -364,7 +365,67 @@ impl Drop for Lane {
         self.close();
     }
 }
+/// One Client surface's claim on a shared carrier. A surface derived from another surface's
+/// origin reuses that carrier, so retiring the older surface must not stop it: only the last
+/// released claim stops the carrier. Releasing is idempotent.
+#[derive(Debug)]
+pub(super) struct Owner {
+    connection: Arc<Connection>,
+    released: AtomicBool,
+}
+impl Owner {
+    pub(super) fn release(&self) -> io::Result<()> {
+        if self.released.swap(true, Ordering::AcqRel) {
+            return Ok(());
+        }
+        let last = {
+            let mut commands = self
+                .connection
+                .shared
+                .commands
+                .lock()
+                .map_err(|_| io::ErrorKind::BrokenPipe)?;
+            commands.owners = commands.owners.saturating_sub(1);
+            // Decided under the command lock, so no claim can start on a stopping carrier.
+            let last = commands.owners == 0;
+            if last {
+                self.connection
+                    .shared
+                    .stopped
+                    .store(true, Ordering::Release);
+            }
+            last
+        };
+        if last {
+            self.connection.shutdown()
+        } else {
+            Ok(())
+        }
+    }
+}
+impl Drop for Owner {
+    fn drop(&mut self) {
+        let _released = self.release();
+    }
+}
 impl Connection {
+    /// Claims this carrier for one more surface; a stopped carrier admits no new claim.
+    pub(super) fn own(self: &Arc<Self>) -> io::Result<Owner> {
+        let mut commands = self
+            .shared
+            .commands
+            .lock()
+            .map_err(|_| io::ErrorKind::BrokenPipe)?;
+        if self.shared.stopped.load(Ordering::Acquire) {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        commands.owners += 1;
+        drop(commands);
+        Ok(Owner {
+            connection: Arc::clone(self),
+            released: AtomicBool::new(false),
+        })
+    }
     pub(super) fn lane(self: &Arc<Self>) -> io::Result<Arc<Lane>> {
         let mut commands = self
             .shared
