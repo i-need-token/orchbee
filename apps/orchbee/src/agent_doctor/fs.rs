@@ -7,6 +7,7 @@ use std::{
     ffi::{OsStr, OsString},
     path::{Path, PathBuf},
 };
+mod native;
 mod observation;
 pub(crate) use observation::{Observation, Unsupported};
 #[cfg(target_os = "linux")]

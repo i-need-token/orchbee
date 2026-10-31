@@ -281,50 +281,6 @@ pub(crate) fn help_flags(path: CommandPath) -> Vec<&'static str> {
     flags
 }
 
-pub(crate) fn usage_option_candidates(
-    context: crate::invocation::UsageContext,
-) -> Vec<&'static str> {
-    use crate::invocation::{HelpTopic, UsageContext};
-
-    let mut flags = Vec::new();
-    match context {
-        UsageContext::Root => {
-            for path in crate::invocation::help_paths() {
-                if let HelpTopic::Command(command) = path.topic() {
-                    flags.extend(help_flags(command));
-                }
-            }
-            flags.extend(ROOT_MODES.iter().map(|flag| flag.spelling));
-            flags.extend(PREFIX_FLAGS);
-        }
-        UsageContext::Path(path) => {
-            let words = path.split_whitespace().collect::<Vec<_>>();
-            let Some(entry) = crate::invocation::help_paths()
-                .iter()
-                .find(|entry| entry.words() == words.as_slice())
-            else {
-                return flags;
-            };
-            match entry.topic() {
-                HelpTopic::Command(command) => flags.extend(help_flags(command)),
-                HelpTopic::Family(_) => {
-                    for child in crate::invocation::help_paths() {
-                        if child.words().starts_with(&words)
-                            && let HelpTopic::Command(command) = child.topic()
-                        {
-                            flags.extend(help_flags(command));
-                        }
-                    }
-                }
-            }
-        }
-        UsageContext::Literal(_) => return flags,
-    }
-    flags.sort_unstable();
-    flags.dedup();
-    flags
-}
-
 impl CommandSpec {
     /// Grammar constraints run after typed semantic validation to preserve precise domain errors.
     pub(super) fn validate(

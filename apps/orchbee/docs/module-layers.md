@@ -1,8 +1,7 @@
 # Application Module Layers
 
-Status: accepted layer and lateral-import contract for the `orchbee` binary crate. Current code does
-not conform yet; `pnpm lint:rust-modules` reports the remaining cycles and upward references
-without failing.
+Status: accepted layer and lateral-import contract for the `orchbee` binary crate. Current code
+conforms; `pnpm lint:rust-modules` reports any new cycle or upward reference without failing.
 
 This document is the owner-local contract that
 [module boundaries](../../../docs/MODULE-BOUNDARIES.md#native-source-trees) requires for the
@@ -57,6 +56,23 @@ keep that order:
   lower siblings, such as `link_activation`, `plugin_preparation`, `layout_topology`, and
   `client_control::exchange`.
 - Failure schema identifiers that several owners report live in `invocation::grammar::schemas`.
+
+## Order inside `invocation`
+
+Every `invocation` child inherits `values`, so only the no-cycle rule orders them. One parse runs
+down through these groups:
+
+- `argv` admits the argument envelope and calls `machine_routing`, which wraps `scan`; `scan` runs
+  the lexical pass and calls `dispatch`; `dispatch` maps command words to feature parsers.
+- Feature parsers own their commands' operands and never call `dispatch`, `scan`,
+  `machine_routing`, or `argv`.
+- The shared option decoders, `option_scope`, `target_syntax`, `launch_options`,
+  `workbench_options`, `wait_options`, `send_input`, `agent_options`, and `server_stop`, never
+  call a command's feature parser.
+- `help` derives help paths, help requests, and usage option candidates from `grammar`; `grammar`
+  never reaches `help`.
+- `failure` holds the failure vocabulary and its constructors and names no sibling. The root holds
+  the typed request vocabulary and the `Options` scan state.
 
 ## Maintenance
 

@@ -1,5 +1,6 @@
 use super::*;
-use crate::invocation::{CommandPath, HelpTopic, help_topic, parse_request};
+use crate::invocation::help::topic as help_topic;
+use crate::invocation::{CommandPath, HelpTopic, parse_request};
 use std::ffi::OsString;
 #[test]
 fn attach_targets_are_explicit_and_options_are_scoped_before_effects() {

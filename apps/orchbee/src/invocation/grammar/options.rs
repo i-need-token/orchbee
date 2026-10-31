@@ -2488,7 +2488,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         joined: true,
         help: None,
         apply: |options, value, envelope| {
-            options.mouse = Some(super::super::mouse_option(&value).ok_or_else(|| {
+            options.mouse = Some(mouse_option(&value).ok_or_else(|| {
                 super::super::usage_with(
                     super::super::UsageReason::InvalidValue {
                         context: super::super::UsageContext::Root,
@@ -2519,3 +2519,14 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
 ];
+
+/// `--mouse` accepts exactly `off`/`on` as a separate token; anything else —
+/// including the `--mouse=<value>` equals form — is a usage failure, never a
+/// guessed default.
+fn mouse_option(value: &str) -> Option<bool> {
+    match value {
+        "on" => Some(true),
+        "off" => Some(false),
+        _ => None,
+    }
+}

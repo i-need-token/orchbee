@@ -7,7 +7,7 @@ use std::{
     path::{Component, Path, PathBuf, Prefix},
 };
 
-use super::observation::{ConfigurationTarget, Native};
+use super::native::{ConfigurationTarget, Native};
 use super::{Budget, EntryKind, EnvValue, FileRead, Lstat, MAX_PATH_BYTES, PathScan};
 
 pub(super) static NATIVE: Native = Native {

@@ -1,7 +1,7 @@
 # 应用模块分层
 
-状态：`orchbee` 二进制 crate 已采纳的分层与横向依赖契约。当前代码尚未符合；
-`pnpm lint:rust-modules` 会报告剩余的环和指向高层的引用，但不会因此失败。
+状态：`orchbee` 二进制 crate 已采纳的分层与横向依赖契约。当前代码已符合；
+`pnpm lint:rust-modules` 会报告新出现的环和指向高层的引用，但不会因此失败。
 
 本文是[模块边界](../../../docs/zh-CN/MODULE-BOUNDARIES.md#原生源码树)要求二进制 `src/` 源码树
 具备的 owner 本地契约。二进制只通过 `application` 门面消费
@@ -52,10 +52,23 @@
   `layout_topology` 和 `client_control::exchange`。
 - 多个 owner 共同报告的失败 schema 标识位于 `invocation::grammar::schemas`。
 
+## `invocation` 内部的顺序
+
+`invocation` 的每个子模块都继承 `values`，只能靠无环规则排序。一次解析自上而下经过以下各组：
+
+- `argv` 准入参数信封后调用 `machine_routing`，后者包装 `scan`；`scan` 执行词法扫描并调用
+  `dispatch`；`dispatch` 把命令词映射到功能解析器。
+- 功能解析器拥有各自命令的操作数，从不调用 `dispatch`、`scan`、`machine_routing` 或 `argv`。
+- 共享的选项解码器（`option_scope`、`target_syntax`、`launch_options`、`workbench_options`、
+  `wait_options`、`send_input`、`agent_options` 和 `server_stop`）从不调用命令的功能解析器。
+- `help` 从 `grammar` 推导帮助路径、帮助请求和用法选项候选；`grammar` 从不引用 `help`。
+- `failure` 持有失败词汇及其构造函数，不引用任何同级模块。根模块持有类型化请求词汇和
+  `Options` 扫描状态。
+
 ## 维护
 
 添加、删除、重命名或移动模块时，在同一变更中更新它的行。运行
 `pnpm lint:rust-modules -- --details --member apps/orchbee` 可列出每个环和每个指向高层的引用及其
 源码位置样本；[Lint](../../../docs/zh-CN/LINTING.md) 拥有该命令。
 
-<!-- documentation-pairing: english-sha256=b277023b1c133b9c064466ae62be1dcf9d6e5254b9938ba584dc6ad64d203160 zh-cn-sha256=36ebf33ea42bb27e0edb75a6896b41ff0f1598f0dba16e8ba14f43900b553db2 -->
+<!-- documentation-pairing: english-sha256=f43b3f1786cd5a96e3c29d5d94e18fc64fa739c3c39e3ee7ffb02ff15ef585b6 zh-cn-sha256=edab90657c78f8ef77039c53ee1ea6c023f4ed705863b5c97f1a743c664bd7c9 -->

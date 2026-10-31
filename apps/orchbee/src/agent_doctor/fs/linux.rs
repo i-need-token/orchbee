@@ -1,7 +1,7 @@
 //! Linux no-follow descriptors, native ownership, environment and executable observations.
 use super::{
     Budget, EntryKind, EnvValue, FileRead, Lstat, MAX_PATH_BYTES, Ownership, PathScan,
-    observation::Native, path_from_bytes,
+    native::Native, path_from_bytes,
 };
 use nix::{
     errno::Errno,

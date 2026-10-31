@@ -38,8 +38,7 @@ const SYNONYMS: [(&str, &str); 10] = [
 /// Oversized and non-ASCII input produces no advice and cannot grow the work budget.
 pub(super) fn suggestions(reason: &UsageReason) -> Vec<String> {
     if let UsageReason::UnexpectedArgument { context, value } = reason {
-        let takes_label =
-            crate::invocation::grammar::usage_option_candidates(*context).contains(&"--label");
+        let takes_label = crate::invocation::usage_option_candidates(*context).contains(&"--label");
         return if takes_label && !value.starts_with('-') && value.len() <= 128 {
             vec![format!(
                 "--label {}",
@@ -66,7 +65,7 @@ pub(super) fn suggestions(reason: &UsageReason) -> Vec<String> {
             .map(|(name, _)| name)
             .collect::<Vec<_>>(),
         UsageReason::UnknownOption { context, .. } => {
-            crate::invocation::grammar::usage_option_candidates(*context)
+            crate::invocation::usage_option_candidates(*context)
         }
         _ => unreachable!("reason was checked above"),
     };
