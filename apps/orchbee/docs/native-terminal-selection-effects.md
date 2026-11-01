@@ -178,6 +178,7 @@ Controlled export/queue/writer tests and integrated traces in the verification m
 | Final movement precedes release        | controlled gesture and coordinator traces                         | live and history rapid-release trace                                      | Named pointer traces                              |
 | Export commits complete Host text only | controlled export and chunk-state tests                           | soft/hard wrap, CJK width, combining text, reverse drag, and history copy | Plain text, 16 MiB maximum                        |
 | Pane effects reach only their viewer   | Worker exact-attachment FIFO and saturation tests                 | Host–Worker–Server–Client record trace                                    | Matching native cohort                            |
+| Selection never costs its viewer       | snapshot supersession, refusal relay and late-cancellation tests  | divider drag after a selecting click through real processes               | Windows host-Session TUI                          |
 | Mouse ownership remains exclusive      | pointer ownership and generation-fence tests                      | `vim mouse=a`, untracked drag, and `Shift` native selection               | Cell-addressed input                              |
 | External effects do not split a frame  | effect-writer state tests and backend byte trace                  | Windows Terminal OSC 52 and BEL observation                               | Host-terminal behavior outside Orchbee is trusted |
 | Win32 copy is the Windows default      | non-null owner, UTF-16, ownership, contention, and teardown tests | selection, Codex/Claude, and Vim clipboard observation                    | Windows only; OSC 52 is explicit                  |
@@ -197,6 +198,14 @@ Real Windows Terminal clipboard-content and pointer acceptance remain required.
 action through the real local IPC codec. `selection_wrong_reply_pairings_retire_without_replay`
 checks that incompatible replies still close that carrier without another request. These transport
 tests relay opaque records; Host-record decoding and OS contents have separate evidence owners.
+
+The Windows target `cli_windows_terminal_viewer_session` runs the CLI, Server, Worker, and Zig
+Host under test with a real TUI Client in a terminal of a second Session while another terminal
+prints. It clicks a pane with a pointer movement that leaves a selection, waits 400 ms, and drags
+the divider, so the Host re-reports that selection and may refuse the export's cancellation or
+later chunk acknowledgements while the pane resizes; no terminal may become unavailable. It runs
+as its own test target for about half a minute; a direct Cargo run needs
+`pnpm --filter @orchbee/terminal-host build`, `orchbee-server`, and `orchbee-worker` first.
 
 Selection viewer actions and effect routing are additive contracts delivered by one exact native
 Client, Server, Worker, and Host cohort. They create no durable selection or screen-data migration.
