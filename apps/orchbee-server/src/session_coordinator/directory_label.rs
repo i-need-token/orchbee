@@ -7,7 +7,7 @@ use orchbee_workbench_protocol::{
 use std::collections::BTreeMap;
 
 /// The last directory considered for each Workspace's first terminal. It is process-local, so a
-/// restart re-seeds it from the restored terminal without renaming anything.
+/// restart considers each restored terminal's first sample afresh.
 pub(super) type FollowedDirectories = BTreeMap<WorkbenchWorkspaceId, WorkbenchDirectoryPath>;
 
 /// The primary binding of the first Tab's leading Panel, the Workspace's first terminal.
@@ -47,9 +47,9 @@ fn same_directory(left: &WorkbenchDirectoryPath, right: &WorkbenchDirectoryPath)
 
 impl SessionCoordinator {
     /// Called with every committed sample's directory under the Session gate. The first
-    /// directory seen for a Workspace's first terminal only seeds the record, so creation and
-    /// restart keep the committed label; a later different directory, including one from a
-    /// replacement first terminal, renames an automatic Workspace.
+    /// directory seen for a Workspace's first terminal, and each later different one, including
+    /// one from a replacement first terminal, names an automatic Workspace. Repeating a directory
+    /// does nothing, so another Workspace's later rename never reshuffles this one's suffix.
     pub(super) fn follow_first_terminal_directory(
         &mut self,
         binding: &PresentationBinding,
@@ -70,10 +70,10 @@ impl SessionCoordinator {
         else {
             return;
         };
-        if let Some(previous) = self
+        if self
             .followed_directories
             .insert(workspace_id.clone(), directory.clone())
-            && !same_directory(&previous, directory)
+            .is_none_or(|previous| !same_directory(&previous, directory))
         {
             workbench.follow_workspace_directory(&workspace_id, directory);
         }

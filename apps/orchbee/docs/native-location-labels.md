@@ -31,10 +31,12 @@ checkouts, Panel relocation and `workspace.create` stay fixed.
 An automatic Workspace follows its first terminal: the primary terminal of the first Tab's leading
 Panel. Server's existing process sampler supplies that terminal's directory (a valid
 terminal-reported directory, otherwise the root process directory). The first directory the
-running Server samples for a Workspace only records it, so creation and restart keep the committed
-name. When a later sample differs, ignoring ASCII case and trailing separators, Server commits the
-directory's final name in one revision, adding ` (2)`, ` (3)` and onward while another Workspace
-uses it, exactly like generated names. A root directory, a name the label rule refuses, or an
+running Server samples for a Workspace, and each later sample that differs from the last one,
+ignoring ASCII case and trailing separators, names it: Server commits the directory's final name
+in one revision, adding ` (2)`, ` (3)` and onward while another Workspace uses it, exactly like
+generated names. At creation that name is already the label; after a restart it corrects a name
+the restored terminal's directory no longer matches. A repeated directory commits nothing, so
+another Workspace's rename never reshuffles a suffix. A root directory, a name the label rule refuses, or an
 unchanged name commits nothing. A replacement first terminal, such as after the first Tab closes,
 takes over from its own next sample. The committed label reaches every Client, the CLI and the
 checkpoint like any other rename; nothing is retried and the label is never reverted.
