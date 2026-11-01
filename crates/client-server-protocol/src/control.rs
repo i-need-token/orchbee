@@ -70,34 +70,84 @@ impl ControlInput {
         &self.0
     }
 }
+fn serialize_hex<S: Serializer>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
+    use std::fmt::Write;
+    let mut hex = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(hex, "{byte:02x}").map_err(serde::ser::Error::custom)?;
+    }
+    serializer.serialize_str(&hex)
+}
+fn deserialize_hex<'de, D: Deserializer<'de>>(
+    deserializer: D,
+    maximum_bytes: usize,
+) -> Result<Vec<u8>, D::Error> {
+    let hex = String::deserialize(deserializer)?;
+    if hex.is_empty()
+        || hex.len() > maximum_bytes * 2
+        || !hex.len().is_multiple_of(2)
+        || !hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(de::Error::custom("expected bounded lowercase hex input"));
+    }
+    (0..hex.len())
+        .step_by(2)
+        .map(|index| u8::from_str_radix(&hex[index..index + 2], 16))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(de::Error::custom)
+}
 impl Serialize for ControlInput {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        use std::fmt::Write;
-        let mut hex = String::with_capacity(self.0.len() * 2);
-        for byte in &self.0 {
-            write!(hex, "{byte:02x}").map_err(serde::ser::Error::custom)?;
-        }
-        serializer.serialize_str(&hex)
+        serialize_hex(&self.0, serializer)
     }
 }
 impl<'de> Deserialize<'de> for ControlInput {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let hex = String::deserialize(deserializer)?;
-        if hex.is_empty()
-            || hex.len() > MAXIMUM_CONTROL_INPUT_BYTES * 2
-            || !hex.len().is_multiple_of(2)
-            || !hex
-                .bytes()
-                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        {
-            return Err(de::Error::custom("expected bounded lowercase hex input"));
+        Self::new(deserialize_hex(deserializer, MAXIMUM_CONTROL_INPUT_BYTES)?)
+            .map_err(de::Error::custom)
+    }
+}
+
+/// One semantic input record's largest payload; its hexadecimal text fits one OBCS frame.
+pub const MAXIMUM_SEMANTIC_INPUT_BYTES: usize = 16 * 1024;
+
+/// The Host semantic input record a `semantic-input` action carries.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SemanticInputKind {
+    Focus,
+    Key,
+    Mouse,
+    Text,
+}
+
+/// One encoded Host semantic input payload. Server bounds and relays it unread; the Worker
+/// validates it against the Host codec and rebinds it to the controller grant.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SemanticInputPayload(Vec<u8>);
+impl SemanticInputPayload {
+    pub fn new(bytes: Vec<u8>) -> Result<Self, ProtocolError> {
+        if bytes.is_empty() || bytes.len() > MAXIMUM_SEMANTIC_INPUT_BYTES {
+            return Err(ProtocolError::InvalidPayload);
         }
-        let bytes = (0..hex.len())
-            .step_by(2)
-            .map(|index| u8::from_str_radix(&hex[index..index + 2], 16))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(de::Error::custom)?;
-        Self::new(bytes).map_err(de::Error::custom)
+        Ok(Self(bytes))
+    }
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+impl Serialize for SemanticInputPayload {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serialize_hex(&self.0, serializer)
+    }
+}
+impl<'de> Deserialize<'de> for SemanticInputPayload {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::new(deserialize_hex(deserializer, MAXIMUM_SEMANTIC_INPUT_BYTES)?)
+            .map_err(de::Error::custom)
     }
 }
 /// One 24-bit RGB default color, encoded as a JSON integer from 0 through 16,777,215.
@@ -143,6 +193,14 @@ pub enum TerminalControlAction {
         controller_id: ControllerId,
         sequence: NonZeroU64,
         bytes: ControlInput,
+    },
+    /// One Host semantic input record, encoded by the Client under this controller grant.
+    SemanticInput {
+        attachment_id: ViewerId,
+        controller_id: ControllerId,
+        sequence: NonZeroU64,
+        input_kind: SemanticInputKind,
+        payload: SemanticInputPayload,
     },
     Resize {
         attachment_id: ViewerId,
@@ -192,6 +250,14 @@ enum WireControlAction {
         sequence: NonZeroU64,
         bytes: ControlInput,
     },
+    SemanticInput {
+        attachment_id: ViewerId,
+        controller_id: ControllerId,
+        #[serde(with = "crate::number::positive_decimal")]
+        sequence: NonZeroU64,
+        input_kind: SemanticInputKind,
+        payload: SemanticInputPayload,
+    },
     Resize {
         attachment_id: ViewerId,
         controller_id: ControllerId,
@@ -231,6 +297,19 @@ impl Serialize for TerminalControlAction {
                 controller_id: controller_id.clone(),
                 sequence: *sequence,
                 bytes: bytes.clone(),
+            },
+            Self::SemanticInput {
+                attachment_id,
+                controller_id,
+                sequence,
+                input_kind,
+                payload,
+            } => WireControlAction::SemanticInput {
+                attachment_id: attachment_id.clone(),
+                controller_id: controller_id.clone(),
+                sequence: *sequence,
+                input_kind: *input_kind,
+                payload: payload.clone(),
             },
             Self::Resize {
                 attachment_id,
@@ -282,6 +361,19 @@ impl<'de> Deserialize<'de> for TerminalControlAction {
                 sequence,
                 bytes,
             },
+            WireControlAction::SemanticInput {
+                attachment_id,
+                controller_id,
+                sequence,
+                input_kind,
+                payload,
+            } => Self::SemanticInput {
+                attachment_id,
+                controller_id,
+                sequence,
+                input_kind,
+                payload,
+            },
             WireControlAction::Resize {
                 attachment_id,
                 controller_id,
@@ -328,7 +420,7 @@ impl TerminalControlAction {
             Self::Clear { .. } => {
                 matches!(outcome, TerminalControlOutcome::Cleared { .. }) || failed
             }
-            Self::Input { .. } => {
+            Self::Input { .. } | Self::SemanticInput { .. } => {
                 matches!(outcome, TerminalControlOutcome::InputAccepted {}) || failed
             }
             Self::Resize { geometry, .. } => {
@@ -351,6 +443,7 @@ impl TerminalControlAction {
             | Self::Clear { attachment_id }
             | Self::Takeover { attachment_id }
             | Self::Input { attachment_id, .. }
+            | Self::SemanticInput { attachment_id, .. }
             | Self::Resize { attachment_id, .. }
             | Self::Paste { attachment_id, .. }
             | Self::HostColors { attachment_id, .. } => attachment_id,

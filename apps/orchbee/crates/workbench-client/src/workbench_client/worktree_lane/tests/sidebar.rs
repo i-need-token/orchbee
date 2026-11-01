@@ -67,6 +67,8 @@ fn attach_reply(
             .unwrap(),
         },
         TerminalViewerOutcome::Attached {
+            creation_id: orchbee_client_server_protocol::HostCreationId::parse(&"c".repeat(32))
+                .unwrap(),
             attachment_id: viewer.clone(),
             host_epoch: orchbee_client_server_protocol::HostEpoch::parse(&"04".repeat(16)).unwrap(),
             host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(
@@ -242,6 +244,10 @@ fn addressed_lane_samples_first_root_around_git_and_always_releases_its_own_view
                     .unwrap(),
                 },
                 TerminalViewerOutcome::Attached {
+                    creation_id: orchbee_client_server_protocol::HostCreationId::parse(
+                        &"c".repeat(32),
+                    )
+                    .unwrap(),
                     attachment_id: viewer.clone(),
                     host_epoch: orchbee_client_server_protocol::HostEpoch::parse(&"04".repeat(16))
                         .unwrap(),

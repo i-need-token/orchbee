@@ -90,6 +90,10 @@ pub(in crate::workbench_client::connection::native) fn sample(
             ];
             let outcomes = [
                 TerminalViewerOutcome::Attached {
+                    creation_id: orchbee_client_server_protocol::HostCreationId::parse(
+                        &"c".repeat(32),
+                    )
+                    .unwrap(),
                     attachment_id: ViewerId::parse(&"01".repeat(16)).map_err(io::Error::other)?,
                     host_epoch: orchbee_client_server_protocol::HostEpoch::parse(&"04".repeat(16))
                         .map_err(io::Error::other)?,

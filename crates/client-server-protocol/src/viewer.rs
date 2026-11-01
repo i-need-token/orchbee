@@ -3,7 +3,8 @@
 //! interpreting terminal contents, deciding target exposure, or owning viewer lifetime.
 
 use crate::{
-    HostEpoch, HostTerminalId, ProtocolError, RequestId, SessionId, TerminalId, ViewerId, WorkerId,
+    HostCreationId, HostEpoch, HostTerminalId, ProtocolError, RequestId, SessionId, TerminalId,
+    ViewerId, WorkerId,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use std::num::NonZeroU64;
@@ -547,6 +548,7 @@ mod tests;
 pub enum TerminalViewerOutcome {
     Attached {
         attachment_id: ViewerId,
+        creation_id: HostCreationId,
         host_epoch: HostEpoch,
         host_terminal_id: HostTerminalId,
     },

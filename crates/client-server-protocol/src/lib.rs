@@ -30,8 +30,9 @@ pub use codec::{
 };
 pub use control::{
     ControlInput, ControlRejectedReason, ControlUnavailableReason, MAXIMUM_CONTROL_INPUT_BYTES,
-    MAXIMUM_PASTE_CONTENT_BYTES, PasteAcceptedBytes, PasteContent, TerminalControlAction,
-    TerminalControlOutcome, TerminalControlRequest, TerminalControlResult, TerminalRgb,
+    MAXIMUM_PASTE_CONTENT_BYTES, MAXIMUM_SEMANTIC_INPUT_BYTES, PasteAcceptedBytes, PasteContent,
+    SemanticInputKind, SemanticInputPayload, TerminalControlAction, TerminalControlOutcome,
+    TerminalControlRequest, TerminalControlResult, TerminalRgb,
 };
 pub use error::{ProtocolError, ReadMessageError, WriteMessageError};
 pub use geometry::{
@@ -39,8 +40,8 @@ pub use geometry::{
     MAXIMUM_TERMINAL_CELLS,
 };
 pub use identity::{
-    ControllerId, HostEpoch, HostTerminalId, IdentityError, PanelId, PresentationId, RequestId,
-    SessionId, TabId, TerminalContextId, TerminalId, ViewerId, WorkerId,
+    ControllerId, HostCreationId, HostEpoch, HostTerminalId, IdentityError, PanelId,
+    PresentationId, RequestId, SessionId, TabId, TerminalContextId, TerminalId, ViewerId, WorkerId,
 };
 pub use launch_read::{
     LaunchProfileProvenance, TerminalLaunchBoundTo, TerminalLaunchFact, TerminalLaunchReadOutcome,

@@ -265,6 +265,9 @@ impl RenameServer {
                                 TerminalControlAction::HostColors { .. } => {
                                     panic!("unexpected host colors in rename fixture")
                                 }
+                                TerminalControlAction::SemanticInput { .. } => {
+                                    panic!("unexpected semantic input in rename fixture")
+                                }
                                 TerminalControlAction::Acquire { attachment_id } => {
                                     assert_eq!(attachment_id, &binding_viewer_id()?);
                                     assert_eq!(successor_stage, 1);

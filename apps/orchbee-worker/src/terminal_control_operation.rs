@@ -8,6 +8,8 @@ use crate::{
 };
 mod clear;
 mod host_colors;
+#[cfg(test)]
+mod tests;
 use orchbee_capability_node_protocol::{
     ControlRejection as Rejection, OperationId, TerminalControlAction as Action,
     TerminalControlOutcome as Outcome, TerminalControlRequest, TerminalControlResult,
@@ -16,10 +18,11 @@ use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
-    ConnectionControl, CorrelationId, InputMessage, PasteAutoInput, PayloadEncoding, ResizeControl,
-    ResizeTerminal, TerminalId, WriteInput, decode_attachment_control, decode_connection_control,
-    decode_input_message, decode_resize_control, decode_transport_envelope,
-    encode_attachment_control, encode_input_message, encode_resize_control,
+    ConnectionControl, CorrelationId, InputMessage, MessageRole, PasteAutoInput, PayloadEncoding,
+    ResizeControl, ResizeTerminal, TerminalId, WriteInput, decode_attachment_control,
+    decode_connection_control, decode_input_message, decode_resize_control,
+    decode_transport_envelope, encode_attachment_control, encode_input_message,
+    encode_resize_control,
 };
 use std::{error::Error, num::NonZeroU64};
 fn invalid(message: &str) -> Box<dyn Error> {
@@ -148,6 +151,7 @@ fn apply(
     }
     let sequence = match &request.action {
         Action::Input { sequence, .. }
+        | Action::SemanticInput { sequence, .. }
         | Action::Resize { sequence, .. }
         | Action::Paste { sequence, .. }
         | Action::HostColors { sequence, .. } => *sequence,
@@ -181,6 +185,13 @@ fn apply(
             }))?;
             (command.kind, command.payload, PayloadEncoding::RawBytes)
         }
+        Action::SemanticInput { input, .. } => {
+            let Some(message) = controlled_semantic_input(input, id, revision) else {
+                return Ok(Outcome::Rejected(Rejection::HostInputInvalid));
+            };
+            let command = encode_input_message(&message)?;
+            (command.kind, command.payload, PayloadEncoding::RawBytes)
+        }
         Action::Resize { geometry, .. } => {
             let command = encode_resize_control(&ResizeControl::ResizeTerminal(ResizeTerminal {
                 attachment_id: id,
@@ -208,7 +219,7 @@ fn apply(
         decode_connection_control(envelope.kind, envelope.role, envelope.payload)
     {
         let rejection = match &request.action {
-            Action::Paste { .. } => match failure.code.as_str() {
+            Action::Paste { .. } | Action::SemanticInput { .. } => match failure.code.as_str() {
                 "invalid-field" => Rejection::HostInputInvalid,
                 "limit-exceeded" => Rejection::HostInputLimitExceeded,
                 "input-backpressure" => Rejection::HostInputBackpressure,
@@ -237,6 +248,18 @@ fn apply(
                 || usize::try_from(accepted.accepted_bytes)? != bytes.as_bytes().len()
             {
                 return Err(invalid("Host input acknowledgement disagrees"));
+            }
+            Ok(Outcome::InputAccepted)
+        }
+        Action::SemanticInput { .. } => {
+            // Semantic encodings depend on terminal modes, so the admitted count is unpredictable.
+            let InputMessage::InputAccepted(accepted) =
+                decode_input_message(envelope.kind, envelope.role, envelope.payload)?
+            else {
+                return Err(invalid("Host did not acknowledge semantic input"));
+            };
+            if accepted.attachment_id != id || accepted.capability_revision != revision {
+                return Err(invalid("Host semantic input acknowledgement disagrees"));
             }
             Ok(Outcome::InputAccepted)
         }
@@ -283,6 +306,47 @@ fn apply(
         | Action::HostColors { .. } => unreachable!("effect action matched"),
     }
 }
+/// Validates a Client's semantic record with the Host codec and rebinds it to the live grant, so
+/// the Client's attachment and capability fields carry no authority.
+fn controlled_semantic_input(
+    input: &orchbee_capability_node_protocol::SemanticInput,
+    attachment_id: AttachmentId,
+    capability_revision: NonZeroU64,
+) -> Option<InputMessage> {
+    use orchbee_capability_node_protocol::SemanticInputKind as Kind;
+    let kind = match input.kind() {
+        Kind::Focus => orchbee_terminal_protocol::FOCUS_INPUT_KIND,
+        Kind::Key => orchbee_terminal_protocol::KEY_INPUT_KIND,
+        Kind::Mouse => orchbee_terminal_protocol::MOUSE_INPUT_KIND,
+        Kind::Text => orchbee_terminal_protocol::TEXT_INPUT_KIND,
+    };
+    let mut message = decode_input_message(kind, MessageRole::Request, input.payload()).ok()?;
+    match &mut message {
+        InputMessage::FocusInput(input) => {
+            input.attachment_id = attachment_id;
+            input.capability_revision = capability_revision;
+        }
+        InputMessage::KeyInput(input) => {
+            input.attachment_id = attachment_id;
+            input.capability_revision = capability_revision;
+        }
+        InputMessage::MouseInput(input) => {
+            input.attachment_id = attachment_id;
+            input.capability_revision = capability_revision;
+        }
+        InputMessage::TextInput(input) => {
+            input.attachment_id = attachment_id;
+            input.capability_revision = capability_revision;
+        }
+        // The kind above selected this codec; any other shape cannot reach here.
+        InputMessage::WriteInput(_)
+        | InputMessage::InputAccepted(_)
+        | InputMessage::PasteInput(_)
+        | InputMessage::PasteAutoInput(_) => return None,
+    }
+    Some(message)
+}
+
 pub(crate) fn release_viewer(
     host: &HostBrokerConnection,
     server: &UnixStream,

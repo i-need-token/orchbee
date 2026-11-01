@@ -684,6 +684,8 @@ fn root_cwd(stream: &mut LocalStream, cwd: Option<&str>) {
         stream,
         request,
         c::TerminalViewerOutcome::Attached {
+            creation_id: orchbee_client_server_protocol::HostCreationId::parse(&"c".repeat(32))
+                .unwrap(),
             attachment_id: c::ViewerId::parse(&id(50)).unwrap(),
             host_epoch: c::HostEpoch::parse(&id(51)).unwrap(),
             host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(&id(51))

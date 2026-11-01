@@ -86,6 +86,8 @@ pub(super) fn selection_frame_without_ack(stream: &mut LocalStream) -> ViewerId 
         stream,
         &req,
         Outcome::Attached {
+            creation_id: orchbee_client_server_protocol::HostCreationId::parse(&"c".repeat(32))
+                .unwrap(),
             attachment_id: viewer.clone(),
             host_epoch: obcs::HostEpoch::parse(&route.host_epoch.to_text()).unwrap(),
             host_terminal_id: obcs::HostTerminalId::parse(&route.host_epoch.to_text()).unwrap(),

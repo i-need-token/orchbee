@@ -25,10 +25,10 @@ use crate::{
 
 const WRITE_INPUT_KIND: u16 = 30;
 const INPUT_ACCEPTED_KIND: u16 = 31;
-const KEY_INPUT_KIND: u16 = 34;
-const TEXT_INPUT_KIND: u16 = 35;
-const MOUSE_INPUT_KIND: u16 = 36;
-const FOCUS_INPUT_KIND: u16 = 37;
+pub const KEY_INPUT_KIND: u16 = 34;
+pub const TEXT_INPUT_KIND: u16 = 35;
+pub const MOUSE_INPUT_KIND: u16 = 36;
+pub const FOCUS_INPUT_KIND: u16 = 37;
 const PASTE_INPUT_KIND: u16 = 38;
 const PASTE_AUTO_INPUT_KIND: u16 = 39;
 pub const WRITE_INPUT_HEADER_BYTES: usize = INPUT_AUTHORITY_HEADER_BYTES;

@@ -46,6 +46,8 @@ fn viewer_reply(
 fn attached() -> TerminalViewerOutcome {
     let route = orchbee_terminal_protocol::inspect_terminal_frame_route(FRAME).unwrap();
     TerminalViewerOutcome::Attached {
+        creation_id: orchbee_client_server_protocol::HostCreationId::parse(&"c".repeat(32))
+            .unwrap(),
         attachment_id: ViewerId::parse(&id(40)).unwrap(),
         host_epoch: orchbee_client_server_protocol::HostEpoch::parse(&route.host_epoch.to_text())
             .unwrap(),

@@ -74,6 +74,7 @@ define_identity!(PanelId);
 define_identity!(TabId);
 define_identity!(TerminalContextId);
 define_identity!(HostEpoch);
+define_identity!(HostCreationId);
 define_identity!(HostTerminalId);
 define_identity!(ViewerId);
 

@@ -708,6 +708,10 @@ fn agent_visible_read_returns_a_schema_valid_frame_and_detaches_before_output() 
             exchange(
                 "attach",
                 TerminalViewerOutcome::Attached {
+                    creation_id: orchbee_client_server_protocol::HostCreationId::parse(
+                        &"c".repeat(32),
+                    )
+                    .unwrap(),
                     attachment_id: attachment_id.clone(),
                     host_epoch: HostEpoch::parse(&route.host_epoch.to_text()).unwrap(),
                     host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(

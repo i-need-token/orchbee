@@ -782,6 +782,7 @@ impl PopupRunner {
             attachment_id,
             host_epoch,
             host_terminal_id,
+            ..
         } = self.viewer(
             &mut client,
             TerminalViewerAction::Attach {

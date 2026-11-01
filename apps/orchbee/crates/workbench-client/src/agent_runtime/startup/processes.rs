@@ -92,6 +92,7 @@ pub fn attach(
             attachment_id,
             host_epoch,
             host_terminal_id,
+            ..
         } => Ok(Attachment {
             viewer: attachment_id.clone(),
             host_terminal: host_terminal_id.clone(),

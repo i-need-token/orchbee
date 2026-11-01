@@ -78,6 +78,7 @@ impl<'a, G: Guard> ReadAttachment<'a, G> {
                 attachment_id,
                 host_epoch,
                 host_terminal_id,
+                ..
             } => (
                 attachment_id.clone(),
                 host_epoch.as_str().to_owned(),

@@ -93,6 +93,7 @@ pub(super) fn discover(
                 attachment_id,
                 host_epoch,
                 host_terminal_id,
+                ..
             }) => Some((attachment_id, host_epoch, host_terminal_id)),
             Ok(
                 TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. },

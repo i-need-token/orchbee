@@ -244,6 +244,8 @@ pub(crate) fn binding() -> PresentationBinding {
 
 pub(crate) fn binding_attach_outcome() -> io::Result<TerminalViewerOutcome> {
     Ok(TerminalViewerOutcome::Attached {
+        creation_id: orchbee_client_server_protocol::HostCreationId::parse(&"c".repeat(32))
+            .unwrap(),
         attachment_id: ViewerId::parse(SESSION_ID).map_err(io::Error::other)?,
         host_epoch: HostEpoch::parse(ID).map_err(io::Error::other)?,
         host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(ID)

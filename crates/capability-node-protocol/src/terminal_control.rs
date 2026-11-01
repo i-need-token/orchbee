@@ -56,6 +56,42 @@ impl ControlInput {
         &self.0
     }
 }
+/// One semantic input record's largest payload.
+pub const MAXIMUM_SEMANTIC_INPUT_BYTES: usize = 16 * 1024;
+
+/// The Host semantic input record a `SemanticInput` action carries.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SemanticInputKind {
+    Focus,
+    Key,
+    Mouse,
+    Text,
+}
+
+/// One encoded Host semantic input payload. Its attachment and capability fields are claims the
+/// Worker replaces with the live controller grant before submission.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SemanticInput {
+    kind: SemanticInputKind,
+    payload: Vec<u8>,
+}
+impl SemanticInput {
+    pub fn new(kind: SemanticInputKind, payload: Vec<u8>) -> Result<Self, ProtocolError> {
+        if payload.is_empty() || payload.len() > MAXIMUM_SEMANTIC_INPUT_BYTES {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        Ok(Self { kind, payload })
+    }
+    #[must_use]
+    pub const fn kind(&self) -> SemanticInputKind {
+        self.kind
+    }
+    #[must_use]
+    pub fn payload(&self) -> &[u8] {
+        &self.payload
+    }
+}
+
 /// A Client's observed outer-terminal default colors, each a 24-bit RGB value.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HostDefaultColors {
@@ -94,6 +130,10 @@ pub enum TerminalControlAction {
         sequence: NonZeroU64,
         bytes: ControlInput,
     },
+    SemanticInput {
+        sequence: NonZeroU64,
+        input: SemanticInput,
+    },
     Resize {
         sequence: NonZeroU64,
         geometry: TerminalPixelGeometry,
@@ -126,7 +166,7 @@ impl TerminalControlAction {
                 ) || rejected
             }
             Self::Release => matches!(outcome, TerminalControlOutcome::Released) || rejected,
-            Self::Input { .. } => {
+            Self::Input { .. } | Self::SemanticInput { .. } => {
                 matches!(outcome, TerminalControlOutcome::InputAccepted) || rejected
             }
             Self::Resize { geometry, .. } => {

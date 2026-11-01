@@ -19,6 +19,7 @@ impl PopupRunner {
             attachment_id,
             host_epoch,
             host_terminal_id,
+            ..
         } = self.viewer(
             client,
             TerminalViewerAction::AttachBinding {

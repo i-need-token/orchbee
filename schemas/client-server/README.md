@@ -208,7 +208,7 @@ viewer fallback are unsupported. The OBSR carrier format does not change; `read-
 five viewport and history actions add OBCN action tags 7 through 11 the same way — an
 older Worker rejects the new tags rather than silently ignoring them.
 
-JSON viewer outcomes are `attached` with `attachmentId`, `hostEpoch` and the actual `hostTerminalId` (nonzero 32-character
+JSON viewer outcomes are `attached` with `attachmentId`, `creationId`, `hostEpoch` and the actual `hostTerminalId` (nonzero 32-character
 lowercase hex), fieldless `empty`, `feedback-accepted`, or `detached`, `rejected` with reason
 `already-attached`, `terminal-unavailable`, `feedback-mismatch`, or `host-rejected`,
 `rows-rejected` with reason
@@ -275,6 +275,17 @@ with no consumed sequence; an old grant never regains authority by resetting its
 effort: the Worker retains the most recent report for new Host-default launches and recolors the
 controlled terminal only when that terminal follows Host defaults. The fieldless
 `host-colors-accepted` outcome confirms admission, not that a theme changed.
+
+`semantic-input` submits one encoded Host semantic input record for a Client that lets Host apply
+its own key, mouse and focus encoding. Besides `attachmentId`, `controllerId`, and a `sequence` from
+the same strictly increasing space, it carries `inputKind` (`focus`, `key`, `mouse` or `text`) and
+`payload`: 1 through 16,384 bytes of that record's OBTP request payload as even, lowercase
+hexadecimal. Server bounds and relays the payload without reading it, so OBCS does not restate the
+Host key vocabulary. Worker validates it with the Host codec and replaces its attachment and
+capability fields with the live controller grant; they carry no authority, and a payload the codec
+refuses returns `host-input-invalid` without a terminal effect. `input-accepted` answers it, without
+a byte-count check because the encoding follows terminal modes. A Client with larger text submits
+`paste` instead.
 
 The `paste` action is a semantic whole-envelope operation: it submits 1 through 262,144 opaque
 content bytes under the same attachment, controller, and strictly increasing sequence, and Host

@@ -1064,13 +1064,16 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "attachmentId", "hostEpoch", "hostTerminalId"],
+					"required": ["kind", "attachmentId", "creationId", "hostEpoch", "hostTerminalId"],
 					"properties": {
 						"kind": {
 							"const": "attached"
 						},
 						"attachmentId": {
 							"$ref": "#/$defs/viewerId"
+						},
+						"creationId": {
+							"$ref": "#/$defs/identity"
 						},
 						"hostEpoch": {
 							"$ref": "#/$defs/identity"
@@ -1210,6 +1213,12 @@
 			"maxLength": 8192,
 			"pattern": "^(?:[0-9a-f]{2})+$"
 		},
+		"semanticInputPayload": {
+			"type": "string",
+			"minLength": 2,
+			"maxLength": 32768,
+			"pattern": "^(?:[0-9a-f]{2})+$"
+		},
 		"terminalRgb": {
 			"type": "integer",
 			"minimum": 0,
@@ -1316,6 +1325,31 @@
 						},
 						"background": {
 							"$ref": "#/$defs/terminalRgb"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "controllerId", "sequence", "inputKind", "payload"],
+					"properties": {
+						"kind": {
+							"const": "semantic-input"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"controllerId": {
+							"$ref": "#/$defs/controllerId"
+						},
+						"sequence": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"inputKind": {
+							"enum": ["focus", "key", "mouse", "text"]
+						},
+						"payload": {
+							"$ref": "#/$defs/semanticInputPayload"
 						}
 					}
 				},

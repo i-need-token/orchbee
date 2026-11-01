@@ -76,8 +76,9 @@ pub use identity::{
     TerminalThemeOperationId,
 };
 pub use input::{
-    EncodedInputMessage, InputAccepted, InputMessage, MAXIMUM_WRITE_INPUT_PAYLOAD_BYTES,
-    WRITE_INPUT_HEADER_BYTES, WriteInput, decode_input_message, encode_input_message,
+    EncodedInputMessage, FOCUS_INPUT_KIND, InputAccepted, InputMessage, KEY_INPUT_KIND,
+    MAXIMUM_WRITE_INPUT_PAYLOAD_BYTES, MOUSE_INPUT_KIND, TEXT_INPUT_KIND, WRITE_INPUT_HEADER_BYTES,
+    WriteInput, decode_input_message, encode_input_message,
 };
 pub use inventory::{
     ColorScheme, EncodedInventoryControl, FailureContainment, InventoryControl, ListTerminals,

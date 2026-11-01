@@ -210,6 +210,9 @@ pub(super) fn run(
                     TerminalControlAction::HostColors { .. } => {
                         panic!("unexpected host colors in viewer fixture")
                     }
+                    TerminalControlAction::SemanticInput { .. } => {
+                        panic!("unexpected semantic input in viewer fixture")
+                    }
                     TerminalControlAction::Acquire => {
                         (Effect::Acquire(v, c), TerminalControlOutcome::Acquired)
                     }

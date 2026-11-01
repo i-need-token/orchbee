@@ -70,6 +70,7 @@ impl ClientExecutor {
             attachment_id,
             host_epoch,
             host_terminal_id,
+            ..
         } = attached
         else {
             return match attached {

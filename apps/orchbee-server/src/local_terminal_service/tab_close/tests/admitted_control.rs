@@ -81,6 +81,9 @@ fn preadmitted_input_and_resize_keep_success_while_new_effects_are_fenced_withou
                             WorkerControlAction::HostColors { .. } => {
                                 panic!("unexpected host colors in close fixture")
                             }
+                            WorkerControlAction::SemanticInput { .. } => {
+                                panic!("unexpected semantic input in close fixture")
+                            }
                             WorkerControlAction::Acquire => {
                                 events.push("acquire");
                                 WorkerControlOutcome::Acquired

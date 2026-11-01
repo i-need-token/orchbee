@@ -22,6 +22,13 @@ fn control_wire_preserves_scope_bytes_and_every_action_and_outcome() -> TestResu
             sequence: NonZeroU64::MAX,
             bytes: ControlInput::new(vec![0x1b; 4096])?,
         },
+        TerminalControlAction::SemanticInput {
+            sequence: NonZeroU64::MAX,
+            input: orchbee_capability_node_protocol::SemanticInput::new(
+                orchbee_capability_node_protocol::SemanticInputKind::Mouse,
+                vec![0x1b; orchbee_capability_node_protocol::MAXIMUM_SEMANTIC_INPUT_BYTES],
+            )?,
+        },
         TerminalControlAction::Resize {
             sequence: NonZeroU64::MIN,
             geometry,

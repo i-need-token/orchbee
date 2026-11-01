@@ -254,9 +254,16 @@ impl<'service> LocalTerminalConnection<'service> {
         )) else {
             return unavailable(Unavailable::TerminalRuntimeUnavailable);
         };
+        let Ok(creation_id) = orchbee_client_server_protocol::HostCreationId::parse(&format!(
+            "{:032x}",
+            u128::from_be_bytes(viewer.target.identity.creation_id().as_bytes())
+        )) else {
+            return unavailable(Unavailable::TerminalRuntimeUnavailable);
+        };
         *slot = candidate.take();
         Outcome::Attached {
             attachment_id,
+            creation_id,
             host_epoch,
             host_terminal_id,
         }

@@ -180,6 +180,10 @@ fn popup_lane_trace(editor: bool) -> TestResult {
                         } => {
                             assert_eq!(terminal_create_request_id.as_str(), id(10));
                             TerminalViewerOutcome::Attached {
+                                creation_id: orchbee_client_server_protocol::HostCreationId::parse(
+                                    &"c".repeat(32),
+                                )
+                                .unwrap(),
                                 attachment_id: ViewerId::parse(&route.attachment_id.to_text())
                                     .unwrap(),
                                 host_epoch: orchbee_client_server_protocol::HostEpoch::parse(

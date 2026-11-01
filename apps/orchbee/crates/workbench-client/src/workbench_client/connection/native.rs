@@ -508,6 +508,7 @@ impl ClientExecutor {
             attachment_id,
             host_epoch,
             host_terminal_id,
+            ..
         } = outcome
         else {
             return match outcome {
@@ -2877,6 +2878,19 @@ impl ClientExecutor {
                 controller_id,
                 sequence: self.next_control_sequence(key)?,
                 bytes,
+            }),
+            TerminalControlAction::SemanticInput {
+                attachment_id,
+                controller_id,
+                input_kind,
+                payload,
+                ..
+            } => Ok(TerminalControlAction::SemanticInput {
+                attachment_id,
+                controller_id,
+                sequence: self.next_control_sequence(key)?,
+                input_kind,
+                payload,
             }),
             TerminalControlAction::Resize {
                 attachment_id,

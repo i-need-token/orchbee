@@ -89,6 +89,8 @@ pub(crate) fn sample_for(
         stream,
         "attach",
         TerminalViewerOutcome::Attached {
+            creation_id: orchbee_client_server_protocol::HostCreationId::parse(&"c".repeat(32))
+                .unwrap(),
             attachment_id: ViewerId::parse(&route.attachment_id.to_text()).unwrap(),
             host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(
                 &route.host_epoch.to_text(),

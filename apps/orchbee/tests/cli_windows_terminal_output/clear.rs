@@ -34,6 +34,10 @@ fn clear_cli_submits_once_for_primary_child_or_compact_identity_and_retains_know
                 &mut stream,
                 &req,
                 Outcome::Attached {
+                    creation_id: orchbee_client_server_protocol::HostCreationId::parse(
+                        &"c".repeat(32),
+                    )
+                    .unwrap(),
                     attachment_id: viewer.clone(),
                     host_epoch: obcs::HostEpoch::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap(),
                     host_terminal_id: obcs::HostTerminalId::parse(

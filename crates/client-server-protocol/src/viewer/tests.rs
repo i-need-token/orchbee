@@ -11,7 +11,7 @@ const SHARED_IDENTITY: &str = "11111111111111111111111111111111";
 
 #[test]
 fn attached_viewer_requires_the_physical_terminal_identity() {
-    let value = serde_json::json!({"kind":"attached","attachmentId":SHARED_IDENTITY,"hostEpoch":SHARED_IDENTITY,"hostTerminalId":"22222222222222222222222222222222"});
+    let value = serde_json::json!({"kind":"attached","attachmentId":SHARED_IDENTITY,"creationId":SHARED_IDENTITY,"hostEpoch":SHARED_IDENTITY,"hostTerminalId":"22222222222222222222222222222222"});
     let outcome: TerminalViewerOutcome = serde_json::from_value(value.clone()).unwrap();
     let message = ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
         RequestId::parse(SHARED_IDENTITY).unwrap(),
@@ -21,9 +21,11 @@ fn attached_viewer_requires_the_physical_terminal_identity() {
         decode_server_frame(&encode_server_frame(&message).unwrap()).unwrap(),
         message
     );
-    let mut missing = value.clone();
-    missing.as_object_mut().unwrap().remove("hostTerminalId");
-    assert!(serde_json::from_value::<TerminalViewerOutcome>(missing).is_err());
+    for field in ["creationId", "hostTerminalId"] {
+        let mut missing = value.clone();
+        missing.as_object_mut().unwrap().remove(field);
+        assert!(serde_json::from_value::<TerminalViewerOutcome>(missing).is_err());
+    }
     let mut zero = value;
     zero["hostTerminalId"] = serde_json::json!("00000000000000000000000000000000");
     assert!(serde_json::from_value::<TerminalViewerOutcome>(zero).is_err());

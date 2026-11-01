@@ -146,6 +146,11 @@ pub(super) fn execute<'service>(
             sequence,
             ..
         }
+        | Action::SemanticInput {
+            controller_id,
+            sequence,
+            ..
+        }
         | Action::Resize {
             controller_id,
             sequence,
@@ -183,6 +188,30 @@ pub(super) fn execute<'service>(
                 Err(_) => return rejected(Rejected::HostRejected),
             }
         }
+        Action::SemanticInput {
+            input_kind,
+            payload,
+            ..
+        } => match orchbee_capability_node_protocol::SemanticInput::new(
+            match input_kind {
+                orchbee_client_server_protocol::SemanticInputKind::Focus => {
+                    orchbee_capability_node_protocol::SemanticInputKind::Focus
+                }
+                orchbee_client_server_protocol::SemanticInputKind::Key => {
+                    orchbee_capability_node_protocol::SemanticInputKind::Key
+                }
+                orchbee_client_server_protocol::SemanticInputKind::Mouse => {
+                    orchbee_capability_node_protocol::SemanticInputKind::Mouse
+                }
+                orchbee_client_server_protocol::SemanticInputKind::Text => {
+                    orchbee_capability_node_protocol::SemanticInputKind::Text
+                }
+            },
+            payload.as_bytes().to_vec(),
+        ) {
+            Ok(input) => WorkerAction::SemanticInput { sequence, input },
+            Err(_) => return rejected(Rejected::HostInputInvalid),
+        },
         Action::Resize { geometry, .. } => {
             match orchbee_capability_node_protocol::TerminalPixelGeometry::new(
                 geometry.columns(),

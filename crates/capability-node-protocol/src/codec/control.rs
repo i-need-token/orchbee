@@ -6,8 +6,9 @@ use super::{PayloadReader, decode_geometry, encode_geometry};
 use crate::{
     CapabilityNodeMessage, ControlInput, ControlRejection, HostDefaultColors,
     MAXIMUM_PASTE_CONTENT_BYTES, OperationId, PasteAcceptedBytes, PasteContent, ProtocolError,
-    ReadMessageError, TerminalControlAction as Action, TerminalControlOutcome as Outcome,
-    TerminalControlRequest, TerminalControlResult, WorkerGeneration, WorkerId,
+    ReadMessageError, SemanticInput, SemanticInputKind, TerminalControlAction as Action,
+    TerminalControlOutcome as Outcome, TerminalControlRequest, TerminalControlResult,
+    WorkerGeneration, WorkerId,
 };
 use std::io::Read;
 use std::num::NonZeroU64;
@@ -180,6 +181,22 @@ pub(super) fn encode_request(request: &TerminalControlRequest) -> Vec<u8> {
             bytes.extend(colors.foreground().to_be_bytes());
             bytes.extend(colors.background().to_be_bytes());
         }
+        Action::SemanticInput { sequence, input } => {
+            bytes.push(8);
+            bytes.extend(sequence.get().to_be_bytes());
+            bytes.push(match input.kind() {
+                SemanticInputKind::Focus => 1,
+                SemanticInputKind::Key => 2,
+                SemanticInputKind::Mouse => 3,
+                SemanticInputKind::Text => 4,
+            });
+            bytes.extend(
+                u16::try_from(input.payload().len())
+                    .expect("bounded semantic input")
+                    .to_be_bytes(),
+            );
+            bytes.extend(input.payload());
+        }
         Action::Paste { .. } => unreachable!("paste requests use OBNQ framing"),
     }
     bytes
@@ -217,6 +234,21 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalControlRequest, Pro
                 u32::from_be_bytes(reader.read_array()?),
             )?,
         },
+        8 => {
+            let sequence = positive(reader.read_u64()?)?;
+            let kind = match reader.read_u8()? {
+                1 => SemanticInputKind::Focus,
+                2 => SemanticInputKind::Key,
+                3 => SemanticInputKind::Mouse,
+                4 => SemanticInputKind::Text,
+                _ => return Err(ProtocolError::InvalidPayload),
+            };
+            let length = usize::from(reader.read_u16()?);
+            Action::SemanticInput {
+                sequence,
+                input: SemanticInput::new(kind, reader.read_slice(length)?.to_vec())?,
+            }
+        }
         _ => return Err(ProtocolError::InvalidPayload),
     };
     reader.finish()?;

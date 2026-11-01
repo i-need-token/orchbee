@@ -54,6 +54,8 @@ fn observed_frame_for_terminal(stream: &mut LocalStream, terminal: &str) -> View
         stream,
         &req,
         Outcome::Attached {
+            creation_id: orchbee_client_server_protocol::HostCreationId::parse(&"c".repeat(32))
+                .unwrap(),
             attachment_id: viewer.clone(),
             host_epoch: obcs::HostEpoch::parse(&route.host_epoch.to_text()).unwrap(),
             host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(

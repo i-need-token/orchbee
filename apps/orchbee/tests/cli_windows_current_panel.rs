@@ -118,6 +118,8 @@ fn process_read(stream: &mut LocalStream, terminal: u64, unavailable: bool) {
         stream,
         &request,
         c::TerminalViewerOutcome::Attached {
+            creation_id: orchbee_client_server_protocol::HostCreationId::parse(&"c".repeat(32))
+                .unwrap(),
             attachment_id: c::ViewerId::parse(&id(20)).unwrap(),
             host_epoch: c::HostEpoch::parse(&id(21)).unwrap(),
             host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(&id(21))
