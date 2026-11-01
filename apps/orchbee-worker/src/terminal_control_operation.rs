@@ -4,6 +4,7 @@
 
 use crate::{
     host_connection::{HostBrokerConnection, exchange},
+    terminal_viewer_operation::set_attachment_demand,
     worker_identity::fresh_identity,
 };
 mod clear;
@@ -19,10 +20,10 @@ use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
     ConnectionControl, CorrelationId, InputMessage, MessageRole, PasteAutoInput, PayloadEncoding,
-    ResizeControl, ResizeTerminal, TerminalId, WriteInput, decode_attachment_control,
-    decode_connection_control, decode_input_message, decode_resize_control,
-    decode_transport_envelope, encode_attachment_control, encode_input_message,
-    encode_resize_control,
+    ProjectionDemand, ResizeControl, ResizeTerminal, TerminalId, WriteInput,
+    decode_attachment_control, decode_connection_control, decode_input_message,
+    decode_resize_control, decode_transport_envelope, encode_attachment_control,
+    encode_input_message, encode_resize_control,
 };
 use std::{error::Error, num::NonZeroU64};
 fn invalid(message: &str) -> Box<dyn Error> {
@@ -147,6 +148,14 @@ fn apply(
         host.controllers
             .borrow_mut()
             .commit(request.controller_id, accepted.capability_revision);
+        // A controller has no projection and starts paused; its focus claim follows its viewer.
+        let demand = host.viewers.borrow().demand(request.viewer_id);
+        if demand == Some(ProjectionDemand::Active)
+            && !set_attachment_demand(host, server, correlation, id, ProjectionDemand::Active)?
+        {
+            release_viewer(host, server, request.viewer_id)?;
+            return Ok(Outcome::Rejected(Rejection::HostRejected));
+        }
         return Ok(Outcome::Acquired);
     }
     let sequence = match &request.action {

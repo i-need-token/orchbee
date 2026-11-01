@@ -132,6 +132,8 @@ pub const CoreError = error{
 pub const RequiredCapability = enum {
     none,
     input,
+    /// Read or input: whoever presents a terminal or claims its focus holds a demand.
+    projection_demand,
     read,
     resize,
 };

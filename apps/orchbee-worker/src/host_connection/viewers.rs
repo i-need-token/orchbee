@@ -13,10 +13,10 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_terminal_protocol::{
     AttachmentId, CURRENT_PROTOCOL_VERSION, HistoryControl, HostEpoch, MessageRole,
-    PayloadEncoding, ProjectionDemandControl, SelectionChanged, SelectionChangedState,
-    SelectionControl, SelectionExportControl, TerminalEffectEvent, TerminalFrameRoute,
-    decode_history_control, decode_projection_demand_control, decode_selection_control,
-    decode_selection_export_chunk_route, decode_selection_export_control,
+    PayloadEncoding, ProjectionDemand, ProjectionDemandControl, SelectionChanged,
+    SelectionChangedState, SelectionControl, SelectionExportControl, TerminalEffectEvent,
+    TerminalFrameRoute, decode_history_control, decode_projection_demand_control,
+    decode_selection_control, decode_selection_export_chunk_route, decode_selection_export_control,
     decode_terminal_effect_event, decode_transport_envelope, inspect_terminal_frame_route,
 };
 
@@ -46,6 +46,8 @@ impl Default for HostViewers {
 
 struct Viewer {
     terminal_id: orchbee_capability_node_protocol::HostTerminalId,
+    /// The demand last accepted for this viewer, which a new controller grant starts from.
+    demand: ProjectionDemand,
     record: Option<Vec<u8>>,
     lifecycle: Option<Vec<u8>>,
     events: VecDeque<QueuedEvent>,
@@ -109,6 +111,8 @@ impl HostViewers {
             key,
             Viewer {
                 terminal_id,
+                // Attaching activates the viewer before anything else can observe it.
+                demand: ProjectionDemand::Active,
                 record: None,
                 lifecycle: None,
                 events: VecDeque::new(),
@@ -134,6 +138,16 @@ impl HostViewers {
             .get(&id.as_bytes())
             .filter(|viewer| !viewer.closed)
             .map(|viewer| viewer.terminal_id)
+    }
+
+    pub(crate) fn demand(&self, id: OperationId) -> Option<ProjectionDemand> {
+        self.viewers.get(&id.as_bytes()).map(|viewer| viewer.demand)
+    }
+
+    pub(crate) fn set_demand(&mut self, id: OperationId, demand: ProjectionDemand) {
+        if let Some(viewer) = self.viewers.get_mut(&id.as_bytes()) {
+            viewer.demand = demand;
+        }
     }
 
     pub(crate) fn remove(&mut self, id: OperationId) {

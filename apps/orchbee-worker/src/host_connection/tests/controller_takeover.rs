@@ -3,13 +3,15 @@ use super::super::*;
 use orchbee_capability_node_protocol::{
     ControlInput, ControlRejection, HostTerminalId, OperationId, TerminalControlAction as Action,
     TerminalControlOutcome as Outcome, TerminalControlRequest, TerminalPixelGeometry,
-    TerminalViewerAction, TerminalViewerRequest, WorkerGeneration, WorkerId,
+    TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerProjectionDemand,
+    WorkerGeneration, WorkerId,
 };
 use orchbee_terminal_protocol::{
     AttachmentCapabilities, AttachmentControl, DecodedEnvelope, HostEpoch, InputAccepted,
-    InputMessage, ResizeAccepted, ResizeControl, TypedFailure, decode_attachment_control,
-    decode_input_message, decode_resize_control, encode_attachment_control, encode_input_message,
-    encode_resize_control,
+    InputMessage, ProjectionDemand, ProjectionDemandAccepted, ProjectionDemandControl,
+    ResizeAccepted, ResizeControl, TypedFailure, decode_attachment_control, decode_input_message,
+    decode_projection_demand_control, decode_resize_control, encode_attachment_control,
+    encode_input_message, encode_projection_demand_control, encode_resize_control,
 };
 use std::{num::NonZeroU64, thread};
 
@@ -112,6 +114,132 @@ fn respond(
     .unwrap();
 }
 
+/// Answers one demand request after proving which attachment it targets and what it asks for.
+fn accept_demand(peer: &mut UnixStream, attachment: u8, demand: ProjectionDemand) {
+    let record = read_transport_record(peer).unwrap();
+    let envelope = decode_transport_envelope(&record).unwrap();
+    let ProjectionDemandControl::SetProjectionDemand(request) =
+        decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload).unwrap()
+    else {
+        panic!("expected a projection demand")
+    };
+    assert_eq!(*request.attachment_id.as_bytes(), id(attachment).as_bytes());
+    assert_eq!(request.demand, demand);
+    let response = encode_projection_demand_control(
+        &ProjectionDemandControl::ProjectionDemandAccepted(ProjectionDemandAccepted {
+            attachment_id: request.attachment_id,
+            demand: request.demand,
+        }),
+    )
+    .unwrap();
+    respond(
+        peer,
+        &envelope,
+        response.kind,
+        &response.payload,
+        PayloadEncoding::ControlJson,
+    );
+}
+
+#[test]
+fn viewer_demand_reaches_its_controller_first_and_seeds_a_new_grant() -> TestResult {
+    let (host, mut peer) = fixture()?;
+    let (server, _quiet) = UnixStream::pair()?;
+    let set_viewer_demand = |viewer, demand| {
+        crate::terminal_viewer_operation::execute(
+            TerminalViewerRequest {
+                request_id: id(92),
+                worker_id: WorkerId::from_bytes([3; 16]).unwrap(),
+                worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
+                attachment_id: id(viewer),
+                action: TerminalViewerAction::SetProjectionDemand { demand },
+            },
+            orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
+            NonZeroU64::MIN,
+            &host,
+            &server,
+        )
+        .map(|result| result.outcome)
+    };
+    thread::scope(|scope| -> TestResult {
+        scope.spawn(move || {
+            accept_demand(&mut peer, 11, ProjectionDemand::Paused);
+            accept_demand(&mut peer, 10, ProjectionDemand::Paused);
+            // Paused viewer 20 takes over: Detach, then Attach, and no demand for its controller.
+            accept_demand(&mut peer, 20, ProjectionDemand::Paused);
+            let record = read_transport_record(&mut peer).unwrap();
+            let envelope = decode_transport_envelope(&record).unwrap();
+            let AttachmentControl::DetachTerminal(target) =
+                decode_attachment_control(envelope.kind, envelope.role, envelope.payload).unwrap()
+            else {
+                panic!("expected exact detach")
+            };
+            assert_eq!(*target.attachment_id.as_bytes(), id(11).as_bytes());
+            let response =
+                encode_attachment_control(&AttachmentControl::DetachTerminalAccepted(target))
+                    .unwrap();
+            respond(
+                &mut peer,
+                &envelope,
+                response.kind,
+                &response.payload,
+                PayloadEncoding::ControlJson,
+            );
+            let record = read_transport_record(&mut peer).unwrap();
+            let envelope = decode_transport_envelope(&record).unwrap();
+            let AttachmentControl::AttachTerminal(attach) =
+                decode_attachment_control(envelope.kind, envelope.role, envelope.payload).unwrap()
+            else {
+                panic!("expected new attach")
+            };
+            let response = encode_attachment_control(&AttachmentControl::AttachmentCapabilities(
+                AttachmentCapabilities {
+                    attachment_id: attach.attachment_id,
+                    terminal_id: attach.terminal_id,
+                    capabilities: attach.capabilities,
+                    capability_revision: NonZeroU64::MIN,
+                    resize_lease: true,
+                },
+            ))
+            .unwrap();
+            respond(
+                &mut peer,
+                &envelope,
+                response.kind,
+                &response.payload,
+                PayloadEncoding::ControlJson,
+            );
+            accept_demand(&mut peer, 21, ProjectionDemand::Active);
+            accept_demand(&mut peer, 20, ProjectionDemand::Active);
+        });
+        for viewer in [10, 20] {
+            assert_eq!(
+                set_viewer_demand(viewer, ViewerProjectionDemand::Paused)?,
+                TerminalViewerOutcome::FeedbackAccepted
+            );
+        }
+        assert_eq!(
+            execute(
+                &host,
+                &server,
+                request(
+                    20,
+                    21,
+                    Action::Takeover {
+                        previous_controller_id: id(11)
+                    }
+                )
+            )?,
+            Outcome::Acquired
+        );
+        assert_eq!(
+            set_viewer_demand(20, ViewerProjectionDemand::Active)?,
+            TerminalViewerOutcome::FeedbackAccepted
+        );
+        Ok(())
+    })
+}
+
 #[test]
 fn takeover_pipe_detaches_before_new_grant_and_rejects_old_input_resize_and_cleanup() -> TestResult
 {
@@ -119,10 +247,14 @@ fn takeover_pipe_detaches_before_new_grant_and_rejects_old_input_resize_and_clea
     let (server, _quiet) = UnixStream::pair()?;
     thread::scope(|scope| -> TestResult {
         scope.spawn(move || {
-            for step in 0..5 {
+            for step in 0..6 {
+                if step == 2 {
+                    accept_demand(&mut peer, 21, ProjectionDemand::Active);
+                    continue;
+                }
                 let record = read_transport_record(&mut peer).unwrap();
                 let envelope = decode_transport_envelope(&record).unwrap();
-                if step == 0 || step == 4 {
+                if step == 0 || step == 5 {
                     let AttachmentControl::DetachTerminal(target) =
                         decode_attachment_control(envelope.kind, envelope.role, envelope.payload)
                             .unwrap()
@@ -176,7 +308,7 @@ fn takeover_pipe_detaches_before_new_grant_and_rejects_old_input_resize_and_clea
                         &response.payload,
                         PayloadEncoding::ControlJson,
                     );
-                } else if step == 2 {
+                } else if step == 3 {
                     let InputMessage::WriteInput(input) =
                         decode_input_message(envelope.kind, envelope.role, envelope.payload)
                             .unwrap()

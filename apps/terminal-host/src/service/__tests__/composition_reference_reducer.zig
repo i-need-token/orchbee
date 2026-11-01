@@ -232,7 +232,9 @@ fn applyClaimResizeLease(
 fn applyDemand(reference: *Reference, action: anytype, outcome: semantic_trace.Outcome) !void {
     const attachment = reference.findAttachment(action.attachment_id) orelse
         return error.InvalidActionState;
-    if (!attachment.capabilities.read) return error.InvalidActionState;
+    if (!attachment.capabilities.read and !attachment.capabilities.input) {
+        return error.InvalidActionState;
+    }
     if (outcome == .replayed) {
         if (attachment.demand != action.demand) return error.InvalidReplayOutcome;
         return;

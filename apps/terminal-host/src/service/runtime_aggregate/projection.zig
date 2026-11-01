@@ -80,7 +80,11 @@ pub fn setProjectionDemand(
     attachment_id: core_module.AttachmentId,
     demand: core_module.ProjectionDemand,
 ) core_module.CoreError!core_module.TransitionOutcome {
-    const attachment = try self.core_state.resolveAttachment(connection_id, attachment_id, .read);
+    const attachment = try self.core_state.resolveAttachment(
+        connection_id,
+        attachment_id,
+        .projection_demand,
+    );
     const terminal_id = attachment.terminal_id;
     if (attachment.projectionDemand() == demand) return .idempotent;
     // Core demand is the focus-claim visibility fact. Repair the target's

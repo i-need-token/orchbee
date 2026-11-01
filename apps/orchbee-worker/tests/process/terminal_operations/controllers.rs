@@ -17,8 +17,8 @@ fn silent_or_contradictory_host_input_result_retires_worker_without_replay() -> 
         let listener = fixture.bind_host_listener()?;
         let host = thread::spawn(move || -> io::Result<()> {
             let mut host = admit_host(&listener)?;
-            // Viewer Attach, projection demand, then a distinct control Attach.
-            for expected in [20, 47, 20] {
+            // Viewer Attach and its demand, then a distinct control Attach and its demand.
+            for expected in [20, 47, 20, 47] {
                 let record = read_terminal_record(&mut host)?;
                 let envelope = decode_transport_envelope(&record).map_err(protocol_io)?;
                 assert_eq!(envelope.kind, expected);
@@ -178,7 +178,7 @@ fn paste_auto_input_reaches_host_and_maps_typed_failures_without_replay() -> Tes
     let listener = fixture.bind_host_listener()?;
     let host = thread::spawn(move || -> io::Result<()> {
         let mut host = admit_host(&listener)?;
-        for expected in [20, 47, 20] {
+        for expected in [20, 47, 20, 47] {
             let record = read_terminal_record(&mut host)?;
             let envelope = decode_transport_envelope(&record).map_err(protocol_io)?;
             assert_eq!(envelope.kind, expected);

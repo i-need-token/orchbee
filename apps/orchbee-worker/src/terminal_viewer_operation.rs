@@ -320,30 +320,25 @@ fn apply(
                 ViewerProjectionDemand::Active => ProjectionDemand::Active,
                 ViewerProjectionDemand::Paused => ProjectionDemand::Paused,
             };
-            let command = encode_projection_demand_control(
-                &ProjectionDemandControl::SetProjectionDemand(SetProjectionDemand {
-                    attachment_id: id,
-                    demand,
-                }),
-            )?;
-            let Some(response) =
-                ack_round_trip(host, server, correlation, command.kind, &command.payload)?
-            else {
+            // The controller goes first: pausing it repairs its held input and focus claim while
+            // the viewer is still presented.
+            let grant = host.controllers.borrow().for_viewer(request.attachment_id);
+            if let Some(grant) = grant {
+                let controller = AttachmentId::from_bytes(grant.controller_id.as_bytes())?;
+                if !set_attachment_demand(host, server, correlation, controller, demand)? {
+                    return Ok(TerminalViewerOutcome::Rejected(
+                        ViewerRejection::HostRejected,
+                    ));
+                }
+            }
+            if !set_attachment_demand(host, server, correlation, id, demand)? {
                 return Ok(TerminalViewerOutcome::Rejected(
                     ViewerRejection::HostRejected,
                 ));
-            };
-            let envelope = decode_transport_envelope(&response)?;
-            let ProjectionDemandControl::ProjectionDemandAccepted(accepted) =
-                decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload)?
-            else {
-                return Err(
-                    invalid("Host did not acknowledge the viewer projection demand").into(),
-                );
-            };
-            if accepted.attachment_id != id || accepted.demand != demand {
-                return Err(invalid("Host projection demand acknowledgement disagrees").into());
             }
+            host.viewers
+                .borrow_mut()
+                .set_demand(request.attachment_id, demand);
             Ok(TerminalViewerOutcome::FeedbackAccepted)
         }
         TerminalViewerAction::SetHistoryDemand { demand } => {
@@ -826,6 +821,36 @@ fn ack_round_trip(
         return Ok(None);
     }
     Ok(Some(response))
+}
+
+/// Answers whether the Host accepted the demand; its typed failure means the attachment is gone.
+pub(crate) fn set_attachment_demand(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    correlation: CorrelationId,
+    attachment_id: AttachmentId,
+    demand: ProjectionDemand,
+) -> Result<bool, Box<dyn Error>> {
+    let command = encode_projection_demand_control(&ProjectionDemandControl::SetProjectionDemand(
+        SetProjectionDemand {
+            attachment_id,
+            demand,
+        },
+    ))?;
+    let Some(response) = ack_round_trip(host, server, correlation, command.kind, &command.payload)?
+    else {
+        return Ok(false);
+    };
+    let envelope = decode_transport_envelope(&response)?;
+    let ProjectionDemandControl::ProjectionDemandAccepted(accepted) =
+        decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload)?
+    else {
+        return Err(invalid("Host did not acknowledge the projection demand").into());
+    };
+    if accepted.attachment_id != attachment_id || accepted.demand != demand {
+        return Err(invalid("Host projection demand acknowledgement disagrees").into());
+    }
+    Ok(true)
 }
 
 enum SelectionReply {

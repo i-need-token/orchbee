@@ -258,7 +258,8 @@ fails closed to read-only. Downgrade invalidates the dispatcher generation and i
 composition, native text settlement, paste review, held key/mouse/focus ownership, and pointer
 capture without sending client-side releases that duplicate the Host repair. Upgrade removes the
 native read-only guard but restores no prior input or queued work; the next admitted input is
-stamped only with the new revision.
+stamped only with the new revision. A surface that holds document focus at that moment makes a new
+focus claim, because the Host replays none across an upgrade.
 If the projected client disappears before this cleanup completes, Terminal Host releases only that
 attachment's accepted key, application-mouse, and focus ownership before revoking its capability;
 another attachment is unaffected. The formal input-repair model owns valid next-revision

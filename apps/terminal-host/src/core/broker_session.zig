@@ -45,9 +45,12 @@ pub const Attachment = struct {
     resize_lease: bool,
     terminal_attachment_index: usize,
     terminal_id: TerminalId,
+    /// The demand of an attachment without read capability. It delivers no projection, so this
+    /// only decides whether its focus claim is eligible.
+    unprojected_demand: attachment_projection.Demand = .paused,
 
     pub fn projectionDemand(self: Attachment) attachment_projection.Demand {
-        return self.projection.demand();
+        return if (self.capabilities.read) self.projection.demand() else self.unprojected_demand;
     }
 
     pub fn projectionReady(self: Attachment) ?attachment_projection.Ready {
@@ -342,17 +345,22 @@ pub const Session = struct {
 
     /// Applies a projection demand transition and keeps the per-terminal
     /// active-read-demand aggregate exact. Callers must have proven the
-    /// attachment is read-capable and that the transition is not idempotent;
+    /// attachment may hold demand and that the transition is not idempotent;
     /// the aggregate entry was ensured at attach time, so this commit is
-    /// allocation-free and infallible.
+    /// allocation-free and infallible. An attachment without read capability
+    /// has no projection and does not count toward the aggregate.
     pub fn applyProjectionDemand(
         self: *Session,
         attachment_id: AttachmentId,
         demand: attachment_projection.Demand,
     ) void {
         const attachment = self.attachments.getPtr(attachment_id).?;
-        std.debug.assert(attachment.capabilities.read);
         std.debug.assert(attachment.projectionDemand() != demand);
+        if (!attachment.capabilities.read) {
+            std.debug.assert(attachment.capabilities.input);
+            attachment.unprojected_demand = demand;
+            return;
+        }
         const terminal_id = attachment.terminal_id;
         if (demand == .active) {
             attachment.projection.activate();

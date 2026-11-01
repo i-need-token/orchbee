@@ -149,6 +149,84 @@ test "protocol identifier failures retain their public error code" {
         protocolErrorCode(error.InvalidIdentifier),
     );
 }
+test "an attachment without read capability holds demand only for its focus claim" {
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "78787878787878787878787878787878");
+    const active = try activeConnection(&connection);
+    const aggregate = serviceAggregate(&service);
+    var launch_fixture = try aggregate_harness.validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    var create = try aggregate.prepareCreateTerminal(
+        active.connection_id,
+        testId(core_module.CreationId, 0x79, 0),
+        launch_fixture.validated,
+    );
+    defer create.deinit();
+    const terminal_id = switch (try aggregate.commitPreparedTerminal(&create)) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+    const controller = core_module.AttachmentId.fromBytes([_]u8{0x7a} ** 16);
+    _ = try aggregate.attach(
+        active.connection_id,
+        controller,
+        terminal_id,
+        .{ .input = true, .read = false, .resize = true },
+        true,
+    );
+    const runtime = findRuntime(&service, terminal_id).?;
+    parseTerminalInput(runtime, "\x1b[?1004h");
+    var publication_barrier = try runtime.prepareRawInput("focus publication barrier");
+    defer publication_barrier.deinit();
+
+    switch (aggregate.acceptSemanticInput(
+        active.connection_id,
+        controller,
+        1,
+        .{ .focus = .{ .focused = true } },
+        std.math.maxInt(usize),
+    )) {
+        .core_rejected => |err| try std.testing.expectEqual(error.InvalidPhase, err),
+        .accepted, .runtime_missing, .runtime_rejected => return error.ExpectedPausedFocusRejection,
+    }
+
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.applied,
+        try aggregate.setProjectionDemand(active.connection_id, controller, .active),
+    );
+    const core = serviceCore(&service);
+    try std.testing.expect(!core.hasActiveProjectionDemand(terminal_id));
+    try std.testing.expect(core.findAttachment(controller).?.projectionReady() == null);
+
+    switch (aggregate.acceptSemanticInput(
+        active.connection_id,
+        controller,
+        1,
+        .{ .focus = .{ .focused = true } },
+        std.math.maxInt(usize),
+    )) {
+        .accepted => |accepted| try std.testing.expectEqual(3, accepted.byte_count),
+        .core_rejected, .runtime_missing, .runtime_rejected => return error.ExpectedFocusAcceptance,
+    }
+    try std.testing.expect(terminal_runtime.testing.attachmentFocusClaim(runtime, controller));
+
+    const published_before_pause = publishedClientInputCount(runtime);
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.applied,
+        try aggregate.setProjectionDemand(active.connection_id, controller, .paused),
+    );
+    try std.testing.expect(!terminal_runtime.testing.attachmentFocusClaim(runtime, controller));
+    try std.testing.expectEqual(
+        published_before_pause + 1,
+        publishedClientInputCount(runtime),
+    );
+}
+
 test "projection demand gates and repairs shared attachment focus claims" {
     var service = HostService.init(std.testing.allocator);
     var connection: ConnectionState = .awaiting_hello;

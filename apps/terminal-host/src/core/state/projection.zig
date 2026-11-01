@@ -19,7 +19,12 @@ pub fn setProjectionDemand(
     attachment_id: AttachmentId,
     demand: ProjectionDemand,
 ) CoreError!TransitionOutcome {
-    const attachment = try storage.resolveMutableAttachment(self, connection_id, attachment_id, .read);
+    const attachment = try storage.resolveMutableAttachment(
+        self,
+        connection_id,
+        attachment_id,
+        .projection_demand,
+    );
     if (attachment.projectionDemand() == demand) return .idempotent;
     const broker = if (self.broker) |*active| active else unreachable;
     broker.applyProjectionDemand(attachment_id, demand);

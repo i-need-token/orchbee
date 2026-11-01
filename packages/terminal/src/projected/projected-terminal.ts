@@ -2742,6 +2742,15 @@ export class ProjectedTerminal {
 		this.#inputEnabled = true;
 		this.#input?.removeAttribute('readonly');
 		this.#publishInjectedInputReadiness();
+		// The Host replays no focus claim across an upgrade, so a surface holding focus makes a new one.
+		const input = this.#input;
+		if (
+			input !== undefined &&
+			input.ownerDocument.activeElement === input &&
+			input.ownerDocument.hasFocus()
+		) {
+			this.#handleFocus();
+		}
 		return { kind: 'applied' };
 	}
 

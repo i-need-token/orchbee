@@ -265,7 +265,11 @@ controller adapters use the correlated, deadline-bounded exchange owned by `host
 
 Acquisition requires a live read-only viewer and creates a separate Host attachment with read
 disabled, input and resize enabled, and the resize lease requested. It preserves that viewer's
-projection baseline. Only an exact capability acknowledgement commits the grant. Input preserves
+projection baseline. Only an exact capability acknowledgement commits the grant. That attachment
+has no projection, but the Host admits its focus claim by its own demand, so the Worker keeps that
+demand equal to the viewer's: a new grant takes the viewer's current demand, and a viewer's demand
+change reaches its controller first, which repairs held input and the focus claim before the viewer
+pauses. Input preserves
 1 through 4,096 raw bytes and uses the accepted capability revision; the Host must acknowledge the
 entire byte count. Resize must acknowledge the complete geometry. Paste preserves 1 through
 262,144 opaque bytes as kind-39 `PasteAutoInput`; the Host must acknowledge a positive

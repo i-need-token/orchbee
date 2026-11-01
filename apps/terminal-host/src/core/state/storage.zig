@@ -26,6 +26,7 @@ pub fn resolveMutableAttachment(
     const permitted = switch (required) {
         .none => true,
         .input => attachment.capabilities.input,
+        .projection_demand => attachment.capabilities.read or attachment.capabilities.input,
         .read => attachment.capabilities.read,
         .resize => attachment.capabilities.resize,
     };

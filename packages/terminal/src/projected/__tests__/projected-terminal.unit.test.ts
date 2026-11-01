@@ -94,6 +94,7 @@ interface FakeBrowser {
 	documentListenerCount(type: string): number;
 	dispatchDocument(type: string, event?: Event): void;
 	dispatchWindow(type: string): void;
+	setDocumentFocused(value: boolean): void;
 	flushFrames(timestamp?: number): void;
 	setDevicePixelRatio(value: number): void;
 	setVisibilityState(value: DocumentVisibilityState): void;
@@ -673,6 +674,7 @@ function createContext(): CanvasRenderingContext2D {
 }
 
 function createFakeBrowser(): FakeBrowser {
+	let documentFocused = true;
 	let nextFrame = 1;
 	const frames = new Map<number, FrameRequestCallback>();
 	const mediaQueries: FakeMediaQueryList[] = [];
@@ -913,6 +915,7 @@ function createFakeBrowser(): FakeBrowser {
 		},
 		defaultView,
 		getSelection: () => selection,
+		hasFocus: () => documentFocused,
 		get visibilityState() {
 			return visibilityState;
 		},
@@ -940,6 +943,9 @@ function createFakeBrowser(): FakeBrowser {
 		},
 		setDevicePixelRatio: (value) => {
 			defaultView.devicePixelRatio = value;
+		},
+		setDocumentFocused: (value) => {
+			documentFocused = value;
 		},
 		setVisibilityState: (value) => {
 			visibilityState = value;
@@ -12086,6 +12092,59 @@ describe('ProjectedTerminal', () => {
 		).toEqual(['3', '3']);
 		expect(commands.some((command) => command.kind === 'paste-input')).toBe(false);
 		expect(commands.some((command) => command.kind === 'text-input')).toBe(false);
+		terminal.dispose();
+	});
+
+	it('makes a new focus claim after an upgrade only while the surface holds document focus', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			capabilityRevision,
+			creationId,
+			hostEpoch,
+			inputEnabled: false,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n));
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		const claims = () =>
+			commands.flatMap((command) =>
+				command.kind === 'focus-input'
+					? [`${command.payload.capabilityRevision}:${command.payload.focused}`]
+					: [],
+			);
+		const update = (revision: string, enabled: boolean) =>
+			terminal.applyInputCapability({
+				attachmentId,
+				capabilityRevision: canonicalText(revision),
+				input: enabled,
+				terminalId,
+			});
+
+		expect(claims()).toEqual([]);
+		expect(update('2', true)).toEqual({ kind: 'applied' });
+		expect(claims()).toEqual(['2:true']);
+
+		// A background window keeps its active element without holding focus.
+		expect(update('3', false)).toEqual({ kind: 'applied' });
+		browser.setDocumentFocused(false);
+		expect(update('4', true)).toEqual({ kind: 'applied' });
+		expect(claims()).toEqual(['2:true']);
+		browser.setDocumentFocused(true);
+		browser.dispatchWindow('focus');
+		expect(claims()).toEqual(['2:true', '4:true']);
 		terminal.dispose();
 	});
 

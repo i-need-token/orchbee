@@ -846,7 +846,10 @@ capability value remains the immutable `AttachTerminal` replay identity, so a li
 turn an exact attach retry into a conflict or let that retry overwrite current authority.
 
 An exact-revision focus input mutates the attachment's focus claim only while that attachment has
-active projection demand and input capability. The Engine OR-aggregates all eligible claims for the
+active projection demand and input capability. An input-capable attachment without read capability
+holds demand for this purpose alone: it delivers no projection and does not count toward the
+terminal's active read demand, so a broker that splits presentation and input across two attachments
+keeps their demand equal. The Engine OR-aggregates all eligible claims for the
 terminal: the first claim emits one semantic `FocusIn`, later claims emit no PTY bytes, non-final
 releases emit no PTY bytes, and the final release emits one semantic `FocusOut`. Replaying the
 attachment's current claim is inert. Paused, disabled, detached, or stale-revision input cannot

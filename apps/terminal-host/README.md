@@ -91,7 +91,8 @@ The accepted contract requires these externally visible properties:
   downgrade repairs only the target attachment's held key, mouse, and focus ownership before revoking
   input; an upgrade creates a fresh empty ownership ledger and never replays input.
 - Focus is one terminal-wide OR aggregate over claims from attached, input-capable attachments with
-  active projection demand. Only the first claim emits `FocusIn` and only the final release emits
+  active projection demand; an attachment without read capability holds demand only for this
+  eligibility and delivers no projection. Only the first claim emits `FocusIn` and only the final release emits
   `FocusOut`; demand pause, detach, broker loss, and capability downgrade repair the target's key
   and mouse ownership before clearing its claim, while activation and upgrade require fresh input.
 - Application clear and reset requests execute directly against the Host-owned Ghostty state for
