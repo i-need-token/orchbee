@@ -108,7 +108,7 @@ test "selection validation precedes attachment lookup" {
     defer manager.deinit(&terminal);
 
     try std.testing.expectError(
-        error.StaleRevision,
+        error.StaleGeneration,
         manager.applySelectionCommand(&terminal, 2, 2, .{
             .attachment_id = attachmentId(92),
             .command = .clear,

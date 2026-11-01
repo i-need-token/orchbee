@@ -105,19 +105,61 @@ test "select all leaves an empty terminal unselected" {
     try std.testing.expect(!state.active());
 }
 
-test "selection state rejects stale identity before mutation" {
+test "a command naming a row rejects stale identity before mutation" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
     defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("alpha");
     var state: selection.State = .{};
     defer state.clear(&terminal);
 
-    try std.testing.expectError(error.StaleRevision, state.applyCommand(&terminal, 2, 2, .{
-        .command = selection.Command.clear,
+    try std.testing.expectError(error.StaleRevision, state.applyCommand(&terminal, 2, 1, .{
+        .command = selection.Command{ .select_output = .{ .column = 0, .row = 0 } },
         .generation = 1,
         .revision = 1,
     }));
+    try std.testing.expectError(error.StaleGeneration, state.applyCommand(&terminal, 2, 2, .{
+        .command = selection.Command{ .set_range = .{
+            .end = .{ .column = 1, .row = 0 },
+            .rectangle = false,
+            .start = .{ .column = 0, .row = 0 },
+        } },
+        .generation = 1,
+        .revision = 2,
+    }));
+    try std.testing.expect(!state.active());
+}
+
+test "a command naming no row outlives output but not a replaced screen" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("alpha");
+    var state: selection.State = .{};
+    defer state.clear(&terminal);
+
+    _ = try state.applyCommand(&terminal, 5, 1, .{
+        .command = selection.Command.select_all,
+        .generation = 1,
+        .revision = 4,
+    });
+    try std.testing.expect(state.active());
+
+    try std.testing.expectError(error.StaleGeneration, state.applyCommand(&terminal, 6, 2, .{
+        .command = selection.Command.clear,
+        .generation = 1,
+        .revision = 6,
+    }));
+    try std.testing.expect(state.active());
+
+    _ = try state.applyCommand(&terminal, 7, 1, .{
+        .command = selection.Command.clear,
+        .generation = 1,
+        .revision = 6,
+    });
     try std.testing.expect(!state.active());
 }

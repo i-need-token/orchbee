@@ -843,10 +843,14 @@ Published selection endpoints are absolute row/column pairs; active state includ
 rectangle mode, and an optional 4 KiB preview. `none` and `evicted` are distinct so a client cannot
 silently copy replacement content after scrollback loss or a screen change.
 
-Selection commands retain exact revision and generation identity. `SelectionCommand.set-range`
-carries explicit inclusive absolute `start` and `end` cell endpoints plus rectangle mode. It is the
-non-pointer path for assistive technology and other programmatic selection; it does not synthesize
-click counts, drag thresholds, or pointer gesture state.
+`SelectionCommand.set-range` and `select-output` name rows, so they retain exact revision and
+generation identity. `clear` and `select-all` name none: like a pointer action they outlive ordinary
+output, so only a generation mismatch rejects them and the Host does not compare the revision they
+still carry.
+
+`SelectionCommand.set-range` carries explicit inclusive absolute `start` and `end` cell endpoints
+plus rectangle mode. It is the non-pointer path for assistive technology and other programmatic
+selection; it does not synthesize click counts, drag thresholds, or pointer gesture state.
 
 `SelectionExport` carries the literal `plain` format and an attachment-local export sequence that
 strictly increases for the attachment lifetime; HTML and raw VT are not admitted request or response

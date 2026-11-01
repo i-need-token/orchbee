@@ -1413,14 +1413,16 @@ click behavior and selection can be installed, an update applies Ghostty's withi
 word-between, line, or semantic-output drag rule from bounded surface geometry, and an ordinary end
 releases pointer activity while retaining only the click-sequence anchor. Cancellation is point-free
 and idempotently resets the gesture and releases its tracked pin while preserving the latest
-selection snapshot; it never substitutes for an ordinary end. Exact-revision selection commands,
+selection snapshot; it never substitutes for an ordinary end. Selection commands,
 detach, generation or screen invalidation, and state teardown perform the same reset. Invalid
 action-specific gesture fields are rejected by the protocol adapter before the runtime mutation
 boundary.
 
 Selection commands preserve Ghostty's canonical content semantics. Select-all trims surrounding
 blank cells, excludes unused viewport rows, and leaves an empty screen unselected instead of
-manufacturing a geometry-wide selection.
+manufacturing a geometry-wide selection. A command that names a row holds only for the exact revision
+and generation that row was read from. Clear and select-all name none, so ordinary output cannot make
+them stale and only a generation mismatch rejects them.
 
 ## Command and outcome contract
 

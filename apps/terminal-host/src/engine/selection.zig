@@ -232,7 +232,8 @@ pub const State = struct {
         current_generation: u64,
         request: anytype,
     ) (Error || std.mem.Allocator.Error)!Snapshot {
-        try validateCurrent(
+        try validateCommand(
+            request.command,
             request.revision,
             request.generation,
             current_revision,
@@ -330,13 +331,22 @@ const default_word_boundaries = [_]u21{
     '}', '<', '>',  '$',
 };
 
-pub fn validateCurrent(
+/// A command that names a row holds only for the state that row was read from. `clear` and
+/// `select_all` name none, so like a pointer action they outlive ordinary output and stop only at a
+/// replaced screen.
+pub fn validateCommand(
+    command: Command,
     request_revision: u64,
     request_generation: u64,
     current_revision: u64,
     current_generation: u64,
 ) Error!void {
-    if (request_revision != current_revision) return error.StaleRevision;
+    switch (command) {
+        .clear, .select_all => {},
+        .select_output, .set_range => if (request_revision != current_revision) {
+            return error.StaleRevision;
+        },
+    }
     if (request_generation != current_generation) return error.StaleGeneration;
 }
 

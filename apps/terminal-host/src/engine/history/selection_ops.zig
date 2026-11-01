@@ -135,7 +135,8 @@ pub fn applySelectionCommand(
     current_generation: u64,
     request: SelectionCommandRequest,
 ) (HistoryError || std.mem.Allocator.Error)!SelectionSnapshot {
-    try terminal_selection.validateCurrent(
+    try terminal_selection.validateCommand(
+        request.command,
         request.revision,
         request.generation,
         current_revision,
