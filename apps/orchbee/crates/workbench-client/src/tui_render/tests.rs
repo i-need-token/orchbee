@@ -559,8 +559,8 @@ fn root_chrome_actions_use_canonical_geometry_roles_and_exact_targets() {
             let assert_action = |rect: Rect, label: &str| {
                 assert_eq!(
                     usize::from(rect.width),
-                    display_width(label) + 5,
-                    "one focus cell plus canonical `[ Label ]` grammar"
+                    display_width(label) + 4,
+                    "canonical `[ Label ]` grammar without a focus cell"
                 );
                 let text = (rect.x..rect.right())
                     .map(|x| buffer[(x, rect.y)].symbol())

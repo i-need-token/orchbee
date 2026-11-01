@@ -8,7 +8,7 @@ fn forty_column_bar_resolves_every_control_before_paint() {
     let geometry = resolve_geometry(area, area, Locale::EnUs.resize_done_label(), false, &theme)
         .expect("the established compact resize bar fits at forty columns");
 
-    assert_eq!(geometry.exit, ExitGeometry::Action(Rect::new(31, 0, 9, 1)));
+    assert_eq!(geometry.exit, ExitGeometry::Action(Rect::new(32, 0, 8, 1)));
     assert_eq!(
         geometry.controls,
         vec![
@@ -115,8 +115,20 @@ fn localization_and_step_state_keep_fixed_control_extents() {
 #[test]
 fn narrow_bars_keep_a_whole_exit_and_never_publish_partial_controls() {
     let theme = Theme::rgb_test_dark();
-    let narrow = Rect::new(0, 0, 8, 1);
+    let whole = Rect::new(0, 0, 8, 1);
+    let narrow = Rect::new(0, 0, 7, 1);
     let tiny = Rect::new(0, 0, 2, 1);
+
+    let whole = resolve_geometry(
+        whole,
+        whole,
+        Locale::EnUs.resize_done_label(),
+        false,
+        &theme,
+    )
+    .expect("the whole exit action fits");
+    assert_eq!(whole.exit, ExitGeometry::Action(Rect::new(0, 0, 8, 1)));
+    assert!(whole.controls.is_empty());
 
     let narrow = resolve_geometry(
         narrow,
@@ -127,9 +139,8 @@ fn narrow_bars_keep_a_whole_exit_and_never_publish_partial_controls() {
     )
     .expect("the close fallback fits");
 
-    assert_eq!(narrow.exit, ExitGeometry::Close(Rect::new(4, 0, 3, 1)));
-    assert_eq!(narrow.controls.len(), 1);
-    assert_eq!(narrow.controls[0].rect, Rect::new(0, 0, 3, 1));
+    assert_eq!(narrow.exit, ExitGeometry::Close(Rect::new(3, 0, 3, 1)));
+    assert!(narrow.controls.is_empty());
     assert!(
         resolve_geometry(tiny, tiny, Locale::EnUs.resize_done_label(), false, &theme).is_none()
     );

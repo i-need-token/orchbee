@@ -897,7 +897,7 @@ fn invalid_editor_accept_remains_visible_as_a_disabled_typed_target() {
     assert!(!accept_cells.is_empty());
     assert_eq!(
         target_text(&terminal, &map, &accept, false),
-        " [ Apply  Enter ]"
+        "[ Apply  Enter ]"
     );
     let expected = theme.content_on_surface(
         Role::SurfaceOverlay,

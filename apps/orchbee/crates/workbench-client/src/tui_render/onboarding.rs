@@ -10,7 +10,6 @@ use super::{
 };
 use crate::{
     onboarding::Action,
-    terminal_text::display_width,
     tui_hit_map::{
         GlobalChromeAction, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
         ProjectedPointer,
@@ -45,24 +44,14 @@ pub(super) fn render(
     hits: &mut HitMapBuilder,
 ) {
     frame.render_widget(Clear, area);
-    // The heading and status start on the label track that follows the actions' focus track, and
-    // one blank cell keeps the heading clear of its rule.
-    let track = u16::try_from(display_width(theme.glyphs.active_marker).max(1)).unwrap_or(1);
+    // The heading and status start on the actions' left bracket, and one blank cell keeps the
+    // heading clear of its rule.
     let block = Block::new()
         .borders(Borders::TOP)
-        .title(format!(
-            "{}{} ",
-            " ".repeat(usize::from(track)),
-            locale.onboarding_title()
-        ))
+        .title(format!("{} ", locale.onboarding_title()))
         .style(theme.style(Role::SurfaceChrome));
     let inner = block.inner(area);
-    let text_area = Rect::new(
-        inner.x.saturating_add(track).min(inner.right()),
-        inner.y,
-        inner.width.saturating_sub(track),
-        1,
-    );
+    let text_area = Rect::new(inner.x, inner.y, inner.width, 1);
     frame.render_widget(block, area);
     let compact = area.height < 7;
     let actions: &[Action] = if compact {

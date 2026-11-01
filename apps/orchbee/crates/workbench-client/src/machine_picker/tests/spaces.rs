@@ -116,19 +116,10 @@ fn workspace_search_keeps_its_field_and_selection_identity_across_query_and_chec
             picker.paste_workspace_query("missing");
             let after = paint(&picker, locale, width, height);
             if width >= 34 && height >= 10 {
-                let heading = locale.machine_picker_text("workspace-search");
-                let before_field = before
-                    .rows
-                    .iter()
-                    .position(|row| compact_text(row).contains(&compact_text(heading)));
-                assert!(before_field.is_some());
-                assert_eq!(
-                    before_field,
-                    after
-                        .rows
-                        .iter()
-                        .position(|row| compact_text(row).contains(&compact_text(heading)))
-                );
+                // The field keeps its row; its label may yield cells to the Clear action.
+                let before_field = search_row(&before);
+                assert!(before_field.is_some(), "{locale:?} {width}x{height}");
+                assert_eq!(before_field, search_row(&after));
                 assert!(compact_text(&after).contains(&compact_text(
                     locale.machine_picker_text("workspaces-no-matches")
                 )));
@@ -139,6 +130,18 @@ fn workspace_search_keeps_its_field_and_selection_identity_across_query_and_chec
         }
     }
 }
+fn search_row(paint: &Paint) -> Option<u16> {
+    (0..paint.height).find(|row| {
+        (0..paint.width).any(|column| {
+            matches!(
+                paint.hits.hit_target_at(column, *row),
+                Some(HitTarget::MachinePicker(target))
+                    if target.action() == PickerAction::Control(Control::Search)
+            )
+        })
+    })
+}
+
 fn window(picker: &Picker, heights: &[u16], cells: u16, gap: u16) -> SidebarWindow {
     let rows = picker.sidebar_navigation_rows();
     assert_eq!(rows.len(), heights.len());

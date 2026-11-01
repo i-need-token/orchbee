@@ -364,10 +364,11 @@ fn paint_search_direction_and_reverse(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
+    // The direction glyph and one blank cell precede the action's left bracket.
     let reverse_area = Rect::new(
-        area.x.saturating_add(1),
+        area.x.saturating_add(2),
         area.y,
-        area.width.saturating_sub(1),
+        area.width.saturating_sub(2),
         1,
     );
     let label = locale.copy_reverse_label();

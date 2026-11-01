@@ -91,7 +91,6 @@ impl<'a> ActionSpec<'a> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct ActionLayout {
     rect: Rect,
-    focus_width: usize,
     label_width: usize,
     shortcut_width: usize,
     status_width: usize,
@@ -136,15 +135,11 @@ pub(crate) fn render_action(
     } else {
         Role::TextDisabled
     };
-    let bracket_role = if state.focus == FocusState::Focused {
-        Role::AccentFocus
-    } else {
-        action_role
-    };
-    let focus = if state.focus == FocusState::Focused {
-        pad_to_width(theme.glyphs.active_marker, layout.focus_width)
-    } else {
-        " ".repeat(layout.focus_width)
+    // The brackets alone carry keyboard focus, so a resting primary keeps them off its accent.
+    let bracket_role = match (state.focus, action_role) {
+        (FocusState::Focused, _) => Role::AccentFocus,
+        (_, Role::AccentAction) => Role::TextPrimary,
+        (_, role) => role,
     };
     let label = if state.operation == OperationState::Pending {
         pending.as_ref()
@@ -172,18 +167,6 @@ pub(crate) fn render_action(
     } else {
         " ".repeat(layout.status_width)
     };
-    let focus_role = if state.focus == FocusState::Focused {
-        Role::AccentFocus
-    } else {
-        action_role
-    };
-    let focus_style = content_style(
-        theme,
-        spec.surface,
-        interaction,
-        Some(focus_role),
-        theme.style(focus_role),
-    );
     let bracket_style = content_style(
         theme,
         spec.surface,
@@ -217,7 +200,6 @@ pub(crate) fn render_action(
     );
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(focus, focus_style),
             Span::styled("[ ", bracket_style),
             Span::styled(label, label_style),
             Span::styled(shortcut, shortcut_style),
@@ -263,14 +245,12 @@ fn resolve_action_layout(
         }
         None => 0,
     };
-    let focus_width = display_width(theme.glyphs.active_marker).max(1);
     let status_width = spec
         .pending_label
         .map(|_| display_width(theme.glyphs.status_bullet).max(1))
         .unwrap_or(0);
-    let width = focus_width
+    let width = label_width
         .checked_add(4)?
-        .checked_add(label_width)?
         .checked_add(shortcut_width)?
         .checked_add(status_width)?;
     let width = u16::try_from(width).ok()?;
@@ -283,7 +263,6 @@ fn resolve_action_layout(
     }
     Some(ActionLayout {
         rect,
-        focus_width,
         label_width,
         shortcut_width,
         status_width,

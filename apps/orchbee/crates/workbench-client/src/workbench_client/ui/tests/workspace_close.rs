@@ -609,13 +609,9 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
                         "[{}Enter]",
                         locale.workspace_close_confirm_label()
                     )));
-                    let focus_width =
-                        crate::terminal_text::display_width(theme.glyphs.active_marker).max(1);
                     assert_eq!(
                         cancel_controls,
-                        focus_width
-                            + 4
-                            + crate::terminal_text::display_width(
+                        4 + crate::terminal_text::display_width(
                                 locale.workspace_close_cancel_label()
                             )
                             + 2 + 3 // Gap and Esc inside the button.
@@ -623,12 +619,9 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
                     );
                     assert_eq!(
                         confirm_controls,
-                        focus_width
-                            + 4
-                            + crate::terminal_text::display_width(
-                                locale.workspace_close_confirm_label()
-                            )
-                            + 2
+                        4 + crate::terminal_text::display_width(
+                            locale.workspace_close_confirm_label()
+                        ) + 2
                             + 5 // Gap and Enter inside the button.
                     );
                     ui.capture_confirmation_key(ClientKey::Enter);

@@ -209,18 +209,16 @@ fn worktree_complete_draw_arms_one_exact_plan_and_small_first_draw_refuses() {
                             })
                             .count()
                     };
-                    let focus_width =
-                        crate::terminal_text::display_width(theme.glyphs.active_marker).max(1);
-                    // The button owns its focus cell, brackets, two spaces and Esc; the frame's
-                    // [x] is its own Close target with the same effect.
+                    // The button owns its brackets, two spaces and Esc; the frame's [x] is its own
+                    // Close target with the same effect.
                     assert_eq!(
                         target_count(ModalControl::Cancel),
-                        focus_width + 4 + crate::terminal_text::display_width(cancel_label) + 5
+                        4 + crate::terminal_text::display_width(cancel_label) + 5
                     );
                     assert_eq!(target_count(ModalControl::Close), 3);
                     assert_eq!(
                         target_count(ModalControl::Submit),
-                        focus_width + 4 + crate::terminal_text::display_width(submit_label) + 7
+                        4 + crate::terminal_text::display_width(submit_label) + 7
                     );
                     assert!(target_count(ModalControl::NextField) > 0);
                     assert!(

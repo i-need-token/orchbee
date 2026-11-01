@@ -39,11 +39,11 @@ its localized content, typed token and `HitTarget`, availability reason, present
 and draw receipt. The shared module never imports a feature-specific state or token.
 
 Form and confirmation `ModalAction` values supply their effective bindings to `ActionSpec`'s
-optional shortcut slot. It measures and paints the subdued key inside the button brackets, after
-one focus-marker cell. Dialog footers carry only their right-aligned buttons; editing keys such as
-Backspace and Ctrl+U are conventions and never get a hint row, and only pickers keep a hint row.
-Settings adopts the same rule for Close, Back and its child decisions. The complete `[x]` paint
-also registers its exact typed dismissal target for backdrop gestures.
+optional shortcut slot. It measures and paints the subdued key inside the button brackets. Dialog
+footers carry only their right-aligned buttons; editing keys such as Backspace and Ctrl+U are
+conventions and never get a hint row, and only pickers keep a hint row. Settings adopts the same
+rule for Close, Back and its child decisions. The complete `[x]` paint also registers its exact
+typed dismissal target for backdrop gestures.
 
 The modal's `paint_modal_frame` paints the task title once on the frame's top edge, beside the
 frame-borne close control described by [frame

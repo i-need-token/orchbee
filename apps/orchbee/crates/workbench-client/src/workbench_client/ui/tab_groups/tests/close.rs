@@ -817,12 +817,7 @@ fn tab_close_confirm_uses_shared_destructive_intent_without_changing_cancel_or_a
                     let (x, y) = cell(&map, width, height, |target| {
                         matches!(target, HitTarget::TabClose { confirm: true, .. })
                     });
-                    let label_x = x
-                        + u16::try_from(crate::terminal_text::display_width(
-                            theme.glyphs.active_marker,
-                        ))
-                        .unwrap()
-                        + 2;
+                    let label_x = x + 2;
                     assert_eq!(
                         terminal.backend().buffer()[(label_x, y)].fg,
                         theme.style(Role::AccentDestructive).fg.unwrap(),
@@ -1067,7 +1062,7 @@ fn close_set_prompt_cancel_resize_and_small_suspension_never_submit() {
                 ui.invalidate_close_display();
             }
             if action == "small" {
-                draw(&mut ui, locale, 24, 7, None);
+                draw(&mut ui, locale, 22, 7, None);
                 let prompt = ui.view().close_confirmation().unwrap();
                 assert_eq!(prompt.token(), token);
                 assert!(!prompt.interactive());

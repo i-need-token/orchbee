@@ -243,13 +243,10 @@ fn assert_complete_close_frame(
     expected.extend(displayed_content_rows(&expected_warning, warning_area));
     expected.extend([
         String::new(),
-        // The confirmation opens with focus on its primary, marked in the primary's own cell.
+        // Focus on the primary shows on its brackets alone; no glyph precedes them.
         format!(
-            "[ {}  Esc ] {}[ {}  Enter ]",
+            "[ {}  Esc ] [ {}  Enter ]",
             locale.tab_close_cancel_label(),
-            crate::tui_theme::Theme::terminal_native()
-                .glyphs
-                .active_marker,
             locale.tab_close_confirm_label()
         ),
     ]);
