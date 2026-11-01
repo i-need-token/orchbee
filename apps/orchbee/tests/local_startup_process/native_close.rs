@@ -78,15 +78,16 @@ const ENGLISH: CloseCopy = CloseCopy {
     locale: "en_US.UTF-8",
     ready: "Tab 1 · Ready · controlling",
     title: "Close Tab?",
-    warning: "Closing this Tab ends its running work for everyone connected to this workspace.",
-    actions: "[ Cancel  Esc ]   [ Close  Enter ]",
+    // Every scenario here closes one Tab with one live shell.
+    warning: "Ends 1 terminal.",
+    actions: "[ Cancel  Esc ] [ Close  Enter ]",
 };
 const CHINESE: CloseCopy = CloseCopy {
     locale: "zh_CN.UTF-8",
     ready: "Tab 1 · 已就绪 · 可控制",
     title: "关闭标签页？",
-    warning: "关闭此标签页将终止其中运行的任务，影响所有连接到此工作区的人。",
-    actions: "[ 取消  Esc ]   [ 关闭  Enter ]",
+    warning: "将结束 1 个终端。",
+    actions: "[ 取消  Esc ] [ 关闭  Enter ]",
 };
 
 fn ready(client: &mut Client, checkpoint: usize, deadline: Instant, copy: CloseCopy) {

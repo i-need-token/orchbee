@@ -430,7 +430,7 @@ impl Client {
         self.observe_after_pumping(
             checkpoint,
             deadline,
-            "complete modal prompt with exact content inside its borders",
+            "complete dialog with its exact heading edge and content inside its borders",
             pumped_peers,
             |frame| {
                 (frame.has_native_header(header) && frame.has_bordered_modal_content(content_rows))

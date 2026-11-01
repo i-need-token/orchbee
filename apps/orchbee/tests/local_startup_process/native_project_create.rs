@@ -11,8 +11,8 @@ use super::pty_client::FrameExpectation;
 use super::{
     native_cli_query::{run_json, spawn_real_server, validate, validators},
     native_workspace_fixture::{
-        DIRECTORY_ACCEPTED, DIRECTORY_INPUT_HINT, DIRECTORY_NEEDED, DIRECTORY_NEEDED_ACTION,
-        DIRECTORY_PATH, DIRECTORY_READY_ACTION, EMPTY, TEXT_ACTIONS, TEXT_HINTS, modal,
+        DIRECTORY_ACCEPTED, DIRECTORY_ACTIONS, DIRECTORY_INPUT_HINT, DIRECTORY_NEEDED,
+        DIRECTORY_NEEDED_ACTION, DIRECTORY_PATH, DIRECTORY_READY_ACTION, EMPTY, modal,
     },
     tui_observer::{ModalRow, WorkbenchHeader},
     *,
@@ -204,8 +204,6 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
     let directory = fs::canonicalize(directory)?;
     let checkpoint = client.checkpoint();
     client.send(b"\x02e");
-    let project_row = format!("Project: {PROJECT_LABEL}");
-    let workspace_row = format!("Workspaces: {WORKSPACE_LABEL}");
     modal(
         &mut client,
         checkpoint,
@@ -213,16 +211,12 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
         &[
             ModalRow::exact(DIRECTORY_PATH),
             ModalRow::exact(""),
-            ModalRow::exact(&project_row),
-            ModalRow::exact(""),
-            ModalRow::exact(&workspace_row),
+            ModalRow::exact(WORKSPACE_LABEL),
             ModalRow::exact(""),
             ModalRow::field_at_end(""),
-            ModalRow::exact(""),
             ModalRow::exact(DIRECTORY_INPUT_HINT),
             ModalRow::exact(""),
-            ModalRow::exact(TEXT_HINTS),
-            ModalRow::exact(TEXT_ACTIONS),
+            ModalRow::exact(DIRECTORY_ACTIONS),
         ],
     );
     let checkpoint = client.checkpoint();
@@ -235,16 +229,12 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
         &[
             ModalRow::exact(DIRECTORY_PATH),
             ModalRow::exact(""),
-            ModalRow::exact(&project_row),
-            ModalRow::exact(""),
-            ModalRow::exact(&workspace_row),
+            ModalRow::exact(WORKSPACE_LABEL),
             ModalRow::exact(""),
             ModalRow::field_at_end(path),
-            ModalRow::exact(""),
             ModalRow::exact(DIRECTORY_INPUT_HINT),
             ModalRow::exact(""),
-            ModalRow::exact(TEXT_HINTS),
-            ModalRow::exact(TEXT_ACTIONS),
+            ModalRow::exact(DIRECTORY_ACTIONS),
         ],
     );
     let checkpoint = client.checkpoint();

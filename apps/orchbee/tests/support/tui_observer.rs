@@ -312,10 +312,12 @@ impl Screen {
 }
 
 impl CompletedFrame {
+    /// Finds a dialog read in order: `expected` starts with the exact heading on its top edge,
+    /// `┌─ Heading ─…─ [x] ─┐`, and continues with every row between its side borders, trimmed.
     pub(super) fn has_bordered_modal_content(&self, expected: &[ModalRow<'_>]) -> bool {
-        if expected.is_empty() {
+        let Some((ModalRow::Exact(heading), expected)) = expected.split_first() else {
             return false;
-        }
+        };
         for (top, row) in self.cells.iter().enumerate() {
             for (left, cell) in row.iter().enumerate() {
                 if cell != "┌" {
@@ -324,18 +326,7 @@ impl CompletedFrame {
                 let Some(right) = (left + 1..row.len()).find(|index| row[*index] == "┐") else {
                     continue;
                 };
-                let top_edge = &row[left + 1..right];
-                if top_edge.len() < 3 {
-                    continue;
-                }
-                let close = &top_edge[top_edge.len() - 3..];
-                if top_edge[..top_edge.len() - 3]
-                    .iter()
-                    .any(|cell| cell != "─")
-                    || close[0] != "["
-                    || close[1] != "x"
-                    || close[2] != "]"
-                {
+                if !dialog_top_edge_matches(&displayed_row(&row[left + 1..right]), heading) {
                     continue;
                 }
                 let Some(bottom) = (top + 1..self.cells.len()).find(|index| {
@@ -566,6 +557,16 @@ fn advance_sequence(prefix: &mut usize, byte: u8, sequence: &[u8]) -> bool {
     } else {
         false
     }
+}
+
+/// The cells between a dialog's top corners: `─ `, the heading, a blank, at least one rule cell,
+/// and the spaced close control ` [x] ─`.
+fn dialog_top_edge_matches(edge: &str, heading: &str) -> bool {
+    edge.strip_prefix("─ ")
+        .and_then(|rest| rest.strip_prefix(heading))
+        .and_then(|rest| rest.strip_prefix(' '))
+        .and_then(|rest| rest.strip_suffix(" [x] ─"))
+        .is_some_and(|rule| !rule.is_empty() && rule.chars().all(|cell| cell == '─'))
 }
 
 fn modal_row_matches(actual: &str, expected: ModalRow<'_>) -> bool {

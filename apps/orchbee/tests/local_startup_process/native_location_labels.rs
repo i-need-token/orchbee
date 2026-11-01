@@ -5,6 +5,8 @@ use super::*;
 use orchbee_workbench_protocol::Snapshot;
 use std::path::Path;
 
+const RENAME_ACTIONS: &str = "[ Cancel  Esc ] [ Rename  Enter ]";
+
 #[derive(Clone, Copy)]
 enum Target {
     Workspace,
@@ -23,17 +25,6 @@ impl Target {
         match self {
             Self::Workspace => "Rename Workspace",
             Self::Project => "Rename Project",
-        }
-    }
-
-    fn hint(self) -> &'static str {
-        match self {
-            Self::Workspace => {
-                "Use 1–512 characters. The shared Workspace label changes for all Clients."
-            }
-            Self::Project => {
-                "Use 1–512 characters. The shared Project label changes for all Clients."
-            }
         }
     }
 
@@ -60,25 +51,16 @@ fn editor(
     workspace: &str,
     text: &str,
 ) {
-    let project_row = format!("Project: {project}");
-    let workspace_row = format!("Workspaces: {workspace}");
-    let mut rows = vec![
+    // The title names the value, so the field stands alone; its reserved help row stays blank
+    // while the label is valid.
+    let rows = [
         ModalRow::exact(target.title()),
         ModalRow::exact(""),
-        ModalRow::exact(&project_row),
-        ModalRow::exact(""),
-    ];
-    if matches!(target, Target::Workspace) {
-        rows.extend([ModalRow::exact(workspace_row.as_str()), ModalRow::exact("")]);
-    }
-    rows.extend([
         ModalRow::field_at_end(text),
         ModalRow::exact(""),
-        ModalRow::exact(target.hint()),
         ModalRow::exact(""),
-        ModalRow::exact(TEXT_HINTS),
-        ModalRow::exact(TEXT_ACTIONS),
-    ]);
+        ModalRow::exact(RENAME_ACTIONS),
+    ];
     let location = header(project, workspace);
     modal(
         client,

@@ -16,10 +16,9 @@ pub(super) const EMPTY: &str = "No terminal tabs";
 pub(super) const DIRECTORY_NEEDED: &str = "No directory configured.";
 pub(super) const DIRECTORY_NEEDED_ACTION: &str = "Ctrl+b e Set Workspace directory";
 pub(super) const DIRECTORY_READY_ACTION: &str = "Ctrl+b c New Tab";
-pub(super) const DIRECTORY_PATH: &str = "Configure Workspace directory";
-pub(super) const DIRECTORY_INPUT_HINT: &str = "Enter the full path to an existing folder.";
-pub(super) const TEXT_HINTS: &str = "Esc cancel · Enter submit · Backspace delete · Ctrl+u clear";
-pub(super) const TEXT_ACTIONS: &str = "[ Cancel ]   [ Submit ]";
+pub(super) const DIRECTORY_PATH: &str = "Set Workspace Directory";
+pub(super) const DIRECTORY_INPUT_HINT: &str = "Use the full path of an existing folder.";
+pub(super) const DIRECTORY_ACTIONS: &str = "[ Cancel  Esc ] [ Set  Enter ]";
 pub(super) const DIRECTORY_REFUSED: &str =
     "Workspace setup not applied · check the target and input before trying again";
 pub(super) const DIRECTORY_ACCEPTED: &str = "Directory configured · ready to launch a terminal";
@@ -130,16 +129,12 @@ pub(super) fn edit_directory(client: &mut Client, path: &str) {
         &[
             ModalRow::exact(DIRECTORY_PATH),
             ModalRow::exact(""),
-            ModalRow::exact("Project: Setup process"),
-            ModalRow::exact(""),
-            ModalRow::exact("Workspaces: Chosen workspace"),
+            ModalRow::exact("Chosen workspace"),
             ModalRow::exact(""),
             ModalRow::field_at_end(""),
-            ModalRow::exact(""),
             ModalRow::exact(DIRECTORY_INPUT_HINT),
             ModalRow::exact(""),
-            ModalRow::exact(TEXT_HINTS),
-            ModalRow::exact(TEXT_ACTIONS),
+            ModalRow::exact(DIRECTORY_ACTIONS),
         ],
     );
     let checkpoint = client.checkpoint();
@@ -151,16 +146,12 @@ pub(super) fn edit_directory(client: &mut Client, path: &str) {
         &[
             ModalRow::exact(DIRECTORY_PATH),
             ModalRow::exact(""),
-            ModalRow::exact("Project: Setup process"),
-            ModalRow::exact(""),
-            ModalRow::exact("Workspaces: Chosen workspace"),
+            ModalRow::exact("Chosen workspace"),
             ModalRow::exact(""),
             ModalRow::field_at_end(path),
-            ModalRow::exact(""),
             ModalRow::exact(DIRECTORY_INPUT_HINT),
             ModalRow::exact(""),
-            ModalRow::exact(TEXT_HINTS),
-            ModalRow::exact(TEXT_ACTIONS),
+            ModalRow::exact(DIRECTORY_ACTIONS),
         ],
     );
 }

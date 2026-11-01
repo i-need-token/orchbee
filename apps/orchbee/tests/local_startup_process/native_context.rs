@@ -274,14 +274,15 @@ fn native_initial_workspace_panel_split_refreshes_and_moves_focus_between_live_l
         checkpoint,
         Instant::now() + OBSERVATION_TIMEOUT,
         INITIAL_WORKSPACE_LOCATION,
+        // The split Tab holds both live shells.
         &[
             "Close Tab?",
             "",
             "1",
             "",
-            "Closing this Tab ends its running work for everyone connected to this workspace.",
+            "Ends 2 terminals.",
             "",
-            "[ Cancel  Esc ]   [ Close  Enter ]",
+            "[ Cancel  Esc ] [ Close  Enter ]",
         ],
         &mut [],
     );
@@ -1127,9 +1128,9 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
             "",
             "1",
             "",
-            "Closing this Tab ends its running work for everyone connected to this workspace.",
+            "Ends 1 terminal.",
             "",
-            "[ Cancel  Esc ]   [ Close  Enter ]",
+            "[ Cancel  Esc ] [ Close  Enter ]",
         ],
         &mut [&mut independent],
     );

@@ -40,7 +40,7 @@ fn complete_frame(draw: &str) -> Screen {
 }
 
 fn modal_frame(top_edge: &str, rows: &[&str], right_border: &str) -> Screen {
-    let width = top_edge.chars().count();
+    let width = ratatui::text::Line::raw(top_edge).width();
     let mut draw = format!("\x1b[2;3H┌{top_edge}┐");
     for (index, content) in rows.iter().enumerate() {
         let content_width = ratatui::text::Line::raw(*content).width();
@@ -207,7 +207,7 @@ fn navigator_observer_keeps_current_state_distinct_from_row_order() {
 }
 
 #[test]
-fn modal_observer_requires_complete_borders_exact_close_and_exact_rows() {
+fn modal_observer_requires_the_exact_heading_edge_complete_borders_and_exact_rows() {
     let expected = [
         ModalRow::exact("Close Tab?"),
         ModalRow::exact(""),
@@ -215,23 +215,24 @@ fn modal_observer_requires_complete_borders_exact_close_and_exact_rows() {
         ModalRow::exact(""),
         ModalRow::exact("warning"),
         ModalRow::exact(""),
-        ModalRow::exact("[ Cancel  Esc ]   [ Close  Enter ]"),
+        ModalRow::exact("[ Cancel  Esc ] [ Close  Enter ]"),
     ];
     let rows = [
-        "  Close Tab?",
         "",
         "  1",
         "",
         "  warning",
         "",
-        "  [ Cancel  Esc ]   [ Close  Enter ]",
+        "  [ Cancel  Esc ] [ Close  Enter ]",
     ];
+    let edge = |heading: &str, close: &str| format!("─ {heading} {} {close} ─", "─".repeat(16));
     for (top, right, accepted) in [
-        (format!("{}[x]", "─".repeat(37)), "│", true),
-        ("─".repeat(40), "│", false),
-        (format!("{}[?]", "─".repeat(37)), "│", false),
-        (format!("{}[x]─", "─".repeat(36)), "│", false),
-        (format!("{}[x]", "─".repeat(37)), " ", false),
+        (edge("Close Tab?", "[x]"), "│", true),
+        (edge("Close Panel?", "[x]"), "│", false),
+        (edge("Close Tab?", "[?]"), "│", false),
+        (format!("─ Close Tab? {}[x]", "─".repeat(20)), "│", false),
+        ("─".repeat(38), "│", false),
+        (edge("Close Tab?", "[x]"), " ", false),
     ] {
         let screen = modal_frame(&top, &rows, right);
         assert_eq!(
@@ -250,15 +251,15 @@ fn localized_close_observer_requires_the_full_consequence_target_and_decision_ke
     for (title, warning, actions, incomplete_warning) in [
         (
             "Close Tab?",
-            "Closing this Tab ends its running work for everyone connected to this workspace.",
-            "[ Cancel  Esc ]   [ Close  Enter ]",
-            "Closing this Tab ends its running work.",
+            "Ends 1 terminal.",
+            "[ Cancel  Esc ] [ Close  Enter ]",
+            "Ends 1 terminal",
         ),
         (
             "关闭标签页？",
-            "关闭此标签页将终止其中运行的任务，影响所有连接到此工作区的人。",
-            "[ 取消  Esc ]   [ 关闭  Enter ]",
-            "关闭此标签页将终止其中运行的任务。",
+            "将结束 1 个终端。",
+            "[ 取消  Esc ] [ 关闭  Enter ]",
+            "将结束 1 个终端",
         ),
     ] {
         let expected = [
@@ -270,10 +271,10 @@ fn localized_close_observer_requires_the_full_consequence_target_and_decision_ke
             ModalRow::exact(""),
             ModalRow::exact(actions),
         ];
-        // This grammar fixture holds the complete English warning and padding;
+        // This grammar fixture holds the complete consequence and padding;
         // it does not establish product admission.
-        let top = format!("{}[x]", "─".repeat(81));
-        let rows = [title, "", "1", "", warning, "", actions];
+        let top = format!("─ {title} {} [x] ─", "─".repeat(24));
+        let rows = ["", "1", "", warning, "", actions];
         assert!(
             modal_frame(&top, &rows, "│")
                 .latest_frame()
@@ -282,10 +283,10 @@ fn localized_close_observer_requires_the_full_consequence_target_and_decision_ke
             "{title}"
         );
         for (index, replacement) in [
-            (2, "2".to_owned()),
-            (4, incomplete_warning.to_owned()),
-            (6, actions.replace("Enter", "")),
-            (6, actions.replace("Esc", "")),
+            (1, "2".to_owned()),
+            (3, incomplete_warning.to_owned()),
+            (5, actions.replace("Enter", "")),
+            (5, actions.replace("Esc", "")),
         ] {
             let mut changed = rows;
             changed[index] = &replacement;
@@ -302,19 +303,19 @@ fn localized_close_observer_requires_the_full_consequence_target_and_decision_ke
 
 #[test]
 fn modal_field_observer_requires_brackets_padding_and_cursor_end_suffix() {
-    let top = format!("{}[x]", "─".repeat(17));
+    let top = "─ Rename Tab ─ [x] ─";
     for (field, expected, accepted) in [
         ("  [ hijk  ]", "abcdefghijk", true),
         ("  [ ghijk ]", "abcdefghijk", false),
         ("  hijk ", "abcdefghijk", false),
         ("  [ hijk ]", "abcdefghijk", false),
     ] {
-        let screen = modal_frame(&top, &[field], "│");
+        let screen = modal_frame(top, &[field], "│");
         assert_eq!(
-            screen
-                .latest_frame()
-                .unwrap()
-                .has_bordered_modal_content(&[ModalRow::field_at_end(expected)]),
+            screen.latest_frame().unwrap().has_bordered_modal_content(&[
+                ModalRow::exact("Rename Tab"),
+                ModalRow::field_at_end(expected),
+            ]),
             accepted,
             "{field:?}"
         );
