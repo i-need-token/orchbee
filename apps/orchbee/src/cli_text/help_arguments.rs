@@ -179,6 +179,7 @@ impl super::CliText {
             CommandPath::ConfigCheck => &[],
             CommandPath::ConfigResetKeys => &[],
             CommandPath::ServerStart => &[],
+            CommandPath::ServerConnect => &[],
             CommandPath::SessionList => &[],
             CommandPath::SessionAttach => &[Argument::Session],
             CommandPath::SessionStop => &[Argument::Session],

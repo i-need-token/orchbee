@@ -78,6 +78,7 @@ orchbee status                   # the running Session's Workbench snapshot
 orchbee <family> <command>       # queries and Workbench mutations
 orchbee api snapshot|schema      # machine snapshot and embedded schemas
 orchbee server start               # ensure the local Session is running (no TTY)
+orchbee server connect             # relay a Client connection over stdin and stdout (pipes only)
 orchbee server diagnose            # read-only local Session runtime facts
 orchbee server stop --confirm      # stop the Windows Session and its terminals
 orchbee server stop-status <id>    # inspect a retained stop attempt/receipt
@@ -159,6 +160,11 @@ owns those boundaries. `server diagnose` is the read-only complement: it reports
 bounded facts about the runtime directory, marker, locks, and finite endpoint paths — each
 a closed-state row at its own observation instant — under one cooperative 5-second budget,
 and it never connects, creates, locks, repairs, or claims any process is alive or gone.
+`server connect` is the byte relay for a Client that cannot own local IPC, such as the Desktop
+shell: it runs the same connect-or-activate sequence, admits this process through OBLC, then copies
+the connection's bytes between its standard streams until either side ends. Both streams must be
+pipes, and it takes no `--format` because stdout carries raw protocol bytes. It neither decodes
+those bytes nor reconnects; the parent owns the protocol and any new connection.
 `agent integration` (`list`, `explain`,
 `enable`, `disable`) is the local provider-onboarding family: bounded reads
 and managed mutations of the invoking user's provider configuration on this

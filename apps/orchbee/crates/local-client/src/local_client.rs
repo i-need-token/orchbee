@@ -232,6 +232,15 @@ impl LocalClient {
         }
         Ok(self)
     }
+    /// Releases the admitted bootstrap stream in blocking mode for a byte relay. A connection
+    /// already upgraded to a multiplexed carrier has no single stream to release.
+    pub fn into_admitted_stream(mut self) -> io::Result<orchbee_local_ipc::LocalStream> {
+        let Some(ClientTransport::Direct(connection)) = self.connection.take() else {
+            return Err(io::ErrorKind::Unsupported.into());
+        };
+        connection.set_nonblocking(false)?;
+        Ok(connection.into_stream())
+    }
     /// Retains the transport owner for lanes derived from this origin.
     pub fn with_retained_carrier(mut self, carrier: Arc<RetainedCarrier>) -> Self {
         self.origin.local = false;

@@ -894,6 +894,8 @@ pub(crate) enum Request {
     ServerStart {
         format: OutputFormat,
     },
+    /// `server connect`: relays one admitted Client connection over standard input and output.
+    ServerConnect,
     Plugin {
         command: plugins::PluginCommand,
         format: OutputFormat,

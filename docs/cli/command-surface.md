@@ -48,6 +48,7 @@ can detect errors in those projections; remove tests that only compare tables no
 | Mutate     | `create`, `rename`, `move`, `split`, `close`, `delete`, `remove`, `uninstall`, `dissolve`, `invoke`, `cancel` | Submit exactly one effect under one request identity                                                                                                      |
 | Wait       | `wait`, `changes`                                                                                             | Observe until a declared condition, a cursor boundary, or the deadline                                                                                    |
 | Activate   | `start`                                                                                                       | Converge a runtime toward readiness under one invocation-owned deadline; may create persistent runtime state and is idempotent on an already-ready target |
+| Relay      | `connect`                                                                                                     | Converge like `start`, then carry one admitted connection's protocol bytes over standard input and output until either side ends; both streams must be pipes |
 
 Deletion verbs name distinct effects: `close` ends live resource lifecycle; `delete` destroys a
 stored record; `remove` removes managed filesystem or machine membership; `uninstall` removes

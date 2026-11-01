@@ -82,6 +82,7 @@ pub(crate) mod schema;
 pub(crate) mod send;
 
 mod server;
+mod server_connect;
 mod server_diagnose;
 mod server_metadata;
 mod server_stop;
@@ -93,6 +94,7 @@ pub(crate) mod workbench_query;
 mod workbench_terminals;
 mod workbench_viewports;
 mod workbench_worktrees;
+pub(crate) use server_connect::run as server_connect;
 pub(crate) use server_stop::run as server_stop;
 mod workspace_group_close;
 mod worktree_operation;

@@ -156,6 +156,7 @@ commands! {
     ConfigCheck => ["config", "check"], 0, Operand, Portable, true, false, false;
     ConfigResetKeys => ["config", "reset-keys"], 0, Operand, Windows, true, false, false;
     ServerStart => ["server", "start"], 0, Operand, Portable, true, false, false;
+    ServerConnect => ["server", "connect"], 0, Operand, Portable, false, false, false;
     SessionList => ["session", "list"], 0, Operand, Windows, true, false, false;
     SessionAttach => ["session", "attach"], 1, Session, Windows, false, false, false;
     SessionStop => ["session", "stop"], 1, Session, Windows, true, false, false;

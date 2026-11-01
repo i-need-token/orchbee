@@ -15,6 +15,18 @@ pub(super) const HELP_SERVER_START_ZH: crate::cli_text::HelpDetails =
         "在一个 20 秒总预算内确保选中的本地会话正在运行。TUI 使用相同激活和恢复路径。仅当当前清单登记完整、所有确切 PID／创建时间身份消失、锁空闲且端点缺席时，才自动冷恢复。后台及正常停止 checkpoint 会恢复布局、Launch Profile、采样所得的逐终端 cwd。不可读存档会保留；启动会回退到较早的有效副本，或打开空工作区并在 stderr 警告。活 Host、未知／不完整身份和不可读记录均拒绝且不删除数据。请用相同 --session 选择执行 server diagnose，或用\norchbee --session recovery-work server start 另开命名会话。新激活会先发布当前版本 1 catalog\n再使用检查点存储；其他记录版本和形状保持不可读，不迁移。活 Host 接管仍另行实现。\n\nJSON 使用 orchbee.server.start：started 表示本次拉起了 Server；\nalready-running 表示既有会话准入了本次调用。不恢复存活智能体状态、终端历史或屏幕内容。",
     );
 
+pub(super) const HELP_SERVER_CONNECT_EN: crate::cli_text::HelpDetails =
+    crate::cli_text::HelpDetails::new(
+        "orchbee server connect",
+        "Start the selected local session when needed, admit this process as a Client, and relay the connection over standard input and output until either side ends.\nBoth streams must be pipes. For a parent process that speaks the Client protocol, such as the Desktop shell.",
+    );
+
+pub(super) const HELP_SERVER_CONNECT_ZH: crate::cli_text::HelpDetails =
+    crate::cli_text::HelpDetails::new(
+        "orchbee server connect",
+        "需要时启动选中的本地会话，把当前进程接入为 Client，并通过标准输入和输出转发这条连接，直到任意一端结束。\n两个流都必须是管道。供会说 Client 协议的父进程使用，例如 Desktop 外壳。",
+    );
+
 pub(super) const HELP_SERVER_DIAGNOSE_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee server diagnose [--format text|json]",

@@ -230,6 +230,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::ConfigCheck => &[],
         CommandPath::ConfigResetKeys => &[],
         CommandPath::ServerStart => &[],
+        CommandPath::ServerConnect => &[],
         CommandPath::SessionList => &[],
         CommandPath::SessionAttach => &["work"],
         CommandPath::SessionStop => &["work", "--confirm"],

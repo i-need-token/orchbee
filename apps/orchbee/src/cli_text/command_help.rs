@@ -432,6 +432,8 @@ impl super::CliText {
             ) => self.cli_session_command_help(path),
             (Locale::EnUs, CommandPath::ServerStart) => super::server::HELP_SERVER_START_EN,
             (Locale::ZhCn, CommandPath::ServerStart) => super::server::HELP_SERVER_START_ZH,
+            (Locale::EnUs, CommandPath::ServerConnect) => super::server::HELP_SERVER_CONNECT_EN,
+            (Locale::ZhCn, CommandPath::ServerConnect) => super::server::HELP_SERVER_CONNECT_ZH,
             (
                 _,
                 CommandPath::ServerAgentManifests

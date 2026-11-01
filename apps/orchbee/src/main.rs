@@ -207,6 +207,7 @@ fn main() -> ExitCode {
                 cli::workspace_creation::run(command, format, locale)
             }
             Ok(invocation::Request::ServerStart { format }) => cli::session_start(format, locale),
+            Ok(invocation::Request::ServerConnect) => cli::server_connect(locale),
             Ok(invocation::Request::Plugin { command, format }) => {
                 cli::plugins::run(command, format, locale)
             }

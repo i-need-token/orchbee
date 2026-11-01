@@ -1172,6 +1172,10 @@ pub(super) fn resolve_words(
             reject_filters(options, UsageContext::Path("config check"), envelope)?;
             Ok(query(QueryCommand::ConfigCheck, options))
         }
+        ["server", "connect"] => {
+            reject_extras_scope(options, UsageContext::Path("server connect"), envelope)?;
+            Ok(Request::ServerConnect)
+        }
         ["server", "start"] => {
             reject_filters(options, UsageContext::Path("server start"), envelope)?;
             Ok(Request::ServerStart {

@@ -148,6 +148,12 @@ impl ClientConnection {
         self.generation
     }
 
+    /// Releases the admitted stream for a caller that relays its bytes unchanged.
+    #[must_use]
+    pub fn into_stream(self) -> UnixStream {
+        self.stream
+    }
+
     pub fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
         self.stream.set_nonblocking(nonblocking)
     }

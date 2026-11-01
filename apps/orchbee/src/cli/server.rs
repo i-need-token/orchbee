@@ -169,6 +169,14 @@ pub(super) fn activate(deadline: std::time::Instant) -> Result<(), Failure> {
     }
 }
 
+/// Activates like `server start` but keeps the admitted connection for `server connect`.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+pub(super) fn activate_for_relay(
+    deadline: std::time::Instant,
+) -> Result<crate::local_activation::StartedSession, Failure> {
+    crate::local_activation::activate_local_session(deadline).map_err(classify)
+}
+
 /// Project the shared activation failure onto the CLI's typed vocabulary.
 /// The raw cause — never a string — selects the arm; the verdict only
 /// arbitrates between a typed cause and a bare lifecycle refusal.

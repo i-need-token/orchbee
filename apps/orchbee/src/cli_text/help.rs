@@ -613,6 +613,10 @@ impl super::CliText {
                 "Ensure a local terminal session is running.",
                 "确保本地终端会话已启动。",
             ),
+            HelpTopic::Command(CommandPath::ServerConnect) => (
+                "Relay a Client connection over standard input and output.",
+                "通过标准输入和输出转发一条 Client 连接。",
+            ),
             HelpTopic::Family(Family::Session) => (
                 "Find and reconnect to named local sessions.",
                 "查找和重新连接命名的本地会话。",
