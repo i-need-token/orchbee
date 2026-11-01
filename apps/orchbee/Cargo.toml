@@ -143,6 +143,12 @@ path = "tests/cli_windows_workspace_naming.rs"
 name = "cli_windows_worktree_menu"
 path = "tests/cli_windows_worktree_menu.rs"
 
+# Keep these two real Sessions, their TUI Client and the sampled Agent states away from aggregate
+# suite deadlines.
+[[test]]
+name = "cli_windows_agent_sidebar"
+path = "tests/cli_windows_agent_sidebar.rs"
+
 # Keep short-deadline PROCESS_WITNESS_LOCK scheduling isolated.
 [[test]]
 name = "local_startup_process"

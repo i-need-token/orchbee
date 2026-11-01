@@ -1,0 +1,194 @@
+//! The sidebar's Agent list while its Agents work: the CLI, Server, Worker and Zig Host under test,
+//! a TUI Client that runs in a terminal of a second Session, and two fake Codex processes that keep
+//! printing while their window titles flip between working and idle, each in a Workspace of its own
+//! inside a real Git repository. Once a row appears it must stay, whichever commits, output and Git
+//! reads land meanwhile. Rows must keep following the terminals, so that a frozen list cannot pass,
+//! and the branch must not read as unknown while Git keeps answering. Before the fix a row vanished
+//! about every two seconds.
+#![cfg(windows)]
+
+#[allow(dead_code)]
+#[path = "support/windows_tui_session.rs"]
+mod session;
+
+use session::Fixture;
+use std::{
+    collections::BTreeSet,
+    fs,
+    process::Command,
+    time::{Duration, Instant},
+};
+
+const COLUMNS: u16 = 112;
+const ROWS: u16 = 32;
+/// The branch both repositories check out, as the sidebar shows it observed and unobserved.
+const BRANCH: &str = "agent-sidebar";
+const UNKNOWN_BRANCH: &str = "agent-sidebar ?";
+/// Bounds how long a started Agent takes to reach the list through the Server's process sampler.
+const LISTED: Duration = Duration::from_secs(20);
+/// Long enough for several state changes of each Agent.
+const WATCH: Duration = Duration::from_secs(12);
+/// A title flip every 1.5 s and a line every 100 ms, as a working Codex does.
+const FAKE_CODEX: &str = "$spin = [char]0x280B\r\n\
+    while ($true) {\r\n  \
+      $Host.UI.RawUI.WindowTitle = \"$spin fake\"\r\n  \
+      1..15 | ForEach-Object { Write-Host \"working $_\"; Start-Sleep -Milliseconds 100 }\r\n  \
+      $Host.UI.RawUI.WindowTitle = 'fake'\r\n  \
+      1..15 | ForEach-Object { Write-Host \"idle $_\"; Start-Sleep -Milliseconds 100 }\r\n\
+    }\r\n";
+
+#[test]
+fn listed_agents_stay_listed_and_follow_their_terminals_while_they_work() {
+    let fixture = Fixture::new("orchbee-agent-sidebar-", &["work/alpha", "work/beta"]);
+    fs::write(fixture.path("work/codex.ps1"), FAKE_CODEX).unwrap();
+    repository(&fixture, "work/alpha");
+    repository(&fixture, "work/beta");
+    let tui = fixture.start_tui(COLUMNS, ROWS);
+    fixture.settle_ready(&tui.client);
+    let mut sidebar = Sidebar {
+        fixture: &fixture,
+        terminal: &tui.terminal,
+        listed: 0,
+        samples: 0,
+        failures: Vec::new(),
+    };
+
+    // The first row must also hold while the second Agent is being created.
+    start_codex(&fixture, "alpha", "work/alpha");
+    sidebar.until_listed(1);
+    start_codex(&fixture, "beta", "work/beta");
+    sidebar.until_listed(2);
+
+    let mut states = BTreeSet::new();
+    let started = Instant::now();
+    while started.elapsed() < WATCH {
+        let screen = sidebar.sample();
+        if screen.contains(UNKNOWN_BRANCH) {
+            sidebar
+                .failures
+                .push(format!("the branch read as unknown:\n{screen}"));
+        }
+        states.extend(agent_rows(&screen).map(str::to_owned));
+    }
+    assert!(
+        sidebar.failures.is_empty(),
+        "{} of {} samples failed\n{}",
+        sidebar.failures.len(),
+        sidebar.samples,
+        sidebar.failures.join("\n")
+    );
+    assert!(
+        states.len() > 1,
+        "the rows never changed state in {} samples: {states:?}",
+        sidebar.samples
+    );
+    let screen = fixture.screen(&tui.terminal);
+    assert!(
+        screen.contains(BRANCH),
+        "Git never reached the sidebar:\n{screen}"
+    );
+}
+
+/// Reads one TUI's screen and records every listed row that went missing.
+struct Sidebar<'a> {
+    fixture: &'a Fixture,
+    terminal: &'a str,
+    listed: usize,
+    samples: usize,
+    failures: Vec<String>,
+}
+
+impl Sidebar<'_> {
+    fn sample(&mut self) -> String {
+        let screen = self.fixture.screen(self.terminal);
+        let rows = agent_rows(&screen).count();
+        self.samples += 1;
+        if rows < self.listed {
+            self.failures.push(format!(
+                "{rows} Agent rows after {} were listed:\n{screen}",
+                self.listed
+            ));
+        }
+        self.listed = self.listed.max(rows);
+        screen
+    }
+
+    fn until_listed(&mut self, expected: usize) {
+        let started = Instant::now();
+        while self.listed < expected {
+            let screen = self.sample();
+            assert!(
+                started.elapsed() < LISTED,
+                "never listed {expected} Agents:\n{screen}"
+            );
+        }
+    }
+}
+
+fn agent_rows(screen: &str) -> impl Iterator<Item = &str> {
+    screen.lines().filter(|line| line.contains(" codex"))
+}
+
+fn repository(fixture: &Fixture, directory: &str) {
+    let path = fixture.path(directory);
+    for words in [
+        &["init", "--quiet", "--initial-branch=agent-sidebar"][..],
+        &[
+            "-c",
+            "user.name=Orchbee Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "-m",
+            "seed",
+        ],
+    ] {
+        let output = Command::new("git")
+            .args(words)
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {words:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+/// Starts the fake Codex in a Workspace of its own, leaving the TUI's Workspace selected.
+fn start_codex(fixture: &Fixture, label: &str, directory: &str) {
+    let script = fixture.path("work/codex.ps1");
+    let system = std::env::var("SystemRoot").unwrap();
+    let powershell = format!("{system}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe");
+    let cwd = fixture.path(directory);
+    let environment = fixture.terminal_environment();
+    let mut words = vec![
+        "workspace",
+        "create",
+        "--label",
+        label,
+        "--cwd",
+        &cwd,
+        "--no-focus",
+        "--exec",
+        &powershell,
+        "--arg",
+        "-NoProfile",
+        "--arg",
+        "-ExecutionPolicy",
+        "--arg",
+        "Bypass",
+        "--arg",
+        "-File",
+        "--arg",
+        &script,
+    ];
+    words.extend(environment.iter().map(String::as_str));
+    let created = fixture.run(&words);
+    assert_eq!(created.code, Some(0), "{created}");
+}
