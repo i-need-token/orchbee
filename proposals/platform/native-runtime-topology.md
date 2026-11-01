@@ -984,8 +984,8 @@ These defaults also apply until the product owner overrules them:
 - macOS evidence stays a recorded manual run; no macOS Rust CI job is added.
 - The language-neutral palette waits for the GUI design follow-up and does not block the migration.
 - A small Rust process owns Server activation, peer verification, and OBLC admission, then relays
-  the admitted byte stream to Desktop Main over stdio. TypeScript starts at OBWP. Step 2 proves or
-  replaces this choice.
+  the admitted byte stream to Desktop Main over stdio. TypeScript starts at OBWP. Step 2 proved this
+  on Windows; POSIX runs it at step 7.
 
 ### Re-checked starting point
 
@@ -1012,6 +1012,34 @@ These defaults also apply until the product owner overrules them:
 | 6 Package ownership     | `apps/web` owns the React Workbench after the rewire is complete. The fate of the in-memory preview is decided here.                                                                                                                                                               | `@orchbee/workbench` after its responsibility audit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | 7 POSIX                 | Server persistence and restart, the withheld request classes, and Worker Worktree mutation on macOS and Linux. Runs in parallel from step 3.                                                                                                                                       | Nothing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 8 Browser and remote    | Designed with ORC-297 after Desktop ships.                                                                                                                                                                                                                                         | Nothing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+
+### Step 2 result
+
+Measured on 2026-11-01 on Windows with a Release cohort, Electron 42.8.0, and the real projected
+renderer in a real window. **The polling viewer model stays; no Server push is added.**
+
+| Question                  | Measurement                                                                                                                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Full-screen throughput    | 7.19 MB through `cmd /c type`: 3,163–3,862 ms with no viewer, 3,265–3,390 ms with a real TUI, 3,387–3,692 ms with the renderer. ConPTY sets the rate; the renderer adds almost none. |
+| Typing latency            | PowerShell, keydown to frame bytes p50 24.1, p95 35.7, max 39.2 ms; keydown to the next paint p50 30.2, p95 43.4, max 47.0 ms.                                                       |
+| Relay and connection cost | 200 sequential round trips p50 2.13, p95 4.26, max 4.65 ms. The idle relay process uses 1.4% of one core with one viewer and 2.9% with eight.                                        |
+| TUI on the same Session   | The TUI and the window show one terminal live. Explicit takeover works in both directions, and the former controller becomes read-only without a failure.                            |
+
+The same run proved Vim editing with application cursor keys and mouse mode, pointer hover and click
+in a TUI hosted inside the window, and focus-claim repair on pause, takeover, and detach. Limits
+carried forward:
+
+- A connection serializes its requests, so control drains at about 45–70 commands per second, or
+  22–35 keys per second because each key is a press and a release. Human typing and key repeat stay
+  below that. The renderer queue keeps the previous Desktop bound of 1,024 commands; beyond it, a
+  burst of about 500 keys or more fails through `renderer-backpressure`.
+- Paste in a real window waits for step 3, which supplies the clipboard platform effects; only the
+  connection layer has proved it.
+- An absolute row read with viewport origin, such as a scrollbar drag, cannot be expressed over OBCS
+  yet. ORC-305 owns it with the other renderer commands the relay still refuses.
+- After Worker loss, `server stop` fails in its background-jobs phase and the CLI cannot stop the
+  Session. After Server loss with a live Host, `server start` refuses fresh activation because
+  nothing adopts the Host. Step 4 owns both.
 
 ### Evidence
 
