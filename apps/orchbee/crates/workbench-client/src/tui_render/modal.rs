@@ -2,16 +2,15 @@
 
 use crate::{
     client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
-    terminal_text::{display_width, line_display_width, truncate_display, wrap_text},
+    terminal_text::{line_display_width, truncate_display},
     tui_hit_map::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ProjectedPointer},
-    tui_layout::centered_overlay,
     tui_theme::{GlyphMode, Role, Theme},
 };
 use ratatui::{
     Frame,
     buffer::Buffer,
     layout::Rect,
-    style::{Modifier, Style},
+    style::Modifier,
     text::{Line, Span, Text},
     widgets::{Block, Borders, Clear, Padding, Widget},
 };
@@ -35,19 +34,6 @@ pub(super) fn paint_modal_frame(frame: &mut Frame<'_>, area: Rect, title: &str, 
     );
 }
 
-/// Inner width that keeps a modal heading complete beside its frame-borne close control.
-fn title_inner_width(title: &str) -> usize {
-    // The outer frame adds two border and four padding cells around the inner width.
-    display_width(title)
-        .saturating_add(OVERLAY_TITLE_RESERVE)
-        .saturating_sub(6)
-}
-
-/// Supporting context and field help remain subordinate to task content.
-pub(super) fn description_line<'a>(text: impl Into<Cow<'a, str>>, theme: &Theme) -> Line<'a> {
-    Line::styled(text, theme.style(Role::TextSecondary))
-}
-
 /// Status meaning belongs to its glyph; the complete recovery text stays readable.
 pub(super) fn status_line<'a>(
     text: impl Into<Cow<'a, str>>,
@@ -61,29 +47,6 @@ pub(super) fn status_line<'a>(
         ),
         Span::styled(text, theme.style(Role::TextPrimary)),
     ])
-}
-
-/// Complete geometry admitted before a modal mutates the frame or hit map.
-///
-/// The action row and close control are part of the surface contract: a
-/// clipped control makes the whole surface unavailable rather than leaving a
-/// partially painted, partially actionable dialog behind.
-#[derive(Clone, Copy)]
-pub(super) struct ModalLayout {
-    pub(super) area: Rect,
-    pub(super) inner: Rect,
-    pub(super) close: Rect,
-    pub(super) hints: Rect,
-    pub(super) actions: [Rect; 2],
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct SingleModalLayout {
-    pub(super) area: Rect,
-    pub(super) inner: Rect,
-    pub(super) close: Rect,
-    pub(super) hints: Rect,
-    pub(super) action: Rect,
 }
 
 #[derive(Clone, Copy)]
@@ -259,204 +222,6 @@ pub(super) fn modal_key_label(theme: &Theme, binding: &Binding) -> String {
         GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     };
     format_binding_with_glyphs(binding, LabelStyle::for_host(), glyphs)
-}
-
-pub(super) fn modal_layout(
-    bounds: Rect,
-    content_area: Rect,
-    title: &str,
-    text: &Text<'_>,
-    hints: &[super::controls::KeyHint<'_>],
-    actions: [ModalAction<'_>; 2],
-    theme: &Theme,
-) -> Option<ModalLayout> {
-    let first_hint_width = if hints.is_empty() {
-        0
-    } else {
-        super::controls::measure_overlay_hints(hints, theme)?;
-        super::controls::measure_overlay_hints(&hints[..1], theme)?
-    };
-    let action_widths = actions.map(|action| {
-        super::controls::action_rect(
-            Rect::new(0, 0, u16::MAX, 1),
-            Rect::new(0, 0, u16::MAX, 1),
-            action.spec(super::controls::PointerPresentation::Rest),
-            theme,
-        )
-        .map(|rect| rect.width)
-    });
-    let [Some(first_action_width), Some(second_action_width)] = action_widths else {
-        return None;
-    };
-    let controls_width = usize::from(
-        first_action_width
-            .checked_add(2)?
-            .checked_add(second_action_width)?,
-    )
-    .max(first_hint_width)
-    .max(title_inner_width(title));
-    let area = modal_area_with_minimum_width(content_area, text, controls_width);
-    if area.is_empty() || bounds.intersection(area) != area {
-        return None;
-    }
-    let inner = super::overlay_surface(theme, Padding::horizontal(2)).inner(area);
-    if !wrapped_text_fits(text, inner) {
-        return None;
-    }
-    let hint_row = super::controls::text_row(text, inner, text.lines.len().checked_sub(2)?);
-    let row = super::controls::text_row(text, inner, text.lines.len().checked_sub(1)?);
-    if hint_row.height != 1 || row.height != 1 || first_hint_width > usize::from(hint_row.width) {
-        return None;
-    }
-    let first = super::controls::action_rect(
-        bounds,
-        row,
-        actions[0].spec(super::controls::PointerPresentation::Rest),
-        theme,
-    )?;
-    let second_x = first.right().checked_add(2)?;
-    let second_area = Rect::new(
-        second_x,
-        row.y,
-        row.right().checked_sub(second_x)?,
-        row.height,
-    );
-    let second = super::controls::action_rect(
-        bounds,
-        second_area,
-        actions[1].spec(super::controls::PointerPresentation::Rest),
-        theme,
-    )?;
-    let action_rects = [first, second];
-    if action_rects.iter().any(|action| {
-        bounds.intersection(*action) != *action || inner.intersection(*action) != *action
-    }) {
-        return None;
-    }
-    let close = super::controls::frame_close_rect(bounds, area)?;
-    Some(ModalLayout {
-        area,
-        inner,
-        close,
-        hints: hint_row,
-        actions: action_rects,
-    })
-}
-
-pub(super) fn single_modal_layout(
-    bounds: Rect,
-    content_area: Rect,
-    title: &str,
-    text: &Text<'_>,
-    hints: &[super::controls::KeyHint<'_>],
-    action: ModalAction<'_>,
-    theme: &Theme,
-) -> Option<SingleModalLayout> {
-    let first_hint_width = if hints.is_empty() {
-        0
-    } else {
-        super::controls::measure_overlay_hints(hints, theme)?;
-        super::controls::measure_overlay_hints(&hints[..1], theme)?
-    };
-    let action_width = super::controls::action_rect(
-        Rect::new(0, 0, u16::MAX, 1),
-        Rect::new(0, 0, u16::MAX, 1),
-        action.spec(super::controls::PointerPresentation::Rest),
-        theme,
-    )?
-    .width;
-    let controls_width = first_hint_width
-        .max(usize::from(action_width))
-        .max(title_inner_width(title));
-    let area = modal_area_with_minimum_width(content_area, text, controls_width);
-    if area.is_empty() || bounds.intersection(area) != area {
-        return None;
-    }
-    let inner = super::overlay_surface(theme, Padding::horizontal(2)).inner(area);
-    if !wrapped_text_fits(text, inner) {
-        return None;
-    }
-    let hint_row = super::controls::text_row(text, inner, text.lines.len().checked_sub(2)?);
-    let row = super::controls::text_row(text, inner, text.lines.len().checked_sub(1)?);
-    if hint_row.height != 1 || row.height != 1 || first_hint_width > usize::from(hint_row.width) {
-        return None;
-    }
-    let action = super::controls::action_rect(
-        bounds,
-        row,
-        action.spec(super::controls::PointerPresentation::Rest),
-        theme,
-    )?;
-    if bounds.intersection(action) != action || inner.intersection(action) != action {
-        return None;
-    }
-    let close = super::controls::frame_close_rect(bounds, area)?;
-    Some(SingleModalLayout {
-        area,
-        inner,
-        close,
-        hints: hint_row,
-        action,
-    })
-}
-
-fn modal_area_with_minimum_width(
-    content_area: Rect,
-    text: &Text<'_>,
-    minimum_inner_width: usize,
-) -> Rect {
-    // Prose and optional help must not stretch a simple decision across the host.
-    // Complete required controls may exceed the preferred reading width; admission
-    // below still refuses them if the available width cannot contain them.
-    let natural_width = text
-        .iter()
-        .map(line_display_width)
-        .max()
-        .unwrap_or(0)
-        .clamp(48, 72)
-        .max(minimum_inner_width);
-    let outer_width = u16::try_from(natural_width.saturating_add(6)).unwrap_or(u16::MAX);
-    let width = outer_width.min(content_area.width.saturating_sub(4));
-    let inner_width = width.saturating_sub(6).max(1);
-    let wrapped_height = wrap_text(text, inner_width).lines.len().saturating_add(2);
-    let height = u16::try_from(wrapped_height)
-        .unwrap_or(u16::MAX)
-        .min(content_area.height.saturating_sub(2));
-    centered_overlay(content_area, width, height)
-}
-
-pub(super) fn wrapped_text_fits(text: &Text<'_>, area: Rect) -> bool {
-    if area.is_empty() {
-        return false;
-    }
-    // A grapheme wider than the line is clipped when painted; the row count alone cannot detect that.
-    let graphemes_fit = text.iter().all(|line| {
-        line.spans.iter().all(|span| {
-            span.styled_graphemes(Style::default())
-                .all(|grapheme| display_width(grapheme.symbol) <= usize::from(area.width))
-        })
-    });
-    graphemes_fit && wrap_text(text, area.width).lines.len() <= usize::from(area.height)
-}
-
-/// Places the terminal cursor inside a presented modal: `column` cells into
-/// the wrapped row that `line_index` begins on. The caller attests the column
-/// is already inside the inner width — a field window's cursor column is
-/// always strictly below the field width it was projected for.
-pub(super) fn set_modal_cursor(
-    frame: &mut Frame<'_>,
-    text: &Text<'_>,
-    inner: Rect,
-    line_index: usize,
-    column: usize,
-) {
-    let row = wrap_text(&Text::from(text.lines[..line_index].to_vec()), inner.width)
-        .lines
-        .len();
-    frame.set_cursor_position((
-        inner.x + column as u16,
-        inner.y + u16::try_from(row).unwrap_or(u16::MAX),
-    ));
 }
 
 pub(super) fn unwrapped_text_fits(text: &str, area: Rect) -> bool {

@@ -146,7 +146,11 @@ fn search_projects_only_matching_categories_and_drops_all_hidden_setting_targets
                 && draft.values == &UserPreferencesValues::default()));
         for (control, label, key) in [
             (Control::Back, locale.settings_cancel(), "Esc"),
-            (Control::Accept, locale.settings_accept_button(), "Enter"),
+            (
+                Control::Accept,
+                locale.settings_accept_button(SettingsAcceptLabel::Apply),
+                "Enter",
+            ),
         ] {
             let target = HitTarget::SettingsControl {
                 token: compact_draw.token(),
@@ -227,7 +231,11 @@ fn compact_picker_wheel_keeps_a_visible_provisional_choice_without_editing_the_p
         assert_eq!(draw.visible_rows(), Some(visible_choices));
         for (control, label, key) in [
             (Control::Back, locale.settings_cancel(), "Esc"),
-            (Control::Accept, locale.settings_accept_button(), "Enter"),
+            (
+                Control::Accept,
+                locale.settings_accept_button(SettingsAcceptLabel::Apply),
+                "Enter",
+            ),
         ] {
             let target = HitTarget::SettingsControl {
                 token: draw.token(),
@@ -282,7 +290,11 @@ fn minimal_text_editor_keeps_exact_entry_and_complete_footer_controls() {
                         && draft.values.completion_reminder_minimum_seconds == 5 && !draft.dirty));
                 for (control, label, key) in [
                     (Control::Back, locale.settings_cancel(), "Esc"),
-                    (Control::Accept, locale.settings_accept_button(), "Enter"),
+                    (
+                        Control::Accept,
+                        locale.settings_accept_button(SettingsAcceptLabel::Apply),
+                        "Enter",
+                    ),
                 ] {
                     let target = HitTarget::SettingsControl {
                         token: draw.token(),

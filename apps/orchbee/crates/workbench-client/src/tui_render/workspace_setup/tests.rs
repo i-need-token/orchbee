@@ -1,6 +1,6 @@
 use super::directory_guidance;
 use crate::localization::Locale;
-use ratatui::{Terminal, backend::TestBackend};
+use ratatui::{Terminal, backend::TestBackend, text::Line};
 
 #[test]
 fn project_picker_windows_large_lists_and_records_only_painted_choices() {
@@ -19,7 +19,6 @@ fn project_picker_windows_large_lists_and_records_only_painted_choices() {
                     let mut result = None;
                     terminal
                         .draw(|frame| {
-                            let content = Rect::new(0, 0, width, height - 1);
                             frame.render_widget(
                                 Paragraph::new("status"),
                                 Rect::new(0, height - 1, width, 1),
@@ -27,14 +26,13 @@ fn project_picker_windows_large_lists_and_records_only_painted_choices() {
                             result = Some(render_projects(
                                 frame,
                                 locale,
-                                ProjectPicker {
+                                &ProjectPicker {
                                     token,
                                     stage: SetupStage::ChooseWorkspaceProject,
-                                    workspace: "Workspace 界",
+                                    workspace: Some("Workspace 界"),
                                     count: 202,
                                     selected,
                                 },
-                                content,
                                 &theme,
                                 &mut hits,
                                 |index| {
@@ -89,7 +87,7 @@ fn project_picker_windows_large_lists_and_records_only_painted_choices() {
                             choices.contains(&selected),
                             "{width}x{height} selected {selected}: {choices:?}"
                         );
-                        let inner = overlay_block(&theme).inner(area);
+                        let inner = area.inner(ratatui::layout::Margin::new(3, 1));
                         assert_eq!(
                             terminal.backend().buffer()[(inner.x, selected_row.unwrap())].symbol(),
                             theme.glyphs.navigation_marker,
@@ -102,10 +100,10 @@ fn project_picker_windows_large_lists_and_records_only_painted_choices() {
                             .iter()
                             .map(|cell| cell.symbol())
                             .collect::<String>();
-                        assert!(text.contains(&format!("{}/202", selected + 1)));
+                        // Wide-glyph continuation cells read as spaces.
                         assert!(
                             text.replace(' ', "")
-                                .contains(&format!("[{}Esc]", locale.setup_cancel_label()))
+                                .contains(&locale.setup_close_hint().replace(' ', ""))
                         );
                     }
                     assert!(
@@ -130,14 +128,13 @@ fn missing_project_rows_never_acquire_a_click_target() {
             area = render_projects(
                 frame,
                 Locale::EnUs,
-                ProjectPicker {
+                &ProjectPicker {
                     token: SetupToken::for_test(1),
                     stage: SetupStage::ChooseWorkspaceProject,
-                    workspace: "Workspace",
+                    workspace: Some("Workspace"),
                     count: 3,
                     selected: 0,
                 },
-                frame.area(),
                 &Theme::terminal_native(),
                 &mut hits,
                 |index| {
@@ -150,16 +147,26 @@ fn missing_project_rows_never_acquire_a_click_target() {
             .0;
         })
         .unwrap();
-    let inner = overlay_block(&Theme::terminal_native()).inner(area);
     let map = hits.finish();
+    let first = (area.y..area.bottom())
+        .find(|y| {
+            matches!(
+                map.hit_target_at(area.x + 3, *y),
+                Some(HitTarget::Setup {
+                    control: ModalControl::Choice(0),
+                    ..
+                })
+            )
+        })
+        .unwrap();
     assert!(matches!(
-        map.hit_target_at(inner.x, inner.y + 3),
+        map.hit_target_at(area.x + 3, first + 1),
         Some(HitTarget::ListScroll(
             crate::tui_hit_map::ListScrollTarget::Setup(_)
         ))
     ));
     assert!(matches!(
-        map.hit_target_at(inner.x, inner.y + 4),
+        map.hit_target_at(area.x + 3, first + 2),
         Some(HitTarget::Setup {
             control: ModalControl::Choice(2),
             ..
@@ -193,14 +200,13 @@ fn refused_project_picker_preserves_the_underlay_and_prior_hit_map() {
             result = Some(render_projects(
                 frame,
                 Locale::EnUs,
-                ProjectPicker {
+                &ProjectPicker {
                     token: SetupToken::for_test(1),
                     stage: SetupStage::ChooseWorkspaceProject,
-                    workspace: "Workspace",
+                    workspace: Some("Workspace"),
                     count: 2,
                     selected: 0,
                 },
-                frame_area,
                 &Theme::terminal_native(),
                 &mut hits,
                 |index| {

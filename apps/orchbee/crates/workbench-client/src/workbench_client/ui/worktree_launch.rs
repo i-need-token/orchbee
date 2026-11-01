@@ -322,20 +322,10 @@ impl WorkbenchClientUi {
         }
         let stage = self.worktrees.launcher.view().map(|v| v.stage());
         if matches!(stage, Some(WorktreeStage::Waiting | WorktreeStage::Result)) {
-            match edit {
-                WorktreeEdit::Append("r") | WorktreeEdit::ReadStatus
-                    if self
-                        .worktrees
-                        .launcher
-                        .view()
-                        .is_some_and(|view| view.can_read_status()) =>
-                {
-                    self.worktrees.read_at = Some(self.clock.now());
-                }
-                WorktreeEdit::Append("x") => {
-                    self.worktrees.launcher.prepare_remove_abandon(token);
-                }
-                _ => {}
+            // Status reads run on their own; the only key a running or settled operation takes
+            // is the retained removal's Stop Tracking.
+            if matches!(edit, WorktreeEdit::Append("x") | WorktreeEdit::Abandon) {
+                self.worktrees.launcher.prepare_remove_abandon(token);
             }
             return true;
         }
@@ -410,6 +400,18 @@ impl WorkbenchClientUi {
                 self.worktrees
                     .launcher
                     .resume_settled(&operation, Err(false));
+            }
+            return;
+        }
+        // An invalid field blocks submission; Enter moves the caret to the first one instead.
+        if let Some(first) = self
+            .worktrees
+            .launcher
+            .view()
+            .and_then(|view| view.first_invalid_field())
+        {
+            if self.worktrees.launcher.view().map(|view| view.stage()) != Some(first) {
+                self.worktrees.launcher.edit(token, WorktreeEdit::NextField);
             }
             return;
         }

@@ -97,7 +97,7 @@ fn close_modal_geometry(
     view: &ClientView,
 ) -> (crate::tui_layout::ShellAreas, Rect, Rect) {
     let shell = crate::tui_layout::project_shell_areas(buffer.area, view.sidebar_surface());
-    let modal_scope = crate::tui_layout::overlay_area(&shell);
+    let modal_scope = buffer.area;
     assert!(!shell.status.is_empty());
     // The status floats over the content's last row; any chip there is not the dialog.
     let surface: Vec<_> = (modal_scope.y..modal_scope.bottom())
@@ -243,9 +243,13 @@ fn assert_complete_close_frame(
     expected.extend(displayed_content_rows(&expected_warning, warning_area));
     expected.extend([
         String::new(),
+        // The confirmation opens with focus on its primary, marked in the primary's own cell.
         format!(
-            "[ {}  Esc ]   [ {}  Enter ]",
+            "[ {}  Esc ] {}[ {}  Enter ]",
             locale.tab_close_cancel_label(),
+            crate::tui_theme::Theme::terminal_native()
+                .glyphs
+                .active_marker,
             locale.tab_close_confirm_label()
         ),
     ]);
@@ -300,16 +304,17 @@ fn actual_close_prompt_fits_a_sanitized_maximum_length_unicode_target() -> TestR
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let (buffer, hits) = draw_close_frame(&mut workbench_client, &view, locale, 120, 40)?;
         let rendered = frame_text(&buffer);
-        // Wrapped rows contain borders between label segments. Reconstruct only target
-        // scalars and their sanitization replacements, preserving their displayed order.
-        // The finite modal no longer covers the whole frame — the tab strip shows
-        // the same label truncated — so the complete target must appear as one
-        // contiguous visible run.
-        let visible_target: String = rendered
+        // A target wider than the dialog keeps its one line and truncates at its end.
+        let (_, _, inner) = close_modal_geometry(&buffer, &hits, &view);
+        let target = displayed_content_rows(&buffer, inner)
+            .into_iter()
+            .find(|row| row.starts_with('界'))
+            .expect("target line");
+        let shown: String = target
             .chars()
             .filter(|character| matches!(character, '界' | '\u{fffd}'))
             .collect();
-        assert!(visible_target.contains(&safe));
+        assert!(!shown.is_empty() && shown.len() < safe.len() && safe.starts_with(&shown));
         assert_modal_contains_text(&buffer, &hits, &view, &locale.close_warning(RUNNING));
         assert!(!rendered.contains('\x1b'));
     }
@@ -583,7 +588,10 @@ fn resume_requires_visible_status_and_the_complete_modal_returns_both_current_to
     // The notice replaces the footer. Only the exact status inside the modal can qualify this draw.
     view.report_backend_unavailable(crate::client_view::BackendAction::CreateTab);
     let rendered = draw_close(&mut workbench_client, &view, Locale::EnUs, 120, 32)?;
-    assert!(rendered.contains("Close cleanup blocked"));
+    // The status wraps inside the dialog's class width.
+    assert!(
+        rendered.contains("Close cleanup") && rendered.contains("blocked · Close can be retried")
+    );
     dispatch_close_input(&mut workbench_client, &mut view, b"\ryy");
     spin(&mut workbench_client, |workbench_client| {
         let view = workbench_client.view();

@@ -175,9 +175,6 @@ impl<'a> CloseConfirmationView<'a> {
     pub(crate) fn set_count(&self) -> Option<usize> {
         self.inner.set().map(|set| set.count())
     }
-    pub(crate) fn set_context_label(&self) -> Option<&'a str> {
-        self.inner.set().map(|set| set.context_label())
-    }
     /// The batch's Tab names, each as the Tab strip names its live Tab.
     pub(crate) fn set_labels(
         &self,

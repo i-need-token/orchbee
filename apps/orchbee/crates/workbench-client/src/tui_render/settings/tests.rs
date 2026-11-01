@@ -481,7 +481,11 @@ fn confirmation_bindings_are_inside_complete_action_targets_without_a_duplicate_
                 };
                 for (control, label, key) in [
                     (Control::Back, locale.settings_cancel(), "Esc"),
-                    (Control::Accept, locale.settings_accept_button(), "Enter"),
+                    (
+                        Control::Accept,
+                        locale.settings_accept_button(SettingsAcceptLabel::Reset),
+                        "Enter",
+                    ),
                 ] {
                     let target = HitTarget::SettingsControl {
                         token: draw.token(),
@@ -556,7 +560,11 @@ fn confirmation_admission_keeps_the_complete_localized_decision_and_both_actions
             );
             for (control, label, key) in [
                 (Control::Back, locale.settings_cancel(), "Esc"),
-                (Control::Accept, locale.settings_accept_button(), "Enter"),
+                (
+                    Control::Accept,
+                    locale.settings_accept_button(SettingsAcceptLabel::Reset),
+                    "Enter",
+                ),
             ] {
                 let target = HitTarget::SettingsControl {
                     token: draw.token(),
@@ -598,7 +606,6 @@ fn footer_projection_uses_live_local_bindings_and_mode_semantics() {
                         (index, edit),
                         (0, Some(Edit::Adjust(false))) | (1, Some(Edit::Adjust(true)))
                     ),
-                    SettingsHintLabel::Clear => matches!(edit, Some(Edit::Clear)),
                     SettingsHintLabel::Search => matches!(edit, Some(Edit::Search)),
                     SettingsHintLabel::Save => matches!(edit, Some(Edit::Save)),
                 };
@@ -666,21 +673,11 @@ fn footer_projection_uses_live_local_bindings_and_mode_semantics() {
     let text_view = text.view().expect("text draft");
     assert_eq!(footer_position(text_view, SettingsHintLabel::Cancel), 0);
     assert_eq!(footer_position(text_view, SettingsHintLabel::Accept), 1);
-    assert!(
-        footer_position(text_view, SettingsHintLabel::Clear)
-            > footer_position(text_view, SettingsHintLabel::Accept)
-    );
+    // Editing keys are conventions: the text editor advertises no clear or delete hint.
+    assert_eq!(footer_bindings(text_view).len(), 2);
     assert_live(text_view, true);
     let (terminal, _, _) = render_once(&text, 120, 40, Locale::EnUs, &theme);
-    let clear = &footer_bindings(text_view)[footer_position(text_view, SettingsHintLabel::Clear)];
-    let clear_key = clear
-        .bindings()
-        .map(|binding| {
-            format_binding_with_glyphs(&binding, LabelStyle::for_host(), KeyLabelGlyphs::Unicode)
-        })
-        .collect::<Vec<_>>()
-        .join("/");
-    assert!(screen_text(&terminal).contains(&format!("{clear_key} clear")));
+    assert!(!screen_text(&terminal).contains("clear"));
 
     let mut saving = editor_with(UserPreferencesValues::default());
     select_and_present(&mut saving, Row::Sound, Locale::EnUs, &theme);
@@ -863,7 +860,7 @@ fn choice_and_editor_boundaries_remain_visible_at_rest_and_during_editing() {
     ))));
     for (control, label) in [
         (Control::Back, "[ Cancel  Esc ]"),
-        (Control::Accept, "[ Confirm  Enter ]"),
+        (Control::Accept, "[ Apply  Enter ]"),
     ] {
         let target = HitTarget::SettingsControl {
             token: draw.token(),
@@ -885,7 +882,7 @@ fn invalid_editor_accept_remains_visible_as_a_disabled_typed_target() {
     let token = editor.view().expect("invalid editor stays open").token();
     let (terminal, map, receipt) = render_once(&editor, 120, 40, Locale::EnUs, &theme);
     assert!(matches!(receipt, ModalPresentation::Presented(_)));
-    assert!(screen_text(&terminal).contains("[ Confirm  Enter ]"));
+    assert!(screen_text(&terminal).contains("[ Apply  Enter ]"));
 
     let cancel = HitTarget::SettingsControl {
         token,
@@ -900,7 +897,7 @@ fn invalid_editor_accept_remains_visible_as_a_disabled_typed_target() {
     assert!(!accept_cells.is_empty());
     assert_eq!(
         target_text(&terminal, &map, &accept, false),
-        " [ Confirm  Enter ]"
+        " [ Apply  Enter ]"
     );
     let expected = theme.content_on_surface(
         Role::SurfaceOverlay,

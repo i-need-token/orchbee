@@ -132,7 +132,9 @@ fn worktree_complete_draw_arms_one_exact_plan_and_small_first_draw_refuses() {
             (120, 40, true),
             (80, 24, true),
             (80, 20, true),
-            (50, 10, false),
+            // A small window drops the margin and spacing before it refuses.
+            (50, 10, true),
+            (40, 6, false),
             (12, 3, false),
         ] {
             for theme in [
@@ -150,7 +152,7 @@ fn worktree_complete_draw_arms_one_exact_plan_and_small_first_draw_refuses() {
                     let drawn = draw_frame_with_theme(&mut ui, locale, width, height, &theme);
                     assert!(drawn.text.contains("feature/猫"));
                     let cancel_label = locale.worktree_cancel_label(WorktreeStage::Branch);
-                    let submit_label = locale.worktree_submit_label(WorktreeStage::Branch);
+                    let submit_label = locale.worktree_submit_label(WorktreeMode::Create);
                     assert!(
                         drawn
                             .text
@@ -209,10 +211,13 @@ fn worktree_complete_draw_arms_one_exact_plan_and_small_first_draw_refuses() {
                     };
                     let focus_width =
                         crate::terminal_text::display_width(theme.glyphs.active_marker).max(1);
+                    // The button owns its focus cell, brackets, two spaces and Esc; the frame's
+                    // [x] is its own Close target with the same effect.
                     assert_eq!(
                         target_count(ModalControl::Cancel),
-                        focus_width + 4 + crate::terminal_text::display_width(cancel_label) + 5 + 3 // The independent header [x] shares the cancel intent; the button also owns two spaces and Esc.
+                        focus_width + 4 + crate::terminal_text::display_width(cancel_label) + 5
                     );
+                    assert_eq!(target_count(ModalControl::Close), 3);
                     assert_eq!(
                         target_count(ModalControl::Submit),
                         focus_width + 4 + crate::terminal_text::display_width(submit_label) + 7
@@ -331,7 +336,6 @@ fn worktree_checkout_picker_windows_selection_and_disambiguates_duplicate_branch
     assert!(ui.edit_worktree(token, WorktreeEdit::Next));
     let text = draw(&mut ui, crate::localization::Locale::ZhCn, 80, 24);
     assert!(text.contains(r"C:\trees\猫"));
-    assert!(text.contains("2/2"));
     let view = ui.view();
     assert_eq!(view.worktree().unwrap().selected(), 1);
 }
@@ -377,7 +381,7 @@ fn reading_the_repository_is_stated_only_until_the_checkout_picker_is_drawn() {
             WorktreeStage::Checkout
         );
         let text = draw(&mut ui, locale, 80, 24);
-        assert!(text.contains("1/2"), "the picker list is drawn");
+        assert!(text.contains(r"C:\trees\猫"), "the picker list is drawn");
         assert_ne!(ui.view().status(locale, 80).text, reading);
         assert!(!text.contains(&reading.replace(' ', "")));
     }
@@ -573,16 +577,14 @@ fn a_result_without_an_operation_offers_only_close() {
                 &crate::tui_theme::Theme::rgb_test_dark(),
             );
             let close = locale.worktree_cancel_label(WorktreeStage::Result);
-            let read = locale.worktree_submit_label(WorktreeStage::Result);
             assert!(drawn.text.contains(&format!("[{close}Esc]")), "{notice:?}");
-            assert!(!drawn.text.contains(&read.replace(' ', "")), "{notice:?}");
-            assert_eq!(targets(&drawn, ModalControl::Refresh), 0, "{notice:?}");
+            assert_eq!(targets(&drawn, ModalControl::Abandon), 0, "{notice:?}");
             assert_eq!(targets(&drawn, ModalControl::Submit), 0, "{notice:?}");
             assert!(targets(&drawn, ModalControl::Cancel) > 0, "{notice:?}");
         }
     }
 
-    // A retained operation keeps its Read status action.
+    // An unknown result names the status command as its only recovery.
     let mut ui = ready_with_project(WorktreeMode::Open, false);
     draw(&mut ui, Locale::EnUs, 80, 24);
     let origin = ui.state.as_ref().unwrap().worktree_origin().unwrap();
@@ -600,8 +602,21 @@ fn a_result_without_an_operation_offers_only_close() {
         24,
         &crate::tui_theme::Theme::rgb_test_dark(),
     );
-    assert!(drawn.text.contains("[Readstatusr]"));
-    assert!(targets(&drawn, ModalControl::Refresh) > 0);
+    // The command is complete: it widens the dialog instead of truncating.
+    assert!(
+        drawn
+            .text
+            .contains(&format!("orchbeeworktreestatus{}", operation.as_str())),
+        "{}",
+        drawn.text
+    );
+    // The outcome is still observed: the primary stays disabled and Cancel reads Close.
+    assert_eq!(
+        ui.view().worktree().unwrap().stage(),
+        WorktreeStage::Waiting
+    );
+    let close = Locale::EnUs.worktree_cancel_label(WorktreeStage::Waiting);
+    assert!(drawn.text.contains(&format!("[{close}Esc]")));
 }
 
 #[test]
@@ -609,15 +624,15 @@ fn removal_confirmation_shows_full_target_scope_and_retained_branch_without_auto
     for (locale, title, branch, cancel, remove) in [
         (
             crate::localization::Locale::EnUs,
-            "Remove worktree: Task 猫",
-            "Branch kept: same",
+            "Remove Worktree?",
+            "Branch same is kept.",
             "Cancel",
             "Remove",
         ),
         (
             crate::localization::Locale::ZhCn,
-            "移除工作树：Task 猫",
-            "保留分支：same",
+            "移除工作树？",
+            "分支 same 会保留。",
             "取消",
             "移除",
         ),
@@ -631,7 +646,9 @@ fn removal_confirmation_shows_full_target_scope_and_retained_branch_without_auto
                 (80, 24, true),
                 (80, 20, true),
                 (50, 18, true),
-                (50, 10, false),
+                // A small window drops the margin and spacing before it refuses.
+                (50, 10, true),
+                (40, 5, false),
                 (12, 3, false),
             ] {
                 let (launcher, origin, _) =
@@ -910,14 +927,16 @@ fn abandoning_a_retained_removal_needs_a_drawn_confirmation_and_frees_the_launch
         crate::localization::Locale::EnUs,
         crate::localization::Locale::ZhCn,
     ] {
+        // The abandon step is a secondary button whose ellipsis promises a confirmation.
         let (hint, confirm, notice) = match locale {
+            // The notice's first line; the rest wraps.
             crate::localization::Locale::EnUs => (
-                "xAbandon",
-                "[AbandonEnter]",
-                "Stop tracking this removal in this Client?",
+                "[StopTracking…x]",
+                "[StopTrackingEnter]",
+                "The removal continues;",
             ),
             crate::localization::Locale::ZhCn => {
-                ("x放弃", "[放弃Enter]", "在此客户端放弃跟踪这次移除？")
+                ("[停止跟踪…x]", "[停止跟踪Enter]", "移除会继续进行，")
             }
         };
         let (launcher, origin, _) = failed_removal(removal::failure(1, true));

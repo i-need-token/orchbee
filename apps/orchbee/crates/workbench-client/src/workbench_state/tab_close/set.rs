@@ -76,7 +76,6 @@ pub(crate) struct CloseSetCapture {
     source: Arc<Snapshot>,
     tabs: Vec<WorkbenchTabId>,
     labels: Vec<(usize, String)>,
-    context_label: String,
     focus: LocalFocus,
     marked: Vec<WorkbenchTabId>,
 }
@@ -101,9 +100,6 @@ impl CloseSetCapture {
             .iter()
             .zip(&self.tabs)
             .map(|((position, label), id)| (*position, label.as_str(), id))
-    }
-    pub(crate) fn context_label(&self) -> &str {
-        &self.context_label
     }
 }
 
@@ -332,20 +328,11 @@ impl WorkbenchClientState {
             .filter(|(_, tab)| ids.contains(tab.tab_id()))
             .map(|(index, tab)| (index + 1, tab.display_label(index).into_owned()))
             .collect();
-        let context_label = self
-            .cache
-            .navigation()
-            .iter()
-            .find(|entry| &entry.location == self.cache.location())
-            .and_then(|entry| entry.workspace_label.as_ref())
-            .map(|label| label.as_str().to_owned())
-            .unwrap_or_default();
         let capture = CloseSetCapture {
             first,
             source: Arc::new(self.cache.canonical_snapshot().clone()),
             tabs,
             labels,
-            context_label,
             focus: self.close_set_focus(),
             marked: self.close_set_marks(),
         };

@@ -34,34 +34,34 @@ impl Locale {
             Self::ZhCn => "关闭",
         }
     }
-    pub(crate) const fn workspace_close_title(self) -> &'static str {
-        match self {
-            Self::EnUs => "Close Workspace?",
-            Self::ZhCn => "关闭工作区？",
+    /// `count` is the Project's Workspace count when closing every Workspace of a Project; a
+    /// count appears only when there are several.
+    pub(crate) fn workspace_close_title(self, count: Option<usize>) -> String {
+        match (self, count) {
+            (Self::EnUs, None | Some(1)) => "Close Workspace?".into(),
+            (Self::ZhCn, None | Some(1)) => "关闭工作区？".into(),
+            (Self::EnUs, Some(0)) => "Close Workspaces?".into(),
+            (Self::ZhCn, Some(0)) => "关闭工作区？".into(),
+            (Self::EnUs, Some(count)) => format!("Close {count} Workspaces?"),
+            (Self::ZhCn, Some(count)) => format!("关闭 {count} 个工作区？"),
         }
     }
-    pub(crate) const fn workspace_close_warning(self) -> &'static str {
-        match self {
-            Self::EnUs => {
-                "Ends this Workspace's terminals for every Client; keeps Git branches and checkouts."
-            }
-            Self::ZhCn => "结束此工作区的全部终端，影响所有客户端；保留 Git 分支和检出目录。",
-        }
-    }
-    pub(crate) const fn project_close_all_title(self) -> &'static str {
-        match self {
-            Self::EnUs => "Close all Workspaces in Project?",
-            Self::ZhCn => "关闭项目中的全部工作区？",
-        }
-    }
-    pub(crate) fn project_close_all_warning(self, count: usize) -> String {
-        match self {
-            Self::EnUs => format!(
-                "Closes all Workspaces (currently {count}) and ends their terminals for every Client; keeps the Project, Git branches and checkouts."
-            ),
-            Self::ZhCn => format!(
-                "关闭全部工作区（当前 {count} 个）并结束其全部终端，影响所有客户端；保留项目、Git 分支和检出目录。"
-            ),
+    /// What ends, then what is kept, one sentence per line.
+    pub(crate) const fn workspace_close_consequence(self, project: bool) -> [&'static str; 2] {
+        match (self, project) {
+            (Self::EnUs, false) => [
+                "Ends every terminal in this Workspace.",
+                "Branches and checkouts are kept.",
+            ],
+            (Self::ZhCn, false) => ["将结束此工作区中的全部终端。", "分支和检出目录会保留。"],
+            (Self::EnUs, true) => [
+                "Ends every terminal in these Workspaces.",
+                "The Project, branches and checkouts are kept.",
+            ],
+            (Self::ZhCn, true) => [
+                "将结束这些工作区中的全部终端。",
+                "项目、分支和检出目录会保留。",
+            ],
         }
     }
     pub(crate) fn workspace_close_status<'a>(
@@ -70,7 +70,8 @@ impl Locale {
     ) -> String {
         let view = view.into();
         let mut text = self.workspace_close_scope(view);
-        if view.status != WorkspaceCloseStatus::Closed
+        // The status command is named only where it is the only recovery: an unknown outcome.
+        if view.status == WorkspaceCloseStatus::Unknown
             && let Some(id) = view.operation_id
         {
             if let Some(workspace) = view.workspace_id {

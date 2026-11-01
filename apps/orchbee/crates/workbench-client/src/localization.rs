@@ -26,9 +26,9 @@ pub(crate) use shortcut_help::{ShortcutContext, ShortcutHelpGroup, ShortcutLabel
 mod capabilities;
 mod settings;
 pub(crate) use settings::{
-    SettingUnit, SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind,
-    SettingsDraftState, SettingsFieldRequirement, SettingsHintLabel, SettingsNotice,
-    SettingsProfileLabel, SettingsRow, SettingsValue,
+    SettingUnit, SettingsAcceptLabel, SettingsCategory, SettingsChoice, SettingsDetail,
+    SettingsDetailKind, SettingsDraftState, SettingsFieldRequirement, SettingsHintLabel,
+    SettingsNotice, SettingsProfileLabel, SettingsRow, SettingsValue,
 };
 mod status;
 mod terminal_feedback;
@@ -78,10 +78,10 @@ mod workspace_close;
 pub(crate) use workspace_close::{WorkspaceCloseStatus, WorkspaceCloseText};
 #[cfg(any(unix, windows))]
 mod workspace_setup;
-pub(crate) use workspace_setup::{SetupStage, SetupStatus, WorkspaceCreationPhase};
+pub(crate) use workspace_setup::{FieldError, SetupStage, SetupStatus, WorkspaceCreationPhase};
 mod worktree_launch;
 pub(crate) use shell::{ShellBindings, ShellText};
-pub(crate) use worktree_launch::{WorktreeMode, WorktreeNotice, WorktreeStage};
+pub(crate) use worktree_launch::{WorktreeFieldError, WorktreeMode, WorktreeNotice, WorktreeStage};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Locale {

@@ -1,32 +1,26 @@
 //! Bounded Project choices and text fields publish controls only after a complete draw.
+use super::controls::{self, ActionKind, KeyHint};
 use super::modal::{
-    ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
-    paint_modal_close, paint_modal_frame, pointer_presentation, set_modal_cursor,
-    single_modal_layout, status_line,
+    Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, ModalAction, NAME_FIELD_WIDTH,
+    dialog_layout, field_value_area, modal_key_label, paint_dialog, paint_field,
+    pointer_presentation,
 };
-mod project_delete;
 use crate::client_view::{
     Binding, Bindings, ClientAction, KeyCode, KeyLabelGlyphs, Modifiers, PrefixAction,
 };
-use crate::localization::{DisplayPhase, Locale, ShortcutLabel};
+use crate::localization::{DisplayPhase, FieldError, Locale, ShortcutLabel};
 use crate::terminal_text::{
     display_width, sanitize_terminal_text, truncate_display, truncate_display_middle,
 };
 use crate::tui_hit_map::{
     HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl,
 };
-use crate::tui_layout::centered_overlay;
 use crate::tui_presentation::ModalPresentation;
 use crate::tui_theme::{GlyphMode, Role, Theme};
 use crate::workbench_state::workspace_setup::{
     LocationLabelStatus, SetupDraftView, SetupStage, SetupStatus, SetupToken,
 };
-use ratatui::{
-    Frame,
-    layout::Rect,
-    text::{Line, Span, Text},
-    widgets::{Block, Padding, Paragraph},
-};
+use ratatui::{Frame, layout::Rect, text::Text, widgets::Paragraph};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct DirectoryGuidance {
@@ -118,38 +112,20 @@ pub(super) fn render(
     locale: Locale,
     draft: &SetupDraftView<'_>,
     status: Option<SetupStatus>,
-    content_area: Rect,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> (Rect, ModalPresentation<SetupToken>) {
-    if draft.stage() == SetupStage::ProjectDeleteConfirm {
-        return project_delete::render(
+    match draft.stage() {
+        SetupStage::QuickProject | SetupStage::ChooseWorkspaceProject => render_projects(
             frame,
             locale,
-            project_delete::Decision {
-                token: draft.token(),
-                project: draft.project_label().unwrap_or(""),
-            },
-            content_area,
-            theme,
-            hits,
-        );
-    }
-    if matches!(
-        draft.stage(),
-        SetupStage::QuickProject | SetupStage::ChooseWorkspaceProject
-    ) {
-        return render_projects(
-            frame,
-            locale,
-            ProjectPicker {
+            &ProjectPicker {
                 token: draft.token(),
                 stage: draft.stage(),
-                workspace: draft.workspace_label().unwrap_or(""),
+                workspace: draft.workspace_label(),
                 count: draft.project_count(),
                 selected: draft.selected_project(),
             },
-            content_area,
             theme,
             hits,
             |index| {
@@ -162,318 +138,183 @@ pub(super) fn render(
                     }),
                 })
             },
-        );
-    }
-    if matches!(
-        draft.stage(),
-        SetupStage::QuickName | SetupStage::QuickDirectory
-    ) {
-        return render_quick(frame, locale, draft, content_area, theme, hits);
-    }
-    if matches!(
-        draft.stage(),
-        SetupStage::PreparingWorkspace | SetupStage::DissolveProject
-    ) {
-        let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
-        let hints = [];
-        let action = ModalAction::new(
-            locale.setup_cancel_label(),
-            super::controls::ActionKind::Secondary,
-            true,
-        )
-        .with_shortcut(&escape);
-        let title = locale.setup_title(draft.stage());
-        let text = Text::from(vec![
-            Line::from(""),
-            description_line(locale.quick_workspace_preparing_fact(), theme),
-            Line::from(""),
-            Line::from(""),
-        ]);
-        let Some(layout) = single_modal_layout(
-            frame.area(),
-            content_area,
-            title,
-            &text,
-            &hints,
-            action,
-            theme,
-        ) else {
-            return (Rect::default(), ModalPresentation::NotPresented);
-        };
-        hits.start_modal();
-        paint_modal_frame(frame, layout.area, title, theme);
-        frame.render_widget(
-            Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner.width)),
-            layout.inner,
-        );
-        paint_modal_close(
-            frame,
-            layout.close,
-            HitTarget::Setup {
-                token: draft.token(),
-                control: ModalControl::Cancel,
-            },
-            true,
-            theme,
-            hits,
-        );
-        paint_modal_action(
-            frame,
-            Rect::new(
-                layout.action.x,
-                layout.action.y,
-                layout.inner.right() - layout.action.x,
-                1,
-            ),
-            layout.action,
-            action,
-            HitTarget::Setup {
-                token: draft.token(),
-                control: ModalControl::Cancel,
-            },
-            theme,
-            hits,
-        );
-        hits.record(
-            HitLayer::OverlaySurface,
-            layout.area,
-            HitTarget::OverlaySurface,
-        );
-        return (layout.area, ModalPresentation::Presented(draft.token()));
-    }
-    let rename = match draft.stage() {
-        SetupStage::ProjectRename => Some(true),
-        SetupStage::WorkspaceRename => Some(false),
-        _ => None,
-    };
-    let title = locale.setup_title(draft.stage());
-    let mut lines = vec![Line::from("")];
-    let context_budget = usize::from(content_area.width.saturating_sub(10)).min(72);
-    // The editable line's index inside `lines`, when the stage owns a text
-    // field; the picker stage has none.
-    let field_index;
-    {
-        if let Some(project) = draft.project_label() {
-            lines.push(description_line(
-                truncate_display(
-                    &format!(
-                        "{}: {}",
-                        locale.setup_project(),
-                        sanitize_terminal_text(project)
-                    ),
-                    context_budget,
-                    theme.glyphs.ellipsis,
-                ),
-                theme,
-            ));
-            lines.push(Line::from(""));
+        ),
+        SetupStage::QuickName | SetupStage::QuickDirectory => {
+            render_quick(frame, locale, draft, theme, hits)
         }
-        if matches!(
-            draft.stage(),
-            SetupStage::DirectoryPath
-                | SetupStage::WorkspaceRename
-                | SetupStage::WorkspaceProjectName
-        ) && let Some(workspace) = draft.workspace_label()
-        {
-            lines.push(description_line(
-                truncate_display(
-                    &format!(
-                        "{}: {}",
-                        locale.shell().workspaces,
-                        sanitize_terminal_text(locale.workspace_display_label(workspace))
-                    ),
-                    context_budget,
-                    theme.glyphs.ellipsis,
-                ),
-                theme,
-            ));
-            lines.push(Line::from(""));
-        }
-        // The field's one visible row is sized like the rest: the windowed
-        // projection never takes more than the inner width it is given.
-        lines.push(Line::from(if draft.stage() == SetupStage::DirectoryPath {
-            locale.quick_workspace_directory()
-        } else {
-            locale.quick_workspace_name()
-        }));
-        field_index = Some(lines.len());
-        lines.push(Line::from(""));
-        lines.push(description_line(
-            rename.map_or_else(
-                || {
-                    if draft.stage() == SetupStage::TabGroupName {
-                        locale.setup_group_name_hint()
-                    } else {
-                        locale.setup_input_hint(draft.stage() == SetupStage::DirectoryPath)
-                    }
-                },
-                |project| {
-                    if !project && draft.text().trim().is_empty() {
-                        locale.workspace_name_required()
-                    } else {
-                        locale.location_rename_hint(project)
-                    }
-                },
-            ),
-            theme,
-        ));
+        // Preparation runs without a dialog; the form opens once it is ready.
+        SetupStage::PreparingWorkspace => (Rect::default(), ModalPresentation::NotPresented),
+        SetupStage::WorkspaceProjectName
+        | SetupStage::TabGroupName
+        | SetupStage::DirectoryPath
+        | SetupStage::ProjectRename
+        | SetupStage::WorkspaceRename => render_form(frame, locale, draft, status, theme, hits),
     }
-    lines.push(Line::from(""));
-    if draft.faulted() {
-        lines.push(status_line(locale.setup_fault(), Role::StatusError, theme));
-        lines.push(Line::from(""));
-    }
-    if let Some(
-        status @ (SetupStatus::NotApplied
-        | SetupStatus::CommittedNeedRefresh
+}
+
+/// The whole task's status row: a refusal, or an outcome the Client could not confirm.
+fn status_row(status: Option<SetupStatus>, locale: Locale) -> Option<DialogRow<'static>> {
+    let role = match status? {
+        SetupStatus::NotApplied
+        | SetupStatus::LocationLabel {
+            status: LocationLabelStatus::NotApplied,
+            ..
+        } => Role::StatusError,
+        SetupStatus::CommittedNeedRefresh
         | SetupStatus::OutcomeUnknown
         | SetupStatus::LocationLabel {
-            status:
-                LocationLabelStatus::NotApplied
-                | LocationLabelStatus::CommittedNeedRefresh
-                | LocationLabelStatus::OutcomeUnknown,
+            status: LocationLabelStatus::CommittedNeedRefresh | LocationLabelStatus::OutcomeUnknown,
             ..
-        }),
-    ) = status
-    {
-        let role = if matches!(
-            status,
-            SetupStatus::NotApplied
-                | SetupStatus::LocationLabel {
-                    status: LocationLabelStatus::NotApplied,
-                    ..
-                }
-        ) {
-            Role::StatusError
-        } else {
-            Role::StatusWarning
-        };
-        lines.push(status_line(locale.setup_status(status), role, theme));
-        lines.push(Line::from(""));
+        } => Role::StatusWarning,
+        _ => return None,
+    };
+    Some(DialogRow::Status(locale.setup_status(status?).into(), role))
+}
+
+/// A field's help row: its error once an edit or a refused submission exposed it, otherwise its
+/// help, or a reserved blank row.
+fn help_row<'a>(
+    locale: Locale,
+    error: Option<FieldError>,
+    touched: bool,
+    help: Option<&'a str>,
+) -> DialogRow<'a> {
+    match error.filter(|_| touched) {
+        Some(error) => DialogRow::Error(locale.field_error(error).into()),
+        None => DialogRow::Help(help.map(Into::into)),
     }
-    lines.extend([Line::from(""), Line::from("")]);
+}
+
+fn form_actions<'a>(
+    cancel: &'a str,
+    submit: &'a str,
+    valid: bool,
+    escape: &'a str,
+    enter: &'a str,
+) -> [ModalAction<'a>; 2] {
+    [
+        ModalAction::new(cancel, ActionKind::Secondary, true).with_shortcut(escape),
+        ModalAction::new(submit, ActionKind::Primary, valid).with_shortcut(enter),
+    ]
+}
+
+/// The caret sits inside the field's value cells.
+fn place_caret(frame: &mut Frame<'_>, row: Rect, column: usize, theme: &Theme) {
+    let value = field_value_area(row, theme);
+    let column = u16::try_from(column)
+        .unwrap_or(u16::MAX)
+        .min(value.width.saturating_sub(1));
+    frame.set_cursor_position((value.x.saturating_add(column), value.y));
+}
+
+/// The one-field forms: renames, a Tab group name, a Workspace directory, and the name of a new
+/// Project for the Workspace being moved. A title that names the value omits the label.
+fn render_form(
+    frame: &mut Frame<'_>,
+    locale: Locale,
+    draft: &SetupDraftView<'_>,
+    status: Option<SetupStatus>,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) -> (Rect, ModalPresentation<SetupToken>) {
+    let stage = draft.stage();
+    let class = DialogClass::Narrow;
+    let [error, _] = draft.field_errors();
+    let tab_group_rename = stage == SetupStage::TabGroupName && draft.renames_tab_group();
+    let (title, submit) = if tab_group_rename {
+        (
+            locale.tab_group_rename_title(),
+            locale.rename_submit_label(),
+        )
+    } else {
+        (locale.setup_title(stage), locale.setup_submit_label(stage))
+    };
+    let help = match stage {
+        SetupStage::TabGroupName => Some(locale.setup_group_name_hint()),
+        SetupStage::DirectoryPath => Some(locale.setup_directory_help()),
+        _ => None,
+    };
+    let mut rows = Vec::new();
+    // The Workspace the task acts on, when the title does not name it.
+    if matches!(
+        stage,
+        SetupStage::DirectoryPath | SetupStage::WorkspaceProjectName
+    ) && let Some(workspace) = draft.workspace_label()
+    {
+        rows.push(DialogRow::Target(
+            locale.workspace_display_label(workspace).to_owned().into(),
+        ));
+        rows.push(DialogRow::Blank);
+    }
+    // A new Project's title does not name the value, so its field keeps the label.
+    if stage == SetupStage::WorkspaceProjectName {
+        rows.push(DialogRow::Label(
+            locale.quick_workspace_name().into(),
+            false,
+        ));
+    }
+    let field = rows.len();
+    rows.push(DialogRow::Field {
+        minimum: if stage == SetupStage::DirectoryPath {
+            class.path_width()
+        } else {
+            NAME_FIELD_WIDTH
+        },
+    });
+    rows.push(help_row(locale, error, draft.touched(false), help));
+    if let Some(status) = status_row(status, locale) {
+        rows.push(status);
+    }
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
     let enter = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
-    let backspace = modal_key_label(theme, &Binding::new(KeyCode::Backspace, Modifiers::NONE));
-    let clear = modal_key_label(theme, &Binding::new(KeyCode::Char('u'), Modifiers::CTRL));
-    let hints = [
-        super::controls::KeyHint::new(&backspace, locale.setup_delete_hint()),
-        super::controls::KeyHint::new(&clear, locale.setup_clear_hint()),
-    ];
-    let actions = [
-        ModalAction::new(
-            locale.setup_cancel_label(),
-            super::controls::ActionKind::Secondary,
-            true,
-        )
-        .with_shortcut(&escape),
-        ModalAction::new(
-            locale.setup_submit_label(),
-            super::controls::ActionKind::Primary,
-            !draft.faulted(),
-        )
-        .with_shortcut(&enter),
-    ];
-    let placeholder = Text::from(lines);
-    let Some(candidate) = modal_layout(
-        frame.area(),
-        content_area,
-        title,
-        &placeholder,
-        &hints,
-        actions,
-        theme,
-    ) else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-    let Some(field_width) = candidate.inner.width.checked_sub(4) else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-    let Some(field_index) = field_index else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-    let Some(window) = draft.field_window(usize::from(field_width)) else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-    let mut lines = placeholder.lines;
-    let mut displayed = window.display().to_owned();
-    displayed
-        .push_str(&" ".repeat(usize::from(field_width).saturating_sub(display_width(&displayed))));
-    lines[field_index] = Line::from(vec![
-        Span::styled("[ ", theme.style(Role::AccentFocus)),
-        Span::styled(displayed, theme.style(Role::TextPrimary)),
-        Span::styled(" ]", theme.style(Role::AccentFocus)),
-    ]);
-    let text = Text::from(lines);
-    let Some(layout) = modal_layout(
-        frame.area(),
-        content_area,
-        title,
-        &text,
-        &hints,
-        actions,
-        theme,
-    ) else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-    hits.start_modal();
-    paint_modal_frame(frame, layout.area, title, theme);
-    frame.render_widget(
-        Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner.width)),
-        layout.inner,
+    let actions = form_actions(
+        locale.setup_cancel_label(),
+        submit,
+        error.is_none(),
+        &escape,
+        &enter,
     );
-    paint_modal_close(
+    let dialog = Dialog {
+        title,
+        class,
+        rows,
+        footer: DialogFooter::Actions(&actions),
+    };
+    let Some(layout) = dialog_layout(frame.area(), &dialog, theme) else {
+        return (Rect::default(), ModalPresentation::NotPresented);
+    };
+    let Some(row) = layout.row(field) else {
+        return (Rect::default(), ModalPresentation::NotPresented);
+    };
+    let Some(window) = draft.field_window(usize::from(field_value_area(row, theme).width)) else {
+        return (Rect::default(), ModalPresentation::NotPresented);
+    };
+    let target = |control| HitTarget::Setup {
+        token: draft.token(),
+        control,
+    };
+    paint_dialog(
         frame,
-        layout.close,
-        HitTarget::Setup {
-            token: draft.token(),
-            control: ModalControl::Cancel,
+        &dialog,
+        &layout,
+        &DialogTargets {
+            close: target(ModalControl::Close),
+            actions: &[target(ModalControl::Cancel), target(ModalControl::Submit)],
+            dismiss_outside: !draft.touched(false),
+            scroll: None,
         },
-        true,
         theme,
         hits,
     );
-    let rendered_hints = super::controls::render_overlay_hints(frame, layout.hints, &hints, theme)
-        .expect("admitted setup hints must paint");
-    debug_assert!(layout.hints.intersection(rendered_hints) == rendered_hints);
-    for ((rect, action), control) in layout
-        .actions
-        .into_iter()
-        .zip(actions)
-        .zip([ModalControl::Cancel, ModalControl::Submit])
-    {
-        paint_modal_action(
-            frame,
-            Rect::new(rect.x, rect.y, layout.inner.right() - rect.x, 1),
-            rect,
-            action,
-            HitTarget::Setup {
-                token: draft.token(),
-                control,
-            },
-            theme,
-            hits,
-        );
-    }
-    hits.record(
-        HitLayer::OverlaySurface,
-        layout.area,
-        HitTarget::OverlaySurface,
-    );
-    set_modal_cursor(
-        frame,
-        &text,
-        layout.inner,
-        field_index,
-        window.cursor_column() + 2,
-    );
+    paint_field(frame, row, window.display(), false, theme);
+    place_caret(frame, row, window.cursor_column(), theme);
     (layout.area, ModalPresentation::Presented(draft.token()))
 }
 
 struct ProjectPicker<'a> {
     token: SetupToken,
     stage: SetupStage,
-    workspace: &'a str,
+    workspace: Option<&'a str>,
     count: usize,
     selected: usize,
 }
@@ -488,54 +329,6 @@ struct PickerRowGeometry {
     row: Rect,
     navigation: Rect,
     primary: Rect,
-}
-
-#[derive(Clone, Copy)]
-struct FieldRowGeometry {
-    row: Rect,
-    navigation: Rect,
-    primary: Rect,
-    content: Rect,
-}
-
-impl FieldRowGeometry {
-    fn resolve(text: &Text<'_>, inner: Rect, label_index: usize, theme: &Theme) -> Option<Self> {
-        let label = super::controls::text_row(text, inner, label_index);
-        let field = super::controls::text_row(text, inner, label_index.checked_add(1)?);
-        if label.height != 1 || field.height != 1 || field.y != label.bottom() {
-            return None;
-        }
-        let row = Rect::new(label.x, label.y, label.width, 2);
-        if inner.intersection(row) != row {
-            return None;
-        }
-        let navigation_width =
-            u16::try_from(display_width(theme.glyphs.navigation_marker).max(1)).ok()?;
-        let primary_x = row.x.checked_add(navigation_width)?;
-        let content_x = primary_x.checked_add(1)?;
-        let navigation = Rect::new(row.x, row.y, navigation_width, row.height);
-        let primary = Rect::new(primary_x, row.y, 1, row.height);
-        let content = Rect::new(
-            content_x,
-            row.y,
-            row.right().checked_sub(content_x)?,
-            row.height,
-        );
-        (!content.is_empty()
-            && row.intersection(navigation) == navigation
-            && row.intersection(primary) == primary
-            && row.intersection(content) == content)
-            .then_some(Self {
-                row,
-                navigation,
-                primary,
-                content,
-            })
-    }
-
-    fn prefix_width(self) -> usize {
-        usize::from(self.content.x.saturating_sub(self.row.x))
-    }
 }
 
 impl PickerRowGeometry {
@@ -566,173 +359,109 @@ impl PickerRowGeometry {
     }
 }
 
+/// The Project pickers: moving a Workspace, and the first step of a new Workspace. A picker has
+/// a hint row instead of buttons, and a press outside closes it.
 fn render_projects<'a>(
     frame: &mut Frame<'_>,
     locale: Locale,
-    picker: ProjectPicker<'_>,
-    content: Rect,
+    picker: &ProjectPicker<'_>,
     theme: &Theme,
     hits: &mut HitMapBuilder,
     choice: impl Fn(usize) -> Option<ProjectChoice<'a>>,
 ) -> (Rect, ModalPresentation<SetupToken>) {
     let count = picker.count;
-    let area = centered_overlay(
-        content,
-        78.min(content.width.saturating_sub(4)),
-        u16::try_from(count.saturating_add(7))
-            .unwrap_or(u16::MAX)
-            .min(content.height.saturating_sub(2)),
-    );
-    let inner = overlay_block(theme).inner(area);
-    if area.is_empty()
-        || frame.area().intersection(area) != area
-        || inner.width < 20
-        || inner.height < 6
-        || count == 0
-    {
+    if count == 0 {
         return (Rect::default(), ModalPresentation::NotPresented);
     }
-    let capacity = usize::from(inner.height - 5);
-    let start = picker
-        .selected
-        .saturating_sub(capacity / 2)
-        .min(count.saturating_sub(capacity));
-    let budget = usize::from(inner.width);
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
     let enter = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
     let up = modal_key_label(theme, &Binding::new(KeyCode::Up, Modifiers::NONE));
     let down = modal_key_label(theme, &Binding::new(KeyCode::Down, Modifiers::NONE));
-    let vertical = format!("{up}/{down}");
+    let vertical = format!("{up}{down}");
     let hints = [
-        super::controls::KeyHint::new(&enter, locale.setup_choose_hint()),
-        super::controls::KeyHint::new(&vertical, locale.setup_select_hint()),
+        KeyHint::new(&escape, locale.setup_close_hint()),
+        KeyHint::new(&enter, locale.setup_choose_hint(picker.stage)),
+        KeyHint::new(&vertical, locale.setup_select_hint()),
     ];
-    let cancel = ModalAction::new(
-        locale.setup_cancel_label(),
-        super::controls::ActionKind::Secondary,
-        true,
-    )
-    .with_shortcut(&escape);
-    let close = match super::controls::frame_close_rect(frame.area(), area) {
-        Some(close) => close,
-        None => return (Rect::default(), ModalPresentation::NotPresented),
-    };
-    let hint_row = Rect::new(inner.x, inner.bottom() - 2, inner.width, 1);
-    let action_row = Rect::new(inner.x, inner.bottom() - 1, inner.width, 1);
-    let hints_valid = super::controls::measure_overlay_hints(&hints, theme).is_some();
-    let first_hint_fits = super::controls::measure_overlay_hints(&hints[..1], theme)
-        .is_some_and(|width| width <= usize::from(hint_row.width));
-    let Some(action) = super::controls::action_rect(
-        frame.area(),
-        action_row,
-        cancel.spec(super::controls::PointerPresentation::Rest),
-        theme,
-    ) else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-    if !hints_valid || !first_hint_fits {
-        return (Rect::default(), ModalPresentation::NotPresented);
+    let mut rows = Vec::new();
+    if picker.stage == SetupStage::ChooseWorkspaceProject
+        && let Some(workspace) = picker.workspace
+    {
+        rows.push(DialogRow::Target(
+            locale.workspace_display_label(workspace).to_owned().into(),
+        ));
+        rows.push(DialogRow::Blank);
     }
-
-    let Some(list_y) = inner.y.checked_add(2) else {
+    let list = rows.len();
+    rows.push(DialogRow::List { len: count });
+    let dialog = Dialog {
+        title: locale.setup_title(picker.stage),
+        class: DialogClass::Medium,
+        rows,
+        footer: DialogFooter::Hints(&hints),
+    };
+    let Some(layout) = dialog_layout(frame.area(), &dialog, theme) else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
-    let Ok(list_height) = u16::try_from(capacity) else {
+    let Some(list_area) = layout.row(list) else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
-    let list = Rect::new(inner.x, list_y, inner.width, list_height);
-    if inner.intersection(list) != list {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    }
-    let row_geometries = (0..capacity)
+    let capacity = usize::from(list_area.height);
+    let start = picker
+        .selected
+        .saturating_sub(capacity / 2)
+        .min(count.saturating_sub(capacity));
+    let geometries = (0..capacity.min(count - start))
         .map(|offset| {
-            let y = list_y.checked_add(u16::try_from(offset).ok()?)?;
-            PickerRowGeometry::resolve(Rect::new(inner.x, y, inner.width, 1), theme)
+            let y = list_area.y.checked_add(u16::try_from(offset).ok()?)?;
+            PickerRowGeometry::resolve(Rect::new(list_area.x, y, list_area.width, 1), theme)
         })
         .collect::<Option<Vec<_>>>();
-    let Some(row_geometries) = row_geometries else {
+    let Some(geometries) = geometries else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
-    let choices = (start..count.min(start + capacity))
-        .map(|index| {
-            choice(index).map(|project| {
-                let prefix = format!("{}. ", project.position);
-                let geometry = row_geometries[index - start];
-                let label_budget = usize::from(geometry.primary.width);
-                let label = format!(
-                    "{prefix}{}",
-                    truncate_display(
-                        &sanitize_terminal_text(project.label),
-                        label_budget.saturating_sub(display_width(&prefix)),
-                        theme.glyphs.ellipsis,
-                    )
-                );
-                (index, label)
-            })
+    // A row whose Project is missing stays blank and takes no click target.
+    let rows = geometries
+        .into_iter()
+        .enumerate()
+        .filter_map(|(offset, geometry)| {
+            let project = choice(start + offset)?;
+            let prefix = format!("{}. ", project.position);
+            let label = format!(
+                "{prefix}{}",
+                truncate_display(
+                    &sanitize_terminal_text(project.label),
+                    usize::from(geometry.primary.width).saturating_sub(display_width(&prefix)),
+                    theme.glyphs.ellipsis,
+                )
+            );
+            Some((start + offset, geometry, label))
         })
         .collect::<Vec<_>>();
-    let mut lines = vec![
-        Line::from(""),
-        description_line(
-            truncate_display(
-                &sanitize_terminal_text(picker.workspace),
-                budget,
-                theme.glyphs.ellipsis,
-            ),
-            theme,
-        ),
-    ];
-    for (offset, projected) in choices.iter().enumerate() {
-        let geometry = row_geometries[offset];
-        let label = projected.as_ref().map_or("", |(_, label)| label.as_str());
-        lines.push(
-            Line::from(format!("{}{}", " ".repeat(geometry.prefix_width()), label,))
+    paint_dialog(
+        frame,
+        &dialog,
+        &layout,
+        &DialogTargets {
+            close: HitTarget::Setup {
+                token: picker.token,
+                control: ModalControl::Close,
+            },
+            actions: &[],
+            dismiss_outside: true,
+            scroll: Some(HitTarget::ListScroll(
+                crate::tui_hit_map::ListScrollTarget::Setup(picker.token),
+            )),
+        },
+        theme,
+        hits,
+    );
+    for (index, geometry, label) in rows {
+        frame.render_widget(
+            Paragraph::new(format!("{}{label}", " ".repeat(geometry.prefix_width())))
                 .style(theme.style(Role::TextPrimary)),
+            geometry.row,
         );
-    }
-    while lines.len() < usize::from(inner.height - 3) {
-        lines.push(Line::from(""));
-    }
-    lines.push(description_line(
-        format!("{}/{}", picker.selected + 1, count),
-        theme,
-    ));
-    lines.extend([Line::from(""), Line::from("")]);
-
-    hits.start_modal();
-    paint_modal_frame(frame, area, locale.setup_title(picker.stage), theme);
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
-    paint_modal_close(
-        frame,
-        close,
-        HitTarget::Setup {
-            token: picker.token,
-            control: ModalControl::Cancel,
-        },
-        true,
-        theme,
-        hits,
-    );
-    let rendered_hints = super::controls::render_overlay_hints(frame, hint_row, &hints, theme)
-        .expect("admitted setup picker hints must paint");
-    debug_assert!(hint_row.intersection(rendered_hints) == rendered_hints);
-    paint_modal_action(
-        frame,
-        action_row,
-        action,
-        cancel,
-        HitTarget::Setup {
-            token: picker.token,
-            control: ModalControl::Cancel,
-        },
-        theme,
-        hits,
-    );
-    for (offset, projected) in choices.into_iter().enumerate() {
-        let Some((index, _)) = projected else {
-            continue;
-        };
-        let geometry = row_geometries[offset];
         let target = HitTarget::Setup {
             token: picker.token,
             control: ModalControl::Choice(index),
@@ -741,33 +470,30 @@ fn render_projects<'a>(
         let pointer =
             hits.projected_modal_pointer(HitLayer::Overlay, geometry.row, &target, availability);
         let provisional = index == picker.selected;
-        let state = super::controls::InteractionState::new(
+        let state = controls::InteractionState::new(
             if provisional {
-                super::controls::FocusState::Focused
+                controls::FocusState::Focused
             } else {
-                super::controls::FocusState::Unfocused
+                controls::FocusState::Unfocused
             },
             pointer_presentation(pointer),
             if provisional {
-                super::controls::NavigationState::Provisional
+                controls::NavigationState::Provisional
             } else {
-                super::controls::NavigationState::None
+                controls::NavigationState::None
             },
-            super::controls::CurrentState::NotCurrent,
-            super::controls::CheckedState::Unchecked,
-            super::controls::Availability::Enabled,
-            super::controls::OperationState::Idle,
+            controls::CurrentState::NotCurrent,
+            controls::CheckedState::Unchecked,
+            controls::Availability::Enabled,
+            controls::OperationState::Idle,
         );
-        let painted = super::controls::paint_row_interaction(
+        let painted = controls::paint_row_interaction(
             frame,
             geometry.row,
-            super::controls::RowTracks::new(
-                super::controls::RowFocusCue::EnclosingFrame,
-                geometry.primary,
-            )
-            .with_provisional(geometry.navigation),
+            controls::RowTracks::new(controls::RowFocusCue::EnclosingFrame, geometry.primary)
+                .with_provisional(geometry.navigation),
             &[],
-            super::controls::ControlSurface::Overlay,
+            controls::ControlSurface::Overlay,
             state,
             theme,
         )
@@ -775,53 +501,24 @@ fn render_projects<'a>(
         assert_eq!(painted, geometry.row);
         hits.record_modal_control(HitLayer::Overlay, geometry.row, target, availability);
     }
-    hits.record(
-        HitLayer::OverlaySurface,
-        list,
-        HitTarget::ListScroll(crate::tui_hit_map::ListScrollTarget::Setup(picker.token)),
-    );
-    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
-    (area, ModalPresentation::Presented(picker.token))
+    (layout.area, ModalPresentation::Presented(picker.token))
 }
 
-/// Label rows of the quick setup fields; each editable row follows its label.
-const QUICK_NAME_LABEL: usize = 3;
-const QUICK_DIRECTORY_LABEL: usize = 6;
-
+/// The New Workspace form: a name, a directory, and the recent folders under the directory.
 fn render_quick(
     frame: &mut Frame<'_>,
     locale: Locale,
     draft: &SetupDraftView<'_>,
-    content_area: Rect,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> (Rect, ModalPresentation<SetupToken>) {
+    const NAME: usize = 3;
+    const DIRECTORY: usize = 7;
+    const CHOICES: usize = 9;
+    let class = DialogClass::Medium;
     let project = draft.project_label().unwrap_or(locale.setup_ungrouped());
     let directory_active = draft.stage() == SetupStage::QuickDirectory;
-    let title = locale.setup_title(draft.stage());
-    let mut lines = vec![
-        Line::from(""),
-        description_line(
-            format!(
-                "{}: {}",
-                locale.setup_project(),
-                sanitize_terminal_text(project)
-            ),
-            theme,
-        ),
-        Line::from(""),
-        Line::from(locale.quick_workspace_name()),
-        Line::from(""),
-        Line::from(""),
-        Line::from(locale.quick_workspace_directory()),
-        Line::from(""),
-        description_line(locale.quick_workspace_directory_hint(), theme),
-    ];
-    if draft.faulted() {
-        lines.push(status_line(locale.setup_fault(), Role::StatusError, theme));
-        lines.push(Line::from(""));
-    }
-    let choices_start = lines.len();
+    let errors = draft.field_errors();
     let selected = draft.selected_directory().unwrap_or(0);
     let first = selected
         .saturating_sub(1)
@@ -833,272 +530,151 @@ fn render_quick(
         .skip(first)
         .take(2)
         .collect();
-    for (index, path) in &choices {
-        let marker = if draft.selected_directory() == Some(*index) {
-            theme.glyphs.active_marker
-        } else {
-            " "
-        };
-        // A path keeps its distinguishing tail: it truncates in the middle.
-        lines.push(Line::from(format!(
-            "{marker} {} {}",
-            index + 1,
-            truncate_display_middle(
-                &sanitize_terminal_text(path.as_str()),
-                usize::from(content_area.width.saturating_sub(16).min(44)),
-                theme.glyphs.ellipsis
-            )
-        )));
+    let mut rows = vec![
+        DialogRow::Context(locale.setup_project_context(project).into()),
+        DialogRow::Blank,
+        DialogRow::Label(locale.quick_workspace_name().into(), !directory_active),
+        DialogRow::Field {
+            minimum: NAME_FIELD_WIDTH,
+        },
+        help_row(locale, errors[0], draft.touched(false), None),
+        DialogRow::Blank,
+        DialogRow::Label(locale.quick_workspace_directory().into(), directory_active),
+        DialogRow::Field {
+            minimum: class.path_width(),
+        },
+        help_row(
+            locale,
+            errors[1],
+            draft.touched(true),
+            (!choices.is_empty()).then(|| locale.quick_workspace_directory_hint()),
+        ),
+    ];
+    if !choices.is_empty() {
+        rows.push(DialogRow::List { len: choices.len() });
     }
-    // The shared modal reserves its final two text rows for hints and actions.
-    // Directory choices are content and must never occupy those control rows.
-    lines.extend([Line::from(""), Line::from("")]);
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
     let enter = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
-    let tab = modal_key_label(theme, &Binding::new(KeyCode::Tab, Modifiers::NONE));
-    let clear = modal_key_label(theme, &Binding::new(KeyCode::Char('u'), Modifiers::CTRL));
-    let hints = [
-        super::controls::KeyHint::new(&tab, locale.setup_next_field_hint()),
-        super::controls::KeyHint::new(&clear, locale.setup_clear_hint()),
-    ];
-    let actions = [
-        ModalAction::new(
-            locale.setup_cancel_label(),
-            super::controls::ActionKind::Secondary,
-            true,
-        )
-        .with_shortcut(&escape),
-        ModalAction::new(
-            locale.setup_submit_label(),
-            super::controls::ActionKind::Primary,
-            !draft.faulted(),
-        )
-        .with_shortcut(&enter),
-    ];
-    let placeholder = Text::from(lines);
-    let Some(candidate) = modal_layout(
-        frame.area(),
-        content_area,
-        title,
-        &placeholder,
-        &hints,
-        actions,
-        theme,
-    ) else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-    let Some(name_geometry) =
-        FieldRowGeometry::resolve(&placeholder, candidate.inner, QUICK_NAME_LABEL, theme)
-    else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-    let Some(directory_geometry) =
-        FieldRowGeometry::resolve(&placeholder, candidate.inner, QUICK_DIRECTORY_LABEL, theme)
-    else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-    if name_geometry.content.width < 5 || directory_geometry.content.width < 5 {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    }
-    let field_width = usize::from(name_geometry.content.width - 4);
-    let Some(name) = draft.quick_window(false, field_width) else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-    let Some(directory) = draft.quick_window(true, field_width) else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-    let mut lines = placeholder.lines;
-    for (label_index, label, window, active, geometry) in [
-        (
-            QUICK_NAME_LABEL,
-            locale.quick_workspace_name(),
-            &name,
-            !directory_active,
-            name_geometry,
-        ),
-        (
-            QUICK_DIRECTORY_LABEL,
-            locale.quick_workspace_directory(),
-            &directory,
-            directory_active,
-            directory_geometry,
-        ),
-    ] {
-        let prefix = " ".repeat(geometry.prefix_width());
-        lines[label_index] = Line::from(format!(
-            "{prefix}{}",
-            truncate_display(
-                label,
-                usize::from(geometry.content.width),
-                theme.glyphs.ellipsis,
-            )
-        ))
-        .style(theme.style(Role::TextPrimary));
-        let mut value = window.display().to_owned();
-        value.push_str(&" ".repeat(field_width.saturating_sub(display_width(&value))));
-        let bracket_role = if active {
-            Role::AccentFocus
-        } else {
-            Role::TextSecondary
-        };
-        lines[label_index + 1] = Line::from(vec![
-            Span::raw(prefix),
-            Span::styled("[ ", theme.style(bracket_role)),
-            Span::styled(value, theme.style(Role::TextPrimary)),
-            Span::styled(" ]", theme.style(bracket_role)),
-        ]);
-    }
-    let text = Text::from(lines);
-    let Some(layout) = modal_layout(
-        frame.area(),
-        content_area,
-        title,
-        &text,
-        &hints,
-        actions,
-        theme,
-    ) else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-    if layout.inner != candidate.inner {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    }
-
-    hits.start_modal();
-    paint_modal_frame(frame, layout.area, title, theme);
-    frame.render_widget(
-        Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner.width)),
-        layout.inner,
+    let actions = form_actions(
+        locale.setup_cancel_label(),
+        locale.setup_submit_label(draft.stage()),
+        errors.iter().all(Option::is_none),
+        &escape,
+        &enter,
     );
-    paint_modal_close(
+    let dialog = Dialog {
+        title: locale.setup_title(draft.stage()),
+        class,
+        rows,
+        footer: DialogFooter::Actions(&actions),
+    };
+    let Some(layout) = dialog_layout(frame.area(), &dialog, theme) else {
+        return (Rect::default(), ModalPresentation::NotPresented);
+    };
+    let (Some(name_row), Some(directory_row)) = (layout.row(NAME), layout.row(DIRECTORY)) else {
+        return (Rect::default(), ModalPresentation::NotPresented);
+    };
+    let width = usize::from(field_value_area(name_row, theme).width);
+    let (Some(name), Some(directory)) = (
+        draft.quick_window(false, width),
+        draft.quick_window(true, width),
+    ) else {
+        return (Rect::default(), ModalPresentation::NotPresented);
+    };
+    let target = |control| HitTarget::Setup {
+        token: draft.token(),
+        control,
+    };
+    paint_dialog(
         frame,
-        layout.close,
-        HitTarget::Setup {
-            token: draft.token(),
-            control: ModalControl::Cancel,
+        &dialog,
+        &layout,
+        &DialogTargets {
+            close: target(ModalControl::Close),
+            actions: &[target(ModalControl::Cancel), target(ModalControl::Submit)],
+            dismiss_outside: !draft.touched(false) && !draft.touched(true),
+            scroll: None,
         },
-        true,
         theme,
         hits,
     );
-    let rendered_hints = super::controls::render_overlay_hints(frame, layout.hints, &hints, theme)
-        .expect("admitted quick setup hints must paint");
-    debug_assert!(layout.hints.intersection(rendered_hints) == rendered_hints);
-    for ((rect, action), control) in layout
-        .actions
-        .into_iter()
-        .zip(actions)
-        .zip([ModalControl::Cancel, ModalControl::Submit])
-    {
-        paint_modal_action(
-            frame,
-            Rect::new(rect.x, rect.y, layout.inner.right() - rect.x, 1),
-            rect,
-            action,
-            HitTarget::Setup {
-                token: draft.token(),
-                control,
-            },
-            theme,
-            hits,
-        );
-    }
-    for (active, geometry) in [
-        (!directory_active, name_geometry),
-        (directory_active, directory_geometry),
-    ] {
-        let target = HitTarget::Setup {
-            token: draft.token(),
-            control: ModalControl::NextField,
-        };
-        let pointer = if active {
-            super::controls::PointerPresentation::Rest
-        } else {
-            pointer_presentation(hits.projected_modal_pointer(
-                HitLayer::Overlay,
-                geometry.row,
-                &target,
-                InteractionAvailability::Enabled,
-            ))
-        };
-        let state = super::controls::InteractionState::new(
-            if active {
-                super::controls::FocusState::Focused
-            } else {
-                super::controls::FocusState::Unfocused
-            },
-            pointer,
-            if active {
-                super::controls::NavigationState::Provisional
-            } else {
-                super::controls::NavigationState::None
-            },
-            super::controls::CurrentState::NotCurrent,
-            super::controls::CheckedState::Unchecked,
-            super::controls::Availability::Enabled,
-            super::controls::OperationState::Idle,
-        );
-        let bands = [super::controls::RowContentBand::explicit(geometry.content)];
-        let painted = super::controls::paint_row_interaction(
-            frame,
-            geometry.row,
-            super::controls::RowTracks::new(
-                super::controls::RowFocusCue::EnclosingFrame,
-                geometry.primary,
-            )
-            .with_provisional(geometry.navigation),
-            &bands,
-            super::controls::ControlSurface::Overlay,
-            state,
-            theme,
+    // The focused value scrolls with its caret; at rest a name truncates at its end and a path
+    // in its middle.
+    let ellipsis = theme.glyphs.ellipsis;
+    let name_value = if directory_active {
+        truncate_display(
+            &sanitize_terminal_text(draft.quick_text(false)),
+            width,
+            ellipsis,
         )
-        .expect("admitted quick setup field row must paint");
-        assert_eq!(painted, geometry.row);
-        if !active {
-            hits.record_modal_control(
-                HitLayer::Overlay,
-                geometry.row,
-                target,
-                InteractionAvailability::Enabled,
+    } else {
+        name.display().to_owned()
+    };
+    let directory_value = if directory_active {
+        directory.display().to_owned()
+    } else {
+        truncate_display_middle(
+            &sanitize_terminal_text(draft.quick_text(true)),
+            width,
+            ellipsis,
+        )
+    };
+    paint_field(frame, name_row, &name_value, false, theme);
+    paint_field(frame, directory_row, &directory_value, false, theme);
+    // A press on the other field moves the caret there.
+    hits.record_modal_control(
+        HitLayer::Overlay,
+        if directory_active {
+            name_row
+        } else {
+            directory_row
+        },
+        target(ModalControl::NextField),
+        InteractionAvailability::Enabled,
+    );
+    if let Some(list) = layout.row(CHOICES) {
+        for (offset, (index, path)) in choices.iter().enumerate() {
+            let Some(y) = u16::try_from(offset)
+                .ok()
+                .and_then(|offset| list.y.checked_add(offset))
+                .filter(|y| *y < list.bottom())
+            else {
+                break;
+            };
+            let rect = Rect::new(list.x, y, list.width, 1);
+            let marker = if draft.selected_directory() == Some(*index) {
+                theme.glyphs.active_marker
+            } else {
+                " "
+            };
+            let prefix = format!("{marker} {} ", index + 1);
+            let text = format!(
+                "{prefix}{}",
+                truncate_display_middle(
+                    &sanitize_terminal_text(path.as_str()),
+                    usize::from(list.width).saturating_sub(display_width(&prefix)),
+                    ellipsis,
+                )
             );
-        }
-    }
-    for (row, (index, _)) in choices.iter().enumerate() {
-        let rect = super::controls::text_row(&text, layout.inner, choices_start + row);
-        if rect.height == 1 && layout.inner.intersection(rect) == rect {
+            frame.render_widget(
+                Paragraph::new(text).style(theme.style(Role::TextSecondary)),
+                rect,
+            );
             hits.record_modal_control(
                 HitLayer::Overlay,
                 rect,
-                HitTarget::Setup {
-                    token: draft.token(),
-                    control: ModalControl::Choice(*index),
-                },
+                target(ModalControl::Choice(*index)),
                 InteractionAvailability::Enabled,
             );
         }
     }
-    hits.record(
-        HitLayer::OverlaySurface,
-        layout.area,
-        HitTarget::OverlaySurface,
-    );
-    let (field_index, window, geometry) = if directory_active {
-        (QUICK_DIRECTORY_LABEL + 1, &directory, directory_geometry)
+    let (row, window) = if directory_active {
+        (directory_row, &directory)
     } else {
-        (QUICK_NAME_LABEL + 1, &name, name_geometry)
+        (name_row, &name)
     };
-    set_modal_cursor(
-        frame,
-        &text,
-        layout.inner,
-        field_index,
-        geometry.prefix_width() + 2 + window.cursor_column(),
-    );
+    place_caret(frame, row, window.cursor_column(), theme);
     (layout.area, ModalPresentation::Presented(draft.token()))
-}
-
-fn overlay_block(theme: &Theme) -> Block<'static> {
-    super::overlay_surface(theme, Padding::horizontal(2))
 }
 
 #[cfg(test)]

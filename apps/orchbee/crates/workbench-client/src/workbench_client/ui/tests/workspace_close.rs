@@ -593,7 +593,7 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
                         "{locale:?} {width}x{height}"
                     );
                     assert!(
-                        alnum(&text).contains(&alnum(locale.workspace_close_warning())),
+                        alnum(&text).contains(&alnum(locale.workspace_close_consequence(false)[0])),
                         "{text}"
                     );
                     assert!(alnum(&text).contains("项目space界"));
@@ -1084,9 +1084,9 @@ fn confirmed_workspace_close_shows_pending_through_the_ui_tick_after_200_ms() {
                 !alnum(&early).contains(&alnum(&phase)),
                 "{background} {locale:?}"
             );
-            // The complete status names its status command and cannot fit an ordinary width.
-            assert!(crate::terminal_text::display_width(&complete) > 80);
-            // The floating chip and the TooSmall row both fall back to the scope.
+            // A pending close names no status command, so its complete status is its scope.
+            assert_eq!(complete, scope);
+            // The floating chip and the TooSmall row both show the scope.
             for (width, height) in [(80, 24), (60, 4)] {
                 let text = draw_taught(&mut ui, locale, width, height);
                 assert!(

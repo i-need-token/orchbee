@@ -22,9 +22,9 @@ use orchbee_workbench_protocol::{
     TerminalDisplayAppearance,
 };
 pub(crate) use parameters::{
-    SettingUnit, SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind,
-    SettingsDraftState, SettingsFieldRequirement, SettingsHintLabel, SettingsProfileLabel,
-    SettingsRow, SettingsValue,
+    SettingUnit, SettingsAcceptLabel, SettingsCategory, SettingsChoice, SettingsDetail,
+    SettingsDetailKind, SettingsDraftState, SettingsFieldRequirement, SettingsHintLabel,
+    SettingsProfileLabel, SettingsRow, SettingsValue,
 };
 use parameters::{
     SettingsCategory as SettingCategory, SettingsChoice as Choice, SettingsRow as Row,
@@ -36,10 +36,17 @@ impl Locale {
             Self::ZhCn => "返回",
         }
     }
-    pub(crate) fn settings_accept_button(self) -> &'static str {
-        match self {
-            Self::EnUs => "Confirm",
-            Self::ZhCn => "确认",
+    /// The child step's primary names its outcome: applying an edit, or the confirmed action.
+    pub(crate) fn settings_accept_button(self, label: SettingsAcceptLabel) -> &'static str {
+        match (self, label) {
+            (Self::EnUs, SettingsAcceptLabel::Apply) => "Apply",
+            (Self::ZhCn, SettingsAcceptLabel::Apply) => "应用",
+            (Self::EnUs, SettingsAcceptLabel::Reset) => "Reset",
+            (Self::ZhCn, SettingsAcceptLabel::Reset) => "重置",
+            (Self::EnUs, SettingsAcceptLabel::Reload) => "Reload",
+            (Self::ZhCn, SettingsAcceptLabel::Reload) => "重新读取",
+            (Self::EnUs, SettingsAcceptLabel::Delete) => "Delete",
+            (Self::ZhCn, SettingsAcceptLabel::Delete) => "删除",
         }
     }
     pub(crate) fn settings_close_button(self) -> &'static str {
@@ -299,7 +306,6 @@ impl Locale {
             SettingsHintLabel::Cancel => self.setting("cancel", "取消"),
             SettingsHintLabel::Confirm => self.setting("confirm", "确认"),
             SettingsHintLabel::Accept => self.setting("accept", "接受"),
-            SettingsHintLabel::Clear => self.setting("clear", "清空"),
             SettingsHintLabel::ActivateEdit => self.setting("activate/edit", "操作／编辑"),
             SettingsHintLabel::Select => self.setting("select", "选择"),
             SettingsHintLabel::Change => self.setting("change", "切换"),

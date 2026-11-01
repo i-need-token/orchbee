@@ -320,7 +320,7 @@ fn visible_row(buffer: &Buffer, y: u16) -> String {
 
 fn modal_inner_area(buffer: &Buffer, map: &FrameHitMap, view: &ClientView) -> Rect {
     let shell = crate::tui_layout::project_shell_areas(buffer.area, view.sidebar_surface());
-    let modal_scope = crate::tui_layout::overlay_area(&shell);
+    let modal_scope = buffer.area;
     let surface: Vec<_> = (modal_scope.y..modal_scope.bottom())
         .flat_map(|y| (modal_scope.x..modal_scope.right()).map(move |x| (x, y)))
         .filter(|(x, y)| {
@@ -464,10 +464,10 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
                     assert_eq!(draft.stage(), SetupStage::WorkspaceProjectName);
                     assert_eq!(draft.text(), "p1界");
                     assert!(mailbox.try_recv().unwrap().is_none());
-                    if width < 60 || !draft.interactive() {
+                    if !draft.interactive() {
                         assert!(
-                            width < 80 || height < 24,
-                            "the required full/compact host sizes must present the complete popup: {capture}"
+                            width < 48 || height < 11,
+                            "every listed size from 48x11 presents the complete form: {capture}"
                         );
                         assert!(drawn.cursor.is_none());
                         assert!((0..height).all(|y| (0..width).all(|x| !matches!(
@@ -497,43 +497,39 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
                         ),
                         locale.setup_title(draft.stage()),
                     );
-                    let context = text_position(
-                        &drawn.buffer,
-                        modal_inner,
-                        &format!("{}: 项目 space 界", locale.shell().workspaces),
-                    );
-                    let helper =
-                        text_position(&drawn.buffer, modal_inner, locale.setup_input_hint(false));
+                    let target = text_position(&drawn.buffer, modal_inner, "项目 space 界");
                     let cursor = drawn
                         .cursor
                         .expect("active field keeps its real terminal cursor");
                     let bold = |position| drawn.buffer[position].modifier.contains(Modifier::BOLD);
-                    assert!(bold(title));
-                    assert!(!bold(context) && !bold(helper));
-                    assert_eq!(
-                        drawn.buffer[context].fg,
-                        theme.style(Role::TextSecondary).fg.unwrap()
-                    );
-                    assert_eq!(
-                        drawn.buffer[helper].fg,
-                        theme.style(Role::TextSecondary).fg.unwrap()
-                    );
-                    assert!(title.1 < context.1 && context.1 < cursor.y && cursor.y < helper.1);
+                    assert!(bold(title) && !bold(target));
+                    assert!(title.1 < target.1 && target.1 < cursor.y);
                     assert!(
                         visible_row(&drawn.buffer, cursor.y - 1)
                             .contains(locale.quick_workspace_name())
                     );
-                    assert!(visible_row(&drawn.buffer, cursor.y).contains("[ p1界"));
+                    let field = visible_row(&drawn.buffer, cursor.y);
+                    assert!(field.contains("p1界"));
+                    assert_eq!(field.contains("[ p1界"), !theme.field_band(), "{capture}");
+                    // No editing-key hint row: the keys are conventions, not instructions.
+                    let modal_text = (modal_inner.y..modal_inner.bottom())
+                        .flat_map(|y| (modal_inner.x..modal_inner.right()).map(move |x| (x, y)))
+                        .map(|position| drawn.buffer[position].symbol())
+                        .collect::<String>();
+                    assert!(!modal_text.contains("Ctrl") && !modal_text.contains("Backspace"));
 
                     let action = text_position(
                         &drawn.buffer,
                         modal_inner,
-                        &format!("[ {}  Enter ]", locale.setup_submit_label()),
+                        &format!(
+                            "[ {}  Enter ]",
+                            locale.setup_submit_label(SetupStage::WorkspaceProjectName)
+                        ),
                     );
                     let actions = visible_row(&drawn.buffer, action.1);
                     assert!(actions.contains(&format!("[ {}  Esc ]", locale.setup_cancel_label())));
                     assert!(!visible_row(&drawn.buffer, action.1 - 1).contains("Esc"));
-                    assert!(helper.1 < action.1);
+                    assert!(cursor.y < action.1);
                     assert_eq!(
                         drawn.buffer[(action.0 + 2, action.1)].fg,
                         theme
@@ -546,11 +542,13 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
                             .unwrap()
                     );
                     if fault {
+                        // A rejected edit marks the field at once, in its help row.
                         let feedback = text_position(
                             &drawn.buffer,
                             modal_inner,
-                            locale.setup_fault().split(['.', '。']).next().unwrap(),
+                            locale.field_error(crate::localization::FieldError::NameTooLong),
                         );
+                        assert_eq!(feedback.1, cursor.y + 1);
                         assert_eq!(
                             drawn.buffer[(feedback.0 - 2, feedback.1)].fg,
                             theme.style(Role::StatusError).fg.unwrap()

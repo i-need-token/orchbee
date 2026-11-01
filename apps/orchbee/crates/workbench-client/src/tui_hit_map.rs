@@ -272,9 +272,12 @@ pub enum GlobalChromeAction {
 pub enum ModalControl {
     Choice(usize),
     NextField,
-    Refresh,
+    /// A retained Worktree removal's Stop Tracking button.
+    Abandon,
     Submit,
     Cancel,
+    /// The frame's close control, which ends a whole dialog even from a follow-up step.
+    Close,
     Surface,
 }
 

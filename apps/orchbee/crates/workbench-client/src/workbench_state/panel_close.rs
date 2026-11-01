@@ -91,6 +91,7 @@ impl<'a> PanelCloseConfirmationView<'a> {
     pub(crate) const fn panel_position(&self) -> usize {
         self.confirmation.selection.panel_position
     }
+    #[cfg(test)]
     pub(crate) const fn tab_position(&self) -> usize {
         self.confirmation.selection.tab_position
     }

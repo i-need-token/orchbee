@@ -150,6 +150,15 @@ pub(crate) enum SettingUnit {
     Bytes,
 }
 
+/// The outcome a Settings child step's primary names.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SettingsAcceptLabel {
+    Apply,
+    Reset,
+    Reload,
+    Delete,
+}
+
 /// Semantic label paired with one locally effective Settings binding group.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsHintLabel {
@@ -160,7 +169,6 @@ pub(crate) enum SettingsHintLabel {
     Cancel,
     Confirm,
     Accept,
-    Clear,
     ActivateEdit,
     Select,
     Change,

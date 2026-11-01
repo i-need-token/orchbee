@@ -3,52 +3,66 @@
 //! the displayed state.
 
 use super::modal::{
-    ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
-    paint_modal_close, paint_modal_frame,
+    Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, ModalAction, dialog_layout,
+    modal_key_label, paint_dialog,
 };
 use crate::client_view::{Binding, KeyCode, Modifiers};
 use crate::localization::Locale;
-use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
+use crate::tui_hit_map::{HitMapBuilder, HitTarget};
 use crate::tui_presentation::ModalPresentation;
 use crate::tui_theme::Theme;
 use crate::workbench_client::PanelCloseConfirmationView;
 use crate::workbench_state::PanelCloseConfirmationToken;
-use ratatui::{
-    Frame,
-    layout::Rect,
-    text::{Line, Text},
-    widgets::Paragraph,
-};
+use ratatui::{Frame, layout::Rect};
 
 pub(super) struct PanelModalDraw {
     pub(super) area: Rect,
     pub(super) prompt: ModalPresentation<PanelCloseConfirmationToken>,
 }
 
-struct PreparedContent<'a> {
-    title: &'a str,
-    text: Text<'a>,
-    hints: &'a [super::controls::KeyHint<'a>],
-    actions: [ModalAction<'a>; 2],
+/// The localized decision a Panel close presents, resolved before geometry.
+struct PanelCloseCopy {
+    target: String,
+    tab: String,
+    dissolves_tab: bool,
+    consequence: String,
 }
 
 pub(super) fn render(
     frame: &mut Frame<'_>,
     locale: Locale,
     confirmation: &PanelCloseConfirmationView<'_>,
-    content_area: Rect,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> PanelModalDraw {
-    let text = confirmation_text(
-        locale,
-        confirmation.panel_position(),
-        confirmation.tab_position(),
-        confirmation.panel_label(),
-        &confirmation.tab_label(locale),
-        locale.panel_close_warning(confirmation.dissolves_tab(), confirmation.impact()),
-        theme,
-    );
+    let copy = PanelCloseCopy {
+        target: locale
+            .panel_close_target(confirmation.panel_position(), confirmation.panel_label()),
+        tab: locale.panel_close_tab(&confirmation.tab_label(locale)),
+        dissolves_tab: confirmation.dissolves_tab(),
+        consequence: locale.close_warning(confirmation.impact()),
+    };
+    render_prepared(frame, locale, confirmation.token(), &copy, theme, hits)
+}
+
+/// The same atomic admission and paint the production compositor uses, from resolved copy.
+fn render_prepared(
+    frame: &mut Frame<'_>,
+    locale: Locale,
+    token: PanelCloseConfirmationToken,
+    copy: &PanelCloseCopy,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) -> PanelModalDraw {
+    let mut rows = vec![
+        DialogRow::Target(copy.target.as_str().into()),
+        DialogRow::Context(copy.tab.as_str().into()),
+        DialogRow::Blank,
+    ];
+    if copy.dissolves_tab {
+        rows.push(DialogRow::Prose(locale.panel_close_last_panel().into()));
+    }
+    rows.push(DialogRow::Prose(copy.consequence.as_str().into()));
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
     let confirm = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
     let actions = [
@@ -58,155 +72,46 @@ pub(super) fn render(
             true,
         )
         .with_shortcut(&escape),
+        // Closing a Panel ends or discards its terminals, as closing a Tab does.
         ModalAction::new(
             locale.panel_close_confirm_label(),
             super::controls::ActionKind::Primary,
             true,
         )
         .with_shortcut(&confirm)
-        // Closing a Panel ends or discards its terminals, as closing a Tab does.
-        .with_tone(crate::action_projection::ActionTone::Destructive),
+        .with_tone(crate::action_projection::ActionTone::Destructive)
+        .focused(true),
     ];
-    render_prepared(
-        frame,
-        confirmation.token(),
-        content_area,
-        PreparedContent {
-            title: locale.panel_close_title(),
-            text,
-            hints: &[],
-            actions,
-        },
-        theme,
-        hits,
-    )
-}
-
-fn render_prepared(
-    frame: &mut Frame<'_>,
-    token: PanelCloseConfirmationToken,
-    content_area: Rect,
-    content: PreparedContent<'_>,
-    theme: &Theme,
-    hits: &mut HitMapBuilder,
-) -> PanelModalDraw {
-    let PreparedContent {
-        title,
-        text,
-        hints,
-        actions,
-    } = content;
-    let Some(layout) = modal_layout(
-        frame.area(),
-        content_area,
-        title,
-        &text,
-        hints,
-        actions,
-        theme,
-    ) else {
+    let dialog = Dialog {
+        title: locale.panel_close_title(),
+        class: DialogClass::Narrow,
+        rows,
+        footer: DialogFooter::Actions(&actions),
+    };
+    let Some(layout) = dialog_layout(frame.area(), &dialog, theme) else {
         return PanelModalDraw {
             area: Rect::default(),
             prompt: ModalPresentation::NotPresented,
         };
     };
-
-    hits.start_modal();
-    paint_modal_frame(frame, layout.area, title, theme);
-    frame.render_widget(
-        Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner.width)),
-        layout.inner,
-    );
-    paint_modal_close(
+    let target = |confirm| HitTarget::PanelClose { token, confirm };
+    paint_dialog(
         frame,
-        layout.close,
-        HitTarget::PanelClose {
-            token,
-            confirm: false,
+        &dialog,
+        &layout,
+        &DialogTargets {
+            close: target(false),
+            actions: &[target(false), target(true)],
+            dismiss_outside: false,
+            scroll: None,
         },
-        true,
         theme,
         hits,
-    );
-    if !hints.is_empty() {
-        let rendered_hints =
-            super::controls::render_overlay_hints(frame, layout.hints, hints, theme)
-                .expect("admitted modal hints must paint");
-        debug_assert!(layout.hints.intersection(rendered_hints) == rendered_hints);
-    }
-    for ((rect, action), confirm) in layout.actions.into_iter().zip(actions).zip([false, true]) {
-        paint_modal_action(
-            frame,
-            Rect::new(rect.x, rect.y, layout.inner.right() - rect.x, 1),
-            rect,
-            action,
-            HitTarget::PanelClose { token, confirm },
-            theme,
-            hits,
-        );
-    }
-    hits.record(
-        HitLayer::OverlaySurface,
-        layout.area,
-        HitTarget::OverlaySurface,
     );
     PanelModalDraw {
         area: layout.area,
         prompt: ModalPresentation::Presented(token),
     }
-}
-
-fn confirmation_text(
-    locale: Locale,
-    panel_position: usize,
-    tab_position: usize,
-    panel_label: &str,
-    tab_label: &str,
-    warning: String,
-    theme: &Theme,
-) -> Text<'static> {
-    let [panel, tab] =
-        locale.panel_close_targets(panel_position, tab_position, panel_label, tab_label);
-    Text::from(vec![
-        Line::from(""),
-        Line::from(panel),
-        description_line(tab, theme),
-        Line::from(""),
-        Line::from(warning),
-        Line::from(""),
-        Line::from(""),
-    ])
-}
-
-/// Test seam for the same atomic geometry admission and paint used by the
-/// production panel-close compositor.
-#[cfg(test)]
-fn render_content(
-    frame: &mut Frame<'_>,
-    content_area: Rect,
-    text: Text<'_>,
-    hints: &[super::controls::KeyHint<'_>],
-    actions: [ModalAction<'_>; 2],
-    theme: &Theme,
-) -> (Rect, bool) {
-    let mut hits = HitMapBuilder::new();
-    let draw = render_prepared(
-        frame,
-        PanelCloseConfirmationToken::for_test(0),
-        content_area,
-        PreparedContent {
-            title: Locale::EnUs.panel_close_title(),
-            text,
-            hints,
-            actions,
-        },
-        theme,
-        &mut hits,
-    );
-    (
-        draw.area,
-        matches!(draw.prompt, ModalPresentation::Presented(_)),
-    )
 }
 
 #[cfg(test)]

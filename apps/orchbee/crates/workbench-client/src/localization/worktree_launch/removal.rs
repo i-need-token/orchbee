@@ -6,48 +6,48 @@ use orchbee_workbench_protocol::{
 };
 
 impl Locale {
-    pub(crate) fn worktree_remove_title(self, label: &str) -> String {
+    pub(crate) fn worktree_remove_title(self) -> &'static str {
         match self {
-            Self::EnUs => format!("Remove worktree: {label}"),
-            Self::ZhCn => format!("移除工作树：{label}"),
+            Self::EnUs => "Remove Worktree?",
+            Self::ZhCn => "移除工作树？",
         }
     }
+    /// What ends and what is deleted, with counts.
     pub(crate) fn worktree_remove_scope(self, terminals: usize) -> String {
-        match self {
-            Self::EnUs if terminals == 1 => {
-                "Remove this checkout and close its Workspace and its 1 terminal.".to_owned()
+        match (self, terminals) {
+            (Self::EnUs, 0) => "Closes its Workspace and deletes the checkout.".to_owned(),
+            (Self::ZhCn, 0) => "将关闭其工作区，并删除检出目录。".to_owned(),
+            (Self::EnUs, 1) => {
+                "Ends 1 terminal, closes its Workspace and deletes the checkout.".to_owned()
             }
-            Self::EnUs => format!(
-                "Remove this checkout and close its Workspace and all {terminals} terminals."
+            (Self::EnUs, terminals) => format!(
+                "Ends {terminals} terminals, closes its Workspace and deletes the checkout."
             ),
-            Self::ZhCn => format!("移除此检出目录，并关闭对应工作区及其全部 {terminals} 个终端。"),
+            (Self::ZhCn, terminals) => {
+                format!("将结束 {terminals} 个终端，关闭其工作区，并删除检出目录。")
+            }
         }
     }
     pub(crate) fn worktree_remove_branch(self, branch: Option<&str>) -> String {
         let branch = branch.map(|branch| branch.strip_prefix("refs/heads/").unwrap_or(branch));
         match (self, branch) {
-            (Self::EnUs, Some(branch)) => format!("Branch kept: {branch}"),
-            (Self::ZhCn, Some(branch)) => format!("保留分支：{branch}"),
-            (Self::EnUs, None) => "Detached checkout; existing branches are kept.".to_owned(),
-            (Self::ZhCn, None) => "此检出未附着分支，已有分支均会保留。".to_owned(),
+            (Self::EnUs, Some(branch)) => format!("Branch {branch} is kept."),
+            (Self::ZhCn, Some(branch)) => format!("分支 {branch} 会保留。"),
+            (Self::EnUs, None) => "Existing branches are kept.".to_owned(),
+            (Self::ZhCn, None) => "已有分支会保留。".to_owned(),
         }
     }
-    pub(crate) fn worktree_remove_submit(
-        self,
-        stage: WorktreeStage,
-        resumable: bool,
-    ) -> &'static str {
-        match (self, stage, resumable) {
-            (Self::EnUs, WorktreeStage::Remove, _) => "Remove",
-            (Self::ZhCn, WorktreeStage::Remove, _) => "移除",
-            (Self::EnUs, WorktreeStage::ResumeRemove, _) => "Resume removal",
-            (Self::ZhCn, WorktreeStage::ResumeRemove, _) => "恢复移除",
-            (Self::EnUs, WorktreeStage::AbandonRemove, _) => "Abandon",
-            (Self::ZhCn, WorktreeStage::AbandonRemove, _) => "放弃",
-            (Self::EnUs, _, true) => "Resume removal…",
-            (Self::ZhCn, _, true) => "恢复移除…",
-            (Self::EnUs, _, false) => "Read status",
-            (Self::ZhCn, _, false) => "查询状态",
+    /// The primary of a removal decision; a retained failure first offers its resume step.
+    pub(crate) fn worktree_remove_submit(self, stage: WorktreeStage) -> &'static str {
+        match (self, stage) {
+            (Self::EnUs, WorktreeStage::Remove) => "Remove",
+            (Self::ZhCn, WorktreeStage::Remove) => "移除",
+            (Self::EnUs, WorktreeStage::AbandonRemove) => "Stop Tracking",
+            (Self::ZhCn, WorktreeStage::AbandonRemove) => "停止跟踪",
+            (Self::EnUs, WorktreeStage::ResumeRemove) => "Resume Removal",
+            (Self::ZhCn, WorktreeStage::ResumeRemove) => "恢复移除",
+            (Self::EnUs, _) => "Resume Removal…",
+            (Self::ZhCn, _) => "恢复移除…",
         }
     }
     pub(crate) fn worktree_remove_failure(self, reason: &WorktreeOperationFailure) -> &'static str {
@@ -96,29 +96,29 @@ impl Locale {
                 "终端未能全部关闭。请检查子终端、固定标签页和标签组。"
             }
             (Self::EnUs, F::SourceChanged { .. }) => {
-                "The checkout or Workspace changed. Read status before continuing."
+                "The checkout or Workspace changed. Check it before you continue."
             }
-            (Self::ZhCn, F::SourceChanged { .. }) => "检出目录或工作区已变化。请先查询状态。",
+            (Self::ZhCn, F::SourceChanged { .. }) => "检出目录或工作区已变化。请检查后再继续。",
             (Self::EnUs, F::PhysicalUnknown { .. } | F::TransportUnknown { .. }) => {
-                "Removal outcome is unknown. Read status; do not start another removal."
+                "Removal outcome is unknown. Do not start another removal."
             }
             (Self::ZhCn, F::PhysicalUnknown { .. } | F::TransportUnknown { .. }) => {
-                "移除结果未知。请查询状态，不要重新发起移除。"
+                "移除结果未知。请不要重新发起移除。"
             }
             (
                 Self::EnUs,
                 F::WorkerUnavailable { .. } | F::WorkerBusy { .. } | F::WorkerCapacity { .. },
-            ) => "The Worker is unavailable or busy. Read status, then resume when offered.",
+            ) => "The Worker is unavailable or busy. Resume when it is offered.",
             (
                 Self::ZhCn,
                 F::WorkerUnavailable { .. } | F::WorkerBusy { .. } | F::WorkerCapacity { .. },
-            ) => "Worker 不可用或忙碌。请查询状态，在允许时恢复移除。",
+            ) => "Worker 不可用或忙碌。可以恢复时再恢复移除。",
             (Self::EnUs, F::Unsupported { .. }) => "This Worker does not support worktree removal.",
             (Self::ZhCn, F::Unsupported { .. }) => "此 Worker 不支持移除工作树。",
             (Self::EnUs, F::SessionStopping { .. }) => {
-                "The Session is stopping. Read status before continuing."
+                "The Session is stopping. Continue after it restarts."
             }
-            (Self::ZhCn, F::SessionStopping { .. }) => "会话正在停止。请先查询状态。",
+            (Self::ZhCn, F::SessionStopping { .. }) => "会话正在停止。请在它重新启动后继续。",
             (
                 Self::EnUs,
                 F::Git {
@@ -181,19 +181,23 @@ impl Locale {
             }
         }
     }
-    /// Footer hint and confirmation text for forgetting a retained removal in this Client only.
-    pub(crate) fn worktree_remove_abandon_hint(self) -> &'static str {
+    /// The button and confirmation for forgetting a retained removal in this Client only.
+    pub(crate) fn worktree_remove_abandon_label(self) -> &'static str {
         match self {
-            Self::EnUs => "Abandon",
-            Self::ZhCn => "放弃",
+            Self::EnUs => "Stop Tracking…",
+            Self::ZhCn => "停止跟踪…",
+        }
+    }
+    pub(crate) fn worktree_remove_abandon_title(self) -> &'static str {
+        match self {
+            Self::EnUs => "Stop Tracking Removal?",
+            Self::ZhCn => "停止跟踪移除？",
         }
     }
     pub(crate) fn worktree_remove_abandon_notice(self) -> &'static str {
         match self {
-            Self::EnUs => {
-                "Stop tracking this removal in this Client? Server work is not cancelled."
-            }
-            Self::ZhCn => "在此客户端放弃跟踪这次移除？服务端操作不会取消。",
+            Self::EnUs => "The removal continues; only this Client stops tracking it.",
+            Self::ZhCn => "移除会继续进行，只是此客户端不再跟踪。",
         }
     }
     /// A failed removal that cannot resume can still hold its Workspace closing.

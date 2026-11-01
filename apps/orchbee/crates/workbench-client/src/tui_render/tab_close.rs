@@ -3,24 +3,18 @@
 //! effects.
 
 use super::modal::{
-    ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
-    paint_modal_close, paint_modal_frame,
+    Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, ModalAction, dialog_layout,
+    modal_key_label, paint_dialog,
 };
 use crate::action_projection::ActionTone;
 use crate::client_view::{Binding, KeyCode, Modifiers};
 use crate::localization::Locale;
-use crate::terminal_text::{display_width, sanitize_terminal_text, truncate_display};
-use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget};
+use crate::tui_hit_map::{HitMapBuilder, HitTarget};
 use crate::tui_presentation::ModalPresentation;
-use crate::tui_theme::Theme;
+use crate::tui_theme::{Role, Theme};
 use crate::workbench_client::CloseConfirmationView;
 use crate::workbench_state::{CloseConfirmationToken, CloseStatusToken};
-use ratatui::{
-    Frame,
-    layout::Rect,
-    text::{Line, Text},
-    widgets::Paragraph,
-};
+use ratatui::{Frame, layout::Rect};
 
 pub(super) struct ModalDraw {
     pub(super) area: Rect,
@@ -32,7 +26,6 @@ pub(super) fn render(
     frame: &mut Frame<'_>,
     locale: Locale,
     confirmation: &CloseConfirmationView<'_>,
-    content_area: Rect,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> ModalDraw {
@@ -41,65 +34,44 @@ pub(super) fn render(
         || locale.close_title(confirmation.kind()).to_owned(),
         |count| locale.close_set_title(count),
     );
-    let mut lines = if let Some(count) = confirmation.set_count() {
-        // Names are previews, not target identities. Bound them to one line, reserving the
-        // modal margin, border and padding; the full warning/count must still fit to arm it.
-        let preview_width = usize::from(content_area.width.saturating_sub(10)).min(64);
-        let mut lines = vec![
-            Line::from(""),
-            description_line(
-                truncate_display(
-                    &locale.close_set_context(confirmation.set_context_label().unwrap_or_default()),
-                    preview_width,
-                    theme.glyphs.ellipsis,
-                ),
-                theme,
-            ),
-        ];
+    let mut rows = Vec::new();
+    if let Some(count) = confirmation.set_count() {
+        // Names are previews, not target identities; each truncates to the dialog width.
         for (position, label) in confirmation
             .set_labels(locale)
             .unwrap_or_default()
-            .iter()
+            .into_iter()
             .take(3)
         {
-            let prefix = format!("#{position} · ");
-            lines.push(Line::from(format!(
-                "{prefix}{}",
-                truncate_display(
-                    &sanitize_terminal_text(label),
-                    preview_width.saturating_sub(display_width(&prefix)),
-                    theme.glyphs.ellipsis,
-                )
-            )));
+            rows.push(DialogRow::Item(
+                format!("#{position} · {label}").into(),
+                Role::TextPrimary,
+            ));
         }
         if count > 3 {
-            lines.push(description_line(locale.close_set_more(count - 3), theme));
+            rows.push(DialogRow::Item(
+                locale.close_set_more(count - 3).into(),
+                Role::TextSecondary,
+            ));
         }
-        lines.extend([
-            Line::from(""),
-            Line::from(locale.close_set_warning(confirmation.impact())),
-            Line::from(""),
-        ]);
-        lines
     } else {
-        vec![
-            Line::from(""),
-            Line::from(sanitize_terminal_text(&confirmation.target_label(locale)).into_owned()),
-            Line::from(""),
-            Line::from(locale.close_warning(confirmation.impact())),
-            Line::from(""),
-        ]
-    };
+        rows.push(DialogRow::Target(confirmation.target_label(locale)));
+    }
+    rows.push(DialogRow::Blank);
+    rows.push(DialogRow::Prose(
+        locale.close_warning(confirmation.impact()).into(),
+    ));
     if let Some(status) = status.as_ref() {
         let label = status.target_label(locale);
-        lines.push(description_line(
-            locale.native_close_status(status.text(&label)),
-            theme,
+        rows.push(DialogRow::Status(
+            locale.native_close_status(status.text(&label)).into(),
+            Role::StatusWarning,
         ));
-        lines.push(Line::from(""));
         if let Some(progress) = confirmation.resume_set_status() {
-            lines.push(description_line(locale.close_set_status(progress), theme));
-            lines.push(Line::from(""));
+            rows.push(DialogRow::Status(
+                locale.close_set_status(progress).into(),
+                Role::StatusPending,
+            ));
         }
     }
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
@@ -111,68 +83,46 @@ pub(super) fn render(
             true,
         )
         .with_shortcut(&escape),
+        // A confirmation opens with focus on its primary; Enter takes it.
         ModalAction::new(
             locale.tab_close_confirm_label(),
             super::controls::ActionKind::Primary,
             true,
         )
         .with_shortcut(&confirm)
-        .with_tone(ActionTone::Destructive),
+        .with_tone(ActionTone::Destructive)
+        .focused(true),
     ];
-    lines.push(Line::from(""));
-    let text = Text::from(lines);
-    let Some(layout) = modal_layout(
-        frame.area(),
-        content_area,
-        &title,
-        &text,
-        &[],
-        actions,
-        theme,
-    ) else {
+    let dialog = Dialog {
+        title: &title,
+        class: DialogClass::Narrow,
+        rows,
+        footer: DialogFooter::Actions(&actions),
+    };
+    let Some(layout) = dialog_layout(frame.area(), &dialog, theme) else {
         return ModalDraw {
             area: Rect::default(),
             prompt: ModalPresentation::NotPresented,
             status: None,
         };
     };
-
-    hits.start_modal();
-    hits.record(
-        HitLayer::OverlaySurface,
-        layout.area,
-        HitTarget::OverlaySurface,
-    );
-    paint_modal_frame(frame, layout.area, &title, theme);
-    frame.render_widget(
-        Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner.width)),
-        layout.inner,
-    );
-    paint_modal_close(
+    let target = |confirm| HitTarget::TabClose {
+        token: confirmation.token(),
+        confirm,
+    };
+    paint_dialog(
         frame,
-        layout.close,
-        HitTarget::TabClose {
-            token: confirmation.token(),
-            confirm: false,
+        &dialog,
+        &layout,
+        &DialogTargets {
+            close: target(false),
+            actions: &[target(false), target(true)],
+            dismiss_outside: false,
+            scroll: None,
         },
-        true,
         theme,
         hits,
     );
-    for ((rect, action), confirm) in layout.actions.into_iter().zip(actions).zip([false, true]) {
-        paint_modal_action(
-            frame,
-            Rect::new(rect.x, rect.y, layout.inner.right() - rect.x, 1),
-            rect,
-            action,
-            HitTarget::TabClose {
-                token: confirmation.token(),
-                confirm,
-            },
-            theme,
-            hits,
-        );
-    }
     ModalDraw {
         area: layout.area,
         prompt: ModalPresentation::Presented(confirmation.token()),

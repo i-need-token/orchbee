@@ -106,11 +106,6 @@ fn actual_localized_draw_and_exact_token_enter_submit_one_unicode_rename() -> Te
             rendered.replace(' ', "").contains("[initial_workspace]"),
             "locale={locale:?}\n{rendered}"
         );
-        assert!(
-            !rendered
-                .replace(' ', "")
-                .contains(&locale.rename_warning().replace(' ', ""))
-        );
         assert_eq!(
             workbench_client.rename_input_context().unwrap().token(),
             token
@@ -737,12 +732,6 @@ fn actual_navigator_to_rename_entry_dismisses_overlay_and_qualifies_only_the_edi
     )?;
     assert!(
         rendered.replace(' ', "").contains("[initial_workspace]"),
-        "{rendered}"
-    );
-    assert!(
-        !rendered
-            .replace(' ', "")
-            .contains(&Locale::EnUs.rename_warning().replace(' ', "")),
         "{rendered}"
     );
     assert_eq!(

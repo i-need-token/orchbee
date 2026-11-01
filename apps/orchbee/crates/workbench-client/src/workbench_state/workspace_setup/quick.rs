@@ -280,6 +280,13 @@ impl QuickWorkspaceFields {
             &mut self.name
         }
     }
+    pub(crate) fn name_valid(&self) -> bool {
+        WorkbenchLabel::parse_workspace(self.name()).is_ok()
+    }
+    pub(crate) fn directory_valid(&self) -> bool {
+        self.normalized_path()
+            .is_some_and(|path| WorkbenchDirectoryPath::parse(&path).is_ok())
+    }
     pub(crate) fn plan(&self) -> Option<QuickLaunchPlan> {
         if self.project == QuickProject::Choose {
             return None;
@@ -438,6 +445,7 @@ impl WorkbenchClientState {
             shown: false,
             complete: true,
             faulted: false,
+            touched: [false; 2],
             quick: None,
             continuation: None,
             parent: None,
@@ -559,6 +567,7 @@ impl WorkbenchClientState {
             shown: false,
             complete: true,
             faulted: false,
+            touched: [false; 2],
             quick: Some(fields),
             continuation: (!preparation.review_directory).then_some(preparation.deadlines),
             parent: None,

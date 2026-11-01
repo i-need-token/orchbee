@@ -8,9 +8,9 @@ use crate::client_view::SidebarSurface;
 use crate::workbench_projection::ClientPanelTree;
 
 use super::{
-    LeafArea, PaneFrame, SidebarLayer, SidebarWidth, ViewportTier, centered_overlay, divide_panes,
-    divider_glyph, native_terminal_area, overlay_area, place_overlay, project_panel_tree,
-    project_shell_areas, status_chip_area, terminal_area,
+    LeafArea, PaneFrame, SidebarLayer, SidebarWidth, ViewportTier, divide_panes, divider_glyph,
+    native_terminal_area, place_overlay, project_panel_tree, project_shell_areas, status_chip_area,
+    terminal_area,
 };
 
 #[test]
@@ -187,26 +187,19 @@ fn terminal_area_reports_degenerate_panels_as_empty_never_fabricated() {
 }
 
 #[test]
-fn centers_content_overlays_in_the_whole_content_that_the_status_floats_over() {
+fn centers_overlays_in_the_whole_window_off_the_last_row_the_status_floats_over() {
     let viewport = Rect::new(0, 0, 120, 40);
     let areas = project_shell_areas(viewport, SidebarSurface::Docked(SidebarWidth::DEFAULT));
-    let content = overlay_area(&areas);
-
-    assert_eq!(content, Rect::new(30, 1, 90, 39));
-    assert_eq!(content.bottom(), areas.status.bottom());
 
     // The margin keeps the largest overlay off the last row the status floats over.
-    let placed = place_overlay(content, u16::MAX, u16::MAX).unwrap();
-    assert_eq!(placed, Rect::new(32, 2, 86, 37));
+    let placed = place_overlay(viewport, u16::MAX, u16::MAX).unwrap();
+    assert_eq!(placed, Rect::new(2, 1, 116, 38));
     assert!(!placed.intersects(areas.status));
 }
 
 #[test]
 fn refuses_overlays_below_the_minimum_inner_area() {
-    let areas = project_shell_areas(Rect::new(0, 0, 50, 10), SidebarSurface::Hidden);
-    let content = overlay_area(&areas);
-
-    assert!(place_overlay(content, 60, 8).is_some());
+    assert!(place_overlay(Rect::new(0, 0, 50, 10), 60, 8).is_some());
     // Inner height would be 2 rows once margins and the border are removed.
     assert_eq!(place_overlay(Rect::new(0, 0, 20, 6), 10, 4), None);
     assert_eq!(place_overlay(Rect::new(0, 0, 9, 20), 7, 10), None);
@@ -313,14 +306,6 @@ fn resolves_divider_junction_glyphs_from_neighbouring_cells() {
     assert_eq!(divider_glyph(false, true, true, true), '┬');
     assert_eq!(divider_glyph(true, false, true, true), '┴');
     assert_eq!(divider_glyph(true, true, true, true), '┼');
-}
-
-#[test]
-fn clips_legacy_centered_overlays_to_tiny_viewports() {
-    let viewport = Rect::new(7, 9, 12, 4);
-    let centered = centered_overlay(viewport, 72, 28);
-
-    assert_eq!(centered, Rect::new(9, 10, 8, 2));
 }
 
 fn tree_id(value: u128) -> String {

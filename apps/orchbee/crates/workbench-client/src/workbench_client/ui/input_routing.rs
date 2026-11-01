@@ -196,6 +196,10 @@ impl WorkbenchClientUi {
                 self.cancel_setup_draft(token);
                 None
             }
+            SurfaceAction::Setup(SetupAction::Close(token)) => {
+                self.close_setup_draft(token);
+                None
+            }
             SurfaceAction::Setup(SetupAction::Choose { token, index }) => {
                 self.choose_setup_project(token, index);
                 None

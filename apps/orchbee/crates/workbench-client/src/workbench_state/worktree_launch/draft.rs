@@ -7,12 +7,13 @@ use crate::tui_presentation::PresentationPhase;
 use crate::workbench_state::field_window::{FieldWindow, field_window};
 use crate::workbench_state::line_editor::{LengthLimit, LineEditor};
 use orchbee_workbench_protocol::{
-    WorkbenchRequestId, WorkbenchTerminalGeometry, WorkbenchWorktreeOutcome, WorktreeEntryText,
-    WorktreeIntent, WorktreeReference, WorktreeSelector, WorktreeSource,
+    WorkbenchRequestId, WorkbenchTerminalGeometry, WorktreeEntryText, WorktreeIntent,
+    WorktreeReference, WorktreeSelector, WorktreeSource,
 };
 /// Single-line edits and choice movement; never interpreted as terminal input.
 pub enum WorktreeEdit<'a> {
-    ReadStatus,
+    /// The retained removal's Stop Tracking button, the same as its `x` key.
+    Abandon,
     NextField,
     Append(&'a str),
     Paste(&'a str),
@@ -28,7 +29,10 @@ pub enum WorktreeEdit<'a> {
     Completeness(bool),
     Previous,
     Next,
-    ScrollChoices { up: bool, lines: usize },
+    ScrollChoices {
+        up: bool,
+        lines: usize,
+    },
 }
 pub(super) struct Draft {
     pub(crate) removal: Option<super::Removal>,
@@ -311,9 +315,6 @@ impl<'a> WorktreeView<'a> {
                 .map_or(self.launcher.requested, |op| intent_mode(&op.plan.intent)),
         }
     }
-    pub(crate) fn notice(&self) -> WorktreeNotice {
-        self.launcher.notice
-    }
     pub(crate) fn stated_notice(&self) -> Option<WorktreeNotice> {
         self.launcher.stated_notice()
     }
@@ -380,21 +381,10 @@ impl<'a> WorktreeView<'a> {
         };
         Some((label, path))
     }
-    pub(crate) fn operation_id(&self) -> Option<&'a str> {
-        self.launcher
-            .operation()
-            .map(|op| op.plan.operation_id.as_str())
-            .or_else(|| match &self.launcher.phase {
-                Phase::Starting(p) => Some(p.operation_id.as_str()),
-                _ => None,
-            })
-    }
-    /// Read status needs a retained operation; a preparation or listing failure has none.
-    pub(crate) fn can_read_status(&self) -> bool {
-        self.operation_id().is_some()
-    }
+    /// The Workspace a known receipt names; the dialog no longer shows it.
+    #[cfg(test)]
     pub(crate) fn workspace(&self) -> Option<&'a str> {
-        let WorkbenchWorktreeOutcome::Available { status, .. } =
+        let orchbee_workbench_protocol::WorkbenchWorktreeOutcome::Available { status, .. } =
             self.launcher.operation()?.outcome.as_ref()?
         else {
             return None;
@@ -423,6 +413,54 @@ impl<'a> WorktreeView<'a> {
                 }
             }
             orchbee_workbench_protocol::WorktreeOperationStatus::Removed { .. } => None,
+        }
+    }
+    pub(crate) fn operation_id(&self) -> Option<&'a str> {
+        self.launcher
+            .operation()
+            .map(|op| op.plan.operation_id.as_str())
+            .or_else(|| match &self.launcher.phase {
+                Phase::Starting(p) => Some(p.operation_id.as_str()),
+                _ => None,
+            })
+    }
+    /// A Branch or Base value's error, shown as soon as an edit makes it invalid. A rejected
+    /// insertion reports the active field's limit or invalid text until that field changes.
+    pub(crate) fn field_error(
+        &self,
+        base: bool,
+    ) -> Option<crate::localization::WorktreeFieldError> {
+        use crate::localization::WorktreeFieldError;
+        let Phase::Draft(d) = &self.launcher.phase else {
+            return None;
+        };
+        if d.mode != WorktreeMode::Create {
+            return None;
+        }
+        let field = if base {
+            WorktreeStage::Base
+        } else {
+            WorktreeStage::Branch
+        };
+        if d.stage == field {
+            match self.launcher.notice {
+                WorktreeNotice::InputLimit => return Some(WorktreeFieldError::TooLong),
+                WorktreeNotice::InvalidInput if d.fault => {
+                    return Some(WorktreeFieldError::Invalid);
+                }
+                _ => {}
+            }
+        }
+        let text = if base { d.base.text() } else { d.branch.text() };
+        (!text.is_empty() && WorktreeReference::parse(text).is_err())
+            .then_some(WorktreeFieldError::Invalid)
+    }
+    /// The first field whose error blocks submission.
+    pub(crate) fn first_invalid_field(&self) -> Option<WorktreeStage> {
+        if self.field_error(false).is_some() {
+            Some(WorktreeStage::Branch)
+        } else {
+            self.field_error(true).map(|_| WorktreeStage::Base)
         }
     }
 }

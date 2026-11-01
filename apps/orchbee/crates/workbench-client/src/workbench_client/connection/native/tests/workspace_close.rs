@@ -846,11 +846,8 @@ fn workspace_and_project_close_shell_matrix_discloses_exact_scope_and_requires_a
                     let text = draw(&mut ui, locale, &theme, width, height);
                     let normalized: String = text.chars().filter(|c| c.is_alphanumeric()).collect();
                     if complete {
-                        let warning = match scope {
-                            Scope::Project => locale.project_close_all_warning(2),
-                            Scope::EmptyProject => locale.project_close_all_warning(0),
-                            _ => locale.workspace_close_warning().to_owned(),
-                        };
+                        let warning =
+                            locale.workspace_close_consequence(scope != Scope::Workspace)[0];
                         let expected: String =
                             warning.chars().filter(|c| c.is_alphanumeric()).collect();
                         assert!(

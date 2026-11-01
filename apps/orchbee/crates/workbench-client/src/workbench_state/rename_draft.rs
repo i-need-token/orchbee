@@ -26,6 +26,8 @@ struct RenameDraft {
     presentation: PresentationPhase,
     shown: bool,
     input_fault: bool,
+    /// Whether an edit or a refused submission has exposed the field's error.
+    touched: bool,
     complete: bool,
 }
 
@@ -80,6 +82,22 @@ impl<'a> RenameDraftView<'a> {
     }
     pub(crate) const fn input_fault(&self) -> bool {
         self.draft.input_fault
+    }
+    pub(crate) const fn touched(&self) -> bool {
+        self.draft.touched
+    }
+    /// The field's current error, exposed or not; a rejected insertion reports the limit.
+    pub(crate) fn field_error(&self) -> Option<crate::localization::FieldError> {
+        use crate::localization::FieldError;
+        if self.draft.input_fault {
+            Some(FieldError::NameTooLong)
+        } else if self.label_valid() {
+            None
+        } else if self.draft.editor.text().trim().is_empty() {
+            Some(FieldError::NameRequired)
+        } else {
+            Some(FieldError::NameTooLong)
+        }
     }
     pub(crate) const fn interactive(&self) -> bool {
         self.draft.shown && self.draft.presentation.interactive()
@@ -181,6 +199,7 @@ impl WorkbenchClientState {
             presentation: PresentationPhase::Pending,
             shown: false,
             input_fault: false,
+            touched: false,
             complete: true,
         });
         self.rename.last_token = next;
@@ -214,6 +233,20 @@ impl WorkbenchClientState {
         }
     }
 
+    /// A submission refused for an invalid name exposes its error. Returns whether it was invalid.
+    pub(crate) fn reveal_rename_errors(&mut self, token: DraftToken) -> bool {
+        if self
+            .rename_draft()
+            .is_none_or(|draft| draft.token() != token || draft.field_error().is_none())
+        {
+            return false;
+        }
+        if let Some(draft) = self.rename.draft.as_mut() {
+            draft.touched = true;
+        }
+        true
+    }
+
     pub(crate) fn rename_draft_input_ready(&self, token: DraftToken) -> bool {
         self.current_rename_draft().is_some_and(|draft| {
             draft.token == token && draft.shown && draft.presentation.interactive()
@@ -237,6 +270,18 @@ impl WorkbenchClientState {
         else {
             return false;
         };
+        if matches!(
+            edit,
+            RenameDraftEdit::Append(_)
+                | RenameDraftEdit::Paste(_)
+                | RenameDraftEdit::Backspace
+                | RenameDraftEdit::Delete
+                | RenameDraftEdit::WordBackspace
+                | RenameDraftEdit::Clear
+        ) && draft.complete
+        {
+            draft.touched = true;
+        }
         match edit {
             // Typed input and paste share the editor's one atomic insert path;
             // a rejected insertion faults the draft without touching its text.

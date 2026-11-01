@@ -353,9 +353,10 @@ fn dissolving_noncurrent_project_submits_only_its_metadata_action() {
     let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
         panic!("Project dissolve")
     };
+    // Dissolving keeps every Workspace, so it runs directly without a confirmation.
     assert_eq!(
         marker.0.command.action,
-        WorkbenchAction::ProjectDissolveIfIdle {
+        WorkbenchAction::ProjectDissolve {
             project_id: project
         }
     );

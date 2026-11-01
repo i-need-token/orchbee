@@ -1,5 +1,10 @@
 use super::*;
-use ratatui::{Terminal, backend::TestBackend};
+use ratatui::{
+    Terminal,
+    backend::TestBackend,
+    text::{Line, Text},
+    widgets::Paragraph,
+};
 use std::cell::Cell;
 
 #[test]
@@ -19,14 +24,13 @@ fn checkout_picker_bounds_unicode_rows_and_keeps_selected_path_and_footer_visibl
                             result = Some(render_checkouts(
                                 frame,
                                 locale,
-                                CheckoutPicker {
+                                &CheckoutPicker {
                                     token,
                                     mode: WorktreeMode::Open,
                                     source: "C:/repo",
                                     count: 200,
                                     selected,
                                 },
-                                Rect::new(0, 0, width, height - 1),
                                 &theme,
                                 &mut hits,
                                 |index| {
@@ -73,8 +77,7 @@ fn checkout_picker_bounds_unicode_rows_and_keeps_selected_path_and_footer_visibl
                             matches!(presented, ModalPresentation::Presented(value) if value == token)
                         );
                         assert!(choices.contains(&selected));
-                        let inner = super::super::overlay_surface(&theme, Padding::horizontal(2))
-                            .inner(area);
+                        let inner = area.inner(ratatui::layout::Margin::new(3, 1));
                         assert_eq!(
                             terminal.backend().buffer()[(inner.x, selected_row.unwrap())].symbol(),
                             theme.glyphs.navigation_marker,
@@ -86,13 +89,13 @@ fn checkout_picker_bounds_unicode_rows_and_keeps_selected_path_and_footer_visibl
                             .iter()
                             .map(|cell| cell.symbol())
                             .collect::<String>();
-                        assert!(text.contains(&format!("{}/200", selected + 1)));
                         assert!(text.contains(r"\checkout"));
                         assert!(!text.contains('\x1b'));
-                        assert!(text.replace(' ', "").contains(&format!(
-                            "[{}Esc]",
-                            locale.worktree_cancel_label(WorktreeStage::Checkout)
-                        )));
+                        // Wide-glyph continuation cells read as spaces.
+                        assert!(
+                            text.replace(' ', "")
+                                .contains(&locale.worktree_choose_hint().replace(' ', ""))
+                        );
                     }
                     assert!(visits.get() <= usize::from(height / 2));
                 }
@@ -112,14 +115,13 @@ fn bare_and_missing_checkout_paths_are_visible_without_activation_hits() {
             area = render_checkouts(
                 frame,
                 Locale::EnUs,
-                CheckoutPicker {
+                &CheckoutPicker {
                     token: WorktreeToken::for_test(8),
                     mode: WorktreeMode::Open,
                     source: "C:/repo",
                     count: 3,
                     selected: 0,
                 },
-                frame.area(),
                 &theme,
                 &mut hits,
                 |index| {
@@ -134,10 +136,23 @@ fn bare_and_missing_checkout_paths_are_visible_without_activation_hits() {
         })
         .unwrap();
     let map = hits.finish();
-    let inner = super::super::overlay_surface(&theme, Padding::horizontal(2)).inner(area);
-    for (row, choice) in [(2, 0), (3, 0), (4, 1), (5, 1), (6, 2), (7, 2)] {
+    let x = area.x + 3;
+    let first = (area.y..area.bottom())
+        .find(|y| {
+            map.hit_target_at(x, *y).is_some_and(|target| {
+                matches!(
+                    target,
+                    HitTarget::Worktree {
+                        control: ModalControl::Choice(0),
+                        ..
+                    }
+                )
+            })
+        })
+        .unwrap();
+    for (row, choice) in [(0, 0), (1, 0), (2, 1), (3, 1), (4, 2), (5, 2)] {
         assert!(matches!(
-            map.hit_target_at(inner.x, inner.y + row),
+            map.hit_target_at(x, first + row),
             Some(HitTarget::Worktree {
                 control: ModalControl::Choice(index),
                 ..
@@ -183,14 +198,13 @@ fn refused_checkout_picker_preserves_the_underlay_and_prior_hit_map() {
             result = Some(render_checkouts(
                 frame,
                 Locale::EnUs,
-                CheckoutPicker {
+                &CheckoutPicker {
                     token: WorktreeToken::for_test(8),
                     mode: WorktreeMode::Open,
                     source: "C:/repo",
                     count: 2,
                     selected: 0,
                 },
-                frame_area,
                 &Theme::terminal_native(),
                 &mut hits,
                 |_| {

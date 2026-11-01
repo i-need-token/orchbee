@@ -61,18 +61,13 @@ impl Locale {
         }
     }
 
+    /// A count appears only when there are several Tabs; one Tab keeps the singular question.
     pub(crate) fn close_set_title(self, count: usize) -> String {
         match self {
-            Self::EnUs if count == 1 => "Close 1 Tab?".into(),
+            Self::EnUs if count == 1 => "Close Tab?".into(),
             Self::EnUs => format!("Close {count} Tabs?"),
+            Self::ZhCn if count == 1 => "关闭标签页？".into(),
             Self::ZhCn => format!("关闭 {count} 个标签页？"),
-        }
-    }
-    pub(crate) fn close_set_context(self, label: &str) -> String {
-        let label = sanitize_terminal_text(label);
-        match self {
-            Self::EnUs => format!("Location: {label}"),
-            Self::ZhCn => format!("位置：{label}"),
         }
     }
     pub(crate) fn close_set_more(self, count: usize) -> String {
@@ -80,17 +75,6 @@ impl Locale {
             Self::EnUs if count == 1 => "… and 1 more Tab".to_owned(),
             Self::EnUs => format!("… and {count} more Tabs"),
             Self::ZhCn => format!("……以及另外 {count} 个标签页"),
-        }
-    }
-    pub(crate) fn close_set_warning(self, impact: CloseImpact) -> String {
-        match (self, impact.running, impact.ended) {
-            (Self::EnUs, _, 0) => "Closing ends the running work in these Tabs for everyone connected to this workspace. Tabs close one at a time; a failure stops further closes.".into(),
-            (Self::ZhCn, _, 0) => "关闭将终止这些标签页中运行的任务，影响所有连接到此工作区的人。标签页将逐个关闭；失败时停止后续关闭。".into(),
-            (Self::EnUs, 0, _) => "Closing discards the retained output in these Tabs for everyone connected to this workspace. Tabs close one at a time; a failure stops further closes.".into(),
-            (Self::ZhCn, 0, _) => "关闭将丢弃这些标签页中保留的输出，影响所有连接到此工作区的人。标签页将逐个关闭；失败时停止后续关闭。".into(),
-            (Self::EnUs, 1, _) => "Closing ends the running work in 1 terminal and discards the retained output in these Tabs for everyone connected to this workspace. Tabs close one at a time; a failure stops further closes.".into(),
-            (Self::EnUs, running, _) => format!("Closing ends the running work in {running} terminals and discards the retained output in these Tabs for everyone connected to this workspace. Tabs close one at a time; a failure stops further closes."),
-            (Self::ZhCn, running, _) => format!("关闭将终止 {running} 个终端中运行的任务，并丢弃这些标签页中保留的输出，影响所有连接到此工作区的人。标签页将逐个关闭；失败时停止后续关闭。"),
         }
     }
     pub(crate) fn close_set_status(self, status: crate::localization::CloseSetStatus) -> String {
@@ -120,15 +104,28 @@ impl Locale {
         }
     }
 
+    /// One sentence of facts with counts: the terminals a close ends and the retained output it
+    /// discards. It serves one Tab, several Tabs and a Panel alike.
     pub(crate) fn close_warning(self, impact: CloseImpact) -> String {
+        let plural = |count: usize| if count == 1 { "" } else { "s" };
         match (self, impact.running, impact.ended) {
-            (Self::EnUs, _, 0) => "Closing this Tab ends its running work for everyone connected to this workspace.".into(),
-            (Self::ZhCn, _, 0) => "关闭此标签页将终止其中运行的任务，影响所有连接到此工作区的人。".into(),
-            (Self::EnUs, 0, _) => "Closing this Tab discards its retained output for everyone connected to this workspace.".into(),
-            (Self::ZhCn, 0, _) => "关闭此标签页将丢弃其中保留的输出，影响所有连接到此工作区的人。".into(),
-            (Self::EnUs, 1, _) => "Closing this Tab ends the running work in 1 terminal and discards the retained output for everyone connected to this workspace.".into(),
-            (Self::EnUs, running, _) => format!("Closing this Tab ends the running work in {running} terminals and discards the retained output for everyone connected to this workspace."),
-            (Self::ZhCn, running, _) => format!("关闭此标签页将终止 {running} 个终端中运行的任务，并丢弃保留的输出，影响所有连接到此工作区的人。"),
+            (Self::EnUs, 0, 0) => "Ends its terminals.".into(),
+            (Self::ZhCn, 0, 0) => "将结束其中的终端。".into(),
+            (Self::EnUs, running, 0) => format!("Ends {running} terminal{}.", plural(running)),
+            (Self::ZhCn, running, 0) => format!("将结束 {running} 个终端。"),
+            (Self::EnUs, 0, ended) => format!(
+                "Discards the output of {ended} ended terminal{}.",
+                plural(ended)
+            ),
+            (Self::ZhCn, 0, ended) => format!("将丢弃 {ended} 个已结束终端的输出。"),
+            (Self::EnUs, running, ended) => format!(
+                "Ends {running} terminal{} and discards the output of {ended} ended one{}.",
+                plural(running),
+                plural(ended)
+            ),
+            (Self::ZhCn, running, ended) => {
+                format!("将结束 {running} 个终端，并丢弃 {ended} 个已结束终端的输出。")
+            }
         }
     }
 

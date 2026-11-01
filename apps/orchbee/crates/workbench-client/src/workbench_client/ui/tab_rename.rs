@@ -53,6 +53,12 @@ impl<'a> RenameDraftView<'a> {
     pub(crate) fn label_valid(&self) -> bool {
         self.0.label_valid()
     }
+    pub(crate) const fn touched(&self) -> bool {
+        self.0.touched()
+    }
+    pub(crate) fn field_error(&self) -> Option<crate::localization::FieldError> {
+        self.0.field_error()
+    }
     pub(crate) const fn interactive(&self) -> bool {
         self.0.interactive()
     }
@@ -196,6 +202,13 @@ impl WorkbenchClientUi {
             .state
             .as_ref()
             .is_none_or(|state| !state.rename_draft_input_ready(token.0))
+        {
+            return ClientActionDisposition::KeepNavigator;
+        }
+        if self
+            .state
+            .as_mut()
+            .is_some_and(|state| state.reveal_rename_errors(token.0))
         {
             return ClientActionDisposition::KeepNavigator;
         }

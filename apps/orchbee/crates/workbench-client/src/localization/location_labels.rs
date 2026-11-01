@@ -21,13 +21,6 @@ pub(crate) enum LocationLabelStatus {
 }
 
 impl Locale {
-    pub(crate) const fn workspace_name_required(self) -> &'static str {
-        match self {
-            Self::EnUs => "Enter a Workspace name containing a non-whitespace character.",
-            Self::ZhCn => "工作区名称必须包含非空白字符。",
-        }
-    }
-
     pub(crate) const fn unnamed_workspace(self) -> &'static str {
         match self {
             Self::EnUs => "Unnamed Workspace",
@@ -134,19 +127,6 @@ impl Locale {
             (Self::ZhCn, true) => "重命名项目",
             (Self::EnUs, false) => "Rename Workspace",
             (Self::ZhCn, false) => "重命名工作区",
-        }
-    }
-
-    pub(crate) const fn location_rename_hint(self, project: bool) -> &'static str {
-        match (self, project) {
-            (Self::EnUs, true) => {
-                "Use 1–512 characters. The shared Project label changes for all Clients."
-            }
-            (Self::ZhCn, true) => "请输入 1–512 个字符。共享项目的名称会对所有客户端更改。",
-            (Self::EnUs, false) => {
-                "Use 1–512 characters. The shared Workspace label changes for all Clients."
-            }
-            (Self::ZhCn, false) => "请输入 1–512 个字符。共享工作区的名称会对所有客户端更改。",
         }
     }
 }

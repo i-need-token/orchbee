@@ -55,7 +55,7 @@ use crate::tui_hit_map::{
 };
 use crate::tui_layout::{
     PaneFrame, ShellAreas, SidebarArea, SidebarLayer, ViewportTier, native_terminal_area,
-    overlay_area, place_overlay, project_shell_areas, status_chip_area, terminal_area,
+    place_overlay, project_shell_areas, status_chip_area, terminal_area,
 };
 use crate::tui_presentation::ModalPresentation;
 use crate::tui_theme::{Role, Theme};
@@ -135,20 +135,12 @@ pub(crate) fn render_tab_rename_for_test(
     frame: &mut Frame<'_>,
     locale: Locale,
     draft: &crate::workbench_client::RenameDraftView<'_>,
-    content_area: Rect,
     theme: &Theme,
 ) -> (
     Rect,
     ModalPresentation<crate::workbench_state::rename_draft::RenameDraftToken>,
 ) {
-    tab_rename::render(
-        frame,
-        locale,
-        draft,
-        content_area,
-        theme,
-        &mut HitMapBuilder::new(),
-    )
+    tab_rename::render(frame, locale, draft, theme, &mut HitMapBuilder::new())
 }
 
 #[derive(Clone, Copy)]
@@ -545,9 +537,10 @@ pub fn render_terminal_shell_with_resize<'a>(
         {
             Some(Overlay::ShortcutHelp) => {
                 let presented = view.help_draw_candidate().and_then(|candidate| {
+                    // Reference surfaces center in the whole window, like every dialog.
                     help::render(
                         frame,
-                        overlay_area(&areas),
+                        frame.area(),
                         help::RenderContext::new(
                             text,
                             locale,
@@ -564,7 +557,7 @@ pub fn render_terminal_shell_with_resize<'a>(
             }
             Some(Overlay::WorkbenchNavigator) => Some(navigator::render(
                 frame,
-                overlay_area(&areas),
+                frame.area(),
                 text,
                 locale,
                 view,
@@ -606,7 +599,7 @@ pub fn render_terminal_shell_with_resize<'a>(
 
             let draw = agent_board::render(
                 frame,
-                overlay_area(&areas),
+                frame.area(),
                 text,
                 locale,
                 &board,
@@ -620,14 +613,7 @@ pub fn render_terminal_shell_with_resize<'a>(
             && let Some(native) = workbench_client.as_ref()
             && let Some(confirmation) = native.workspace_close_confirmation()
         {
-            let (area, token) = workspace_close::render(
-                frame,
-                locale,
-                confirmation,
-                overlay_area(&areas),
-                theme,
-                hits,
-            );
+            let (area, token) = workspace_close::render(frame, locale, confirmation, theme, hits);
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             workspace_prompt = Some(token);
         }
@@ -635,14 +621,7 @@ pub fn render_terminal_shell_with_resize<'a>(
             && let Some(native) = workbench_client.as_ref()
             && let Some(confirmation) = native.close_confirmation()
         {
-            let modal = tab_close::render(
-                frame,
-                locale,
-                &confirmation,
-                overlay_area(&areas),
-                theme,
-                hits,
-            );
+            let modal = tab_close::render(frame, locale, &confirmation, theme, hits);
             status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
             prompt = Some(modal.prompt);
             if let Some(token) = modal.status {
@@ -653,14 +632,7 @@ pub fn render_terminal_shell_with_resize<'a>(
             && let Some(native) = workbench_client.as_ref()
             && let Some(confirmation) = native.panel_close_confirmation()
         {
-            let modal = panel_close::render(
-                frame,
-                locale,
-                &confirmation,
-                overlay_area(&areas),
-                theme,
-                hits,
-            );
+            let modal = panel_close::render(frame, locale, &confirmation, theme, hits);
             status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
             prompt = None;
             panel_prompt = Some(modal.prompt);
@@ -682,7 +654,7 @@ pub fn render_terminal_shell_with_resize<'a>(
             let (area, token) = if let Some(area) = inline_area.filter(|area| area.width >= 8) {
                 tab_rename::render_inline(frame, locale, &draft, area, theme, hits)
             } else {
-                tab_rename::render(frame, locale, &draft, overlay_area(&areas), theme, hits)
+                tab_rename::render(frame, locale, &draft, theme, hits)
             };
 
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
@@ -694,15 +666,8 @@ pub fn render_terminal_shell_with_resize<'a>(
             && let Some(native) = workbench_client.as_ref()
             && let Some(draft) = native.setup_draft()
         {
-            let (area, token) = workspace_setup::render(
-                frame,
-                locale,
-                &draft,
-                native.setup_status(),
-                overlay_area(&areas),
-                theme,
-                hits,
-            );
+            let (area, token) =
+                workspace_setup::render(frame, locale, &draft, native.setup_status(), theme, hits);
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             prompt = None;
             panel_prompt = None;
@@ -713,8 +678,7 @@ pub fn render_terminal_shell_with_resize<'a>(
             && let Some(native) = workbench_client.as_ref()
             && let Some(draft) = native.worktree()
         {
-            let (area, token) =
-                worktree_launch::render(frame, locale, draft, overlay_area(&areas), theme, hits);
+            let (area, token) = worktree_launch::render(frame, locale, draft, theme, hits);
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             prompt = None;
             panel_prompt = None;
@@ -1058,16 +1022,10 @@ pub fn render_terminal_shell_with_resize<'a>(
         } else {
             locale.menu_close_button()
         };
-        // An anchored menu takes the whole viewport, as Settings does; the status chip that
-        // replaces the ordinary status paints after it.
-        let menu_area = if native
-            .action_menu_root()
-            .is_some_and(|(_, anchor)| anchor.is_some())
-        {
-            area
-        } else {
-            overlay_area(&areas)
-        };
+        // A menu takes the whole viewport, as Settings does: an anchored menu places itself by
+        // its anchor and an unanchored one centers in the window. The status chip that replaces
+        // the ordinary status paints after it.
+        let menu_area = area;
         let draw = if tier == ViewportTier::TooSmall {
             ModalPresentation::NotPresented
         } else {

@@ -617,7 +617,10 @@ impl PointerState {
                 ModalControl::Cancel => {
                     port.surface_action(SurfaceAction::Setup(SetupAction::Cancel(token)));
                 }
-                ModalControl::Surface | ModalControl::Refresh => {}
+                ModalControl::Close => {
+                    port.surface_action(SurfaceAction::Setup(SetupAction::Close(token)));
+                }
+                ModalControl::Surface | ModalControl::Abandon => {}
             },
             Some(ControlTarget::Worktree(token, control)) => match control {
                 ModalControl::NextField => {
@@ -626,10 +629,10 @@ impl PointerState {
                         edit: crate::workbench_state::worktree_launch::WorktreeEdit::NextField,
                     });
                 }
-                ModalControl::Refresh => {
+                ModalControl::Abandon => {
                     port.surface_input(SurfaceInput::Worktree {
                         token,
-                        edit: crate::workbench_state::worktree_launch::WorktreeEdit::ReadStatus,
+                        edit: crate::workbench_state::worktree_launch::WorktreeEdit::Abandon,
                     });
                 }
                 ModalControl::Choice(index) => {
@@ -641,7 +644,7 @@ impl PointerState {
                 ModalControl::Submit => {
                     port.surface_action(SurfaceAction::Worktree(WorktreeAction::Submit(token)));
                 }
-                ModalControl::Cancel => {
+                ModalControl::Cancel | ModalControl::Close => {
                     port.surface_action(SurfaceAction::Worktree(WorktreeAction::Dismiss(token)));
                 }
                 ModalControl::Surface => {}

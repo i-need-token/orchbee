@@ -47,7 +47,6 @@ pub(super) struct SetupParent {
     quick: Option<super::quick::QuickWorkspaceFields>,
 }
 pub(crate) struct SetupDraftView<'a> {
-    foreground_preparation: bool,
     pub(super) draft: &'a SetupDraft,
     presentation: PresentationPhase,
 }
@@ -61,8 +60,6 @@ impl SetupDraft {
         !matches!(
             self.stage,
             SetupStage::ChooseWorkspaceProject
-                | SetupStage::DissolveProject
-                | SetupStage::ProjectDeleteConfirm
                 | SetupStage::QuickProject
                 | SetupStage::PreparingWorkspace
         )
@@ -92,7 +89,8 @@ impl<'a> SetupProjectView<'a> {
 }
 impl<'a> SetupDraftView<'a> {
     pub(crate) fn background(&self) -> bool {
-        (self.draft.stage == SetupStage::PreparingWorkspace && !self.foreground_preparation)
+        // Preparation never shows a progress-only dialog; the form opens when it is ready.
+        self.draft.stage == SetupStage::PreparingWorkspace
             || self.draft.quick.is_some() && self.draft.continuation.is_some()
     }
     pub(crate) const fn interactive(&self) -> bool {
@@ -119,6 +117,19 @@ impl<'a> SetupDraftView<'a> {
             .as_ref()
             .and_then(|fields| fields.selected_directory())
     }
+    /// Whether the Tab group form renames an existing group rather than creating one.
+    pub(crate) fn renames_tab_group(&self) -> bool {
+        matches!(
+            self.draft.tab_configuration,
+            Some(orchbee_workbench_protocol::TabConfiguration::UpdateGroup { .. })
+        )
+    }
+    pub(crate) fn quick_text(&self, directory: bool) -> &'a str {
+        self.draft
+            .quick
+            .as_ref()
+            .map_or("", |fields| fields.field(directory).text())
+    }
     pub(crate) fn quick_window(&self, directory: bool, width: usize) -> Option<FieldWindow<'a>> {
         field_window(self.draft.quick.as_ref()?.field(directory), width)
     }
@@ -139,6 +150,72 @@ impl<'a> SetupDraftView<'a> {
     pub(crate) fn field_window(&self, field_width: usize) -> Option<FieldWindow<'a>> {
         field_window(self.draft.editor(), field_width)
     }
+    /// Whether an edit or a refused submission has exposed this field's error.
+    pub(crate) fn touched(&self, directory: bool) -> bool {
+        self.draft.touched[usize::from(directory)]
+    }
+    /// Each field's current error, untouched or not: the single or name field, then the
+    /// directory field. A rejected insertion reports the field's limit.
+    pub(crate) fn field_errors(&self) -> [Option<crate::localization::FieldError>; 2] {
+        use crate::localization::FieldError;
+        use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorkbenchTabGroupLabel};
+        let name = |text: &str, valid: bool| {
+            (!valid).then_some(if text.trim().is_empty() {
+                FieldError::NameRequired
+            } else {
+                FieldError::NameTooLong
+            })
+        };
+        let path = |text: &str, valid: bool| {
+            (!valid).then_some(if text.trim().is_empty() {
+                FieldError::PathRequired
+            } else {
+                FieldError::PathInvalid
+            })
+        };
+        let text = self.draft.editor.text();
+        let directory_stage = self.draft.stage == SetupStage::QuickDirectory;
+        let mut errors = match self.draft.stage {
+            SetupStage::WorkspaceProjectName | SetupStage::ProjectRename => {
+                [name(text, WorkbenchLabel::parse(text).is_ok()), None]
+            }
+            SetupStage::WorkspaceRename => [
+                name(text, WorkbenchLabel::parse_workspace(text).is_ok()),
+                None,
+            ],
+            SetupStage::TabGroupName => [
+                name(text, WorkbenchTabGroupLabel::parse(text).is_ok()),
+                None,
+            ],
+            SetupStage::DirectoryPath => [
+                path(text, WorkbenchDirectoryPath::parse(text).is_ok()),
+                None,
+            ],
+            SetupStage::QuickName | SetupStage::QuickDirectory => {
+                self.draft.quick.as_ref().map_or([None, None], |fields| {
+                    [
+                        name(fields.name(), fields.name_valid()),
+                        path(fields.directory(), fields.directory_valid()),
+                    ]
+                })
+            }
+            SetupStage::ChooseWorkspaceProject
+            | SetupStage::QuickProject
+            | SetupStage::PreparingWorkspace => [None, None],
+        };
+        if self.draft.faulted {
+            let index = usize::from(directory_stage);
+            errors[index] = Some(
+                if directory_stage || self.draft.stage == SetupStage::DirectoryPath {
+                    FieldError::PathTooLong
+                } else {
+                    FieldError::NameTooLong
+                },
+            );
+        }
+        errors
+    }
+    #[cfg(test)]
     pub(crate) fn faulted(&self) -> bool {
         self.draft.faulted
     }
@@ -268,14 +345,8 @@ impl WorkbenchClientState {
                             SetupStage::ChooseWorkspaceProject
                         }
                     }
-                    super::organization::OrganizationTarget::Project(target) => {
-                        project = Some(target.project_id.clone());
-                        if request.reviewed_delete() {
-                            SetupStage::ProjectDeleteConfirm
-                        } else {
-                            SetupStage::DissolveProject
-                        }
-                    }
+                    // Dissolving a Project runs directly; it never opens a dialog.
+                    super::organization::OrganizationTarget::Project(_) => return None,
                 };
                 organization = Some(request);
                 (
@@ -378,6 +449,7 @@ impl WorkbenchClientState {
             shown: false,
             complete: true,
             faulted: false,
+            touched: [false; 2],
             quick: None,
             continuation: None,
             parent: None,
@@ -401,11 +473,6 @@ impl WorkbenchClientState {
                 .as_ref()
                 .is_none_or(|fields| fields.target_current(self)))
         .then_some(SetupDraftView {
-            foreground_preparation: self
-                .setup
-                .preparation
-                .as_ref()
-                .is_some_and(|preparation| preparation.review_directory),
             draft,
             presentation: self.setup.presentation,
         })
@@ -466,6 +533,7 @@ impl WorkbenchClientState {
             draft.editor = parent.editor;
             draft.complete = parent.complete;
             draft.faulted = parent.faulted;
+            draft.touched = [false; 2];
             draft.quick = parent.quick;
             draft.token = SetupToken(next);
             draft.shown = false;
@@ -473,6 +541,51 @@ impl WorkbenchClientState {
         } else {
             self.setup.draft = None;
         }
+    }
+    /// The frame's close control ends the whole dialog, including any step before a follow-up.
+    pub(crate) fn close_setup_draft(&mut self, token: SetupToken) {
+        if self
+            .setup
+            .draft
+            .as_ref()
+            .is_some_and(|draft| draft.token == token)
+        {
+            self.setup.draft = None;
+        }
+    }
+    /// A submission refused for invalid fields shows every field's error and moves the caret to
+    /// the first invalid field. Returns whether any field was invalid.
+    pub(crate) fn reveal_setup_errors(&mut self, token: SetupToken) -> bool {
+        let Some(invalid) = self
+            .setup_draft()
+            .filter(|draft| draft.token() == token)
+            .map(|draft| draft.field_errors().map(|error| error.is_some()))
+        else {
+            return false;
+        };
+        if !invalid.contains(&true) {
+            return false;
+        }
+        let next = self.setup.last_token.checked_add(1);
+        let Some(draft) = self.setup.draft.as_mut() else {
+            return false;
+        };
+        draft.touched = [true; 2];
+        let first = if invalid[0] {
+            SetupStage::QuickName
+        } else {
+            SetupStage::QuickDirectory
+        };
+        if draft.quick.is_some()
+            && draft.stage != first
+            && let Some(next) = next
+        {
+            draft.stage = first;
+            draft.token = SetupToken(next);
+            draft.shown = false;
+            self.setup.last_token = next;
+        }
+        true
     }
     pub(crate) fn edit_setup_draft(&mut self, token: SetupToken, edit: SetupEdit<'_>) -> bool {
         if self.setup_draft().is_none() || self.quick_continuation().is_some() {
@@ -487,6 +600,15 @@ impl WorkbenchClientState {
         else {
             return false;
         };
+        let text_edit = matches!(
+            edit,
+            SetupEdit::Append(_)
+                | SetupEdit::Paste(_)
+                | SetupEdit::Backspace
+                | SetupEdit::Delete
+                | SetupEdit::WordBackspace
+                | SetupEdit::Clear
+        ) && draft.text_field();
         match edit {
             SetupEdit::SelectDirectory(_)
             | SetupEdit::SelectPreviousProject
@@ -615,6 +737,9 @@ impl WorkbenchClientState {
                 draft.editor_mut().end();
             }
             _ => return false,
+        }
+        if text_edit {
+            draft.touched[usize::from(draft.stage == SetupStage::QuickDirectory)] = true;
         }
         if draft.stage == SetupStage::QuickDirectory
             && let Some(fields) = &mut draft.quick

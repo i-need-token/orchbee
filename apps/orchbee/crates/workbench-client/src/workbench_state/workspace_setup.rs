@@ -58,6 +58,9 @@ struct SetupDraft {
     shown: bool,
     complete: bool,
     faulted: bool,
+    /// Per field (the single or name field, then the directory field): whether an edit or a
+    /// refused submission has exposed its error. An untouched field shows none.
+    touched: [bool; 2],
     parent: Option<Box<draft::SetupParent>>,
 }
 
@@ -319,16 +322,6 @@ impl WorkbenchClientState {
                 WorkbenchAction::WorkspaceCreateProject {
                     workspace_id: workspace.workspace_id.clone(),
                     label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
-                }
-            }
-            SetupStage::DissolveProject | SetupStage::ProjectDeleteConfirm => {
-                let organization::OrganizationTarget::Project(project) =
-                    &draft.organization.as_ref()?.target
-                else {
-                    return None;
-                };
-                WorkbenchAction::ProjectDissolve {
-                    project_id: project.project_id.clone(),
                 }
             }
             SetupStage::TabGroupName => {

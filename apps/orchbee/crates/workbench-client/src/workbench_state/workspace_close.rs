@@ -346,6 +346,7 @@ pub(crate) struct WorkspaceCloseConfirmationView<'a> {
     inner: &'a Confirmation,
 }
 impl<'a> WorkspaceCloseConfirmationView<'a> {
+    #[cfg(test)]
     pub(crate) fn destructive(self) -> bool {
         self.inner.destructive
     }

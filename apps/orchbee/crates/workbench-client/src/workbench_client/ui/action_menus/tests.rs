@@ -722,7 +722,7 @@ fn global_menu_renders_the_resolved_configured_binding_with_ascii_fallback() {
 
 #[test]
 fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() {
-    use crate::{client_view::ClientView, tui_hit_map::HitTarget, tui_layout::project_shell_areas};
+    use crate::{client_view::ClientView, tui_hit_map::HitTarget};
     use ratatui::layout::Rect;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
@@ -838,10 +838,8 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
                         );
                         assert!(top > y || bottom <= y, "menu must not cover its anchor");
                     } else {
-                        let content = crate::tui_layout::overlay_area(&project_shell_areas(
-                            Rect::new(0, 0, width, height),
-                            view.sidebar_surface(),
-                        ));
+                        // The unanchored menu centers in the whole window.
+                        let content = Rect::new(0, 0, width, height);
                         assert_eq!(left, content.x + (content.width - (right - left)) / 2);
                         assert_eq!(top, content.y + (content.height - (bottom - top)) / 2);
                     }

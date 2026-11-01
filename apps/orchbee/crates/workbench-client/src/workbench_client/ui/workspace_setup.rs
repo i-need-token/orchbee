@@ -153,17 +153,8 @@ impl WorkbenchClientUi {
                 .try_enqueue_sidebar_organization_for(state, &request, deadlines, &self.clock)
                 .is_ok();
         }
-        let Some(token) = self.request_setup_draft(SetupIntent::Organize(request)) else {
-            return false;
-        };
-        if self
-            .state
-            .as_mut()
-            .is_some_and(|state| state.arm_project_dissolve(token, deadlines))
-        {
-            self.submit_setup_draft(token);
-        }
-        true
+        self.request_setup_draft(SetupIntent::Organize(request))
+            .is_some()
     }
     pub(in crate::workbench_client) fn cancel_project_quick_terminal_entry(&mut self) {
         if let Some(state) = self.state.as_mut() {
@@ -348,6 +339,11 @@ impl WorkbenchClientUi {
             state.cancel_setup_draft(token);
         }
     }
+    pub(in crate::workbench_client) fn close_setup_draft(&mut self, token: SetupToken) {
+        if let Some(state) = self.state.as_mut() {
+            state.close_setup_draft(token);
+        }
+    }
     pub(in crate::workbench_client) fn after_setup_draw(
         &mut self,
         token: Option<ModalPresentation<SetupToken>>,
@@ -403,6 +399,9 @@ impl WorkbenchClientUi {
         else {
             return ClientActionDisposition::KeepNavigator;
         };
+        if continuation.is_none() && state.reveal_setup_errors(token) {
+            return ClientActionDisposition::KeepNavigator;
+        }
         if state.advance_setup_picker(token) {
             return ClientActionDisposition::KeepNavigator;
         }
@@ -480,7 +479,6 @@ impl WorkbenchClientUi {
             result @ (SetupResult::NotApplied
             | SetupResult::Stale
             | SetupResult::ConfirmationRequired) => {
-                let review_delete = matches!(result, SetupResult::ConfirmationRequired);
                 let stale = matches!(result, SetupResult::Stale);
                 let result = mailbox.deposit_ui_reply_before(&wait, &self.clock, |transaction| {
                     if !state.settle_setup_refusal(&operation, stale) {
@@ -498,16 +496,7 @@ impl WorkbenchClientUi {
                     )))
                 });
                 match result {
-                    Ok(MutationResult::Applied) => {
-                        if review_delete {
-                            // The conditional command definitely had no effect. This creates a new
-                            // prompt/token; only its complete successful draw plus explicit Enter
-                            // can authorize a distinct unconditional request.
-                            let _ = state
-                                .review_project_delete(&operation, operation.deadlines.total());
-                        }
-                        self.validate_state()
-                    }
+                    Ok(MutationResult::Applied) => self.validate_state(),
                     Ok(MutationResult::Stale) => false,
                     Err(error) => self.handle_event_error(error),
                 }

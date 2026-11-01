@@ -161,7 +161,6 @@ const EXIT: &[LocalBinding] = &[LocalBinding::Exit];
 const PRIMARY: &[LocalBinding] = &[LocalBinding::Primary];
 const SELECT: &[LocalBinding] = &[LocalBinding::NextTab];
 const CHANGE: &[LocalBinding] = &[LocalBinding::AdjustBackward, LocalBinding::AdjustForward];
-const CLEAR: &[LocalBinding] = &[LocalBinding::Clear];
 const SEARCH: &[LocalBinding] = &[LocalBinding::Search];
 const SAVE: &[LocalBinding] = &[LocalBinding::Save];
 
@@ -191,10 +190,10 @@ const CONFIRMATION_HINTS: &[SettingsFooterBinding] = &[
     SettingsFooterBinding::new(EXIT, SettingsHintLabel::Cancel),
     SettingsFooterBinding::new(PRIMARY, SettingsHintLabel::Confirm),
 ];
+/// Editing keys such as Backspace and Ctrl+U are conventions, not advertised hints.
 const TEXT_HINTS: &[SettingsFooterBinding] = &[
     SettingsFooterBinding::new(EXIT, SettingsHintLabel::Cancel),
     SettingsFooterBinding::new(PRIMARY, SettingsHintLabel::Accept),
-    SettingsFooterBinding::new(CLEAR, SettingsHintLabel::Clear),
 ];
 const PICKER_HINTS: &[SettingsFooterBinding] = &[
     SettingsFooterBinding::new(EXIT, SettingsHintLabel::Cancel),

@@ -140,33 +140,6 @@ fn pending_creation_never_forwards_typing_to_the_hidden_source_terminal() {
 }
 
 #[test]
-fn noncreation_setup_continuation_keeps_its_existing_capture() {
-    use crate::workbench_state::workspace_setup::SetupIntent;
-    use crate::workbench_state::workspace_setup::WorkspaceOrganizationRequest;
-
-    let (mut ui, mailbox, clock, snapshot) = ready(true);
-    let deadlines = OperationDeadlines::from_sample(clock.now()).unwrap();
-    let request = WorkspaceOrganizationRequest::project(
-        ui.state.as_ref().unwrap(),
-        &snapshot.navigation.projects[0],
-        deadlines.total(),
-    )
-    .unwrap();
-    let token = ui
-        .request_setup_draft(SetupIntent::Organize(Box::new(request)))
-        .unwrap();
-    assert!(
-        ui.state
-            .as_mut()
-            .unwrap()
-            .arm_project_dissolve(token, deadlines)
-    );
-    assert!(ui.view().setup_capture_claim());
-    assert!(ui.view().workspace_creation_preview().is_none());
-    mailbox.close(CarrierFailure::WorkerExited);
-}
-
-#[test]
 fn definite_refusal_removes_the_preview_and_unknown_or_failed_commits_keep_recovery_facts() {
     for failure in ["refused", "unknown", "committed"] {
         let (mut ui, mailbox, clock, snapshot) = ready(false);

@@ -207,7 +207,10 @@ pub enum RenameAction {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SetupAction {
     Submit(SetupToken),
+    /// `Esc` and the cancel button: a follow-up step returns to the step before it.
     Cancel(SetupToken),
+    /// The frame's close control: ends the whole dialog.
+    Close(SetupToken),
     /// Selects and submits one exact Project row authorized by the last draw.
     Choose {
         token: SetupToken,

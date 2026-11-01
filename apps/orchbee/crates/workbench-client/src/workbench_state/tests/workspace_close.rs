@@ -1137,19 +1137,10 @@ fn close_pending_indicator_uses_injected_time_and_localized_recovery_matches_typ
         assert!(!state.tick_workspace_close_pending(start + Duration::from_millis(201)));
         let view = state.workspace_close_status().unwrap();
         for locale in [Locale::EnUs, Locale::ZhCn] {
+            // A pending close names no status command; only an unknown outcome needs one.
             let text = locale.workspace_close_status(view);
-            assert!(!text.contains("--group"));
-            if project {
-                assert!(text.contains(&format!(
-                    "orchbee project close-status --request {}",
-                    operation.request_id
-                )));
-            } else {
-                assert!(text.contains(&format!(
-                    "orchbee workspace close-status --workspace {}",
-                    workspace_id(0)
-                )));
-            }
+            assert!(!text.contains("close-status"), "{text}");
+            assert_eq!(text, locale.workspace_close_status_shorter(view)[0]);
         }
     }
 }

@@ -6,7 +6,7 @@ use crate::{
     tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget},
     tui_theme::Theme,
 };
-use ratatui::{Terminal, backend::TestBackend};
+use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 use std::{io, time::Instant};
 
 fn halted_close(
@@ -174,7 +174,7 @@ fn close_set_menu_resumes_the_presented_exact_close_without_navigation_or_set_re
             // Menu acceptance cannot substitute for the new confirmation's complete draw.
             ui.capture_confirmation_key(ClientKey::Enter);
             assert!(mailbox.try_recv().unwrap().is_none());
-            let (screen, _) = draw_themed(
+            let (screen, _, buffer) = draw_frame(
                 &mut ui,
                 locale,
                 width,
@@ -189,8 +189,9 @@ fn close_set_menu_resumes_the_presented_exact_close_without_navigation_or_set_re
                     .filter(|ch| !ch.is_whitespace() && *ch != '│')
                     .collect::<String>()
             };
+            // The status wraps inside the dialog's class width.
             assert!(
-                compact(&screen)
+                dialog_text(&buffer, dialog_area(&buffer))
                     .contains(&compact(&locale.close_set_status(
                         ui.state.as_ref().unwrap().close_set_status().unwrap(),
                     ))),
@@ -578,6 +579,37 @@ fn draw(
     )
 }
 
+/// The presented dialog's frame, read from its corner glyphs.
+fn dialog_area(buffer: &ratatui::buffer::Buffer) -> Rect {
+    let area = buffer.area;
+    let symbol = |x, y| buffer[(x, y)].symbol();
+    let (left, top) = area
+        .positions()
+        .map(|position| (position.x, position.y))
+        .find(|(x, y)| matches!(symbol(*x, *y), "┌" | "╭"))
+        .unwrap();
+    let right = (left + 1..area.right())
+        .find(|x| matches!(symbol(*x, top), "┐" | "╮"))
+        .unwrap();
+    let bottom = (top + 1..area.bottom())
+        .find(|y| matches!(symbol(left, *y), "└" | "╰"))
+        .unwrap();
+    Rect::new(left, top, right - left + 1, bottom - top + 1)
+}
+
+/// The dialog's text between its side borders, without whitespace, so a wrapped sentence reads
+/// as one.
+fn dialog_text(buffer: &ratatui::buffer::Buffer, area: Rect) -> String {
+    area.inner(ratatui::layout::Margin::new(1, 0))
+        .rows()
+        .flat_map(|row| row.columns())
+        .map(|cell| buffer[(cell.x, cell.y)].symbol())
+        .collect::<String>()
+        .chars()
+        .filter(|ch| !ch.is_whitespace())
+        .collect()
+}
+
 fn draw_themed(
     ui: &mut WorkbenchClientUi,
     locale: Locale,
@@ -586,6 +618,18 @@ fn draw_themed(
     capture: Option<&str>,
     theme: &Theme,
 ) -> (String, FrameHitMap) {
+    let (screen, hits, _) = draw_frame(ui, locale, width, height, capture, theme);
+    (screen, hits)
+}
+
+fn draw_frame(
+    ui: &mut WorkbenchClientUi,
+    locale: Locale,
+    width: u16,
+    height: u16,
+    capture: Option<&str>,
+    theme: &Theme,
+) -> (String, FrameHitMap, ratatui::buffer::Buffer) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut receipt = None;
     let mut hits = HitMapBuilder::new();
@@ -606,7 +650,7 @@ fn draw_themed(
     }
     let text = rendered_text(terminal.backend().buffer());
     ui.after_close_draw(receipt.unwrap());
-    (text, hits.finish())
+    (text, hits.finish(), terminal.backend().buffer().clone())
 }
 
 #[test]
@@ -661,7 +705,7 @@ fn close_set_maximum_names_are_bounded_previews_with_full_warning_and_frozen_tar
                 assert!(ui.capture_confirmation_key(ClientKey::Enter));
                 assert!(mailbox.try_recv().unwrap().is_none());
                 let name = format!("{locale:?}-{width}x{height}-close-long-names");
-                let (screen, _) = draw_themed(
+                let (screen, _, buffer) = draw_frame(
                     &mut ui,
                     locale,
                     width,
@@ -669,13 +713,15 @@ fn close_set_maximum_names_are_bounded_previews_with_full_warning_and_frozen_tar
                     capture.then_some(name.as_str()),
                     &theme,
                 );
+                // Each preview truncates at the dialog's content width.
+                let content = usize::from(dialog_area(&buffer).width - 6);
                 for (index, label) in names.iter().take(3).enumerate() {
                     let prefix = format!("#{} · ", index + 1);
                     let preview = format!(
                         "{prefix}{}",
                         truncate_display(
                             &sanitize_terminal_text(label),
-                            64 - display_width(&prefix),
+                            content - display_width(&prefix),
                             theme.glyphs.ellipsis
                         )
                     );
@@ -692,7 +738,7 @@ fn close_set_maximum_names_are_bounded_previews_with_full_warning_and_frozen_tar
                     locale.close_set_title(4),
                     locale.close_set_more(1),
                     // No terminal here has settled, so every one counts as running.
-                    locale.close_set_warning(crate::localization::CloseImpact {
+                    locale.close_warning(crate::localization::CloseImpact {
                         running: 4,
                         ended: 0,
                     }),
@@ -963,7 +1009,7 @@ fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_co
                             .collect::<String>()
                     };
                     assert!(
-                        compact(&prompt).contains(&compact(&locale.close_set_warning(
+                        compact(&prompt).contains(&compact(&locale.close_warning(
                             crate::localization::CloseImpact {
                                 running: expected.len(),
                                 ended: 0,

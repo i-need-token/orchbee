@@ -2,9 +2,10 @@
 //! exact draft identity. It does not edit the draft or commit a rename against the Server
 //! revision.
 
+use super::controls::ActionKind;
 use super::modal::{
-    ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
-    paint_modal_close, paint_modal_frame, set_modal_cursor, status_line,
+    Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, ModalAction, NAME_FIELD_WIDTH,
+    dialog_layout, field_value_area, modal_key_label, paint_dialog, paint_field,
 };
 use crate::client_view::{Binding, KeyCode, Modifiers};
 use crate::localization::Locale;
@@ -17,172 +18,91 @@ use crate::workbench_state::rename_draft::RenameDraftToken;
 use ratatui::{
     Frame,
     layout::Rect,
-    text::{Line, Span, Text},
     widgets::{Clear, Paragraph},
 };
 
-/// The draft's editable line inside the modal's line vector.
-const FIELD: usize = 4;
-
+/// The Rename Tab dialog: the title names the value, so the prefilled field stands alone. An
+/// automatic name shows as the field's placeholder.
 pub(super) fn render(
     frame: &mut Frame<'_>,
     locale: Locale,
     draft: &RenameDraftView<'_>,
-    content_area: Rect,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> (Rect, ModalPresentation<RenameDraftToken>) {
     let placeholder_visible = draft.automatic_label() && draft.text().is_empty();
-    let title = locale.rename_title();
-    let mut lines = vec![
-        Line::from(""),
-        description_line(
-            sanitize_terminal_text(&draft.target_label(locale)).into_owned(),
-            theme,
-        ),
-        Line::from(""),
-        Line::from(locale.rename_label()),
-        // The field's one visible row is sized like the rest: the windowed
-        // projection never takes more than the inner width it is given.
-        Line::from(""),
-        description_line(locale.rename_warning(), theme),
-        Line::from(""),
+    let error = draft.field_error();
+    let rows = vec![
+        DialogRow::Field {
+            minimum: NAME_FIELD_WIDTH,
+        },
+        match error.filter(|_| draft.touched()) {
+            Some(error) => DialogRow::Error(locale.field_error(error).into()),
+            None => DialogRow::Help(None),
+        },
     ];
-    if draft.input_fault() {
-        lines.push(status_line(locale.rename_fault(), Role::StatusError, theme));
-        lines.push(Line::from(""));
-    } else if !draft.label_valid() && !placeholder_visible {
-        lines.push(status_line(
-            locale.rename_invalid(),
-            Role::StatusError,
-            theme,
-        ));
-        lines.push(Line::from(""));
-    }
-    lines.extend([Line::from(""), Line::from("")]);
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
     let enter = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
-    let backspace = modal_key_label(theme, &Binding::new(KeyCode::Backspace, Modifiers::NONE));
-    let clear = modal_key_label(theme, &Binding::new(KeyCode::Char('u'), Modifiers::CTRL));
-    let hints = [
-        super::controls::KeyHint::new(&backspace, locale.rename_delete_hint()),
-        super::controls::KeyHint::new(&clear, locale.rename_clear_hint()),
-    ];
-    let submit_enabled = draft.label_valid() && !draft.input_fault();
     let actions = [
-        ModalAction::new(
-            locale.rename_cancel_label(),
-            super::controls::ActionKind::Secondary,
-            true,
-        )
-        .with_shortcut(&escape),
+        ModalAction::new(locale.rename_cancel_label(), ActionKind::Secondary, true)
+            .with_shortcut(&escape),
         ModalAction::new(
             locale.rename_submit_label(),
-            super::controls::ActionKind::Primary,
-            submit_enabled,
+            ActionKind::Primary,
+            error.is_none(),
         )
         .with_shortcut(&enter),
     ];
-    let text = Text::from(lines);
-    let Some(candidate) = modal_layout(
-        frame.area(),
-        content_area,
-        title,
-        &text,
-        &hints,
-        actions,
-        theme,
-    ) else {
+    let dialog = Dialog {
+        title: locale.rename_title(),
+        class: DialogClass::Narrow,
+        rows,
+        footer: DialogFooter::Actions(&actions),
+    };
+    let Some(layout) = dialog_layout(frame.area(), &dialog, theme) else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
-    // The raw draft stays exact; what the modal draws is its safe projection
-    // inside the inner width, with the raw cursor mapped through the same
-    // projection — never a raw byte offset applied to sanitized text.
-    let Some(field_width) = candidate.inner.width.checked_sub(4) else {
+    let Some(row) = layout.row(0) else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
-    let Some(window) = draft.field_window(usize::from(field_width)) else {
+    // The raw draft stays exact; the field shows its safe projection, with the raw cursor mapped
+    // through the same projection.
+    let value_area = field_value_area(row, theme);
+    let Some(window) = draft.field_window(usize::from(value_area.width)) else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
-    let mut lines = text.lines;
-    let (display, role) = if placeholder_visible {
-        let target_label = draft.target_label(locale);
-        let label = sanitize_terminal_text(&target_label);
-        (
-            truncate_display(&label, usize::from(field_width), theme.glyphs.ellipsis),
-            Role::TextSecondary,
-        )
-    } else {
-        (window.display().to_owned(), Role::TextPrimary)
+    let target = |submit| HitTarget::Rename {
+        token: draft.token(),
+        submit,
     };
-    let mut displayed = display;
-    displayed.push_str(&" ".repeat(
-        usize::from(field_width).saturating_sub(crate::terminal_text::display_width(&displayed)),
-    ));
-    lines[FIELD] = Line::from(vec![
-        Span::styled("[ ", theme.style(crate::tui_theme::Role::AccentFocus)),
-        Span::styled(displayed, theme.style(role)),
-        Span::styled(" ]", theme.style(crate::tui_theme::Role::AccentFocus)),
-    ]);
-    let text = Text::from(lines);
-    let Some(layout) = modal_layout(
-        frame.area(),
-        content_area,
-        title,
-        &text,
-        &hints,
-        actions,
-        theme,
-    ) else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-
-    hits.start_modal();
-    hits.record(
-        HitLayer::OverlaySurface,
-        layout.area,
-        HitTarget::OverlaySurface,
-    );
-    paint_modal_frame(frame, layout.area, title, theme);
-    frame.render_widget(
-        Paragraph::new(crate::terminal_text::wrap_text(&text, layout.inner.width)),
-        layout.inner,
-    );
-    paint_modal_close(
+    paint_dialog(
         frame,
-        layout.close,
-        HitTarget::Rename {
-            token: draft.token(),
-            submit: false,
+        &dialog,
+        &layout,
+        &DialogTargets {
+            close: target(false),
+            actions: &[target(false), target(true)],
+            dismiss_outside: !draft.touched(),
+            scroll: None,
         },
-        true,
         theme,
         hits,
     );
-    let rendered_hints = super::controls::render_overlay_hints(frame, layout.hints, &hints, theme)
-        .expect("admitted modal hints must paint");
-    debug_assert!(layout.hints.intersection(rendered_hints) == rendered_hints);
-    for ((rect, action), submit) in layout.actions.into_iter().zip(actions).zip([false, true]) {
-        paint_modal_action(
-            frame,
-            Rect::new(rect.x, rect.y, layout.inner.right() - rect.x, 1),
-            rect,
-            action,
-            HitTarget::Rename {
-                token: draft.token(),
-                submit,
-            },
-            theme,
-            hits,
+    if placeholder_visible {
+        let label = draft.target_label(locale);
+        let label = truncate_display(
+            &sanitize_terminal_text(&label),
+            usize::from(value_area.width),
+            theme.glyphs.ellipsis,
         );
+        paint_field(frame, row, &label, true, theme);
+    } else {
+        paint_field(frame, row, window.display(), false, theme);
     }
-    set_modal_cursor(
-        frame,
-        &text,
-        layout.inner,
-        FIELD,
-        window.cursor_column() + 2,
-    );
+    let column = u16::try_from(window.cursor_column())
+        .unwrap_or(u16::MAX)
+        .min(value_area.width.saturating_sub(1));
+    frame.set_cursor_position((value_area.x.saturating_add(column), value_area.y));
     (layout.area, ModalPresentation::Presented(draft.token()))
 }
 

@@ -2838,27 +2838,6 @@ impl InputDispatcher {
             }
             return;
         }
-        if context.stage == SetupStage::ProjectDeleteConfirm {
-            // This setup stage is a decision, not an editor. Framing completeness remains an
-            // admission fact, while text, paste and editing faults never change its question.
-            match event {
-                ModalInputEvent::Submit => {
-                    let _disposition =
-                        port.surface_action(SurfaceAction::Setup(SetupAction::Submit(token)));
-                }
-                ModalInputEvent::Cancel => {
-                    port.surface_action(SurfaceAction::Setup(SetupAction::Cancel(token)));
-                }
-                ModalInputEvent::Completeness(complete) => {
-                    port.surface_input(SurfaceInput::Setup {
-                        token,
-                        edit: SetupEdit::Completeness(complete),
-                    });
-                }
-                _ => {}
-            }
-            return;
-        }
         let edit = match event {
             ModalInputEvent::NextField => SetupEdit::NextField,
             ModalInputEvent::PreviousChoice => SetupEdit::SelectPreviousProject,

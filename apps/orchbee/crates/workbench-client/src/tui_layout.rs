@@ -232,12 +232,6 @@ fn effective_sidebar_surface(
     }
 }
 
-pub(crate) const fn overlay_area(areas: &ShellAreas) -> Rect {
-    // Content-scoped surfaces center in the whole content; the floating status covers only its
-    // own cells on the last row, after every overlay has painted.
-    areas.panel
-}
-
 /// The floating status chip's bounds: the last row beside a visible sidebar, one cell in from each
 /// end. TooSmall keeps the whole row for its full-width exit hint.
 pub(crate) const fn status_chip_area(areas: &ShellAreas) -> Rect {
@@ -267,24 +261,6 @@ pub(crate) fn place_overlay(
         width,
         height,
     ))
-}
-
-pub(crate) fn centered_overlay(area: Rect, maximum_width: u16, maximum_height: u16) -> Rect {
-    let width = area
-        .width
-        .saturating_sub(OVERLAY_HORIZONTAL_MARGIN)
-        .min(maximum_width);
-    let height = area
-        .height
-        .saturating_sub(OVERLAY_VERTICAL_MARGIN)
-        .min(maximum_height);
-    Rect::new(
-        area.x.saturating_add(area.width.saturating_sub(width) / 2),
-        area.y
-            .saturating_add(area.height.saturating_sub(height) / 2),
-        width,
-        height,
-    )
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

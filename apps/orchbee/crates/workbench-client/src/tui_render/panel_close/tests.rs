@@ -1,302 +1,107 @@
-use super::super::modal::ModalAction;
-use super::{PreparedContent, confirmation_text, render_content, render_prepared};
+use super::{PanelCloseCopy, PanelModalDraw, render_prepared};
 use crate::localization::{CloseImpact, Locale};
-use crate::tui_hit_map::HitMapBuilder;
+use crate::tui_hit_map::{HitMapBuilder, HitTarget};
 use crate::tui_presentation::ModalPresentation;
 use crate::tui_theme::Theme;
 use crate::workbench_state::PanelCloseConfirmationToken;
-use ratatui::{
-    Terminal,
-    backend::TestBackend,
-    layout::Rect,
-    text::{Line, Text},
-};
+use ratatui::{Terminal, backend::TestBackend};
 
-fn modal_hints(_locale: Locale) -> [super::super::controls::KeyHint<'static>; 0] {
-    []
-}
+const TOKEN: PanelCloseConfirmationToken = PanelCloseConfirmationToken::for_test(3);
 
-fn modal_actions<'a>(locale: Locale, confirm: &'a str) -> [ModalAction<'a>; 2] {
-    [
-        ModalAction::new(
-            locale.panel_close_cancel_label(),
-            super::super::controls::ActionKind::Secondary,
-            true,
-        )
-        .with_shortcut("Esc"),
-        ModalAction::new(confirm, super::super::controls::ActionKind::Primary, true)
-            .with_shortcut("Enter"),
-    ]
-}
-
-fn draw(width: u16, height: u16, locale: Locale, lines: Vec<Line<'_>>) -> (bool, String) {
-    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-    let theme = Theme::rgb_test_dark();
-    let mut complete = false;
-    terminal
-        .draw(|frame| {
-            let hints = modal_hints(locale);
-            complete = render_content(
-                frame,
-                frame.area(),
-                Text::from(lines.clone()),
-                &hints,
-                modal_actions(locale, locale.panel_close_confirm_label()),
-                &theme,
-            )
-            .1;
-        })
-        .unwrap();
-    let text = terminal
-        .backend()
-        .buffer()
-        .content()
-        .iter()
-        .map(|cell| cell.symbol())
-        .collect::<String>();
-    (complete, text)
-}
-
-const RUNNING: CloseImpact = CloseImpact {
-    running: 1,
-    ended: 0,
-};
-
-fn confirmation_lines(locale: Locale, dissolves_tab: bool) -> Vec<Line<'static>> {
-    confirmation_text(
-        locale,
-        2,
-        1,
-        "fixture",
-        "fixture",
-        locale.panel_close_warning(dissolves_tab, RUNNING),
-        &Theme::rgb_test_dark(),
-    )
-    .lines
-}
-
-#[test]
-fn panel_close_requires_complete_visible_text_and_rejects_a_narrow_draw() {
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let lines = confirmation_lines(locale, false);
-        for (width, height) in [(120, 40), (80, 24)] {
-            let (complete, wide) = draw(width, height, locale, lines.clone());
-            assert!(complete);
-            let target = locale.panel_close_targets(2, 1, "fixture", "fixture");
-            assert!(alnum(&wide).contains(&alnum(&target[0])));
-            assert!(alnum(&wide).contains(&alnum(&target[1])));
-        }
-        let (complete, narrow) = draw(22, 8, locale, lines);
-        assert!(!complete);
-        assert!(!narrow.contains("fixture"));
+fn copy(locale: Locale) -> PanelCloseCopy {
+    PanelCloseCopy {
+        target: locale.panel_close_target(2, "git"),
+        tab: locale.panel_close_tab("build"),
+        dissolves_tab: true,
+        consequence: locale.close_warning(CloseImpact {
+            running: 1,
+            ended: 0,
+        }),
     }
 }
 
-#[test]
-fn panel_close_target_positions_survive_duplicate_and_control_labels() {
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let targets = locale.panel_close_targets(2, 3, "same\x1b[31m\nlabel", "same\x07label");
-        assert!(targets[0].starts_with(&format!("{} 2 · ", locale.shell().panel_title)));
-        assert!(targets[1].starts_with("Tab 3 · "));
-        assert!(
-            targets
-                .iter()
-                .all(|target| !target.chars().any(char::is_control))
-        );
-    }
-}
-
-#[test]
-fn panel_close_long_duplicate_labels_fit_at_supported_normal_and_compact_sizes() {
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let panel_label = "duplicate terminal label with a stable suffix";
-        let tab_label = "duplicate Tab label with a stable suffix";
-        let text = confirmation_text(
-            locale,
-            12,
-            34,
-            panel_label,
-            tab_label,
-            // The longest warning: running and ended terminals in one Panel.
-            locale.panel_close_warning(
-                false,
-                CloseImpact {
-                    running: 2,
-                    ended: 1,
-                },
-            ),
-            &Theme::rgb_test_dark(),
-        );
-        let targets = locale.panel_close_targets(12, 34, panel_label, tab_label);
-        for (width, height) in [(120, 40), (80, 24)] {
-            let (complete, rendered) = draw(width, height, locale, text.lines.clone());
-            assert!(complete, "{locale:?} at {width}x{height}");
-            assert!(alnum(&rendered).contains(&alnum(&targets[0])));
-            assert!(alnum(&rendered).contains(&alnum(&targets[1])));
-        }
-    }
-}
-
-/// Borders, padding, and wrap breaks split the flat buffer text; comparing on
-/// the alphanumeric run keeps the whole rendered sentence contiguous.
-fn alnum(text: &str) -> String {
-    text.chars().filter(|c| c.is_alphanumeric()).collect()
-}
-
-#[test]
-fn panel_close_discloses_the_last_leaf_tab_dissolution_in_both_locales() {
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let (complete, leaf) = draw(120, 24, locale, confirmation_lines(locale, false));
-        assert!(complete);
-        let (complete, last) = draw(120, 24, locale, confirmation_lines(locale, true));
-        assert!(complete);
-        let dissolving = alnum(&locale.panel_close_warning(true, RUNNING));
-        let shared = alnum(&locale.panel_close_warning(false, RUNNING));
-        assert!(alnum(&last).contains(&dissolving));
-        assert!(!alnum(&leaf).contains(&dissolving));
-        assert!(alnum(&leaf).contains(&shared));
-    }
-}
-
-#[test]
-fn panel_close_actions_name_only_the_exact_decision_keys() {
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let (complete, text) = draw(120, 24, locale, confirmation_lines(locale, false));
-        assert!(complete);
-        assert!(text.contains("Esc"));
-        assert!(
-            !text.contains("n /"),
-            "the removed n-cancel hint must not linger: {text}"
-        );
-    }
-}
-
-/// The modal must live inside the offered content area at a finite preferred
-/// size — never spread across the whole frame — and refuse when the content
-/// area cannot present the complete text.
-#[test]
-fn modal_stays_inside_content_area_at_finite_size_and_refuses_too_small() {
-    let lines = confirmation_lines(Locale::EnUs, false);
-    let theme = Theme::rgb_test_dark();
-    let mut terminal = Terminal::new(TestBackend::new(120, 30)).unwrap();
-    let content = ratatui::layout::Rect::new(20, 5, 80, 20);
-    let mut result = (ratatui::layout::Rect::default(), false);
-    terminal
-        .draw(|frame| {
-            let hints = modal_hints(Locale::EnUs);
-            result = render_content(
-                frame,
-                content,
-                Text::from(lines.clone()),
-                &hints,
-                modal_actions(Locale::EnUs, Locale::EnUs.panel_close_confirm_label()),
-                &theme,
-            );
-        })
-        .unwrap();
-    let (area, complete) = result;
-    assert!(complete, "80x20 content area presents the modal");
-    assert!(area.x >= content.x && area.y >= content.y);
-    assert!(area.x + area.width <= content.x + content.width);
-    assert!(area.y + area.height <= content.y + content.height);
-    assert!(
-        area.width < content.width && area.height < content.height,
-        "preferred size is finite, not the whole content area: {area:?}"
-    );
-
-    let mut small = Terminal::new(TestBackend::new(120, 30)).unwrap();
-    let tiny = ratatui::layout::Rect::new(40, 10, 24, 6);
-    let mut small_result = (ratatui::layout::Rect::default(), true);
-    small
-        .draw(|frame| {
-            let hints = modal_hints(Locale::EnUs);
-            small_result = render_content(
-                frame,
-                tiny,
-                Text::from(lines.clone()),
-                &hints,
-                modal_actions(Locale::EnUs, Locale::EnUs.panel_close_confirm_label()),
-                &theme,
-            );
-        })
-        .unwrap();
-    assert!(
-        !small_result.1,
-        "a content area that cannot fit the text reports not complete"
-    );
-    assert_eq!(small_result.0, Rect::default());
-}
-
-fn assert_atomic_refusal(content: Rect, text: Text<'_>, confirm: &str) {
-    let width = 40;
-    let height = 12;
+/// Draws into a fresh window; returns the draw, the dialog text between its side borders without
+/// spaces (so a wrapped sentence reads as one), and the action cells.
+fn render(width: u16, height: u16, locale: Locale) -> (PanelModalDraw, String, Vec<(u16, bool)>) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut hits = HitMapBuilder::new();
     let mut result = None;
     terminal
         .draw(|frame| {
-            for y in 0..height {
-                for x in 0..width {
-                    frame.buffer_mut()[(x, y)].set_symbol("q");
-                }
-            }
-            let hints = modal_hints(Locale::EnUs);
             result = Some(render_prepared(
                 frame,
-                PanelCloseConfirmationToken::for_test(41),
-                content,
-                PreparedContent {
-                    title: Locale::EnUs.panel_close_title(),
-                    text: text.clone(),
-                    hints: &hints,
-                    actions: modal_actions(Locale::EnUs, confirm),
-                },
+                locale,
+                TOKEN,
+                &copy(locale),
                 &Theme::rgb_test_dark(),
                 &mut hits,
             ));
         })
         .unwrap();
-    let result = result.unwrap();
-    assert_eq!(result.area, Rect::default());
-    assert!(matches!(result.prompt, ModalPresentation::NotPresented));
-    assert!(
-        terminal
-            .backend()
-            .buffer()
-            .content()
-            .iter()
-            .all(|cell| cell.symbol() == "q"),
-        "a refused modal must not clear, paint, or partially copy any cell"
-    );
-    let hits = hits.finish();
-    assert!((0..height).all(|y| (0..width).all(|x| hits.hit_target_at(x, y).is_none())));
+    let draw = result.unwrap();
+    let map = hits.finish();
+    let footer = draw.area.bottom().saturating_sub(2);
+    let actions = (0..width)
+        .filter_map(|x| match map.hit_target_at(x, footer) {
+            Some(HitTarget::PanelClose { token, confirm }) if *token == TOKEN => {
+                Some((x, *confirm))
+            }
+            _ => None,
+        })
+        .collect();
+    let buffer = terminal.backend().buffer();
+    let inner = draw.area.inner(ratatui::layout::Margin::new(1, 0));
+    let text = inner
+        .rows()
+        .flat_map(|row| row.columns())
+        .map(|cell| buffer[(cell.x, cell.y)].symbol())
+        .collect::<String>()
+        .replace(' ', "");
+    (draw, text, actions)
 }
 
 #[test]
-fn refused_modal_is_atomic_for_too_small_partial_oversize_and_clipped_actions() {
-    let ordinary = Text::from(vec![
-        Line::from("Close panel"),
-        Line::from(""),
-        Line::from("Warning"),
-        Line::from(""),
-        Line::from(""),
-    ]);
-    assert_atomic_refusal(Rect::new(0, 0, 10, 3), ordinary.clone(), "Close");
-    assert_atomic_refusal(Rect::new(35, 2, 20, 8), ordinary, "Close");
+fn panel_close_confirmation_is_centered_and_localized_with_the_primary_last() {
+    for (locale, title, cancel, primary) in [
+        (Locale::EnUs, "Close Panel?", "Cancel", "Close"),
+        (Locale::ZhCn, "关闭面板？", "取消", "关闭"),
+    ] {
+        let (draw, text, actions) = render(100, 30, locale);
+        assert!(matches!(draw.prompt, ModalPresentation::Presented(token) if token == TOKEN));
+        assert_eq!(draw.area.x, (100 - draw.area.width) / 2);
+        assert_eq!(draw.area.y, (30 - draw.area.height) / 2);
+        let copy = copy(locale);
+        for expected in [
+            title,
+            cancel,
+            primary,
+            &copy.target,
+            &copy.tab,
+            &copy.consequence,
+            locale.panel_close_last_panel(),
+        ] {
+            assert!(
+                text.contains(&expected.replace(' ', "")),
+                "{locale:?} {expected}"
+            );
+        }
+        // Cancel first, the destructive primary right-aligned after it.
+        let first_primary = actions.iter().position(|(_, confirm)| *confirm).unwrap();
+        assert!(first_primary > 0 && actions[first_primary..].iter().all(|(_, confirm)| *confirm));
+    }
+}
 
-    let oversized = Text::from(vec![
-        Line::from("Close panel"),
-        Line::from("界".repeat(2048)),
-        Line::from(""),
-        Line::from(""),
-    ]);
-    assert_atomic_refusal(Rect::new(0, 0, 40, 12), oversized, "Close");
+#[test]
+fn panel_close_confirmation_degrades_in_small_windows_and_is_refused_below_its_minimum() {
+    let (draw, text, actions) = render(48, 7, Locale::EnUs);
+    assert!(matches!(draw.prompt, ModalPresentation::Presented(_)));
+    assert_eq!(draw.area.height, 7);
+    // The target and the complete action row stay; the context line goes.
+    assert!(text.contains("Terminal2·git"));
+    assert!(!text.contains("Tab:build"));
+    assert!(actions.iter().any(|(_, confirm)| *confirm));
 
-    let long_confirm = "Confirm permanently".repeat(8);
-    let clipped = Text::from(vec![
-        Line::from("Close panel"),
-        Line::from(""),
-        Line::from(""),
-    ]);
-    assert_atomic_refusal(Rect::new(0, 0, 40, 12), clipped, long_confirm.as_str());
+    let (draw, text, actions) = render(20, 5, Locale::EnUs);
+    assert!(matches!(draw.prompt, ModalPresentation::NotPresented));
+    assert!(draw.area.is_empty() && actions.is_empty() && text.is_empty());
 }

@@ -6,8 +6,6 @@ use crate::localization::{LocationLabelStatus, LocationLabelTarget};
 pub(crate) enum SetupStage {
     ChooseWorkspaceProject,
     WorkspaceProjectName,
-    DissolveProject,
-    ProjectDeleteConfirm,
     TabGroupName,
     PreparingWorkspace,
     QuickProject,
@@ -16,6 +14,16 @@ pub(crate) enum SetupStage {
     DirectoryPath,
     ProjectRename,
     WorkspaceRename,
+}
+
+/// Why a form field cannot be submitted, shown in its help row.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum FieldError {
+    NameRequired,
+    NameTooLong,
+    PathRequired,
+    PathInvalid,
+    PathTooLong,
 }
 
 /// Observed setup outcome, including facts retained after loss of publication.
@@ -62,29 +70,6 @@ impl Locale {
         }
     }
 
-    /// Confirms Dissolve Project, the menu action that opens this decision.
-    pub(crate) const fn project_dissolve_label(self) -> &'static str {
-        match self {
-            Self::EnUs => "Dissolve",
-            Self::ZhCn => "解散",
-        }
-    }
-    pub(crate) const fn project_delete_title(self) -> &'static str {
-        match self {
-            Self::EnUs => "Dissolve Project?",
-            Self::ZhCn => "解散项目？",
-        }
-    }
-    pub(crate) const fn project_delete_warning(self) -> &'static str {
-        match self {
-            Self::EnUs => {
-                "Remove this Project organization. All member Workspaces, terminals and programs are kept and become ungrouped."
-            }
-            Self::ZhCn => {
-                "移除此项目组织关系。全部成员工作区、终端和程序都会保留，并成为未分组工作区。"
-            }
-        }
-    }
     /// Localized progress for the Client-local Workspace creation projection.
     pub(crate) const fn workspace_creation_progress(
         self,
@@ -106,12 +91,6 @@ impl Locale {
             Self::ZhCn => "工作区",
         }
     }
-    pub(crate) const fn setup_submit_label(self) -> &'static str {
-        match self {
-            Self::EnUs => "Submit",
-            Self::ZhCn => "提交",
-        }
-    }
     pub(crate) const fn setup_cancel_label(self) -> &'static str {
         match self {
             Self::EnUs => "Cancel",
@@ -122,30 +101,6 @@ impl Locale {
         match self {
             Self::EnUs => "select",
             Self::ZhCn => "选择",
-        }
-    }
-    pub(crate) const fn setup_choose_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "choose",
-            Self::ZhCn => "确定",
-        }
-    }
-    pub(crate) const fn setup_next_field_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "next field",
-            Self::ZhCn => "切换字段",
-        }
-    }
-    pub(crate) const fn setup_delete_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "delete",
-            Self::ZhCn => "删除",
-        }
-    }
-    pub(crate) const fn setup_clear_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "clear",
-            Self::ZhCn => "清空",
         }
     }
     pub(crate) const fn setup_choice_unavailable(self) -> &'static str {
@@ -178,27 +133,101 @@ impl Locale {
         }
     }
 
+    /// The title names the task; a follow-up step keeps the frame and states its own task.
     pub(crate) const fn setup_title(self, stage: SetupStage) -> &'static str {
         match (self, stage) {
             (Self::EnUs, SetupStage::ChooseWorkspaceProject) => "Move Workspace to Project",
             (Self::ZhCn, SetupStage::ChooseWorkspaceProject) => "将工作区移入项目",
-            (Self::EnUs, SetupStage::WorkspaceProjectName) => "Create Project and move Workspace",
-            (Self::ZhCn, SetupStage::WorkspaceProjectName) => "新建项目并移入工作区",
-            (Self::EnUs, SetupStage::DissolveProject) => "Dissolving Project…",
-            (Self::ZhCn, SetupStage::DissolveProject) => "正在解散项目…",
-            (_, SetupStage::ProjectDeleteConfirm) => self.project_delete_title(),
-            (Self::EnUs, SetupStage::TabGroupName) => "Tab group name",
-            (Self::ZhCn, SetupStage::TabGroupName) => "标签页分组名称",
-            (Self::EnUs, SetupStage::PreparingWorkspace) => "Preparing Workspace directory…",
-            (Self::ZhCn, SetupStage::PreparingWorkspace) => "正在准备工作区目录…",
-            (Self::EnUs, SetupStage::QuickProject) => "New Workspace · choose Project",
-            (Self::ZhCn, SetupStage::QuickProject) => "新建工作区 · 选择项目",
-            (Self::EnUs, SetupStage::QuickName | SetupStage::QuickDirectory) => "New Workspace",
-            (Self::ZhCn, SetupStage::QuickName | SetupStage::QuickDirectory) => "新建工作区",
-            (Self::EnUs, SetupStage::DirectoryPath) => "Configure Workspace directory",
-            (Self::ZhCn, SetupStage::DirectoryPath) => "配置工作区目录",
+            (Self::EnUs, SetupStage::WorkspaceProjectName) => "New Project",
+            (Self::ZhCn, SetupStage::WorkspaceProjectName) => "新建项目",
+            (Self::EnUs, SetupStage::TabGroupName) => "New Tab Group",
+            (Self::ZhCn, SetupStage::TabGroupName) => "新建标签页分组",
+            (
+                Self::EnUs,
+                SetupStage::PreparingWorkspace
+                | SetupStage::QuickProject
+                | SetupStage::QuickName
+                | SetupStage::QuickDirectory,
+            ) => "New Workspace",
+            (
+                Self::ZhCn,
+                SetupStage::PreparingWorkspace
+                | SetupStage::QuickProject
+                | SetupStage::QuickName
+                | SetupStage::QuickDirectory,
+            ) => "新建工作区",
+            (Self::EnUs, SetupStage::DirectoryPath) => "Set Workspace Directory",
+            (Self::ZhCn, SetupStage::DirectoryPath) => "设置工作区目录",
             (_, SetupStage::ProjectRename) => self.location_rename_title(true),
             (_, SetupStage::WorkspaceRename) => self.location_rename_title(false),
+        }
+    }
+    /// The primary names the outcome with the title's verb.
+    pub(crate) const fn setup_submit_label(self, stage: SetupStage) -> &'static str {
+        match (self, stage) {
+            (Self::EnUs, SetupStage::ChooseWorkspaceProject) => "Move",
+            (Self::ZhCn, SetupStage::ChooseWorkspaceProject) => "移入",
+            (Self::EnUs, SetupStage::DirectoryPath) => "Set",
+            (Self::ZhCn, SetupStage::DirectoryPath) => "设置",
+            (Self::EnUs, SetupStage::ProjectRename | SetupStage::WorkspaceRename) => "Rename",
+            (Self::ZhCn, SetupStage::ProjectRename | SetupStage::WorkspaceRename) => "重命名",
+            (Self::EnUs, _) => "Create",
+            (Self::ZhCn, _) => "创建",
+        }
+    }
+    pub(crate) const fn tab_group_rename_title(self) -> &'static str {
+        match self {
+            Self::EnUs => "Rename Tab Group",
+            Self::ZhCn => "重命名标签页分组",
+        }
+    }
+    /// A picker's choice key names its outcome: moving the Workspace, or choosing a Project.
+    pub(crate) const fn setup_choose_hint(self, stage: SetupStage) -> &'static str {
+        match (self, stage) {
+            (Self::EnUs, SetupStage::ChooseWorkspaceProject) => "move",
+            (Self::ZhCn, SetupStage::ChooseWorkspaceProject) => "移入",
+            (Self::EnUs, _) => "choose",
+            (Self::ZhCn, _) => "选择",
+        }
+    }
+    pub(crate) const fn setup_close_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "close",
+            Self::ZhCn => "关闭",
+        }
+    }
+    /// Help for the one key only the directory field uses.
+    pub(crate) const fn quick_workspace_directory_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "Up and Down pick a recent folder.",
+            Self::ZhCn => "用上下键选择最近的文件夹。",
+        }
+    }
+    pub(crate) const fn setup_directory_help(self) -> &'static str {
+        match self {
+            Self::EnUs => "Use the full path of an existing folder.",
+            Self::ZhCn => "使用现有文件夹的完整路径。",
+        }
+    }
+    pub(crate) const fn setup_group_name_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "Leave blank for an unnamed group.",
+            Self::ZhCn => "留空则为未命名分组。",
+        }
+    }
+    /// Field errors state the fix in one sentence.
+    pub(crate) const fn field_error(self, error: FieldError) -> &'static str {
+        match (self, error) {
+            (Self::EnUs, FieldError::NameRequired) => "Enter a name.",
+            (Self::ZhCn, FieldError::NameRequired) => "请输入名称。",
+            (Self::EnUs, FieldError::NameTooLong) => "Use at most 512 characters.",
+            (Self::ZhCn, FieldError::NameTooLong) => "最多使用 512 个字符。",
+            (Self::EnUs, FieldError::PathRequired) => "Enter a path.",
+            (Self::ZhCn, FieldError::PathRequired) => "请输入路径。",
+            (Self::EnUs, FieldError::PathInvalid) => "Use the full path of a folder.",
+            (Self::ZhCn, FieldError::PathInvalid) => "请使用文件夹的完整路径。",
+            (Self::EnUs, FieldError::PathTooLong) => "Use a shorter path.",
+            (Self::ZhCn, FieldError::PathTooLong) => "请使用更短的路径。",
         }
     }
     pub(crate) const fn quick_workspace_name(self) -> &'static str {
@@ -213,21 +242,6 @@ impl Locale {
             Self::ZhCn => "目录",
         }
     }
-    pub(crate) const fn quick_workspace_directory_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => {
-                "Enter creates here. Edit the path, or use Up/Down to choose current or recent workspace folders."
-            }
-            Self::ZhCn => "回车在此创建。可直接编辑路径，或用上下键选择当前及最近工作区目录。",
-        }
-    }
-    pub(crate) const fn quick_workspace_preparing_fact(self) -> &'static str {
-        match self {
-            Self::EnUs => "No Workspace has been created yet.",
-            Self::ZhCn => "尚未创建工作区。",
-        }
-    }
-
     pub(crate) const fn setup_new_project(self) -> &'static str {
         match self {
             Self::EnUs => "New Project",
@@ -241,35 +255,11 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn setup_project(self) -> &'static str {
+    /// The New Workspace context line: the Project the Workspace joins.
+    pub(crate) fn setup_project_context(self, project: &str) -> String {
         match self {
-            Self::EnUs => "Project",
-            Self::ZhCn => "项目",
-        }
-    }
-
-    pub(crate) const fn setup_input_hint(self, directory: bool) -> &'static str {
-        match (self, directory) {
-            (Self::EnUs, false) => "Enter a name (1–512 characters).",
-            (Self::ZhCn, false) => "请输入名称（1–512 个字符）。",
-            (Self::EnUs, true) => "Enter the full path to an existing folder.",
-            (Self::ZhCn, true) => "请输入现有文件夹的完整路径。",
-        }
-    }
-
-    pub(crate) const fn setup_group_name_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "Group name (0–512 characters); leave blank for an unnamed group.",
-            Self::ZhCn => "分组名称（0–512 个字符）；留空为未命名分组。",
-        }
-    }
-
-    pub(crate) const fn setup_fault(self) -> &'static str {
-        match self {
-            Self::EnUs => {
-                "Input could not be accepted. Press Backspace or Ctrl+U to clear the input error."
-            }
-            Self::ZhCn => "无法接受输入。请按 Backspace 或 Ctrl+U 清除输入错误。",
+            Self::EnUs => format!("Project: {project}"),
+            Self::ZhCn => format!("项目：{project}"),
         }
     }
 

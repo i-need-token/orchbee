@@ -7,7 +7,7 @@ use crate::{
     terminal_text::display_width,
     tui_theme::{Role, Theme},
 };
-use ratatui::{Frame, layout::Rect, style::Style, text::Text};
+use ratatui::{Frame, layout::Rect, style::Style};
 
 mod action;
 mod control_state;
@@ -112,18 +112,6 @@ fn pad_to_width(value: &str, width: usize) -> String {
     let mut value = value.to_owned();
     value.push_str(&" ".repeat(width.saturating_sub(display_width(&value))));
     value
-}
-
-/// The wrapped position of a logical text row, shared by fields and actions.
-pub(super) fn text_row(text: &Text<'_>, inner: Rect, index: usize) -> Rect {
-    let offset =
-        crate::terminal_text::wrap_text(&Text::from(text.lines[..index].to_vec()), inner.width)
-            .lines
-            .len();
-    let y = inner
-        .y
-        .saturating_add(u16::try_from(offset).unwrap_or(u16::MAX));
-    Rect::new(inner.x, y, inner.width, u16::from(y < inner.bottom()))
 }
 
 pub(super) fn mode_bar(

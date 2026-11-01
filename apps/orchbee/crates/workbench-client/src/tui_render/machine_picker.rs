@@ -156,16 +156,11 @@ impl Picker {
             glyphs,
         );
         let choose = join_key_labels(&[up, down], style, "/");
-        let clear = format_binding_with_glyphs(
-            &Binding::new(KeyCode::Char('u'), Modifiers::CTRL),
-            style,
-            glyphs,
-        );
+        // Editing keys such as Ctrl+U are conventions, not advertised hints.
         let hints = if editing {
             vec![
                 KeyHint::new(&close, locale.machine_picker_text("picker-finish-hint")),
                 KeyHint::new(&enter, locale.machine_picker_text("picker-finish-hint")),
-                KeyHint::new(&clear, locale.machine_picker_text("picker-clear-hint")),
             ]
         } else {
             vec![

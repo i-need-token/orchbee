@@ -1567,7 +1567,7 @@ impl WorkbenchClientUi {
                         intent.stage().deadline()?,
                     )?
                     .with_choice(
-                        crate::workbench_state::workspace_setup::OrganizationChoice::DeleteIfIdle,
+                        crate::workbench_state::workspace_setup::OrganizationChoice::Dissolve,
                     )?;
                 crate::workbench_client::InputAction::workspace_organization(Box::new(request))
             }

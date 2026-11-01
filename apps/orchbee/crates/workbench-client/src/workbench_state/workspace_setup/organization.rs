@@ -20,8 +20,8 @@ pub(crate) enum OrganizationChoice {
     Review,
     NewProject,
     SetProject(Option<orchbee_workbench_protocol::WorkbenchProjectId>),
-    DeleteIfIdle,
-    ReviewDelete,
+    /// Dissolving a Project keeps every Workspace, so it runs at once without a confirmation.
+    Dissolve,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -119,11 +119,8 @@ impl WorkspaceOrganizationRequest {
                         .is_some()
                 }) || project.is_none() && workspace.project_id.is_some()
             }
-            (
-                OrganizationTarget::Project(_),
-                OrganizationChoice::DeleteIfIdle | OrganizationChoice::ReviewDelete,
-            ) => true,
-            (_, OrganizationChoice::Review) => true,
+            (OrganizationTarget::Project(_), OrganizationChoice::Dissolve) => true,
+            (OrganizationTarget::Workspace(_), OrganizationChoice::Review) => true,
             _ => false,
         };
         if !valid {
@@ -136,12 +133,8 @@ impl WorkspaceOrganizationRequest {
     pub(crate) fn direct(&self) -> bool {
         matches!(
             self.choice,
-            OrganizationChoice::SetProject(_) | OrganizationChoice::DeleteIfIdle
+            OrganizationChoice::SetProject(_) | OrganizationChoice::Dissolve
         )
-    }
-
-    pub(crate) fn reviewed_delete(&self) -> bool {
-        self.choice == OrganizationChoice::ReviewDelete
     }
 }
 
@@ -223,8 +216,8 @@ impl WorkbenchClientState {
                 workspace_id: workspace.workspace_id.clone(),
                 project_id: project_id.clone(),
             },
-            (OrganizationTarget::Project(project), OrganizationChoice::DeleteIfIdle) => {
-                WorkbenchAction::ProjectDissolveIfIdle {
+            (OrganizationTarget::Project(project), OrganizationChoice::Dissolve) => {
+                WorkbenchAction::ProjectDissolve {
                     project_id: project.project_id.clone(),
                 }
             }
@@ -245,41 +238,5 @@ impl WorkbenchClientState {
             baseline: self.cache.clone(),
             deadlines,
         })
-    }
-
-    pub(crate) fn review_project_delete(
-        &mut self,
-        operation: &SetupOperation,
-        deadline: Instant,
-    ) -> Option<super::SetupToken> {
-        let WorkbenchAction::ProjectDissolveIfIdle { project_id } = &operation.command.action
-        else {
-            return None;
-        };
-        if self.cache != operation.baseline {
-            return None;
-        }
-        let project = self
-            .cache
-            .canonical_snapshot()
-            .navigation
-            .project(project_id)?;
-        let request = WorkspaceOrganizationRequest::project(self, project, deadline)?
-            .with_choice(OrganizationChoice::ReviewDelete)?;
-        self.open_setup_draft(super::SetupIntent::Organize(Box::new(request)))
-    }
-
-    pub(crate) fn arm_project_dissolve(
-        &mut self,
-        token: super::SetupToken,
-        deadlines: super::OperationDeadlines,
-    ) -> bool {
-        let Some(draft) = self.setup.draft.as_mut().filter(|draft| {
-            draft.token == token && draft.stage == super::SetupStage::DissolveProject
-        }) else {
-            return false;
-        };
-        draft.continuation = Some(deadlines);
-        true
     }
 }

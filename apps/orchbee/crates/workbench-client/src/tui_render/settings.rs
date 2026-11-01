@@ -1,7 +1,7 @@
 //! Scrollable common settings; only controls from the last successful frame authorize input.
 use crate::{
     client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
-    localization::Locale,
+    localization::{Locale, SettingsAcceptLabel},
     native_settings::{
         Adjustment, Choice, Control, DraftView, Entry, Page, Row, SettingControl, SettingsDraw,
         SettingsHintLabel, View, footer_bindings, setting_for_row,
@@ -270,6 +270,22 @@ fn format_settings_bindings(bindings: impl Iterator<Item = Binding>, theme: &The
         .map(|binding| format_binding_with_glyphs(&binding, LabelStyle::for_host(), key_glyphs))
         .collect::<Vec<_>>()
         .join("/")
+}
+
+/// The outcome the child step's primary names: applying an edit, or the confirmed action.
+fn accept_label(view: View<'_>) -> SettingsAcceptLabel {
+    use crate::native_settings::Confirmation;
+    match view {
+        View::Draft(draft) => match draft.confirmation {
+            Some(Confirmation::ResetAll | Confirmation::ResetProfiles) => {
+                SettingsAcceptLabel::Reset
+            }
+            Some(Confirmation::Reload) => SettingsAcceptLabel::Reload,
+            Some(Confirmation::DeleteProfile) => SettingsAcceptLabel::Delete,
+            None => SettingsAcceptLabel::Apply,
+        },
+        _ => SettingsAcceptLabel::Apply,
+    }
 }
 
 fn is_confirmation(view: View<'_>) -> bool {
@@ -583,7 +599,7 @@ impl FooterActionGeometry {
                 PointerPresentation::Rest,
             );
             let mut second_spec = action_spec(
-                locale.settings_accept_button(),
+                locale.settings_accept_button(accept_label(view)),
                 ActionKind::Primary,
                 accept_enabled,
                 PointerPresentation::Rest,
@@ -789,7 +805,10 @@ fn render_footer_actions(
         else {
             unreachable!("preflighted child actions use pair geometry");
         };
-        let labels = [locale.settings_cancel(), locale.settings_accept_button()];
+        let labels = [
+            locale.settings_cancel(),
+            locale.settings_accept_button(accept_label(view)),
+        ];
         let shortcuts = child_shortcuts(view, theme);
         let accept_enabled =
             !matches!(view, View::Draft(draft) if draft.text.is_some() && draft.invalid);
