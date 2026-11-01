@@ -24,12 +24,78 @@ fn open(id: u64, lane: u64, mode: StreamMode) -> MultiplexMessage {
         request,
     }
 }
+fn no_job_read(_: &ApplicationRequest) -> Result<Vec<u8>, ApplicationConnectionError> {
+    panic!("these requests stay on the dispatcher")
+}
 fn bounded_pair() -> (LocalStream, LocalStream) {
     let (peer, server) = LocalStream::pair().unwrap();
     peer.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
     peer.set_write_timeout(Some(Duration::from_secs(2)))
         .unwrap();
     (peer, server)
+}
+
+#[test]
+fn a_waiting_job_read_never_delays_another_request_on_the_connection() {
+    use orchbee_workbench_protocol::{SessionId, WorkbenchWorkspaceId, WorkspaceGitRequest};
+    let (mut peer, server) = bounded_pair();
+    let (release, released) = mpsc::channel::<()>();
+    let released = Mutex::new(released);
+    let mut git = Vec::new();
+    write_workbench_request(
+        &mut git,
+        &WorkbenchRequest::WorkspaceGit(WorkspaceGitRequest {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
+            session_id: SessionId::parse(&format!("{:032x}", 2)).unwrap(),
+            workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 3)).unwrap(),
+        }),
+    )
+    .unwrap();
+    let task = thread::spawn(move || {
+        run(
+            &server,
+            MultiplexMessage::StreamOpen {
+                stream_id: MultiplexStreamId::new(1).unwrap(),
+                lane_id: MultiplexLaneId::ROOT,
+                mode: StreamMode::Request,
+                request: git,
+            },
+            Arc::default(),
+            |_, _| Ok(vec![2]),
+            |_| {
+                released.lock().unwrap().recv().unwrap();
+                Ok(vec![1])
+            },
+            |_| {},
+            |_| {},
+            || Ok(None),
+        )
+    });
+    write_multiplex_message(&mut peer, &open(2, 1, StreamMode::Request)).unwrap();
+    let MultiplexMessage::StreamFrame {
+        stream_id, record, ..
+    } = read_multiplex_message(&mut peer).unwrap()
+    else {
+        panic!("result frame");
+    };
+    assert_eq!((stream_id.value(), record), (2, vec![2]));
+    release.send(()).unwrap();
+    let MultiplexMessage::StreamFrame {
+        stream_id,
+        kind,
+        record,
+        ..
+    } = read_multiplex_message(&mut peer).unwrap()
+    else {
+        panic!("job result frame");
+    };
+    assert_eq!(
+        (stream_id.value(), kind, record),
+        (1, StreamFrameKind::Result, vec![1])
+    );
+    drop(peer);
+    let _closed = task.join().unwrap();
 }
 
 #[cfg(windows)]
@@ -117,6 +183,7 @@ fn idle_metadata_expiry_rearms_after_a_same_value_report_without_client_polling(
                     .map_err(ApplicationConnectionError::Workbench)?;
                 Ok(bytes)
             },
+            no_job_read,
             |_| {},
             |_| {},
             || connection.maintain_subscription_deadline(),
@@ -184,6 +251,7 @@ fn maintenance_failure_closes_instead_of_retrying_a_past_deadline() {
             open(1, 1, StreamMode::State),
             Arc::default(),
             |_, _| Ok(vec![1]),
+            no_job_read,
             |_| {},
             |_| {},
             || {
@@ -236,6 +304,7 @@ fn late_scope_completion_is_reclaimed_without_releasing_a_sibling_owner() {
                 capture.lock().unwrap().insert(lane);
                 Ok(vec![1])
             },
+            no_job_read,
             move |lane| {
                 release.lock().unwrap().remove(&lane);
                 closed.send(lane).unwrap();
@@ -314,6 +383,7 @@ fn a_slow_writer_cannot_hide_a_commit_during_another_clients_snapshot_capture() 
                 entered.send(()).unwrap();
                 Ok(vec![0; 4 * 1024 * 1024])
             },
+            no_job_read,
             |_| {},
             |_| {},
             || Ok(None),
@@ -335,6 +405,7 @@ fn a_slow_writer_cannot_hide_a_commit_during_another_clients_snapshot_capture() 
                 }
                 Ok(vec![captured])
             },
+            no_job_read,
             |_| {},
             |_| {},
             || Ok(None),
@@ -413,6 +484,7 @@ fn sustained_event_overrun_disconnects_only_its_carrier_with_a_typed_reason() {
             open(1, 1, StreamMode::Events),
             Arc::default(),
             |_, _| Ok(vec![1]),
+            no_job_read,
             |_| {},
             |_| {},
             || Ok(None),
@@ -498,6 +570,7 @@ fn an_active_event_cursor_rejects_competing_streams_and_one_shot_reads() {
                 executed.fetch_add(1, Ordering::AcqRel);
                 Ok(vec![1])
             },
+            no_job_read,
             |_| {},
             |_| {},
             || Ok(None),

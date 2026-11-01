@@ -92,6 +92,17 @@ impl ApplicationRequest {
     pub(super) fn multiplex_safe(&self) -> bool {
         !matches!(self.workbench(), Some(WorkbenchRequest::Events(request)) if matches!(request.action, orchbee_workbench_protocol::SemanticEventsAction::Wait { .. }))
     }
+    /// A read that waits on a Worker job, whose duration belongs to an external process.
+    pub(super) fn waits_for_worker_job(&self) -> bool {
+        matches!(
+            self.workbench(),
+            Some(
+                WorkbenchRequest::WorkspaceGit(_)
+                    | WorkbenchRequest::WorktreeQuery(_)
+                    | WorkbenchRequest::WorktreeListRead(_)
+            )
+        )
+    }
     pub(super) fn continuation(&self) -> Self {
         let mut next = self.clone();
         if let ApplicationRequestKind::Workbench(WorkbenchRequest::Events(request)) = &mut next.kind
@@ -234,8 +245,9 @@ pub(super) fn run_network<Permit>(
     stream: &orchbee_local_ipc::LocalStream,
     mut execute: impl FnMut(MultiplexLaneId, ClientMessage) -> ServerMessage,
     mut execute_workbench: impl FnMut(MultiplexLaneId, WorkbenchRequest) -> WorkbenchExecution,
+    execute_job_read: impl Fn(WorkbenchRequest) -> WorkbenchExecution + Sync,
     mut execute_agent: impl FnMut(AgentRequest) -> Result<AgentResult, AgentReadFault>,
-    mut admit: impl FnMut() -> Option<Permit>,
+    admit: impl Fn() -> Option<Permit> + Sync,
     watch: impl FnOnce(&std::sync::Arc<orchbee_server::SessionChangeSignal>),
     mut cancel: impl FnMut(&WorkbenchRequest),
     close_lane: impl FnMut(MultiplexLaneId),
@@ -262,7 +274,7 @@ pub(super) fn run_network<Permit>(
             |request| execute(MultiplexLaneId::ROOT, request),
             |request| execute_workbench(MultiplexLaneId::ROOT, request),
             execute_agent,
-            admit,
+            &admit,
         );
     }
     let first = orchbee_workbench_protocol::read_multiplex_message(&mut prefixed)
@@ -297,6 +309,19 @@ pub(super) fn run_network<Permit>(
                         .map_err(ApplicationConnectionError::Agent)?;
                 }
             }
+            Ok(bytes)
+        },
+        |request| {
+            let _permit = admit().ok_or(ApplicationConnectionError::Stopping)?;
+            let request = request
+                .workbench()
+                .ok_or(ApplicationConnectionError::UnknownProtocol)?;
+            let WorkbenchExecution::Response(response) = execute_job_read(request.clone()) else {
+                return Err(ApplicationConnectionError::WorkbenchOutcomeUnknown);
+            };
+            let mut bytes = Vec::new();
+            write_workbench_response(&mut bytes, &response)
+                .map_err(ApplicationConnectionError::Workbench)?;
             Ok(bytes)
         },
         close_lane,

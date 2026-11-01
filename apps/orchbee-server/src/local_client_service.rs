@@ -358,6 +358,7 @@ fn handle_candidate_control(
                 lane,
             )
         },
+        |request| workbench_connection.execute(request),
         |request| match request {
             orchbee_agent_observation_protocol::AgentRequest::Changes(request) => agents
                 .execute_changes_prepared(request, || terminals.prepare_agent_drain_read(agents))

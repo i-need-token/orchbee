@@ -1,18 +1,20 @@
-//! Two-thread admitted carrier: bounded input, one dispatch/output owner and event wakeups.
+//! Three-thread admitted carrier: bounded input, one dispatch/output owner, one owner of reads
+//! that wait on a Worker job, and event wakeups.
 use super::application_connection::{ApplicationConnectionError, ApplicationRequest};
 use orchbee_local_ipc::LocalStream;
 use orchbee_server::SessionChangeSignal;
 use orchbee_workbench_protocol::{
     MAXIMUM_MULTIPLEX_BYTES, MAXIMUM_MULTIPLEX_LANES, MAXIMUM_MULTIPLEX_STREAMS,
-    MultiplexDisconnectReason, MultiplexLaneId, MultiplexMessage, StreamCloseReason,
-    StreamFrameKind, StreamMode, read_multiplex_message, write_multiplex_message,
+    MultiplexDisconnectReason, MultiplexLaneId, MultiplexMessage, MultiplexStreamId,
+    StreamCloseReason, StreamFrameKind, StreamMode, read_multiplex_message,
+    write_multiplex_message,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     io::{self, Cursor, Read, Write},
     num::NonZeroU64,
     sync::{
-        Arc, Mutex,
+        Arc, Condvar, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
     thread,
@@ -95,6 +97,74 @@ struct Subscription {
     last_claim: Claim,
 }
 
+/// Input and frames must not queue behind a Git process, so these reads run on their own owner.
+/// A one-shot read has no order against its lane; its result returns through the dispatcher.
+struct JobRead {
+    stream_id: MultiplexStreamId,
+    request: ApplicationRequest,
+    claim: Claim,
+}
+struct FinishedJobRead {
+    stream_id: MultiplexStreamId,
+    outcome: Result<Vec<u8>, ApplicationConnectionError>,
+    _claim: Claim,
+}
+#[derive(Default)]
+struct JobReadState {
+    waiting: VecDeque<JobRead>,
+    finished: VecDeque<FinishedJobRead>,
+    closed: bool,
+}
+#[derive(Default)]
+struct JobReads {
+    state: Mutex<JobReadState>,
+    ready: Condvar,
+}
+impl JobReads {
+    fn state(&self) -> std::sync::MutexGuard<'_, JobReadState> {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+    fn close(&self) {
+        self.state().closed = true;
+        self.ready.notify_all();
+    }
+    fn run(
+        &self,
+        signal: &SessionChangeSignal,
+        execute: &impl Fn(&ApplicationRequest) -> Result<Vec<u8>, ApplicationConnectionError>,
+    ) {
+        loop {
+            let mut state = self.state();
+            let read = loop {
+                if state.closed {
+                    return;
+                }
+                if let Some(read) = state.waiting.pop_front() {
+                    break read;
+                }
+                state = self
+                    .ready
+                    .wait(state)
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+            };
+            drop(state);
+            let outcome = execute(&read.request);
+            self.state().finished.push_back(FinishedJobRead {
+                stream_id: read.stream_id,
+                outcome,
+                _claim: read.claim,
+            });
+            signal.wake();
+        }
+    }
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each callback is a distinct Server authority the carrier must not own"
+)]
 pub(super) fn run(
     stream: &LocalStream,
     first: MultiplexMessage,
@@ -103,6 +173,7 @@ pub(super) fn run(
         MultiplexLaneId,
         &ApplicationRequest,
     ) -> Result<Vec<u8>, ApplicationConnectionError>,
+    execute_job_read: impl Fn(&ApplicationRequest) -> Result<Vec<u8>, ApplicationConnectionError> + Sync,
     mut close_lane: impl FnMut(MultiplexLaneId),
     mut cancel: impl FnMut(&ApplicationRequest),
     mut maintenance: impl FnMut() -> io::Result<Option<Instant>>,
@@ -116,6 +187,7 @@ pub(super) fn run(
     };
     let reader = stream.try_clone()?;
     let mut writer = super::record_stream::ClientRecordStream::new(stream)?;
+    let job_reads = JobReads::default();
     thread::scope(|scope| {
         let read_inbox = Arc::clone(&inbox);
         let read_signal = Arc::clone(&signal);
@@ -134,11 +206,15 @@ pub(super) fn run(
                 drop(state);
                 read_signal.wake();
             })?;
+        let job_task = thread::Builder::new()
+            .name("orchbee-client-job-read".into())
+            .spawn_scoped(scope, || job_reads.run(&signal, &execute_job_read))?;
         let result = dispatch(
             &mut writer,
             first,
             &inbox,
             &signal,
+            &job_reads,
             &mut execute,
             &mut cancel,
             &mut close_lane,
@@ -159,12 +235,17 @@ pub(super) fn run(
             let _notice =
                 write_multiplex_message(&mut writer, &MultiplexMessage::Disconnect { reason });
         }
-        // This owner closes the reader before joining; no detached bridge or lane thread exists.
+        // This owner closes both before joining; no detached bridge or lane thread exists. A read
+        // in progress returns by its own Worker job deadline.
         let shutdown = stream.shutdown(std::net::Shutdown::Both);
+        job_reads.close();
         let joined = reader_task
             .join()
             .map_err(|_| io::Error::other("Client reader panicked"));
-        result.and(shutdown).and(joined)
+        let job_joined = job_task
+            .join()
+            .map_err(|_| io::Error::other("Client job reader panicked"));
+        result.and(shutdown).and(joined).and(job_joined)
     })
 }
 
@@ -227,6 +308,7 @@ fn dispatch(
     first: Queued,
     inbox: &Mutex<Inbox>,
     signal: &SessionChangeSignal,
+    job_reads: &JobReads,
     execute: &mut impl FnMut(
         MultiplexLaneId,
         &ApplicationRequest,
@@ -241,6 +323,8 @@ fn dispatch(
     let mut lanes = BTreeSet::from([MultiplexLaneId::ROOT]);
     let mut lane_high_water = 1;
     let mut pending = Some(first);
+    // Closing a stream or lane withdraws interest; its read finishes unobserved.
+    let mut open_job_reads: BTreeMap<MultiplexStreamId, MultiplexLaneId> = BTreeMap::new();
     loop {
         let wake_revision = signal.wake_revision();
         // Take bounded work out of the mailbox before semantic execution or socket I/O.
@@ -258,6 +342,30 @@ fn dispatch(
         }
         if closed {
             return Ok(());
+        }
+        let finished = std::mem::take(&mut job_reads.state().finished);
+        for read in finished {
+            if open_job_reads.remove(&read.stream_id).is_none() {
+                continue;
+            }
+            let record = read.outcome.map_err(io::Error::other)?;
+            let Ok(_frame_claim) = Claim::reserve(budget, record.len().saturating_mul(3)) else {
+                return write_multiplex_message(
+                    writer,
+                    &MultiplexMessage::Disconnect {
+                        reason: MultiplexDisconnectReason::Capacity,
+                    },
+                );
+            };
+            write_multiplex_message(
+                writer,
+                &MultiplexMessage::StreamFrame {
+                    stream_id: read.stream_id,
+                    sequence: NonZeroU64::MIN,
+                    kind: StreamFrameKind::Result,
+                    record,
+                },
+            )?;
         }
         for Queued { message, claim } in pending.take().into_iter().chain(messages) {
             match message {
@@ -321,6 +429,16 @@ fn dispatch(
                             !current.request.same_subscription_owner(&parsed)
                         });
                     }
+                    if mode == StreamMode::Request && parsed.waits_for_worker_job() {
+                        open_job_reads.insert(stream_id, lane_id);
+                        job_reads.state().waiting.push_back(JobRead {
+                            stream_id,
+                            request: parsed,
+                            claim,
+                        });
+                        job_reads.ready.notify_one();
+                        continue;
+                    }
                     // Registration precedes capture: publication during capture changes the signal
                     // revision and forces another evaluation before this connection can sleep.
                     let captured_at = stream_revision(signal, mode);
@@ -376,6 +494,7 @@ fn dispatch(
                     }
                 }
                 MultiplexMessage::StreamClose { stream_id, .. } => {
+                    open_job_reads.remove(&stream_id);
                     if let Some(removed) = subscriptions.remove(&stream_id)
                         && !subscriptions.values().any(|current| {
                             current.request.same_subscription_owner(&removed.request)
@@ -431,6 +550,7 @@ fn dispatch(
                         return Err(io::ErrorKind::InvalidData.into());
                     }
                     if lanes.remove(&lane_id) {
+                        open_job_reads.retain(|_, lane| *lane != lane_id);
                         subscriptions.retain(|_, subscription| {
                             if subscription.lane == lane_id {
                                 cancel(&subscription.request);
@@ -565,7 +685,7 @@ fn stream_revision(signal: &SessionChangeSignal, mode: StreamMode) -> u64 {
 
 fn resnapshot(
     writer: &mut impl Write,
-    stream_id: orchbee_workbench_protocol::MultiplexStreamId,
+    stream_id: MultiplexStreamId,
     subscription: &mut Subscription,
     execute: &mut impl FnMut(
         MultiplexLaneId,
