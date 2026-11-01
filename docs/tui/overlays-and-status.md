@@ -80,13 +80,14 @@ and global action discovery.
 ### Frame chrome
 
 - An overlay uses one neutral single-line `frame-unfocused` border, with no outer ring, shadow, or
-  doubled frame. The overlay already owns input through exclusive occlusion; its heading and its
-  terminal caret or provisional marker identify that ownership, so the border never repeats a focus
-  accent.
-- The header title sits on the top-left edge as `─ Title ` in heading text. When the surface admits
-  a close control under [Closing](#closing), it sits on the top-right edge as `─ [x] ─`, with one
-  blank cell beside each bracket and one rule cell before the corner. Other title controls, such as page controls, precede the close control with one
-  blank cell between controls. The title truncates before any title control loses a cell.
+  doubled frame, and it never dims the content around it. The overlay already owns input through
+  exclusive occlusion; its heading and its terminal caret or provisional marker identify that
+  ownership, so the border never repeats a focus accent.
+- The header title sits on the top-left edge as `─ Title ` in heading text. Every dialog and
+  reference surface shows the close control on the top-right edge as `─ [x] ─`, with one blank cell
+  beside each bracket and one rule cell before the corner; [Closing](#closing) defines its outcome.
+  Other title controls, such as page controls, precede the close control with one blank cell
+  between controls. The title truncates before any title control loses a cell.
 - One blank row separates the top edge from the first slot when height permits. It is the first space
   removed under height pressure, before any content, status, or footer row.
 - Footer hints separate whole items with a spaced vertical rule, as in `Key label  │  Key label`.
@@ -97,7 +98,7 @@ and global action discovery.
   `Label: query` in secondary text. While editing, it shows the localized label, a colon, and the
   draft, such as `Search: draft`, with the terminal caret following the draft and no bracket
   boundary. A query that receives every typed character keeps its editing presentation. Form fields
-  keep their labeled bracket boundaries.
+  use the field band in [`components.md`](components.md#search-and-editors).
 
 ### Content hierarchy
 
@@ -191,17 +192,23 @@ fields follow [`components.md`](components.md).
 
 | Kind         | Use when                                                                                              | Otherwise                                                                               |
 | ------------ | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Confirmation | This invocation would lose something that cannot be restored in one step (see below)                  | Run the action and report the result with a status notice                               |
+| Confirmation | This invocation would lose something, as listed below                                                 | Run the action and report the result with a status notice                               |
 | Form         | The task cannot run without values the person types                                                   | Use a safe default and let the person change it later, or edit inline on the object     |
 | Picker       | The person chooses one item from a list that is long, filterable, or described by more than its label | Use a menu for a few fixed choices; skip the step when context already decides the item |
 | Notice       | A failure or result needs a recovery choice, or detail that cannot fit one status line                | Use a status notice                                                                     |
 
 - Start without a dialog. An action that is reversible, or that loses nothing in this invocation,
   runs immediately and reports its result through a status notice.
-- Confirm only what is lost: a running program, files or a checkout on disk, other retained data,
-  an unsent draft, or terminals while another Client is attached. Decide per invocation from the
-  actual state. A shell that is known to be idle at its prompt is not a running program, so closing
-  its Tab or Panel while no other Client is attached runs without a confirmation.
+- Confirm only what is lost: a running program, files or a checkout on disk, an unsent draft,
+  terminals while another Client is attached, or the terminals of more than one Tab at once, as
+  when closing a Workspace. Decide per invocation from the actual state.
+- A shell that is known to be idle at its prompt is not a running program. Closing one Tab or Panel
+  whose terminals run no program, while no other Client is attached, closes it at once, and a
+  status notice reports the close.
+- Names, grouping, and order are organization, not content. Renaming a Project, moving a Workspace
+  between Projects, and dissolving a Project end nothing and delete nothing: every Workspace,
+  terminal, program, and file stays. They run without a confirmation, and the status notice states
+  what stays, as in `Project dissolved · Workspaces retained`.
 - Progress and waiting stay in the dialog that started the work, in its status row; they never open
   a separate dialog or replace the task with a progress-only stage. Work that continues after the
   dialog closes reports its result as a status notice.
@@ -215,7 +222,7 @@ fields follow [`components.md`](components.md).
 
 Every dialog uses the same rows from top to bottom. An omitted row closes up without leaving a gap.
 
-1. Top edge: the title, and the close control when [Closing](#closing) admits one.
+1. Top edge: the title and the close control.
 2. One blank row.
 3. Target or context: at most one line, followed by one blank row.
 4. Body: the prose of a confirmation or notice, the fields of a form, or the query and list of a
@@ -256,13 +263,18 @@ Every dialog uses the same rows from top to bottom. An omitted row closes up wit
   with other Clients. Help never widens the dialog.
 - A field that can fail validation keeps its help row even without help text, so an error never
   moves the rows below it.
-- Validate on submission. After a failed submission, the error follows the draft as it changes and
-  disappears once the value is valid.
+- The primary action is disabled while any field is invalid and while a submission is pending. It
+  keeps its label, key, and width, uses `text-disabled`, and shows no hover or pressed treatment.
+- An error appears in its field's help row as soon as an edit makes the value invalid, and
+  disappears as soon as the value is valid again. A field the person has not edited shows no error,
+  even when its first value is invalid, such as an empty name.
+- `Enter`, or a press on the disabled primary, submits nothing and exposes the reason instead: every
+  invalid field shows its error, and the caret moves to the first one. The reason the primary is
+  disabled is therefore always one key away.
 - An error replaces its field's help: the `status-error` glyph and one `text-primary` sentence that
   states the fix, such as `Enter a name.` or `Use at most 512 characters.` A refusal from the owner
-  that concerns the value uses the same row; any other failure uses the status row.
-- The primary action stays enabled while the draft is invalid. Submitting reveals the error and
-  moves the caret to the first invalid field. Only a pending submission disables the primary action.
+  that concerns the value uses the same row and keeps the primary disabled until that field
+  changes; any other failure uses the status row.
 
 ### Actions and keys
 
@@ -285,11 +297,17 @@ Every dialog uses the same rows from top to bottom. An omitted row closes up wit
 
 ### Closing
 
-- `Esc` closes the dialog without effect, or returns from a follow-up step to the step before it. It
-  never cancels work the dialog already started; running work offers its own named action.
-- A dialog shows one close target. With an action row, that is the cancel or close button. Without
-  one, as in a picker or a reference surface, it is the `[x]` control on the top edge.
-- A press outside the dialog closes it like `Esc` when nothing would be lost: a picker, a notice, a
+- Every dialog shows the `[x]` close control on its top edge, also when its action row has a cancel
+  or close button. `[x]`, `Esc`, and that button close the dialog without effect; `[x]` never
+  commits and never takes the destructive tone.
+- Closing discards the dialog's own unsubmitted fields without a confirmation. It never undoes or
+  cancels work that a submission already started; running work offers its own named action.
+- In a follow-up step, `Esc` and the cancel button return to the step before it, and `[x]` closes
+  the whole dialog.
+- While a submission is pending, the primary is disabled and the cancel button reads `Close`.
+  `Esc`, `[x]`, and `Close` close the dialog; the work continues and reports its result as a status
+  notice.
+- A press outside the dialog closes it like `[x]` when nothing would be lost: a picker, a notice, a
   reference surface, or a form whose fields are unchanged. A confirmation, a changed form, and a
   pending step ignore the press and stay open.
 
@@ -298,9 +316,10 @@ Every dialog uses the same rows from top to bottom. An omitted row closes up wit
 - A form opens with the caret at the end of the first field's value. A confirmation or notice opens
   with focus on its primary button. A picker opens with its query empty and the current item, or
   else the first item, selected.
-- `Tab` and `Shift+Tab` move through the fields and then the buttons in reading order, wrapping
-  inside the dialog. The close control is not a stop because `Esc` is its key. `Enter` in a
-  single-line field submits the form.
+- `Tab` and `Shift+Tab` move through the fields and then the enabled buttons in reading order,
+  wrapping inside the dialog. `[x]` is not a stop because `Esc` is its key. When the focused button
+  becomes disabled, focus moves to the cancel or close button. `Enter` in a single-line field
+  submits the form, or shows why it cannot be submitted.
 - A click places the caret in a field, activates a button, or chooses a picker row. Hover follows
   [`components.md`](components.md#action-controls) and never makes text bold.
 

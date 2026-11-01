@@ -46,15 +46,15 @@ A theme maps every role below to one concrete style. A style may include a foreg
 or permitted modifier. A theme with a missing role is invalid. Roles are stable names; themes
 change values.
 
-| Role family | Roles                                                                                                     | Use when                                                                                                                                                                                                                  |
-| ----------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `text`      | `primary`, `secondary`, `disabled`, `inverse`                                                             | Content and chrome text by information priority; `inverse` only on a filled surface                                                                                                                                       |
-| `accent`    | `action`, `destructive`, `focus`, `selection`, `link`                                                     | The primary action at rest, explicit destructive intent, the focused frame or control, provisional or checked indicators, selected-range boundaries, and activatable references                                           |
-| `status`    | `success`, `warning`, `error`, `info`, `pending`, `working`, `idle`, `unread`                             | Outcome and state meaning only; never decoration or hierarchy                                                                                                                                                             |
-| `agent`     | `attention`, `done`, `error`                                                                              | Agent state glyphs for Needs attention, Completed, and Failed only; never text, status words, or emphasis                                                                                                                 |
-| `frame`     | `focused`, `unfocused`, `divider`, `guide`                                                                | Pane and overlay borders, split boundaries, and low-contrast hierarchy guides                                                                                                                                             |
-| `surface`   | `canvas`, `chrome`, `strip`, `overlay`, `hover`, `pressed`, `selection`, `current`, `related`, `inactive` | Backgrounds for the terminal canvas, persistent chrome, the Tab strip, overlays, pointer feedback, pressed controls, provisional or range selection, persistent current context, associated ancestors, and inactive panes |
-| `hint`      | `key`, `label`                                                                                            | Key glyphs and their action labels in footers and help                                                                                                                                                                    |
+| Role family | Roles                                                                                                              | Use when                                                                                                                                                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `text`      | `primary`, `secondary`, `disabled`, `inverse`                                                                      | Content and chrome text by information priority; `inverse` only on a filled surface                                                                                                                                                             |
+| `accent`    | `action`, `destructive`, `focus`, `selection`, `link`                                                              | The primary action at rest, explicit destructive intent, the focused frame or control, provisional or checked indicators, selected-range boundaries, and activatable references                                                                 |
+| `status`    | `success`, `warning`, `error`, `info`, `pending`, `working`, `idle`, `unread`                                      | Outcome and state meaning only; never decoration or hierarchy                                                                                                                                                                                   |
+| `agent`     | `attention`, `done`, `error`                                                                                       | Agent state glyphs for Needs attention, Completed, and Failed only; never text, status words, or emphasis                                                                                                                                       |
+| `frame`     | `focused`, `unfocused`, `divider`, `guide`                                                                         | Pane and overlay borders, split boundaries, and low-contrast hierarchy guides                                                                                                                                                                   |
+| `surface`   | `canvas`, `chrome`, `strip`, `overlay`, `field`, `hover`, `pressed`, `selection`, `current`, `related`, `inactive` | Backgrounds for the terminal canvas, persistent chrome, the Tab strip, overlays, editable form fields, pointer feedback, pressed controls, provisional or range selection, persistent current context, associated ancestors, and inactive panes |
+| `hint`      | `key`, `label`                                                                                                     | Key glyphs and their action labels in footers and help                                                                                                                                                                                          |
 
 Theme rules:
 
@@ -137,13 +137,17 @@ Theme rules:
   role. RGB themes distinguish canvas, persistent chrome and overlays; a border alone is not the
   region's surface. Terminal-native and lower color levels retain their admitted host behavior.
 - A host-relative appearance whose host reports its default background derives `surface-strip`,
-  `surface-related`, `surface-hover`, `surface-current`, and `surface-pressed` by mixing that
-  background toward the reported host foreground in fixed per-role proportions, with separate
-  proportions for dark and light backgrounds. The Tab strip therefore stays distinct from an
+  `surface-related`, `surface-field`, `surface-hover`, `surface-current`, and `surface-pressed` by
+  mixing that background toward the reported host foreground in fixed per-role proportions, with
+  separate proportions for dark and light backgrounds. The Tab strip therefore stays distinct from an
   unframed terminal directly below it, and interaction fills stay visible on any host background.
   `surface-selection` keeps its palette value. Derived values pass through the same quantization and
   collapsed-role fallbacks as palette values. Without a reported background, the appearance resolves
   to `terminal-native`, which paints none of these fills. The theme owner documents the proportions.
+- `surface-field` is the band of an editable form field and stays distinct from `surface-overlay`.
+  `terminal-native` and Monochrome paint no field fill, and the theme owner drops the fill wherever
+  quantization collapses it onto `surface-overlay`. A field without its own fill draws its
+  bracketed boundary, as described in [`components.md`](components.md#search-and-editors).
 
 Forbidden in any theme: `DarkGray` (bright black) for text, because many profiles map it close to
 the background; `White` or `Black` as text on an unpainted surface; `Yellow` or `Blue` as text on

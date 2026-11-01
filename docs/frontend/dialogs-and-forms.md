@@ -198,10 +198,9 @@ clear.
 - Keep one primary action in the current task. Its localized label names the outcome, such as
   “Connect” or “Save”; use “Continue” only when it advances to another visible step.
 - End-align the footer and place the non-destructive cancel action before the primary action, so
-  the primary action is last. Show one close target: the footer cancel or close action when the
-  footer has one, otherwise the header close button. Scope every exit path to a
-  named task boundary. In a single-step surface, Close, Escape, backdrop dismissal, and Cancel have
-  the same no-commit outcome whenever enabled. In a multistep surface before commit, Cancel and
+  the primary action is last. A Dialog keeps its header close button when its footer has a cancel
+  or close action. Scope every exit path to a named task boundary. In a single-step surface, Close,
+  Escape, backdrop dismissal, and Cancel have the same no-commit outcome whenever enabled. In a multistep surface before commit, Cancel and
   Escape cancel the innermost foreground step and restore the preceding stable step, while the
   outer close control and backdrop dismissal exit the complete surface. Never wire a step-local
   Cancel action to full dismissal or present an outer Close action as step-local cancellation.

@@ -301,18 +301,24 @@ padding and continuation rows retain their declared owner.
   supplemental and never carries persistent instructions or serves as the only input affordance.
 - An overlay query slot follows [`overlays-and-status.md`](overlays-and-status.md#frame-chrome): the
   activation key and prompt at rest, then `Label: draft` with the terminal cursor while editing. It
-  has no bracket boundary; form editors keep theirs.
+  has no field band; form fields keep theirs.
 - The control separates query, focus, match count, loading, empty result, and error. Empty query and
   no matches are different states. Search errors do not erase the query.
-- A focused editor uses `frame-focused`, its unframed `accent-focus` marker, or its query-slot label,
-  and shows the terminal cursor. An unfocused editor retains its boundary and draft but never paints
-  a fake cursor.
-- A form field is a bracketed boundary, `[ value ]`, with one blank cell inside each bracket, that
-  spans the dialog's content width. Its brackets use `text-secondary` at rest and `accent-focus`
-  while focused, and its value uses `text-primary`. A placeholder uses `text-secondary`, appears
-  only while the field is empty, and never replaces the label. While focused, a value wider than the
-  field scrolls to keep the caret visible; at rest, a long path truncates in the middle. Label, help,
-  and error rows follow [`overlays-and-status.md`](overlays-and-status.md#dialogs).
+- A focused editor uses `frame-focused`, its unframed `accent-focus` marker, its query-slot label,
+  or the form field cues below, and shows the terminal cursor. An unfocused editor retains its
+  boundary and draft but never paints a fake cursor.
+- A form field is a band of `surface-field` that spans the dialog's content width, with one blank
+  cell of padding at each end and no brackets. Its value uses `text-primary`. A placeholder uses
+  `text-secondary`, appears only while the field is empty, and never replaces the label.
+- The band looks the same at rest, while focused, and while invalid. The terminal cursor marks the
+  focused field; in a form with more than one field, the focused field's label also uses
+  `accent-focus`. The error row carries validation, and the band has no hover fill.
+- Where `surface-field` resolves to no fill of its own, as in `terminal-native` and Monochrome, the
+  field draws the bracketed boundary `[ value ]` instead, with one blank cell inside each bracket
+  and `text-secondary` brackets.
+- While focused, a value wider than the field scrolls to keep the caret visible; at rest, a long
+  path truncates in the middle. Label, help, and error rows follow
+  [`overlays-and-status.md`](overlays-and-status.md#dialogs).
 - Prefix, mode, validation, pending, and auxiliary-action slots remain stable as the draft changes.
   Contextual hints may change, but the editable origin and submit boundary do not move.
 - Editing behavior, atomic paste, composition, and maximum length follow
@@ -371,11 +377,12 @@ renders only inside the returned content slot.
   preserve its model, accepted submissions, and pending work, and publish only the valid return,
   exit, or recovery targets. Resume it when geometry returns. Both paths clear stale modal and child
   hit regions.
-- The close control appears only on a surface without a cancel or close button, as
-  [`overlays-and-status.md`](overlays-and-status.md#closing) requires. It is an icon action with a
-  localized name and the effective cancel binding. It sits on the frame's top-right edge as defined
-  in [`overlays-and-status.md`](overlays-and-status.md#frame-chrome) and follows the same hover,
-  pressed, disabled, and focus rules as other actions.
+- Every dialog and reference surface shows the close control, including one whose action row has a
+  cancel or close button, as [`overlays-and-status.md`](overlays-and-status.md#closing) requires.
+  It is an icon action with a localized name and the effective cancel binding. It sits on the
+  frame's top-right edge as defined in
+  [`overlays-and-status.md`](overlays-and-status.md#frame-chrome), follows the same hover, pressed,
+  and disabled rules as other actions, and is not a keyboard focus stop.
 - One modal owner is active at a time. A nested task replaces content, title context, and footer
   actions inside that owner; it does not stack another modal or leave two active footers.
 - Modal chrome handles cancel, tab, close, and footer-action intents consistently. Feature content
