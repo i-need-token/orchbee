@@ -28,6 +28,13 @@ enum StableAnchor {
         projections: Box<[RetainedProjection]>,
         observed_geometry: Geometry,
     },
+    /// A focused pane whose viewer was lost while live siblings keep the anchor: the siblings'
+    /// projections restore as an unbound selection's do, with the selection still retryable.
+    Lost {
+        selected: SelectedTab,
+        projections: Box<[RetainedProjection]>,
+        observed_geometry: Geometry,
+    },
     Selected(SelectedTab),
     Retryable(SelectedTab),
 }
@@ -86,7 +93,9 @@ impl RetainedProjection {
 impl StableAnchor {
     fn projections(&self) -> &[RetainedProjection] {
         match self {
-            Self::Ready { projections, .. } | Self::Unbound { projections, .. } => projections,
+            Self::Ready { projections, .. }
+            | Self::Unbound { projections, .. }
+            | Self::Lost { projections, .. } => projections,
             Self::Selected(_) | Self::Retryable(_) => &[],
         }
     }
@@ -95,6 +104,7 @@ impl StableAnchor {
         match self {
             Self::Ready { ready, .. } => ready.selected(),
             Self::Unbound { selected, .. }
+            | Self::Lost { selected, .. }
             | Self::Selected(selected)
             | Self::Retryable(selected) => selected,
         }
@@ -137,6 +147,9 @@ pub(crate) struct PreparedSwitchRestore<'state> {
     phase: ClientPhase,
     observed_geometry: Geometry,
     projections: Box<[RetainedProjection]>,
+    /// Whether the restored selection's own viewerless record returns beside its retained
+    /// siblings, as a lost focused viewer's does.
+    revives_selected: bool,
 }
 
 impl PreparedSwitchRestore<'_> {
@@ -164,7 +177,9 @@ impl PreparedSwitchRestore<'_> {
                             PaneProjection::Installed(FrameAcknowledgement::Accepted(saved.frame));
                         attachment.last_accepted_geometry = saved.accepted_geometry;
                     }
-                } else if self.projections.is_empty() && record.key() == &self.desired {
+                } else if (self.projections.is_empty() || self.revives_selected)
+                    && record.key() == &self.desired
+                {
                     record.departing = false;
                 }
             } else if !record.departing {
@@ -178,15 +193,38 @@ impl PreparedSwitchRestore<'_> {
 }
 
 impl WorkbenchClientState {
+    /// Every live projection under the selection's anchor. A selection that lost its viewer
+    /// leaves out its own record, which a restore revives without a projection.
     fn capture_anchor_projections(
         &self,
         selected: &SelectedTab,
+        without_selected: bool,
     ) -> Option<Box<[RetainedProjection]>> {
         self.panes
             .iter()
-            .filter(|record| record.key.anchor() == selected.key.anchor() && !record.departing)
+            .filter(|record| {
+                record.key.anchor() == selected.key.anchor()
+                    && !record.departing
+                    && !(without_selected && record.key == selected.key)
+            })
             .map(RetainedProjection::capture)
             .collect()
+    }
+
+    /// The first attached record under the selection's anchor: the old attachment that a Switch
+    /// from a selection without its own viewer cleans up first and may restore.
+    fn attached_sibling(&self, selected: &SelectedTab) -> Option<ExistingAttachment> {
+        self.panes
+            .iter()
+            .find(|record| record.key.anchor() == selected.key.anchor() && record.attached())
+            .map(|record| ExistingAttachment {
+                selected: SelectedTab::new_panel(
+                    record.key.clone(),
+                    record.index,
+                    record.panel_index,
+                ),
+                mode: record.mode().cloned(),
+            })
     }
 
     fn stable_switch_anchor(&self) -> Option<StableAnchor> {
@@ -206,7 +244,7 @@ impl WorkbenchClientState {
                 }
                 Some(StableAnchor::Ready {
                     ready: ready.clone(),
-                    projections: self.capture_anchor_projections(ready.selected())?,
+                    projections: self.capture_anchor_projections(ready.selected(), false)?,
                     observed_geometry: self.latest_geometry,
                 })
             }
@@ -215,12 +253,21 @@ impl WorkbenchClientState {
             {
                 Some(StableAnchor::Unbound {
                     selected: selected.clone(),
-                    projections: self.capture_anchor_projections(selected)?,
+                    projections: self.capture_anchor_projections(selected, false)?,
                     observed_geometry: self.latest_geometry,
                 })
             }
             ClientPhase::SelectedWithoutAttachment(selected) => {
                 Some(StableAnchor::Selected(selected.clone()))
+            }
+            ClientPhase::RetryableAttachUnavailable(selected)
+                if self.attached_sibling(selected).is_some() =>
+            {
+                Some(StableAnchor::Lost {
+                    selected: selected.clone(),
+                    projections: self.capture_anchor_projections(selected, true)?,
+                    observed_geometry: self.latest_geometry,
+                })
             }
             ClientPhase::RetryableAttachUnavailable(selected) => {
                 Some(StableAnchor::Retryable(selected.clone()))
@@ -263,20 +310,13 @@ impl WorkbenchClientState {
                         mode: setup.mode.clone(),
                     })
             }),
-            ClientPhase::SelectedWithoutAttachment(selected) if self.selected_is_unbound() => self
-                .panes
-                .iter()
-                .find(|record| record.key.anchor() == selected.key.anchor() && record.attached())
-                .map(|record| ExistingAttachment {
-                    selected: SelectedTab::new_panel(
-                        record.key.clone(),
-                        record.index,
-                        record.panel_index,
-                    ),
-                    mode: record.mode().cloned(),
-                }),
-            ClientPhase::SelectedWithoutAttachment(_)
-            | ClientPhase::RetryableAttachUnavailable(_) => None,
+            // A selection without its own viewer may still own live siblings under its anchor,
+            // which the Switch cleans up first: an unbound member, or a lost focused viewer.
+            ClientPhase::SelectedWithoutAttachment(selected) if self.selected_is_unbound() => {
+                self.attached_sibling(selected)
+            }
+            ClientPhase::RetryableAttachUnavailable(selected) => self.attached_sibling(selected),
+            ClientPhase::SelectedWithoutAttachment(_) => None,
             _ => return false,
         };
         self.remember_current_navigation();
@@ -433,6 +473,11 @@ impl WorkbenchClientState {
                     projections,
                     observed_geometry,
                     ..
+                }
+                | StableAnchor::Lost {
+                    projections,
+                    observed_geometry,
+                    ..
                 } => {
                     if self.latest_geometry != *observed_geometry
                         || setup.previous.as_ref().is_none_or(|previous| {
@@ -473,10 +518,11 @@ impl WorkbenchClientState {
             StableAnchor::Unbound { selected, .. } | StableAnchor::Selected(selected) => {
                 ClientPhase::SelectedWithoutAttachment(selected.clone())
             }
-            StableAnchor::Retryable(selected) => {
+            StableAnchor::Lost { selected, .. } | StableAnchor::Retryable(selected) => {
                 ClientPhase::RetryableAttachUnavailable(selected.clone())
             }
         };
+        let revives_selected = matches!(anchor, StableAnchor::Lost { .. });
         let projections = anchor.projections().into();
         Ok(PreparedSwitchRestore {
             state: self,
@@ -485,6 +531,7 @@ impl WorkbenchClientState {
             desired: restored,
             phase,
             observed_geometry,
+            revives_selected,
         })
     }
 }

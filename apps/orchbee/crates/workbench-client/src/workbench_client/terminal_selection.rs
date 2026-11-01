@@ -604,6 +604,11 @@ impl Driver {
         }
         self.flight = None;
         if let Reply::Failed { stale_generation } = reply {
+            // A cancellation that lost its race with the export's own completion has nothing left
+            // to stop: the export it named is over, and later selection work stays queued.
+            if matches!(command.action, Action::CancelExport { .. }) {
+                return Ok(true);
+            }
             self.queue.clear();
             self.viewport_fence = None;
             self.gesture = None;

@@ -88,6 +88,8 @@ typed failures remain visible and are never replayed automatically.
   cancelled, foreign, malformed, partial, over-limit, or invalid UTF-8 export writes nothing.
   Lifecycle cancellation removes a completed copy while it is still queued. Once its external
   dispatch starts, success or an unknown result retires the attempt without replay.
+- A cancellation can lose its race with the export's own completion. The Host then refuses it; the
+  refusal ends nothing, shows no failure, and keeps the selection work queued behind it.
 - Windows uses the Win32 Unicode clipboard by default. An explicit OSC 52 mode selects the outer
   terminal instead. One copy uses exactly one sink: an OSC 52 write is not followed by a Win32
   fallback because OSC 52 has no positive acknowledgement.

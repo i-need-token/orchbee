@@ -189,6 +189,99 @@ fn split_refusal_restores_both_visible_projections_and_local_focus_through_mailb
     );
 }
 
+/// A focused pane that lost its viewer leaves its split sibling live, so a Switch away from it
+/// owns that sibling: a refusal before cleanup restores the sibling's exact projection, and the
+/// lost selection stays retryable instead of costing the Client.
+#[test]
+fn split_refusal_after_a_lost_focused_viewer_restores_the_live_sibling() {
+    use crate::workbench_state::{OPERATION_TOTAL, PaneFault};
+    let (mut ui, mailbox, clock, _elapsed) =
+        super::super::tests::move_membership::ready_ui_with_snapshot(
+            super::super::tests::publication_hint::split_snapshot(1),
+        );
+    let focus = super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
+    super::super::tests::publication_hint::attach_split_peer(&mut ui, &mailbox, &clock);
+    let peer = ui.state.as_ref().unwrap().cache().tabs()[0]
+        .panel(1)
+        .unwrap()
+        .panel_id()
+        .clone();
+    let sibling = ui
+        .state
+        .as_ref()
+        .unwrap()
+        .pane_by_panel(&peer)
+        .unwrap()
+        .pane_ref();
+    let projection = ui
+        .projections
+        .iter_mut()
+        .find(|item| item.key == sibling)
+        .unwrap();
+    let frame = super::super::tests::viewport::frame(&projection.value, 0, false, 24);
+    projection.value.install_frame_for_test(frame);
+    let state = ui.state.as_mut().unwrap();
+    assert!(state.stage_drawn_frame(&sibling, FrameIdentity::new(7)));
+    assert!(state.mark_feedback_accepted(&sibling, FrameIdentity::new(7)));
+    mailbox
+        .publish_notice_before(
+            WorkerEvent::PaneFailed {
+                key: focus.clone(),
+                fault: PaneFault::ViewerLost,
+            },
+            clock.now() + OPERATION_TOTAL,
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    let state = ui.state.as_ref().unwrap();
+    assert!(state.focused_viewer_lost());
+    assert_eq!(state.pollable_panes(), std::slice::from_ref(&sibling));
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        mailbox.finish_lease(lease).unwrap();
+    }
+
+    assert_eq!(
+        ui.select_tab(ClientAction::SelectTab(2)),
+        ClientActionDisposition::DismissNavigator
+    );
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::Switch(marker) = lease.record() else {
+        panic!("Switch lease")
+    };
+    let target = marker.target();
+    let permit = mailbox
+        .authorize_switch_snapshot(&lease, target, &clock)
+        .unwrap()
+        .unwrap();
+    mailbox.answer_switch_snapshot(permit).unwrap();
+    let wait = mailbox.publish_event_before(
+        WorkerEvent::SwitchSnapshotResult {
+            marker: target.selected().key().clone(),
+            outcome: WorkbenchSnapshotOutcome::Unavailable {
+                reason: orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+            },
+        },
+        EventDeadline::PlacementOnly(target.deadlines().forward_cutoff()),
+        &clock,
+    ).unwrap();
+    ui.tick();
+    assert!(mailbox.is_closed().is_none());
+    assert!(!ui.retirement_requested());
+    let UiReply::Switch(settlement) = mailbox.take_deposited_reply(&wait).unwrap().unwrap() else {
+        panic!("Switch reply")
+    };
+    assert!(matches!(settlement.decision(), RefreshDecision::Continue));
+    assert_eq!(settlement.desired(), Some(focus.pane()));
+    mailbox.finish_lease(lease).unwrap();
+    let state = ui.state.as_ref().unwrap();
+    assert!(state.focused_viewer_lost());
+    assert_eq!(state.focus_pane_ref(), Some(focus));
+    assert_eq!(state.pollable_panes(), [sibling]);
+    assert!(state.invariant_holds());
+    assert!(ui.view().pane_projection(&peer).unwrap().frame().is_some());
+}
+
 #[test]
 fn response_before_ui_new_marker_preserves_exact_cleanup_and_never_installs_stale_candidate() {
     let (mut ui, mailbox, clock, _elapsed) = ready();

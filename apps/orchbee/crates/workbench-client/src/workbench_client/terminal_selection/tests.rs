@@ -493,6 +493,43 @@ fn generation_replacement_preserves_a_queued_export_cancellation() {
 }
 
 #[test]
+fn a_cancellation_refused_after_its_export_finished_keeps_later_selection_work() {
+    let (mut driver, _) = export_with_replacement_start(false);
+    let export = driver.flight.unwrap();
+    let Action::Export { sequence } = export.action else {
+        panic!("the export is in flight")
+    };
+    let started = Reply::Started(SelectionExportStarted {
+        attachment_id: driver.attachment,
+        byte_length: 4,
+        export_sequence: sequence,
+        format: SelectionExportFormat::Plain,
+    });
+    assert_eq!(driver.reply(export, started), Ok(true));
+    let cancellation = accept(&mut driver);
+    assert!(matches!(cancellation.action, Action::CancelExport { .. }));
+
+    // The export finished before its cancellation reached the Host, which refuses it.
+    assert_eq!(
+        driver.reply(
+            cancellation,
+            Reply::Failed {
+                stale_generation: false
+            }
+        ),
+        Ok(true)
+    );
+    assert!(driver.gesture.is_some());
+    assert!(matches!(
+        driver.pending().map(|command| command.action),
+        Some(Action::Gesture {
+            gesture: ViewerSelectionGestureAction::Start { .. },
+            ..
+        })
+    ));
+}
+
+#[test]
 fn copy_owned_clear_and_stale_abandon_preserve_a_queued_export_cancellation() {
     let (mut clear, generation) = export_with_replacement_start(true);
     let cancellation = clear.queue[0];
