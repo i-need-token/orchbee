@@ -124,6 +124,7 @@ fn render_prepared(
             token,
             confirm: false,
         },
+        true,
         theme,
         hits,
     );

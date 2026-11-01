@@ -29,6 +29,8 @@ struct Palette {
     background: [u8; 3],
     chrome: [u8; 3],
     overlay: [u8; 3],
+    /// `surface-overlay` mixed toward primary text: 7 % on dark, 6 % on light.
+    field: [u8; 3],
     hover_surface: [u8; 3],
     pressed_surface: [u8; 3],
     selection: [u8; 3],
@@ -87,6 +89,7 @@ fn named(palette: Palette) -> Theme {
             // System derives the strip from observed host colors; see `with_outer_host_colors`.
             surface_strip: primary.bg(rgb(palette.chrome)),
             surface_overlay: primary.bg(rgb(palette.overlay)),
+            surface_field: Style::new().bg(rgb(palette.field)),
             surface_hover: Style::new().bg(rgb(palette.hover_surface)),
             surface_pressed: Style::new().bg(rgb(palette.pressed_surface)),
             surface_selection: primary.bg(rgb(palette.selection)),
@@ -143,6 +146,7 @@ impl Theme {
             background: [250, 250, 250],
             chrome: [240, 242, 245],
             overlay: [255, 255, 255],
+            field: [243, 243, 244],
             hover_surface: [222, 224, 227],
             pressed_surface: [214, 215, 218],
             selection: [205, 219, 248],
@@ -185,6 +189,7 @@ impl Theme {
             background: [40, 44, 52],
             chrome: [31, 35, 42],
             overlay: [50, 56, 66],
+            field: [61, 67, 77],
             hover_surface: [38, 38, 38],
             pressed_surface: [64, 64, 64],
             selection: [51, 70, 89],

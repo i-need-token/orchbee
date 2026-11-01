@@ -69,6 +69,7 @@ pub(super) fn render(
             token: decision.token,
             control: ModalControl::Cancel,
         },
+        true,
         theme,
         hits,
     );

@@ -492,6 +492,7 @@ fn named_secondary_adjustments_are_the_minimum_readable_steps() {
             Role::SurfaceCanvas,
             Role::SurfaceChrome,
             Role::SurfaceOverlay,
+            Role::SurfaceField,
             Role::SurfaceHover,
             Role::SurfacePressed,
             Role::SurfaceSelection,
@@ -582,6 +583,7 @@ fn shipped_palettes_have_declared_polarity_complete_roles_and_visible_text() {
             Role::SurfaceCanvas,
             Role::SurfaceChrome,
             Role::SurfaceOverlay,
+            Role::SurfaceField,
             Role::SurfaceHover,
             Role::SurfacePressed,
             Role::SurfaceSelection,
@@ -1418,4 +1420,35 @@ fn quantized_style_flows_into_a_rendered_buffer() {
     let cell = terminal.backend().buffer().cell((0, 0)).expect("cell");
     assert_eq!(cell.fg, theme.style(Role::TextPrimary).fg.unwrap());
     assert!(!matches!(cell.fg, Color::Rgb(..) | Color::Indexed(_)));
+}
+
+#[test]
+fn form_fields_band_only_where_the_field_fill_stays_distinct_from_its_dialog() {
+    for theme in [
+        Theme::one_light(),
+        Theme::one_dark(),
+        Theme::rgb_test_dark(),
+    ] {
+        assert!(theme.field_band(), "{}", theme.name);
+        assert_ne!(
+            theme.color(Role::SurfaceField),
+            theme.color(Role::SurfaceOverlay),
+            "{}",
+            theme.name
+        );
+        assert!(!theme.quantize(ColorLevel::Monochrome).field_band());
+    }
+    assert!(!Theme::terminal_native().field_band());
+    for level in [ColorLevel::Ansi16, ColorLevel::Ansi256] {
+        for theme in [Theme::one_light(), Theme::one_dark()] {
+            // A band survives quantization only while its fill stays distinct from the dialog.
+            let distinct = super::quantize_color(theme.color(Role::SurfaceField), level)
+                != super::quantize_color(theme.color(Role::SurfaceOverlay), level);
+            let quantized = theme.quantize(level);
+            assert_eq!(quantized.field_band(), distinct, "{} {level:?}", theme.name);
+            if !distinct {
+                assert_eq!(quantized.color(Role::SurfaceField), Color::Reset);
+            }
+        }
+    }
 }

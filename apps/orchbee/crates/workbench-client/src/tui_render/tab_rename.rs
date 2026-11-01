@@ -155,6 +155,7 @@ pub(super) fn render(
             token: draft.token(),
             submit: false,
         },
+        true,
         theme,
         hits,
     );

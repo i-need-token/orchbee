@@ -93,6 +93,7 @@ pub(super) struct ModalAction<'a> {
     enabled: bool,
     shortcut: Option<&'a str>,
     tone: crate::action_projection::ActionTone,
+    focused: bool,
 }
 
 impl<'a> ModalAction<'a> {
@@ -107,7 +108,20 @@ impl<'a> ModalAction<'a> {
             enabled,
             shortcut: None,
             tone: crate::action_projection::ActionTone::Ordinary,
+            focused: false,
         }
+    }
+
+    /// Keyboard focus rests on this button, as on a confirmation's primary when it opens.
+    pub(super) const fn focused(mut self, focused: bool) -> Self {
+        self.focused = focused;
+        self
+    }
+
+    /// The same button without its key text, for a window too narrow for the keyed row.
+    pub(super) const fn bare(mut self) -> Self {
+        self.shortcut = None;
+        self
     }
 
     pub(super) const fn with_shortcut(mut self, shortcut: &'a str) -> Self {
@@ -140,7 +154,11 @@ impl<'a> ModalAction<'a> {
             self.kind,
             ControlSurface::Overlay,
             InteractionState::new(
-                FocusState::Unfocused,
+                if self.focused {
+                    FocusState::Focused
+                } else {
+                    FocusState::Unfocused
+                },
                 pointer,
                 NavigationState::None,
                 CurrentState::NotCurrent,
@@ -204,6 +222,7 @@ pub(super) fn paint_modal_close(
     frame: &mut Frame<'_>,
     rect: Rect,
     target: HitTarget,
+    dismiss_outside: bool,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> Rect {
@@ -226,7 +245,9 @@ pub(super) fn paint_modal_close(
         painted, rect,
         "modal close paint must match its admitted extent"
     );
-    hits.record_modal_dismissal(target.clone());
+    if dismiss_outside {
+        hits.record_modal_dismissal(target.clone());
+    }
     hits.record_modal_control(HitLayer::Overlay, rect, target, availability);
     rect
 }
@@ -556,6 +577,12 @@ pub(crate) fn titled_overlay(
 pub(super) fn overlay_block(title: &str, width: u16, theme: &Theme) -> OverlayFrame {
     titled_overlay(theme, Padding::horizontal(2), title, width)
 }
+
+mod dialog;
+pub(super) use dialog::{
+    Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, NAME_FIELD_WIDTH, dialog_layout,
+    field_value_area, paint_dialog, paint_field,
+};
 
 #[cfg(test)]
 mod tests;

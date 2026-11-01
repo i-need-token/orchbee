@@ -52,6 +52,7 @@ pub enum Role {
     SurfaceChrome,
     SurfaceStrip,
     SurfaceOverlay,
+    SurfaceField,
     SurfaceHover,
     SurfacePressed,
     SurfaceSelection,
@@ -66,7 +67,7 @@ impl Role {
     /// Test/validator helper for totality checks; production consumes roles
     /// individually.
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 36] = [
+    pub(crate) const ALL: [Self; 37] = [
         Self::TextPrimary,
         Self::TextSecondary,
         Self::TextDisabled,
@@ -95,6 +96,7 @@ impl Role {
         Self::SurfaceChrome,
         Self::SurfaceStrip,
         Self::SurfaceOverlay,
+        Self::SurfaceField,
         Self::SurfaceHover,
         Self::SurfacePressed,
         Self::SurfaceSelection,
@@ -276,6 +278,7 @@ pub(crate) struct RoleStyles {
     pub(crate) surface_chrome: Style,
     pub(crate) surface_strip: Style,
     pub(crate) surface_overlay: Style,
+    pub(crate) surface_field: Style,
     pub(crate) surface_hover: Style,
     pub(crate) surface_pressed: Style,
     pub(crate) surface_selection: Style,
@@ -318,6 +321,7 @@ impl RoleStyles {
             Role::SurfaceChrome => self.surface_chrome,
             Role::SurfaceStrip => self.surface_strip,
             Role::SurfaceOverlay => self.surface_overlay,
+            Role::SurfaceField => self.surface_field,
             Role::SurfaceHover => self.surface_hover,
             Role::SurfacePressed => self.surface_pressed,
             Role::SurfaceSelection => self.surface_selection,
@@ -359,6 +363,7 @@ impl RoleStyles {
             surface_chrome: apply(self.surface_chrome),
             surface_strip: apply(self.surface_strip),
             surface_overlay: apply(self.surface_overlay),
+            surface_field: apply(self.surface_field),
             surface_hover: apply(self.surface_hover),
             surface_pressed: apply(self.surface_pressed),
             surface_selection: apply(self.surface_selection),
@@ -375,6 +380,9 @@ impl RoleStyles {
 #[derive(Clone, Copy)]
 struct HostSurfaceSteps {
     strip: u8,
+    /// Mixed into `surface-overlay`, which System keeps from the named palette, rather than into
+    /// the host background, so a form field always stays distinct from its dialog.
+    field: u8,
     related: u8,
     hover: u8,
     current: u8,
@@ -383,6 +391,7 @@ struct HostSurfaceSteps {
 
 const DARK_HOST_STEPS: HostSurfaceSteps = HostSurfaceSteps {
     strip: 14,
+    field: 7,
     related: 10,
     hover: 17,
     current: 21,
@@ -390,6 +399,7 @@ const DARK_HOST_STEPS: HostSurfaceSteps = HostSurfaceSteps {
 };
 const LIGHT_HOST_STEPS: HostSurfaceSteps = HostSurfaceSteps {
     strip: 5,
+    field: 5,
     related: 7,
     hover: 9,
     current: 12,
@@ -623,6 +633,8 @@ impl Theme {
                 surface_chrome: Style::new().bg(Color::Reset),
                 surface_strip: Style::new().bg(Color::Reset),
                 surface_overlay: Style::new().bg(Color::Reset),
+                // No field fill of its own: form fields draw their bracketed boundary.
+                surface_field: Style::new().bg(Color::Reset),
                 surface_hover: interaction_surface_fallback(),
                 surface_pressed: interaction_surface_fallback(),
                 surface_selection: Style::new().bg(Color::Blue),
@@ -694,6 +706,7 @@ impl Theme {
                 surface_chrome: Style::new().bg(Color::Rgb(11, 14, 20)),
                 surface_strip: Style::new().bg(Color::Rgb(24, 29, 38)),
                 surface_overlay: Style::new().bg(Color::Rgb(18, 23, 32)),
+                surface_field: Style::new().bg(Color::Rgb(32, 37, 46)),
                 surface_hover: Style::new().bg(Color::Rgb(38, 38, 38)),
                 surface_pressed: Style::new().bg(Color::Rgb(64, 64, 64)),
                 surface_selection: Style::new().bg(Color::Rgb(45, 63, 99)),
@@ -712,6 +725,22 @@ impl Theme {
     #[must_use]
     pub(crate) fn style(&self, role: Role) -> Style {
         self.styles.style(role)
+    }
+
+    /// Whether form fields paint their own `surface-field` band. Without one, as in
+    /// `terminal-native` and Monochrome, a field draws its bracketed boundary instead.
+    #[must_use]
+    pub(crate) fn field_band(&self) -> bool {
+        !matches!(self.styles.surface_field.bg, None | Some(Color::Reset))
+            && self.styles.surface_field.bg != self.styles.surface_overlay.bg
+    }
+
+    fn drop_collapsed_field(&mut self) {
+        if self.color_level == ColorLevel::Monochrome
+            || self.styles.surface_field.bg == self.styles.surface_overlay.bg
+        {
+            self.styles.surface_field = Style::new().bg(Color::Reset);
+        }
     }
 
     /// The Shell supplies the observed reason; monochrome alone does not imply NO_COLOR.
@@ -765,6 +794,7 @@ impl Theme {
                 | Role::SurfaceChrome
                 | Role::SurfaceStrip
                 | Role::SurfaceOverlay
+                | Role::SurfaceField
                 | Role::SurfaceInactive
         ));
         debug_assert!(interaction.is_none_or(|role| matches!(
@@ -1002,6 +1032,7 @@ impl Theme {
             | Role::SurfaceChrome
             | Role::SurfaceStrip
             | Role::SurfaceOverlay
+            | Role::SurfaceField
             | Role::SurfaceHover
             | Role::SurfacePressed
             | Role::SurfaceSelection
@@ -1204,6 +1235,18 @@ impl Theme {
         self.styles.surface_hover = fill(steps.hover);
         self.styles.surface_current = fill(steps.current);
         self.styles.surface_pressed = fill(steps.pressed);
+        if let Some((r, g, b)) = self.styles.surface_overlay.bg.and_then(sampled_color) {
+            let overlay = [r, g, b];
+            let channel = |index: usize| {
+                f64::from(overlay[index])
+                    + (f64::from(foreground[index]) - f64::from(overlay[index]))
+                        * f64::from(steps.field)
+                        / 100.0
+            };
+            self.styles.surface_field =
+                Style::new().bg(color([channel(0), channel(1), channel(2)]));
+        }
+        self.drop_collapsed_field();
         self.tab_groups = self.tab_groups.over_strip(strip, level);
     }
 
@@ -1311,6 +1354,10 @@ impl Theme {
         {
             styles.surface_hover = interaction_surface_fallback();
             styles.surface_pressed = interaction_surface_fallback();
+        }
+        // A field band that quantizes onto its dialog, or any Monochrome fill, falls back to brackets.
+        if level == ColorLevel::Monochrome || styles.surface_field.bg == styles.surface_overlay.bg {
+            styles.surface_field = Style::new().bg(Color::Reset);
         }
         if matches!(level, ColorLevel::Ansi16 | ColorLevel::Monochrome) {
             let primary = styles.text_primary.fg;

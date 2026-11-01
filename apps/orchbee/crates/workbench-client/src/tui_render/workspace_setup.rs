@@ -213,6 +213,7 @@ pub(super) fn render(
                 token: draft.token(),
                 control: ModalControl::Cancel,
             },
+            true,
             theme,
             hits,
         );
@@ -428,6 +429,7 @@ pub(super) fn render(
             token: draft.token(),
             control: ModalControl::Cancel,
         },
+        true,
         theme,
         hits,
     );
@@ -707,6 +709,7 @@ fn render_projects<'a>(
             token: picker.token,
             control: ModalControl::Cancel,
         },
+        true,
         theme,
         hits,
     );
@@ -974,6 +977,7 @@ fn render_quick(
             token: draft.token(),
             control: ModalControl::Cancel,
         },
+        true,
         theme,
         hits,
     );

@@ -483,6 +483,7 @@ fn render_form(
             token: view.token(),
             control: ModalControl::Cancel,
         },
+        true,
         theme,
         hits,
     );
@@ -846,6 +847,7 @@ fn render_checkouts<'a>(
             token: picker.token,
             control: ModalControl::Cancel,
         },
+        true,
         theme,
         hits,
     );

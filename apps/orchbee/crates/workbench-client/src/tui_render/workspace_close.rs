@@ -98,6 +98,7 @@ pub(super) fn render(
             token: confirmation.token(),
             confirm: false,
         },
+        true,
         theme,
         hits,
     );
