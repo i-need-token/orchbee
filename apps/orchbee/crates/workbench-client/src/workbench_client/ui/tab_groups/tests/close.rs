@@ -946,7 +946,12 @@ fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_co
                     let label = {
                         let view = ui.view();
                         let projection = view.action_menu().unwrap();
-                        locale.menu_tab_action(&action, projection.tabs.unwrap().rows[row])
+                        let scope = projection.tabs.unwrap().rows[row];
+                        if projection.source.context_menu() {
+                            locale.menu_object_action(&action, Some(scope))
+                        } else {
+                            locale.menu_tab_action(&action, scope)
+                        }
                     };
                     assert!(menu.contains(&label), "{menu}");
                     let token = ui.view().action_menu().unwrap().token;

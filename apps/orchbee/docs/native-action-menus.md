@@ -19,7 +19,7 @@ The Workspace sidebar admits right-click only for an exact, still-present row on
 current machine and painted Session. It uses the existing Workspace menu and never
 requests a machine or context switch on opening or cancellation.
 
-Rename actions name their object in both locales. A context menu's frame title names its target; a Tab menu uses the Tab's shared displayed name. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename Project, then a separated Dissolve Project. A Workspace menu holds Move to Project ▸, Rename Workspace and, while the Workspace has no directory, Set Directory…, then a separated Close Workspace…. A reason row exists only while some row of the menu is unavailable.
+A context menu's frame title names its target; a Tab menu uses the Tab's shared displayed name. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Zoom; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles, tooltips and shortcut help keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated Close. A reason row exists only while some row of the menu is unavailable.
 
 A pointer-opened menu follows the press: its frame starts at the pressed column on the row below the complete painted trigger (a sidebar row, Tab or group header, otherwise the pressed cell), else ends on the row above it, and shifts left to stay inside the viewport. Height yields to scrolling before covering the trigger row; fewer than three rows on both sides keeps the existing recovery surface. A keyboard-opened sidebar row menu opens beside its row, top edge level with it, moving up only to fit; other keyboard menus stay centered. While a pointer-opened row menu is open, its row keeps the hover fill; a keyboard-opened one keeps the sidebar focus on its row. Placement changes no target or focus. `docs/tui/layout.md` owns the general geometry.
 
@@ -34,19 +34,20 @@ successful context frames expose only their actual content, controls and surface
 witnesses in `crates/workbench-client/src/tui_render/action_menu/tests.rs` compare context and global composition, both locales and
 shipped theme families, and the width/height boundaries with and without a reserved reason.
 
-A Tab menu holds Rename Tab and Pin Tab or Unpin Tab, then Add Tab to group ▸ and, while a target
-Tab is grouped, Remove Tab from group, then the red close rows: Resume closing this Tab… while its
-interrupted Close can resume, Close Tab… and, when it would close something, Close N other Tabs….
-Add Tab to group ▸ lists the other groups in strip order, then a separated New group…. A group
-header's menu, titled with the group's name and Tab count, holds New Tab in group, Rename group and
-Group color ▸, then Ungroup and the red Close group…; a click on the header already folds the group
+A Tab menu holds Rename and Pin or Unpin, then Add to group ▸ and, while a target Tab is grouped,
+Remove from group, then the red close rows: Resume closing… while its interrupted Close can resume,
+Close and, when it would close something, Close N other Tabs…. While the target belongs to a
+selected set, these rows name its count instead, as in Pin selected 2 Tabs.
+Add to group ▸ lists the other groups in strip order, then a separated New group…. A group
+header's menu, titled with the group's name and Tab count, holds New Tab in group, Rename and
+Group color ▸, then Ungroup and the red Close; a click on the header already folds the group
 and dragging moves it. Right-clicking the new-Tab button lists the saved launch profiles, the
 default first and marked Default; with a single profile it opens no menu, because a click already
 creates a Tab with the default. These menus open through the
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
-A pane menu, titled with the panel's name, holds Split right and Split down, Zoom panel only beside
+A pane menu, titled with the panel's name, holds Split right and Split down, Zoom only beside
 another panel and Take control only while another Client holds that panel's size, then the red
-Close panel…; dragging a divider resizes, and keyboard resize and copy mode keep their keys and
+Close; dragging a divider resizes, and keyboard resize and copy mode keep their keys and
 global menu rows. The global menu also exposes the new-Tab submenu for keyboard users.
 The global menu and its new-Tab submenu include a query row. Printable characters and Space edit the
 query directly; Backspace removes the previous grapheme and Ctrl+U clears it. The query is limited
@@ -200,7 +201,7 @@ pointer capture. Unknown asynchronous prerequisites continue through their origi
 owners; the menu does not infer Git support, worker reachability or an operation
 outcome from read-only machine observations.
 
-Project menus expose New Workspace ▸ and Rename Project, then a separated Dissolve Project. New
+Project menus expose New Workspace ▸ and Rename Project, then a separated Dissolve Project, shown as Rename and Dissolve. New
 Workspace ▸ lists New Worktree…; a Folders group with the directories recorded by the Project's
 Workspaces (navigation order, deduplicated case-insensitively, labelled by directory name, or by the
 full path when names repeat); and a Git Worktrees group with the discovered non-bare checkouts
@@ -221,8 +222,8 @@ intact; execution returns the actual disposition to the same view transition.
 Setup retains the current source and focus, checks the original menu deadline at admission, and uses
 bounded preparation without timing optional human editing.
 
-Workspace menus contain Move to Project ▸, Rename Workspace, Set Directory… when it applies, and a
-separated close section. Move to Project ▸ lists the other Projects in canonical order, then a
+Workspace menus contain Move to Project ▸, Rename Workspace (shown as Rename), Set Directory… when
+it applies, and a separated close section. Move to Project ▸ lists the other Projects in canonical order, then a
 separated New Project… and, for a grouped Workspace, Remove from Project. Choices retain exact IDs, including duplicate labels. Names that collide
 after sanitization or display-width truncation receive the sidebar's shortest unique trailing ID
 suffix: at least eight hexadecimal characters, extended by four up to the full ID. The complete suffix
@@ -296,7 +297,8 @@ writing a color or changing terminal focus.
 | Other/trailing Close                                       | Existing close resolver's nonempty set; pinned and selected-set protection and the rightmost-selected boundary remain unchanged |
 | Select all or keep only current selected                   | Current Workspace's Client-local marks                                                                                          |
 
-Single-target rows say **Pin Tab** or **Close Tab**; multi-target rows include the selected count.
+Single-target rows say **Pin** or **Close** in a Tab menu and **Pin Tab** or **Close Tab** in the
+global menu; multi-target rows include the selected count.
 The global menu's Tab rows address the current Tab. Close N other Tabs… disappears when its exact
 set is empty, while the global Close Tabs to the right… stays with its reason. Relevant owner-derived disabled
 reasons remain visible. Counts are `NonZeroUsize` projection facts, never parsed labels or command

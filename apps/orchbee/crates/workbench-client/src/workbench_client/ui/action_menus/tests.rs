@@ -1672,7 +1672,9 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
                 } else {
                     assert!(!text.contains("Esc"), "plain context menu: {text}");
                     assert!(
-                        text.contains(locale.menu_action(&MenuAction::RenameWorkspace)),
+                        text.contains(
+                            &locale.menu_object_action(&MenuAction::RenameWorkspace, None)
+                        ),
                         "{locale:?} {width}x{height}: {text}"
                     );
                     assert!(ui.menus.menu.confirm(), "{locale:?} {width}x{height}");

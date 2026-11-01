@@ -1376,10 +1376,14 @@ fn action_label(
             | MenuAction::OpenWorktreeAt(_)
             | MenuAction::JoinGroup(_)
     );
-    let text = scope.map_or_else(
-        || locale.menu_action(action).to_owned(),
-        |scope| locale.menu_tab_action(action, scope),
-    );
+    let text = if source.context_menu() {
+        locale.menu_object_action(action, scope)
+    } else {
+        scope.map_or_else(
+            || locale.menu_action(action).to_owned(),
+            |scope| locale.menu_tab_action(action, scope),
+        )
+    };
     if let MenuAction::NewTabWithProfile(profile) = action {
         let name = locale.launch_profile_label(profile.name.as_deref());
         // The new-Tab button's own menu lists only the profile each row opens.

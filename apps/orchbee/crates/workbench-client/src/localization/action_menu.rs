@@ -1,4 +1,4 @@
-use super::{Locale, PanelDirection};
+use super::{Locale, PanelDirection, TabMenuScope};
 
 /// Reviewed semantic aliases. Localization supplies the actual searchable words.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -502,6 +502,59 @@ impl Locale {
             (Self::EnUs, ReleasePointer) => "Release mouse",
             (Self::ZhCn, ReleasePointer) => "释放鼠标",
             (_, Detach) => self.client_detach_label(),
+        }
+    }
+
+    /// A context menu's frame title already names the object it opened on, so a row acting on that
+    /// object alone keeps only its verb. Rows naming another object or a counted set keep their
+    /// full labels, as do the global menu, dialog titles and shortcut help.
+    pub(crate) fn menu_object_action(
+        self,
+        action: impl Into<MenuLabel>,
+        scope: Option<TabMenuScope>,
+    ) -> String {
+        use MenuLabel::*;
+        let action = action.into();
+        let own_object = matches!(
+            scope,
+            None | Some(TabMenuScope::Addressed | TabMenuScope::Group(_))
+        );
+        let verb = match (self, action) {
+            _ if !own_object => None,
+            (Self::EnUs, RenameTab | RenameWorkspace | RenameProject | RenameGroup) => {
+                Some("Rename")
+            }
+            (Self::ZhCn, RenameTab | RenameWorkspace | RenameProject | RenameGroup) => {
+                Some("重命名")
+            }
+            (
+                Self::EnUs,
+                CloseSelectedTabs | ClosePane | CloseGroup | CloseWorkspace | DeleteWorkspace,
+            ) => Some("Close"),
+            (
+                Self::ZhCn,
+                CloseSelectedTabs | ClosePane | CloseGroup | CloseWorkspace | DeleteWorkspace,
+            ) => Some("关闭"),
+            (Self::EnUs, ResumeTabClose) => Some("Resume closing…"),
+            (Self::ZhCn, ResumeTabClose) => Some("继续关闭…"),
+            (Self::EnUs, DeleteProject) => Some("Dissolve"),
+            (Self::ZhCn, DeleteProject) => Some("解散"),
+            (Self::EnUs, PinTab) => Some("Pin"),
+            (Self::ZhCn, PinTab) => Some("固定"),
+            (Self::EnUs, UnpinTab) => Some("Unpin"),
+            (Self::ZhCn, UnpinTab) => Some("取消固定"),
+            (Self::EnUs, ManageGroups) => Some("Add to group"),
+            (Self::ZhCn, ManageGroups) => Some("加入分组"),
+            (Self::EnUs, RemoveFromGroup) => Some("Remove from group"),
+            (Self::ZhCn, RemoveFromGroup) => Some("移出分组"),
+            (Self::EnUs, Zoom) => Some("Zoom"),
+            (Self::ZhCn, Zoom) => Some("切换缩放"),
+            _ => None,
+        };
+        match (verb, scope) {
+            (Some(verb), _) => verb.to_owned(),
+            (None, Some(scope)) => self.menu_tab_action(action, scope),
+            (None, None) => self.menu_action(action).to_owned(),
         }
     }
 }

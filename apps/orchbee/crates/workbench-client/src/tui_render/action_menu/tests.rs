@@ -281,7 +281,11 @@ fn object_rename_rows_use_short_localized_copy_for_their_exact_actions() {
     ];
     for (target, action) in cases {
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            let expected = locale.menu_action(&action).replace(' ', "");
+            // The frame title names the object, so the row keeps only the verb.
+            let expected = match locale {
+                Locale::EnUs => "Rename",
+                Locale::ZhCn => "重命名",
+            };
             for theme in [Theme::terminal_native(), Theme::one_light()] {
                 for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (15, 4)] {
                     let mut menu = ActionMenu::default();
@@ -327,7 +331,11 @@ fn object_rename_rows_use_short_localized_copy_for_their_exact_actions() {
                         .map(|x| buffer[(x, row.y)].symbol())
                         .collect();
                     let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
-                    assert!(compact.contains(&expected), "{text}");
+                    assert_eq!(
+                        compact.trim_start_matches(theme.glyphs.navigation_marker),
+                        expected,
+                        "{text}"
+                    );
                     assert_eq!(menu.view().unwrap().actions, std::slice::from_ref(&action));
                 }
             }

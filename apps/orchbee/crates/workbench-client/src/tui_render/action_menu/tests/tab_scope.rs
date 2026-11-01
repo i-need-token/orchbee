@@ -197,21 +197,21 @@ fn typed_single_and_selected_scopes_paint_explicit_rows_and_title_the_tab() {
                         &buffer,
                         rect.x + 1,
                         rect.y,
-                        &locale.menu_tab_action(action, actual),
+                        &locale.menu_object_action(action, Some(actual)),
                     );
                 }
                 let expected_pin = match (locale, selected) {
-                    (Locale::EnUs, false) => "Pin Tab",
+                    (Locale::EnUs, false) => "Pin",
                     (Locale::EnUs, true) => "Pin selected 2 Tabs",
-                    (Locale::ZhCn, false) => "固定标签页",
+                    (Locale::ZhCn, false) => "固定",
                     (Locale::ZhCn, true) => "固定所选 2 个标签页",
                 };
                 let pin = row(&hits, buffer.area, menu.view().unwrap().token, 2);
                 assert_text_at(&buffer, pin.x + 1, pin.y, expected_pin);
                 let expected_close = match (locale, selected) {
-                    (Locale::EnUs, false) => "Close Tab…",
+                    (Locale::EnUs, false) => "Close",
                     (Locale::EnUs, true) => "Close selected 2 Tabs…",
-                    (Locale::ZhCn, false) => "关闭标签页…",
+                    (Locale::ZhCn, false) => "关闭",
                     (Locale::ZhCn, true) => "关闭所选 2 个标签页…",
                 };
                 let close = row(&hits, buffer.area, menu.view().unwrap().token, 3);
