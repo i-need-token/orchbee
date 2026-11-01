@@ -228,7 +228,9 @@ fn home_relative(path: &str, home: &str) -> Option<String> {
     (rest.is_empty() || rest.starts_with(SEPARATORS))
         .then(|| format!("~{}", rest.trim_end_matches(SEPARATORS)))
 }
-/// Ahead/behind counts painted as right-aligned metadata on their configured line.
+/// Ahead/behind counts painted as right-aligned metadata on their configured line. Like common
+/// Git tools, commits to push read green and commits to pull read as a caution; the arrows still
+/// tell them apart where a host shows no color.
 fn git_spans(context: &Context<'_>, theme: &Theme, style: SidebarTokenStyle) -> Vec<Span<'static>> {
     let Some(git) = context
         .observed
@@ -241,7 +243,7 @@ fn git_spans(context: &Context<'_>, theme: &Theme, style: SidebarTokenStyle) -> 
     if git.ahead > 0 {
         spans.push(Span::styled(
             format!("{}{n}", theme.glyphs.git_ahead, n = git.ahead),
-            theme.workspace_token_style(Role::TextSecondary, style, false, false),
+            theme.workspace_token_style(Role::StatusSuccess, style, false, false),
         ));
     }
     if git.behind > 0 {
@@ -250,7 +252,7 @@ fn git_spans(context: &Context<'_>, theme: &Theme, style: SidebarTokenStyle) -> 
         }
         spans.push(Span::styled(
             format!("{}{n}", theme.glyphs.git_behind, n = git.behind),
-            theme.workspace_token_style(Role::TextSecondary, style, false, false),
+            theme.workspace_token_style(Role::StatusWarning, style, false, false),
         ));
     }
     spans

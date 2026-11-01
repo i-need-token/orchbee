@@ -173,7 +173,9 @@ unfilled. Eligible disclosures follow the displayed first-line identity.
 The unread marker is the only trailing marker: a small `•` in `status-unread` (ASCII `*`), shared
 with the Tab and pane title cues, in the row's last list cell after one blank cell. A Workspace shows
 its Agents' unread marker only while they are folded; open Agent rows carry their own. An Agent title
-leaves those two cells only while the Agent is unread. Git ahead/behind counts use secondary text.
+leaves those two cells only while the Agent is unread. As in common Git tools, the ahead count
+(commits to push) uses `status-success` and the behind count (commits to pull) `status-warning`;
+their `↑`/`↓` arrows keep them apart where no color shows, as in Monochrome.
 On the identity line they end at the row's trailing edge, where the close control appears, or
 before the unread marker's two cells; on other lines they right-align at the end of the primary
 track. The default layout places them on the identity line and shows the Workspace location on the
