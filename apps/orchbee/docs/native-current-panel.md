@@ -32,7 +32,7 @@ metadata and viewport observations for that member. It never reselects a Client 
 Panel. Before publication, the canonical revision must still match and the Client must still show
 the same selection and member token. The Client's view revision is not fenced: it also steps when
 an unrelated commit refreshes the Client. A Client read refused only as stale or busy is addressed
-again at the Client's current view revision, at most four times in all, while a changed selection
+again at the Client's current view revision, at most eight times in all, while a changed selection
 fails as `client-changed`. A Client read answered at a later Workbench revision fails as
 `workbench-changed`, like the canonical check. A move away and back therefore passes only when it
 leaves the member token unchanged. These fences do not make Host/process/scroll observations

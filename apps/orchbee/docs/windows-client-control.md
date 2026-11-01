@@ -139,7 +139,7 @@ checks exact request/context identities and membership, and verifies an unchange
 canonical revision and Client selection before emitting one result. The Client's view
 revision also steps when an unrelated commit refreshes it, so it is not fenced: a read the
 Client refused only as stale or busy is addressed again, under a new operation ID, at the
-Client's current view revision, at most four times in all. One total five-second deadline
+Client's current view revision, at most eight times in all. One total five-second deadline
 and signal owner cover every phase. No partial success, operation replay, navigation,
 acknowledgement, terminal attachment or input effect occurs. Selected results include Client/operation/view provenance; unselected
 results never invent focused or active fields. Cancellation closes the connection

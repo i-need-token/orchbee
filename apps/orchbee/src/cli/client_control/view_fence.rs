@@ -25,9 +25,10 @@ pub(in crate::cli) enum ViewFence {
     Selection,
 }
 
-/// Each step is addressed at most this many times, so a Client whose view keeps moving still
-/// fails promptly with its own refusal.
-pub(in crate::cli) const ADDRESSES: usize = 4;
+/// Each step is addressed at most this many times: enough for a Client that other Clients' commits
+/// refresh several times a second, while a Client whose view keeps moving still fails with its own
+/// refusal well inside the command deadline.
+pub(in crate::cli) const ADDRESSES: usize = 8;
 
 impl ViewFence {
     /// Whether a view observed after `original` was read still answers for it.
