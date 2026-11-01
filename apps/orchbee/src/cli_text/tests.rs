@@ -117,6 +117,16 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         "调用方式无效：参数必须为 Unicode，且总大小不得超过 64 KiB。请运行 ‘orchbee --help’。\n"
     );
 
+    let failure = usage_failure(UsageReason::RelayRequiresPipes);
+    assert_eq!(
+        CliText::new(Locale::EnUs).cli_failure(&failure),
+        "'orchbee server connect' carries protocol bytes for another program, so its standard input and output must be pipes, not a terminal. Run 'orchbee server connect --help'.\n"
+    );
+    assert_eq!(
+        CliText::new(Locale::ZhCn).cli_failure(&failure),
+        "'orchbee server connect' 为其他程序传输协议字节，因此标准输入和输出必须是管道，不能是终端。请运行 ‘orchbee server connect --help’。\n"
+    );
+
     // A reason-free InvalidUsage keeps the original generic text.
     let failure = Failure {
         kind: FailureKind::InvalidUsage,

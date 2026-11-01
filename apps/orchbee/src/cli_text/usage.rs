@@ -478,6 +478,13 @@ impl super::CliText {
                 },
                 hint(UsageContext::Root),
             ),
+            UsageReason::RelayRequiresPipes => (
+                match self.locale {
+                    Locale::EnUs => "'orchbee server connect' carries protocol bytes for another program, so its standard input and output must be pipes, not a terminal.".to_owned(),
+                    Locale::ZhCn => "'orchbee server connect' 为其他程序传输协议字节，因此标准输入和输出必须是管道，不能是终端。".to_owned(),
+                },
+                hint(UsageContext::Path("server connect")),
+            ),
             UsageReason::UnknownCommand {
                 context: ctx,
                 word,

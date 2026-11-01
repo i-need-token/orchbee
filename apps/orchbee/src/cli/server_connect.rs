@@ -46,8 +46,10 @@ fn connect() -> Result<(), Failure> {
 fn connect() -> Result<(), Failure> {
     // Protocol bytes on an interactive console are unusable and would corrupt its state.
     if io::stdin().is_terminal() || io::stdout().is_terminal() {
-        return Err(Failure::new(FailureKind::InvalidUsage)
-            .details(super::stage_reason_details("connect", "requires-pipes")));
+        return Err(Failure {
+            usage: Some(Box::new(crate::invocation::UsageReason::RelayRequiresPipes)),
+            ..Failure::new(FailureKind::InvalidUsage)
+        });
     }
     let started = super::server::activate_for_relay(std::time::Instant::now() + ACTIVATION_BUDGET)?;
     let stream = started

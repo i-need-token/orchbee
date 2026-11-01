@@ -182,6 +182,8 @@ pub(crate) enum UsageReason {
     Invalid,
     /// Non-Unicode argv or argv over the total byte bound; nothing echoes.
     ArgumentEnvelope,
+    /// `server connect` on a terminal: its protocol bytes need a program at both ends.
+    RelayRequiresPipes,
     UnknownCommand {
         context: UsageContext,
         word: String,
