@@ -163,7 +163,7 @@ fn disclosure_cell(
     panic!("rendered disclosure cell");
 }
 
-/// Disclosure is pointer-revealed: hover the row, then publish the frame that paints the cell.
+/// Disclosure shows at rest: hover the row, then publish the frame that keeps the same cell.
 fn revealed_disclosure(
     dispatcher: &mut InputDispatcher,
     view: &mut ClientView,
@@ -178,18 +178,14 @@ fn revealed_disclosure(
         )
     };
     let map = paint(dispatcher, view);
-    assert!(
-        (0..40).all(|y| (0..30).all(
-            |x| map.hit_target_at(x, y) != Some(&HitTarget::SidebarDisclosure(target.clone()))
-        )),
-        "an unrevealed disclosure publishes no target"
-    );
+    let resting = disclosure_cell(&map, target);
     let (x, y) = sidebar_primary_cell(&map, target);
     dispatcher.publish_hit_map(map);
     let motion = format!("\x1b[<35;{};{}M", x + 1, y + 1);
     dispatch_all(dispatcher, view, port, motion.as_bytes());
     let map = paint(dispatcher, view);
     let disclosure = disclosure_cell(&map, target);
+    assert_eq!(disclosure, resting, "hover never moves the disclosure");
     dispatcher.publish_hit_map(map);
     disclosure
 }

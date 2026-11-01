@@ -1083,10 +1083,10 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     let (rows, hits) = paint(&view, Locale::EnUs, &theme, 60, 12);
     assert!(rows[1].contains("[ New workspace ]"), "{rows:?}");
     assert!(rows[2].contains("[ Search ]"), "{rows:?}");
-    // The Recents heading names the group without a member count.
+    // The Recents heading names the group without a member count; its disclosure always shows.
     assert_eq!(
         rows[3].split_whitespace().collect::<Vec<_>>(),
-        ["Recents", "│"],
+        ["Recents", theme.glyphs.disclosure_open, "│"],
         "{rows:?}"
     );
     assert!(rows[4].contains("Workspace"), "{rows:?}");

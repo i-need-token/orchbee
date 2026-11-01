@@ -838,21 +838,13 @@ fn render_creation(
     ) else {
         return;
     };
+    // The row names the Workspace alone; the content region carries creation progress.
     let name = super::workspace_creation::label(preview, locale);
-    let pending =
-        preview.phase != crate::workbench_state::workspace_setup::WorkspaceCreationPhase::Committed;
     let mut lines = vec![fit(
-        Line::from(vec![
-            Span::styled(display_label(name), theme.style(Role::TextPrimary)),
-            Span::styled(
-                if pending {
-                    format!(" · {}", locale.workspace_creation_progress(preview.phase))
-                } else {
-                    String::new()
-                },
-                theme.style(Role::TextSecondary),
-            ),
-        ]),
+        Line::from(Span::styled(
+            display_label(name),
+            theme.style(Role::TextPrimary),
+        )),
         usize::from(tracks.primary.width),
         theme.glyphs.ellipsis,
     )];
@@ -867,19 +859,12 @@ fn render_creation(
         },
         CheckedState::Unchecked,
         Availability::Enabled,
-        if pending {
-            OperationState::Pending
-        } else {
-            OperationState::Idle
-        },
+        OperationState::Idle,
     );
-    // A provisional row never holds keyboard navigation, so its pending glyph takes the edge cell.
     let _ = paint_row_interaction(
         frame,
         row,
-        RowTracks::new(RowFocusCue::EnclosingFrame, tracks.primary)
-            .with_status(tracks.navigation)
-            .with_plain_current(),
+        RowTracks::new(RowFocusCue::EnclosingFrame, tracks.primary).with_plain_current(),
         &[],
         ControlSurface::Chrome,
         state,
@@ -1636,9 +1621,8 @@ pub(super) fn render(
         // Disclosure, Create and close are revealed children recorded in this order before the
         // row. A frame publishes a child only when it also paints it, so every pointer is
         // projected against the exposure its reveal frame published: the pointer-revealed set,
-        // then the set shown without a pointer (keyboard focus, or a folded row's disclosure).
+        // then the set shown without a pointer (keyboard focus, or the always-shown disclosure).
         // Projecting without them would orphan hover or press after a reveal.
-        let folded_row = expanded == Some(false);
         let revealed_children: Vec<_> = [
             disclosure_target
                 .as_ref()
@@ -1658,7 +1642,7 @@ pub(super) fn render(
         let resting = if focused {
             revealed_children.len() - usize::from(close_target.is_some())
         } else {
-            usize::from(folded_row && disclosure_target.is_some())
+            usize::from(disclosure_target.is_some())
         };
         let project =
             |hits: &mut HitMapBuilder,
@@ -1725,11 +1709,9 @@ pub(super) fn render(
                 theme.glyphs.disclosure_closed
             }
         };
-        // Pointer presence or keyboard focus reveals row controls; a folded row keeps its
-        // disclosure so its hidden rows stay discoverable.
+        // Pointer presence or keyboard focus reveals Create; disclosure always shows, so every
+        // foldable row reads as one at rest.
         let revealed = row_paint_pointer != PointerPresentation::Rest || focused;
-        let disclosure_shown = revealed || folded_row;
-        let disclosure_target = disclosure_target.filter(|_| disclosure_shown);
         let create_target = create_target.filter(|_| revealed);
         // Only Agent rows carry a state glyph. All Agent Working glyphs share the Client's
         // animation phase with the Tab strip and pane titles.
@@ -1837,7 +1819,7 @@ pub(super) fn render(
             );
         }
 
-        let disclosure = expanded.filter(|_| disclosure_shown).map(disclosure_glyph);
+        let disclosure = expanded.map(disclosure_glyph);
         if let Some(disclosure) = disclosure {
             frame.render_widget(
                 Paragraph::new(disclosure).style(theme.content_on_surface(

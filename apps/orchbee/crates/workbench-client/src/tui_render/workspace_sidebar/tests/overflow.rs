@@ -29,8 +29,8 @@ fn event(column: u16, row: u16, action: MouseAction) -> MouseEvent {
     }
 }
 
-/// Row controls are pointer-revealed: hover the row's first line, then paint the frame that
-/// publishes its disclosure and Create controls.
+/// Create is pointer-revealed while disclosure always shows: hover the row's first line, then
+/// paint the frame that publishes its Create control.
 fn revealed_frame(
     view: &mut ClientView,
     pointer: &mut PointerState,
@@ -45,12 +45,6 @@ fn revealed_frame(
         width,
         height,
         pointer.projection(),
-    );
-    assert!(
-        (0..height).all(|y| (0..width).all(
-            |x| map.hit_target_at(x, y) != Some(&HitTarget::SidebarDisclosure(target.clone()))
-        )),
-        "a resting row publishes no disclosure"
     );
     let y = sidebar_target_rows(&map, width, height, target)
         .into_iter()
@@ -352,14 +346,10 @@ fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_
                                 } else {
                                     Role::SurfaceChrome
                                 })));
-                            // The expanded Project's disclosure is shown only while the row is hovered.
+                            // The expanded Project's disclosure shows with or without the pointer.
                             assert_eq!(
                                 candidate[(disclosure_x, project_y)].symbol(),
-                                if on_row {
-                                    theme.glyphs.disclosure_open
-                                } else {
-                                    " "
-                                }
+                                theme.glyphs.disclosure_open
                             );
                             for gap_y in last_workspace_y + 1..project_y {
                                 for gap_x in 0..width {

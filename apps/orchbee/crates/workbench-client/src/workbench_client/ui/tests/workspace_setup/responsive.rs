@@ -1,6 +1,6 @@
 //! Controlled completion order for immediate creation feedback and canonical handoff.
 use super::*;
-use crate::workbench_state::workspace_setup::WorkspaceCreationPhase;
+use crate::localization::WorkspaceCreationPhase;
 
 fn rendered_text(buffer: &ratatui::buffer::Buffer) -> String {
     let mut text = String::new();

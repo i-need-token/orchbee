@@ -258,11 +258,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     hits.hit_target_at(0, 1),
                     Some(&HitTarget::NewWorkspaceButton)
                 );
-                // An expanded Project at rest keeps its secondary label; disclosure is revealed.
-                assert!((0..height).all(|y| (0..sidebar_width).all(|x| !matches!(
-                    hits.hit_target_at(x, y),
-                    Some(HitTarget::SidebarDisclosure(target)) if target == &project
-                ))));
+                // An expanded Project at rest keeps its secondary label and shows its disclosure.
                 let project_y = (0..height).find(|y| {
                     matches!(
                         hits.hit_target_at(0, *y),
@@ -270,6 +266,10 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     )
                 });
                 if let Some(project_y) = project_y {
+                    assert!((0..sidebar_width).any(|x| matches!(
+                        hits.hit_target_at(x, project_y),
+                        Some(HitTarget::SidebarDisclosure(target)) if target == &project
+                    )));
                     let project_tracks = layout::Tracks::resolve_for_width(
                         Rect::new(0, project_y, sidebar_width - 2, 1),
                         0,
@@ -1054,12 +1054,18 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                 assert!(view.machines.focus_sidebar_target(&focused));
                 let (candidate, sink, hits) =
                     paint_navigation_buffers(&view, locale, &theme, width, 10);
+                // Unfocused, the Project keeps only its disclosure; Create is hidden again.
                 for y in sidebar_target_rows(&hits, width, 10, &project) {
                     for x in 0..width {
-                        assert!(matches!(
-                            hits.hit_target_at(x, y),
-                            Some(HitTarget::MachineGroupRow { target, .. }) if target == &project
-                        ));
+                        let hit = hits.hit_target_at(x, y);
+                        if project_tracks.disclosure.contains((x, y).into()) {
+                            assert_eq!(hit, Some(&HitTarget::SidebarDisclosure(project.clone())));
+                        } else {
+                            assert!(matches!(
+                                hit,
+                                Some(HitTarget::MachineGroupRow { target, .. }) if target == &project
+                            ));
+                        }
                     }
                 }
                 let focused_rows = sidebar_target_rows(&hits, width, 10, &focused);
@@ -1154,12 +1160,15 @@ fn agents_are_nested_by_default_and_project_collapse_retains_disclosure() {
             collapsed_hits.hit_target_at(2, y),
             Some(HitTarget::MachineAgentRow { .. })
         )));
-        // Workspace disclosure is pointer-revealed: neither owner publishes one at rest.
-        for owner in [&active, &other] {
-            assert!((0..40).all(|y| (0..30).all(|x| !matches!(
-                collapsed_hits.hit_target_at(x, y),
-                Some(HitTarget::SidebarDisclosure(actual)) if actual == owner
-            ))));
+        // Workspace disclosure always shows at rest, but only on a Workspace with Agents.
+        for (owner, shown) in [(&active, true), (&other, false)] {
+            assert_eq!(
+                (0..40).any(|y| (0..30).any(|x| matches!(
+                    collapsed_hits.hit_target_at(x, y),
+                    Some(HitTarget::SidebarDisclosure(actual)) if actual == owner
+                ))),
+                shown
+            );
         }
 
         assert!(view.machines.sidebar_context_agents_expanded(&active));
@@ -1356,10 +1365,15 @@ fn projects_precede_recents_and_create_has_no_overflow_slot() {
         let heading = (0..40)
             .map(|x| buffer[(x, first_workspace - 1)].symbol())
             .collect::<String>();
-        // Wide glyphs leave blank continuation cells; the heading carries no member count.
+        // Wide glyphs leave blank continuation cells; the heading carries no member count, only
+        // its disclosure.
         assert_eq!(
             heading.replace(' ', ""),
-            locale.machine_picker_text("sidebar-recents"),
+            format!(
+                "{}{}",
+                locale.machine_picker_text("sidebar-recents"),
+                Theme::terminal_native().glyphs.disclosure_open
+            ),
             "{heading:?}"
         );
         for x in 0..40 {
@@ -1377,7 +1391,10 @@ fn projects_precede_recents_and_create_has_no_overflow_slot() {
             // The Recents heading folds like a Project but offers no menu or Create.
             assert!(matches!(
                 hits.hit_target_at(x, first_workspace - 1),
-                Some(HitTarget::MachineGroupRow { target, .. }) if target == &recents
+                Some(
+                    HitTarget::MachineGroupRow { target, .. }
+                        | HitTarget::SidebarDisclosure(target)
+                ) if target == &recents
             ));
             assert!(matches!(
                 hits.hit_target_at(x, project_start),

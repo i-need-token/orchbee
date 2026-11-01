@@ -241,9 +241,10 @@ Project, Recents and eligible Context disclosure use one glyph (`▾`/`▸`, wit
 one blank cell following the displayed first-line identity. Text measurement and painting reserve
 these two cells on the identity line before truncation, using display width for wide glyphs; other
 lines never reserve them. Identity starts stay fixed.
-Disclosure and Create appear only while the row or one of its controls is hovered or pressed, or the
-row has keyboard focus; a folded Project, Recents or Workspace keeps its disclosure visible so its
-hidden rows stay discoverable. A resting row publishes no target for a hidden control. Each revealed child is
+Disclosure always shows on Project, Recents and Workspace-with-Agents rows, expanded or folded, so
+every foldable row reads as one at rest. Create appears only while the row or one of its controls is
+hovered or pressed, or the row has keyboard focus. A resting row publishes no target for a hidden
+control. Each revealed child is
 recorded before its row, and pointer projection uses that same exposure so hover and press
 survive the reveal frame. Only the painted glyph cell publishes a disclosure target, excluding
 leading gaps and continuations.

@@ -1,9 +1,10 @@
 //! The creation projection joins canonical rows only by exact Session and committed identity.
 use super::*;
-use crate::workbench_state::workspace_setup::{WorkspaceCreationPhase, WorkspaceCreationPreview};
+use crate::localization::WorkspaceCreationPhase;
+use crate::workbench_state::workspace_setup::WorkspaceCreationPreview;
 
 #[test]
-fn creation_preview_keeps_current_fill_without_bolding_identity_or_pending_copy() {
+fn creation_preview_keeps_current_fill_and_shows_only_its_name() {
     let session = SessionId::parse(&id(1)).unwrap();
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
@@ -47,22 +48,9 @@ fn creation_preview_keeps_current_fill_without_bolding_identity_or_pending_copy(
                     assert!(!buffer[(label_x, 1)].modifier.contains(Modifier::BOLD));
                     assert_eq!(buffer[(0, 1)].bg, theme.color(surface));
                     assert_eq!(buffer[(63, 1)].bg, theme.color(surface));
-                    let detail_x = label_x + u16::try_from(display_width("Preview · ")).unwrap();
-                    if phase == WorkspaceCreationPhase::Preparing {
-                        assert_eq!(
-                            buffer[(detail_x, 1)].symbol(),
-                            locale
-                                .workspace_creation_progress(phase)
-                                .chars()
-                                .next()
-                                .unwrap()
-                                .to_string()
-                        );
-                        assert_eq!(buffer[(detail_x, 1)].bg, theme.color(surface));
-                        assert!(!buffer[(detail_x, 1)].modifier.contains(Modifier::BOLD));
-                    } else {
-                        assert_eq!(buffer[(detail_x, 1)].symbol(), " ");
-                    }
+                    // Neither a pending glyph nor progress copy: the row shows its name alone.
+                    let row: String = (0..64).map(|x| buffer[(x, 1)].symbol()).collect();
+                    assert_eq!(row.trim(), "Preview", "{locale:?} {phase:?}");
                 }
             }
         }

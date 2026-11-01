@@ -12,7 +12,7 @@ mod tab_configuration;
 pub(crate) use labels::ProjectRenameRequest;
 mod preview;
 mod projection;
-pub(crate) use preview::{WorkspaceCreationPhase, WorkspaceCreationPreview};
+pub(crate) use preview::WorkspaceCreationPreview;
 pub(crate) mod quick;
 use super::recovery_fence::RecoveryFence;
 use super::{

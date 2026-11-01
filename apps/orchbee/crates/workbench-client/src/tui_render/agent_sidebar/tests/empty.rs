@@ -1,5 +1,6 @@
 use super::*;
-use crate::workbench_state::workspace_setup::{WorkspaceCreationPhase, WorkspaceCreationPreview};
+use crate::localization::WorkspaceCreationPhase;
+use crate::workbench_state::workspace_setup::WorkspaceCreationPreview;
 use orchbee_workbench_protocol::SessionId;
 
 fn sidebar_display_text(buffer: &ratatui::buffer::Buffer, area: Rect) -> String {
