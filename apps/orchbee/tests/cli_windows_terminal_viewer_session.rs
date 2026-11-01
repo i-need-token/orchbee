@@ -1,11 +1,19 @@
 //! Terminal viewers through a real local Session: the CLI, Server, Worker and Zig Host under test,
 //! a real TUI Client that runs in a terminal of a second Session, and a terminal that prints in
-//! another Workspace. The Client drives a split Workspace with pointer input as a user would: a
-//! click whose pointer moves before release focuses a pane and leaves a selection in it, which the
-//! default copy-on-select exports. A divider drag about 400 ms later resizes that pane once per
-//! column. The Host reports the selection again at each new generation, faster than a busy Client
-//! polls, and refuses the export's cancellation or later chunk acknowledgements once the export
-//! is over. None of that may cost a pane its viewer: the TUI never shows a terminal as unavailable.
+//! another Workspace.
+//!
+//! The Client drives a split Workspace with pointer input as a user would: a click whose pointer
+//! moves before release focuses a pane and leaves a selection in it, which the default
+//! copy-on-select exports. A divider drag about 400 ms later resizes that pane once per column.
+//! The Host reports the selection again at each new generation, faster than a busy Client polls,
+//! and refuses the export's cancellation or later chunk acknowledgements once the export is over.
+//! None of that may cost a pane its viewer: the TUI never shows a terminal as unavailable.
+//!
+//! The TUI's window also changes size, alternately narrow and wide, while both panes print lines
+//! that soft-wrap. The Client redraws through a real ConPTY, which erases and rewrites soft-wrapped
+//! rows, and each pane's terminal is resized with the window. Every frame of every terminal must
+//! still decode for every viewer: the TUI keeps serving reads, the printing pane keeps advancing,
+//! and each pane's terminal still serves a read.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -29,24 +37,31 @@ const DRAG_COLUMNS: u16 = 6;
 const ROUNDS: usize = 4;
 /// How long the TUI is watched after each gesture.
 const WATCH: Duration = Duration::from_millis(2_500);
+/// The TUI's window sizes, in cells, alternately narrow and wide.
+const WINDOW_SIZES: [(u16, u16); 10] = [
+    (60, 24),
+    (112, 32),
+    (70, 28),
+    (140, 40),
+    (56, 20),
+    (112, 32),
+    (64, 30),
+    (130, 36),
+    (58, 22),
+    (112, 32),
+];
+/// A PowerShell loop that prints numbered lines, longer than any pane is wide, twice a second.
+/// Between lines most rows of the TUI stay unchanged, so a row that one frame misrepresents stays
+/// in every later frame until it changes.
+const NUMBERED_LINES: &str = "$i = 0; while ($true) { $i++; \
+    [Console]::Out.WriteLine(('LINE-{0:D6}-' -f $i) + ('abcdefghijklmnopqrstuvwxyz0123456789' * 3)); \
+    Start-Sleep -Milliseconds 500 }";
+const LINE_MARK: &str = "LINE-";
 
 #[test]
 fn a_divider_drag_after_a_selecting_click_keeps_every_viewer() {
     let fixture = Fixture::new("orchbee-terminal-viewer-", &[]);
-    let left = fixture.workspace("work");
-    let split = fixture.run(&[
-        "panel",
-        "split",
-        &left,
-        "--direction",
-        "right",
-        "--no-focus",
-    ]);
-    assert_eq!(split.code, Some(0), "{split}");
-    let right = split.document["result"]["newPanelId"]
-        .as_str()
-        .unwrap_or_else(|| panic!("{split}"))
-        .to_owned();
+    let (left, right) = split_workspace(&fixture);
     let tui = fixture.start_tui(COLUMNS, ROWS);
     fixture.background_output();
     fixture.settle_ready(&tui.client);
@@ -78,7 +93,8 @@ fn a_divider_drag_after_a_selecting_click_keeps_every_viewer() {
         thread::sleep(Duration::from_millis(40));
         control.input(&release(shift(before.divider, step, DRAG_COLUMNS), 20));
 
-        let after = watch(&fixture, &tui.terminal, &format!("divider drag {round}"));
+        watch(&fixture, &tui.terminal, &format!("divider drag {round}"));
+        let after = Layout::read(&fixture, &tui.terminal);
         let moved = (i32::from(after.divider) - i32::from(before.divider)) * step;
         assert!(
             moved >= i32::from(DRAG_COLUMNS) - 1,
@@ -95,19 +111,114 @@ fn a_divider_drag_after_a_selecting_click_keeps_every_viewer() {
     control.release();
 }
 
-/// Reads the TUI until `WATCH` passes: no read may show a terminal without its viewer.
-fn watch(fixture: &Fixture, terminal: &str, gesture: &str) -> Layout {
+#[test]
+fn window_resizes_under_soft_wrapped_output_keep_every_viewer() {
+    let fixture = Fixture::new("orchbee-terminal-viewer-", &[]);
+    let (left, right) = split_workspace(&fixture);
+    let tui = fixture.start_tui(COLUMNS, ROWS);
+    fixture.background_output();
+    fixture.settle_ready(&tui.client);
+    let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
+    control.input(b"\x1b[I");
+    // The left pane keeps focus, so the TUI shows its numbered lines at every window size.
+    for (panel, command) in [(&left, NUMBERED_LINES), (&right, "ping -t 127.0.0.1")] {
+        let sent = fixture.run(&[
+            "terminal", "send", "--panel", panel, "--text", command, "--enter",
+        ]);
+        assert_eq!(sent.code, Some(0), "{sent}");
+    }
+    let mut newest = advance(&fixture, &tui.terminal, 0, "starting the numbered lines");
+
+    for (round, (columns, rows)) in WINDOW_SIZES.into_iter().enumerate() {
+        control.resize(columns, rows);
+        let gesture = format!("window resize {round} to {columns}x{rows}");
+        watch(&fixture, &tui.terminal, &gesture);
+        newest = advance(&fixture, &tui.terminal, newest, &gesture);
+    }
+    for panel in [&left, &right] {
+        let read = fixture.run(&["terminal", "read", "--panel", panel, "--source", "visible"]);
+        assert_eq!(read.code, Some(0), "{read}");
+    }
+    control.release();
+}
+
+/// Splits a new Workspace into a left and a right pane.
+fn split_workspace(fixture: &Fixture) -> (String, String) {
+    let left = fixture.workspace("work");
+    let split = fixture.run(&[
+        "panel",
+        "split",
+        &left,
+        "--direction",
+        "right",
+        "--no-focus",
+    ]);
+    assert_eq!(split.code, Some(0), "{split}");
+    let right = split.document["result"]["newPanelId"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{split}"))
+        .to_owned();
+    (left, right)
+}
+
+/// Reads the TUI until `WATCH` passes. A read that fails, or that shows a terminal without its
+/// viewer, fails the gesture.
+fn watch(fixture: &Fixture, terminal: &str, gesture: &str) {
     let deadline = Instant::now() + WATCH;
-    loop {
-        let text = fixture.screen(terminal);
+    while Instant::now() < deadline {
+        let text = screen(fixture, terminal, gesture);
         assert!(
             !text.to_lowercase().contains("terminal unavailable"),
             "{gesture} cost a pane its viewer:\n{text}"
         );
-        if Instant::now() >= deadline {
-            return Layout::read(fixture, terminal);
-        }
     }
+}
+
+/// Waits until the TUI shows a numbered line after `newest`, and returns the newest line shown.
+fn advance(fixture: &Fixture, terminal: &str, newest: u64, gesture: &str) -> u64 {
+    let deadline = Instant::now() + OBSERVATION;
+    loop {
+        let text = screen(fixture, terminal, gesture);
+        if let Some(line) = newest_line(&text).filter(|line| *line > newest) {
+            return line;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "after {gesture} the printing pane stopped at line {newest}:\n{text}"
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// The TUI's visible text, read through a viewer of the `host` terminal it runs in. A read that
+/// fails, as one does when that viewer cannot decode a frame, fails the gesture.
+fn screen(fixture: &Fixture, terminal: &str, gesture: &str) -> String {
+    let read = fixture.run(&[
+        "terminal",
+        "read",
+        "--session",
+        "host",
+        terminal,
+        "--source",
+        "visible",
+    ]);
+    read.document["result"]["content"]["text"]
+        .as_str()
+        .unwrap_or_else(|| panic!("after {gesture} the TUI could not be read: {read}"))
+        .to_owned()
+}
+
+/// The highest line number that the TUI shows.
+fn newest_line(text: &str) -> Option<u64> {
+    text.match_indices(LINE_MARK)
+        .filter_map(|(index, _)| {
+            let digits = &text[index + LINE_MARK.len()..];
+            let end = digits
+                .find(|character: char| !character.is_ascii_digit())
+                .unwrap_or(digits.len());
+            digits[..end].parse().ok()
+        })
+        .max()
 }
 
 /// Where the split's panes sit in the TUI, as 1-based columns.

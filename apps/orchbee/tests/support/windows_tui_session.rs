@@ -485,6 +485,18 @@ impl Control {
         stdin.flush().unwrap();
     }
 
+    /// Resizes the terminal as its controller, as a resize of the window that shows it would.
+    pub fn resize(&mut self, columns: u16, rows: u16) {
+        let stdin = self.child.stdin.as_mut().unwrap();
+        writeln!(
+            stdin,
+            "{}",
+            json!({"type": "terminal.resize", "cols": columns, "rows": rows})
+        )
+        .unwrap();
+        stdin.flush().unwrap();
+    }
+
     /// Closes the attachment's input, which detaches it without stopping the terminal.
     pub fn release(mut self) {
         drop(self.child.stdin.take());
