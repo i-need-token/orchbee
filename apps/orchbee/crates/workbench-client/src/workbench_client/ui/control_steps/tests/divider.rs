@@ -954,6 +954,90 @@ fn a_revision_refusal_resubmits_the_same_divider_move_only_while_its_split_is_un
     }
 }
 
+/// A drag pressed on a settling release's draft, or on the draft of a release waiting behind it,
+/// outlives that release when it ends without landing. The drag can no longer land on the layout
+/// it was pressed on, so the pointer's next check ends it under the notice the release ended with
+/// instead of a generic failure that would replace that notice.
+#[test]
+fn a_drag_on_a_draft_whose_release_ends_unlanded_ends_under_that_release_notice() {
+    for waiting in [false, true] {
+        let (mut native, mailbox, clock, elapsed) = ready_split_ui();
+        let poll = mailbox.try_recv().unwrap().unwrap();
+        mailbox.finish_lease(poll).unwrap();
+        let view = ClientView::new(120);
+        let target = painted(&native, &view, 120, 40).1.remove(0);
+        let mut control = controller(clock);
+        control.observe_geometry(target.viewport, view.sidebar_surface());
+        control.tick(&mut native, false);
+        control.resize_divider(&native, &target, ClientSplitRatio::new(0.7).unwrap());
+        let mutation = control
+            .lane
+            .as_ref()
+            .unwrap()
+            .take_layout_for_test()
+            .unwrap();
+        let released = ResizeProjection::Divider {
+            source: target.clone(),
+            ratio: ClientSplitRatio::new(0.7).unwrap(),
+        };
+        let mut pressed = painted_with_resize(&native, &view, 120, 40, &released)
+            .1
+            .remove(0);
+        if waiting {
+            control.resize_divider(&native, &pressed, ClientSplitRatio::new(0.8).unwrap());
+            let queued = ResizeProjection::Divider {
+                source: target.clone(),
+                ratio: ClientSplitRatio::new(0.8).unwrap(),
+            };
+            pressed = painted_with_resize(&native, &view, 120, 40, &queued)
+                .1
+                .remove(0);
+        }
+        assert!(
+            control.divider_ready(&native, &pressed).is_ok(),
+            "{waiting}"
+        );
+        // Other commits keep outpacing the release until its time bound passes.
+        control.lane.as_ref().unwrap().finish_layout_for_test(
+            crate::workbench_client::client_control::LayoutCompletion {
+                operation_id: mutation.request_id,
+                reply: Err(
+                    crate::local_client::workbench::split_ratio::SplitRatioFailure {
+                        reason: Reason::StaleView,
+                        may_have_committed: false,
+                    },
+                ),
+            },
+        );
+        control.tick(&mut native, false);
+        assert!(control.local_resize_pending(), "{waiting}");
+        elapsed.fetch_add(5_000, std::sync::atomic::Ordering::SeqCst);
+        control.tick(&mut native, false);
+        assert!(!control.local_resize_pending(), "{waiting}");
+        assert!(
+            matches!(
+                control.take_local_resize_feedback(),
+                Some(LocalResizeFeedback::Notice(Notice::ResizeContended))
+            ),
+            "{waiting}"
+        );
+        assert_eq!(
+            control.divider_ready(&native, &pressed),
+            Err(Notice::ResizeContended),
+            "{waiting}"
+        );
+        assert!(
+            matches!(
+                control.take_local_resize_feedback(),
+                Some(LocalResizeFeedback::Notice(Notice::ResizeContended))
+            ),
+            "{waiting}"
+        );
+        // The canonical split it snapped back to admits the next drag as usual.
+        assert!(control.divider_ready(&native, &target).is_ok(), "{waiting}");
+    }
+}
+
 #[test]
 fn released_divider_projection_retires_permanently_on_external_owner_or_geometry_loss() {
     use crate::client_view::SidebarSurface;

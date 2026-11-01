@@ -36,6 +36,29 @@ impl ReleasedDivider {
     }
 }
 
+/// The drafts a resize painted when it ended without landing, and the notice it ended under. A
+/// drag pressed on one of them can no longer land on the layout it was pressed on.
+pub(super) struct UnlandedDrafts {
+    drafts: Vec<crate::tui_layout::DrawnDivider>,
+    notice: Notice,
+}
+
+impl UnlandedDrafts {
+    fn of<'a>(released: impl IntoIterator<Item = &'a ReleasedDivider>, notice: Notice) -> Self {
+        Self {
+            drafts: released
+                .into_iter()
+                .filter_map(|released| released.projection().divider())
+                .collect(),
+            notice,
+        }
+    }
+
+    fn painted(&self, target: &crate::tui_layout::DrawnDivider) -> bool {
+        self.drafts.iter().any(|draft| draft.same_split(target))
+    }
+}
+
 /// What a waiting release paints: over the settling resize's own draft while that shows, then
 /// over the layout the release was dragged on.
 fn queued_projection(
@@ -160,6 +183,12 @@ impl ClientControl {
                 Err(Notice::ResizeBusy)
             }
         } else {
+            // The first check since a resize ended without landing: a drag pressed on its draft
+            // ends under the notice that resize ended with, which a generic failure would replace.
+            let unlanded = self
+                .unlanded
+                .take()
+                .filter(|unlanded| unlanded.painted(target));
             self.lane
                 .as_ref()
                 .ok_or(Reason::ProjectionUnavailable)
@@ -169,12 +198,10 @@ impl ClientControl {
                         .prepare_divider_adjustment(target, target.ratio, self.viewport)
                         .map(|_| ())
                 })
-                .map_err(|reason| {
-                    if reason == Reason::Busy {
-                        Notice::ResizeBusy
-                    } else {
-                        Notice::ResizeFailed
-                    }
+                .map_err(|reason| match unlanded {
+                    Some(unlanded) => unlanded.notice,
+                    None if reason == Reason::Busy => Notice::ResizeBusy,
+                    None => Notice::ResizeFailed,
                 })
         };
         if let Err(notice) = result {
@@ -265,6 +292,7 @@ impl ClientControl {
                 presentation: None,
                 contended_since: None,
             });
+            self.unlanded = None;
             self.local_resize_feedback = Some(LocalResizeFeedback::Clear);
             Ok(())
         });
@@ -403,9 +431,7 @@ impl ClientControl {
             let Err(notice) = pending.resubmit(native, self.lane.as_ref(), self.clock.now()) else {
                 return false;
             };
-            self.local_resize_feedback = Some(LocalResizeFeedback::Notice(notice));
-            self.local_resize = None;
-            self.queued_divider = None;
+            self.end_local_resize(notice);
             return true;
         } else {
             pending.flow.step(native)
@@ -418,25 +444,36 @@ impl ClientControl {
                 true
             }
             ControlStep::Failed(_) => {
-                self.local_resize_feedback =
-                    Some(LocalResizeFeedback::Notice(if pending.flow.had_effect() {
-                        Notice::ResizeUnknown
-                    } else {
-                        Notice::ResizeFailed
-                    }));
-                self.local_resize = None;
-                self.queued_divider = None;
+                let notice = if pending.flow.had_effect() {
+                    Notice::ResizeUnknown
+                } else {
+                    Notice::ResizeFailed
+                };
+                self.end_local_resize(notice);
                 true
             }
             // A local adjustment is always selected; inactive and navigation outputs are inadmissible.
             ControlStep::Completed(_) | ControlStep::ZoomUnchanged => {
-                self.local_resize_feedback =
-                    Some(LocalResizeFeedback::Notice(Notice::ResizeUnknown));
-                self.local_resize = None;
-                self.queued_divider = None;
+                self.end_local_resize(Notice::ResizeUnknown);
                 true
             }
         }
+    }
+
+    /// Ends the settling resize and any release waiting behind it under `notice`, neither having
+    /// landed, and remembers their drafts so that a drag pressed on one ends under it too.
+    fn end_local_resize(&mut self, notice: Notice) {
+        let pending = self.local_resize.take();
+        let queued = self.queued_divider.take();
+        self.unlanded = Some(UnlandedDrafts::of(
+            pending
+                .as_ref()
+                .and_then(|pending| pending.presentation.as_ref())
+                .into_iter()
+                .chain(queued.as_ref()),
+            notice,
+        ));
+        self.local_resize_feedback = Some(LocalResizeFeedback::Notice(notice));
     }
 
     pub(super) fn local_resize_after_draw(&mut self, native: &WorkbenchClientUi) {
@@ -451,6 +488,11 @@ impl ClientControl {
             // The settled resize left the layout the queued release was dragged on.
             if let Some(queued) = self.queued_divider.take() {
                 self.resize_divider(native, &queued.source, queued.ratio);
+                if self.local_resize.is_none()
+                    && let Some(LocalResizeFeedback::Notice(notice)) = &self.local_resize_feedback
+                {
+                    self.unlanded = Some(UnlandedDrafts::of([&queued], *notice));
+                }
             }
         }
     }

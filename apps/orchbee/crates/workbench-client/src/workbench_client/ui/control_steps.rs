@@ -12,7 +12,7 @@ mod local_resize;
 use crate::workbench_client::client_control::{ClientControlLane, Sample};
 use adjustment::SharedAdjustment;
 pub(in crate::workbench_client) use local_resize::LocalResizeFeedback;
-use local_resize::{LocalResizePending, ReleasedDivider};
+use local_resize::{LocalResizePending, ReleasedDivider, UnlandedDrafts};
 
 #[derive(Default)]
 enum FocusModes {
@@ -219,6 +219,9 @@ pub(in crate::workbench_client) struct ClientControl {
     local_resize: Option<LocalResizePending>,
     /// A divider release made while `local_resize` settles; it is submitted after that one.
     queued_divider: Option<ReleasedDivider>,
+    /// What the last resize that ended without landing painted, until the pointer next checks a
+    /// divider; a drag pressed there ends under that resize's notice.
+    unlanded: Option<UnlandedDrafts>,
     local_resize_feedback: Option<LocalResizeFeedback>,
     shell_blocked: bool,
     dismiss_shell_modes: bool,
@@ -258,6 +261,7 @@ impl ClientControl {
             pending: None,
             local_resize: None,
             queued_divider: None,
+            unlanded: None,
             local_resize_feedback: None,
             shell_blocked: false,
             dismiss_shell_modes: false,
