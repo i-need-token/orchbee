@@ -37,7 +37,10 @@ const corpus = z
 	);
 const schema: unknown = JSON.parse(
 	await readFile(
-		new URL('../../../../../../schemas/client-server/v1/client-server.schema.json', import.meta.url),
+		new URL(
+			'../../../../../../schemas/client-server/v1/client-server.schema.json',
+			import.meta.url,
+		),
 		'utf8',
 	),
 );
@@ -128,6 +131,8 @@ describe('Client-Server carrier binding', () => {
 			requestId: ID,
 		},
 		{ action: { attachmentId: ID, kind: 'acquire' }, kind: 'terminal.control', requestId: ID },
+		{ action: { attachmentId: ID, kind: 'takeover' }, kind: 'terminal.control', requestId: ID },
+		{ action: { attachmentId: ID, kind: 'clear' }, kind: 'terminal.control', requestId: ID },
 		{
 			action: { ...ids, inputKind: 'key', kind: 'semantic-input', payload: '00ff' },
 			kind: 'terminal.control',

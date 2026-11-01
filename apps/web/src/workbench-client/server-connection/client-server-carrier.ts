@@ -313,6 +313,13 @@ function hasPrefix(bytes: Uint8Array, prefix: readonly number[]): boolean {
 	return prefix.every((value, index) => bytes[index] === value);
 }
 
+/** A fresh nonzero request identity; a zero draw is astronomically unlikely but not valid. */
+export function createClientServerRequestId(): string {
+	const bytes = crypto.getRandomValues(new Uint8Array(IDENTITY_BYTES));
+	bytes[0] = (bytes[0] ?? 0) | 1;
+	return bytesToLowercaseHex(bytes);
+}
+
 export function bytesToLowercaseHex(bytes: Uint8Array): string {
 	let text = '';
 	for (const byte of bytes) text += byte.toString(16).padStart(2, '0');
