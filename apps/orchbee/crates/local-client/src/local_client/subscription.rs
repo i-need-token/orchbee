@@ -51,7 +51,8 @@ impl LocalClientOrigin {
                 clock,
             })
     }
-    /// Register before the first domain read. A commit concurrent with that read remains dirty.
+    /// Register before the first domain read. A commit concurrent with that read remains dirty;
+    /// terminal output frames are not commits and wake nothing here.
     pub fn watch_changes(&self) -> io::Result<ChangeSubscription> {
         use orchbee_workbench_protocol::{ProtocolVersion, SnapshotReadIntent, WorkbenchRequestId};
         let request = WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
@@ -66,8 +67,8 @@ impl LocalClientOrigin {
             })
     }
     /// Register before the first domain read. Unlike [`Self::watch_changes`], a commit that
-    /// leaves the Workbench snapshot unchanged, such as background terminal output, wakes no
-    /// reader: the Server sends a record only when the snapshot itself differs.
+    /// leaves the Workbench snapshot unchanged, such as an Agent report, wakes no reader: the
+    /// Server sends a record only when the snapshot itself differs.
     pub fn watch_publications(&self) -> io::Result<ChangeSubscription> {
         use orchbee_workbench_protocol::{ProtocolVersion, SnapshotReadIntent, WorkbenchRequestId};
         let request = WorkbenchRequest::SnapshotRead(SnapshotReadIntent {

@@ -75,6 +75,19 @@ fn semantic_event_journal_paging_preserves_filters_full_width_and_gap() {
     assert_eq!(empty.cursor.sequence.value(), 514);
 }
 #[test]
+fn only_a_terminal_output_frame_publishes_without_a_commit_hint() {
+    let journal = journal();
+    let signal = std::sync::Arc::new(SessionChangeSignal::default());
+    journal.watch(&signal);
+    let revision = initial().revision;
+    journal.publish(revision, None, K::PaneOutputChanged, tab("output"));
+    assert_eq!((signal.revision(), signal.commit_revision()), (1, 0));
+    journal.publish(revision, None, K::PaneExited, tab("exited"));
+    assert_eq!((signal.revision(), signal.commit_revision()), (2, 1));
+    journal.publish(revision, None, K::PaneAgentStatusChanged, tab("agent"));
+    assert_eq!((signal.revision(), signal.commit_revision()), (3, 2));
+}
+#[test]
 fn semantic_event_journal_rejects_foreign_future_and_exhausted_cursors() {
     let journal = journal();
     let mut cursor = journal.head().unwrap();

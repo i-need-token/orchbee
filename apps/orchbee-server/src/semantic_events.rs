@@ -92,7 +92,11 @@ impl SessionEventJournal {
             .0
             .lock()
             .is_ok_and(|mut state| state.publish(revision, workspace, kind, data));
-        self.1.notify();
+        if kind == SemanticEventKind::PaneOutputChanged {
+            self.1.notify_output();
+        } else {
+            self.1.notify();
+        }
         published
     }
     pub(crate) fn projection_committed(&self, before: &Snapshot, after: &Snapshot) {

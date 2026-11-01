@@ -709,6 +709,8 @@ The commit signal is registered before snapshot capture. A commit concurrent wit
 a newer signal revision, so the dispatcher reevaluates before sleeping. State streams send a
 snapshot followed by changed full values; the Client coalesces pending state to one value.
 Invalidation streams send the initial semantic snapshot then coalesced eight-byte commit hints.
+A hint counts commits only: a terminal output frame wakes just the streams that deliver semantic
+values, so a printing terminal never makes a Client reread its checkpoints.
 Event streams retain at most 32 pending records per Client stream. Semantic journal subscriptions
 retain their Subscribe definition separately from the Read continuation, immediately drain pages
 whose `more` flag is set, and use the existing journal epoch/cursor. A live stream exclusively
@@ -778,12 +780,15 @@ publication; it does not prove OS scheduling, socket progress, byte/stream budge
 ownership, or end-to-end liveness. `Overflow` is a required positive reachability witness. The
 maintained negative controls set FenceGeneration or FenceCancellation to FALSE and require the
 corresponding invariant counterexample. Existing relay/ownership models do not cover this new
-connection/subscription boundary.
+connection/subscription boundary. A stream follows one monotone counter chosen by its mode: commits
+for an invalidation stream, every publication otherwise. The single modeled revision abstracts that
+counter, because no checked property relates the revisions of two Clients.
 
 Controlled implementation traces in `local_client_service/multiplex/tests.rs` check a commit during
 capture, an undrained peer alongside a progressing peer, exclusive event cursors, and late lane
-cleanup preserving a sibling, idle metadata expiry after a same-value earlier-TTL report, and
-maintenance failure without a past-deadline retry loop.
+cleanup preserving a sibling, idle metadata expiry after a same-value earlier-TTL report,
+maintenance failure without a past-deadline retry loop, and a terminal output frame waking a value
+stream without an invalidation hint.
 The preferences carrier trace writes the actual shared store without a commit notification,
 checks that unrelated request traffic neither accelerates nor starves file sampling, and then
 observes a second external write while the peer sends no requests.

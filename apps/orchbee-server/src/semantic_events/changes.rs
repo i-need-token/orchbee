@@ -1,4 +1,5 @@
-//! Commit invalidation fanout. A listener owns its wait; publishers never wait for delivery.
+//! Commit and output invalidation fanout. A listener owns its wait; publishers never wait for
+//! delivery.
 use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::time::Duration;
 
@@ -14,12 +15,18 @@ impl SessionChangeSource {
         listeners.push(Arc::downgrade(signal));
     }
     pub fn notify(&self) {
+        self.each(|listener| listener.notify());
+    }
+    pub fn notify_output(&self) {
+        self.each(|listener| listener.notify_output());
+    }
+    fn each(&self, mut signal: impl FnMut(&SessionChangeSignal)) {
         let listeners = self
             .0
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         for listener in listeners.iter().filter_map(Weak::upgrade) {
-            listener.notify();
+            signal(&listener);
         }
     }
 }
@@ -32,10 +39,23 @@ pub struct SessionChangeSignal {
 #[derive(Debug, Default)]
 struct SignalState {
     revision: u64,
+    commits: u64,
     wake: u64,
 }
 impl SessionChangeSignal {
     pub fn notify(&self) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.revision = state.revision.wrapping_add(1);
+        state.commits = state.commits.wrapping_add(1);
+        state.wake = state.wake.wrapping_add(1);
+        self.changed.notify_all();
+    }
+    /// A terminal output frame reaches event and state evaluators but is no commit, so commit
+    /// hints stay quiet however much a terminal prints.
+    pub fn notify_output(&self) {
         let mut state = self
             .state
             .lock()
@@ -58,6 +78,12 @@ impl SessionChangeSignal {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .revision
+    }
+    pub fn commit_revision(&self) -> u64 {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .commits
     }
     pub fn wake_revision(&self) -> u64 {
         self.state

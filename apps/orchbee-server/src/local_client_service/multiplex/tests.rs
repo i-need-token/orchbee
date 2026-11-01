@@ -354,6 +354,57 @@ fn a_slow_writer_cannot_hide_a_commit_during_another_clients_snapshot_capture() 
 }
 
 #[test]
+fn terminal_output_wakes_value_streams_without_an_invalidation_hint() {
+    let (mut peer, server) = bounded_pair();
+    let signal = Arc::new(SessionChangeSignal::default());
+    let publisher = Arc::clone(&signal);
+    let task = thread::spawn(move || {
+        let mut value = 0u8;
+        run(
+            &server,
+            open(1, 1, StreamMode::Invalidations),
+            signal,
+            |_, _| {
+                value += 1;
+                Ok(vec![value])
+            },
+            |_| {},
+            |_| {},
+            || Ok(None),
+        )
+    });
+    fn frame(peer: &mut LocalStream, expected: u64, kind: StreamFrameKind) -> Vec<u8> {
+        let MultiplexMessage::StreamFrame {
+            stream_id,
+            kind: found,
+            record,
+            ..
+        } = read_multiplex_message(peer).unwrap()
+        else {
+            panic!("stream frame");
+        };
+        assert_eq!((stream_id.value(), found), (expected, kind));
+        record
+    }
+    frame(&mut peer, 1, StreamFrameKind::Snapshot);
+    write_multiplex_message(&mut peer, &open(2, 1, StreamMode::State)).unwrap();
+    frame(&mut peer, 2, StreamFrameKind::Snapshot);
+    // Streams evaluate in identity order: reaching the value stream first proves the invalidation
+    // stream was evaluated and had nothing to say.
+    publisher.notify_output();
+    frame(&mut peer, 2, StreamFrameKind::Update);
+    publisher.notify();
+    assert_eq!(
+        frame(&mut peer, 1, StreamFrameKind::Update),
+        1_u64.to_be_bytes(),
+        "the hint counts commits, not output frames"
+    );
+    frame(&mut peer, 2, StreamFrameKind::Update);
+    peer.shutdown(std::net::Shutdown::Both).unwrap();
+    let _closed = task.join().unwrap();
+}
+
+#[test]
 fn sustained_event_overrun_disconnects_only_its_carrier_with_a_typed_reason() {
     let (mut peer, server) = bounded_pair();
     let task = thread::spawn(move || {
