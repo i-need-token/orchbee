@@ -52,7 +52,7 @@ export type ServerTerminalTarget =
 	| { readonly kind: 'created'; readonly terminalCreateRequestId: string };
 
 /** A refusal while opening a projection, in the renderer's failure vocabulary. */
-export class ServerTerminalProjectionError extends Error {
+class ServerTerminalProjectionError extends Error {
 	readonly code: string;
 	readonly retryable: boolean;
 

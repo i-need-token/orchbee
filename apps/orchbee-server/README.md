@@ -420,7 +420,7 @@ The accepted local-terminal milestone now connects the Server's Client Connectio
 existing read-only viewer loop. The staged native LocalClient adapter consumes the viewer protocol. A process witness proves
 two independently admitted Clients receiving real Host projections through Server and Worker. The controller refinement below adds input/resize; bare Linux startup now consumes this relay.
 
-One admitted Connection owns at most eight transient viewers on its existing ordered carrier. Attach
+Each logical lane of an admitted Connection owns at most eight transient viewers on the Connection's ordered carrier. Attach
 references an accepted terminal Create in the same local subject; AttachBinding supplies an exact
 canonical binding selector. Server resolves the retained Host identity and current Worker/generation,
 allocates fresh request, attachment and cleanup identities, and pins that Worker handle. Clients

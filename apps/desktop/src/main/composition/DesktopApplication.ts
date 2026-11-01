@@ -146,6 +146,10 @@ import {
 } from './composeDesktopTerminalRuntime';
 import { createDesktopWorkbenchInitializationDocument } from './createDesktopWorkbenchInitializationDocument';
 import type { DesktopRuntimeConfiguration } from './resolve-desktop-runtime-configuration';
+import {
+	isPermittedDesktopRendererUrl,
+	isSameDesktopRendererOrigin,
+} from '../desktop-renderer-protocol';
 import { startsDesktopRendererDocument } from './startsDesktopRendererDocument';
 import {
 	DesktopUserPreferencesBroker,
@@ -2103,29 +2107,6 @@ export class DesktopApplication {
 			// retry or rejection state.
 		}
 	}
-}
-
-function isPermittedDesktopRendererUrl(url: URL): boolean {
-	if (url.username !== '' || url.password !== '') return false;
-	return (
-		(url.protocol === 'http:' && url.hostname === '127.0.0.1') ||
-		(url.protocol === 'orchbee:' && url.hostname === 'app' && url.port === '')
-	);
-}
-
-function isSameDesktopRendererOrigin(value: string, rendererUrl: URL): boolean {
-	let navigationUrl: URL;
-	try {
-		navigationUrl = new URL(value);
-	} catch {
-		return false;
-	}
-	return (
-		isPermittedDesktopRendererUrl(navigationUrl) &&
-		navigationUrl.protocol === rendererUrl.protocol &&
-		navigationUrl.hostname === rendererUrl.hostname &&
-		navigationUrl.port === rendererUrl.port
-	);
 }
 
 function collectDocumentPresentationIds(

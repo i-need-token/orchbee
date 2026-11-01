@@ -2,6 +2,12 @@
 
 Browser composition entry for the Orchbee Workbench.
 
+## Server Client path
+
+The Web and Desktop migration plan in [Native runtime topology](../../proposals/platform/native-runtime-topology.md#web-and-desktop-client-migration-plan) moves this application from Main's Workbench to a Server Client. `workbench-client/server-connection/` holds the transport-neutral connection: `ServerConnection` multiplexes requests and subscriptions over a `ServerCarrier`, one lane per terminal, and `openServerTerminalProjection` presents one Server terminal through the existing `ProjectedTerminalTransport`, so the renderer needs no change to run on it. A connection whose control was taken over becomes read-only without a failure; `takeControl` is the explicit way back. The projection reports `unsupported-message` for what the Server contract cannot express yet: absolute-position viewport reads, selection, reset, link opening, image preview, clipboard write decisions, and theme application.
+
+Only `desktop-client/server-terminal-page/` consumes that path today: it opens one terminal with no Workbench around it, reached when Desktop's Server Client entry asks for it with the `orchbee-server-terminal` query parameter. The Workbench replaces this page when it moves onto the connection.
+
 ## Composition boundary
 
 Electron supplies the strict `agent-integration-management` port from `@orchbee/desktop-client-protocol`. It projects a read-only ten-Agent local inventory and accepts explicit Settings refresh, enable, and disable requests. Browser Preview omits this capability.

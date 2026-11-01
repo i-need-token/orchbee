@@ -57,6 +57,11 @@ export {
 	DesktopRendererBootstrapSchema,
 	DesktopRendererBootstrapWindowMessageSchema,
 } from './desktop-renderer-bootstrap-contract';
+export {
+	DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
+	DESKTOP_SERVER_CONNECTION_WINDOW_MESSAGE,
+	DesktopServerConnectionWindowMessageSchema,
+} from './desktop-server-connection-contract';
 
 export {
 	DesktopTerminalDefaultSettingsMainEventSchema,

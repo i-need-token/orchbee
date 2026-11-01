@@ -1,4 +1,6 @@
-type WebRuntimeMode = 'browser' | 'desktop' | 'invalid';
+import { resolveServerTerminalRequest } from './resolveServerTerminalRequest';
+
+type WebRuntimeMode = 'browser' | 'desktop' | 'desktop-server-terminal' | 'invalid';
 
 export interface WebRuntimeEvidence {
 	readonly protocol: string;
@@ -13,7 +15,8 @@ export function resolveWebRuntimeMode({
 }: WebRuntimeEvidence): WebRuntimeMode {
 	const values = new URLSearchParams(search).getAll('orchbee-runtime');
 	if (values.length > 0) return 'invalid';
-	return protocol === 'orchbee:' || isElectronUserAgent(userAgent) ? 'desktop' : 'browser';
+	if (protocol !== 'orchbee:' && !isElectronUserAgent(userAgent)) return 'browser';
+	return resolveServerTerminalRequest(search) === null ? 'desktop' : 'desktop-server-terminal';
 }
 
 function isElectronUserAgent(userAgent: string): boolean {

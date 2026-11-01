@@ -9,7 +9,17 @@ export type {
 	TerminalProjectionRequest,
 } from './terminal-projection';
 export type { ProjectedTerminalPlatformEffects } from './projected-terminal-platform-effects';
-export { registerTerminalProductFonts } from './projected-terminal-renderer';
+export {
+	registerTerminalProductFonts,
+	startProjectedTerminalRenderer,
+} from './projected-terminal-renderer';
+export {
+	type ServerCarrier,
+	ServerConnection,
+	type ServerTerminalTarget,
+	createServerTerminal,
+	openServerTerminalProjection,
+} from './server-connection';
 export { ProjectedTerminalSurface } from './projected-terminal-surface';
 export { WorkbenchClientApplication } from './workbench-client-application';
 export type { WorkbenchClientApplicationProps } from './workbench-client-application';

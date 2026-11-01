@@ -61,7 +61,7 @@ export class ServerExchangeTimeoutError extends Error {
 	}
 }
 
-export class ServerConnectionCapacityError extends Error {
+class ServerConnectionCapacityError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = 'ServerConnectionCapacityError';

@@ -49,6 +49,10 @@ multi-edit streams under random partitions, printing the minimal failing edits a
 `ORCHBEE_PROTOCOL_MUTATION_SEED` explores another seed. They do not prove Server resource
 ownership or delivery ordering.
 
+`schemas/workbench/v1/workbench-multiplex-conformance-v1.json` fixes the exact bytes of valid
+records and rejected inputs for both implementations: `tests/multiplex_conformance.rs` checks this
+crate and the `apps/web` Client codec test checks TypeScript against the same file.
+
 The Client implementation reserves one of those 64 streams and 256 KiB within the total budget
 for its bounded idle progress read; this changes no wire version or record kind. Decoder input
 and transient parsed frames have separate limits from retained stream queues. Incremental input

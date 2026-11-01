@@ -131,6 +131,7 @@ export default defineConfig(({ command }) => {
 				source: {
 					entry: {
 						main: './src/main/composition/entry.ts',
+						'server-client': './src/main/composition/server-client-entry.ts',
 					},
 				},
 				splitChunks: false,

@@ -13,7 +13,7 @@ export const MAXIMUM_MULTIPLEX_STREAMS = 64;
 /** Explicit lanes one carrier admits, besides the root lane. */
 export const MAXIMUM_MULTIPLEX_LANES = 64;
 /** One inner record, including its own 12-byte header. */
-export const MAXIMUM_STREAM_RECORD_BYTES = 24 * 1024 * 1024 + 12;
+const MAXIMUM_STREAM_RECORD_BYTES = 24 * 1024 * 1024 + 12;
 /** The lane every connection owns without opening it. */
 export const MULTIPLEX_ROOT_LANE = 1n;
 

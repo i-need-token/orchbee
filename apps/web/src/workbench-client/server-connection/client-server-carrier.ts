@@ -17,8 +17,7 @@ const IDENTITY_BYTES = 16;
 const MINIMUM_HOST_RECORD_BYTES = 64;
 const MAXIMUM_HOST_RECORD_BYTES = 64 + 36 * 1024 * 1024;
 
-export const MAXIMUM_CLIENT_SERVER_PAYLOAD_BYTES = 63 * 1024;
-export const MAXIMUM_CONTROL_INPUT_BYTES = 4096;
+const MAXIMUM_CLIENT_SERVER_PAYLOAD_BYTES = 63 * 1024;
 /** One semantic input payload; its hexadecimal text must fit one OBCS frame. */
 export const MAXIMUM_SEMANTIC_INPUT_BYTES = 16 * 1024;
 export const MAXIMUM_PASTE_CONTENT_BYTES = 256 * 1024;
@@ -37,13 +36,13 @@ const PositiveDecimalSchema = z
 const PositiveDimensionSchema = z.number().int().min(1).max(4096);
 const CellPixelDimensionSchema = z.number().int().min(0).max(4096);
 
-export const ClientServerGeometrySchema = z.strictObject({
+const ClientServerGeometrySchema = z.strictObject({
 	cellPixelHeight: CellPixelDimensionSchema,
 	cellPixelWidth: CellPixelDimensionSchema,
 	columns: PositiveDimensionSchema,
 	rows: PositiveDimensionSchema,
 });
-export type ClientServerGeometry = z.infer<typeof ClientServerGeometrySchema>;
+type ClientServerGeometry = z.infer<typeof ClientServerGeometrySchema>;
 
 function resultEnvelope<const Kind extends string, Outcome extends z.ZodType>(
 	kind: Kind,
@@ -160,7 +159,6 @@ const ServerMessageSchema = z.discriminatedUnion('kind', [
 	resultEnvelope('terminal.control.result', ControlOutcomeSchema),
 ]);
 
-export type ClientServerCreateOutcome = z.infer<typeof CreateOutcomeSchema>;
 export type ClientServerViewerOutcome = z.infer<typeof ViewerOutcomeSchema>;
 export type ClientServerControlOutcome = z.infer<typeof ControlOutcomeSchema>;
 
@@ -236,7 +234,7 @@ export type ClientServerViewerAction =
 	  };
 
 /** The Host semantic input record kinds a `semantic-input` control action may carry. */
-export type ClientServerSemanticInputKind = 'focus' | 'key' | 'mouse' | 'text';
+type ClientServerSemanticInputKind = 'focus' | 'key' | 'mouse' | 'text';
 
 export type ClientServerControlAction =
 	| { readonly attachmentId: string; readonly kind: 'acquire' | 'clear' | 'takeover' }
@@ -302,7 +300,7 @@ export type ClientServerResponse =
 	  };
 
 /** A response the binding refuses. The exact-cohort rule makes this a fatal carrier defect. */
-export class ClientServerProtocolError extends Error {
+class ClientServerProtocolError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = 'ClientServerProtocolError';

@@ -65,6 +65,30 @@ function createDesktopRendererProtocolHandler(
 	};
 }
 
+/** Only the packaged scheme and a loopback development server may hold the renderer document. */
+export function isPermittedDesktopRendererUrl(url: URL): boolean {
+	if (url.username !== '' || url.password !== '') return false;
+	return (
+		(url.protocol === 'http:' && url.hostname === '127.0.0.1') ||
+		(url.protocol === `${DESKTOP_RENDERER_SCHEME}:` && url.hostname === 'app' && url.port === '')
+	);
+}
+
+export function isSameDesktopRendererOrigin(value: string, rendererUrl: URL): boolean {
+	let navigationUrl: URL;
+	try {
+		navigationUrl = new URL(value);
+	} catch {
+		return false;
+	}
+	return (
+		isPermittedDesktopRendererUrl(navigationUrl) &&
+		navigationUrl.protocol === rendererUrl.protocol &&
+		navigationUrl.hostname === rendererUrl.hostname &&
+		navigationUrl.port === rendererUrl.port
+	);
+}
+
 function parseDesktopRendererUrl(value: string): URL | null {
 	let url: URL;
 	try {
