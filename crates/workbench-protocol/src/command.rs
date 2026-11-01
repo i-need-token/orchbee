@@ -601,6 +601,9 @@ pub enum WorkbenchAction {
     WorkspaceLaunch {
         placement: crate::WorkspacePlacement,
         label: WorkbenchLabel,
+        /// The committed Workspace label follows its first terminal's directory; omission is fixed.
+        #[serde(default, skip_serializing_if = "crate::model::is_false")]
+        automatic_label: bool,
         geometry: WorkbenchTerminalGeometry,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         launch: Option<LaunchSelection>,

@@ -48,6 +48,7 @@ fn board_index_keeps_workspace_presentations_after_regroup_and_dissolve() {
     snapshot.terminal_contexts[0].tabs.clear();
     terminal.terminal_context_id = context_id(80);
     snapshot.navigation.workspaces.push(Workspace {
+        automatic_label: false,
         workspace_id: WorkbenchWorkspaceId::parse(&hex(81)).unwrap(),
         project_id: None,
         label: "Feature".into(),
@@ -813,6 +814,7 @@ fn presentation_snapshot() -> Snapshot {
                 project_order: Vec::new(),
                 directories: Vec::new(),
                 workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    automatic_label: false,
                     workspace_id: fixture_workspace_id.clone(),
                     terminal_context_id: fixture_context_id.clone(),
                     project_id: None,

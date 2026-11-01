@@ -62,6 +62,7 @@ pub(super) fn run(
         MutationCommand::WorkspaceLaunch {
             project: Some(project),
             label,
+            automatic_label: false,
             geometry: command.geometry,
             launch,
             profile: command.profile,

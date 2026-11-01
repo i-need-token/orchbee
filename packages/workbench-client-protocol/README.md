@@ -299,6 +299,11 @@ belongs to the Server/native CLI tests; the TLA asset is not executed in this pa
 
 The [Tab label contract](../../apps/orchbee/docs/native-tab-labels.md) owns optional `automaticLabel` metadata. New Tabs without a supplied label use their current context position; explicit numeric names and legacy Tabs remain fixed. CLI queries, label selectors and TUI display agree after move or close, and rename chooses a fixed name. The current version-1 `api snapshot` exposes canonical metadata; the offline API catalog lists its schema. Shared protocol consumers require a matching cohort.
 
+`Workspace` and `workspace.launch` carry the same optional `automaticLabel`; default `false`
+normalizes to omission, matching Rust serialization. The
+[location label contract](../../apps/orchbee/docs/native-location-labels.md#automatic-workspace-names)
+owns its runtime meaning.
+
 Client attention snapshots reuse `@orchbee/agent` session identity validation. Their strict shapes and semantics preserve nullable focus/missing state, ordered unique batches, bounded revisions and exact intent correspondence. These wire DTOs describe Client observations; they do not move acknowledgement into canonical Workbench or Agent state.
 
 Physical `terminal-agent-attention` reads instead name 1–100 unique full presentation/creation/Host

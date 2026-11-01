@@ -177,6 +177,7 @@ impl Driver<'_> {
                 session_id: authority.session_id().clone(),
                 expected_revision: authority.snapshot().revision,
                 action: WorkbenchAction::WorkspaceLaunch {
+                    automatic_label: false,
                     placement: match &self.plan.source_workspace_id {
                         Some(workspace_id) => WorkspacePlacement::Alongside {
                             workspace_id: workspace_id.clone(),

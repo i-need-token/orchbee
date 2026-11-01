@@ -64,6 +64,7 @@ pub use worktree_operation::{
 };
 mod terminal_launch_failure;
 mod terminal_tab_create;
+mod workspace_directory_label;
 pub use terminal_tab_create::{
     CommittedWorkbenchTabCreate, CommittedWorkbenchTabCreateMetadata, PendingWorkbenchTabCreate,
     PreparedWorkbenchTabCreate, PreparedWorkbenchTabSettlement, StagedWorkbenchTabCreateMetadata,
@@ -801,6 +802,7 @@ impl WorkbenchAuthority {
                             .map_err(|_error| PlanFailure::Internal)?;
                     let revision = self.next_revision()?;
                     candidate.navigation.workspaces.push(Workspace {
+                        automatic_label: false,
                         project_id,
                         workspace_id: workspace_id.clone(),
                         primary_directory_id: None,
@@ -833,11 +835,13 @@ impl WorkbenchAuthority {
                         .ok_or(PlanFailure::Rejected(
                             WorkbenchRejectionReason::WorkspaceUnavailable,
                         ))?;
-                    if workspace.label == label.as_str() {
+                    // A rename fixes an automatic label, so equal text still changes its mode.
+                    if workspace.label == label.as_str() && !workspace.automatic_label {
                         return Ok(self.unchanged());
                     }
                     let revision = self.next_revision()?;
                     workspace.label = label.as_str().to_owned();
+                    workspace.automatic_label = false;
                     candidate.revision = revision;
                     WorkbenchCommandOutcome::Renamed { revision }
                 }

@@ -127,6 +127,7 @@ fn install_workspace(
         path: path.clone(),
     }]);
     snapshot.navigation.workspaces.extend(vec![Workspace {
+        automatic_label: false,
         project_id: Some(WorkbenchProjectId::parse(&identity(503)).unwrap()),
         label: "workspace".to_owned(),
         primary_directory_id: configured.then_some(directory_id),
@@ -1257,6 +1258,7 @@ fn workspace_launch_command(authority: &WorkbenchAuthority) -> WorkbenchCommand 
         "launched",
     );
     command.action = WorkbenchAction::WorkspaceLaunch {
+        automatic_label: false,
         placement: orchbee_workbench_protocol::WorkspacePlacement::Project {
             project_id: authority.projection.snapshot().navigation.projects[0]
                 .project_id

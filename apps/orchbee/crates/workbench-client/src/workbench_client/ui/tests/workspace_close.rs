@@ -135,6 +135,7 @@ fn ready_at(
         label: "Project 项目".into(),
     });
     snapshot.navigation.workspaces.push(Workspace {
+        automatic_label: false,
         workspace_id: workspace_id.clone(),
         project_id: Some(project_id),
         terminal_context_id: terminal_context_id.clone(),

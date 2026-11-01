@@ -40,6 +40,7 @@ fn launch(owner: &WorkbenchAuthority, id: u128, placement: WorkspacePlacement) -
         id,
         owner.snapshot().revision.value(),
         WorkbenchAction::WorkspaceLaunch {
+            automatic_label: false,
             placement,
             label: WorkbenchLabel::parse("new shell").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
@@ -324,6 +325,7 @@ fn full_project_refuses_new_members_but_equal_membership_is_a_noop_and_project_l
         let context =
             WorkbenchTerminalContextId::parse(&identity(1001 + index as u128 * 2)).unwrap();
         full.navigation.workspaces.push(Workspace {
+            automatic_label: false,
             workspace_id,
             project_id: Some(project.clone()),
             label: "member".to_owned(),
@@ -488,6 +490,7 @@ fn global_workspace_capacity_rejects_ungrouped_create_and_launch_without_partial
         let context =
             WorkbenchTerminalContextId::parse(&identity(1001 + index as u128 * 2)).unwrap();
         full.navigation.workspaces.push(Workspace {
+            automatic_label: false,
             workspace_id: WorkbenchWorkspaceId::parse(&identity(1000 + index as u128 * 2)).unwrap(),
             project_id: None,
             label: "ungrouped".to_owned(),

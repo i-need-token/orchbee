@@ -353,6 +353,9 @@
 			"additionalProperties": false,
 			"required": ["label", "primaryDirectoryId", "terminalContextId", "workspaceId", "projectId"],
 			"properties": {
+				"automaticLabel": {
+					"type": "boolean"
+				},
 				"label": {
 					"$ref": "#/$defs/label"
 				},

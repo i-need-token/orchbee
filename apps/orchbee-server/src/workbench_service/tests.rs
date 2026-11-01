@@ -449,6 +449,7 @@ fn workspace_launch_requires_navigation_directory_and_terminal_grants() {
         session_id: snapshot.session_id.clone(),
         expected_revision: snapshot.revision,
         action: WorkbenchAction::WorkspaceLaunch {
+            automatic_label: false,
             placement: orchbee_workbench_protocol::WorkspacePlacement::Project {
                 project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(&format!(
                     "{:032x}",

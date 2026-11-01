@@ -106,8 +106,9 @@ or `alongside { workspaceId, projectLabel }`. Alongside resolves the source's cu
 authoritative commit. An ungrouped source causes one atomic new Project plus membership of both
 source and newly launched Workspace; an already grouped source reuses that group. Launch requires
 an absolute `options.cwd`, excludes Plugin Pane options and conflicting launch/profile selectors,
-and uses the 96 KiB launch command class. Pending and completed receipts require nullable
-`projectId`. `panel.relocate`'s `new-workspace` destination also requires nullable `projectId`.
+and uses the 96 KiB launch command class. Optional `automaticLabel` requests a Workspace name that
+follows its first terminal; `Workspace.automaticLabel` carries it, and both omit `false`. Pending and
+completed receipts require nullable `projectId`. `panel.relocate`'s `new-workspace` destination also requires nullable `projectId`.
 
 Rename, Close and primary Directory acceptance target stable Workspace identity without Project.
 Close acceptance, reads, resumes and their results likewise carry no `projectId`; the exact maximum

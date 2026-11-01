@@ -5,6 +5,7 @@ use crate::client_view::PanelDirection;
 fn workspace_navigation_retains_empty_owners_and_empty_workbench_has_no_identity() {
     let mut source = snapshot(2, 8);
     source.navigation.workspaces.push(Workspace {
+        automatic_label: false,
         project_id: None,
         primary_directory_id: None,
         label: "Empty Workspace".into(),
@@ -44,6 +45,7 @@ fn workspace_navigation_keeps_exact_owner_and_capacity_checks() {
     for index in 0..MAXIMUM_TERMINAL_CONTEXTS - 1 {
         let seed = 10_000 + u128::try_from(index).unwrap() * 2;
         source.navigation.workspaces.push(Workspace {
+            automatic_label: false,
             project_id: None,
             primary_directory_id: None,
             label: format!("Workspace {index}"),
@@ -69,6 +71,7 @@ fn workspace_navigation_keeps_exact_owner_and_capacity_checks() {
         .push(source.terminal_contexts[0].clone());
     assert!(project_native_context_tabs(&duplicate, &first).is_err());
     source.navigation.workspaces.push(Workspace {
+        automatic_label: false,
         project_id: None,
         primary_directory_id: None,
         label: "Overflow".into(),
@@ -136,6 +139,7 @@ fn requires_one_matching_context_and_ignores_project_workspace_contexts() {
     let mut coexistence = snapshot(2, 8);
     let unrelated_context_id = context_id(91);
     coexistence.navigation.workspaces.extend(vec![Workspace {
+        automatic_label: false,
         project_id: Some((project_id(92)).clone()),
         primary_directory_id: None,
         label: "workspace".into(),

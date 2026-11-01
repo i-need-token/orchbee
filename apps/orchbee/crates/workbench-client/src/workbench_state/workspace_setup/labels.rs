@@ -257,6 +257,17 @@ impl SetupOperation {
             // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
             _ => return None,
         };
-        (unchanged == (self.original_location_label()? == label.as_str())).then_some(unchanged)
+        // Renaming an automatic Workspace fixes its label, so equal text is still a change.
+        let automatic = match &self.command.action {
+            WorkbenchAction::WorkspaceRename { workspace_id, .. } => self
+                .baseline
+                .canonical_snapshot()
+                .navigation
+                .workspace(workspace_id)
+                .is_some_and(|workspace| workspace.automatic_label),
+            _ => false,
+        };
+        (unchanged == (!automatic && self.original_location_label()? == label.as_str()))
+            .then_some(unchanged)
     }
 }

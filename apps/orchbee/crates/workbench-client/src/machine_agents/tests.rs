@@ -21,6 +21,7 @@ fn regrouping_changes_placement_labels_without_changing_agent_terminal_targets()
     context.terminal_context_id = WorkbenchTerminalContextId::parse(&id(80)).unwrap();
     snapshot.terminal_contexts.push(context.clone());
     let workspace = Workspace {
+        automatic_label: false,
         workspace_id: WorkbenchWorkspaceId::parse(&id(81)).unwrap(),
         project_id: None,
         label: "feature".into(),

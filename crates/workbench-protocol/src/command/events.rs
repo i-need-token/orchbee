@@ -185,7 +185,7 @@ impl SemanticEvent {
                     navigation: crate::Navigation {
                         directories: Vec::new(),
                         projects: Vec::new(),
-                        workspaces: vec![crate::Workspace {
+                        workspaces: vec![crate::Workspace { automatic_label: false,
                             workspace_id: crate::WorkbenchWorkspaceId::parse(
                                 terminal_context_id.as_str(),
                             )

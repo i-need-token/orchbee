@@ -224,7 +224,7 @@ missing targets, authorization and capacity while preserving the binding and fal
 | project.create           | Label and projection capacity accepted                                                        | One new Project with no Workspace                                                |
 | project.rename           | Exact Project exists                                                                          | Its label changes; equal text is unchanged                                       |
 | workspace.create         | Optional Project exists and context capacity accepted                                         | One new Workspace and its one empty Terminal Context                             |
-| workspace.rename         | Exact Workspace exists                                                                        | Its label changes; equal text is unchanged                                       |
+| workspace.rename         | Exact Workspace exists                                                                        | Its label changes and automatic naming clears; equal fixed text is unchanged     |
 | workspace.set-project    | Exact Workspace and optional destination Project exist; changed membership has no Close fence | Change only nullable Project membership; equal membership is unchanged           |
 | workspace.create-project | Exact Workspace exists; no Close fence; label and capacity accepted                           | Atomically create a Project and move that Workspace into it                      |
 | project.dissolve         | Exact Project exists; its members have no Close fence                                         | Remove the Project and ungroup its Workspaces, preserving execution resources    |
@@ -354,7 +354,7 @@ proof, and passing core or binding tests does not complete the native process wi
 
 ## Workspace terminal membership model
 
-A new authority contains zero Workspaces and zero Terminal Contexts. `workspace.create` creates one real Workspace and its empty Context; `workspace.launch` additionally commits its first terminal. Workspace Project membership is required-nullable. The navigation/context relation is a bijection, bounded by 1,024 Workspaces and contexts, with no identity-less compatibility owner.
+A new authority contains zero Workspaces and zero Terminal Contexts. `workspace.create` creates one real Workspace and its empty Context; `workspace.launch` additionally commits its first terminal and its optional `automaticLabel`, fingerprinted with the request. Server alone advances an automatic Workspace's label from its first terminal's sampled directory, as one commit without a request; the [location label contract](../../orchbee/docs/native-location-labels.md#automatic-workspace-names) owns that rule. Workspace Project membership is required-nullable. The navigation/context relation is a bijection, bounded by 1,024 Workspaces and contexts, with no identity-less compatibility owner.
 
 Terminal creation uses the Workspace's accepted Directory and exact Worker. Missing directory configuration or unavailable runtime produces a typed refusal, never a home-directory fallback or hidden Workspace. The canonical snapshot exposes bindings for `attach-binding`; attachment grants no creation or navigation authority.
 

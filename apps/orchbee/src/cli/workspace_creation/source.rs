@@ -22,6 +22,8 @@ pub(super) struct Prepared {
     pub(super) project: Option<orchbee_workbench_protocol::WorkbenchProjectId>,
     pub(super) directory: Directory,
     pub(super) label: WorkbenchLabel,
+    /// Only a generated label follows the first terminal; `--label` fixes it.
+    pub(super) automatic_label: bool,
     pub(super) selected: Option<ClientViewRecord>,
 }
 pub(super) struct Directory {
@@ -200,6 +202,7 @@ pub(super) fn prepare(
     Ok(Prepared {
         project,
         directory,
+        automatic_label: command.label.is_none(),
         label,
         selected,
     })

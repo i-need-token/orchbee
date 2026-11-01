@@ -107,6 +107,7 @@ pub(in crate::workbench_client::ui) fn launched(
     };
     let WorkbenchAction::WorkspaceLaunch {
         label,
+        automatic_label,
         options,
         geometry,
         placement,
@@ -161,6 +162,7 @@ pub(in crate::workbench_client::ui) fn launched(
             .clone(),
     });
     snapshot.navigation.workspaces.push(Workspace {
+        automatic_label: *automatic_label,
         workspace_id: commit.workspace_id.clone(),
         project_id: commit.project_id.clone(),
         terminal_context_id: commit.terminal_context_id.clone(),

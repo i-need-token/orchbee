@@ -45,7 +45,9 @@ fn quick(baseline: ClientContextTabs) -> QuickPreparation {
 fn quick_workspace_uses_the_first_terminal_directory() -> TestResult {
     source_root::borrow(|executor, source, outcome| {
         let mut preparation = quick(source.baseline.clone());
-        preparation.first_terminal_pane.clone_from(&source.primary_pane);
+        preparation
+            .first_terminal_pane
+            .clone_from(&source.primary_pane);
         executor.prepare_quick_cwd(&preparation, outcome)
     })
 }
@@ -66,6 +68,7 @@ fn quick_workspace_falls_back_to_the_focused_workspace_directory_then_the_launch
         path: WorkbenchDirectoryPath::parse("C:/项目 space")?,
     });
     workspace.navigation.workspaces.push(Workspace {
+        automatic_label: false,
         label: "Workspace".into(),
         project_id: None,
         primary_directory_id: Some(directory_id),

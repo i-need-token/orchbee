@@ -951,6 +951,7 @@ mod workflow {
             MutationCommand::WorkspaceLaunch {
                 project,
                 label,
+                automatic_label,
                 geometry,
                 launch,
                 profile,
@@ -963,6 +964,7 @@ mod workflow {
                     None => orchbee_workbench_protocol::WorkspacePlacement::Ungrouped {},
                 };
                 Ok(WorkbenchAction::WorkspaceLaunch {
+                    automatic_label: *automatic_label,
                     placement,
                     label: label.clone(),
                     geometry: *geometry,

@@ -19,6 +19,7 @@ fn snapshot() -> Snapshot {
                 projects: vec![],
                 directories: vec![],
                 workspaces: std::iter::once(crate::Workspace {
+                    automatic_label: false,
                     workspace_id: fixture_workspace_id.clone(),
                     terminal_context_id: fixture_context_id.clone(),
                     project_id: None,
@@ -72,6 +73,7 @@ fn membership_limits_and_order_are_independent_of_identity_and_resources() {
     for index in 1..=1025 {
         let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", index + 1)).unwrap();
         value.navigation.workspaces.push(Workspace {
+            automatic_label: false,
             workspace_id: WorkbenchWorkspaceId::parse(&format!("{index:032x}")).unwrap(),
             project_id: (index <= 256).then(|| project_id.clone()),
             primary_directory_id: None,

@@ -1,6 +1,7 @@
 use super::*;
 fn action() -> WorkbenchAction {
     WorkbenchAction::WorkspaceLaunch {
+        automatic_label: false,
         placement: orchbee_workbench_protocol::WorkspacePlacement::Project {
             project_id: WorkbenchProjectId::parse(&format!("{:032x}", 1)).unwrap(),
         },

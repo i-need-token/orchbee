@@ -163,6 +163,7 @@ impl Fixture {
                 WorkbenchAction::WorkspaceLaunch {
                     placement: WorkspacePlacement::Ungrouped {},
                     label: WorkbenchLabel::parse("Workspace").unwrap(),
+                    automatic_label: false,
                     geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
                     launch: None,
                     profile: None,

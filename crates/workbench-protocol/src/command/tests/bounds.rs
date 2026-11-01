@@ -50,6 +50,7 @@ fn near_limit_snapshot() -> Snapshot {
             let terminal_context_id = WorkbenchTerminalContextId::parse(&id(next)).unwrap();
             next += 1;
             snapshot.navigation.workspaces.push(Workspace {
+                automatic_label: false,
                 project_id: Some(project.project_id.clone()),
                 workspace_id,
                 terminal_context_id: terminal_context_id.clone(),
@@ -183,6 +184,7 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
     };
     let commands = [
         maximum_command(WorkbenchAction::WorkspaceLaunch {
+            automatic_label: false,
             placement: crate::WorkspacePlacement::Alongside {
                 workspace_id: WorkbenchWorkspaceId::parse("ffffffffffffffffffffffffffffffff")
                     .unwrap(),
@@ -404,6 +406,7 @@ fn typed_plugin_launch_context_is_redacted_and_requires_supported_selector_owner
             options.plugin_pane = None;
         }
         let action = WorkbenchAction::WorkspaceLaunch {
+            automatic_label: false,
             placement: crate::WorkspacePlacement::Ungrouped {},
             label: WorkbenchLabel::parse("workspace").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0).unwrap(),

@@ -6602,6 +6602,34 @@
 			}
 		},
 		{
+			"name": "workspace-launch-automatic-label",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "workspace.launch",
+					"placement": {
+						"kind": "ungrouped"
+					},
+					"label": "repo",
+					"automaticLabel": true,
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"options": {
+						"cwd": "C:/repo"
+					}
+				}
+			}
+		},
+		{
 			"name": "workspace-launch-project",
 			"direction": "request",
 			"document": {

@@ -63,6 +63,7 @@ fn case_with_mode(mode: WorktreeMode) -> (WorkbenchClientUi, Plan, Snapshot) {
         worker_id: plan.discovery.worker.clone(),
     });
     snapshot.navigation.workspaces.push(Workspace {
+        automatic_label: false,
         project_id: Some(snapshot.navigation.projects[0].project_id.clone()),
         workspace_id: workspace.clone(),
         label: "checkout".into(),

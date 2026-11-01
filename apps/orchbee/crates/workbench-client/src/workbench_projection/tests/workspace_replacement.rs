@@ -9,6 +9,7 @@ fn workspace_snapshot(revision: u64) -> Snapshot {
     snapshot.navigation.workspaces[0].terminal_context_id = context_id(99);
     snapshot.terminal_contexts.push(terminal_context(99, 0));
     snapshot.navigation.workspaces.extend(vec![Workspace {
+        automatic_label: false,
         project_id: Some((WorkbenchProjectId::parse(&id(90)).unwrap()).clone()),
         workspace_id: WorkbenchWorkspaceId::parse(&id(91)).unwrap(),
         label: "work".into(),

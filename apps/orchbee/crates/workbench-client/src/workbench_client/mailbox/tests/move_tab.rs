@@ -289,6 +289,7 @@ fn canonical_move_a_settlement_then_b_queued_preserves_exact_a_commit_at_retirem
                         project_order: Vec::new(),
                         directories: Vec::new(),
                         workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                            automatic_label: false,
                             workspace_id: fixture_workspace_id.clone(),
                             terminal_context_id: fixture_context_id.clone(),
                             project_id: None,

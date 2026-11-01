@@ -100,6 +100,7 @@ impl WorkbenchAuthority {
         }
         let WorkbenchAction::WorkspaceLaunch {
             label,
+            automatic_label,
             geometry,
             profile,
             options,
@@ -154,6 +155,7 @@ impl WorkbenchAuthority {
             return WorkbenchTabCreateBegin::Ready(self.retire(&command));
         };
         candidate.navigation.workspaces.push(Workspace {
+            automatic_label,
             project_id: project_id.clone(),
             workspace_id: workspace_id.clone(),
             primary_directory_id: Some(directory_id.clone()),

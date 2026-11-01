@@ -450,6 +450,7 @@ fn launch_command(service: &LocalTerminalService) -> WorkbenchCommand {
         service,
         500,
         WorkbenchAction::WorkspaceLaunch {
+            automatic_label: false,
             placement: orchbee_workbench_protocol::WorkspacePlacement::Project {
                 project_id: snapshot(service).navigation.projects[0].project_id.clone(),
             },

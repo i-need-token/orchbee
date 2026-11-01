@@ -29,6 +29,7 @@ pub(crate) fn created() -> Snapshot {
         path: WorkbenchDirectoryPath::parse("C:/project space").unwrap(),
     });
     snapshot.navigation.workspaces.push(Workspace {
+        automatic_label: false,
         project_id: None,
         label: "project space".into(),
         primary_directory_id: Some(snapshot.navigation.directories[0].directory_id.clone()),

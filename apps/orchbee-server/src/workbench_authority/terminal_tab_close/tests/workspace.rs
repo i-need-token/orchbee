@@ -24,6 +24,7 @@ pub(super) fn workspace_fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGr
             path: WorkbenchDirectoryPath::parse("/workspace").unwrap(),
         }]);
         snapshot.navigation.workspaces.extend(vec![Workspace {
+            automatic_label: false,
             project_id: Some(WorkbenchProjectId::parse(&identity(300 + index)).unwrap()),
             workspace_id: WorkbenchWorkspaceId::parse(&identity(400 + index)).unwrap(),
             terminal_context_id: context_id.clone(),

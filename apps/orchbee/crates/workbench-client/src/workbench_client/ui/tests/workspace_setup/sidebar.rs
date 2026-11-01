@@ -14,6 +14,7 @@ fn ready_sidebar() -> (
         let terminal_context_id =
             WorkbenchTerminalContextId::parse(&format!("{:032x}", n + 10)).unwrap();
         snapshot.navigation.workspaces.push(Workspace {
+            automatic_label: false,
             workspace_id: WorkbenchWorkspaceId::parse(&format!("{n:032x}")).unwrap(),
             terminal_context_id: terminal_context_id.clone(),
             project_id: None,

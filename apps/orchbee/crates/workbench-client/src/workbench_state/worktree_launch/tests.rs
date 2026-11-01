@@ -411,6 +411,7 @@ fn worktree_default_names_consider_newer_workspace_labels_across_groups() {
             let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", 82)).unwrap();
             let workspace = WorkbenchWorkspaceId::parse(&format!("{:032x}", 81)).unwrap();
             snapshot.navigation.workspaces.push(Workspace {
+                automatic_label: false,
                 workspace_id: workspace.clone(),
                 project_id: grouped.then(|| snapshot.navigation.projects[0].project_id.clone()),
                 label: occupied.into(),

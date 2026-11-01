@@ -51,6 +51,7 @@ pub(super) fn workspace_snapshot(revision: u64, tabs: usize) -> Snapshot {
     let mut snapshot = snapshot(1, revision, None);
     let project = project();
     snapshot.navigation.workspaces.push(Workspace {
+        automatic_label: false,
         project_id: Some(project.project_id.clone()),
         workspace_id: WorkbenchWorkspaceId::parse(&id(71)).unwrap(),
         label: "Workspace".into(),

@@ -559,6 +559,14 @@ belongs to the Server/native CLI tests; the TLA asset is not executed in this pa
 
 The [Tab label contract](../../apps/orchbee/docs/native-tab-labels.md) owns optional `automaticLabel` metadata. New Tabs without a supplied label use their current context position; explicit numeric names and legacy Tabs remain fixed. CLI queries, label selectors and TUI display agree after move or close, and rename chooses a fixed name. The current version-1 `api snapshot` exposes canonical metadata; the offline API catalog lists its schema. Shared protocol consumers require a matching cohort.
 
+## Automatic Workspace naming
+
+`Workspace` and `workspace.launch` carry the same optional boolean `automaticLabel`; omission is
+fixed and serialization omits `false`. The [location label contract](../../apps/orchbee/docs/native-location-labels.md#automatic-workspace-names)
+owns when Server advances an automatic label from the first terminal's directory and how
+`workspace.rename` fixes it. The shared corpus covers an automatic launch request and an automatic
+Workspace in a snapshot; `api snapshot` and event Workspace data expose the same field.
+
 Client-owned Agent attention reads name 1–100 unique canonical Agent session IDs. `agent-attention` submissions and `attention-read` completions use kind 29 with a 64 KiB pre-allocation limit; responses remain kind 26. Entries preserve request order, nullable missing-session state, observation generation/sequence, semantic-change revision and seen, together with a boot-authenticatable changes cursor and nullable host focus. Workbench binds the lightweight Agent protocol DTOs without owning Agent state. The [Client attention owner](../../apps/orchbee/docs/native-client-attention.md) defines read availability, unchanged acknowledgement, bounded receipt storage and CLI cursor authentication.
 
 Physical `terminal-agent-attention` reads instead name 1–100 unique full presentation/creation/Host

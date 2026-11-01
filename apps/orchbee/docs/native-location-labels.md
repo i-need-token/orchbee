@@ -20,6 +20,30 @@ Schema. Historical snapshot labels remain readable: blank Workspace labels displ
 Unnamed Workspace in navigation and current-location chrome, and the normal rename editor can
 repair the exact target. Tab and Project naming policies remain independently owned.
 
+## Automatic Workspace names
+
+Server owns optional boolean `Workspace.automaticLabel`. Omission means `false`, serialization
+omits `false`, and readers never infer automatic naming from text, so legacy Workspaces keep their
+exact names. Quick creation whose generated name was not edited, Windows directory startup and
+Windows `workspace create` without `--label` launch automatic Workspaces; explicit names, worktree
+checkouts, Panel relocation and `workspace.create` stay fixed.
+
+An automatic Workspace follows its first terminal: the primary terminal of the first Tab's leading
+Panel. Server's existing process sampler supplies that terminal's directory (a valid
+terminal-reported directory, otherwise the root process directory). The first directory the
+running Server samples for a Workspace only records it, so creation and restart keep the committed
+name. When a later sample differs, ignoring ASCII case and trailing separators, Server commits the
+directory's final name in one revision, adding ` (2)`, ` (3)` and onward while another Workspace
+uses it, exactly like generated names. A root directory, a name the label rule refuses, or an
+unchanged name commits nothing. A replacement first terminal, such as after the first Tab closes,
+takes over from its own next sample. The committed label reaches every Client, the CLI and the
+checkpoint like any other rename; nothing is retried and the label is never reverted.
+
+`workspace.rename` fixes the name: it sets the text and clears `automaticLabel` together. Equal
+text on an automatic Workspace is therefore a real change with a new revision, while equal text
+on a fixed Workspace stays Unchanged. The editor prefill is the current label, so confirming it
+unedited also fixes the name. Tab naming keeps its own [automatic/fixed contract](native-tab-labels.md).
+
 Renaming preserves location identity, terminal bindings, directory associations and live shell
 execution. Another Client observes new labels through explicit refresh. Zero-Workspace Project
 navigation, deletion, reordering Projects or Workspaces, directory rebinding, Panel layouts, remote,
@@ -45,8 +69,8 @@ at accepted submission: the committed rename cannot invalidate its own retained 
 | Project-menu admission                | Require a live exact target/source proof and unexpired deadline; open one draft without navigation or a command.       |
 | Target/source/focus invalidation      | Discard the unsubmitted draft, release structural ownership and report refusal without retargeting.                    |
 | Submit                                | Freeze one exact Project or Workspace rename request after validating target, input and first draw.                    |
-| Unchanged                             | Require the captured revision and unchanged original label; preserve the retained known result.                        |
-| Renamed                               | Require checked successor revision and changed text; preserve the exact request before snapshot or UI handoff.         |
+| Unchanged                             | Require the captured revision and an unchanged original fixed label; preserve the retained known result.               |
+| Renamed                               | Require checked successor revision, changed text or automatic mode; preserve the request before snapshot/UI handoff.   |
 | Exact result snapshot                 | Require only the requested label change, or no change for Unchanged; preserve all other projected canonical facts.     |
 | Later snapshot                        | Validate Session and exact target ownership, then display actual canonical labels and members, including peer changes. |
 | Snapshot unavailable                  | Retain the known rename result; explicit `w` observes again without replaying the mutation.                            |

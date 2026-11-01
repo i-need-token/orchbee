@@ -58,6 +58,7 @@ pub(crate) fn fixture() -> Snapshot {
             }),
         });
         value.navigation.workspaces.push(Workspace {
+            automatic_label: false,
             workspace_id: workspace(80 + n),
             terminal_context_id: context.clone(),
             project_id: Some(project(70)),

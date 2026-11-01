@@ -199,6 +199,7 @@ pub(super) fn contexts(workspace_tabs: usize, revision: u64) -> Snapshot {
     let mut snapshot = snapshot(2, revision, None);
     snapshot.navigation.workspaces.extend(vec![
         Workspace {
+            automatic_label: false,
             project_id: Some((WorkbenchProjectId::parse(&id(70)).unwrap()).clone()),
             label: "same label".into(),
             primary_directory_id: None,
@@ -206,6 +207,7 @@ pub(super) fn contexts(workspace_tabs: usize, revision: u64) -> Snapshot {
             terminal_context_id: context_id(72),
         },
         Workspace {
+            automatic_label: false,
             project_id: Some((WorkbenchProjectId::parse(&id(70)).unwrap()).clone()),
             label: "same label".into(),
             primary_directory_id: None,
@@ -609,6 +611,7 @@ fn context_selection_retains_exact_target_when_same_label_workspace_is_inserted_
     candidate.navigation.workspaces.insert(
         0,
         Workspace {
+            automatic_label: false,
             project_id: Some(candidate.navigation.projects[0].project_id.clone()),
             label: "same label".into(),
             primary_directory_id: None,

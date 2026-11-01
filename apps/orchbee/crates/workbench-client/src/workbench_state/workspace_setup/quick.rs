@@ -154,6 +154,8 @@ pub(crate) struct QuickWorkspaceFields {
 pub(crate) struct QuickLaunchPlan {
     pub(crate) cwd: WorkbenchDirectoryPath,
     pub(crate) label: WorkbenchLabel,
+    /// The generated name was never edited, so the Workspace label follows its first terminal.
+    pub(crate) automatic_label: bool,
     pub(crate) project: QuickProject,
 }
 
@@ -295,6 +297,7 @@ impl QuickWorkspaceFields {
         Some(QuickLaunchPlan {
             cwd: WorkbenchDirectoryPath::parse(&path).ok()?,
             label: WorkbenchLabel::parse_workspace(self.name()).ok()?,
+            automatic_label: self.automatic_name,
             project: self.project.clone(),
         })
     }

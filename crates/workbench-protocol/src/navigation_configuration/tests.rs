@@ -30,6 +30,7 @@ fn navigation(groups: &[Option<usize>]) -> Navigation {
             .iter()
             .enumerate()
             .map(|(index, group)| Workspace {
+                automatic_label: false,
                 workspace_id: workspace(index),
                 project_id: group.map(project),
                 label: format!("Workspace {index}"),

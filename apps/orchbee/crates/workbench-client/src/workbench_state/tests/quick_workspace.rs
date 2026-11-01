@@ -359,6 +359,7 @@ fn committed_launch_snapshot(
         path: options.cwd.clone().unwrap(),
     });
     snapshot.navigation.workspaces.push(Workspace {
+        automatic_label: false,
         project_id: commit.project_id.clone(),
         workspace_id: commit.workspace_id.clone(),
         terminal_context_id: commit.terminal_context_id.clone(),

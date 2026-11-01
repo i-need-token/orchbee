@@ -501,6 +501,8 @@ pub(crate) enum MutationCommand {
     WorkspaceLaunch {
         project: Option<Target>,
         label: WorkbenchLabel,
+        /// A generated label follows the first terminal's directory until a rename.
+        automatic_label: bool,
         geometry: WorkbenchTerminalGeometry,
         launch: Option<LaunchSelection>,
         profile: Option<LaunchProfileSelector>,

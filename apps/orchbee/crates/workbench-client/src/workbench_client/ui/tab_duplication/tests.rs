@@ -38,6 +38,7 @@ fn ready() -> (
         .unwrap();
     other_tab.group_id = Some(other_group.group_id.clone());
     snapshot.navigation.workspaces.extend(vec![Workspace {
+        automatic_label: false,
         project_id: Some((WorkbenchProjectId::parse(&format!("{:032x}", 9002)).unwrap()).clone()),
         workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 9003)).unwrap(),
         label: "Other workspace".into(),

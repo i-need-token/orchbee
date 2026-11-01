@@ -28,6 +28,7 @@ fn fixture() -> Snapshot {
     let workspaces: Vec<_> = [81, 91]
         .into_iter()
         .map(|n| Workspace {
+            automatic_label: false,
             project_id: (n == 81).then(|| WorkbenchProjectId::parse(&id(70)).unwrap()),
             label: "same 工作区".into(),
             primary_directory_id: Some(directory_id.clone()),

@@ -51,6 +51,7 @@ fn populated() -> (WorkbenchAuthority, WorkbenchGrant) {
         });
         snapshot.navigation.directories.extend(Vec::new());
         snapshot.navigation.workspaces.extend(vec![Workspace {
+            automatic_label: false,
             project_id: Some(WorkbenchProjectId::parse(&identity(n)).unwrap()),
             workspace_id: workspace_id.clone(),
             terminal_context_id: context_id.clone(),

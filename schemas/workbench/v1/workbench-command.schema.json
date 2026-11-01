@@ -1283,6 +1283,9 @@
 						"label": {
 							"$ref": "#/$defs/workspaceLabel"
 						},
+						"automaticLabel": {
+							"type": "boolean"
+						},
 						"geometry": {
 							"$ref": "#/$defs/terminalGeometry"
 						},

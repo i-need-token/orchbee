@@ -181,6 +181,7 @@ impl SetupKnownCommit {
                 navigation
                     .workspaces
                     .push(orchbee_workbench_protocol::Workspace {
+                        automatic_label: false,
                         project_id: project_id.clone(),
                         label: label.as_str().to_owned(),
                         workspace_id: workspace_id.clone(),
@@ -253,11 +254,12 @@ impl SetupKnownCommit {
                 if Some(&workspace.terminal_context_id) != baseline.terminal_context_id() {
                     return None;
                 }
-                navigation
+                let renamed = navigation
                     .workspaces
                     .iter_mut()
-                    .find(|workspace| &workspace.workspace_id == workspace_id)?
-                    .label = label.as_str().to_owned();
+                    .find(|workspace| &workspace.workspace_id == workspace_id)?;
+                renamed.label = label.as_str().to_owned();
+                renamed.automatic_label = false;
             }
             // This verifier is scoped to its original mutation; a different command receipt cannot prove its postconditions.
             _ => return None,
@@ -279,6 +281,7 @@ impl SetupKnownCommit {
             placement,
             options,
             label,
+            automatic_label,
             ..
         } = &self.operation.command.action
         else {
@@ -377,6 +380,7 @@ impl SetupKnownCommit {
             navigation
                 .workspaces
                 .push(orchbee_workbench_protocol::Workspace {
+                    automatic_label: *automatic_label,
                     workspace_id: commit.workspace_id.clone(),
                     project_id: commit.project_id.clone(),
                     label: label.as_str().to_owned(),

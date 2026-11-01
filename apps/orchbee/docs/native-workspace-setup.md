@@ -37,7 +37,9 @@ directory refuses preparation; the Client does not invent one.
 The directory basename supplies the initial name,
 with a localized fallback for a root path. Generated names avoid every Workspace label in the
 captured snapshot, adding ` (2)`, ` (3)` and subsequent suffixes as needed. Truncation leaves room
-for the suffix within the 512-Unicode-scalar label bound. Explicit labels remain unchanged. Default
+for the suffix within the 512-Unicode-scalar label bound. An unedited generated name launches an
+automatic Workspace whose name later follows its first terminal; see [automatic Workspace names](native-location-labels.md#automatic-workspace-names).
+Explicit labels remain unchanged. Default
 and Project-targeted creation use this same preparation path. A folder chosen in a Project row
 menu's New Workspace submenu replaces the default directory.
 

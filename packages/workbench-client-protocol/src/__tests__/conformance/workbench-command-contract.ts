@@ -239,11 +239,16 @@ const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		kind: z.literal('workspace.launch'),
 		placement: WorkbenchWorkspacePlacementSchema,
 		label: WorkspaceLabelSchema,
+		automaticLabel: z.boolean().optional(),
 		geometry: WorkbenchTerminalGeometrySchema,
 	})
-		.transform((value) => {
+		.transform(({ automaticLabel, ...value }) => {
 			const canonical = normalizeWorkbenchTerminalLaunch(value);
-			return { ...canonical, options: { ...canonical.options, cwd: value.options.cwd } };
+			return {
+				...canonical,
+				...(automaticLabel ? { automaticLabel } : {}),
+				options: { ...canonical.options, cwd: value.options.cwd },
+			};
 		})
 		.readonly(),
 	z

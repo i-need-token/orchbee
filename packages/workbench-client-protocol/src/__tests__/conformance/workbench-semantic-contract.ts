@@ -302,6 +302,7 @@ const WorkbenchDirectorySchema = z
 
 export const WorkbenchWorkspaceSchema = z
 	.strictObject({
+		automaticLabel: z.boolean().optional(),
 		label: WorkbenchLabelSchema,
 		projectId: WorkbenchProjectIdSchema.nullable(),
 		primaryDirectoryId: WorkbenchDirectoryIdSchema.nullable(),

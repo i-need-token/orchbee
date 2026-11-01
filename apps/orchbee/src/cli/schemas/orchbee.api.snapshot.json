@@ -210,6 +210,9 @@
 								],
 								"additionalProperties": false,
 								"properties": {
+									"automaticLabel": {
+										"type": "boolean"
+									},
 									"label": {
 										"type": "string"
 									},

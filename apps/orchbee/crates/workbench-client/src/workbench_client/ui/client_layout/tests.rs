@@ -273,6 +273,7 @@ fn an_unvisited_workspace_is_projected_without_entering_it() {
         tabs: vec![tab],
     });
     snapshot.navigation.workspaces.extend(vec![Workspace {
+        automatic_label: false,
         project_id: Some((WorkbenchProjectId::parse(&format!("{:032x}", 992)).unwrap()).clone()),
         workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 993)).unwrap(),
         terminal_context_id: context_id.clone(),

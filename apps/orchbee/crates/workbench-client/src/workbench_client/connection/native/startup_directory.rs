@@ -55,6 +55,8 @@ impl ClientExecutor {
             request_id: workspace_request.clone(),
             expected_revision: snapshot.revision,
             action: WorkbenchAction::WorkspaceLaunch {
+                // The generated directory name follows the first terminal until a rename.
+                automatic_label: true,
                 placement: WorkspacePlacement::Ungrouped {},
                 label: parameters.workspace_label.clone(),
                 geometry,

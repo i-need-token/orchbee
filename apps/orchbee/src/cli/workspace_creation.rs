@@ -161,6 +161,7 @@ fn execute(
                 .project
                 .map(|project| Target::Id(project.to_string())),
             label: prepared.label,
+            automatic_label: prepared.automatic_label,
             geometry: command.geometry,
             launch: command.launch.clone(),
             profile: command.profile.clone(),

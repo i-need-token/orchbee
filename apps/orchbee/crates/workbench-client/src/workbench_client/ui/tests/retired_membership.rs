@@ -1033,6 +1033,7 @@ fn retired_workspace_replacement_attaches_same_panel_only_with_fresh_physical_id
             terminal_context_id: initial_workspace,
         });
         baseline.navigation.workspaces.extend(vec![Workspace {
+            automatic_label: false,
             project_id: Some((project_id.clone()).clone()),
             workspace_id: workspace_id.clone(),
             label: "workspace".into(),

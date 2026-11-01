@@ -267,6 +267,9 @@ impl SessionCoordinator {
         let input_revision = workbench.terminal_agent_input_revision(&physical);
         let released = departed.is_some() && retained.is_none();
         self.observe_name_owner(&physical.binding, released);
+        if let Some(directory) = &directory {
+            self.follow_first_terminal_directory(&physical.binding, directory);
+        }
         self.process_samples.insert(
             key,
             Sample {
@@ -438,23 +441,9 @@ impl SessionCoordinator {
         orchbee_workbench_protocol::WorkerId,
         orchbee_workbench_protocol::WorkbenchDirectoryPath,
     )> {
-        use orchbee_workbench_protocol::PanelNode;
         let snapshot = self.workbench.as_ref()?.snapshot();
         let workspace = snapshot.navigation.workspace(workspace_id)?;
-        let context = snapshot
-            .terminal_contexts
-            .iter()
-            .find(|context| context.terminal_context_id == workspace.terminal_context_id)?;
-        let mut node = &context.tabs.first()?.root;
-        let binding = loop {
-            match node {
-                PanelNode::Panel {
-                    primary_presentation,
-                    ..
-                } => break primary_presentation.binding.as_ref()?,
-                PanelNode::Split { children, .. } => node = &children[0].node,
-            }
-        };
+        let binding = super::directory_label::first_terminal(snapshot, workspace)?;
         let fact = self
             .agent_registration_for_bindings(std::slice::from_ref(binding))
             .ok()?

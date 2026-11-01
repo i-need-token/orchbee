@@ -725,7 +725,7 @@
 				}
 			]
 		},
-		"snapshot-automatic-tab-r2": {
+		"snapshot-automatic-labels-r2": {
 			"kind": "workbench.snapshot",
 			"navigation": {
 				"projects": [],
@@ -736,7 +736,8 @@
 						"terminalContextId": "33333333333333333333333333333333",
 						"projectId": null,
 						"primaryDirectoryId": null,
-						"label": "Workspace"
+						"label": "Workspace",
+						"automaticLabel": true
 					}
 				]
 			},
@@ -1564,7 +1565,7 @@
 		"snapshot-panel-input-r2",
 		"snapshot-launch-failure-r2",
 		"snapshot-launch-program-boundary-r2",
-		"snapshot-automatic-tab-r2",
+		"snapshot-automatic-labels-r2",
 		"snapshot-workspace-order-legacy",
 		"snapshot-workspace-order-explicit-empty",
 		"snapshot-workspace-order-cross-project",

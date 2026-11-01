@@ -44,6 +44,7 @@ mod target_lifecycle;
 pub(crate) use target_lifecycle::TargetLifecycle;
 mod agent_names;
 mod agent_registration;
+mod directory_label;
 mod pane_graphics;
 mod process_observation;
 mod semantic_events;
@@ -55,6 +56,7 @@ pub(crate) struct SessionCoordinator {
     terminals: TerminalCoordinator,
     workbench: Option<WorkbenchAuthority>,
     process_samples: process_observation::Samples,
+    followed_directories: directory_label::FollowedDirectories,
     terminal_observations: semantic_events::Observations,
     agent_names: Option<std::sync::Weak<crate::agent_service::AgentService>>,
 }
@@ -68,6 +70,7 @@ impl SessionCoordinator {
             terminals: TerminalCoordinator::new(),
             workbench,
             process_samples: process_observation::Samples::new(),
+            followed_directories: directory_label::FollowedDirectories::new(),
             terminal_observations: semantic_events::Observations::new(),
             agent_names: None,
         }

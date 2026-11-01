@@ -197,6 +197,10 @@ pub struct TerminalContext {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Workspace {
+    /// The label follows the first terminal's directory until a rename fixes it. Omission is
+    /// fixed, so legacy Workspaces keep their exact names.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub automatic_label: bool,
     pub label: String,
     /// Optional organization; changing it never changes the Workspace's resources.
     #[serde(deserialize_with = "deserialize_required_nullable")]

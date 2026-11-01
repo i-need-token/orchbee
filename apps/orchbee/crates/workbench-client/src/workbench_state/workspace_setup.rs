@@ -368,6 +368,7 @@ impl WorkbenchClientState {
                     quick::QuickProject::Choose => return None,
                 };
                 WorkbenchAction::WorkspaceLaunch {
+                    automatic_label: plan.automatic_label,
                     placement,
                     label: plan.label,
                     geometry: orchbee_workbench_protocol::WorkbenchTerminalGeometry::new(
