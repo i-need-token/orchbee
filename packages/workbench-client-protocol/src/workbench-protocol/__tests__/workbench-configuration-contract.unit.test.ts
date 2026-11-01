@@ -5,8 +5,8 @@ import { z } from 'zod';
 import {
 	WorkbenchRequestSchema,
 	WorkbenchResponseSchema,
-} from './conformance/workbench-command-contract';
-import { ConfigurationDiagnosticsSchema } from './conformance/workbench-configuration-contract';
+} from '../workbench-command-contract';
+import { ConfigurationDiagnosticsSchema } from '../workbench-configuration-contract';
 const caseSchema = z.strictObject({
 	name: z.string(),
 	direction: z.enum(['request', 'response']),
@@ -198,7 +198,7 @@ describe('Session configuration publication', () => {
 				JSON.parse(
 					await readFile(
 						new URL(
-							'../../../../schemas/workbench/v1/workbench-configuration-conformance-v1.json',
+							'../../../../../schemas/workbench/v1/workbench-configuration-conformance-v1.json',
 							import.meta.url,
 						),
 						'utf8',
@@ -211,7 +211,7 @@ describe('Session configuration publication', () => {
 				JSON.parse(
 					await readFile(
 						new URL(
-							'../../../../schemas/workbench/v1/workbench-configuration.schema.json',
+							'../../../../../schemas/workbench/v1/workbench-configuration.schema.json',
 							import.meta.url,
 						),
 						'utf8',

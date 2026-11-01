@@ -2,11 +2,9 @@
 
 Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
 
-`@orchbee/agent` is a development dependency for the independent Client-view conformance binding.
-The published JavaScript entry and its declarations do not depend on Agent. Adding an admitted
-runtime consumer of that binding must also update the dependency classification.
+`@orchbee/agent` is a runtime dependency because the Client-view binding reuses its Agent session identity.
 
-The independent Workbench bindings live under `src/__tests__/conformance/` and are reached by the existing schema/corpus suites. Product session, projection, preference and launch schemas remain in `src/`. Full dependency analysis includes the conformance sources and rejects orphan helpers; production analysis excludes only that development directory.
+The Workbench bindings live under `src/workbench-protocol/`, are production code consumed by the Server Client path, and stay verified against the shared schemas and corpora by the suites beside them. Product session, projection, preference and launch schemas remain in `src/`. The package entry exports only what a consumer imports; the rest stays reachable from the suites.
 
 ## Project and Workspace organization
 
@@ -62,8 +60,7 @@ under [`schemas/workbench`](../../schemas/workbench/README.md). The binding pars
 contains Project, Directory, Workspace, Tab, Panel, and Terminal Presentation product semantics,
 including an exact bounded local-platform path and required nullable primary Directory reference, but
 excludes Environment, Directory discovery or mutation policy, Worktree, Agent, Launch Profile,
-terminal content, persistence, transport, and every Client-local view fact. No current
-client-session consumer uses this new contract yet.
+terminal content, persistence, transport, and every Client-local view fact.
 
 The separate command binding validates `workbench.command` and correlated command/snapshot results.
 It also covers the revision-cursor `workbench.publication.read` intent and its

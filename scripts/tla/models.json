@@ -175,7 +175,7 @@
 				"crates/local-runtime/src/private_cache.rs",
 				"crates/local-runtime/src/private_cache/**",
 				"crates/workbench-protocol/src/command/settings.rs",
-				"packages/workbench-client-protocol/src/__tests__/conformance/workbench-settings-contract.ts",
+				"packages/workbench-client-protocol/src/workbench-protocol/workbench-settings-contract.ts",
 				"schemas/workbench/v1/workbench-settings*"
 			],
 			"requiredCoverage": [

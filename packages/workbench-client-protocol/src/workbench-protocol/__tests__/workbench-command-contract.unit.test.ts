@@ -7,7 +7,7 @@ import type {
 	WorkbenchCommand,
 	WorkbenchCommandResult,
 	WorkbenchTabMoveDirection,
-} from './conformance/workbench-command-contract';
+} from '../workbench-command-contract';
 import {
 	SessionIdSchema,
 	WorkbenchDirectoryIdSchema,
@@ -18,14 +18,14 @@ import {
 	WorkbenchTerminalContextIdSchema,
 	WorkbenchWorkspaceIdSchema,
 	WorkerIdSchema,
-} from './conformance/workbench-semantic-contract';
+} from '../workbench-semantic-contract';
 import {
 	WorkbenchRequestSchema,
 	WorkbenchResponseSchema,
 	WorkbenchTerminalGeometrySchema,
 	parseWorkbenchRequest,
 	parseWorkbenchResponse,
-} from './conformance/workbench-command-contract';
+} from '../workbench-command-contract';
 
 const caseSchema = z.object({
 	name: z.string(),
@@ -127,33 +127,33 @@ describe('Workbench command contract', () => {
 		const [projectionText, commandText, corpusText, clientViewText, graphicsText] =
 			await Promise.all([
 				readFile(
-					new URL('../../../../schemas/workbench/v1/workbench.schema.json', import.meta.url),
+					new URL('../../../../../schemas/workbench/v1/workbench.schema.json', import.meta.url),
 					'utf8',
 				),
 				readFile(
 					new URL(
-						'../../../../schemas/workbench/v1/workbench-command.schema.json',
+						'../../../../../schemas/workbench/v1/workbench-command.schema.json',
 						import.meta.url,
 					),
 					'utf8',
 				),
 				readFile(
 					new URL(
-						'../../../../schemas/workbench/v1/workbench-command-conformance-v1.json',
+						'../../../../../schemas/workbench/v1/workbench-command-conformance-v1.json',
 						import.meta.url,
 					),
 					'utf8',
 				),
 				readFile(
 					new URL(
-						'../../../../schemas/workbench/v1/workbench-client-view.schema.json',
+						'../../../../../schemas/workbench/v1/workbench-client-view.schema.json',
 						import.meta.url,
 					),
 					'utf8',
 				),
 				readFile(
 					new URL(
-						'../../../../schemas/workbench/v1/workbench-pane-graphics.schema.json',
+						'../../../../../schemas/workbench/v1/workbench-pane-graphics.schema.json',
 						import.meta.url,
 					),
 					'utf8',

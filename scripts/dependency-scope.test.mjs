@@ -550,7 +550,6 @@ export const Default = { render: StoryOnly };
 });
 
 for (const [workspace, helper] of [
-	['packages/workbench-client-protocol', 'src/__tests__/conformance/bindings.ts'],
 	['packages/terminal-protocol', 'src/__tests__/conformance/input-decoders.ts'],
 	['packages/tab-strip', 'src/tab-strip/dragging/__tests__/horizontal-group-drag-invariants.ts'],
 ]) {

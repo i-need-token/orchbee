@@ -3,7 +3,7 @@ import {
 	MAXIMUM_USER_PREFERENCES_BYTES,
 	UserPreferencesPatchSchema,
 	UserPreferencesSourceSchema,
-} from '../../user-preferences-contract';
+} from '../user-preferences-contract';
 import { z } from 'zod';
 
 import {

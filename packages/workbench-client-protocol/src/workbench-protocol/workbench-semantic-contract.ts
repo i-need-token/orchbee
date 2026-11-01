@@ -194,7 +194,7 @@ export const WorkbenchPresentationSchema = z
 	})
 	.readonly();
 
-type WorkbenchPresentation = z.infer<typeof WorkbenchPresentationSchema>;
+export type WorkbenchPresentation = z.infer<typeof WorkbenchPresentationSchema>;
 
 interface WorkbenchPanelNodePanel {
 	readonly rightClick?: 'orchbee' | 'panel' | undefined;
@@ -506,9 +506,9 @@ export const WorkbenchProtocolDocumentSchema = z.union([
 	WorkbenchDeltaSchema,
 ]);
 
-type WorkbenchTerminalContext = z.infer<typeof WorkbenchTerminalContextSchema>;
+export type WorkbenchTerminalContext = z.infer<typeof WorkbenchTerminalContextSchema>;
 
-type WorkbenchSnapshot = z.infer<typeof WorkbenchSnapshotSchema>;
+export type WorkbenchSnapshot = z.infer<typeof WorkbenchSnapshotSchema>;
 
 type WorkbenchDelta = z.infer<typeof WorkbenchDeltaSchema>;
 

@@ -2,22 +2,22 @@ import { readFile } from 'node:fs/promises';
 import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { PluginInvocationContextSchema } from './conformance/workbench-plugin-contract';
+import { WindowTitleSchema } from '../workbench-window-title-contract';
 import {
 	WorkbenchRequestSchema,
 	WorkbenchResponseSchema,
-} from './conformance/workbench-command-contract';
+} from '../workbench-command-contract';
 const caseSchema = z.strictObject({
 	name: z.string(),
 	direction: z.enum(['request', 'response']),
 	document: z.unknown(),
 	boundary: z.enum(['schema', 'semantic']).optional(),
 });
-describe('Plugin execution and logs', () => {
+describe('Window title publication', () => {
 	it('rejects unpaired UTF-16 surrogates', () => {
-		expect(PluginInvocationContextSchema.safeParse({ selectedText: '\ud800' }).success).toBe(false);
+		expect(WindowTitleSchema.safeParse('\ud800').success).toBe(false);
 	});
-	it('matches the shared Rust plugin corpus and closed shapes', async () => {
+	it('matches the shared Rust window-title corpus and closed shapes', async () => {
 		const corpus = z
 			.strictObject({
 				contractVersion: z.literal(1),
@@ -28,7 +28,7 @@ describe('Plugin execution and logs', () => {
 				JSON.parse(
 					await readFile(
 						new URL(
-							'../../../../schemas/workbench/v1/workbench-plugin-conformance-v1.json',
+							'../../../../../schemas/workbench/v1/workbench-window-title-conformance-v1.json',
 							import.meta.url,
 						),
 						'utf8',
@@ -41,7 +41,7 @@ describe('Plugin execution and logs', () => {
 				JSON.parse(
 					await readFile(
 						new URL(
-							'../../../../schemas/workbench/v1/workbench-plugin.schema.json',
+							'../../../../../schemas/workbench/v1/workbench-window-title.schema.json',
 							import.meta.url,
 						),
 						'utf8',

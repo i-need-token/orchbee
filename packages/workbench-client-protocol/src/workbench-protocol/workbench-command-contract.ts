@@ -835,11 +835,18 @@ export const WorkbenchResponseSchema = z
 export type WorkbenchTabMoveDirection = z.infer<typeof WorkbenchTabMoveDirectionSchema>;
 
 export type WorkbenchCommand = z.infer<typeof WorkbenchCommandSchema>;
-type WorkbenchRequest = z.infer<typeof WorkbenchRequestSchema>;
+export type WorkbenchRequest = z.infer<typeof WorkbenchRequestSchema>;
 
 export type WorkbenchCommandResult = z.infer<typeof WorkbenchCommandResultSchema>;
 
-type WorkbenchResponse = z.infer<typeof WorkbenchResponseSchema>;
+export type WorkbenchResponse = z.infer<typeof WorkbenchResponseSchema>;
+
+/** A Client names identities as text; parsing admits them and applies the action's limits. */
+export function parseWorkbenchAction(
+	input: z.input<typeof WorkbenchActionSchema>,
+): WorkbenchCommand['action'] {
+	return WorkbenchActionSchema.parse(input);
+}
 
 export function parseWorkbenchRequest(input: unknown): WorkbenchRequest {
 	return WorkbenchRequestSchema.parse(input);

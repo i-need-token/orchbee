@@ -5,15 +5,15 @@ import { z } from 'zod';
 import {
 	WorkbenchRequestSchema,
 	WorkbenchResponseSchema,
-} from './conformance/workbench-command-contract';
+} from '../workbench-command-contract';
 const caseSchema = z.strictObject({
 	name: z.string(),
 	direction: z.enum(['request', 'response']),
 	document: z.unknown(),
 	boundary: z.enum(['schema', 'semantic']).optional(),
 });
-describe('Installed Agent manifests', () => {
-	it('matches the shared Rust manifest corpus and closed shapes', async () => {
+describe('Panel metadata', () => {
+	it('matches the shared Rust corpus and preserves every legal token key', async () => {
 		const corpus = z
 			.strictObject({
 				contractVersion: z.literal(1),
@@ -24,7 +24,7 @@ describe('Installed Agent manifests', () => {
 				JSON.parse(
 					await readFile(
 						new URL(
-							'../../../../schemas/workbench/v1/workbench-agent-manifests-conformance-v1.json',
+							'../../../../../schemas/workbench/v1/workbench-panel-metadata-conformance-v1.json',
 							import.meta.url,
 						),
 						'utf8',
@@ -37,7 +37,7 @@ describe('Installed Agent manifests', () => {
 				JSON.parse(
 					await readFile(
 						new URL(
-							'../../../../schemas/workbench/v1/workbench-agent-manifests.schema.json',
+							'../../../../../schemas/workbench/v1/workbench-panel-metadata.schema.json',
 							import.meta.url,
 						),
 						'utf8',

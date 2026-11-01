@@ -5,7 +5,7 @@ import { z } from 'zod';
 import {
 	WorkbenchRequestSchema,
 	WorkbenchResponseSchema,
-} from './conformance/workbench-command-contract';
+} from '../workbench-command-contract';
 
 const caseSchema = z.strictObject({
 	name: z.string(),
@@ -27,13 +27,13 @@ const corpusSchema = z.strictObject({
 	),
 });
 
-describe('source Worktree queries', () => {
+describe('retained Worktree operations', () => {
 	it('shares strict documents and semantic failures with the independent Rust binding', async () => {
 		const corpus = corpusSchema.parse(
 			JSON.parse(
 				await readFile(
 					new URL(
-						'../../../../schemas/workbench/v1/workbench-worktree-query-conformance-v1.json',
+						'../../../../../schemas/workbench/v1/workbench-worktree-conformance-v1.json',
 						import.meta.url,
 					),
 					'utf8',
@@ -46,7 +46,7 @@ describe('source Worktree queries', () => {
 				JSON.parse(
 					await readFile(
 						new URL(
-							'../../../../schemas/workbench/v1/workbench-worktree-query.schema.json',
+							'../../../../../schemas/workbench/v1/workbench-worktree.schema.json',
 							import.meta.url,
 						),
 						'utf8',

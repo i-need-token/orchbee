@@ -76,6 +76,23 @@ export {
 } from './workbench-shared-project-workspace-contract';
 
 export {
+	WORKBENCH_PROTOCOL_VERSION,
+	WorkbenchRequestIdSchema,
+	parseWorkbenchAction,
+	parseWorkbenchResponse,
+} from './workbench-protocol';
+export type {
+	WorkbenchCommand,
+	WorkbenchCommandResult,
+	WorkbenchPanelNode,
+	WorkbenchPresentation,
+	WorkbenchRequest,
+	WorkbenchResponse,
+	WorkbenchSnapshot,
+	WorkbenchTerminalContext,
+} from './workbench-protocol';
+
+export {
 	BUILT_IN_USER_LAUNCH_PROFILE_ID,
 	USER_LAUNCH_PROFILE_LIMITS,
 	UserLaunchProfileCatalogSchema,

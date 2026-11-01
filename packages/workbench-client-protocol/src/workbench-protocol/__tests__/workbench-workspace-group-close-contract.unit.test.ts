@@ -5,7 +5,7 @@ import { z } from 'zod';
 import {
 	WorkbenchRequestSchema,
 	WorkbenchResponseSchema,
-} from './conformance/workbench-command-contract';
+} from '../workbench-command-contract';
 
 const caseSchema = z.strictObject({
 	name: z.string(),
@@ -33,7 +33,7 @@ describe('retained Workspace group Close', () => {
 			JSON.parse(
 				await readFile(
 					new URL(
-						'../../../../schemas/workbench/v1/workbench-workspace-group-close-conformance-v1.json',
+						'../../../../../schemas/workbench/v1/workbench-workspace-group-close-conformance-v1.json',
 						import.meta.url,
 					),
 					'utf8',
@@ -46,7 +46,7 @@ describe('retained Workspace group Close', () => {
 				JSON.parse(
 					await readFile(
 						new URL(
-							'../../../../schemas/workbench/v1/workbench-workspace-group-close.schema.json',
+							'../../../../../schemas/workbench/v1/workbench-workspace-group-close.schema.json',
 							import.meta.url,
 						),
 						'utf8',
@@ -70,7 +70,7 @@ describe('retained Workspace group Close', () => {
 				.parse(
 					JSON.parse(
 						await readFile(
-							new URL(`../../../../schemas/workbench/v1/${name}`, import.meta.url),
+							new URL(`../../../../../schemas/workbench/v1/${name}`, import.meta.url),
 							'utf8',
 						),
 					),

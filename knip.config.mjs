@@ -71,7 +71,7 @@ export default function createKnipConfiguration({ production, strict }) {
 			},
 			'packages/workbench-client-protocol': {
 				entry: ['src/**/*.unit.test.{ts,tsx}!'],
-				project: ['src/**/*.{ts,tsx}!', '*.ts', '!src/__tests__/conformance/**!'],
+				project: ['src/**/*.{ts,tsx}!', '*.ts'],
 				includeEntryExports: true,
 			},
 			'packages/terminal': {

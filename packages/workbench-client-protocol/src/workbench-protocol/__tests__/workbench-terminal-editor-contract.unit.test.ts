@@ -5,7 +5,7 @@ import { z } from 'zod';
 import {
 	WorkbenchRequestSchema,
 	WorkbenchResponseSchema,
-} from './conformance/workbench-command-contract';
+} from '../workbench-command-contract';
 const entry = z.strictObject({
 	name: z.string(),
 	direction: z.enum(['request', 'response']),
@@ -24,7 +24,7 @@ describe('Private terminal editor contract', () => {
 				JSON.parse(
 					await readFile(
 						new URL(
-							'../../../../schemas/workbench/v1/workbench-terminal-editor-conformance-v1.json',
+							'../../../../../schemas/workbench/v1/workbench-terminal-editor-conformance-v1.json',
 							import.meta.url,
 						),
 						'utf8',
@@ -37,7 +37,7 @@ describe('Private terminal editor contract', () => {
 				JSON.parse(
 					await readFile(
 						new URL(
-							'../../../../schemas/workbench/v1/workbench-terminal-editor.schema.json',
+							'../../../../../schemas/workbench/v1/workbench-terminal-editor.schema.json',
 							import.meta.url,
 						),
 						'utf8',
@@ -56,7 +56,7 @@ describe('Private terminal editor contract', () => {
 				.parse(
 					JSON.parse(
 						await readFile(
-							new URL('../../../../schemas/workbench/v1/workbench.schema.json', import.meta.url),
+							new URL('../../../../../schemas/workbench/v1/workbench.schema.json', import.meta.url),
 							'utf8',
 						),
 					),

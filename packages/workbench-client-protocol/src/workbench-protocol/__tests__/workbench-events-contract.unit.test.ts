@@ -5,7 +5,7 @@ import { z } from 'zod';
 import {
 	WorkbenchRequestSchema,
 	WorkbenchResponseSchema,
-} from './conformance/workbench-command-contract';
+} from '../workbench-command-contract';
 const entry = z.strictObject({
 	name: z.string(),
 	direction: z.enum(['request', 'response']),
@@ -14,7 +14,7 @@ const entry = z.strictObject({
 });
 const read = async (name: string): Promise<unknown> =>
 	JSON.parse(
-		await readFile(new URL(`../../../../schemas/workbench/v1/${name}`, import.meta.url), 'utf8'),
+		await readFile(new URL(`../../../../../schemas/workbench/v1/${name}`, import.meta.url), 'utf8'),
 	);
 
 it('validates semantic events across Rust, TypeScript and JSON shape boundaries', async () => {

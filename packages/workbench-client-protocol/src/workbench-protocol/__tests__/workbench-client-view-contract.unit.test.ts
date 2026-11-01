@@ -5,7 +5,7 @@ import { z } from 'zod';
 import {
 	WorkbenchRequestSchema,
 	WorkbenchResponseSchema,
-} from './conformance/workbench-command-contract';
+} from '../workbench-command-contract';
 
 const caseSchema = z.strictObject({
 	name: z.string(),
@@ -34,7 +34,7 @@ describe('ephemeral Client view and acknowledged control', () => {
 			JSON.parse(
 				await readFile(
 					new URL(
-						'../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json',
+						'../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json',
 						import.meta.url,
 					),
 					'utf8',
@@ -47,7 +47,7 @@ describe('ephemeral Client view and acknowledged control', () => {
 				JSON.parse(
 					await readFile(
 						new URL(
-							'../../../../schemas/workbench/v1/workbench-client-view.schema.json',
+							'../../../../../schemas/workbench/v1/workbench-client-view.schema.json',
 							import.meta.url,
 						),
 						'utf8',
@@ -62,7 +62,7 @@ describe('ephemeral Client view and acknowledged control', () => {
 					.parse(
 						JSON.parse(
 							await readFile(
-								new URL(`../../../../schemas/workbench/v1/${name}`, import.meta.url),
+								new URL(`../../../../../schemas/workbench/v1/${name}`, import.meta.url),
 								'utf8',
 							),
 						),

@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import Ajv2020 from 'ajv/dist/2020';
 import { expect, it } from 'vitest';
 import { z } from 'zod';
-import { WorkbenchPresentationSchema } from './conformance/workbench-semantic-contract';
+import { WorkbenchPresentationSchema } from '../workbench-semantic-contract';
 
 it('keeps fallback text and admits exactly canonical stored Panel overrides', async () => {
 	const schema = z
@@ -10,7 +10,7 @@ it('keeps fallback text and admits exactly canonical stored Panel overrides', as
 		.parse(
 			JSON.parse(
 				await readFile(
-					new URL('../../../../schemas/workbench/v1/workbench.schema.json', import.meta.url),
+					new URL('../../../../../schemas/workbench/v1/workbench.schema.json', import.meta.url),
 					'utf8',
 				),
 			),

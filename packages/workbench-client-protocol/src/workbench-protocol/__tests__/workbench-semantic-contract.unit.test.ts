@@ -22,14 +22,14 @@ import {
 	applyWorkbenchDelta,
 	parseWorkbenchDelta,
 	parseWorkbenchSnapshot,
-} from './conformance/workbench-semantic-contract';
+} from '../workbench-semantic-contract';
 
 const schemaUrl = new URL(
-	'../../../../schemas/workbench/v1/workbench.schema.json',
+	'../../../../../schemas/workbench/v1/workbench.schema.json',
 	import.meta.url,
 );
 const corpusUrl = new URL(
-	'../../../../schemas/workbench/v1/workbench-conformance-v1.json',
+	'../../../../../schemas/workbench/v1/workbench-conformance-v1.json',
 	import.meta.url,
 );
 

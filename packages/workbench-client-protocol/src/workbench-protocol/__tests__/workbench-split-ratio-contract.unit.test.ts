@@ -5,8 +5,8 @@ import { z } from 'zod';
 import {
 	WorkbenchRequestSchema,
 	WorkbenchResponseSchema,
-} from './conformance/workbench-command-contract';
-import { WorkbenchPanelNodeSchema } from './conformance/workbench-semantic-contract';
+} from '../workbench-command-contract';
+import { WorkbenchPanelNodeSchema } from '../workbench-semantic-contract';
 
 const id = (value: number) => value.toString(16).padStart(32, '0');
 const leaf = (value: number) => ({
@@ -54,7 +54,7 @@ async function validators() {
 	];
 	const texts = await Promise.all(
 		files.map(async (file) =>
-			readFile(new URL(`../../../../schemas/workbench/v1/${file}`, import.meta.url), 'utf8'),
+			readFile(new URL(`../../../../../schemas/workbench/v1/${file}`, import.meta.url), 'utf8'),
 		),
 	);
 	const ajv = new Ajv2020({ strict: true });
