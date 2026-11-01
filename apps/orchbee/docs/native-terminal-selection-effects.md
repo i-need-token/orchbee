@@ -107,9 +107,10 @@ in arrival order. A foreign attachment or a repeated/regressing sequence within 
 protocol failure. Queue or aggregate-byte saturation never evicts an older record to admit the new
 one. It instead retires only the addressed viewer and releases all of that viewer's retained records;
 a sibling viewer is unaffected. Poll removes each delivered record at most once. A disconnect or an
-uncertain external result does not requeue it. This viewer-isolation claim belongs to Worker; the
-existing native executor still retires the session when its focus viewer is lost. Client recovery
-from that boundary remains separate work.
+uncertain external result does not requeue it. This viewer-isolation claim belongs to Worker. Only
+selection state supersedes itself: a newer selection snapshot replaces the queued one, so a resize
+burst cannot saturate the FIFO. The existing native executor still retires the session when its
+focus viewer is lost. Client recovery from that boundary remains separate work.
 
 The Client FIFO holds at most eight pending entries and 16 MiB of queued plus unsettled active
 payload. Saturation rejects the new effect with a localized failure notice and never replaces an

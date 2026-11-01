@@ -3,8 +3,8 @@ use orchbee_capability_node_protocol::{HostTerminalId, WorkerGeneration, WorkerI
 use orchbee_terminal_protocol::{
     Envelope, HistoryAnchorStatus, HistoryChanged, ProjectionBlockReason, ProjectionBlocked,
     SelectionChanged, SelectionChangedState, SelectionControl, SelectionExportChunk,
-    SelectionExportControl, SelectionExportFinished, SelectionExportStatus, TerminalBell,
-    TerminalClipboardWriteRequest, TerminalEffectEvent, decode_terminal_text_frame,
+    SelectionExportControl, SelectionExportFinished, SelectionExportStatus, SelectionPoint,
+    TerminalBell, TerminalClipboardWriteRequest, TerminalEffectEvent, decode_terminal_text_frame,
     encode_history_control, encode_projection_demand_control, encode_selection_control,
     encode_selection_export_chunk, encode_selection_export_control, encode_terminal_effect_event,
     encode_transport_envelope,
@@ -738,6 +738,58 @@ fn selection_events_keep_opaque_bytes_and_arrival_order_for_the_exact_viewer() -
 }
 
 #[test]
+fn a_selection_snapshot_burst_keeps_its_viewer_and_delivers_the_newest_state() -> TestResult {
+    let mut viewers = HostViewers::default();
+    viewers
+        .admit(&request(1)?)
+        .map_err(|error| format!("{error:?}"))?;
+    let epoch = HostEpoch::from_bytes([3; 16])?;
+    let ring = bell(1, 1, epoch)?;
+    viewers.receive(ring.clone(), epoch)?;
+    // A pane resized column by column reports its selection once per generation, faster than
+    // the Client polls: each snapshot replaces the obsolete one instead of saturating the FIFO.
+    for column in 0..2 * MAXIMUM_VIEWER_EVENTS as u16 {
+        viewers.receive(selection_active(1, column, epoch)?, epoch)?;
+    }
+    let newest = selection_active(1, 40, epoch)?;
+    viewers.receive(newest.clone(), epoch)?;
+    assert!(viewers.closed_ids().is_empty());
+    assert_eq!(viewers.retained_record_bytes(), ring.len() + newest.len());
+
+    // An eviction replaces the obsolete snapshot too, but no later snapshot replaces it.
+    let evicted = selection_snapshot(1, SelectionChangedState::Evicted, epoch)?;
+    viewers.receive(evicted.clone(), epoch)?;
+    let reselected = selection_active(1, 2, epoch)?;
+    viewers.receive(reselected.clone(), epoch)?;
+    for record in [ring, evicted, reselected] {
+        assert_eq!(
+            viewers.poll(request(1)?.attachment_id),
+            TerminalViewerOutcome::Record(record)
+        );
+    }
+    assert_eq!(
+        viewers.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Empty
+    );
+    assert_eq!(viewers.retained_record_bytes(), 0);
+
+    // Distinct events still saturate the FIFO and close the viewer.
+    for _ in 1..MAXIMUM_VIEWER_EVENTS {
+        viewers.receive(
+            selection_snapshot(1, SelectionChangedState::Evicted, epoch)?,
+            epoch,
+        )?;
+    }
+    viewers.receive(selection_active(1, 3, epoch)?, epoch)?;
+    viewers.receive(selection_active(1, 4, epoch)?, epoch)?;
+    assert!(viewers.closed_ids().is_empty());
+    viewers.receive(bell(1, 2, epoch)?, epoch)?;
+    assert_eq!(viewers.closed_ids(), vec![[1; 16]]);
+    assert_eq!(viewers.retained_record_bytes(), 0);
+    Ok(())
+}
+
+#[test]
 fn selection_events_reject_unknown_attachments_without_touching_a_live_viewer() -> TestResult {
     let mut viewers = HostViewers::default();
     viewers
@@ -815,9 +867,31 @@ fn clipboard(
 }
 
 fn selection_changed(id: u8, epoch: HostEpoch) -> Result<Vec<u8>, Box<dyn Error>> {
+    selection_snapshot(id, SelectionChangedState::None, epoch)
+}
+
+/// A one-row selection that ends at `column`.
+fn selection_active(id: u8, column: u16, epoch: HostEpoch) -> Result<Vec<u8>, Box<dyn Error>> {
+    selection_snapshot(
+        id,
+        SelectionChangedState::Active {
+            end: SelectionPoint { column, row: 4 },
+            preview: None,
+            rectangle: false,
+            start: SelectionPoint { column: 0, row: 4 },
+        },
+        epoch,
+    )
+}
+
+fn selection_snapshot(
+    id: u8,
+    state: SelectionChangedState,
+    epoch: HostEpoch,
+) -> Result<Vec<u8>, Box<dyn Error>> {
     let encoded = encode_selection_control(&SelectionControl::ChangedEvent(SelectionChanged {
         attachment_id: AttachmentId::from_bytes([id; 16])?,
-        state: SelectionChangedState::None,
+        state,
     }))?;
     envelope(
         encoded.kind,

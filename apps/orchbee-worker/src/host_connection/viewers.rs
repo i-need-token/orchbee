@@ -13,9 +13,9 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_terminal_protocol::{
     AttachmentId, CURRENT_PROTOCOL_VERSION, HistoryControl, HostEpoch, MessageRole,
-    PayloadEncoding, ProjectionDemandControl, SelectionControl, SelectionExportControl,
-    TerminalEffectEvent, TerminalFrameRoute, decode_history_control,
-    decode_projection_demand_control, decode_selection_control,
+    PayloadEncoding, ProjectionDemandControl, SelectionChanged, SelectionChangedState,
+    SelectionControl, SelectionExportControl, TerminalEffectEvent, TerminalFrameRoute,
+    decode_history_control, decode_projection_demand_control, decode_selection_control,
     decode_selection_export_chunk_route, decode_selection_export_control,
     decode_terminal_effect_event, decode_transport_envelope, inspect_terminal_frame_route,
 };
@@ -46,7 +46,7 @@ struct Viewer {
     terminal_id: orchbee_capability_node_protocol::HostTerminalId,
     record: Option<Vec<u8>>,
     lifecycle: Option<Vec<u8>>,
-    events: VecDeque<Vec<u8>>,
+    events: VecDeque<QueuedEvent>,
     next_preference: PollSource,
     closed: bool,
     flight: Option<Flight>,
@@ -60,6 +60,14 @@ struct Viewer {
 struct Flight {
     route: TerminalFrameRoute,
     delivered: bool,
+}
+
+/// One retained event record, in arrival order.
+struct QueuedEvent {
+    record: Vec<u8>,
+    /// A selection snapshot other than an eviction. Selection state is a level, so a newer
+    /// snapshot for the same viewer makes this record obsolete.
+    replaceable: bool,
 }
 
 /// Which poll source the next completed poll prefers. A completed take flips
@@ -202,9 +210,9 @@ impl HostViewers {
             let Some(event) = viewer.events.pop_front() else {
                 return TerminalViewerOutcome::Empty;
             };
-            self.retained_record_bytes -= event.len();
+            self.retained_record_bytes -= event.record.len();
             viewer.next_preference = PollSource::Record;
-            return TerminalViewerOutcome::Record(event);
+            return TerminalViewerOutcome::Record(event.record);
         }
         match viewer.record.take() {
             Some(record) => {
@@ -320,7 +328,7 @@ impl HostViewers {
             let route =
                 decode_selection_export_chunk_route(envelope.kind, envelope.role, envelope.payload)
                     .map_err(invalid)?;
-            return self.queue_event(route.attachment_id, record);
+            return self.queue_event(route.attachment_id, record, false);
         }
         if envelope.payload_encoding != PayloadEncoding::ControlJson {
             return Err(invalid("unexpected Host event encoding"));
@@ -364,7 +372,7 @@ impl HostViewers {
             else {
                 return Err(invalid("unexpected history event"));
             };
-            return self.queue_event(event.attachment_id, record);
+            return self.queue_event(event.attachment_id, record, false);
         }
         if envelope.kind == 49 {
             let ProjectionDemandControl::ProjectionBlocked(blocked) =
@@ -412,7 +420,7 @@ impl HostViewers {
             else {
                 return Err(invalid("unexpected selection event"));
             };
-            return self.queue_event(changed.attachment_id, record);
+            return self.queue_selection_snapshot(changed, record);
         }
         if envelope.kind == 67 {
             let SelectionExportControl::FinishedEvent(finished) =
@@ -421,7 +429,7 @@ impl HostViewers {
             else {
                 return Err(invalid("unexpected selection-export event"));
             };
-            return self.queue_event(finished.attachment_id, record);
+            return self.queue_event(finished.attachment_id, record, false);
         }
         match decode_terminal_effect_event(envelope.kind, envelope.role, envelope.payload) {
             Ok(TerminalEffectEvent::Bell(event)) => self.receive_effect(
@@ -469,10 +477,37 @@ impl HostViewers {
             }
             *last_sequence = sequence;
         }
-        self.queue_event(id, record)
+        self.queue_event(id, record, false)
     }
 
-    fn queue_event(&mut self, id: AttachmentId, record: Vec<u8>) -> io::Result<()> {
+    /// The Host reports the selection again after every generation change, so a pane resized
+    /// column by column emits a burst of snapshots that a busy Client cannot poll in step. Each
+    /// snapshot replaces the queued snapshots of its viewer that it makes obsolete; an eviction
+    /// stays queued because the Client must observe it. Only distinct events can saturate.
+    fn queue_selection_snapshot(
+        &mut self,
+        changed: SelectionChanged,
+        record: Vec<u8>,
+    ) -> io::Result<()> {
+        let viewer = self.viewer(changed.attachment_id)?;
+        let mut released = 0;
+        viewer.events.retain(|event| {
+            if event.replaceable {
+                released += event.record.len();
+            }
+            !event.replaceable
+        });
+        self.retained_record_bytes -= released;
+        let replaceable = changed.state != SelectionChangedState::Evicted;
+        self.queue_event(changed.attachment_id, record, replaceable)
+    }
+
+    fn queue_event(
+        &mut self,
+        id: AttachmentId,
+        record: Vec<u8>,
+        replaceable: bool,
+    ) -> io::Result<()> {
         let viewer = self
             .viewers
             .get_mut(id.as_bytes())
@@ -482,7 +517,8 @@ impl HostViewers {
         }
         // The event FIFO keeps the original record bytes. Queue-depth and
         // aggregate-byte saturation each close only this viewer; neither
-        // drops the oldest event nor retires a neighbor.
+        // drops the oldest event nor retires a neighbor. Only a newer
+        // selection snapshot removes an obsolete one before this check.
         if viewer.events.len() == MAXIMUM_VIEWER_EVENTS {
             self.retained_record_bytes -= viewer.close();
             return Ok(());
@@ -496,7 +532,10 @@ impl HostViewers {
             return Ok(());
         };
         self.retained_record_bytes = total;
-        viewer.events.push_back(record);
+        viewer.events.push_back(QueuedEvent {
+            record,
+            replaceable,
+        });
         Ok(())
     }
 }
@@ -512,7 +551,7 @@ impl Viewer {
         let events = self
             .events
             .drain(..)
-            .map(|event| event.len())
+            .map(|event| event.record.len())
             .sum::<usize>();
         frame + events + self.lifecycle.take().map_or(0, |record| record.len())
     }

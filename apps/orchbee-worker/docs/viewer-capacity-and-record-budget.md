@@ -33,8 +33,10 @@ release performance budgets and not a process RSS limit.
   `retained_record_bytes.checked_add(record.len())` stays within the ceiling;
   the checked total is assigned to the counter before `viewer.record` is set.
 - Release: exactly once per stored record — `poll` take, `Viewer::close`
-  record drop (queue saturation or aggregate pressure), or `remove` (explicit
-  detach, failed-attach rollback, retired-target commit). The decrement runs on
+  record drop (queue saturation or aggregate pressure), `remove` (explicit
+  detach, failed-attach rollback, retired-target commit), or a newer selection
+  snapshot superseding a queued non-eviction snapshot of the same viewer before
+  the new record's own depth and budget checks. The decrement runs on
   the same path that takes or drops the slot, so no record is counted or
   released twice.
 - Closed viewers keep their admission slot until `remove`; their later Host
@@ -102,6 +104,8 @@ the evidence gap is accounting correctness, not interleaving:
 - Accounting: both record kinds are charged by logical length; equality is
   retained; `poll`, `close`, `remove`, and retired-target commit each release
   exactly once.
+- Supersession: a burst of selection snapshots longer than the FIFO keeps its
+  viewer and delivers only the newest state, released exactly once.
 - Pressure: only the addressed viewer retires, a sibling record stays
   untouched, the closed viewer discards future events, and poll/feedback
   return `AttachmentUnavailable`.

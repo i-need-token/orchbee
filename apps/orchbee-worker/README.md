@@ -209,10 +209,14 @@ frame/projection-blocked record slot or the event FIFO — under an explicit nex
 after every successful delivery and prefers the record slot initially, so an unsettled frame flight
 never blocks a queued event and a continuously ready source overtakes the other at most once. Event
 delivery never touches `flight.delivered`, `last_sequence`, or frame acknowledgement state, and
-`HistoryObserved` travels the existing feedback lane without settling a frame flight. FIFO or
-aggregate-byte saturation closes only that viewer; close, remove, cleanup, Host loss, and target
-cleanup release frame and event bytes exactly once. A valid viewer event addressed to an
-already-retired viewer is consumed like a late frame record instead of retiring the broker.
+`HistoryObserved` travels the existing feedback lane without settling a frame flight. Selection
+state is a level the Host reports again after every generation change, so a pane resized column by
+column emits a burst of selection snapshots: each new snapshot removes the queued snapshots of its
+viewer, other than an eviction the Client must observe, before it is queued. Only distinct events
+can therefore fill the FIFO. FIFO or aggregate-byte saturation closes only that viewer; close,
+remove, cleanup, Host loss, and target cleanup release frame and event bytes exactly once. A valid
+viewer event addressed to an already-retired viewer is consumed like a late frame record instead of
+retiring the broker.
 
 The OBCN viewer carrier and Worker attachment transitions now serve Server's admitted Client
 Session relay, with actual Host process traces. Server owns OBCS viewer messages and Session cleanup;
@@ -225,7 +229,8 @@ A missing or contradictory feedback never acknowledges a Host frame.
 A full delivery slot closes only that viewer and releases its queued bytes, and a valid record
 that would cross the aggregate budget retires only its addressed viewer the same way. Its Host detach runs
 before the next ordinary Server operation; lifecycle steps bypass this cleanup. Late events for that closing viewer are drained without retaining
-another frame. No blocked event or frame is silently replaced. The broker's `host_connection`
+another frame. No blocked event or frame is silently replaced; only a newer selection snapshot
+supersedes a queued one of the same viewer. The broker's `host_connection`
 module owns event routing, viewer slots, controller grants, and the shared deadline exchange; `terminal_viewer_operation`
 maps admitted read-only commands and validates their exact Host responses. No viewer-state borrow
 survives Host I/O. Attach performs two sequential bounded exchanges (capabilities, then active
