@@ -16,7 +16,6 @@ const LinkStringMap = render_encoding.LinkStringMap;
 const StringTable = render_encoding.StringTable;
 const StyleTable = render_encoding.StyleTable;
 const cellGrapheme = render_encoding.cellGrapheme;
-const cellWidth = render_encoding.cellWidth;
 const cursorShape = render_encoding.cursorShape;
 const rgbCode = render_encoding.rgbCode;
 const rowPromptClass = render_encoding.rowPromptClass;
@@ -186,9 +185,9 @@ pub fn encodeOwned(
     for (0..state.rows) |row_index| {
         if (!snapshot and self.row_revisions.items[row_index] <= base_revision.?) continue;
         const row = row_raw[row_index];
+        const topology = self.row_topology.items[row_index];
         try writer.appendInt(u16, @intCast(row_index));
-        try writer.appendInt(u8, (if (row.wrap) @as(u8, 1) else 0) |
-            (if (row.wrap_continuation) @as(u8, 2) else 0));
+        try writer.appendInt(u8, topology.flags());
         try writer.appendInt(u8, rowPromptClass(row.semantic_prompt));
         try writer.appendInt(u16, state.cols);
         try writer.appendInt(u16, 0);
@@ -213,7 +212,7 @@ pub fn encodeOwned(
             try writer.appendInt(u32, grapheme_index);
             try writer.appendInt(u16, styles.indexOf(style).?);
             const raw = cells.items(.raw)[column];
-            try writer.appendInt(u8, cellWidth(raw.wide) |
+            try writer.appendInt(u8, topology.width(raw.wide, column, state.cols) |
                 (semanticContent(raw.semantic_content) << 2) |
                 (if (raw.protected) @as(u8, 0x10) else 0));
             try writer.appendInt(u8, 0);

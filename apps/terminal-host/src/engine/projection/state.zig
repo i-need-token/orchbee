@@ -10,6 +10,7 @@ const links = @import("links.zig");
 const max_string_bytes = render_encoding.max_string_bytes;
 const no_string_index = render_encoding.no_string_index;
 const terminalInteraction = render_encoding.terminalInteraction;
+const RowTopology = render_encoding.RowTopology;
 const Counters = contracts.Counters;
 const EncodeRequest = contracts.EncodeRequest;
 const EncodedFrame = contracts.EncodedFrame;
@@ -46,6 +47,7 @@ pub const Projection = struct {
     links: std.ArrayList(LinkRow) = .empty,
     render_state: ?ghostty_vt.RenderState = null,
     row_revisions: std.ArrayList(u64) = .empty,
+    row_topology: std.ArrayList(RowTopology) = .empty,
     testing_state: ProjectionTestingState = .{},
 
     pub fn init(allocator: std.mem.Allocator) Projection {
@@ -70,6 +72,8 @@ pub const Projection = struct {
         self.render_state = null;
         self.row_revisions.deinit(self.allocator);
         self.row_revisions = .empty;
+        self.row_topology.deinit(self.allocator);
+        self.row_topology = .empty;
         for (self.links.items) |*row| row.deinit(self.allocator);
         self.links.deinit(self.allocator);
         self.links = .empty;
@@ -105,6 +109,7 @@ pub const Projection = struct {
         }
         const state = &self.render_state.?;
         try state.update(self.allocator, terminal);
+        if (markRewrittenRows(state)) try state.update(self.allocator, terminal);
         try self.graphics.capture(
             terminal,
             revision,
@@ -137,6 +142,14 @@ pub const Projection = struct {
         const row_dirties = row_data.items(.dirty);
         const row_pins = row_data.items(.pin);
         const row_cells = row_data.items(.cells);
+        // A row's topology also depends on the rows beside it. Carry every row whose topology
+        // changed, so that a delta never leaves a retained neighbour disagreeing with it.
+        try self.row_topology.resize(self.allocator, state.rows);
+        for (row_pins, row_dirties, self.row_topology.items) |pin, *dirty, *topology| {
+            const current: RowTopology = .read(pin);
+            if (!self.capture_full and !std.meta.eql(current, topology.*)) dirty.* = true;
+            topology.* = current;
+        }
         if (!self.capture_full) {
             for (0..state.rows) |row_index| {
                 if (!row_dirties[row_index]) continue;
@@ -268,6 +281,30 @@ pub const Projection = struct {
         return encoding.encodeOwned(self, output_allocator, output_prefix_bytes, request);
     }
 };
+
+/// Marks each row whose page metadata or final cell differs from the render state's copy, so
+/// that the next update rebuilds it. Ghostty lets an incremental render state keep stale row
+/// wrap and prompt metadata, and it rewrites a clean row's trailing spacer head while it edits
+/// the row below, both without marking the rewritten row dirty.
+fn markRewrittenRows(state: *const ghostty_vt.RenderState) bool {
+    const Cell = ghostty_vt.page.Cell;
+    const row_data = state.row_data.slice();
+    var rewritten = false;
+    for (row_data.items(.pin), row_data.items(.raw), row_data.items(.cells)) |pin, copy, cells| {
+        const row = pin.rowAndCell().row;
+        const last = pin.cells(.all)[state.cols - 1];
+        const last_copy = cells.items(.raw)[state.cols - 1];
+        if (row.wrap == copy.wrap and row.wrap_continuation == copy.wrap_continuation and
+            row.semantic_prompt == copy.semantic_prompt and
+            @as(Cell.Backing, @bitCast(last)) == @as(Cell.Backing, @bitCast(last_copy)))
+        {
+            continue;
+        }
+        pin.markDirty();
+        rewritten = true;
+    }
+    return rewritten;
+}
 
 fn duplicateOptional(allocator: std.mem.Allocator, value: ?[:0]const u8) !?[]u8 {
     const bytes = value orelse return null;

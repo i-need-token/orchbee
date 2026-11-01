@@ -1126,7 +1126,7 @@ test "input-invalidated in-flight idle is abandoned for a causal unknown snapsho
 
     try std.testing.expectEqual(
         core_module.TransitionOutcome.applied,
-        try aggregate.needSnapshot(connection_id, attachment_id, old_idle.sequence),
+        try aggregate.needSnapshot(connection_id, attachment_id, old_idle.sequence, false),
     );
     const ready = aggregate.core().findAttachment(attachment_id).?.projectionReady().?;
     try std.testing.expect(ready.forceSnapshot());

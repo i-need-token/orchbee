@@ -18,13 +18,24 @@ pub fn frameApplied(
     );
 }
 
+/// Abandons the exact in-flight frame for a snapshot. When the client's decoder rejected that
+/// frame, the terminal's incremental projection is discarded as well, so the snapshot is captured
+/// afresh from canonical Ghostty state rather than re-encoded from the capture that the client
+/// could not accept.
 pub fn needSnapshot(
     self: anytype,
     connection_id: core_module.ConnectionId,
     attachment_id: core_module.AttachmentId,
     sequence: u64,
+    decoder_rejected: bool,
 ) core_module.CoreError!core_module.TransitionOutcome {
-    return self.core_state.needSnapshot(connection_id, attachment_id, sequence);
+    const attachment = try self.core_state.resolveAttachment(connection_id, attachment_id, .read);
+    const terminal_id = attachment.terminal_id;
+    const transition = try self.core_state.needSnapshot(connection_id, attachment_id, sequence);
+    if (decoder_rejected and transition == .applied) {
+        if (self.runtimeFor(terminal_id)) |runtime| runtime.releaseProjectionResources();
+    }
+    return transition;
 }
 
 pub fn nextProjectionAt(

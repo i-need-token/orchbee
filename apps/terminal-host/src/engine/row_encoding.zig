@@ -204,9 +204,8 @@ fn encodeTextBody(
             mapping_count += 1;
         }
         const row = pin.rowAndCell().row;
-        try writer.appendInt(u8, (if (row.wrap) @as(u8, 1) else 0) |
-            (if (row.wrap_continuation) @as(u8, 2) else 0) |
-            (if (identity_ascii) @as(u8, 4) else 0));
+        const topology: render_encoding.RowTopology = .read(pin);
+        try writer.appendInt(u8, topology.flags() | (if (identity_ascii) @as(u8, 4) else 0));
         try writer.appendInt(u8, render_encoding.rowPromptClass(row.semantic_prompt));
         try writer.appendInt(u16, 0);
         try writer.appendInt(u32, text_bytes);

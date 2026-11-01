@@ -102,6 +102,48 @@ pub fn rowPromptClass(value: ghostty_vt.page.Row.SemanticPrompt) u8 {
     };
 }
 
+/// The soft-wrap topology projected for one Ghostty page row.
+///
+/// Ghostty joins two rows when the upper row wraps, as its selection and reflow do. Some edits
+/// leave the page's lower half of that pair disagreeing: inserting or deleting lines or ED1 inside
+/// a wrapped line keeps or drops a continuation, and erasing a row that starts with a wrapped wide
+/// character keeps the spacer head above it. A row therefore continues exactly when the page row
+/// above it wraps, and keeps its trailing spacer head only while it wraps into a row that starts
+/// with the wide character. Every adjacent pair then satisfies the projection formats' wrap and
+/// spacer-head invariants, whichever window of rows a frame carries.
+pub const RowTopology = packed struct(u8) {
+    wrap: bool = false,
+    continuation: bool = false,
+    spacer_head: bool = false,
+    reserved: u5 = 0,
+
+    pub fn read(pin: ghostty_vt.Pin) RowTopology {
+        const row = pin.rowAndCell().row;
+        const cells = pin.cells(.all);
+        const spacer_head = row.wrap and cells[cells.len - 1].wide == .spacer_head and
+            if (pin.down(1)) |below| below.cells(.all)[0].wide == .wide else true;
+        return .{
+            .wrap = row.wrap,
+            .continuation = if (pin.up(1)) |above| above.rowAndCell().row.wrap else false,
+            .spacer_head = spacer_head,
+        };
+    }
+
+    /// The row header's wrap and wrap-continuation bits.
+    pub fn flags(self: RowTopology) u8 {
+        return @as(u8, @intFromBool(self.wrap)) | @as(u8, @intFromBool(self.continuation)) << 1;
+    }
+
+    /// The width code of a cell in this row. A spacer head that no longer leads a wrapped wide
+    /// character is a narrow blank.
+    pub fn width(self: RowTopology, wide: ghostty_vt.page.Cell.Wide, column: usize, columns: usize) u8 {
+        if (wide == .spacer_head and !(self.spacer_head and column + 1 == columns)) {
+            return cellWidth(.narrow);
+        }
+        return cellWidth(wide);
+    }
+};
+
 pub const StyleRecord = struct {
     background: u32,
     flags: u16,

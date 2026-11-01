@@ -966,11 +966,43 @@ test "I/O successful responses use supplied request contracts and publish input 
     try std.testing.expect(metadata_events > 0);
     try std.testing.expectEqual(protocol.FrameKind.snapshot, second_frame.kind);
     try std.testing.expectEqual(first_frame.sequence + 1, second_frame.sequence);
+
+    // A decoder rejection discards the incremental projection: the replacement snapshot is
+    // captured afresh instead of re-encoding the capture behind the rejected frame.
+    const render_states_before = runtime.projectionCounters().render_state_creations;
+    var rejected_buffer: [160]u8 = undefined;
+    const rejected_payload = try std.fmt.bufPrint(
+        &rejected_buffer,
+        "{{\"attachmentId\":\"4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a\",\"reason\":\"decoder-rejected\",\"sequence\":\"{d}\"}}",
+        .{second_frame.sequence},
+    );
+    var rejected = try testRequestWithContract(
+        &service,
+        &connection,
+        need_snapshot_contract,
+        MessageKind.need_snapshot,
+        rejected_payload,
+        [_]u8{0x55} ** 16,
+    );
+    defer rejected.deinit();
+    _ = try expectContractSuccess(&rejected, need_snapshot_contract, [_]u8{0x55} ** 16);
+    try std.testing.expect(!runtime.projectionResident());
+    try std.testing.expect(serviceAggregate(&service).setNextProjectionAt(terminal_id, 0));
+    var third_frame_batch = try awaitFrameBatch(&service, &connection, &metadata_events);
+    defer third_frame_batch.deinit();
+    const third_frame = try onlyTerminalFrame(&third_frame_batch);
+    try std.testing.expectEqual(protocol.FrameKind.snapshot, third_frame.kind);
+    try std.testing.expectEqual(second_frame.sequence + 1, third_frame.sequence);
+    try std.testing.expectEqual(
+        render_states_before + 1,
+        runtime.projectionCounters().render_state_creations,
+    );
+
     var frame_applied_buffer: [256]u8 = undefined;
     const frame_applied_payload = try std.fmt.bufPrint(
         &frame_applied_buffer,
         "{{\"attachmentId\":\"4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a\",\"generation\":\"{d}\",\"revision\":\"{d}\",\"sequence\":\"{d}\"}}",
-        .{ second_frame.generation, second_frame.revision, second_frame.sequence },
+        .{ third_frame.generation, third_frame.revision, third_frame.sequence },
     );
     const frame_applied_contract = try registeredRequestContract(MessageKind.frame_applied);
     var frame_applied = try testRequestWithContract(

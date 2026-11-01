@@ -93,6 +93,7 @@ const Handler = struct {
             connection_id,
             request.attachment_id,
             request.sequence,
+            request.reason == .decoder_rejected,
         ) catch |err| {
             response.commitFailure(coreError(err));
             return;
