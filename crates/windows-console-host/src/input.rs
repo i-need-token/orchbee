@@ -3,6 +3,7 @@
 use std::{
     fmt, io,
     os::windows::io::{AsHandle, BorrowedHandle, OwnedHandle},
+    time::Duration,
 };
 
 /// One raw console input record with Win32 representation types removed.
@@ -65,9 +66,53 @@ pub struct MouseRecord {
     pub event_flags: u32,
 }
 
+/// What ended one [`ConsoleInput::wait_ready`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InputWait {
+    /// The console signalled input. It may still hold no record a read would return.
+    Input,
+    /// The [`InputWake`] was signalled.
+    Woken,
+    /// The timeout passed.
+    TimedOut,
+}
+
+/// A private signal that ends one console input wait early, from any thread.
+///
+/// A signal with no current wait is held for the next one, so a signal cannot be lost between a
+/// caller's last check for work and its wait. Repeated signals coalesce.
+#[derive(Debug)]
+pub struct InputWake {
+    event: OwnedHandle,
+}
+
+impl InputWake {
+    /// Creates an unsignalled wake.
+    ///
+    /// # Errors
+    ///
+    /// Returns the Win32 error from creating the event.
+    pub fn new() -> io::Result<Self> {
+        Ok(Self {
+            event: crate::sys::create_wake_event()?,
+        })
+    }
+
+    /// Ends the current or next wait that uses this wake.
+    ///
+    /// # Errors
+    ///
+    /// Returns the Win32 error from signalling the event.
+    pub fn signal(&self) -> io::Result<()> {
+        crate::sys::signal_wake_event(self.event.as_handle())
+    }
+}
+
 /// The exact caller-owned console input endpoint admitted for mode and record operations.
 pub struct ConsoleInput {
     handle: OwnedHandle,
+    /// Absent only where the system refuses a high-resolution timer; timeouts then round up to its tick.
+    wait_timer: Option<OwnedHandle>,
 }
 
 impl fmt::Debug for ConsoleInput {
@@ -86,7 +131,10 @@ impl ConsoleInput {
     /// Returns the Win32 error from inspecting the exact handle when it is not a usable console
     /// input endpoint.
     pub fn admit(handle: OwnedHandle) -> io::Result<Self> {
-        let input = Self { handle };
+        let input = Self {
+            handle,
+            wait_timer: crate::sys::create_wait_timer().ok(),
+        };
         input.mode()?;
         crate::sys::console_input_count(input.handle.as_handle())?;
         Ok(input)
@@ -108,6 +156,23 @@ impl ConsoleInput {
     /// Returns the raw Win32 error reported for this handle. The caller owns any restoration debt.
     pub fn set_mode(&self, mode: u32) -> io::Result<()> {
         crate::sys::set_console_mode(self.handle.as_handle(), mode)
+    }
+
+    /// Waits for console input, `wake`, or `timeout`, whichever comes first.
+    ///
+    /// The caller must provide one serialized reader for this endpoint, as for
+    /// [`Self::read_ready_record`], which then reports whether a record really is ready.
+    ///
+    /// # Errors
+    ///
+    /// Returns the raw Win32 error reported for the wait.
+    pub fn wait_ready(&self, wake: Option<&InputWake>, timeout: Duration) -> io::Result<InputWait> {
+        crate::sys::wait_input(
+            self.handle.as_handle(),
+            wake.map(|wake| wake.event.as_handle()),
+            self.wait_timer.as_ref().map(AsHandle::as_handle),
+            timeout,
+        )
     }
 
     /// Returns one currently ready record without reading after an observed zero count.

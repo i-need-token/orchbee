@@ -18,7 +18,7 @@ mod output;
 mod sys;
 
 #[cfg(windows)]
-pub use input::{ConsoleInput, InputRecord, KeyRecord, MouseRecord};
+pub use input::{ConsoleInput, InputRecord, InputWait, InputWake, KeyRecord, MouseRecord};
 #[cfg(windows)]
 pub use output::{
     ConsoleOutput, ConsoleWindowInfo, ConsoleWriteBoundary, ConsoleWriteError,

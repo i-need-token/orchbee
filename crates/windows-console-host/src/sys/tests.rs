@@ -1,7 +1,11 @@
 //! Safe representation tests for the Win32 tagged-union boundary.
 
-use super::{decode_input_record, validated_input_record, win32_io_error};
-use crate::{InputRecord, KeyRecord, MouseRecord};
+use super::{
+    create_wait_timer, create_wake_event, decode_input_record, signal_wake_event,
+    validated_input_record, wait_input, win32_io_error,
+};
+use crate::{InputRecord, InputWait, KeyRecord, MouseRecord};
+use std::{os::windows::io::AsHandle, time::Duration};
 use windows::{
     Win32::System::Console::{
         COORD, FOCUS_EVENT, FOCUS_EVENT_RECORD, INPUT_RECORD, INPUT_RECORD_0, KEY_EVENT,
@@ -10,6 +14,32 @@ use windows::{
     },
     core::{BOOL, Error, HRESULT},
 };
+
+#[test]
+fn a_wait_names_the_object_that_ended_it_and_consumes_a_wake() {
+    // Any waitable object stands in for the console handle at this boundary.
+    let input = create_wake_event().unwrap();
+    let wake = create_wake_event().unwrap();
+    let timer = create_wait_timer().unwrap();
+    let wait = |timeout| {
+        wait_input(
+            input.as_handle(),
+            Some(wake.as_handle()),
+            Some(timer.as_handle()),
+            timeout,
+        )
+        .unwrap()
+    };
+
+    assert_eq!(wait(Duration::from_millis(1)), InputWait::TimedOut);
+    signal_wake_event(wake.as_handle()).unwrap();
+    assert_eq!(wait(Duration::from_secs(5)), InputWait::Woken);
+    assert_eq!(wait(Duration::from_millis(1)), InputWait::TimedOut);
+    signal_wake_event(input.as_handle()).unwrap();
+    signal_wake_event(wake.as_handle()).unwrap();
+    assert_eq!(wait(Duration::from_secs(5)), InputWait::Input);
+    assert_eq!(wait(Duration::from_secs(5)), InputWait::Woken);
+}
 
 #[test]
 fn unicode_key_fields_cross_the_union_boundary_unchanged() {

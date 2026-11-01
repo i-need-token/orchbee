@@ -21,8 +21,9 @@ impl RecordSource for EmptyConsole<'_> {
         self.origin + self.elapsed
     }
     fn park(&mut self, duration: Duration) {
-        assert!(duration > Duration::ZERO && duration <= Duration::from_millis(1));
-        self.elapsed += duration;
+        assert!(duration > Duration::ZERO);
+        // A publication ends the wait at the next millisecond of this controlled clock.
+        self.elapsed += duration.min(Duration::from_millis(1));
         self.waits += 1;
         if self.elapsed == Duration::from_millis(5) {
             self.notification.set(true);

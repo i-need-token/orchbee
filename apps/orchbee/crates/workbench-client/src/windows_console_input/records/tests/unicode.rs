@@ -32,6 +32,10 @@ impl RecordSource for PacketConsole {
     fn now(&self) -> Instant {
         self.now
     }
+
+    fn park(&mut self, duration: Duration) {
+        self.now += duration;
+    }
 }
 
 fn key(vk: u16, unit: u16, down: bool, repeat: u16, control: u32) -> InputRecord {

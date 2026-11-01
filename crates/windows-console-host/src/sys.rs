@@ -1,18 +1,28 @@
 //! The sole Win32 FFI and tagged-union boundary behind the crate's safe API.
 
-use crate::{InputRecord, KeyRecord, MouseRecord};
+use crate::{InputRecord, InputWait, KeyRecord, MouseRecord};
 use std::{
     io,
-    os::windows::io::{AsRawHandle, BorrowedHandle},
+    os::windows::io::{AsRawHandle, BorrowedHandle, FromRawHandle, OwnedHandle},
+    time::Duration,
 };
-use windows::Win32::{
-    Foundation::HANDLE,
-    System::Console::{
-        CONSOLE_MODE, CONSOLE_SCREEN_BUFFER_INFO, FOCUS_EVENT, GetConsoleMode,
-        GetConsoleScreenBufferInfo, GetNumberOfConsoleInputEvents, INPUT_RECORD, KEY_EVENT,
-        MENU_EVENT, MOUSE_EVENT, ReadConsoleInputW, SetConsoleMode, WINDOW_BUFFER_SIZE_EVENT,
-        WriteConsoleW,
+use windows::{
+    Win32::{
+        Foundation::{HANDLE, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT},
+        System::{
+            Console::{
+                CONSOLE_MODE, CONSOLE_SCREEN_BUFFER_INFO, FOCUS_EVENT, GetConsoleMode,
+                GetConsoleScreenBufferInfo, GetNumberOfConsoleInputEvents, INPUT_RECORD, KEY_EVENT,
+                MENU_EVENT, MOUSE_EVENT, ReadConsoleInputW, SetConsoleMode,
+                WINDOW_BUFFER_SIZE_EVENT, WriteConsoleW,
+            },
+            Threading::{
+                CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, CreateEventW, CreateWaitableTimerExW,
+                INFINITE, SetEvent, SetWaitableTimer, TIMER_ALL_ACCESS, WaitForMultipleObjects,
+            },
+        },
     },
+    core::PCWSTR,
 };
 
 pub(super) fn console_mode(handle: BorrowedHandle<'_>) -> io::Result<u32> {
@@ -72,6 +82,84 @@ pub(super) fn write_console(handle: BorrowedHandle<'_>, utf16_units: &[u16]) -> 
     }
     .map_err(win32_io_error)?;
     Ok(usize::try_from(written).unwrap_or(usize::MAX))
+}
+
+/// Creates a private, unnamed event that resets itself when one wait observes it.
+pub(super) fn create_wake_event() -> io::Result<OwnedHandle> {
+    // SAFETY: Null attributes and a null name request a private event; no pointer is retained.
+    let event =
+        unsafe { CreateEventW(None, false, false, PCWSTR::null()) }.map_err(win32_io_error)?;
+    // SAFETY: Success transfers the one new handle to this owner.
+    Ok(unsafe { OwnedHandle::from_raw_handle(event.0) })
+}
+
+/// Creates a private timer free of the system tick, which rounds every other timed wait up.
+pub(super) fn create_wait_timer() -> io::Result<OwnedHandle> {
+    // SAFETY: Null attributes and a null name request a private timer; no pointer is retained.
+    let timer = unsafe {
+        CreateWaitableTimerExW(
+            None,
+            PCWSTR::null(),
+            CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+            TIMER_ALL_ACCESS.0,
+        )
+    }
+    .map_err(win32_io_error)?;
+    // SAFETY: Success transfers the one new handle to this owner.
+    Ok(unsafe { OwnedHandle::from_raw_handle(timer.0) })
+}
+
+pub(super) fn signal_wake_event(event: BorrowedHandle<'_>) -> io::Result<()> {
+    // SAFETY: `event` is live for the call and takes no other argument.
+    unsafe { SetEvent(raw_handle(event)) }.map_err(win32_io_error)
+}
+
+/// Waits until `input` is signalled, `wake` is signalled, or `timeout` passes. A `timer` keeps a
+/// short timeout from rounding up to the system tick; without one the timeout still bounds the wait.
+pub(super) fn wait_input(
+    input: BorrowedHandle<'_>,
+    wake: Option<BorrowedHandle<'_>>,
+    timer: Option<BorrowedHandle<'_>>,
+    timeout: Duration,
+) -> io::Result<InputWait> {
+    let mut handles = [raw_handle(input), HANDLE::default(), HANDLE::default()];
+    let mut count = 1;
+    if let Some(wake) = wake {
+        handles[count] = raw_handle(wake);
+        count += 1;
+    }
+    let wake_index = (count == 2).then_some(1);
+    if let Some(timer) = timer {
+        let due = -i64::try_from(timeout.as_nanos() / 100)
+            .unwrap_or(i64::MAX)
+            .max(1);
+        // SAFETY: `timer` and `due` are live for the call, which retains neither pointer. Without a
+        // completion routine this only re-arms the timer, clearing any earlier signal.
+        let armed =
+            unsafe { SetWaitableTimer(raw_handle(timer), &raw const due, 0, None, None, false) };
+        if armed.is_ok() {
+            handles[count] = raw_handle(timer);
+            count += 1;
+        }
+    }
+    let milliseconds = u32::try_from(timeout.as_nanos().div_ceil(1_000_000))
+        .unwrap_or(INFINITE - 1)
+        .min(INFINITE - 1);
+    // SAFETY: Every handle in the initialized prefix is live for the call, and `count` never exceeds
+    // the three-element array.
+    let result = unsafe { WaitForMultipleObjects(&handles[..count], false, milliseconds) };
+    if result == WAIT_FAILED {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(if result == WAIT_OBJECT_0 {
+        InputWait::Input
+    } else if result == WAIT_TIMEOUT
+        || wake_index.is_none_or(|index| result.0 != WAIT_OBJECT_0.0 + index)
+    {
+        InputWait::TimedOut
+    } else {
+        InputWait::Woken
+    })
 }
 
 fn raw_handle(handle: BorrowedHandle<'_>) -> HANDLE {

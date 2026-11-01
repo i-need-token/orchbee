@@ -24,6 +24,15 @@ reservation against an external process or another independently aliased OS read
 must ensure single-reader ownership; competing readers can consume the observed record and make
 the subsequent Win32 read block.
 
+`wait_ready` blocks until the console signals input, an `InputWake` is signalled, or the timeout
+passes, and consumes nothing. A signalled console may still hold no record a read returns, so the
+caller asks `read_ready_record` next. An `InputWake` signal with no current wait is held for the next
+one, so a signal cannot be lost between the caller's last check and its wait; repeated signals
+coalesce. Each `ConsoleInput` may own one private high-resolution waitable timer, because a timed
+wait alone rounds up to the system tick. `SetWaitableTimer` re-arms it for each wait, which clears
+any earlier signal, and an input whose timer cannot be created or armed still ends at the timeout.
+Handles stay borrowed for the call and `WaitForMultipleObjects` retains none of them.
+
 The safe record types preserve the raw Unicode UTF-16 unit, repeat count, virtual key and scan
 codes, control flags, absolute screen-buffer mouse coordinates, button state, event flags, focus,
 resize, menu, and unknown event tag. Product key decoding, surrogate and repeat state, AltGr

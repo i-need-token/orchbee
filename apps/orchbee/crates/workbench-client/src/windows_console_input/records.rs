@@ -3,7 +3,9 @@
 //! includes the ESC characters in ConPTY bracketed-paste delimiters.
 use super::{Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind, encode};
 use crossterm::event::{KeyEvent, MouseEvent};
-use orchbee_windows_console_host::{ConsoleInput, ConsoleOutput, InputRecord};
+use orchbee_windows_console_host::{
+    ConsoleInput, ConsoleOutput, InputRecord, InputWait, InputWake,
+};
 use std::{
     fmt, io,
     sync::Arc,
@@ -15,6 +17,7 @@ const MOUSE_MOVED: u32 = 0x0001;
 const DOUBLE_CLICK: u32 = 0x0002;
 const MOUSE_WHEELED: u32 = 0x0004;
 const MOUSE_HWHEELED: u32 = 0x0008;
+const UNWOKEN_WAIT_SLICE: Duration = Duration::from_millis(1);
 
 pub(crate) struct Reader {
     source: NativeRecordSource,
@@ -29,20 +32,37 @@ impl fmt::Debug for Reader {
 impl Reader {
     pub(crate) fn new(input: Arc<ConsoleInput>, output: Arc<ConsoleOutput>) -> Self {
         Self {
-            source: NativeRecordSource { input, output },
+            source: NativeRecordSource {
+                input,
+                output,
+                wake: None,
+                wait_slice: None,
+                signalled_without_record: false,
+            },
             codec: Codec::default(),
             pending: None,
         }
     }
     pub(crate) fn next_input(&mut self, timeout: Duration) -> io::Result<Option<Vec<u8>>> {
-        self.next_input_until(timeout, || false)
+        self.source.wake = None;
+        self.source.wait_slice = None;
+        collect_input(
+            &mut self.source,
+            &mut self.codec,
+            &mut self.pending,
+            timeout,
+            || false,
+        )
     }
 
     pub(crate) fn next_input_until(
         &mut self,
         timeout: Duration,
+        wake: Option<&Arc<InputWake>>,
         interrupted: impl FnMut() -> bool,
     ) -> io::Result<Option<Vec<u8>>> {
+        self.source.wake = wake.cloned();
+        self.source.wait_slice = wake.is_none().then_some(UNWOKEN_WAIT_SLICE);
         collect_input(
             &mut self.source,
             &mut self.codec,
@@ -56,6 +76,10 @@ impl Reader {
 struct NativeRecordSource {
     input: Arc<ConsoleInput>,
     output: Arc<ConsoleOutput>,
+    wake: Option<Arc<InputWake>>,
+    /// Bounds an interruptible wait whose notification has no event to end it.
+    wait_slice: Option<Duration>,
+    signalled_without_record: bool,
 }
 
 // Isolate console readiness and waiting so the same bounded read loop can be
@@ -66,21 +90,38 @@ trait RecordSource {
     fn now(&self) -> Instant {
         Instant::now()
     }
-    fn park(&mut self, duration: Duration) {
-        std::thread::park_timeout(duration);
-    }
+    /// Wait for input or a worker notification, at most `duration`.
+    fn park(&mut self, duration: Duration);
 }
 
 impl RecordSource for NativeRecordSource {
     fn read_ready(&mut self) -> io::Result<Option<InputRecord>> {
         // No other application-owned reader races this endpoint. External OS
         // aliases remain outside that single-reader guarantee.
-        self.input.read_ready_record()
+        let record = self.input.read_ready_record()?;
+        self.signalled_without_record &= record.is_none();
+        Ok(record)
     }
 
     fn window_origin(&self) -> io::Result<(i16, i16)> {
         let window = self.output.window_info()?;
         Ok((window.left, window.top))
+    }
+
+    fn park(&mut self, duration: Duration) {
+        // A console that signals with no record to read must cost a cadence, never a spin.
+        if std::mem::take(&mut self.signalled_without_record) {
+            std::thread::sleep(duration.min(UNWOKEN_WAIT_SLICE));
+            return;
+        }
+        let duration = self
+            .wait_slice
+            .map_or(duration, |slice| duration.min(slice));
+        match self.input.wait_ready(self.wake.as_deref(), duration) {
+            Ok(InputWait::Input) => self.signalled_without_record = true,
+            Ok(InputWait::Woken | InputWait::TimedOut) => {}
+            Err(_) => std::thread::sleep(duration.min(UNWOKEN_WAIT_SLICE)),
+        }
     }
 }
 
@@ -112,9 +153,9 @@ fn collect_input(
             if !output.is_empty() || interrupted() || source.now() >= wait {
                 break;
             }
-            // A worker publication unparks this same thread. Its pending
-            // notification is checked above, including the check/park race.
-            source.park(Duration::from_millis(1).min(wait.saturating_duration_since(source.now())));
+            // A worker publication ends this wait. Its pending notification
+            // is checked above, including the check/wait race.
+            source.park(wait.saturating_duration_since(source.now()));
             continue;
         };
         work.get_or_insert(observed_at + Duration::from_millis(4));

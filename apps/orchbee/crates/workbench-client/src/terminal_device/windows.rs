@@ -86,12 +86,12 @@ impl InheritedTerminal {
     pub fn next_input_until(
         &self,
         timeout: Duration,
-        interrupted: impl FnMut() -> bool,
+        wakeup: &crate::ui_wakeup::UiWakeup,
     ) -> io::Result<Option<Vec<u8>>> {
         self.input_reader
             .lock()
             .map_err(|_| io::Error::other("console input reader poisoned"))?
-            .next_input_until(timeout, interrupted)
+            .next_input_until(timeout, wakeup.input_wake(), || wakeup.take())
     }
     pub fn output(&self) -> io::Result<ConsoleWriter> {
         Ok(self.output.writer())

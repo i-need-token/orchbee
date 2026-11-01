@@ -164,7 +164,22 @@ impl InputSource for InheritedInputSource {
         timeout: Duration,
         wakeup: &crate::workbench_client::UiWakeup,
     ) -> io::Result<Option<Vec<u8>>> {
-        self.terminal.next_input_until(timeout, || wakeup.take())
+        self.terminal.next_input_until(timeout, wakeup)
+    }
+
+    #[cfg(unix)]
+    fn next_input_or_wakeup(
+        &mut self,
+        timeout: Duration,
+        wakeup: &crate::workbench_client::UiWakeup,
+    ) -> io::Result<Option<Vec<u8>>> {
+        wakeup.drain_wait();
+        let timeout = if wakeup.take() {
+            Duration::ZERO
+        } else {
+            timeout
+        };
+        self.wait_for_input(timeout, wakeup.wait_descriptor())
     }
 
     fn next_input(&mut self, timeout: Duration) -> io::Result<Option<Vec<u8>>> {
@@ -174,13 +189,28 @@ impl InputSource for InheritedInputSource {
         }
         #[cfg(unix)]
         {
+            self.wait_for_input(timeout, None)
+        }
+    }
+}
+
+#[cfg(unix)]
+impl InheritedInputSource {
+    /// `wake` ends the wait without producing input.
+    fn wait_for_input(
+        &mut self,
+        timeout: Duration,
+        wake: Option<std::os::fd::BorrowedFd<'_>>,
+    ) -> io::Result<Option<Vec<u8>>> {
+        {
             let timeout = PollTimeout::try_from(timeout).map_err(|error| {
                 io::Error::new(
                     io::ErrorKind::InvalidInput,
                     format!("input poll timeout is outside the supported range: {error}"),
                 )
             })?;
-            let mut descriptors = [PollFd::new(self.input.as_fd(), PollFlags::POLLIN)];
+            let mut descriptors = vec![PollFd::new(self.input.as_fd(), PollFlags::POLLIN)];
+            descriptors.extend(wake.map(|wake| PollFd::new(wake, PollFlags::POLLIN)));
             match poll(&mut descriptors, timeout) {
                 Ok(0) | Err(Errno::EINTR) => return Ok(None),
                 Ok(_) => {}
@@ -194,6 +224,9 @@ impl InputSource for InheritedInputSource {
                     ));
                 }
             };
+            if flags.is_empty() {
+                return Ok(None);
+            }
             if !flags.contains(PollFlags::POLLIN) {
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
