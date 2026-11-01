@@ -334,8 +334,12 @@ impl TerminalViewerAction {
             Self::SelectionExportCancel { .. } => {
                 matches!(outcome, TerminalViewerOutcome::Record(_)) || failed
             }
+            // A matching echo is feedback; the Host's correlated refusal returns as its record.
             Self::SelectionExportChunkApplied { .. } => {
-                matches!(outcome, TerminalViewerOutcome::FeedbackAccepted) || failed
+                matches!(
+                    outcome,
+                    TerminalViewerOutcome::FeedbackAccepted | TerminalViewerOutcome::Record(_)
+                ) || failed
             }
             Self::ReadRows { .. } => {
                 matches!(

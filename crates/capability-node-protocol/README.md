@@ -759,12 +759,14 @@ All viewer tags 1–15 retain their bytes.
 
 Worker maps the four controls to one exact attachment- and correlation-scoped OBTP exchange.
 SelectionChanged, SelectionExportStarted, and the cancelled SelectionExportFinished return as the
-unchanged opaque `Record`; a matching chunk-applied echo returns `FeedbackAccepted`. A typed Host
-failure maps to `HostRejected`; any mismatched response is a carrier failure. Poll-delivered raw
-export chunks remain opaque bytes in the viewer FIFO. This carrier does not assemble text or write
-a clipboard. Public fixed-byte and malformed-input conformance tests cover every gesture branch,
-format/reason tag, old-tag preservation, and exact response conversion. The matched private cohort
-deploys or rolls back together with no persistent migration.
+unchanged opaque `Record`; a matching chunk-applied echo returns `FeedbackAccepted`. A correlated
+typed Host failure to any of the four, such as a gesture for a superseded generation or the
+cancellation of an export that already finished, also returns as the unchanged opaque `Record`, so
+Server relays it and the Client reads its code; any mismatched response is a carrier failure.
+Poll-delivered raw export chunks remain opaque bytes in the viewer FIFO. This carrier does not
+assemble text or write a clipboard. Public fixed-byte and malformed-input conformance tests cover
+every gesture branch, format/reason tag, old-tag preservation, and exact response conversion. The
+matched private cohort deploys or rolls back together with no persistent migration.
 
 ## Read-only viewer lifecycle observation
 

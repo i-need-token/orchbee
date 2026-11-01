@@ -32,7 +32,9 @@ clipboard allocation and transfer; its only added dependency is `error-code` 3.4
 The local carrier accepts the existing opaque Host records for selection gestures, export starts,
 and export cancellation. Chunk acknowledgements accept either feedback or a typed-failure record;
 the selection decoder owns the record's exact envelope and identity validation. An incompatible
-action/result pair retires the carrier without resubmission.
+action/result pair retires the carrier without resubmission. Server relays the Host's correlated
+typed refusal of any selection control as that control's record, so a gesture for a superseded
+generation or a late cancellation settles in the Client and never costs the viewer.
 
 The Server Poll route admits BEL and clipboard requests as dedicated non-frame events. It validates
 the complete event envelope and exact viewer attachment, forwards the bytes unchanged, and leaves

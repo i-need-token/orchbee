@@ -26,11 +26,12 @@ use orchbee_client_server_protocol::{
     ViewportRowOrigin,
 };
 use orchbee_terminal_protocol::{
-    CURRENT_PROTOCOL_VERSION, CorrelationId, HistoryControl, MessageRole, PayloadEncoding,
-    RowWindowDetail, SelectionControl, SelectionExportControl, SelectionExportFormat,
-    SelectionExportStatus, TerminalEffectEvent, decode_history_control, decode_selection_control,
-    decode_selection_export_chunk_route, decode_selection_export_control,
-    decode_terminal_effect_event, decode_transport_envelope, inspect_terminal_row_window_route,
+    CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, HistoryControl, MessageRole,
+    PayloadEncoding, RowWindowDetail, SelectionControl, SelectionExportControl,
+    SelectionExportFormat, SelectionExportStatus, TerminalEffectEvent, decode_connection_control,
+    decode_history_control, decode_selection_control, decode_selection_export_chunk_route,
+    decode_selection_export_control, decode_terminal_effect_event, decode_transport_envelope,
+    inspect_terminal_row_window_route,
 };
 
 impl LocalTerminalConnection<'_> {
@@ -293,6 +294,7 @@ impl LocalTerminalConnection<'_> {
                         ),
                         Action::SelectionGesture { .. }
                         | Action::SelectionExport { .. }
+                        | Action::SelectionExportChunkApplied { .. }
                         | Action::SelectionExportCancel { .. } => valid_selection_action_record(
                             request.action(),
                             viewer,
@@ -486,6 +488,15 @@ fn valid_selection_action_record(
     {
         return false;
     }
+    // The Host refuses a selection control that its own state overtook: a gesture for a
+    // superseded generation, or the cancellation of an export that already finished. That
+    // correlated failure is the request's answer, which the Client settles; the viewer stays.
+    if matches!(
+        decode_connection_control(envelope.kind, envelope.role, envelope.payload),
+        Ok(ConnectionControl::TypedFailure(_))
+    ) {
+        return true;
+    }
     match action {
         Action::SelectionGesture { .. } => matches!(
             decode_selection_control(envelope.kind, envelope.role, envelope.payload),
@@ -514,7 +525,8 @@ fn valid_selection_action_record(
                     && finished.export_sequence == *export_sequence
                     && finished.status == SelectionExportStatus::Cancelled
         ),
-        // Only the selected viewer actions produce the specialized record or feedback checked here.
+        // An applied chunk succeeds with feedback, never with a record; other actions are
+        // validated elsewhere.
         _ => false,
     }
 }
@@ -548,8 +560,8 @@ pub(super) fn process_record(
     record: &[u8],
 ) -> Result<Option<orchbee_terminal_protocol::TerminalProcessInfo>, ()> {
     use orchbee_terminal_protocol::{
-        ConnectionControl, MAXIMUM_CONTROL_JSON_BYTES, ProcessInfoControl,
-        TRANSPORT_ENVELOPE_HEADER_BYTES, decode_connection_control, decode_process_info_control,
+        MAXIMUM_CONTROL_JSON_BYTES, ProcessInfoControl, TRANSPORT_ENVELOPE_HEADER_BYTES,
+        decode_process_info_control,
     };
     if record.len() > TRANSPORT_ENVELOPE_HEADER_BYTES + MAXIMUM_CONTROL_JSON_BYTES {
         return Err(());

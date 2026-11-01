@@ -14,10 +14,11 @@ use orchbee_client_server_protocol::{
     ViewerSelectionGesturePosition as Position, ViewerSelectionViewportPoint as Point,
 };
 use orchbee_terminal_protocol::{
-    SelectionChanged, SelectionChangedState, SelectionControl, SelectionExportChunk,
-    SelectionExportControl, SelectionExportFinished, SelectionExportFormat, SelectionExportStarted,
-    SelectionExportStatus, decode_transport_envelope, encode_selection_control,
-    encode_selection_export_chunk, encode_selection_export_control, encode_transport_envelope,
+    ConnectionControl, SelectionChanged, SelectionChangedState, SelectionControl,
+    SelectionExportChunk, SelectionExportControl, SelectionExportFinished, SelectionExportFormat,
+    SelectionExportStarted, SelectionExportStatus, TypedFailure, decode_transport_envelope,
+    encode_connection_control, encode_selection_control, encode_selection_export_chunk,
+    encode_selection_export_control, encode_transport_envelope,
 };
 use std::{
     collections::VecDeque,
@@ -355,6 +356,95 @@ fn selection_actions_map_to_the_exact_viewer_and_preserve_correlated_outcomes() 
     );
     assert!(connection.viewers.iter().all(Option::is_none));
     detach_reply.recv_timeout(Duration::from_secs(5)).unwrap();
+    drop(connection);
+    let _ = stop.shutdown(Shutdown::Both);
+    let _ = owner.join();
+    peer.join().unwrap();
+}
+
+/// Answers each selection control with the Host's correlated refusal, as when the control raced
+/// a resize or an export that already finished, and any Poll with an empty reply.
+fn refusing_selection_peer(mut peer: UnixStream, records: Sender<Vec<u8>>) {
+    while let Ok(CapabilityNodeMessage::TerminalViewerRequest(request)) = read_message(&mut peer) {
+        let outcome = match request.action {
+            WorkerAction::Detach => WorkerOutcome::Detached,
+            WorkerAction::Poll => WorkerOutcome::Empty,
+            WorkerAction::SelectionGesture { .. }
+            | WorkerAction::SelectionExport { .. }
+            | WorkerAction::SelectionExportChunkApplied { .. }
+            | WorkerAction::SelectionExportCancel { .. } => {
+                let code = if matches!(request.action, WorkerAction::SelectionGesture { .. }) {
+                    "stale-generation"
+                } else {
+                    "invalid-acknowledgement"
+                };
+                let encoded =
+                    encode_connection_control(&ConnectionControl::TypedFailure(TypedFailure {
+                        code: code.to_owned(),
+                        message: "refused".to_owned(),
+                        retryable: false,
+                    }))
+                    .unwrap();
+                let record =
+                    response_record(&request, encoded.kind, encoded.role, &encoded.payload);
+                records.send(record.clone()).unwrap();
+                WorkerOutcome::Record(record)
+            }
+            ref action => panic!("unexpected viewer action {action:?}"),
+        };
+        let reply = CapabilityNodeMessage::TerminalViewerResult(WorkerResult {
+            request_id: request.request_id,
+            attachment_id: request.attachment_id,
+            outcome,
+        });
+        if write_message(&mut peer, &reply).is_err() {
+            return;
+        }
+    }
+}
+
+#[test]
+fn correlated_host_refusals_answer_selection_controls_and_keep_the_viewer() {
+    let service = service();
+    let carrier = create_worker_carrier(WORKER_ID, NonZeroU64::MIN);
+    let handle = carrier.request_handle();
+    assert!(matches!(
+        service.workers.lock().unwrap().admit(WORKER_ID, None),
+        crate::worker_registry::WorkerAdmission::Accepted { .. }
+    ));
+    let owner =
+        WorkerRegistry::register_carrier(&service.workers, NonZeroU64::MIN, carrier).unwrap();
+    let (server, worker) = UnixStream::pair().unwrap();
+    worker
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let stop = server.try_clone().unwrap();
+    let owner = thread::spawn(move || owner.run(server));
+    let (sent, records) = channel();
+    let peer = thread::spawn(move || refusing_selection_peer(worker, sent));
+    let mut connection = service.client_connection();
+    assert!(matches!(
+        connection.publish_attach(viewer(&service, handle), attached_result()),
+        Outcome::Attached { .. }
+    ));
+
+    for (index, action) in selection_actions().into_iter().enumerate() {
+        let result = execute_viewer(
+            &mut connection,
+            &format!("{:032x}", 0x8484_u128 + index as u128),
+            action,
+        );
+        assert_eq!(
+            result.outcome(),
+            &Outcome::Record(records.recv().unwrap()),
+            "selection action {index} lost the Host refusal"
+        );
+        assert!(connection.viewers.iter().any(Option::is_some));
+    }
+    assert_eq!(
+        execute_viewer(&mut connection, "85858585858585858585858585858585", poll()).outcome(),
+        &Outcome::Empty {}
+    );
     drop(connection);
     let _ = stop.shutdown(Shutdown::Both);
     let _ = owner.join();
