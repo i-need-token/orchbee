@@ -150,11 +150,14 @@ fn unsupported_reload_without_a_watcher_reports_before_dispatch() -> TestResult 
         notifications: None,
         window_title: None,
         client_control: None,
-        backend: ClientBackend::Native(Box::new(ui::WorkbenchClientUi::with_capabilities(
-            Arc::clone(&mailbox),
-            client.operation_clock(),
-            Capabilities::none(),
-        ))),
+        backend: ClientBackend::Native(Box::new(
+            ui::WorkbenchClientUi::with_capabilities(
+                Arc::clone(&mailbox),
+                client.operation_clock(),
+                Capabilities::none(),
+            )
+            .confirming_every_close(),
+        )),
         task: None,
         shutdown: client.shutdown_handle()?,
         retirement_redraw_pending: false,

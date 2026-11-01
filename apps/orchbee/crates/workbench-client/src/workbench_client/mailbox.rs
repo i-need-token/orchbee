@@ -252,6 +252,9 @@ pub(super) enum QueuedCommand {
     Viewport(Tagged<ViewportStep>),
     /// One Host selection or export command for this exact pane incarnation.
     Selection(Tagged<super::terminal_selection::Command>),
+    /// One process sample of this exact pane incarnation for an idle close; the value is the
+    /// UI's probe serial.
+    ProcessProbe(Tagged<u64>),
     /// Set-level pane reconciliation: the executor attaches the listed pane
     /// incarnations and canonically disposes every attachment of the anchor it
     /// holds that the list does not name — one absolute deadline, bounded steps.
@@ -366,7 +369,8 @@ impl QueuedCommand {
             | Self::Resize(_)
             | Self::Poll(_)
             | Self::Viewport(_)
-            | Self::Selection(_) => None,
+            | Self::Selection(_)
+            | Self::ProcessProbe(_) => None,
         }
     }
 }
@@ -816,6 +820,12 @@ pub(super) enum WorkerEvent {
         command: super::terminal_selection::Command,
         outcome: orchbee_client_server_protocol::TerminalViewerOutcome,
     },
+    /// One `QueuedCommand::ProcessProbe` resolved: whether the pane is a shell at its prompt.
+    ProcessProbeOutcome {
+        key: PaneRef,
+        probe: u64,
+        idle: bool,
+    },
 }
 
 /// The outcome of one `QueuedCommand::Viewport` step as the executor
@@ -988,7 +998,8 @@ impl WorkerEvent {
             | Self::PaneFailed { .. }
             | Self::PollResult { .. }
             | Self::ViewportOutcome { .. }
-            | Self::SelectionOutcome { .. } => {
+            | Self::SelectionOutcome { .. }
+            | Self::ProcessProbeOutcome { .. } => {
                 return None;
             }
         };
@@ -1603,6 +1614,7 @@ impl CommandMailbox {
             // it, and recovery must stay admissible even if focus moved.
             QueuedCommand::Viewport(tagged) => state.desired.admits(tagged.key()),
             QueuedCommand::Selection(tagged) => state.desired.admits(tagged.key()),
+            QueuedCommand::ProcessProbe(tagged) => state.desired.admits(tagged.key()),
             QueuedCommand::Switch(_)
             | QueuedCommand::Create(_)
             | QueuedCommand::Refresh(_)
@@ -2659,6 +2671,7 @@ impl CommandMailbox {
                 | WorkerEvent::PaneFailed { .. }
                 | WorkerEvent::ViewportOutcome { .. }
                 | WorkerEvent::SelectionOutcome { .. }
+                | WorkerEvent::ProcessProbeOutcome { .. }
         ));
         let (mut state, mut observed_at) = self.lock_with_fresh_sample(clock);
         if state.desired.awaiting_bootstrap() {
@@ -2893,6 +2906,7 @@ impl CommandMailbox {
                     | WorkerEvent::PaneFailed { .. }
                     | WorkerEvent::ViewportOutcome { .. }
                     | WorkerEvent::SelectionOutcome { .. }
+                    | WorkerEvent::ProcessProbeOutcome { .. }
             ) {
                 return Err(self.close_protocol(&mut state));
             }

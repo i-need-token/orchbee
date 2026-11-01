@@ -88,6 +88,9 @@ impl<'a> PanelCloseConfirmationView<'a> {
     pub(crate) fn tab_id(&self) -> &'a WorkbenchTabId {
         &self.confirmation.selection.target.tab_id
     }
+    pub(crate) fn panel_id(&self) -> &'a WorkbenchPanelId {
+        &self.confirmation.selection.target.panel_id
+    }
     pub(crate) const fn panel_position(&self) -> usize {
         self.confirmation.selection.panel_position
     }
@@ -235,6 +238,16 @@ impl WorkbenchClientState {
 
     pub(crate) fn cancel_panel_close_confirmation(&mut self) {
         self.panel_close.cancel_confirmation();
+    }
+
+    /// Admits the open confirmation of `token` without presenting it: the caller proved that the
+    /// Panel's terminal is a shell at its prompt, so closing it loses nothing.
+    pub(crate) fn admit_unconfirmed_panel_close(
+        &mut self,
+        token: PanelCloseConfirmationToken,
+    ) -> bool {
+        self.panel_close.acknowledge_draw(Some(token));
+        self.panel_close.confirmed_selection(token).is_ok()
     }
 
     pub(crate) fn acknowledge_panel_close_draw(

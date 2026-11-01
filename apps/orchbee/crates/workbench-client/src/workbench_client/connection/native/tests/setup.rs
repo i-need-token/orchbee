@@ -1479,7 +1479,8 @@ impl UiDriver {
             | WorkerEvent::WorkspaceSetupResult { .. }
             | WorkerEvent::RenameResult { .. }
             | WorkerEvent::ViewportOutcome { .. }
-            | WorkerEvent::SelectionOutcome { .. } => {
+            | WorkerEvent::SelectionOutcome { .. }
+            | WorkerEvent::ProcessProbeOutcome { .. } => {
                 Err(test_error("requires the actual WorkbenchClientUi consumer"))
             }
             WorkerEvent::SwitchSnapshotResult { marker, outcome } => self.settle_switch_snapshot(

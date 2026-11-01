@@ -591,6 +591,12 @@ fn same_reservation(a: &AgentLaunchReservation, b: &AgentLaunchReservation) -> b
         && a.binding == b.binding
 }
 
+/// Whether `sample` is one recognized interactive shell at its prompt that runs no program.
+/// Any other sample, including every shell this rule does not recognize, is not idle.
+pub(crate) fn runs_no_program(sample: &TerminalProcessInfo) -> bool {
+    idle_shell(sample).is_ok()
+}
+
 fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure> {
     let refuse = || Failure::Start(StartFailure::TerminalNotIdle);
     if sample.processes.len() >= orchbee_terminal_protocol::MAXIMUM_PROCESS_SAMPLE_ROWS {

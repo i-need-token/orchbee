@@ -18,16 +18,18 @@ use orchbee_terminal_protocol::{
     decode_process_info_control, decode_transport_envelope,
 };
 
-pub(crate) fn decode_root(
+/// One admitted process sample of `attachment_id`. `Ok(None)` is an admitted Server or Host
+/// refusal, never absence.
+pub(crate) fn decode_process_info(
     response: TerminalViewerOutcome,
     attachment_id: &orchbee_client_server_protocol::ViewerId,
     host_epoch: &orchbee_client_server_protocol::HostEpoch,
     host_terminal_id: &orchbee_client_server_protocol::HostTerminalId,
-) -> Result<RootDirectory, InvalidRootSample> {
+) -> Result<Option<orchbee_terminal_protocol::TerminalProcessInfo>, InvalidRootSample> {
     let TerminalViewerOutcome::Record(record) = response else {
         return match response {
             TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
-                Ok(RootDirectory::Unavailable)
+                Ok(None)
             }
             TerminalViewerOutcome::Attached { .. }
             | TerminalViewerOutcome::Empty { .. }
@@ -69,7 +71,7 @@ pub(crate) fn decode_root(
                     | "process-sample-unavailable"
             )
         {
-            return Ok(RootDirectory::Unavailable);
+            return Ok(None);
         }
         return Err(InvalidRootSample);
     };
@@ -78,6 +80,19 @@ pub(crate) fn decode_root(
     {
         return Err(InvalidRootSample);
     }
+    Ok(Some(info))
+}
+
+pub(crate) fn decode_root(
+    response: TerminalViewerOutcome,
+    attachment_id: &orchbee_client_server_protocol::ViewerId,
+    host_epoch: &orchbee_client_server_protocol::HostEpoch,
+    host_terminal_id: &orchbee_client_server_protocol::HostTerminalId,
+) -> Result<RootDirectory, InvalidRootSample> {
+    let Some(info) = decode_process_info(response, attachment_id, host_epoch, host_terminal_id)?
+    else {
+        return Ok(RootDirectory::Unavailable);
+    };
     let Some(root) = info
         .processes
         .iter()

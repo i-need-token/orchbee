@@ -495,6 +495,19 @@ impl CloseState {
         self.confirmation = None;
     }
 
+    /// Admits the open plain Close of `token` without a draw. Only a single Tab's first Close
+    /// qualifies; a set or a Resume always presents.
+    fn admit_unconfirmed(&mut self, token: CloseConfirmationToken) -> bool {
+        let Some(confirmation) = self.confirmation.as_mut().filter(|confirmation| {
+            confirmation.token == token && matches!(confirmation.intent, CloseIntent::Close(_))
+        }) else {
+            return false;
+        };
+        confirmation.shown = true;
+        confirmation.presentation.presented();
+        true
+    }
+
     pub(crate) fn confirmation(&self) -> Option<CloseConfirmationView<'_>> {
         let confirmation = self.confirmation.as_ref()?;
         let status = match &confirmation.intent {
@@ -928,6 +941,12 @@ impl super::WorkbenchClientState {
 
     pub(crate) fn cancel_close_confirmation(&mut self) {
         self.close.cancel_confirmation();
+    }
+
+    /// Admits the open Close of `token` without presenting it: the caller proved that every
+    /// terminal of the Tab is a shell at its prompt, so closing it loses nothing.
+    pub(crate) fn admit_unconfirmed_close(&mut self, token: CloseConfirmationToken) -> bool {
+        self.close.admit_unconfirmed(token)
     }
     pub(crate) fn invalidate_close_display(&mut self) {
         self.close.invalidate_display();

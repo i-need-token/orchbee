@@ -52,6 +52,9 @@ impl<'a> PanelCloseConfirmationView<'a> {
 
 impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn panel_close_confirmation(&self) -> Option<PanelCloseConfirmationView<'a>> {
+        if self.close_probing {
+            return None;
+        }
         let state = self.state.as_ref()?;
         let inner = state.panel_close_confirmation()?;
         let impact = state.panel_close_impact(&|pane| self.pane_settled(pane))?;
@@ -96,12 +99,19 @@ impl WorkbenchClientUi {
         };
         if mailbox
             .apply_local_for(state, WorkbenchClientState::open_panel_close_confirmation)
-            .is_ok()
+            .is_err()
         {
-            ClientActionDisposition::DismissNavigator
-        } else {
-            ClientActionDisposition::KeepNavigator
+            return ClientActionDisposition::KeepNavigator;
         }
+        // A Panel whose terminal is a shell at its prompt closes without the confirmation.
+        if let Some(token) = state
+            .view()
+            .panel_close_confirmation()
+            .map(|confirmation| confirmation.token())
+        {
+            self.begin_idle_close(super::idle_close::Target::Panel(token));
+        }
+        ClientActionDisposition::DismissNavigator
     }
 
     pub(in crate::workbench_client) fn cancel_panel_close(&mut self) -> ClientActionDisposition {

@@ -281,6 +281,9 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.as_ref()?.close_set_status()
     }
     pub(crate) fn close_confirmation(&self) -> Option<CloseConfirmationView<'a>> {
+        if self.close_probing {
+            return None;
+        }
         let state = self.state.as_ref()?;
         let inner = state.close_confirmation()?;
         let impact = state.close_impact(&inner, &|pane| self.pane_settled(pane));
@@ -516,12 +519,19 @@ impl WorkbenchClientUi {
         };
         if mailbox
             .apply_local_for(state, WorkbenchClientState::open_close_confirmation)
-            .is_ok()
+            .is_err()
         {
-            ClientActionDisposition::DismissNavigator
-        } else {
-            ClientActionDisposition::KeepNavigator
+            return ClientActionDisposition::KeepNavigator;
         }
+        // A Tab whose every terminal is a shell at its prompt closes without the confirmation.
+        if let Some(token) = state
+            .view()
+            .close_confirmation()
+            .map(|confirmation| confirmation.token())
+        {
+            self.begin_idle_close(super::idle_close::Target::Tab(token));
+        }
+        ClientActionDisposition::DismissNavigator
     }
 
     pub(super) fn request_tab_close_resume(

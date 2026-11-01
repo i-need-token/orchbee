@@ -4,6 +4,7 @@ pub(in crate::workbench_client::ui) mod composition;
 pub(in crate::workbench_client::ui) mod context_selection;
 pub(in crate::workbench_client::ui) mod control_takeover;
 pub(in crate::workbench_client::ui) mod create_membership;
+pub(in crate::workbench_client::ui) mod idle_close;
 pub(in crate::workbench_client::ui) mod input_provenance;
 pub(in crate::workbench_client) mod membership;
 pub(in crate::workbench_client::ui) mod modal_pointer_roundtrip;
