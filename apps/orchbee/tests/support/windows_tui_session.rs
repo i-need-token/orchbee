@@ -213,8 +213,9 @@ impl Fixture {
         created.document["workspace"]["result"].clone()
     }
 
-    /// Starts a terminal in another Workspace that prints every second until the Session stops.
-    pub fn background_output(&self) {
+    /// Starts a terminal in another Workspace that prints every second until the Session stops,
+    /// and returns its creation result.
+    pub fn background_output(&self) -> Value {
         let ping = system_program("PING.EXE");
         let noise = self.path("noise");
         let mut words = vec![
@@ -236,6 +237,7 @@ impl Fixture {
         words.extend(environment.iter().map(String::as_str));
         let created = self.run(&words);
         assert_eq!(created.code, Some(0), "{created}");
+        created.document["workspace"]["result"].clone()
     }
 
     /// Runs `orchbee tui` in a terminal of the `host` Session at `columns` by `rows`. That
