@@ -79,7 +79,7 @@ const utf8Encoder = new TextEncoder();
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 
 /** A Server of the same cohort never sends this, so it ends the connection. */
-export class WorkbenchCarrierError extends Error {
+class WorkbenchCarrierError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = 'WorkbenchCarrierError';

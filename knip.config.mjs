@@ -107,6 +107,7 @@ export default function createKnipConfiguration({ production, strict }) {
 					'scripts/*.mjs',
 					'src/index.ts!',
 					'src/main/composition/entry.ts!',
+					'src/main/composition/server-client-entry.ts!',
 					'src/preload/entry.ts!',
 					'src/preload/index.ts!',
 					'src/**/*.unit.test.{ts,tsx}!',

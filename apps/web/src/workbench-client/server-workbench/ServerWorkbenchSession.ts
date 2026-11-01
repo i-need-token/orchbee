@@ -71,6 +71,7 @@ export class ServerWorkbenchSession {
 	static open(connection: ServerWorkbenchConnection): Promise<ServerWorkbenchSession> {
 		return new Promise((resolve, reject) => {
 			let session: ServerWorkbenchSession | null = null;
+			let stopWaiting = (): void => undefined;
 			const fail = (end: ServerWorkbenchEnd): void => {
 				if (session === null) {
 					subscription.close();
@@ -80,7 +81,7 @@ export class ServerWorkbenchSession {
 					session.#finish(end);
 				}
 			};
-			const stopWaiting = connection.onEnded(() => fail({ kind: 'connection-ended' }));
+			// An ended connection refuses this call, which rejects the promise.
 			const subscription = connection.subscribe(
 				'state',
 				encodeWorkbenchRequest({
@@ -107,6 +108,8 @@ export class ServerWorkbenchSession {
 					onGap: () => undefined,
 				},
 			);
+			// A connection that ended while the stream opened reports it here.
+			stopWaiting = connection.onEnded(() => fail({ kind: 'connection-ended' }));
 		});
 	}
 
