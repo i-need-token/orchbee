@@ -30,7 +30,7 @@ existing destructive action tone; Cancel remains ordinary. Neither changes the C
 represents an error status. Only a complete successful draw authorizes unmodified `Enter`;
 local `Esc` cancels an armed
 confirmation even while it is not shown. An evaluated geometry block before the first successful
-draw refuses the new confirmation. After a successful draw, the same block suspends the existing
+draw refuses the new confirmation, and the status line says it cannot open there. After a successful draw, the same block suspends the existing
 confirmation while preserving its token, frozen set, local marks and focus; `Enter` and pointer release
 are inert until the same token is completely drawn again. A missing or covered draw receipt revokes
 shown authority without classifying geometry or discarding the presentation phase. Unseen,

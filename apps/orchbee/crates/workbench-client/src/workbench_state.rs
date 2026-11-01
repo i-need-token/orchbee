@@ -695,6 +695,8 @@ pub(crate) enum ClientNotice {
     PanelNotApplied,
     ConfirmationCancelled,
     DraftCancelled,
+    /// A dialog could not be drawn when it was requested; nothing ran.
+    DialogRefused,
     /// A modal surface or armed confirmation owns the input layer — the
     /// Agent board refused to open rather than fight for capture.
     ModalOwnsInput,

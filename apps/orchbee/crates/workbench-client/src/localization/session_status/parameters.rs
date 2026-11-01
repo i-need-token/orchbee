@@ -61,6 +61,7 @@ pub(crate) enum WorkbenchClientNotice {
     WorkspaceNotReady,
     ConfirmationCancelled,
     DraftCancelled,
+    DialogRefused,
     ModalOwnsInput,
     AgentStart(super::super::AgentStartStatus),
     HistoryRecovering,

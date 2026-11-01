@@ -673,8 +673,8 @@ fn drifted_close_confirmation_settles_as_cancelled_with_notice() {
     assert!(state.invariant_holds());
 }
 
-/// A new confirmation that cannot complete its first paint is refused without
-/// being mislabeled as an explicit cancellation.
+/// A new confirmation that cannot complete its first paint is refused with the geometry notice,
+/// not mislabeled as an explicit cancellation.
 #[test]
 fn first_unpresentable_close_draw_is_refused() {
     let mut state = ready(2);
@@ -684,7 +684,7 @@ fn first_unpresentable_close_draw_is_refused() {
         Some(GeometrySettlement::Refused)
     );
     assert!(state.view().close_confirmation().is_none());
-    assert_eq!(state.notice, None);
+    assert_eq!(state.notice, Some(ClientNotice::DialogRefused));
     assert_eq!(state.settle_close_confirmation_not_presented(), None);
     assert!(state.invariant_holds());
 }

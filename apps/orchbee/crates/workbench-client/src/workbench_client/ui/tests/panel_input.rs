@@ -681,8 +681,8 @@ fn tick_settles_a_drifted_panel_close_confirmation() {
     );
 }
 
-/// A new prompt that cannot complete its first paint is refused; it never
-/// becomes an invisible input owner or an explicit-cancellation notice.
+/// A new prompt that cannot complete its first paint is refused with the geometry notice; it
+/// never becomes an invisible input owner or an explicit-cancellation notice.
 #[test]
 fn first_unpresentable_panel_close_draw_is_refused() {
     let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
@@ -697,7 +697,10 @@ fn first_unpresentable_panel_close_draw_is_refused() {
         !panel_confirmation_drawn(&ui),
         "a first draw that cannot present the prompt refuses the capture"
     );
-    assert_eq!(ui.view().notice(), None);
+    assert_eq!(
+        ui.view().notice(),
+        Some(WorkbenchClientNotice::DialogRefused)
+    );
     assert!(!ui.capture_confirmation_key(ClientKey::Enter));
     assert!(mailbox.try_recv().unwrap().is_none());
 }
@@ -775,7 +778,7 @@ fn drifted_close_target_settles_cancelled_before_the_next_key() {
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
-/// A blocked first draw refuses a new Tab-close prompt.
+/// A blocked first draw refuses a new Tab-close prompt with the geometry notice.
 #[test]
 fn first_unpresentable_close_draw_is_refused() {
     let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
@@ -788,7 +791,10 @@ fn first_unpresentable_close_draw_is_refused() {
         None,
     ));
     assert!(!confirmation_drawn(&ui));
-    assert_eq!(ui.view().notice(), None);
+    assert_eq!(
+        ui.view().notice(),
+        Some(WorkbenchClientNotice::DialogRefused)
+    );
     assert!(!ui.capture_confirmation_key(ClientKey::Enter));
     assert!(mailbox.try_recv().unwrap().is_none());
 }
@@ -827,7 +833,7 @@ fn presented_tab_close_suspends_hidden_input_and_resumes_with_the_same_token() {
     assert!(mailbox.try_recv().unwrap().is_some());
 }
 
-/// A blocked first draw refuses a new rename draft.
+/// A blocked first draw refuses a new rename draft with the geometry notice.
 #[test]
 fn first_unpresentable_rename_draft_is_refused() {
     let (mut ui, _mailbox, _clock, _elapsed) = ready_ui();
@@ -838,7 +844,10 @@ fn first_unpresentable_rename_draft_is_refused() {
     assert!(ui.rename_input_context().is_some());
     ui.after_rename_draw(Some(ModalPresentation::NotPresented));
     assert!(ui.rename_input_context().is_none());
-    assert_eq!(ui.view().notice(), None);
+    assert_eq!(
+        ui.view().notice(),
+        Some(WorkbenchClientNotice::DialogRefused)
+    );
 }
 
 #[test]

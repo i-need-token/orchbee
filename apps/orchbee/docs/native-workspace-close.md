@@ -112,7 +112,7 @@ silently.
 The existing confirmation packet owner decodes keys. Modified keys, `y`/`Y`, paste
 and trailing bytes never confirm or reach the terminal. Missing or incomplete draw evidence cannot
 submit. Before the first complete presentation, an evaluated geometry block refuses the new prompt
-and leaves the localized resize fallback visible. After presentation, the same block suspends the
+and the status line says it cannot open there. After presentation, the same block suspends the
 existing prompt while retaining its token, frozen source and focus: `Enter` and stale pointer releases
 are inert, local `Esc` still cancels, and a later complete draw of the same token restores it. A
 missing receipt only revokes shown authority; it does not classify geometry or discard the prompt.
@@ -146,7 +146,7 @@ Project evidence preserves frozen member order and every known child Close ident
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Open                                           | Quiet structural owners; freeze the current or addressed Workspace, or explicitly named Project, without moving focus                                                |
 | Draw                                           | Complete content at admitted geometry; acknowledge only its token                                                                                                    |
-| Geometry block before first draw               | Refuse and remove the new prompt without allocating a Close request or reporting user cancellation                                                                   |
+| Geometry block before first draw               | Refuse and remove the new prompt with the cannot-open status notice; allocate no Close request and report no user cancellation                                       |
 | Geometry block after a successful draw         | Suspend the same token, frozen source and focus; revoke submit and pointer authority until the same token is completely presented again                              |
 | Missing or covered draw receipt                | Revoke exact shown authority only; preserve the presentation phase and frozen prompt                                                                                 |
 | Esc, changed scope or selection change         | Cancel without allocating or submitting a Close request; Esc also clears a retained confirmation-required result                                                     |

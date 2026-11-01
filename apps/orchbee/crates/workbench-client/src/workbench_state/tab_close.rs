@@ -1048,6 +1048,7 @@ impl super::WorkbenchClientState {
         let settlement = confirmation.presentation.geometry_blocked();
         if settlement == GeometrySettlement::Refused {
             self.close.cancel_confirmation();
+            self.set_notice(ClientNotice::DialogRefused);
         }
         Some(settlement)
     }

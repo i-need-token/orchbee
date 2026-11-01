@@ -2361,8 +2361,8 @@ fn last_leaf_nature_change_stales_the_armed_panel_close() {
     assert!(state.invariant_holds());
 }
 
-/// A new confirmation that cannot complete its first paint is refused without
-/// being mislabeled as an explicit cancellation.
+/// A new confirmation that cannot complete its first paint is refused with the geometry notice,
+/// not mislabeled as an explicit cancellation.
 #[test]
 fn first_unpresentable_panel_close_draw_is_refused() {
     let mut state = split_ready();
@@ -2372,7 +2372,7 @@ fn first_unpresentable_panel_close_draw_is_refused() {
         Some(GeometrySettlement::Refused)
     );
     assert!(state.view().panel_close_confirmation().is_none());
-    assert_eq!(state.notice, None);
+    assert_eq!(state.notice, Some(ClientNotice::DialogRefused));
     assert_eq!(state.settle_panel_close_not_presented(), None);
     assert!(state.invariant_holds());
 }

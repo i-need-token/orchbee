@@ -287,7 +287,10 @@ fn workspace_close_refuses_a_blocked_first_draw_and_resumes_an_admitted_prompt()
     );
     refused.after_workspace_close_draw(Some(ModalPresentation::NotPresented));
     assert!(refused.view().workspace_close_confirmation().is_none());
-    assert_eq!(refused.view().notice(), None);
+    assert_eq!(
+        refused.view().notice(),
+        Some(crate::localization::WorkbenchClientNotice::DialogRefused)
+    );
     assert!(!refused.capture_confirmation_key(ClientKey::Enter));
     assert!(refused_mailbox.try_recv().unwrap().is_none());
 

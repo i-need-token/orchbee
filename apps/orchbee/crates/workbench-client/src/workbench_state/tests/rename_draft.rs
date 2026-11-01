@@ -11,7 +11,7 @@ fn rename_draft_refuses_a_blocked_first_draw_but_preserves_an_admitted_editor() 
         Some(GeometrySettlement::Refused)
     );
     assert!(refused.rename_draft().is_none());
-    assert_eq!(refused.notice, None);
+    assert_eq!(refused.notice, Some(ClientNotice::DialogRefused));
 
     let mut suspended = ready(2);
     let token = suspended.open_rename_draft().unwrap();

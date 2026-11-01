@@ -641,6 +641,7 @@ impl<'a> WorkbenchClientView<'a> {
             ClientNotice::WorkspaceNotReady => WorkbenchClientNotice::WorkspaceNotReady,
             ClientNotice::ConfirmationCancelled => WorkbenchClientNotice::ConfirmationCancelled,
             ClientNotice::DraftCancelled => WorkbenchClientNotice::DraftCancelled,
+            ClientNotice::DialogRefused => WorkbenchClientNotice::DialogRefused,
             ClientNotice::ModalOwnsInput => WorkbenchClientNotice::ModalOwnsInput,
             ClientNotice::AgentStart(phase) => WorkbenchClientNotice::AgentStart(phase.into()),
             ClientNotice::HistoryRecovering => WorkbenchClientNotice::HistoryRecovering,

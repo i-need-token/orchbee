@@ -598,6 +598,7 @@ impl WorkbenchClientState {
         let settlement = prompt.presentation.geometry_blocked();
         if settlement == GeometrySettlement::Refused {
             self.cancel_workspace_close();
+            self.set_notice(ClientNotice::DialogRefused);
         }
         Some(settlement)
     }

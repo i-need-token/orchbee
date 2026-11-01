@@ -136,7 +136,7 @@ fn workspace_close_refuses_a_blocked_first_draw_but_suspends_an_admitted_prompt(
         Some(GeometrySettlement::Refused)
     );
     assert!(refused.workspace_close_confirmation().is_none());
-    assert_eq!(refused.notice, None);
+    assert_eq!(refused.notice, Some(ClientNotice::DialogRefused));
 
     let mut suspended = close_state(0);
     let token = suspended.open_workspace_close().unwrap();

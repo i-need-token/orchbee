@@ -277,6 +277,7 @@ impl Locale {
                 Self::EnUs => "Close confirmation cancelled".to_owned(),
                 Self::ZhCn => "关闭确认已取消".to_owned(),
             },
+            WorkbenchClientNotice::DialogRefused => self.presentation_notice(false).to_owned(),
             WorkbenchClientNotice::DraftCancelled => match self {
                 Self::EnUs => "Draft cancelled".to_owned(),
                 Self::ZhCn => "草稿已取消".to_owned(),
