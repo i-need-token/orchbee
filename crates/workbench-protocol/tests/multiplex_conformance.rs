@@ -3,7 +3,8 @@ use std::num::NonZeroU64;
 
 use orchbee_workbench_protocol::{
     MultiplexDecoder, MultiplexDisconnectReason, MultiplexLaneId, MultiplexMessage,
-    MultiplexStreamId, StreamCloseReason, StreamFrameKind, StreamMode, encode_multiplex_message,
+    MultiplexStreamId, MultiplexViewerId, StreamCloseReason, StreamFrameKind, StreamMode,
+    encode_multiplex_message,
 };
 use serde::Deserialize;
 
@@ -69,6 +70,9 @@ enum Message {
     },
     LaneClose {
         lane_id: String,
+    },
+    ViewerRecordReady {
+        viewer_id: String,
     },
 }
 
@@ -154,6 +158,9 @@ fn expected(message: &Message) -> MultiplexMessage {
         },
         Message::LaneClose { lane_id } => MultiplexMessage::LaneClose {
             lane_id: lane(lane_id),
+        },
+        Message::ViewerRecordReady { viewer_id } => MultiplexMessage::ViewerRecordReady {
+            viewer_id: MultiplexViewerId::new(viewer_id.parse().unwrap()).unwrap(),
         },
     }
 }

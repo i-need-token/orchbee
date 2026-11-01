@@ -1,7 +1,7 @@
 /**
  * Opens one Server terminal as a renderer projection. The viewer and controller share a lane, so
- * closing the lane releases both. The Server has no output-ready signal, so frames are pulled by
- * polling. This holds no terminal semantics; the Host and Worker own those.
+ * closing the lane releases both. Poll is the only way to take a record, and the Server's hint says
+ * when one is waiting. This holds no terminal semantics; the Host and Worker own those.
  */
 import {
 	CanonicalUint64TextSchema,
@@ -69,11 +69,10 @@ export interface ServerTerminalProjection extends TerminalProjection {
 	takeControl(): Promise<boolean>;
 }
 
-/** Empty-poll pacing: the TUI's pace while something happened recently, then easing off. */
-const ACTIVE_POLL_DELAY_MILLISECONDS = 8;
-const IDLE_POLL_DELAY_MILLISECONDS = 33;
-const PAUSED_POLL_DELAY_MILLISECONDS = 250;
-const ACTIVE_WINDOW_MILLISECONDS = 1_000;
+/** Pacing of an empty Poll for a viewer that cannot yet rely on a Server hint. */
+const UNHINTED_POLL_DELAY_MILLISECONDS = 8;
+/** How long a lost hint can hide a record; it also bounds how long a Poll-carried notice waits. */
+const FALLBACK_POLL_DELAY_MILLISECONDS = 250;
 const BUSY_RETRY_DELAYS_MILLISECONDS = [4, 8, 16, 32, 64, 128, 256] as const;
 const MINIMUM_ROW_READ_BYTES = 112;
 const MAXIMUM_ROW_READ_BYTES = 8 * 1024 * 1024;
@@ -176,16 +175,18 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	readonly #laneId: bigint;
 	readonly #viewerSteps = new SerialSteps();
 	readonly #unsubscribeEnded: () => void;
+	readonly #unwatchViewerReady: () => void;
 	#capabilityRevision = 1n;
 	#closed = false;
 	#controllerId: string | null;
-	#lastActivity = 0;
 	#latestOutcomeRevision: bigint | null = null;
 	#listener: ((event: ProjectedTerminalEvent) => void) | null = null;
 	#nextControlSequence = 1n;
+	#owedFullFrame = true;
 	#paused = false;
 	#pollInFlight = false;
 	#pollTimer: ReturnType<typeof setTimeout> | null = null;
+	#recordReady = false;
 	#unavailable: (() => void) | null = null;
 
 	constructor(
@@ -199,6 +200,13 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		this.#controllerId = controllerId;
 		this.#laneId = laneId;
 		this.#unsubscribeEnded = connection.onEnded(() => this.#retire(true));
+		this.#unwatchViewerReady = connection.watchViewerReady(
+			BigInt(`0x${bootstrap.attachmentId}`),
+			() => {
+				this.#recordReady = true;
+				this.#pollNow();
+			},
+		);
 		if (controllerId !== null) this.#reportHostColors();
 	}
 
@@ -220,6 +228,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 				this.#viewerStep(command, { ...command.payload, kind: 'frame-applied' }, true);
 				return;
 			case 'need-snapshot':
+				this.#owedFullFrame = true;
 				this.#viewerStep(command, { ...command.payload, kind: 'need-snapshot' }, true);
 				return;
 			case 'rows-applied':
@@ -293,6 +302,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		if (this.#closed) return;
 		this.#closed = true;
 		this.#unsubscribeEnded();
+		this.#unwatchViewerReady();
 		if (this.#pollTimer !== null) clearTimeout(this.#pollTimer);
 		this.#pollTimer = null;
 		this.#viewerSteps.clear();
@@ -384,7 +394,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 			} catch (error) {
 				this.#report(command, error);
 			}
-			if (wakesPoll) this.#pollNow();
+			if (wakesPoll) this.#pollAfterProgress();
 		});
 	}
 
@@ -541,8 +551,6 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 			this.#fail(command, 'renderer-backpressure', 'Too many terminal commands are queued.', true);
 			return;
 		}
-		// The user is waiting to see this take effect, so the next poll should not wait on idle pacing.
-		this.#lastActivity = performance.now();
 		this.#controlSteps.push(async () => {
 			const controllerId = this.#controllerId;
 			// Input raced a capability change that the renderer has not applied yet.
@@ -552,7 +560,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 			} catch (error) {
 				this.#report(command, error);
 			}
-			this.#pollSoon();
+			this.#pollAfterProgress();
 		});
 	}
 
@@ -627,11 +635,19 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		});
 	}
 
-	#pollDelay(): number {
-		if (performance.now() - this.#lastActivity < ACTIVE_WINDOW_MILLISECONDS) {
-			return ACTIVE_POLL_DELAY_MILLISECONDS;
-		}
-		return this.#paused ? PAUSED_POLL_DELAY_MILLISECONDS : IDLE_POLL_DELAY_MILLISECONDS;
+	/**
+	 * Hints replace the poll timer once they have proved themselves, except for a viewer owed a full
+	 * frame: its hint can arrive before this transport's watch would recognize it.
+	 */
+	get #pollsFollowHints(): boolean {
+		return this.#connection.viewerHintsSeen && !this.#owedFullFrame;
+	}
+
+	#emptyPollDelay(): number {
+		// A paused viewer receives no frames, so it has nothing to hurry for.
+		return this.#paused || this.#pollsFollowHints
+			? FALLBACK_POLL_DELAY_MILLISECONDS
+			: UNHINTED_POLL_DELAY_MILLISECONDS;
 	}
 
 	#schedulePoll(milliseconds: number): void {
@@ -642,21 +658,20 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		}, milliseconds);
 	}
 
-	#pollSoon(): void {
-		if (this.#pollTimer !== null) {
-			clearTimeout(this.#pollTimer);
-			this.#pollTimer = null;
-		}
-		this.#schedulePoll(ACTIVE_POLL_DELAY_MILLISECONDS);
+	/** Progress can free a record. A viewer on hints hears about it; any other looks for it now. */
+	#pollAfterProgress(): void {
+		if (!this.#pollsFollowHints) this.#pollNow();
 	}
 
 	#pollNow(): void {
-		if (this.#closed || this.#pollInFlight) return;
+		// Poll moves the record, so one taken before anyone subscribed would be lost.
+		if (this.#closed || this.#pollInFlight || this.#listener === null) return;
 		if (this.#pollTimer !== null) {
 			clearTimeout(this.#pollTimer);
 			this.#pollTimer = null;
 		}
 		this.#pollInFlight = true;
+		this.#recordReady = false;
 		this.#exchange({
 			action: { attachmentId: this.#bootstrap.attachmentId, kind: 'poll' },
 			kind: 'terminal.viewer',
@@ -676,9 +691,10 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	#receivePoll(response: ClientServerResponse): void {
 		if (this.#closed) return;
 		if (response.kind === 'terminal.viewer.record') {
-			this.#lastActivity = performance.now();
 			this.#routeRecord(response.hostRecord);
-			this.#pollNow();
+			// The Worker hints again when a Poll leaves anything behind.
+			if (this.#recordReady || !this.#pollsFollowHints) this.#pollNow();
+			else this.#schedulePoll(FALLBACK_POLL_DELAY_MILLISECONDS);
 			return;
 		}
 		if (response.kind !== 'terminal.viewer.result') {
@@ -687,9 +703,10 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		}
 		const { outcome } = response;
 		if (outcome.kind === 'empty') {
-			this.#schedulePoll(this.#pollDelay());
+			if (this.#recordReady) this.#pollNow();
+			else this.#schedulePoll(this.#emptyPollDelay());
 		} else if (outcome.kind === 'unavailable' && outcome.reason === 'server-busy') {
-			this.#schedulePoll(PAUSED_POLL_DELAY_MILLISECONDS);
+			this.#schedulePoll(FALLBACK_POLL_DELAY_MILLISECONDS);
 		} else {
 			this.#retire(true);
 		}
@@ -706,6 +723,8 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 			case MessageKind.snapshotFrame:
 			case MessageKind.deltaFrame:
 				if (envelope.payloadEncoding === PayloadEncoding.terminalFrame) {
+					// Before the post: applying this frame can synchronously ask for another full one.
+					if (envelope.kind === MessageKind.snapshotFrame) this.#owedFullFrame = false;
 					this.#post({ frame: envelope.payload.slice(), kind: 'frame' });
 				} else {
 					this.#protocolFailure('invalid-host-frame', 'A frame used the wrong encoding.');

@@ -57,7 +57,8 @@ export type MultiplexMessage =
 	| { readonly kind: 'disconnect'; readonly reason: MultiplexDisconnectReason }
 	| { readonly kind: 'resnapshot'; readonly streamId: bigint }
 	| { readonly kind: 'lane-open'; readonly laneId: bigint }
-	| { readonly kind: 'lane-close'; readonly laneId: bigint };
+	| { readonly kind: 'lane-close'; readonly laneId: bigint }
+	| { readonly kind: 'viewer-record-ready'; readonly viewerId: bigint };
 
 /** A violated framing rule. The carrier cannot be resynchronized after one. */
 export class MultiplexProtocolError extends Error {
@@ -96,6 +97,7 @@ function encodedBodyLength(message: MultiplexMessage): number {
 		case 'stream-close':
 			return 9;
 		case 'gap':
+		case 'viewer-record-ready':
 			return 16;
 		case 'disconnect':
 			return 1;
@@ -122,6 +124,7 @@ const MESSAGE_KIND_CODES: Readonly<Record<MultiplexMessage['kind'], number>> = {
 	resnapshot: 69,
 	'lane-open': 70,
 	'lane-close': 71,
+	'viewer-record-ready': 72,
 };
 
 export function encodeMultiplexMessage(message: MultiplexMessage): Uint8Array {
@@ -164,6 +167,10 @@ export function encodeMultiplexMessage(message: MultiplexMessage): Uint8Array {
 		case 'lane-close':
 			view.setBigUint64(body, message.laneId);
 			break;
+		case 'viewer-record-ready':
+			view.setBigUint64(body, BigInt.asUintN(64, message.viewerId >> 64n));
+			view.setBigUint64(body + 8, BigInt.asUintN(64, message.viewerId));
+			break;
 	}
 	return bytes;
 }
@@ -176,6 +183,7 @@ function validBodyLength(kind: number, length: number): boolean {
 		case 66:
 			return length === 9;
 		case 67:
+		case 72:
 			return length === 16;
 		case 68:
 			return length === 1;
@@ -226,6 +234,11 @@ function decodeBody(kind: number, body: Uint8Array): MultiplexMessage {
 			return { kind: 'lane-open', laneId: positive(view, 0) };
 		case 71:
 			return { kind: 'lane-close', laneId: positive(view, 0) };
+		case 72: {
+			const viewerId = (view.getBigUint64(0) << 64n) | view.getBigUint64(8);
+			if (viewerId === 0n) throw new MultiplexProtocolError('Multiplex identity must be nonzero.');
+			return { kind: 'viewer-record-ready', viewerId };
+		}
 		default:
 			throw new MultiplexProtocolError('Unknown multiplex message kind.');
 	}

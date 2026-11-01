@@ -198,9 +198,33 @@
 				"kind": "lane-close",
 				"laneId": "2"
 			}
+		},
+		{
+			"name": "viewer-record-ready",
+			"hex": "4f42575000010048000000100102030405060708090a0b0c0d0e0f10",
+			"message": {
+				"kind": "viewer-record-ready",
+				"viewerId": "1339673755198158349044581307228491536"
+			}
+		},
+		{
+			"name": "viewer-record-ready-largest-identity",
+			"hex": "4f4257500001004800000010ffffffffffffffffffffffffffffffff",
+			"message": {
+				"kind": "viewer-record-ready",
+				"viewerId": "340282366920938463463374607431768211455"
+			}
 		}
 	],
 	"invalid": [
+		{
+			"name": "viewer-record-ready-zero-identity",
+			"hex": "4f425750000100480000001000000000000000000000000000000000"
+		},
+		{
+			"name": "viewer-record-ready-short-identity",
+			"hex": "4f425750000100480000000f0102030405060708090a0b0c0d0e0f"
+		},
 		{
 			"name": "wrong-magic",
 			"hex": "4f42575100010046000000080000000000000002"
@@ -211,7 +235,7 @@
 		},
 		{
 			"name": "unknown-message-kind",
-			"hex": "4f42575000010048000000080000000000000002"
+			"hex": "4f42575000010049000000080000000000000002"
 		},
 		{
 			"name": "below-stream-message-kinds",

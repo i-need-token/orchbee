@@ -1,12 +1,13 @@
 import {
 	CURRENT_PROTOCOL_VERSION,
+	CanonicalUint64TextSchema,
 	MessageKind,
 	type MessageKindValue,
 	PayloadEncoding,
 	encodeProtocolEnvelope,
 } from '@orchbee/terminal-protocol';
 import type { ProjectedTerminalCommand } from '@orchbee/workbench-client-protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { type ServerCarrier, ServerConnection } from '../server-connection';
 import {
@@ -50,6 +51,7 @@ class ScriptedServer implements ServerCarrier {
 	readonly #decoder = new MultiplexDecoder();
 	readonly #answerControl: (request: ControlRequest) => Outcome;
 	readonly #pollRecords: Uint8Array[] = [];
+	polls = 0;
 	#receive: ((chunk: Uint8Array) => void) | null = null;
 
 	constructor(answerControl: (request: ControlRequest) => Outcome) {
@@ -62,6 +64,15 @@ class ScriptedServer implements ServerCarrier {
 
 	enqueuePollRecord(record: Uint8Array): void {
 		this.#pollRecords.push(record);
+	}
+
+	hintRecordReady(): void {
+		this.#receive?.(
+			encodeMultiplexMessage({
+				kind: 'viewer-record-ready',
+				viewerId: BigInt(`0x${ATTACHMENT_ID}`),
+			}),
+		);
 	}
 
 	send(bytes: Uint8Array): void {
@@ -121,6 +132,7 @@ class ScriptedServer implements ServerCarrier {
 				requestId,
 			});
 		}
+		if (request.action.kind === 'poll') this.polls += 1;
 		const record = request.action.kind === 'poll' ? this.#pollRecords.shift() : undefined;
 		if (record !== undefined) return encodeViewerRecord(requestId, record);
 		return encodeJsonFrame({
@@ -164,6 +176,12 @@ function hostEvent(
 	if (!encoded.ok) throw new Error(encoded.detail);
 	return encoded.value;
 }
+
+const SNAPSHOT = hostEvent(
+	MessageKind.snapshotFrame,
+	PayloadEncoding.terminalFrame,
+	new Uint8Array([9, 9]),
+);
 
 const THEME = {
 	colorScheme: 'dark',
@@ -298,9 +316,7 @@ describe('openServerTerminalProjection', () => {
 				}),
 			),
 		);
-		server.enqueuePollRecord(
-			hostEvent(MessageKind.snapshotFrame, PayloadEncoding.terminalFrame, new Uint8Array([9, 9])),
-		);
+		server.enqueuePollRecord(SNAPSHOT);
 		server.enqueuePollRecord(exited);
 		server.enqueuePollRecord(exited);
 
@@ -314,5 +330,76 @@ describe('openServerTerminalProjection', () => {
 		expect(received).toEqual(new Uint8Array([9, 9]));
 		expect(events.filter((event) => event.kind === 'terminal-exited')).toHaveLength(1);
 		projection.transport.close();
+	});
+
+	it('takes no record before anyone is subscribed, because Poll would lose it', async () => {
+		const server = new ScriptedServer(accepted);
+		server.enqueuePollRecord(SNAPSHOT);
+		const projection = await openServerTerminalProjection(
+			new ServerConnection(server),
+			{ kind: 'created', terminalCreateRequestId: 'f'.repeat(32) },
+			GEOMETRY,
+			{ ...THEME, palette: [...THEME.palette] },
+		);
+
+		server.hintRecordReady();
+		await settled(() => server.controlRequests.some((r) => r.action.kind === 'resize'));
+		await new Promise((resolve) => {
+			setTimeout(resolve, 5);
+		});
+		expect(server.polls).toBe(0);
+
+		const events: { readonly kind: string }[] = [];
+		projection.transport.subscribe(
+			(event) => events.push(event as (typeof events)[number]),
+			() => undefined,
+		);
+		await settled(() => events.some((event) => event.kind === 'frame'));
+		projection.transport.close();
+	});
+
+	it('follows hints once they have proved themselves, keeping a fallback for a lost one', async () => {
+		vi.useFakeTimers();
+		try {
+			const server = new ScriptedServer(accepted);
+			const { events, projection } = await open(server);
+			const frames = (): number => events.filter((event) => event.kind === 'frame').length;
+			const pollsDuring = async (milliseconds: number): Promise<number> => {
+				const before = server.polls;
+				await vi.advanceTimersByTimeAsync(milliseconds);
+				return server.polls - before;
+			};
+
+			// No hint has arrived and a full frame is owed, so the short deadline runs.
+			expect(await pollsDuring(80)).toBeGreaterThanOrEqual(5);
+
+			// A hint polls at once, with no timer involved.
+			server.enqueuePollRecord(SNAPSHOT);
+			server.hintRecordReady();
+			await vi.advanceTimersByTimeAsync(0);
+			expect(frames()).toBe(1);
+
+			// Hints now replace the short deadline; only the fallback finds a record whose hint was lost.
+			server.enqueuePollRecord(SNAPSHOT);
+			expect(await pollsDuring(249)).toBe(0);
+			expect(frames()).toBe(1);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(frames()).toBe(2);
+
+			// Asking for another full frame brings the short deadline back until it arrives.
+			projection.transport.send({
+				kind: 'need-snapshot',
+				payload: {
+					attachmentId: projection.bootstrap.attachmentId,
+					reason: 'decoder-rejected',
+					sequence: CanonicalUint64TextSchema.parse('1'),
+				},
+			});
+			expect(await pollsDuring(80)).toBeGreaterThanOrEqual(5);
+
+			projection.transport.close();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

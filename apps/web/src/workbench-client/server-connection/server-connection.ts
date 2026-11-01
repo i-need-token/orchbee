@@ -116,11 +116,13 @@ export class ServerConnection {
 	readonly #endListeners = new Set<(end: ServerConnectionEnd) => void>();
 	readonly #lanes = new Set<bigint>([MULTIPLEX_ROOT_LANE]);
 	readonly #streams = new Map<bigint, ActiveStream>();
+	readonly #viewerReadyListeners = new Map<bigint, () => void>();
 	readonly #waiting: WaitingOpen[] = [];
 	#end: ServerConnectionEnd | null = null;
 	#nextLaneId = MULTIPLEX_ROOT_LANE + 1n;
 	#nextStreamId = 1n;
 	#unsubscribe: (() => void) | null = null;
+	#viewerHintsSeen = false;
 
 	constructor(carrier: ServerCarrier) {
 		this.#carrier = carrier;
@@ -135,6 +137,21 @@ export class ServerConnection {
 
 	get ended(): ServerConnectionEnd | null {
 		return this.#end;
+	}
+
+	/** Only an observed hint proves this connection's Server sends them. */
+	get viewerHintsSeen(): boolean {
+		return this.#viewerHintsSeen;
+	}
+
+	/**
+	 * Calls `listener` when the Server reports that this viewer holds something to Poll. A hint moves
+	 * no record, and one that reaches no listener is dropped; that viewer finds its record on a later
+	 * Poll.
+	 */
+	watchViewerReady(viewerId: bigint, listener: () => void): () => void {
+		this.#viewerReadyListeners.set(viewerId, listener);
+		return () => this.#viewerReadyListeners.delete(viewerId);
 	}
 
 	/** Runs one request and resolves with its complete result record. */
@@ -342,6 +359,10 @@ export class ServerConnection {
 			}
 			case 'disconnect':
 				this.#finish({ kind: 'disconnected', reason: message.reason });
+				return;
+			case 'viewer-record-ready':
+				this.#viewerHintsSeen = true;
+				this.#viewerReadyListeners.get(message.viewerId)?.();
 				return;
 			case 'stream-open':
 			case 'resnapshot':

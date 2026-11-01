@@ -39,6 +39,7 @@ const messageSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('resnapshot'), streamId: decimal }),
 	z.strictObject({ kind: z.literal('lane-open'), laneId: decimal }),
 	z.strictObject({ kind: z.literal('lane-close'), laneId: decimal }),
+	z.strictObject({ kind: z.literal('viewer-record-ready'), viewerId: decimal }),
 ]);
 const corpusSchema = z.strictObject({
 	contractVersion: z.literal(1),
