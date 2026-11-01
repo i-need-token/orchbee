@@ -635,3 +635,56 @@ fn agent_surface_x(view: &ClientView, agent: &SidebarTarget) -> u16 {
     .surface()
     .x
 }
+
+#[test]
+fn only_an_agent_state_glyph_explains_its_state_under_the_pointer() {
+    use crate::tui_hit_map::tooltip::Key;
+    let (view, _, agent) = current_agent_view();
+    let theme = Theme::rgb_test_dark();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        let mut hits = HitMapBuilder::new();
+        terminal
+            .draw(|frame| {
+                render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
+            })
+            .unwrap();
+        // The row's whole title is painted, so only its glyphs offer words: the state glyph its
+        // state, and the unread dot at the row's end unread activity.
+        let legends: Vec<_> = hits
+            .tooltip_contents()
+            .filter_map(|content| match content {
+                TooltipContent::Describe { text: None, legend } => Some(legend.clone()),
+                _ => None,
+            })
+            .collect();
+        let map = hits.finish();
+        let y = sidebar_target_rows(&map, 120, 40, &agent)[0];
+        let offered: Vec<_> = (0..30)
+            .filter_map(|x| map.tooltip_at(x, y).map(|key| (x, key)))
+            .collect();
+        let buffer = terminal.backend().buffer();
+        let glyphs: Vec<_> = offered
+            .iter()
+            .map(|(x, key)| {
+                assert!(matches!(key, Key::Part { rect, .. } if rect.x == *x && rect.width == 1));
+                buffer[(*x, y)].symbol().to_owned()
+            })
+            .collect();
+        assert_eq!(
+            glyphs,
+            [
+                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working),
+                theme.glyphs.status_bullet
+            ]
+        );
+        for glyph in &glyphs {
+            assert!(
+                legends
+                    .iter()
+                    .any(|legend| legend.len() == 1 && &legend[0].glyph == glyph),
+                "{legends:?}"
+            );
+        }
+    }
+}

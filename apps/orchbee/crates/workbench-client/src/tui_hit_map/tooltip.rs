@@ -15,6 +15,14 @@ pub(crate) enum Key {
         rect: Rect,
         target: HitTarget,
     },
+    /// A glyph inside a recorded region, such as a row's state glyph: it explains itself only
+    /// from its own cells, ahead of anything the whole region offers there.
+    Part {
+        layer: HitLayer,
+        rect: Rect,
+        region: Rect,
+        target: HitTarget,
+    },
     /// A pane title's painted text. It records no target of its own, so a press there still
     /// reaches the divider or dead frame beneath; only base-layer regions without a tooltip of
     /// their own let it through.
@@ -30,19 +38,51 @@ impl Key {
         }
     }
 
+    pub(crate) const fn part(layer: HitLayer, rect: Rect, region: Rect, target: HitTarget) -> Self {
+        Self::Part {
+            layer,
+            rect,
+            region,
+            target,
+        }
+    }
+
     pub(crate) const fn pane_title(rect: Rect, pane: PaneRef) -> Self {
         Self::PaneTitle { rect, pane }
     }
 
     pub(crate) const fn rect(&self) -> Rect {
         match self {
-            Self::Region { rect, .. } | Self::PaneTitle { rect, .. } => *rect,
+            Self::Region { rect, .. } | Self::Part { rect, .. } | Self::PaneTitle { rect, .. } => {
+                *rect
+            }
         }
     }
 
     pub(crate) fn names(&self, region: &HitRegion) -> bool {
-        matches!(self, Self::Region { layer, rect, target }
-            if *layer == region.layer && *rect == region.rect && *target == region.target)
+        match self {
+            Self::Region {
+                layer,
+                rect,
+                target,
+            }
+            | Self::Part {
+                layer,
+                region: rect,
+                target,
+                ..
+            } => *layer == region.layer && *rect == region.rect && *target == region.target,
+            Self::PaneTitle { .. } => false,
+        }
+    }
+
+    /// Whether the pointer at this cell of `region` reads this tooltip.
+    fn offers(&self, region: &HitRegion, column: u16, row: u16) -> bool {
+        self.names(region)
+            && match self {
+                Self::Part { rect, .. } => super::contains(*rect, column, row),
+                Self::Region { .. } | Self::PaneTitle { .. } => true,
+            }
     }
 
     pub(crate) fn spans(&self, column: u16, row: u16) -> bool {
@@ -101,7 +141,11 @@ impl FrameHitMap {
     pub(crate) fn tooltip_at(&self, column: u16, row: u16) -> Option<Key> {
         let base = match self.hit_region(column, row) {
             HitRegionResolution::Region(region) => {
-                if let Some(key) = self.tooltips.iter().find(|key| key.names(region)) {
+                if let Some(key) = self
+                    .tooltips
+                    .iter()
+                    .find(|key| key.offers(region, column, row))
+                {
                     return Some(key.clone());
                 }
                 region.layer == HitLayer::Foreground

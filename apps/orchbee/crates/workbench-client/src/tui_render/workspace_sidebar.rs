@@ -490,7 +490,8 @@ fn folded(view: &ClientView, row: &SidebarRow<'_>) -> bool {
 }
 
 /// Paints a folded Workspace's Agent states, most urgent first, one blank cell apart. More than
-/// [`STATUS_GLYPHS`] show one fewer and a secondary `+N` remainder.
+/// [`STATUS_GLYPHS`] show one fewer and a secondary `+N` remainder. Returns the cells the glyphs
+/// cover, from the first to the last painted one.
 fn paint_status_line(
     frame: &mut Frame<'_>,
     line: Rect,
@@ -498,18 +499,19 @@ fn paint_status_line(
     interaction: Option<Role>,
     working_frame: usize,
     theme: &Theme,
-) {
+) -> Rect {
     let shown = if states.len() > STATUS_GLYPHS {
         STATUS_GLYPHS - 1
     } else {
         states.len()
     };
     let mut x = line.x;
+    let mut end = line.x;
     for state in &states[..shown] {
         let glyph = sidebar_text::state_glyph(*state, theme, working_frame);
         let width = u16::try_from(display_width(glyph)).unwrap_or(u16::MAX);
         if x.saturating_add(width) > line.right() {
-            return;
+            return Rect::new(line.x, line.y, end - line.x, 1);
         }
         frame.render_widget(
             Paragraph::new(glyph).style(theme.content_on_surface(
@@ -520,12 +522,14 @@ fn paint_status_line(
             )),
             Rect::new(x, line.y, width, 1),
         );
-        x = x.saturating_add(width + 1);
+        end = x.saturating_add(width);
+        x = end.saturating_add(1);
     }
     if shown < states.len() {
         let remainder = format!("+{}", states.len() - shown);
         let width = u16::try_from(display_width(&remainder)).unwrap_or(u16::MAX);
         if x.saturating_add(width) <= line.right() {
+            end = x.saturating_add(width);
             frame.render_widget(
                 Paragraph::new(remainder).style(theme.content_on_surface(
                     Role::SurfaceChrome,
@@ -537,6 +541,7 @@ fn paint_status_line(
             );
         }
     }
+    Rect::new(line.x, line.y, end - line.x, 1)
 }
 
 fn configured_height(view: &ClientView) -> u16 {
@@ -1773,7 +1778,7 @@ pub(super) fn render(
                 content_height,
             ),
         );
-        if content_height > 1 {
+        let status_glyphs = (content_height > 1).then(|| {
             paint_status_line(
                 frame,
                 Rect::new(
@@ -1786,8 +1791,8 @@ pub(super) fn render(
                 interaction,
                 view.machines.working_frame(),
                 theme,
-            );
-        }
+            )
+        });
         let unread_marker = unread && close.is_none();
         // First-line metadata sits flush with the row's trailing edge, where close appears,
         // unless the unread marker and its blank cell occupy the last two cells.
@@ -2004,13 +2009,44 @@ pub(super) fn render(
         if painted.is_some()
             && let (Some(hits), Some(target)) = (hits.as_deref_mut(), row_target)
         {
-            // A row gives the name it cuts in full. An Agent row names its state glyph; a folded
-            // Workspace each state its status line shows. Either adds the unread dot.
-            let states = agent_state.into_iter().chain(status_states.iter().copied());
-            if let Some(content) = tooltip::describe(
-                cut_name,
-                tooltip::legend(states, unread, view.machines.working_frame(), locale, theme),
-            ) {
+            // Each glyph names itself only under the pointer: an Agent's state glyph its state, a
+            // folded Workspace's status line each state it shows, the unread dot unread activity.
+            // The rest of the row gives only the name it cuts, in full.
+            let working_frame = view.machines.working_frame();
+            let parts = [
+                agent_state.map(|state| {
+                    (
+                        tracks.first_line(tracks.state),
+                        tooltip::legend([state], false, working_frame, locale, theme),
+                    )
+                }),
+                status_glyphs
+                    .filter(|_| !status_states.is_empty())
+                    .map(|rect| {
+                        (
+                            rect,
+                            tooltip::legend(
+                                status_states.iter().copied(),
+                                false,
+                                working_frame,
+                                locale,
+                                theme,
+                            ),
+                        )
+                    }),
+                unread_marker.then(|| {
+                    (
+                        tracks.first_line(tracks.unread),
+                        tooltip::legend([], true, working_frame, locale, theme),
+                    )
+                }),
+            ];
+            for (rect, legend) in parts.into_iter().flatten() {
+                if let Some(content) = tooltip::describe(None, legend) {
+                    hits.record_part_tooltip(layer, rect, band, &target, content);
+                }
+            }
+            if let Some(content) = tooltip::describe(cut_name, Vec::new()) {
                 hits.record_interaction_tooltip(layer, band, &target, content);
             }
             hits.record_interaction(layer, band, band, target, row_spec);

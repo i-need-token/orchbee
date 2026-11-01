@@ -527,7 +527,9 @@ owners and no thread or timer of its own.
   `record_interaction_tooltip` with the exact layer, rectangle, and `HitTarget` it records for that
   region, plus its `TooltipContent`. The published `FrameHitMap` keeps only which regions offer
   one; content stays with the candidate frame, so the box shows that frame's words, Working phase,
-  and effective binding. A pane title's text records no target, so pressing it still reaches the
+  and effective binding. `record_part_tooltip` offers one on a glyph inside such a region, such as
+  a sidebar row's state glyph or unread dot; recorded before the region's own tooltip, it wins
+  only within the glyph's cells. A pane title's text records no target, so pressing it still reaches the
   divider beneath: `record_pane_title_tooltip` offers its tooltip by rectangle and `PaneRef`
   wherever the frontmost region there is a `Foreground` region without a tooltip of its own, or
   dead space.

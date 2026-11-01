@@ -1094,6 +1094,24 @@ impl HitMapBuilder {
         self.tooltip_contents.push((key, content));
     }
 
+    /// Offers a tooltip on part of a region this frame records with exactly this layer, region
+    /// rect and target. Record it before any tooltip of the whole region: within `rect` it wins.
+    pub(crate) fn record_part_tooltip(
+        &mut self,
+        layer: HitLayer,
+        rect: Rect,
+        region: Rect,
+        target: &InteractionTarget,
+        content: TooltipContent,
+    ) {
+        if rect.is_empty() || region.intersection(rect) != rect {
+            return;
+        }
+        let key = tooltip::Key::part(layer, rect, region, target.hit_target());
+        self.map.tooltips.push(key.clone());
+        self.tooltip_contents.push((key, content));
+    }
+
     /// [`Self::record_tooltip`] for a generic interaction recorded at the same rect.
     pub(crate) fn record_interaction_tooltip(
         &mut self,
