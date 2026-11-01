@@ -15,7 +15,7 @@ mod closed;
 mod created;
 pub(crate) use created::validate_created_tab;
 mod menu_source;
-pub(crate) use menu_source::MenuContextSource;
+pub(crate) use menu_source::{MenuContextSource, settled_workspace};
 mod presentations;
 pub(crate) mod renamed;
 mod tab_metadata;

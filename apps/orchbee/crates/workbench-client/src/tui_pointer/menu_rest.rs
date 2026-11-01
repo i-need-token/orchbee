@@ -49,7 +49,7 @@ impl State {
             && self
                 .pending
                 .as_ref()
-                .is_some_and(|pending| &pending.target == hovered)
+                .is_some_and(|pending| same_place(&pending.target, hovered))
         {
             return;
         }
@@ -65,21 +65,40 @@ impl State {
     }
 
     /// The rested target once its time has come, while the pointer is still on it. `at` is the
-    /// target under the pointer in the current published frame.
+    /// target under the pointer in the current published frame, and `enabled` whether it acts. A row
+    /// keeps its rest while disabled and through a fresh token, so a submenu row the pointer reached
+    /// before Git discovery finished opens when discovery enables it.
     pub(super) fn due(
         &mut self,
         at: Option<&InteractionTarget>,
+        enabled: bool,
         now: Instant,
     ) -> Option<InteractionTarget> {
-        let pending = self.pending.as_ref()?;
-        if at != Some(&pending.target) {
+        let pending = self.pending.as_mut()?;
+        let Some(at) = at.filter(|at| same_place(at, &pending.target)) else {
             self.pending = None;
             return None;
-        }
-        (now >= pending.due)
+        };
+        pending.target = at.clone();
+        (enabled && now >= pending.due)
             .then(|| self.pending.take())
             .flatten()
             .map(|pending| pending.target)
+    }
+}
+
+/// The same menu row or control, whatever token its menu has since taken.
+fn same_place(left: &InteractionTarget, right: &InteractionTarget) -> bool {
+    match (left, right) {
+        (
+            InteractionTarget::ActionMenuRow { source, row, .. },
+            InteractionTarget::ActionMenuRow {
+                source: other,
+                row: other_row,
+                ..
+            },
+        ) => source == other && row == other_row,
+        _ => left == right,
     }
 }
 

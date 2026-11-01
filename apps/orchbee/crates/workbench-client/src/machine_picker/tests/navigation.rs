@@ -85,6 +85,7 @@ fn checkpoint(session: u8) -> crate::machine_spaces::checkpoint::Observation {
         revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
         metadata_revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
         git_requested: false,
+        known_git: Vec::new().into(),
         projects: [1, 2]
             .into_iter()
             .map(|id| ProjectSummary {
@@ -101,6 +102,7 @@ fn checkpoint(session: u8) -> crate::machine_spaces::checkpoint::Observation {
             directory: None,
             git: None,
             git_stale: false,
+            held: None,
         }]
         .into(),
     }))

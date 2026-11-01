@@ -232,6 +232,7 @@ fn project_gap_view(label: &str) -> ClientView {
                 revision: WorkbenchRevision::new(3),
                 metadata_revision: WorkbenchRevision::new(2),
                 git_requested: true,
+                known_git: Vec::new().into(),
                 rows: rows.into(),
                 projects: vec![
                     crate::machine_spaces::ProjectSummary {

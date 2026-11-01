@@ -2,14 +2,25 @@
 //! Git facts, and the checkpoint that fences them. Readers produce them; Client state holds them.
 use crate::client_context::ClientContextTarget;
 use orchbee_workbench_protocol::{
-    GitDivergence, MetadataTokens, SessionId, WorkbenchProjectId, WorkbenchRevision,
+    GitDivergence, MetadataTokens, SessionId, WorkbenchDirectoryPath, WorkbenchProjectId,
+    WorkbenchRevision,
 };
 use std::sync::Arc;
+
+/// Directories whose last Git answer a Session keeps for an immediate paint on return.
+const MAXIMUM_KNOWN_GIT: usize = 64;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Git {
     pub(crate) branch: Option<String>,
     pub(crate) divergence: Option<GitDivergence>,
+}
+/// The settled location a row keeps presenting while the Git facts of its new directory are
+/// unknown, so a directory change moves its line once rather than through the bare path.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct HeldLocation {
+    pub(crate) folder: Option<WorkbenchDirectoryPath>,
+    pub(crate) git: Git,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Row {
@@ -21,9 +32,56 @@ pub(crate) struct Row {
     /// Canonical directory identity fences reuse of a last known Git observation.
     pub(crate) directory: Option<orchbee_workbench_protocol::Directory>,
     /// The first terminal's observed directory while it differs from `directory`.
-    pub(crate) terminal_directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
+    pub(crate) terminal_directory: Option<WorkbenchDirectoryPath>,
     pub(crate) git: Option<Git>,
     pub(crate) git_stale: bool,
+    /// Present only while `git` is unknown for a directory the row just moved to.
+    pub(crate) held: Option<HeldLocation>,
+}
+impl Row {
+    /// The directory `git` describes: the first terminal's, otherwise the Workspace's own.
+    pub(crate) fn source_path(&self) -> Option<&WorkbenchDirectoryPath> {
+        self.terminal_directory
+            .as_ref()
+            .or(self.directory.as_ref().map(|directory| &directory.path))
+    }
+
+    fn same_source(&self, other: &Self) -> bool {
+        self.directory == other.directory && self.terminal_directory == other.terminal_directory
+    }
+
+    /// Completes a row without a Git answer from what `previous` knew. The same source keeps its
+    /// fact. A changed source takes the last answer for its directory, or else holds the location
+    /// the row last settled on. `asked` says a complete round wanted Git and got no answer: it
+    /// makes a retained fact stale and ends a hold, since no answer is coming soon.
+    pub(super) fn carry_git(&mut self, known: Option<&Self>, previous: &Checkpoint, asked: bool) {
+        match known.filter(|known| known.same_source(self)) {
+            Some(known) => {
+                self.git.clone_from(&known.git);
+                self.git_stale = self.git.is_some() && (asked || known.git_stale);
+                self.held = known.held.clone().filter(|_| !asked);
+            }
+            None => {
+                if let Some(git) = self
+                    .source_path()
+                    .and_then(|path| previous.git_at(path))
+                    .cloned()
+                {
+                    self.git = Some(git);
+                    self.git_stale = asked;
+                } else if !asked {
+                    self.held = known.and_then(|known| {
+                        known.held.clone().or_else(|| {
+                            Some(HeldLocation {
+                                folder: known.source_path().cloned(),
+                                git: known.git.clone()?,
+                            })
+                        })
+                    });
+                }
+            }
+        }
+    }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ProjectSummary {
@@ -38,38 +96,57 @@ pub struct Checkpoint {
     pub(crate) git_requested: bool,
     pub(crate) rows: Arc<[Row]>,
     pub(crate) projects: Arc<[ProjectSummary]>,
+    /// The Session's last Git answers by directory, oldest first. Hints for presentation only.
+    pub(crate) known_git: Arc<[(WorkbenchDirectoryPath, Git)]>,
 }
 pub(crate) type Observation = crate::machine_observation::outcome::Observation<Checkpoint>;
 
 impl Checkpoint {
-    /// Missing reads retain facts only for the same exact Workspace and observed source. A read
-    /// that asked for Git and got none makes the retained fact stale; a metadata-only read says
-    /// nothing about Git, so the fact keeps the freshness it had.
+    /// The last Git answer for `path`: a current row's, otherwise an earlier round's.
+    pub(super) fn git_at(&self, path: &WorkbenchDirectoryPath) -> Option<&Git> {
+        self.rows
+            .iter()
+            .filter(|row| row.source_path() == Some(path))
+            .find_map(|row| row.git.as_ref())
+            .or_else(|| {
+                self.known_git
+                    .iter()
+                    .find(|(known, _)| known == path)
+                    .map(|(_, git)| git)
+            })
+    }
+
+    /// Reads without an answer complete their rows from `previous`, by exact Workspace and
+    /// observed source, then by the directory's last answer. A read that asked for Git and got
+    /// none makes the retained fact stale; a metadata-only or partial read says nothing about the
+    /// rows it left unread, so a retained fact keeps its freshness and a hold continues.
     pub(crate) fn retaining_git(&self, previous: &Self) -> Self {
         let mut checkpoint = self.clone();
-        if self.session_id != previous.session_id
-            || self
-                .rows
-                .iter()
-                .all(|row| row.git.is_some() || row.directory.is_none())
-        {
+        if self.session_id != previous.session_id {
             return checkpoint;
         }
         let mut rows = self.rows.to_vec();
-        for row in &mut rows {
-            if row.git.is_none()
-                && row.directory.is_some()
-                && let Some(known) = previous.rows.iter().find(|known| {
-                    known.target == row.target
-                        && known.directory == row.directory
-                        && known.terminal_directory == row.terminal_directory
-                })
-            {
-                row.git.clone_from(&known.git);
-                row.git_stale = row.git.is_some() && (self.git_requested || known.git_stale);
+        for row in rows.iter_mut().filter(|row| row.git.is_none()) {
+            let known = previous
+                .rows
+                .iter()
+                .find(|known| known.target == row.target);
+            row.carry_git(known, previous, self.git_requested);
+        }
+        let mut known_git = previous.known_git.to_vec();
+        for row in previous.rows.iter().chain(rows.iter()) {
+            let (Some(path), Some(git)) = (row.source_path(), row.git.as_ref()) else {
+                continue;
+            };
+            match known_git.iter_mut().find(|(known, _)| known == path) {
+                Some((_, known)) => known.clone_from(git),
+                None => known_git.push((path.clone(), git.clone())),
             }
         }
+        let excess = known_git.len().saturating_sub(MAXIMUM_KNOWN_GIT);
+        known_git.drain(..excess);
         checkpoint.rows = rows.into();
+        checkpoint.known_git = known_git.into();
         checkpoint
     }
 }

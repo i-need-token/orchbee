@@ -1,8 +1,10 @@
-//! Local-only named pipes with same-token-user admission and bounded nonblocking I/O.
+//! Local-only named pipes with same-token-user admission and bounded nonblocking I/O. Reads and
+//! writes consult the kernel's pipe counters first, so a blocking-mode pipe never blocks a caller;
+//! that mode is what lets one zero-byte read wait for the peer's next byte.
 use std::{
     io::{self, Read, Write},
     net::Shutdown,
-    os::windows::io::AsHandle,
+    os::windows::io::{AsHandle, OwnedHandle},
     path::Path,
     sync::{
         Arc, Mutex, MutexGuard,
@@ -18,12 +20,16 @@ use interprocess::{
         named_pipe::{PipeListener, PipeListenerOptions, PipeStream, pipe_mode::Bytes},
         security_descriptor::SecurityDescriptor,
     },
-    unnamed_pipe::Recver,
 };
 use widestring::U16CString;
 use winsafe::{HPROCESS, TokenInfo, co};
 
+use crate::windows_native::{ReadWatch, WatchArm, pipe_counters};
+
 const POLL_INTERVAL: Duration = Duration::from_millis(2);
+const UNBOUNDED_WAIT_SLICE: Duration = Duration::from_secs(1);
+const NONBLOCKING_WRITE_LIMIT: usize = 4096;
+const ERROR_PIPE_BUSY: i32 = 231;
 type Pipe = PipeStream<Bytes, Bytes>;
 
 mod connection;
@@ -88,7 +94,7 @@ fn pipe_name(path: &Path) -> io::Result<&std::ffi::OsStr> {
     Ok(path.as_os_str())
 }
 
-/// Advisory byte-read readiness; probing never discards the prefetched byte.
+/// Advisory byte-read readiness; probing never consumes a byte.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Readiness {
     Pending,
@@ -99,8 +105,7 @@ pub enum Readiness {
 #[derive(Debug)]
 struct Connection {
     pipe: Option<Pipe>,
-    reader: Option<Recver>,
-    prefetched: Option<u8>,
+    watch: Option<ReadWatch>,
     eof: bool,
     read_timeout: Option<Duration>,
     write_timeout: Option<Duration>,
@@ -109,10 +114,34 @@ struct Connection {
 
 impl Drop for Connection {
     fn drop(&mut self) {
+        self.close();
+    }
+}
+
+impl Connection {
+    fn close(&mut self) {
+        self.eof = true;
+        // Settle the watch first: it holds the pipe open and its cancellation wakes every poller.
+        self.watch.take();
         if let Some(pipe) = self.pipe.take() {
             pipe.evade_limbo();
         }
     }
+
+    fn live_pipe(&self) -> Option<&Pipe> {
+        self.pipe.as_ref().filter(|_| !self.eof)
+    }
+}
+
+/// What one poller can wait on for this stream's next byte or closure.
+pub(crate) enum ReadWait {
+    /// A pending zero-byte read signals this event.
+    Event(Arc<OwnedHandle>),
+    /// The stream changed while arming, so probing again is the next step.
+    Changed,
+    /// Bytes are already waiting and a zero-byte read would complete at once. A poller reaches
+    /// this only without read interest, so it keeps the bounded cadence to see closure.
+    Unwatchable,
 }
 
 /// Clones share one connection and cancellation owner, not independent byte cursors.
@@ -168,20 +197,14 @@ impl LocalStream {
     }
 
     fn admit(pipe: Pipe) -> io::Result<Self> {
-        pipe.set_nonblocking(true)?;
+        // A zero-byte read pends only in blocking mode, and the kernel refuses to leave that mode
+        // while one is outstanding. Counted transfers below never wait in it.
+        pipe.set_nonblocking(false)?;
         verify_peer(&pipe)?;
-        Self::from_nonblocking_pipe(pipe)
-    }
-
-    fn from_nonblocking_pipe(pipe: Pipe) -> io::Result<Self> {
-        // Preserve ERROR_NO_DATA: the high-level pipe Read implementation
-        // folds it into EOF, although PIPE_NOWAIT uses it for an idle peer.
-        let reader = Recver::from(pipe.as_handle().try_clone_to_owned()?);
         Ok(Self {
             connection: Arc::new(Mutex::new(Connection {
                 pipe: Some(pipe),
-                reader: Some(reader),
-                prefetched: None,
+                watch: None,
                 eof: false,
                 read_timeout: None,
                 write_timeout: None,
@@ -224,42 +247,47 @@ impl LocalStream {
 
     /// Cancels both directions for every clone without an unbounded flush or worker thread.
     pub fn shutdown(&self, _how: Shutdown) -> io::Result<()> {
-        let mut connection = self.lock()?;
-        connection.eof = true;
-        connection.prefetched = None;
-        connection.reader.take();
-        if let Some(pipe) = connection.pipe.take() {
-            pipe.evade_limbo();
-        }
+        self.lock()?.close();
         Ok(())
     }
 
-    /// Probes exact byte readiness, retaining at most one byte until the next read.
+    /// Probes exact byte readiness from the kernel's counters without consuming a byte.
     pub fn readiness(&self) -> io::Result<Readiness> {
         let mut connection = self.lock()?;
-        if connection.prefetched.is_some() {
+        let Some(pipe) = connection.live_pipe() else {
+            return Ok(Readiness::Closed);
+        };
+        let counters = pipe_counters(pipe.as_handle())?;
+        if counters.read_available > 0 {
             return Ok(Readiness::Readable);
         }
-        if connection.eof {
-            return Ok(Readiness::Closed);
+        if counters.connected {
+            return Ok(Readiness::Pending);
         }
-        let mut byte = [0];
-        let result = match &mut connection.reader {
-            Some(reader) => reader.read(&mut byte),
-            None => return Ok(Readiness::Closed),
+        connection.eof = true;
+        Ok(Readiness::Closed)
+    }
+
+    /// Arms this stream's next-byte-or-closure notification for one poller.
+    pub(crate) fn read_wait(&self) -> io::Result<ReadWait> {
+        let mut connection = self.lock()?;
+        let Connection {
+            pipe, watch, eof, ..
+        } = &mut *connection;
+        let Some(pipe) = pipe.as_ref().filter(|_| !*eof) else {
+            return Ok(ReadWait::Changed);
         };
-        match normalize_read(result) {
-            Ok(0) => {
-                connection.eof = true;
-                Ok(Readiness::Closed)
-            }
-            Ok(_) => {
-                connection.prefetched = Some(byte[0]);
-                Ok(Readiness::Readable)
-            }
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => Ok(Readiness::Pending),
-            Err(error) => Err(error),
+        if pipe_counters(pipe.as_handle())?.read_available > 0 {
+            return Ok(ReadWait::Unwatchable);
         }
+        let watch = match watch {
+            Some(watch) => watch,
+            empty => empty.insert(ReadWatch::new(pipe.as_handle())?),
+        };
+        Ok(match watch.arm()? {
+            WatchArm::Pending => ReadWait::Event(watch.event()),
+            WatchArm::Completed => ReadWait::Changed,
+        })
     }
 
     fn read_once(&self, buffer: &mut [u8]) -> io::Result<usize> {
@@ -267,27 +295,24 @@ impl LocalStream {
             return Ok(0);
         }
         let mut connection = self.lock()?;
-        let prefetched = if let Some(byte) = connection.prefetched.take() {
-            buffer[0] = byte;
-            1
-        } else {
-            0
+        let Some(pipe) = connection.live_pipe() else {
+            return Ok(0);
         };
-        if connection.eof || prefetched == buffer.len() {
-            return Ok(prefetched);
+        let counters = pipe_counters(pipe.as_handle())?;
+        if counters.read_available == 0 {
+            if counters.connected {
+                return Err(io::ErrorKind::WouldBlock.into());
+            }
+            connection.eof = true;
+            return Ok(0);
         }
-        let result = match &mut connection.reader {
-            Some(reader) => normalize_read(reader.read(&mut buffer[prefetched..])),
-            None => Ok(0),
-        };
-        if matches!(result, Ok(0)) {
+        // Bytes already counted complete this read at once; only the lock owner consumes them.
+        let length = buffer.len().min(counters.read_available as usize);
+        let read = (&*pipe).read(&mut buffer[..length])?;
+        if read == 0 {
             connection.eof = true;
         }
-        match result {
-            Ok(read) => Ok(prefetched + read),
-            Err(_) if prefetched > 0 => Ok(prefetched),
-            Err(error) => Err(error),
-        }
+        Ok(read)
     }
 
     fn write_once(&self, buffer: &[u8]) -> io::Result<usize> {
@@ -299,16 +324,49 @@ impl LocalStream {
             .pipe
             .as_ref()
             .ok_or_else(|| io::Error::from(io::ErrorKind::BrokenPipe))?;
-        // PIPE_NOWAIT may accept zero bytes when one write exceeds the
-        // available quota. Bound each attempt below our pipe buffer size so
-        // large protocol records make progress as the peer drains them.
-        let result = (&*pipe).write(&buffer[..buffer.len().min(4096)]);
+        let counters = pipe_counters(pipe.as_handle())?;
+        if !counters.connected {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        let result = if counters.write_quota > 0 {
+            // Only the lock owner writes and the peer only frees quota, so a write within the
+            // counted quota lands in the pipe's buffer without waiting for the peer.
+            let length = buffer.len().min(counters.write_quota as usize);
+            (&*pipe).write(&buffer[..length])
+        } else {
+            // The count alone cannot refuse a write: a peer's pending read of a large buffer
+            // reduces it while the pipe is empty. Leaving blocking mode tells the two apart: the
+            // kernel refuses it only for this end's pending read, which is cancelled here, or for
+            // queued bytes, which prove the count right.
+            connection.watch.take();
+            let pipe = connection
+                .pipe
+                .as_ref()
+                .ok_or_else(|| io::Error::from(io::ErrorKind::BrokenPipe))?;
+            match pipe.set_nonblocking(true) {
+                Err(error) if error.raw_os_error() == Some(ERROR_PIPE_BUSY) => {
+                    Err(io::ErrorKind::WouldBlock.into())
+                }
+                Err(error) => Err(error),
+                Ok(()) => {
+                    // PIPE_NOWAIT may accept zero bytes when one write exceeds the available quota,
+                    // so this stays below the buffer size for a large record to keep progressing.
+                    let attempt =
+                        (&*pipe).write(&buffer[..buffer.len().min(NONBLOCKING_WRITE_LIMIT)]);
+                    pipe.set_nonblocking(false)?;
+                    match attempt {
+                        Ok(0) => Err(io::ErrorKind::WouldBlock.into()),
+                        other => other,
+                    }
+                }
+            }
+        };
+        let pipe = connection
+            .pipe
+            .as_ref()
+            .ok_or_else(|| io::Error::from(io::ErrorKind::BrokenPipe))?;
         // Protocol receipts, never FlushFileBuffers, decide known delivery.
         pipe.assume_flushed();
-        let result = match result {
-            Ok(0) => Err(io::ErrorKind::WouldBlock.into()),
-            other => other,
-        };
         connection.write_blocked_at = result
             .as_ref()
             .err()
@@ -317,10 +375,14 @@ impl LocalStream {
         result
     }
 
+    /// A pipe has no write-completion event, so a blocked writer keeps a bounded cadence.
     pub(crate) fn writable_advisory(&self) -> io::Result<bool> {
         let connection = self.lock()?;
-        Ok(!connection.eof
-            && connection
+        let Some(pipe) = connection.live_pipe() else {
+            return Ok(false);
+        };
+        Ok(pipe_counters(pipe.as_handle())?.write_quota > 0
+            || connection
                 .write_blocked_at
                 .is_none_or(|at| at.elapsed() >= POLL_INTERVAL))
     }
@@ -328,6 +390,7 @@ impl LocalStream {
     fn transfer(
         &self,
         timeout: Option<Duration>,
+        interest: crate::PollFlags,
         mut attempt: impl FnMut() -> io::Result<usize>,
     ) -> io::Result<usize> {
         let deadline = timeout
@@ -346,10 +409,16 @@ impl LocalStream {
                     if deadline.is_some_and(|end| Instant::now() >= end) {
                         return Err(io::ErrorKind::TimedOut.into());
                     }
-                    thread::sleep(deadline.map_or(POLL_INTERVAL, |end| {
+                    // An unbounded caller reobserves its flag at this slice; a deadline never
+                    // exceeds the poll grammar's range.
+                    let slice = deadline.map_or(UNBOUNDED_WAIT_SLICE, |end| {
                         end.saturating_duration_since(Instant::now())
-                            .min(POLL_INTERVAL)
-                    }));
+                            .min(UNBOUNDED_WAIT_SLICE)
+                    });
+                    crate::poll(
+                        &mut [crate::PollFd::new(crate::LocalIo::Stream(self), interest)],
+                        crate::PollTimeout::try_from(slice)?,
+                    )?;
                 }
                 result => return result,
             }
@@ -370,9 +439,7 @@ impl ChildOutputReader {
         let (writer, reader) = LocalStream::pair()?;
         reader.set_nonblocking(true)?;
         let mut connection = writer.lock()?;
-        connection.reader.take();
         let pipe = connection.pipe.take().ok_or(io::ErrorKind::BrokenPipe)?;
-        pipe.set_nonblocking(false)?;
         let handle = std::os::windows::io::OwnedHandle::try_from(pipe)
             .map_err(|_| io::Error::other("child pipe ownership unavailable"))?;
         Ok((Self(reader), std::process::Stdio::from(handle)))
@@ -431,18 +498,10 @@ fn reject_zero(timeout: Option<Duration>) -> io::Result<()> {
     }
 }
 
-fn normalize_read(result: io::Result<usize>) -> io::Result<usize> {
-    match result {
-        Err(error) if matches!(error.raw_os_error(), Some(109 | 233)) => Ok(0),
-        Err(error) if error.raw_os_error() == Some(232) => Err(io::ErrorKind::WouldBlock.into()),
-        result => result,
-    }
-}
-
 impl Read for &LocalStream {
     fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
         let timeout = self.lock()?.read_timeout;
-        self.transfer(timeout, || self.read_once(buffer))
+        self.transfer(timeout, crate::PollFlags::POLLIN, || self.read_once(buffer))
     }
 }
 impl Read for LocalStream {
@@ -453,7 +512,9 @@ impl Read for LocalStream {
 impl Write for &LocalStream {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         let timeout = self.lock()?.write_timeout;
-        self.transfer(timeout, || self.write_once(buffer))
+        self.transfer(timeout, crate::PollFlags::POLLOUT, || {
+            self.write_once(buffer)
+        })
     }
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
@@ -558,7 +619,7 @@ pub fn endpoint_exists(path: &Path) -> io::Result<bool> {
     // change between batches. Validation excludes wildcards from this exact query.
     // The extended prefix preserves literal names, including trailing periods.
     let query = name.replacen(r"\\.\", r"\\?\", 1);
-    crate::windows_name_query::exact_name_exists(&query)
+    crate::windows_native::exact_name_exists(&query)
 }
 
 /// Read-only name observation; `None` never claims absence after a budget limit.

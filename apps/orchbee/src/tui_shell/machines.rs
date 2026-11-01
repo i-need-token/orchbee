@@ -297,8 +297,13 @@ impl Manager {
             Vec::new()
         };
         // Commits refresh canonical metadata at once; Git keeps its own sampling cooldown, so they
-        // cannot queue one Git request per Workspace on the carrier the terminals share.
+        // cannot queue one Git request per Workspace on the carrier the terminals share. Only a
+        // Workspace that moved to a directory without a known answer asks once ahead of it.
         let spaces = if space_git {
+            for (machine, workspaces) in view.machines.take_space_git_demand() {
+                self.spaces
+                    .expedite(&machine, crate::machine_spaces::read_git_of(workspaces));
+            }
             self.spaces.tick_split(
                 space_sources,
                 now,

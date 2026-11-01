@@ -140,7 +140,10 @@ impl LocalTerminalService {
                 common_directory,
                 checkout_path,
                 workspace_id: match &request.source {
-                    WorktreeSource::Workspace { workspace_id } => Some(workspace_id.clone()),
+                    WorktreeSource::Workspace { workspace_id }
+                    | WorktreeSource::WorkspaceDirectory { workspace_id, .. } => {
+                        Some(workspace_id.clone())
+                    }
                     WorktreeSource::Directory { .. } => None,
                 },
             },

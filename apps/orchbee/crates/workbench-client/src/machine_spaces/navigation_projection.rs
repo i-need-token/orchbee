@@ -18,7 +18,8 @@ pub struct SidebarNavigationProjection {
 
 impl Checkpoint {
     /// Newer observed topology supersedes speculation. Older observations contribute metadata
-    /// only by exact identity; Git additionally requires the same canonical directory.
+    /// only by exact identity; Git additionally requires the same source, or the directory's last
+    /// answer, and a row that moved to an unknown directory holds its settled location.
     pub(crate) fn project_navigation(
         source: &SidebarNavigationProjection,
         observed: Option<&Self>,
@@ -65,27 +66,22 @@ impl Checkpoint {
             let directory = navigation
                 .workspace_directory(&workspace.workspace_id)
                 .cloned();
-            let git = known
-                .filter(|row| {
-                    row.directory == directory
-                        && row.terminal_directory == workspace.terminal_directory
-                })
-                .and_then(|row| row.git.clone());
-            rows.push(Row {
+            let mut row = Row {
                 target,
                 project_id: workspace.project_id.clone(),
                 label: Some(workspace.label.clone()),
                 tokens: known.map_or_else(MetadataTokens::default, |row| row.tokens.clone()),
                 directory,
                 terminal_directory: workspace.terminal_directory.clone(),
-                git_stale: git.is_some()
-                    && known.is_some_and(|row| {
-                        row.git_stale
-                            || observed
-                                .is_some_and(|checkpoint| checkpoint.revision < snapshot.revision)
-                    }),
-                git,
-            });
+                git: None,
+                git_stale: false,
+                held: None,
+            };
+            // A commit is no Git failure, so it stales nothing.
+            if let Some(observed) = observed {
+                row.carry_git(known, observed, false);
+            }
+            rows.push(row);
         }
         Some(Self {
             session_id: snapshot.session_id.clone(),
@@ -104,6 +100,10 @@ impl Checkpoint {
                     label: project.label.clone(),
                 })
                 .collect(),
+            known_git: observed.map_or_else(
+                || Vec::new().into(),
+                |checkpoint| std::sync::Arc::clone(&checkpoint.known_git),
+            ),
         })
     }
 }

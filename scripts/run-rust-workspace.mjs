@@ -19,10 +19,10 @@ const unsafeBoundaries = Object.freeze([
 		name: 'orchbee-local-ipc',
 		manifest: 'crates/local-ipc/Cargo.toml',
 		library: 'crates/local-ipc/src/lib.rs',
-		module: 'windows_name_query',
-		system: 'crates/local-ipc/src/windows_name_query.rs',
-		systemTests: 'crates/local-ipc/src/windows_name_query/tests.rs',
-		reason: 'exact Win32 name queries preserve immediate errors and own the search handle',
+		module: 'windows_native',
+		system: 'crates/local-ipc/src/windows_native.rs',
+		systemTests: 'crates/local-ipc/src/windows_native/tests.rs',
+		reason: 'reviewed Win32 name queries, pipe counters, read watches and waits are isolated here',
 	},
 ]);
 const task = process.argv[2];

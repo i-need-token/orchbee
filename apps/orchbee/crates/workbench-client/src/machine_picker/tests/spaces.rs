@@ -156,6 +156,7 @@ fn git_checkpoint(revision: u64) -> std::sync::Arc<crate::machine_spaces::Checkp
         revision: WorkbenchRevision::new(revision),
         metadata_revision: WorkbenchRevision::new(revision),
         git_requested: true,
+        known_git: Vec::new().into(),
         projects: vec![ProjectSummary {
             project_id: contexts[0].project_id.clone().unwrap(),
             label: "Repo".into(),
@@ -179,6 +180,7 @@ fn git_checkpoint(revision: u64) -> std::sync::Arc<crate::machine_spaces::Checkp
                     divergence: None,
                 }),
                 git_stale: false,
+                held: None,
             })
             .collect(),
     })
@@ -308,6 +310,49 @@ fn metadata_reads_keep_git_freshness_and_a_changed_terminal_directory_drops_the_
     let stale = failed.retaining_git(&previous);
     assert!(stale.rows[0].git_stale);
     assert!(next.retaining_git(&stale).rows[0].git_stale);
+}
+#[test]
+fn a_row_without_a_git_answer_asks_once_for_each_directory_it_reaches() {
+    use crate::machine_spaces::checkpoint::Observation as Spaces;
+    let moved_to = |directory: &str, revision: u64| {
+        let mut moved = (*git_checkpoint(revision)).clone();
+        moved.git_requested = false;
+        let mut rows = moved.rows.to_vec();
+        for row in &mut rows {
+            row.git = None;
+        }
+        rows[1].terminal_directory = Some(WorkbenchDirectoryPath::parse(directory).unwrap());
+        moved.rows = rows.into();
+        std::sync::Arc::new(moved)
+    };
+    let mut picker = picker(3);
+    picker.observe_spaces(vec![(Choice::Local, Spaces::Ready(git_checkpoint(1)))]);
+    assert_eq!(picker.take_space_git_demand(), []);
+    picker.observe_spaces(vec![(
+        Choice::Local,
+        Spaces::Ready(moved_to("C:/elsewhere", 2)),
+    )]);
+    let crate::workbench_projection::ClientContextLocation::Workspace { workspace_id, .. } =
+        &contexts(3)[1].target.location
+    else {
+        unreachable!()
+    };
+    let only = std::collections::BTreeSet::from([workspace_id.clone()]);
+    assert_eq!(
+        picker.take_space_git_demand(),
+        [(Choice::Local, only.clone())],
+        "the others kept their answers"
+    );
+    assert_eq!(
+        picker.take_space_git_demand(),
+        [],
+        "a failure waits for sampling"
+    );
+    picker.observe_spaces(vec![(
+        Choice::Local,
+        Spaces::Ready(moved_to("C:/third", 3)),
+    )]);
+    assert_eq!(picker.take_space_git_demand(), [(Choice::Local, only)]);
 }
 #[test]
 fn unified_tree_window_scrolls_and_focus_clips_oversized_rows() {
@@ -538,6 +583,7 @@ fn long_duplicate_workspace_results_keep_identity_suffix_and_directory_tail() {
         revision: WorkbenchRevision::new(2),
         metadata_revision: WorkbenchRevision::new(2),
         git_requested: false,
+        known_git: Vec::new().into(),
         projects: Vec::new().into(),
         rows: contexts
             .iter()
@@ -559,6 +605,7 @@ fn long_duplicate_workspace_results_keep_identity_suffix_and_directory_tail() {
                 }),
                 git: None,
                 git_stale: false,
+                held: None,
             })
             .collect(),
     });

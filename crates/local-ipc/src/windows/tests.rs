@@ -221,6 +221,127 @@ fn full_buffer_write_does_not_block_shutdown() {
 }
 
 #[test]
+fn a_peer_byte_wakes_a_waiting_poll_and_stays_readable() {
+    let (mut client, mut server) = pair();
+    let writer = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(50));
+        client.write_all(b"x").unwrap();
+        client
+    });
+    let start = Instant::now();
+    let mut sources = [crate::PollFd::new(
+        crate::LocalIo::Stream(&server),
+        crate::PollFlags::POLLIN,
+    )];
+    assert_eq!(
+        crate::poll(
+            &mut sources,
+            crate::PollTimeout::try_from(30_000_u128).unwrap()
+        )
+        .unwrap(),
+        1
+    );
+    assert!(start.elapsed() < Duration::from_secs(20));
+    let mut byte = [0];
+    server.read_exact(&mut byte).unwrap();
+    assert_eq!(&byte, b"x");
+    assert_eq!(server.readiness().unwrap(), Readiness::Pending);
+    writer.join().unwrap();
+}
+
+#[test]
+fn peer_close_and_clone_shutdown_each_wake_a_waiting_poll() {
+    let (client, server) = pair();
+    let closer = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(50));
+        drop(client);
+    });
+    let timeout = crate::PollTimeout::try_from(30_000_u128).unwrap();
+    let mut sources = [crate::PollFd::new(
+        crate::LocalIo::Stream(&server),
+        crate::PollFlags::POLLIN,
+    )];
+    assert_eq!(crate::poll(&mut sources, timeout).unwrap(), 1);
+    assert!(
+        sources[0]
+            .revents()
+            .unwrap()
+            .contains(crate::PollFlags::POLLHUP)
+    );
+    closer.join().unwrap();
+
+    let (_client, server) = pair();
+    let clone = server.try_clone().unwrap();
+    let closer = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(50));
+        clone.shutdown(Shutdown::Both).unwrap();
+    });
+    let start = Instant::now();
+    let mut sources = [crate::PollFd::new(
+        crate::LocalIo::Stream(&server),
+        crate::PollFlags::POLLIN,
+    )];
+    assert_eq!(crate::poll(&mut sources, timeout).unwrap(), 1);
+    assert!(start.elapsed() < Duration::from_secs(20));
+    closer.join().unwrap();
+}
+
+#[test]
+fn closing_a_watched_stream_still_delivers_its_final_bytes_to_the_peer() {
+    let (client, mut server) = pair();
+    let mut sources = [crate::PollFd::new(
+        crate::LocalIo::Stream(&client),
+        crate::PollFlags::POLLIN,
+    )];
+    // Arm this end's watch, whose pipe handle must not outlive its owner.
+    assert_eq!(
+        crate::poll(&mut sources, crate::PollTimeout::try_from(5_u128).unwrap()).unwrap(),
+        0
+    );
+    let mut writer = client.try_clone().unwrap();
+    writer.write_all(b"final").unwrap();
+    drop(writer);
+    drop(client);
+    server
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let mut bytes = Vec::new();
+    server.read_to_end(&mut bytes).unwrap();
+    assert_eq!(bytes, b"final");
+}
+
+#[test]
+fn a_peers_large_pending_read_does_not_refuse_a_write() {
+    // A plain handle's pending read larger than the pipe buffer reduces the counted quota to zero
+    // while the pipe is empty, so only a real attempt can tell the writer there is room.
+    let path = endpoint();
+    let listener = LocalListener::bind(&path).unwrap();
+    let mut peer = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&path)
+        .unwrap();
+    let (mut server, ()) = listener.accept().unwrap();
+    server
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let reader = thread::spawn(move || {
+        let mut received = Vec::new();
+        let mut buffer = vec![0; 1024 * 1024];
+        while received.len() < 256 * 1024 {
+            let read = peer.read(&mut buffer).unwrap();
+            assert_ne!(read, 0);
+            received.extend_from_slice(&buffer[..read]);
+        }
+        received
+    });
+    thread::sleep(Duration::from_millis(50));
+    let bytes: Vec<u8> = (0..=255).cycle().take(256 * 1024).collect();
+    server.write_all(&bytes).unwrap();
+    assert_eq!(reader.join().unwrap(), bytes);
+}
+
+#[test]
 fn names_are_local_and_listeners_cannot_be_squatted_twice() {
     assert!(LocalListener::bind(r"\\remote\pipe\orchbee-test").is_err());
     assert!(LocalStream::connect(r"\\remote\pipe\orchbee-test").is_err());

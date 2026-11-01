@@ -2,7 +2,7 @@
 //! test, with a TUI Client running in a terminal of a second Session. A `cd` in the first terminal
 //! of a Workspace whose name was generated renames it until a rename fixes the name, the recorded
 //! terminal directory and the sidebar's folder line follow it either way, and a new Workspace
-//! created from the TUI starts where that terminal now is.
+//! created from the TUI starts where that terminal now is. The location line moves once per `cd`.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -12,7 +12,9 @@ mod session;
 use serde_json::Value;
 use session::{Fixture, OBSERVATION};
 use std::{
-    fs, thread,
+    fs,
+    process::Command,
+    thread,
     time::{Duration, Instant},
 };
 
@@ -123,6 +125,99 @@ fn a_new_workspace_starts_in_the_selected_workspace_first_terminal_directory() {
     );
     assert_eq!(added["label"], "beta (2)");
     assert_eq!(added["automaticLabel"], true);
+}
+
+#[test]
+fn a_directory_change_moves_the_sidebar_location_line_in_one_step() {
+    let fixture = Fixture::new("orchbee-location-", &["repo", "outside"]);
+    for words in [
+        &["init", "--quiet", "--initial-branch=main"][..],
+        &[
+            "-c",
+            "user.name=Orchbee Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "-m",
+            "seed",
+        ],
+    ] {
+        let git = Command::new("git")
+            .args(words)
+            .current_dir(fixture.path("repo"))
+            .output()
+            .unwrap();
+        assert!(git.status.success(), "git {words:?}: {git:?}");
+    }
+    // Fixed names keep the rows findable while their terminals move.
+    let created = create_unnamed(&fixture, "repo");
+    let terminal = terminal_of(&fixture, &created);
+    let id = created["workspaceId"].as_str().unwrap();
+    let renamed = fixture.run(&["workspace", "rename", id, "--label", "moved"]);
+    assert_eq!(renamed.code, Some(0), "{renamed}");
+    let other = create_unnamed(&fixture, "repo");
+    let id = other["workspaceId"].as_str().unwrap();
+    let renamed = fixture.run(&["workspace", "rename", id, "--label", "other"]);
+    assert_eq!(renamed.code, Some(0), "{renamed}");
+    let tui = fixture.start_tui(COLUMNS, ROWS);
+    fixture.settle_ready(&tui.client);
+
+    let mut moved = Vec::new();
+    let mut unmoved = Vec::new();
+    let mut sample = || {
+        let screen = fixture.screen(&tui.terminal);
+        for (label, painted) in [("moved", &mut moved), ("other", &mut unmoved)] {
+            if let Some(line) = location_line(&screen, label)
+                && painted.last() != Some(&line)
+            {
+                painted.push(line);
+            }
+        }
+        (screen.clone(), location_line(&screen, "moved"))
+    };
+    let reach = |value: &str, sample: &mut dyn FnMut() -> (String, Option<String>)| {
+        let deadline = Instant::now() + FOLLOW;
+        loop {
+            let (screen, line) = sample();
+            if line.as_deref() == Some(value) {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "never reached {value}:
+{screen}"
+            );
+        }
+    };
+    reach("main", &mut sample);
+    change_directory(&fixture, &terminal, "outside");
+    reach("outside", &mut sample);
+    change_directory(&fixture, &terminal, "repo");
+    reach("main", &mut sample);
+    // Time for a later sampled Git read to change what the commit already painted.
+    let settled = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < settled {
+        sample();
+    }
+    assert_eq!(moved, ["main", "outside", "main"]);
+    assert_eq!(unmoved, ["main"]);
+}
+
+/// The line below `label`'s sidebar row, with a folder reduced to its last component, which middle
+/// truncation keeps. Anything else, a marker included, stays as painted.
+fn location_line(screen: &str, label: &str) -> Option<String> {
+    let cells = |line: &'_ str| line.split('│').next().unwrap_or_default().trim().to_owned();
+    let mut lines = screen.lines();
+    lines.find(|line| cells(line).starts_with(label))?;
+    let line = cells(lines.next()?);
+    Some(match line.rsplit(['\\', '/']).next() {
+        Some(last) if line.contains(['\\', '/']) => last.to_owned(),
+        _ => line,
+    })
 }
 
 /// Opens a Workspace without a label whose terminal starts in `directory`, and returns its

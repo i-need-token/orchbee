@@ -229,7 +229,7 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 
 `workbench-worktree-query-contract.ts` adds the separate read request/result to the shared unions, with the same 32 KiB result cap, strict nullable fields, closed failures and cross-entry invariants as Rust. It consumes the [query conformance corpus](../../schemas/workbench/v1/workbench-worktree-query-conformance-v1.json) together with the [JSON Schema](../../schemas/workbench/v1/workbench-worktree-query.schema.json). This binding adds no Desktop command or mutation authority.
 
-Start and Available receipts require nullable `projectId`, retaining the originally requested destination. Only Directory sources permit a non-null Start destination; Workspace sources and Remove require null and derive grouping at authoritative commit. These fields do not authorize automatic replay or reinterpret unknown delivery.
+Start and Available receipts require nullable `projectId`, retaining the originally requested destination. Only Directory sources permit a non-null Start destination; Workspace and `workspace-directory` sources and Remove require null and derive grouping at authoritative commit. These fields do not authorize automatic replay or reinterpret unknown delivery.
 
 Legacy `workbench-worktree-list-contract.ts` binds `workbench.worktree-list.read` and its `found`
 result to global Directory identity alone, without Project scope. It preserves UTF-8/raw-byte Git

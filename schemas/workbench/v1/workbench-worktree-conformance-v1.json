@@ -533,6 +533,36 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "workspace-directory-create-derives-grouping",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": null,
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "workspace-directory",
+							"workspaceId": "00000000000000000000000000000006",
+							"path": "C:/repo/sub"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -1805,6 +1835,37 @@
 				}
 			},
 			"boundary": "schema"
+		},
+		{
+			"name": "workspace-directory-with-requested-project",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "workspace-directory",
+							"workspaceId": "00000000000000000000000000000006",
+							"path": "C:/repo/sub"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false
+					}
+				}
+			},
+			"boundary": "semantic"
 		}
 	],
 	"validJson": [

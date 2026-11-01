@@ -275,6 +275,12 @@ pub struct Picker {
     space_observations: Vec<(Choice, crate::machine_spaces::checkpoint::Observation)>,
     space_updates: Vec<(Choice, crate::machine_spaces::checkpoint::Observation)>,
     space_stale: Vec<Choice>,
+    /// Workspaces and directories that already asked for one Git read ahead of the cooldown.
+    space_git_demanded: Vec<(
+        Choice,
+        orchbee_workbench_protocol::WorkbenchWorkspaceId,
+        orchbee_workbench_protocol::WorkbenchDirectoryPath,
+    )>,
     native_navigation: Option<(
         Choice,
         crate::machine_spaces::navigation_projection::SidebarNavigationProjection,
@@ -335,6 +341,7 @@ impl Default for Picker {
             space_observations: Vec::new(),
             space_updates: Vec::new(),
             space_stale: Vec::new(),
+            space_git_demanded: Vec::new(),
             native_navigation: None,
             space_projection: None,
             editing_query: false,

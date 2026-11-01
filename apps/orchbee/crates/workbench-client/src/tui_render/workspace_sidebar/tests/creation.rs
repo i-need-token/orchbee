@@ -449,6 +449,7 @@ fn a_background_project_creation_above_manual_reading_keeps_the_same_painted_row
                         revision: WorkbenchRevision::new(if phase == 2 { 2 } else { 1 }),
                         metadata_revision: WorkbenchRevision::new(2),
                         git_requested: true,
+                        known_git: Vec::new().into(),
                         projects: vec![crate::machine_spaces::ProjectSummary {
                             project_id: project.clone(),
                             label: "Repo".into(),
@@ -571,6 +572,7 @@ fn creation_keeps_its_final_group_order_and_scroll_window_through_observer_hando
                                 revision: WorkbenchRevision::new(if committed { 2 } else { 1 }),
                                 metadata_revision: WorkbenchRevision::new(2),
                                 git_requested: true,
+                                known_git: Vec::new().into(),
                                 projects: if grouped {
                                     vec![crate::machine_spaces::ProjectSummary {
                                         project_id: project.clone(),
@@ -747,6 +749,7 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_never_fills
                             revision: WorkbenchRevision::new(revision),
                             metadata_revision: WorkbenchRevision::new(revision),
                             git_requested: true,
+                            known_git: Vec::new().into(),
                             projects: vec![crate::machine_spaces::ProjectSummary {
                                 project_id: project.clone(),
                                 label: "Repo".into(),

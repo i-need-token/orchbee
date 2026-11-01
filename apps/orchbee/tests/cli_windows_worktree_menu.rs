@@ -2,7 +2,8 @@
 //! under test, a real Git repository with one linked checkout, and a TUI Client running in a
 //! terminal of a second Session, driven by pointer. Opening the linked checkout from Open Worktree
 //! creates the Project that holds the Workspace and the opened one, and a Worktree created from
-//! New Worktree… joins it.
+//! New Worktree… joins it. The same holds wherever the first terminal stands, by process cwd or by a
+//! directory its shell only reports, and for a checkout another Workspace already holds.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -79,6 +80,132 @@ fn worktree_rows_of_an_ungrouped_workspace_group_it_with_every_worktree_they_add
     control.release();
 }
 
+#[test]
+fn a_first_terminal_in_a_subdirectory_groups_its_workspace_with_the_worktree() {
+    let fixture = Fixture::new("orchbee-worktree-subdirectory-", &["repo"]);
+    repository(&fixture);
+    std::fs::create_dir_all(fixture.path("repo/sub")).unwrap();
+    let created = fixture.workspace_in("source", "repo");
+    let source = created["workspaceId"].as_str().unwrap();
+    let tui = fixture.start_tui(COLUMNS, ROWS);
+    fixture.settle_ready(&tui.client);
+    let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
+    control.input(b"\x1b[I");
+    let command = format!("cd \"{}\"", fixture.path("repo/sub"));
+    enter(&fixture, &terminal_of(&fixture, &created), &command);
+    stands_in(&fixture, source, "repo/sub");
+
+    let known = workspace_ids(&fixture);
+    open_menu(&fixture, &tui, &mut control, "source");
+    // One movement report, as a terminal sends for a real pointer. The row may still wait for Git.
+    rest_on(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
+        screen.contains(LINKED_BRANCH)
+    });
+    choose(&fixture, &tui, &mut control, LINKED_BRANCH, menu_closed);
+    let opened = added(&fixture, &tui, &known);
+    assert_same_new_project(&fixture, source, &opened);
+    control.release();
+}
+
+/// A menu opened outside any repository stays open when the first terminal enters one, and its rows
+/// follow.
+#[test]
+fn a_directory_change_under_the_open_menu_keeps_it_and_asks_git_again() {
+    let fixture = Fixture::new("orchbee-worktree-moved-", &["repo", "launch"]);
+    repository(&fixture);
+    let created = fixture.workspace_in("source", "launch");
+    let source = created["workspaceId"].as_str().unwrap();
+    let tui = fixture.start_tui(COLUMNS, ROWS);
+    fixture.settle_ready(&tui.client);
+    let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
+    control.input(b"\x1b[I");
+
+    open_menu(&fixture, &tui, &mut control, "source");
+    let deadline = Instant::now() + DISCOVERY;
+    while !fixture.screen(&tui.terminal).contains(OPEN_WORKTREE) {
+        assert!(Instant::now() < deadline, "the Workspace menu never opened");
+        thread::sleep(Duration::from_millis(100));
+    }
+    let command = format!("cd \"{}\"", fixture.path("repo"));
+    enter(&fixture, &terminal_of(&fixture, &created), &command);
+    stands_in(&fixture, source, "repo");
+    choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
+        screen.contains(LINKED_BRANCH)
+    });
+    control.release();
+}
+
+/// PowerShell reports its directory and leaves its process cwd in the launch directory, here outside
+/// any repository, while the sidebar line follows the report.
+#[test]
+fn a_directory_the_shell_only_reports_enables_the_rows_and_groups_the_workspace() {
+    let fixture = Fixture::new("orchbee-worktree-reported-", &["repo", "launch"]);
+    repository(&fixture);
+    let report = fixture.path("report.txt");
+    let sequence = format!("\x1b]9;9;{}\x1b\\", fixture.path("repo"));
+    std::fs::write(&report, sequence).unwrap();
+    let created = fixture.workspace_in("source", "launch");
+    let source = created["workspaceId"].as_str().unwrap();
+    let tui = fixture.start_tui(COLUMNS, ROWS);
+    fixture.settle_ready(&tui.client);
+    let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
+    control.input(b"\x1b[I");
+    let command = format!("type \"{report}\"");
+    enter(&fixture, &terminal_of(&fixture, &created), &command);
+    stands_in(&fixture, source, "repo");
+
+    let known = workspace_ids(&fixture);
+    open_menu(&fixture, &tui, &mut control, "source");
+    choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
+        screen.contains(LINKED_BRANCH)
+    });
+    choose(&fixture, &tui, &mut control, LINKED_BRANCH, menu_closed);
+    let opened = added(&fixture, &tui, &known);
+    assert_same_new_project(&fixture, source, &opened);
+    control.release();
+}
+
+#[test]
+fn opening_a_checkout_another_workspace_holds_groups_that_workspace_too() {
+    let fixture = Fixture::new("orchbee-worktree-reuse-", &["repo"]);
+    repository(&fixture);
+    let source = fixture.workspace_in("source", "repo")["workspaceId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let holder = fixture.workspace_in("holder", "linked-checkout")["workspaceId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let tui = fixture.start_tui(COLUMNS, ROWS);
+    fixture.settle_ready(&tui.client);
+    let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
+    control.input(b"\x1b[I");
+
+    let known = workspace_ids(&fixture);
+    open_menu(&fixture, &tui, &mut control, "source");
+    choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
+        screen.contains(LINKED_BRANCH)
+    });
+    choose(&fixture, &tui, &mut control, LINKED_BRANCH, menu_closed);
+    let deadline = Instant::now() + OPERATION;
+    while !record(&fixture, &holder)["projectId"].is_string() {
+        assert!(
+            Instant::now() < deadline,
+            "the Workspace holding the checkout stayed ungrouped: {}",
+            snapshot(&fixture)
+        );
+        thread::sleep(Duration::from_millis(250));
+    }
+    assert_same_new_project(&fixture, &source, &holder);
+    assert_eq!(
+        workspace_ids(&fixture),
+        known,
+        "the checkout's Workspace is reused"
+    );
+    control.release();
+}
+
 /// A repository in the fixture's `repo` with one commit and a linked checkout beside it.
 fn repository(fixture: &Fixture) {
     let git = |words: &[&str]| {
@@ -148,6 +275,41 @@ fn choose(
     }
 }
 
+/// Moves the pointer onto the menu row that shows `text` once, then only waits for `effect`.
+fn rest_on(
+    fixture: &Fixture,
+    tui: &Tui,
+    control: &mut Control,
+    text: &str,
+    effect: impl Fn(&str) -> bool,
+) {
+    let deadline = Instant::now() + DISCOVERY;
+    let mut moved = false;
+    loop {
+        let screen = fixture.screen(&tui.terminal);
+        if effect(&screen) {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "resting on the menu row {text} opened nothing:\n{screen}"
+        );
+        if !moved && let Some((row, column)) = menu_row(&screen, text) {
+            control.input(format!("\x1b[<35;{column};{row}M").as_bytes());
+            moved = true;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// The one-based row and a column inside the first row that shows `text`.
+fn menu_row(screen: &str, text: &str) -> Option<(usize, usize)> {
+    screen.lines().enumerate().find_map(|(index, line)| {
+        let start = line.find(text)?;
+        Some((index + 1, line[..start].chars().count() + 2))
+    })
+}
+
 /// Whether the Workspace menu has closed.
 fn menu_closed(screen: &str) -> bool {
     !screen.contains(OPEN_WORKTREE)
@@ -198,6 +360,74 @@ fn record(fixture: &Fixture, workspace: &str) -> Value {
                 .cloned()
         })
         .unwrap_or_else(|| panic!("no Workspace {workspace}: {snapshot}"))
+}
+
+/// Both Workspaces share one Project, which the repository named.
+fn assert_same_new_project(fixture: &Fixture, source: &str, other: &str) {
+    let project = record(fixture, source)["projectId"].clone();
+    assert!(
+        project.is_string(),
+        "the Workspace stayed ungrouped: {}",
+        snapshot(fixture)
+    );
+    assert_eq!(record(fixture, other)["projectId"], project);
+    let projects = snapshot(fixture)["navigation"]["projects"].clone();
+    assert_eq!(
+        projects
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|listed| listed["projectId"] == project)
+            .map(|listed| listed["label"].clone()),
+        Some(Value::from("repo")),
+        "{projects}"
+    );
+}
+
+/// The terminal of the first Panel of a Workspace the fixture created.
+fn terminal_of(fixture: &Fixture, created: &Value) -> String {
+    let listed = fixture.run(&["terminal", "list"]);
+    listed.document["result"]["terminals"]
+        .as_array()
+        .and_then(|terminals| {
+            terminals
+                .iter()
+                .find(|terminal| terminal["boundTo"]["panelId"] == created["panelId"])
+        })
+        .and_then(|terminal| terminal["terminalId"].as_str())
+        .unwrap_or_else(|| panic!("{listed}"))
+        .to_owned()
+}
+
+/// Runs `command` in `terminal`'s shell.
+fn enter(fixture: &Fixture, terminal: &str, command: &str) {
+    for words in [
+        ["terminal", "send", terminal, "--text", command],
+        ["terminal", "send", terminal, "--key", "enter"],
+    ] {
+        let sent = fixture.run(&words);
+        assert_eq!(sent.code, Some(0), "{sent}");
+    }
+}
+
+/// Waits for the Server to follow the Workspace's first terminal into `directory`.
+fn stands_in(fixture: &Fixture, workspace: &str, directory: &str) {
+    let expected = fixture.path(directory);
+    let followed = |value: &Value| {
+        value.as_str().is_some_and(|path| {
+            let spelled = |path: &str| path.replace('/', "\\").to_ascii_lowercase();
+            spelled(path) == spelled(&expected)
+        })
+    };
+    let deadline = Instant::now() + DISCOVERY;
+    while !followed(&record(fixture, workspace)["terminalDirectory"]) {
+        assert!(
+            Instant::now() < deadline,
+            "the first terminal never reached {expected}: {}",
+            snapshot(fixture)
+        );
+        thread::sleep(Duration::from_millis(200));
+    }
 }
 
 /// The one-based screen row of `label` in the sidebar, which may show a hovered row's affordance

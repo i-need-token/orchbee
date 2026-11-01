@@ -5,7 +5,7 @@
 use super::{Driver, identity};
 use crate::local_terminal_service::{create_reference, lease_expiry, placement};
 use crate::terminal_coordinator::CreateInputs;
-use orchbee_server::{WorkbenchGrant, WorkbenchReadOrNavigationRequest};
+use orchbee_server::{WorkbenchAuthority, WorkbenchGrant, WorkbenchReadOrNavigationRequest};
 use orchbee_workbench_protocol::{
     LaunchOptions, ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchLabel, WorkbenchRequest, WorkbenchResponse, WorkbenchTabCloseStatus,
@@ -152,6 +152,9 @@ impl Driver<'_> {
                 }
                 if !authority.associate_worktree(self.plan, workspace_id, checkout.clone()) {
                     return Err(Failure::AssociationFailed {});
+                }
+                if let Some(source) = &self.plan.source_workspace_id {
+                    group_reused(authority, source, workspace_id, &checkout)?;
                 }
                 return Ok(Status::Opened {
                     checkout,
@@ -455,6 +458,85 @@ impl Driver<'_> {
                 _ => return Err(Failure::CloseIncomplete {}),
             }
         }
+    }
+}
+
+/// Puts a reused ungrouped Workspace where a new one would land: the source's Project, or a new
+/// one the two found together. A Workspace that already has a Project stays in it.
+fn group_reused(
+    authority: &mut WorkbenchAuthority,
+    source: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
+    reused: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
+    checkout: &orchbee_workbench_protocol::WorktreeCheckoutFacts,
+) -> Result<(), Failure> {
+    let navigation = &authority.snapshot().navigation;
+    if source == reused
+        || !navigation
+            .workspace(reused)
+            .is_some_and(|workspace| workspace.project_id.is_none())
+    {
+        return Ok(());
+    }
+    let grouped = navigation
+        .workspace(source)
+        .ok_or(Failure::AssociationFailed {})?
+        .project_id
+        .clone();
+    let project_id = match grouped {
+        Some(project_id) => project_id,
+        None => {
+            let outcome = organize(
+                authority,
+                WorkbenchAction::WorkspaceCreateProject {
+                    workspace_id: source.clone(),
+                    label: project_label(checkout),
+                },
+            )?;
+            let WorkbenchCommandOutcome::WorkspaceProjectChanged {
+                project_id: Some(project_id),
+                ..
+            } = outcome
+            else {
+                return Err(Failure::AssociationFailed {});
+            };
+            project_id
+        }
+    };
+    let outcome = organize(
+        authority,
+        WorkbenchAction::WorkspaceSetProject {
+            workspace_id: reused.clone(),
+            project_id: Some(project_id),
+        },
+    )?;
+    if matches!(
+        outcome,
+        WorkbenchCommandOutcome::WorkspaceProjectChanged { .. }
+    ) {
+        Ok(())
+    } else {
+        Err(Failure::AssociationFailed {})
+    }
+}
+
+/// One organization command at the current revision, under the gate the caller already holds.
+fn organize(
+    authority: &mut WorkbenchAuthority,
+    action: WorkbenchAction,
+) -> Result<WorkbenchCommandOutcome, Failure> {
+    let command = WorkbenchCommand {
+        protocol_version: ProtocolVersion,
+        request_id: identity()?,
+        session_id: authority.session_id().clone(),
+        expected_revision: authority.snapshot().revision,
+        action,
+    };
+    let request = WorkbenchReadOrNavigationRequest::try_from(WorkbenchRequest::Command(command))
+        .map_err(|_| Failure::Internal {})?;
+    let grant = WorkbenchGrant::manage_navigation(authority.session_id().clone());
+    match authority.execute(Some(&grant), request) {
+        WorkbenchResponse::Command(result) => Ok(result.outcome),
+        _ => Err(Failure::AssociationFailed {}),
     }
 }
 

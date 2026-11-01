@@ -39,6 +39,9 @@ pub struct Source {
     pub connection: Connection,
 }
 type Reader<T> = fn(&mut LocalClient, Instant, Cancellation<'_>) -> Result<Arc<T>, ()>;
+/// One read that a consumer asks for ahead of the sampling cooldown.
+pub type ExpeditedRead<T> =
+    Box<dyn FnOnce(&mut LocalClient, Instant, Cancellation<'_>) -> Result<Arc<T>, ()> + Send>;
 pub(crate) fn request_id() -> Result<WorkbenchRequestId, ()> {
     WorkbenchRequestId::parse(ProfileId::generate().map_err(|_| ())?.as_str()).map_err(|_| ())
 }
@@ -89,7 +92,9 @@ impl<T: Send + Sync + 'static> Job<T> {
     fn start(
         source: Connection,
         deadline: Instant,
-        read: Reader<T>,
+        read: impl FnOnce(&mut LocalClient, Instant, Cancellation<'_>) -> Result<Arc<T>, ()>
+        + Send
+        + 'static,
         wakeup: Option<UiWakeup>,
     ) -> Result<Self, ()> {
         let cancel = Arc::new(OwnedCancellation::new().map_err(|_| ())?);
@@ -142,6 +147,8 @@ struct Entry<T> {
     /// The running job refreshes sampled facts, so its completion restarts their cooldown.
     sampling: bool,
     started: Instant,
+    /// Runs ahead of the cooldown once no read is running; a sampled read that is due replaces it.
+    expedited: Option<ExpeditedRead<T>>,
 }
 impl<T> Entry<T> {
     /// A failed refresh is no canonical deletion: a sampling source keeps its last Ready until
@@ -187,6 +194,17 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
     }
     pub fn sample_external_sources(&mut self, enabled: bool) {
         self.sample_external = enabled;
+    }
+    /// Starts `read` for this source as soon as its running read ends, leaving the sampling
+    /// cooldown armed. A sampled read that is due covers it instead.
+    pub fn expedite(&mut self, choice: &Choice, read: ExpeditedRead<T>) {
+        if let Some(entry) = self
+            .entries
+            .iter_mut()
+            .find(|entry| &entry.choice == choice)
+        {
+            entry.expedited = Some(read);
+        }
     }
     /// Whether this source published a change during the latest UI tick.
     pub fn hinted(&self, choice: &Choice) -> bool {
@@ -258,6 +276,7 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                     changed: false,
                     sampling: false,
                     started: now,
+                    expedited: None,
                 });
             self.entries.push(entry);
         }
@@ -362,19 +381,30 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                 break;
             }
             let due = entry.next.is_some_and(|next| now >= next);
-            if entry.job.is_none() && !entry.waiting_snapshot && (due || entry.changed) {
+            if entry.job.is_none()
+                && !entry.waiting_snapshot
+                && (due || entry.changed || entry.expedited.is_some())
+            {
                 entry.changed = false;
-                // Only a sampled read consumes the cooldown; a split canonical read leaves it armed.
-                entry.sampling = due || !split;
+                let expedited = entry.expedited.take().filter(|_| !due);
+                // Only a sampled read consumes the cooldown; a split canonical read and an
+                // expedited one leave it armed.
+                entry.sampling = due || !split && expedited.is_none();
                 if entry.sampling {
                     entry.next = None;
                 }
                 entry.started = now;
-                match start(
-                    entry.connection.clone(),
-                    now + Duration::from_secs(5),
-                    entry.sampling,
-                ) {
+                let deadline = now + Duration::from_secs(5);
+                let started = match expedited {
+                    Some(read) => Job::start(
+                        entry.connection.clone(),
+                        deadline,
+                        read,
+                        self.wakeup.clone(),
+                    ),
+                    None => start(entry.connection.clone(), deadline, entry.sampling),
+                };
+                match started {
                     Ok(job) => {
                         entry.job = Some(job);
                         active += 1;

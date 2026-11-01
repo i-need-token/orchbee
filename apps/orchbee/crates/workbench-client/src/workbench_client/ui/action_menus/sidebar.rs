@@ -358,11 +358,9 @@ impl WorkbenchClientUi {
 
     pub(super) fn sidebar_worktree_source_current(&self) -> bool {
         self.menus.discovery().is_none_or(|episode| {
-            self.state.as_ref().is_some_and(|state| {
-                episode
-                    .source()
-                    .unchanged(state.cache().canonical_snapshot())
-            })
+            self.state
+                .as_ref()
+                .is_some_and(|state| episode.source().current(state.cache().canonical_snapshot()))
         })
     }
 
@@ -372,6 +370,17 @@ impl WorkbenchClientUi {
         }
         if !self.sidebar_worktree_source_current() {
             self.fail_action_menu();
+            return true;
+        }
+        // The first terminal moved under the open menu: ask Git about where it stands now.
+        if self.menus.discovery().is_some_and(|episode| {
+            self.state.as_ref().is_some_and(|state| {
+                !episode
+                    .source()
+                    .unchanged(state.cache().canonical_snapshot())
+            })
+        }) {
+            self.prepare_sidebar_worktrees();
             return true;
         }
         if self.menus.expire_discovery(self.clock.now()) {

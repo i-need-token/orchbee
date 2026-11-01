@@ -214,12 +214,13 @@ fn cwd_naming_the_workspace_directory_is_that_workspace_so_the_server_can_group_
             "{cwd}"
         );
     }
-    // Elsewhere the admitted cwd keeps its precedence as its own Directory source.
+    // Elsewhere Git runs in the admitted cwd, and the Workspace stays the grouping owner.
     assert_eq!(
         source.resolve_sample(RootDirectory::Available(Some(path(
             "C:/first-repository/nested"
         )))),
-        Some(WorktreeSource::Directory {
+        Some(WorktreeSource::WorkspaceDirectory {
+            workspace_id: workspace(80),
             path: path("C:/first-repository/nested")
         })
     );
@@ -283,6 +284,59 @@ fn explicitly_empty_workspace_can_use_only_its_own_directory_without_inventing_a
     assert_eq!(
         source.resolve_sample(RootDirectory::Available(Some(path("C:/unrelated-cwd")))),
         None
+    );
+}
+
+#[test]
+fn a_workspace_source_stands_where_its_location_line_says_and_survives_a_failed_sample() {
+    let mut value = fixture();
+    for member in &mut value.navigation.workspaces {
+        if member.workspace_id == workspace(80) {
+            member.automatic_label = true;
+        }
+    }
+    let target = SidebarWorktreeTarget::Workspace(workspace(80));
+    let source = AddressedWorktreeSource::capture(&value, &target).unwrap();
+    // Without a followed directory a sample that fails leaves the Workspace's own directory.
+    assert_eq!(
+        source.resolve_sample(RootDirectory::Unavailable),
+        Some(WorktreeSource::Workspace {
+            workspace_id: workspace(80)
+        })
+    );
+
+    let member = value
+        .navigation
+        .workspaces
+        .iter_mut()
+        .find(|member| member.workspace_id == workspace(80))
+        .unwrap();
+    member.terminal_directory = Some(path("C:/reported"));
+    member.label = "reported".into();
+    let moved = WorktreeSource::WorkspaceDirectory {
+        workspace_id: workspace(80),
+        path: path("C:/reported"),
+    };
+    // A reporting shell's process cwd stays in its launch directory.
+    assert!(!source.unchanged(&value), "discovery asks Git again");
+    assert!(source.current(&value), "yet it is the same Workspace");
+    let source = AddressedWorktreeSource::capture(&value, &target).unwrap();
+    for sample in [
+        RootDirectory::Available(Some(path("C:/launch"))),
+        RootDirectory::Available(None),
+        RootDirectory::Unavailable,
+    ] {
+        assert_eq!(source.resolve_sample(sample), Some(moved.clone()));
+    }
+
+    // A Project keeps its Directory form and refuses a failed sample.
+    let project = SidebarWorktreeTarget::Project(project(70));
+    let source = AddressedWorktreeSource::capture(&value, &project).unwrap();
+    assert_eq!(
+        source.resolve_sample(RootDirectory::Available(Some(path("C:/launch")))),
+        Some(WorktreeSource::Directory {
+            path: path("C:/reported")
+        })
     );
     assert_eq!(source.resolve_sample(RootDirectory::Unavailable), None);
 }

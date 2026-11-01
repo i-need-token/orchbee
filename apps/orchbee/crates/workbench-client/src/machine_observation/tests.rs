@@ -151,6 +151,44 @@ fn a_commit_rereads_canonical_state_and_only_the_cooldown_samples() -> io::Resul
     Ok(())
 }
 #[test]
+fn an_expedited_read_leaves_the_cooldown_armed_and_a_due_sampled_read_covers_it() -> io::Result<()>
+{
+    let connection = source_connection()?;
+    let now = Instant::now();
+    let source = || sources(&connection, 1);
+    let mut collector = Collector::<Checkpoint>::default();
+    collector.sample_external_sources(true);
+    collector.tick_split_with_start(source(), now, |_, _, _| Ok(completed(now)));
+    collector.tick_split_with_start(source(), now, |_, _, _| panic!("cooldown"));
+    let cooldown = now + SAMPLE_INTERVAL;
+    let choice = collector.entries[0].choice.clone();
+
+    collector.expedite(&choice, Box::new(|_, _, _| Err(())));
+    collector.entries[0].changed = true;
+    let early = now + Duration::from_millis(100);
+    collector.tick_split_with_start(source(), early, |_, _, _| {
+        panic!("expedited, no other read")
+    });
+    assert!(collector.entries[0].job.is_some());
+    assert!(!collector.entries[0].sampling);
+    assert!(
+        !collector.entries[0].changed,
+        "it reads canonical state too"
+    );
+    assert_eq!(collector.entries[0].next, Some(cooldown));
+    collector.entries[0].job = None;
+
+    collector.expedite(&choice, Box::new(|_, _, _| panic!("covered")));
+    let mut reads = Vec::new();
+    collector.tick_split_with_start(source(), cooldown, |_, _, sampling| {
+        reads.push(sampling);
+        Ok(completed(cooldown))
+    });
+    assert_eq!(reads, [true]);
+    assert!(collector.entries[0].expedited.is_none());
+    Ok(())
+}
+#[test]
 fn observation_collector_bounds_workers_and_cancels_removed_sources() -> io::Result<()> {
     let connection = source_connection()?;
     let now = Instant::now();

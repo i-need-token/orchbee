@@ -118,8 +118,9 @@ Close read result is 1,000,007 encoded bytes. Workspace event data contains only
 `workspace`, whose required-nullable membership is the sole Project field.
 
 Worktree Start requires nullable `projectId`: only a Directory source may supply a non-null
-destination. Workspace sources and Remove must supply null; their grouping is resolved from the
-stable Workspace at final commit. Available receipts retain the original requested nullable
+destination. Workspace and `workspace-directory` sources and Remove must supply null; their grouping
+is resolved from the stable Workspace at final commit. `workspace-directory { workspaceId, path }`
+runs Git in `path`, where the Workspace's first terminal stands, and carries no Directory identity. Available receipts retain the original requested nullable
 destination as correlation metadata, not a current membership claim. Exact request equality,
 retained outcomes and unknown-delivery rules remain unchanged. Worktree query associations have
 nullable Project membership. Legacy `workbench.worktree-list.read` and its `found` result identify

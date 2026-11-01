@@ -191,7 +191,11 @@ fn workspace_checkpoint_is_complete_and_reads_git_for_each_workspace() -> io::Re
             &mut client,
             deadline,
             OwnedCancellation::new().unwrap().borrow(),
-            git_requested,
+            if git_requested {
+                GitDemand::All
+            } else {
+                GitDemand::None
+            },
         )
         .map_err(|_| io::Error::other("complete checkpoint"))?;
         assert_eq!(checkpoint.rows.len(), 3);
@@ -262,7 +266,7 @@ fn workspace_checkpoint_rejects_changed_reports_topology_and_wrong_git_identity(
                 &mut client,
                 deadline,
                 OwnedCancellation::new().unwrap().borrow(),
-                true
+                GitDemand::All
             )
             .is_err(),
             "accepted torn checkpoint {bad}"
@@ -311,7 +315,7 @@ fn workspace_checkpoint_cancellation_retires_inflight_io_and_sends_no_followup()
         .map_err(io::Error::other)?;
     let cancel = Arc::new(OwnedCancellation::new().unwrap());
     let flag = cancel.clone();
-    let task = thread::spawn(move || read(&mut client, deadline, flag.borrow(), true));
+    let task = thread::spawn(move || read(&mut client, deadline, flag.borrow(), GitDemand::All));
     reading
         .recv_timeout(Duration::from_secs(2))
         .map_err(io::Error::other)?;

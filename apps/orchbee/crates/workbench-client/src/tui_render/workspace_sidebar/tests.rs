@@ -7,6 +7,7 @@ use crate::workbench_projection::{ClientContextLocation, ClientContextTarget};
 use orchbee_workbench_protocol::*;
 use ratatui::{Terminal, backend::TestBackend, style::Modifier};
 mod creation;
+mod directory_change;
 mod overflow;
 mod states;
 fn id(n: u64) -> String {
@@ -65,6 +66,7 @@ fn view(width: u16, height: u16) -> ClientView {
                 path: WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
             }),
             git_stale: false,
+            held: None,
             git: Some(crate::machine_spaces::Git {
                 branch: Some("feat/测试".into()),
                 divergence: Some(GitDivergence {
@@ -92,6 +94,7 @@ fn view(width: u16, height: u16) -> ClientView {
                 revision: WorkbenchRevision::new(1),
                 metadata_revision: WorkbenchRevision::new(2),
                 git_requested: true,
+                known_git: Vec::new().into(),
                 projects: vec![crate::machine_spaces::ProjectSummary {
                     project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
                     label: "Repo".into(),
@@ -721,6 +724,7 @@ fn long_branch_and_custom_text_shrink_before_fixed_divergence_counts() {
                 revision: WorkbenchRevision::new(1),
                 metadata_revision: WorkbenchRevision::new(2),
                 git_requested: true,
+                known_git: Vec::new().into(),
                 projects: vec![crate::machine_spaces::ProjectSummary {
                     project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
                     label: "Repo".into(),
@@ -773,6 +777,7 @@ fn folder_location_uses_the_whole_row_and_keeps_both_ends_beside_agents() {
                 revision: WorkbenchRevision::new(1),
                 metadata_revision: WorkbenchRevision::new(2),
                 git_requested: true,
+                known_git: Vec::new().into(),
                 projects: vec![crate::machine_spaces::ProjectSummary {
                     project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
                     label: "Repo".into(),
@@ -1307,6 +1312,7 @@ fn ungrouped_view(label: &str) -> ClientView {
                 revision: WorkbenchRevision::new(3),
                 metadata_revision: WorkbenchRevision::new(2),
                 git_requested: true,
+                known_git: Vec::new().into(),
                 rows: rows.into(),
                 projects: vec![crate::machine_spaces::ProjectSummary {
                     project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
@@ -1493,6 +1499,7 @@ fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_
                 revision: WorkbenchRevision::new(2),
                 metadata_revision: WorkbenchRevision::new(2),
                 git_requested: false,
+                known_git: Vec::new().into(),
                 projects: [70, 71]
                     .into_iter()
                     .map(|n| crate::machine_spaces::ProjectSummary {

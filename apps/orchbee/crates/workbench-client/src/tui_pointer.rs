@@ -804,12 +804,15 @@ impl PointerState {
                 && self.motion_observability == MotionObservability::AnyMotion
                 && self.modal_release_ownership() == ReleaseOwnership::None
                 && self.can_admit_interaction();
-            self.menu_rest.motion(
-                admitted
-                    .then(|| self.interactions.hovered_target())
-                    .flatten(),
-                now,
-            );
+            // A disabled row has no hover, yet a rest on it waits for discovery to enable it.
+            let under = admitted
+                .then(|| {
+                    let (column, row) = self.interactions.position()?;
+                    self.map.as_ref()?.interaction_at(column, row)
+                })
+                .flatten();
+            self.menu_rest
+                .motion(under.as_ref().map(|fingerprint| &fingerprint.target), now);
             let candidate_changed = if admitted
                 && let Some(InteractionTarget::ActionMenuRow { source, token, row }) =
                     self.interactions.hovered_target()
@@ -894,12 +897,13 @@ impl PointerState {
         let at = self
             .interactions
             .position()
-            .and_then(|(column, row)| map.interaction_at(column, row))
-            .filter(crate::tui_hit_map::interaction::Fingerprint::enabled);
-        let Some(target) = self
-            .menu_rest
-            .due(at.as_ref().map(|fingerprint| &fingerprint.target), now)
-        else {
+            .and_then(|(column, row)| map.interaction_at(column, row));
+        let Some(target) = self.menu_rest.due(
+            at.as_ref().map(|fingerprint| &fingerprint.target),
+            at.as_ref()
+                .is_some_and(crate::tui_hit_map::interaction::Fingerprint::enabled),
+            now,
+        ) else {
             return false;
         };
         let acted = match &target {

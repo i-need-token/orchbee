@@ -18,6 +18,7 @@ pub(crate) fn fixture() -> (Launcher, Origin, addressed::SidebarDiscovery) {
     .unwrap();
     let mut discovery = discovery();
     discovery.worker = addressed.primary.as_ref().unwrap().worker_id().clone();
+    discovery.source.workspace_id = Some(workspace.workspace_id.clone());
     discovery.entries[1]
         .workspaces
         .push(WorktreeWorkspaceAssociation {
@@ -28,7 +29,8 @@ pub(crate) fn fixture() -> (Launcher, Origin, addressed::SidebarDiscovery) {
     let sidebar = addressed::SidebarDiscovery {
         addressed,
         sample: crate::primary_directory::RootDirectory::Available(Some(path("C:/repo"))),
-        source: WorktreeSource::Directory {
+        source: WorktreeSource::WorkspaceDirectory {
+            workspace_id: workspace.workspace_id.clone(),
             path: path("C:/repo"),
         },
         discovery,

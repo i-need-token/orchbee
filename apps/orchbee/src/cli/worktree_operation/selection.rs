@@ -55,7 +55,7 @@ pub(super) fn intent_from_source(
         WorktreeStartKind::Remove { force } => WorktreeIntent::Remove {
             workspace_id: match source {
                 WorktreeSource::Workspace { workspace_id } => workspace_id,
-                WorktreeSource::Directory { .. } => {
+                WorktreeSource::WorkspaceDirectory { .. } | WorktreeSource::Directory { .. } => {
                     return Err(Failure::new(FailureKind::InvalidUsage));
                 }
             },

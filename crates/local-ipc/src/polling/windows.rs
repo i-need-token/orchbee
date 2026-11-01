@@ -1,8 +1,11 @@
-use crate::{LocalListener, LocalStream, Readiness};
+use crate::{
+    LocalListener, LocalStream, Readiness,
+    windows::ReadWait,
+    windows_native::{MAXIMUM_WAIT_EVENTS, wait_any},
+};
 use std::{
     io,
     ops::{BitOr, BitOrAssign},
-    thread,
     time::{Duration, Instant},
 };
 
@@ -92,7 +95,8 @@ impl<'a> PollFd<'a> {
     }
 }
 
-/// Bounded-cadence polling of nonblocking pipes; never waits on FlushFileBuffers.
+/// Waits on kernel events for peer bytes and closure. A source without one (a blocked writer, a
+/// listener, a wake flag) keeps a bounded cadence. Never waits on FlushFileBuffers.
 pub fn poll(sources: &mut [PollFd<'_>], timeout: PollTimeout) -> io::Result<usize> {
     const CADENCE: Duration = Duration::from_millis(2);
     let started = Instant::now();
@@ -127,23 +131,49 @@ pub fn poll(sources: &mut [PollFd<'_>], timeout: PollTimeout) -> io::Result<usiz
             if ready == Readiness::Readable && source.interest.contains(PollFlags::POLLIN) {
                 source.events |= PollFlags::POLLIN;
             }
-            // Byte pipes expose no safe writable query. Admit the first
-            // nonblocking attempt immediately; only an observed full buffer
-            // throttles retries. Protocol receipts still determine delivery.
+            // Advisory, since protocol receipts determine delivery. A reported full buffer
+            // admits one attempt per cadence, because only the attempt can refute that report.
             if ready != Readiness::Closed
                 && source.interest.contains(PollFlags::POLLOUT)
                 && let LocalIo::Stream(stream) = source.source
-                && stream.writable_advisory()?
             {
-                source.events |= PollFlags::POLLOUT;
+                match stream.writable_advisory() {
+                    Ok(true) => source.events |= PollFlags::POLLOUT,
+                    Ok(false) => {}
+                    Err(_) => source.events = PollFlags::POLLERR,
+                }
             }
             count += usize::from(!source.events.is_empty());
         }
         if count > 0 || timeout.0.is_some_and(|budget| started.elapsed() >= budget) {
             return Ok(count);
         }
-        thread::sleep(timeout.0.map_or(CADENCE, |budget| {
-            budget.saturating_sub(started.elapsed()).min(CADENCE)
-        }));
+        let mut events = Vec::with_capacity(sources.len());
+        let mut cadence = sources.len() > MAXIMUM_WAIT_EVENTS;
+        if !cadence {
+            for source in &*sources {
+                let LocalIo::Stream(stream) = source.source else {
+                    cadence = true;
+                    continue;
+                };
+                cadence |= source.interest.contains(PollFlags::POLLOUT);
+                match stream.read_wait() {
+                    Ok(ReadWait::Event(event)) => events.push(event),
+                    // The next probe reports a failure as this source's own event.
+                    Ok(ReadWait::Changed | ReadWait::Unwatchable) | Err(_) => cadence = true,
+                }
+            }
+        }
+        let remaining = timeout
+            .0
+            .map(|budget| budget.saturating_sub(started.elapsed()));
+        wait_any(
+            &events,
+            if cadence || events.is_empty() {
+                Some(remaining.map_or(CADENCE, |remaining| remaining.min(CADENCE)))
+            } else {
+                remaining
+            },
+        )?;
     }
 }

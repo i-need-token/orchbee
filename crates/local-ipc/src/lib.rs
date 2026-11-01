@@ -9,9 +9,9 @@ mod windows;
 #[cfg(windows)]
 #[allow(
     unsafe_code,
-    reason = "exact Win32 name queries preserve immediate errors and own the search handle"
+    reason = "reviewed Win32 name queries, pipe counters, read watches and waits are isolated here"
 )]
-mod windows_name_query;
+mod windows_native;
 #[cfg(windows)]
 pub use windows::{
     ChildInputWriter, ChildOutputReader, ConnectAttemptError, LocalListener, LocalStream,

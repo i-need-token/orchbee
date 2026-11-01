@@ -110,7 +110,8 @@ struct Context<'a> {
     role: Role,
     no_workspace: &'static str,
     unnamed: &'static str,
-    git_stale: bool,
+    /// The settled location this row keeps until the Git facts of its new directory are known.
+    held: Option<&'a crate::machine_spaces::HeldLocation>,
     /// The Workspace folder shown by `location` when no branch is observed: the first terminal's
     /// current directory, else the Workspace's own directory.
     folder: Option<String>,
@@ -121,12 +122,12 @@ impl<'a> Context<'a> {
         let (key, role) =
             state_role(glyph_state.unwrap_or(orchbee_workbench_protocol::MetadataState::Unknown));
         let observed = view.machines.space_checkpoint_row(row);
-        let folder = observed
-            .and_then(|r| {
-                r.terminal_directory
-                    .as_ref()
-                    .or(r.directory.as_ref().map(|directory| &directory.path))
-            })
+        let held = view.machines.space_held_location(row);
+        let folder = held
+            .map_or_else(
+                || observed.and_then(crate::machine_spaces::Row::source_path),
+                |held| held.folder.as_ref(),
+            )
             .map(|path| {
                 let path = path.as_str();
                 (row.choice == crate::machine_picker::Choice::Local)
@@ -142,15 +143,20 @@ impl<'a> Context<'a> {
             role,
             no_workspace: locale.shell().no_workspace,
             unnamed: locale.unnamed_workspace(),
-            git_stale: view.machines.space_checkpoint_stale(row),
+            held,
             folder,
         }
     }
-    fn branch(&self) -> Option<&str> {
-        self.observed?.git.as_ref()?.branch.as_deref()
+    fn git(&self) -> Option<&'a crate::machine_spaces::Git> {
+        self.held
+            .map(|held| &held.git)
+            .or_else(|| self.observed?.git.as_ref())
     }
-    /// Branch text, unlike a folder, reserves the two-cell Git freshness track.
-    fn shows_git_text(&self, kind: Kind<'_>) -> bool {
+    fn branch(&self) -> Option<&'a str> {
+        self.git()?.branch.as_deref()
+    }
+    /// Branch text is a name, while a folder location is a path.
+    fn shows_branch(&self, kind: Kind<'_>) -> bool {
         kind == Kind::Branch || kind == Kind::Location && self.branch().is_some()
     }
     /// A continuation line appears only once one of its tokens has a visible value; pending
@@ -199,8 +205,7 @@ impl<'a> Context<'a> {
         match kind {
             Kind::StateIcon => true,
             Kind::GitStatus => self
-                .observed
-                .and_then(|r| r.git.as_ref())
+                .git()
                 .and_then(|g| g.divergence.as_ref())
                 .is_some_and(|g| g.ahead > 0 || g.behind > 0),
             _ => self
@@ -237,11 +242,7 @@ fn home_relative(path: &str, home: &str) -> Option<String> {
 /// Git tools, commits to push read green and commits to pull read as a caution; the arrows still
 /// tell them apart where a host shows no color.
 fn git_spans(context: &Context<'_>, theme: &Theme, style: SidebarTokenStyle) -> Vec<Span<'static>> {
-    let Some(git) = context
-        .observed
-        .and_then(|r| r.git.as_ref())
-        .and_then(|g| g.divergence.as_ref())
-    else {
+    let Some(git) = context.git().and_then(|g| g.divergence.as_ref()) else {
         return Vec::new();
     };
     let mut spans = Vec::new();
@@ -312,14 +313,9 @@ fn lines(
                 }
                 let text = match kind {
                     Kind::StateIcon | Kind::GitStatus => String::new(),
-                    _ if context.shows_git_text(kind) => format!(
-                        "{}{}",
-                        display_label(context.value(kind).expect("visible branch")),
-                        if context.git_stale { " ?" } else { "  " }
-                    ),
                     // A folder keeps its whole path: the label cap would cut away the end that
                     // middle truncation keeps.
-                    Kind::Location => {
+                    Kind::Location if !context.shows_branch(kind) => {
                         sanitize_terminal_text(context.value(kind).expect("visible folder"))
                             .into_owned()
                     }
@@ -374,27 +370,14 @@ fn lines(
             // A Workspace name, branch or folder is a name; a folder is a path, cut in the middle.
             match kind {
                 Kind::Workspace => line_names.push(full_name(text.clone())),
-                _ if context.shows_git_text(kind) => line_names.push(full_name(display_label(
-                    context.value(kind).expect("visible branch"),
-                ))),
+                _ if context.shows_branch(kind) => line_names.push(full_name(text.clone())),
                 Kind::Location => line_names.push(TooltipText {
                     text: text.clone(),
                     middle: true,
                 }),
                 _ => {}
             }
-            let text = if context.shows_git_text(kind) {
-                let marker = if context.git_stale { " ?" } else { "  " };
-                format!(
-                    "{}{}",
-                    truncate_display(
-                        &display_label(context.value(kind).expect("visible branch")),
-                        budgets[i].saturating_sub(2),
-                        theme.glyphs.ellipsis
-                    ),
-                    if budgets[i] >= 2 { marker } else { "" }
-                )
-            } else if kind == Kind::Location {
+            let text = if kind == Kind::Location && !context.shows_branch(kind) {
                 truncate_display_middle(&text, budgets[i], theme.glyphs.ellipsis)
             } else {
                 truncate_display(&text, budgets[i], theme.glyphs.ellipsis)

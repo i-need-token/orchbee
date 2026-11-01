@@ -22,7 +22,9 @@ unavailable. A worktree-backed Workspace
 is a peer of ordinary Workspaces. Creating from an ungrouped source Workspace atomically creates
 a Project containing source and new Workspace; a grouped source uses its current Project at
 the authoritative commit. An existing linked source creates another peer. Opening a checkout
-already associated with one Workspace reuses it instead of duplicating it. Ambiguous associations
+already associated with one Workspace reuses it instead of duplicating it. From a Workspace source,
+a reused ungrouped Workspace lands where a new one would: the source's Project, or a new Project the
+two found together. A reused Workspace that already has a Project stays in it. Ambiguous associations
 remain explicit failures.
 
 The Open list shows main and linked checkouts and resolves exact canonical paths, never duplicate
@@ -150,22 +152,32 @@ uses its first canonical Tab's first leaf primary/root process, independent of f
 or child Agents. A Project uses the first Workspace in its canonical display order, then that same
 first-terminal rule. Empty Projects have no source. Project has no canonical directory and may
 contain unrelated repositories; a non-Git or unavailable first source never triggers a search of
-later members or a borrow from the current Client context. An admitted explicit absent root cwd
-permits only that Workspace's canonical primary directory; failed, mismatched or unavailable
-samples never mean absence. An empty Workspace may use its own directory without inventing a process
-sample. An existing unbound first terminal is unavailable, rather than an absent cwd.
-For an addressed Workspace, an admitted cwd that names its canonical primary directory on the same
-Worker (Windows spelling compared case-insensitively, without a trailing separator) is that
-Workspace itself; any other admitted cwd stays a Directory source. A Project source keeps the
-Directory form. An addressed Directory source may carry the frozen existing Project in Start. A
-Workspace source, from that rule or the same-Workspace directory fallback, instead keeps
-required-nullable `projectId: null`; the existing Server Alongside owner resolves that Workspace's
-grouping, so an ungrouped Workspace and the Worktree it creates or opens land in one new Project. A Client must not copy the Project onto a Workspace-source
-Start, which the strict wire contract rejects.
+later members or a borrow from the current Client context.
+
+An addressed Workspace stands where its location line says: the first terminal's directory the
+Server follows leads, because a shell that reports its directory, such as PowerShell, leaves its
+process cwd in the launch directory. An admitted root cwd sample comes next, then the canonical
+primary directory. A failed sample or an unbound first terminal costs nothing while one of these is
+known, and an empty Workspace has no sample at all. A directory that names the canonical primary
+directory on the same Worker (Windows spelling compared case-insensitively, without a trailing
+separator) is the `workspace` source; any other is `workspace-directory`, which runs Git there while
+the Workspace stays the grouping owner. Both keep required-nullable `projectId: null`, and the
+existing Server Alongside owner resolves that Workspace's grouping, so an ungrouped Workspace and the
+Worktree it creates or opens land in one new Project, wherever its first terminal stands. A
+`workspace-directory` source says nothing about the Workspace's own checkout: Remove still addresses
+the canonical directory, and no association is retained for the directory it stood in. A Client must
+not copy the Project onto either Start, which the strict wire contract rejects.
+
+A Project source keeps the Directory form and may carry the frozen existing Project in Start. Its
+followed directory leads an admitted sample, and it still needs that sample: an admitted explicit
+absent root cwd permits only the member's canonical primary directory, failed, mismatched or
+unavailable samples never mean absence, and an existing unbound first terminal is unavailable.
 
 These pre-submit choices freeze exact Project identity and ordered members, addressed Workspace,
 Context, first primary binding and directory proof. Membership, order, removal, rebind or source
-drift retires them; unrelated canonical writes do not become source drift. Sidebar preparation uses
+drift retires them; unrelated canonical writes do not become source drift. A followed directory
+change, and the automatic label it moves, keeps an open menu and starts its discovery over; a launch
+form already open reports the source change at Start. Sidebar preparation uses
 the existing background Worktree lane's own authenticated Session and a temporary read-only Viewer,
 released after root samples before and after Git. It never borrows the interactive Viewer or its
 controller. Every failure path detaches or retires that auxiliary Session within the original bounded
@@ -178,7 +190,9 @@ drift. Git classification, actual cwd sampling and real menu interaction require
 integration evidence. `cli_windows_worktree_menu` runs the CLI, Server, Worker and Zig Host under
 test against a real repository with a TUI Client driven by pointer: from an ungrouped Workspace's
 row menu, Open Worktree ▸ opens a linked checkout into a new Project with the Workspace, and New
-Worktree… then joins that Project. A direct Cargo run needs the Server and Worker built first.
+Worktree… then joins that Project. It also covers a first terminal in a subdirectory, a directory the
+shell only reports, a directory change under the open menu and a checkout another Workspace holds.
+A direct Cargo run needs the Server and Worker built first.
 
 ## Entry and failure
 

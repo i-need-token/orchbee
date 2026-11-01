@@ -3,11 +3,11 @@ use super::Discovery;
 use crate::primary_directory::RootDirectory;
 use crate::workbench_projection::{
     ClientContextLocation, ClientContextTabs, ClientMemberTarget, ClientTerminalBinding,
-    MenuContextSource, project_native_context_tabs,
+    MenuContextSource, project_native_context_tabs, settled_workspace,
 };
 use orchbee_workbench_protocol::{
-    Project, Snapshot, TerminalContext, WorkbenchProjectId, WorkbenchWorkspaceId, Workspace,
-    WorktreeEntryText, WorktreeQueryEntry, WorktreeSource,
+    Project, Snapshot, TerminalContext, WorkbenchDirectoryPath, WorkbenchProjectId,
+    WorkbenchWorkspaceId, Workspace, WorktreeEntryText, WorktreeQueryEntry, WorktreeSource,
 };
 
 #[derive(Clone, Debug)]
@@ -73,6 +73,10 @@ pub(crate) struct AddressedWorktreeSource {
     owner: SourceOwner,
     source: MenuContextSource,
     context: TerminalContext,
+    /// The first terminal's directory the Server follows, which the sidebar's location line shows.
+    /// It is the root process's reported directory first, and a shell that reports one, such as
+    /// PowerShell, leaves its process cwd in the launch directory.
+    followed: Option<WorkbenchDirectoryPath>,
 }
 
 impl AddressedWorktreeSource {
@@ -91,7 +95,7 @@ impl AddressedWorktreeSource {
                     .ok()?
                     .into_iter()
                     .filter(|(_, workspace)| workspace.project_id.as_ref() == Some(id))
-                    .map(|(_, workspace)| workspace.clone())
+                    .map(|(_, workspace)| settled_workspace(workspace))
                     .collect();
                 let first = members.first()?.workspace_id.clone();
                 (
@@ -119,6 +123,7 @@ impl AddressedWorktreeSource {
             .and_then(|(_, panel)| panel.primary().binding())
             .cloned();
         let context = cache.canonical_context()?.clone();
+        let followed = workspace.terminal_directory.clone();
         Some(Self {
             target: target.clone(),
             cache,
@@ -127,51 +132,92 @@ impl AddressedWorktreeSource {
             owner,
             source,
             context,
+            followed,
         })
     }
 
+    /// The same source, standing in the same directory.
     pub(crate) fn unchanged(&self, snapshot: &Snapshot) -> bool {
-        Self::capture(snapshot, &self.target).is_some_and(|current| {
-            self.cache.session_id() == current.cache.session_id()
-                && self.owner == current.owner
-                && self.source == current.source
-                && self.context == current.context
-                && self.member == current.member
-                && self.primary == current.primary
-        })
+        Self::capture(snapshot, &self.target)
+            .is_some_and(|current| self.same_owner(&current) && self.followed == current.followed)
     }
 
-    /// Only an admitted absent cwd (or no first terminal at all)
-    /// permits the same Workspace's canonical directory. An unavailable sample
-    /// can never select another Project member, Agent cwd or Client cwd.
-    /// For an addressed Workspace, an admitted cwd naming its directory on its Worker is the
-    /// Workspace itself, so the Server can group the new Workspace alongside it; a Project
-    /// source already carries its Project.
+    /// Whether `snapshot` still holds this source, wherever its first terminal stands now. A menu
+    /// outlives a `cd`; only its discovery starts over.
+    pub(crate) fn current(&self, snapshot: &Snapshot) -> bool {
+        Self::capture(snapshot, &self.target).is_some_and(|current| self.same_owner(&current))
+    }
+
+    fn same_owner(&self, current: &Self) -> bool {
+        self.cache.session_id() == current.cache.session_id()
+            && self.owner == current.owner
+            && self.source == current.source
+            && self.context == current.context
+            && self.member == current.member
+            && self.primary == current.primary
+    }
+
+    /// One source for the first terminal. An addressed Workspace asks Git wherever its location
+    /// line says it stands and stays the owner the Server groups alongside, so a process sample that
+    /// fails costs nothing while its directory is known. A Project source carries its Project and
+    /// needs an admitted sample: it can never select another member, Agent cwd or Client cwd.
     pub(crate) fn resolve_sample(&self, sample: RootDirectory) -> Option<WorktreeSource> {
+        match &self.target {
+            SidebarWorktreeTarget::Workspace(workspace_id) => {
+                self.resolve_workspace(workspace_id, sample)
+            }
+            SidebarWorktreeTarget::Project(_) => self.resolve_project_member(sample),
+        }
+    }
+
+    fn resolve_workspace(
+        &self,
+        workspace_id: &WorkbenchWorkspaceId,
+        sample: RootDirectory,
+    ) -> Option<WorktreeSource> {
+        let sampled = match sample {
+            // An empty Workspace has no process to sample.
+            RootDirectory::Available(Some(_)) if self.primary.is_none() => return None,
+            RootDirectory::Available(path) => path,
+            RootDirectory::Unavailable => None,
+        };
+        let own = |path: &WorkbenchDirectoryPath| {
+            self.cache.directory().is_some_and(|directory| {
+                self.primary
+                    .as_ref()
+                    .is_none_or(|primary| directory.worker_id == *primary.worker_id())
+                    && super::removal::same_checkout(directory.path.as_str(), path.as_str())
+            })
+        };
+        let workspace_id = workspace_id.clone();
+        match self.followed.clone().or(sampled) {
+            Some(path) if !own(&path) => {
+                Some(WorktreeSource::WorkspaceDirectory { workspace_id, path })
+            }
+            Some(_) => Some(WorktreeSource::Workspace { workspace_id }),
+            None => self
+                .cache
+                .directory()
+                .map(|_| WorktreeSource::Workspace { workspace_id }),
+        }
+    }
+
+    /// Only an admitted absent cwd (or no first terminal at all) permits the member's canonical
+    /// directory.
+    fn resolve_project_member(&self, sample: RootDirectory) -> Option<WorktreeSource> {
         match sample {
             RootDirectory::Available(Some(path)) if self.primary.is_some() => {
-                match (&self.target, self.cache.directory(), &self.primary) {
-                    (
-                        SidebarWorktreeTarget::Workspace(workspace_id),
-                        Some(directory),
-                        Some(primary),
-                    ) if directory.worker_id == *primary.worker_id()
-                        && super::removal::same_checkout(
-                            directory.path.as_str(),
-                            path.as_str(),
-                        ) =>
-                    {
-                        Some(WorktreeSource::Workspace {
-                            workspace_id: workspace_id.clone(),
-                        })
-                    }
-                    _ => Some(WorktreeSource::Directory { path }),
-                }
+                Some(WorktreeSource::Directory {
+                    path: self.followed.clone().unwrap_or(path),
+                })
             }
             RootDirectory::Available(None)
                 if self.cache.directory().is_some()
                     && (self.primary.is_some() || self.member.is_none()) =>
             {
+                if let Some(path) = self.followed.clone() {
+                    return Some(WorktreeSource::Directory { path });
+                }
                 let ClientContextLocation::Workspace { workspace_id, .. } = self.cache.location()
                 else {
                     return None;
@@ -199,6 +245,15 @@ impl Discovery {
                         .primary
                         .as_ref()
                         .is_some_and(|binding| binding.worker_id() == &self.worker)
+            }
+            WorktreeSource::WorkspaceDirectory { workspace_id, path } => {
+                addressed.target == SidebarWorktreeTarget::Workspace(workspace_id.clone())
+                    && self.source.workspace_id.as_ref() == Some(workspace_id)
+                    && self.source.requested_path == *path
+                    && addressed
+                        .primary
+                        .as_ref()
+                        .is_none_or(|binding| binding.worker_id() == &self.worker)
             }
             WorktreeSource::Workspace { workspace_id } => {
                 matches!(addressed.cache.location(), ClientContextLocation::Workspace { workspace_id: expected, .. } if expected == workspace_id)

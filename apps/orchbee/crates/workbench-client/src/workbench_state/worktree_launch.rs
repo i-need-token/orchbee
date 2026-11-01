@@ -751,6 +751,8 @@ impl Discovery {
                         d.path == self.source.requested_path && d.worker_id == self.worker
                     })
             }
+            // Only the sidebar's addressed source names a Workspace and a directory together.
+            WorktreeSource::WorkspaceDirectory { .. } => false,
             WorktreeSource::Directory { path } => {
                 path == &self.source.requested_path
                     && self.source.workspace_id.is_none()

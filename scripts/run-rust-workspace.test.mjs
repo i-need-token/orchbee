@@ -26,8 +26,8 @@ const windowsBoundaries = [
 	{
 		name: 'orchbee-local-ipc',
 		directory: 'crates/local-ipc',
-		module: 'windows_name_query',
-		reason: 'exact Win32 name queries preserve immediate errors and own the search handle',
+		module: 'windows_native',
+		reason: 'reviewed Win32 name queries, pipe counters, read watches and waits are isolated here',
 	},
 ];
 const validLibrary = `/// Returns the fixture value.

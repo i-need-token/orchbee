@@ -109,7 +109,7 @@ fn metadata_is_retained_by_target_and_git_also_requires_the_same_directory_and_s
         .unwrap();
     assert_eq!(row.tokens, tokens);
     assert_eq!(row.git.as_ref().unwrap().branch.as_deref(), Some("main"));
-    assert!(row.git_stale);
+    assert!(!row.git_stale, "a commit says nothing about Git");
     snapshot.navigation.directories[0].path = WorkbenchDirectoryPath::parse("C:/another").unwrap();
     let changed =
         Checkpoint::project_navigation(&source(snapshot.clone(), None), Some(&observed)).unwrap();

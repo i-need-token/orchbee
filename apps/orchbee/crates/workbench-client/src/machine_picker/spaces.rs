@@ -216,6 +216,60 @@ impl Picker {
                 .is_some_and(|row| row.git_stale)
     }
 
+    /// The location a row keeps presenting while the Git facts of its new directory are unknown.
+    /// A source whose whole read keeps failing ends the hold: no answer is coming.
+    pub(crate) fn space_held_location(
+        &self,
+        row: &Row,
+    ) -> Option<&crate::machine_spaces::HeldLocation> {
+        self.space_checkpoint_row(row)?
+            .held
+            .as_ref()
+            .filter(|_| !self.space_stale.contains(&row.choice))
+    }
+
+    /// Workspaces whose current directory has no Git answer yet, for one read ahead of the sampling
+    /// cooldown. Each Workspace and directory asks once: a repeated failure waits for sampling, and
+    /// a machine before its first checkpoint reads everything anyway.
+    pub fn take_space_git_demand(
+        &mut self,
+    ) -> Vec<(
+        Choice,
+        std::collections::BTreeSet<orchbee_workbench_protocol::WorkbenchWorkspaceId>,
+    )> {
+        use crate::machine_spaces::checkpoint::Observation;
+        use crate::workbench_projection::ClientContextLocation;
+        let mut unanswered = Vec::new();
+        let mut demand = Vec::new();
+        for (choice, _) in self
+            .space_observations
+            .iter()
+            .filter(|(_, observation)| matches!(observation, Observation::Ready(_)))
+        {
+            let mut workspaces = std::collections::BTreeSet::new();
+            let rows = self
+                .space_checkpoint(choice)
+                .map_or(&[][..], |checkpoint| &checkpoint.rows);
+            for row in rows.iter().filter(|row| row.git.is_none()) {
+                let (ClientContextLocation::Workspace { workspace_id, .. }, Some(path)) =
+                    (&row.target.location, row.source_path())
+                else {
+                    continue;
+                };
+                let asked = (choice.clone(), workspace_id.clone(), path.clone());
+                if !self.space_git_demanded.contains(&asked) {
+                    workspaces.insert(workspace_id.clone());
+                }
+                unanswered.push(asked);
+            }
+            if !workspaces.is_empty() {
+                demand.push((choice.clone(), workspaces));
+            }
+        }
+        self.space_git_demanded = unanswered;
+        demand
+    }
+
     pub(crate) fn workspace_row_available(&self, row: &Row) -> bool {
         row.enabled
             && (row.context.is_none()

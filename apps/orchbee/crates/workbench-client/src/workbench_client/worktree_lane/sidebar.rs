@@ -9,6 +9,7 @@ use crate::primary_directory::{RootDirectory, decode_root};
 use orchbee_client_server_protocol::{
     RequestId, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
 };
+use orchbee_workbench_protocol::WorktreeSource;
 
 fn viewer(
     client: &mut LocalClient,
@@ -35,7 +36,7 @@ pub(super) struct DiscoveryRequest {
     pub(crate) addressed: AddressedWorktreeSource,
     pub(crate) requests: [WorkbenchRequestId; 3],
     pub(crate) viewers: [RequestId; 4],
-    pub(crate) expected: Option<RootDirectory>,
+    pub(crate) expected: Option<WorktreeSource>,
     pub(crate) configured_root: super::ConfiguredRoot,
 }
 
@@ -96,7 +97,13 @@ pub(super) fn discover(
             Ok(
                 TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. },
             ) => {
-                return Err(WorktreeNotice::SourceUnavailable);
+                if addressed
+                    .resolve_sample(RootDirectory::Unavailable)
+                    .is_none()
+                {
+                    return Err(WorktreeNotice::SourceUnavailable);
+                }
+                None
             }
             // Action/result admission belongs to the protocol; this step consumes only its requested viewer record or acknowledgment.
             _ => {
@@ -105,7 +112,11 @@ pub(super) fn discover(
             }
         }
     } else {
-        if addressed.member.is_some() {
+        if addressed.member.is_some()
+            && addressed
+                .resolve_sample(RootDirectory::Unavailable)
+                .is_none()
+        {
             return Err(WorktreeNotice::SourceUnavailable);
         }
         None
@@ -128,21 +139,20 @@ pub(super) fn discover(
                 terminal,
             )
             .map_err(|_| WorktreeNotice::SourceUnavailable)?
+        } else if addressed.member.is_some() {
+            RootDirectory::Unavailable
         } else {
             RootDirectory::Available(None)
         };
-        if sample == RootDirectory::Unavailable {
-            return Err(WorktreeNotice::SourceUnavailable);
-        }
-        if expected
-            .as_ref()
-            .is_some_and(|expected| expected != &sample)
-        {
-            return Err(WorktreeNotice::SourceChanged);
-        }
         let source = addressed
             .resolve_sample(sample.clone())
             .ok_or(WorktreeNotice::SourceUnavailable)?;
+        if expected
+            .as_ref()
+            .is_some_and(|expected| expected != &source)
+        {
+            return Err(WorktreeNotice::SourceChanged);
+        }
         let root = configured_root?;
         let reply = client
             .query_worktrees(
@@ -195,7 +205,7 @@ pub(super) fn discover(
                 terminal,
             )
             .map_err(|_| WorktreeNotice::SourceUnavailable)?;
-            if current != sample {
+            if addressed.resolve_sample(current).as_ref() != Some(&source) {
                 return Err(WorktreeNotice::SourceChanged);
             }
         }

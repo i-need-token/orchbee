@@ -17,7 +17,7 @@ impl WorkbenchAuthority {
                 reason: WorktreeListUnavailableReason::ServerBusy,
             });
         }
-        let workspace_id = match source {
+        let (workspace_id, stands_in) = match source {
             WorktreeSource::Directory { path } => {
                 return Ok(WorktreeSourceTarget {
                     directory_id: None,
@@ -25,7 +25,8 @@ impl WorkbenchAuthority {
                     worker_id: worker.clone(),
                 });
             }
-            WorktreeSource::Workspace { workspace_id } => workspace_id,
+            WorktreeSource::Workspace { workspace_id } => (workspace_id, None),
+            WorktreeSource::WorkspaceDirectory { workspace_id, path } => (workspace_id, Some(path)),
         };
         let workspace = self
             .snapshot()
@@ -36,6 +37,13 @@ impl WorkbenchAuthority {
             return Err(Failure::Unavailable {
                 reason: WorktreeListUnavailableReason::ServerBusy,
             });
+        }
+        if let Some(path) = stands_in {
+            return self
+                .workspace_directory_source(workspace_id, path, worker)
+                .ok_or(Failure::Unavailable {
+                    reason: WorktreeListUnavailableReason::WorkerUnavailable,
+                });
         }
         let directory = self
             .snapshot()
@@ -63,7 +71,8 @@ impl WorkbenchAuthority {
         entries: Vec<WorktreeEntry>,
     ) -> Result<Vec<WorktreeQueryEntry>, Failure> {
         let source_workspace = match source {
-            WorktreeSource::Workspace { workspace_id } => Some(workspace_id),
+            WorktreeSource::Workspace { workspace_id }
+            | WorktreeSource::WorkspaceDirectory { workspace_id, .. } => Some(workspace_id),
             WorktreeSource::Directory { .. } => None,
         };
         entries

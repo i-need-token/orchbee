@@ -64,6 +64,7 @@ impl WorkbenchAuthority {
     }
 
     /// Retains the actual source checkout, including a Workspace rooted in a checkout subdirectory.
+    /// A directory the first terminal merely stands in says nothing about the Workspace's own.
     pub fn associate_worktree_source(
         &mut self,
         plan: &WorktreeOperationPlan,
@@ -72,7 +73,8 @@ impl WorkbenchAuthority {
         if !self.worktree_source_matches(plan) {
             return false;
         }
-        let Some(workspace_id) = &plan.source_workspace_id else {
+        let (Some(workspace_id), Some(_)) = (&plan.source_workspace_id, &plan.source.directory_id)
+        else {
             return true;
         };
         self.retain_worktree_association(Association {

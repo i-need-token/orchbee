@@ -189,6 +189,22 @@
 					"type": "object",
 					"properties": {
 						"kind": {
+							"const": "workspace-directory"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/identity"
+						},
+						"path": {
+							"$ref": "#/$defs/directoryPath"
+						}
+					},
+					"required": ["kind", "workspaceId", "path"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
 							"const": "directory"
 						},
 						"path": {

@@ -43,8 +43,18 @@ impl<'de> Deserialize<'de> for WorktreeReference {
     deny_unknown_fields
 )]
 pub enum WorktreeSource {
-    Workspace { workspace_id: WorkbenchWorkspaceId },
-    Directory { path: WorkbenchDirectoryPath },
+    Workspace {
+        workspace_id: WorkbenchWorkspaceId,
+    },
+    /// Git runs in `path`, where the Workspace's first terminal stands, and the Workspace stays
+    /// the owner the new or reused Workspace groups alongside.
+    WorkspaceDirectory {
+        workspace_id: WorkbenchWorkspaceId,
+        path: WorkbenchDirectoryPath,
+    },
+    Directory {
+        path: WorkbenchDirectoryPath,
+    },
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]

@@ -37,6 +37,13 @@ export const WorktreeSourceSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({ kind: z.literal('workspace'), workspaceId: WorkbenchWorkspaceIdSchema })
 		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('workspace-directory'),
+			workspaceId: WorkbenchWorkspaceIdSchema,
+			path: WorkbenchDirectoryPathSchema,
+		})
+		.readonly(),
 	z.strictObject({ kind: z.literal('directory'), path: WorkbenchDirectoryPathSchema }).readonly(),
 ]);
 const WorktreeSelectorSchema = z.discriminatedUnion('kind', [

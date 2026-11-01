@@ -257,10 +257,13 @@ impl WorkbenchAuthority {
         {
             return None;
         }
-        let workspace_id = match intent {
+        let (workspace_id, stands_in) = match intent {
             WorktreeIntent::Create { source, .. } | WorktreeIntent::Open { source, .. } => {
                 match source {
-                    WorktreeSource::Workspace { workspace_id } => workspace_id,
+                    WorktreeSource::Workspace { workspace_id } => (workspace_id, None),
+                    WorktreeSource::WorkspaceDirectory { workspace_id, path } => {
+                        (workspace_id, Some(path))
+                    }
                     WorktreeSource::Directory { path } => {
                         return Some((
                             WorktreeSourceTarget {
@@ -273,11 +276,15 @@ impl WorkbenchAuthority {
                     }
                 }
             }
-            WorktreeIntent::Remove { workspace_id, .. } => workspace_id,
+            WorktreeIntent::Remove { workspace_id, .. } => (workspace_id, None),
         };
         let workspace = self.snapshot().navigation.workspace(workspace_id)?;
         if self.open_close_fences_context(&workspace.terminal_context_id) {
             return None;
+        }
+        if let Some(path) = stands_in {
+            let target = self.workspace_directory_source(workspace_id, path, worker_id)?;
+            return Some((target, Some(workspace_id.clone())));
         }
         let directory = self
             .snapshot()
@@ -293,6 +300,25 @@ impl WorkbenchAuthority {
                 Some(workspace_id.clone()),
             )
         })
+    }
+
+    /// The directory a Workspace's first terminal stands in, on the Worker of its own directory.
+    /// It carries no Directory identity, so a later `cd` never turns it into another source.
+    pub(super) fn workspace_directory_source(
+        &self,
+        workspace_id: &WorkbenchWorkspaceId,
+        path: &orchbee_workbench_protocol::WorkbenchDirectoryPath,
+        worker_id: &WorkerId,
+    ) -> Option<WorktreeSourceTarget> {
+        self.snapshot()
+            .navigation
+            .workspace_directory(workspace_id)
+            .is_none_or(|directory| directory.worker_id == *worker_id)
+            .then(|| WorktreeSourceTarget {
+                directory_id: None,
+                path: path.clone(),
+                worker_id: worker_id.clone(),
+            })
     }
 
     pub fn claim_worktree_operation(&mut self) -> Option<WorktreeOperationPlan> {

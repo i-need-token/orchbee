@@ -83,6 +83,10 @@ fn correlated(request: &WorkbenchWorktreeQuery, result: &WorkbenchWorktreeQueryR
                     WorktreeSource::Workspace { workspace_id } => {
                         source.workspace_id.as_ref() == Some(workspace_id)
                     }
+                    WorktreeSource::WorkspaceDirectory { workspace_id, path } => {
+                        source.workspace_id.as_ref() == Some(workspace_id)
+                            && source.requested_path == *path
+                    }
                     WorktreeSource::Directory { path } => {
                         source.workspace_id.is_none() && source.requested_path == *path
                     }

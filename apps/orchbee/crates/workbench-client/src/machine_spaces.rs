@@ -9,14 +9,36 @@ use orchbee_workbench_protocol::{
     WorkspaceMetadataAction, WorkspaceMetadataOutcome, WorkspaceMetadataRequest,
     WorkspaceMetadataRow,
 };
-use std::{collections::BTreeMap, sync::Arc, time::Instant};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Instant,
+};
 const MAXIMUM_ROWS: usize = 4096;
 const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
 pub(crate) mod checkpoint;
 pub(crate) mod navigation_projection;
 pub use checkpoint::Checkpoint;
-pub(crate) use checkpoint::{Git, ProjectSummary, Row};
+pub(crate) use checkpoint::{Git, HeldLocation, ProjectSummary, Row};
 pub type Collector = crate::machine_observation::Collector<Checkpoint>;
+
+/// Which Workspaces one read asks the Server about for Git.
+#[derive(Clone, Copy)]
+enum GitDemand<'a> {
+    None,
+    All,
+    /// A partial answer: the other rows behave as if the read were metadata-only.
+    Only(&'a BTreeSet<WorkbenchWorkspaceId>),
+}
+impl GitDemand<'_> {
+    fn asks(self, workspace: &WorkbenchWorkspaceId) -> bool {
+        match self {
+            Self::None => false,
+            Self::All => true,
+            Self::Only(workspaces) => workspaces.contains(workspace),
+        }
+    }
+}
 
 struct Reader<'a> {
     client: &'a mut LocalClient,
@@ -110,7 +132,7 @@ impl Reader<'_> {
             WorkspaceGitOutcome::Observed { .. } | WorkspaceGitOutcome::Failed { .. } => Err(()),
         }
     }
-    fn read(&mut self, git_requested: bool) -> Result<Arc<Checkpoint>, ()> {
+    fn read(&mut self, demand: GitDemand<'_>) -> Result<Arc<Checkpoint>, ()> {
         let ordered: Vec<_> = self
             .before
             .navigation
@@ -143,7 +165,7 @@ impl Reader<'_> {
                 .cloned();
             // The Server observes each Workspace's first terminal directory before its canonical
             // directory, so Workspaces sharing a canonical directory still read separately.
-            let git = if git_requested {
+            let git = if demand.asks(&workspace.workspace_id) {
                 self.git(&workspace.workspace_id)?
             } else {
                 None
@@ -163,6 +185,7 @@ impl Reader<'_> {
                 terminal_directory: workspace.terminal_directory,
                 git,
                 git_stale: false,
+                held: None,
             });
         }
         // An empty read fences expiration/report changes after every Workspace and Git batch.
@@ -178,7 +201,7 @@ impl Reader<'_> {
             session_id: self.before.session_id.clone(),
             revision: self.before.revision,
             metadata_revision: self.metadata_revision.ok_or(())?,
-            git_requested,
+            git_requested: matches!(demand, GitDemand::All),
             rows: rows.into(),
             projects: self
                 .before
@@ -191,6 +214,7 @@ impl Reader<'_> {
                     label: project.label.clone(),
                 })
                 .collect(),
+            known_git: Vec::new().into(),
         }))
     }
 }
@@ -198,7 +222,7 @@ fn read(
     client: &mut LocalClient,
     deadline: Instant,
     cancel: Cancellation<'_>,
-    git_requested: bool,
+    demand: GitDemand<'_>,
 ) -> Result<Arc<Checkpoint>, ()> {
     let before = snapshot(client, deadline, cancel)?;
     let bytes = serde_json::to_vec(&before).map_err(|_| ())?.len();
@@ -210,7 +234,7 @@ fn read(
         bytes,
         metadata_revision: None,
     }
-    .read(git_requested)
+    .read(demand)
 }
 #[expect(
     clippy::result_unit_err,
@@ -221,7 +245,7 @@ pub fn read_with_git(
     deadline: Instant,
     cancel: Cancellation<'_>,
 ) -> Result<Arc<Checkpoint>, ()> {
-    read(client, deadline, cancel, true)
+    read(client, deadline, cancel, GitDemand::All)
 }
 #[expect(
     clippy::result_unit_err,
@@ -232,7 +256,17 @@ pub fn read_metadata(
     deadline: Instant,
     cancel: Cancellation<'_>,
 ) -> Result<Arc<Checkpoint>, ()> {
-    read(client, deadline, cancel, false)
+    read(client, deadline, cancel, GitDemand::None)
+}
+/// A complete metadata read that asks Git only about `workspaces`, for a directory change whose
+/// Git facts are unknown. One Git request per changed Workspace, not a round of all of them.
+#[must_use]
+pub fn read_git_of(
+    workspaces: BTreeSet<WorkbenchWorkspaceId>,
+) -> crate::machine_observation::ExpeditedRead<Checkpoint> {
+    Box::new(move |client, deadline, cancel| {
+        read(client, deadline, cancel, GitDemand::Only(&workspaces))
+    })
 }
 #[cfg(test)]
 mod tests;

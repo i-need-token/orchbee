@@ -352,6 +352,22 @@
 					]
 				}
 			}
+		},
+		{
+			"name": "workspace-directory-query",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.query",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"source": {
+					"kind": "workspace-directory",
+					"workspaceId": "00000000000000000000000000000006",
+					"path": "C:/repo/sub"
+				},
+				"trustRepository": false
+			}
 		}
 	],
 	"invalid": [

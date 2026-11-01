@@ -300,10 +300,10 @@ inside third-party dependencies; dependency and feature review remain necessary.
 
 The accepted operating-system exceptions are limited to these private modules:
 
-| Package and location                                            | Private module              | Owned safety contract                                                                                         |
-| --------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `orchbee-windows-console-host` at `crates/windows-console-host` | `src/sys.rs`                | [Console handle, count, Unicode, and tagged-union boundaries](../crates/windows-console-host/README.md)       |
-| `orchbee-local-ipc` at `crates/local-ipc`                       | `src/windows_name_query.rs` | [Exact Win32 name query, immediate error capture, and search-handle ownership](../crates/local-ipc/README.md) |
+| Package and location                                            | Private module          | Owned safety contract                                                                                               |
+| --------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `orchbee-windows-console-host` at `crates/windows-console-host` | `src/sys.rs`            | [Console handle, count, Unicode, tagged-union, and input-wait boundaries](../crates/windows-console-host/README.md) |
+| `orchbee-local-ipc` at `crates/local-ipc`                       | `src/windows_native.rs` | [Exact Win32 name query, pipe counters, zero-byte read watch, and multi-event wait](../crates/local-ipc/README.md)  |
 
 These crates declare `unsafe_code = "deny"` instead of inheriting the workspace `forbid`;
 only the listed private module has a reasoned `allow`. The Rust runner pins each package,

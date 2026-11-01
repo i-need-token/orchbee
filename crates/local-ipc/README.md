@@ -13,17 +13,17 @@ Listeners reject remote connections, use a protected current-user DACL, and excl
 handle inheritance. A name alone is never authorization. The existing Terminal Host
 keeps its independently owned endpoint naming and peer validation.
 
-| Field        | Contract                                                                                                                                                                                                                  |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inputs       | Validated local pipe name, current token user, nonblocking pipe results, optional monotonic deadline, explicit shutdown                                                                                                   |
-| State        | One shared connection owner, at most one prefetched byte, closed flag, caller-selected read/write timeout                                                                                                                 |
-| Output       | Exact ordered bytes, would-block, EOF, timeout, or typed OS error; no protocol retry                                                                                                                                      |
-| Ownership    | Clones share one connection; shutdown closes every clone's transport and wakes bounded polling; final drop closes the handle                                                                                              |
-| Invariants   | Prefetch is consumed exactly once; no blocking pipe I/O or flush; no detached I/O thread; no application bytes before identity verification                                                                               |
-| Transitions  | Connect/accept → identity proof → nonblocking admission; readiness may retain one byte; read consumes retained byte before pipe bytes; shutdown/final drop → closed                                                       |
-| Deadline     | A timeout bounds each transport call; protocol owners retain their existing absolute whole-operation deadline across calls                                                                                                |
-| Dependencies | `interprocess` supplies safe named-pipe bindings, `winsafe` supplies safe process-token inspection and search-handle RAII, and `widestring` encodes descriptors and query names as UTF-16; Windows-only, no async runtime |
-| Evidence     | Native two-process round trip, first-instance/name rejection, exact byte ordering across readiness probes, full-buffer timeout, shutdown, and handle release                                                              |
+| Field        | Contract                                                                                                                                                                                                                                            |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs       | Validated local pipe name, current token user, nonblocking pipe results, optional monotonic deadline, explicit shutdown                                                                                                                             |
+| State        | One shared connection owner, at most one zero-byte read watch, closed flag, caller-selected read/write timeout                                                                                                                                      |
+| Output       | Exact ordered bytes, would-block, EOF, timeout, or typed OS error; no protocol retry                                                                                                                                                                |
+| Ownership    | Clones share one connection; shutdown closes every clone's transport and signals its read watch, which wakes any poller; final drop closes the handle                                                                                               |
+| Invariants   | Readiness consumes no bytes; no pipe call waits on the peer, because reads and writes stay within counted bytes and quota and a zero quota is tested in nonblocking mode; no detached I/O thread; no application bytes before identity verification |
+| Transitions  | Connect/accept → identity proof → admission; readiness waits on a zero-byte read; shutdown/final drop → closed                                                                                                                                      |
+| Deadline     | A timeout bounds each transport call; protocol owners retain their existing absolute whole-operation deadline across calls                                                                                                                          |
+| Dependencies | `interprocess` supplies safe named-pipe bindings, `winsafe` supplies safe process-token inspection and search-handle RAII, and `widestring` encodes descriptors and query names as UTF-16; Windows-only, no async runtime                           |
+| Evidence     | Native two-process round trip, first-instance/name rejection, exact byte ordering across readiness probes, wake on peer bytes and closure, full-buffer timeout, shutdown, and handle release                                                        |
 
 Readiness is advisory: writable notification permits a bounded nonblocking attempt,
 not a promise that the complete record fits. Pipe writes never count as protocol ACKs.
@@ -65,9 +65,9 @@ query failures preserve their error codes; kernel stalls remain outside the coop
 budget. Native tests retain listeners while unrelated pipes churn, verify no connection
 is consumed, and cover case-insensitive names, busy listeners, invalid names and expiry.
 
-The private `src/windows_name_query.rs` adapter is this crate's only authored unsafe
+The private `src/windows_native.rs` adapter is this crate's only authored unsafe
 boundary, admitted by the [Rust policy](../../docs/RUST.md#lint-policy-and-enforcement).
-It owns a NUL-terminated UTF-16 name without interior NULs and a correctly aligned
+For the name query it owns a NUL-terminated UTF-16 name without interior NULs and a correctly aligned
 `WIN32_FIND_DATAW` buffer through `FindFirstFileW` and immediate `GetLastError` capture.
 An `INVALID_HANDLE_VALUE` result is classified before any buffer destruction or handle
 cleanup: only `ERROR_FILE_NOT_FOUND` (2) and the pipe namespace's `ERROR_NO_MORE_FILES`
@@ -78,6 +78,28 @@ a pipe connection. The adjacent safe native regression uses an executable file a
 parent directory and requires `ERROR_DIRECTORY` (267), proving errors cannot become
 absence without changing public pipe-name admission. It also checks a missing sibling
 in that existing directory; the pipe tests cover namespace absence.
+
+The same adapter owns pipe readiness, so `poll` blocks on kernel events instead of a timer:
+
+- **Counters.** `NtQueryInformationFile` receives a pipe handle borrowed for the call and writable,
+  correctly aligned out values, and retains neither. A disconnected status is a closed pipe, not an
+  error. The write quota is advisory, because a peer's pending read reduces it while the pipe is empty.
+- **Read watch.** `ReadWatch` owns a duplicate of the pipe handle, a manual-reset event and pinned
+  boxed `OVERLAPPED` storage, and starts at most one zero-byte `ReadFile`. The kernel may use that
+  storage only while `pending` is set. `Drop` cancels with `CancelIoEx` and then blocks in
+  `GetOverlappedResult` until the kernel has released it, before anything is freed. The event is reset
+  only with no operation outstanding, so a completion cannot be lost; a zero length never writes
+  through the buffer. A waiter holds the event through an `Arc`, and `Drop` signals it so a waiter on
+  another clone observes the closure.
+- **Wait.** `wait_any` admits at most 63 events its caller keeps alive for the call, plus one
+  high-resolution waitable timer owned by the waiting thread, because every other timed wait rounds up to
+  the system tick. A thread without that timer falls back to a timed wait. Nothing retains a pointer,
+  and callers reprobe after every return: a wake is advisory.
+
+A zero write quota cannot refuse a write by itself, so `write_once` cancels this end's read watch and
+tests the write in `PIPE_NOWAIT` mode. `ERROR_PIPE_BUSY` from that mode change proves queued bytes and
+maps to would-block. Native tests in `src/windows/tests.rs` wake a waiting poll on peer bytes and on
+peer closure, and keep the byte order and the full-buffer timeout across those waits.
 
 `ChildInputWriter::pipe` pairs a nonblocking parent writer with blocking child stdin;
 `ChildOutputReader::pipe` provides the reverse direction. The terminal stream relay

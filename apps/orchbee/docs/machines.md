@@ -678,8 +678,8 @@ Git observations follow the Workspace's first terminal, the leading Panel primar
 of its first Tab, on the selected Worker. Its directory is the latest OSC 7/9;9
 report, otherwise the root process cwd, from the Server's existing periodic process
 sampler. Without a sample the canonical Workspace directory applies. A `cd` into or
-out of a checkout therefore appears on the next sidebar round without changing the
-canonical directory. Shells that change location without reporting it, such as
+out of a checkout therefore reaches the sidebar without changing the canonical
+directory. Shells that change location without reporting it, such as
 PowerShell without a prompt that emits OSC 7 or 9;9, keep their launch directory.
 Each Workspace reads separately because equal canonical directories may diverge.
 `git_status` is ahead/behind relative to the local upstream; neither a
@@ -687,7 +687,7 @@ dirty-file count nor a zero invented for an unavailable repository. Detached
 and unborn branches, absent upstream, and nonrepositories remain explicit; a
 nonrepository is an observation without branch facts, so earlier facts are not retained.
 `location` shows the observed branch, otherwise the first terminal's recorded directory, else the
-canonical Workspace folder; a local folder under the Client's home is shortened to `~`. Only branch text reserves the freshness track.
+canonical Workspace folder; a local folder under the Client's home is shortened to `~`.
 Reads never fetch, change configuration, start a terminal or execute a plugin.
 
 The Git read reuses the owned Windows discovery slot: checked start, poll,
@@ -711,13 +711,23 @@ scroll window remain stable. A newer complete checkpoint replaces canonical memb
 Workbench or metadata revisions from the same Session cannot overwrite it. A partial Git failure
 retains only the last result for the exact Workspace/context, directory ID, path, terminal directory
 and Worker. An observed null branch confirms absence and clears the old branch; a changed directory
-or Session never inherits it. A read that asked for Git and got none makes the retained fact stale;
-a metadata-only read says nothing about Git and leaves its freshness unchanged. Retained Git text
-reserves a two-cell freshness track (` ?` when stale), and the Workspace picker reports Stale.
+or Session never inherits it. A complete round that asked for Git and got none makes the retained
+fact stale; a commit, a metadata-only read and a read that asked about other Workspaces say nothing
+about Git and leave its freshness unchanged. The Workspace picker reports Stale; the sidebar paints
+no marker for it.
+A directory change moves the `location` line once. The Client keeps the Session's last Git answer
+for up to 64 directories, so a return to a known directory paints with the commit. For an unknown
+directory the row keeps its last settled location and counts and asks one read of that Workspace's
+Git ahead of the sampling cooldown, once per Workspace and directory; the answer replaces what it
+kept. A complete round without an answer or a withdrawn checkpoint ends the wait on the real folder.
+A row with no earlier Git answer has nothing to keep and shows the new folder at once. A kept answer
+is a presentation hint that the next sampled round corrects; it grants nothing.
 Endpoint replacement/removal invalidates its retained checkpoint;
 hiding the last Workspace consumer releases it. No retained fact grants navigation or effect authority.
 `crates/workbench-client/src/machine_picker/tests/spaces.rs` covers failed/missing and out-of-order rounds, stable grouping,
-scroll/current identity, partial Git failure, confirmed absence and source replacement. These are
+scroll/current identity, partial Git failure, confirmed absence and source replacement, and
+`crates/workbench-client/src/tui_render/workspace_sidebar/tests/directory_change.rs` the painted
+sequence of a directory change. These are
 controlled implementation traces, not exhaustive TLC assurance or real multi-Client host evidence.
 
 Agent and workspace observations share the bounded job lifecycle, with separate

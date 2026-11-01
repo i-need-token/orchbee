@@ -334,7 +334,7 @@ fn execute(
                         addressed: addressed.addressed.clone(),
                         requests: [first.clone(), second.clone(), third.clone()],
                         viewers: job.viewers,
-                        expected: Some(addressed.sample.clone()),
+                        expected: Some(addressed.source.clone()),
                         configured_root: root.clone(),
                     },
                     job.deadline,
@@ -342,8 +342,7 @@ fn execute(
                     wake,
                 );
                 if checked.as_ref().map_or(true, |current| {
-                    current.sample != addressed.sample
-                        || current.source != addressed.source
+                    current.source != addressed.source
                         || current.discovery.source != addressed.discovery.source
                         || current.discovery.worker != addressed.discovery.worker
                         || current.discovery.configured_root != addressed.discovery.configured_root

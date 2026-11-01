@@ -10,6 +10,17 @@ pub(crate) enum MenuContextSource {
     },
 }
 
+/// `workspace` without what its first terminal's directory moves on its own: the observed directory
+/// and an automatic label. Comparing this, a `cd` is not another Workspace.
+pub(crate) fn settled_workspace(workspace: &Workspace) -> Workspace {
+    let mut settled = workspace.clone();
+    settled.terminal_directory = None;
+    if settled.automatic_label {
+        settled.label.clear();
+    }
+    settled
+}
+
 impl ClientContextTabs {
     pub(crate) fn menu_context_source(
         &self,
@@ -35,7 +46,7 @@ impl ClientContextTabs {
             None => None,
         };
         Some(MenuContextSource::Workspace {
-            workspace: workspace.clone(),
+            workspace: settled_workspace(workspace),
             directory,
         })
     }

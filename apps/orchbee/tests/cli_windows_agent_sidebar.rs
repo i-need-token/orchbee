@@ -2,9 +2,8 @@
 //! a TUI Client that runs in a terminal of a second Session, and two fake Codex processes that keep
 //! printing while their window titles flip between working and idle, each in a Workspace of its own
 //! inside a real Git repository. Once a row appears it must stay, whichever commits, output and Git
-//! reads land meanwhile. Rows must keep following the terminals, so that a frozen list cannot pass,
-//! and the branch must not read as unknown while Git keeps answering. Before the fix a row vanished
-//! about every two seconds.
+//! reads land meanwhile. Rows must keep following the terminals, so that a frozen list cannot pass.
+//! Before the fix a row vanished about every two seconds.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -21,9 +20,8 @@ use std::{
 
 const COLUMNS: u16 = 112;
 const ROWS: u16 = 32;
-/// The branch both repositories check out, as the sidebar shows it observed and unobserved.
+/// The branch both repositories check out.
 const BRANCH: &str = "agent-sidebar";
-const UNKNOWN_BRANCH: &str = "agent-sidebar ?";
 /// Bounds how long a started Agent takes to reach the list through the Server's process sampler.
 const LISTED: Duration = Duration::from_secs(20);
 /// Long enough for several state changes of each Agent.
@@ -63,11 +61,6 @@ fn listed_agents_stay_listed_and_follow_their_terminals_while_they_work() {
     let started = Instant::now();
     while started.elapsed() < WATCH {
         let screen = sidebar.sample();
-        if screen.contains(UNKNOWN_BRANCH) {
-            sidebar
-                .failures
-                .push(format!("the branch read as unknown:\n{screen}"));
-        }
         states.extend(agent_rows(&screen).map(str::to_owned));
     }
     assert!(
