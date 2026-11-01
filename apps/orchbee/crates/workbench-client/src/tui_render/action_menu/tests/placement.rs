@@ -299,6 +299,9 @@ fn cascade_opens_level_with_its_row_right_else_left_else_over_the_parent_end() {
                 .map(|x| painted.buffer[(x, parent_frame.y)].symbol())
                 .collect::<String>();
             assert!(title.contains("Project"), "{title}: {context}");
+            // Each other parent row returns with itself as the candidate, so a resting pointer
+            // can choose it; the open row and the frame return to the opening row.
+            let rows = [1, 2].map(|position| (alone.row(position).y, position));
             for y in parent_frame.y..parent_frame.bottom() {
                 for x in (parent_frame.x..parent_frame.right()).filter(|x| !inside(frame, *x, y)) {
                     assert!(
@@ -308,6 +311,21 @@ fn cascade_opens_level_with_its_row_right_else_left_else_over_the_parent_end() {
                                 if *owner == token
                         ),
                         "({x}, {y}) {context}"
+                    );
+                    let row = rows
+                        .iter()
+                        .find(|(row_y, _)| *row_y == y)
+                        .filter(|_| x > parent_frame.x && x < parent_frame.right() - 1);
+                    let expected = row.map_or(MenuControl::Back, |(_, position)| {
+                        MenuControl::ParentRow(*position)
+                    });
+                    assert!(
+                        matches!(
+                            painted.map.interaction_at(x, y).map(|hit| hit.target),
+                            Some(InteractionTarget::ActionMenuControl { control, .. })
+                                if control == expected
+                        ),
+                        "({x}, {y}) {expected:?} {context}"
                     );
                 }
             }

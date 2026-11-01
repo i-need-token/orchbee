@@ -157,6 +157,12 @@ pub enum MenuAction<'a> {
         token: MenuToken,
         control: crate::action_menu::MenuControl,
     },
+    /// The pointer rested on a painted row; only a cascading submenu row opens.
+    Rest {
+        source: &'a MenuTarget,
+        token: MenuToken,
+        row: usize,
+    },
     /// Ends the open menu episode without a selection.
     Cancel,
 }

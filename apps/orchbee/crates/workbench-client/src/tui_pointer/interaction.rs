@@ -122,6 +122,11 @@ pub(super) struct State {
 }
 
 impl State {
+    /// The cell of the last admitted movement report.
+    pub(super) const fn position(&self) -> Option<(u16, u16)> {
+        self.position
+    }
+
     pub(super) fn hovered_target(&self) -> Option<&InteractionTarget> {
         self.hovered.as_ref().map(|fingerprint| &fingerprint.target)
     }

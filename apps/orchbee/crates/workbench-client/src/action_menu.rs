@@ -210,7 +210,10 @@ pub struct MenuToken(u64);
 /// The local chrome actions owned by an open menu surface.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MenuControl {
+    /// Returns from a cascaded submenu to its parent with the opening row as the candidate.
     Back,
+    /// Returns from a cascaded submenu to its parent with this other parent row as the candidate.
+    ParentRow(usize),
     Close,
 }
 
@@ -547,6 +550,12 @@ impl RetainedMenu {
             candidate_hidden: false,
             transferring: false,
         }
+    }
+
+    /// The action on one painted row. A cascade parent is a context menu without a query, so its
+    /// rows are its actions in order.
+    pub(crate) fn row_action(&self, row: usize) -> Option<&MenuAction> {
+        self.actions.get(row)
     }
 }
 
@@ -1343,6 +1352,17 @@ impl ActionMenu {
         self.confirmed = Some(menu.actions[menu.result_actions[row]].clone());
         self.confirmed_by_pointer = true;
         true
+    }
+
+    /// A pointer resting on a drawn submenu row opens it as a click would; any other row ignores
+    /// the rest.
+    pub(crate) fn rest(&mut self, token: MenuToken, row: usize) -> bool {
+        let submenu = self.menu.as_ref().is_some_and(|menu| {
+            menu.result_actions
+                .get(row)
+                .is_some_and(|index| menu.actions[*index].submenu())
+        });
+        submenu && self.click(token, row)
     }
 
     pub(crate) fn confirmed(&self) -> Option<MenuAction> {

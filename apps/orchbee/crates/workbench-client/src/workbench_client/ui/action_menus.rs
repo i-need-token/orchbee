@@ -927,32 +927,8 @@ impl WorkbenchClientUi {
             && (event.code == crate::client_view::KeyCode::Esc
                 || (current.readiness() != MenuInputReadiness::Recovery
                     && event.code == crate::client_view::KeyCode::Left))
-            && matches!(self.menus.intent().map(Intent::stage), Some(Stage::Open))
-            && let Some(ParentMenu {
-                target,
-                anchor,
-                selected,
-                query,
-                resume_permit,
-                retained: _,
-            }) = self.menus.pop_parent()
+            && self.return_to_parent_action_menu(None)
         {
-            let released = self.menus.intent().is_some_and(Intent::pointer_released);
-            self.menus.menu.cancel();
-            self.menus.release_intent();
-            // Returning names the row that opened the submenu as the candidate.
-            if self.open_action_menu_with_resume_permit(
-                target,
-                anchor,
-                released,
-                ResumePermitSeed::Inherit(resume_permit),
-                false,
-            ) {
-                self.menus.menu.set_query(query.as_deref());
-                self.menus.menu.select_action(selected);
-            } else {
-                self.menus.clear_parents();
-            }
             return true;
         }
 
@@ -979,6 +955,44 @@ impl WorkbenchClientUi {
         }
         if !self.action_menu_active() {
             self.menus.end();
+        }
+        true
+    }
+
+    /// Leaves an open submenu for its parent. The row that opened the submenu becomes the
+    /// candidate unless the pointer chose another parent row.
+    fn return_to_parent_action_menu(&mut self, row: Option<usize>) -> bool {
+        if !matches!(self.menus.intent().map(Intent::stage), Some(Stage::Open)) {
+            return false;
+        }
+        let Some(ParentMenu {
+            target,
+            anchor,
+            selected,
+            query,
+            resume_permit,
+            retained,
+        }) = self.menus.pop_parent()
+        else {
+            return false;
+        };
+        let selected = row
+            .and_then(|row| retained.as_ref()?.row_action(row).cloned())
+            .unwrap_or(selected);
+        let released = self.menus.intent().is_some_and(Intent::pointer_released);
+        self.menus.menu.cancel();
+        self.menus.release_intent();
+        if self.open_action_menu_with_resume_permit(
+            target,
+            anchor,
+            released,
+            ResumePermitSeed::Inherit(resume_permit),
+            false,
+        ) {
+            self.menus.menu.set_query(query.as_deref());
+            self.menus.menu.select_action(selected);
+        } else {
+            self.menus.clear_parents();
         }
         true
     }
@@ -1020,8 +1034,40 @@ impl WorkbenchClientUi {
                     ),
                 );
             }
+            MenuControl::ParentRow(row) => {
+                // The same snapshot and readiness admission as Back's Left key.
+                if self
+                    .action_menu_input_context()
+                    .is_some_and(|context| context.readiness() != MenuInputReadiness::Recovery)
+                {
+                    let _ = self.return_to_parent_action_menu(Some(row));
+                }
+            }
             MenuControl::Close => self.cancel_action_menu(),
         }
+    }
+
+    /// A pointer resting on a cascading submenu row opens the child as a click would. The global
+    /// menu's new-Tab submenu replaces its page, so it still opens only on a click or key.
+    pub(in crate::workbench_client) fn rest_action_menu_row(
+        &mut self,
+        source: &MenuTarget,
+        token: MenuToken,
+        row: usize,
+    ) -> bool {
+        self.drive_action_menu();
+        if !self.action_menu_source_matches(source, token)
+            || !self
+                .menus
+                .intent()
+                .is_some_and(|intent| intent.entry().context_menu())
+            || !matches!(self.menus.intent().map(Intent::stage), Some(Stage::Open))
+            || !self.menus.menu.rest(token, row)
+        {
+            return false;
+        }
+        self.confirm_action_menu();
+        true
     }
 
     pub(in crate::workbench_client) fn hover_action_menu_row(

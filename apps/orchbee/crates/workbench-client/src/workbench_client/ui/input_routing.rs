@@ -154,6 +154,9 @@ impl WorkbenchClientUi {
                 self.activate_action_menu_control(source, token, control);
                 None
             }
+            SurfaceAction::ActionMenu(MenuAction::Rest { source, token, row }) => {
+                accepted(self.rest_action_menu_row(source, token, row))
+            }
             SurfaceAction::ActionMenu(MenuAction::Cancel) => {
                 self.cancel_action_menu();
                 None

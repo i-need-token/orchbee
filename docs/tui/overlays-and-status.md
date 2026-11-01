@@ -50,7 +50,8 @@ control, footer hints and position counter. A submenu cascades beside its parent
 frame of the same composition. The parent stays painted but inert: its opening row keeps the
 selection fill without the navigation marker, and the child holds the candidate. The visible menu
 retains exclusive input ownership. Esc closes a root menu; in a child, Left, Esc or a click on the
-parent frame returns to the parent. An outside click dismisses the whole cascade through the exact
+parent frame returns to the parent, and a click on, or a rest over, another parent row returns
+with that row as the candidate. An outside click dismisses the whole cascade through the exact
 admitted menu surface. General modal slots below continue to govern forms, pickers, confirmations
 and global action discovery.
 

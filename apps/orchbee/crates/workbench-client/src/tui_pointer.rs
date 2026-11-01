@@ -56,6 +56,7 @@ mod interaction;
 pub use interaction::MotionObservability;
 pub(crate) use interaction::ReleaseOwnership;
 mod list_scroll;
+mod menu_rest;
 mod modal;
 pub(crate) use modal::CancelledModalEvent;
 mod scrollbar;
@@ -482,6 +483,7 @@ pub struct PointerState {
     )>,
     wheel: WheelStream,
     tooltip: tooltip::State,
+    menu_rest: menu_rest::State,
 }
 
 impl PointerState {
@@ -791,16 +793,24 @@ impl PointerState {
         &mut self,
         port: &mut Port,
         event: MouseEvent,
+        now: Instant,
     ) -> PointerOutcome {
         if plain_primary_press(event) {
             self.cancel_list_scroll();
         }
         let interaction = self.modal_interaction_event(event, InteractionTarget::is_action_menu);
         if let PointerOutcome::IdleMotion { changed } = interaction {
-            let candidate_changed = if event.mods == Modifiers::NONE
+            let admitted = event.mods == Modifiers::NONE
                 && self.motion_observability == MotionObservability::AnyMotion
                 && self.modal_release_ownership() == ReleaseOwnership::None
-                && self.can_admit_interaction()
+                && self.can_admit_interaction();
+            self.menu_rest.motion(
+                admitted
+                    .then(|| self.interactions.hovered_target())
+                    .flatten(),
+                now,
+            );
+            let candidate_changed = if admitted
                 && let Some(InteractionTarget::ActionMenuRow { source, token, row }) =
                     self.interactions.hovered_target()
             {
@@ -816,6 +826,7 @@ impl PointerState {
                 changed: changed || candidate_changed,
             };
         }
+        self.menu_rest.clear();
         if interaction != PointerOutcome::Ignored {
             return interaction;
         }
@@ -850,6 +861,73 @@ impl PointerState {
             _ => {}
         }
         PointerOutcome::Ignored
+    }
+
+    /// Acts once on the menu target the pointer has rested on; `menu_rest` owns the timing. The
+    /// menu owner revalidates the exact painted token and decides what a rest opens.
+    fn tick_menu_rest<Port: TerminalInputPort + ?Sized>(
+        &mut self,
+        port: &mut Port,
+        now: Instant,
+        capture: Option<crate::tui_composition::CaptureOwner>,
+    ) -> bool {
+        let menu_owns = matches!(
+            capture,
+            Some(crate::tui_composition::CaptureOwner::Native(
+                crate::tui_composition::WorkbenchCaptureOwner::ActionMenu
+            ))
+        );
+        if !menu_owns
+            || !self.capture
+            || self.host_unfocused
+            || self.motion_observability != MotionObservability::AnyMotion
+            || self.modal_release_ownership() != ReleaseOwnership::None
+            || !self.can_admit_interaction()
+        {
+            self.menu_rest.clear();
+            return false;
+        }
+        // A frame not yet published leaves the rest waiting for it.
+        let Some(map) = self.map.as_ref() else {
+            return false;
+        };
+        let at = self
+            .interactions
+            .position()
+            .and_then(|(column, row)| map.interaction_at(column, row))
+            .filter(crate::tui_hit_map::interaction::Fingerprint::enabled);
+        let Some(target) = self
+            .menu_rest
+            .due(at.as_ref().map(|fingerprint| &fingerprint.target), now)
+        else {
+            return false;
+        };
+        let acted = match &target {
+            InteractionTarget::ActionMenuRow { source, token, row } => port
+                .surface_action(SurfaceAction::ActionMenu(MenuAction::Rest {
+                    source,
+                    token: *token,
+                    row: *row,
+                }))
+                .is_some(),
+            InteractionTarget::ActionMenuControl {
+                source,
+                token,
+                control,
+            } => {
+                port.surface_action(SurfaceAction::ActionMenu(MenuAction::Control {
+                    source,
+                    token: *token,
+                    control: *control,
+                }));
+                true
+            }
+            _ => false,
+        };
+        if acted {
+            self.invalidate_map_with_port(port);
+        }
+        acted
     }
 
     fn chrome_pressed_fingerprint(&self) -> Option<crate::tui_hit_map::chrome::Fingerprint> {
@@ -1626,6 +1704,7 @@ impl PointerState {
         let probe = port.pointer_probe();
         let admitted = self.tooltip_admitted(view, &probe, capture);
         let tooltip_changed = self.tooltip.tick(self.map.as_ref(), now, admitted);
+        let tooltip_changed = self.tick_menu_rest(port, now, capture) || tooltip_changed;
         if !self.capture
             || probe.input_captured
             || view

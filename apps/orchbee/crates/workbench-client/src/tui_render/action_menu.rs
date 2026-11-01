@@ -173,15 +173,40 @@ pub(super) fn render(
         HitTarget::OverlaySurface,
     );
     // A click on the parent of a cascade returns to it; the submenu's frame keeps its own cells.
-    if let Some(parent) = placed.len().checked_sub(2).map(|index| &placed[index]) {
-        let target = InteractionTarget::ActionMenuControl {
+    // Each other enabled parent row is its own return target, so a pointer can choose it; the
+    // first region recorded wins, so the rest of the frame returns to the opening row.
+    if let Some(index) = placed.len().checked_sub(2) {
+        let (opener, parent) = (&levels[index], &placed[index]);
+        let target = |control| InteractionTarget::ActionMenuControl {
             source: active.menu.source.clone(),
             token: active.menu.token,
-            control: MenuControl::Back,
+            control,
         };
         let spec = interaction_spec(true);
+        for position in parent.first..parent.first + parent.visible_rows {
+            let enabled = opener
+                .result_actions
+                .get(position)
+                .is_some_and(|action| opener.menu.unavailable[*action].is_none());
+            let Some(y) =
+                row_y(opener, parent, position).filter(|_| enabled && position != opener.selected)
+            else {
+                continue;
+            };
+            let row = Rect::new(parent.inner.x - 1, y, parent.inner.width + 2, 1);
+            for rect in subtract(row, active_layout.area) {
+                let control = MenuControl::ParentRow(position);
+                hits.record_interaction(HitLayer::Overlay, rect, rect, target(control), spec);
+            }
+        }
         for rect in subtract(parent.area, active_layout.area) {
-            hits.record_interaction(HitLayer::Overlay, rect, rect, target.clone(), spec);
+            hits.record_interaction(
+                HitLayer::Overlay,
+                rect,
+                rect,
+                target(MenuControl::Back),
+                spec,
+            );
         }
     }
     for layout in &placed[..placed.len() - 1] {

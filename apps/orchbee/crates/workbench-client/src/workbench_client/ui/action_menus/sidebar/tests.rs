@@ -223,6 +223,61 @@ fn keyboard_cascade_starts_on_first_rows_and_left_esc_or_the_parent_frame_return
 }
 
 #[test]
+fn pointer_rest_opens_only_a_cascading_submenu_and_a_parent_row_takes_it_back() {
+    use crate::action_menu::MenuControl;
+    use crate::terminal_input::{MenuAction as Gesture, SurfaceAction};
+    let (mut ui, mailbox, _, _) = context_selection::ready(false);
+    let original = Origin::capture(ui.state.as_ref());
+    let rest = |ui: &mut WorkbenchClientUi, row| {
+        let token = draw(ui);
+        let source = ui.view().action_menu().unwrap().source.clone();
+        let opened = ui
+            .surface_action(SurfaceAction::ActionMenu(Gesture::Rest {
+                source: &source,
+                token,
+                row,
+            }))
+            .is_some();
+        assert!(ui.take_action_menu_action(false).is_none());
+        opened
+    };
+
+    // The global menu's new-Tab submenu replaces its page, so it waits for a click or key.
+    assert!(ui.open_action_menu(MenuTarget::Global, Some((7, 4).into()), false));
+    let row = ui
+        .view()
+        .action_menu()
+        .unwrap()
+        .actions
+        .iter()
+        .position(|action| *action == MenuAction::TabCreation)
+        .unwrap();
+    assert!(!rest(&mut ui, row));
+    assert_eq!(ui.menus.parent_count(), 0);
+    ui.cancel_action_menu();
+
+    let anchor = crate::action_menu::MenuAnchor::Pointer { column: 0, row: 4 };
+    assert!(ui.open_action_menu(project_target(&ui), Some(anchor), false));
+    assert!(!rest(&mut ui, 1), "resting on Rename does not rename");
+    assert_eq!(ui.menus.parent_count(), 0);
+    assert!(rest(&mut ui, 0), "resting on New Workspace ▸ opens it");
+    assert!(matches!(
+        ui.menus.intent().unwrap().entry(),
+        MenuTarget::WorkspaceCreation(_)
+    ));
+    assert_eq!(candidate(&ui), None, "the pointer chooses in the child");
+
+    // Another parent row takes the menu back with itself as the candidate.
+    let token = draw(&mut ui);
+    let source = ui.view().action_menu().unwrap().source.clone();
+    ui.activate_action_menu_control(&source, token, MenuControl::ParentRow(1));
+    assert_eq!(ui.menus.parent_count(), 0);
+    assert_eq!(candidate(&ui), Some(MenuAction::RenameProject));
+    assert_eq!(Origin::capture(ui.state.as_ref()), original);
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
 fn cancelled_or_replaced_episode_cannot_reopen_or_populate_a_new_menu() {
     let (mut ui, mailbox, _, _) = context_selection::ready(false);
     let target = project_target(&ui);

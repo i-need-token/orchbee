@@ -264,6 +264,10 @@ containing row.
 not write keyboard focus, current or checked state, availability, pending state, or any domain model.
 The action-menu pointer adapter additionally reports a real enabled-row movement to its owner,
 which updates only the [provisional menu candidate](native-action-menus.md#interaction).
+`tui_pointer/menu_rest.rs` times one rest from those same admitted reports: a submenu row opens
+its child after 200 ms, and another row of a cascaded parent returns there after 300 ms of
+stillness. A press, unadmitted motion, capture or focus loss, or a frame that no longer paints the
+rested target cancels it; firing sends the painted source and token for the owner to revalidate.
 Other collections retain their provisional selection. `Hovered` requires a real button-free movement
 report after global `AnyMotion` admission, a completed scoped `MenuMotion` request, or independent Windows console movement observation. Button-only
 observability, capture release, host-focus loss, and observability downgrade clear retained position,
@@ -589,6 +593,7 @@ owners and no thread or timer of its own.
 | Production surface                                                                                       | Model correspondence                                                                                                                                                                                                              |
 | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tui_pointer.rs`, `tui_pointer/interaction.rs`                                                           | `PointerState` capture/map/gesture lifecycle, typed interaction metadata and projection, stable release fingerprint, `FrameHitMap`/`HitMapBuilder` staged regions, specialized `Gesture` owners, `WheelStream`                    |
+| `tui_pointer/menu_rest.rs`                                                                               | Submenu-opening rest and restarted parent-return grace over published menu targets                                                                                                                                                |
 | `tui_pointer/tooltip.rs`, `tui_render/tooltip.rs`                                                        | Tooltip rest, adjacent opening, quieting, dismissal and publication retarget; text layout, wrapping, placement and the shielding box                                                                                              |
 | `terminal_events/mouse.rs`                                                                               | `MouseEvent` decode (`decode_sgr`, `decode_x10`), `route_pane_pointer`, `encode_pane_report`, `encode_cursor_arrows`                                                                                                              |
 | `terminal_events/decoder.rs`                                                                             | Typed `DecodedKind::Mouse`/`Ignored` items; X10 atomic three-byte body consumption, timeout, and abort; mouse-shaped malformed/aborted/over-bound runs decode `Ignored`                                                           |

@@ -120,9 +120,12 @@ such as an inactive tab, an auxiliary button, or an icon action, rises to `text-
 keep their content hierarchy, including secondary headings and metadata. `BOLD` marks press and
 any current identity whose owner documents bold. An open action menu updates its provisional
 candidate on real unmodified, button-free movement over an enabled painted row, using the same
-full-row selection fill and navigation marker as keyboard navigation. This does not execute an
-action or open a submenu; a click on a submenu row opens it. Leaving retains the candidate; arrows
-continue from it. Disabled rows, separators and group headings do not become pointer candidates. A
+full-row selection fill and navigation marker as keyboard navigation. This never executes an
+action. A cascaded submenu row also opens its child after the pointer rests on it briefly, as a
+click does at once. While a child is open, coming to rest on another parent row returns to the
+parent with that row as the candidate; the return waits for a short stillness that every movement
+restarts, so a diagonal path toward the child may cross parent rows. Leaving retains the
+candidate; arrows continue from it. Disabled rows, separators and group headings do not become pointer candidates. A
 menu opened by the pointer, and a submenu opened by a click, starts without a candidate. The first
 navigation or confirmation key only reveals one: Up and End reveal the last row; Down, Home, Right
 and Enter reveal the first. A menu opened from the keyboard starts on its first row. While a

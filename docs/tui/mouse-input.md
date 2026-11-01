@@ -65,7 +65,8 @@ Pointer interaction preserves these separate facts:
 
 - Movement may change hover styling, reveal a local affordance, or start the rest that opens a
   [pointer tooltip](overlays-and-status.md#pointer-tooltips). An open action menu may update its
-  provisional candidate through its owner on an enabled painted row; other collections retain
+  provisional candidate through its owner on an enabled painted row, and a rest may open or leave
+  a cascaded submenu as [components](components.md) describes; other collections retain
   provisional selection. Movement never moves keyboard focus, activates an action, commits data,
   mutates shared domain state, or writes terminal input.
 - A press may move focus or selection only when the owning component declares that step. Immediate

@@ -1069,7 +1069,7 @@ impl InputDispatcher {
                         }
                     }
                     DecodedKind::Mouse(event) if self.pointer.capture_enabled() => {
-                        let outcome = self.pointer.action_menu_event(port, event);
+                        let outcome = self.pointer.action_menu_event(port, event, now);
                         if event.action == super::MouseAction::Release
                             && self.menu_release.is_some_and(|button| {
                                 event.button == button || event.button == super::MouseButton::None

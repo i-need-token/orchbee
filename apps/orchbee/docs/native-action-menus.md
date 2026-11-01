@@ -23,7 +23,7 @@ A context menu's frame title names its target; a Tab menu uses the Tab's shared 
 
 A pointer-opened menu follows the press: its frame starts at the pressed column on the row below the complete painted trigger (a sidebar row, Tab or group header, otherwise the pressed cell), else ends on the row above it, and shifts left to stay inside the viewport. Height yields to scrolling before covering the trigger row; fewer than three rows on both sides keeps the existing recovery surface. A keyboard-opened sidebar row menu opens beside its row, top edge level with it, moving up only to fit; other keyboard menus stay centered. While a pointer-opened row menu is open, its row keeps the hover fill; a keyboard-opened one keeps the sidebar focus on its row. Placement changes no target or focus. `docs/tui/layout.md` owns the general geometry.
 
-Object and creation context menus omit header X controls, footer hints and selection counters, and publish no hidden hit targets for those omitted controls. A context submenu cascades beside its parent as an untitled frame: Right or Enter on a submenu row, or a click on it, opens the child level with that row. The parent stays painted without input; its opening row keeps the selection fill without the marker. Left or Esc in the child, or a click anywhere on the painted parent, returns to the parent with the opening row as its candidate; Esc in the root and an outside click close the whole menu. Hover never opens a submenu. Esc, outside dismissal and returning from a submenu retain the existing owner and draw guards. The global menu's new-Tab submenu still replaces its parent and carries the query, and the global menu keeps its title and discovery controls.
+Object and creation context menus omit header X controls, footer hints and selection counters, and publish no hidden hit targets for those omitted controls. A context submenu cascades beside its parent as an untitled frame: Right or Enter on a submenu row, or a click on it, opens the child level with that row. The parent stays painted without input; its opening row keeps the selection fill without the marker. Left or Esc in the child, or a click anywhere on the painted parent, returns to the parent with the opening row as its candidate; a click on another enabled parent row returns with that row as the candidate instead. Esc in the root and an outside click close the whole menu. A pointer that rests 200 ms on a submenu row opens it as a click would. While a child is open, a pointer that stays still for 300 ms over another enabled parent row returns there as that row's click does; every movement restarts the wait, so a diagonal path toward the child may cross parent rows, and reaching the child, the opening row or the frame cancels it. Esc, outside dismissal and returning from a submenu retain the existing owner and draw guards. The global menu's new-Tab submenu still replaces its parent and carries the query, and the global menu keeps its title and discovery controls.
 
 Current Client support: these row compositions, cascading submenus and press-anchored placement exist only in the native TUI. The GUI sidebar and Tab strip menus in `packages/workbench` keep their earlier compositions until they adopt this contract.
 
@@ -130,8 +130,8 @@ submenu opened from the keyboard starts on its first row. Keyboard selection rev
 host and native adapter receive idle motion under global admission or the scoped menu request,
 unmodified, button-free motion
 moves the provisional menu candidate to an enabled drawn row, using the full-row selection fill
-and navigation marker. It never executes, changes the active Workspace or Tab, or automatically
-opens a submenu. Leaving retains the candidate; subsequent arrows continue from it. Disabled rows,
+and navigation marker. It never executes or changes the active Workspace or Tab; only a rest on a
+cascaded submenu row opens it, as above. Leaving retains the candidate; subsequent arrows continue from it. Disabled rows,
 separators and group headings do not move the candidate. Hover preserves the viewport and action token; Enter
 requires a successful draw of the current candidate. Without received idle reports there is no hover feedback. A left click on a
 drawn row executes it only after a matching release on the same typed source, token, row and painted
@@ -415,7 +415,10 @@ motion reports in one packet, while keyboard confirmation requires its selected 
 current candidate. Hover preserves viewport, token, availability, native navigation and execution
 deadline; stationary-pointer reconciliation never moves the candidate. Matching release emits the
 typed activation intent and revalidates its source and token. Keyboard selection and availability
-changes mint a new token and require a new draw. No hover queue or timer is owned.
+changes mint a new token and require a new draw. The pointer owns one rest timer for submenu
+opening and parent return; when it fires, the coordinator revalidates the painted source and token
+and the menu owner opens only a cascaded submenu row, through the same confirmation as a click. The
+global menu's replacing new-Tab submenu still opens only on a click or key.
 Pane reconciliation cancels underlying gestures while preserving the top ActionMenu owner's
 painted hover and press across idle and draw boundaries. A matching release still requires the
 same target, token, exposure and geometry; a covering owner or invalidated hit map revokes it.
@@ -471,7 +474,9 @@ effective binding discovery, hidden unsupported actions, draw authority, packet 
 event replay, cancellation, source/target/focus drift, exact draft capture, at-most-once handoff,
 known-commit retention and execution deadlines independent of browsing time. Candidate-hover
 witnesses cover successive pre-paint motions, keyboard continuation, disabled and unpainted rows,
-source and token refusal, viewport retention, pointer leave, and no implicit submenu or action.
+source and token refusal, viewport retention, pointer leave, and no implicit action. Rest witnesses
+cover the open delay and restarted return grace, parent-row return targets beside the opening row,
+and that a rest opens only a cascaded submenu row and never the global new-Tab submenu.
 
 Global-menu witnesses assert the Tab, Panel, Workspace and Session section boundaries, directional
 split and move actions, both localized labels, current effective shortcuts, parity with keyboard

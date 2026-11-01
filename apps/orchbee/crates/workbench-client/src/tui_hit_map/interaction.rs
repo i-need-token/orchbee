@@ -144,7 +144,7 @@ impl InteractionTarget {
             },
             Self::ActionMenuControl { token, control, .. } => HitTarget::ActionMenuControl {
                 token: *token,
-                back: *control == crate::action_menu::MenuControl::Back,
+                back: *control != crate::action_menu::MenuControl::Close,
             },
             Self::Sidebar(target) => {
                 use crate::machine_picker::{SidebarPart, SidebarTarget};
