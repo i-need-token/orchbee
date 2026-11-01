@@ -31,7 +31,6 @@ pub struct ShellText<'a> {
     pub(crate) pointer_released: &'a str,
     pub(crate) prefix_active: &'a str,
     pub(crate) prefix_desc: fn(PrefixDesc) -> &'static str,
-    pub(crate) prefix_idle: &'a str,
     pub(crate) projects: &'static str,
     pub(crate) shell_only_detail: &'static str,
     pub(crate) shortcut_title: &'static str,
@@ -64,7 +63,6 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     pointer_released: "mouse released · Ctrl+B m restores",
     prefix_active: "PREFIX Ctrl+B",
     prefix_desc: en_us_prefix_desc,
-    prefix_idle: "Ctrl+B · shortcuts",
     projects: "Projects",
     shell_only_detail: "Connect to a session to use terminals and agents.",
     shortcut_title: "Keyboard shortcuts",
@@ -97,7 +95,6 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     pointer_released: "鼠标已释放 · Ctrl+B m 恢复",
     prefix_active: "前缀 Ctrl+B",
     prefix_desc: zh_cn_prefix_desc,
-    prefix_idle: "Ctrl+B · 快捷键",
     projects: "项目",
     shell_only_detail: "连接会话后即可使用终端和智能体。",
     shortcut_title: "键盘快捷键",
@@ -130,7 +127,7 @@ pub(crate) struct ShellBindings {
 /// Temporary render-owned strings; the borrowed shell text remains cheap to copy.
 pub(crate) struct BoundShellText<'a> {
     base: ShellText<'a>,
-    hints: [String; 7],
+    hints: [String; 6],
 }
 
 impl BoundShellText<'_> {
@@ -140,9 +137,8 @@ impl BoundShellText<'_> {
             hint_short: &self.hints[1],
             pointer_released: &self.hints[2],
             prefix_active: &self.hints[3],
-            prefix_idle: &self.hints[4],
-            sidebar_hint: &self.hints[5],
-            zoom_badge: &self.hints[6],
+            sidebar_hint: &self.hints[4],
+            zoom_badge: &self.hints[5],
             ..self.base
         }
     }
@@ -155,7 +151,6 @@ impl<'a> ShellText<'a> {
             self.hint_short,
             self.pointer_released,
             self.prefix_active,
-            self.prefix_idle,
             self.sidebar_hint,
             self.zoom_badge,
         ]

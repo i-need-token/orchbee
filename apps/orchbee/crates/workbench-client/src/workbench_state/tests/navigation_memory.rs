@@ -147,6 +147,32 @@ fn navigation_memory_restores_panel_through_tab_and_context_departure() {
     assert_eq!(state.active().unwrap().panel_index(), 1);
 }
 
+/// Naming an unselected split Tab after its first Panel changed its title on deselection.
+#[test]
+fn a_tab_is_named_by_the_same_panel_whether_or_not_it_is_selected() {
+    let snapshot = split_contexts();
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
+    let naming = |state: &WorkbenchClientState, index| {
+        state
+            .view()
+            .tab(index)
+            .unwrap()
+            .naming_panel()
+            .unwrap()
+            .panel_id()
+            .clone()
+    };
+    let first = naming(&state, 0);
+    let focused = focus_second_panel(&mut state);
+    assert_ne!(focused, first);
+    assert_eq!(naming(&state, 0), focused, "selected: the focused Panel");
+    switch(&mut state, 1, 2);
+    assert_eq!(naming(&state, 0), focused, "unselected: the same Panel");
+    switch(&mut state, 0, 4);
+    assert_eq!(naming(&state, 0), focused, "selected again");
+    assert_eq!(state.active().unwrap().panel_index(), 1);
+}
+
 #[test]
 fn navigation_memory_reentry_resolves_reordered_ids_and_removed_tab_to_empty() {
     let mut snapshot = contexts(2, 1);

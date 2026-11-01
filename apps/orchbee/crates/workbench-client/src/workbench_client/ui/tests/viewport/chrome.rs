@@ -324,7 +324,7 @@ fn prefix_status_floats_over_the_last_terminal_row_and_restores_it_without_resiz
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [Theme::terminal_native(), Theme::one_light()] {
                 let (mut ui, _, _, _) = controlling_ui();
-                let mut view = taught(width);
+                let mut view = rest_view(width);
                 let area = Rect::new(0, 0, width, height);
                 let areas = project_shell_areas(area, view.sidebar_surface());
                 let pane = crate::tui_layout::arranged_pane_area(&areas, &ui.view()).unwrap();
@@ -448,14 +448,14 @@ fn prefix_status_floats_over_the_last_terminal_row_and_restores_it_without_resiz
 
 /// The cursor is placed after the floating status, so the chip hides only a cursor it covers.
 #[test]
-fn launch_chip_hides_only_the_terminal_cursor_beneath_it() {
+fn status_chip_hides_only_the_terminal_cursor_beneath_it() {
     for (width, height) in [(120, 40), (60, 12)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let theme = Theme::terminal_native();
             let (mut ui, _, _, _) = controlling_ui();
             let mut view = ClientView::new(width);
             view.machines.available = true;
-            assert!(view.launch_hint_pending());
+            view.startup_notice(crate::client_view::Notice::UnknownPrefix);
             let areas = project_shell_areas(Rect::new(0, 0, width, height), view.sidebar_surface());
             let pane = crate::tui_layout::arranged_pane_area(&areas, &ui.view()).unwrap();
             ui.observe_geometry(Geometry::new(pane.width, pane.height, 8, 16).unwrap());
@@ -496,7 +496,7 @@ fn launch_chip_hides_only_the_terminal_cursor_beneath_it() {
                 Some((pane.x, last).into()),
                 "{locale:?} {width}x{height}"
             );
-            let chip = chip_cells(&hits, areas.status).expect("the launch hint floats at rest");
+            let chip = chip_cells(&hits, areas.status).expect("the notice floats");
             assert!(chip.x > pane.x);
             let (_, covered) = paint(&mut ui, chip.x - pane.x + 1);
             assert_eq!(

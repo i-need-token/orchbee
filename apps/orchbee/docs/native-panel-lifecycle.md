@@ -135,6 +135,13 @@ projections and leaves the pane parked. A terminal that ended settles through th
 snapshot and attach; a failed attach parks as an ordinary attach fault and is not retried
 automatically. A reselection still retries at once.
 
+Zoom is a Client-local per-Tab flag, and it belongs to the leaf it draws: the focus in the selected
+Tab, the remembered Panel in a background Tab. Focus moving inside the Tab carries the zoom along.
+When the drawn Panel leaves the Tab by any route, such as the close action, its shell exiting or
+another Client's close, the install drops the flag and the surviving leaves return to their normal
+layout; the leaf that takes the focus does not inherit it. A hidden leaf leaving keeps the zoom, and
+a plugin overlay still restores the zoom of its return Panel.
+
 ## Source correspondence
 
 | Runtime owner                                   | Evidence obligation                                                                                                      |

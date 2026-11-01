@@ -801,7 +801,7 @@ fn wide_render_exposes_the_business_sidebar_and_unavailable_workbench_truth() {
     assert!(rendered.contains("WORKBENCH"));
     assert!(rendered.contains("Terminal unavailable"));
     assert!(rendered.contains("No Orchbee session is connected."));
-    assert!(!rendered.contains("Ctrl+b · shortcuts"));
+    assert!(!rendered.contains("shortcuts"));
 }
 
 #[test]

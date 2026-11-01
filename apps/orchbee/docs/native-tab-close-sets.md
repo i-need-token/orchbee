@@ -53,8 +53,9 @@ state, so the Client never infers that an unobserved terminal ended.
 
 The warning names only running work when nothing counted has ended, only discarded retained output
 when everything has ended, and otherwise the number of running terminals together with the
-discarded retained output. A close of ended terminals still asks for confirmation because it
-discards their retained output for every connected Client. Workspace Close keeps the Server's
+discarded retained output. A close that presents a confirmation still warns about that retained
+output, which it discards for every connected Client; a close of only ended terminals runs no
+program and closes unasked under [Idle close](#idle-close). Workspace Close keeps the Server's
 conditional idle admission.
 
 The count is taken at each complete draw. A settlement arriving under an open prompt changes the
@@ -65,24 +66,58 @@ last complete draw; that draw can only overstate running work.
 
 ## Idle close
 
-Closing one Tab, or one Panel, whose every terminal is an idle shell skips the confirmation.
-`request_close_confirmation` and `request_panel_close_confirmation` still arm the confirmation;
-`workbench_client/ui/idle_close.rs` keeps it hidden while the executor reads one
-`ReadProcessInfo` sample per terminal through its attached viewer (`QueuedCommand::ProcessProbe`).
-`agent_start::runs_no_program` applies the agent-start rule: the root is `cmd`, `powershell` or
-`pwsh` started with only interactive switches, and no process other than `conhost` or
-`openconsole` runs under it. When every sample is idle, the state admits the armed confirmation
-without a draw and the ordinary confirmed close runs; its result reaches the status line as
-`{label} · Closed`, like any close.
+A close that ends no running program does not ask. This covers every route to one Tab, the key, its
+`[x]`, and a Tab menu or group action that resolves to one Tab, and the Panel route. A set of several
+Tabs, a Resume and a ReadOnly Client always present the confirmation.
 
-Everything else presents the unchanged confirmation: a refused, unavailable or non-idle sample, a
-terminal without a live projection in this Client, a ReadOnly Client, a set or a Resume, and no
-answer within 500 ms. A shell at its prompt on another platform therefore still asks. The protocol
-is unchanged, so the Client cannot see another Client's viewers of the same terminal, and the
-Host's `TerminalCloseActivity` that guards `WorkspaceCloseIfIdle` stays Server-side. Harnesses that
-script every Host exchange build the UI with `confirming_every_close`; the [idle close
-witness](../crates/workbench-client/src/workbench_client/ui/tests/idle_close.rs) covers the idle,
-running and timed-out paths.
+Each route still arms the confirmation; `workbench_client/ui/idle_close.rs` keeps it hidden while it
+reads the terminals the close would end: every Presentation of the target, so a Presentation the
+Panel does not show counts, except one that has ended by the facts under [Close
+impact](#close-impact). When nothing is left to read, the close runs at once. Two independent facts
+decide each terminal:
+
+- **The shell's report.** `TerminalProjection::shell_report` reads the terminal's latest frame. The
+  managed PowerShell reader marks its prompt and each command through private markers, carried as
+  `TerminalCommandObservation`: `ready` means the reader is waiting for input, and a command without
+  a completion means it is still running. Those markers reach the Host only through the ConPTY the
+  product bundles; the system ConHost drops them. Every console host passes OSC 133, so the frame's
+  row marks answer next: a cursor on a row of the prompt class, or on the wrapped rows of its input,
+  is at the prompt, and a cursor below such a row left it. The continuation class carries no fact:
+  the terminal also leaves it on blank rows and program output. A screen with no mark, such as
+  `cmd`, a shell whose reader the Worker's integration does not recognize, a prompt PSReadLine
+  redrew after a clear, or a full-screen view, reports nothing.
+- **One process sample.** `agent_start::close_sample` follows the Host's own close gate: only a Job
+  member attached to the Terminal's console is a foreground program. The root must be `cmd`,
+  `powershell` or `pwsh` started with only interactive switches or the Worker's fixed initialization;
+  `conhost` and `openconsole` do not count, nor do detached or console-less members, so a hidden
+  helper a profile started does not make a shell busy. A sample at its row limit, an unreadable root
+  or a member whose console cannot be observed cannot answer. Agent start keeps its stricter rule.
+
+The terminal runs a program when its shell reports a running command or its sample finds one; the
+confirmation then presents at once. A shell reporting its prompt closes even when its sample is
+refused, unavailable or late, because an unknown fact on a waiting shell is not a running program. A
+shell reporting nothing is judged by its sample alone and asks when that cannot answer. Reads get
+1 second, the Worker's bound on one sample; at that point, the terminals still unread close only if
+each one reports its prompt. Every read publishes an outcome, so the budget is reached only by a
+read that is really slow.
+
+A terminal shown in a pane is read through its live Viewer, and its report comes from that pane's
+frames. Any other terminal, in a background Tab or a hidden Presentation, is read through a temporary
+Viewer that attaches, takes its first frame and a sample, and detaches, because a Client Connection
+may attach to a Terminal only once.
+
+When every terminal runs nothing, the state admits the armed confirmation without a draw and the
+ordinary confirmed close runs; its result reaches the status line as `{label} · Closed`, like any
+close. A shell on another platform has no process sample and presents the confirmation unless its
+shell reports its prompt. The Host's `TerminalCloseActivity` stays with `WorkspaceCloseIfIdle`:
+accepted input latches it to unknown, so it cannot answer for a shell a person typed into. A program
+the sample cannot see and the shell does not report still closes unasked: `pause` in `cmd`, or under
+the system ConHost a cmdlet whose output scrolled its own prompt off the screen.
+Harnesses that script every Host exchange build the UI with `confirming_every_close`. The [real
+process witness](../tests/cli_windows_idle_close.rs) drives a real PowerShell through each route,
+under the system ConHost by default and the product's ConPTY with `ORCHBEE_TEST_CONPTY_DIR`, and the
+[decision witness](../crates/workbench-client/src/workbench_client/ui/tests/idle_close.rs) covers
+the unknown and late facts a real run cannot force.
 
 ## Incremental lifecycle owner
 

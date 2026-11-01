@@ -603,10 +603,9 @@ cursor it covers. The rest of the row stays terminal content. Opening, changing 
 never resize a PTY, and closing repaints the covered cells. At TooSmall the whole last row carries
 the exit hint.
 
-Nothing floats at rest once the prefix has been used. Until the first prefix entry in the Client
-process, an in-memory launch hint (`Ctrl+B` shortcuts) teaches the prefix. It never shows the
-primary status fact and never covers terminal graphics. The chip otherwise appears for prefix
-capture, other input modes, sidebar navigation, meaningful notices, connection or recovery,
+Nothing floats at rest. Prefix hints appear only after the effective prefix is pressed and leave when
+the prefix ends. The chip otherwise appears for other input modes, sidebar navigation, meaningful
+notices, connection or recovery,
 released pointer capture and persistent states. Directory missing, Disconnected and Terminal
 exited show one or two words with their severity marker, followed by the fixing binding when it
 fits, such as `Ctrl+B c` to create a Tab for an ended terminal. Every retired connection is
@@ -725,7 +724,7 @@ independently of keyboard focus, ordinary sidebars expose only Settings at the b
 ranges, a single pane fills its panel, and split/zoom views share their frame and border titles. Review the default theme together with
 both named RGB themes, empty and populated sidebars, navigation, hidden sidebar and split/zoom.
 `workbench_client/ui/tests/viewport/chrome.rs` checks last-row content, prefix coverage, pointer
-occlusion, the launch hint hiding only a cursor it covers, the first content row directly below the Tab strip, stable geometry and exact restoration in both
+occlusion, a status chip hiding only a cursor it covers, the first content row directly below the Tab strip, stable geometry and exact restoration in both
 locales and native/RGB themes. The [empty-workspace witnesses](../crates/workbench-client/src/workbench_client/ui/tests/quick_workspace.rs)
 check blank content, retained creation, Search and Settings targets, and absence of the Actions button across tiers.
 The [layout query witnesses](../crates/workbench-client/src/workbench_client/ui/client_layout/tests.rs) pin bare, zoomed

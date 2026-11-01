@@ -100,6 +100,11 @@ impl NavigationMemory {
             .as_ref()
     }
 
+    /// The Panel remembered for a Tab, in whichever context holds it.
+    pub(super) fn panel(&self, tab: &WorkbenchTabId) -> Option<&WorkbenchPanelId> {
+        self.contexts.iter().find_map(|entry| entry.panels.get(tab))
+    }
+
     pub(super) fn overlay_focus(
         &self,
         location: &ClientContextLocation,

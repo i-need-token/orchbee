@@ -332,6 +332,14 @@ impl WorkbenchClientUi {
         mailbox
             .apply_local_for(state, |state| state.open_close_set(ids))
             .ok()?;
+        // One Tab closed by its [x] or a menu follows the same rule as the key; a larger set asks.
+        if let Some(token) = state
+            .view()
+            .close_confirmation()
+            .map(|confirmation| confirmation.token())
+        {
+            self.begin_idle_close(super::idle_close::Target::Tab(token));
+        }
         Some(())
     }
 
@@ -523,7 +531,7 @@ impl WorkbenchClientUi {
         {
             return ClientActionDisposition::KeepNavigator;
         }
-        // A Tab whose every terminal is a shell at its prompt closes without the confirmation.
+        // A Tab with no program running in any terminal closes without the confirmation.
         if let Some(token) = state
             .view()
             .close_confirmation()

@@ -22,7 +22,10 @@ identities, Presentation labels and bindings remain unchanged by reordering. Dup
 names are permitted.
 
 Native Tab-strip, navigator, status, Tab-menu, close-confirmation and Agent board chrome share one display name. Fixed names remain
-exact. Automatic names prefer a selected Presentation's custom label, then the title its program set:
+exact. An automatic name comes from one Panel of the Tab: the focused Panel while the Tab is selected,
+otherwise the Panel selecting it would focus, which is the one this Client last left focused, else the first.
+Selecting another Tab therefore never changes a Tab's name; moving focus inside the selected Tab does.
+Automatic names prefer that Panel's selected Presentation's custom label, then the title its program set:
 the valid live OSC title, or for inactive Tabs the last observed title from the bounded frame cache
 only while the exact Session/context/Tab/Panel/Presentation/binding remains canonical. A console
 host's default title is the absolute path of the launched Windows executable, which cmd extends to

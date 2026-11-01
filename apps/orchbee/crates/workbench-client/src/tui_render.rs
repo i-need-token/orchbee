@@ -830,14 +830,11 @@ pub fn render_terminal_shell_with_resize<'a>(
             if native.controller() == Some(DisplayController::ReadOnly)
     );
     // The status floats over the last row and covers only the cells it paints; nothing shows at
-    // rest once the launch hint has taught the prefix.
-    let status_facts = status_overlay_visible(view, workbench_client.as_ref(), capture_owner)
+    // rest.
+    let status_visible = status_overlay_visible(view, workbench_client.as_ref(), capture_owner)
         || notice.is_some()
         || zoomed
         || tier == ViewportTier::TooSmall;
-    // The launch hint alone floats without the fact: a connecting first frame still shows no
-    // connection-only status.
-    let status_visible = status_facts || view.launch_hint_pending();
     let chip_area = status_chip_area(&areas);
     let copy_status = capture_owner == Some(CaptureOwner::Copy)
         && workbench_client
@@ -870,7 +867,7 @@ pub fn render_terminal_shell_with_resize<'a>(
             status_line::StatusFacts {
                 primary: &status_text,
                 primary_shorter: &status_shorter,
-                primary_ordinary: status_ordinary || !status_facts,
+                primary_ordinary: status_ordinary,
                 persistent: status_persistent,
                 secondary_notice: notice,
                 zoomed,

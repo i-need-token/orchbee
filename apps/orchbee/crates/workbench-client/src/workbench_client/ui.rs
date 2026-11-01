@@ -511,9 +511,7 @@ impl<'a> WorkbenchClientView<'a> {
     pub fn tab(&self, index: usize) -> Option<ClientTabView<'a>> {
         self.state.as_ref()?.tab(index).map(|inner| ClientTabView {
             automatic_name: inner
-                .active_panel()
-                .or(Some(0))
-                .and_then(|index| inner.panel(index))
+                .naming_panel()
                 .and_then(|panel| self.automatic_name(&inner, panel)),
             inner,
             resize: self.resize,
@@ -3705,8 +3703,14 @@ impl WorkbenchClientUi {
             {
                 return self.apply_selection_outcome(mailbox, key, command, outcome);
             }
-            if let WorkerEvent::ProcessProbeOutcome { key, probe, idle } = event {
-                return self.apply_idle_close_probe(&key, probe, idle);
+            if let WorkerEvent::CloseProbeOutcome {
+                probe,
+                binding,
+                sample,
+                report,
+            } = event
+            {
+                return self.apply_idle_close_probe(&binding, probe, sample, report);
             }
             // Viewport outcomes are fire-and-forget publications: a stale
             // incarnation's outcome (or one for a core that already retired)
@@ -3900,7 +3904,7 @@ impl WorkbenchClientUi {
                 | WorkerEvent::MembershipCleanupSkipped { .. }
                 | WorkerEvent::ViewportOutcome { .. }
                 | WorkerEvent::SelectionOutcome { .. }
-                | WorkerEvent::ProcessProbeOutcome { .. } => {
+                | WorkerEvent::CloseProbeOutcome { .. } => {
                     return Err(CarrierFailure::Protocol);
                 }
                 WorkerEvent::SwitchForwardExpired { .. } => return Err(CarrierFailure::Protocol),

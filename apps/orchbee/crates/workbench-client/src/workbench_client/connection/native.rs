@@ -45,6 +45,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod close_probe;
 mod close_reconciliation;
 mod membership;
 mod panel;
@@ -881,9 +882,9 @@ impl ClientExecutor {
                         let deadline = self.client.next_operation_deadline();
                         settle_ready_flow(self.run_selection(&lease, tagged, deadline))
                     }
-                    QueuedCommand::ProcessProbe(tagged) => {
+                    QueuedCommand::CloseProbe(probe) => {
                         let deadline = self.client.next_operation_deadline();
-                        settle_ready_flow(self.run_process_probe(&lease, tagged, deadline))
+                        settle_ready_flow(self.run_close_probe(&lease, probe, deadline))
                     }
                     QueuedCommand::Switch(marker) => {
                         self.run_switch(&lease, marker.target().clone())
@@ -1243,61 +1244,6 @@ impl ClientExecutor {
                     key: key.clone(),
                     command,
                     outcome,
-                },
-                cutoff,
-                &self.clock,
-            )
-            .map_err(|error| self.ready_event_error(lease, &key, deadline, error))?;
-        Ok(())
-    }
-
-    /// One process sample of this exact pane incarnation, classified for an idle close. A refused,
-    /// unavailable or unrecognized sample reports the pane as running a program.
-    fn run_process_probe(
-        &mut self,
-        lease: &CommandLease,
-        tagged: &Tagged<u64>,
-        deadline: Instant,
-    ) -> ReadyResult<()> {
-        let key = tagged.key().clone();
-        if self.attached_ref(&key).is_err() || !self.pane_admitted(lease, &key)? {
-            return Ok(());
-        }
-        let action = TerminalViewerAction::ReadProcessInfo {
-            attachment_id: self.viewer_id_for(&key)?,
-        };
-        let Some((_, outcome)) = self.viewer_for_ready_lease(lease, &key, action, deadline)? else {
-            return Ok(());
-        };
-        if matches!(
-            outcome,
-            TerminalViewerOutcome::Unavailable {
-                reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
-            }
-        ) {
-            return self.dispose_lost_viewer(lease, &key, deadline);
-        }
-        if matches!(outcome, TerminalViewerOutcome::Unavailable { .. }) {
-            return self.settle_pane_viewer_lost(lease, &key, deadline);
-        }
-        let idle = self.attached_ref(&key).is_ok_and(|attached| {
-            crate::primary_directory::decode_process_info(
-                outcome,
-                &attached.attachment_id,
-                &attached.host_epoch,
-                &attached.host_terminal_id,
-            )
-            .ok()
-            .flatten()
-            .is_some_and(|info| crate::agent_start::runs_no_program(&info))
-        });
-        let cutoff = self.effective_lease_cutoff(lease, deadline)?;
-        self.mailbox
-            .publish_notice_before(
-                WorkerEvent::ProcessProbeOutcome {
-                    key: key.clone(),
-                    probe: *tagged.value(),
-                    idle,
                 },
                 cutoff,
                 &self.clock,

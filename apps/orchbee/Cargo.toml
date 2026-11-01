@@ -149,6 +149,18 @@ path = "tests/cli_windows_worktree_menu.rs"
 name = "cli_windows_agent_sidebar"
 path = "tests/cli_windows_agent_sidebar.rs"
 
+# Keep these two real Sessions, their TUI Client and timed pointer input away from aggregate suite
+# deadlines.
+[[test]]
+name = "cli_windows_idle_close"
+path = "tests/cli_windows_idle_close.rs"
+
+# Keep these two real Sessions, their TUI Client and six real shells away from aggregate suite
+# deadlines.
+[[test]]
+name = "cli_windows_zoom_close"
+path = "tests/cli_windows_zoom_close.rs"
+
 # Keep short-deadline PROCESS_WITNESS_LOCK scheduling isolated.
 [[test]]
 name = "local_startup_process"

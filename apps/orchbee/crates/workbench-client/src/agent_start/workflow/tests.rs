@@ -1,6 +1,71 @@
 use super::*;
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 
+/// The close rule follows the Host's: only a member holding the Terminal console is a program. The
+/// strict Agent start rule above it refuses the same detached helper.
+#[test]
+fn close_sample_counts_only_what_holds_the_console() {
+    use orchbee_terminal_protocol::TerminalProcessConsole as Console;
+    let row = |pid, image: Option<&str>, command: &str, console| TerminalProcess {
+        pid,
+        parent_pid: None,
+        creation_time: 1,
+        console,
+        image: image.map(Into::into),
+        command_line: Some(command.into()),
+        current_directory: None,
+    };
+    let shell = row(
+        1,
+        Some("C:\\Program Files\\PowerShell\\7\\pwsh.exe"),
+        "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoExit",
+        Console::Attached,
+    );
+    let sample = |rows: Vec<TerminalProcess>| TerminalProcessInfo {
+        attachment_id: orchbee_terminal_protocol::AttachmentId::from_bytes([1; 16]).unwrap(),
+        terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes([2; 16]).unwrap(),
+        root_pid: 1,
+        processes: std::iter::once(shell.clone()).chain(rows).collect(),
+    };
+    let with = |image: Option<&str>, console| sample(vec![row(2, image, "helper", console)]);
+
+    assert_eq!(close_sample(&sample(vec![])), CloseSample::ShellOnly);
+    for (image, console, expected) in [
+        (
+            Some("conhost.exe"),
+            Console::Attached,
+            CloseSample::ShellOnly,
+        ),
+        (
+            Some("OpenConsole.exe"),
+            Console::Unknown,
+            CloseSample::ShellOnly,
+        ),
+        (Some("PING.EXE"), Console::Attached, CloseSample::Program),
+        (Some("agent.exe"), Console::Detached, CloseSample::ShellOnly),
+        (Some("agent.exe"), Console::None, CloseSample::ShellOnly),
+        (Some("agent.exe"), Console::Unknown, CloseSample::Unknown),
+        (None, Console::Unknown, CloseSample::Unknown),
+    ] {
+        assert_eq!(close_sample(&with(image, console)), expected, "{image:?}");
+    }
+    assert!(idle_shell(&with(Some("agent.exe"), Console::Detached)).is_err());
+
+    let mut root = sample(vec![]);
+    root.processes[0].image = None;
+    assert_eq!(close_sample(&root), CloseSample::Unknown);
+    let mut root = sample(vec![]);
+    root.processes[0].image = Some("claude.exe".into());
+    assert_eq!(close_sample(&root), CloseSample::Program);
+    let mut root = sample(vec![]);
+    root.processes[0].command_line = Some("pwsh.exe -File build.ps1".into());
+    root.processes[0].image = Some("pwsh.exe".into());
+    assert_eq!(close_sample(&root), CloseSample::Program);
+    let mut root = sample(vec![]);
+    root.root_pid = 9;
+    assert_eq!(close_sample(&root), CloseSample::Unknown);
+}
+
 #[test]
 fn idle_shell_refuses_commands_unknown_processes_and_incomplete_samples() {
     let process = |pid, image: &str, command: &str| TerminalProcess {

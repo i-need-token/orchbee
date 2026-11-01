@@ -365,8 +365,8 @@ live content. While visible it stays above other overlays. Its segments, from st
 
 - The input indicator is mandatory whenever any owner other than passthrough holds the keyboard.
   It is the last segment to be dropped.
-- Ordinary passthrough floats nothing at rest. The one exception teaches the entry gesture: until
-  the person first uses the prefix in the Client process, the chip names it and its purpose.
+- Ordinary passthrough floats nothing at rest. Prefix hints appear only once the person presses the
+  prefix and leave when the prefix ends.
 - In prefix mode, the current effective cancel binding comes first, followed by effective hints for
   help, side-panel focus when a side panel exists, the action menu when available, tab creation,
   splits, the Agent board, and detach. Width drops trailing hints as whole records.

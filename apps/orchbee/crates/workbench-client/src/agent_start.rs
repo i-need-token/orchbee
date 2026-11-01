@@ -136,8 +136,8 @@ fn elapsed_ms(started: Instant) -> u64 {
     u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
-pub(crate) use workflow::runs_no_program;
 pub use workflow::step_deadline;
+pub(crate) use workflow::{CloseSample, close_sample};
 
 /// Run startup against the exact Panel in the caller's admitted Snapshot and owned Client.
 /// Native admission precedes startup effects. Every path drops the Client before returning,

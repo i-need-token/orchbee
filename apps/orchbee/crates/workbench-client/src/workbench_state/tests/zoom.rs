@@ -1,7 +1,8 @@
 //! Client-local per-Tab zoom witnesses (`Ctrl+B z`): the volatile flag's
 //! guards and no-op cases, the focus-follow drawn set that never detaches
-//! viewers, the latest-known-membership GC at both install points, and the
-//! observed-geometry split that keeps hidden leaves alive but unresized.
+//! viewers, the latest-known-membership GC at both install points, the zoom
+//! leaving with the Panel it draws, and the observed-geometry split that
+//! keeps hidden leaves alive but unresized.
 use super::context_selection::{contexts, finish_selection};
 use super::*;
 use crate::client_view::{ClientView, PanelDirection};
@@ -281,6 +282,134 @@ fn shrinking_to_a_single_leaf_collects_the_flag() {
     assert_eq!(state.tab(0).unwrap().panel_count(), 1);
     assert!(state.zoomed_tabs.is_empty());
     assert!(!state.zoom_active());
+    assert!(state.invariant_holds());
+}
+
+/// A four-leaf Tab beside a sibling Tab, so leaves can go while the Tab stays split.
+fn many_leaf_two_tab_baseline() -> Snapshot {
+    let mut baseline = split_panel_baseline();
+    split_root(&mut baseline.terminal_contexts[0].tabs[0].root, 7_000);
+    split_root(&mut baseline.terminal_contexts[0].tabs[0].root, 8_000);
+    baseline.terminal_contexts[0].tabs.push(tab(1));
+    baseline
+}
+
+/// The next refresh's membership without `panel`, as the Server publishes a removed leaf.
+fn without_leaf(baseline: &Snapshot, panel: &WorkbenchPanelId, revision: u64) -> Snapshot {
+    fn drop_leaf(node: &mut PanelNode, panel: &WorkbenchPanelId) {
+        let PanelNode::Split { children, .. } = node else {
+            return;
+        };
+        let [first, second] = &mut **children;
+        let keep = match (&first.node, &second.node) {
+            (PanelNode::Panel { panel_id, .. }, _) if panel_id == panel => second.node.clone(),
+            (_, PanelNode::Panel { panel_id, .. }) if panel_id == panel => first.node.clone(),
+            _ => {
+                drop_leaf(&mut first.node, panel);
+                drop_leaf(&mut second.node, panel);
+                return;
+            }
+        };
+        *node = keep;
+    }
+    let mut next = baseline.clone();
+    next.revision = WorkbenchRevision::new(revision);
+    drop_leaf(&mut next.terminal_contexts[0].tabs[0].root, panel);
+    next
+}
+
+fn refresh(state: &mut WorkbenchClientState, snapshot: Snapshot) {
+    assert!(state.start_pending_refresh(7));
+    let prepared = state.prepare_refresh(7, WorkbenchSnapshotOutcome::Available { snapshot });
+    assert_eq!(
+        state.apply_prepared_refresh(prepared, Instant::now()),
+        RefreshDecision::Continue
+    );
+}
+
+#[test]
+fn the_zoom_leaves_with_the_selected_panel_it_draws() {
+    let baseline = many_leaf_two_tab_baseline();
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
+    let drawn = state.focus_panel_id().unwrap().clone();
+    assert!(state.toggle_zoom());
+
+    // A leaf the zoom hides goes: the zoom stays on the Panel that draws it.
+    let leaves = state.tab(0).unwrap().leaf_panel_ids();
+    let hidden = leaves.iter().find(|id| **id != drawn).unwrap();
+    let smaller = without_leaf(&baseline, hidden, 2);
+    refresh(&mut state, smaller.clone());
+    assert_eq!(state.tab(0).unwrap().panel_count(), 3);
+    assert_eq!(state.focus_panel_id(), Some(&drawn));
+    assert!(state.zoom_active());
+
+    // The drawn leaf goes while the Tab stays split: the selection repairs to a surviving leaf
+    // through the membership path, and that leaf does not inherit the zoom.
+    let snapshot = without_leaf(&smaller, &drawn, 3);
+    assert!(state.start_pending_refresh(8));
+    let PreparedRefresh::Membership { prepared, .. } =
+        state.prepare_refresh(8, WorkbenchSnapshotOutcome::Available { snapshot })
+    else {
+        panic!("the selected leaf vanished")
+    };
+    let anchor = state.desired().unwrap().anchor().clone();
+    let cleanup = state
+        .stage_refresh_membership_cleanup(8, prepared, deadlines())
+        .unwrap();
+    let prepared = state
+        .prepare_cleaned_membership_candidate(&cleanup, &anchor)
+        .unwrap();
+    let desired = AttachmentKey::new(11, anchor.tab_id().clone());
+    assert!(matches!(
+        state
+            .prepare_cleaned_membership_install(&cleanup, prepared, Some(desired))
+            .unwrap()
+            .commit(),
+        MembershipInstallDecision::Attach(_)
+    ));
+    assert_eq!(state.tab(0).unwrap().panel_count(), 2);
+    assert_ne!(state.focus_panel_id(), Some(&drawn));
+    assert!(state.zoomed_tabs.is_empty());
+    assert!(!state.zoom_active());
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn the_zoom_leaves_with_a_background_tabs_remembered_panel() {
+    let baseline = many_leaf_two_tab_baseline();
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
+    let zoomed_id = state.tab(0).unwrap().tab_id().clone();
+    let drawn = state.focus_panel_id().unwrap().clone();
+    assert!(state.toggle_zoom());
+
+    // Depart to the sibling Tab, leaving the flag and the remembered Panel behind.
+    let key = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
+    let target = state
+        .target_for_switch(1, key.clone(), deadlines())
+        .unwrap();
+    assert!(state.begin_switch(target));
+    let fresh = install_switch_candidate(&mut state, &key);
+    assert!(state.install_projection_t(&fresh));
+    assert!(state.record_setup_configuration_t(&fresh, controlling(), Some(geometry(80))));
+    assert!(state.stage_drawn_frame_t(&fresh, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&fresh, FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(
+        &fresh,
+        FrameIdentity::new(1),
+        controlling(),
+        Some(geometry(80))
+    ));
+    assert_eq!(state.active().unwrap().index(), 1);
+
+    // A leaf it does not draw goes first, then the one it does.
+    let leaves = state.tab(0).unwrap().leaf_panel_ids();
+    let hidden = leaves.iter().find(|id| **id != drawn).unwrap();
+    let smaller = without_leaf(&baseline, hidden, 2);
+    refresh(&mut state, smaller.clone());
+    assert!(state.zoomed_tabs.contains(&zoomed_id));
+    refresh(&mut state, without_leaf(&smaller, &drawn, 3));
+    assert_eq!(state.tab(0).unwrap().panel_count(), 2);
+    assert!(state.zoomed_tabs.is_empty());
     assert!(state.invariant_holds());
 }
 

@@ -3,8 +3,8 @@
 ## Scope and ownership
 
 The native Client treats `Ctrl+B Shift+X` (close the selected panel leaf) as a destructive intent
-that must be confirmed before it can reach the workbench carrier, unless its terminal is an
-[idle shell](native-tab-close-sets.md#idle-close). This reference governs the
+that must be confirmed before it can reach the workbench carrier, unless no program runs in its
+terminals ([idle close](native-tab-close-sets.md#idle-close)). This reference governs the
 panel-close confirmation extension of the [native Tab Session](workbench-client-runtime.md) and the
 [native panel lifecycle](native-panel-lifecycle.md). Maintain it with
 `workbench_state/panel_close.rs`, `workbench_client/ui/panel_close.rs`,

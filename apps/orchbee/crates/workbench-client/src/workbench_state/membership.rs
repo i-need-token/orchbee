@@ -327,6 +327,7 @@ impl PreparedMembershipInstall<'_> {
                 .unwrap_or_default()
         };
         let overlay_focus = self.state.focus_panel_id().cloned();
+        let zoomed_panels = self.state.zoomed_panels();
         self.state.remember_tab_group();
         self.state.cache = self.prepared.candidate;
         self.state.provenance = self.prepared.provenance;
@@ -347,6 +348,7 @@ impl PreparedMembershipInstall<'_> {
                 .navigation_memory
                 .remember_presentation(&self.state.cache, &selected, id);
         }
+        self.state.release_zoom_of_removed_panels(&zoomed_panels);
         self.state.prune_plugin_overlays(overlay_focus.as_ref());
         self.state.prune_zoomed_tabs();
         self.state.prune_navigation_memory();

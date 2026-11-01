@@ -94,6 +94,16 @@ impl Fixture {
                 json!(format!("{:x}", Sha256::digest(&bytes))),
             );
         }
+        // The product ships a pinned ConPTY beside its Host; a build without one uses the system
+        // ConHost, which drops the private markers the shell's reader sends. Point this at a
+        // verified bundle to witness the product's own console host too.
+        if let Some(bundle) = std::env::var_os("ORCHBEE_TEST_CONPTY_DIR") {
+            let target = self.root.join("cohort/conpty");
+            fs::create_dir_all(&target).unwrap();
+            for file in ["conpty.dll", "OpenConsole.exe"] {
+                fs::copy(Path::new(&bundle).join(file), target.join(file)).unwrap();
+            }
+        }
         artifacts.insert(
             "agent-observation-adapters".to_owned(),
             json!(format!("{:x}", Sha256::digest(b"unused adapters"))),

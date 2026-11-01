@@ -240,6 +240,14 @@ impl RefreshMarker {
     }
 }
 
+/// One terminal a close would end, tagged with the UI's probe serial.
+#[derive(Debug)]
+pub(super) struct CloseProbe {
+    pub(super) serial: u64,
+    pub(super) session: orchbee_workbench_protocol::SessionId,
+    pub(super) terminal: crate::workbench_state::CloseTerminal,
+}
+
 #[derive(Debug)]
 pub(super) enum QueuedCommand {
     Input(Tagged<ControlInput>),
@@ -252,9 +260,8 @@ pub(super) enum QueuedCommand {
     Viewport(Tagged<ViewportStep>),
     /// One Host selection or export command for this exact pane incarnation.
     Selection(Tagged<super::terminal_selection::Command>),
-    /// One process sample of this exact pane incarnation for an idle close; the value is the
-    /// UI's probe serial.
-    ProcessProbe(Tagged<u64>),
+    /// The facts of one terminal a close would end, read before its confirmation presents.
+    CloseProbe(CloseProbe),
     /// Set-level pane reconciliation: the executor attaches the listed pane
     /// incarnations and canonically disposes every attachment of the anchor it
     /// holds that the list does not name — one absolute deadline, bounded steps.
@@ -370,7 +377,7 @@ impl QueuedCommand {
             | Self::Poll(_)
             | Self::Viewport(_)
             | Self::Selection(_)
-            | Self::ProcessProbe(_) => None,
+            | Self::CloseProbe(_) => None,
         }
     }
 }
@@ -820,11 +827,14 @@ pub(super) enum WorkerEvent {
         command: super::terminal_selection::Command,
         outcome: orchbee_client_server_protocol::TerminalViewerOutcome,
     },
-    /// One `QueuedCommand::ProcessProbe` resolved: whether the pane is a shell at its prompt.
-    ProcessProbeOutcome {
-        key: PaneRef,
+    /// One `QueuedCommand::CloseProbe` resolved, always, so the close never waits out its budget
+    /// for a read that could not run. `report` comes from a temporary Viewer's first frame; the UI
+    /// already holds the frames of the panes it shows.
+    CloseProbeOutcome {
         probe: u64,
-        idle: bool,
+        binding: crate::workbench_projection::ClientTerminalBinding,
+        sample: crate::agent_start::CloseSample,
+        report: crate::terminal_projection::ShellReport,
     },
 }
 
@@ -999,7 +1009,7 @@ impl WorkerEvent {
             | Self::PollResult { .. }
             | Self::ViewportOutcome { .. }
             | Self::SelectionOutcome { .. }
-            | Self::ProcessProbeOutcome { .. } => {
+            | Self::CloseProbeOutcome { .. } => {
                 return None;
             }
         };
@@ -1614,7 +1624,8 @@ impl CommandMailbox {
             // it, and recovery must stay admissible even if focus moved.
             QueuedCommand::Viewport(tagged) => state.desired.admits(tagged.key()),
             QueuedCommand::Selection(tagged) => state.desired.admits(tagged.key()),
-            QueuedCommand::ProcessProbe(tagged) => state.desired.admits(tagged.key()),
+            // A close may name a terminal no pane shows; the executor checks a borrowed Viewer.
+            QueuedCommand::CloseProbe(_) => true,
             QueuedCommand::Switch(_)
             | QueuedCommand::Create(_)
             | QueuedCommand::Refresh(_)
@@ -2671,7 +2682,7 @@ impl CommandMailbox {
                 | WorkerEvent::PaneFailed { .. }
                 | WorkerEvent::ViewportOutcome { .. }
                 | WorkerEvent::SelectionOutcome { .. }
-                | WorkerEvent::ProcessProbeOutcome { .. }
+                | WorkerEvent::CloseProbeOutcome { .. }
         ));
         let (mut state, mut observed_at) = self.lock_with_fresh_sample(clock);
         if state.desired.awaiting_bootstrap() {
@@ -2906,7 +2917,7 @@ impl CommandMailbox {
                     | WorkerEvent::PaneFailed { .. }
                     | WorkerEvent::ViewportOutcome { .. }
                     | WorkerEvent::SelectionOutcome { .. }
-                    | WorkerEvent::ProcessProbeOutcome { .. }
+                    | WorkerEvent::CloseProbeOutcome { .. }
             ) {
                 return Err(self.close_protocol(&mut state));
             }

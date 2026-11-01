@@ -4,9 +4,73 @@
 
 use super::{PaneRef, WorkbenchClientState};
 use crate::localization::CloseImpact;
+use crate::workbench_projection::{ClientPanel, ClientTerminalBinding};
 use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
 
+/// One terminal a close would end that has not ended, with the pane showing it in this Client.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct CloseTerminal {
+    pub(crate) binding: ClientTerminalBinding,
+    pub(crate) pane: Option<PaneRef>,
+}
+
 impl WorkbenchClientState {
+    /// The terminals of `panels` that have not ended, by the same facts [`Self::close_impact`]
+    /// counts; `None` when a Presentation holds no terminal yet, so nothing can be read about it.
+    fn live_close_terminals<'p>(
+        &self,
+        panels: impl IntoIterator<Item = &'p ClientPanel>,
+        settled: &dyn Fn(&PaneRef) -> bool,
+    ) -> Option<Vec<CloseTerminal>> {
+        let mut terminals = Vec::new();
+        for panel in panels {
+            let record = self.pane_by_panel(panel.panel_id());
+            let ended = record
+                .filter(|record| settled(&record.pane_ref()))
+                .map(super::PaneRecord::binding);
+            for member in panel.presentations() {
+                if member.launch_failure().is_some()
+                    || ended.is_some_and(|binding| member.binding() == Some(binding))
+                {
+                    continue;
+                }
+                let binding = member.binding()?;
+                terminals.push(CloseTerminal {
+                    binding: binding.clone(),
+                    pane: record
+                        .filter(|record| record.binding() == binding)
+                        .map(super::PaneRecord::pane_ref),
+                });
+            }
+        }
+        Some(terminals)
+    }
+
+    /// The live terminals every Presentation of `tab` holds; `None` for an unknown Tab.
+    pub(crate) fn tab_live_terminals(
+        &self,
+        tab: &WorkbenchTabId,
+        settled: &dyn Fn(&PaneRef) -> bool,
+    ) -> Option<Vec<CloseTerminal>> {
+        let tab = &self.cache.tabs()[self.cache.tab_index(tab)?];
+        self.live_close_terminals(
+            (0..tab.panel_count()).filter_map(|panel| tab.panel(panel)),
+            settled,
+        )
+    }
+
+    /// The live terminals every Presentation of one Panel holds; `None` for an unknown Panel.
+    pub(crate) fn panel_live_terminals(
+        &self,
+        tab: &WorkbenchTabId,
+        panel: &WorkbenchPanelId,
+        settled: &dyn Fn(&PaneRef) -> bool,
+    ) -> Option<Vec<CloseTerminal>> {
+        let tab = &self.cache.tabs()[self.cache.tab_index(tab)?];
+        let panel = tab.panel(tab.panel_index(panel)?)?;
+        self.live_close_terminals([panel], settled)
+    }
+
     /// Counts every Presentation of `panels`. `settled` answers whether an exact attachment
     /// reported a Host settlement; the pane record ties that attachment to the one binding it
     /// attached, so a sibling Presentation of the same Panel stays unobserved.

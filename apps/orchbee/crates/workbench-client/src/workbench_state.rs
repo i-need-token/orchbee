@@ -20,6 +20,7 @@ use std::time::{Duration, Instant};
 #[cfg(test)]
 use crate::workbench_projection::project_preferred_workspace;
 mod close_impact;
+pub(crate) use close_impact::CloseTerminal;
 mod context_removal;
 mod context_selection;
 pub(crate) mod control_takeover;
@@ -3482,9 +3483,11 @@ impl WorkbenchClientState {
             })
             .collect();
         let overlay_focus = self.focus_panel_id().cloned();
+        let zoomed_panels = self.zoomed_panels();
         self.phase = phase;
         self.provenance = provenance;
         self.cache = candidate;
+        self.release_zoom_of_removed_panels(&zoomed_panels);
         self.prune_plugin_overlays(overlay_focus.as_ref());
         self.prune_zoomed_tabs();
         self.prune_navigation_memory();
@@ -3822,15 +3825,50 @@ impl WorkbenchClientState {
     /// entry sharing the current location is stale for this purpose and
     /// never consulted.
     fn latest_known_panel_count(&self, tab_id: &WorkbenchTabId) -> usize {
+        self.latest_known_tab(tab_id)
+            .map_or(0, ClientTab::panel_count)
+    }
+
+    fn latest_known_tab(&self, tab_id: &WorkbenchTabId) -> Option<&ClientTab> {
         if let Some(tab) = self.cache.tabs().iter().find(|tab| tab.tab_id() == tab_id) {
-            return tab.panel_count();
+            return Some(tab);
         }
         let current = self.cache.location();
         self.retained_contexts
             .iter()
             .filter(|retained| retained.location() != current)
             .find_map(|retained| retained.tabs().iter().find(|tab| tab.tab_id() == tab_id))
-            .map_or(0, ClientTab::panel_count)
+    }
+
+    /// The Panel each zoomed Tab draws: the focus in the selected Tab, the remembered Panel in any
+    /// other. Read before an install replaces the membership and moves the focus.
+    fn zoomed_panels(&self) -> Vec<(WorkbenchTabId, WorkbenchPanelId)> {
+        self.zoomed_tabs
+            .iter()
+            .filter_map(|tab_id| {
+                let panel = self
+                    .desired
+                    .as_ref()
+                    .filter(|desired| desired.anchor().tab_id() == tab_id)
+                    .map(PaneKey::panel)
+                    .or_else(|| self.navigation_memory.panel(tab_id))?;
+                Some((tab_id.clone(), panel.clone()))
+            })
+            .collect()
+    }
+
+    /// Zoom belongs to the Panel it draws. When that Panel leaves its Tab, by any route, the Tab
+    /// returns to its normal layout; the flag must not carry over to whichever Panel takes the
+    /// focus. A plugin overlay restoring the zoom of its return Panel runs after this.
+    fn release_zoom_of_removed_panels(&mut self, zoomed: &[(WorkbenchTabId, WorkbenchPanelId)]) {
+        for (tab_id, panel_id) in zoomed {
+            if self
+                .latest_known_tab(tab_id)
+                .is_some_and(|tab| tab.panel_index(panel_id).is_none())
+            {
+                self.zoomed_tabs.remove(tab_id);
+            }
+        }
     }
 
     /// Every install collects flags whose last known truth is no longer
@@ -4276,6 +4314,11 @@ impl<'a> WorkbenchClientView<'a> {
             position: index + 1,
             active: active_panel.is_some(),
             active_panel,
+            naming_panel: active_panel.unwrap_or_else(|| {
+                self.state
+                    .navigation_memory
+                    .panel_index(self.state.cache.location(), tab)
+            }),
         })
     }
 
@@ -4354,6 +4397,7 @@ pub(crate) struct ClientTabView<'a> {
     position: usize,
     active: bool,
     active_panel: Option<usize>,
+    naming_panel: usize,
 }
 
 impl<'a> ClientTabView<'a> {
@@ -4407,6 +4451,12 @@ impl<'a> ClientTabView<'a> {
 
     pub(crate) fn active_panel(&self) -> Option<usize> {
         self.active_panel
+    }
+
+    /// The Panel whose terminal names this Tab: the focused one while it is selected, else the
+    /// one selecting it would focus. Selecting another Tab therefore never renames it.
+    pub(crate) fn naming_panel(&self) -> Option<&'a crate::workbench_projection::ClientPanel> {
+        self.tab.panel(self.naming_panel)
     }
 
     pub(crate) fn panel(

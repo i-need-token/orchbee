@@ -101,19 +101,6 @@ fn arm_prefix(view: &mut ClientView) {
     assert!(view.prefix_active());
 }
 
-/// The person has used the prefix once, so nothing floats at rest.
-fn taught(mut view: ClientView) -> ClientView {
-    arm_prefix(&mut view);
-    let transition = view.decide(PrefixInput::Key(KeyEvent::press(
-        KeyCode::Esc,
-        Modifiers::NONE,
-    )));
-    view.commit(transition, ClientActionDisposition::KeepNavigator);
-    assert!(!view.prefix_active());
-    assert!(!view.launch_hint_pending());
-    view
-}
-
 fn semantic_on_chip(theme: &Theme, role: Role) -> ratatui::style::Style {
     theme.content_on_surface(Role::SurfaceOverlay, None, Some(role), theme.style(role))
 }
@@ -132,7 +119,7 @@ fn row(terminal: &Terminal<TestBackend>, width: u16) -> String {
 }
 
 #[test]
-fn launch_hint_floats_end_aligned_until_the_prefix_is_first_used_then_nothing_floats_at_rest() {
+fn the_prefix_banner_floats_end_aligned_only_while_the_prefix_is_armed() {
     let theme = Theme::rgb_test_dark();
     let width = 80;
     let ordinary = StatusFacts {
@@ -140,40 +127,71 @@ fn launch_hint_floats_end_aligned_until_the_prefix_is_first_used_then_nothing_fl
         ..facts("terminal · Ready · controlling")
     };
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let view = ClientView::new(width);
-        assert!(view.launch_hint_pending());
-        let (terminal, paint) =
-            paint_at_tier_with_locale(&view, width, ordinary, ViewportTier::Full, locale, &theme);
-        let prefix = crate::client_view::format_binding_with_glyphs(
-            &view.bindings().prefix,
-            LabelStyle::for_host(),
-            KeyLabelGlyphs::Unicode,
-        );
-        let hint = format!("{prefix} {}", locale.status().shortcuts);
-        let hint_width = u16::try_from(crate::terminal_text::display_width(&hint)).unwrap();
-        // One padding cell at each end, ending one cell in from the right edge.
-        let chip = Rect::new(width - 1 - (hint_width + 2), 0, hint_width + 2, 1);
-        assert_eq!(paint.surface, Some(chip), "{locale:?}");
-        assert_eq!(paint.primary, None, "the ordinary fact stays unsaid");
-        assert_eq!(row(&terminal, width).trim(), hint, "{locale:?}");
-        let buffer = terminal.backend().buffer();
-        for x in [chip.x, chip.right() - 1] {
-            assert_eq!(
-                buffer[(x, 0)].bg,
-                theme.style(Role::SurfaceOverlay).bg.unwrap(),
-                "padding cell {x}"
-            );
-        }
-        for x in 0..width {
-            let covered = chip.x <= x && x < chip.right();
-            assert_eq!(buffer[(x, 0)].symbol() == CANVAS, !covered, "column {x}");
-        }
+        for configured in [false, true] {
+            let mut view = ClientView::new(width);
+            if configured {
+                view.configure_keys(&configured_arrow_help());
+            }
+            let assert_nothing_floats = |view: &ClientView| {
+                let (terminal, paint) = paint_at_tier_with_locale(
+                    view,
+                    width,
+                    ordinary,
+                    ViewportTier::Full,
+                    locale,
+                    &theme,
+                );
+                assert_eq!(paint, StatusPaint::default(), "{locale:?}");
+                assert!(row(&terminal, width).trim().is_empty(), "{locale:?}");
+            };
+            assert_nothing_floats(&view);
 
-        let view = taught(ClientView::new(width));
-        let (terminal, paint) =
-            paint_at_tier_with_locale(&view, width, ordinary, ViewportTier::Full, locale, &theme);
-        assert_eq!(paint, StatusPaint::default());
-        assert!(row(&terminal, width).trim().is_empty());
+            arm_prefix(&mut view);
+            let (terminal, paint) = paint_at_tier_with_locale(
+                &view,
+                width,
+                ordinary,
+                ViewportTier::Full,
+                locale,
+                &theme,
+            );
+            let prefix = crate::client_view::format_binding_with_glyphs(
+                &view.bindings().prefix,
+                LabelStyle::for_host(),
+                KeyLabelGlyphs::Unicode,
+            );
+            let text = row(&terminal, width);
+            let banner = text.trim();
+            assert!(
+                banner.starts_with(&format!("{} {prefix} · ", locale.status().prefix)),
+                "{banner}"
+            );
+            let banner_width = u16::try_from(crate::terminal_text::display_width(banner)).unwrap();
+            // One padding cell at each end, ending one cell in from the right edge.
+            let chip = Rect::new(width - 1 - (banner_width + 2), 0, banner_width + 2, 1);
+            assert_eq!(paint.surface, Some(chip), "{locale:?}");
+            assert_eq!(paint.primary, None, "the ordinary fact stays unsaid");
+            let buffer = terminal.backend().buffer();
+            for x in [chip.x, chip.right() - 1] {
+                assert_eq!(
+                    buffer[(x, 0)].bg,
+                    theme.style(Role::SurfaceOverlay).bg.unwrap(),
+                    "padding cell {x}"
+                );
+            }
+            for x in 0..width {
+                let covered = chip.x <= x && x < chip.right();
+                assert_eq!(buffer[(x, 0)].symbol() == CANVAS, !covered, "column {x}");
+            }
+
+            let transition = view.decide(PrefixInput::Key(KeyEvent::press(
+                KeyCode::Esc,
+                Modifiers::NONE,
+            )));
+            view.commit(transition, ClientActionDisposition::KeepNavigator);
+            assert!(!view.prefix_active());
+            assert_nothing_floats(&view);
+        }
     }
 }
 
@@ -459,7 +477,7 @@ fn a_resize_refusal_shows_over_the_pending_resize_indicator() {
 fn persistent_states_show_short_copy_with_their_severity_marker() {
     let theme = Theme::rgb_test_dark();
     let width = 80;
-    let view = taught(ClientView::new(width));
+    let view = ClientView::new(width);
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let copy = locale.status();
         for (persistent, text, marker) in [
@@ -524,14 +542,14 @@ fn recoverable_status_receipt_requires_the_complete_raw_fact() {
         recovery_status: true,
         ..facts(status)
     };
-    let view = taught(ClientView::new(width));
+    let view = ClientView::new(width);
 
     let (terminal, painted) = paint(&view, width, recovery, &theme);
     assert_eq!(painted.primary, Some(Rect::new(2, 0, status_width, 1)));
     assert_eq!(row(&terminal, width).trim(), status);
 
     let narrow = width - 1;
-    let view = taught(ClientView::new(narrow));
+    let view = ClientView::new(narrow);
     let (terminal, painted) = paint(&view, narrow, recovery, &theme);
     assert_eq!(painted, StatusPaint::default());
     assert!(row(&terminal, narrow).trim().is_empty());

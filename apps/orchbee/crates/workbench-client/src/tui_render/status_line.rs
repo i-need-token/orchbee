@@ -238,7 +238,7 @@ pub(super) fn render(
                     .filter(|form| !form.is_empty()),
             )
             .collect();
-        let mut hints = if notice.is_some() {
+        let hints = if notice.is_some() {
             HintSet::default()
         } else {
             status_hints(
@@ -253,22 +253,6 @@ pub(super) fn render(
                 glyphs,
             )
         };
-        // Nothing names the prefix at rest, so the chip teaches it until it is first used.
-        if hints.items.is_empty()
-            && notice.is_none()
-            && capture_owner.is_none()
-            && view.overlay().is_none()
-            && view.launch_hint_pending()
-        {
-            hints.items.push(OwnedHint {
-                key: format_binding_with_glyphs(
-                    &view.bindings().prefix,
-                    LabelStyle::for_host(),
-                    glyphs,
-                ),
-                label: copy.shortcuts,
-            });
-        }
         let contexts = contexts
             .iter()
             .map(|context| match context {
@@ -1223,7 +1207,7 @@ fn status_hints(
             hints.push(hint);
         }
     }
-    // At rest nothing floats: no idle hint outlives the launch hint.
+    // At rest nothing floats: there is no idle hint.
     hints.into()
 }
 

@@ -16,7 +16,7 @@ use orchbee_agent_observation_protocol::{
     AgentPresentationId, AgentSafeInteger, AgentSemanticStatus, AgentSessionId, ObapRequestId,
 };
 use orchbee_local_ipc::LocalIo;
-use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessInfo};
+use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessConsole, TerminalProcessInfo};
 use orchbee_workbench_protocol::{Snapshot, WorkbenchPanelId};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -591,37 +591,85 @@ fn same_reservation(a: &AgentLaunchReservation, b: &AgentLaunchReservation) -> b
         && a.binding == b.binding
 }
 
-/// Whether `sample` is one recognized interactive shell at its prompt that runs no program.
-/// Any other sample, including every shell this rule does not recognize, is not idle.
-pub(crate) fn runs_no_program(sample: &TerminalProcessInfo) -> bool {
-    idle_shell(sample).is_ok()
+/// What one process sample proves about the foreground of a terminal a close would end.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CloseSample {
+    /// A recognized interactive shell, and nothing else holds or may hold its console.
+    ShellOnly,
+    /// Another program holds the console, or the root is not an interactive shell.
+    Program,
+    /// The sample cannot tell: it reached its row limit, its root is unreadable, or a row's console
+    /// is not observable.
+    Unknown,
 }
 
-fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure> {
-    let refuse = || Failure::Start(StartFailure::TerminalNotIdle);
+/// Reads a sample the way the Host's close gate reads its process observation: only a member that
+/// holds the Terminal console is a foreground program. A detached or console-less member does not
+/// hold it, unlike the stricter rule that admits an Agent start.
+pub(crate) fn close_sample(sample: &TerminalProcessInfo) -> CloseSample {
     if sample.processes.len() >= orchbee_terminal_protocol::MAXIMUM_PROCESS_SAMPLE_ROWS {
-        return Err(refuse());
+        return CloseSample::Unknown;
     }
-    let interpreted = agent_start_runtime::interpret(sample);
-    let root = interpreted
-        .iter()
-        .find(|p| p.facts.pid == sample.root_pid)
-        .ok_or_else(refuse)?;
-    let image = root.facts.image.as_deref().ok_or_else(refuse)?;
+    match root_shell(sample, &agent_start_runtime::interpret(sample)) {
+        RootShell::Interactive => {}
+        RootShell::Other => return CloseSample::Program,
+        RootShell::Unreadable => return CloseSample::Unknown,
+    }
+    let mut verdict = CloseSample::ShellOnly;
+    for row in &sample.processes {
+        if row.pid == sample.root_pid || row.image.as_deref().is_some_and(console_host) {
+            continue;
+        }
+        match row.console {
+            TerminalProcessConsole::Attached => return CloseSample::Program,
+            TerminalProcessConsole::Unknown => verdict = CloseSample::Unknown,
+            TerminalProcessConsole::Detached | TerminalProcessConsole::None => {}
+        }
+    }
+    verdict
+}
+
+fn console_host(image: &str) -> bool {
+    matches!(
+        crate::agent_provider::basename(image).as_str(),
+        "conhost" | "openconsole"
+    )
+}
+
+/// How a sample's root reads as an interactive shell.
+enum RootShell {
+    /// `cmd`, `powershell` or `pwsh` started with only interactive switches or the Worker's fixed
+    /// initialization. Arbitrary command bodies and noninteractive launches do not qualify.
+    Interactive,
+    Other,
+    Unreadable,
+}
+
+fn root_shell(
+    sample: &TerminalProcessInfo,
+    interpreted: &[crate::agent_runtime::processes::Process<'_>],
+) -> RootShell {
+    let Some(root) = interpreted.iter().find(|p| p.facts.pid == sample.root_pid) else {
+        return RootShell::Unreadable;
+    };
+    let Some(image) = root.facts.image.as_deref() else {
+        return RootShell::Unreadable;
+    };
     let shell = crate::agent_provider::basename(image);
     if !matches!(shell.as_str(), "cmd" | "powershell" | "pwsh") {
-        return Err(refuse());
+        return RootShell::Other;
     }
-    let args = root.argv.as_deref().ok_or_else(refuse)?;
+    let Some(args) = root.argv.as_deref() else {
+        return RootShell::Unreadable;
+    };
     if args
         .first()
         .is_none_or(|first| crate::agent_provider::basename(first) != shell)
     {
-        return Err(refuse());
+        return RootShell::Other;
     }
     let switches = &args[1..];
-    // The worker's fixed initialization finishes before the interactive prompt. Arbitrary
-    // command bodies and noninteractive launches still cannot establish an idle shell.
+    // The worker's fixed initialization finishes before the interactive prompt.
     let runtime_initialization = shell != "cmd"
         && switches.last().is_some_and(|script| {
             script == &orchbee_local_runtime::windows_interactive_powershell_initialization()
@@ -637,27 +685,39 @@ fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure>
     } else {
         switches
     };
-    for arg in flags {
+    let interactive = flags.iter().all(|arg| {
         let arg = arg.to_ascii_lowercase();
-        if if shell == "cmd" {
-            !matches!(
+        if shell == "cmd" {
+            matches!(
                 arg.as_str(),
                 "/d" | "/q" | "/a" | "/u" | "/v:on" | "/v:off" | "/e:on" | "/e:off"
             )
         } else {
-            !matches!(arg.as_str(), "-nologo" | "-noprofile" | "-noexit")
-        } {
-            return Err(refuse());
+            matches!(arg.as_str(), "-nologo" | "-noprofile" | "-noexit")
         }
+    });
+    if interactive {
+        RootShell::Interactive
+    } else {
+        RootShell::Other
+    }
+}
+
+fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure> {
+    let refuse = || Failure::Start(StartFailure::TerminalNotIdle);
+    if sample.processes.len() >= orchbee_terminal_protocol::MAXIMUM_PROCESS_SAMPLE_ROWS {
+        return Err(refuse());
+    }
+    let interpreted = agent_start_runtime::interpret(sample);
+    if !matches!(root_shell(sample, &interpreted), RootShell::Interactive) {
+        return Err(refuse());
     }
     if interpreted.iter().any(|p| {
         p.facts.pid != sample.root_pid
-            && p.facts.image.as_deref().is_none_or(|image| {
-                !matches!(
-                    crate::agent_provider::basename(image).as_str(),
-                    "conhost" | "openconsole"
-                )
-            })
+            && p.facts
+                .image
+                .as_deref()
+                .is_none_or(|image| !console_host(image))
     }) {
         return Err(refuse());
     }

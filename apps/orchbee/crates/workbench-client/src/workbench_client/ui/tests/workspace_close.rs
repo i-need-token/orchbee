@@ -1008,19 +1008,9 @@ fn project_close_all_dispatcher_confirms_only_drawn_exact_scope_and_consumes_pac
     }
 }
 
-/// Paints the shell for a person who has already used the prefix, so only real status floats.
-fn draw_taught(ui: &mut WorkbenchClientUi, locale: Locale, width: u16, height: u16) -> String {
-    use crate::client_view::{KeyCode, KeyEvent, Modifiers, PrefixInput};
-    let mut view = ClientView::new(width);
-    let prefix = view.bindings().prefix;
-    for key in [
-        KeyEvent::press(prefix.code, prefix.mods),
-        KeyEvent::press(KeyCode::Esc, Modifiers::NONE),
-    ] {
-        let transition = view.decide(PrefixInput::Key(key));
-        view.commit(transition, ClientActionDisposition::KeepNavigator);
-    }
-    assert!(!view.launch_hint_pending());
+/// Paints the shell with no input owner, so only real status floats.
+fn draw_at_rest(ui: &mut WorkbenchClientUi, locale: Locale, width: u16, height: u16) -> String {
+    let view = ClientView::new(width);
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut receipt = None;
     terminal
@@ -1065,7 +1055,8 @@ fn confirmed_workspace_close_shows_pending_through_the_ui_tick_after_200_ms() {
         elapsed.store(199, std::sync::atomic::Ordering::SeqCst);
         ui.tick();
         assert!(ui.view().workspace_close_status().is_none(), "{background}");
-        let early = [Locale::EnUs, Locale::ZhCn].map(|locale| draw_taught(&mut ui, locale, 80, 24));
+        let early =
+            [Locale::EnUs, Locale::ZhCn].map(|locale| draw_at_rest(&mut ui, locale, 80, 24));
         elapsed.store(200, std::sync::atomic::Ordering::SeqCst);
         assert!(ui.tick(), "the pending status schedules a redraw");
         let forms = [Locale::EnUs, Locale::ZhCn].map(|locale| {
@@ -1086,7 +1077,7 @@ fn confirmed_workspace_close_shows_pending_through_the_ui_tick_after_200_ms() {
             assert_eq!(complete, scope);
             // The floating chip and the TooSmall row both show the scope.
             for (width, height) in [(80, 24), (60, 4)] {
-                let text = draw_taught(&mut ui, locale, width, height);
+                let text = draw_at_rest(&mut ui, locale, width, height);
                 assert!(
                     alnum(&text).contains(&alnum(&scope)),
                     "{background} {locale:?} {width}x{height}: {text}"
@@ -1096,7 +1087,7 @@ fn confirmed_workspace_close_shows_pending_through_the_ui_tick_after_200_ms() {
                     "a partial status is never drawn"
                 );
             }
-            let text = draw_taught(&mut ui, locale, 200, 24);
+            let text = draw_at_rest(&mut ui, locale, 200, 24);
             assert!(
                 alnum(&text).contains(&alnum(&complete)),
                 "{background} {locale:?}"
