@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 
 const host_service = @import("terminal-host-service").service;
 const monotonic = @import("terminal-host-platform").monotonic;
+const output_wake = @import("terminal-host-platform").output_wake;
 const posix_compat = @import("terminal-host-platform").posix_compat;
 const thread_sync = @import("terminal-host-platform").thread_sync;
 const connection = @import("connection.zig");
@@ -61,12 +62,22 @@ const Connection = if (builtin.os.tag == .windows) void else struct {
     }
 
     pub fn waitReadable(self: *Connection) !bool {
-        var descriptors = [_]std.posix.pollfd{.{
-            .fd = self.stream.socket.handle,
-            .events = std.posix.POLL.IN,
-            .revents = 0,
-        }};
-        if (try std.posix.poll(&descriptors, connection.poll_interval_ms) == 0) return false;
+        var descriptors = [_]std.posix.pollfd{
+            .{
+                .fd = self.stream.socket.handle,
+                .events = std.posix.POLL.IN,
+                .revents = 0,
+            },
+            .{
+                .fd = output_wake.readDescriptor(),
+                .events = std.posix.POLL.IN,
+                .revents = 0,
+            },
+        };
+        if (try std.posix.poll(&descriptors, output_wake.pollTimeoutMs(connection.poll_interval_ms)) == 0) {
+            return false;
+        }
+        if (descriptors[1].revents != 0) output_wake.drain();
         const result = descriptors[0].revents;
         if (result & std.posix.POLL.IN != 0) return true;
         if (result & (std.posix.POLL.ERR | std.posix.POLL.HUP | std.posix.POLL.NVAL) != 0) {
@@ -102,6 +113,7 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
     ) !Server {
         if (!std.fs.path.isAbsolute(runtime_directory)) return error.RuntimeDirectoryNotAbsolute;
         if (!connection.validEndpointId(endpoint_id)) return error.InvalidEndpointId;
+        output_wake.prepare();
 
         const directory = try endpoint_security.prepareRuntimeDirectory(io, runtime_directory);
         errdefer directory.close(io);

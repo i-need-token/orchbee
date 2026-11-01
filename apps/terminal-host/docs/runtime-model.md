@@ -257,6 +257,13 @@ byte returns to `idle`. Disconnect cancels and drains a pending operation before
 clearing its state or reusing the pipe, and destruction closes the event only
 after that drain, so bytes and completions cannot cross connections.
 
+`platform/output_wake.zig` keeps a frame from waiting out that timeout. Each committed PTY reader
+batch signals one process-wide wake, and the projection scheduler arms it for its next due time.
+On Windows these are an auto-reset event and a high-resolution waitable timer that the readiness wait
+includes; on POSIX they are a pipe in the service's `poll` set and a shorter `poll` timeout. A wake is
+only a hint: the service loop owns every delivery decision, and the 20-millisecond timeout stays the
+bound in a process without a wake.
+
 `TerminalEngine` remains one semantic owner, but it is not one implementation file. Its runtime
 source is a directory of review units: one private state record, one narrow public handle, and
 transaction modules for creation, lifecycle, containment, failure fencing, input admission and
@@ -1149,9 +1156,9 @@ The close-activity cache, activity epoch, and exhaustion bit are owned by `proje
 successful raw or non-focus semantic input, including one whose encoding is zero bytes, commits its
 input admission and activity invalidation as one `projection -> input` transaction: the cache
 becomes `unknown` and the activity epoch advances. Rejected input and focus-only input do not
-invalidate the cache. After the engine commit, the Host owner invalidates every read presentation
-for that terminal: a ready reader requires a snapshot, an in-flight reader records a forced snapshot
-after its exact flight resolves, and a paused reader remains paused.
+invalidate the cache. Accepted input also owes a fresh sample, which the next scheduler pass takes
+regardless of the cadence. It leaves read presentations alone: readers learn the new value as the
+publication rule below describes, so a keystroke does not cost a forced snapshot.
 
 Writer completion and PTY output do not directly refresh the cache or prove that the shell consumed
 the accepted input. A later eligible sample instead classifies the current canonical state. A
@@ -1173,13 +1180,33 @@ acquires `projection` from `input`, so cache invalidation preserves the runtime 
 cross-owner delivery evidence.
 
 The Host projection scheduler samples each eligible terminal at most once per monotonic projection
-cadence, before checking whether the scanned attachment is ready. Sampling therefore continues
-with no terminal-revision delta and while that attachment has a frame in flight. An independently
-observed foreground-process change, including a silent process-group change with no PTY bytes,
-invalidates every reader and produces a same-revision forced snapshot. The activity sample deadline
+cadence, plus once owed by accepted input, before checking whether the scanned attachment is ready.
+Sampling therefore continues with no terminal-revision delta and while that attachment has a frame
+in flight.
+
+A change to the cache publishes through whichever comes first. The echo of the input that changed it
+usually commits within a millisecond, and every frame carries the cache, so a revision later than the
+last one encoded before the change owes each reader a frame captured after the change and needs nothing
+more. If no such revision arrives within 100 milliseconds, as with a silent process-group change with
+no PTY bytes, the scheduler invalidates every reader and produces a same-revision forced snapshot: a
+ready reader requires a snapshot, an in-flight reader records a forced snapshot after its exact flight
+resolves, and a paused reader remains paused. Close preflight and termination never read this
+publication; they take their own fresh sample. The activity sample deadline
 advances when the query is attempted, so a full outgoing batch or retry cannot repeat the query in
 the same cadence; ordinary provisional-frame and Core-flight rollback still preserves the exact
 sequence and retry state.
+
+Captures of one terminal share a 16-millisecond sustained cadence with a burst allowance of two
+intervals. A terminal quiet for that long may capture three times at once before the cadence applies,
+so a program that answers one key in a few separate writes shows the last of them immediately, while
+continuous output settles to 60 captures a second. Only a capture spends this budget: another reader
+of the current revision costs one encode, so a sampling viewer cannot delay the next echo.
+
+A capture also waits up to 2 milliseconds for a paint the program has only begun. ConPTY hides the
+cursor, writes each paint in several pieces and shows the cursor again, so a capture after the first
+piece shows only a missing cursor and pushes the text to a later frame. Only a reader batch that takes
+the cursor from visible to hidden opens this wait, and showing the cursor ends it at once, so a program
+that keeps its cursor hidden never pays for it.
 
 Every encoded frame captures the activity epoch and exhaustion bit in Host-local metadata. The
 read-commit guard takes `projection_mutex` then `terminal_mutex`, revalidates that token together
@@ -1771,7 +1798,7 @@ Stable claim identifiers are used by tests, models, and review findings.
 | `TH-009` | An unrecoverable runtime failure is explicit, fences unsafe I/O, and cannot be reported as normal drain or normal exit. Unconfirmed containment admits no new frame handoff. Cleanup remains Host-owned and retryable without a broker; a settled outcome cannot be rewritten by a later cleanup symptom or removed before its exact publication commits, and disposal never silently orphans an uncontained process tree. Every POSIX member signal and liveness decision binds to one stable kernel identity before the authoritative membership observation. An invalidated matched reference cannot report signal success or empty containment and requires a fresh scan. Linux distinguishes an exact unreaped zombie from a reaped/reusable pidfd using same-reference signal-0, except that the retained leader is protected from reuse by its Host-owned delayed wait. A recycled numeric PID can never target or count its replacement through a stale reference; a same-session replacement requires a fresh stable reference.                                                                       |
 | `TH-010` | An outgoing delivery transition commits if and only if its exact record is in the handed-off batch; batch fullness returns a committed prefix without dropping it. Projection record and flight commit are allocation-free while the engine read-commit guard holds the canonical `projection -> terminal` locks and validates generation, failure-fence epoch, and the captured close-activity epoch plus exhaustion bit. Input or sampling invalidation rejects an older provisional frame without advancing its sequence. `NeedSnapshot(S, activity-stale)` abandons only exact flight `S` and forces a guarded snapshot at a higher sequence. A handed-off record is immutable for its scoped sequence and is never reconstructed with different bytes. `NeedSnapshot(S, decoder-rejected)` also discards the incremental projection before that snapshot.                                                                                                                                                                                                                                                 |
 | `TH-011` | At most one frame, row request, or export chunk of each kind is in flight per attachment; only the exact scoped acknowledgement advances it. A published frame sequence identifies one immutable record for that Host epoch and attachment.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `TH-012` | Bounds and backpressure reject or defer the current operation without corrupting retained registries, canonical terminal state, delivery bases, or sequence numbers. Close activity is queried at most once per eligible terminal and monotonic cadence, including same-revision and in-flight states; a full outgoing batch preserves the forced-snapshot retry without repeating that cadence's query. Activity epoch overflow saturates to permanent unknown and cannot create an ABA-valid idle frame.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `TH-012` | Bounds and backpressure reject or defer the current operation without corrupting retained registries, canonical terminal state, delivery bases, or sequence numbers. Close activity is queried at most once per eligible terminal and monotonic cadence, plus once owed by accepted input, including same-revision and in-flight states; a full outgoing batch preserves the forced-snapshot retry without repeating that cadence's query. Activity epoch overflow saturates to permanent unknown and cannot create an ABA-valid idle frame.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `TH-013` | Every successfully acquired resource, including a POSIX stable member reference, has one release owner and is released at most once; a teardown pass attempts every retained runtime even when one attempt fails, and never reports failed cleanup as clean shutdown. FreeBSD descendant-zombie reaping is confined to the retained leader's reaper subtree and cannot consume that leader's wait result or another terminal subtree.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `TH-014` | All control JSON crosses one native protocol adapter, all binary data crosses its owning codec, and every registered role/encoding/success-kind/dispatch-operation association comes from the protocol registry; malformed, unknown, incompatible, mismatched, or unhandled records cannot reach domain transitions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `TH-015` | Each Ghostty bell advances one terminal-owned sequence exactly once. A read-capable attachment receives each later sequence at most once, advances only with exact outgoing-batch append, and never replays a sequence that predates its admission or survives its destruction.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -2008,7 +2035,7 @@ Keep one authoritative owner and make cross-unit commits explicit; merely moving
 duplicating authority, permitting illegal state combinations, or hiding cross-owner commits is not
 a boundary improvement.
 
-The opaque runtime handle composes a private `process_handle.zig` adapter for process sampling, completion and termination. This adapter only converts the handle to private State and delegates to the existing process/lifecycle owners; it introduces no state, ordering change, or new process authority. This keeps process-facing growth out of the general runtime facade.
+The opaque runtime handle composes a private `process_handle.zig` adapter for process sampling, completion and termination. This adapter only converts the handle to private State and delegates to the existing process/lifecycle owners; it introduces no state, ordering change, or new process authority. This keeps process-facing growth out of the general runtime facade. A private `schedule_handle.zig` adapter owns the projection scheduler's deadlines, capture readiness and activity publication decisions.
 
 ## Destructive Close observations
 

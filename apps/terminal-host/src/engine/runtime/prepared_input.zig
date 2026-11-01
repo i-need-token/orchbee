@@ -33,11 +33,6 @@ pub fn Type(comptime Runtime: type) type {
             return if (self.bytes) |bytes| bytes.len else 0;
         }
 
-        pub fn affectsCloseActivity(self: *const Self) bool {
-            std.debug.assert(self.state == .pending);
-            return self.affects_close_activity;
-        }
-
         pub fn commit(self: *Self) !usize {
             std.debug.assert(self.state == .pending);
             const byte_count = self.byteCount();

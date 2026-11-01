@@ -1,6 +1,7 @@
 const std = @import("std");
 const target_builtin = @import("builtin");
 const ghostty_vt = @import("ghostty-vt");
+const output_wake = @import("terminal-host-platform").output_wake;
 const terminal_geometry = @import("terminal-host-model").geometry;
 const terminal_stream = @import("../terminal_stream.zig");
 const contracts = @import("contracts.zig");
@@ -331,7 +332,9 @@ fn commitObservedReaderBatch(
     // history while preserving a clear already pending for the renderer.
     const previous_clear = self.terminal.flags.dirty.clear;
     self.terminal.flags.dirty.clear = false;
+    const cursor_was_visible = self.terminal.modes.get(.cursor_visible);
     self.stream.nextSlice(bytes);
+    mode_effects.noteCursorVisibilityLocked(self, cursor_was_visible);
     const screen_reset = self.terminal.flags.dirty.clear;
     self.terminal.flags.dirty.clear = previous_clear or screen_reset;
     const geometry_changed = previous_columns != self.terminal.cols or
@@ -453,10 +456,12 @@ pub fn readerThread(self: *state.State) void {
             break;
         }
         if (commitObservedReaderBatch(self, buffer[0..length]) != .committed) return;
+        output_wake.signal();
     }
     if (self.output_abort_requested.load(.acquire)) return;
     notifyPtyDrainPublicationStarting(self);
     _ = publishPtyDrained(self);
+    output_wake.signal();
 }
 
 pub fn runtimeFromHandler(handler: *ghostty_vt.TerminalStream.Handler) *state.State {

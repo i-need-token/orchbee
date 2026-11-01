@@ -123,7 +123,7 @@ test "configuration synchronization adopts runtime output committed after the up
     try std.testing.expect(runtime_geometry.revision > update.revision);
 }
 
-test "successful raw and non-focus input invalidate every read presentation but focus does not" {
+test "raw and non-focus input reset close activity and leave read presentations ready" {
     var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
     defer aggregate.deinitChecked(true) catch unreachable;
     const connection_id: core_module.ConnectionId = 1;
@@ -218,21 +218,7 @@ test "successful raw and non-focus input invalidate every read presentation but 
     try std.testing.expectEqual(initial_activity_epoch + 1, activity.activity_epoch);
     for ([_]core_module.AttachmentId{ input_attachment, read_attachment }) |attachment_id| {
         try std.testing.expect(
-            aggregate.core().findAttachment(attachment_id).?.projectionReady().?.forceSnapshot(),
-        );
-        const frame = try aggregate.core().commitFrame(
-            attachment_id,
-            null,
-            runtime.geometry().revision,
-            runtime.geometry().generation,
-            .snapshot,
-        );
-        _ = try aggregate.frameApplied(
-            connection_id,
-            attachment_id,
-            frame.sequence,
-            frame.revision,
-            frame.generation,
+            !aggregate.core().findAttachment(attachment_id).?.projectionReady().?.forceSnapshot(),
         );
     }
 
@@ -251,7 +237,7 @@ test "successful raw and non-focus input invalidate every read presentation but 
     try std.testing.expectEqual(initial_activity_epoch + 2, activity.activity_epoch);
     for ([_]core_module.AttachmentId{ input_attachment, read_attachment }) |attachment_id| {
         try std.testing.expect(
-            aggregate.core().findAttachment(attachment_id).?.projectionReady().?.forceSnapshot(),
+            !aggregate.core().findAttachment(attachment_id).?.projectionReady().?.forceSnapshot(),
         );
     }
 }

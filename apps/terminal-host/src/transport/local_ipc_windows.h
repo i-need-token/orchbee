@@ -35,6 +35,14 @@ int ob_windows_local_server_wait_readable(
     uint32_t timeout_ms,
     uint32_t *readable
 );
+/* Also returns, with `readable` unset, once an optional self-resetting wake object is signalled. */
+int ob_windows_local_server_wait_readable_or_wake(
+    ObWindowsLocalServer *server,
+    uint32_t timeout_ms,
+    void *wake_event,
+    void *wake_timer,
+    uint32_t *readable
+);
 int ob_windows_local_server_read(
     ObWindowsLocalServer *server,
     uint8_t *buffer,

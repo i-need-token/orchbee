@@ -9,6 +9,7 @@ const creation_ops = @import("creation.zig");
 const lifecycle_ops = @import("lifecycle.zig");
 const metadata_ops = @import("metadata.zig");
 const process_handle = @import("process_handle.zig");
+const schedule_handle = @import("schedule_handle.zig");
 const failure_ops = @import("failure.zig");
 const feedback_handle = @import("feedback_handle.zig");
 const projection_ops = @import("projection.zig");
@@ -29,6 +30,7 @@ pub const ReadCommitGuard = read_commit_guard.Type(TerminalRuntime);
 const InputHandle = input_handle.Type(TerminalRuntime, PreparedInput);
 const FeedbackHandle = feedback_handle.Type(TerminalRuntime);
 const ProcessHandle = process_handle.Type(TerminalRuntime);
+const ScheduleHandle = schedule_handle.Type(TerminalRuntime);
 
 pub const TerminalRuntime = opaque {
     pub fn sampleCloseActivityForClose(self: *TerminalRuntime) contracts.TerminalCloseActivity {
@@ -40,6 +42,14 @@ pub const TerminalRuntime = opaque {
     pub const terminate = ProcessHandle.terminate;
     pub const containmentConfirmed = ProcessHandle.containmentConfirmed;
     pub const forceTerminate = ProcessHandle.forceTerminate;
+    pub const projectionPaintRemaining = ScheduleHandle.projectionPaintRemaining;
+    pub const projectionNeedsCapture = ScheduleHandle.projectionNeedsCapture;
+    pub const nextProjectionAt = ScheduleHandle.nextProjectionAt;
+    pub const setNextProjectionAt = ScheduleHandle.setNextProjectionAt;
+    pub const closeActivitySampleDue = ScheduleHandle.closeActivitySampleDue;
+    pub const closeActivityPublication = ScheduleHandle.closeActivityPublication;
+    pub const nextCloseActivitySampleAt = ScheduleHandle.nextCloseActivitySampleAt;
+    pub const setNextCloseActivitySampleAt = ScheduleHandle.setNextCloseActivitySampleAt;
 
     pub fn create(
         allocator: std.mem.Allocator,
@@ -220,22 +230,6 @@ pub const TerminalRuntime = opaque {
 
     pub fn projectionCounters(self: *TerminalRuntime) contracts.ProjectionCounters {
         return projection_ops.projectionCounters(stateFrom(self));
-    }
-
-    pub fn nextProjectionAt(self: *const TerminalRuntime) i128 {
-        return projection_ops.nextProjectionAt(stateFromConst(self));
-    }
-
-    pub fn setNextProjectionAt(self: *TerminalRuntime, value: i128) void {
-        return projection_ops.setNextProjectionAt(stateFrom(self), value);
-    }
-
-    pub fn nextCloseActivitySampleAt(self: *const TerminalRuntime) i128 {
-        return projection_ops.nextCloseActivitySampleAt(stateFromConst(self));
-    }
-
-    pub fn setNextCloseActivitySampleAt(self: *TerminalRuntime, value: i128) void {
-        return projection_ops.setNextCloseActivitySampleAt(stateFrom(self), value);
     }
 
     pub fn sampleCloseActivity(

@@ -129,6 +129,61 @@ pub fn setNextCloseActivitySampleAt(self: *state.State, value: i128) void {
     self.next_close_activity_sample_at_ns = value;
 }
 
+pub fn closeActivitySampleDue(self: *state.State, now: i128) bool {
+    self.projection_mutex.lock();
+    defer self.projection_mutex.unlock();
+    return self.close_activity_sample_owed or now >= self.next_close_activity_sample_at_ns;
+}
+
+/// Decides how readers learn the latest cache change. The echo of the input that changed it usually
+/// commits within a millisecond, and its frame carries the cache, so a same-revision snapshot only
+/// follows when no output arrives within the settle time.
+pub fn closeActivityPublication(
+    self: *state.State,
+    now: i128,
+    settle_ns: i128,
+) contracts.CloseActivityPublication {
+    self.projection_mutex.lock();
+    defer self.projection_mutex.unlock();
+    if (self.close_activity_unpublished) {
+        self.close_activity_unpublished = false;
+        if (self.close_activity_publish_at_ns == null) {
+            self.close_activity_publish_at_ns = now + settle_ns;
+        }
+    }
+    const publish_at = self.close_activity_publish_at_ns orelse return .current;
+    // No reader's base passes the last encoded revision, so a later revision owes every reader a
+    // frame captured after the change.
+    if (self.revision.load(.monotonic) > self.close_activity_stale_through_revision) {
+        self.close_activity_publish_at_ns = null;
+        return .current;
+    }
+    if (now < publish_at) return .{ .settling = publish_at };
+    self.close_activity_publish_at_ns = null;
+    return .due;
+}
+
+/// A new revision or generation costs a capture; another reader of the current one only an encode.
+pub fn projectionNeedsCapture(self: *state.State) bool {
+    self.projection_mutex.lock();
+    defer self.projection_mutex.unlock();
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    return self.projection.needsCapture(self.revision.load(.monotonic), self.generation);
+}
+
+/// How long a new capture should wait for a paint the program has only begun.
+pub fn projectionPaintRemaining(self: *state.State) ?u64 {
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    return mode_effects.cursorPaintRemainingLocked(self);
+}
+
+fn noteCloseActivityChangedLocked(self: *state.State) void {
+    self.close_activity_unpublished = true;
+    self.close_activity_stale_through_revision = self.last_encoded_revision;
+}
+
 pub fn projectionResident(self: *state.State) bool {
     self.projection_mutex.lock();
     defer self.projection_mutex.unlock();
@@ -164,6 +219,7 @@ pub fn sampleCloseActivity(
     self: *state.State,
 ) contracts.ProjectionEncodeError!contracts.CloseActivityRefresh {
     self.projection_mutex.lock();
+    self.close_activity_sample_owed = false;
     if (self.close_activity_epoch_exhausted) {
         const activity = self.close_activity;
         self.projection_mutex.unlock();
@@ -213,6 +269,7 @@ pub fn sampleCloseActivity(
     }
     const changed = previous_activity != next_activity;
     self.close_activity = next_activity;
+    if (changed) noteCloseActivityChangedLocked(self);
     return .{ .activity = next_activity, .changed = changed };
 }
 
@@ -221,6 +278,8 @@ pub fn sampleCloseActivity(
 /// the input queue publication (or accepted a zero-byte semantic input).
 pub fn invalidateCloseActivityAfterInputLocked(self: *state.State) void {
     self.close_activity = .unknown;
+    self.close_activity_sample_owed = true;
+    noteCloseActivityChangedLocked(self);
     _ = advanceCloseActivityEpochLocked(self);
 }
 
@@ -343,6 +402,7 @@ pub fn encodeProjectionFrameOwned(
     };
     std.debug.assert(frame.revision == revision);
     std.debug.assert(frame.generation == generation);
+    self.last_encoded_revision = @max(self.last_encoded_revision, revision);
     frame.read_commit_epoch = read_commit_epoch;
     frame.close_activity_epoch = close_activity_epoch;
     frame.close_activity_epoch_exhausted = close_activity_epoch_exhausted;

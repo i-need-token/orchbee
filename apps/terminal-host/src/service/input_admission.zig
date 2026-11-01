@@ -126,22 +126,11 @@ pub const Preparation = union(enum) {
                     self.* = .consumed;
                     break :blk .{ .core_rejected = error.MissingResource };
                 }
-                const affects_close_activity =
-                    pending.runtime_input.affectsCloseActivity();
                 const byte_count = pending.runtime_input.commit() catch |err| {
                     self.* = .consumed;
                     break :blk .{ .runtime_rejected = fromRuntimeError(err) };
                 };
                 std.debug.assert(byte_count == accepted_input.byte_count);
-                if (affects_close_activity) {
-                    // Final Core reauthorization above proves this retained
-                    // terminal and attachment incarnation. Host commands are
-                    // single-owner, so the post-engine projection invalidation
-                    // is allocation-free and infallible.
-                    pending.core_state.invalidateTerminalPresentations(
-                        pending.terminal_id,
-                    ) catch unreachable;
-                }
                 self.* = .consumed;
                 break :blk .{ .accepted = accepted_input };
             },

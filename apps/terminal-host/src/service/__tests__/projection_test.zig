@@ -25,6 +25,7 @@ const host_outgoing = service_boundary.testing.outgoing;
 const Outgoing = host_outgoing.Outgoing;
 
 const projection_interval_ns: u64 = 16 * std.time.ns_per_ms;
+const close_activity_settle_ns: u64 = 100 * std.time.ns_per_ms;
 const features = [_]u16{22};
 const palette = [_]u32{0} ** 256;
 
@@ -430,6 +431,18 @@ fn createHookedRuntime(
         runtime,
     );
     return .{ .runtime = runtime, .terminal_id = terminal_id };
+}
+
+/// An inactive process sample resolves to idle only at a ready semantic prompt.
+fn commitReadyPrompt(
+    aggregate: *host_runtime_aggregate.HostRuntimeAggregate,
+    fixture: RuntimeFixture,
+) !void {
+    try std.testing.expectEqual(
+        terminal_runtime.testing.ReaderBatchOutcomeType.committed,
+        commitReaderBatch(fixture.runtime, "\x1b]133;A\x07$ \x1b]133;B\x07"),
+    );
+    _ = try aggregate.synchronizeRuntimeObservation(fixture.terminal_id, fixture.runtime);
 }
 
 fn activateAttachments(
@@ -933,6 +946,7 @@ test "silent activity change retries one same-revision snapshot after a full bat
     const results = [_]ActivityQueryProbe.Result{
         .{ .active = false },
         .{ .active = true },
+        .{ .active = true },
     };
     var probe: ActivityQueryProbe = .{ .results = &results };
     var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
@@ -941,6 +955,7 @@ test "silent activity change retries one same-revision snapshot after a full bat
     const fixture = try createHookedRuntime(&aggregate, connection_id, 0, probe.hooks());
     const attachment_id = testId(core_module.AttachmentId, 0x60, 0);
     try activateAttachments(&aggregate, connection_id, fixture.terminal_id, &.{attachment_id});
+    try commitReadyPrompt(&aggregate, fixture);
 
     var scheduler: subject.Scheduler = .{};
     subject.testing.setClockSampleFn(&scheduler, 0, 0);
@@ -965,7 +980,28 @@ test "silent activity change retries one same-revision snapshot after a full bat
     const unchanged_revision = initial_frame.revision;
     const projection_deadline = aggregate.nextProjectionAt(fixture.terminal_id).?;
 
+    // With no output to carry the change, readers wait out the settle time.
     subject.testing.setClockSampleFn(&scheduler, 0, projection_interval_ns);
+    var settling = Outgoing.init(std.testing.allocator);
+    defer settling.deinit();
+    try std.testing.expectEqual(
+        host_outgoing.ScheduleOutcome.complete,
+        try scheduler.schedule(
+            std.testing.allocator,
+            &aggregate,
+            connection_id,
+            protocol.Limits.frame_bytes,
+            &settling,
+        ),
+    );
+    try std.testing.expectEqual(@as(usize, 2), probe.calls);
+    try std.testing.expectEqual(@as(usize, 0), settling.records().len);
+    try std.testing.expect(
+        !aggregate.core().findAttachment(attachment_id).?.projectionReady().?.forceSnapshot(),
+    );
+
+    const settled_at = projection_interval_ns + close_activity_settle_ns;
+    subject.testing.setClockSampleFn(&scheduler, 0, settled_at);
     var full = Outgoing.init(std.testing.allocator);
     defer full.deinit();
     try fillOutgoingRecordLimit(&full, aggregate.core().epoch);
@@ -979,13 +1015,13 @@ test "silent activity change retries one same-revision snapshot after a full bat
             &full,
         ),
     );
-    try std.testing.expectEqual(@as(usize, 2), probe.calls);
+    try std.testing.expectEqual(@as(usize, 3), probe.calls);
     try std.testing.expectEqual(
         projection_deadline,
         aggregate.nextProjectionAt(fixture.terminal_id).?,
     );
     try std.testing.expectEqual(
-        @as(i128, 2 * projection_interval_ns),
+        @as(i128, settled_at + projection_interval_ns),
         aggregate.nextCloseActivitySampleAt(fixture.terminal_id).?,
     );
     const rolled_back = aggregate.core().findAttachment(attachment_id).?;
@@ -1004,7 +1040,7 @@ test "silent activity change retries one same-revision snapshot after a full bat
             &retry,
         ),
     );
-    try std.testing.expectEqual(@as(usize, 2), probe.calls);
+    try std.testing.expectEqual(@as(usize, 3), probe.calls);
     const retried = try onlyProjectionFrame(&retry);
     try std.testing.expectEqual(protocol.FrameKind.snapshot, retried.kind);
     try std.testing.expectEqual(unchanged_revision, retried.revision);
@@ -1021,6 +1057,7 @@ test "activity sampling invalidates a frame already in flight" {
     const results = [_]ActivityQueryProbe.Result{
         .{ .active = false },
         .{ .active = true },
+        .{ .active = true },
     };
     var probe: ActivityQueryProbe = .{ .results = &results };
     var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
@@ -1029,6 +1066,7 @@ test "activity sampling invalidates a frame already in flight" {
     const fixture = try createHookedRuntime(&aggregate, connection_id, 0, probe.hooks());
     const attachment_id = testId(core_module.AttachmentId, 0x61, 0);
     try activateAttachments(&aggregate, connection_id, fixture.terminal_id, &.{attachment_id});
+    try commitReadyPrompt(&aggregate, fixture);
 
     var scheduler: subject.Scheduler = .{};
     subject.testing.setClockSampleFn(&scheduler, 0, 0);
@@ -1058,6 +1096,22 @@ test "activity sampling invalidates a frame already in flight" {
     );
     try std.testing.expectEqual(@as(usize, 2), probe.calls);
     try std.testing.expectEqual(@as(usize, 0), changed.records().len);
+    try std.testing.expect(
+        !aggregate.core().findAttachment(attachment_id).?.projectionInFlight().?.force_snapshot_after_flight,
+    );
+
+    subject.testing.setClockSampleFn(&scheduler, 0, projection_interval_ns + close_activity_settle_ns);
+    var settled = Outgoing.init(std.testing.allocator);
+    defer settled.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &aggregate,
+        connection_id,
+        protocol.Limits.frame_bytes,
+        &settled,
+    );
+    try std.testing.expectEqual(@as(usize, 3), probe.calls);
+    try std.testing.expectEqual(@as(usize, 0), settled.records().len);
     const flight = aggregate.core().findAttachment(attachment_id).?.projectionInFlight().?;
     try std.testing.expect(flight.force_snapshot_after_flight);
 
@@ -1067,10 +1121,10 @@ test "activity sampling invalidates a frame already in flight" {
     );
 }
 
-test "input-invalidated in-flight idle is abandoned for a causal unknown snapshot" {
+test "input leaves the in-flight frame alone and its successor carries a later sample" {
     if (target_builtin.os.tag == .windows) return error.SkipZigTest;
 
-    const results = [_]ActivityQueryProbe.Result{.{ .active = false }};
+    const results = [_]ActivityQueryProbe.Result{ .{ .active = false }, .{ .active = false } };
     var probe: ActivityQueryProbe = .{ .results = &results };
     var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
     defer aggregate.deinitChecked(true) catch unreachable;
@@ -1085,6 +1139,7 @@ test "input-invalidated in-flight idle is abandoned for a causal unknown snapsho
         false,
     );
     _ = try aggregate.setProjectionDemand(connection_id, attachment_id, .active);
+    try commitReadyPrompt(&aggregate, fixture);
 
     var scheduler: subject.Scheduler = .{};
     subject.testing.setClockSampleFn(&scheduler, 0, 0);
@@ -1120,9 +1175,9 @@ test "input-invalidated in-flight idle is abandoned for a causal unknown snapsho
         .accepted => |accepted| try std.testing.expectEqual(@as(usize, 0), accepted.byte_count),
         else => return error.ExpectedAcceptedInput,
     }
-    const invalidated_flight =
-        aggregate.core().findAttachment(attachment_id).?.projectionInFlight().?;
-    try std.testing.expect(invalidated_flight.force_snapshot_after_flight);
+    try std.testing.expect(
+        !aggregate.core().findAttachment(attachment_id).?.projectionInFlight().?.force_snapshot_after_flight,
+    );
 
     try std.testing.expectEqual(
         core_module.TransitionOutcome.applied,
@@ -1149,10 +1204,10 @@ test "input-invalidated in-flight idle is abandoned for a causal unknown snapsho
     try std.testing.expectEqual(protocol.FrameKind.snapshot, causal_frame.kind);
     try std.testing.expectEqual(old_idle.sequence + 1, causal_frame.sequence);
     try std.testing.expectEqual(
-        @as(?protocol.TerminalCloseActivity, null),
+        @as(?protocol.TerminalCloseActivity, .idle),
         try trailingCloseActivity(&causal),
     );
-    try std.testing.expectEqual(@as(usize, 1), probe.calls);
+    try std.testing.expectEqual(@as(usize, 2), probe.calls);
 }
 
 test "activity query failure projects unknown and later recovers at the cadence" {
@@ -1160,6 +1215,7 @@ test "activity query failure projects unknown and later recovers at the cadence"
 
     const results = [_]ActivityQueryProbe.Result{
         .failure,
+        .{ .active = false },
         .{ .active = false },
     };
     var probe: ActivityQueryProbe = .{ .results = &results };
@@ -1169,6 +1225,7 @@ test "activity query failure projects unknown and later recovers at the cadence"
     const fixture = try createHookedRuntime(&aggregate, connection_id, 0, probe.hooks());
     const attachment_id = testId(core_module.AttachmentId, 0x62, 0);
     try activateAttachments(&aggregate, connection_id, fixture.terminal_id, &.{attachment_id});
+    try commitReadyPrompt(&aggregate, fixture);
 
     var scheduler: subject.Scheduler = .{};
     subject.testing.setClockSampleFn(&scheduler, 0, 0);
@@ -1186,6 +1243,18 @@ test "activity query failure projects unknown and later recovers at the cadence"
     try acknowledgeFrame(&aggregate, connection_id, unknown_frame);
 
     subject.testing.setClockSampleFn(&scheduler, 0, projection_interval_ns);
+    var settling = Outgoing.init(std.testing.allocator);
+    defer settling.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &aggregate,
+        connection_id,
+        protocol.Limits.frame_bytes,
+        &settling,
+    );
+    try std.testing.expectEqual(@as(usize, 0), settling.records().len);
+
+    subject.testing.setClockSampleFn(&scheduler, 0, projection_interval_ns + close_activity_settle_ns);
     var recovered = Outgoing.init(std.testing.allocator);
     defer recovered.deinit();
     _ = try scheduler.schedule(
@@ -1202,7 +1271,7 @@ test "activity query failure projects unknown and later recovers at the cadence"
         protocol.TerminalCloseActivity.idle,
         (try trailingCloseActivity(&recovered)).?,
     );
-    try std.testing.expectEqual(@as(usize, 2), probe.calls);
+    try std.testing.expectEqual(@as(usize, 3), probe.calls);
 }
 
 test "completed input returns to idle when Ghostty reaches a prompt" {
@@ -1230,7 +1299,7 @@ test "completed input returns to idle when Ghostty reaches a prompt" {
 
     try std.testing.expectEqual(
         terminal_runtime.testing.ReaderBatchOutcomeType.committed,
-        commitReaderBatch(fixture.runtime, "\x1b]133;A\x07$ "),
+        commitReaderBatch(fixture.runtime, "\x1b]133;A\x07$ \x1b]133;B\x07"),
     );
     _ = try aggregate.synchronizeRuntimeObservation(fixture.terminal_id, fixture.runtime);
 
@@ -1256,10 +1325,10 @@ test "completed input returns to idle when Ghostty reaches a prompt" {
         connection_id,
         attachment_id,
         1,
-        .{ .text = .{ .text = "input" } },
+        .{ .text = .{ .text = "input\r" } },
         protocol.Limits.input_bytes,
     )) {
-        .accepted => |accepted| try std.testing.expectEqual(@as(usize, 5), accepted.byte_count),
+        .accepted => |accepted| try std.testing.expectEqual(@as(usize, 6), accepted.byte_count),
         else => return error.ExpectedAcceptedInput,
     }
     probe.waitForWriterAccounted(1);
@@ -1292,7 +1361,7 @@ test "completed input returns to idle when Ghostty reaches a prompt" {
 
     try std.testing.expectEqual(
         terminal_runtime.testing.ReaderBatchOutcomeType.committed,
-        commitReaderBatch(fixture.runtime, "\x1b]133;D;0\x07\x1b]133;A\x07$ "),
+        commitReaderBatch(fixture.runtime, "\x1b]133;D;0\x07\x1b]133;A\x07$ \x1b]133;B\x07"),
     );
     _ = try aggregate.synchronizeRuntimeObservation(fixture.terminal_id, fixture.runtime);
     const prompt = terminal_runtime.testing.closeActivityObservation(fixture.runtime);
@@ -1316,136 +1385,12 @@ test "completed input returns to idle when Ghostty reaches a prompt" {
     );
 }
 
-test "a fresh inactive sample can restore idle while input delivery is pending" {
-    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
-
-    const results = [_]ActivityQueryProbe.Result{
-        .{ .active = false },
-        .{ .active = false },
-        .{ .active = false },
-    };
-    var writer_copied: TestGate = .{};
-    var probe: ActivityQueryProbe = .{
-        .results = &results,
-        .writer_copied_gate = &writer_copied,
-    };
-    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
-    var writer_released = false;
-    defer {
-        if (!writer_released) writer_copied.release();
-        aggregate.deinitChecked(true) catch unreachable;
-    }
-    const connection_id: core_module.ConnectionId = 1;
-    const fixture = try createHookedRuntime(&aggregate, connection_id, 0, probe.hooks());
-    const attachment_id = testId(core_module.AttachmentId, 0x66, 0);
-    _ = try aggregate.attach(
-        connection_id,
-        attachment_id,
-        fixture.terminal_id,
-        .{ .input = true, .read = true, .resize = false },
-        false,
-    );
-    _ = try aggregate.setProjectionDemand(connection_id, attachment_id, .active);
-
-    var scheduler: subject.Scheduler = .{};
-    subject.testing.setClockSampleFn(&scheduler, 0, 0);
-    var initial = Outgoing.init(std.testing.allocator);
-    defer initial.deinit();
-    _ = try scheduler.schedule(
-        std.testing.allocator,
-        &aggregate,
-        connection_id,
-        protocol.Limits.frame_bytes,
-        &initial,
-    );
-    const initial_frame = try onlyProjectionFrame(&initial);
-    try std.testing.expectEqual(
-        protocol.TerminalCloseActivity.idle,
-        (try trailingCloseActivity(&initial)).?,
-    );
-    try acknowledgeFrame(&aggregate, connection_id, initial_frame);
-
-    const text_input: protocol.SemanticInput = .{ .text = .{ .text = "run" } };
-    switch (aggregate.acceptSemanticInput(
-        connection_id,
-        attachment_id,
-        1,
-        text_input,
-        protocol.Limits.input_bytes,
-    )) {
-        .accepted => |accepted| try std.testing.expectEqual(@as(usize, 3), accepted.byte_count),
-        else => return error.ExpectedAcceptedInput,
-    }
-    writer_copied.wait();
-    const queued = terminal_runtime.testing.closeActivityObservation(fixture.runtime);
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, queued.activity);
-
-    // Like the pinned Ghostty close decision, the next sample classifies the
-    // current VT and process state rather than waiting for shell consumption.
-    try std.testing.expectEqual(
-        terminal_runtime.testing.ReaderBatchOutcomeType.committed,
-        commitReaderBatch(fixture.runtime, "buffered-output-before-write\r\n$ "),
-    );
-    _ = try aggregate.synchronizeRuntimeObservation(
-        fixture.terminal_id,
-        fixture.runtime,
-    );
-    subject.testing.setClockSampleFn(&scheduler, 0, projection_interval_ns);
-    var pre_write = Outgoing.init(std.testing.allocator);
-    defer pre_write.deinit();
-    _ = try scheduler.schedule(
-        std.testing.allocator,
-        &aggregate,
-        connection_id,
-        protocol.Limits.frame_bytes,
-        &pre_write,
-    );
-    const pre_write_frame = try onlyProjectionFrame(&pre_write);
-    try std.testing.expectEqual(
-        @as(?protocol.TerminalCloseActivity, .idle),
-        try trailingCloseActivity(&pre_write),
-    );
-    try acknowledgeFrame(&aggregate, connection_id, pre_write_frame);
-
-    writer_copied.release();
-    writer_released = true;
-    probe.waitForWriterAccounted(1);
-
-    try std.testing.expectEqual(
-        terminal_runtime.testing.ReaderBatchOutcomeType.committed,
-        commitReaderBatch(fixture.runtime, "echo-after-write\r\n$ "),
-    );
-    _ = try aggregate.synchronizeRuntimeObservation(
-        fixture.terminal_id,
-        fixture.runtime,
-    );
-    subject.testing.setClockSampleFn(&scheduler, 0, 2 * projection_interval_ns);
-    var post_write = Outgoing.init(std.testing.allocator);
-    defer post_write.deinit();
-    _ = try scheduler.schedule(
-        std.testing.allocator,
-        &aggregate,
-        connection_id,
-        protocol.Limits.frame_bytes,
-        &post_write,
-    );
-    _ = try onlyProjectionFrame(&post_write);
-    try std.testing.expectEqual(
-        @as(?protocol.TerminalCloseActivity, .idle),
-        try trailingCloseActivity(&post_write),
-    );
-    try std.testing.expectEqual(
-        protocol.TerminalCloseActivity.idle,
-        terminal_runtime.testing.closeActivityObservation(fixture.runtime).activity,
-    );
-    try std.testing.expectEqual(@as(usize, 3), probe.calls);
-}
-
 test "pre-existing active returns to idle after a later inactive sample" {
     if (target_builtin.os.tag == .windows) return error.SkipZigTest;
 
     const results = [_]ActivityQueryProbe.Result{
         .{ .active = true },
+        .{ .active = false },
         .{ .active = false },
     };
     var probe: ActivityQueryProbe = .{ .results = &results };
@@ -1462,6 +1407,7 @@ test "pre-existing active returns to idle after a later inactive sample" {
         false,
     );
     _ = try aggregate.setProjectionDemand(connection_id, attachment_id, .active);
+    try commitReadyPrompt(&aggregate, fixture);
 
     var scheduler: subject.Scheduler = .{};
     subject.testing.setClockSampleFn(&scheduler, 0, 0);
@@ -1481,111 +1427,19 @@ test "pre-existing active returns to idle after a later inactive sample" {
     );
     try acknowledgeFrame(&aggregate, connection_id, active_frame);
 
-    switch (aggregate.acceptSemanticInput(
-        connection_id,
-        attachment_id,
-        1,
-        .{ .text = .{ .text = "B" } },
-        protocol.Limits.input_bytes,
-    )) {
-        .accepted => |accepted| try std.testing.expectEqual(@as(usize, 1), accepted.byte_count),
-        else => return error.ExpectedAcceptedInput,
-    }
-    probe.waitForWriterAccounted(1);
-
     subject.testing.setClockSampleFn(&scheduler, 0, projection_interval_ns);
-    var inactive = Outgoing.init(std.testing.allocator);
-    defer inactive.deinit();
+    var settling = Outgoing.init(std.testing.allocator);
+    defer settling.deinit();
     _ = try scheduler.schedule(
         std.testing.allocator,
         &aggregate,
         connection_id,
         protocol.Limits.frame_bytes,
-        &inactive,
+        &settling,
     );
-    try std.testing.expectEqual(
-        @as(?protocol.TerminalCloseActivity, .idle),
-        try trailingCloseActivity(&inactive),
-    );
-    try std.testing.expectEqual(
-        protocol.TerminalCloseActivity.idle,
-        terminal_runtime.testing.closeActivityObservation(fixture.runtime).activity,
-    );
-}
+    try std.testing.expectEqual(@as(usize, 0), settling.records().len);
 
-test "two written inputs return to idle after observed activity ends" {
-    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
-
-    const results = [_]ActivityQueryProbe.Result{
-        .{ .active = false },
-        .{ .active = true },
-        .{ .active = false },
-    };
-    var probe: ActivityQueryProbe = .{ .results = &results };
-    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
-    defer aggregate.deinitChecked(true) catch unreachable;
-    const connection_id: core_module.ConnectionId = 1;
-    const fixture = try createHookedRuntime(&aggregate, connection_id, 0, probe.hooks());
-    const attachment_id = testId(core_module.AttachmentId, 0x69, 0);
-    _ = try aggregate.attach(
-        connection_id,
-        attachment_id,
-        fixture.terminal_id,
-        .{ .input = true, .read = true, .resize = false },
-        false,
-    );
-    _ = try aggregate.setProjectionDemand(connection_id, attachment_id, .active);
-
-    var scheduler: subject.Scheduler = .{};
-    subject.testing.setClockSampleFn(&scheduler, 0, 0);
-    var initial = Outgoing.init(std.testing.allocator);
-    defer initial.deinit();
-    _ = try scheduler.schedule(
-        std.testing.allocator,
-        &aggregate,
-        connection_id,
-        protocol.Limits.frame_bytes,
-        &initial,
-    );
-    const initial_frame = try onlyProjectionFrame(&initial);
-    try std.testing.expectEqual(
-        protocol.TerminalCloseActivity.idle,
-        (try trailingCloseActivity(&initial)).?,
-    );
-    try acknowledgeFrame(&aggregate, connection_id, initial_frame);
-
-    for ([_][]const u8{ "A", "B" }) |text| {
-        switch (aggregate.acceptSemanticInput(
-            connection_id,
-            attachment_id,
-            1,
-            .{ .text = .{ .text = text } },
-            protocol.Limits.input_bytes,
-        )) {
-            .accepted => |accepted| try std.testing.expectEqual(@as(usize, 1), accepted.byte_count),
-            else => return error.ExpectedAcceptedInput,
-        }
-    }
-    probe.waitForWriterAccounted(2);
-
-    subject.testing.setClockSampleFn(&scheduler, 0, projection_interval_ns);
-    var active = Outgoing.init(std.testing.allocator);
-    defer active.deinit();
-    _ = try scheduler.schedule(
-        std.testing.allocator,
-        &aggregate,
-        connection_id,
-        protocol.Limits.frame_bytes,
-        &active,
-    );
-    const active_frame = try onlyProjectionFrame(&active);
-    try std.testing.expectEqual(
-        protocol.TerminalCloseActivity.active,
-        (try trailingCloseActivity(&active)).?,
-    );
-    try acknowledgeFrame(&aggregate, connection_id, active_frame);
-
-    subject.testing.setClockSampleFn(&scheduler, 0, 2 * projection_interval_ns);
+    subject.testing.setClockSampleFn(&scheduler, 0, projection_interval_ns + close_activity_settle_ns);
     var inactive = Outgoing.init(std.testing.allocator);
     defer inactive.deinit();
     _ = try scheduler.schedule(
@@ -1627,6 +1481,7 @@ test "zero-byte input is reclassified from current Ghostty prompt state" {
         false,
     );
     _ = try aggregate.setProjectionDemand(connection_id, attachment_id, .active);
+    try commitReadyPrompt(&aggregate, fixture);
 
     var scheduler: subject.Scheduler = .{};
     subject.testing.setClockSampleFn(&scheduler, 0, 0);
@@ -1699,7 +1554,7 @@ test "zero-byte input is reclassified from current Ghostty prompt state" {
 
     try std.testing.expectEqual(
         terminal_runtime.testing.ReaderBatchOutcomeType.committed,
-        commitReaderBatch(fixture.runtime, "\r\n\x1b]133;D;0\x07\x1b]133;A\x07$ "),
+        commitReaderBatch(fixture.runtime, "\r\n\x1b]133;D;0\x07\x1b]133;A\x07$ \x1b]133;B\x07"),
     );
     _ = try aggregate.synchronizeRuntimeObservation(fixture.terminal_id, fixture.runtime);
     const prompt = terminal_runtime.testing.closeActivityObservation(fixture.runtime);
@@ -1726,7 +1581,7 @@ fn expectInputInvalidationRejectsProvisionalIdleFrame(
     initial_activity_epoch: u64,
     expect_epoch_exhaustion: bool,
 ) !void {
-    const results = [_]ActivityQueryProbe.Result{.{ .active = false }};
+    const results = [_]ActivityQueryProbe.Result{ .{ .active = false }, .{ .active = false } };
     var read_commit_gate: TestGate = .{};
     var probe: ActivityQueryProbe = .{
         .read_commit_gate = &read_commit_gate,
@@ -1749,6 +1604,7 @@ fn expectInputInvalidationRejectsProvisionalIdleFrame(
         false,
     );
     _ = try aggregate.setProjectionDemand(connection_id, attachment_id, .active);
+    try commitReadyPrompt(&aggregate, fixture);
 
     var outgoing = Outgoing.init(std.testing.allocator);
     defer outgoing.deinit();
@@ -1849,11 +1705,12 @@ fn expectInputInvalidationRejectsProvisionalIdleFrame(
     const retry_frame = try onlyProjectionFrame(&retry);
     try std.testing.expectEqual(protocol.FrameKind.snapshot, retry_frame.kind);
     try std.testing.expectEqual(@as(u64, 1), retry_frame.sequence);
+    // An exhausted epoch can never again carry evidence, so it stops sampling too.
     try std.testing.expectEqual(
-        @as(?protocol.TerminalCloseActivity, null),
+        @as(?protocol.TerminalCloseActivity, if (expect_epoch_exhaustion) null else .idle),
         try trailingCloseActivity(&retry),
     );
-    try std.testing.expectEqual(@as(usize, 1), probe.calls);
+    try std.testing.expectEqual(@as(usize, if (expect_epoch_exhaustion) 1 else 2), probe.calls);
 }
 
 test "scheduler preserves synchronized output and publishes the newest frame at deadline" {
@@ -2004,6 +1861,121 @@ test "projection cadence uses the exact monotonic boundary across wall-clock rol
     );
     _ = try onlyProjectionFrame(&at_boundary);
     try std.testing.expectEqual(@as(usize, 3), subject.testing.clockSampleCountFn(&scheduler));
+}
+
+test "projection cadence lets a quiet terminal capture three times at once and then paces it" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    const fixture = try createRuntime(&aggregate, connection_id);
+    const attachment_id = testId(core_module.AttachmentId, 0x57, 0);
+    try activateAttachments(&aggregate, connection_id, fixture.terminal_id, &.{attachment_id});
+
+    var scheduler: subject.Scheduler = .{};
+    subject.testing.setClockSampleFn(&scheduler, 0, 0);
+    var initial = Outgoing.init(std.testing.allocator);
+    defer initial.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &aggregate,
+        connection_id,
+        protocol.Limits.frame_bytes,
+        &initial,
+    );
+    try acknowledgeFrame(&aggregate, connection_id, try onlyProjectionFrame(&initial));
+
+    const quiet_at = 100 * projection_interval_ns;
+    subject.testing.setClockSampleFn(&scheduler, 0, quiet_at);
+    for (0..3) |_| {
+        try std.testing.expectEqual(.committed, commitReaderBatch(fixture.runtime, "x"));
+        _ = try aggregate.synchronizeRuntimeObservation(fixture.terminal_id, fixture.runtime);
+        var burst = Outgoing.init(std.testing.allocator);
+        defer burst.deinit();
+        _ = try scheduler.schedule(
+            std.testing.allocator,
+            &aggregate,
+            connection_id,
+            protocol.Limits.frame_bytes,
+            &burst,
+        );
+        try acknowledgeFrame(&aggregate, connection_id, try onlyProjectionFrame(&burst));
+    }
+
+    // The allowance is spent: the next capture waits one interval, as does each one after it.
+    for (1..3) |step| {
+        try std.testing.expectEqual(.committed, commitReaderBatch(fixture.runtime, "x"));
+        _ = try aggregate.synchronizeRuntimeObservation(fixture.terminal_id, fixture.runtime);
+        var paced = Outgoing.init(std.testing.allocator);
+        defer paced.deinit();
+        _ = try scheduler.schedule(
+            std.testing.allocator,
+            &aggregate,
+            connection_id,
+            protocol.Limits.frame_bytes,
+            &paced,
+        );
+        try std.testing.expectEqual(@as(usize, 0), paced.records().len);
+        const due = quiet_at + step * projection_interval_ns;
+        try std.testing.expectEqual(
+            @as(i128, due),
+            aggregate.nextProjectionAt(fixture.terminal_id).?,
+        );
+        subject.testing.setClockSampleFn(&scheduler, 0, due);
+        var released = Outgoing.init(std.testing.allocator);
+        defer released.deinit();
+        _ = try scheduler.schedule(
+            std.testing.allocator,
+            &aggregate,
+            connection_id,
+            protocol.Limits.frame_bytes,
+            &released,
+        );
+        try acknowledgeFrame(&aggregate, connection_id, try onlyProjectionFrame(&released));
+    }
+}
+
+test "another reader of the current capture does not spend the cadence" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    const fixture = try createRuntime(&aggregate, connection_id);
+    const attachment_ids = [_]core_module.AttachmentId{
+        testId(core_module.AttachmentId, 0x58, 0),
+        testId(core_module.AttachmentId, 0x58, 1),
+    };
+    try activateAttachments(&aggregate, connection_id, fixture.terminal_id, &attachment_ids);
+
+    var scheduler: subject.Scheduler = .{};
+    subject.testing.setClockSampleFn(&scheduler, 0, 0);
+    var first = Outgoing.init(std.testing.allocator);
+    defer first.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &aggregate,
+        connection_id,
+        protocol.Limits.frame_bytes,
+        &first,
+    );
+    const captured = try onlyProjectionFrame(&first);
+    const paced_until = aggregate.nextProjectionAt(fixture.terminal_id).?;
+    try std.testing.expect(paced_until > 0);
+
+    // Still inside the interval, the other viewer receives the same capture at no cost.
+    var second = Outgoing.init(std.testing.allocator);
+    defer second.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &aggregate,
+        connection_id,
+        protocol.Limits.frame_bytes,
+        &second,
+    );
+    try std.testing.expectEqual(captured.revision, (try onlyProjectionFrame(&second)).revision);
+    try std.testing.expectEqual(paced_until, aggregate.nextProjectionAt(fixture.terminal_id).?);
 }
 
 test "timer initialization failure leaves scheduler delivery deadline and outgoing unchanged" {

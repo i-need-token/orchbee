@@ -2351,6 +2351,53 @@ test "synchronized output suppresses capture only until its monotonic deadline" 
     try runtime.forceTerminate();
 }
 
+test "a capture waits only for the paint a batch began by hiding the cursor" {
+    const Clock = struct {
+        now: u64 = 1_000,
+
+        fn hooks(self: *@This()) RuntimeTestingHooks {
+            return .{
+                .context = self,
+                .monotonic_time_nanoseconds = read,
+            };
+        }
+
+        fn read(context: *anyopaque) u64 {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            return self.now;
+        }
+    };
+    var clock: Clock = .{};
+    const runtime = try createRuntimeWithHooks(clock.hooks());
+    defer runtime.destroy();
+    const timeout_ns: u64 = 2 * std.time.ns_per_ms;
+    const elapsed_ns: u64 = 500 * std.time.ns_per_us;
+    try std.testing.expectEqual(@as(?u64, null), runtime.projectionPaintRemaining());
+
+    // Hiding opens the wait, and the paint's later pieces do not extend it.
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b[?25l"));
+    clock.now += elapsed_ns;
+    try std.testing.expectEqual(@as(?u64, timeout_ns - elapsed_ns), runtime.projectionPaintRemaining());
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "text"));
+    try std.testing.expectEqual(@as(?u64, timeout_ns - elapsed_ns), runtime.projectionPaintRemaining());
+
+    // Showing the cursor ends the wait at once.
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b[?25h"));
+    try std.testing.expectEqual(@as(?u64, null), runtime.projectionPaintRemaining());
+
+    // A paint complete within one batch has nothing to wait for.
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b[?25lmore\x1b[?25h"));
+    try std.testing.expectEqual(@as(?u64, null), runtime.projectionPaintRemaining());
+
+    // A program that never shows the cursor pays one timeout, then never again.
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b[?25l"));
+    clock.now += timeout_ns;
+    try std.testing.expectEqual(@as(?u64, null), runtime.projectionPaintRemaining());
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "hidden"));
+    try std.testing.expectEqual(@as(?u64, null), runtime.projectionPaintRemaining());
+    try runtime.forceTerminate();
+}
+
 test "reset and successful resize release synchronized output" {
     const samples = [_]u64{ 0, 1, 2 };
     var clock: CommandClockProbe = .{

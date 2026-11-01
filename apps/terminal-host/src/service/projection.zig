@@ -8,8 +8,14 @@ const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
 const protocol = @import("terminal-protocol");
 const terminal_runtime = @import("terminal-host-engine").runtime;
 const monotonic = @import("terminal-host-platform").monotonic;
+const output_wake = @import("terminal-host-platform").output_wake;
 
 const projection_interval_ns = 16 * std.time.ns_per_ms;
+/// How far captures may run ahead of the sustained cadence. A program that answers one key in a
+/// few writes shows the last of them at once; continuous output still settles to the cadence.
+const projection_burst_ns = 2 * projection_interval_ns;
+/// Echoes usually land within this time of the input that changed close activity.
+const close_activity_settle_ns = 100 * std.time.ns_per_ms;
 const max_schedule_scan_per_poll = 64;
 const max_scheduled_attachments_per_poll = 8;
 
@@ -81,9 +87,11 @@ pub const Scheduler = struct {
         var scheduled: usize = 0;
         var outcome: host_outgoing.ScheduleOutcome = .complete;
         var retry_current = false;
+        var next_due: ?i128 = null;
         var sampled_terminal_ids: [max_schedule_scan_per_poll]core_module.TerminalId = undefined;
         var sampled_terminal_count: usize = 0;
         var used_terminal_ids: [max_scheduled_attachments_per_poll]core_module.TerminalId = undefined;
+        var used_terminal_captures: [max_scheduled_attachments_per_poll]bool = undefined;
         var used_terminal_count: usize = 0;
         const PendingMutation = union(enum) {
             block: core_module.ProjectionBlockCommit,
@@ -122,29 +130,33 @@ pub const Scheduler = struct {
                 activity_already_sampled = activity_already_sampled or
                     sampled_terminal_id.eql(attachment.terminal_id);
             }
-            if (!activity_already_sampled and
-                now >= aggregate.nextCloseActivitySampleAt(attachment.terminal_id).?)
-            {
+            if (!activity_already_sampled) {
                 std.debug.assert(sampled_terminal_count < sampled_terminal_ids.len);
                 sampled_terminal_ids[sampled_terminal_count] = attachment.terminal_id;
                 sampled_terminal_count += 1;
-                std.debug.assert(aggregate.setNextCloseActivitySampleAt(
-                    attachment.terminal_id,
-                    now + projection_interval_ns,
-                ));
-                const activity = runtime.sampleCloseActivity() catch continue :scan;
-                if (activity.changed) {
-                    core.invalidateTerminalPresentations(
+                if (runtime.closeActivitySampleDue(now)) {
+                    std.debug.assert(aggregate.setNextCloseActivitySampleAt(
                         attachment.terminal_id,
-                    ) catch unreachable;
-                    // Invalidation may change ready, in-flight, or blocked
-                    // delivery state for every reader. Re-resolve both Core
-                    // observations before selecting delivery work.
-                    attachment = core.findAttachment(attachment_id) orelse continue :scan;
-                    terminal = core.findTerminal(attachment.terminal_id) orelse continue :scan;
-                    if (!attachment.capabilities.read or
-                        attachment.projectionDemand() != .active or
-                        !terminal.hasReadableRuntimeState()) continue :scan;
+                        now + projection_interval_ns,
+                    ));
+                    _ = runtime.sampleCloseActivity() catch continue :scan;
+                }
+                switch (runtime.closeActivityPublication(now, close_activity_settle_ns)) {
+                    .current => {},
+                    .settling => |due| next_due = if (next_due) |earlier| @min(earlier, due) else due,
+                    .due => {
+                        core.invalidateTerminalPresentations(
+                            attachment.terminal_id,
+                        ) catch unreachable;
+                        // Invalidation may change ready, in-flight, or blocked
+                        // delivery state for every reader. Re-resolve both Core
+                        // observations before selecting delivery work.
+                        attachment = core.findAttachment(attachment_id) orelse continue :scan;
+                        terminal = core.findTerminal(attachment.terminal_id) orelse continue :scan;
+                        if (!attachment.capabilities.read or
+                            attachment.projectionDemand() != .active or
+                            !terminal.hasReadableRuntimeState()) continue :scan;
+                    },
                 }
             }
             const ready = attachment.projectionReady() orelse continue;
@@ -152,14 +164,30 @@ pub const Scheduler = struct {
             const revision_dirty = ready_base == null or
                 terminal.observedRevision() > ready_base.?.revision;
             if (!ready.forceSnapshot() and !revision_dirty) continue;
-            if (now < aggregate.nextProjectionAt(attachment.terminal_id).?) continue;
+            // The cadence bounds captures. Another reader of the current capture must not
+            // spend it, or a sampling viewer would delay the next echo.
+            const captures = runtime.projectionNeedsCapture();
+            if (captures) if (runtime.projectionPaintRemaining()) |remaining| {
+                const paint_due = now + remaining;
+                next_due = if (next_due) |due| @min(due, paint_due) else paint_due;
+                continue;
+            };
+            const projection_at = aggregate.nextProjectionAt(attachment.terminal_id).?;
+            if (captures and now < projection_at) {
+                next_due = if (next_due) |due| @min(due, projection_at) else projection_at;
+                continue;
+            }
             var already_used = false;
             for (used_terminal_ids[0..used_terminal_count]) |used_terminal_id| {
                 already_used = already_used or used_terminal_id.eql(attachment.terminal_id);
             }
-            if (already_used) continue;
+            if (already_used) {
+                next_due = now;
+                continue;
+            }
             std.debug.assert(used_terminal_count < used_terminal_ids.len);
             used_terminal_ids[used_terminal_count] = attachment.terminal_id;
+            used_terminal_captures[used_terminal_count] = captures;
             used_terminal_count += 1;
             scheduled += 1;
             const geometry = aggregate.synchronizeRuntimeObservation(
@@ -284,12 +312,18 @@ pub const Scheduler = struct {
             0
         else
             start + 1;
-        for (used_terminal_ids[0..used_terminal_count]) |terminal_id| {
-            _ = aggregate.setNextProjectionAt(
-                terminal_id,
-                now + projection_interval_ns,
-            );
+        for (
+            used_terminal_ids[0..used_terminal_count],
+            used_terminal_captures[0..used_terminal_count],
+        ) |terminal_id, captures| {
+            if (captures) {
+                const allowed_at = aggregate.nextProjectionAt(terminal_id).?;
+                const paced_at = @max(allowed_at + projection_burst_ns, now) + projection_interval_ns;
+                _ = aggregate.setNextProjectionAt(terminal_id, paced_at - projection_burst_ns);
+            }
         }
+        // Dirty output inside its cadence must not wait out the whole poll interval.
+        if (next_due) |due| output_wake.signalAfter(std.math.cast(u64, @max(due - now, 0)) orelse std.math.maxInt(u64));
         return outcome;
     }
 };

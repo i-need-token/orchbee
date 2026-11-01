@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 
 const host_service = @import("terminal-host-service").service;
 const monotonic = @import("terminal-host-platform").monotonic;
+const output_wake = @import("terminal-host-platform").output_wake;
 const connection = @import("connection.zig");
 
 const windows_c = if (builtin.os.tag == .windows) @cImport({
@@ -28,6 +29,7 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
     ) !Server {
         if (!std.fs.path.isAbsolute(runtime_directory)) return error.RuntimeDirectoryNotAbsolute;
         if (!connection.validEndpointId(endpoint_id)) return error.InvalidEndpointId;
+        output_wake.prepare();
         const directory_w = try std.unicode.utf8ToUtf16LeAllocZ(allocator, runtime_directory);
         defer allocator.free(directory_w);
         const endpoint_w = try std.unicode.utf8ToUtf16LeAllocZ(allocator, endpoint_id);
@@ -117,9 +119,11 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
 
     pub fn waitReadable(self: *Server) !bool {
         var readable: u32 = 0;
-        try requireStatus(windows_c.ob_windows_local_server_wait_readable(
+        try requireStatus(windows_c.ob_windows_local_server_wait_readable_or_wake(
             self.handle,
             connection.poll_interval_ms,
+            output_wake.windowsEvent(),
+            output_wake.windowsTimer(),
             &readable,
         ));
         return readable != 0;

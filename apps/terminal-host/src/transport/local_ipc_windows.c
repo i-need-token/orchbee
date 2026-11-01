@@ -581,13 +581,24 @@ int ob_windows_local_server_peek(ObWindowsLocalServer *server, uint32_t *availab
 static int ob_windows_local_server_finish_readiness_read(
     ObWindowsLocalServer *server,
     DWORD timeout_ms,
+    HANDLE wake_event,
+    HANDLE wake_timer,
     uint32_t *readable
 ) {
-    const DWORD wait_result = WaitForSingleObject(
-        server->readiness_read.hEvent,
+    HANDLE events[3] = {server->readiness_read.hEvent, NULL, NULL};
+    DWORD event_count = 1;
+    if (wake_event != NULL) events[event_count++] = wake_event;
+    if (wake_timer != NULL) events[event_count++] = wake_timer;
+    const DWORD wait_result = WaitForMultipleObjects(
+        event_count,
+        events,
+        FALSE,
         timeout_ms
     );
     if (wait_result == WAIT_TIMEOUT) return OB_WINDOWS_IPC_OK;
+    if (wait_result > WAIT_OBJECT_0 && wait_result < WAIT_OBJECT_0 + event_count) {
+        return OB_WINDOWS_IPC_OK;
+    }
     if (wait_result != WAIT_OBJECT_0) return OB_WINDOWS_IPC_SYSTEM_ERROR;
 
     DWORD transferred = 0;
@@ -615,6 +626,22 @@ int ob_windows_local_server_wait_readable(
     uint32_t timeout_ms,
     uint32_t *readable
 ) {
+    return ob_windows_local_server_wait_readable_or_wake(
+        server,
+        timeout_ms,
+        NULL,
+        NULL,
+        readable
+    );
+}
+
+int ob_windows_local_server_wait_readable_or_wake(
+    ObWindowsLocalServer *server,
+    uint32_t timeout_ms,
+    void *wake_event,
+    void *wake_timer,
+    uint32_t *readable
+) {
     *readable = 0;
     if (server->read_state == OB_WINDOWS_READ_PREFETCHED) {
         *readable = 1;
@@ -624,6 +651,8 @@ int ob_windows_local_server_wait_readable(
         return ob_windows_local_server_finish_readiness_read(
             server,
             timeout_ms,
+            wake_event,
+            wake_timer,
             readable
         );
     }
@@ -673,6 +702,8 @@ int ob_windows_local_server_wait_readable(
     return ob_windows_local_server_finish_readiness_read(
         server,
         timeout_ms,
+        wake_event,
+        wake_timer,
         readable
     );
 }

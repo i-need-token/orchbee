@@ -52,6 +52,15 @@ pub const State = struct {
     close_activity: contracts.TerminalCloseActivity = .unknown,
     close_activity_epoch: u64 = 0,
     close_activity_epoch_exhausted: bool = false,
+    // An input left the cache unknown; the next scheduler pass samples it without its cadence.
+    close_activity_sample_owed: bool = false,
+    // The cache changed since the scheduler last decided how readers receive it.
+    close_activity_unpublished: bool = false,
+    // Frames through this revision may carry a previous cache value.
+    close_activity_stale_through_revision: u64 = 0,
+    // Readers with no later revision receive the cache in a same-revision snapshot at this time.
+    close_activity_publish_at_ns: ?i128 = null,
+    last_encoded_revision: u64 = 0,
     // terminal_mutex owns the committed phase; reader batches stage updates
     // until their canonical VT mutation commits successfully.
     close_prompt_phase: ClosePromptPhase = .unknown,
@@ -178,6 +187,8 @@ pub const State = struct {
     // The deadline shares the runtime monotonic clock used by terminal
     // feedback and is absent whenever the canonical mode is disabled.
     synchronized_output_deadline_ns: ?u64 = null,
+    // terminal_mutex protects the bounded wait for a paint that began by hiding the cursor.
+    cursor_paint_deadline_ns: ?u64 = null,
     startup: terminal_runtime_startup.Gate = .{},
     terminal: ghostty_vt.Terminal,
     // terminal_mutex protects terminal parsing, history, generation, scrollback,

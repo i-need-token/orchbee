@@ -7,6 +7,10 @@ const state = @import("state.zig");
 const terminal_reply = @import("terminal_reply.zig");
 
 pub const synchronized_output_timeout_ns = std.time.ns_per_s;
+/// How long a capture waits for a paint that began by hiding the cursor. ConPTY brackets each
+/// paint this way and writes its pieces separately, so a frame taken after the first piece
+/// shows nothing but a missing cursor and pushes the text to a later frame.
+pub const cursor_paint_timeout_ns = 2 * std.time.ns_per_ms;
 
 pub fn streamModeChangedLocked(
     self: *state.State,
@@ -71,6 +75,32 @@ pub fn geometryCommittedLocked(self: *state.State) !void {
     if (self.terminal.modes.get(.in_band_size_reports)) {
         try reportSizeLocked(self);
     }
+}
+
+/// Follows one reader batch. Only the visible-to-hidden edge opens the wait: a program that keeps
+/// its cursor hidden never pays for it, and showing the cursor ends it at once.
+pub fn noteCursorVisibilityLocked(self: *state.State, was_visible: bool) void {
+    if (self.terminal.modes.get(.cursor_visible)) {
+        self.cursor_paint_deadline_ns = null;
+        return;
+    }
+    if (!was_visible) return;
+    const now = clock.monotonicTimeNanoseconds(self) orelse return;
+    self.cursor_paint_deadline_ns = std.math.add(u64, now, cursor_paint_timeout_ns) catch null;
+}
+
+/// Nanoseconds a new capture should still wait for the open paint, or null when none is open.
+pub fn cursorPaintRemainingLocked(self: *state.State) ?u64 {
+    const deadline = self.cursor_paint_deadline_ns orelse return null;
+    const now = clock.monotonicTimeNanoseconds(self) orelse {
+        self.cursor_paint_deadline_ns = null;
+        return null;
+    };
+    if (now >= deadline) {
+        self.cursor_paint_deadline_ns = null;
+        return null;
+    }
+    return deadline - now;
 }
 
 /// Returns true while a synchronized-output interval still suppresses frame

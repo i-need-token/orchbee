@@ -217,6 +217,14 @@ pub const CloseActivityRefresh = struct {
     activity: TerminalCloseActivity,
     changed: bool,
 };
+pub const CloseActivityPublication = union(enum) {
+    /// Every reader is owed a frame captured after the change, which carries the cache.
+    current,
+    /// Output may still make a snapshot unnecessary until this monotonic time.
+    settling: i128,
+    /// No output followed: readers need a same-revision snapshot now.
+    due,
+};
 pub const Capabilities = model.attachment.Capabilities;
 pub const AttachmentId = identifiers.AttachmentId;
 pub const HostEpoch = identifiers.HostEpoch;

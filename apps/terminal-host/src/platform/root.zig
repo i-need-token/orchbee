@@ -2,6 +2,7 @@ const builtin = @import("builtin");
 
 pub const process = @import("process.zig");
 pub const monotonic = @import("monotonic.zig");
+pub const output_wake = @import("output_wake.zig");
 pub const posix_compat = @import("posix_compat.zig");
 pub const thread_sync = @import("thread_sync.zig");
 pub const temp_directory = @import("temp_directory.zig");
