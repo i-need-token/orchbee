@@ -40,13 +40,23 @@ impl ClientExecutor {
                     binding,
                 )?
         {
-            return Ok(Some(path));
+            return Ok(Some(without_trailing_separator(path)));
         }
         if let Some(directory) = preparation.baseline.directory() {
             return Ok(Some(directory.path.clone()));
         }
         launch_directory().map_err(|_| super::CarrierFailure::Transport)
     }
+}
+
+/// A process reports its directory with a trailing separator, which would otherwise become part
+/// of the new Workspace's directory; a drive root keeps its own.
+fn without_trailing_separator(path: WorkbenchDirectoryPath) -> WorkbenchDirectoryPath {
+    let trimmed = path.as_str().trim_end_matches(['/', '\\']);
+    if trimmed.len() == path.as_str().len() || trimmed.is_empty() || trimmed.ends_with(':') {
+        return path;
+    }
+    WorkbenchDirectoryPath::parse(trimmed).unwrap_or(path)
 }
 
 #[cfg(windows)]

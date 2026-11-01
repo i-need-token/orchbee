@@ -94,6 +94,11 @@ fn a_new_workspace_starts_in_the_selected_workspace_first_terminal_directory() {
         fixture.screen(&tui.terminal)
     );
     let directory = directory_of(&fixture, &added);
+    // The shell reports its directory with a trailing separator that the Workspace must not keep.
+    assert!(
+        !directory.ends_with(['\\', '/']),
+        "the new Workspace kept a trailing separator: {directory}"
+    );
     assert_eq!(
         fs::canonicalize(&directory).unwrap(),
         fs::canonicalize(fixture.path("beta")).unwrap(),

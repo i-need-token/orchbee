@@ -30,7 +30,8 @@ Read-only preparation captures the exact initiating context, revision and token.
 the current directory of the focused Workspace's first terminal: the primary terminal of the first
 Tab's leading Panel, so a `cd` there moves the default. Preparation samples that terminal's root
 process directory once, borrowing this Client's live Viewer when it has one and otherwise using a
-temporary Viewer it releases; a child process directory never substitutes. When the sample is
+temporary Viewer it releases; a child process directory never substitutes. The sample drops the
+trailing separator a process reports, except at a drive root. When the sample is
 unavailable or invalid, the directory is the focused Workspace's recorded directory. Without one,
 including an empty Session, it is the directory the Client was launched from. A missing or invalid
 directory refuses preparation; the Client does not invent one.
