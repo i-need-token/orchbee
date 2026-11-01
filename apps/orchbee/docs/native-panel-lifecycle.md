@@ -116,12 +116,24 @@ locally. For the focused pane this is allowed only in structurally quiescent `Re
 no refresh or an existing publication refresh; a setup, mutation, explicit refresh, armed
 panel-close confirmation or recovery keeps the existing retirement boundary. The existing
 `ViewerLost` fault parks the exact
-selection without reattaching it. Live siblings keep polling and may settle their previously
-admitted controlling resizes. While that exact focused fault remains, the existing one-second
-refresh scheduler re-arms publication debt, including after an early unchanged or refused read.
-Canonical removal then uses the existing sibling cleanup and membership installation to select
-a survivor or enter `Empty`. No terminal request is replayed or reported successful on loss;
-other refusal reasons and transport/protocol failures retain their existing handling.
+selection. Live siblings keep polling and may settle their previously admitted controlling resizes.
+While that exact focused fault remains, each pushed publication hint drains through the existing
+debt, including after an early unchanged or refused read; idle time issues no read. Canonical
+removal then uses the existing sibling cleanup and membership installation to select a survivor or
+enter `Empty`. No terminal request is replayed or reported successful on loss; other refusal
+reasons and transport/protocol failures retain their existing handling.
+
+A lost viewer does not prove that its terminal ended: a Worker may close a viewer whose terminal
+lives on. The Client therefore re-attaches the parked focused pane on its own through the same-Tab
+switch a reselection admits, with the same panel focused, after a 0.3-second pause; later losses
+of that pane wait 1 and then 3 seconds, and one pane gets at most three automatic attempts a
+minute. Close work, an armed close confirmation, a pending Refresh, or any other structural owner
+defers the attempt without spending it, and the deferral shows no busy notice. Like any switch
+from the parked pane, the re-attach first detaches the live siblings under the old anchor, which
+then attach again under the new one; a refusal before that cleanup restores their exact
+projections and leaves the pane parked. A terminal that ended settles through the switch's own
+snapshot and attach; a failed attach parks as an ordinary attach fault and is not retried
+automatically. A reselection still retries at once.
 
 ## Source correspondence
 

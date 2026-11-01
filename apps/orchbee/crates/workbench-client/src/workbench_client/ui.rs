@@ -1357,6 +1357,7 @@ pub(super) struct WorkbenchClientUi {
     next_empty_poll: Option<std::time::Instant>,
     publications: Option<crate::local_client::subscription::ChangeSubscription>,
     held_intents: held_intent::HeldIntents,
+    viewer_recovery: viewer_recovery::ViewerRecovery,
     retirement_failure: Option<CarrierFailure>,
     retirement_finalized: bool,
     retirement: Option<DisplayRetirement>,
@@ -1379,6 +1380,7 @@ mod link_activation;
 mod navigation_draw;
 mod pane_arrangement;
 mod terminal_tail;
+mod viewer_recovery;
 
 impl WorkbenchClientUi {
     pub(super) fn set_ui_wakeup(&self, wakeup: Option<super::UiWakeup>) {
@@ -1488,6 +1490,7 @@ impl WorkbenchClientUi {
             next_empty_poll: None,
             publications: None,
             held_intents: held_intent::HeldIntents::default(),
+            viewer_recovery: viewer_recovery::ViewerRecovery::default(),
             retirement_failure: None,
             retirement_finalized: false,
             retirement: None,
@@ -1857,6 +1860,8 @@ impl WorkbenchClientUi {
             // A held invocation takes the refresh slot its background read just released,
             // before the next background read can.
             changed |= self.replay_held_intent();
+            // A lost focused viewer re-attaches before a background read can take the slot.
+            changed |= self.drive_viewer_recovery(&mailbox);
             if self
                 .publications
                 .as_ref()

@@ -103,16 +103,17 @@ fn pushed_membership_hints_recover_a_lost_focused_viewer_without_periodic_reads(
     assert!(ui.projection().is_none());
     assert!(mailbox.try_recv().unwrap().is_none());
 
+    // Every hint lands before the automatic re-attach is due, so only pushed hints read.
     for (millis, outcome) in [
         (
-            1_000,
+            100,
             WorkbenchSnapshotOutcome::Available {
                 snapshot: snapshot(1, 1),
             },
         ),
-        (2_000, WorkbenchSnapshotOutcome::Denied {}),
+        (200, WorkbenchSnapshotOutcome::Denied {}),
         (
-            3_000,
+            250,
             WorkbenchSnapshotOutcome::Available {
                 snapshot: snapshot(0, 2),
             },
@@ -131,10 +132,10 @@ fn pushed_membership_hints_recover_a_lost_focused_viewer_without_periodic_reads(
         assert!(mailbox.is_closed().is_none());
         assert!(
             mailbox.try_recv().unwrap().is_none(),
-            "no automatic Attach or replay"
+            "no Attach before its pause, and no replay"
         );
         let state = ui.state.as_ref().unwrap();
-        if millis < 3_000 {
+        if millis < 250 {
             assert!(state.focused_viewer_lost());
             assert_eq!(state.focus_pane_ref(), Some(focus.clone()));
             assert_eq!(

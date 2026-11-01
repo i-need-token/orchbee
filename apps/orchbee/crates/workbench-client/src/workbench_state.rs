@@ -2169,7 +2169,9 @@ impl WorkbenchClientState {
     }
 
     /// A lost focused viewer still owns its selection until canonical membership
-    /// changes. This does not authorize retrying an unavailable Attach.
+    /// changes or a re-attach lands. Only the bounded automatic re-attach of
+    /// [`Self::target_for_lost_focus_reattach`] and a reselection retry it; an
+    /// unavailable Attach is never retried.
     pub(crate) fn focused_viewer_lost(&self) -> bool {
         matches!(&self.phase, ClientPhase::RetryableAttachUnavailable(selected)
             if self.desired.as_ref() == Some(&selected.key))
@@ -2226,7 +2228,8 @@ impl WorkbenchClientState {
         // A focus pane losing its grant downgrades the session's controller mode
         // to view-only as well; other panes are unaffected. A focus pane whose
         // viewer was lost drops to the unattached-selection phases, exactly like
-        // a failed setup: parked until an explicit new selection retries.
+        // a failed setup: parked until the bounded automatic re-attach or an
+        // explicit new selection retries.
         if self.desired.as_ref() == Some(&pane) {
             match fault {
                 PaneFault::ControlLost => match &mut self.phase {
@@ -3667,6 +3670,33 @@ impl WorkbenchClientState {
         }
         let key = AttachmentKey::new(generation, tab.tab_id().clone());
         self.target_for_switch_for_panel(index, key, deadlines, panel_id)
+    }
+
+    /// The same-Tab attach target that re-creates a lost focused viewer with its panel still
+    /// focused: the reselection [`Self::plan_selection_index`] retries for the anchor, minted
+    /// without a key press. `None` while the focus is live, while close work or a close
+    /// confirmation that a new attachment generation would make stale is open, or while the
+    /// planner would not retry the selection now.
+    pub(crate) fn target_for_lost_focus_reattach(
+        &mut self,
+        generation: u64,
+        deadlines: OperationDeadlines,
+    ) -> Option<AttachTarget> {
+        if !self.focused_viewer_lost()
+            || !self.close.permits_retired_membership()
+            || self.panel_close.confirmation().is_some()
+        {
+            return None;
+        }
+        let selected = self.active()?;
+        let index = selected.index();
+        let panel = selected.key().panel().clone();
+        if !matches!(self.plan_selection_index(index), SelectionPlan::Switch { index: planned } if planned == index)
+        {
+            return None;
+        }
+        let key = AttachmentKey::new(generation, self.cache.tabs().get(index)?.tab_id().clone());
+        self.target_for_switch_for_panel(index, key, deadlines, &panel)
     }
 
     /// Installs a local focus move approved by [`plan_panel_focus_local`]: the
