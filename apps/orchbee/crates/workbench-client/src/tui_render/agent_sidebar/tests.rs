@@ -1244,7 +1244,7 @@ fn compact_overlay_sidebar_rows_and_fixed_actions_paint_the_hover_band_under_the
             (terminal.backend().buffer().clone(), hits.finish())
         };
         let hover = theme.style(Role::SurfaceHover);
-        let banded = |buffer: &ratatui::buffer::Buffer, y: u16| {
+        let band_cells = |buffer: &ratatui::buffer::Buffer, y: u16| {
             (0..width)
                 .filter(|x| {
                     let cell = &buffer[(*x, y)];
@@ -1254,8 +1254,11 @@ fn compact_overlay_sidebar_rows_and_fixed_actions_paint_the_hover_band_under_the
                         Some(cell.bg) == hover.bg
                     }
                 })
-                .count()
+                .map(|x| buffer[(x, y)].symbol().to_owned())
+                .collect::<String>()
         };
+        let banded =
+            |buffer: &ratatui::buffer::Buffer, y: u16| display_width(&band_cells(buffer, y));
         for is_target in [
             (|target: Option<&HitTarget>| {
                 matches!(target, Some(HitTarget::MachineWorkspaceRow { .. }))
@@ -1276,6 +1279,7 @@ fn compact_overlay_sidebar_rows_and_fixed_actions_paint_the_hover_band_under_the
                 .find(|(x, y)| is_target(map.hit_target_at(*x, *y)))
                 .unwrap();
             assert_eq!(banded(&rest, y), 0, "{}", theme.name);
+            let search = matches!(map.hit_target_at(x, y), Some(HitTarget::SearchButton));
             pointer.publish(map);
             let _ = pointer.event(
                 &mut view,
@@ -1296,6 +1300,11 @@ fn compact_overlay_sidebar_rows_and_fixed_actions_paint_the_hover_band_under_the
                 theme.name,
                 row_text(&rest, y)
             );
+            // A fixed action's hover band is its bracketed extent alone, with no blank cell
+            // before its opening bracket.
+            if search {
+                assert_eq!(band_cells(&hovered, y), "[ Search ]", "{}", theme.name);
+            }
         }
     }
 }
