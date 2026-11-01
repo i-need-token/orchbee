@@ -226,10 +226,13 @@ fn drags(fixture: &Fixture, tui: &Tui) -> Vec<String> {
     let mut failures = Vec::new();
     let mut contention = Contention::default();
     for round in 0..DRAGS {
-        // A refusal that came after the previous drag settled is still on the status line.
-        if let Some(notice) = contention.observe(notice(&screen(fixture, tui))) {
-            failures.push(format!("after drag {}: {notice}", round.saturating_sub(1)));
-        }
+        at = since_landing(
+            &screen(fixture, tui),
+            round,
+            at,
+            &mut contention,
+            &mut failures,
+        );
         let to = stops[round % stops.len()];
         write(fixture, tui, &format!("\x1b[<0;{at};{row}M"));
         thread::sleep(Duration::from_millis(50));
@@ -275,6 +278,14 @@ fn drags(fixture: &Fixture, tui: &Tui) -> Vec<String> {
         }
         thread::sleep(Duration::from_millis(100));
     }
+    // The last release, and any release waiting behind it, settle only now.
+    since_landing(
+        &screen(fixture, tui),
+        DRAGS,
+        at,
+        &mut contention,
+        &mut failures,
+    );
     eprintln!(
         "{} of {DRAGS} divider drags ended under the contention notice",
         contention.episodes
@@ -286,6 +297,35 @@ fn drags(fixture: &Fixture, tui: &Tui) -> Vec<String> {
         ));
     }
     failures
+}
+
+/// Checks what the screen shows since drag `round - 1` landed on its draft at column `at`, and
+/// returns the column the next press must find. A release that ended under the contention notice
+/// since has moved the divider back to its canonical column; any other notice is a failure, and so
+/// is a divider that moved without one, which lost its release silently.
+fn since_landing(
+    lines: &[String],
+    round: usize,
+    at: usize,
+    contention: &mut Contention,
+    failures: &mut Vec<String>,
+) -> usize {
+    let previous = round.saturating_sub(1);
+    let shown = notice(lines);
+    let quiet = shown.is_none();
+    if let Some(notice) = contention.observe(shown) {
+        failures.push(format!("after drag {previous}: {notice}"));
+    }
+    let Some((column, _)) = divider(lines) else {
+        failures.push(format!("after drag {previous}: no divider"));
+        return at;
+    };
+    if quiet && column.abs_diff(at) > 1 {
+        failures.push(format!(
+            "after drag {previous}: the divider moved from {at} to {column} without a notice"
+        ));
+    }
+    column
 }
 
 /// Counts each showing of the contention notice once; any other resize notice is a failure.
