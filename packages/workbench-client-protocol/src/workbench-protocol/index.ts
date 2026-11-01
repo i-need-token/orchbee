@@ -12,7 +12,7 @@ export {
 	parseWorkbenchAction,
 	parseWorkbenchRequest,
 	parseWorkbenchResponse,
-} from './workbench-command-contract';
+} from './workbench-parsing';
 export type {
 	WorkbenchCommand,
 	WorkbenchCommandResult,

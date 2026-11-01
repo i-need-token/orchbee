@@ -6,7 +6,6 @@ import {
 	type ServerCarrier,
 	ServerConnection,
 	ServerConnectionEndedError,
-	ServerExchangeTimeoutError,
 	ServerStreamRefusedError,
 } from '../server-connection';
 
@@ -106,9 +105,9 @@ describe('ServerConnection', () => {
 		const carrier = new FakeCarrier();
 		const connection = new ServerConnection(carrier);
 
-		await expect(connection.exchange(REQUEST, { timeoutMilliseconds: 1 })).rejects.toBeInstanceOf(
-			ServerExchangeTimeoutError,
-		);
+		await expect(connection.exchange(REQUEST, { timeoutMilliseconds: 1 })).rejects.toMatchObject({
+			name: 'ServerExchangeTimeoutError',
+		});
 		expect(carrier.sent.at(-1)).toEqual({
 			kind: 'stream-close',
 			reason: 'cancelled',

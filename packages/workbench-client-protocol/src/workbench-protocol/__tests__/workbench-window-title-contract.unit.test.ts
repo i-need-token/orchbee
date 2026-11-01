@@ -2,11 +2,8 @@ import { readFile } from 'node:fs/promises';
 import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { WindowTitleSchema } from '../workbench-window-title-contract';
-import {
-	WorkbenchRequestSchema,
-	WorkbenchResponseSchema,
-} from '../workbench-command-contract';
+import { WindowTitleRequestSchema } from '../workbench-window-title-contract';
+import { WorkbenchRequestSchema, WorkbenchResponseSchema } from '../workbench-command-contract';
 const caseSchema = z.strictObject({
 	name: z.string(),
 	direction: z.enum(['request', 'response']),
@@ -15,7 +12,16 @@ const caseSchema = z.strictObject({
 });
 describe('Window title publication', () => {
 	it('rejects unpaired UTF-16 surrogates', () => {
-		expect(WindowTitleSchema.safeParse('\ud800').success).toBe(false);
+		const admitsTitle = (title: string) =>
+			WindowTitleRequestSchema.safeParse({
+				action: { kind: 'set', title },
+				kind: 'workbench.window-title',
+				protocolVersion: 1,
+				requestId: '11111111111111111111111111111111',
+				sessionId: '22222222222222222222222222222222',
+			}).success;
+		expect(admitsTitle('Title')).toBe(true);
+		expect(admitsTitle('\ud800')).toBe(false);
 	});
 	it('matches the shared Rust window-title corpus and closed shapes', async () => {
 		const corpus = z

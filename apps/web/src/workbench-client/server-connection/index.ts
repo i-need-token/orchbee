@@ -4,7 +4,6 @@ export {
 	ServerConnection,
 	ServerStreamRefusedError,
 	type ServerSubscription,
-	type ServerSubscriptionHandlers,
 } from './server-connection';
 export {
 	type ServerTerminalBinding,

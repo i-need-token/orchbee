@@ -104,7 +104,6 @@ import {
 	WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES,
 	WorkbenchTerminalGeometrySchema,
 } from './workbench-terminal-launch-contract';
-export { WorkbenchTerminalGeometrySchema } from './workbench-terminal-launch-contract';
 import {
 	WorkbenchWorktreeRequestSchema,
 	WorkbenchWorktreeResultSchema,
@@ -180,7 +179,7 @@ const WorkbenchPanelTerminalTargetSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 ]);
 
-const WorkbenchActionSchema = z.discriminatedUnion('kind', [
+export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('tab.create-layout'),
@@ -832,29 +831,12 @@ export const WorkbenchResponseSchema = z
 		}
 	});
 
-export type WorkbenchTabMoveDirection = z.infer<typeof WorkbenchTabMoveDirectionSchema>;
-
 export type WorkbenchCommand = z.infer<typeof WorkbenchCommandSchema>;
 export type WorkbenchRequest = z.infer<typeof WorkbenchRequestSchema>;
 
 export type WorkbenchCommandResult = z.infer<typeof WorkbenchCommandResultSchema>;
 
 export type WorkbenchResponse = z.infer<typeof WorkbenchResponseSchema>;
-
-/** A Client names identities as text; parsing admits them and applies the action's limits. */
-export function parseWorkbenchAction(
-	input: z.input<typeof WorkbenchActionSchema>,
-): WorkbenchCommand['action'] {
-	return WorkbenchActionSchema.parse(input);
-}
-
-export function parseWorkbenchRequest(input: unknown): WorkbenchRequest {
-	return WorkbenchRequestSchema.parse(input);
-}
-
-export function parseWorkbenchResponse(input: unknown): WorkbenchResponse {
-	return WorkbenchResponseSchema.parse(input);
-}
 
 function encodedBytes(value: unknown): number {
 	return new TextEncoder().encode(JSON.stringify(value)).length;

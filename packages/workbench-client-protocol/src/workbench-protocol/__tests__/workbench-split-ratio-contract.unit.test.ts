@@ -2,10 +2,7 @@ import { readFile } from 'node:fs/promises';
 import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import {
-	WorkbenchRequestSchema,
-	WorkbenchResponseSchema,
-} from '../workbench-command-contract';
+import { WorkbenchRequestSchema, WorkbenchResponseSchema } from '../workbench-command-contract';
 import { WorkbenchPanelNodeSchema } from '../workbench-semantic-contract';
 
 const id = (value: number) => value.toString(16).padStart(32, '0');

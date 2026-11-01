@@ -173,7 +173,3 @@ export const WorkbenchTabCloseResumeResultSchema = z
 		outcome: WorkbenchTabCloseResumeOutcomeSchema,
 	})
 	.readonly();
-
-export type WorkbenchTabCloseResume = z.infer<typeof WorkbenchTabCloseResumeSchema>;
-
-export type WorkbenchTabCloseResumeResult = z.infer<typeof WorkbenchTabCloseResumeResultSchema>;

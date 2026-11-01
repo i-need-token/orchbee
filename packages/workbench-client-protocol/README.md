@@ -55,8 +55,9 @@ The package owns validated messages for a shared Workbench client session, termi
 The package also supplies the independent TypeScript binding for the additive version-1 read-only
 Workbench projection kernel. The language-neutral authority and canonical conformance corpus live
 under [`schemas/workbench`](../../schemas/workbench/README.md). The binding parses one strict
-`workbench.snapshot.read` intent, complete bounded snapshots, and revision-chained aggregate deltas;
-`applyWorkbenchDelta` applies a delta atomically or returns one typed recovery reason. This contract
+`workbench.snapshot.read` intent, complete bounded snapshots, and revision-chained aggregate deltas.
+A Client on a State stream receives complete snapshots, so applying a delta stays with
+`crates/workbench-protocol`. This contract
 contains Project, Directory, Workspace, Tab, Panel, and Terminal Presentation product semantics,
 including an exact bounded local-platform path and required nullable primary Directory reference, but
 excludes Environment, Directory discovery or mutation policy, Worktree, Agent, Launch Profile,

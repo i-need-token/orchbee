@@ -1,15 +1,29 @@
 import { expect, it } from 'vitest';
-import {
-	WorkbenchRequestSchema,
-	WorkbenchResponseSchema,
-} from '../workbench-command-contract';
-import { WorkbenchNavigationSchema } from '../workbench-semantic-contract';
+import { WorkbenchRequestSchema, WorkbenchResponseSchema } from '../workbench-command-contract';
+import { WorkbenchSnapshotSchema } from '../workbench-semantic-contract';
 import { WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES } from '../workbench-terminal-launch-contract';
 import { WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES } from '../workbench-workspace-close-contract';
 import { WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES } from '../workbench-workspace-group-close-contract';
 
 const id = (value: number) => value.toString(16).padStart(32, '0');
 const encodedBytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length;
+
+function admitsNavigation(navigation: {
+	readonly workspaces: readonly { readonly terminalContextId: string }[];
+	readonly [field: string]: unknown;
+}): boolean {
+	return WorkbenchSnapshotSchema.safeParse({
+		kind: 'workbench.snapshot',
+		navigation,
+		protocolVersion: 1,
+		revision: '1',
+		sessionId: id(0xffff),
+		terminalContexts: navigation.workspaces
+			.map(({ terminalContextId }) => terminalContextId)
+			.sort()
+			.map((terminalContextId) => ({ groups: [], tabs: [], terminalContextId })),
+	}).success;
+}
 
 it('bounds grouped and ungrouped membership independently and preserves display order', () => {
 	const workspaces = Array.from({ length: 1024 }, (_, index) => ({
@@ -25,25 +39,25 @@ it('bounds grouped and ungrouped membership independently and preserves display 
 		workspaces,
 		workspaceOrder: workspaces.map((_workspace, index) => id(workspaces.length - index)),
 	};
-	expect(WorkbenchNavigationSchema.safeParse(navigation).success).toBe(true);
+	expect(admitsNavigation(navigation)).toBe(true);
 	expect(
-		WorkbenchNavigationSchema.safeParse({
+		admitsNavigation({
 			...navigation,
 			projects: [],
 			workspaces: workspaces.map((workspace) => ({ ...workspace, projectId: null })),
-		}).success,
+		}),
 	).toBe(true);
 	expect(
-		WorkbenchNavigationSchema.safeParse({
+		admitsNavigation({
 			...navigation,
 			workspaces: workspaces.map((workspace, index) => ({
 				...workspace,
 				projectId: index < 257 ? id(1) : null,
 			})),
-		}).success,
+		}),
 	).toBe(false);
 	expect(
-		WorkbenchNavigationSchema.safeParse({
+		admitsNavigation({
 			...navigation,
 			workspaces: [
 				...workspaces,
@@ -56,18 +70,15 @@ it('bounds grouped and ungrouped membership independently and preserves display 
 				},
 			],
 			workspaceOrder: [...navigation.workspaceOrder, id(1025)],
-		}).success,
+		}),
 	).toBe(false);
 	expect(
-		WorkbenchNavigationSchema.safeParse({
+		admitsNavigation({
 			...navigation,
 			workspaceOrder: navigation.workspaceOrder.slice(1),
-		}).success,
+		}),
 	).toBe(false);
-	expect(
-		WorkbenchNavigationSchema.safeParse({ ...navigation, standaloneTerminalContextId: id(2) })
-			.success,
-	).toBe(false);
+	expect(admitsNavigation({ ...navigation, standaloneTerminalContextId: id(2) })).toBe(false);
 });
 
 it('admits the worst escaped Workspace launch under the dedicated 96 KiB class', () => {

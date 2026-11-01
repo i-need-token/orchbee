@@ -1,12 +1,14 @@
 import { parseWorkbenchAction } from '@orchbee/workbench-client-protocol';
 import { describe, expect, it } from 'vitest';
 
-import { decodeWorkbenchResponse, type ServerSubscriptionHandlers } from '../../server-connection';
+import { decodeWorkbenchResponse } from '../../server-connection';
 import {
 	ServerWorkbenchSession,
 	type ServerWorkbenchConnection,
 	type ServerWorkbenchSubmission,
 } from '../ServerWorkbenchSession';
+
+type ServerSubscriptionHandlers = Parameters<ServerWorkbenchConnection['subscribe']>[2];
 
 const SESSION_ID = '11111111111111111111111111111111';
 

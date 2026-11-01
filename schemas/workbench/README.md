@@ -165,7 +165,7 @@ Terminal Context, or remove one complete Terminal Context. At most one navigatio
 one change for each Terminal Context identity are allowed. An empty change set may advance the
 projection revision when authorized Session facts changed outside this projection.
 
-`applyWorkbenchDelta` performs these steps without side effects:
+`apply_workbench_delta` in `crates/workbench-protocol` performs these steps without side effects:
 
 1. reject a Session mismatch, base-revision mismatch, or non-increasing result revision;
 2. reject duplicate navigation or Terminal Context targets;

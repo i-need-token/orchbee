@@ -3,11 +3,7 @@ import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import type {
-	WorkbenchCommand,
-	WorkbenchCommandResult,
-	WorkbenchTabMoveDirection,
-} from '../workbench-command-contract';
+import type { WorkbenchCommand, WorkbenchCommandResult } from '../workbench-command-contract';
 import {
 	SessionIdSchema,
 	WorkbenchDirectoryIdSchema,
@@ -19,13 +15,11 @@ import {
 	WorkbenchWorkspaceIdSchema,
 	WorkerIdSchema,
 } from '../workbench-semantic-contract';
-import {
-	WorkbenchRequestSchema,
-	WorkbenchResponseSchema,
-	WorkbenchTerminalGeometrySchema,
-	parseWorkbenchRequest,
-	parseWorkbenchResponse,
-} from '../workbench-command-contract';
+import { WorkbenchRequestSchema, WorkbenchResponseSchema } from '../workbench-command-contract';
+import { parseWorkbenchRequest, parseWorkbenchResponse } from '../workbench-parsing';
+import { WorkbenchTerminalGeometrySchema } from '../workbench-terminal-launch-contract';
+
+type TabMoveDirection = Extract<WorkbenchCommand['action'], { kind: 'tab.move' }>['direction'];
 
 const caseSchema = z.object({
 	name: z.string(),
@@ -87,7 +81,7 @@ describe('Workbench command contract', () => {
 		expect(parseWorkbenchResponse(JSON.parse(JSON.stringify(result)))).toEqual(result);
 	});
 
-	it.each<WorkbenchTabMoveDirection>(['previous', 'next', 'first', 'last'])(
+	it.each<TabMoveDirection>(['previous', 'next', 'first', 'last'])(
 		'preserves an independently constructed typed %s Move and its exact result',
 		(direction) => {
 			const request: WorkbenchCommand = {

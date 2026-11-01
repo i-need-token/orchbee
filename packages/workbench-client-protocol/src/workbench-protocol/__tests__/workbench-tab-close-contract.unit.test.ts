@@ -3,19 +3,18 @@ import { describe, expect, it } from 'vitest';
 import {
 	SessionIdSchema,
 	WorkbenchRequestIdSchema,
-	type WorkbenchRevision,
 	WorkbenchTabIdSchema,
 	WorkbenchTerminalContextIdSchema,
 } from '../workbench-semantic-contract';
-import {
-	parseWorkbenchRequest,
-	parseWorkbenchResponse,
+import type {
+	WorkbenchCommand,
+	WorkbenchRequest,
+	WorkbenchResponse,
 } from '../workbench-command-contract';
+import { parseWorkbenchRequest, parseWorkbenchResponse } from '../workbench-parsing';
 import {
 	WorkbenchTabCloseAttemptGenerationSchema,
 	WorkbenchTabCloseStatusSchema,
-	type WorkbenchTabCloseResume,
-	type WorkbenchTabCloseResumeResult,
 } from '../workbench-tab-close-contract';
 
 describe('Workbench Tab Close contract', () => {
@@ -40,12 +39,12 @@ describe('Workbench Tab Close contract', () => {
 		}
 		const generation = WorkbenchTabCloseAttemptGenerationSchema.parse('1');
 		// @ts-expect-error -- Close generations must not acquire revision authority.
-		const revision: WorkbenchRevision = generation;
+		const revision: WorkbenchCommand['expectedRevision'] = generation;
 		expect(revision).toBe('1');
 	});
 
 	it('preserves a typed Resume target even for a denied result', () => {
-		const request: WorkbenchTabCloseResume = {
+		const request: Extract<WorkbenchRequest, { kind: 'workbench.tab-close.resume' }> = {
 			kind: 'workbench.tab-close.resume',
 			protocolVersion: 1,
 			requestId: WorkbenchRequestIdSchema.parse('11111111111111111111111111111111'),
@@ -56,7 +55,7 @@ describe('Workbench Tab Close contract', () => {
 			expectedAttemptGeneration:
 				WorkbenchTabCloseAttemptGenerationSchema.parse('18446744073709551615'),
 		};
-		const response: WorkbenchTabCloseResumeResult = {
+		const response: Extract<WorkbenchResponse, { kind: 'workbench.tab-close.resume.result' }> = {
 			kind: 'workbench.tab-close.resume.result',
 			protocolVersion: 1,
 			requestId: request.requestId,

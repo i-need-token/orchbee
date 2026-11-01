@@ -8,20 +8,14 @@ import {
 	SessionIdSchema,
 	WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES,
 	WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES,
-	WORKBENCH_MAXIMUM_DIRECTORIES,
 	WorkbenchDeltaSchema,
 	WorkbenchDirectoryPathSchema,
-	WorkbenchNavigationSchema,
 	WorkbenchPanelNodeSchema,
 	WorkbenchPresentationSchema,
-	WorkbenchProtocolDocumentSchema,
 	WorkbenchRevisionSchema,
 	WorkbenchSnapshotReadIntentSchema,
 	WorkbenchSnapshotSchema,
 	WorkbenchWorkspaceSchema,
-	applyWorkbenchDelta,
-	parseWorkbenchDelta,
-	parseWorkbenchSnapshot,
 } from '../workbench-semantic-contract';
 
 const schemaUrl = new URL(
@@ -33,20 +27,8 @@ const corpusUrl = new URL(
 	import.meta.url,
 );
 
+const MAXIMUM_DIRECTORIES = 256 * 256;
 const jsonObjectSchema = z.record(z.string(), z.unknown());
-const transitionOutcomeSchema = z.discriminatedUnion('kind', [
-	z.strictObject({ kind: z.literal('applied'), snapshot: z.string().min(1) }),
-	z.strictObject({
-		kind: z.literal('rejected'),
-		reason: z.enum([
-			'base-revision-mismatch',
-			'duplicate-change-target',
-			'invalid-projection',
-			'non-increasing-revision',
-			'session-mismatch',
-		]),
-	}),
-]);
 const corpusSchema = z.strictObject({
 	contractVersion: z.literal(1),
 	documents: z.record(z.string().min(1), z.unknown()),
@@ -57,14 +39,8 @@ const corpusSchema = z.strictObject({
 			value: z.unknown(),
 		}),
 	),
-	transitions: z.array(
-		z.strictObject({
-			delta: z.string().min(1),
-			initial: z.string().min(1),
-			name: z.string().min(1),
-			outcome: transitionOutcomeSchema,
-		}),
-	),
+	// `crates/workbench-protocol` applies deltas; no TypeScript Client reads them.
+	transitions: z.array(z.unknown()),
 	validDocuments: z.array(z.string().min(1)),
 });
 
@@ -83,6 +59,25 @@ function resolveDocument(documents: Readonly<Record<string, unknown>>, name: str
 	const value = documents[name];
 	if (value === undefined) throw new Error(`Missing Workbench conformance document: ${name}`);
 	return value;
+}
+
+/** The original projection document union, which admits only this intent, snapshots and deltas. */
+const documentSchema = z.union([
+	WorkbenchSnapshotReadIntentSchema,
+	WorkbenchSnapshotSchema,
+	WorkbenchDeltaSchema,
+]);
+
+/** Navigation holding no Workspace needs no Terminal Context to form a complete snapshot. */
+function admitsNavigation(navigation: unknown): boolean {
+	return WorkbenchSnapshotSchema.safeParse({
+		kind: 'workbench.snapshot',
+		navigation,
+		protocolVersion: 1,
+		revision: '1',
+		sessionId: '11111111111111111111111111111111',
+		terminalContexts: [],
+	}).success;
 }
 
 function isCanonicalUint64(value: string): boolean {
@@ -177,7 +172,7 @@ describe('Workbench cross-language semantic contract', () => {
 			const schemaAccepted = validateSchema(value);
 			expect({ name, schemaAccepted }).toEqual({ name, schemaAccepted: true });
 			expect({
-				bindingAccepted: WorkbenchProtocolDocumentSchema.safeParse(value).success,
+				bindingAccepted: documentSchema.safeParse(value).success,
 				name,
 			}).toEqual({ bindingAccepted: true, name });
 		}
@@ -191,41 +186,17 @@ describe('Workbench cross-language semantic contract', () => {
 		}
 		for (const fixture of corpus.invalidDocuments) {
 			expect({
-				bindingAccepted: WorkbenchProtocolDocumentSchema.safeParse(fixture.value).success,
+				bindingAccepted: documentSchema.safeParse(fixture.value).success,
 				name: fixture.name,
 			}).toEqual({ bindingAccepted: false, name: fixture.name });
 		}
 	});
 
-	it('applies every canonical delta transition atomically', async () => {
-		const { corpus } = await readContractArtifacts();
-		for (const fixture of corpus.transitions) {
-			const initial = parseWorkbenchSnapshot(resolveDocument(corpus.documents, fixture.initial));
-			const delta = parseWorkbenchDelta(resolveDocument(corpus.documents, fixture.delta));
-			const initialBefore = JSON.stringify(initial);
-			const result = applyWorkbenchDelta(initial, delta);
-
-			const expected =
-				fixture.outcome.kind === 'applied'
-					? {
-							kind: 'applied' as const,
-							snapshot: parseWorkbenchSnapshot(
-								resolveDocument(corpus.documents, fixture.outcome.snapshot),
-							),
-						}
-					: { kind: 'rejected' as const, reason: fixture.outcome.reason };
-			expect({ name: fixture.name, result }).toEqual({ name: fixture.name, result: expected });
-			expect({
-				initialAfter: JSON.stringify(initial),
-				initialBefore,
-				name: fixture.name,
-			}).toEqual({ initialAfter: initialBefore, initialBefore, name: fixture.name });
-		}
-	});
-
 	it('uses exact identity, revision, strictness, and immutable-value boundaries', async () => {
 		const { corpus } = await readContractArtifacts();
-		const snapshot = parseWorkbenchSnapshot(resolveDocument(corpus.documents, 'snapshot-full-r2'));
+		const snapshot = WorkbenchSnapshotSchema.parse(
+			resolveDocument(corpus.documents, 'snapshot-full-r2'),
+		);
 
 		expect(SessionIdSchema.safeParse('11111111111111111111111111111111').success).toBe(true);
 		expect(SessionIdSchema.safeParse('00000000000000000000000000000000').success).toBe(false);
@@ -269,18 +240,18 @@ describe('Workbench cross-language semantic contract', () => {
 			projectId: opaqueIdentity(index + 1),
 		}));
 		expect(
-			WorkbenchNavigationSchema.safeParse({
+			admitsNavigation({
 				directories: [],
 				workspaces: [],
 				projects,
-			}).success,
+			}),
 		).toBe(true);
 		expect(
-			WorkbenchNavigationSchema.safeParse({
+			admitsNavigation({
 				directories: [],
 				workspaces: [],
 				projects: [...projects, { label: 'Overflow', projectId: opaqueIdentity(257) }],
-			}).success,
+			}),
 		).toBe(false);
 
 		const change = {
@@ -310,7 +281,7 @@ describe('Workbench cross-language semantic contract', () => {
 			path: '/',
 			workerId: opaqueIdentity(1),
 		});
-		const directories = Array.from({ length: WORKBENCH_MAXIMUM_DIRECTORIES }, (_, index) =>
+		const directories = Array.from({ length: MAXIMUM_DIRECTORIES }, (_, index) =>
 			directory(index + 1),
 		);
 		const navigation = {
@@ -318,12 +289,12 @@ describe('Workbench cross-language semantic contract', () => {
 			projects: [],
 			workspaces: [],
 		};
-		expect(WorkbenchNavigationSchema.safeParse(navigation).success).toBe(true);
+		expect(admitsNavigation(navigation)).toBe(true);
 		expect(
-			WorkbenchNavigationSchema.safeParse({
+			admitsNavigation({
 				...navigation,
-				directories: [...directories, directory(WORKBENCH_MAXIMUM_DIRECTORIES + 1)],
-			}).success,
+				directories: [...directories, directory(MAXIMUM_DIRECTORIES + 1)],
+			}),
 		).toBe(false);
 		const workspace = {
 			workspaceId: opaqueIdentity(2),

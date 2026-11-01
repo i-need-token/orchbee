@@ -54,7 +54,7 @@ export class ServerStreamRefusedError extends Error {
 }
 
 /** The deadline passed without a result; the request may still have taken effect. */
-export class ServerExchangeTimeoutError extends Error {
+class ServerExchangeTimeoutError extends Error {
 	constructor() {
 		super('Server exchange timed out.');
 		this.name = 'ServerExchangeTimeoutError';
@@ -68,7 +68,7 @@ class ServerConnectionCapacityError extends Error {
 	}
 }
 
-export interface ServerSubscriptionHandlers {
+interface ServerSubscriptionHandlers {
 	onClosed(reason: MultiplexCloseReason): void;
 	onFrame(kind: MultiplexFrameKind, record: Uint8Array): void;
 	onGap(through: bigint): void;

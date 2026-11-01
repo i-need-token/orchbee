@@ -5,7 +5,6 @@ import { z } from 'zod';
 
 import {
 	type ClientServerRequest,
-	clientServerResponsePayloadIsValid,
 	decodeClientServerResponse,
 	encodeClientServerPaste,
 	encodeClientServerRequest,
@@ -57,6 +56,23 @@ function boundResult(payload: string): boolean {
 	}
 }
 const encoder = new TextEncoder();
+
+/** Frames one corpus payload as a Server would, so it reaches the decoder a connection uses. */
+function admitsResponse(payload: string): boolean {
+	const body = encoder.encode(payload);
+	const frame = new Uint8Array(8 + body.byteLength);
+	const view = new DataView(frame.buffer);
+	frame.set([0x4f, 0x42, 0x43, 0x53]); // OBCS
+	view.setUint16(4, 1);
+	view.setUint16(6, body.byteLength);
+	frame.set(body, 8);
+	try {
+		decodeClientServerResponse(frame);
+		return true;
+	} catch {
+		return false;
+	}
+}
 const ID = 'a'.repeat(32);
 const ids = { attachmentId: ID, controllerId: 'b'.repeat(32), sequence: '1' };
 const geometry = { cellPixelHeight: 20, cellPixelWidth: 10, columns: 80, rows: 24 };
@@ -78,11 +94,11 @@ describe('Client-Server carrier binding', () => {
 	});
 
 	it.each(valid)('admits $name', ({ payload }) => {
-		expect(clientServerResponsePayloadIsValid(encoder.encode(payload))).toBe(true);
+		expect(admitsResponse(payload)).toBe(true);
 	});
 
 	it.each(invalid)('refuses $name', ({ payload }) => {
-		expect(clientServerResponsePayloadIsValid(encoder.encode(payload))).toBe(false);
+		expect(admitsResponse(payload)).toBe(false);
 	});
 
 	it.each<ClientServerRequest>([

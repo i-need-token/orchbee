@@ -432,12 +432,3 @@ export function decodeClientServerResponse(bytes: Uint8Array): ClientServerRespo
 	if (hasPrefix(bytes, FRAME_MAGIC)) return decodeJsonFrame(bytes);
 	throw new ClientServerProtocolError('Unknown response record.');
 }
-
-/** Validates one response payload without its frame; the shared corpus uses this boundary. */
-export function clientServerResponsePayloadIsValid(payload: Uint8Array): boolean {
-	try {
-		return parseServerMessage(payload).success;
-	} catch {
-		return false;
-	}
-}

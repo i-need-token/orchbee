@@ -40,7 +40,7 @@ const ConfigurationDiagnosticSchema = z
 		disposition: z.enum(['defaulted', 'disabled', 'ignored']),
 	})
 	.readonly();
-export const ConfigurationDiagnosticsSchema = z
+const ConfigurationDiagnosticsSchema = z
 	.strictObject({
 		items: z.array(ConfigurationDiagnosticSchema).max(128).readonly(),
 		omittedCount: z.number().int().min(0).max(65536),

@@ -5,7 +5,6 @@ import { z } from 'zod';
 import {
 	MultiplexDecoder,
 	type MultiplexMessage,
-	MultiplexProtocolError,
 	encodeMultiplexMessage,
 } from '../workbench-multiplex-codec';
 
@@ -67,7 +66,9 @@ describe('OBWP stream codec', () => {
 	});
 
 	it.each(corpus.invalid)('refuses $name', ({ hex: frame }) => {
-		expect(() => new MultiplexDecoder().push(frame)).toThrow(MultiplexProtocolError);
+		expect(() => new MultiplexDecoder().push(frame)).toThrow(
+			expect.objectContaining({ name: 'MultiplexProtocolError' }),
+		);
 	});
 
 	it('reassembles messages from arbitrary carrier chunks', () => {

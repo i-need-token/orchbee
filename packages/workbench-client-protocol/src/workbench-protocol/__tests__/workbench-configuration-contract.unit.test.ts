@@ -2,11 +2,7 @@ import { readFile } from 'node:fs/promises';
 import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import {
-	WorkbenchRequestSchema,
-	WorkbenchResponseSchema,
-} from '../workbench-command-contract';
-import { ConfigurationDiagnosticsSchema } from '../workbench-configuration-contract';
+import { WorkbenchRequestSchema, WorkbenchResponseSchema } from '../workbench-command-contract';
 const caseSchema = z.strictObject({
 	name: z.string(),
 	direction: z.enum(['request', 'response']),
@@ -131,60 +127,67 @@ describe('Session configuration publication', () => {
 		).toBe(false);
 	});
 	it('bounds and canonically orders configuration diagnostics by Unicode scalar value', () => {
+		const admitsDiagnostics = (diagnostics: unknown) => {
+			const result = configurationResult('{}');
+			return WorkbenchResponseSchema.safeParse({
+				...result,
+				outcome: { ...result.outcome, snapshot: { ...result.outcome.snapshot, diagnostics } },
+			}).success;
+		};
 		const entry = (field: string, reason = 'wrong-type') => ({
 			field,
 			reason,
 			disposition: 'defaulted' as const,
 		});
 		expect(
-			ConfigurationDiagnosticsSchema.safeParse({
+			admitsDiagnostics({
 				items: [entry('\ue000'), entry('\u{10000}')],
 				omittedCount: 65536,
-			}).success,
+			}),
 		).toBe(true);
 		expect(
-			ConfigurationDiagnosticsSchema.safeParse({
+			admitsDiagnostics({
 				items: [entry('\u{10000}'), entry('\ue000')],
 				omittedCount: 0,
-			}).success,
+			}),
 		).toBe(false);
 		expect(
-			ConfigurationDiagnosticsSchema.safeParse({
+			admitsDiagnostics({
 				items: [entry('keys.help', 'invalid-binding'), entry('keys.help', 'wrong-type')],
 				omittedCount: 0,
-			}).success,
+			}),
 		).toBe(true);
 		expect(
-			ConfigurationDiagnosticsSchema.safeParse({
+			admitsDiagnostics({
 				items: [entry('keys.help', 'wrong-type'), entry('keys.help', 'invalid-binding')],
 				omittedCount: 0,
-			}).success,
+			}),
 		).toBe(false);
 		expect(
-			ConfigurationDiagnosticsSchema.safeParse({
+			admitsDiagnostics({
 				items: [entry('keys.help'), entry('keys.help')],
 				omittedCount: 0,
-			}).success,
+			}),
 		).toBe(false);
 		expect(
-			ConfigurationDiagnosticsSchema.safeParse({
+			admitsDiagnostics({
 				items: [entry(`${'界'.repeat(85)}a`)],
 				omittedCount: 0,
-			}).success,
+			}),
 		).toBe(true);
 		expect(
-			ConfigurationDiagnosticsSchema.safeParse({
+			admitsDiagnostics({
 				items: [entry('界'.repeat(86))],
 				omittedCount: 0,
-			}).success,
+			}),
 		).toBe(false);
 		expect(
-			ConfigurationDiagnosticsSchema.safeParse({
+			admitsDiagnostics({
 				items: Array.from({ length: 129 }, (_, index) =>
 					entry(`keys.${index.toString().padStart(3, '0')}`),
 				),
 				omittedCount: 0,
-			}).success,
+			}),
 		).toBe(false);
 	});
 	it('matches the shared Rust configuration corpus and closed shapes', async () => {

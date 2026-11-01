@@ -6,7 +6,7 @@ export const WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES = 1024 * 1024;
 const WORKBENCH_MAXIMUM_LABEL_LENGTH = 512;
 const WORKBENCH_MAXIMUM_PROJECTS = 256;
 const WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT = 256;
-export const WORKBENCH_MAXIMUM_DIRECTORIES =
+const WORKBENCH_MAXIMUM_DIRECTORIES =
 	WORKBENCH_MAXIMUM_PROJECTS * WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT;
 const WORKBENCH_MAXIMUM_DIRECTORY_PATH_BYTES = 4096;
 const WORKBENCH_MAXIMUM_WORKSPACES_PER_PROJECT = 256;
@@ -118,8 +118,6 @@ type WorkbenchPanelSlotId = z.infer<typeof WorkbenchPanelSlotIdSchema>;
 type TerminalPresentationId = z.infer<typeof TerminalPresentationIdSchema>;
 
 type TerminalId = z.infer<typeof TerminalIdSchema>;
-export type WorkbenchRevision = z.infer<typeof WorkbenchRevisionSchema>;
-
 export const WorkbenchPresentationBindingSchema = z
 	.strictObject({ terminalId: TerminalIdSchema, workerId: WorkerIdSchema })
 	.readonly();
@@ -353,7 +351,7 @@ function validateDisplayOrder(
 	}
 }
 
-export const WorkbenchNavigationSchema = z
+const WorkbenchNavigationSchema = z
 	.strictObject({
 		directories: z.array(WorkbenchDirectorySchema).max(WORKBENCH_MAXIMUM_DIRECTORIES).readonly(),
 		projects: z.array(WorkbenchProjectSchema).max(WORKBENCH_MAXIMUM_PROJECTS).readonly(),
@@ -500,97 +498,9 @@ export const WorkbenchDeltaSchema = z.preprocess(
 	workbenchDeltaBaseSchema,
 );
 
-export const WorkbenchProtocolDocumentSchema = z.union([
-	WorkbenchSnapshotReadIntentSchema,
-	WorkbenchSnapshotSchema,
-	WorkbenchDeltaSchema,
-]);
-
 export type WorkbenchTerminalContext = z.infer<typeof WorkbenchTerminalContextSchema>;
 
 export type WorkbenchSnapshot = z.infer<typeof WorkbenchSnapshotSchema>;
-
-type WorkbenchDelta = z.infer<typeof WorkbenchDeltaSchema>;
-
-type WorkbenchDeltaRejectionReason =
-	| 'base-revision-mismatch'
-	| 'duplicate-change-target'
-	| 'invalid-projection'
-	| 'non-increasing-revision'
-	| 'session-mismatch';
-
-type WorkbenchDeltaApplicationResult =
-	| { readonly kind: 'applied'; readonly snapshot: WorkbenchSnapshot }
-	| { readonly kind: 'rejected'; readonly reason: WorkbenchDeltaRejectionReason };
-
-export function parseWorkbenchSnapshot(value: unknown): WorkbenchSnapshot {
-	return WorkbenchSnapshotSchema.parse(value);
-}
-
-export function parseWorkbenchDelta(value: unknown): WorkbenchDelta {
-	return WorkbenchDeltaSchema.parse(value);
-}
-
-export function applyWorkbenchDelta(
-	snapshot: WorkbenchSnapshot,
-	delta: WorkbenchDelta,
-): WorkbenchDeltaApplicationResult {
-	if (snapshot.sessionId !== delta.sessionId)
-		return { kind: 'rejected', reason: 'session-mismatch' };
-	if (snapshot.revision !== delta.baseRevision) {
-		return { kind: 'rejected', reason: 'base-revision-mismatch' };
-	}
-	if (BigInt(delta.revision) <= BigInt(delta.baseRevision)) {
-		return { kind: 'rejected', reason: 'non-increasing-revision' };
-	}
-
-	let navigation = snapshot.navigation;
-	let navigationReplaced = false;
-	const changedContextIds = new Set<WorkbenchTerminalContextId>();
-	const terminalContexts = new Map(
-		snapshot.terminalContexts.map((terminalContext) => [
-			terminalContext.terminalContextId,
-			terminalContext,
-		]),
-	);
-
-	for (const change of delta.changes) {
-		if (change.kind === 'navigation-replaced') {
-			if (navigationReplaced) return { kind: 'rejected', reason: 'duplicate-change-target' };
-			navigationReplaced = true;
-			navigation = change.navigation;
-			continue;
-		}
-
-		const terminalContextId =
-			change.kind === 'terminal-context-upserted'
-				? change.terminalContext.terminalContextId
-				: change.terminalContextId;
-		if (changedContextIds.has(terminalContextId)) {
-			return { kind: 'rejected', reason: 'duplicate-change-target' };
-		}
-		changedContextIds.add(terminalContextId);
-		if (change.kind === 'terminal-context-upserted') {
-			terminalContexts.set(terminalContextId, change.terminalContext);
-		} else {
-			terminalContexts.delete(terminalContextId);
-		}
-	}
-
-	const candidate = WorkbenchSnapshotSchema.safeParse({
-		kind: 'workbench.snapshot',
-		navigation,
-		protocolVersion: WORKBENCH_PROTOCOL_VERSION,
-		revision: delta.revision,
-		sessionId: snapshot.sessionId,
-		terminalContexts: [...terminalContexts.values()].sort((left, right) =>
-			compareIdentity(left.terminalContextId, right.terminalContextId),
-		),
-	});
-	return candidate.success
-		? { kind: 'applied', snapshot: candidate.data }
-		: { kind: 'rejected', reason: 'invalid-projection' };
-}
 
 interface SnapshotValidationIdentities {
 	readonly boundTerminalIds: Set<TerminalId>;

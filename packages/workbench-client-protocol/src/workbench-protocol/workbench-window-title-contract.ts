@@ -6,7 +6,7 @@ import {
 	WORKBENCH_PROTOCOL_VERSION,
 } from './workbench-semantic-contract';
 // Rust trim uses Unicode White_Space, unlike JS trim (which also strips BOM).
-export const WindowTitleSchema = z
+const WindowTitleSchema = z
 	.string()
 	.min(1)
 	.max(400)

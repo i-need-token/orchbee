@@ -1,5 +1,4 @@
 import { PluginInvocationContextSchema } from './workbench-plugin-context-contract';
-export { PluginInvocationContextSchema } from './workbench-plugin-context-contract';
 import { PluginPopupSpecSchema } from './workbench-plugin-popup-contract';
 import {
 	WorkbenchTerminalGeometrySchema,

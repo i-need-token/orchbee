@@ -61,7 +61,7 @@ export type MultiplexMessage =
 	| { readonly kind: 'viewer-record-ready'; readonly viewerId: bigint };
 
 /** A violated framing rule. The carrier cannot be resynchronized after one. */
-export class MultiplexProtocolError extends Error {
+class MultiplexProtocolError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = 'MultiplexProtocolError';
