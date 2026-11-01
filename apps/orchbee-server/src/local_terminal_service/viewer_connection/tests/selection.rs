@@ -1,17 +1,20 @@
 use super::*;
 use orchbee_capability_node_protocol::{
     TerminalViewerAction as WorkerAction, TerminalViewerOutcome as WorkerOutcome,
-    TerminalViewerResult as WorkerResult, ViewerSelectionExportCancelReason as WorkerCancelReason,
+    TerminalViewerResult as WorkerResult, ViewerSelectionCommand as WorkerCommand,
+    ViewerSelectionExportCancelReason as WorkerCancelReason,
     ViewerSelectionExportFormat as WorkerExportFormat,
     ViewerSelectionGestureAction as WorkerGesture,
     ViewerSelectionGestureGeometry as WorkerGeometry,
-    ViewerSelectionGesturePosition as WorkerPosition, ViewerSelectionViewportPoint as WorkerPoint,
+    ViewerSelectionGesturePosition as WorkerPosition, ViewerSelectionPoint as WorkerAbsolutePoint,
+    ViewerSelectionViewportPoint as WorkerPoint,
 };
 use orchbee_client_server_protocol::{
     TerminalViewerAction as Action, TerminalViewerOutcome as Outcome,
-    ViewerSelectionExportCancelReason as CancelReason, ViewerSelectionExportFormat as ExportFormat,
-    ViewerSelectionGestureAction as Gesture, ViewerSelectionGestureGeometry as Geometry,
-    ViewerSelectionGesturePosition as Position, ViewerSelectionViewportPoint as Point,
+    ViewerSelectionCommand as Command, ViewerSelectionExportCancelReason as CancelReason,
+    ViewerSelectionExportFormat as ExportFormat, ViewerSelectionGestureAction as Gesture,
+    ViewerSelectionGestureGeometry as Geometry, ViewerSelectionGesturePosition as Position,
+    ViewerSelectionPoint as AbsolutePoint, ViewerSelectionViewportPoint as Point,
 };
 use orchbee_terminal_protocol::{
     ConnectionControl, SelectionChanged, SelectionChangedState, SelectionControl,
@@ -32,7 +35,7 @@ fn viewer_id(byte: u8) -> ViewerId {
     ViewerId::parse(&format!("{:032x}", u128::from_be_bytes([byte; 16]))).unwrap()
 }
 
-fn selection_actions() -> [Action; 7] {
+fn selection_actions() -> [Action; 11] {
     [
         Action::SelectionGesture {
             attachment_id: viewer_id(2),
@@ -89,10 +92,40 @@ fn selection_actions() -> [Action; 7] {
             export_sequence: NonZeroU64::new(10).unwrap(),
             reason: CancelReason::ClipboardFailed,
         },
+        Action::SelectionCommand {
+            attachment_id: viewer_id(2),
+            generation: NonZeroU64::new(9).unwrap(),
+            revision: 7,
+            command: Command::Clear,
+        },
+        Action::SelectionCommand {
+            attachment_id: viewer_id(2),
+            generation: NonZeroU64::new(9).unwrap(),
+            revision: 7,
+            command: Command::SelectAll,
+        },
+        Action::SelectionCommand {
+            attachment_id: viewer_id(2),
+            generation: NonZeroU64::new(9).unwrap(),
+            revision: 7,
+            command: Command::SetRange {
+                end: AbsolutePoint { column: 3, row: 4 },
+                rectangle: true,
+                start: AbsolutePoint { column: 1, row: 2 },
+            },
+        },
+        Action::SelectionCommand {
+            attachment_id: viewer_id(2),
+            generation: NonZeroU64::new(9).unwrap(),
+            revision: 7,
+            command: Command::SelectOutput {
+                point: AbsolutePoint { column: 5, row: 6 },
+            },
+        },
     ]
 }
 
-fn worker_actions() -> [WorkerAction; 7] {
+fn worker_actions() -> [WorkerAction; 11] {
     [
         WorkerAction::SelectionGesture {
             generation: NonZeroU64::new(9).unwrap(),
@@ -142,6 +175,32 @@ fn worker_actions() -> [WorkerAction; 7] {
             export_sequence: NonZeroU64::new(10).unwrap(),
             reason: WorkerCancelReason::ClipboardFailed,
         },
+        WorkerAction::SelectionCommand {
+            generation: NonZeroU64::new(9).unwrap(),
+            revision: 7,
+            command: WorkerCommand::Clear,
+        },
+        WorkerAction::SelectionCommand {
+            generation: NonZeroU64::new(9).unwrap(),
+            revision: 7,
+            command: WorkerCommand::SelectAll,
+        },
+        WorkerAction::SelectionCommand {
+            generation: NonZeroU64::new(9).unwrap(),
+            revision: 7,
+            command: WorkerCommand::SetRange {
+                end: WorkerAbsolutePoint { column: 3, row: 4 },
+                rectangle: true,
+                start: WorkerAbsolutePoint { column: 1, row: 2 },
+            },
+        },
+        WorkerAction::SelectionCommand {
+            generation: NonZeroU64::new(9).unwrap(),
+            revision: 7,
+            command: WorkerCommand::SelectOutput {
+                point: WorkerAbsolutePoint { column: 5, row: 6 },
+            },
+        },
     ]
 }
 
@@ -179,7 +238,7 @@ fn selection_action_peer(
         assert_eq!(request.attachment_id.as_bytes(), [2; 16]);
         assert_eq!(request.action, expected);
         let outcome = match index {
-            0..=3 => {
+            0..=3 | 7..=10 => {
                 let encoded = encode_selection_control(&SelectionControl::ChangedResponse(
                     SelectionChanged {
                         attachment_id,
@@ -370,10 +429,14 @@ fn refusing_selection_peer(mut peer: UnixStream, records: Sender<Vec<u8>>) {
             WorkerAction::Detach => WorkerOutcome::Detached,
             WorkerAction::Poll => WorkerOutcome::Empty,
             WorkerAction::SelectionGesture { .. }
+            | WorkerAction::SelectionCommand { .. }
             | WorkerAction::SelectionExport { .. }
             | WorkerAction::SelectionExportChunkApplied { .. }
             | WorkerAction::SelectionExportCancel { .. } => {
-                let code = if matches!(request.action, WorkerAction::SelectionGesture { .. }) {
+                let code = if matches!(
+                    request.action,
+                    WorkerAction::SelectionGesture { .. } | WorkerAction::SelectionCommand { .. }
+                ) {
                     "stale-generation"
                 } else {
                     "invalid-acknowledgement"

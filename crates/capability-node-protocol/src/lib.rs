@@ -57,9 +57,9 @@ pub use terminal_viewer::{
     MINIMUM_READ_ROWS_BYTES, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRecordReady, TerminalViewerRequest, TerminalViewerResult, ViewerHistoryDemand,
     ViewerProjectionDemand, ViewerRejection, ViewerRowDetail, ViewerRowsRejectedReason,
-    ViewerSelectionExportCancelReason, ViewerSelectionExportFormat, ViewerSelectionGestureAction,
-    ViewerSelectionGestureGeometry, ViewerSelectionGesturePosition, ViewerSelectionViewportPoint,
-    ViewerSnapshotReason, ViewportRowOrigin,
+    ViewerSelectionCommand, ViewerSelectionExportCancelReason, ViewerSelectionExportFormat,
+    ViewerSelectionGestureAction, ViewerSelectionGestureGeometry, ViewerSelectionGesturePosition,
+    ViewerSelectionPoint, ViewerSelectionViewportPoint, ViewerSnapshotReason, ViewportRowOrigin,
 };
 
 pub use agent_drain::{

@@ -147,6 +147,28 @@ pub enum ViewerSelectionGestureAction {
     Cancel,
 }
 
+/// A selection endpoint in the Host's retained rows. The column is validated
+/// against the Terminal Protocol's `0..=4095` bound when the carrier is decoded.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ViewerSelectionPoint {
+    pub column: u16,
+    pub row: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ViewerSelectionCommand {
+    Clear,
+    SelectAll,
+    SetRange {
+        end: ViewerSelectionPoint,
+        rectangle: bool,
+        start: ViewerSelectionPoint,
+    },
+    SelectOutput {
+        point: ViewerSelectionPoint,
+    },
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ViewerSelectionExportFormat {
     Plain,
@@ -223,6 +245,11 @@ pub enum TerminalViewerAction {
     SelectionGesture {
         generation: NonZeroU64,
         gesture: ViewerSelectionGestureAction,
+    },
+    SelectionCommand {
+        generation: NonZeroU64,
+        revision: u64,
+        command: ViewerSelectionCommand,
     },
     SelectionExport {
         export_sequence: NonZeroU64,
@@ -334,6 +361,9 @@ impl TerminalViewerAction {
                 matches!(outcome, TerminalViewerOutcome::FeedbackAccepted) || failed
             }
             Self::SelectionGesture { .. } => {
+                matches!(outcome, TerminalViewerOutcome::Record(_)) || failed
+            }
+            Self::SelectionCommand { .. } => {
                 matches!(outcome, TerminalViewerOutcome::Record(_)) || failed
             }
             Self::SelectionExport { .. } => {

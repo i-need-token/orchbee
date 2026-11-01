@@ -164,6 +164,7 @@ pub(super) fn run(
                             WorkerOutcome::FeedbackAccepted
                         }
                         WorkerAction::SelectionGesture { .. }
+                        | WorkerAction::SelectionCommand { .. }
                         | WorkerAction::SelectionExport { .. }
                         | WorkerAction::SelectionExportChunkApplied { .. }
                         | WorkerAction::SelectionExportCancel { .. } => {

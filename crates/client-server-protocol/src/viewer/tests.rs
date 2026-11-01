@@ -301,6 +301,18 @@ fn selection_actions_round_trip_their_exact_canonical_json()
             r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"cancel"}}"#
         ),
         format!(
+            r#"{{"kind":"selection-command","attachmentId":"{SHARED_IDENTITY}","generation":"9","revision":"0","command":"clear"}}"#
+        ),
+        format!(
+            r#"{{"kind":"selection-command","attachmentId":"{SHARED_IDENTITY}","generation":"9","revision":"7","command":"select-all"}}"#
+        ),
+        format!(
+            r#"{{"kind":"selection-command","attachmentId":"{SHARED_IDENTITY}","generation":"9","revision":"7","command":"set-range","end":{{"column":4095,"row":"18446744073709551615"}},"rectangle":true,"start":{{"column":0,"row":"0"}}}}"#
+        ),
+        format!(
+            r#"{{"kind":"selection-command","attachmentId":"{SHARED_IDENTITY}","generation":"9","revision":"7","command":"select-output","point":{{"column":3,"row":"12"}}}}"#
+        ),
+        format!(
             r#"{{"kind":"selection-export","attachmentId":"{SHARED_IDENTITY}","exportSequence":"10","format":"plain"}}"#
         ),
         format!(
@@ -356,6 +368,15 @@ fn selection_actions_reject_semantic_bounds_unknown_fields_and_open_enums() {
         format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","action":"start","clickCount":2,"point":{{"column":3,"row":4}},"position":{{"x":-5,"y":6}},"selectOutput":true}}"#),
         format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","clickCount":2,"clickCount":2,"point":{{"column":3,"row":4}},"position":{{"x":-5,"y":6}},"selectOutput":true}}"#),
         format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","clickCount":2,"point":{{"column":3,"row":4}},"selectOutput":true}}"#),
+        format!(r#"{{"kind":"selection-command","attachmentId":"{SHARED_IDENTITY}","generation":"0","revision":"7","command":"clear"}}"#),
+        format!(r#"{{"kind":"selection-command","attachmentId":"{SHARED_IDENTITY}","generation":"9","command":"clear"}}"#),
+        format!(r#"{{"kind":"selection-command","attachmentId":"{SHARED_IDENTITY}","generation":"9","revision":"7","command":"future"}}"#),
+        format!(r#"{{"kind":"selection-command","attachmentId":"{SHARED_IDENTITY}","generation":"9","revision":"7","command":"clear","extra":true}}"#),
+        format!(r#"{{"kind":"selection-command","attachmentId":"{SHARED_IDENTITY}","generation":"9","revision":"7","command":"clear","point":{{"column":3,"row":"12"}}}}"#),
+        format!(r#"{{"kind":"selection-command","attachmentId":"{SHARED_IDENTITY}","generation":"9","revision":"7","command":"set-range","end":{{"column":3,"row":"12"}},"start":{{"column":0,"row":"0"}}}}"#),
+        format!(r#"{{"kind":"selection-command","attachmentId":"{SHARED_IDENTITY}","generation":"9","revision":"7","command":"set-range","end":{{"column":4096,"row":"12"}},"rectangle":false,"start":{{"column":0,"row":"0"}}}}"#),
+        format!(r#"{{"kind":"selection-command","attachmentId":"{SHARED_IDENTITY}","generation":"9","revision":"7","command":"select-output","point":{{"column":4096,"row":"12"}}}}"#),
+        format!(r#"{{"kind":"selection-command","attachmentId":"{SHARED_IDENTITY}","generation":"9","revision":"7","command":"select-output","point":{{"column":3,"row":12}}}}"#),
         format!(r#"{{"kind":"selection-export","attachmentId":"{SHARED_IDENTITY}","exportSequence":"0","format":"plain"}}"#),
         format!(r#"{{"kind":"selection-export","attachmentId":"{SHARED_IDENTITY}","exportSequence":"10","format":"html"}}"#),
         format!(r#"{{"kind":"selection-export-chunk-applied","attachmentId":"{SHARED_IDENTITY}","exportSequence":"10","chunkSequence":4294967296}}"#),

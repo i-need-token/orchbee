@@ -12,18 +12,20 @@ use orchbee_capability_node_protocol::{
     OperationId, ViewerHistoryDemand as WorkerHistoryDemand,
     ViewerProjectionDemand as WorkerProjectionDemand, ViewerRowDetail as WorkerRowDetail,
     ViewerRowsRejectedReason as WorkerRowsRejectedReason,
+    ViewerSelectionCommand as WorkerSelectionCommand,
     ViewerSelectionExportCancelReason as WorkerSelectionExportCancelReason,
     ViewerSelectionExportFormat as WorkerSelectionExportFormat,
     ViewerSelectionGestureAction as WorkerSelectionGestureAction,
     ViewerSelectionGestureGeometry as WorkerSelectionGestureGeometry,
     ViewerSelectionGesturePosition as WorkerSelectionGesturePosition,
+    ViewerSelectionPoint as WorkerSelectionPoint,
     ViewerSelectionViewportPoint as WorkerSelectionViewportPoint,
     ViewportRowOrigin as WorkerViewportRowOrigin,
 };
 use orchbee_client_server_protocol::{
     HistoryDemand, ProjectionDemand, ViewerRowDetail, ViewerRowsRejectedReason,
-    ViewerSelectionExportCancelReason, ViewerSelectionExportFormat, ViewerSelectionGestureAction,
-    ViewportRowOrigin,
+    ViewerSelectionCommand, ViewerSelectionExportCancelReason, ViewerSelectionExportFormat,
+    ViewerSelectionGestureAction, ViewerSelectionPoint, ViewportRowOrigin,
 };
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, HistoryControl, MessageRole,
@@ -70,6 +72,7 @@ impl LocalTerminalConnection<'_> {
             | Action::RowsApplied { .. }
             | Action::HistoryObserved { .. }
             | Action::SelectionGesture { .. }
+            | Action::SelectionCommand { .. }
             | Action::SelectionExport { .. }
             | Action::SelectionExportChunkApplied { .. }
             | Action::SelectionExportCancel { .. }
@@ -229,6 +232,16 @@ impl LocalTerminalConnection<'_> {
                 generation: *generation,
                 gesture: worker_selection_gesture(*gesture),
             },
+            Action::SelectionCommand {
+                generation,
+                revision,
+                command,
+                ..
+            } => WorkerAction::SelectionCommand {
+                generation: *generation,
+                revision: *revision,
+                command: worker_selection_command(*command),
+            },
             Action::SelectionExport {
                 export_sequence,
                 format,
@@ -293,6 +306,7 @@ impl LocalTerminalConnection<'_> {
                             &record,
                         ),
                         Action::SelectionGesture { .. }
+                        | Action::SelectionCommand { .. }
                         | Action::SelectionExport { .. }
                         | Action::SelectionExportChunkApplied { .. }
                         | Action::SelectionExportCancel { .. } => valid_selection_action_record(
@@ -367,6 +381,7 @@ impl LocalTerminalConnection<'_> {
                             | Action::RowsApplied { .. }
                             | Action::HistoryObserved { .. }
                             | Action::SelectionGesture { .. }
+                            | Action::SelectionCommand { .. }
                             | Action::SelectionExport { .. }
                             | Action::SelectionExportChunkApplied { .. }
                             | Action::SelectionExportCancel { .. }
@@ -443,6 +458,32 @@ const fn worker_selection_gesture(
     }
 }
 
+const fn worker_selection_point(point: ViewerSelectionPoint) -> WorkerSelectionPoint {
+    WorkerSelectionPoint {
+        column: point.column,
+        row: point.row,
+    }
+}
+
+const fn worker_selection_command(command: ViewerSelectionCommand) -> WorkerSelectionCommand {
+    match command {
+        ViewerSelectionCommand::Clear => WorkerSelectionCommand::Clear,
+        ViewerSelectionCommand::SelectAll => WorkerSelectionCommand::SelectAll,
+        ViewerSelectionCommand::SetRange {
+            end,
+            rectangle,
+            start,
+        } => WorkerSelectionCommand::SetRange {
+            end: worker_selection_point(end),
+            rectangle,
+            start: worker_selection_point(start),
+        },
+        ViewerSelectionCommand::SelectOutput { point } => WorkerSelectionCommand::SelectOutput {
+            point: worker_selection_point(point),
+        },
+    }
+}
+
 const fn worker_selection_export_format(
     format: ViewerSelectionExportFormat,
 ) -> WorkerSelectionExportFormat {
@@ -498,7 +539,7 @@ fn valid_selection_action_record(
         return true;
     }
     match action {
-        Action::SelectionGesture { .. } => matches!(
+        Action::SelectionGesture { .. } | Action::SelectionCommand { .. } => matches!(
             decode_selection_control(envelope.kind, envelope.role, envelope.payload),
             Ok(SelectionControl::ChangedResponse(changed))
                 if changed.attachment_id == viewer.projection.attachment_id

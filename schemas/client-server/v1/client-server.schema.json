@@ -510,6 +510,21 @@
 				}
 			}
 		},
+		"selectionPoint": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["column", "row"],
+			"properties": {
+				"column": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4095
+				},
+				"row": {
+					"$ref": "#/$defs/projectionUnsigned"
+				}
+			}
+		},
 		"selectionGesturePosition": {
 			"type": "object",
 			"additionalProperties": false,
@@ -972,6 +987,93 @@
 						},
 						"action": {
 							"const": "cancel"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "generation", "revision", "command"],
+					"properties": {
+						"kind": {
+							"const": "selection-command"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"generation": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"revision": {
+							"$ref": "#/$defs/projectionUnsigned"
+						},
+						"command": {
+							"enum": ["clear", "select-all"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"attachmentId",
+						"generation",
+						"revision",
+						"command",
+						"end",
+						"rectangle",
+						"start"
+					],
+					"properties": {
+						"kind": {
+							"const": "selection-command"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"generation": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"revision": {
+							"$ref": "#/$defs/projectionUnsigned"
+						},
+						"command": {
+							"const": "set-range"
+						},
+						"end": {
+							"$ref": "#/$defs/selectionPoint"
+						},
+						"rectangle": {
+							"type": "boolean"
+						},
+						"start": {
+							"$ref": "#/$defs/selectionPoint"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "generation", "revision", "command", "point"],
+					"properties": {
+						"kind": {
+							"const": "selection-command"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"generation": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"revision": {
+							"$ref": "#/$defs/projectionUnsigned"
+						},
+						"command": {
+							"const": "select-output"
+						},
+						"point": {
+							"$ref": "#/$defs/selectionPoint"
 						}
 					}
 				},

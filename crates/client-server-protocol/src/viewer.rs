@@ -129,17 +129,17 @@ pub enum ViewerSelectionGestureAction {
 struct ViewerSelectionGestureWire {
     action: ViewerSelectionGestureDiscriminant,
     #[serde(default)]
-    click_count: ViewerSelectionGestureField<u8>,
+    click_count: ViewerSelectionWireField<u8>,
     #[serde(default)]
-    geometry: ViewerSelectionGestureField<ViewerSelectionGestureGeometry>,
+    geometry: ViewerSelectionWireField<ViewerSelectionGestureGeometry>,
     #[serde(default)]
-    point: ViewerSelectionGestureField<ViewerSelectionViewportPoint>,
+    point: ViewerSelectionWireField<ViewerSelectionViewportPoint>,
     #[serde(default)]
-    position: ViewerSelectionGestureField<ViewerSelectionGesturePosition>,
+    position: ViewerSelectionWireField<ViewerSelectionGesturePosition>,
     #[serde(default)]
-    rectangle: ViewerSelectionGestureField<bool>,
+    rectangle: ViewerSelectionWireField<bool>,
     #[serde(default)]
-    select_output: ViewerSelectionGestureField<bool>,
+    select_output: ViewerSelectionWireField<bool>,
 }
 
 #[derive(Deserialize)]
@@ -152,13 +152,13 @@ enum ViewerSelectionGestureDiscriminant {
 }
 
 #[derive(Default)]
-enum ViewerSelectionGestureField<T> {
+enum ViewerSelectionWireField<T> {
     #[default]
     Missing,
     Present(T),
 }
 
-impl<'de, T> Deserialize<'de> for ViewerSelectionGestureField<T>
+impl<'de, T> Deserialize<'de> for ViewerSelectionWireField<T>
 where
     T: Deserialize<'de>,
 {
@@ -177,7 +177,7 @@ where
     D: Deserializer<'de>,
 {
     use ViewerSelectionGestureDiscriminant as Action;
-    use ViewerSelectionGestureField::{Missing, Present};
+    use ViewerSelectionWireField::{Missing, Present};
 
     let wire = ViewerSelectionGestureWire::deserialize(deserializer)?;
     match wire {
@@ -233,6 +233,112 @@ where
             ..
         } => Err(<D::Error as serde::de::Error>::custom(
             "selection gesture fields do not match its action",
+        )),
+    }
+}
+
+/// A selection endpoint in the Host's retained rows, as a Host selection event names it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ViewerSelectionPoint {
+    pub column: u16,
+    #[serde(with = "crate::number::decimal")]
+    pub row: u64,
+}
+
+/// A selection change that names its result directly instead of following a pointer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(
+    tag = "command",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum ViewerSelectionCommand {
+    Clear,
+    SelectAll,
+    SetRange {
+        end: ViewerSelectionPoint,
+        rectangle: bool,
+        start: ViewerSelectionPoint,
+    },
+    SelectOutput {
+        point: ViewerSelectionPoint,
+    },
+}
+
+/// Flattened beside the action's own fields for the reason `ViewerSelectionGestureWire` gives.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ViewerSelectionCommandWire {
+    command: ViewerSelectionCommandDiscriminant,
+    #[serde(default)]
+    end: ViewerSelectionWireField<ViewerSelectionPoint>,
+    #[serde(default)]
+    point: ViewerSelectionWireField<ViewerSelectionPoint>,
+    #[serde(default)]
+    rectangle: ViewerSelectionWireField<bool>,
+    #[serde(default)]
+    start: ViewerSelectionWireField<ViewerSelectionPoint>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum ViewerSelectionCommandDiscriminant {
+    Clear,
+    SelectAll,
+    SetRange,
+    SelectOutput,
+}
+
+fn deserialize_viewer_selection_command<'de, D>(
+    deserializer: D,
+) -> Result<ViewerSelectionCommand, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use ViewerSelectionCommandDiscriminant as Command;
+    use ViewerSelectionWireField::{Missing, Present};
+
+    let wire = ViewerSelectionCommandWire::deserialize(deserializer)?;
+    match wire {
+        ViewerSelectionCommandWire {
+            command: Command::Clear,
+            end: Missing,
+            point: Missing,
+            rectangle: Missing,
+            start: Missing,
+        } => Ok(ViewerSelectionCommand::Clear),
+        ViewerSelectionCommandWire {
+            command: Command::SelectAll,
+            end: Missing,
+            point: Missing,
+            rectangle: Missing,
+            start: Missing,
+        } => Ok(ViewerSelectionCommand::SelectAll),
+        ViewerSelectionCommandWire {
+            command: Command::SetRange,
+            end: Present(end),
+            point: Missing,
+            rectangle: Present(rectangle),
+            start: Present(start),
+        } => Ok(ViewerSelectionCommand::SetRange {
+            end,
+            rectangle,
+            start,
+        }),
+        ViewerSelectionCommandWire {
+            command: Command::SelectOutput,
+            end: Missing,
+            point: Present(point),
+            rectangle: Missing,
+            start: Missing,
+        } => Ok(ViewerSelectionCommand::SelectOutput { point }),
+        // Any missing or extra discriminant-specific field is an invalid wire shape.
+        ViewerSelectionCommandWire {
+            command: Command::Clear | Command::SelectAll | Command::SetRange | Command::SelectOutput,
+            ..
+        } => Err(<D::Error as serde::de::Error>::custom(
+            "selection command fields do not match its command",
         )),
     }
 }
@@ -354,6 +460,15 @@ pub enum TerminalViewerAction {
         #[serde(flatten, deserialize_with = "deserialize_viewer_selection_gesture")]
         gesture: ViewerSelectionGestureAction,
     },
+    SelectionCommand {
+        attachment_id: ViewerId,
+        #[serde(with = "crate::number::positive_decimal")]
+        generation: NonZeroU64,
+        #[serde(with = "crate::number::decimal")]
+        revision: u64,
+        #[serde(flatten, deserialize_with = "deserialize_viewer_selection_command")]
+        command: ViewerSelectionCommand,
+    },
     SelectionExport {
         attachment_id: ViewerId,
         #[serde(with = "crate::number::positive_decimal")]
@@ -427,6 +542,9 @@ impl TerminalViewerAction {
         if let Self::SelectionGesture { gesture, .. } = self {
             validate_selection_gesture(*gesture)?;
         }
+        if let Self::SelectionCommand { command, .. } = self {
+            validate_selection_command(*command)?;
+        }
         Ok(())
     }
 
@@ -445,6 +563,7 @@ impl TerminalViewerAction {
             | Self::RowsApplied { attachment_id, .. }
             | Self::HistoryObserved { attachment_id, .. }
             | Self::SelectionGesture { attachment_id, .. }
+            | Self::SelectionCommand { attachment_id, .. }
             | Self::SelectionExport { attachment_id, .. }
             | Self::SelectionExportChunkApplied { attachment_id, .. }
             | Self::SelectionExportCancel { attachment_id, .. }
@@ -453,12 +572,29 @@ impl TerminalViewerAction {
     }
 }
 
+const MAXIMUM_SELECTION_DIMENSION: u16 = 4096;
+
+fn validate_selection_command(command: ViewerSelectionCommand) -> Result<(), ProtocolError> {
+    let valid_point = |point: ViewerSelectionPoint| point.column < MAXIMUM_SELECTION_DIMENSION;
+    let valid = match command {
+        ViewerSelectionCommand::Clear | ViewerSelectionCommand::SelectAll => true,
+        ViewerSelectionCommand::SetRange { end, start, .. } => {
+            valid_point(end) && valid_point(start)
+        }
+        ViewerSelectionCommand::SelectOutput { point } => valid_point(point),
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(ProtocolError::InvalidPayload)
+    }
+}
+
 fn validate_selection_gesture(gesture: ViewerSelectionGestureAction) -> Result<(), ProtocolError> {
-    const MAXIMUM_DIMENSION: u16 = 4096;
     const MAXIMUM_AXIS: i32 = 0xffff;
 
     let valid_point = |point: ViewerSelectionViewportPoint| {
-        point.column < MAXIMUM_DIMENSION && point.row < MAXIMUM_DIMENSION
+        point.column < MAXIMUM_SELECTION_DIMENSION && point.row < MAXIMUM_SELECTION_DIMENSION
     };
     let valid_position = |position: ViewerSelectionGesturePosition| {
         (-MAXIMUM_AXIS..=MAXIMUM_AXIS).contains(&position.x)
@@ -478,9 +614,9 @@ fn validate_selection_gesture(gesture: ViewerSelectionGestureAction) -> Result<(
             ..
         } => {
             geometry.cell_width > 0
-                && geometry.cell_width <= MAXIMUM_DIMENSION
+                && geometry.cell_width <= MAXIMUM_SELECTION_DIMENSION
                 && geometry.columns > 0
-                && geometry.columns <= MAXIMUM_DIMENSION
+                && geometry.columns <= MAXIMUM_SELECTION_DIMENSION
                 && geometry.screen_height > 0
                 && valid_point(point)
                 && valid_position(position)
@@ -651,6 +787,9 @@ impl TerminalViewerAction {
                 matches!(outcome, TerminalViewerOutcome::FeedbackAccepted {}) || failed
             }
             Self::SelectionGesture { .. } => {
+                matches!(outcome, TerminalViewerOutcome::Record(_)) || failed
+            }
+            Self::SelectionCommand { .. } => {
                 matches!(outcome, TerminalViewerOutcome::Record(_)) || failed
             }
             Self::SelectionExport { .. } => {

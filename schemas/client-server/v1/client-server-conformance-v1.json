@@ -513,6 +513,26 @@
 		},
 		{
 			"direction": "client-to-server",
+			"name": "viewer-selection-command-clear",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-command\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"revision\":\"7\",\"command\":\"clear\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-command-select-all",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-command\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"revision\":\"0\",\"command\":\"select-all\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-command-set-range",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-command\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"revision\":\"7\",\"command\":\"set-range\",\"end\":{\"column\":4095,\"row\":\"18446744073709551615\"},\"rectangle\":true,\"start\":{\"column\":0,\"row\":\"0\"}}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-command-select-output",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-command\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"revision\":\"7\",\"command\":\"select-output\",\"point\":{\"column\":3,\"row\":\"12\"}}}"
+		},
+		{
+			"direction": "client-to-server",
 			"name": "viewer-selection-export",
 			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"10\",\"format\":\"plain\"}}"
 		},
@@ -1908,6 +1928,36 @@
 			"direction": "client-to-server",
 			"name": "viewer-selection-gesture-generation-u64-overflow",
 			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"18446744073709551616\",\"action\":\"cancel\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-command-unknown-command",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-command\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"revision\":\"7\",\"command\":\"future\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-command-revision-missing",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-command\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"command\":\"clear\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-command-point-over",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-command\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"revision\":\"7\",\"command\":\"select-output\",\"point\":{\"column\":4096,\"row\":\"12\"}}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-command-extra-field",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-command\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"revision\":\"7\",\"command\":\"clear\",\"point\":{\"column\":3,\"row\":\"12\"}}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "viewer-selection-command-row-u64-overflow",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-command\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"revision\":\"7\",\"command\":\"select-output\",\"point\":{\"column\":3,\"row\":\"18446744073709551616\"}}}"
 		},
 		{
 			"boundary": "schema",

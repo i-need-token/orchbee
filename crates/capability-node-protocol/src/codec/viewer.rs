@@ -9,10 +9,10 @@ use crate::{
     CapabilityNodeMessage, MAXIMUM_VIEWER_RECORD_BYTES, OperationId, ProtocolError,
     ReadMessageError, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
     TerminalViewerResult, ViewerHistoryDemand, ViewerProjectionDemand, ViewerRejection,
-    ViewerRowDetail, ViewerSelectionExportCancelReason, ViewerSelectionExportFormat,
-    ViewerSelectionGestureAction, ViewerSelectionGestureGeometry, ViewerSelectionGesturePosition,
-    ViewerSelectionViewportPoint, ViewerSnapshotReason, ViewportRowOrigin, WorkerGeneration,
-    WorkerId,
+    ViewerRowDetail, ViewerSelectionCommand, ViewerSelectionExportCancelReason,
+    ViewerSelectionExportFormat, ViewerSelectionGestureAction, ViewerSelectionGestureGeometry,
+    ViewerSelectionGesturePosition, ViewerSelectionPoint, ViewerSelectionViewportPoint,
+    ViewerSnapshotReason, ViewportRowOrigin, WorkerGeneration, WorkerId,
 };
 
 const MAXIMUM_SELECTION_AXIS: i32 = 0xffff;
@@ -197,6 +197,33 @@ pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
                     encode_selection_point(&mut bytes, point);
                 }
                 ViewerSelectionGestureAction::Cancel => bytes.push(4),
+            }
+        }
+        TerminalViewerAction::SelectionCommand {
+            generation,
+            revision,
+            command,
+        } => {
+            bytes.push(20);
+            bytes.extend_from_slice(&generation.get().to_be_bytes());
+            bytes.extend_from_slice(&revision.to_be_bytes());
+            match command {
+                ViewerSelectionCommand::Clear => bytes.push(1),
+                ViewerSelectionCommand::SelectAll => bytes.push(2),
+                ViewerSelectionCommand::SetRange {
+                    end,
+                    rectangle,
+                    start,
+                } => {
+                    bytes.push(3);
+                    encode_selection_absolute_point(&mut bytes, start);
+                    encode_selection_absolute_point(&mut bytes, end);
+                    bytes.push(u8::from(rectangle));
+                }
+                ViewerSelectionCommand::SelectOutput { point } => {
+                    bytes.push(4);
+                    encode_selection_absolute_point(&mut bytes, point);
+                }
             }
         }
         TerminalViewerAction::SelectionExport {
@@ -403,6 +430,32 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalViewerRequest, Prot
                 _ => return Err(ProtocolError::InvalidPayload),
             },
         },
+        20 => {
+            let generation = positive(reader.read_u64()?)?;
+            let revision = reader.read_u64()?;
+            let command = match reader.read_u8()? {
+                1 => ViewerSelectionCommand::Clear,
+                2 => ViewerSelectionCommand::SelectAll,
+                3 => {
+                    let start = decode_selection_absolute_point(&mut reader)?;
+                    let end = decode_selection_absolute_point(&mut reader)?;
+                    ViewerSelectionCommand::SetRange {
+                        end,
+                        rectangle: decode_bool(reader.read_u8()?)?,
+                        start,
+                    }
+                }
+                4 => ViewerSelectionCommand::SelectOutput {
+                    point: decode_selection_absolute_point(&mut reader)?,
+                },
+                _ => return Err(ProtocolError::InvalidPayload),
+            };
+            TerminalViewerAction::SelectionCommand {
+                generation,
+                revision,
+                command,
+            }
+        }
         _ => return Err(ProtocolError::InvalidPayload),
     };
     reader.finish()?;
@@ -420,6 +473,11 @@ fn encode_selection_point(bytes: &mut Vec<u8>, point: ViewerSelectionViewportPoi
     bytes.extend_from_slice(&point.row.to_be_bytes());
 }
 
+fn encode_selection_absolute_point(bytes: &mut Vec<u8>, point: ViewerSelectionPoint) {
+    bytes.extend_from_slice(&point.column.to_be_bytes());
+    bytes.extend_from_slice(&point.row.to_be_bytes());
+}
+
 fn encode_selection_position(bytes: &mut Vec<u8>, position: ViewerSelectionGesturePosition) {
     bytes.extend_from_slice(&position.x.to_be_bytes());
     bytes.extend_from_slice(&position.y.to_be_bytes());
@@ -433,6 +491,19 @@ fn decode_selection_point(
         row: reader.read_u16()?,
     };
     if point.column >= MAXIMUM_SELECTION_DIMENSION || point.row >= MAXIMUM_SELECTION_DIMENSION {
+        return Err(ProtocolError::InvalidPayload);
+    }
+    Ok(point)
+}
+
+fn decode_selection_absolute_point(
+    reader: &mut PayloadReader<'_>,
+) -> Result<ViewerSelectionPoint, ProtocolError> {
+    let point = ViewerSelectionPoint {
+        column: reader.read_u16()?,
+        row: reader.read_u64()?,
+    };
+    if point.column >= MAXIMUM_SELECTION_DIMENSION {
         return Err(ProtocolError::InvalidPayload);
     }
     Ok(point)

@@ -110,6 +110,35 @@ fn viewer_controls_round_trip_every_closed_action_and_outcome() -> TestResult {
             generation: NonZeroU64::MIN,
             gesture: ViewerSelectionGestureAction::Cancel,
         },
+        TerminalViewerAction::SelectionCommand {
+            generation: NonZeroU64::MIN,
+            revision: 0,
+            command: ViewerSelectionCommand::Clear,
+        },
+        TerminalViewerAction::SelectionCommand {
+            generation: NonZeroU64::MIN,
+            revision: 7,
+            command: ViewerSelectionCommand::SelectAll,
+        },
+        TerminalViewerAction::SelectionCommand {
+            generation: NonZeroU64::MIN,
+            revision: 7,
+            command: ViewerSelectionCommand::SetRange {
+                end: ViewerSelectionPoint {
+                    column: 4095,
+                    row: u64::MAX,
+                },
+                rectangle: true,
+                start: ViewerSelectionPoint { column: 0, row: 0 },
+            },
+        },
+        TerminalViewerAction::SelectionCommand {
+            generation: NonZeroU64::MIN,
+            revision: 7,
+            command: ViewerSelectionCommand::SelectOutput {
+                point: ViewerSelectionPoint { column: 3, row: 12 },
+            },
+        },
         TerminalViewerAction::SelectionExport {
             export_sequence: NonZeroU64::MIN,
             format: ViewerSelectionExportFormat::Plain,
@@ -745,11 +774,11 @@ fn raw_viewer_action_frame(action: &[u8]) -> Result<Vec<u8>, Box<dyn std::error:
     Ok(frame)
 }
 
-/// Tags 16 through 19 add the viewer selection control plane without moving
+/// Tags 16 through 20 add the viewer selection control plane without moving
 /// attachment identity into an action. Accepted raw peers must round-trip to
 /// the same bytes so no field is silently reordered, widened, or defaulted.
 #[test]
-fn selection_action_tags_sixteen_through_nineteen_have_fixed_round_trip_bytes() -> TestResult {
+fn selection_action_tags_sixteen_through_twenty_have_fixed_round_trip_bytes() -> TestResult {
     let mut start = vec![16];
     start.extend_from_slice(&9_u64.to_be_bytes());
     start.push(1); // start
@@ -795,6 +824,33 @@ fn selection_action_tags_sixteen_through_nineteen_have_fixed_round_trip_bytes() 
     cancel_export.extend_from_slice(&10_u64.to_be_bytes());
     cancel_export.push(1); // clipboard-failed
 
+    let mut clear = vec![20];
+    clear.extend_from_slice(&9_u64.to_be_bytes());
+    clear.extend_from_slice(&7_u64.to_be_bytes());
+    clear.push(1); // clear
+
+    let mut select_all = vec![20];
+    select_all.extend_from_slice(&9_u64.to_be_bytes());
+    select_all.extend_from_slice(&0_u64.to_be_bytes());
+    select_all.push(2); // select all
+
+    let mut set_range = vec![20];
+    set_range.extend_from_slice(&9_u64.to_be_bytes());
+    set_range.extend_from_slice(&7_u64.to_be_bytes());
+    set_range.push(3); // set range
+    set_range.extend_from_slice(&0_u16.to_be_bytes());
+    set_range.extend_from_slice(&0_u64.to_be_bytes());
+    set_range.extend_from_slice(&4095_u16.to_be_bytes());
+    set_range.extend_from_slice(&u64::MAX.to_be_bytes());
+    set_range.push(1); // rectangle
+
+    let mut select_output = vec![20];
+    select_output.extend_from_slice(&9_u64.to_be_bytes());
+    select_output.extend_from_slice(&7_u64.to_be_bytes());
+    select_output.push(4); // select output
+    select_output.extend_from_slice(&3_u16.to_be_bytes());
+    select_output.extend_from_slice(&12_u64.to_be_bytes());
+
     for action in [
         start,
         update,
@@ -803,6 +859,10 @@ fn selection_action_tags_sixteen_through_nineteen_have_fixed_round_trip_bytes() 
         export,
         chunk_applied,
         cancel_export,
+        clear,
+        select_all,
+        set_range,
+        select_output,
     ] {
         let frame = raw_viewer_action_frame(&action)?;
         assert_eq!(&frame[65..], action.as_slice());
@@ -923,8 +983,35 @@ fn selection_actions_reject_every_semantic_boundary_and_open_discriminant() -> T
         }
     }
 
+    let mut set_range = vec![20];
+    set_range.extend_from_slice(&9_u64.to_be_bytes());
+    set_range.extend_from_slice(&7_u64.to_be_bytes());
+    set_range.push(3);
+    set_range.extend_from_slice(&0_u16.to_be_bytes());
+    set_range.extend_from_slice(&0_u64.to_be_bytes());
+    set_range.extend_from_slice(&80_u16.to_be_bytes());
+    set_range.extend_from_slice(&12_u64.to_be_bytes());
+    set_range.push(0);
+    let set_range = raw_viewer_action_frame(&set_range)?;
+    assert!(decode_message(&set_range).is_ok());
+    for (offset, bytes) in [
+        (66, 0_u64.to_be_bytes().to_vec()),
+        (82, vec![0]),
+        (82, vec![5]),
+        (83, 4096_u16.to_be_bytes().to_vec()),
+        (93, 4096_u16.to_be_bytes().to_vec()),
+        (103, vec![2]),
+    ] {
+        let mut invalid = set_range.clone();
+        invalid[offset..offset + bytes.len()].copy_from_slice(&bytes);
+        assert!(
+            decode_message(&invalid).is_err(),
+            "accepted mutation at {offset}"
+        );
+    }
+
     let mut unknown = start.clone();
-    unknown[65] = 20;
+    unknown[65] = 21;
     assert!(decode_message(&unknown).is_err());
     assert!(decode_message(&start[..start.len() - 1]).is_err());
     let mut declared_trailing = start;

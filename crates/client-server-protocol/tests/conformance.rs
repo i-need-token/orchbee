@@ -291,6 +291,10 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "viewer-selection-gesture-update",
         "viewer-selection-gesture-end",
         "viewer-selection-gesture-cancel",
+        "viewer-selection-command-clear",
+        "viewer-selection-command-select-all",
+        "viewer-selection-command-set-range",
+        "viewer-selection-command-select-output",
         "viewer-selection-export",
         "viewer-selection-export-chunk-applied",
         "viewer-selection-export-cancel",
@@ -685,7 +689,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
         }
         DecodedMessage::Client(ClientMessage::TerminalViewer(request)) => {
             use orchbee_client_server_protocol::{
-                TerminalViewerAction, ViewerSelectionGestureAction,
+                TerminalViewerAction, ViewerSelectionCommand, ViewerSelectionGestureAction,
             };
             reached.insert(match request.action() {
                 TerminalViewerAction::Attach { .. } => "viewer-attach",
@@ -707,6 +711,14 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                     }
                     ViewerSelectionGestureAction::End { .. } => "viewer-selection-gesture-end",
                     ViewerSelectionGestureAction::Cancel => "viewer-selection-gesture-cancel",
+                },
+                TerminalViewerAction::SelectionCommand { command, .. } => match command {
+                    ViewerSelectionCommand::Clear => "viewer-selection-command-clear",
+                    ViewerSelectionCommand::SelectAll => "viewer-selection-command-select-all",
+                    ViewerSelectionCommand::SetRange { .. } => "viewer-selection-command-set-range",
+                    ViewerSelectionCommand::SelectOutput { .. } => {
+                        "viewer-selection-command-select-output"
+                    }
                 },
                 TerminalViewerAction::SelectionExport { .. } => "viewer-selection-export",
                 TerminalViewerAction::SelectionExportChunkApplied { .. } => {

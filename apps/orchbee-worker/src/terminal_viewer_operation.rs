@@ -8,9 +8,9 @@ use std::{error::Error, io, num::NonZeroU64, time::Duration};
 use orchbee_capability_node_protocol::{
     MAXIMUM_VIEWER_RECORD_BYTES, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRequest, TerminalViewerResult, ViewerHistoryDemand, ViewerProjectionDemand,
-    ViewerRejection, ViewerRowDetail, ViewerRowsRejectedReason, ViewerSelectionExportCancelReason,
-    ViewerSelectionExportFormat, ViewerSelectionGestureAction, ViewerSnapshotReason,
-    ViewportRowOrigin,
+    ViewerRejection, ViewerRowDetail, ViewerRowsRejectedReason, ViewerSelectionCommand,
+    ViewerSelectionExportCancelReason, ViewerSelectionExportFormat, ViewerSelectionGestureAction,
+    ViewerSelectionPoint, ViewerSnapshotReason, ViewportRowOrigin,
 };
 use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::{
@@ -19,10 +19,11 @@ use orchbee_terminal_protocol::{
     FrameApplied, HistoryControl, HistoryDemand, HistoryObserved, MessageRole, NeedSnapshot,
     PayloadEncoding, ProjectionDemand, ProjectionDemandControl, ProjectionFeedbackControl,
     ReadRows, RowAccessControl, RowRevisionPolicy, RowWindowDetail, RowWindowOrigin,
-    RowWindowPurpose, RowsApplied, SelectionControl, SelectionExport, SelectionExportCancel,
-    SelectionExportCancelReason, SelectionExportChunkApplied, SelectionExportControl,
-    SelectionExportFormat, SelectionExportStatus, SelectionGesture, SelectionGestureAction,
-    SelectionGestureGeometry, SelectionGesturePosition, SelectionViewportPoint, SetHistoryDemand,
+    RowWindowPurpose, RowsApplied, SelectionCommand, SelectionCommandKind, SelectionControl,
+    SelectionExport, SelectionExportCancel, SelectionExportCancelReason,
+    SelectionExportChunkApplied, SelectionExportControl, SelectionExportFormat,
+    SelectionExportStatus, SelectionGesture, SelectionGestureAction, SelectionGestureGeometry,
+    SelectionGesturePosition, SelectionPoint, SelectionViewportPoint, SetHistoryDemand,
     SetProjectionDemand, SnapshotReason, TRANSPORT_ENVELOPE_HEADER_BYTES, TerminalId,
     decode_attachment_control, decode_connection_control, decode_history_control,
     decode_projection_demand_control, decode_projection_feedback_control,
@@ -449,33 +450,40 @@ fn apply(
                     ViewerRejection::AttachmentUnavailable,
                 ));
             }
-            let command = encode_selection_control(&SelectionControl::Gesture(SelectionGesture {
-                action: selection_gesture_action(gesture),
-                attachment_id: id,
-                generation,
-            }))?;
-            let response = match selection_round_trip(
+            selection_changed_exchange(
                 host,
                 server,
                 correlation,
-                command.kind,
-                &command.payload,
-            )? {
-                SelectionReply::Answer(response) => response,
-                SelectionReply::Failure(response) => {
-                    return Ok(TerminalViewerOutcome::Record(response));
-                }
-            };
-            let envelope = decode_transport_envelope(&response)?;
-            let SelectionControl::ChangedResponse(changed) =
-                decode_selection_control(envelope.kind, envelope.role, envelope.payload)?
-            else {
-                return Err(invalid("Host did not answer the selection gesture").into());
-            };
-            if changed.attachment_id != id {
-                return Err(invalid("Host changed a different viewer selection").into());
+                id,
+                &SelectionControl::Gesture(SelectionGesture {
+                    action: selection_gesture_action(gesture),
+                    attachment_id: id,
+                    generation,
+                }),
+            )
+        }
+        TerminalViewerAction::SelectionCommand {
+            generation,
+            revision,
+            command,
+        } => {
+            if !host.viewers.borrow().open(request.attachment_id) {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::AttachmentUnavailable,
+                ));
             }
-            Ok(TerminalViewerOutcome::Record(response))
+            selection_changed_exchange(
+                host,
+                server,
+                correlation,
+                id,
+                &SelectionControl::Command(SelectionCommand {
+                    attachment_id: id,
+                    command: selection_command_kind(command),
+                    generation,
+                    revision,
+                }),
+            )
         }
         TerminalViewerAction::SelectionExport {
             export_sequence,
@@ -727,6 +735,32 @@ const fn selection_gesture_action(gesture: ViewerSelectionGestureAction) -> Sele
     }
 }
 
+const fn selection_point(point: ViewerSelectionPoint) -> SelectionPoint {
+    SelectionPoint {
+        column: point.column,
+        row: point.row,
+    }
+}
+
+const fn selection_command_kind(command: ViewerSelectionCommand) -> SelectionCommandKind {
+    match command {
+        ViewerSelectionCommand::Clear => SelectionCommandKind::Clear,
+        ViewerSelectionCommand::SelectAll => SelectionCommandKind::SelectAll,
+        ViewerSelectionCommand::SetRange {
+            end,
+            rectangle,
+            start,
+        } => SelectionCommandKind::SetRange {
+            end: selection_point(end),
+            rectangle,
+            start: selection_point(start),
+        },
+        ViewerSelectionCommand::SelectOutput { point } => SelectionCommandKind::SelectOutput {
+            point: selection_point(point),
+        },
+    }
+}
+
 const fn snapshot_reason(reason: ViewerSnapshotReason) -> SnapshotReason {
     match reason {
         ViewerSnapshotReason::ActivityStale => SnapshotReason::ActivityStale,
@@ -886,6 +920,35 @@ fn selection_round_trip(
         Ok(SelectionReply::Answer(response))
     }
 }
+
+/// A gesture and a command both answer with this viewer's selection, or with the Host's refusal.
+fn selection_changed_exchange(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    correlation: CorrelationId,
+    id: AttachmentId,
+    control: &SelectionControl,
+) -> Result<TerminalViewerOutcome, Box<dyn Error>> {
+    let encoded = encode_selection_control(control)?;
+    let response =
+        match selection_round_trip(host, server, correlation, encoded.kind, &encoded.payload)? {
+            SelectionReply::Answer(response) => response,
+            SelectionReply::Failure(response) => {
+                return Ok(TerminalViewerOutcome::Record(response));
+            }
+        };
+    let envelope = decode_transport_envelope(&response)?;
+    let SelectionControl::ChangedResponse(changed) =
+        decode_selection_control(envelope.kind, envelope.role, envelope.payload)?
+    else {
+        return Err(invalid("Host did not answer the selection control").into());
+    };
+    if changed.attachment_id != id {
+        return Err(invalid("Host changed a different viewer selection").into());
+    }
+    Ok(TerminalViewerOutcome::Record(response))
+}
+
 fn rows_rejection_reason(code: &str) -> Option<ViewerRowsRejectedReason> {
     Some(match code {
         "stale-revision" => ViewerRowsRejectedReason::StaleRevision,

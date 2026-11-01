@@ -748,7 +748,7 @@ startup/input authority is added. Runtime ownership is in the
 
 ## Viewer selection and export controls
 
-Private viewer action tags 16–19 extend the already admitted attachment; the action body never
+Private viewer action tags 16–20 extend the already admitted attachment; the action body never
 repeats or changes its identity. Tag 16 is `SelectionGesture`: positive big-endian u64 generation,
 then gesture tag 1 Start, 2 Update, 3 End, or 4 Cancel. Start carries click count, viewport point,
 signed pointer position, and canonical 0/1 select-output. Update carries cell width, columns,
@@ -759,14 +759,17 @@ axes are `-65535..=65535`, cell width and columns are `1..=4096`, and screen hei
 Tag 17 `SelectionExport` carries positive big-endian u64 export sequence and closed format tag 1
 Plain. Tag 18 `SelectionExportChunkApplied` carries that sequence plus big-endian u32 chunk
 sequence. Tag 19 `SelectionExportCancel` carries the export sequence and reason tag 1
-ClipboardFailed, 2 Disposed, 3 Replaced, or 4 User. Unknown tags, zero positive values,
-noncanonical Booleans, out-of-range fields, truncation, and tails fail before Worker Host access.
-All viewer tags 1–15 retain their bytes.
+ClipboardFailed, 2 Disposed, 3 Replaced, or 4 User. Tag 20 `SelectionCommand` carries positive
+big-endian u64 generation, big-endian u64 revision, then command tag 1 Clear, 2 SelectAll, 3
+SetRange, or 4 SelectOutput. SetRange carries its start point, end point, and canonical 0/1
+rectangle; SelectOutput carries one point. A point is a `u16` column below 4096 and a big-endian
+u64 absolute row. Unknown tags, zero positive values, noncanonical Booleans, out-of-range fields,
+truncation, and tails fail before Worker Host access. All viewer tags 1–15 retain their bytes.
 
-Worker maps the four controls to one exact attachment- and correlation-scoped OBTP exchange.
+Worker maps the five controls to one exact attachment- and correlation-scoped OBTP exchange.
 SelectionChanged, SelectionExportStarted, and the cancelled SelectionExportFinished return as the
 unchanged opaque `Record`; a matching chunk-applied echo returns `FeedbackAccepted`. A correlated
-typed Host failure to any of the four, such as a gesture for a superseded generation or the
+typed Host failure to any of the five, such as a gesture for a superseded generation or the
 cancellation of an export that already finished, also returns as the unchanged opaque `Record`, so
 Server relays it and the Client reads its code; any mismatched response is a carrier failure.
 Poll-delivered raw export chunks remain opaque bytes in the viewer FIFO. This carrier does not

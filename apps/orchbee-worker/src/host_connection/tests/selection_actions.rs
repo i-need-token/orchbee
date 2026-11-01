@@ -9,14 +9,15 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_terminal_protocol::{
     AttachmentId, ConnectionControl, CorrelationId, Envelope, HostEpoch, MessageRole,
-    PayloadEncoding, SelectionChanged, SelectionChangedState, SelectionControl, SelectionExport,
-    SelectionExportCancel, SelectionExportCancelReason, SelectionExportChunkApplied,
-    SelectionExportControl, SelectionExportFinished, SelectionExportFormat, SelectionExportStarted,
-    SelectionExportStatus, SelectionGesture, SelectionGestureAction, SelectionGestureGeometry,
-    SelectionGesturePosition, SelectionViewportPoint, TRANSPORT_ENVELOPE_HEADER_BYTES,
-    TypedFailure, decode_connection_control, decode_selection_control,
-    decode_selection_export_control, decode_transport_envelope, encode_connection_control,
-    encode_selection_control, encode_selection_export_control, encode_transport_envelope,
+    PayloadEncoding, SelectionChanged, SelectionChangedState, SelectionCommand,
+    SelectionCommandKind, SelectionControl, SelectionExport, SelectionExportCancel,
+    SelectionExportCancelReason, SelectionExportChunkApplied, SelectionExportControl,
+    SelectionExportFinished, SelectionExportFormat, SelectionExportStarted, SelectionExportStatus,
+    SelectionGesture, SelectionGestureAction, SelectionGestureGeometry, SelectionGesturePosition,
+    SelectionPoint, SelectionViewportPoint, TRANSPORT_ENVELOPE_HEADER_BYTES, TypedFailure,
+    decode_connection_control, decode_selection_control, decode_selection_export_control,
+    decode_transport_envelope, encode_connection_control, encode_selection_control,
+    encode_selection_export_control, encode_transport_envelope,
 };
 use std::{
     cell::RefCell,
@@ -138,6 +139,37 @@ fn raw_requests() -> TestResult<Vec<TerminalViewerRequest>> {
     export_cancel.extend_from_slice(&10_u64.to_be_bytes());
     export_cancel.push(1);
     actions.push(export_cancel);
+
+    let mut clear = vec![20];
+    clear.extend_from_slice(&9_u64.to_be_bytes());
+    clear.extend_from_slice(&7_u64.to_be_bytes());
+    clear.push(1);
+    actions.push(clear);
+
+    let mut select_all = vec![20];
+    select_all.extend_from_slice(&9_u64.to_be_bytes());
+    select_all.extend_from_slice(&7_u64.to_be_bytes());
+    select_all.push(2);
+    actions.push(select_all);
+
+    let mut set_range = vec![20];
+    set_range.extend_from_slice(&9_u64.to_be_bytes());
+    set_range.extend_from_slice(&7_u64.to_be_bytes());
+    set_range.push(3);
+    set_range.extend_from_slice(&1_u16.to_be_bytes());
+    set_range.extend_from_slice(&2_u64.to_be_bytes());
+    set_range.extend_from_slice(&3_u16.to_be_bytes());
+    set_range.extend_from_slice(&4_u64.to_be_bytes());
+    set_range.push(1);
+    actions.push(set_range);
+
+    let mut select_output = vec![20];
+    select_output.extend_from_slice(&9_u64.to_be_bytes());
+    select_output.extend_from_slice(&7_u64.to_be_bytes());
+    select_output.push(4);
+    select_output.extend_from_slice(&5_u16.to_be_bytes());
+    select_output.extend_from_slice(&6_u64.to_be_bytes());
+    actions.push(select_output);
 
     actions
         .iter()
@@ -324,6 +356,48 @@ fn peer(mut peer: UnixStream) -> JoinHandle<PeerResult> {
             response.role,
             &response.payload,
         )?;
+
+        let commands = [
+            SelectionCommandKind::Clear,
+            SelectionCommandKind::SelectAll,
+            SelectionCommandKind::SetRange {
+                end: SelectionPoint { column: 3, row: 4 },
+                rectangle: true,
+                start: SelectionPoint { column: 1, row: 2 },
+            },
+            SelectionCommandKind::SelectOutput {
+                point: SelectionPoint { column: 5, row: 6 },
+            },
+        ];
+        for (index, command) in commands.into_iter().enumerate() {
+            let request = read_record(&mut peer)?;
+            let envelope = decode_transport_envelope(&request)?;
+            assert_eq!(
+                envelope.correlation_id,
+                Some(CorrelationId::from_bytes([28 + u8::try_from(index)?; 16])?)
+            );
+            assert_eq!(
+                decode_selection_control(envelope.kind, envelope.role, envelope.payload)?,
+                SelectionControl::Command(SelectionCommand {
+                    attachment_id,
+                    command,
+                    generation: NonZeroU64::new(9).unwrap(),
+                    revision: 7,
+                })
+            );
+            let response =
+                encode_selection_control(&SelectionControl::ChangedResponse(SelectionChanged {
+                    attachment_id,
+                    state: SelectionChangedState::None,
+                }))?;
+            reply(
+                &mut peer,
+                &request,
+                response.kind,
+                response.role,
+                &response.payload,
+            )?;
+        }
         Ok(())
     })
 }
@@ -398,6 +472,17 @@ fn selection_actions_convert_exactly_and_preserve_data_bearing_responses() -> Te
             status: SelectionExportStatus::Cancelled,
         })
     );
+    for outcome in outcomes.drain(..4) {
+        let record = decode_record(outcome)?;
+        let envelope = decode_transport_envelope(&record)?;
+        assert_eq!(
+            decode_selection_control(envelope.kind, envelope.role, envelope.payload)?,
+            SelectionControl::ChangedResponse(SelectionChanged {
+                attachment_id,
+                state: SelectionChangedState::None,
+            })
+        );
+    }
     assert!(outcomes.is_empty());
 
     peer.join()
