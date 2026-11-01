@@ -67,6 +67,15 @@ function browserPlatformEffects(targetWindow: Window): ProjectedTerminalPlatform
 				return { code: 'browser-clipboard-read-failed', kind: 'failed', retryable: false };
 			}
 		},
+		// A selection export finishes after its user activation has expired, so this cannot require one.
+		writeClipboardText: async (text) => {
+			try {
+				await targetWindow.navigator.clipboard.writeText(text);
+				return { kind: 'completed' };
+			} catch {
+				return { code: 'browser-clipboard-write-failed', kind: 'failed', retryable: false };
+			}
+		},
 	};
 }
 

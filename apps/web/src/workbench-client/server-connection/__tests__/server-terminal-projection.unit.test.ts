@@ -1,10 +1,12 @@
 import {
+	AttachmentIdSchema,
 	CURRENT_PROTOCOL_VERSION,
 	CanonicalUint64TextSchema,
 	MessageKind,
 	type MessageKindValue,
 	PayloadEncoding,
 	encodeProtocolEnvelope,
+	encodeSelectionExportChunk,
 } from '@orchbee/terminal-protocol';
 import type { ProjectedTerminalCommand } from '@orchbee/workbench-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
@@ -27,6 +29,7 @@ interface ControlRequest {
 		readonly inputKind?: string;
 		readonly kind: string;
 		readonly sequence?: string;
+		readonly [field: string]: unknown;
 	};
 	readonly kind: string;
 	readonly requestId: string;
@@ -51,7 +54,11 @@ class ScriptedServer implements ServerCarrier {
 	readonly #decoder = new MultiplexDecoder();
 	readonly #answerControl: (request: ControlRequest) => Outcome;
 	readonly #pollRecords: Uint8Array[] = [];
+	/** Scripts a selection action's answer, which a test may hold back with a promise. */
+	answerSelection: (request: ControlRequest) => Uint8Array | Promise<Uint8Array> = (request) =>
+		encodeViewerResult(request.requestId, { kind: 'feedback-accepted' });
 	polls = 0;
+	readonly selectionRequests: ControlRequest[] = [];
 	#receive: ((chunk: Uint8Array) => void) | null = null;
 
 	constructor(answerControl: (request: ControlRequest) => Outcome) {
@@ -64,6 +71,16 @@ class ScriptedServer implements ServerCarrier {
 
 	enqueuePollRecord(record: Uint8Array): void {
 		this.#pollRecords.push(record);
+	}
+
+	get pollRecordsWaiting(): number {
+		return this.#pollRecords.length;
+	}
+
+	/** Hands the Host's record over the way a hint would announce it. */
+	deliverPollRecord(record: Uint8Array): void {
+		this.enqueuePollRecord(record);
+		this.hintRecordReady();
 	}
 
 	hintRecordReady(): void {
@@ -81,12 +98,12 @@ class ScriptedServer implements ServerCarrier {
 			const request = JSON.parse(
 				new TextDecoder().decode(message.request.subarray(8)),
 			) as ControlRequest;
-			queueMicrotask(() => {
+			void Promise.resolve(this.#answer(request)).then((record) => {
 				this.#receive?.(
 					encodeMultiplexMessage({
 						frameKind: 'result',
 						kind: 'stream-frame',
-						record: this.#answer(request),
+						record,
 						sequence: 1n,
 						streamId: message.streamId,
 					}),
@@ -102,8 +119,12 @@ class ScriptedServer implements ServerCarrier {
 		};
 	}
 
-	#answer(request: ControlRequest): Uint8Array {
+	#answer(request: ControlRequest): Uint8Array | Promise<Uint8Array> {
 		const { requestId } = request;
+		if (request.action.kind.startsWith('selection-')) {
+			this.selectionRequests.push(request);
+			return this.answerSelection(request);
+		}
 		if (request.kind === 'terminal.control') {
 			if (request.action.kind === 'acquire') {
 				return encodeJsonFrame({
@@ -141,6 +162,10 @@ class ScriptedServer implements ServerCarrier {
 			requestId,
 		});
 	}
+}
+
+function encodeViewerResult(requestId: string, outcome: Outcome): Uint8Array {
+	return encodeJsonFrame({ kind: 'terminal.viewer.result', outcome, requestId });
 }
 
 /** The OBSR frame the Server sends for a poll that moved one Host record. */
@@ -182,6 +207,70 @@ const SNAPSHOT = hostEvent(
 	PayloadEncoding.terminalFrame,
 	new Uint8Array([9, 9]),
 );
+
+function hostResponse(kind: MessageKindValue, value: object): Uint8Array {
+	const encoded = encodeProtocolEnvelope({
+		correlationId: 'f'.repeat(32),
+		event: false,
+		hostEpoch: HOST_EPOCH,
+		kind,
+		optionalMessage: false,
+		payload: new TextEncoder().encode(JSON.stringify(value)),
+		payloadEncoding: PayloadEncoding.controlJson,
+		protocol: CURRENT_PROTOCOL_VERSION,
+		response: true,
+	});
+	if (!encoded.ok) throw new Error(encoded.detail);
+	return encoded.value;
+}
+
+function exportChunk(
+	exportSequence: bigint,
+	chunkSequence: number,
+	text: string,
+	final: boolean,
+): Uint8Array {
+	const encoded = encodeSelectionExportChunk({
+		attachmentId: AttachmentIdSchema.parse(ATTACHMENT_ID),
+		bytes: new TextEncoder().encode(text),
+		chunkSequence,
+		exportSequence,
+		final,
+	});
+	if (!encoded.ok) throw new Error(encoded.detail);
+	return hostEvent(MessageKind.selectionExportChunk, PayloadEncoding.rawBytes, encoded.value);
+}
+
+function exportStarted(byteLength: number): Uint8Array {
+	return hostResponse(MessageKind.selectionExportStarted, {
+		attachmentId: ATTACHMENT_ID,
+		byteLength,
+		exportSequence: '1',
+		format: 'plain',
+	});
+}
+
+function exportFinished(status: 'cancelled' | 'completed', byteLength: number): Uint8Array {
+	return hostEvent(
+		MessageKind.selectionExportFinished,
+		PayloadEncoding.controlJson,
+		new TextEncoder().encode(
+			JSON.stringify({ attachmentId: ATTACHMENT_ID, byteLength, exportSequence: '1', status }),
+		),
+	);
+}
+
+const REQUEST_SEQUENCE = CanonicalUint64TextSchema.parse('5');
+
+function copyCommand(): ProjectedTerminalCommand {
+	return {
+		kind: 'selection-copy',
+		payload: {
+			attachmentId: AttachmentIdSchema.parse(ATTACHMENT_ID),
+			requestSequence: REQUEST_SEQUENCE,
+		},
+	};
+}
 
 const GEOMETRY = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 80, rows: 24 };
 const BINDING = { sessionId: 'a'.repeat(32), terminalId: 'b'.repeat(32), workerId: 'c'.repeat(32) };
@@ -290,6 +379,167 @@ describe('openServerTerminalProjection', () => {
 		});
 		expect(server.controlRequests.filter((r) => r.action.inputKind === 'text')).toHaveLength(1);
 		expect(events.filter((event) => event.kind === 'failure')).toEqual([]);
+		projection.transport.close();
+	});
+
+	it('answers every selection change, keeping a Host failure code the renderer acts on', async () => {
+		const server = new ScriptedServer(accepted);
+		const answers = [
+			(): Uint8Array =>
+				hostResponse(MessageKind.selectionChanged, {
+					attachmentId: ATTACHMENT_ID,
+					state: 'none',
+				}),
+			(): Uint8Array =>
+				hostResponse(MessageKind.typedFailure, {
+					code: 'stale-generation',
+					message: 'SelectionGesture failed',
+					retryable: true,
+				}),
+			(): Uint8Array =>
+				hostResponse(MessageKind.selectionChanged, {
+					attachmentId: 'f'.repeat(32),
+					state: 'none',
+				}),
+		];
+		server.answerSelection = (request) => {
+			const answer = answers.shift();
+			return answer === undefined
+				? encodeViewerResult(request.requestId, { kind: 'rejected', reason: 'host-rejected' })
+				: encodeViewerRecord(request.requestId, answer());
+		};
+		const { events, projection } = await open(server);
+		const gesture: ProjectedTerminalCommand = {
+			kind: 'selection-gesture',
+			payload: {
+				action: 'cancel',
+				attachmentId: AttachmentIdSchema.parse(ATTACHMENT_ID),
+				generation: CanonicalUint64TextSchema.parse('9'),
+			},
+		};
+
+		for (const _ of [1, 2, 3, 4]) projection.transport.send(gesture);
+		const selectionEvents = (): typeof events =>
+			events.filter((event) => event.kind === 'selection-changed' || event.kind === 'failure');
+		await settled(() => selectionEvents().length === 4);
+
+		expect(server.selectionRequests[0]?.action).toEqual({
+			action: 'cancel',
+			attachmentId: ATTACHMENT_ID,
+			generation: '9',
+			kind: 'selection-gesture',
+		});
+		const failure = (code: string, retryable: boolean): object => ({
+			failure: expect.objectContaining({ code, operation: 'selection', retryable }) as object,
+			kind: 'failure',
+		});
+		expect(selectionEvents()).toEqual([
+			{ event: { attachmentId: ATTACHMENT_ID, state: 'none' }, kind: 'selection-changed' },
+			failure('stale-generation', true),
+			failure('invalid-selection-response', false),
+			failure('host-rejected', false),
+		]);
+		projection.transport.close();
+	});
+
+	it('assembles an export from polled chunks, even one that beats the export answer', async () => {
+		const server = new ScriptedServer(accepted);
+		let releaseStarted: (record: Uint8Array) => void = () => undefined;
+		const acknowledged = (): readonly unknown[] =>
+			server.selectionRequests
+				.filter((request) => request.action.kind === 'selection-export-chunk-applied')
+				.map((request) => request.action['chunkSequence']);
+		server.answerSelection = (request) => {
+			if (request.action.kind !== 'selection-export') {
+				return encodeViewerResult(request.requestId, { kind: 'feedback-accepted' });
+			}
+			return new Promise((resolve) => {
+				releaseStarted = (record) => resolve(encodeViewerRecord(request.requestId, record));
+			});
+		};
+		const { events, projection } = await open(server);
+
+		projection.transport.send(copyCommand());
+		await settled(() => server.selectionRequests.length === 1);
+		expect(server.selectionRequests[0]?.action).toEqual({
+			attachmentId: ATTACHMENT_ID,
+			exportSequence: '1',
+			format: 'plain',
+			kind: 'selection-export',
+		});
+
+		server.deliverPollRecord(exportChunk(1n, 0, 'he', false));
+		await settled(() => server.pollRecordsWaiting === 0);
+		await new Promise((resolve) => {
+			setTimeout(resolve, 5);
+		});
+		expect(acknowledged()).toEqual([]);
+
+		releaseStarted(exportStarted(5));
+		await settled(() => acknowledged().length === 1);
+		server.deliverPollRecord(exportChunk(1n, 1, 'llo', true));
+		await settled(() => acknowledged().length === 2);
+		expect(acknowledged()).toEqual([0, 1]);
+		server.deliverPollRecord(exportFinished('completed', 5));
+		await settled(() => events.some((event) => event.kind === 'selection-copy-content'));
+
+		const delivered = events.find((event) => event.kind === 'selection-copy-content');
+		expect(delivered?.['requestSequence']).toBe(REQUEST_SEQUENCE);
+		expect(new TextDecoder().decode(delivered?.['content'] as ArrayBuffer)).toBe('hello');
+		expect(events.filter((event) => event.kind === 'failure')).toEqual([]);
+		projection.transport.close();
+	});
+
+	it('cancels an export a chunk broke, and then ignores what was already on its way', async () => {
+		const server = new ScriptedServer(accepted);
+		server.answerSelection = (request) =>
+			request.action.kind === 'selection-export'
+				? encodeViewerRecord(request.requestId, exportStarted(5))
+				: encodeViewerResult(request.requestId, { kind: 'feedback-accepted' });
+		const { events, projection } = await open(server);
+
+		projection.transport.send(copyCommand());
+		await settled(() => server.selectionRequests.length === 1);
+		server.deliverPollRecord(exportChunk(1n, 7, 'hello', true));
+		await settled(() => server.selectionRequests.length === 2);
+		server.deliverPollRecord(exportFinished('cancelled', 5));
+		await settled(() => server.pollRecordsWaiting === 0);
+		await new Promise((resolve) => {
+			setTimeout(resolve, 5);
+		});
+
+		expect(server.selectionRequests[1]?.action).toEqual({
+			attachmentId: ATTACHMENT_ID,
+			exportSequence: '1',
+			kind: 'selection-export-cancel',
+			reason: 'replaced',
+		});
+		const failures = events.filter((event) => event.kind === 'failure');
+		expect(failures).toHaveLength(1);
+		expect(failures[0]?.['failure']).toMatchObject({
+			code: 'invalid-copy-chunk',
+			operation: 'copy',
+			requestSequence: REQUEST_SEQUENCE,
+		});
+		projection.transport.close();
+	});
+
+	it('reports an export another Client replaced as a copy that can be tried again', async () => {
+		const server = new ScriptedServer(accepted);
+		server.answerSelection = (request) => encodeViewerRecord(request.requestId, exportStarted(5));
+		const { events, projection } = await open(server);
+
+		projection.transport.send(copyCommand());
+		await settled(() => server.selectionRequests.length === 1);
+		server.deliverPollRecord(exportFinished('cancelled', 5));
+		await settled(() => events.some((event) => event.kind === 'failure'));
+
+		expect(events.find((event) => event.kind === 'failure')?.['failure']).toMatchObject({
+			code: 'copy-cancelled',
+			operation: 'copy',
+			requestSequence: REQUEST_SEQUENCE,
+			retryable: true,
+		});
 		projection.transport.close();
 	});
 

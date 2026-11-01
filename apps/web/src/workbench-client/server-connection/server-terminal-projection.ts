@@ -8,6 +8,7 @@ import {
 	HistoryChangedSchema,
 	MessageKind,
 	PayloadEncoding,
+	SelectionChangedSchema,
 	type TerminalGeometry,
 	TerminalExitedSchema,
 	TerminalFailedSchema,
@@ -40,6 +41,7 @@ import {
 	encodeClientServerRequest,
 } from './client-server-carrier';
 import { type ServerConnection, ServerConnectionEndedError } from './server-connection';
+import { ServerSelectionCopy, readSelectionAnswer } from './server-selection-copy';
 
 export interface ServerTerminalBinding {
 	readonly sessionId: string;
@@ -180,6 +182,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	readonly #connection: ServerConnection;
 	readonly #controlSteps = new SerialSteps();
 	readonly #laneId: bigint;
+	readonly #selectionCopy: ServerSelectionCopy;
 	readonly #viewerSteps = new SerialSteps();
 	readonly #unsubscribeEnded: () => void;
 	readonly #unwatchViewerReady: () => void;
@@ -206,6 +209,12 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		this.#connection = connection;
 		this.#controllerId = controllerId;
 		this.#laneId = laneId;
+		this.#selectionCopy = new ServerSelectionCopy({
+			attachmentId: bootstrap.attachmentId,
+			exchange: (action) => this.#viewerResponseWithRetry(action),
+			onChunkAcknowledged: () => this.#pollAfterProgress(),
+			post: (event) => this.#post(event),
+		});
 		this.#unsubscribeEnded = connection.onEnded(() => this.#retire(true));
 		this.#unwatchViewerReady = connection.watchViewerReady(
 			BigInt(`0x${bootstrap.attachmentId}`),
@@ -276,6 +285,18 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 			case 'clear-terminal':
 				this.#controlAction(command, () => ({ attachmentId, kind: 'clear' }));
 				return;
+			case 'selection-gesture':
+				this.#selectionChange(command, { ...command.payload, kind: 'selection-gesture' });
+				return;
+			case 'selection-command':
+				this.#selectionChange(command, { ...command.payload, kind: 'selection-command' });
+				return;
+			case 'selection-copy':
+				// Behind any queued gesture, so it copies what the user last selected.
+				this.#enqueueViewerStep(command, () =>
+					this.#selectionCopy.start(command.payload.requestSequence),
+				);
+				return;
 			default:
 				this.#fail(
 					command,
@@ -313,6 +334,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		this.#pollTimer = null;
 		this.#viewerSteps.clear();
 		this.#controlSteps.clear();
+		this.#selectionCopy.retire();
 		this.#connection.closeLane(this.#laneId);
 		const unavailable = this.#unavailable;
 		this.#unavailable = null;
@@ -342,6 +364,18 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		});
 	}
 
+	#selectionEventFailure(message: string): void {
+		this.#post({
+			failure: {
+				code: 'invalid-selection-event',
+				message,
+				operation: 'selection',
+				retryable: false,
+			},
+			kind: 'failure',
+		});
+	}
+
 	/** A connection that ended retires this transport through its own listener. */
 	#report(command: ProjectedTerminalCommand, error: unknown): void {
 		if (error instanceof ServerConnectionEndedError) return;
@@ -367,16 +401,20 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		return response.outcome;
 	}
 
-	async #viewer(action: ClientServerViewerAction): Promise<ClientServerViewerOutcome> {
-		const response = await this.#exchange({
+	#viewerResponse(action: ClientServerViewerAction): Promise<ClientServerResponse> {
+		return this.#exchange({
 			action,
 			kind: 'terminal.viewer',
 			requestId: createClientServerRequestId(),
 		});
-		if (response.kind !== 'terminal.viewer.result') {
-			throw new Error('The Server answered a viewer action with another message.');
+	}
+
+	#enqueueViewerStep(command: ProjectedTerminalCommand, step: () => Promise<void>): void {
+		if (this.#viewerSteps.length >= MAXIMUM_QUEUED_COMMANDS) {
+			this.#fail(command, 'renderer-backpressure', 'Too many terminal commands are queued.', true);
+			return;
 		}
-		return response.outcome;
+		this.#viewerSteps.push(step);
 	}
 
 	#viewerStep(
@@ -384,11 +422,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		action: ClientServerViewerAction,
 		wakesPoll: boolean,
 	): void {
-		if (this.#viewerSteps.length >= MAXIMUM_QUEUED_COMMANDS) {
-			this.#fail(command, 'renderer-backpressure', 'Too many terminal commands are queued.', true);
-			return;
-		}
-		this.#viewerSteps.push(async () => {
+		this.#enqueueViewerStep(command, async () => {
 			if (this.#closed) return;
 			try {
 				const outcome = await this.#viewerWithRetry(action);
@@ -404,14 +438,65 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		});
 	}
 
-	async #viewerWithRetry(action: ClientServerViewerAction): Promise<ClientServerViewerOutcome> {
+	/** A busy Server took nothing, so each retry is a new request. */
+	async #viewerResponseWithRetry(action: ClientServerViewerAction): Promise<ClientServerResponse> {
 		for (const wait of BUSY_RETRY_DELAYS_MILLISECONDS) {
-			const outcome = await this.#viewer(action);
-			if (outcome.kind !== 'unavailable' || outcome.reason !== 'server-busy') return outcome;
+			const response = await this.#viewerResponse(action);
+			const busy =
+				response.kind === 'terminal.viewer.result' &&
+				response.outcome.kind === 'unavailable' &&
+				response.outcome.reason === 'server-busy';
+			if (!busy) return response;
 			await delay(wait);
-			if (this.#closed) return outcome;
+			if (this.#closed) return response;
 		}
-		return this.#viewer(action);
+		return this.#viewerResponse(action);
+	}
+
+	async #viewerWithRetry(action: ClientServerViewerAction): Promise<ClientServerViewerOutcome> {
+		const response = await this.#viewerResponseWithRetry(action);
+		if (response.kind !== 'terminal.viewer.result') {
+			throw new Error('The Server answered a viewer action with another message.');
+		}
+		return response.outcome;
+	}
+
+	/**
+	 * The renderer keeps one gesture in flight until it hears back, so every path here must answer.
+	 * A Host failure keeps its own code: the renderer retires a gesture on `stale-generation` or
+	 * `history-evicted` without telling the user.
+	 */
+	#selectionChange(command: ProjectedTerminalCommand, action: ClientServerViewerAction): void {
+		this.#enqueueViewerStep(command, async () => {
+			if (this.#closed) return;
+			try {
+				this.#settleSelectionChange(command, await this.#viewerResponseWithRetry(action));
+			} catch (error) {
+				this.#report(command, error);
+			}
+		});
+	}
+
+	#settleSelectionChange(command: ProjectedTerminalCommand, response: ClientServerResponse): void {
+		const answer = readSelectionAnswer(response);
+		if (answer.kind === 'refused') {
+			this.#fail(command, answer.code, answer.message, answer.retryable);
+			return;
+		}
+		const changed =
+			answer.kind === 'record' && answer.envelope.kind === MessageKind.selectionChanged
+				? decodeControlJson(answer.envelope.payload, SelectionChangedSchema)
+				: null;
+		if (changed?.ok !== true || changed.value.attachmentId !== this.#bootstrap.attachmentId) {
+			this.#fail(
+				command,
+				'invalid-selection-response',
+				'The Host answered a selection change with another record.',
+				false,
+			);
+			return;
+		}
+		this.#post({ event: changed.value, kind: 'selection-changed' });
 	}
 
 	#readRows(command: Extract<ProjectedTerminalCommand, { readonly kind: 'read-rows' }>): void {
@@ -731,6 +816,23 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 				}
 				return;
 			}
+			case MessageKind.selectionChanged: {
+				const event = decodeControlJson(envelope.payload, SelectionChangedSchema);
+				if (!event.ok) {
+					this.#selectionEventFailure(event.detail);
+				} else if (event.value.attachmentId === this.#bootstrap.attachmentId) {
+					this.#post({ event: event.value, kind: 'selection-changed' });
+				} else {
+					this.#selectionEventFailure('A selection event named another attachment.');
+				}
+				return;
+			}
+			case MessageKind.selectionExportChunk:
+				this.#selectionCopy.receiveChunk(envelope);
+				return;
+			case MessageKind.selectionExportFinished:
+				this.#selectionCopy.receiveFinished(envelope);
+				return;
 			default:
 				this.#protocolFailure('unsupported-message', `Unexpected Host record ${envelope.kind}.`);
 		}

@@ -4,6 +4,11 @@
  * authority; its corpus checks this binding. Messages this Client never sends or reads, such as
  * `terminal.send`, stay out of the binding until a consumer needs them.
  */
+import type {
+	SelectionCommand,
+	SelectionExportCancel,
+	SelectionGesture,
+} from '@orchbee/terminal-protocol';
 import { z } from 'zod';
 
 const FRAME_MAGIC = [0x4f, 0x42, 0x43, 0x53] as const; // OBCS
@@ -231,6 +236,27 @@ export type ClientServerViewerAction =
 			readonly kind: 'history-observed';
 			readonly revision: string;
 			readonly sequence: string;
+	  }
+	// The Server carries these two with the Host's own field names, so a renderer's payload passes through.
+	| (SelectionGesture & { readonly kind: 'selection-gesture' })
+	| (SelectionCommand & { readonly kind: 'selection-command' })
+	| {
+			readonly attachmentId: string;
+			readonly exportSequence: string;
+			readonly format: 'plain';
+			readonly kind: 'selection-export';
+	  }
+	| {
+			readonly attachmentId: string;
+			readonly chunkSequence: number;
+			readonly exportSequence: string;
+			readonly kind: 'selection-export-chunk-applied';
+	  }
+	| {
+			readonly attachmentId: string;
+			readonly exportSequence: string;
+			readonly kind: 'selection-export-cancel';
+			readonly reason: SelectionExportCancel['reason'];
 	  };
 
 /** The Host semantic input record kinds a `semantic-input` control action may carry. */

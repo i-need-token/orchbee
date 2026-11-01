@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { AttachmentIdSchema, CanonicalUint64TextSchema } from '@orchbee/terminal-protocol';
 import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -76,6 +77,17 @@ function admitsResponse(payload: string): boolean {
 const ID = 'a'.repeat(32);
 const ids = { attachmentId: ID, controllerId: 'b'.repeat(32), sequence: '1' };
 const geometry = { cellPixelHeight: 20, cellPixelWidth: 10, columns: 80, rows: 24 };
+const selectionAttachment = {
+	attachmentId: AttachmentIdSchema.parse(ID),
+	generation: CanonicalUint64TextSchema.parse('1'),
+};
+const selectionRow = CanonicalUint64TextSchema.parse('12');
+const selectionGesture = { ...selectionAttachment, kind: 'selection-gesture' as const };
+const selectionCommand = {
+	...selectionAttachment,
+	kind: 'selection-command' as const,
+	revision: CanonicalUint64TextSchema.parse('0'),
+};
 
 describe('Client-Server carrier binding', () => {
 	const valid = corpus.validMessages.filter(
@@ -142,6 +154,71 @@ describe('Client-Server carrier binding', () => {
 				requestSequence: '1',
 				revision: '1',
 				rowCount: 1,
+			},
+			kind: 'terminal.viewer',
+			requestId: ID,
+		},
+		{
+			action: {
+				...selectionGesture,
+				action: 'start',
+				clickCount: 2,
+				point: { column: 3, row: 4 },
+				position: { x: -1, y: 2 },
+				selectOutput: false,
+			},
+			kind: 'terminal.viewer',
+			requestId: ID,
+		},
+		{
+			action: {
+				...selectionGesture,
+				action: 'update',
+				geometry: { cellWidth: 9, columns: 80, paddingLeft: 0, screenHeight: 400 },
+				point: { column: 3, row: 4 },
+				position: { x: 1, y: 2 },
+				rectangle: true,
+			},
+			kind: 'terminal.viewer',
+			requestId: ID,
+		},
+		{
+			action: {
+				...selectionCommand,
+				command: 'set-range',
+				end: { column: 4, row: selectionRow },
+				rectangle: false,
+				start: { column: 3, row: selectionRow },
+			},
+			kind: 'terminal.viewer',
+			requestId: ID,
+		},
+		{
+			action: { ...selectionCommand, command: 'clear' },
+			kind: 'terminal.viewer',
+			requestId: ID,
+		},
+		{
+			action: { attachmentId: ID, exportSequence: '1', format: 'plain', kind: 'selection-export' },
+			kind: 'terminal.viewer',
+			requestId: ID,
+		},
+		{
+			action: {
+				attachmentId: ID,
+				chunkSequence: 0,
+				exportSequence: '1',
+				kind: 'selection-export-chunk-applied',
+			},
+			kind: 'terminal.viewer',
+			requestId: ID,
+		},
+		{
+			action: {
+				attachmentId: ID,
+				exportSequence: '1',
+				kind: 'selection-export-cancel',
+				reason: 'replaced',
 			},
 			kind: 'terminal.viewer',
 			requestId: ID,
