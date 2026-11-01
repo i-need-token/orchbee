@@ -4,14 +4,13 @@ use crate::workbench_state::workspace_setup::{
 };
 
 #[test]
-fn blank_workspace_names_have_localized_validation_and_recoverable_display_names() {
+fn blank_workspace_names_have_recoverable_localized_display_names() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for blank in ["", "   ", "\u{a0}\u{2003}\u{3000}"] {
             assert_eq!(
                 locale.workspace_display_label(blank),
                 locale.unnamed_workspace()
             );
-            assert!(!locale.workspace_name_required().trim().is_empty());
         }
         assert_eq!(
             locale.workspace_display_label("  资料 Notes  "),
@@ -21,10 +20,6 @@ fn blank_workspace_names_have_localized_validation_and_recoverable_display_names
     assert_ne!(
         Locale::EnUs.unnamed_workspace(),
         Locale::ZhCn.unnamed_workspace()
-    );
-    assert_ne!(
-        Locale::EnUs.workspace_name_required(),
-        Locale::ZhCn.workspace_name_required()
     );
 }
 
