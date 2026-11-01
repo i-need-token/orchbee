@@ -137,6 +137,12 @@ path = "tests/cli_windows_switch_keys.rs"
 name = "cli_windows_workspace_naming"
 path = "tests/cli_windows_workspace_naming.rs"
 
+# Keep these two real Sessions, their TUI Client, timed pointer input and real Git operations away
+# from aggregate suite deadlines.
+[[test]]
+name = "cli_windows_worktree_menu"
+path = "tests/cli_windows_worktree_menu.rs"
+
 # Keep short-deadline PROCESS_WITNESS_LOCK scheduling isolated.
 [[test]]
 name = "local_startup_process"

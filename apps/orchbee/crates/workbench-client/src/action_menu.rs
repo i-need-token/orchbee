@@ -29,6 +29,8 @@ pub enum MenuTarget {
     Project(orchbee_workbench_protocol::WorkbenchProjectId),
     Workspace(crate::workbench_projection::ClientContextLocation),
     WorkspaceProjects(crate::workbench_projection::ClientContextLocation),
+    /// One Workspace's Open Worktree submenu: the Git Worktrees other than its own checkout.
+    WorkspaceWorktrees(crate::workbench_projection::ClientContextLocation),
     /// One Project's New Workspace submenu: a new Worktree, its folders and its Git Worktrees.
     WorkspaceCreation(orchbee_workbench_protocol::WorkbenchProjectId),
     /// An object entry must still belong to the exact Session snapshot that painted it.
@@ -106,11 +108,14 @@ pub(crate) const TAB_ACTIONS: &[MenuAction] = &[
     MenuAction::CloseSelectedTabs,
     MenuAction::CloseOtherTabs,
 ];
-/// Set Directory… is hidden once a directory exists; discovery may add Remove Worktree….
+/// Set Directory… is hidden once a directory exists; the Worktree rows wait for Git discovery,
+/// which may also add Remove Worktree….
 pub(crate) const WORKSPACE_ACTIONS: &[MenuAction] = &[
     MenuAction::WorkspaceProjects,
     MenuAction::RenameWorkspace,
     MenuAction::WorkspaceDirectory,
+    MenuAction::NewWorktree,
+    MenuAction::WorkspaceWorktrees,
     MenuAction::DeleteWorkspace,
 ];
 pub(crate) const PROJECT_ACTIONS: &[MenuAction] = &[
@@ -455,8 +460,15 @@ fn separator_before(source: &MenuTarget, actions: &[MenuAction], index: usize) -
         return global_menu_group(previous) != global_menu_group(action);
     }
     if matches!(source, MenuTarget::Workspace(_)) {
-        // The close and removal rows form one trailing section.
-        return matches!(action, MenuAction::DeleteWorkspace)
+        // The Worktree rows form one section; the close and removal rows form the trailing one.
+        let worktree = |action: &MenuAction| {
+            matches!(
+                action,
+                MenuAction::NewWorktree | MenuAction::WorkspaceWorktrees
+            )
+        };
+        return worktree(action) && !worktree(previous)
+            || matches!(action, MenuAction::DeleteWorkspace)
             || matches!(action, MenuAction::RemoveWorktree)
                 && !matches!(previous, MenuAction::DeleteWorkspace);
     }

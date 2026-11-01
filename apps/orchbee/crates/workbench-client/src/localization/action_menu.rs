@@ -73,6 +73,7 @@ pub(crate) enum MenuLabel {
     RenameProject,
     WorkspaceProjects,
     WorkspaceCreation,
+    WorkspaceWorktrees,
     CreateWorkspaceProject,
     LeaveWorkspaceProject,
     JoinWorkspaceProject,
@@ -124,6 +125,7 @@ pub(crate) enum MenuUnavailable {
     NoRecentGroup,
     WorktreeChecking,
     WorktreeUnavailable,
+    NoOtherWorktrees,
 }
 
 impl Locale {
@@ -266,6 +268,10 @@ impl Locale {
             (Self::ZhCn, MenuUnavailable::WorktreeUnavailable, false) => "暂无可用的 Git 来源",
             (Self::EnUs, MenuUnavailable::WorktreeUnavailable, true) => "Git unavailable",
             (Self::ZhCn, MenuUnavailable::WorktreeUnavailable, true) => "Git 不可用",
+            (Self::EnUs, MenuUnavailable::NoOtherWorktrees, false) => "No other worktrees",
+            (Self::ZhCn, MenuUnavailable::NoOtherWorktrees, false) => "没有其他工作树",
+            (Self::EnUs, MenuUnavailable::NoOtherWorktrees, true) => "No others",
+            (Self::ZhCn, MenuUnavailable::NoOtherWorktrees, true) => "无其他",
             (Self::EnUs, MenuUnavailable::NoRecentGroup, _) => "No recent group",
             (Self::ZhCn, MenuUnavailable::NoRecentGroup, _) => "暂无最近使用的分组",
             (Self::EnUs, MenuUnavailable::NoMatchingTabs, false) => {
@@ -457,6 +463,8 @@ impl Locale {
             (Self::ZhCn, WorkspaceProjects) => "移动到项目",
             (Self::EnUs, WorkspaceCreation) => "New Workspace",
             (Self::ZhCn, WorkspaceCreation) => "新建工作区",
+            (Self::EnUs, WorkspaceWorktrees) => "Open Worktree",
+            (Self::ZhCn, WorkspaceWorktrees) => "打开工作树",
             (Self::EnUs, WorkspaceInFolder) => "New Workspace in folder",
             (Self::ZhCn, WorkspaceInFolder) => "在文件夹中新建工作区",
             (Self::EnUs, CreateWorkspaceProject) => "New Project…",

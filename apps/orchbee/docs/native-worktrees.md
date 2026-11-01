@@ -154,9 +154,13 @@ later members or a borrow from the current Client context. An admitted explicit 
 permits only that Workspace's canonical primary directory; failed, mismatched or unavailable
 samples never mean absence. An empty Workspace may use its own directory without inventing a process
 sample. An existing unbound first terminal is unavailable, rather than an absent cwd.
-An addressed Directory source may carry the frozen existing Project in Start. A same-Workspace
-directory fallback instead keeps required-nullable `projectId: null`; the existing Server Alongside
-owner resolves that Workspace's grouping. A Client must not copy the Project onto a Workspace-source
+For an addressed Workspace, an admitted cwd that names its canonical primary directory on the same
+Worker (Windows spelling compared case-insensitively, without a trailing separator) is that
+Workspace itself; any other admitted cwd stays a Directory source. A Project source keeps the
+Directory form. An addressed Directory source may carry the frozen existing Project in Start. A
+Workspace source, from that rule or the same-Workspace directory fallback, instead keeps
+required-nullable `projectId: null`; the existing Server Alongside owner resolves that Workspace's
+grouping, so an ungrouped Workspace and the Worktree it creates or opens land in one new Project. A Client must not copy the Project onto a Workspace-source
 Start, which the strict wire contract rejects.
 
 These pre-submit choices freeze exact Project identity and ordered members, addressed Workspace,
@@ -171,7 +175,10 @@ revalidate the addressed proof, and the chosen source/directory appears in the e
 before effect. The pure source model tests cover empty/noncurrent/multiple-repository grouping,
 first terminal versus child/later terminal, explicit absence versus unavailable samples and source
 drift. Git classification, actual cwd sampling and real menu interaction require their separate
-integration evidence.
+integration evidence. `cli_windows_worktree_menu` runs the CLI, Server, Worker and Zig Host under
+test against a real repository with a TUI Client driven by pointer: from an ungrouped Workspace's
+row menu, Open Worktree ▸ opens a linked checkout into a new Project with the Workspace, and New
+Worktree… then joins that Project. A direct Cargo run needs the Server and Worker built first.
 
 ## Entry and failure
 

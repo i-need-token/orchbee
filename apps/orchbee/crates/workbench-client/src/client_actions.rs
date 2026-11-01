@@ -208,6 +208,8 @@ pub enum MenuAction {
     RenameProject,
     WorkspaceProjects,
     WorkspaceCreation,
+    /// A Workspace's Open Worktree submenu of its other Git Worktrees.
+    WorkspaceWorktrees,
     CreateWorkspaceProject,
     LeaveWorkspaceProject,
     JoinWorkspaceProject(orchbee_workbench_protocol::WorkbenchProjectId),
@@ -281,6 +283,7 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::RenameProject => Self::RenameProject,
             MenuAction::WorkspaceProjects => Self::WorkspaceProjects,
             MenuAction::WorkspaceCreation => Self::WorkspaceCreation,
+            MenuAction::WorkspaceWorktrees => Self::WorkspaceWorktrees,
             MenuAction::WorkspaceInFolder(_) => Self::WorkspaceInFolder,
             MenuAction::CreateWorkspaceProject => Self::CreateWorkspaceProject,
             MenuAction::LeaveWorkspaceProject => Self::LeaveWorkspaceProject,
@@ -316,6 +319,7 @@ impl MenuAction {
                 | Self::TabCreation
                 | Self::WorkspaceProjects
                 | Self::WorkspaceCreation
+                | Self::WorkspaceWorktrees
         )
     }
     /// Addressed sidebar choices require their menu's frozen source owner.
@@ -384,6 +388,7 @@ impl MenuAction {
             Self::Detach => ClientAction::Exit,
             Self::WorkspaceProjects
             | Self::WorkspaceCreation
+            | Self::WorkspaceWorktrees
             | Self::WorkspaceInFolder(_)
             | Self::CreateWorkspaceProject
             | Self::LeaveWorkspaceProject

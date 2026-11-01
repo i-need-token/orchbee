@@ -19,7 +19,7 @@ The Workspace sidebar admits right-click only for an exact, still-present row on
 current machine and painted Session. It uses the existing Workspace menu and never
 requests a machine or context switch on opening or cancellation.
 
-A context menu's frame title names its target; a Tab menu uses the Tab's shared displayed name. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Zoom; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles, tooltips and shortcut help keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated Close. A reason row exists only while some row of the menu is unavailable.
+A context menu's frame title names its target; a Tab menu uses the Tab's shared displayed name. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Zoom; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles, tooltips and shortcut help keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, then a separated Close. A reason row exists only while some row of the menu is unavailable.
 
 A pointer-opened menu follows the press: its frame starts at the pressed column on the row below the complete painted trigger (a sidebar row, Tab or group header, otherwise the pressed cell), else ends on the row above it, and shifts left to stay inside the viewport. Height yields to scrolling before covering the trigger row; fewer than three rows on both sides keeps the existing recovery surface. A keyboard-opened sidebar row menu opens beside its row, top edge level with it, moving up only to fit; other keyboard menus stay centered. While a pointer-opened row menu is open, its row keeps the hover fill; a keyboard-opened one keeps the sidebar focus on its row. Placement changes no target or focus. `docs/tui/layout.md` owns the general geometry.
 
@@ -226,7 +226,13 @@ Setup retains the current source and focus, checks the original menu deadline at
 bounded preparation without timing optional human editing.
 
 Workspace menus contain Move to Project ▸, Rename Workspace (shown as Rename), Set Directory… when
-it applies, and a separated close section. Move to Project ▸ lists the other Projects in canonical order, then a
+it applies, a separated Worktree section and a separated close section. The Worktree section holds
+New Worktree…, which creates a Worktree with defaults through the sidebar Create route, and Open
+Worktree ▸, whose submenu lists the discovered non-bare checkouts other than the Workspace's own
+(labelled like the Git Worktrees group) and opens the chosen one through the sidebar Open route.
+Both act on the addressed Workspace without selecting it; their source and grouping follow
+[native-worktrees.md](native-worktrees.md), so an ungrouped Workspace and the Worktree it adds land in
+one new Project. Move to Project ▸ lists the other Projects in canonical order, then a
 separated New Project… and, for a grouped Workspace, Remove from Project. Choices retain exact IDs, including duplicate labels. Names that collide
 after sanitization or display-width truncation receive the sidebar's shortest unique trailing ID
 suffix: at least eight hexadecimal characters, extended by four up to the full ID. The complete suffix
@@ -235,8 +241,9 @@ for one name and atomically creates the Project and moves the Workspace. Organiz
 a noncurrent Workspace. Empty conditional creation sections publish no orphan separator.
 
 Opening a Project or Workspace menu starts Git discovery of the addressed source. New Worktree…
-stays disabled with a localized reason until discovery succeeds; a non-Git or failed source keeps
-it disabled. Success enables it, appends the Git Worktrees group to New Workspace ▸ and, when the
+and Open Worktree ▸ stay disabled with a localized reason until discovery succeeds; a non-Git or
+failed source keeps them disabled, and Open Worktree ▸ also stays disabled while the Workspace's own
+checkout is the only one. Success enables them, appends the Git Worktrees group to New Workspace ▸ and, when the
 Workspace directory is a linked non-bare checkout, appends a destructive Remove Worktree… after
 Close Workspace…. New rows only follow existing ones, so no row above them moves; the reason row
 disappears once no row is unavailable, so the frame may shrink. Completion changes availability

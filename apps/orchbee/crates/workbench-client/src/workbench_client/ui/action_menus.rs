@@ -46,8 +46,12 @@ fn action_availability(
     resume_permit: Option<&TabCloseResumePermit>,
 ) -> ActionAvailability<MenuUnavailable> {
     use crate::workbench_state::workspace_setup::DirectoryConfigurationUnavailable;
-    if action
-        .client_action()
+    // Open Worktree ▸ needs the same host effect as the global Open Worktree….
+    let effect = match action {
+        MenuAction::WorkspaceWorktrees => MenuAction::OpenWorktree.client_action(),
+        _ => action.client_action(),
+    };
+    if effect
         .as_ref()
         .and_then(crate::tui_capabilities::for_action)
         .is_some_and(|capability| !capabilities.supports(capability))
@@ -201,7 +205,10 @@ fn action_availability(
     }
     if matches!(
         action,
-        MenuAction::OpenWorktreeAt(_) | MenuAction::NewWorktree | MenuAction::RemoveWorktree
+        MenuAction::OpenWorktreeAt(_)
+            | MenuAction::NewWorktree
+            | MenuAction::RemoveWorktree
+            | MenuAction::WorkspaceWorktrees
     ) && matches!(target, Target::Workspace { .. } | Target::Project { .. })
     {
         return ActionAvailability::from_disabled_reason(
@@ -608,7 +615,9 @@ impl WorkbenchClientUi {
                     crate::action_menu::PROJECT_ACTIONS.to_vec(),
                 )
             }
-            MenuTarget::Workspace(location) | MenuTarget::WorkspaceProjects(location) => {
+            MenuTarget::Workspace(location)
+            | MenuTarget::WorkspaceProjects(location)
+            | MenuTarget::WorkspaceWorktrees(location) => {
                 if !live {
                     return false;
                 }
@@ -654,6 +663,10 @@ impl WorkbenchClientUi {
                 vec![MenuAction::NewWorktree]
             };
             actions.extend(folders.into_iter().map(MenuAction::WorkspaceInFolder));
+        }
+        if matches!(entry, MenuTarget::WorkspaceWorktrees(_)) {
+            // Discovery supplies every row of the Open Worktree submenu.
+            actions = Vec::new();
         }
         let project_choices = if matches!(entry, MenuTarget::WorkspaceProjects(_)) {
             let Some(choices) = state.and_then(|state| sidebar::project_choices(state, &target))
@@ -1241,6 +1254,9 @@ impl WorkbenchClientUi {
                         | MenuAction::JoinWorkspaceProject(_)
                         | MenuAction::DeleteWorkspace
                         | MenuAction::RemoveWorktree
+                        | MenuAction::NewWorktree
+                        | MenuAction::WorkspaceWorktrees
+                        | MenuAction::OpenWorktreeAt(_)
                 ) =>
             {
                 true
@@ -1351,6 +1367,9 @@ impl WorkbenchClientUi {
                                     | MenuAction::JoinWorkspaceProject(_)
                                     | MenuAction::DeleteWorkspace
                                     | MenuAction::RemoveWorktree
+                                    | MenuAction::NewWorktree
+                                    | MenuAction::WorkspaceWorktrees
+                                    | MenuAction::OpenWorktreeAt(_)
                             )
                         ) || self
                             .state
@@ -1491,6 +1510,9 @@ impl WorkbenchClientUi {
             (Target::Workspace { location, .. }, MenuAction::WorkspaceProjects) => {
                 Some(MenuTarget::WorkspaceProjects(location.clone()))
             }
+            (Target::Workspace { location, .. }, MenuAction::WorkspaceWorktrees) => {
+                Some(MenuTarget::WorkspaceWorktrees(location.clone()))
+            }
             (Target::Project { project, .. }, MenuAction::WorkspaceCreation) => {
                 Some(MenuTarget::WorkspaceCreation(project.project_id.clone()))
             }
@@ -1514,7 +1536,10 @@ impl WorkbenchClientUi {
             MenuAction::NewWorktree | MenuAction::OpenWorktreeAt(_) | MenuAction::RemoveWorktree
         ) && matches!(
             intent.entry(),
-            MenuTarget::WorkspaceCreation(_) | MenuTarget::Create(_) | MenuTarget::Workspace(_)
+            MenuTarget::WorkspaceCreation(_)
+                | MenuTarget::Create(_)
+                | MenuTarget::Workspace(_)
+                | MenuTarget::WorkspaceWorktrees(_)
         ) {
             let discovery = self.menus.discovery()?.ready()?.clone();
             let checkout = match &action {

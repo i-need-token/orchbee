@@ -7,7 +7,7 @@ use crate::workbench_projection::{
 };
 use orchbee_workbench_protocol::{
     Project, Snapshot, TerminalContext, WorkbenchProjectId, WorkbenchWorkspaceId, Workspace,
-    WorktreeSource,
+    WorktreeEntryText, WorktreeQueryEntry, WorktreeSource,
 };
 
 #[derive(Clone, Debug)]
@@ -19,6 +19,21 @@ pub(crate) struct SidebarDiscovery {
 }
 
 impl SidebarDiscovery {
+    /// Whether `entry` is the addressed Workspace's own checkout, which opening would only reuse.
+    pub(crate) fn own_checkout(&self, entry: &WorktreeQueryEntry) -> bool {
+        let SidebarWorktreeTarget::Workspace(workspace_id) = &self.addressed.target else {
+            return false;
+        };
+        let WorktreeEntryText::Utf8(path) = &entry.checkout.path else {
+            return false;
+        };
+        entry
+            .workspaces
+            .iter()
+            .any(|workspace| &workspace.workspace_id == workspace_id)
+            || super::removal::same_checkout(self.discovery.source.requested_path.as_str(), path)
+    }
+
     pub(crate) fn valid(&self, snapshot: &Snapshot) -> bool {
         self.addressed.unchanged(snapshot)
             && self.addressed.resolve_sample(self.sample.clone()).as_ref() == Some(&self.source)
@@ -129,10 +144,29 @@ impl AddressedWorktreeSource {
     /// Only an admitted absent cwd (or no first terminal at all)
     /// permits the same Workspace's canonical directory. An unavailable sample
     /// can never select another Project member, Agent cwd or Client cwd.
+    /// For an addressed Workspace, an admitted cwd naming its directory on its Worker is the
+    /// Workspace itself, so the Server can group the new Workspace alongside it; a Project
+    /// source already carries its Project.
     pub(crate) fn resolve_sample(&self, sample: RootDirectory) -> Option<WorktreeSource> {
         match sample {
             RootDirectory::Available(Some(path)) if self.primary.is_some() => {
-                Some(WorktreeSource::Directory { path })
+                match (&self.target, self.cache.directory(), &self.primary) {
+                    (
+                        SidebarWorktreeTarget::Workspace(workspace_id),
+                        Some(directory),
+                        Some(primary),
+                    ) if directory.worker_id == *primary.worker_id()
+                        && super::removal::same_checkout(
+                            directory.path.as_str(),
+                            path.as_str(),
+                        ) =>
+                    {
+                        Some(WorktreeSource::Workspace {
+                            workspace_id: workspace_id.clone(),
+                        })
+                    }
+                    _ => Some(WorktreeSource::Directory { path }),
+                }
             }
             RootDirectory::Available(None)
                 if self.cache.directory().is_some()

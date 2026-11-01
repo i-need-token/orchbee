@@ -47,7 +47,10 @@ fn belongs(entry: &MenuTarget, episode: &Discovery) -> bool {
             project == id
         }
         (
-            MenuTarget::Workspace(ClientContextLocation::Workspace { workspace_id, .. }),
+            MenuTarget::Workspace(ClientContextLocation::Workspace { workspace_id, .. })
+            | MenuTarget::WorkspaceWorktrees(ClientContextLocation::Workspace {
+                workspace_id, ..
+            }),
             SidebarWorktreeTarget::Workspace(id),
         ) => workspace_id == id,
         (
@@ -168,11 +171,23 @@ impl ChoiceLabels {
 }
 
 fn checkout_actions(discovery: &SidebarDiscovery) -> Vec<MenuAction> {
+    checkouts(discovery, |_| true)
+}
+
+/// A Workspace's Open Worktree submenu lists every other openable checkout.
+fn other_checkout_actions(discovery: &SidebarDiscovery) -> Vec<MenuAction> {
+    checkouts(discovery, |entry| !discovery.own_checkout(entry))
+}
+
+fn checkouts(
+    discovery: &SidebarDiscovery,
+    keep: impl Fn(&orchbee_workbench_protocol::WorktreeQueryEntry) -> bool,
+) -> Vec<MenuAction> {
     discovery
         .discovery
         .entries
         .iter()
-        .filter(|entry| !entry.checkout.bare)
+        .filter(|entry| !entry.checkout.bare && keep(entry))
         .filter_map(|entry| {
             let orchbee_workbench_protocol::WorktreeEntryText::Utf8(path) = &entry.checkout.path
             else {
@@ -217,6 +232,7 @@ pub(super) fn actions(
             }
             actions
         }
+        MenuTarget::WorkspaceWorktrees(_) => ready.map(other_checkout_actions).unwrap_or_default(),
         MenuTarget::Project(_) => actions,
         MenuTarget::Create(project) => {
             let mut actions = vec![if project.is_some() {
@@ -242,14 +258,27 @@ pub(super) fn unavailable(
     action: &MenuAction,
 ) -> Option<crate::action_menu::MenuUnavailable> {
     use crate::action_menu::MenuUnavailable;
-    if action != &MenuAction::NewWorktree || !matches!(entry, MenuTarget::WorkspaceCreation(_)) {
+    // New Worktree… and Open Worktree ▸ wait for the addressed source's Git discovery.
+    let waits = match action {
+        MenuAction::NewWorktree => {
+            matches!(
+                entry,
+                MenuTarget::WorkspaceCreation(_) | MenuTarget::Workspace(_)
+            )
+        }
+        MenuAction::WorkspaceWorktrees => matches!(entry, MenuTarget::Workspace(_)),
+        _ => false,
+    };
+    if !waits {
         return None;
     }
     match episode
         .filter(|episode| belongs(entry, episode))
         .map(Discovery::state)
     {
-        Some(DiscoveryState::Ready(_)) => None,
+        Some(DiscoveryState::Ready(ready)) => (action == &MenuAction::WorkspaceWorktrees
+            && other_checkout_actions(ready).is_empty())
+        .then_some(MenuUnavailable::NoOtherWorktrees),
         Some(DiscoveryState::Waiting | DiscoveryState::Querying) => {
             Some(MenuUnavailable::WorktreeChecking)
         }
@@ -395,6 +424,7 @@ impl WorkbenchClientUi {
         if !matches!(
             intent.entry(),
             MenuTarget::Workspace(_)
+                | MenuTarget::WorkspaceWorktrees(_)
                 | MenuTarget::Project(_)
                 | MenuTarget::Create(_)
                 | MenuTarget::WorkspaceCreation(_)

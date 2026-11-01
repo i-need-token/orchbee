@@ -385,8 +385,10 @@ Project Rename opens the editor for that exact Project, including empty and nonc
 without entering a child Workspace. The current terminal stays selected through rename or cancel.
 A Project's New Workspace submenu offers New Worktree…, its Workspaces' folders and its Git
 Worktrees; a Workspace's Move to Project submenu lists the other Projects, New Project… and, when
-grouped, Remove from Project. Git discovery uses the first terminal's root cwd; a Project derives
-that source from its first canonical member rather than owning a directory. New Worktree… stays
+grouped, Remove from Project. A Workspace's menu also offers New Worktree… and Open Worktree ▸,
+which lists its repository's other checkouts; an ungrouped Workspace and the Worktree either adds
+land in one new Project. Git discovery uses the first terminal's root cwd; a Project derives
+that source from its first canonical member rather than owning a directory. These Worktree rows stay
 disabled until that discovery succeeds. The red Close Workspace… action closes that Workspace;
 Dissolve Project removes only organization and preserves all Workspaces and programs.
 Only authoritative never-created/empty runtime proof skips confirmation. Runtime-backed scope needs

@@ -407,3 +407,234 @@ fn exact_linked_workspace_menu_opens_removal_confirmation_without_selecting_or_c
     );
     assert!(mailbox.try_recv().unwrap().is_none());
 }
+
+/// An ungrouped Workspace whose first shell sits in its own Git directory, with its row menu open.
+fn ungrouped_git_workspace() -> (
+    WorkbenchClientUi,
+    std::sync::Arc<crate::workbench_client::mailbox::CommandMailbox>,
+    MenuTarget,
+) {
+    let mut snapshot = crate::workbench_state::worktree_launch::addressed::tests::fixture();
+    let member = snapshot
+        .navigation
+        .workspaces
+        .iter_mut()
+        .find(|workspace| workspace.workspace_id.as_str() == format!("{:032x}", 80))
+        .unwrap();
+    member.project_id = None;
+    let location = ClientContextLocation::Workspace {
+        workspace_id: member.workspace_id.clone(),
+        terminal_context_id: member.terminal_context_id.clone(),
+    };
+    let (mut ui, mailbox, _, _) =
+        crate::workbench_client::ui::tests::move_membership::ready_ui_with_snapshot(snapshot);
+    let target = MenuTarget::Workspace(location);
+    assert!(ui.open_action_menu(target.clone(), None, false));
+    (ui, mailbox, target)
+}
+
+/// The discovery the lane reports for that shell's cwd: the main checkout and one linked one.
+fn workspace_discovery(ui: &WorkbenchClientUi) -> SidebarDiscovery {
+    use orchbee_workbench_protocol::{WorktreeEntryText, WorktreeQuerySource, WorktreeSource};
+    let addressed = ui.menus.discovery().unwrap().source().clone();
+    let directory = addressed.cache.directory().unwrap().clone();
+    // The shell reports its cwd in its own spelling.
+    let sample = crate::primary_directory::RootDirectory::Available(Some(
+        WorkbenchDirectoryPath::parse("c:\\First-Repository\\").unwrap(),
+    ));
+    let source = addressed.resolve_sample(sample.clone()).unwrap();
+    let WorktreeSource::Workspace { workspace_id } = &source else {
+        panic!("a cwd in the Workspace's directory is that Workspace: {source:?}");
+    };
+    let mut discovery = crate::workbench_state::worktree_launch::tests::discovery();
+    discovery.worker = directory.worker_id.clone();
+    discovery.source = WorktreeQuerySource {
+        requested_path: directory.path.clone(),
+        repository_root: directory.path.clone(),
+        common_directory: WorkbenchDirectoryPath::parse("C:/first-repository/.git").unwrap(),
+        checkout_path: directory.path.clone(),
+        workspace_id: Some(workspace_id.clone()),
+    };
+    discovery.entries[0].checkout.path = WorktreeEntryText::Utf8(directory.path.as_str().into());
+    let result = SidebarDiscovery {
+        addressed,
+        sample,
+        source,
+        discovery,
+    };
+    assert!(result.valid(ui.state.as_ref().unwrap().cache().canonical_snapshot()));
+    result
+}
+
+fn settle(ui: &mut WorkbenchClientUi, result: Result<Box<SidebarDiscovery>, WorktreeNotice>) {
+    ui.menus.mark_discovery_querying();
+    let id = ui.menus.discovery().unwrap().id();
+    ui.settle_sidebar_worktrees(id, result);
+}
+
+fn row(ui: &WorkbenchClientUi, action: &MenuAction) -> usize {
+    let view = ui.view();
+    let menu = view.action_menu().unwrap();
+    menu.actions.iter().position(|row| row == action).unwrap()
+}
+
+fn unavailable(
+    ui: &WorkbenchClientUi,
+    action: &MenuAction,
+) -> Option<crate::action_menu::MenuUnavailable> {
+    let index = row(ui, action);
+    ui.view().action_menu().unwrap().unavailable[index]
+}
+
+#[test]
+fn ungrouped_git_workspace_menu_creates_a_worktree_from_the_workspace_so_the_server_groups_both() {
+    use crate::action_menu::MenuUnavailable;
+    use crate::workbench_state::worktree_launch::WorktreeMode;
+    let (mut ui, _, target) = ungrouped_git_workspace();
+    // Both Worktree rows form a section of their own and wait for Git discovery.
+    {
+        let view = ui.view();
+        let menu = view.action_menu().unwrap();
+        assert_eq!(
+            menu.actions,
+            [
+                MenuAction::WorkspaceProjects,
+                MenuAction::RenameWorkspace,
+                MenuAction::NewWorktree,
+                MenuAction::WorkspaceWorktrees,
+                MenuAction::DeleteWorkspace,
+            ]
+        );
+        let separators = (0..menu.result_actions.len())
+            .map(|position| menu.result_separator_before(menu.result_actions, position))
+            .collect::<Vec<_>>();
+        assert_eq!(separators, [false, false, true, false, true]);
+    }
+    for action in [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees] {
+        assert_eq!(
+            unavailable(&ui, &action),
+            Some(MenuUnavailable::WorktreeChecking)
+        );
+    }
+    // A source without Git keeps them disabled.
+    settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
+    for action in [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees] {
+        assert_eq!(
+            unavailable(&ui, &action),
+            Some(MenuUnavailable::WorktreeUnavailable)
+        );
+    }
+    ui.cancel_action_menu();
+
+    assert!(ui.open_action_menu(target, None, false));
+    let original = Origin::capture(ui.state.as_ref());
+    let discovery = workspace_discovery(&ui);
+    settle(&mut ui, Ok(Box::new(discovery)));
+    assert_eq!(unavailable(&ui, &MenuAction::NewWorktree), None);
+    let token = draw(&mut ui);
+    let source = ui.view().action_menu().unwrap().source.clone();
+    let index = row(&ui, &MenuAction::NewWorktree);
+    ui.activate_action_menu_row(&source, token, index);
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(!ui.action_menu_active());
+    assert_eq!(
+        Origin::capture(ui.state.as_ref()),
+        original,
+        "no navigation"
+    );
+    let origin = ui.state.as_ref().unwrap().worktree_origin().unwrap();
+    let launcher = &mut ui.worktrees.launcher;
+    assert_eq!(launcher.view().unwrap().mode(), WorktreeMode::Create);
+    let token = launcher.token().unwrap();
+    launcher.draw(Some(token));
+    let plan = launcher
+        .create_with_defaults(
+            orchbee_workbench_protocol::WorkbenchRequestId::parse(&format!("{:032x}", 901))
+                .unwrap(),
+            &origin,
+            crate::localization::Locale::EnUs,
+        )
+        .unwrap();
+    // A Workspace source with no Project lets the Server's Alongside placement create the
+    // Project holding this Workspace and the new one in the same commit.
+    assert_eq!(plan.project, None);
+    assert!(matches!(
+        &plan.intent,
+        orchbee_workbench_protocol::WorktreeIntent::Create {
+            source: orchbee_workbench_protocol::WorktreeSource::Workspace { workspace_id },
+            ..
+        } if workspace_id.as_str() == format!("{:032x}", 80)
+    ));
+}
+
+#[test]
+fn open_worktree_submenu_lists_the_other_checkouts_and_opens_the_chosen_one_alongside() {
+    use crate::workbench_state::worktree_launch::WorktreeMode;
+    let (mut ui, mailbox, _) = ungrouped_git_workspace();
+    let original = Origin::capture(ui.state.as_ref());
+    let discovery = workspace_discovery(&ui);
+    settle(&mut ui, Ok(Box::new(discovery.clone())));
+    assert_eq!(unavailable(&ui, &MenuAction::WorkspaceWorktrees), None);
+    let token = draw(&mut ui);
+    let source = ui.view().action_menu().unwrap().source.clone();
+    let index = row(&ui, &MenuAction::WorkspaceWorktrees);
+    ui.activate_action_menu_row(&source, token, index);
+    assert!(ui.take_action_menu_action(false).is_none(), "a submenu");
+    let linked = WorkbenchDirectoryPath::parse("C:/trees/猫").unwrap();
+    {
+        let view = ui.view();
+        assert_eq!(
+            view.action_menu_cascade().len(),
+            1,
+            "the Workspace menu stays"
+        );
+        let menu = view.action_menu().unwrap();
+        assert!(matches!(menu.source, MenuTarget::WorkspaceWorktrees(_)));
+        // The Workspace's own checkout would only reuse it, so the list leaves it out.
+        assert_eq!(menu.actions, [MenuAction::OpenWorktreeAt(linked.clone())]);
+        assert_eq!(menu.labels[0].as_deref(), Some("same"));
+    }
+    let token = draw(&mut ui);
+    let source = ui.view().action_menu().unwrap().source.clone();
+    ui.activate_action_menu_row(&source, token, 0);
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(!ui.action_menu_active());
+    assert_eq!(
+        Origin::capture(ui.state.as_ref()),
+        original,
+        "no navigation"
+    );
+    let origin = ui.state.as_ref().unwrap().worktree_origin().unwrap();
+    let launcher = &mut ui.worktrees.launcher;
+    assert_eq!(launcher.view().unwrap().mode(), WorktreeMode::Open);
+    let token = launcher.token().unwrap();
+    launcher.draw(Some(token));
+    let plan = launcher
+        .confirm(
+            token,
+            orchbee_workbench_protocol::WorkbenchRequestId::parse(&format!("{:032x}", 902))
+                .unwrap(),
+            &origin,
+        )
+        .unwrap();
+    assert_eq!(plan.project, None);
+    assert!(matches!(
+        &plan.intent,
+        orchbee_workbench_protocol::WorktreeIntent::Open {
+            source: orchbee_workbench_protocol::WorktreeSource::Workspace { .. },
+            selector: orchbee_workbench_protocol::WorktreeSelector::Path { path },
+            ..
+        } if *path == linked
+    ));
+    assert!(mailbox.try_recv().unwrap().is_none());
+
+    // Without another checkout the submenu has nothing to offer.
+    let mut only = discovery;
+    only.discovery.entries.truncate(1);
+    let (mut ui, _, _) = ungrouped_git_workspace();
+    settle(&mut ui, Ok(Box::new(only)));
+    assert_eq!(
+        unavailable(&ui, &MenuAction::WorkspaceWorktrees),
+        Some(crate::action_menu::MenuUnavailable::NoOtherWorktrees)
+    );
+}

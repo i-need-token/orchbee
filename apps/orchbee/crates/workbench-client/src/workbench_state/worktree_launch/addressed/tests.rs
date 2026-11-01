@@ -193,6 +193,39 @@ fn admitted_cwd_precedes_same_workspace_fallback_and_unavailable_never_becomes_a
 }
 
 #[test]
+fn cwd_naming_the_workspace_directory_is_that_workspace_so_the_server_can_group_alongside_it() {
+    let mut value = fixture();
+    // Ungrouped: the Server's Alongside placement then creates the Project at commit, which a
+    // Directory source without a Project would instead leave ungrouped.
+    for member in &mut value.navigation.workspaces {
+        if member.workspace_id == workspace(80) {
+            member.project_id = None;
+        }
+    }
+    let source =
+        AddressedWorktreeSource::capture(&value, &SidebarWorktreeTarget::Workspace(workspace(80)))
+            .unwrap();
+    for cwd in ["C:/first-repository", "c:\\First-Repository\\"] {
+        assert_eq!(
+            source.resolve_sample(RootDirectory::Available(Some(path(cwd)))),
+            Some(WorktreeSource::Workspace {
+                workspace_id: workspace(80)
+            }),
+            "{cwd}"
+        );
+    }
+    // Elsewhere the admitted cwd keeps its precedence as its own Directory source.
+    assert_eq!(
+        source.resolve_sample(RootDirectory::Available(Some(path(
+            "C:/first-repository/nested"
+        )))),
+        Some(WorktreeSource::Directory {
+            path: path("C:/first-repository/nested")
+        })
+    );
+}
+
+#[test]
 fn source_scope_drift_retires_project_membership_directory_and_terminal_proof() {
     let value = fixture();
     let source =
