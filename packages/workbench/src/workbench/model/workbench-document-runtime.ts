@@ -38,7 +38,7 @@ interface WorkbenchDocumentRuntimeSnapshot {
 	readonly terminalContexts: readonly WorkbenchDocumentRuntimeContextSnapshot[];
 }
 
-interface HydratedWorkbenchDocumentTerminalContext {
+export interface HydratedWorkbenchDocumentTerminalContext {
 	readonly nextTabSequence: number;
 	readonly panelWorkspace: PanelWorkspaceState;
 	readonly tabCollection: TabModelInit;

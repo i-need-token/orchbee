@@ -10,6 +10,8 @@ export type PanelSplitOrientation = 'horizontal' | 'vertical';
 export interface TerminalPresentation {
 	readonly closeActivity: TerminalPresentationCloseActivity;
 	readonly currentCwd: string | null;
+	/** A name a person chose, which outranks everything the terminal reports about itself. */
+	readonly customTitle?: string | undefined;
 	readonly launchCwd: string | null;
 	readonly lifecycle: TerminalPresentationLifecycle;
 	readonly naturalTitle: string | null;

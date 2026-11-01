@@ -34,6 +34,7 @@ export type {
 	WorkbenchTerminalSessionStopSnapshot,
 	WorkbenchTerminalPresentationEventResult,
 } from './model/WorkbenchProjectWorkspaceRuntime';
+export type { WorkbenchPublication } from './model/workbench-publication';
 
 export type {
 	WorkbenchTerminalPresentationCommand,

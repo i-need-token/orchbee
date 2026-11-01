@@ -5,3 +5,4 @@ export {
 	type ServerWorkbenchOutcome,
 	type ServerWorkbenchSubmission,
 } from './ServerWorkbenchSession';
+export { projectServerSnapshot } from './projectServerSnapshot';

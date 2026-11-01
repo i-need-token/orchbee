@@ -23,6 +23,7 @@ export type {
 	WorkbenchProjectWorktreeCreationResult,
 	WorkbenchProjectWorktreeDiscoveryResult,
 	WorkbenchProjectWorktreeFailureCode,
+	WorkbenchPublication,
 	WorkbenchRemoteTerminalCreationCapability,
 	WorkbenchPanelPosition,
 	WorkbenchTerminalSessionStopSnapshot,

@@ -47,7 +47,10 @@ import {
 	hydrateWorkbenchDocuments,
 	projectWorkbenchClientView,
 	projectWorkbenchSharedDocument,
+	type HydratedWorkbenchDocumentTerminalContext,
 } from './workbench-document-runtime';
+import type { WorkbenchPublication } from './workbench-publication';
+import { workbenchActiveLocationsEqual } from './workbench-terminal-location-activation';
 import type { WorkbenchTerminalMetadataObservation } from './resolve-terminal-metadata-observation';
 import {
 	revalidateCurrentDirectoryTerminalTarget,
@@ -90,6 +93,7 @@ type WorkbenchTerminalTargetResult =
 interface WorkbenchProjectWorkspaceRuntimeOptions {
 	readonly initialClientView?: WorkbenchClientView | undefined;
 	readonly initialDocument?: WorkbenchSharedDocument | undefined;
+	readonly initialPublication?: WorkbenchPublication | undefined;
 	readonly standaloneCwd: string;
 	readonly standalonePresentations?: readonly WorkbenchStandaloneTerminalPresentation[] | undefined;
 	readonly standaloneTerminalTitle: string;
@@ -210,6 +214,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 	private documentFingerprint: string | undefined;
 	private durableReconciliationStarted = false;
 	private readonly listeners = new Set<Listener>();
+	private publishedContextFingerprints: ReadonlyMap<string, string> = new Map();
 	private terminalTopologyFingerprint: string | undefined;
 	private readonly terminalTopologyListeners = new Set<Listener>();
 	private readonly systemCwd: string;
@@ -220,6 +225,10 @@ export class WorkbenchProjectWorkspaceRuntime {
 	public constructor(options: WorkbenchProjectWorkspaceRuntimeOptions) {
 		this.systemCwd = options.standaloneCwd;
 		this.terminalPresentation = options.terminalPresentation;
+		if (options.initialPublication !== undefined) {
+			this.adoptPublication(options.initialPublication, options.initialClientView);
+			return;
+		}
 		if (options.initialDocument !== undefined) {
 			const documents = hydrateWorkbenchDocuments(
 				options.initialDocument,
@@ -277,7 +286,6 @@ export class WorkbenchProjectWorkspaceRuntime {
 			return { kind: 'unchanged' };
 		}
 		const hydrated = hydrateWorkbenchDocuments(document, this.getClientView());
-		const previousContexts = new Map(this.contexts);
 		const previousSharedContexts = new Map(
 			projected.terminalContexts.map((context) => [context.terminalContextId, context]),
 		);
@@ -285,36 +293,78 @@ export class WorkbenchProjectWorkspaceRuntime {
 			document.terminalContexts.map((context) => [context.terminalContextId, context]),
 		);
 		const currentTerminals = collectRuntimeTerminals(this.contexts);
-		const currentPanelWorkspaces = new Map(
-			[...this.contexts].map(([terminalContextId, context]) => [
-				terminalContextId,
-				context.panelWorkspaceStore.getSnapshot(),
-			]),
-		);
 		const currentPresentations = collectSharedPresentations(projected);
 		const incomingPresentations = collectSharedPresentations(document);
+		this.state = {
+			...hydrated.projectWorkspace,
+			activeLocation: retainActiveLocation(
+				this.state.activeLocation,
+				hydrated.projectWorkspace.activeLocation,
+			),
+		};
+		this.replaceTerminalContexts(
+			hydrated.terminalContexts,
+			(terminalContextId) =>
+				JSON.stringify(previousSharedContexts.get(terminalContextId)) ===
+				JSON.stringify(nextSharedContexts.get(terminalContextId)),
+			(terminalContext, currentState) =>
+				preserveRuntimePanelWorkspaceState(
+					terminalContext.panelWorkspace,
+					currentState,
+					currentTerminals,
+					currentPresentations,
+					incomingPresentations,
+				),
+		);
+		this.emit();
+		return { clientView: hydrated.clientView, kind: 'applied' };
+	}
+
+	/** Takes what an outside authority published as the whole shared state of this runtime. */
+	public applyPublishedWorkbench(publication: WorkbenchPublication): void {
+		this.adoptPublication(publication, this.getClientView());
+		this.emit();
+	}
+
+	private adoptPublication(
+		publication: WorkbenchPublication,
+		candidate: WorkbenchClientView | undefined,
+	): void {
+		const hydrated = hydrateWorkbenchDocuments(publication.document, candidate);
+		const observedTerminals = collectRuntimeTerminals(this.contexts);
+		const previousFingerprints = this.publishedContextFingerprints;
+		this.publishedContextFingerprints = publication.contextFingerprints;
+		this.state = publishedProjectWorkspaceState(this.state, hydrated.projectWorkspace);
+		this.replaceTerminalContexts(
+			hydrated.terminalContexts,
+			(terminalContextId) =>
+				previousFingerprints.get(terminalContextId) ===
+				publication.contextFingerprints.get(terminalContextId),
+			(terminalContext, currentState) =>
+				publishedPanelWorkspaceState(
+					terminalContext.panelWorkspace,
+					currentState,
+					observedTerminals,
+					publication,
+				),
+		);
+	}
+
+	private replaceTerminalContexts(
+		terminalContexts: readonly HydratedWorkbenchDocumentTerminalContext[],
+		isUnchanged: (terminalContextId: string) => boolean,
+		panelWorkspaceFor: (
+			terminalContext: HydratedWorkbenchDocumentTerminalContext,
+			currentState: PanelWorkspaceState | undefined,
+		) => PanelWorkspaceState,
+	): void {
+		const previousContexts = new Map(this.contexts);
 		for (const unsubscribe of this.contextDocumentSubscriptions.values()) unsubscribe();
 		this.contextDocumentSubscriptions.clear();
 		this.contexts.clear();
-		const previousLocation = this.state.activeLocation;
-		const nextLocation = hydrated.projectWorkspace.activeLocation;
-		this.state = {
-			...hydrated.projectWorkspace,
-			activeLocation:
-				previousLocation.kind === nextLocation.kind &&
-				(previousLocation.kind === 'standalone' ||
-					(nextLocation.kind === 'workspace' &&
-						previousLocation.workspaceId === nextLocation.workspaceId))
-					? previousLocation
-					: nextLocation,
-		};
-		for (const terminalContext of hydrated.terminalContexts) {
+		for (const terminalContext of terminalContexts) {
 			const existing = previousContexts.get(terminalContext.terminalContextId);
-			if (
-				existing !== undefined &&
-				JSON.stringify(previousSharedContexts.get(terminalContext.terminalContextId)) ===
-					JSON.stringify(nextSharedContexts.get(terminalContext.terminalContextId))
-			) {
+			if (existing !== undefined && isUnchanged(terminalContext.terminalContextId)) {
 				this.contexts.set(terminalContext.terminalContextId, existing);
 				continue;
 			}
@@ -323,12 +373,9 @@ export class WorkbenchProjectWorkspaceRuntime {
 				nextTabSequence: terminalContext.nextTabSequence,
 				panelWorkspaceStore: new PanelWorkspaceStore(tabModel, {
 					composition: this.terminalPresentation,
-					initialState: preserveRuntimePanelWorkspaceState(
-						terminalContext.panelWorkspace,
-						currentPanelWorkspaces.get(terminalContext.terminalContextId),
-						currentTerminals,
-						currentPresentations,
-						incomingPresentations,
+					initialState: panelWorkspaceFor(
+						terminalContext,
+						existing?.panelWorkspaceStore.getSnapshot(),
 					),
 					initialTabTitlePolicies: terminalContext.tabTitlePolicies,
 				}),
@@ -336,8 +383,6 @@ export class WorkbenchProjectWorkspaceRuntime {
 				terminalContextId: terminalContext.terminalContextId,
 			});
 		}
-		this.emit();
-		return { clientView: hydrated.clientView, kind: 'applied' };
 	}
 
 	public readonly subscribe = (listener: Listener): (() => void) => {
@@ -1679,6 +1724,124 @@ function collectSharedPresentations(
 	return presentations;
 }
 
+function retainActiveLocation(
+	previous: ProjectWorkspaceState['activeLocation'],
+	next: ProjectWorkspaceState['activeLocation'],
+): ProjectWorkspaceState['activeLocation'] {
+	return workbenchActiveLocationsEqual(previous, next) ? previous : next;
+}
+
+/**
+ * This Client's location outlives a publication unless its Workspace is gone, which selects the
+ * first Workspace in display order. A Project it has not seen before starts expanded.
+ */
+function publishedProjectWorkspaceState(
+	previous: ProjectWorkspaceState,
+	hydrated: ProjectWorkspaceState,
+): ProjectWorkspaceState {
+	const knownProjectIds = new Set(previous.projects.map((project) => project.id));
+	const firstWorkspace = hydrated.workspaces[0];
+	return {
+		...hydrated,
+		activeLocation: retainActiveLocation(
+			previous.activeLocation,
+			hydrated.activeLocation.kind === 'standalone' && firstWorkspace !== undefined
+				? { kind: 'workspace', workspaceId: firstWorkspace.id }
+				: hydrated.activeLocation,
+		),
+		expandedProjectIds: [
+			...hydrated.expandedProjectIds,
+			...hydrated.projects
+				.map((project) => project.id)
+				.filter((projectId) => !knownProjectIds.has(projectId)),
+		],
+	};
+}
+
+function publishedPanelWorkspaceState(
+	state: PanelWorkspaceState,
+	currentState: PanelWorkspaceState | undefined,
+	observedTerminals: ReadonlyMap<string, TerminalPresentation>,
+	publication: WorkbenchPublication,
+): PanelWorkspaceState {
+	const currentTabs = new Map(currentState?.tabs.map((tab) => [tab.tabId, tab]) ?? []);
+	return {
+		...state,
+		tabs: state.tabs.map((tab) => ({
+			...tab,
+			panelFocusHistory: survivingPanelFocusHistory(tab, currentTabs.get(tab.tabId)),
+			root: publishedPanelNode(tab.root, observedTerminals, publication),
+		})),
+	};
+}
+
+function publishedPanelNode(
+	node: PanelLayoutNode,
+	observedTerminals: ReadonlyMap<string, TerminalPresentation>,
+	publication: WorkbenchPublication,
+): PanelLayoutNode {
+	if (node.kind === 'panel') {
+		return {
+			...node,
+			childPresentations: node.childPresentations.map((terminal) =>
+				publishedTerminal(terminal, observedTerminals, publication),
+			),
+			primaryPresentation: publishedTerminal(
+				node.primaryPresentation,
+				observedTerminals,
+				publication,
+			),
+		};
+	}
+	const weights = publication.splitWeights.get(node.id);
+	if (weights === undefined) throw new Error(`Split ${node.id} was published without weights.`);
+	return {
+		...node,
+		children: node.children.map((child, index) => ({
+			...child,
+			node: publishedPanelNode(child.node, observedTerminals, publication),
+			weight: index === 0 ? weights[0] : weights[1],
+		})),
+	};
+}
+
+function publishedTerminal(
+	hydrated: TerminalPresentation,
+	observedTerminals: ReadonlyMap<string, TerminalPresentation>,
+	publication: WorkbenchPublication,
+): TerminalPresentation {
+	const published = publication.presentations.get(hydrated.presentationId);
+	if (published === undefined) {
+		throw new Error(`Terminal ${hydrated.presentationId} was published without its facts.`);
+	}
+	const observed = observedTerminals.get(hydrated.presentationId);
+	return {
+		...hydrated,
+		...(observed === undefined
+			? {}
+			: {
+					closeActivity: observed.closeActivity,
+					currentCwd: observed.currentCwd,
+					naturalTitle: observed.naturalTitle,
+				}),
+		...(published.customTitle === null ? {} : { customTitle: published.customTitle }),
+		lifecycle: published.lifecycle,
+	};
+}
+
+function survivingPanelFocusHistory(
+	tab: PanelWorkspaceState['tabs'][number],
+	currentTab: PanelWorkspaceState['tabs'][number] | undefined,
+): readonly string[] {
+	const livePanelIds = new Set(collectPanelLeaves(tab.root).map((panel) => panel.id));
+	return [
+		...(currentTab?.panelFocusHistory ?? []).filter(
+			(panelId) => livePanelIds.has(panelId) && panelId !== tab.focusedPanelId,
+		),
+		tab.focusedPanelId,
+	];
+}
+
 function preserveRuntimePanelWorkspaceState(
 	state: PanelWorkspaceState,
 	currentState: PanelWorkspaceState | undefined,
@@ -1689,24 +1852,16 @@ function preserveRuntimePanelWorkspaceState(
 	const currentTabs = new Map(currentState?.tabs.map((tab) => [tab.tabId, tab]) ?? []);
 	return {
 		...state,
-		tabs: state.tabs.map((tab) => {
-			const livePanelIds = new Set(collectPanelLeaves(tab.root).map((panel) => panel.id));
-			const currentHistory = currentTabs.get(tab.tabId)?.panelFocusHistory ?? [];
-			const survivingHistory = currentHistory.filter((panelId) => livePanelIds.has(panelId));
-			return {
-				...tab,
-				panelFocusHistory: [
-					...survivingHistory.filter((panelId) => panelId !== tab.focusedPanelId),
-					tab.focusedPanelId,
-				],
-				root: preservePanelNodeObservations(
-					tab.root,
-					currentTerminals,
-					currentPresentations,
-					incomingPresentations,
-				),
-			};
-		}),
+		tabs: state.tabs.map((tab) => ({
+			...tab,
+			panelFocusHistory: survivingPanelFocusHistory(tab, currentTabs.get(tab.tabId)),
+			root: preservePanelNodeObservations(
+				tab.root,
+				currentTerminals,
+				currentPresentations,
+				incomingPresentations,
+			),
+		})),
 	};
 }
 

@@ -1307,6 +1307,7 @@ export function getDisplayedTerminal(panel: PanelLeaf): TerminalPresentation {
 
 export function getTerminalDisplayTitle(terminal: TerminalPresentation): string {
 	return (
+		terminal.customTitle ??
 		terminal.naturalTitle ??
 		deriveTerminalDirectoryTitle(terminal.currentCwd) ??
 		deriveTerminalDirectoryTitle(terminal.launchCwd) ??
