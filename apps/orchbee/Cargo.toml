@@ -119,6 +119,12 @@ path = "tests/cli_windows_plugin_popup_session.rs"
 name = "cli_windows_terminal_viewer_session"
 path = "tests/cli_windows_terminal_viewer_session.rs"
 
+# Keep these two real Sessions, their TUI Client, the renaming Client and background output away
+# from aggregate suite deadlines; the run takes about two minutes of real input timing.
+[[test]]
+name = "cli_windows_client_under_commits"
+path = "tests/cli_windows_client_under_commits.rs"
+
 # Keep short-deadline PROCESS_WITNESS_LOCK scheduling isolated.
 [[test]]
 name = "local_startup_process"

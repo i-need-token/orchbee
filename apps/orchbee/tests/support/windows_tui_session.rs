@@ -152,7 +152,7 @@ impl Fixture {
     }
 
     /// The isolated environment and a system-only `PATH` for terminals this fixture starts.
-    fn terminal_environment(&self) -> Vec<String> {
+    pub fn terminal_environment(&self) -> Vec<String> {
         let system = PathBuf::from(std::env::var_os("SystemRoot").unwrap());
         let mut words = Vec::new();
         for (name, value) in [
@@ -175,30 +175,36 @@ impl Fixture {
     /// Opens a Workspace in the default Session whose terminal starts in `work`, and returns its
     /// panel.
     pub fn workspace(&self, label: &str) -> String {
-        let work = self.path("work");
+        let created = self.workspace_in(label, "work");
+        created["panelId"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{created}"))
+            .to_owned()
+    }
+
+    /// Opens a Workspace in the default Session whose terminal starts in `directory`, one of the
+    /// directories this fixture created, and returns its creation result.
+    pub fn workspace_in(&self, label: &str, directory: &str) -> Value {
+        let cwd = self.path(directory);
         let mut words = vec![
             "workspace",
             "create",
             "--label",
             label,
             "--cwd",
-            &work,
+            &cwd,
             "--no-focus",
         ];
         let environment = self.terminal_environment();
         words.extend(environment.iter().map(String::as_str));
         let created = self.run(&words);
         assert_eq!(created.code, Some(0), "{created}");
-        created.document["workspace"]["result"]["panelId"]
-            .as_str()
-            .unwrap_or_else(|| panic!("{created}"))
-            .to_owned()
+        created.document["workspace"]["result"].clone()
     }
 
     /// Starts a terminal in another Workspace that prints every second until the Session stops.
     pub fn background_output(&self) {
-        let system = PathBuf::from(std::env::var_os("SystemRoot").unwrap());
-        let ping = system.join("System32/PING.EXE");
+        let ping = system_program("PING.EXE");
         let noise = self.path("noise");
         let mut words = vec![
             "workspace",
@@ -209,7 +215,7 @@ impl Fixture {
             &noise,
             "--no-focus",
             "--exec",
-            ping.to_str().unwrap(),
+            &ping,
             "--arg",
             "-t",
             "--arg",
@@ -235,7 +241,7 @@ impl Fixture {
             ),
         )
         .unwrap();
-        let shell = PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join("System32/cmd.exe");
+        let shell = system_program("cmd.exe");
         let work = self.path("work");
         let columns = columns.to_string();
         let rows = rows.to_string();
@@ -258,7 +264,7 @@ impl Fixture {
             "--cell-height",
             "16",
             "--exec",
-            shell.to_str().unwrap(),
+            &shell,
             "--arg",
             "/d",
             "--arg",
@@ -372,6 +378,17 @@ impl Fixture {
     pub fn settle_ready(&self, client: &str) {
         self.settle(client, "ready");
     }
+}
+
+/// A program in the Windows system directory.
+pub fn system_program(name: &str) -> String {
+    let system = PathBuf::from(std::env::var_os("SystemRoot").unwrap());
+    system
+        .join("System32")
+        .join(name)
+        .to_str()
+        .unwrap()
+        .to_owned()
 }
 
 impl Drop for Fixture {
