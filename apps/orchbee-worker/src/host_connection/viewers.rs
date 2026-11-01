@@ -3,7 +3,7 @@
 //! rendering output, or authorizing product target exposure.
 
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     io,
 };
 
@@ -28,6 +28,7 @@ const MAXIMUM_RETAINED_VIEWER_RECORD_BYTES: usize = 128 * 1024 * 1024;
 
 pub(crate) struct HostViewers {
     viewers: BTreeMap<[u8; 16], Viewer>,
+    ready: BTreeSet<[u8; 16]>,
     retained_record_bytes: usize,
     retained_record_limit: usize,
 }
@@ -36,6 +37,7 @@ impl Default for HostViewers {
     fn default() -> Self {
         Self {
             viewers: BTreeMap::new(),
+            ready: BTreeSet::new(),
             retained_record_bytes: 0,
             retained_record_limit: MAXIMUM_RETAINED_VIEWER_RECORD_BYTES,
         }
@@ -49,6 +51,8 @@ struct Viewer {
     events: VecDeque<QueuedEvent>,
     next_preference: PollSource,
     closed: bool,
+    /// A hint went out and no Poll has answered it, which bounds hints to one per viewer.
+    hinted: bool,
     flight: Option<Flight>,
     last_sequence: u64,
     last_bell_sequence: u64,
@@ -110,6 +114,7 @@ impl HostViewers {
                 events: VecDeque::new(),
                 next_preference: PollSource::Record,
                 closed: false,
+                hinted: false,
                 flight: None,
                 last_sequence: 0,
                 last_bell_sequence: 0,
@@ -186,7 +191,46 @@ impl HostViewers {
             .is_some_and(|viewer| !viewer.closed)
     }
 
+    /// Viewers the Server has not been told hold something to Poll. Each hint is only a prompt: a
+    /// lost one costs the Client's fallback poll.
+    pub(crate) fn take_ready(&mut self) -> Vec<OperationId> {
+        std::mem::take(&mut self.ready)
+            .into_iter()
+            .filter(|id| self.viewers.contains_key(id))
+            .filter_map(|id| OperationId::from_bytes(id).ok())
+            .collect()
+    }
+
+    /// A closed viewer also owes its Client a Poll, which is how the Client learns of the close.
+    fn note_ready(&mut self) {
+        for (id, viewer) in &mut self.viewers {
+            if !viewer.hinted
+                && (viewer.closed
+                    || viewer.record.is_some()
+                    || viewer.lifecycle.is_some()
+                    || !viewer.events.is_empty())
+            {
+                viewer.hinted = true;
+                self.ready.insert(*id);
+            }
+        }
+    }
+
     pub(crate) fn poll(&mut self, id: OperationId) -> TerminalViewerOutcome {
+        let outcome = self.take_next(id);
+        // The Poll answers the hint; anything it left behind owes another.
+        if let Some(viewer) = self
+            .viewers
+            .get_mut(&id.as_bytes())
+            .filter(|viewer| !viewer.closed)
+        {
+            viewer.hinted = false;
+        }
+        self.note_ready();
+        outcome
+    }
+
+    fn take_next(&mut self, id: OperationId) -> TerminalViewerOutcome {
         let Some(viewer) = self.viewers.get_mut(&id.as_bytes()) else {
             return TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable);
         };
@@ -270,6 +314,12 @@ impl HostViewers {
     }
 
     pub(crate) fn receive(&mut self, record: Vec<u8>, epoch: HostEpoch) -> io::Result<()> {
+        let received = self.store(record, epoch);
+        self.note_ready();
+        received
+    }
+
+    fn store(&mut self, record: Vec<u8>, epoch: HostEpoch) -> io::Result<()> {
         let envelope = decode_transport_envelope(&record).map_err(invalid)?;
         if envelope.protocol != CURRENT_PROTOCOL_VERSION
             || envelope.role != MessageRole::Event

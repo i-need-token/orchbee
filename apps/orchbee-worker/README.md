@@ -199,6 +199,11 @@ is detached, and the Worker reports the cleanup failure instead of claiming succ
 
 The Worker owns one Host broker; Server alone issues viewer attachments. Each generation-scoped viewer has read capability, an independent bounded delivery slot and at most one frame awaiting exact Client feedback. Worker validates the envelope and fixed routing metadata, retaining the opaque Host record without decoding rows, VT or history. Attach/poll/feedback/detach serialize with Launch/Start on the admitted Server connection. Poll transfers ready records without awaiting terminal output; downstream delivery cannot retain the Worker operation slot. The Server relay core abstracts lane isolation; concrete carrier tests check this integration.
 
+When a viewer's record or event first becomes pollable, the Worker's server transport writes one
+`TerminalViewerRecordReady` between requests, while it waits for the next one. A viewer repeats the
+hint only after a later Poll, so an unread record costs one message however many frames replace
+it. Poll never crosses to the Host and still returns the record itself.
+
 Beside the frame record slot, each viewer keeps a bounded four-deep FIFO of complete opaque viewer
 events counted in the same retained-byte budget. It carries kind-53 `HistoryChanged` plus the
 selection and external-effect records named below; Worker decodes only the attachment and event

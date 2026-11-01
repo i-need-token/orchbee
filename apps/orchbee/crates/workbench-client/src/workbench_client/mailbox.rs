@@ -1352,10 +1352,22 @@ impl UiReplyTransaction<'_> {
     }
 }
 
+/// More distinct viewers than one Session attaches. Hints only advise, so the fallback poll
+/// recovers any this bound drops.
+const MAXIMUM_READY_VIEWERS: usize = 64;
+
+/// Viewers the Server reported holding something to Poll, for the UI's next scheduling pass.
+#[derive(Default)]
+struct ViewerHints {
+    seen: bool,
+    ready: Vec<u128>,
+}
+
 pub(super) struct CommandMailbox {
     state: Mutex<MailboxState>,
     changed: Condvar,
     ui_wakeup: Mutex<Option<super::UiWakeup>>,
+    viewer_hints: Mutex<ViewerHints>,
     #[cfg(test)]
     waiting_threads: AtomicUsize,
     #[cfg(test)]
@@ -1418,6 +1430,40 @@ impl CommandMailbox {
         self.wake_ui();
     }
 
+    /// Called on the connection actor. A viewer appears once, and a hint for a viewer the UI no
+    /// longer owns is discarded with the next take.
+    pub(super) fn note_viewer_ready(&self, viewer: u128) {
+        {
+            let mut hints = self
+                .viewer_hints
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            hints.seen = true;
+            if hints.ready.len() < MAXIMUM_READY_VIEWERS && !hints.ready.contains(&viewer) {
+                hints.ready.push(viewer);
+            }
+        }
+        self.wake_ui();
+    }
+
+    pub(super) fn take_ready_viewers(&self) -> Vec<u128> {
+        std::mem::take(
+            &mut self
+                .viewer_hints
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .ready,
+        )
+    }
+
+    /// Only an observed hint proves this connection's Server sends them.
+    pub(super) fn viewer_hints_seen(&self) -> bool {
+        self.viewer_hints
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .seen
+    }
+
     fn wake_ui(&self) {
         if let Some(wakeup) = &*self
             .ui_wakeup
@@ -1462,6 +1508,7 @@ impl CommandMailbox {
             }),
             changed: Condvar::new(),
             ui_wakeup: Mutex::new(None),
+            viewer_hints: Mutex::default(),
             #[cfg(test)]
             waiting_threads: AtomicUsize::new(0),
             #[cfg(test)]

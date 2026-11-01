@@ -39,7 +39,7 @@ mod worker_handoff;
 mod worktree_job;
 mod worktree_mutation;
 
-const FRAME_MAGIC: [u8; 4] = *b"OBCN";
+pub const FRAME_MAGIC: [u8; 4] = *b"OBCN";
 const FRAME_HEADER_BYTES: usize = 8;
 const IMMEDIATE_LAUNCH_KIND: u8 = 1;
 const DEFERRED_LAUNCH_KIND: u8 = 2;
@@ -87,6 +87,7 @@ pub enum CapabilityNodeMessage {
     TerminalStartResult(TerminalStartResult),
     TerminalViewerRequest(crate::TerminalViewerRequest),
     TerminalViewerResult(crate::TerminalViewerResult),
+    TerminalViewerRecordReady(crate::TerminalViewerRecordReady),
     TerminalSendRequest(crate::TerminalSendRequest),
     TerminalSendResult(crate::TerminalSendResult),
     WorktreeJobRequest(crate::WorktreeJobRequest),
@@ -265,6 +266,9 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         }
         CapabilityNodeMessage::TerminalViewerRequest(value) => viewer::encode_request(*value),
         CapabilityNodeMessage::TerminalViewerResult(value) => viewer::encode_result(value),
+        CapabilityNodeMessage::TerminalViewerRecordReady(value) => {
+            viewer::encode_record_ready(*value)
+        }
         CapabilityNodeMessage::TerminalSendRequest(_) => {
             unreachable!("send requests ride the dedicated OBNS record frame")
         }
@@ -361,6 +365,8 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
             viewer::decode_request(payload).map(CapabilityNodeMessage::TerminalViewerRequest)
         }
         Some(6) => viewer::decode_result(payload).map(CapabilityNodeMessage::TerminalViewerResult),
+        Some(viewer::RECORD_READY_KIND) => viewer::decode_record_ready(payload)
+            .map(CapabilityNodeMessage::TerminalViewerRecordReady),
         Some(14) => send::decode_result(payload).map(CapabilityNodeMessage::TerminalSendResult),
         Some(15) => {
             worktree_job::decode_request(payload).map(CapabilityNodeMessage::WorktreeJobRequest)

@@ -28,6 +28,7 @@ use self::application_connection::ApplicationConnectionError;
 use self::diagnostic::Diagnostic;
 use crate::agent_service::{AgentPolicy, AgentService};
 use crate::client_connection_registry::{ClientConnectionAdmission, ClientConnectionRegistry};
+use crate::viewer_ready::ConnectionViewerReady;
 
 use crate::local_terminal_service::LocalTerminalService;
 use crate::workbench_service::{WorkbenchPolicy, WorkbenchService};
@@ -338,6 +339,12 @@ fn handle_candidate_control(
     }
     drop(admission_lease);
 
+    let viewer_ready = Arc::new(ConnectionViewerReady::default());
+    let terminal_connection = || {
+        terminals
+            .client_connection()
+            .with_viewer_ready(Arc::clone(&viewer_ready))
+    };
     let connections = std::cell::RefCell::new(std::collections::BTreeMap::new());
     let connection_result = application_connection::run_network(
         &stream,
@@ -345,7 +352,7 @@ fn handle_candidate_control(
             connections
                 .borrow_mut()
                 .entry(lane)
-                .or_insert_with(|| terminals.client_connection())
+                .or_insert_with(terminal_connection)
                 .execute(request)
         },
         |lane, request| {
@@ -354,7 +361,7 @@ fn handle_candidate_control(
                 connections
                     .borrow_mut()
                     .entry(lane)
-                    .or_insert_with(|| terminals.client_connection()),
+                    .or_insert_with(terminal_connection),
                 lane,
             )
         },
@@ -385,7 +392,9 @@ fn handle_candidate_control(
         |signal| {
             workbench_connection.watch_changes(signal);
             agents.watch_changes(signal);
+            viewer_ready.bind(signal);
         },
+        || viewer_ready.take(),
         |request| workbench_connection.cancel_subscription(request),
         |lane| {
             connections.borrow_mut().remove(&lane);

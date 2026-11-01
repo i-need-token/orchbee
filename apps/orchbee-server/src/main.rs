@@ -29,6 +29,8 @@ mod session_shutdown;
 #[cfg(any(unix, windows))]
 mod terminal_coordinator;
 #[cfg(any(unix, windows))]
+mod viewer_ready;
+#[cfg(any(unix, windows))]
 mod window_title_registry;
 #[cfg(any(unix, windows))]
 mod workbench_service;

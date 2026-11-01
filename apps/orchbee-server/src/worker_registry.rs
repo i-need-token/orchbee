@@ -20,6 +20,7 @@ use orchbee_workbench_protocol::PresentationLaunchProgram;
 
 use crate::agent::native_observation::CarrierIdentity;
 use crate::agent_service::AgentService;
+use crate::viewer_ready::ViewerReadyRoutes;
 use crate::worker_obcn_carrier::{
     WorkerCarrier, WorkerCarrierShutdown, WorkerRequestHandle, WorkerWireExit, WorkerWireOwner,
 };
@@ -131,14 +132,20 @@ impl Drop for WorkerGenerationRegistration {
 pub(crate) struct WorkerRegistry {
     active: Option<ActiveWorker>,
     next_generation: Option<NonZeroU64>,
+    viewer_ready: Arc<ViewerReadyRoutes>,
 }
 
 impl WorkerRegistry {
-    pub(crate) const fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             active: None,
             next_generation: Some(NonZeroU64::MIN),
+            viewer_ready: Arc::default(),
         }
+    }
+
+    pub(crate) fn viewer_ready_routes(&self) -> Arc<ViewerReadyRoutes> {
+        Arc::clone(&self.viewer_ready)
     }
 
     pub(crate) fn admit(
@@ -197,6 +204,7 @@ impl WorkerRegistry {
         agents: Option<&Arc<AgentService>>,
     ) -> Option<RegisteredWorkerWireOwner> {
         let mut registry_guard = registry.lock().ok()?;
+        let viewer_ready = registry_guard.viewer_ready_routes();
         let active = registry_guard.active.as_mut()?;
         if active.generation != generation
             || carrier.generation() != generation
@@ -235,6 +243,7 @@ impl WorkerRegistry {
             None => None,
         };
         let (request_handle, shutdown, wire_owner) = carrier.into_parts();
+        let wire_owner = wire_owner.with_viewer_ready(viewer_ready);
         // The carrier matched this admitted generation above, so its handle carries this
         // generation's reported shell and no other.
         let request_handle = request_handle.with_system_shell(active.system_shell.take());

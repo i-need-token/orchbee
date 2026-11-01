@@ -18,6 +18,23 @@ use crate::{
 const MAXIMUM_SELECTION_AXIS: i32 = 0xffff;
 const MAXIMUM_SELECTION_DIMENSION: u16 = 4096;
 
+pub(super) const RECORD_READY_KIND: u8 = 33;
+
+pub(super) fn encode_record_ready(value: crate::TerminalViewerRecordReady) -> Vec<u8> {
+    let mut bytes = vec![RECORD_READY_KIND];
+    bytes.extend_from_slice(&value.attachment_id.as_bytes());
+    bytes
+}
+
+pub(super) fn decode_record_ready(
+    bytes: &[u8],
+) -> Result<crate::TerminalViewerRecordReady, ProtocolError> {
+    let mut reader = PayloadReader::after_kind(bytes, RECORD_READY_KIND)?;
+    let attachment_id = OperationId::from_bytes(reader.read_array()?)?;
+    reader.finish()?;
+    Ok(crate::TerminalViewerRecordReady { attachment_id })
+}
+
 pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
     let mut bytes = vec![5];
     bytes.extend_from_slice(&value.request_id.as_bytes());

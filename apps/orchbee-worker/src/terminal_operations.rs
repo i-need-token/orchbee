@@ -459,6 +459,7 @@ fn run_admitted_with_handoff(
             | CapabilityNodeMessage::TerminalGraphicsDecodeRequest(_)
             | CapabilityNodeMessage::TerminalViewerRequest(_)
             | CapabilityNodeMessage::TerminalViewerResult(_)
+            | CapabilityNodeMessage::TerminalViewerRecordReady(_)
             | CapabilityNodeMessage::WorktreeJobRequest(_)
             | CapabilityNodeMessage::WorktreeJobResult(_)
             | CapabilityNodeMessage::WorktreeMutationRequest(_)

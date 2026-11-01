@@ -85,6 +85,61 @@ fn settlement_is_terminal_scoped_and_releases_its_budget_without_settling_a_fram
 }
 
 #[test]
+fn a_viewer_hints_once_until_polled_and_again_for_what_the_poll_left() -> TestResult {
+    use orchbee_terminal_protocol::{
+        CreationId, ExitResult, LifecycleControl, TerminalExited, TerminalIdentity,
+        encode_lifecycle_control,
+    };
+    let mut viewers = HostViewers::default();
+    let first = request(1)?;
+    let second = request(2)?;
+    viewers.admit(&first).map_err(|e| format!("{e:?}"))?;
+    viewers.admit(&second).map_err(|e| format!("{e:?}"))?;
+    assert!(viewers.take_ready().is_empty());
+    let epoch = HostEpoch::from_bytes([3; 16])?;
+    viewers.receive(frame(1, 1, epoch)?, epoch)?;
+    assert_eq!(viewers.take_ready(), [first.attachment_id]);
+    assert!(
+        viewers.take_ready().is_empty(),
+        "one record owes one message"
+    );
+
+    // An event arriving behind the unread frame adds no message: the hint already owes a Poll.
+    let event = encode_lifecycle_control(&LifecycleControl::TerminalExited(TerminalExited {
+        identity: TerminalIdentity {
+            creation_id: CreationId::from_bytes([6; 16])?,
+            host_epoch: epoch,
+            terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes([4; 16])?,
+        },
+        exit: ExitResult::ExitCode(7),
+        final_revision: 5,
+    }))?;
+    let event = envelope(
+        event.kind,
+        PayloadEncoding::ControlJson,
+        &event.payload,
+        epoch,
+    )?;
+    viewers.receive(event, epoch)?;
+    assert_eq!(viewers.take_ready(), [second.attachment_id]);
+    assert!(matches!(
+        viewers.poll(first.attachment_id),
+        TerminalViewerOutcome::Record(_)
+    ));
+    assert_eq!(
+        viewers.take_ready(),
+        [first.attachment_id],
+        "the Poll took one record and left the lifecycle event"
+    );
+    assert!(matches!(
+        viewers.poll(first.attachment_id),
+        TerminalViewerOutcome::Record(_)
+    ));
+    assert!(viewers.take_ready().is_empty(), "the viewer is drained");
+    Ok(())
+}
+
+#[test]
 fn delivery_requires_exact_feedback_and_does_not_stall_another_attachment() -> TestResult {
     let mut viewers = HostViewers::default();
     let first = request(1)?;

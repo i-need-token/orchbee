@@ -17,16 +17,20 @@ uses the same 12-byte OBWP header: magic, big-endian u16 version 1, u16 kind and
 Kinds 64–71 carry complete bounded inner OBCS/OBWP/OBAP records without changing their semantic
 version or codec. This namespace is separate from graphics producer stream identity.
 
-| Kind           | Payload                                                                                                                                                           |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 64 StreamOpen  | Nonzero u64 stream ID, nonzero u64 logical lane ID, u8 mode, inner request. Modes: Request 0, State 1, Events 2, Invalidations 3.                                 |
-| 65 StreamFrame | Nonzero u64 stream ID and sequence, u8 frame kind, inner response. Kinds: Result 0, Snapshot 1, Update 2. Invalidation updates contain an eight-byte commit hint. |
-| 66 StreamClose | Nonzero u64 stream ID, u8 reason: Complete 0, Cancelled 1, Unsupported 2, Capacity 3, InvalidRequest 4.                                                           |
-| 67 Gap         | Nonzero u64 stream ID and last Server sequence through the loss boundary. A replacement Snapshot follows.                                                         |
-| 68 Disconnect  | u8 reason: SlowConsumer 0, Capacity 1, InvalidStream 2, Unavailable 3.                                                                                            |
-| 69 Resnapshot  | Nonzero u64 stream ID; Client requests Gap then fresh Snapshot after local event inbox overflow.                                                                  |
-| 70 LaneOpen    | Nonzero u64 lane ID, monotonically increasing within the connection. Root lane 1 exists implicitly.                                                               |
-| 71 LaneClose   | Nonzero u64 lane ID; release only that lane's logical resources. Root lane cannot be closed independently.                                                        |
+| Kind                 | Payload                                                                                                                                                           |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 64 StreamOpen        | Nonzero u64 stream ID, nonzero u64 logical lane ID, u8 mode, inner request. Modes: Request 0, State 1, Events 2, Invalidations 3.                                 |
+| 65 StreamFrame       | Nonzero u64 stream ID and sequence, u8 frame kind, inner response. Kinds: Result 0, Snapshot 1, Update 2. Invalidation updates contain an eight-byte commit hint. |
+| 66 StreamClose       | Nonzero u64 stream ID, u8 reason: Complete 0, Cancelled 1, Unsupported 2, Capacity 3, InvalidRequest 4.                                                           |
+| 67 Gap               | Nonzero u64 stream ID and last Server sequence through the loss boundary. A replacement Snapshot follows.                                                         |
+| 68 Disconnect        | u8 reason: SlowConsumer 0, Capacity 1, InvalidStream 2, Unavailable 3.                                                                                            |
+| 69 Resnapshot        | Nonzero u64 stream ID; Client requests Gap then fresh Snapshot after local event inbox overflow.                                                                  |
+| 70 LaneOpen          | Nonzero u64 lane ID, monotonically increasing within the connection. Root lane 1 exists implicitly.                                                               |
+| 71 LaneClose         | Nonzero u64 lane ID; release only that lane's logical resources. Root lane cannot be closed independently.                                                        |
+| 72 ViewerRecordReady | Nonzero u128 viewer ID, Server to Client only: that viewer on this connection holds something to Poll. A hint, never a record.                                    |
+
+A `ViewerRecordReady` belongs to no stream or lane, and a Client may discard one it cannot place.
+Poll remains the only way to take a frame, so a lost hint delays that Poll and loses nothing.
 
 Stream IDs increase across all lanes and are never reused within one physical connection. Each
 subscription generation begins with sequence 1 and Snapshot; subsequent sequences increase.

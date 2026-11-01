@@ -4,8 +4,8 @@ use orchbee_local_client_protocol::ClientConnection;
 use orchbee_local_ipc::{AsLocalIo, LocalIo, LocalStream, PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{
     MAXIMUM_MULTIPLEX_BYTES, MAXIMUM_MULTIPLEX_LANES, MAXIMUM_MULTIPLEX_STREAMS, MultiplexDecoder,
-    MultiplexLaneId, MultiplexMessage, MultiplexStreamId, StreamCloseReason, StreamFrameKind,
-    StreamMode, encode_multiplex_message,
+    MultiplexLaneId, MultiplexMessage, MultiplexStreamId, MultiplexViewerId, StreamCloseReason,
+    StreamFrameKind, StreamMode, encode_multiplex_message,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -300,9 +300,47 @@ struct Commands {
     owners: usize,
     queue: VecDeque<Command>,
 }
+type ViewerReadyListener = Arc<dyn Fn(MultiplexViewerId) + Send + Sync>;
+
+/// Runs on the connection actor, so a listener must not block.
+#[derive(Default)]
+struct ViewerReadyListeners {
+    next: u64,
+    listeners: Vec<(u64, ViewerReadyListener)>,
+}
+
+impl std::fmt::Debug for ViewerReadyListeners {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ViewerReadyListeners")
+            .field("count", &self.listeners.len())
+            .finish()
+    }
+}
+
+/// Registered interest in this connection's viewer hints; dropping it withdraws the listener.
+#[derive(Debug)]
+pub struct ViewerReadyWatch {
+    owner: Arc<Connection>,
+    token: u64,
+}
+
+impl Drop for ViewerReadyWatch {
+    fn drop(&mut self) {
+        self.owner
+            .shared
+            .viewer_ready
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .listeners
+            .retain(|(token, _)| *token != self.token);
+    }
+}
+
 #[derive(Debug)]
 struct Shared {
     commands: Mutex<Commands>,
+    viewer_ready: Mutex<ViewerReadyListeners>,
     wake: LocalStream,
     stopped: AtomicBool,
     generation: AtomicU64,
@@ -474,6 +512,7 @@ impl Connection {
         origin.multiplex = None;
         let shared = Arc::new(Shared {
             commands: Mutex::default(),
+            viewer_ready: Mutex::default(),
             wake,
             stopped: AtomicBool::new(false),
             generation: AtomicU64::new(connection.generation().get()),
@@ -490,6 +529,24 @@ impl Connection {
             shared,
             task: Mutex::new(Some(task)),
         }))
+    }
+    /// Calls `listener` on the connection actor for each viewer hint until the watch drops.
+    pub(super) fn watch_viewer_ready(
+        self: &Arc<Self>,
+        listener: impl Fn(MultiplexViewerId) + Send + Sync + 'static,
+    ) -> ViewerReadyWatch {
+        let mut listeners = self
+            .shared
+            .viewer_ready
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let token = listeners.next;
+        listeners.next = token.wrapping_add(1);
+        listeners.listeners.push((token, Arc::new(listener)));
+        ViewerReadyWatch {
+            owner: Arc::clone(self),
+            token,
+        }
     }
     pub(super) fn generation(&self) -> NonZeroU64 {
         NonZeroU64::new(self.shared.generation.load(Ordering::Acquire))
@@ -871,6 +928,7 @@ fn actor(
                 queued.and_then(|()| {
                     drive(
                         connection,
+                        &shared,
                         &wake,
                         &mut active,
                         &mut outgoing,
@@ -971,8 +1029,13 @@ fn retryable_admission(error: &orchbee_local_client_protocol::ConnectClientError
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the actor loop lends each piece of its state to one bounded step"
+)]
 fn drive(
     connection: &mut ClientConnection,
+    shared: &Shared,
     wake: &LocalStream,
     active: &mut BTreeMap<MultiplexStreamId, Active>,
     outgoing: &mut VecDeque<Outgoing>,
@@ -1021,7 +1084,7 @@ fn drive(
                 decoder.push(&buffer[..count])?;
                 while let Some(message) = decoder.next_message()? {
                     if !health.receive(&message, connection.generation(), Instant::now())?
-                        && deliver(message, active, outgoing)?
+                        && deliver(message, shared, active, outgoing)?
                     {
                         health.business_progress(Instant::now());
                     }
@@ -1087,6 +1150,7 @@ fn drive(
 
 fn deliver(
     message: MultiplexMessage,
+    shared: &Shared,
     active: &mut BTreeMap<MultiplexStreamId, Active>,
     outgoing: &mut VecDeque<Outgoing>,
 ) -> io::Result<bool> {
@@ -1153,6 +1217,15 @@ fn deliver(
                 io::ErrorKind::ConnectionAborted,
                 Disconnect(reason),
             ));
+        }
+        MultiplexMessage::ViewerRecordReady { viewer_id } => {
+            let listeners = shared
+                .viewer_ready
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            for (_, listener) in &listeners.listeners {
+                listener(viewer_id);
+            }
         }
         MultiplexMessage::StreamOpen { .. }
         | MultiplexMessage::Resnapshot { .. }

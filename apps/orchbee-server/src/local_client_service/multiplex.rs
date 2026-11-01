@@ -6,7 +6,7 @@ use orchbee_server::SessionChangeSignal;
 use orchbee_workbench_protocol::{
     MAXIMUM_MULTIPLEX_BYTES, MAXIMUM_MULTIPLEX_LANES, MAXIMUM_MULTIPLEX_STREAMS,
     MultiplexDisconnectReason, MultiplexLaneId, MultiplexMessage, MultiplexStreamId,
-    StreamCloseReason, StreamFrameKind, StreamMode, read_multiplex_message,
+    MultiplexViewerId, StreamCloseReason, StreamFrameKind, StreamMode, read_multiplex_message,
     write_multiplex_message,
 };
 use std::{
@@ -173,6 +173,7 @@ pub(super) fn run(
         MultiplexLaneId,
         &ApplicationRequest,
     ) -> Result<Vec<u8>, ApplicationConnectionError>,
+    mut viewer_ready: impl FnMut() -> Vec<MultiplexViewerId>,
     execute_job_read: impl Fn(&ApplicationRequest) -> Result<Vec<u8>, ApplicationConnectionError> + Sync,
     mut close_lane: impl FnMut(MultiplexLaneId),
     mut cancel: impl FnMut(&ApplicationRequest),
@@ -216,6 +217,7 @@ pub(super) fn run(
             &signal,
             &job_reads,
             &mut execute,
+            &mut viewer_ready,
             &mut cancel,
             &mut close_lane,
             &budget,
@@ -313,6 +315,7 @@ fn dispatch(
         MultiplexLaneId,
         &ApplicationRequest,
     ) -> Result<Vec<u8>, ApplicationConnectionError>,
+    viewer_ready: &mut impl FnMut() -> Vec<MultiplexViewerId>,
     cancel: &mut impl FnMut(&ApplicationRequest),
     close_lane: &mut impl FnMut(MultiplexLaneId),
     budget: &Arc<AtomicUsize>,
@@ -327,6 +330,10 @@ fn dispatch(
     let mut open_job_reads: BTreeMap<MultiplexStreamId, MultiplexLaneId> = BTreeMap::new();
     loop {
         let wake_revision = signal.wake_revision();
+        // A hint delivered after this take wakes the signal this pass waits on below.
+        for viewer_id in viewer_ready() {
+            write_multiplex_message(writer, &MultiplexMessage::ViewerRecordReady { viewer_id })?;
+        }
         // Take bounded work out of the mailbox before semantic execution or socket I/O.
         let (messages, failure, closed) = {
             let mut state = inbox.lock().map_err(|_| io::ErrorKind::BrokenPipe)?;

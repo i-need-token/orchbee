@@ -7,6 +7,7 @@ use crate::session_coordinator::{
     BindingViewerPreparationError, PreparedBindingViewer, TargetLifecycle,
 };
 use crate::terminal_coordinator::{BindingViewerTarget, ViewerOperationIdentities};
+use crate::viewer_ready::{ConnectionViewerReady, ViewerReadyRoute};
 use crate::worker_obcn_carrier::{
     WorkerOperationRequest, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,
 };
@@ -21,6 +22,7 @@ use orchbee_client_server_protocol::{
     ViewerRejectedReason as Rejected, ViewerUnavailableReason as Unavailable,
     WorkerId as ClientWorkerId,
 };
+use std::sync::Arc;
 
 mod editor;
 pub(in crate::local_terminal_service) mod process_sampling;
@@ -32,6 +34,7 @@ const MAXIMUM_CONNECTION_VIEWERS: usize = 8;
 pub(crate) struct LocalTerminalConnection<'service> {
     service: &'service LocalTerminalService,
     viewers: [Option<ViewerAttachment<'service>>; MAXIMUM_CONNECTION_VIEWERS],
+    viewer_ready: Option<Arc<ConnectionViewerReady>>,
 }
 
 pub(super) struct ViewerAttachment<'service> {
@@ -42,6 +45,7 @@ pub(super) struct ViewerAttachment<'service> {
     pub(super) controller: Option<super::controller_connection::ControllerLease<'service>>,
     pub(super) cleanup: Option<WorkerRequest>,
     projection: ViewerProjection,
+    ready_route: Option<ViewerReadyRoute>,
 }
 
 struct IssuedViewer<'service> {
@@ -69,7 +73,14 @@ impl<'service> LocalTerminalConnection<'service> {
         Self {
             service,
             viewers: [const { None }; MAXIMUM_CONNECTION_VIEWERS],
+            viewer_ready: None,
         }
+    }
+
+    /// Viewers attached through this connection report ready records to `ready`.
+    pub(crate) fn with_viewer_ready(mut self, ready: Arc<ConnectionViewerReady>) -> Self {
+        self.viewer_ready = Some(ready);
+        self
     }
 
     pub(crate) fn execute(&mut self, request: ClientMessage) -> ServerMessage {
@@ -140,6 +151,11 @@ impl<'service> LocalTerminalConnection<'service> {
             viewer.cleanup = None;
             return rejected(Rejected::AlreadyAttached);
         }
+        // Routed first: the Worker can report the first frame ahead of its Attach reply.
+        viewer.ready_route = self.viewer_ready.as_ref().and_then(|ready| {
+            let routes = self.service.workers.lock().ok()?.viewer_ready_routes();
+            Some(routes.route(cleanup.attachment_id, Arc::clone(ready)))
+        });
         let completion = viewer
             .handle
             .request(WorkerOperationRequest::Viewer(WorkerRequest {
@@ -360,6 +376,7 @@ impl LocalTerminalService {
                 controller: None,
                 handle,
                 projection,
+                ready_route: None,
                 cleanup: Some(WorkerRequest {
                     request_id: identities.cleanup,
                     worker_id: target.worker.worker_id,

@@ -125,6 +125,7 @@ pub(in crate::workbench_client) fn install_projection(
         key: key.clone(),
         value,
         status: ClientProjectionStatus::FrameAvailable,
+        record_ready: false,
         viewport: None,
         tail: None,
         tail_attempted: None,

@@ -53,6 +53,12 @@ use orchbee_workbench_protocol::{
 };
 use std::sync::Arc;
 
+/// Pacing of an empty Poll for a viewer that cannot yet rely on a Server hint.
+const UNHINTED_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(8);
+/// How long a lost hint can hide a record once hints replace the poll timer, shared across the
+/// polled panes. It also bounds how long Poll-carried notices wait on an otherwise idle connection.
+const FALLBACK_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
+
 mod agent_board;
 mod close_reconciliation;
 mod control_takeover;
@@ -1235,6 +1241,8 @@ pub(crate) struct KeyedProjection {
     key: PaneRef,
     value: TerminalProjection,
     status: ClientProjectionStatus,
+    /// The Server reported something to Poll, or a new viewer is about to have its first frame.
+    record_ready: bool,
     /// The retained-row lease for manual history or a verified automatic tail window.
     /// No core exists before its `Enter` step is admitted; `tail` identifies live-input use.
     viewport: Option<TerminalViewport>,
@@ -1284,6 +1292,7 @@ impl KeyedProjection {
             key,
             value,
             status,
+            record_ready: false,
             viewport: None,
             tail: None,
             tail_attempted: None,
@@ -1361,6 +1370,7 @@ pub(super) struct WorkbenchClientUi {
     poll_cursor: usize,
     ordinary_poll_serial: Option<u64>,
     next_empty_poll: Option<std::time::Instant>,
+    next_fallback_poll: Option<std::time::Instant>,
     publications: Option<crate::local_client::subscription::ChangeSubscription>,
     held_intents: held_intent::HeldIntents,
     viewer_recovery: viewer_recovery::ViewerRecovery,
@@ -1400,7 +1410,7 @@ impl WorkbenchClientUi {
             return None;
         }
         let ordinary = self
-            .next_empty_poll
+            .next_unhinted_poll()
             .filter(|_| self.ordinary_poll_serial.is_none());
         // The sequence owns admission while its lease settles; an expired ordinary poll
         // must not busy-spin. Keep independent close and summary deadlines below.
@@ -1504,6 +1514,7 @@ impl WorkbenchClientUi {
             poll_cursor: 0,
             ordinary_poll_serial: None,
             next_empty_poll: None,
+            next_fallback_poll: None,
             publications: None,
             held_intents: held_intent::HeldIntents::default(),
             viewer_recovery: viewer_recovery::ViewerRecovery::default(),
@@ -3991,6 +4002,7 @@ impl WorkbenchClientUi {
                             key,
                             value: projection,
                             status: ClientProjectionStatus::Empty,
+                            record_ready: true,
                             viewport: None,
                             tail: None,
                             tail_attempted: None,
@@ -4262,10 +4274,7 @@ impl WorkbenchClientUi {
                 self.ordinary_poll_serial = None;
                 // Empty replies wake the UI too. Pace their successors so an
                 // idle terminal cannot turn the notification path into a spin.
-                self.next_empty_poll = self
-                    .clock
-                    .now()
-                    .checked_add(std::time::Duration::from_millis(8));
+                self.next_empty_poll = self.clock.now().checked_add(UNHINTED_POLL_INTERVAL);
             }
             return match mailbox.complete_empty_poll(&poll_key) {
                 Ok(MutationResult::Applied | MutationResult::Stale) => false,
@@ -4559,6 +4568,46 @@ impl WorkbenchClientUi {
     /// ordinary poll stays in flight at a time — the single causal cell is
     /// preserved — while the cursor walks the projected pane set so every
     /// pane's viewer advances without starving the focus.
+    fn note_ready_viewers(&mut self, mailbox: &CommandMailbox) {
+        for viewer in mailbox.take_ready_viewers() {
+            if let Some(projection) = self.projections.iter_mut().find(|projection| {
+                u128::from_be_bytes(*projection.value.attachment().as_bytes()) == viewer
+            }) {
+                projection.record_ready = true;
+            }
+        }
+    }
+
+    /// Hints replace the poll timer once they have proved themselves, except for a pane owed a
+    /// full frame: its hint can arrive before the projection that would recognize it.
+    fn polls_follow_hints(&self) -> bool {
+        let hints_seen = self
+            .mailbox
+            .as_ref()
+            .is_some_and(|mailbox| mailbox.viewer_hints_seen());
+        hints_seen
+            && !self.state.as_ref().is_some_and(|state| {
+                state.pollable_panes().iter().any(|key| {
+                    self.projections.iter().any(|projection| {
+                        projection.key == *key
+                            && matches!(
+                                projection.status,
+                                ClientProjectionStatus::Empty
+                                    | ClientProjectionStatus::WaitingForFullFrame
+                            )
+                    })
+                })
+            })
+    }
+
+    fn next_unhinted_poll(&self) -> Option<std::time::Instant> {
+        if self.polls_follow_hints() {
+            self.next_fallback_poll
+        } else {
+            self.next_empty_poll
+        }
+    }
+
     fn schedule_poll(&mut self, mailbox: &Arc<CommandMailbox>) {
         // Existing polls/replies still drain. Do not put a fresh ordinary Poll ahead of
         // an already Ready next member while the preceding lease is finishing.
@@ -4572,10 +4621,9 @@ impl WorkbenchClientUi {
         if !self.pending_draws.is_empty() || self.ordinary_poll_serial.is_some() {
             return;
         }
-        if self.next_empty_poll.is_some_and(|at| self.clock.now() < at) {
-            return;
-        }
-        self.next_empty_poll = None;
+        self.note_ready_viewers(mailbox);
+        let now = self.clock.now();
+        let follows_hints = self.polls_follow_hints();
         let Some(state) = self.state.as_ref() else {
             return;
         };
@@ -4591,30 +4639,74 @@ impl WorkbenchClientUi {
             self.poll_cursor = 0;
             return;
         }
+        // A pane with something to Poll needs no timer, and the one the user is watching goes first.
+        let hinted = state
+            .focus_pane_ref()
+            .into_iter()
+            .chain(pollable.iter().cloned())
+            .find(|key| {
+                pollable.contains(key)
+                    && self
+                        .projections
+                        .iter()
+                        .any(|projection| projection.key == *key && projection.record_ready)
+            });
+        let due = if follows_hints {
+            self.next_fallback_poll
+        } else {
+            self.next_empty_poll
+        };
+        if hinted.is_none() && due.is_some_and(|at| now < at) {
+            return;
+        }
         // Only panes this UI actually projects are served — a state-side live
         // pane whose projection was never installed here (or was already
         // dropped) must not mint a poll it cannot settle.
         let start = self.poll_cursor % pollable.len();
-        let key = (0..pollable.len())
-            .map(|offset| &pollable[(start + offset) % pollable.len()])
-            .find(|key| {
-                self.projections
-                    .iter()
-                    .any(|projection| projection.key == **key)
-            })
-            .cloned();
+        let is_hinted = hinted.is_some();
+        let visited = pollable.len();
+        let key = hinted.or_else(|| {
+            (0..pollable.len())
+                .map(|offset| &pollable[(start + offset) % pollable.len()])
+                .find(|key| {
+                    self.projections
+                        .iter()
+                        .any(|projection| projection.key == **key)
+                })
+                .cloned()
+        });
         let Some(key) = key else {
             self.poll_cursor = 0;
             return;
         };
-        self.poll_cursor = self.poll_cursor.wrapping_add(1);
-        if state.close_suppresses_attachment(key.pane().anchor()) {
+        if !is_hinted {
+            self.poll_cursor = self.poll_cursor.wrapping_add(1);
+        }
+        let suppressed = state.close_suppresses_attachment(key.pane().anchor());
+        let projection = self
+            .projections
+            .iter_mut()
+            .find(|projection| projection.key == key);
+        if suppressed {
+            // The close owns this viewer; leaving the mark would keep its siblings waiting.
+            if let Some(projection) = projection {
+                projection.record_ready = false;
+            }
             return;
         }
         match mailbox.try_enqueue(QueuedCommand::Poll(Tagged::new(key, ()))) {
             Ok(serial) => {
                 self.ordinary_poll_serial = Some(serial);
                 self.next_empty_poll = None;
+                if let Some(projection) = projection {
+                    projection.record_ready = false;
+                }
+                // A hinted poll leaves the fallback armed, so a busy pane cannot keep a lost
+                // hint on its sibling from being noticed.
+                if !is_hinted {
+                    let round = FALLBACK_POLL_INTERVAL / u32::try_from(visited).unwrap_or(u32::MAX);
+                    self.next_fallback_poll = now.checked_add(round);
+                }
             }
             // Full and Busy are local no-ops: a canonical ordinary Poll may still be
             // queued or active even when the UI observation was cleared.
@@ -4659,6 +4751,7 @@ impl WorkbenchClientUi {
         self.ordinary_poll_serial = None;
         self.poll_cursor = 0;
         self.next_empty_poll = None;
+        self.next_fallback_poll = None;
     }
 
     /// Drops one pane's projection and staged draws — focus-scoped settle

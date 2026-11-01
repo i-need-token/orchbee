@@ -19,7 +19,9 @@ pub mod cancellation {
 }
 
 pub mod multiplex {
-    pub use crate::local_client::multiplex::{StreamEvent, Subscription, terminal_failure};
+    pub use crate::local_client::multiplex::{
+        StreamEvent, Subscription, ViewerReadyWatch, terminal_failure,
+    };
 }
 
 pub mod subscription {

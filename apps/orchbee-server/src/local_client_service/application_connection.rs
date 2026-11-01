@@ -249,6 +249,7 @@ pub(super) fn run_network<Permit>(
     mut execute_agent: impl FnMut(AgentRequest) -> Result<AgentResult, AgentReadFault>,
     admit: impl Fn() -> Option<Permit> + Sync,
     watch: impl FnOnce(&std::sync::Arc<orchbee_server::SessionChangeSignal>),
+    viewer_ready: impl FnMut() -> Vec<orchbee_workbench_protocol::MultiplexViewerId>,
     mut cancel: impl FnMut(&WorkbenchRequest),
     close_lane: impl FnMut(MultiplexLaneId),
     maintenance: impl FnMut() -> io::Result<Option<std::time::Instant>>,
@@ -311,6 +312,7 @@ pub(super) fn run_network<Permit>(
             }
             Ok(bytes)
         },
+        viewer_ready,
         |request| {
             let _permit = admit().ok_or(ApplicationConnectionError::Stopping)?;
             let request = request

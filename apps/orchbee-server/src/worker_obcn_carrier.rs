@@ -19,14 +19,16 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
-    AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage, ProtocolError,
-    ReadMessageError, TerminalCwdValidationRequest, TerminalCwdValidationResult,
-    TerminalLaunchResult, TerminalOperationAuthorization, TerminalStartResult, WorktreeJobRequest,
-    WorktreeJobResult, encode_message, read_message,
+    AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage, FRAME_MAGIC,
+    ProtocolError, ReadMessageError, TerminalCwdValidationRequest, TerminalCwdValidationResult,
+    TerminalLaunchResult, TerminalOperationAuthorization, TerminalStartResult,
+    TerminalViewerRecordReady, WorktreeJobRequest, WorktreeJobResult, encode_message, read_message,
 };
 use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_local_worker_protocol::WorkerId;
 use orchbee_workbench_protocol::PresentationLaunchProgram;
+
+use crate::viewer_ready::ViewerReadyRoutes;
 
 mod lifecycle;
 pub(crate) use lifecycle::PendingLifecycleResult;
@@ -37,7 +39,10 @@ const HIGH_LANE_CAPACITY: usize = 8;
 const LOW_LANE_CAPACITY: usize = 8;
 const HIGH_LANE_BURST_LIMIT: usize = 4;
 const OPERATION_IO_TIMEOUT: Duration = Duration::from_secs(2);
-const OWNER_POLL_INTERVAL: Duration = Duration::from_millis(25);
+// Queue changes and Worker bytes both end an idle wait, so this bounds only a missed wake.
+const OWNER_POLL_INTERVAL: Duration = Duration::from_millis(250);
+// Without a wake channel, an idle wait must still notice a queued request promptly.
+const UNWOKEN_OWNER_POLL_INTERVAL: Duration = Duration::from_millis(2);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkerOperationRequest {
@@ -668,10 +673,47 @@ impl QueueState {
     }
 }
 
+/// Lets a queue change end the wire owner's wait on the Worker stream.
+#[derive(Debug)]
+struct OwnerWake {
+    reader: UnixStream,
+    writer: UnixStream,
+    pending: AtomicBool,
+}
+
+impl OwnerWake {
+    fn new() -> io::Result<Self> {
+        let (reader, writer) = UnixStream::pair()?;
+        reader.set_nonblocking(true)?;
+        writer.set_nonblocking(true)?;
+        Ok(Self {
+            reader,
+            writer,
+            pending: AtomicBool::new(false),
+        })
+    }
+
+    fn signal(&self) {
+        // A byte the owner has not drained already ends its wait.
+        if !self.pending.swap(true, Ordering::AcqRel) {
+            let _written = (&self.writer).write(&[1]);
+        }
+    }
+
+    /// Reads before clearing, so `pending` always promises a byte: a signal during the read is seen
+    /// by the owner's next queue inspection, and one after the clear leaves its own byte.
+    fn drain(&self) {
+        let mut bytes = [0_u8; 64];
+        while matches!((&self.reader).read(&mut bytes), Ok(count) if count == bytes.len()) {}
+        self.pending.store(false, Ordering::Release);
+    }
+}
+
 #[derive(Debug)]
 struct CarrierQueue {
     changed: Condvar,
     state: Mutex<QueueState>,
+    wake: Option<OwnerWake>,
 }
 
 impl CarrierQueue {
@@ -689,6 +731,46 @@ impl CarrierQueue {
                 low: VecDeque::new(),
                 open_handles: 1,
             }),
+            wake: OwnerWake::new().ok(),
+        }
+    }
+
+    /// A change matters to admission waiters and to the owner's idle wait alike.
+    fn publish_change(&self) {
+        self.changed.notify_all();
+        self.wake_owner();
+    }
+
+    fn wake_owner(&self) {
+        if let Some(wake) = &self.wake {
+            wake.signal();
+        }
+    }
+
+    /// Ends on a queue change, Worker bytes, or the interval.
+    fn wait_for_owner_work(
+        &self,
+        stream: &impl AsLocalIo,
+        interval: Duration,
+    ) -> Result<(), WorkerTransportFailure> {
+        let interval = match self.wake {
+            Some(_) => interval,
+            None => interval.min(UNWOKEN_OWNER_POLL_INTERVAL),
+        };
+        let timeout = poll_timeout(interval).map_err(|error| classify_transport_error(&error))?;
+        let mut descriptors = vec![PollFd::new(stream.as_local_io(), PollFlags::POLLIN)];
+        if let Some(wake) = &self.wake {
+            descriptors.push(PollFd::new(wake.reader.as_local_io(), PollFlags::POLLIN));
+        }
+        let waited = poll(&mut descriptors, timeout);
+        drop(descriptors);
+        if let Some(wake) = &self.wake {
+            wake.drain();
+        }
+        match waited {
+            Ok(_) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => Ok(()),
+            Err(error) => Err(classify_transport_error(&error)),
         }
     }
 
@@ -710,7 +792,7 @@ impl CarrierQueue {
         );
         state.open_handles = state.open_handles.saturating_sub(1);
         if state.open_handles == 0 {
-            self.changed.notify_all();
+            self.publish_change();
         }
     }
 
@@ -736,7 +818,7 @@ impl CarrierQueue {
             RequestLane::High => state.high.push_back(request),
             RequestLane::Low => state.low.push_back(request),
         }
-        self.changed.notify_all();
+        self.publish_change();
         AdmitOutcome::Admitted
     }
 
@@ -751,7 +833,7 @@ impl CarrierQueue {
         }
         if state.high_waiters.is_empty() && state.high.len() < HIGH_LANE_CAPACITY {
             state.high.push_back(request);
-            self.changed.notify_all();
+            self.publish_change();
             return true;
         }
         let admitted = Arc::new(AtomicBool::new(false));
@@ -782,7 +864,7 @@ impl CarrierQueue {
         let mut state = self.lock();
         loop {
             if let Some(pending) = state.dispatch() {
-                self.changed.notify_all();
+                self.publish_change();
                 *dispatched = Some(pending);
                 return TakeNext::Dispatched;
             }
@@ -825,7 +907,7 @@ impl CarrierQueue {
             pending.extend(state.low.drain(..));
             pending.extend(state.high_waiters.drain(..).map(|waiter| waiter.request));
             state.high.push_back(request);
-            self.changed.notify_all();
+            self.publish_change();
             pending
         };
         for request in pending {
@@ -842,7 +924,7 @@ impl CarrierQueue {
         drained.extend(state.high.drain(..));
         drained.extend(state.low.drain(..));
         drained.extend(state.high_waiters.drain(..).map(|waiter| waiter.request));
-        self.changed.notify_all();
+        self.publish_change();
         drained
     }
 
@@ -850,7 +932,7 @@ impl CarrierQueue {
     fn dispatch_next(&self) -> Option<PendingRequest> {
         let dispatched = self.lock().dispatch();
         if dispatched.is_some() {
-            self.changed.notify_all();
+            self.publish_change();
         }
         dispatched
     }
@@ -890,11 +972,13 @@ impl WorkerCarrier {
 #[derive(Debug)]
 pub(crate) struct WorkerCarrierShutdown {
     active: Arc<AtomicBool>,
+    queue: Arc<CarrierQueue>,
 }
 
 impl Drop for WorkerCarrierShutdown {
     fn drop(&mut self) {
         self.active.store(false, Ordering::Release);
+        self.queue.wake_owner();
     }
 }
 
@@ -903,6 +987,7 @@ pub(crate) struct WorkerWireOwner {
     in_flight: Option<PendingRequest>,
     limits: WorkerCarrierLimits,
     queue: Arc<CarrierQueue>,
+    viewer_ready: Option<Arc<ViewerReadyRoutes>>,
 }
 
 #[derive(Clone, Copy)]
@@ -946,9 +1031,11 @@ fn create_worker_carrier_with_limits(
             in_flight: None,
             limits,
             queue: Arc::clone(&queue),
+            viewer_ready: None,
         },
         shutdown: WorkerCarrierShutdown {
             active: Arc::clone(&active),
+            queue: Arc::clone(&queue),
         },
         request_handle: WorkerRequestHandle {
             active: Arc::clone(&active),
@@ -961,6 +1048,11 @@ fn create_worker_carrier_with_limits(
 }
 
 impl WorkerWireOwner {
+    pub(crate) fn with_viewer_ready(mut self, routes: Arc<ViewerReadyRoutes>) -> Self {
+        self.viewer_ready = Some(routes);
+        self
+    }
+
     pub(crate) fn run(mut self, mut stream: UnixStream) -> WorkerWireExit {
         match configure_idle_stream(&stream) {
             Ok(()) => self.run_configured(&mut stream),
@@ -985,16 +1077,17 @@ impl WorkerWireOwner {
                 return WorkerWireExit::Shutdown;
             }
             debug_assert!(self.in_flight.is_none());
-            match self
-                .queue
-                .take_next(self.limits.poll_interval, &mut self.in_flight)
-            {
+            match self.queue.take_next(Duration::ZERO, &mut self.in_flight) {
                 TakeNext::Dispatched => {
                     if !self.active.load(Ordering::Acquire) {
                         self.complete_in_flight(Err(WorkerRequestError::Unavailable));
                         return WorkerWireExit::Shutdown;
                     }
-                    match probe_idle_stream(stream) {
+                    match drain_idle_stream(
+                        stream,
+                        self.viewer_ready.as_deref(),
+                        self.limits.io_timeout,
+                    ) {
                         Ok(IdleStreamState::Open) => {}
                         Ok(IdleStreamState::Closed) => {
                             self.complete_in_flight(Err(WorkerRequestError::NotDelivered(
@@ -1018,14 +1111,26 @@ impl WorkerWireOwner {
                         return WorkerWireExit::RequestFailed;
                     }
                 }
-                TakeNext::Idle => match probe_idle_stream(stream) {
-                    Ok(IdleStreamState::Open) => {}
-                    Ok(IdleStreamState::Closed) => return WorkerWireExit::PeerClosed,
-                    Ok(IdleStreamState::UnexpectedData) => {
-                        return WorkerWireExit::UnexpectedPeerData;
+                TakeNext::Idle => {
+                    if let Err(failure) = self
+                        .queue
+                        .wait_for_owner_work(stream, self.limits.poll_interval)
+                    {
+                        return WorkerWireExit::Transport(failure);
                     }
-                    Err(failure) => return WorkerWireExit::Transport(failure),
-                },
+                    match drain_idle_stream(
+                        stream,
+                        self.viewer_ready.as_deref(),
+                        self.limits.io_timeout,
+                    ) {
+                        Ok(IdleStreamState::Open) => {}
+                        Ok(IdleStreamState::Closed) => return WorkerWireExit::PeerClosed,
+                        Ok(IdleStreamState::UnexpectedData) => {
+                            return WorkerWireExit::UnexpectedPeerData;
+                        }
+                        Err(failure) => return WorkerWireExit::Transport(failure),
+                    }
+                }
                 TakeNext::Closed => return WorkerWireExit::Shutdown,
             }
         }
@@ -1055,17 +1160,23 @@ impl WorkerWireOwner {
                 return false;
             }
         };
-        let response = match read_message(&mut DeadlineReader {
-            deadline: response_deadline,
-            stream,
-        }) {
-            Ok(message) => {
-                let pending = self.in_flight.as_ref().unwrap_or_else(|| {
-                    unreachable!("result validation requires one in-flight request")
-                });
-                validate_response(&pending.request, message)
+        // A hint written just before the Worker read this request can still precede its result.
+        let response = loop {
+            match read_message(&mut DeadlineReader {
+                deadline: response_deadline,
+                stream: &mut *stream,
+            }) {
+                Ok(CapabilityNodeMessage::TerminalViewerRecordReady(hint)) => {
+                    deliver_hint(self.viewer_ready.as_deref(), hint);
+                }
+                Ok(message) => {
+                    let pending = self.in_flight.as_ref().unwrap_or_else(|| {
+                        unreachable!("result validation requires one in-flight request")
+                    });
+                    break validate_response(&pending.request, message);
+                }
+                Err(error) => break Err(response_read_failure(error)),
             }
-            Err(error) => Err(response_read_failure(error)),
         };
         let keep_alive = response.is_ok();
         let completion_delivered = self
@@ -1234,12 +1345,42 @@ enum IdleStreamState {
     UnexpectedData,
 }
 
-fn probe_idle_stream(stream: &mut impl Read) -> Result<IdleStreamState, WorkerTransportFailure> {
+fn deliver_hint(routes: Option<&ViewerReadyRoutes>, hint: TerminalViewerRecordReady) {
+    if let Some(routes) = routes {
+        routes.deliver(hint.attachment_id);
+    }
+}
+
+/// Between requests a Worker may only hint; anything else, or a record that never completes, is a
+/// peer breaking the exchange.
+fn drain_idle_stream<Stream>(
+    stream: &mut Stream,
+    routes: Option<&ViewerReadyRoutes>,
+    record_timeout: Duration,
+) -> Result<IdleStreamState, WorkerTransportFailure>
+where
+    Stream: AsLocalIo + Read,
+{
     let mut byte = [0_u8; 1];
     loop {
         match stream.read(&mut byte) {
             Ok(0) => return Ok(IdleStreamState::Closed),
-            Ok(_) => return Ok(IdleStreamState::UnexpectedData),
+            Ok(_) if byte[0] != FRAME_MAGIC[0] => return Ok(IdleStreamState::UnexpectedData),
+            Ok(_) => {
+                let Some(deadline) = Instant::now().checked_add(record_timeout) else {
+                    return Err(WorkerTransportFailure::Io(io::ErrorKind::InvalidInput));
+                };
+                let mut record = (&byte[..]).chain(DeadlineReader {
+                    deadline,
+                    stream: &mut *stream,
+                });
+                match read_message(&mut record) {
+                    Ok(CapabilityNodeMessage::TerminalViewerRecordReady(hint)) => {
+                        deliver_hint(routes, hint);
+                    }
+                    Ok(_) | Err(_) => return Ok(IdleStreamState::UnexpectedData),
+                }
+            }
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                 return Ok(IdleStreamState::Open);
@@ -1297,6 +1438,10 @@ fn validate_response(
         }
         (_, CapabilityNodeMessage::WorkerShutdownRequest(_)) => {
             Err(WorkerResponseFailure::WrongDirection)
+        }
+        // The exchange consumes hints before validating a result.
+        (_, CapabilityNodeMessage::TerminalViewerRecordReady(_)) => {
+            Err(WorkerResponseFailure::WrongResultKind)
         }
         (_, CapabilityNodeMessage::WorkerShutdownResult(_)) => {
             Err(WorkerResponseFailure::WrongResultKind)

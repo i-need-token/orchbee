@@ -939,6 +939,117 @@ fn bounds_one_wire_request_eight_queued_requests_and_rejects_more_work() -> Test
 }
 
 #[test]
+fn ready_hints_route_while_idle_and_awaiting_a_response_and_complete_nothing() -> TestResult {
+    use crate::viewer_ready::{ConnectionViewerReady, ViewerReadyRoutes};
+    use orchbee_capability_node_protocol::TerminalViewerRecordReady;
+    use orchbee_workbench_protocol::MultiplexViewerId;
+    let routes = Arc::new(ViewerReadyRoutes::default());
+    let connection = Arc::new(ConnectionViewerReady::default());
+    let attachment = OperationId::from_bytes([9; 16])?;
+    let _route = routes.route(attachment, Arc::clone(&connection));
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (exit_sender, _exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(
+        owner.with_viewer_ready(Arc::clone(&routes)),
+        server,
+        exit_sender,
+    );
+    let hint = |value: u8| -> TestResult<CapabilityNodeMessage> {
+        Ok(CapabilityNodeMessage::TerminalViewerRecordReady(
+            TerminalViewerRecordReady {
+                attachment_id: OperationId::from_bytes([value; 16])?,
+            },
+        ))
+    };
+    let viewer = MultiplexViewerId::new(u128::from_be_bytes([9; 16])).ok_or("viewer")?;
+    let take_routed = |connection: &ConnectionViewerReady| -> TestResult {
+        let deadline = Instant::now() + TEST_COMPLETION_TIMEOUT;
+        loop {
+            let taken = connection.take();
+            if !taken.is_empty() {
+                assert_eq!(taken, [viewer]);
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                return Err("the hint was not routed".into());
+            }
+            thread::yield_now();
+        }
+    };
+
+    write_message(&mut worker, &hint(9)?)?;
+    take_routed(&connection)?;
+
+    // The attachment with no route is dropped; neither hint takes the place of the response.
+    let request = launch_request(authorization(1, 1, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let result = launch_result(&request);
+    let known = hint(9)?;
+    let unknown = hint(10)?;
+    let worker_thread = thread::spawn(move || -> TestResult<UnixStream> {
+        let _request = read_message(&mut worker)?;
+        write_message(&mut worker, &unknown)?;
+        write_message(&mut worker, &known)?;
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalLaunchResult(result),
+        )?;
+        Ok(worker)
+    });
+    assert!(
+        handle
+            .request(WorkerOperationRequest::Launch(request))
+            .is_ok()
+    );
+    take_routed(&connection)?;
+    let worker = worker_thread.join().map_err(|_panic| "worker panicked")??;
+    assert!(handle.is_active());
+    drop(worker);
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
+/// `pending` promises a byte. A drain that cleared it before reading could consume the byte of a
+/// signal that landed between the two, leaving `pending` set with nothing to read: every later
+/// signal then skipped its byte, and the owner slept through queued work.
+#[test]
+fn a_signal_racing_a_drain_still_ends_a_later_wait() -> TestResult {
+    use super::{OwnerWake, poll_timeout};
+    use orchbee_local_ipc::{PollFd, PollFlags, poll};
+    use std::sync::atomic::AtomicU64;
+    const SIGNALS: u64 = 200_000;
+    let wake = Arc::new(OwnerWake::new()?);
+    let published = Arc::new(AtomicU64::new(0));
+    let signaler = {
+        let wake = Arc::clone(&wake);
+        let published = Arc::clone(&published);
+        thread::spawn(move || {
+            for _ in 0..SIGNALS {
+                published.fetch_add(1, Ordering::Release);
+                wake.signal();
+            }
+        })
+    };
+    let timeout = poll_timeout(TEST_COMPLETION_TIMEOUT)?;
+    let mut seen = 0;
+    while seen < SIGNALS {
+        let mut descriptors = [PollFd::new(wake.reader.as_local_io(), PollFlags::POLLIN)];
+        let ready = poll(&mut descriptors, timeout)?;
+        wake.drain();
+        // Read after the drain, the way the owner inspects its queue after waiting.
+        let observed = published.load(Ordering::Acquire);
+        assert!(
+            ready > 0 || observed > seen,
+            "published work behind a wait no signal could end: {seen} of {SIGNALS}"
+        );
+        seen = observed;
+    }
+    signaler.join().map_err(|_panic| "signaler panicked")?;
+    Ok(())
+}
+
+#[test]
 fn idle_peer_data_is_rejected_and_explicit_shutdown_is_bounded() -> TestResult {
     let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
     let (exit_sender, exit_receiver) = mpsc::channel();

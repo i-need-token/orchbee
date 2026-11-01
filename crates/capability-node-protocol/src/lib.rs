@@ -54,12 +54,12 @@ pub use terminal_titles::{
 
 pub use terminal_viewer::{
     MAXIMUM_READ_ROWS, MAXIMUM_READ_ROWS_BYTES, MAXIMUM_VIEWER_RECORD_BYTES,
-    MINIMUM_READ_ROWS_BYTES, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
-    TerminalViewerResult, ViewerHistoryDemand, ViewerProjectionDemand, ViewerRejection,
-    ViewerRowDetail, ViewerRowsRejectedReason, ViewerSelectionExportCancelReason,
-    ViewerSelectionExportFormat, ViewerSelectionGestureAction, ViewerSelectionGestureGeometry,
-    ViewerSelectionGesturePosition, ViewerSelectionViewportPoint, ViewerSnapshotReason,
-    ViewportRowOrigin,
+    MINIMUM_READ_ROWS_BYTES, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalViewerRecordReady, TerminalViewerRequest, TerminalViewerResult, ViewerHistoryDemand,
+    ViewerProjectionDemand, ViewerRejection, ViewerRowDetail, ViewerRowsRejectedReason,
+    ViewerSelectionExportCancelReason, ViewerSelectionExportFormat, ViewerSelectionGestureAction,
+    ViewerSelectionGestureGeometry, ViewerSelectionGesturePosition, ViewerSelectionViewportPoint,
+    ViewerSnapshotReason, ViewportRowOrigin,
 };
 
 pub use agent_drain::{
@@ -68,8 +68,8 @@ pub use agent_drain::{
     MAXIMUM_SIGNAL_PAYLOAD_BYTES, REPLY_ENTRY_BYTES, REPLY_HEADER_BYTES, REQUEST_PAYLOAD_BYTES,
 };
 pub use codec::{
-    CapabilityNodeMessage, MAXIMUM_FRAME_PAYLOAD_BYTES, PROTOCOL_VERSION, decode_message,
-    encode_message, read_message, write_message,
+    CapabilityNodeMessage, FRAME_MAGIC, MAXIMUM_FRAME_PAYLOAD_BYTES, PROTOCOL_VERSION,
+    decode_message, encode_message, read_message, write_message,
 };
 pub use error::{ProtocolError, ReadMessageError, WriteMessageError};
 pub use identity::{

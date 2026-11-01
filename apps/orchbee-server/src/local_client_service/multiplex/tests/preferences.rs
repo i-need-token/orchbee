@@ -110,6 +110,7 @@ fn external_preferences_keep_their_deadline_during_traffic_and_idle() {
                     .map_err(ApplicationConnectionError::Workbench)?;
                 Ok(bytes)
             },
+            Vec::new,
             |_: &ApplicationRequest| -> Result<Vec<u8>, ApplicationConnectionError> {
                 unreachable!("this client issues no Worker job read")
             },

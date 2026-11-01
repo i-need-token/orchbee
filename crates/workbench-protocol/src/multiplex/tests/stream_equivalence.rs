@@ -162,6 +162,10 @@ fn corpus() -> Vec<MultiplexMessage> {
         MultiplexMessage::Resnapshot { stream_id },
         MultiplexMessage::LaneOpen { lane_id },
         MultiplexMessage::LaneClose { lane_id },
+        // A value whose high half is zero must not be read as a zero identity.
+        MultiplexMessage::ViewerRecordReady {
+            viewer_id: crate::MultiplexViewerId::new(1).unwrap(),
+        },
     ]);
     messages
 }

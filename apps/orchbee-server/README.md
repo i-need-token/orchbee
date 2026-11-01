@@ -275,7 +275,7 @@ the distinct `PostDeliveryOutcomeUnknown` carrier error: Server neither fabricat
 semantic unknown outcome, is preserved; the carrier does not interpret launch capability-version or
 lifecycle outcome variants. Viewer results additionally match the attachment identity and action/outcome kind. Bytes received while no request is outstanding are invalid and retire the
 connection. Dropping the whole registry requests private shutdown but cannot admit a replacement;
-the owner observes it within the 25-millisecond idle poll or the bounded current exchange, which has
+the owner's queue wake reaches it at once, or it observes it after the bounded current exchange, which has
 at most its remaining write deadline plus one result-read deadline. There is no unbounded connection
 thread or message queue.
 
@@ -678,7 +678,17 @@ is never a reconstructable subscription; stable invalidations wake one-shot doma
 
 Each carrier has one standard-library reader and one writer/dispatcher. The reader admits at
 most 64 queued records; the dispatcher executes finite requests and writes outside mailbox and
-business locks. There are at most 64 active streams and 64 explicit lanes, plus root lane 1.
+business locks. A request that waits on a Worker job (`WorkspaceGit`, `WorktreeQuery`,
+`WorktreeListRead`) would hold every other stream behind it, so one job-read thread per connection
+runs those in arrival order and hands each finished result back to the dispatcher, the only writer.
+There are at most 64 active streams and 64 explicit lanes, plus root lane 1.
+
+A Worker's `TerminalViewerRecordReady` becomes this connection's `ViewerRecordReady`. A viewer
+connection registers its attachment in `ViewerReadyRoutes` before it sends Attach, and dropping the
+route withdraws it. The wire owner delivers each hint to the route's connection, which wakes the
+dispatcher; the dispatcher writes pending hints at the top of its loop. A hint for an attachment with
+no route is dropped, which is how a Server-owned sampling viewer stays silent. Hints carry no
+authority, stream or reservation, and Poll stays the only way to take a frame.
 Retained request/response reservations share a 32 MiB budget; they conservatively include
 encoded copies. Individual inner records are at most 24 MiB plus their 12-byte header. Decoder
 storage and one currently decoded record have separate bounded transient allocations; the

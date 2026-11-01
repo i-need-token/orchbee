@@ -914,22 +914,31 @@ for the shell's input-only 50 ms wait even when the console was empty. Switch se
 handoff for snapshot, detach, attach, configuration, frame, feedback and readiness, so successive
 UI handoffs could each incur the wait. This is a scheduling cause, not evidence of slow PTY echo.
 
-`ui_wakeup.rs` binds one coalesced notification and an unpark token to the active UI
-thread. Mailbox event publication, lease release and closure signal it. The Windows console
-reader checks it while empty and parks for at most 1 ms between console probes; a publication
-interrupts that park. Existing pending records, UTF-16 state, repeat tails and bracketed-paste
+`ui_wakeup.rs` binds one coalesced notification to the active UI thread. Mailbox event
+publication, lease release and closure signal it. The Windows console reader blocks on the
+console handle and an `InputWake` together, so input and a publication each end the wait at
+once. A reader with no bound wake parks for at most 1 ms between console probes. Existing pending records, UTF-16 state, repeat tails and bracketed-paste
 bytes remain owned by the same reader, with the existing 4096-byte/record and 4 ms burst bounds.
 Replacing or leaving a surface unregisters its waiter. Notification carries no input, output,
 request identity or acknowledgement: the ordered mailbox and its single causal cell remain
-authoritative. Unix consumes already-pending notifications before its existing input wait;
-mid-wait interruption here is Windows-specific. Transport framing and its backpressure are unchanged.
+authoritative. Unix polls the input descriptor and the notification's pipe together, with the same
+effect. Transport framing and its backpressure are unchanged.
 
-Empty ordinary poll replies set a monotonic 8 ms earliest-next-poll deadline. The shell waits for
-the shorter of that deadline and its 50 ms outer ceiling; repeated notifications cannot admit
-another empty poll early. An admitted input clears this idle delay. Nonempty output and setup
-handoffs have no added idle delay. The scheduler still permits only one ordinary poll in flight
-and rotates among projected panes. The Windows transport's existing 2 ms readiness probes are
-separate from this deadline.
+Terminal output reaches this scheduler as a hint. The Server's `ViewerRecordReady` names a viewer
+holding something to Poll; the connection actor records it in the mailbox and wakes the UI, which
+polls that pane at once, the focused pane first. A hint is advice: it moves no record and grants
+nothing, so a pane whose hint was lost recovers through a fallback poll every 250 ms, shared among
+the projected panes in rotation. That fallback also carries the Worker-loss and publication
+observations an ordinary poll makes.
+
+Two cases keep the earlier timer. Before this connection has delivered its first hint, and while any
+pollable pane is still owed a full frame, whose hint can arrive before the projection that would
+recognize it, empty ordinary poll replies set a monotonic 8 ms earliest-next-poll deadline, which
+an admitted input clears. In
+every case the shell waits for the shorter of the next deadline and its 50 ms outer ceiling, and
+repeated notifications cannot admit another empty poll early. The scheduler still permits only one
+ordinary poll in flight. Windows pipe readiness is event-driven, as
+[Local IPC](../../../crates/local-ipc/README.md) describes, and adds no cadence here.
 
 The fixed-viewport backend starts every draw call from an explicit cursor-hidden, reset-style
 baseline, then emits adjacent same-style cells as one cursor run and queues only color and
@@ -977,12 +986,13 @@ Ordinary projection cleanup during switching preserves only this bounded pixel c
 The modeled risk is interaction between worker notification, UI scheduling, attachment retirement
 and shared frame lifetime. The refinement obligations are:
 
-| Invariant                                                                                              | Executable evidence                                                                                                                                                                                                                                   |
-| ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A publication between inspection and parking remains observable; notifications never replace payloads. | Owned wake implementation tests; wake-token race and real worker-completion tests.                                                                                                                                                                    |
-| Empty replies cannot spin through the mailbox; input remains ordered.                                  | Controlled console clock: publication at 5 ms returns at 5 ms, versus 50 ms without interruption; 20,020 UI ticks over 1000 ms admit 126 empty polls including the initial poll; repeat/paste tests.                                                  |
-| Retained pixels match canonical identity and confer no readiness or feedback.                          | Owned retained-pixel implementation tests; fresh Beta → Alpha → Alpha-2 bank handoff, active/cached exact-endpoint and replacement gates, candidate-newer precedence, wrong-binding/HostEpoch/geometry rejection, and real renderer isolation checks. |
-| Shared pixels are immutable, bounded and released by their final consumer.                             | Projection Arc lifetime, membership pruning, cache count and aggregate byte-eviction tests.                                                                                                                                                           |
+| Invariant                                                                                                                                   | Executable evidence                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A publication between inspection and parking remains observable; notifications never replace payloads.                                      | Owned wake implementation tests; wake-token race and real worker-completion tests.                                                                                                                                                                    |
+| A hint polls its pane at once, focused pane first; a lost hint recovers at the fallback; a pane owed a full frame keeps the short deadline. | `ui/tests/viewer_hints.rs`.                                                                                                                                                                                                                           |
+| Empty replies cannot spin through the mailbox; input remains ordered.                                                                       | Controlled console clock: publication at 5 ms returns at 5 ms, versus 50 ms without interruption; 20,020 UI ticks over 1000 ms admit 126 empty polls including the initial poll; repeat/paste tests.                                                  |
+| Retained pixels match canonical identity and confer no readiness or feedback.                                                               | Owned retained-pixel implementation tests; fresh Beta → Alpha → Alpha-2 bank handoff, active/cached exact-endpoint and replacement gates, candidate-newer precedence, wrong-binding/HostEpoch/geometry rejection, and real renderer isolation checks. |
+| Shared pixels are immutable, bounded and released by their final consumer.                                                                  | Projection Arc lifetime, membership pruning, cache count and aggregate byte-eviction tests.                                                                                                                                                           |
 
 ## Client state and bounded mailbox
 

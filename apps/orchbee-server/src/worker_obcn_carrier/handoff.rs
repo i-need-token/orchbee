@@ -48,7 +48,7 @@ impl CarrierQueue {
             drained.extend(state.low.drain(..));
             drained.extend(state.high_waiters.drain(..).map(|waiter| waiter.request));
             state.high.push_back(request);
-            self.changed.notify_all();
+            self.publish_change();
             drained
         };
         // No queue lock is held while delivering completions to ordinary owners.
@@ -89,7 +89,7 @@ impl CarrierQueue {
             if committed {
                 state.closed = true;
             }
-            self.changed.notify_all();
+            self.publish_change();
         }
         if committed {
             for request in self.close_and_drain() {

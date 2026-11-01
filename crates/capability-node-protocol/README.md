@@ -291,6 +291,12 @@ product Terminal identities or Host creation identities. The authenticated Serve
 read access; Worker checks the admitted Worker/generation and exact Host epoch before attaching.
 This path grants neither input nor resize, and never claims the Host resize lease.
 
+Kind 33 `TerminalViewerRecordReady` is the one viewer message without a request. Between requests
+the Worker may tell the Server that an attachment holds a record its next Poll would return. It
+carries only the attachment `OperationId`, moves no record, grants nothing and has no response. A
+Worker repeats it for an attachment only after a later Poll, and a Server discards one for an
+attachment it no longer routes. Any other unsolicited kind still retires the carrier.
+
 The closed actions are `Attach` with Host epoch and Host terminal ID, `Poll`, `FrameApplied` with
 positive sequence/generation and revision, `NeedSnapshot` with positive sequence and the existing
 eight snapshot reasons, `Detach`, and `ReadRows`. Kind 5 lays out request ID (16 bytes), Worker ID (16),

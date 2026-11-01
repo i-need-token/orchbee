@@ -1,7 +1,7 @@
 //! OBWP v1 connection-local streams. Inner records retain their own semantic codecs.
 use std::{
     io::{self, Read, Write},
-    num::NonZeroU64,
+    num::{NonZeroU64, NonZeroU128},
 };
 
 use crate::WORKBENCH_MAGIC;
@@ -39,6 +39,21 @@ impl MultiplexLaneId {
         }
     }
     pub const fn value(self) -> u64 {
+        self.0.get()
+    }
+}
+
+/// The 128-bit value of a viewer attachment this physical connection owns.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct MultiplexViewerId(NonZeroU128);
+impl MultiplexViewerId {
+    pub const fn new(value: u128) -> Option<Self> {
+        match NonZeroU128::new(value) {
+            Some(value) => Some(Self(value)),
+            None => None,
+        }
+    }
+    pub const fn value(self) -> u128 {
         self.0.get()
     }
 }
@@ -105,6 +120,11 @@ pub enum MultiplexMessage {
     LaneClose {
         lane_id: MultiplexLaneId,
     },
+    /// Server to Client: this viewer holds something to Poll. It moves no record, so the Client
+    /// may ignore it and a lost one costs only latency.
+    ViewerRecordReady {
+        viewer_id: MultiplexViewerId,
+    },
     Disconnect {
         reason: MultiplexDisconnectReason,
     },
@@ -134,6 +154,7 @@ pub fn encode_multiplex_message(message: &MultiplexMessage) -> io::Result<Vec<u8
         MultiplexMessage::Resnapshot { .. } => (69, 8),
         MultiplexMessage::LaneOpen { .. } => (70, 8),
         MultiplexMessage::LaneClose { .. } => (71, 8),
+        MultiplexMessage::ViewerRecordReady { .. } => (72, 16),
     };
     let mut bytes = Vec::with_capacity(HEADER_BYTES + length);
     bytes.extend_from_slice(&WORKBENCH_MAGIC);
@@ -198,6 +219,9 @@ pub fn encode_multiplex_message(message: &MultiplexMessage) -> io::Result<Vec<u8
         MultiplexMessage::LaneOpen { lane_id } | MultiplexMessage::LaneClose { lane_id } => {
             bytes.extend_from_slice(&lane_id.value().to_be_bytes())
         }
+        MultiplexMessage::ViewerRecordReady { viewer_id } => {
+            bytes.extend_from_slice(&viewer_id.value().to_be_bytes())
+        }
     }
     Ok(bytes)
 }
@@ -226,6 +250,7 @@ fn payload_length(header: &[u8]) -> io::Result<usize> {
         67 => length == 16,
         68 => length == 1,
         69..=71 => length == 8,
+        72 => length == 16,
         _ => false,
     };
     if valid { Ok(length) } else { Err(invalid()) }
@@ -254,6 +279,12 @@ fn decode(kind: u16, payload: &[u8]) -> io::Result<MultiplexMessage> {
                 3 => MultiplexDisconnectReason::Unavailable,
                 _ => return Err(invalid()),
             },
+        });
+    }
+    if kind == 72 {
+        let value = u128::from_be_bytes(payload.try_into().map_err(|_| invalid())?);
+        return Ok(MultiplexMessage::ViewerRecordReady {
+            viewer_id: MultiplexViewerId::new(value).ok_or_else(invalid)?,
         });
     }
     let stream_id = MultiplexStreamId(nonzero(&payload[..8])?);

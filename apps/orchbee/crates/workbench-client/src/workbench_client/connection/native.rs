@@ -147,6 +147,7 @@ struct ClientExecutor {
     attachments: Vec<AttachedTerminal>,
     workbench_baseline: Option<Snapshot>,
     publications: Option<crate::local_client::multiplex::Subscription>,
+    _viewer_ready: Option<crate::local_client::multiplex::ViewerReadyWatch>,
     pending_create: Option<PendingCreateCommit>,
     pending_move: Option<PendingMoveCommit>,
     pending_panel: Option<crate::workbench_state::PendingPanelCommit>,
@@ -325,8 +326,15 @@ impl ClientExecutor {
                 orchbee_workbench_protocol::StreamMode::State,
             )
             .ok();
+        let hinted = Arc::downgrade(&mailbox);
+        let viewer_ready = client.origin().watch_viewer_ready(move |viewer| {
+            if let Some(mailbox) = hinted.upgrade() {
+                mailbox.note_viewer_ready(viewer.value());
+            }
+        });
         Self {
             client,
+            _viewer_ready: viewer_ready,
             initial_context: None,
             status_only: false,
             membership_recovery: false,

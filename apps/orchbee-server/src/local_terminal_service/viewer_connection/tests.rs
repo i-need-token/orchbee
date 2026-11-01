@@ -33,6 +33,7 @@ pub(super) fn viewer(
     let attachment_id = OperationId::from_bytes([2; 16]).unwrap();
     let worker_id = CapabilityWorkerId::from_bytes(WORKER_ID.as_bytes()).unwrap();
     ViewerAttachment {
+        ready_route: None,
         attachment_id: ViewerId::parse(&format!(
             "{:032x}",
             u128::from_be_bytes(attachment_id.as_bytes())
@@ -681,6 +682,7 @@ fn explicit_takeover_transfers_cleanup_and_old_connection_cannot_dispatch_effect
         let (server, mut peer) = UnixStream::pair().unwrap();
         peer.set_read_timeout(Some(std::time::Duration::from_secs(2)))
             .unwrap();
+        let (checks_done, checks_finished) = std::sync::mpsc::channel::<()>();
         thread::scope(|scope| {
             let server_thread = scope.spawn(move || owner.run(server));
             let worker=scope.spawn(move || {
@@ -714,6 +716,7 @@ fn explicit_takeover_transfers_cleanup_and_old_connection_cannot_dispatch_effect
                     };
                     write_message(&mut peer,&CapabilityNodeMessage::TerminalControlResult(TerminalControlResult {request_id:request.request_id,viewer_id:request.viewer_id,controller_id:request.controller_id,outcome})).unwrap();
                 }
+                let _finished = checks_finished.recv();
             });
             let mut old = viewer(&service, handle.clone());
             let mut new = viewer(&service, handle.clone());
@@ -788,6 +791,7 @@ fn explicit_takeover_transfers_cleanup_and_old_connection_cannot_dispatch_effect
             drop(old);
             drop(new);
             assert!(service.controllers.lock().unwrap().is_empty());
+            drop(checks_done);
             worker.join().unwrap();
             let _exit = server_thread.join().unwrap();
         });

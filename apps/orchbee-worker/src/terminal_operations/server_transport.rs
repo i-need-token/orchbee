@@ -10,7 +10,8 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
-    CapabilityNodeMessage, ReadMessageError, WriteMessageError, read_message, write_message,
+    CapabilityNodeMessage, ReadMessageError, TerminalViewerRecordReady, WriteMessageError,
+    encode_message, read_message, write_message,
 };
 use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 
@@ -88,8 +89,33 @@ struct ServerRecord<'a> {
 }
 
 impl ServerRecord<'_> {
+    /// Called only while idle between requests, with no record open in either direction, so a
+    /// hint cannot split one. A prepared handoff waits under a deadline and therefore sends none.
+    fn send_ready_hints(&mut self) -> io::Result<()> {
+        let Some(host) = self.host else {
+            return Ok(());
+        };
+        let ready = host.viewers.borrow_mut().take_ready();
+        if ready.is_empty() {
+            return Ok(());
+        }
+        // Hints stay far below the transport buffer, so this deadline only ends a stalled Server.
+        let deadline = Instant::now() + RECORD_BUDGET;
+        for attachment_id in ready {
+            let record = encode_message(&CapabilityNodeMessage::TerminalViewerRecordReady(
+                TerminalViewerRecordReady { attachment_id },
+            ))
+            .map_err(io::Error::other)?;
+            write_hint(self.server, &record, deadline)?;
+        }
+        Ok(())
+    }
+
     fn wait(&mut self, interest: PollFlags) -> io::Result<()> {
         loop {
+            if self.deadline.is_none() && interest == PollFlags::POLLIN {
+                self.send_ready_hints()?;
+            }
             let timeout = match self.deadline {
                 None => PollTimeout::NONE,
                 Some(deadline) => {
@@ -155,6 +181,34 @@ impl ServerRecord<'_> {
             }
         }
     }
+}
+
+/// Unlike a result, a hint races the Server's next request, so readable input is no error here.
+fn write_hint(server: &UnixStream, mut record: &[u8], deadline: Instant) -> io::Result<()> {
+    let mut writer = server;
+    while !record.is_empty() {
+        match writer.write(record) {
+            Ok(0) => return Err(super::peer_closed()),
+            Ok(written) => record = &record[written..],
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    return Err(io::ErrorKind::TimedOut.into());
+                }
+                let timeout = PollTimeout::try_from(remaining.as_millis().saturating_add(1))
+                    .map_err(io::Error::other)?;
+                let mut descriptors = [PollFd::new(server.as_local_io(), PollFlags::POLLOUT)];
+                match poll(&mut descriptors, timeout) {
+                    Ok(_) => {}
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                    Err(error) => return Err(error),
+                }
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
 }
 
 impl Read for ServerRecord<'_> {

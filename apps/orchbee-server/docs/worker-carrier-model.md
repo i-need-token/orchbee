@@ -75,8 +75,15 @@ the oldest `high_waiters` entry into the freed tail slot atomically, waking that
 With both lanes saturated this bounds consecutive high-priority dispatches to 4 before one low
 dispatch; the reference model verifies per-request dispatch-step waits of ≤ 10 (high position
 8: ⌈8/4⌉·5) and ≤ 40 (low position 8: 8·5), and waiter progress bounded by the producer count.
-With no dispatchable work the owner waits on the condition variable up to the 25-millisecond
-idle poll, then probes the stream as before.
+With no dispatchable work the owner waits on the Worker stream and a private wake together, for
+at most its 250-millisecond idle interval. Every queue change signals the wake, and the wake's
+pending flag is cleared only after its bytes are read, so a signal during that read is seen by the
+owner's next queue inspection. A carrier without a wake bounds this wait at 2 milliseconds.
+
+The only unsolicited kind is `TerminalViewerRecordReady`, read while idle and while a response is
+awaited. The owner routes each one and keeps waiting. A hint never completes a request and changes
+no dispatch position, so the bounds above are unchanged; any other unsolicited bytes still retire the
+carrier.
 
 ## Drain and tombstone
 

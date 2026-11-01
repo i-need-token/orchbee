@@ -63,6 +63,7 @@ fn a_waiting_job_read_never_delays_another_request_on_the_connection() {
             },
             Arc::default(),
             |_, _| Ok(vec![2]),
+            Vec::new,
             |_| {
                 released.lock().unwrap().recv().unwrap();
                 Ok(vec![1])
@@ -183,6 +184,7 @@ fn idle_metadata_expiry_rearms_after_a_same_value_report_without_client_polling(
                     .map_err(ApplicationConnectionError::Workbench)?;
                 Ok(bytes)
             },
+            Vec::new,
             no_job_read,
             |_| {},
             |_| {},
@@ -251,6 +253,7 @@ fn maintenance_failure_closes_instead_of_retrying_a_past_deadline() {
             open(1, 1, StreamMode::State),
             Arc::default(),
             |_, _| Ok(vec![1]),
+            Vec::new,
             no_job_read,
             |_| {},
             |_| {},
@@ -304,6 +307,7 @@ fn late_scope_completion_is_reclaimed_without_releasing_a_sibling_owner() {
                 capture.lock().unwrap().insert(lane);
                 Ok(vec![1])
             },
+            Vec::new,
             no_job_read,
             move |lane| {
                 release.lock().unwrap().remove(&lane);
@@ -383,6 +387,7 @@ fn a_slow_writer_cannot_hide_a_commit_during_another_clients_snapshot_capture() 
                 entered.send(()).unwrap();
                 Ok(vec![0; 4 * 1024 * 1024])
             },
+            Vec::new,
             no_job_read,
             |_| {},
             |_| {},
@@ -405,6 +410,7 @@ fn a_slow_writer_cannot_hide_a_commit_during_another_clients_snapshot_capture() 
                 }
                 Ok(vec![captured])
             },
+            Vec::new,
             no_job_read,
             |_| {},
             |_| {},
@@ -439,6 +445,8 @@ fn terminal_output_wakes_value_streams_without_an_invalidation_hint() {
                 value += 1;
                 Ok(vec![value])
             },
+            Vec::new,
+            no_job_read,
             |_| {},
             |_| {},
             || Ok(None),
@@ -484,6 +492,7 @@ fn sustained_event_overrun_disconnects_only_its_carrier_with_a_typed_reason() {
             open(1, 1, StreamMode::Events),
             Arc::default(),
             |_, _| Ok(vec![1]),
+            Vec::new,
             no_job_read,
             |_| {},
             |_| {},
@@ -570,6 +579,7 @@ fn an_active_event_cursor_rejects_competing_streams_and_one_shot_reads() {
                 executed.fetch_add(1, Ordering::AcqRel);
                 Ok(vec![1])
             },
+            Vec::new,
             no_job_read,
             |_| {},
             |_| {},

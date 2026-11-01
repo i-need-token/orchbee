@@ -934,3 +934,25 @@ fn selection_actions_reject_every_semantic_boundary_and_open_discriminant() -> T
     assert!(decode_message(&declared_trailing).is_err());
     Ok(())
 }
+
+/// The hint carries the attachment and nothing else, so its layout is fixed.
+#[test]
+fn record_ready_layout_is_fixed_and_refuses_trailing_bytes() -> TestResult {
+    let message = CapabilityNodeMessage::TerminalViewerRecordReady(TerminalViewerRecordReady {
+        attachment_id: OperationId::from_bytes([5; 16])?,
+    });
+    let encoded = encode_message(&message)?;
+    assert_eq!(decode_message(&encoded)?, message);
+    assert_eq!(read_message(&mut Cursor::new(&encoded))?, message);
+    // OBCN header (8) + kind (1) + attachment id (16).
+    assert_eq!(encoded.len(), 25);
+    assert_eq!(encoded[8], 33);
+    assert_eq!(&encoded[9..], &[5; 16]);
+    let mut zero_identity = encoded.clone();
+    zero_identity[9..25].fill(0);
+    assert!(decode_message(&zero_identity).is_err());
+    let mut trailing = encoded;
+    trailing.push(0);
+    assert!(decode_message(&trailing).is_err());
+    Ok(())
+}

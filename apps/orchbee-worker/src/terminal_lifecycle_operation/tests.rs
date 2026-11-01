@@ -519,9 +519,14 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
                 LifecycleControl::DisposeTerminal(_)
             ));
             host_peer.write_all(&ack(request)?)?;
-            let CapabilityNodeMessage::TerminalLifecycleResult(result) =
-                read_message(&mut server_peer)?
-            else {
+            // The closed viewer still owes its own Client a Poll, so its hint shares this wire.
+            let message = loop {
+                match read_message(&mut server_peer)? {
+                    CapabilityNodeMessage::TerminalViewerRecordReady(_) => {}
+                    message => break message,
+                }
+            };
+            let CapabilityNodeMessage::TerminalLifecycleResult(result) = message else {
                 panic!("lifecycle result");
             };
             assert_eq!(result.request(), request);

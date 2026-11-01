@@ -22,6 +22,14 @@ pub enum ViewerRowDetail {
     Render,
 }
 
+/// A Worker's unsolicited note that a viewer holds something to Poll. It moves no record and
+/// grants nothing: Poll stays the only way to take one, so a lost or stale note costs only
+/// latency. The Worker writes it between requests, never inside another record.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TerminalViewerRecordReady {
+    pub attachment_id: OperationId,
+}
+
 /// Projection delivery the Server requests the Worker to set on a viewer
 /// attachment. Binary `demand`: 1 `Active`, 2 `Paused`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

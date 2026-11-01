@@ -51,6 +51,17 @@ impl LocalClientOrigin {
                 clock,
             })
     }
+    /// Hints that a viewer on this connection holds something to Poll. A connection that is not
+    /// multiplexed has none, and neither has a Server that never sends one, so a caller may
+    /// rely on hints only after seeing the first.
+    pub fn watch_viewer_ready(
+        &self,
+        listener: impl Fn(orchbee_workbench_protocol::MultiplexViewerId) + Send + Sync + 'static,
+    ) -> Option<super::multiplex::ViewerReadyWatch> {
+        self.multiplex
+            .as_ref()
+            .map(|connection| connection.watch_viewer_ready(listener))
+    }
     /// Register before the first domain read. A commit concurrent with that read remains dirty;
     /// terminal output frames are not commits and wake nothing here.
     pub fn watch_changes(&self) -> io::Result<ChangeSubscription> {
