@@ -131,6 +131,12 @@ path = "tests/cli_windows_client_under_commits.rs"
 name = "cli_windows_switch_keys"
 path = "tests/cli_windows_switch_keys.rs"
 
+# Keep these two real Sessions, their TUI Client and the sampled directory changes away from
+# aggregate suite deadlines.
+[[test]]
+name = "cli_windows_workspace_naming"
+path = "tests/cli_windows_workspace_naming.rs"
+
 # Keep short-deadline PROCESS_WITNESS_LOCK scheduling isolated.
 [[test]]
 name = "local_startup_process"
