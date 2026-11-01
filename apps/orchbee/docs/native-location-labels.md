@@ -10,8 +10,10 @@ a fresh token and requires a complete first draw. Shared modal UTF-8, paste, fau
 rules remain unchanged. Target IDs, Session, revision and original label are captured at opening;
 concurrent changes never retarget or automatically rebase a draft.
 
-Workspace names must contain a non-whitespace Unicode scalar. The editor refuses blank input
-without closing, changing its draft or changing the canonical label, and shows localized validation.
+Workspace names must contain a non-whitespace Unicode scalar. The Rename dialog has one unlabeled
+field and no context line. A blank or over-long draft disables Rename and shows "Enter a name." or
+"Use at most 512 characters." under the field as soon as it is edited; Enter on it shows the error
+without closing, changing its draft or changing the canonical label.
 Accepted names retain their exact leading, trailing and internal spaces. The shared command
 boundary applies this rule to Workspace create, launch and rename in Rust, TypeScript and JSON
 Schema. Historical snapshot labels remain readable: blank Workspace labels display as localized

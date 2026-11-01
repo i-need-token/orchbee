@@ -39,10 +39,11 @@ its localized content, typed token and `HitTarget`, availability reason, present
 and draw receipt. The shared module never imports a feature-specific state or token.
 
 Form and confirmation `ModalAction` values supply their effective bindings to `ActionSpec`'s
-optional shortcut slot. It measures and paints the subdued key inside the button brackets. The
-footer omits duplicate action hints and keeps at most two secondary editing or navigation hints
-above its button row. Settings adopts the same rule for Close, Back and child Cancel/Confirm.
-The complete X paint also registers its exact typed dismissal target for backdrop gestures.
+optional shortcut slot. It measures and paints the subdued key inside the button brackets, after
+one focus-marker cell. Dialog footers carry only their right-aligned buttons; editing keys such as
+Backspace and Ctrl+U are conventions and never get a hint row, and only pickers keep a hint row.
+Settings adopts the same rule for Close, Back and its child decisions. The complete `[x]` paint
+also registers its exact typed dismissal target for backdrop gestures.
 
 The modal's `paint_modal_frame` paints the task title once on the frame's top edge, beside the
 frame-borne close control described by [frame
@@ -50,17 +51,23 @@ chrome](../../../docs/tui/overlays-and-status.md#frame-chrome). Its `title_line`
 and `status_line` project the [overlay
 hierarchy](../../../docs/tui/overlays-and-status.md#content-hierarchy) inside the body: bold section
 headings, secondary context and field help, primary labels and values, and status color confined to
-its glyph. Rename and setup fields keep a label above the boundary; multi-field forms separate their
-field pairs with one blank row. Confirmations retain primary target and consequence text. Settings
+its glyph. A single-field rename has no label or context line; multi-field forms keep a label above
+each field and separate their field pairs with one blank row. Confirmations retain primary target and consequence text. Settings
 keeps its title on the frame, with a bold category and secondary position inside. Existing shared
 row and action controls continue to own selection, availability, hover, press and focus cues.
 
-Text modals prefer 48–72 inner columns (54–78 including the frame and horizontal padding), clamped
-to the available overlay area. Complete required controls may increase that preference; optional
-hints never do. Prose wraps within the final width, fields window their drafts, and hints lose only
-whole trailing records. The Project and checkout pickers retain their 78/84-column preferences,
-fixed header and footer, and independently windowed rows; Settings retains its 92-column preference.
-The [modal witnesses](../crates/workbench-client/src/tui_render/modal/tests.rs) cover width and control admission, while the
+Dialogs resolve through `tui_render::modal::dialog`: a `Dialog` lists semantic rows in the fixed
+order of [dialog anatomy](../../../docs/tui/overlays-and-status.md), and `dialog_layout` sizes it by
+[dialog size](../../../docs/tui/layout.md#dialog-size) (narrow 40–56 and medium 48–72 content
+columns, outer width = content + 6) and centers it in the whole window. A command that is the only
+recovery may widen it up to 88 columns. Each sentence starts on its own line and wraps to at most
+two lines. Small windows follow [dialogs in small
+windows](../../../docs/tui/layout.md#dialogs-in-small-windows): the margin goes first, then width
+and height degrade separately, and a dialog below its minimum is refused with a status notice.
+`paint_dialog` paints the frame, title, `[x]`, rows and footer and records every hit target;
+owners paint field values with `paint_field`, which uses the `surface-field` band where the theme
+has one and brackets otherwise. Settings remains a wide reference surface.
+The [modal witnesses](../crates/workbench-client/src/tui_render/modal/tests.rs) cover centering, class width, small-window degradation and field bands, while the
 [composed popup witness](../crates/workbench-client/src/workbench_client/ui/tests/modal_pointer_roundtrip.rs) covers the
 Project-name flow, localized hierarchy, field cursor, fault/disabled treatment and suspended targets.
 
@@ -638,16 +645,14 @@ locales, configured prefix labels, long scrolled columns, 120x41, 120x40 and 80x
 The navigator suppresses pane cursor/focus emphasis. Prefix input also hides the terminal cursor. Shortcut Help
 retains its nonmodal behavior.
 
-Content-scoped centered overlays use `ShellAreas.panel`, which reaches the last row; the status chip
-paints above them. Application Settings and anchored context menus instead use the full host viewport,
-including the sidebar, top strip and last row in their reference. Sidebar visibility and width never
-shift that surface. These placement rules leave terminal geometry unchanged. `tui_layout` exposes
-two pure functions for content-scoped surface renderers:
-
-- `overlay_area(&ShellAreas) -> Rect` — the region for content-scoped centered overlays.
-- `place_overlay(area, preferred_width, preferred_height) -> Option<Rect>` — resolves to
-  `min(preferred, area - 4)` by `min(preferred, area - 2)`, centered with the extra cell rounding
-  toward the top-left, and returns `None` when the resolved inner area would be below 4x3.
+Dialogs, reference surfaces (Help, the navigator, the Agent board and Application Settings) and
+anchored context menus use the full host viewport, including the sidebar, top strip and last row in
+their reference; the status chip paints above them. Sidebar visibility and width never shift these
+surfaces, and their placement leaves terminal geometry unchanged. Help, the navigator and the Agent
+board place through `tui_layout::place_overlay(area, preferred_width, preferred_height) ->
+Option<Rect>`, which resolves to `min(preferred, area - 4)` by `min(preferred, area - 2)`, centered
+with the extra cell rounding toward the top-left, and returns `None` when the resolved inner area
+would be below 4x3.
 
 A refused overlay is not drawn; the caller reports through the status line instead. Because the
 status chip is drawn after every overlay and modal, and hit testing follows the same order, the

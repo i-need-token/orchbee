@@ -40,8 +40,8 @@ later complete draw resumes the same surface incarnation. Mere absence from a co
 revokes its current draw proof. If the accepted operation completes while that proof is absent, its
 result is retained without automatic terminal entry; uncovering the surface does not replay entry.
 
-After submission, Esc hides observation without cancelling Server work. W or O reopens the retained
-operation; `r` only reads that operation. The operation ID and known checkout/Workspace facts survive
+After submission, `[x]`, Esc and Close close the dialog without cancelling Server work, and the
+result returns as a status notice. W or O reopens the retained operation. The operation ID and known checkout/Workspace facts survive
 failed reads and entry failure. Unknown Start is never replayed. Resume, deletion, trust override
 and rollback are never implicit. After successful entry completes, a hidden, correlated Opened result
 with retained focus eligibility may yield to a new explicit operation. Its success notice is
@@ -60,7 +60,10 @@ update retained facts in the background; it cannot reopen the shell, submit anot
 focus. Reopening after a refused attempt creates a new presentation attempt for that retained
 operation, and a successful draw restores its newest operation status.
 
-Header X and Cancel use the current stage's cancellation or hide behavior. Editable branch/base fields and their Open/Create button share the keyboard owner. Checkout rows act on matching plain-left release; list-only wheel moves three choices per notch, capped by visible two-line choices per pass without wrapping. Selection changes revoke submission until a fresh draw. Waiting/result surfaces expose Read status and Hide/Close, plus explicit recovery for eligible Remove failures; these never replay Start or cancel accepted Server work. A source, listing or pre-Start failure retains no operation, so its result hides Read status and offers only Close.
+`[x]`, Esc and Cancel share the current stage's cancellation. The New Worktree and Open Worktree
+dialogs title their fields Branch and Base; an empty Base shows its HEAD placeholder. An invalid
+field disables Create, shows its error as soon as it is edited, and Enter moves to the first invalid
+field. Editable fields and their Open/Create button share the keyboard owner. Checkout rows act on matching plain-left release; list-only wheel moves three choices per notch, capped by visible two-line choices per pass without wrapping. Selection changes revoke submission until a fresh draw. A running operation keeps its primary in place, disabled, reads its own status, and offers only Close; a settled result offers Close plus explicit recovery for eligible Remove failures. These never replay Start or cancel accepted Server work.
 
 ## Safe removal
 
@@ -75,8 +78,8 @@ so an uncertain spelling hides the action rather than addressing another directo
 The destructive action has no default shortcut and never falls back to the selected Client's cwd.
 The confirmation names the Workspace, full checkout path, affected terminal count and retained
 branch. It reuses the existing Worktree modal, action controls, draw authority and capture owner.
-Unmodified Enter or the matching Remove button submits once; Esc or X before submission changes
-nothing. If the complete confirmation cannot fit, no removal is submitted.
+It opens with focus on Remove. Unmodified Enter or the Remove button submits once; Esc, `[x]` or
+Cancel before submission changes nothing. If the complete confirmation cannot fit, no removal is submitted.
 
 Remove submits `projectId: null`, `force: false` and `trustRepository: false` through the existing
 Server operation. Addressed Workspace, directory, terminal scope, Worker and checkout facts are
@@ -98,12 +101,12 @@ A new draw is required before that confirmation can act. Attempt exhaustion, unk
 nonresumable failures never offer Resume. A lost Resume handoff retains the receipt and fences old
 attempts; it never sends another Start or automatically retries Resume.
 
-`r` reads the retained operation. Pending progress publishes no canonical change, so within the
-120-second observation window of a Start, Resume or read, each Pending reply schedules another read
-after 250 ms, doubling to at most 2 s; a change notification or `r` can read sooner.
-Esc hides running observation or a resumable/unknown result without cancelling it; W, O or another
-addressed removal entry reopens that retained task. **Abandon** (`x`) on such a result opens its own
-confirmation, which also needs a new draw. Confirming forgets only this Client's receipt: it never
+Pending progress publishes no canonical change, so within the 120-second observation window of a
+Start, Resume or read, each Pending reply schedules another read after 250 ms, doubling to at most
+2 s; a change notification can read sooner.
+Closing running observation or a resumable/unknown result never cancels it; W, O or another
+addressed removal entry reopens that retained task. **Stop Tracking** (`x`) on such a result opens
+its own confirmation, which also needs a new draw. Confirming forgets only this Client's receipt: it never
 cancels or rolls back Server work, and `orchbee worktree status` still reads the operation. Once the
 target Workspace is absent from the canonical snapshot, Close, W, O and addressed entries discard a
 settled removal result instead of reopening it.

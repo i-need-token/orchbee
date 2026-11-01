@@ -63,6 +63,27 @@ needs a new binding, which changes the revision or Snapshot that the confirmatio
 stale premise cancels the prompt. The executed close is therefore never more destructive than its
 last complete draw; that draw can only overstate running work.
 
+## Idle close
+
+Closing one Tab, or one Panel, whose every terminal is an idle shell skips the confirmation.
+`request_close_confirmation` and `request_panel_close_confirmation` still arm the confirmation;
+`workbench_client/ui/idle_close.rs` keeps it hidden while the executor reads one
+`ReadProcessInfo` sample per terminal through its attached viewer (`QueuedCommand::ProcessProbe`).
+`agent_start::runs_no_program` applies the agent-start rule: the root is `cmd`, `powershell` or
+`pwsh` started with only interactive switches, and no process other than `conhost` or
+`openconsole` runs under it. When every sample is idle, the state admits the armed confirmation
+without a draw and the ordinary confirmed close runs; its result reaches the status line as
+`{label} · Closed`, like any close.
+
+Everything else presents the unchanged confirmation: a refused, unavailable or non-idle sample, a
+terminal without a live projection in this Client, a ReadOnly Client, a set or a Resume, and no
+answer within 500 ms. A shell at its prompt on another platform therefore still asks. The protocol
+is unchanged, so the Client cannot see another Client's viewers of the same terminal, and the
+Host's `TerminalCloseActivity` that guards `WorkspaceCloseIfIdle` stays Server-side. Harnesses that
+script every Host exchange build the UI with `confirming_every_close`; the [idle close
+witness](../crates/workbench-client/src/workbench_client/ui/tests/idle_close.rs) covers the idle,
+running and timed-out paths.
+
 ## Incremental lifecycle owner
 
 This is a bounded sequence over existing Close/Read/reconciliation owners, not an atomic batch.

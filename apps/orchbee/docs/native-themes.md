@@ -17,9 +17,13 @@ Once the host background is observed, System derives the Tab strip and interacti
 host instead: `surface-strip`, `surface-related`, `surface-hover`, `surface-current` and
 `surface-pressed` mix 14, 10, 17, 21 and 28 percent of the host foreground into a dark background,
 or 5, 7, 9, 12 and 16 percent into a light one. Until the foreground is observed, the matched named
-theme's primary text stands in for it. Derived values pass through the level's quantization and
-collapsed-role fallbacks, so 16-color hosts may resolve hover and press to reverse video, and
-monochrome keeps its modifier fallbacks. `surface-selection` keeps the named palette. A single
+theme's primary text stands in for it. The form-field band `surface-field` mixes the overlay
+instead of the host background toward that foreground, 7 percent on dark and 5 on light, because
+System keeps the palette overlay and a host background can match it. One Light and One Dark ship
+the band as RGB 243,243,244 and 61,67,77. Derived values pass through the level's quantization and
+collapsed-role fallbacks, so 16-color hosts may resolve hover and press to reverse video, a band
+that collapses onto its dialog falls back to bracketed fields, and monochrome keeps its modifier
+fallbacks. `surface-selection` keeps the named palette. A single
 unframed terminal thus stays distinct from navigation on any host background. Without that
 observation System resolves to terminal-native, which paints no strip or related fill.
 Captured foreground/background values remain available as descriptive RGB in Settings; they never
