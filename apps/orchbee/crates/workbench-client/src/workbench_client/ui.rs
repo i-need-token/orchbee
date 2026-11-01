@@ -82,6 +82,7 @@ impl From<retained_frames::RetainedFrames> for RetainedFrameBank {
     }
 }
 mod held_intent;
+use held_intent::StructureAction;
 mod retired_membership;
 mod tab_close;
 #[cfg(any(test, feature = "test-support"))]
@@ -2994,27 +2995,41 @@ impl WorkbenchClientUi {
             }
             ClientAction::ConfirmClose => self.confirm_close(),
             ClientAction::CancelClose => self.cancel_close(),
-            ClientAction::CreateTab => self.create_tab(),
-            ClientAction::MovePreviousTab => self.move_tab(WorkbenchTabMoveDirection::Previous),
-            ClientAction::MoveNextTab => self.move_tab(WorkbenchTabMoveDirection::Next),
+            // Without a current Workspace the key starts one instead; the Shell enters it.
+            ClientAction::CreateTab if self.view().no_current_workspace() => self.create_tab(),
+            ClientAction::CreateTab => self.structure_action(StructureAction::CreateTab),
+            ClientAction::MovePreviousTab => self.structure_action(StructureAction::MoveTab(
+                WorkbenchTabMoveDirection::Previous,
+            )),
+            ClientAction::MoveNextTab => {
+                self.structure_action(StructureAction::MoveTab(WorkbenchTabMoveDirection::Next))
+            }
             ClientAction::SelectPreviousContext => self.select_context(false),
             ClientAction::SelectNextContext => self.select_context(true),
             ClientAction::SelectNextTab
             | ClientAction::SelectPreviousTab
-            | ClientAction::SelectTab(_) => self.select_tab(action),
+            | ClientAction::SelectTab(_) => {
+                self.structure_action(StructureAction::SelectTab(action))
+            }
             ClientAction::EnterHistory => self.enter_history(),
             ClientAction::EnterCopyMode => self.enter_copy_mode(),
             ClientAction::PreviousPresentation => self.cycle_presentation(false),
             ClientAction::NextPresentation => self.cycle_presentation(true),
-            ClientAction::MovePanelFocus(direction) => self.move_panel_focus(direction),
-            ClientAction::FocusPanel(panel) => self.move_panel_focus_to(&panel),
-            ClientAction::ToggleZoom => self.toggle_zoom(),
+            ClientAction::MovePanelFocus(direction) => {
+                self.structure_action(StructureAction::Focus(direction))
+            }
+            ClientAction::FocusPanel(panel) => {
+                self.structure_action(StructureAction::FocusPanel(panel))
+            }
+            ClientAction::ToggleZoom => self.structure_action(StructureAction::Zoom),
             ClientAction::SplitPanel(direction) => {
-                self.panel_operation(PanelRequestKind::Split { direction })
+                self.structure_action(StructureAction::Panel(PanelRequestKind::Split {
+                    direction,
+                }))
             }
             ClientAction::ClosePanel => self.request_panel_close_confirmation(),
             ClientAction::MovePanel(direction) => {
-                self.panel_operation(PanelRequestKind::Move { direction })
+                self.structure_action(StructureAction::Panel(PanelRequestKind::Move { direction }))
             }
             ClientAction::OpenWorkbenchNavigator => self.open_navigator(),
             ClientAction::ToggleAgentBoard => self.toggle_agent_board(),

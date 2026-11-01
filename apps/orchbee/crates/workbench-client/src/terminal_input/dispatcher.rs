@@ -507,6 +507,13 @@ impl InputDispatcher {
         self.pointer.invalidate_map_with_port(port);
     }
 
+    /// A Client control step changed what the next frame paints: the recorded regions drop as
+    /// for any layout change, while an admitted divider drag waits for that frame to keep or
+    /// end it.
+    pub fn invalidate_hit_map_for_control(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
+        self.pointer.invalidate_map_for_control(port);
+    }
+
     /// Ends an admitted pointer selection before the shell exits while the
     /// surface that owns it is still available.
     pub fn cancel_pointer(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {

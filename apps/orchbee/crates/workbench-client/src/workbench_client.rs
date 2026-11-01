@@ -455,6 +455,10 @@ impl WorkbenchClient {
         let mut configuration_changed = false;
         match &mut self.backend {
             ClientBackend::Native(native) => {
+                // A held zoom or focus move that the native tick replayed changed the drawn
+                // panes: the Shell re-observes geometry and the pointer map as it does after a
+                // dispatched one.
+                configuration_changed |= native.take_replayed_layout_change();
                 view.settle_project_quick_entry_intent();
                 if !view.project_quick_entry_pending() {
                     native.cancel_project_quick_terminal_entry();
@@ -991,7 +995,13 @@ impl TerminalInputPort for WorkbenchClient {
         viewport: (ratatui::layout::Rect, crate::client_view::SidebarSurface),
     ) -> bool {
         match &self.backend {
-            ClientBackend::Native(native) => native.divider_projection_current(target, viewport),
+            ClientBackend::Native(native) => {
+                native.divider_projection_current(target, viewport)
+                    || self
+                        .client_control
+                        .as_ref()
+                        .is_some_and(|control| control.settling_paints(native, target, viewport))
+            }
         }
     }
 

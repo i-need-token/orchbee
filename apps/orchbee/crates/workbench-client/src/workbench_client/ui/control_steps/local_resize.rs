@@ -23,9 +23,42 @@ pub(super) struct LocalResizePending {
     refused_at: Option<Instant>,
 }
 
-struct ReleasedDivider {
+pub(super) struct ReleasedDivider {
     source: crate::tui_layout::DrawnDivider,
     ratio: orchbee_workbench_protocol::ClientSplitRatio,
+}
+
+impl ReleasedDivider {
+    fn projection(&self) -> crate::tui_layout::ResizeProjection {
+        crate::tui_layout::ResizeProjection::Divider {
+            source: self.source.clone(),
+            ratio: self.ratio,
+        }
+    }
+}
+
+/// What a waiting release paints: over the settling resize's own draft while that shows, then
+/// over the layout the release was dragged on.
+fn queued_projection(
+    native: &WorkbenchClientUi,
+    queued: &ReleasedDivider,
+    draft: Option<&ReleasedDivider>,
+    viewport: (ratatui::layout::Rect, crate::client_view::SidebarSurface),
+) -> Option<crate::tui_layout::ResizeProjection> {
+    if let Some(draft) = draft.filter(|draft| {
+        draft
+            .projection()
+            .divider()
+            .is_some_and(|drawn| drawn.same_split(&queued.source))
+    }) {
+        return Some(crate::tui_layout::ResizeProjection::Divider {
+            source: draft.source.clone(),
+            ratio: queued.ratio,
+        });
+    }
+    native
+        .divider_projection_current(&queued.source, viewport)
+        .then(|| queued.projection())
 }
 
 pub(in crate::workbench_client) enum LocalResizeFeedback {
@@ -113,8 +146,22 @@ impl ClientControl {
     ) -> Result<(), Notice> {
         let result = if self.stopped {
             Err(Notice::ResizeFailed)
-        } else if self.pending.is_some() || self.local_resize.is_some() {
+        } else if self.pending.is_some() {
             Err(Notice::ResizeBusy)
+        } else if self.local_resize.is_some() {
+            // The Client's own earlier resize is still settling. A drag of a split the next frame
+            // paints, that resize's released draft included, previews meanwhile; its release
+            // waits for that resize and is checked against the layout it leaves. Once a release
+            // waits, only a drag on that release's own draft may supersede it.
+            if self.viewport.is_some_and(|viewport| {
+                self.settling_paints(native, target, viewport)
+                    || (self.queued_divider.is_none()
+                        && native.divider_projection_current(target, viewport))
+            }) {
+                Ok(())
+            } else {
+                Err(Notice::ResizeBusy)
+            }
         } else {
             self.lane
                 .as_ref()
@@ -146,6 +193,24 @@ impl ClientControl {
         target: &crate::tui_layout::DrawnDivider,
         ratio: orchbee_workbench_protocol::ClientSplitRatio,
     ) {
+        if !self.stopped && self.pending.is_none() && self.local_resize.is_some() {
+            // Released while the Client's own earlier resize settles: the newest release waits
+            // for it and is submitted once it lands, against the layout it left. A release dragged
+            // on the waiting one's draft replaces it and keeps the layout it was dragged on.
+            let source = match &self.queued_divider {
+                Some(queued)
+                    if self
+                        .viewport
+                        .is_some_and(|viewport| self.queued_paints(native, target, viewport)) =>
+                {
+                    queued.source.clone()
+                }
+                _ => target.clone(),
+            };
+            self.queued_divider =
+                (ratio != source.ratio).then_some(ReleasedDivider { source, ratio });
+            return;
+        }
         let submitted = self.submit_local(
             native,
             native.prepare_divider_adjustment(target, ratio, self.viewport),
@@ -218,7 +283,64 @@ impl ClientControl {
         self.local_resize.is_some()
     }
 
+    /// Whether the next frame paints `target` from the settling resize: the draft of the release
+    /// queued over it while one waits, otherwise its own released draft. A drag may start there
+    /// before canonical publication catches up.
+    pub(in crate::workbench_client) fn settling_paints(
+        &self,
+        native: &WorkbenchClientUi,
+        target: &crate::tui_layout::DrawnDivider,
+        viewport: (ratatui::layout::Rect, crate::client_view::SidebarSurface),
+    ) -> bool {
+        if self.queued_divider.is_some() {
+            self.queued_paints(native, target, viewport)
+        } else {
+            self.draft_paints(native, target, viewport)
+        }
+    }
+
+    fn draft_paints(
+        &self,
+        native: &WorkbenchClientUi,
+        target: &crate::tui_layout::DrawnDivider,
+        viewport: (ratatui::layout::Rect, crate::client_view::SidebarSurface),
+    ) -> bool {
+        self.local_resize.as_ref().is_some_and(|pending| {
+            !pending.interrupted
+                && self.clock.now() < pending.deadline
+                && pending.presentation.as_ref().is_some_and(|released| {
+                    native.divider_projection_current(&released.source, viewport)
+                        && released
+                            .projection()
+                            .divider()
+                            .is_some_and(|draft| draft.same_split(target))
+                })
+        })
+    }
+
+    fn queued_paints(
+        &self,
+        native: &WorkbenchClientUi,
+        target: &crate::tui_layout::DrawnDivider,
+        viewport: (ratatui::layout::Rect, crate::client_view::SidebarSurface),
+    ) -> bool {
+        let (Some(pending), Some(queued)) = (&self.local_resize, &self.queued_divider) else {
+            return false;
+        };
+        if pending.interrupted || self.clock.now() >= pending.deadline {
+            return false;
+        }
+        let draft = pending
+            .presentation
+            .as_ref()
+            .filter(|released| native.divider_projection_current(&released.source, viewport));
+        queued_projection(native, queued, draft, viewport)
+            .and_then(|projection| projection.divider())
+            .is_some_and(|drawn| drawn.same_split(target))
+    }
+
     pub(super) fn interrupt_local_resize(&mut self) {
+        self.queued_divider = None;
         if let Some(pending) = &mut self.local_resize {
             pending.interrupted = true;
             pending.presentation = None;
@@ -235,23 +357,29 @@ impl ClientControl {
         let Some(pending) = &mut self.local_resize else {
             return crate::tui_layout::ResizeProjection::Canonical;
         };
-        let Some(released) = pending.presentation.as_ref() else {
-            return crate::tui_layout::ResizeProjection::Canonical;
-        };
-        if !presentation_allowed
-            || pending.interrupted
-            || self.clock.now() >= pending.deadline
-            || !native.divider_projection_current(&released.source, (viewport, sidebar))
-        {
-            // Canonical publication also retires the draft: its new revision now paints the
-            // accepted ratio directly and remains eligible for the existing draw acknowledgement.
+        if !presentation_allowed || pending.interrupted || self.clock.now() >= pending.deadline {
             pending.presentation = None;
             return crate::tui_layout::ResizeProjection::Canonical;
         }
-        crate::tui_layout::ResizeProjection::Divider {
-            source: released.source.clone(),
-            ratio: released.ratio,
+        if pending.presentation.as_ref().is_some_and(|released| {
+            !native.divider_projection_current(&released.source, (viewport, sidebar))
+        }) {
+            // Canonical publication also retires the draft: its new revision now paints the
+            // accepted ratio directly and remains eligible for the existing draw acknowledgement.
+            pending.presentation = None;
         }
+        let draft = pending.presentation.as_ref();
+        if let Some(projection) = self
+            .queued_divider
+            .as_ref()
+            .and_then(|queued| queued_projection(native, queued, draft, (viewport, sidebar)))
+        {
+            return projection;
+        }
+        draft.map_or(
+            crate::tui_layout::ResizeProjection::Canonical,
+            ReleasedDivider::projection,
+        )
     }
 
     pub(in crate::workbench_client) fn local_resize_pending(&self) -> bool {
@@ -281,6 +409,7 @@ impl ClientControl {
             };
             self.local_resize_feedback = Some(LocalResizeFeedback::Notice(notice));
             self.local_resize = None;
+            self.queued_divider = None;
             return true;
         } else {
             pending.flow.step(native)
@@ -300,6 +429,7 @@ impl ClientControl {
                         Notice::ResizeFailed
                     }));
                 self.local_resize = None;
+                self.queued_divider = None;
                 true
             }
             // A local adjustment is always selected; inactive and navigation outputs are inadmissible.
@@ -307,6 +437,7 @@ impl ClientControl {
                 self.local_resize_feedback =
                     Some(LocalResizeFeedback::Notice(Notice::ResizeUnknown));
                 self.local_resize = None;
+                self.queued_divider = None;
                 true
             }
         }
@@ -321,6 +452,10 @@ impl ClientControl {
         }) {
             self.local_resize = None;
             self.local_resize_feedback = Some(LocalResizeFeedback::Clear);
+            // The settled resize left the layout the queued release was dragged on.
+            if let Some(queued) = self.queued_divider.take() {
+                self.resize_divider(native, &queued.source, queued.ratio);
+            }
         }
     }
 }

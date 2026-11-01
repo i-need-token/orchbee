@@ -45,6 +45,28 @@ impl Arm {
         !self.cancelled
     }
 
+    /// Takes the exposure `map` recorded for the pressed interaction when that frame painted the
+    /// press and then revealed the interaction's pointer-only children: a press read together
+    /// with the motion onto its target precedes the frame that reveals them. Whether the
+    /// interaction is still current is decided afterwards, as for any frame.
+    fn follow_reveal(&mut self, map: &FrameHitMap) -> bool {
+        if !map.revealed_for_pointer(&self.fingerprint) {
+            return false;
+        }
+        let current = if self.backdrop {
+            map.backdrop_interaction_at(self.column, self.row)
+        } else {
+            map.interaction_at(self.column, self.row)
+        };
+        let Some(current) = current.filter(|current| {
+            current.same_interaction(&self.fingerprint) && *current != self.fingerprint
+        }) else {
+            return false;
+        };
+        self.fingerprint = current;
+        true
+    }
+
     fn cancel(&mut self) -> bool {
         let changed = !self.cancelled;
         self.cancelled = true;
@@ -364,6 +386,13 @@ impl State {
     /// Returns whether that frame used an older projection and needs one later
     /// bounded repaint.
     pub(super) fn publish(&mut self, map: &FrameHitMap) -> bool {
+        if self
+            .arm
+            .as_mut()
+            .is_some_and(|arm| arm.active() && arm.follow_reveal(map))
+        {
+            self.changed();
+        }
         if self.arm.as_ref().is_some_and(Arm::active) {
             let still_current = self
                 .arm

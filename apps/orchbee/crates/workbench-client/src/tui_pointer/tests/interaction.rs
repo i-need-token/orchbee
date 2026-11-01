@@ -731,6 +731,55 @@ fn hit_extent_layer_and_effective_child_exposure_are_part_of_the_arm() {
     );
 }
 
+/// A press read together with the motion onto a row precedes the frame that reveals the row's
+/// pointer-only child. That frame projects the press onto the exposure the press recorded before
+/// painting the child, so the child is the press's own reveal and the click survives it.
+#[test]
+fn a_child_revealed_for_the_pressed_row_keeps_the_arm() {
+    let row = previous();
+    let child = close();
+    let row_rect = Rect::new(10, 5, 12, 1);
+    let child_rect = Rect::new(19, 5, 3, 1);
+    let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
+    let mut pointer = pointer_with(interaction_map(
+        PointerProjection::default(),
+        row.clone(),
+        row_rect,
+        row_rect,
+        spec,
+    ));
+    drive(
+        &mut pointer,
+        event(MouseAction::Press, MouseButton::Left, 11, 5),
+    );
+
+    let mut revealed = HitMapBuilder::with_pointer(pointer.projection());
+    assert_eq!(
+        revealed.projected_pointer_beneath(
+            HitLayer::Foreground,
+            &[],
+            row_rect,
+            row_rect,
+            &row,
+            spec
+        ),
+        ProjectedPointer::Pressed
+    );
+    revealed.record_interaction(HitLayer::Foreground, child_rect, child_rect, child, spec);
+    revealed.record_interaction(HitLayer::Foreground, row_rect, row_rect, row.clone(), spec);
+    pointer.publish(revealed.finish());
+    assert_eq!(
+        drive(
+            &mut pointer,
+            event(MouseAction::Release, MouseButton::Left, 11, 5),
+        ),
+        PointerOutcome::Interaction {
+            target: row,
+            contract: PrimaryContract::ActivateOnRelease,
+        },
+    );
+}
+
 #[test]
 fn disabled_and_specialized_targets_preserve_discoverability_without_generic_activation() {
     let target = close();

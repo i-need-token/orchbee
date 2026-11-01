@@ -366,6 +366,9 @@ pub struct FrameHitMap {
     pub(super) navigator: Option<crate::client_view::navigator::Paint>,
     /// Regions this frame painted with a tooltip; their content stays with the candidate frame.
     pub(super) tooltips: Vec<tooltip::Key>,
+    /// Interactions this frame projected the pointer onto in the exposure that pointer recorded,
+    /// before it painted the children that pointer reveals. See `revealed_for_pointer`.
+    pub(super) pointer_reveals: Vec<interaction::Fingerprint>,
 }
 
 impl FrameHitMap {
@@ -743,6 +746,7 @@ impl HitMapBuilder {
                 menu_source: None,
                 navigator: None,
                 tooltips: Vec::new(),
+                pointer_reveals: Vec::new(),
             },
             projection: PointerProjection::empty(),
             covered_sidebar_rows: Vec::new(),
@@ -985,11 +989,25 @@ impl HitMapBuilder {
         target: &InteractionTarget,
         spec: InteractionSpec,
     ) -> ProjectedPointer {
+        self.projected_fingerprint(layer, hit_rect, paint_rect, target, spec)
+            .map_or(ProjectedPointer::Rest, |fingerprint| {
+                self.projection.project(&fingerprint)
+            })
+    }
+
+    fn projected_fingerprint(
+        &self,
+        layer: HitLayer,
+        hit_rect: Rect,
+        paint_rect: Rect,
+        target: &InteractionTarget,
+        spec: InteractionSpec,
+    ) -> Option<interaction::Fingerprint> {
         if hit_rect.is_empty()
             || paint_rect.is_empty()
             || hit_rect.intersection(paint_rect) != hit_rect
         {
-            return ProjectedPointer::Rest;
+            return None;
         }
         let candidate = HitRegion {
             layer,
@@ -1003,15 +1021,13 @@ impl HitMapBuilder {
         };
         self.map
             .interaction_fingerprint(&candidate, Some(&candidate))
-            .map_or(ProjectedPointer::Rest, |fingerprint| {
-                self.projection.project(&fingerprint)
-            })
     }
 
     /// Projects a target as though pointer-revealed frontmost children were
     /// already recorded, in order. A frame that reveals children publishes the
     /// target's exposure with them, so the next frame must project against the
-    /// same shape.
+    /// same shape. A projected pointer also marks that exposure as one this
+    /// frame recognized and then revealed for the pointer.
     pub(crate) fn projected_pointer_beneath(
         &mut self,
         layer: HitLayer,
@@ -1031,8 +1047,15 @@ impl HitMapBuilder {
                 *child_spec,
             );
         }
-        let pointer = self.projected_pointer(layer, hit_rect, paint_rect, target, spec);
+        let fingerprint = self.projected_fingerprint(layer, hit_rect, paint_rect, target, spec);
         self.map.regions.truncate(recorded);
+        let Some(fingerprint) = fingerprint else {
+            return ProjectedPointer::Rest;
+        };
+        let pointer = self.projection.project(&fingerprint);
+        if pointer != ProjectedPointer::Rest {
+            self.map.pointer_reveals.push(fingerprint);
+        }
         pointer
     }
 
@@ -1150,6 +1173,13 @@ impl FrameHitMap {
             region.rect == edge
                 && matches!(&region.target, HitTarget::SidebarResize(painted) if painted == target)
         }) && matches!(self.hit(edge.x, edge.y), HitResolution::Region(HitTarget::SidebarResize(painted)) if painted == target)
+    }
+
+    /// Whether this frame projected the pointer onto `fingerprint`, exactly as that pointer
+    /// recorded it, before painting the children it reveals for that pointer. The interaction it
+    /// then recorded at the same place differs from `fingerprint` only by what the reveal added.
+    pub(crate) fn revealed_for_pointer(&self, fingerprint: &interaction::Fingerprint) -> bool {
+        self.pointer_reveals.contains(fingerprint)
     }
 
     pub(super) fn exposes_divider(&self, target: &crate::tui_layout::DrawnDivider) -> bool {

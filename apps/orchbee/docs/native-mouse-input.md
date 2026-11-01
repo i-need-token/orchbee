@@ -281,7 +281,13 @@ An enabled `ActivateOnRelease` target arms on a plain left press and activates o
 still resolves to the same typed target, complete painted rectangle, contract, and availability.
 Its layer, exact hit extent, and effective exposure must also match. Leaving that target,
 replacement, occlusion, disablement, structural invalidation, or ownership loss permanently
-cancels the arm; a visual-only repaint of the same fingerprint does not. A cancelled arm consumes
+cancels the arm; a visual-only repaint of the same fingerprint does not. A pointer reveal is not
+a replacement: when a frame projects the press onto exactly the armed fingerprint and then paints
+the children that projection reveals, the hit map records that projection, and the arm takes the
+exposure that frame published for the same target, layer, extent and contract. A press read
+together with the motion onto its target precedes the frame that reveals the target's controls, so
+without this its own reveal would cancel it; a child that the frame did not reveal for that
+projection still cancels the arm. A cancelled arm consumes
 its late release and cannot retarget, while an already observed stationary position can reconcile
 hover against the next successful map. `SelectOnPress` exists only for a feature that explicitly
 owns provisional navigation, while `Specialized` leaves press handling to the feature's dedicated

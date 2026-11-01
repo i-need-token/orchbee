@@ -305,6 +305,15 @@ impl Fingerprint {
     pub(crate) fn enabled(&self) -> bool {
         self.spec.enabled_for_pointer()
     }
+
+    /// Whether `other` is this interaction, whatever its effective exposure.
+    pub(crate) fn same_interaction(&self, other: &Self) -> bool {
+        self.target == other.target
+            && self.layer == other.layer
+            && self.hit_rect == other.hit_rect
+            && self.paint_rect == other.paint_rect
+            && self.spec == other.spec
+    }
 }
 
 /// Immutable transient facts captured before one candidate render begins.

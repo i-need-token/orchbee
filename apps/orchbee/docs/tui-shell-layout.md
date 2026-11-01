@@ -254,7 +254,11 @@ list edge scrolls at most once every 120 ms through the existing bounded list-sc
 
 Until movement latches a drag, the press is a click on its row: only that row's painted target, the
 Sidebar catalog and surface decide its release, so a background refresh or another Client's unrelated
-commit and repaint never cancel it. A drag latches against the canonical source painted at that moment.
+commit and repaint never cancel it. A press read together with the motion onto the row lands before
+the frame that reveals the row's close control; that frame recognizes the pressed row and its
+pointer reveal keeps the click, as [mouse input](native-mouse-input.md#region-map) describes, while
+a release on the revealed control resolves to the control and activates nothing. A drag latches
+against the canonical source painted at that moment.
 Dragging is preview-only until matching plain primary release. Escape, loss of focus/capture,
 resize, an occluding overlay, or changed canonical source cancels it; a refresh still in flight does
 not, and the drop rechecks the source. Cleanup consumes the late

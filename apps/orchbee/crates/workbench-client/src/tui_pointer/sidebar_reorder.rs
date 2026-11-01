@@ -136,6 +136,22 @@ impl SidebarReorder {
             }
     }
 
+    /// Before a drag, takes the exposure `map` recorded for the pressed row when that frame
+    /// painted the press and then revealed the row's pointer-only controls, as a generic arm
+    /// does: a press read together with the motion onto the row precedes the frame that reveals
+    /// its close control.
+    pub(super) fn follow_reveal(&mut self, map: &FrameHitMap) {
+        if self.dragging || !map.revealed_for_pointer(&self.fingerprint) {
+            return;
+        }
+        if let Some(current) = map
+            .interaction_at(self.origin.0, self.origin.1)
+            .filter(|current| current.same_interaction(&self.fingerprint))
+        {
+            self.fingerprint = current;
+        }
+    }
+
     /// Whether the live canonical source still admits this gesture. A click owns no canonical
     /// operation, so background refreshes and unrelated commits never end it. A drag's move is
     /// computed from its baseline: a changed source ends it, while a refresh still in flight

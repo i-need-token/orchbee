@@ -678,7 +678,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         ));
         let _changed = terminal_input.tick_with_client_capture(client_capture_claims(&view));
         if terminal_input.client_control_tick(&mut view, to_area(dimensions), chrome.locale) {
-            dispatcher.invalidate_hit_map(terminal_input);
+            dispatcher.invalidate_hit_map_for_control(terminal_input);
             synchronize_viewport(
                 terminal,
                 viewport,
@@ -887,7 +887,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                         dispatcher.resize_presentation_allowed(),
                     ),
                 )?;
-                dispatcher.invalidate_hit_map(terminal_input);
+                dispatcher.invalidate_hit_map_for_control(terminal_input);
                 redraw = true;
             }
             if let Some(machines) = &mut machines {

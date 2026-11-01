@@ -6,10 +6,12 @@
 
 use super::WorkbenchClientUi;
 use super::worktree_launch::WorktreeMode;
-use crate::client_view::ClientKey;
+use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey, PanelDirection};
 use crate::workbench_state::workspace_close::{WorkspaceCloseToken, WorkspaceDeleteRequest};
-use crate::workbench_state::{ClientNotice, WorkbenchClientState};
-use orchbee_workbench_protocol::WorkbenchWorkspaceId;
+use crate::workbench_state::{ClientNotice, PanelRequestKind, WorkbenchClientState};
+use orchbee_workbench_protocol::{
+    WorkbenchPanelId, WorkbenchTabMoveDirection, WorkbenchWorkspaceId,
+};
 use std::time::{Duration, Instant};
 
 /// A background read settles within one read round trip, and a switch within its terminal's
@@ -32,6 +34,23 @@ pub(super) enum HeldIntent {
     Worktree(WorktreeMode),
     /// The next or previous Context was requested. Terminal input waits with it.
     Context { next: bool },
+    /// A Tab or Panel action of the current Workspace, resolved against the landed projection.
+    Structure(StructureAction),
+}
+
+/// A Tab or Panel action of the current Workspace. Its admission needs a settled projection, so
+/// a background read or the user's own landing switch holds it instead of refusing it.
+#[derive(Clone, Debug)]
+pub(super) enum StructureAction {
+    Zoom,
+    /// Terminal input waits with a held focus move, as it does with a held Context step.
+    Focus(PanelDirection),
+    FocusPanel(WorkbenchPanelId),
+    /// `SelectTab`, `SelectNextTab` or `SelectPreviousTab`; terminal input waits with it.
+    SelectTab(ClientAction),
+    MoveTab(WorkbenchTabMoveDirection),
+    Panel(PanelRequestKind),
+    CreateTab,
 }
 
 struct Hold {
@@ -45,6 +64,8 @@ pub(super) struct HeldIntents {
     held: Option<Hold>,
     /// A user navigation retries behind the read in flight; no further read may overtake it.
     navigation_until: Option<Instant>,
+    /// A replayed action changed the drawn panes since the Shell last re-observed them.
+    layout_replayed: bool,
 }
 
 impl WorkbenchClientUi {
@@ -84,12 +105,62 @@ impl WorkbenchClientUi {
                 .is_some_and(|until| self.clock.now() < until)
     }
 
-    /// Whether a requested Context switch is held: input belongs to no terminal until it lands.
+    /// Whether a requested Context, Tab or Panel focus change is held: input belongs to no
+    /// terminal until it lands.
     pub(super) fn held_navigation(&self) -> bool {
-        self.held_intents
-            .held
+        self.held_intents.held.as_ref().is_some_and(|held| {
+            matches!(
+                held.intent,
+                HeldIntent::Context { .. }
+                    | HeldIntent::Structure(
+                        StructureAction::Focus(_)
+                            | StructureAction::FocusPanel(_)
+                            | StructureAction::SelectTab(_)
+                    )
+            )
+        })
+    }
+
+    /// Runs a Tab or Panel action, or holds it while a background read or the user's own landing
+    /// switch takes the refresh slot that its admission needs.
+    pub(super) fn structure_action(&mut self, action: StructureAction) -> ClientActionDisposition {
+        if !self
+            .state
             .as_ref()
-            .is_some_and(|held| matches!(held.intent, HeldIntent::Context { .. }))
+            .is_some_and(WorkbenchClientState::settling_for_user_action)
+        {
+            return self.apply_structure_action(action);
+        }
+        // Nothing is drawn differently until the replay; a request answers the key at once.
+        let disposition = match action {
+            StructureAction::Zoom | StructureAction::Focus(_) | StructureAction::FocusPanel(_) => {
+                ClientActionDisposition::KeepNavigator
+            }
+            StructureAction::SelectTab(_)
+            | StructureAction::MoveTab(_)
+            | StructureAction::Panel(_)
+            | StructureAction::CreateTab => ClientActionDisposition::DismissNavigator,
+        };
+        self.hold_intent(HeldIntent::Structure(action));
+        disposition
+    }
+
+    fn apply_structure_action(&mut self, action: StructureAction) -> ClientActionDisposition {
+        match action {
+            StructureAction::Zoom => self.toggle_zoom(),
+            StructureAction::Focus(direction) => self.move_panel_focus(direction),
+            StructureAction::FocusPanel(panel) => self.move_panel_focus_to(&panel),
+            StructureAction::SelectTab(action) => self.select_tab(action),
+            StructureAction::MoveTab(direction) => self.move_tab(direction),
+            StructureAction::Panel(kind) => self.panel_operation(kind),
+            StructureAction::CreateTab => self.create_tab(),
+        }
+    }
+
+    /// Whether a replayed action changed the drawn panes; the Shell then re-observes geometry and
+    /// the pointer map, as it does after a dispatched one.
+    pub(in crate::workbench_client) fn take_replayed_layout_change(&mut self) -> bool {
+        std::mem::take(&mut self.held_intents.layout_replayed)
     }
 
     /// Replays the held invocation through its ordinary entry point once the background read
@@ -134,6 +205,10 @@ impl WorkbenchClientUi {
             }
             HeldIntent::Context { next } => {
                 let _disposition = self.select_context(next);
+            }
+            HeldIntent::Structure(action) => {
+                let disposition = self.apply_structure_action(action);
+                self.held_intents.layout_replayed |= disposition.changes_layout();
             }
         }
         true

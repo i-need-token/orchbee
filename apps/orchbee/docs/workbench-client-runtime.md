@@ -541,10 +541,16 @@ that leave the Workbench snapshot unchanged, such as background terminal output,
 A publication refresh is background work and never makes a user action unavailable: availability
 consults only the Client's own refresh. An invocation that needs the single refresh slot while a
 publication refresh holds it — a confirmed Workspace or Project Close, a conditional Workspace
-close, a Worktree form or listing, or a Context step — is held for at most two seconds and replayed
-through its ordinary entry point when that refresh settles, before the next publication refresh is
-admitted. A Context navigation refused only by a publication refresh pauses further publication
-refreshes for the same bound while it retries. An expired hold ends with the localized busy notice.
+close, a Worktree form or listing, or a Context step — is held for at most five seconds and
+replayed through its ordinary entry point when that refresh settles, before the next publication
+refresh is admitted. A Tab or Panel action of the current Workspace (zoom, Panel focus, Tab
+selection or move, split, Panel move, new Tab) needs a settled projection, so a publication
+refresh or the user's own landing Workspace switch holds it the same way instead of refusing it;
+a Client control that addresses the same handlers is answered by the Client's state and is never
+held. A Context navigation refused only by a publication refresh pauses further publication
+refreshes for the same bound while it retries. While a held Context step, Panel focus move or Tab
+selection waits, terminal input is refused with a visible notice rather than reaching the Panel
+the user is leaving. An expired hold ends with the localized busy notice.
 A `published` probe sets one coalescing ingress latch inside the still-open mailbox before any stale-result or causal-wait handling, so a dropped or stale Poll reply cannot
 erase the demand. At the next stable point the UI captures that latch into canonical Client
 state as bounded publication debt (`Clean`/`Pending`/`InFlight { late }`/`Parked`) exactly once.

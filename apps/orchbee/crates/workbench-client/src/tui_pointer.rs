@@ -1349,6 +1349,9 @@ impl PointerState {
             self.cancel_tab_drag();
             self.cancel_sidebar_reorder();
         }
+        if let Gesture::SidebarReorder(drag) = &mut self.gesture {
+            drag.follow_reveal(&map);
+        }
         if matches!(&self.gesture, Gesture::SidebarReorder(drag) if !drag.painted_in(&map)) {
             self.cancel_sidebar_reorder();
         }
@@ -1459,6 +1462,27 @@ impl PointerState {
     ) {
         self.cancel_selection(port);
         self.invalidate_map();
+    }
+
+    /// A Client control step changed what the next frame paints: as `invalidate_map_with_port`,
+    /// except that an admitted divider drag is left for that frame to keep or end. The Client's
+    /// own earlier resize settling meanwhile does not end it; `publish` does once the frame no
+    /// longer paints its split.
+    pub(crate) fn invalidate_map_for_control(
+        &mut self,
+        port: &mut (impl TerminalInputPort + ?Sized),
+    ) {
+        let divider = match std::mem::take(&mut self.gesture) {
+            Gesture::Divider(drag) => Some(drag),
+            gesture => {
+                self.gesture = gesture;
+                None
+            }
+        };
+        self.invalidate_map_with_port(port);
+        if let Some(drag) = divider {
+            self.gesture = Gesture::Divider(drag);
+        }
     }
 
     /// A handled pointer event changed structural regions (navigation

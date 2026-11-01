@@ -45,8 +45,10 @@ fn divider_busy_refusal_supersedes_submission_clear_in_the_same_input_batch() {
             .take_layout_for_test()
             .is_some()
     );
+    // While the release settles, a press on a divider the frame no longer paints stays refused.
+    let elsewhere = painted(&native, &view, 112, 32).1.remove(0);
     assert_eq!(
-        control.divider_ready(&native, &target),
+        control.divider_ready(&native, &elsewhere),
         Err(Notice::ResizeBusy)
     );
     control.tick(&mut native, false);
@@ -669,16 +671,41 @@ fn divider_local_commit_waits_for_shared_publication_and_draw_and_competes_with_
         matches!(mutation.action, WorkbenchAction::SplitRatioSet { split, previous_ratio, ratio, .. }
         if split.split_id == target.split && split.first_slot_id == target.first && split.second_slot_id == target.second && previous_ratio == target.ratio && ratio.value() == 0.7)
     );
-    assert_eq!(
-        control.divider_ready(&native, &target),
-        Err(Notice::ResizeBusy)
-    );
+    // The settling release's draft is what the screen paints; a drag may start on it.
+    let drafted = painted_with_resize(&native, &view, 120, 40, &released)
+        .1
+        .remove(0);
+    assert!(control.divider_ready(&native, &drafted).is_ok());
     control.resize(&native, PanelDirection::Right, false);
-    control.resize_divider(&native, &target, ClientSplitRatio::new(0.8).unwrap());
+    control.resize_divider(&native, &drafted, ClientSplitRatio::new(0.8).unwrap());
+    let queued = ResizeProjection::Divider {
+        source: target.clone(),
+        ratio: ClientSplitRatio::new(0.8).unwrap(),
+    };
     assert_eq!(
         control.resize_projection(&native, target.viewport, view.sidebar_surface(), true),
-        released,
-        "a busy second release cannot retarget the accepted presentation"
+        queued,
+        "a second release shows over the draft and waits for the first"
+    );
+    // A drag on the waiting release's draft replaces that release from the layout it was dragged
+    // on; the draft it covers no longer starts one, which would discard the waiting release.
+    let waiting = painted_with_resize(&native, &view, 120, 40, &queued)
+        .1
+        .remove(0);
+    assert!(control.divider_ready(&native, &waiting).is_ok());
+    assert_eq!(
+        control.divider_ready(&native, &drafted),
+        Err(Notice::ResizeBusy)
+    );
+    control.resize_divider(&native, &waiting, ClientSplitRatio::new(0.75).unwrap());
+    let queued = ResizeProjection::Divider {
+        source: target.clone(),
+        ratio: ClientSplitRatio::new(0.75).unwrap(),
+    };
+    assert_eq!(
+        control.resize_projection(&native, target.viewport, view.sidebar_surface(), true),
+        queued,
+        "the newest release shows over the same draft"
     );
     assert!(
         control
@@ -700,7 +727,7 @@ fn divider_local_commit_waits_for_shared_publication_and_draw_and_competes_with_
     assert!(control.local_resize_pending());
     assert_eq!(
         control.resize_projection(&native, target.viewport, view.sidebar_surface(), true),
-        released,
+        queued,
         "a reply before publication cannot snap the panes back"
     );
     let mut snapshot = split_snapshot(3);
@@ -718,27 +745,34 @@ fn divider_local_commit_waits_for_shared_publication_and_draw_and_competes_with_
     assert!(control.local_resize_pending());
     assert_eq!(
         control.resize_projection(&native, target.viewport, view.sidebar_surface(), true),
-        ResizeProjection::Canonical,
-        "the new canonical publication takes over the released position"
+        ResizeProjection::Divider {
+            source: drafted.clone(),
+            ratio: ClientSplitRatio::new(0.75).unwrap(),
+        },
+        "the new canonical publication takes over the first release's position"
     );
     control.after_draw(&mut native);
-    assert!(!control.local_resize_pending());
     assert!(completion(&control).is_none());
     assert_eq!(
         native.control_observation(false).unwrap().1.selection,
         before.1.selection
     );
+    // The first release completed; the queued one is submitted against the layout it left.
+    assert!(control.local_resize_pending());
+    let second = control
+        .lane
+        .as_ref()
+        .unwrap()
+        .take_layout_for_test()
+        .unwrap();
     assert!(
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .take_layout_for_test()
-            .is_none()
+        matches!(second.action, WorkbenchAction::SplitRatioSet { split, previous_ratio, ratio, .. }
+        if split.split_id == target.split && previous_ratio.value() == 0.7 && ratio.value() == 0.75)
     );
 }
 
-/// A refusal that is not about an older revision, or an unknown outcome, is never replayed.
+/// A refusal that is not about an older revision, or an unknown outcome, is never replayed, and a
+/// release queued behind it is discarded with it.
 #[test]
 fn divider_unknown_or_rejected_resolution_never_replays_and_reports_the_shared_notice() {
     for unknown in [false, true] {
@@ -761,6 +795,14 @@ fn divider_unknown_or_rejected_resolution_never_replays_and_reports_the_shared_n
             .unwrap()
             .take_layout_for_test()
             .unwrap();
+        let released = ResizeProjection::Divider {
+            source: target.clone(),
+            ratio: ClientSplitRatio::new(0.7).unwrap(),
+        };
+        let drafted = painted_with_resize(&native, &view, 120, 40, &released)
+            .1
+            .remove(0);
+        control.resize_divider(&native, &drafted, ClientSplitRatio::new(0.8).unwrap());
         control.lane.as_ref().unwrap().finish_layout_for_test(
             crate::workbench_client::client_control::LayoutCompletion {
                 operation_id: mutation.request_id,
@@ -1094,8 +1136,8 @@ fn divider_real_mouse_sequence_on_the_painted_column_submits_one_ratio() {
         assert!(dispatcher.divider_preview().is_none());
         assert!(port.refusals.is_empty(), "{:?}", port.refusals);
         assert!(port.forwarded.is_empty());
-        // Until that submission is published and drawn, a new press is refused with the busy
-        // notice ("Resize pending; input was not queued") instead of starting a drag.
+        // Until that submission is published and drawn, a press on a split the frame paints
+        // still starts a drag, and its changed release waits behind the pending one.
         dispatcher.publish_hit_map(painted(port.native, &view, width, height).0);
         send(
             &mut dispatcher,
@@ -1103,18 +1145,23 @@ fn divider_real_mouse_sequence_on_the_painted_column_submits_one_ratio() {
             &mut port,
             &sgr(0, column, row, false),
         );
-        assert!(dispatcher.divider_preview().is_none());
-        assert_eq!(port.refusals, [Notice::ResizeBusy]);
+        assert!(dispatcher.divider_preview().is_some(), "{width}x{height}");
         send(
             &mut dispatcher,
             &mut view,
             &mut port,
-            &sgr(0, column, row, true),
+            &sgr(32, column + 3, row, false),
         );
-        let mutation = control
-            .lane
-            .as_ref()
-            .unwrap()
+        send(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            &sgr(0, column + 3, row, true),
+        );
+        assert!(dispatcher.divider_preview().is_none());
+        assert!(port.refusals.is_empty(), "{:?}", port.refusals);
+        let lane = control.lane.as_ref().unwrap();
+        let mutation = lane
             .take_layout_for_test()
             .expect("the release submits one ratio");
         assert!(matches!(
@@ -1122,5 +1169,9 @@ fn divider_real_mouse_sequence_on_the_painted_column_submits_one_ratio() {
             WorkbenchAction::SplitRatioSet { previous_ratio, ratio, .. }
                 if previous_ratio == target.ratio && ratio.value() > target.ratio.value()
         ));
+        assert!(
+            lane.take_layout_for_test().is_none(),
+            "the second release is not submitted before the first settles"
+        );
     }
 }
