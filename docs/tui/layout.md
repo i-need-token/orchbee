@@ -167,7 +167,7 @@ content within the range of their class:
 - Content width excludes the frame and the two padding cells on each side, so the outer width is
   the content width plus 6.
 - The content width is the widest required line, clamped to the class range. Required lines are the
-  title row with its controls, the footer (the action row with its focus-marker cells and gaps, or a
+  title row with its controls, the footer (the action row with its gaps, or a
   picker's hint row), the target line, and each field's minimum: 24 cells for a name and the class
   maximum for a path. Prose, help, and
   errors wrap at that width and never widen it. A target wider than the maximum truncates.

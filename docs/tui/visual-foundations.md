@@ -102,12 +102,12 @@ Theme rules:
   colors. Individual components apply the semantic state but never branch on the palette.
 - Monochrome gives current context an underline, provisional selection a bold reverse band, and
   focused frames a bold reverse outline. `accent-focus`, the focus cue of an unframed region, its
-  divider or a button marker, adds `BOLD` and `UNDERLINED`, so it never reads as part of an adjacent
-  reverse band. Every cell of the provisional band that is not explicitly plain takes the band's
-  `BOLD` without `DIM`: a host can brighten bold text or apply `DIM` before reverse video, which
-  would otherwise show metadata on a background of its own. Independent current, navigation and
-  checked markers remain visible; focus and value choices never rely on bold text alone. Renderers
-  retain the complete role style, including its modifiers.
+  divider or a focused button's brackets, adds `BOLD` and `UNDERLINED`, so it never reads as part of
+  an adjacent reverse band. Every cell of the provisional band that is not explicitly plain takes
+  the band's `BOLD` without `DIM`: a host can brighten bold text or apply `DIM` before reverse
+  video, which would otherwise show metadata on a background of its own. Independent current,
+  navigation and checked markers remain visible; focus and value choices never rely on bold text
+  alone. Renderers retain the complete role style, including its modifiers.
 - `accent-destructive` identifies an explicitly destructive action intent, independently of action
   hierarchy, focus, current context, hover, and press. It has its own palette value and never borrows
   `status-error`. Disabled intent uses `text-disabled`. In `terminal-native`, resting destructive

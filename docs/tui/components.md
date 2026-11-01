@@ -152,9 +152,10 @@ auxiliary-action slots required by any state that the component can enter.
   recognizable at rest through its action glyph or displayed key and verb; hover is never its only
   action cue. Row overflow-menu triggers follow the collection rule below.
 - A button's brackets, inner padding, label, and reserved state slots form one painted and clickable
-  extent. The primary button in a decision context uses `accent-action` at rest; secondary buttons
-  use `text-primary`. Neither state looks like keyboard focus. Status roles never distinguish
-  primary, default, or destructive actions.
+  extent. The primary button in a decision context uses `accent-action` on its label at rest;
+  secondary buttons use `text-primary`. Resting brackets follow the label, except that a primary
+  button's use `text-primary`, so neither state looks like keyboard focus. Status roles never
+  distinguish primary, default, or destructive actions.
 - An explicitly destructive action may declare the shared destructive intent tone. Its label uses
   `accent-destructive` independently of primary/secondary hierarchy; disabled content still uses
   `text-disabled`. Row and button owners retain their ordinary hover, pressed, focus, and provisional
@@ -165,13 +166,13 @@ auxiliary-action slots required by any state that the component can enter.
 - Buttons in a list's auxiliary-action slot use `text-secondary` at rest and inherit the row's
   surface. Their own hover and press feedback remains local to the painted action extent, and
   raises their label to `text-primary`.
-- A button group reserves a focus-marker cell for each button. The focused button uses
-  `accent-focus` on that marker and its brackets. Pointer hover paints the full button extent with
-  `surface-hover`; press uses `surface-pressed` without erasing the focus marker. An enabled button
-  label takes `BOLD` only while pressed.
-- A dialog's action row ends at the right content edge with the primary button last. Each button
-  keeps its focus-marker cell directly before its left bracket, and one blank cell separates a
-  button from the next button's marker cell. Initial focus follows
+- The focused button shows keyboard focus on its brackets alone, in `accent-focus`, which
+  Monochrome underlines. No glyph marks a focused button, and a button group reserves no cell for
+  one. Pointer hover paints the full button extent with `surface-hover`; press uses
+  `surface-pressed` without erasing the focused brackets. An enabled button label takes `BOLD` only
+  while pressed.
+- A dialog's action row ends at the right content edge with the primary button last, and one blank
+  cell separates adjacent buttons. Initial focus follows
   [`overlays-and-status.md`](overlays-and-status.md#focus-and-pointer).
 - A pending button reserves a status-glyph slot and sizes its label area for the larger of its idle
   and pending localized labels. Its outer extent does not change when the operation starts.
