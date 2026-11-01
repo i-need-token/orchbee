@@ -107,6 +107,7 @@ impl ClientExecutor {
             attachment_id,
             host_epoch,
             host_terminal_id,
+            ..
         } = self.source_viewer(action, deadline)?
         else {
             return Ok(unknown);
