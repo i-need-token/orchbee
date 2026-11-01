@@ -34,6 +34,50 @@ fn project_dissolve_runs_directly_as_the_unconditional_dissolve() {
     );
 }
 
+#[test]
+fn empty_project_dissolve_reports_no_retained_workspace() {
+    let (mut state, mut snapshot) = fixture();
+    let project = snapshot.navigation.projects[0].clone();
+    assert!(
+        snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .all(|workspace| workspace.project_id.as_ref() != Some(&project.project_id))
+    );
+    let request = WorkspaceOrganizationRequest::project(
+        &state,
+        &project,
+        Instant::now() + Duration::from_secs(30),
+    )
+    .unwrap()
+    .with_choice(OrganizationChoice::Dissolve)
+    .unwrap();
+    let operation = state
+        .plan_sidebar_organization(
+            &request,
+            WorkbenchRequestId::parse(&format!("{:032x}", 91)).unwrap(),
+            1,
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
+        )
+        .unwrap();
+    snapshot.navigation.projects.clear();
+    snapshot.revision = WorkbenchRevision::new(2);
+    install(
+        &mut state,
+        operation,
+        WorkbenchSetupCommit::ProjectDissolved {
+            revision: snapshot.revision,
+            project_id: project.project_id,
+        },
+        snapshot,
+    );
+    assert_eq!(
+        state.setup_status(),
+        Some(SetupStatus::EmptyProjectDissolved)
+    );
+}
+
 fn workspace_id() -> WorkbenchWorkspaceId {
     WorkbenchWorkspaceId::parse(&format!("{:032x}", 81)).unwrap()
 }

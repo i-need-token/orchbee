@@ -645,12 +645,15 @@ impl WorkbenchClientUi {
             }
         };
         if let (MenuTarget::WorkspaceCreation(project), Some(state)) = (&entry, state) {
-            actions = vec![MenuAction::NewWorktree];
-            actions.extend(
-                sidebar::project_folders(state, project)
-                    .into_iter()
-                    .map(MenuAction::WorkspaceInFolder),
-            );
+            let folders = sidebar::project_folders(state, project);
+            // Without a recorded folder no row would create a Workspace, so the Project's own
+            // quick path, the row's [+] New Workspace, leads.
+            actions = if folders.is_empty() {
+                vec![MenuAction::QuickWorkspace, MenuAction::NewWorktree]
+            } else {
+                vec![MenuAction::NewWorktree]
+            };
+            actions.extend(folders.into_iter().map(MenuAction::WorkspaceInFolder));
         }
         let project_choices = if matches!(entry, MenuTarget::WorkspaceProjects(_)) {
             let Some(choices) = state.and_then(|state| sidebar::project_choices(state, &target))

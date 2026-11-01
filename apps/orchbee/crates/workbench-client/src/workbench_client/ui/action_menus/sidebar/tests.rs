@@ -54,7 +54,7 @@ fn project_target(ui: &WorkbenchClientUi) -> MenuTarget {
     )
 }
 
-/// Clicks New Workspace ▸ in an open Project menu and returns the submenu's folder rows.
+/// Clicks New Workspace ▸ in an open Project menu and returns the submenu's rows before discovery.
 fn open_creation(ui: &mut WorkbenchClientUi) -> Vec<MenuAction> {
     let token = draw(ui);
     let source = ui.view().action_menu().unwrap().source.clone();
@@ -79,10 +79,22 @@ fn open_creation(ui: &mut WorkbenchClientUi) -> Vec<MenuAction> {
         ui.menus.intent().unwrap().entry(),
         MenuTarget::WorkspaceCreation(id) if *id == project
     ));
-    project_folders(ui.state.as_ref().unwrap(), &project)
-        .into_iter()
-        .map(MenuAction::WorkspaceInFolder)
-        .collect()
+    let folders = project_folders(ui.state.as_ref().unwrap(), &project);
+    // Without a folder row, the Project's quick path leads.
+    let mut rows = if folders.is_empty() {
+        vec![MenuAction::QuickWorkspace]
+    } else {
+        Vec::new()
+    };
+    rows.push(MenuAction::NewWorktree);
+    rows.extend(folders.into_iter().map(MenuAction::WorkspaceInFolder));
+    rows
+}
+
+fn worktree_row(rows: &[MenuAction]) -> usize {
+    rows.iter()
+        .position(|action| *action == MenuAction::NewWorktree)
+        .unwrap()
 }
 
 #[test]
@@ -95,7 +107,8 @@ fn discovery_appends_checkouts_to_new_workspace_and_requires_a_fresh_draw_withou
         ui.view().action_menu().unwrap().actions,
         crate::action_menu::PROJECT_ACTIONS
     );
-    let folders = open_creation(&mut ui);
+    let rows = open_creation(&mut ui);
+    let worktree = worktree_row(&rows);
     let before = {
         let view = ui.view();
         assert_eq!(
@@ -106,13 +119,11 @@ fn discovery_appends_checkouts_to_new_workspace_and_requires_a_fresh_draw_withou
         let menu = view.action_menu().unwrap();
         assert!(menu.candidate_hidden, "a clicked submenu has no candidate");
         assert_eq!(
-            menu.unavailable[0],
+            menu.unavailable[worktree],
             Some(crate::action_menu::MenuUnavailable::WorktreeChecking)
         );
-        let mut expected = vec![MenuAction::NewWorktree];
-        expected.extend(folders.iter().cloned());
-        assert_eq!(menu.actions, expected);
-        expected
+        assert_eq!(menu.actions, rows);
+        rows
     };
     let old = draw(&mut ui);
     ui.menus.mark_discovery_querying();
@@ -132,14 +143,14 @@ fn discovery_appends_checkouts_to_new_workspace_and_requires_a_fresh_draw_withou
                 MenuAction::OpenWorktreeAt(WorkbenchDirectoryPath::parse("C:/trees/猫").unwrap()),
             ]
         );
-        assert_eq!(menu.unavailable[0], None);
+        assert_eq!(menu.unavailable[worktree], None);
         let results = menu.result_actions;
         let headings = (0..results.len())
             .map(|position| menu.result_heading_before(results, position))
             .collect::<Vec<_>>();
         let mut expected = vec![None; results.len()];
-        if !folders.is_empty() {
-            expected[1] = Some(crate::action_menu::MenuHeading::Folders);
+        if worktree + 1 < before.len() {
+            expected[worktree + 1] = Some(crate::action_menu::MenuHeading::Folders);
         }
         expected[before.len()] = Some(crate::action_menu::MenuHeading::Worktrees);
         assert_eq!(headings, expected);
@@ -195,8 +206,8 @@ fn keyboard_cascade_starts_on_first_rows_and_left_esc_or_the_parent_frame_return
         }
         assert_eq!(
             candidate(&ui),
-            Some(MenuAction::NewWorktree),
-            "a keyboard submenu starts on its first row"
+            Some(MenuAction::QuickWorkspace),
+            "a keyboard submenu starts on its first row, the folderless Project's quick path"
         );
         if let Some(back) = back {
             press(&mut ui, back);
@@ -291,7 +302,7 @@ fn cancelled_or_replaced_episode_cannot_reopen_or_populate_a_new_menu() {
     ui.settle_sidebar_worktrees(cancelled_id, Ok(Box::new(stale.clone())));
     assert!(!ui.action_menu_active());
     assert!(ui.open_action_menu(target, None, false));
-    let folders = open_creation(&mut ui);
+    let rows = open_creation(&mut ui);
     assert_ne!(ui.menus.discovery().unwrap().id(), cancelled_id);
     let token = ui.view().action_menu().unwrap().token;
     ui.menus.mark_discovery_querying();
@@ -299,10 +310,8 @@ fn cancelled_or_replaced_episode_cannot_reopen_or_populate_a_new_menu() {
     let view = ui.view();
     let menu = view.action_menu().unwrap();
     assert_eq!(menu.token, token);
-    let mut expected = vec![MenuAction::NewWorktree];
-    expected.extend(folders);
-    assert_eq!(menu.actions, expected, "a stale episode adds no checkout");
-    assert!(menu.unavailable[0].is_some());
+    assert_eq!(menu.actions, rows, "a stale episode adds no checkout");
+    assert!(menu.unavailable[worktree_row(&rows)].is_some());
     assert!(matches!(
         ui.menus.discovery().unwrap().state(),
         DiscoveryState::Querying

@@ -111,7 +111,8 @@ requires canonical admission; speculative rows never authorize another move.
 
 Dissolve Project removes organization and leaves its Workspaces ungrouped. It loses nothing else, so
 it runs at once as the unconditional `ProjectDissolve` and reports "Project dissolved · Workspaces
-retained" in the status line; `ProjectDissolveIfIdle` remains for the CLI. Close all Workspaces is
+retained" in the status line, or only "Project dissolved" when the Project had no member Workspace;
+`ProjectDissolveIfIdle` remains for the CLI. Close all Workspaces is
 a separate explicit Project action with its own destructive confirmation and retained member set.
 Ordinary Workspace Close never expands into a Git family or Project. An automatically created
 Project is retained when only one Workspace remains.

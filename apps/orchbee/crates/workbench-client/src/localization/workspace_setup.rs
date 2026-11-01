@@ -32,6 +32,8 @@ pub(crate) enum SetupStatus {
     PresentationUnavailable,
     WorkspaceOrganized,
     ProjectDissolved,
+    /// A Project dissolved without member Workspaces, so nothing was retained.
+    EmptyProjectDissolved,
     TabsConfigured,
     NavigationConfigured,
     TabsNotApplied,
@@ -275,6 +277,8 @@ impl Locale {
                 "Project dissolved · Workspaces retained"
             }
             (Self::ZhCn, SetupStatus::ProjectDissolved) => "项目已解散 · 工作区已保留",
+            (Self::EnUs, SetupStatus::EmptyProjectDissolved) => "Project dissolved",
+            (Self::ZhCn, SetupStatus::EmptyProjectDissolved) => "项目已解散",
             (Self::EnUs, SetupStatus::NavigationConfigured) => "Sidebar organization updated",
             (Self::ZhCn, SetupStatus::NavigationConfigured) => "侧栏排序和分组已更新",
             (Self::EnUs, SetupStatus::TabsConfigured) => "Tabs updated",

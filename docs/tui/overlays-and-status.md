@@ -212,7 +212,8 @@ fields follow [`components.md`](components.md).
 - Names, grouping, and order are organization, not content. Renaming a Project, moving a Workspace
   between Projects, and dissolving a Project end nothing and delete nothing: every Workspace,
   terminal, program, and file stays. They run without a confirmation, and the status notice states
-  what stays, as in `Project dissolved · Workspaces retained`.
+  what stays, as in `Project dissolved · Workspaces retained`. When nothing remained to keep, as
+  for an empty Project, the notice states only the result.
 - Progress and waiting stay in the dialog that started the work, in its status row; they never open
   a separate dialog or replace the task with a progress-only stage. Work that continues after the
   dialog closes reports its result as a status notice.

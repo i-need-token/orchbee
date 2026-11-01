@@ -208,7 +208,10 @@ full path when names repeat); and a Git Worktrees group with the discovered non-
 (labelled by branch without `refs/heads/`, else by path). Group headings use `text-secondary` and
 are never selectable. A folder row creates a Workspace in that directory through the existing
 Project quick path of the [setup owner](native-workspace-setup.md#creation-defaults-and-result-ownership),
-including empty and noncurrent Projects, without a Project picker. Rename
+including empty and noncurrent Projects, without a Project picker. While the Project records no
+folder, as an empty Project does, New Workspace leads the submenu and runs the same Project quick
+path as the row's create action, so the submenu always holds a usable row. It stays a submenu even
+when that is its only enabled row, because each row kind has one shared menu. Rename
 and Dissolve also target the drawn Project without entering a child. Dissolve Project removes only
 that organization: every member Workspace, terminal, program and identity survives ungrouped, so the
 row is not destructive. It never composes Close All with removal.

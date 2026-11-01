@@ -365,6 +365,21 @@ fn confirm_quick(
     action
 }
 
+/// Confirms New Workspace ▸ New Workspace, which leads the submenu of a Project without folders.
+fn confirm_creation_quick(
+    ui: &mut WorkbenchClientUi,
+    project: &Project,
+) -> crate::workbench_client::InputAction {
+    assert!(open(ui, project));
+    open_creation(ui);
+    let action = confirm_open_action(ui, false, MenuAction::QuickWorkspace);
+    assert!(matches!(
+        action.intent(),
+        ClientAction::RequestProjectQuickWorkspace
+    ));
+    action
+}
+
 fn confirm_project_action(
     ui: &mut WorkbenchClientUi,
     project: &Project,
@@ -414,7 +429,11 @@ fn project_quick_menu_keeps_exact_target_through_preparation_and_one_launch() {
         (None, 1, false),
         (None, 1, true),
     ] {
-        for keyboard in [false, true] {
+        // An empty Project's New Workspace ▸ leads with the same quick path as its [+] menu.
+        for (keyboard, submenu) in [(false, false), (true, false), (false, true)] {
+            if submenu && !empty {
+                continue;
+            }
             let mut snapshot = snapshot();
             snapshot.terminal_contexts[0].tabs.clear();
             let location = source.map_or_else(
@@ -442,7 +461,11 @@ fn project_quick_menu_keeps_exact_target_through_preparation_and_one_launch() {
             let clock = ui.clock.clone();
             let origin = Origin::capture(ui.state.as_ref());
             let cursors = mailbox.cursors();
-            let action = confirm_quick(&mut ui, &project, keyboard);
+            let action = if submenu {
+                confirm_creation_quick(&mut ui, &project)
+            } else {
+                confirm_quick(&mut ui, &project, keyboard)
+            };
             assert_eq!(Origin::capture(ui.state.as_ref()), origin);
             assert_eq!(mailbox.cursors(), cursors);
             assert!(mailbox.try_recv().unwrap().is_none());
@@ -689,8 +712,8 @@ fn project_menu_empty_and_noncurrent_targets_do_not_invent_a_worktree_or_change_
             if empty {
                 assert_eq!(
                     ui.view().action_menu().unwrap().actions,
-                    &[MenuAction::NewWorktree],
-                    "an empty Project has no folder to offer"
+                    &[MenuAction::QuickWorkspace, MenuAction::NewWorktree],
+                    "an empty Project has no folder, so its quick path leads"
                 );
             }
             let row = action_row(&ui, MenuAction::NewWorktree);

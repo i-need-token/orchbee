@@ -622,7 +622,22 @@ impl WorkbenchClientState {
         }
         let status = match &known.commit {
             WorkbenchSetupCommit::WorkspaceProjectChanged { .. } => SetupStatus::WorkspaceOrganized,
-            WorkbenchSetupCommit::ProjectDissolved { .. } => SetupStatus::ProjectDissolved,
+            // An empty Project had no Workspace to retain, so its notice states only the result.
+            WorkbenchSetupCommit::ProjectDissolved { project_id, .. } => {
+                if known
+                    .operation
+                    .baseline
+                    .canonical_snapshot()
+                    .navigation
+                    .workspaces
+                    .iter()
+                    .any(|workspace| workspace.project_id.as_ref() == Some(project_id))
+                {
+                    SetupStatus::ProjectDissolved
+                } else {
+                    SetupStatus::EmptyProjectDissolved
+                }
+            }
             WorkbenchSetupCommit::WorkspaceLaunched(_) => SetupStatus::WorkspaceCreated,
             WorkbenchSetupCommit::WorkspaceOrder { .. } => return None,
             WorkbenchSetupCommit::TabsConfigured { .. } => SetupStatus::TabsConfigured,
