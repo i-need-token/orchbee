@@ -224,15 +224,17 @@ fn superseded_connection_completion_cannot_fail_or_replace_new_direct_navigation
     view.machines.request.take();
     let (release, receive) = std::sync::mpsc::channel();
     let cancel = Arc::new(OwnedCancellation::new().unwrap());
+    let (task, result) = spawn_attempt(crate::workbench_client::UiWakeup::current(), move || {
+        receive.recv_timeout(Duration::from_secs(3)).unwrap();
+        Err(io::Error::other("old completion"))
+    })
+    .unwrap();
     manager.attempt = Some(Attempt {
         profile: Some(super::profile()),
         context: Some(targets[1].clone().into()),
         cancel: cancel.clone(),
-        task: BackgroundThread::spawn("orchbee-machine-connect", move || {
-            receive.recv_timeout(Duration::from_secs(3)).unwrap();
-            Err(io::Error::other("old completion"))
-        })
-        .unwrap(),
+        task,
+        result,
     });
     request(&mut view, &targets[2]);
     manager.tick(&mut surface, &mut view, dimensions(), now, &mut |_| {});
@@ -444,13 +446,14 @@ fn cancelled_verification_result_cannot_switch_or_reopen_explicit_navigator() {
         verified_agent(&mut manager, &mut view, &targets[1], now);
         manager.queued.take();
         let target = Box::new(targets[1].clone());
-        let task = BackgroundThread::spawn("orchbee-machine-connect", move || {
-            Ok(PreparedSelection::Agent {
-                target,
-                deadline: now + Duration::from_secs(60),
+        let (task, result) =
+            spawn_attempt(crate::workbench_client::UiWakeup::current(), move || {
+                Ok(PreparedSelection::Agent {
+                    target,
+                    deadline: now + Duration::from_secs(60),
+                })
             })
-        })
-        .unwrap();
+            .unwrap();
         while !task.is_finished() {
             thread::yield_now();
         }
@@ -460,6 +463,7 @@ fn cancelled_verification_result_cannot_switch_or_reopen_explicit_navigator() {
             context: Some(ClientStartupTarget::Agent(Box::new(targets[1].clone()))),
             cancel: cancel.clone(),
             task,
+            result,
         });
         if explicit {
             view.machines.show_workspaces();

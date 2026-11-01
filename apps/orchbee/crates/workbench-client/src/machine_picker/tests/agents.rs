@@ -260,6 +260,61 @@ fn unchanged_source_and_attention_versions_skip_projection_but_ack_reprojects_on
     picker.current = Choice::Remote(profile(1, "remote", true).id);
     assert!(picker.needs_agent_attention(Some((1, 0))));
 }
+#[test]
+fn agent_steps_reuse_this_machines_session_and_another_machine_stays_behind_the_picker() {
+    use crate::machine_agents::test_support::checkpoint;
+    let remote = profile(1, "remote", true);
+    let choice = Choice::Remote(remote.id.clone());
+    let mut picker = Picker {
+        available: true,
+        ..Picker::default()
+    };
+    picker.replace(&[remote]);
+    focus(&mut picker);
+    let local = agent_row();
+    let mut sibling = agent_row();
+    sibling.target.member =
+        orchbee_workbench_protocol::TerminalPresentationId::parse(&format!("{:032x}", 24)).unwrap();
+    sibling.target.physical = crate::machine_agents::test_support::physical(24);
+    let elsewhere = sibling.clone();
+    picker.observe_agents(vec![
+        (
+            Choice::Local,
+            Agents::Ready(checkpoint(vec![local.clone(), sibling.clone()])),
+        ),
+        (
+            choice.clone(),
+            Agents::Ready(checkpoint(vec![elsewhere.clone()])),
+        ),
+    ]);
+    let now = Instant::now();
+
+    picker.navigate_agent(false, now);
+    assert!(picker.drive_agent_navigation(now));
+    assert_eq!(
+        picker.request.take(),
+        Some(Selection {
+            machine: Choice::Local,
+            context: Some(ClientStartupTarget::Agent(Box::new(sibling.target.clone()))),
+        })
+    );
+    assert!(!picker.open, "this machine's Agent needs no picker");
+    assert_eq!(
+        picker.selection_scope().map(|scope| scope.origin),
+        Some(SelectionOrigin::Sidebar)
+    );
+
+    picker.navigate_agent(true, now);
+    assert!(picker.drive_agent_navigation(now));
+    assert_eq!(
+        picker.request.take(),
+        Some(Selection {
+            machine: choice,
+            context: Some(ClientStartupTarget::Agent(Box::new(elsewhere.target))),
+        })
+    );
+    assert!(picker.open, "another machine connects behind the picker");
+}
 fn focus(picker: &mut Picker) {
     let target = agent_row().target;
     picker.observe_focus(

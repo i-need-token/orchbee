@@ -413,8 +413,11 @@ Ctrl+B then `{` or `}` requests previous/next Agent across machines; the configu
 waits for bounded observations, wraps relative to the exact current member, chooses
 last/first if it is absent, and excludes unavailable rows. Empty lists and a single
 already-focused target cause no attachment. Further keys or pointer input cancel a
-pending intent. Actual activation still uses the separately admitted, revalidated,
-drawable candidate and preserves the previous surface on failure.
+pending intent. An Agent on the current machine activates like a sidebar row: revalidated
+on a lane of the current Session, then reached by that Session's own navigation, with no
+new connection and no picker left on screen. An Agent on another machine uses the
+separately admitted, revalidated, drawable candidate. Both preserve the previous surface
+on failure.
 
 Evidence covers guarded metadata, overlapping revision fences and binding faults,
 stable ties and machine-qualified context/identity, query bounds and control
@@ -503,7 +506,7 @@ The existing eight-second intent waits for loading observations. Unknown active
 sources remain explicit refusals; absent ordinals neither wrap nor clamp, and a
 target already focused causes no attachment. Further input cancels the pending
 intent. Once resolved, the selection freezes exact endpoint/member identity and
-uses the same revalidated drawable candidate as pointer and cycle navigation.
+activates through the same current-Session or candidate path as cycle navigation.
 No terminal acknowledgement follows from choosing or reading an ordinal.
 
 Evidence covers key/profile/conflict admission, complete-modifier dispatch and

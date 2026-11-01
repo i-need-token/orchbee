@@ -160,20 +160,22 @@ fn peer(snapshot: Snapshot) -> io::Result<FakeServer> {
 }
 fn attempt(server: &FakeServer, context: Option<ClientContextTarget>) -> Attempt {
     let endpoint = server.endpoint().to_path_buf();
+    let (task, result) = spawn_attempt(crate::workbench_client::UiWakeup::current(), move || {
+        LocalClient::connect_before(
+            &endpoint,
+            "test-cohort",
+            Instant::now() + Duration::from_secs(3),
+        )
+        .map(PreparedSelection::Connection)
+        .map_err(io::Error::other)
+    })
+    .unwrap();
     Attempt {
         profile: Some(profile()),
         context: context.map(Into::into),
         cancel: Arc::new(OwnedCancellation::new().unwrap()),
-        task: BackgroundThread::spawn("orchbee-machine-connect", move || {
-            LocalClient::connect_before(
-                &endpoint,
-                "test-cohort",
-                Instant::now() + Duration::from_secs(3),
-            )
-            .map(PreparedSelection::Connection)
-            .map_err(io::Error::other)
-        })
-        .unwrap(),
+        task,
+        result,
     }
 }
 #[test]

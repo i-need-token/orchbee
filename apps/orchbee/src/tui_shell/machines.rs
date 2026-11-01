@@ -15,7 +15,7 @@ use crate::{
 };
 use std::{
     io,
-    sync::Arc,
+    sync::{Arc, mpsc},
     time::{Duration, Instant},
 };
 
@@ -23,7 +23,38 @@ struct Attempt {
     profile: Option<Profile>,
     context: Option<ClientStartupTarget>,
     cancel: Arc<OwnedCancellation>,
-    task: BackgroundThread<io::Result<PreparedSelection>>,
+    task: BackgroundThread,
+    result: mpsc::Receiver<io::Result<PreparedSelection>>,
+}
+
+impl Attempt {
+    /// The result, once the worker delivered it; a worker that ended without one failed.
+    fn settled(&self) -> Option<io::Result<PreparedSelection>> {
+        match self.result.try_recv() {
+            Ok(result) => Some(result),
+            Err(mpsc::TryRecvError::Empty) => None,
+            Err(mpsc::TryRecvError::Disconnected) => {
+                Some(Err(io::Error::other("machine connection worker failed")))
+            }
+        }
+    }
+}
+
+/// Delivers the result before waking the tick, which has no other reason to look at it soon.
+fn spawn_attempt(
+    wakeup: crate::workbench_client::UiWakeup,
+    body: impl FnOnce() -> io::Result<PreparedSelection> + Send + 'static,
+) -> io::Result<(
+    BackgroundThread,
+    mpsc::Receiver<io::Result<PreparedSelection>>,
+)> {
+    let (sender, result) = mpsc::sync_channel(1);
+    let task = BackgroundThread::spawn("orchbee-machine-connect", move || {
+        // A cancelled attempt's owner may already have dropped the receiver.
+        let _delivered = sender.send(body());
+        wakeup.signal();
+    })?;
+    Ok((task, result))
 }
 enum PreparedSelection {
     Connection(LocalClient),
@@ -86,6 +117,7 @@ pub(super) struct Manager {
     agents: crate::machine_agents::Collector,
     spaces: crate::machine_spaces::Collector,
     space_git: Option<bool>,
+    wakeup: crate::workbench_client::UiWakeup,
 }
 impl Manager {
     /// Process exit: asks every cached and candidate Client, the connection attempt, and every
@@ -163,8 +195,9 @@ impl Manager {
             discovery: Discovery::default(),
             // Host process titles have no publication source; canonical Agent facts also push.
             agents: crate::machine_agents::Collector::new(wakeup.clone(), true),
-            spaces: crate::machine_spaces::Collector::new(wakeup, false),
+            spaces: crate::machine_spaces::Collector::new(wakeup.clone(), false),
             space_git: None,
+            wakeup,
         }
     }
     fn valid(&self, profile: &Profile) -> bool {
@@ -387,13 +420,8 @@ impl Manager {
             }
             change.redraw = true;
         }
-        if self.attempt.as_ref().is_some_and(|a| a.task.is_finished()) {
-            let mut attempt = self.attempt.take().expect("finished attempt");
-            let result = attempt
-                .task
-                .join()
-                .expect("attempt task")
-                .unwrap_or_else(|_| Err(io::Error::other("machine connection worker failed")));
+        if let Some(result) = self.attempt.as_ref().and_then(Attempt::settled) {
+            let attempt = self.attempt.take().expect("settled attempt");
             if !attempt.cancel.is_cancelled()
                 && self.selection_current(view)
                 && attempt.profile.as_ref().is_none_or(|p| self.valid(p))
@@ -502,7 +530,7 @@ impl Manager {
                 match OwnedCancellation::new().and_then(|cancel| {
                     let cancel = Arc::new(cancel);
                     let worker_cancel = cancel.clone();
-                    let task = BackgroundThread::spawn("orchbee-machine-connect", move || {
+                    let (task, result) = spawn_attempt(self.wakeup.clone(), move || {
                         let mut client =
                             connection.reconnect(queued.deadline, worker_cancel.borrow())?;
                         if let Some(target) = direct_agent {
@@ -530,14 +558,15 @@ impl Manager {
                             Ok(PreparedSelection::Connection(client))
                         }
                     })?;
-                    Ok((cancel, task))
+                    Ok((cancel, task, result))
                 }) {
-                    Ok((cancel, task)) => {
+                    Ok((cancel, task, result)) => {
                         self.attempt = Some(Attempt {
                             profile: queued.profile,
                             context,
                             cancel,
                             task,
+                            result,
                         })
                     }
                     Err(_) => self.fail_selection(view, "failed"),

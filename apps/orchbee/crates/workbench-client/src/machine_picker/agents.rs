@@ -1,6 +1,7 @@
 //! Ephemeral Agent view controls and a bounded global-navigation intent.
 use super::{
     Choice, ClientContextTarget, ClientMemberTarget, KeyCode, Mode, Modifiers, Picker, Row,
+    SelectionOrigin,
 };
 use crate::machine_agents::Observation as Agents;
 use crate::machine_agents::view::{Entry, Scope};
@@ -311,7 +312,15 @@ impl Picker {
         if current == Some(index) {
             self.open = false;
         } else {
-            self.request = Some(rows[index].selection());
+            let selection = rows[index].selection();
+            // The current machine's Session reaches its own Agent without a new connection, the
+            // way a sidebar activation does; only another machine needs a candidate behind this
+            // picker.
+            if rows[index].choice == self.current && self.begin_selection(SelectionOrigin::Sidebar)
+            {
+                self.open = false;
+            }
+            self.request = Some(selection);
         }
         true
     }

@@ -250,7 +250,7 @@ fn machine_cancel_and_failed_attempt_preserve_active_surface_and_ignore_stale_co
     let (mut manager, mut view, mut surface) = setup();
     let cancelled = Arc::new(OwnedCancellation::new().unwrap());
     let worker = cancelled.clone();
-    let task = BackgroundThread::spawn("orchbee-machine-connect", move || {
+    let (task, result) = spawn_attempt(crate::workbench_client::UiWakeup::current(), move || {
         while !worker.is_cancelled() {
             thread::sleep(Duration::from_millis(1));
         }
@@ -262,6 +262,7 @@ fn machine_cancel_and_failed_attempt_preserve_active_surface_and_ignore_stale_co
         context: None,
         cancel: cancelled.clone(),
         task,
+        result,
     });
     view.machines.open = false;
     let deadline = Instant::now() + Duration::from_secs(3);
@@ -282,14 +283,16 @@ fn machine_cancel_and_failed_attempt_preserve_active_surface_and_ignore_stale_co
     assert!(view.machines.error.is_none());
     view.machines.show();
     manager.selection_scope = view.machines.selection_scope();
+    let (task, result) = spawn_attempt(crate::workbench_client::UiWakeup::current(), || {
+        Err(io::Error::other("unavailable"))
+    })
+    .unwrap();
     manager.attempt = Some(Attempt {
         profile: Some(profile()),
         context: None,
         cancel: Arc::new(OwnedCancellation::new().unwrap()),
-        task: BackgroundThread::spawn("orchbee-machine-connect", || {
-            Err(io::Error::other("unavailable"))
-        })
-        .unwrap(),
+        task,
+        result,
     });
     while manager.attempt.is_some() {
         assert!(
