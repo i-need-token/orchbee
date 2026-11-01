@@ -7,10 +7,10 @@ use crate::client_view::{Notice, PanelDirection};
 use orchbee_workbench_protocol::{ClientLayoutChange, ClientPanelDirection, WorkbenchRequestId};
 use std::time::Duration;
 
-/// Resubmissions of one resize after refusals that named only an older Workbench revision.
-const RESUBMISSIONS: u8 = 3;
-/// Bound on reading the newer revision a refusal proved before the same move is resubmitted.
-const REVISION_WAIT: Duration = Duration::from_secs(2);
+/// How long one release keeps being resubmitted after the first refusal that named only an older
+/// Workbench revision. Each resubmission waits for the Client to read a newer revision, so this
+/// bounds the wait the person sees rather than a count that a slow read would exhaust.
+const CONTENTION: Duration = Duration::from_secs(5);
 
 pub(super) struct LocalResizePending {
     pub(super) request_id: WorkbenchRequestId,
@@ -19,8 +19,7 @@ pub(super) struct LocalResizePending {
     interrupted: bool,
     awaiting_draw: bool,
     presentation: Option<ReleasedDivider>,
-    resubmissions: u8,
-    refused_at: Option<Instant>,
+    contended_since: Option<Instant>,
 }
 
 pub(super) struct ReleasedDivider {
@@ -76,8 +75,8 @@ impl LocalResizePending {
         lane: Option<&ClientControlLane>,
         now: Instant,
     ) -> Result<(), Notice> {
-        let refused_at = *self.refused_at.get_or_insert(now);
-        if self.resubmissions >= RESUBMISSIONS || now >= refused_at + REVISION_WAIT {
+        let contended_since = *self.contended_since.get_or_insert(now);
+        if now >= contended_since + CONTENTION {
             return Err(Notice::ResizeContended);
         }
         let Some((flow, mutation)) = self.flow.rebase(native).map_err(|_| Notice::ResizeFailed)?
@@ -96,8 +95,6 @@ impl LocalResizePending {
             })?;
         self.request_id = request_id;
         self.flow = flow;
-        self.resubmissions += 1;
-        self.refused_at = None;
         Ok(())
     }
 }
@@ -266,8 +263,7 @@ impl ClientControl {
                 interrupted: false,
                 awaiting_draw: false,
                 presentation: None,
-                resubmissions: 0,
-                refused_at: None,
+                contended_since: None,
             });
             self.local_resize_feedback = Some(LocalResizeFeedback::Clear);
             Ok(())

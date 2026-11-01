@@ -433,6 +433,27 @@ fn notice_severity_marks_only_the_bullet_and_keeps_reading_text_primary() {
     }
 }
 
+/// A settling resize holds no input, so the refusal of the person's next resize shows over it
+/// rather than behind its pending indicator.
+#[test]
+fn a_resize_refusal_shows_over_the_pending_resize_indicator() {
+    let theme = Theme::rgb_test_dark();
+    let width = 80;
+    let mut view = ClientView::new(width);
+    view.resize_pending = true;
+    let pending = Locale::EnUs.status().resize_pending;
+    let (terminal, _) = paint(&view, width, facts("Ready"), &theme);
+    assert!(row(&terminal, width).contains(pending));
+    view.configuration_notice(Notice::ResizeBusy);
+    let (terminal, _) = paint(&view, width, facts("Ready"), &theme);
+    let painted = row(&terminal, width);
+    assert!(
+        painted.contains(Locale::EnUs.shell_notice(Some(Notice::ResizeBusy))),
+        "{painted}"
+    );
+    assert!(!painted.contains(pending), "{painted}");
+}
+
 /// Lasting states name themselves in a word or two; the long fact they replace stays out.
 #[test]
 fn persistent_states_show_short_copy_with_their_severity_marker() {

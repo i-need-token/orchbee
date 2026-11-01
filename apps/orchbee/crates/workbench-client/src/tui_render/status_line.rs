@@ -1101,7 +1101,8 @@ fn input_indicator(
     if capture_owner.is_none() && view.machines.sidebar_navigation_active() {
         return Some(InputIndicator::Sidebar);
     }
-    if capture_owner.is_none() && view.resize_pending {
+    // A pending resize holds no input: a refusal of the person's next resize outranks it.
+    if capture_owner.is_none() && view.resize_pending && !view.resize_notice_shown() {
         return Some(InputIndicator::ResizePending);
     }
     view.prefix_active().then_some(InputIndicator::Prefix)

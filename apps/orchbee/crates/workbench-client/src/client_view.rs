@@ -565,8 +565,9 @@ impl ClientView {
         }
     }
 
-    pub(crate) fn clear_resize_notice(&mut self) {
-        if matches!(
+    /// Whether the notice shown reports what became of the person's own resize input.
+    pub(crate) const fn resize_notice_shown(&self) -> bool {
+        matches!(
             self.notice,
             Some(
                 Notice::ResizeBusy
@@ -576,7 +577,11 @@ impl ClientView {
                     | Notice::ResizeNoSplit
                     | Notice::ResizeLimit
             )
-        ) {
+        )
+    }
+
+    pub(crate) fn clear_resize_notice(&mut self) {
+        if self.resize_notice_shown() {
             self.notice = None;
         }
     }

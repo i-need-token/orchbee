@@ -841,7 +841,8 @@ fn divider_unknown_or_rejected_resolution_never_replays_and_reports_the_shared_n
 
 /// Another Client's commit moves the Workbench past the revision a release CAS names, so the
 /// Server refuses it without effect. The same move is resubmitted against each newer installed
-/// revision while its split keeps the previous ratio, within a bound, with the draft kept meanwhile.
+/// revision while its split keeps the previous ratio, however often other commits outpace it,
+/// until a time bound passes, with the draft kept meanwhile.
 #[test]
 fn a_revision_refusal_resubmits_the_same_divider_move_only_while_its_split_is_unchanged() {
     use crate::workbench_client::ui::tests::publication_hint::{
@@ -861,7 +862,7 @@ fn a_revision_refusal_resubmits_the_same_divider_move_only_while_its_split_is_un
         );
     };
     for split_moved in [false, true] {
-        let (mut native, mailbox, clock, _) = ready_split_ui();
+        let (mut native, mailbox, clock, elapsed) = ready_split_ui();
         let poll = mailbox.try_recv().unwrap().unwrap();
         mailbox.finish_lease(poll).unwrap();
         let view = ClientView::new(120);
@@ -876,7 +877,7 @@ fn a_revision_refusal_resubmits_the_same_divider_move_only_while_its_split_is_un
             .unwrap()
             .take_layout_for_test()
             .unwrap();
-        for revision in [3, 5, 7] {
+        for revision in [3, 5, 7, 9] {
             refuse(&control, mutation.request_id.clone());
             control.tick(&mut native, false);
             assert!(control.local_resize_pending(), "{split_moved} {revision}");
@@ -928,6 +929,8 @@ fn a_revision_refusal_resubmits_the_same_divider_move_only_while_its_split_is_un
             );
         }
         if !split_moved {
+            // Five seconds after the first refusal, one more ends the move under its notice.
+            elapsed.fetch_add(5_000, std::sync::atomic::Ordering::SeqCst);
             refuse(&control, mutation.request_id.clone());
             control.tick(&mut native, false);
         }
