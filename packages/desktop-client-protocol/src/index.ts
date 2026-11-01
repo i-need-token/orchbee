@@ -59,9 +59,15 @@ export {
 } from './desktop-renderer-bootstrap-contract';
 export {
 	DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
+	DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL,
 	DESKTOP_SERVER_CONNECTION_WINDOW_MESSAGE,
+	DESKTOP_SERVER_CONNECTION_WINDOW_REQUEST,
+	DesktopServerConnectionDocumentSchema,
+	DesktopServerConnectionReplySchema,
 	DesktopServerConnectionWindowMessageSchema,
+	DesktopServerConnectionWindowRequestSchema,
 	type DesktopServerConnectionBootstrap,
+	type DesktopServerConnectionReply,
 } from './desktop-server-connection-contract';
 
 export {

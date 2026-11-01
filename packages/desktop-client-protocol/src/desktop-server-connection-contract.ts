@@ -1,7 +1,21 @@
 import { z } from 'zod';
 
+/** The page asks once it is listening, so a connection never reaches a document not yet ready for it. */
+export const DESKTOP_SERVER_CONNECTION_WINDOW_REQUEST = 'orchbee.desktop.server-connection-request';
+export const DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL =
+	'orchbee.desktop.server-connection-request';
 export const DESKTOP_SERVER_CONNECTION_IPC_CHANNEL = 'orchbee.desktop.server-connection';
 export const DESKTOP_SERVER_CONNECTION_WINDOW_MESSAGE = 'orchbee.desktop.server-connection-ready';
+
+export const DesktopServerConnectionWindowRequestSchema = z.strictObject({
+	type: z.literal(DESKTOP_SERVER_CONNECTION_WINDOW_REQUEST),
+});
+
+/**
+ * Names the asking document. A window's next document can receive what Main meant for the last one,
+ * so an answer has to say whose it is.
+ */
+export const DesktopServerConnectionDocumentSchema = z.uuid();
 
 /** What only Main can know about the document it is connecting. */
 const DesktopServerConnectionBootstrapSchema = z.strictObject({
@@ -9,6 +23,11 @@ const DesktopServerConnectionBootstrapSchema = z.strictObject({
 	automaticWorkspaceAllowed: z.boolean(),
 	defaultDirectory: z.string().min(1),
 	terminalHostName: z.string().min(1),
+});
+
+export const DesktopServerConnectionReplySchema = z.strictObject({
+	bootstrap: DesktopServerConnectionBootstrapSchema,
+	document: DesktopServerConnectionDocumentSchema,
 });
 
 /** Announces the one transferred port that carries this document's Client connection bytes. */
@@ -24,3 +43,4 @@ export const DesktopServerConnectionWindowMessageSchema = z.strictObject({
 export type DesktopServerConnectionBootstrap = z.infer<
 	typeof DesktopServerConnectionBootstrapSchema
 >;
+export type DesktopServerConnectionReply = z.infer<typeof DesktopServerConnectionReplySchema>;

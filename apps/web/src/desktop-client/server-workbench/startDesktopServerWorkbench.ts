@@ -3,6 +3,7 @@
  * this document reads and writes. It replaces the Main-owned renderer once that path is removed.
  */
 import {
+	DESKTOP_SERVER_CONNECTION_WINDOW_REQUEST,
 	DesktopServerConnectionWindowMessageSchema,
 	type DesktopServerConnectionBootstrap,
 } from '@orchbee/desktop-client-protocol';
@@ -55,6 +56,10 @@ function receiveConnection(
 			else reject(new Error('The Server connection announcement is invalid.'));
 		};
 		targetWindow.addEventListener('message', handleMessage);
+		targetWindow.postMessage(
+			{ type: DESKTOP_SERVER_CONNECTION_WINDOW_REQUEST },
+			targetWindow.location.origin,
+		);
 	});
 }
 

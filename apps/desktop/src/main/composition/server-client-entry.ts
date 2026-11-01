@@ -9,7 +9,9 @@ import path from 'node:path';
 
 import {
 	DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
-	type DesktopServerConnectionBootstrap,
+	DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL,
+	DesktopServerConnectionDocumentSchema,
+	type DesktopServerConnectionReply,
 } from '@orchbee/desktop-client-protocol';
 import { BrowserWindow, MessageChannelMain, app, net, protocol } from 'electron';
 
@@ -73,7 +75,7 @@ function sessionArguments(): readonly string[] {
 
 function connectDocument(
 	window: BrowserWindow,
-	bootstrap: DesktopServerConnectionBootstrap,
+	reply: DesktopServerConnectionReply,
 ): ServerConnectionRelay {
 	const relayProcess = spawn(
 		requiredEnvironment(CLIENT_EXECUTABLE_ENVIRONMENT_KEY),
@@ -82,7 +84,7 @@ function connectDocument(
 	);
 	const { port1, port2 } = new MessageChannelMain();
 	const relay = new ServerConnectionRelay(relayProcess, port1);
-	window.webContents.postMessage(DESKTOP_SERVER_CONNECTION_IPC_CHANNEL, bootstrap, [port2]);
+	window.webContents.postMessage(DESKTOP_SERVER_CONNECTION_IPC_CHANNEL, reply, [port2]);
 	return relay;
 }
 
@@ -112,29 +114,36 @@ void app.whenReady().then(async () => {
 	window.webContents.on('will-navigate', (event, navigationUrl) => {
 		if (!isSameDesktopRendererOrigin(navigationUrl, rendererUrl)) event.preventDefault();
 	});
-	// A reload's document gets its own connection; the old one ends with the document that held it.
+	// A document asks when it is listening, and its asking ends the connection of the one it replaced.
 	let relay: ServerConnectionRelay | undefined;
-	let documents = 0;
-	window.webContents.on('did-finish-load', () => {
+	let requests = 0;
+	let everConnected = false;
+	window.webContents.ipc.on(DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL, (_event, value) => {
+		const document = DesktopServerConnectionDocumentSchema.safeParse(value);
+		if (!document.success) return;
 		relay?.close();
 		relay = undefined;
-		documents += 1;
-		const document = documents;
+		requests += 1;
+		const request = requests;
 		void readServerRestoreState(
 			requiredEnvironment(CLIENT_EXECUTABLE_ENVIRONMENT_KEY),
 			sessionArguments(),
 		).then((restore) => {
-			if (document !== documents || window.isDestroyed()) return;
+			if (request !== requests || window.isDestroyed()) return;
 			relay = connectDocument(window, {
-				// A later document follows a person's own actions; an empty Session may be what they chose.
-				automaticWorkspaceAllowed: document === 1 && restore === 'intact',
-				defaultDirectory: app.getPath('home'),
-				terminalHostName: hostname(),
+				bootstrap: {
+					// A later document follows a person's own actions; an empty Session may be what they chose.
+					automaticWorkspaceAllowed: !everConnected && restore === 'intact',
+					defaultDirectory: app.getPath('home'),
+					terminalHostName: hostname(),
+				},
+				document: document.data,
 			});
+			everConnected = true;
 		});
 	});
 	window.on('closed', () => {
-		documents += 1;
+		requests += 1;
 		relay?.close();
 	});
 	await window.loadURL(rendererUrl.href);
