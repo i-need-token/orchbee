@@ -1,14 +1,14 @@
-//! One real local runtime for Windows process tests: the CLI, Server, Worker and Zig Host under
-//! test as one private cohort, the default Session under observation, and a `host` Session whose
-//! terminal runs a real TUI Client. A test owns its root, Sessions, controlling attachments and
-//! processes until they drop.
+//! One real local runtime for Windows process tests: the CLI, Server and Worker under test and a
+//! Zig Host built from this checkout as one private cohort, the default Session under observation,
+//! and a `host` Session whose terminal runs a real TUI Client. A test owns its root, Sessions,
+//! controlling attachments and processes until they drop.
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     fmt, fs,
     io::{BufRead, BufReader, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::mpsc,
     thread,
@@ -72,29 +72,21 @@ impl Fixture {
         fixture
     }
 
-    /// Stages the CLI, Server and Worker under test with the real Host as one private cohort.
+    /// Stages the CLI, Server and Worker under test with a Host built from this checkout as one
+    /// private cohort. `cargo test` builds only the CLI and `zig-out` keeps whichever Host was
+    /// installed last, so after a rebase either peer or the Host could otherwise predate the code
+    /// under test and fail as if that code were wrong.
     fn stage(&self) {
-        let built = std::path::Path::new(env!("CARGO_BIN_EXE_orchbee"))
-            .parent()
-            .unwrap();
+        let built = Path::new(env!("CARGO_BIN_EXE_orchbee")).parent().unwrap();
         let mut artifacts = serde_json::Map::new();
         for (name, source) in [
             ("orchbee", built.join("orchbee.exe")),
-            ("orchbee-server", built.join("orchbee-server.exe")),
-            ("orchbee-worker", built.join("orchbee-worker.exe")),
-            (
-                "orchbee-terminal-host",
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("../terminal-host/zig-out/bin/orchbee-terminal-host.exe"),
-            ),
+            ("orchbee-server", current_peer(built, "orchbee-server")),
+            ("orchbee-worker", current_peer(built, "orchbee-worker")),
+            ("orchbee-terminal-host", self.build_host()),
         ] {
-            let bytes = fs::read(&source).unwrap_or_else(|error| {
-                panic!(
-                    "{}: {error}; build orchbee-server, orchbee-worker and \
-                     `pnpm --filter @orchbee/terminal-host build` first",
-                    source.display()
-                )
-            });
+            let bytes =
+                fs::read(&source).unwrap_or_else(|error| panic!("{}: {error}", source.display()));
             // Native cohort admission requires private regular files with one link.
             fs::write(self.root.join("cohort").join(format!("{name}.exe")), &bytes).unwrap();
             artifacts.insert(
@@ -111,6 +103,25 @@ impl Fixture {
             serde_json::to_vec(&json!({"schemaVersion": 1, "artifacts": artifacts})).unwrap(),
         )
         .unwrap();
+    }
+
+    /// Builds the Host from this checkout into the fixture root, as
+    /// `pnpm --filter @orchbee/terminal-host build` does into `zig-out`. Zig's cache returns an
+    /// unchanged build in well under a second.
+    fn build_host(&self) -> PathBuf {
+        let prefix = self.root.join("host");
+        let build = Command::new("zig")
+            .args(["build", "-Doptimize=ReleaseSafe", "--prefix"])
+            .arg(&prefix)
+            .current_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("../terminal-host"))
+            .output()
+            .unwrap_or_else(|error| panic!("start `zig build` for the Host: {error}"));
+        assert!(
+            build.status.success(),
+            "the Host build failed: {}",
+            String::from_utf8_lossy(&build.stderr)
+        );
+        prefix.join("bin/orchbee-terminal-host.exe")
     }
 
     /// The CLI under test in this fixture's isolated environment.
@@ -380,6 +391,32 @@ impl Fixture {
     }
 }
 
+/// The Server or Worker that an earlier Cargo build left beside the CLI. One whose Cargo dep-info
+/// lists a source changed after it was linked is refused: Cargo would rebuild it, so it predates
+/// the code under test.
+fn current_peer(built: &Path, name: &str) -> PathBuf {
+    let executable = built.join(format!("{name}.exe"));
+    let rebuild = "build them with `cargo build -p orchbee-server -p orchbee-worker` first";
+    let modified = |path: &Path| fs::metadata(path).and_then(|metadata| metadata.modified());
+    let linked = modified(&executable)
+        .unwrap_or_else(|error| panic!("{}: {error}; {rebuild}", executable.display()));
+    let info = fs::read_to_string(built.join(format!("{name}.d")))
+        .unwrap_or_else(|error| panic!("{name}.d: {error}; {rebuild}"));
+    let (_, sources) = info.split_once(": ").unwrap();
+    // Dep-info escapes a space inside a path as `\ `; unescaped whitespace separates paths.
+    for source in sources.replace("\\ ", "\0").split_whitespace() {
+        let source = PathBuf::from(source.replace('\0', " "));
+        if !modified(&source).is_ok_and(|changed| changed <= linked) {
+            panic!(
+                "{} is stale: {} changed after it was built; {rebuild}",
+                executable.display(),
+                source.display()
+            );
+        }
+    }
+    executable
+}
+
 /// A program in the Windows system directory.
 pub fn system_program(name: &str) -> String {
     let system = PathBuf::from(std::env::var_os("SystemRoot").unwrap());
@@ -393,11 +430,15 @@ pub fn system_program(name: &str) -> String {
 
 impl Drop for Fixture {
     fn drop(&mut self) {
-        // Stopping each Session ends its terminals, Host, Worker and Server before cleanup.
-        for session in ["host", "default"] {
-            let stopped = self.run(&["server", "stop", "--confirm", "--session", session]);
-            if !thread::panicking() {
-                assert_eq!(stopped.code, Some(0), "{stopped}");
+        // Stopping each Session ends its terminals, Host, Worker and Server before cleanup. Only the
+        // staged CLI starts Sessions; after a failed staging, running the missing CLI would panic
+        // again and abort the test process before the staging failure is reported.
+        if self.root.join("cohort/orchbee.exe").is_file() {
+            for session in ["host", "default"] {
+                let stopped = self.run(&["server", "stop", "--confirm", "--session", session]);
+                if !thread::panicking() {
+                    assert_eq!(stopped.code, Some(0), "{stopped}");
+                }
             }
         }
         let target = fs::canonicalize(&self.root).unwrap();

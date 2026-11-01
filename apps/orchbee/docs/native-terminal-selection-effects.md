@@ -203,9 +203,13 @@ The Windows target `cli_windows_terminal_viewer_session` runs the CLI, Server, W
 Host under test with a real TUI Client in a terminal of a second Session while another terminal
 prints. It clicks a pane with a pointer movement that leaves a selection, waits 400 ms, and drags
 the divider, so the Host re-reports that selection and may refuse the export's cancellation or
-later chunk acknowledgements while the pane resizes; no terminal may become unavailable. It runs
-as its own test target for about half a minute; a direct Cargo run needs
-`pnpm --filter @orchbee/terminal-host build`, `orchbee-server`, and `orchbee-worker` first.
+later chunk acknowledgements while the pane resizes; no terminal may become unavailable. The same
+target resizes the TUI's window ten times, alternately narrow and wide, while both panes print
+soft-wrapping lines; after every resize the TUI's terminal must still serve a read and the printing
+pane must keep advancing. It runs as its own test target for about forty seconds. Its fixture
+builds the Host from the checkout; a direct Cargo run needs current `orchbee-server` and
+`orchbee-worker` builds first, and the fixture refuses one whose Cargo dep-info lists a source that
+changed after it was linked.
 
 Selection viewer actions and effect routing are additive contracts delivered by one exact native
 Client, Server, Worker, and Host cohort. They create no durable selection or screen-data migration.
