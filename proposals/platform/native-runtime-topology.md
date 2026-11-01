@@ -1016,23 +1016,30 @@ These defaults also apply until the product owner overrules them:
 ### Step 2 result
 
 Measured on 2026-11-01 on Windows with a Release cohort, Electron 42.8.0, and the real projected
-renderer in a real window. **The polling viewer model stays; no Server push is added.**
+renderer in a real window. **Poll stays the only way to take a record.** While this step ran, the
+Server gained `ViewerRecordReady`, a hint that says when to Poll and carries no frame. The GUI
+follows it the way the TUI does, and that answers the polling question: no frame push is needed.
 
-| Question                  | Measurement                                                                                                                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Full-screen throughput    | 7.19 MB through `cmd /c type`: 3,163–3,862 ms with no viewer, 3,265–3,390 ms with a real TUI, 3,387–3,692 ms with the renderer. ConPTY sets the rate; the renderer adds almost none. |
-| Typing latency            | PowerShell, keydown to frame bytes p50 24.1, p95 35.7, max 39.2 ms; keydown to the next paint p50 30.2, p95 43.4, max 47.0 ms.                                                       |
-| Relay and connection cost | 200 sequential round trips p50 2.13, p95 4.26, max 4.65 ms. The idle relay process uses 1.4% of one core with one viewer and 2.9% with eight.                                        |
-| TUI on the same Session   | The TUI and the window show one terminal live. Explicit takeover works in both directions, and the former controller becomes read-only without a failure.                            |
+| Question                  | Measurement                                                                                                                                                                                                                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full-screen throughput    | 7.19 MB through `cmd /c type`: 3,641–4,006 ms with no viewer, 4,356–4,465 ms with the renderer, which receives about 60 frames per second. The Host spends most of the difference, 3.6–4.2 CPU seconds instead of 2.1–2.5.                                                                                                      |
+| Typing latency            | PowerShell, keydown to frame bytes p50 3.8, p95 5.4, max 17.6 ms; keydown to the next paint p50 5.2, p95 15.5, max 23.2 ms. At the connection, from sending a key to its text on screen: PowerShell p50 3.4, p95 5.8 ms; `cmd.exe` p50 2.2, p95 4.2 ms; with another terminal on the connection flooding, p50 2.1, p95 3.5 ms.  |
+| Relay and connection cost | At typing pace, with each request paired to its answer by stream: a key input through Main and the relay p50 0.8, p95 2.1, max 19.4 ms; a Poll returning a record p50 0.4, p95 0.7, max 1.0 ms. An idle viewer polls about four times per second, and the relay process uses at most 0.1% of one core with one viewer or eight. |
+| TUI on the same Session   | The TUI and the window show one terminal live. Explicit takeover works in both directions, and the former controller becomes read-only without a failure. This row comes from an earlier cohort of this step, before hints.                                                                                                     |
 
-The same run proved Vim editing with application cursor keys and mouse mode, pointer hover and click
-in a TUI hosted inside the window, and focus-claim repair on pause, takeover, and detach. Limits
-carried forward:
+The measured cohort also proved Vim editing with application cursor keys and a mouse click, a click
+in a TUI hosted inside the window, and takeover between two windows. Pointer hover in that TUI and
+focus-claim repair on pause and detach were proved on the earlier cohort. Limits carried forward:
 
-- A connection serializes its requests, so control drains at about 45–70 commands per second, or
-  22–35 keys per second because each key is a press and a release. Human typing and key repeat stay
-  below that. The renderer queue keeps the previous Desktop bound of 1,024 commands; beyond it, a
-  burst of about 500 keys or more fails through `renderer-backpressure`.
+- A connection serializes its requests, which costs nothing at typing pace: at 14 keys per second,
+  344 of 346 commands left before the typing ended. A burst behaves differently. At about 850 keys
+  per second, a reply takes up to 134 ms to reach the page, so only 25–29 commands reach the
+  connection while keys arrive; the backlog then drains at about 1,500 commands per second. 670 keys
+  arrived intact. 970 keys overflowed the renderer queue's bound of 1,024 commands 30 times through
+  `renderer-backpressure`, and those inputs never reached the connection.
+- The temporary page has no recovery surface, so input that follows an overflow can still land
+  behind the hole. The shared surface retires the attachment on that failure, as `apps/web/README.md`
+  requires; step 3 proves that on this transport.
 - Paste in a real window waits for step 3, which supplies the clipboard platform effects; only the
   connection layer has proved it.
 - An absolute row read with viewport origin, such as a scrollbar drag, cannot be expressed over OBCS
