@@ -171,6 +171,8 @@ content within the range of their class:
   picker's hint row), the target line, and each field's minimum: 24 cells for a name and the class
   maximum for a path. Prose, help, and
   errors wrap at that width and never widen it. A target wider than the maximum truncates.
+- A CLI command that is the only recovery is never cut: its line widens the dialog past the class
+  maximum, up to the wide maximum of 88 cells.
 - Height is the number of rows the content needs, at most the viewport height minus 2. Content
   beyond that scrolls inside the list or prose region; the fixed rows never scroll.
 - Both measurements use the localized strings in display cells, so en-US and zh-CN can resolve to

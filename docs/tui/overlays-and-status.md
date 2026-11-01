@@ -333,8 +333,9 @@ Every dialog uses the same rows from top to bottom. An omitted row closes up wit
 - Name in-product actions. A CLI command appears only when it is the only recovery, as code text on
   its own line.
 - Every string comes from the localization catalog in both en-US and zh-CN, and fits its row by
-  display cells: a CJK character takes two cells. Prose wraps to at most two lines at the dialog's
-  width; rewrite copy that needs more.
+  display cells: a CJK character takes two cells. Each sentence of prose, help, errors, and status
+  starts on its own line and wraps to at most two lines at the dialog's width; rewrite a sentence
+  that needs more.
 - zh-CN uses full-width punctuation (`，。：？`), one space between CJK text and Latin words or
   digits, glossary nouns such as `工作区`, `项目`, `标签页`, `面板`, `工作树`, and `客户端`, and
   Latin key names such as `Esc` and `Enter`. Copy in one locale contains no words from the other,

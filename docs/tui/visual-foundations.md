@@ -137,9 +137,11 @@ Theme rules:
   role. RGB themes distinguish canvas, persistent chrome and overlays; a border alone is not the
   region's surface. Terminal-native and lower color levels retain their admitted host behavior.
 - A host-relative appearance whose host reports its default background derives `surface-strip`,
-  `surface-related`, `surface-field`, `surface-hover`, `surface-current`, and `surface-pressed` by
-  mixing that background toward the reported host foreground in fixed per-role proportions, with
-  separate proportions for dark and light backgrounds. The Tab strip therefore stays distinct from an
+  `surface-related`, `surface-hover`, `surface-current`, and `surface-pressed` by mixing that
+  background toward the reported host foreground in fixed per-role proportions, with separate
+  proportions for dark and light backgrounds. It derives `surface-field` by mixing its
+  `surface-overlay` toward the same foreground, so the band stays distinct from the dialog it sits
+  in even where the host background matches the palette overlay. The Tab strip therefore stays distinct from an
   unframed terminal directly below it, and interaction fills stay visible on any host background.
   `surface-selection` keeps its palette value. Derived values pass through the same quantization and
   collapsed-role fallbacks as palette values. Without a reported background, the appearance resolves
