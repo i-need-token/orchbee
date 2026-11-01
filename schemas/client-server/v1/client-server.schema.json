@@ -802,6 +802,9 @@
 							"type": "integer",
 							"minimum": 112,
 							"maximum": 8388608
+						},
+						"detail": {
+							"enum": ["text", "render"]
 						}
 					}
 				},

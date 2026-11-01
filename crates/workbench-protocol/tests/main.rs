@@ -9,6 +9,7 @@ mod configuration;
 mod configured_commands;
 mod conformance;
 mod events;
+mod multiplex_conformance;
 mod notification;
 mod pane_graphics;
 mod panel_agent;

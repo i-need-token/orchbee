@@ -396,12 +396,12 @@ Unknown kinds, truncation and trailing bytes fail closed. Aggregate decoded text
 
 ## Styled buffer reads
 
-A `read-rows` action optionally carries `detail:"text"|"render"`. Omission means text, and native
+A `read-rows` or `read-viewport-rows` action optionally carries `detail:"text"|"render"`. Omission means text, and native
 text encoding omits the default member to preserve existing bytes. Unknown details fail closed.
 Every existing bound, exact revision/generation/start-row pin, correlation and one-shot lifecycle
 still applies. Server validates the returned OBRW detail against the request. Render carries the
 Host's existing complete projection plus graphics snapshot; the 8 MiB payload budget is unchanged.
-A render refusal never falls back to text or silently discards graphics. Viewport reads remain text.
+A render refusal never falls back to text or silently discards graphics.
 
 This is an additive unpublished OBCS v1 contract with the existing frame version. Client, Server,
 Worker and Host development artifacts roll out or roll back together. Old readers reject the new
