@@ -79,6 +79,7 @@ export {
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchRequestIdSchema,
 	parseWorkbenchAction,
+	parseWorkbenchRequest,
 	parseWorkbenchResponse,
 } from './workbench-protocol';
 export type {

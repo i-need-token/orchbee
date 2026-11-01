@@ -20,18 +20,18 @@ describe('resolveWebRuntimeMode', () => {
 		).toBe('browser');
 	});
 
-	it('selects the Server terminal page only inside Desktop and only when Main asks for it', () => {
+	it('selects the Server Client only inside Desktop and only when Main asks for it', () => {
 		expect(
 			resolveWebRuntimeMode({
 				protocol: 'orchbee:',
-				search: '?orchbee-server-terminal=new',
+				search: '?orchbee-server-client=1',
 				userAgent: 'Mozilla/5.0',
 			}),
-		).toBe('desktop-server-terminal');
+		).toBe('desktop-server-client');
 		expect(
 			resolveWebRuntimeMode({
 				protocol: 'https:',
-				search: '?orchbee-server-terminal=new',
+				search: '?orchbee-server-client=1',
 				userAgent: 'Mozilla/5.0',
 			}),
 		).toBe('browser');

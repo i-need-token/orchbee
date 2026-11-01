@@ -122,7 +122,8 @@ const routeTree = webApplicationRootRoute.addChildren([
 ]);
 
 interface WebApplicationRoutingInput extends Omit<WebApplicationProps, 'navigation'> {
-	readonly getInitialTerminalTitle: () => string;
+	/** Names the terminal a first route opens; a Server Client's terminals come from its Server. */
+	readonly getInitialTerminalTitle?: (() => string) | undefined;
 }
 
 const createWebApplicationRoutingImplementation = (

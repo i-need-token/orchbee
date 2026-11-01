@@ -61,6 +61,7 @@ export {
 	DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
 	DESKTOP_SERVER_CONNECTION_WINDOW_MESSAGE,
 	DesktopServerConnectionWindowMessageSchema,
+	type DesktopServerConnectionBootstrap,
 } from './desktop-server-connection-contract';
 
 export {

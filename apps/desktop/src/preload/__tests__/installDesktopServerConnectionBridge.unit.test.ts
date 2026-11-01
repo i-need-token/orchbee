@@ -8,11 +8,18 @@ import {
 	installDesktopServerConnectionBridge,
 } from '../installDesktopServerConnectionBridge';
 
+const BOOTSTRAP = {
+	automaticWorkspaceAllowed: true,
+	defaultDirectory: 'C:\\Users\\someone',
+	terminalHostName: 'host',
+};
+
 function deliver(
 	security: { readonly contextIsolated: boolean; readonly sandboxed: boolean },
 	ports: MessagePort[],
+	bootstrap: unknown = BOOTSTRAP,
 ): DesktopServerConnectionWindow {
-	let listener: ((event: IpcRendererEvent) => void) | undefined;
+	let listener: ((event: IpcRendererEvent, bootstrap: unknown) => void) | undefined;
 	const ipc: DesktopServerConnectionIpc = {
 		once: vi.fn<DesktopServerConnectionIpc['once']>((channel, nextListener) => {
 			expect(channel).toBe(DESKTOP_SERVER_CONNECTION_IPC_CHANNEL);
@@ -24,7 +31,7 @@ function deliver(
 		postMessage: vi.fn<DesktopServerConnectionWindow['postMessage']>(),
 	};
 	installDesktopServerConnectionBridge(ipc, targetWindow, security);
-	listener?.({ ports } as IpcRendererEvent);
+	listener?.({ ports } as IpcRendererEvent, bootstrap);
 	return targetWindow;
 }
 
@@ -33,7 +40,10 @@ describe('installDesktopServerConnectionBridge', () => {
 		const { port1 } = new MessageChannel();
 		const targetWindow = deliver({ contextIsolated: true, sandboxed: true }, [port1]);
 		expect(targetWindow.postMessage).toHaveBeenCalledWith(
-			expect.objectContaining({ security: { contextIsolated: true, sandboxed: true } }),
+			expect.objectContaining({
+				bootstrap: BOOTSTRAP,
+				security: { contextIsolated: true, sandboxed: true },
+			}),
 			'orchbee://app',
 			[port1],
 		);
@@ -47,6 +57,14 @@ describe('installDesktopServerConnectionBridge', () => {
 		const { port1 } = new MessageChannel();
 		const close = vi.spyOn(port1, 'close');
 		const targetWindow = deliver(security, [port1]);
+		expect(targetWindow.postMessage).not.toHaveBeenCalled();
+		expect(close).toHaveBeenCalledOnce();
+	});
+
+	it('withholds and closes the port when Main sends an unreadable bootstrap', () => {
+		const { port1 } = new MessageChannel();
+		const close = vi.spyOn(port1, 'close');
+		const targetWindow = deliver({ contextIsolated: true, sandboxed: true }, [port1], null);
 		expect(targetWindow.postMessage).not.toHaveBeenCalled();
 		expect(close).toHaveBeenCalledOnce();
 	});

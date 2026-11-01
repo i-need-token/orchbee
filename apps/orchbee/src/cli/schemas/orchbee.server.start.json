@@ -24,11 +24,14 @@
 		},
 		"result": {
 			"type": "object",
-			"required": ["outcome", "scope", "runtimeBase"],
+			"required": ["outcome", "restoreNotice", "scope", "runtimeBase"],
 			"additionalProperties": false,
 			"properties": {
 				"outcome": {
 					"enum": ["started", "already-running"]
+				},
+				"restoreNotice": {
+					"enum": ["recovered", "empty", null]
 				},
 				"scope": {
 					"type": "string",

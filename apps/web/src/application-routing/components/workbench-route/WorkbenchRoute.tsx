@@ -24,6 +24,7 @@ export function WorkbenchRoute(): ReactNode {
 			projectWorkspaceRuntime={application.projectWorkspaceRuntime}
 			remoteTerminalCreation={application.remoteTerminalCreation}
 			shortcutPlatform={application.shortcutPlatform}
+			standaloneTerminalAvailable={application.standaloneTerminalAvailable}
 			terminalSettingsController={application.terminalSettingsController}
 			terminalInteractionSettingsController={application.terminalInteractionSettingsController}
 			terminalFeedbackSettingsController={application.terminalFeedbackSettingsController}

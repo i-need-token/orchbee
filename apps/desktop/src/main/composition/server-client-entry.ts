@@ -1,12 +1,16 @@
 /**
  * The Desktop application as a Server Client: one window whose document holds one Client connection
- * through an `orchbee server connect` relay. It runs beside the frozen Main entry until the Workbench
- * moves onto this connection and the old entry is removed.
+ * through an `orchbee server connect` relay. It runs beside the frozen Main entry until the old entry
+ * is removed.
  */
 import { spawn } from 'node:child_process';
+import { hostname } from 'node:os';
 import path from 'node:path';
 
-import { DESKTOP_SERVER_CONNECTION_IPC_CHANNEL } from '@orchbee/desktop-client-protocol';
+import {
+	DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
+	type DesktopServerConnectionBootstrap,
+} from '@orchbee/desktop-client-protocol';
 import { BrowserWindow, MessageChannelMain, app, net, protocol } from 'electron';
 
 import {
@@ -16,7 +20,7 @@ import {
 	isSameDesktopRendererOrigin,
 	registerDesktopRendererScheme,
 } from '../desktop-renderer-protocol';
-import { ServerConnectionRelay } from '../server-connection';
+import { ServerConnectionRelay, readServerRestoreState } from '../server-connection';
 import { prepareDesktopDataRoot } from './prepareDesktopDataRoot';
 import { resolveDesktopApplicationDistribution } from './resolveDesktopApplicationDistribution';
 
@@ -24,8 +28,9 @@ const CLIENT_EXECUTABLE_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_CLIENT_EXECUTABLE';
 const RENDERER_ROOT_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_RENDERER_ROOT';
 const RENDERER_URL_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_RENDERER_URL';
 const SESSION_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_SESSION';
-const TERMINAL_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_SERVER_TERMINAL';
 const WINDOW_HIDDEN_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_WINDOW_HIDDEN';
+/** Tells the shared page that it is a Server Client rather than the frozen Main entry's renderer. */
+const DESKTOP_SERVER_CLIENT_PARAMETER = 'orchbee-server-client';
 
 registerDesktopRendererScheme(protocol);
 const distribution = resolveDesktopApplicationDistribution({
@@ -61,16 +66,23 @@ async function resolveRendererUrl(): Promise<URL> {
 	return new URL(DESKTOP_RENDERER_URL);
 }
 
-function connectDocument(window: BrowserWindow): ServerConnectionRelay {
+function sessionArguments(): readonly string[] {
 	const session = process.env[SESSION_ENVIRONMENT_KEY];
+	return session === undefined ? [] : ['--session', session];
+}
+
+function connectDocument(
+	window: BrowserWindow,
+	bootstrap: DesktopServerConnectionBootstrap,
+): ServerConnectionRelay {
 	const relayProcess = spawn(
 		requiredEnvironment(CLIENT_EXECUTABLE_ENVIRONMENT_KEY),
-		[...(session === undefined ? [] : ['--session', session]), 'server', 'connect'],
+		[...sessionArguments(), 'server', 'connect'],
 		{ stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true },
 	);
 	const { port1, port2 } = new MessageChannelMain();
 	const relay = new ServerConnectionRelay(relayProcess, port1);
-	window.webContents.postMessage(DESKTOP_SERVER_CONNECTION_IPC_CHANNEL, null, [port2]);
+	window.webContents.postMessage(DESKTOP_SERVER_CONNECTION_IPC_CHANNEL, bootstrap, [port2]);
 	return relay;
 }
 
@@ -79,10 +91,7 @@ void app.whenReady().then(async () => {
 	if (!isPermittedDesktopRendererUrl(rendererUrl)) {
 		throw new Error('The Desktop renderer URL is not permitted.');
 	}
-	rendererUrl.searchParams.set(
-		'orchbee-server-terminal',
-		process.env[TERMINAL_ENVIRONMENT_KEY] ?? 'new',
-	);
+	rendererUrl.searchParams.set(DESKTOP_SERVER_CLIENT_PARAMETER, '1');
 	const window = new BrowserWindow({
 		height: 720,
 		show: process.env[WINDOW_HIDDEN_ENVIRONMENT_KEY] === undefined,
@@ -105,11 +114,29 @@ void app.whenReady().then(async () => {
 	});
 	// A reload's document gets its own connection; the old one ends with the document that held it.
 	let relay: ServerConnectionRelay | undefined;
+	let documents = 0;
 	window.webContents.on('did-finish-load', () => {
 		relay?.close();
-		relay = connectDocument(window);
+		relay = undefined;
+		documents += 1;
+		const document = documents;
+		void readServerRestoreState(
+			requiredEnvironment(CLIENT_EXECUTABLE_ENVIRONMENT_KEY),
+			sessionArguments(),
+		).then((restore) => {
+			if (document !== documents || window.isDestroyed()) return;
+			relay = connectDocument(window, {
+				// A later document follows a person's own actions; an empty Session may be what they chose.
+				automaticWorkspaceAllowed: document === 1 && restore === 'intact',
+				defaultDirectory: app.getPath('home'),
+				terminalHostName: hostname(),
+			});
+		});
 	});
-	window.on('closed', () => relay?.close());
+	window.on('closed', () => {
+		documents += 1;
+		relay?.close();
+	});
 	await window.loadURL(rendererUrl.href);
 });
 

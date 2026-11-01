@@ -7,8 +7,8 @@ export {
 	type ServerSubscriptionHandlers,
 } from './server-connection';
 export {
-	type ServerTerminalTarget,
-	createServerTerminal,
+	type ServerTerminalBinding,
+	ServerTerminalProjectionError,
 	openServerTerminalProjection,
 } from './server-terminal-projection';
 export { decodeWorkbenchResponse, encodeWorkbenchRequest } from './workbench-carrier';

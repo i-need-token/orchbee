@@ -8,7 +8,11 @@ export type {
 	WorkbenchSnapshot,
 	WorkbenchTerminalContext,
 } from './workbench-semantic-contract';
-export { parseWorkbenchAction, parseWorkbenchResponse } from './workbench-command-contract';
+export {
+	parseWorkbenchAction,
+	parseWorkbenchRequest,
+	parseWorkbenchResponse,
+} from './workbench-command-contract';
 export type {
 	WorkbenchCommand,
 	WorkbenchCommandResult,

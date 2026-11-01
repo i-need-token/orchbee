@@ -73,7 +73,7 @@ export class WorkbenchRouteCoordinator {
 	#applying = false;
 	#disposed = false;
 	#displayedLocation: WorkbenchRouteLocation | undefined;
-	readonly #getInitialTerminalTitle: () => string;
+	readonly #getInitialTerminalTitle: (() => string) | undefined;
 	readonly #navigate: WorkbenchRouteNavigation;
 	#pendingProjectCreation: PendingProjectCreationRoute | undefined;
 	#pendingSelection:
@@ -108,7 +108,7 @@ export class WorkbenchRouteCoordinator {
 	public constructor(
 		runtime: WorkbenchProjectWorkspaceRuntime,
 		navigate: WorkbenchRouteNavigation,
-		getInitialTerminalTitle: () => string,
+		getInitialTerminalTitle: (() => string) | undefined,
 	) {
 		this.#runtime = runtime;
 		this.#navigate = navigate;
@@ -139,6 +139,8 @@ export class WorkbenchRouteCoordinator {
 		const resolution = resolveWorkbenchRoute(readWorkbenchRouteSnapshot(this.#runtime), request);
 		if (resolution.kind === 'ready') {
 			this.#applyRoute(resolution.location);
+			const getInitialTerminalTitle = this.#getInitialTerminalTitle;
+			if (getInitialTerminalTitle === undefined) return resolution;
 			const activeTerminalContext = this.#runtime.getActiveTerminalContext();
 			const commands = this.#transitionTerminalContextInitialization({
 				hasTabs: activeTerminalContext.tabModel.getSnapshot().tabs.length > 0,
@@ -159,7 +161,7 @@ export class WorkbenchRouteCoordinator {
 				creation = this.#runtime.createTerminal({
 					groupId: null,
 					source: 'programmatic',
-					title: this.#getInitialTerminalTitle(),
+					title: getInitialTerminalTitle(),
 				});
 			} finally {
 				this.#applying = false;

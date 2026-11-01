@@ -573,7 +573,7 @@ These finite implementation cases do not establish exhaustive archive or applica
 
 ## Server Client entry
 
-`dist/main/server-client.cjs` runs Desktop as a Server Client beside the frozen Main entry, as the [migration plan](../../proposals/platform/native-runtime-topology.md#web-and-desktop-client-migration-plan) sets out. Each document gets one `orchbee server connect` process and one transferred port; `ServerConnectionRelay` moves bytes between them without reading any. The process owns activation, peer validation and admission, and the page owns the protocol. Reloading ends the old document's connection and opens a new one, and closing the process's standard input ends it.
+`dist/main/server-client.cjs` runs Desktop as a Server Client beside the frozen Main entry, as the [migration plan](../../proposals/platform/native-runtime-topology.md#web-and-desktop-client-migration-plan) sets out. Each document gets one `orchbee server connect` process and one transferred port; `ServerConnectionRelay` moves bytes between them without reading any. The process owns activation, peer validation and admission, and the page owns the protocol. Reloading ends the old document's connection and opens a new one, and closing the process's standard input ends it. Before connecting, Main runs `orchbee server start --format json`, because whether a restore lost anything is known only to the activating process and the connection's bytes are opaque; it announces the result with the port, as whether the document may open a first Workspace, along with the home directory and host name.
 
 The page has the Client authority of the Session it joined. That adds nothing to what it could already do by typing into a terminal, and Main does not interpret terminal content.
 
@@ -585,10 +585,9 @@ It needs no Terminal Host of its own and has only been exercised on Windows so f
 | `ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT` | This checkout, which scopes the development data directory                |
 | `ORCHBEE_DESKTOP_RENDERER_ROOT`           | `apps/web/dist`, or set `ORCHBEE_DESKTOP_RENDERER_URL` for a loopback URL |
 | `ORCHBEE_DESKTOP_SESSION`                 | Optional Session name                                                     |
-| `ORCHBEE_DESKTOP_SERVER_TERMINAL`         | Optional `session.worker.terminal` to attach; a new terminal by default   |
 | `ORCHBEE_DESKTOP_WINDOW_HIDDEN`           | Optional; start without showing the window, for automation                |
 
-A window that stays hidden produces no frames; automation that needs pixels shows it off-screen with `showInactive`. `Ctrl+Alt+T` takes control of a terminal another Client controls.
+A window that stays hidden produces no frames; automation that needs pixels shows it off-screen with `showInactive`.
 
 ## Development
 

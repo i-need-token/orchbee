@@ -2052,10 +2052,12 @@ endpoint:{socket},environment:{observationSocketEnv},asset:{roots:[<root>…]},h
   document stays locale-neutral while text output re-localizes the same sentence from
   `id` and `evidence`. `complete:false` marks a budget-bounded partial document; the
   command still exits 0.
-- `orchbee.server.start` → `{outcome,scope,runtimeBase}`: `outcome` is `started` or
-  `already-running` (the branch this invocation took, not a Session identity receipt), `scope`
-  is `orchbee-native-<euid>`, and `runtimeBase` carries exactly one of `path` (UTF-8) or
-  `pathBytesHex` (non-UTF-8, never a lossy display string).
+- `orchbee.server.start` → `{outcome,restoreNotice,scope,runtimeBase}`: `outcome` is `started` or
+  `already-running` (the branch this invocation took, not a Session identity receipt),
+  `restoreNotice` is what this Session's restore reported, `recovered` from a backup, `empty` when
+  every checkpoint was corrupt, otherwise null, `scope` is `orchbee-native-<euid>`, and
+  `runtimeBase` carries exactly one of `path` (UTF-8) or `pathBytesHex` (non-UTF-8, never a lossy
+  display string).
 - `orchbee.server.diagnose` → `{complete,scope,runtimeBase,runtimeDirectory,marker,locks,
 endpoints,hostScope,unrecognizedRecords,advisories}`: the bounded observation document described in Session
   diagnostics — closed row states and reasons, `locks:{activation,sessionLifetime}`,

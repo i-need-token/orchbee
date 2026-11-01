@@ -1,7 +1,7 @@
 export { WorkbenchClientSessionClient } from './client-session';
 export type { WorkbenchClientSessionTransport } from './client-session';
-export { createWorkbenchClientRuntime } from './composition';
-export type { WorkbenchClientRuntime } from './composition';
+export { createServerWorkbenchRuntime, createWorkbenchClientRuntime } from './composition';
+export type { ServerWorkbenchRuntime, WorkbenchClientRuntime } from './composition';
 export type {
 	ProjectedTerminalTransport,
 	TerminalProjection,
@@ -9,17 +9,14 @@ export type {
 	TerminalProjectionRequest,
 } from './terminal-projection';
 export type { ProjectedTerminalPlatformEffects } from './projected-terminal-platform-effects';
+export { registerTerminalProductFonts } from './projected-terminal-renderer';
+export { type ServerCarrier, ServerConnection } from './server-connection';
 export {
-	registerTerminalProductFonts,
-	startProjectedTerminalRenderer,
-} from './projected-terminal-renderer';
-export {
-	type ServerCarrier,
-	ServerConnection,
-	type ServerTerminalTarget,
-	createServerTerminal,
-	openServerTerminalProjection,
-} from './server-connection';
+	admitsAutomaticWorkspace,
+	defaultWorkspaceLaunch,
+	ServerUserPreferencesClient,
+	ServerWorkbenchSession,
+} from './server-workbench';
 export { ProjectedTerminalSurface } from './projected-terminal-surface';
 export { WorkbenchClientApplication } from './workbench-client-application';
 export type { WorkbenchClientApplicationProps } from './workbench-client-application';

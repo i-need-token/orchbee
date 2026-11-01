@@ -119,7 +119,7 @@ class ScriptedServer implements ServerCarrier {
 				requestId,
 			});
 		}
-		if (request.action.kind === 'attach') {
+		if (request.action.kind === 'attach-binding') {
 			return encodeJsonFrame({
 				kind: 'terminal.viewer.result',
 				outcome: {
@@ -183,15 +183,8 @@ const SNAPSHOT = hostEvent(
 	new Uint8Array([9, 9]),
 );
 
-const THEME = {
-	colorScheme: 'dark',
-	defaultBackgroundRgb: 0x10_10_10,
-	defaultCursorRgb: null,
-	defaultForegroundRgb: 0xe0_e0_e0,
-	palette: Array.from({ length: 256 }, (_, index) => index),
-} as const;
-
 const GEOMETRY = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 80, rows: 24 };
+const BINDING = { sessionId: 'a'.repeat(32), terminalId: 'b'.repeat(32), workerId: 'c'.repeat(32) };
 
 async function open(server: ScriptedServer): Promise<{
 	readonly events: { readonly kind: string; readonly [key: string]: unknown }[];
@@ -199,9 +192,8 @@ async function open(server: ScriptedServer): Promise<{
 }> {
 	const projection = await openServerTerminalProjection(
 		new ServerConnection(server),
-		{ kind: 'created', terminalCreateRequestId: 'f'.repeat(32) },
+		BINDING,
 		GEOMETRY,
-		{ ...THEME, palette: [...THEME.palette] },
 	);
 	const events: { readonly kind: string; readonly [key: string]: unknown }[] = [];
 	projection.transport.subscribe(
@@ -235,8 +227,6 @@ async function settled(condition: () => boolean): Promise<void> {
 /** What a healthy Server answers each control action with. */
 function accepted(request: ControlRequest): Outcome {
 	switch (request.action.kind) {
-		case 'host-colors':
-			return { kind: 'host-colors-accepted' };
 		case 'resize':
 			return { geometry: GEOMETRY, kind: 'resized' };
 		default:
@@ -281,7 +271,7 @@ describe('openServerTerminalProjection', () => {
 				: accepted(request),
 		);
 		const { events, projection } = await open(server);
-		await settled(() => server.controlRequests.length >= 2);
+		await settled(() => server.controlRequests.some((r) => r.action.kind === 'resize'));
 
 		projection.transport.send(textInput(projection, 'a'));
 		await settled(() => events.some((e) => e.kind === 'resize-lease-changed'));
@@ -337,9 +327,8 @@ describe('openServerTerminalProjection', () => {
 		server.enqueuePollRecord(SNAPSHOT);
 		const projection = await openServerTerminalProjection(
 			new ServerConnection(server),
-			{ kind: 'created', terminalCreateRequestId: 'f'.repeat(32) },
+			BINDING,
 			GEOMETRY,
-			{ ...THEME, palette: [...THEME.palette] },
 		);
 
 		server.hintRecordReady();

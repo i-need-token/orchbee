@@ -1,19 +1,18 @@
 import {
 	WORKBENCH_PROTOCOL_VERSION,
-	WorkbenchRequestIdSchema,
 	type WorkbenchCommand,
 	type WorkbenchCommandResult,
 	type WorkbenchSnapshot,
 } from '@orchbee/workbench-client-protocol';
 
 import {
-	createClientServerRequestId,
 	decodeWorkbenchResponse,
 	encodeWorkbenchRequest,
 	ServerStreamRefusedError,
 	type ServerConnection,
 	type ServerSubscription,
 } from '../server-connection';
+import { createWorkbenchRequestId } from './createWorkbenchRequestId';
 
 export type ServerWorkbenchAction = WorkbenchCommand['action'];
 export type ServerWorkbenchOutcome = WorkbenchCommandResult['outcome'];
@@ -216,10 +215,6 @@ export class ServerWorkbenchSession {
 		this.#endListeners.clear();
 		this.#snapshotListeners.clear();
 	}
-}
-
-function createWorkbenchRequestId() {
-	return WorkbenchRequestIdSchema.parse(createClientServerRequestId());
 }
 
 function readPublishedSnapshot(record: Uint8Array): WorkbenchSnapshot | null {

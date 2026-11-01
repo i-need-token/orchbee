@@ -55,6 +55,10 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
                 .unwrap_or_default();
             let result = json!({
                 "outcome": started.outcome,
+                "restoreNotice": started.restore_notice.map(|notice| match notice {
+                    orchbee_local_runtime::CheckpointRestoreNotice::Recovered => "recovered",
+                    orchbee_local_runtime::CheckpointRestoreNotice::Empty => "empty",
+                }),
                 "scope": started.scope,
                 "runtimeBase": Map::from_iter([started.runtime_base]),
             });

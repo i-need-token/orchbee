@@ -61,6 +61,7 @@ export interface WebApplicationProps {
 	readonly remoteTerminalCreation?: WorkbenchRemoteTerminalCreationCapability | undefined;
 
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
+	readonly standaloneTerminalAvailable?: boolean | undefined;
 
 	readonly terminalSettingsController: TerminalSettingsController;
 	readonly terminalInteractionSettingsController?:
@@ -91,6 +92,7 @@ export function WebApplication({
 	remoteTerminalCreation,
 
 	shortcutPlatform,
+	standaloneTerminalAvailable,
 
 	terminalSettingsController,
 	terminalInteractionSettingsController,
@@ -153,6 +155,7 @@ export function WebApplication({
 					remoteTerminalCreation={remoteTerminalCreation}
 					shortcutBindings={keyboardShortcuts.bindings}
 					shortcutPlatform={shortcutPlatform}
+					standaloneTerminalAvailable={standaloneTerminalAvailable}
 					terminalActionShortcutLabels={terminalActionShortcutLabels}
 					terminalSurface={terminalSurface}
 				/>

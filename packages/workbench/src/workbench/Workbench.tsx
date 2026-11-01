@@ -77,6 +77,7 @@ interface WorkbenchProps {
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly shortcutBindings?: WorkbenchShortcutBindings | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
+	readonly standaloneTerminalAvailable?: boolean | undefined;
 	readonly terminalActionShortcutLabels?: WorkbenchTerminalActionShortcutLabels | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 }
@@ -101,6 +102,7 @@ export function Workbench({
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	shortcutBindings,
 	shortcutPlatform,
+	standaloneTerminalAvailable = true,
 	terminalActionShortcutLabels,
 	terminalSurface,
 }: WorkbenchProps): React.ReactNode {
@@ -234,6 +236,7 @@ export function Workbench({
 									<WorkbenchSidebar
 										subscribeNavigation={projectWorkspaceRuntime.subscribeNavigation}
 										activateStandalone={view.activateStandalone}
+										standaloneTerminalAvailable={standaloneTerminalAvailable}
 										activateWorkspace={view.activateWorkspace}
 										addResourceDirectory={view.addResourceDirectory}
 										createProject={view.createProject}

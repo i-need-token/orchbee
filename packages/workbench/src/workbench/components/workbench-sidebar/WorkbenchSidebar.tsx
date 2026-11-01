@@ -44,6 +44,8 @@ import styles from './WorkbenchSidebar.module.css';
 
 interface WorkbenchSidebarProps {
 	readonly activateStandalone: (origin: WorkbenchTerminalLocationActivationOrigin) => void;
+	/** A host whose terminals all live in Workspaces has nothing to offer here. */
+	readonly standaloneTerminalAvailable: boolean;
 	readonly activateWorkspace: (
 		workspaceId: string,
 		origin: WorkbenchTerminalLocationActivationOrigin,
@@ -101,6 +103,7 @@ interface WorkbenchSidebarProps {
 
 export function WorkbenchSidebar({
 	activateStandalone,
+	standaloneTerminalAvailable,
 	activateWorkspace,
 	addResourceDirectory,
 	createWorkspace,
@@ -242,25 +245,27 @@ export function WorkbenchSidebar({
 						</h2>
 					</div>
 					<div className={styles['projectRegion']} data-navigation-reorder-scroll='true'>
-						<div>
-							<Button
-								aria-current={standaloneActive ? 'page' : undefined}
-								className={styles['primaryItem']}
-								data-active={standaloneActive || undefined}
-								data-slot='workbench-sidebar-terminal'
-								size='sm'
-								variant='ghost'
-								onClick={(event) => {
-									workspaceActivation.cancel();
-									activateStandalone(event.detail > 0 ? 'pointer' : 'other');
-								}}
-							>
-								<span className={styles['icon']}>
-									<ProductIcon name='terminal' />
-								</span>
-								<span className={styles['label']}>{terminalLabel}</span>
-							</Button>
-						</div>
+						{standaloneTerminalAvailable ? (
+							<div>
+								<Button
+									aria-current={standaloneActive ? 'page' : undefined}
+									className={styles['primaryItem']}
+									data-active={standaloneActive || undefined}
+									data-slot='workbench-sidebar-terminal'
+									size='sm'
+									variant='ghost'
+									onClick={(event) => {
+										workspaceActivation.cancel();
+										activateStandalone(event.detail > 0 ? 'pointer' : 'other');
+									}}
+								>
+									<span className={styles['icon']}>
+										<ProductIcon name='terminal' />
+									</span>
+									<span className={styles['label']}>{terminalLabel}</span>
+								</Button>
+							</div>
+						) : null}
 						<ul
 							ref={projectReorder.listRef}
 							className={styles['projectList']}

@@ -6,7 +6,7 @@ import {
 import type { IpcRendererEvent } from 'electron';
 
 export interface DesktopServerConnectionIpc {
-	once(channel: string, listener: (event: IpcRendererEvent) => void): void;
+	once(channel: string, listener: (event: IpcRendererEvent, bootstrap: unknown) => void): void;
 }
 
 export interface DesktopServerConnectionWindow {
@@ -20,9 +20,10 @@ export function installDesktopServerConnectionBridge(
 	targetWindow: DesktopServerConnectionWindow,
 	security: { readonly contextIsolated: boolean; readonly sandboxed: boolean },
 ): void {
-	ipc.once(DESKTOP_SERVER_CONNECTION_IPC_CHANNEL, (event) => {
+	ipc.once(DESKTOP_SERVER_CONNECTION_IPC_CHANNEL, (event, bootstrap) => {
 		const port = event.ports[0];
 		const message = DesktopServerConnectionWindowMessageSchema.safeParse({
+			bootstrap,
 			security,
 			type: DESKTOP_SERVER_CONNECTION_WINDOW_MESSAGE,
 		});

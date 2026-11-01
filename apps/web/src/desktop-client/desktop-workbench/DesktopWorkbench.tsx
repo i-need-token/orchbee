@@ -12,7 +12,8 @@ import {
 import styles from './DesktopWorkbench.module.css';
 
 export interface DesktopWorkbenchProps extends Omit<WorkbenchClientApplicationProps, 'children'> {
-	readonly applicationLifetimeCoordinator: DesktopApplicationLifetimeDialogController;
+	/** A Server Client has no lifetime to coordinate: leaving disconnects it and the Session stays. */
+	readonly applicationLifetimeCoordinator?: DesktopApplicationLifetimeDialogController | undefined;
 	readonly windowControls: 'leading' | 'trailing';
 }
 
@@ -34,7 +35,9 @@ export function DesktopWorkbench({
 				router={router}
 				terminalSurfaceCapability={terminalSurfaceCapability}
 			>
-				<DesktopApplicationLifetimeDialog controller={applicationLifetimeCoordinator} />
+				{applicationLifetimeCoordinator === undefined ? null : (
+					<DesktopApplicationLifetimeDialog controller={applicationLifetimeCoordinator} />
+				)}
 			</WorkbenchClientApplication>
 		</div>
 	);

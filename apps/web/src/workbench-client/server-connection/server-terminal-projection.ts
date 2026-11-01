@@ -11,7 +11,6 @@ import {
 	type TerminalGeometry,
 	TerminalExitedSchema,
 	TerminalFailedSchema,
-	type TerminalThemeState,
 	decodeControlJson,
 	decodeProtocolEnvelope,
 	encodeInputRequest,
@@ -42,17 +41,14 @@ import {
 } from './client-server-carrier';
 import { type ServerConnection, ServerConnectionEndedError } from './server-connection';
 
-export type ServerTerminalTarget =
-	| {
-			readonly kind: 'binding';
-			readonly sessionId: string;
-			readonly terminalId: string;
-			readonly workerId: string;
-	  }
-	| { readonly kind: 'created'; readonly terminalCreateRequestId: string };
+export interface ServerTerminalBinding {
+	readonly sessionId: string;
+	readonly terminalId: string;
+	readonly workerId: string;
+}
 
 /** A refusal while opening a projection, in the renderer's failure vocabulary. */
-class ServerTerminalProjectionError extends Error {
+export class ServerTerminalProjectionError extends Error {
 	readonly code: string;
 	readonly retryable: boolean;
 
@@ -77,6 +73,17 @@ const BUSY_RETRY_DELAYS_MILLISECONDS = [4, 8, 16, 32, 64, 128, 256] as const;
 const MINIMUM_ROW_READ_BYTES = 112;
 const MAXIMUM_ROW_READ_BYTES = 8 * 1024 * 1024;
 const MAXIMUM_QUEUED_COMMANDS = 1_024;
+/**
+ * The bootstrap contract requires a theme, and only a renderer's theme participant reads it. A Server
+ * terminal's colors come from its Host, which the Worker configures at launch, so these never paint.
+ */
+const UNREAD_BOOTSTRAP_THEME = {
+	colorScheme: 'dark',
+	defaultBackgroundRgb: 0,
+	defaultCursorRgb: null,
+	defaultForegroundRgb: 0xff_ff_ff,
+	palette: Array.from({ length: 256 }, () => 0),
+} as const;
 
 const utf8Encoder = new TextEncoder();
 
@@ -207,7 +214,6 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 				this.#pollNow();
 			},
 		);
-		if (controllerId !== null) this.#reportHostColors();
 	}
 
 	subscribe(listener: (value: unknown) => void, unavailable: () => void): () => void {
@@ -504,32 +510,6 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		);
 	}
 
-	#reportHostColors(): void {
-		const { defaultBackgroundRgb, defaultForegroundRgb } = this.#bootstrap.theme.terminal;
-		this.#controlSteps.push(async () => {
-			const controllerId = this.#controllerId;
-			if (this.#closed || controllerId === null) return;
-			try {
-				await this.#submitControl(controllerId, (_controller, sequence) =>
-					encodeClientServerRequest({
-						action: {
-							attachmentId: this.#bootstrap.attachmentId,
-							background: defaultBackgroundRgb,
-							controllerId,
-							foreground: defaultForegroundRgb,
-							kind: 'host-colors',
-							sequence: sequence.toString(),
-						},
-						kind: 'terminal.control',
-						requestId: createClientServerRequestId(),
-					}),
-				);
-			} catch {
-				// Host colors only refine color queries; a failure leaves input working.
-			}
-		});
-	}
-
 	#controlAction(
 		command: ProjectedTerminalCommand,
 		action: (controllerId: string, sequence: string) => ClientServerControlAction,
@@ -615,8 +595,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		const hasControl = controllerId !== null;
 		this.#controllerId = controllerId;
 		if (hadControl === hasControl) return;
-		if (hasControl) this.#reportHostColors();
-		else this.#controlSteps.clear();
+		if (!hasControl) this.#controlSteps.clear();
 		this.#capabilityRevision += 1n;
 		const { attachmentId, terminalId } = this.#bootstrap;
 		this.#post({
@@ -792,34 +771,6 @@ async function exchangeOnLane(
 	);
 }
 
-/** Starts a terminal for this connection and returns the identity that attaches a viewer to it. */
-export async function createServerTerminal(
-	connection: ServerConnection,
-	geometry: TerminalGeometry,
-): Promise<string> {
-	const requestId = createClientServerRequestId();
-	const response = decodeClientServerResponse(
-		await connection.exchange(
-			encodeClientServerRequest({
-				cwd: null,
-				kind: 'terminal.create',
-				requestId,
-				startMode: { geometry, kind: 'immediate' },
-				workerConstraint: null,
-			}),
-		),
-	);
-	if (response.kind !== 'terminal.create.result') {
-		throw new ServerTerminalProjectionError('invalid-create-result', false);
-	}
-	const { outcome } = response;
-	if (outcome.kind === 'accepted') return requestId;
-	if (outcome.kind === 'outcome-unknown') {
-		throw new ServerTerminalProjectionError('outcome-unknown', false);
-	}
-	throw new ServerTerminalProjectionError(outcome.reason, outcome.kind === 'unavailable');
-}
-
 /** The same refusals the TUI treats as read-only rather than as a failed attach. */
 function acquireMeansReadOnly(outcome: ClientServerControlOutcome): boolean {
 	return (
@@ -835,22 +786,13 @@ function acquireMeansReadOnly(outcome: ClientServerControlOutcome): boolean {
  */
 export async function openServerTerminalProjection(
 	connection: ServerConnection,
-	target: ServerTerminalTarget,
+	binding: ServerTerminalBinding,
 	geometry: TerminalGeometry,
-	theme: TerminalThemeState['terminal'],
 ): Promise<ServerTerminalProjection> {
 	const laneId = connection.openLane();
 	try {
 		const attach = await exchangeOnLane(connection, laneId, {
-			action:
-				target.kind === 'created'
-					? { kind: 'attach', terminalCreateRequestId: target.terminalCreateRequestId }
-					: {
-							kind: 'attach-binding',
-							sessionId: target.sessionId,
-							terminalId: target.terminalId,
-							workerId: target.workerId,
-						},
+			action: { kind: 'attach-binding', ...binding },
 			kind: 'terminal.viewer',
 			requestId: createClientServerRequestId(),
 		});
@@ -889,7 +831,7 @@ export async function openServerTerminalProjection(
 			hostEpoch: attached.hostEpoch,
 			terminalId: attached.hostTerminalId,
 			terminalOutcome: null,
-			theme: { operationId: null, revision: '0', terminal: theme },
+			theme: { operationId: null, revision: '0', terminal: UNREAD_BOOTSTRAP_THEME },
 		});
 		const transport = new ServerProjectedTerminalTransport(
 			connection,
