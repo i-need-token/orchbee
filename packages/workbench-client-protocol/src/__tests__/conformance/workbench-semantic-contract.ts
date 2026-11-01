@@ -307,6 +307,7 @@ export const WorkbenchWorkspaceSchema = z
 		projectId: WorkbenchProjectIdSchema.nullable(),
 		primaryDirectoryId: WorkbenchDirectoryIdSchema.nullable(),
 		terminalContextId: WorkbenchTerminalContextIdSchema,
+		terminalDirectory: WorkbenchDirectoryPathSchema.optional(),
 		workspaceId: WorkbenchWorkspaceIdSchema,
 	})
 	.readonly();

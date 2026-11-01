@@ -163,6 +163,7 @@ fn workspace_order_changes_navigation_without_changing_selected_context() {
     let mut source = snapshot(1, 10);
     for value in [201, 211] {
         source.navigation.workspaces.extend(vec![Workspace {
+            terminal_directory: None,
             automatic_label: false,
             project_id: Some(
                 (WorkbenchProjectId::parse(&format!("{value:032x}")).unwrap()).clone(),

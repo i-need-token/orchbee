@@ -127,6 +127,7 @@ fn install_workspace(
         path: path.clone(),
     }]);
     snapshot.navigation.workspaces.extend(vec![Workspace {
+        terminal_directory: None,
         automatic_label: false,
         project_id: Some(WorkbenchProjectId::parse(&identity(503)).unwrap()),
         label: "workspace".to_owned(),

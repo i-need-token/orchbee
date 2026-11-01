@@ -194,6 +194,7 @@ impl SemanticEvent {
                             project_id: None,
                             primary_directory_id: None,
                             terminal_context_id: terminal_context_id.clone(),
+                            terminal_directory: None,
                         }],
                         workspace_order: Vec::new(),
                         project_order: Vec::new(),

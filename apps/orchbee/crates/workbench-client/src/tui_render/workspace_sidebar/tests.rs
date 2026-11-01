@@ -41,6 +41,7 @@ fn view(width: u16, height: u16) -> ClientView {
     let session = SessionId::parse(&id(1)).unwrap();
     let rows: Vec<_> = (0..2)
         .map(|n| crate::machine_spaces::Row {
+            terminal_directory: None,
             project_id: Some(WorkbenchProjectId::parse(&id(70)).unwrap()),
             target: ClientContextTarget {
                 session_id: session.clone(),

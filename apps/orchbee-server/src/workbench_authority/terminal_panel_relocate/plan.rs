@@ -236,6 +236,7 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                 created_directory_id = Some(directory_id);
             }
             candidate.navigation.workspaces.push(Workspace {
+                terminal_directory: None,
                 automatic_label: false,
                 project_id: project_id.clone(),
                 label: label.as_str().to_owned(),

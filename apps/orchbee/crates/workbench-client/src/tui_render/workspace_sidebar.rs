@@ -111,7 +111,8 @@ struct Context<'a> {
     no_workspace: &'static str,
     unnamed: &'static str,
     git_stale: bool,
-    /// The Workspace folder shown by `location` when no branch is observed.
+    /// The Workspace folder shown by `location` when no branch is observed: the first terminal's
+    /// current directory, else the Workspace's own directory.
     folder: Option<String>,
 }
 impl<'a> Context<'a> {
@@ -121,9 +122,13 @@ impl<'a> Context<'a> {
             state_role(glyph_state.unwrap_or(orchbee_workbench_protocol::MetadataState::Unknown));
         let observed = view.machines.space_checkpoint_row(row);
         let folder = observed
-            .and_then(|r| r.directory.as_ref())
-            .map(|directory| {
-                let path = directory.path.as_str();
+            .and_then(|r| {
+                r.terminal_directory
+                    .as_ref()
+                    .or(r.directory.as_ref().map(|directory| &directory.path))
+            })
+            .map(|path| {
+                let path = path.as_str();
                 (row.choice == crate::machine_picker::Choice::Local)
                     .then(local_home)
                     .flatten()

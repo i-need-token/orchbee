@@ -57,6 +57,7 @@ fn snapshot(empty: bool) -> Snapshot {
                     label: "project".into(),
                 }],
                 workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    terminal_directory: None,
                     automatic_label: false,
                     workspace_id: fixture_workspace_id.clone(),
                     terminal_context_id: fixture_context_id.clone(),
@@ -65,6 +66,7 @@ fn snapshot(empty: bool) -> Snapshot {
                     label: "Workspace".into(),
                 })
                 .chain(vec![Workspace {
+                    terminal_directory: None,
                     automatic_label: false,
                     project_id: Some(WorkbenchProjectId::parse(&id(7)).unwrap()),
                     workspace_id: WorkbenchWorkspaceId::parse(&id(8)).unwrap(),

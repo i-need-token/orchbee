@@ -32,6 +32,7 @@ fn snapshot() -> Snapshot {
                 project_order: Vec::new(),
                 directories: Vec::new(),
                 workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    terminal_directory: None,
                     automatic_label: false,
                     workspace_id: fixture_workspace_id.clone(),
                     terminal_context_id: fixture_context_id.clone(),
@@ -458,6 +459,7 @@ fn discovered_contexts_preserve_global_order_and_full_identity_beyond_label_prev
     let mut s = snapshot();
     let workspaces: Vec<_> = (20..40)
         .map(|n| orchbee_workbench_protocol::Workspace {
+            terminal_directory: None,
             automatic_label: false,
             project_id: (n % 2 == 0)
                 .then(|| WorkbenchProjectId::parse(&format!("{:032x}", 10)).unwrap()),

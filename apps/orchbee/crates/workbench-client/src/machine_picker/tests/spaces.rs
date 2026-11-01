@@ -164,6 +164,7 @@ fn git_checkpoint(revision: u64) -> std::sync::Arc<crate::machine_spaces::Checkp
         rows: contexts
             .into_iter()
             .map(|context| Row {
+                terminal_directory: None,
                 target: context.target,
                 project_id: context.project_id,
                 label: context.workspace,
@@ -514,6 +515,7 @@ fn long_duplicate_workspace_results_keep_identity_suffix_and_directory_tail() {
             .iter()
             .zip(0_u8..)
             .map(|(context, n)| Row {
+                terminal_directory: None,
                 target: context.target.clone(),
                 project_id: None,
                 label: context.workspace.clone(),

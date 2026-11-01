@@ -1,5 +1,7 @@
-//! Automatic Workspace labels follow the directory sampled from each Workspace's first terminal.
+//! Workspaces follow the directory sampled from their first terminal: they record it and an
+//! automatic Workspace takes its name.
 use super::SessionCoordinator;
+use orchbee_server::same_directory;
 use orchbee_workbench_protocol::{
     PanelNode, PresentationBinding, Snapshot, WorkbenchDirectoryPath, WorkbenchWorkspaceId,
     Workspace,
@@ -31,25 +33,12 @@ pub(super) fn first_terminal<'a>(
     }
 }
 
-/// Directory reports may differ only in ASCII case or a trailing separator between sources.
-fn same_directory(left: &WorkbenchDirectoryPath, right: &WorkbenchDirectoryPath) -> bool {
-    let trim = |path: &WorkbenchDirectoryPath| {
-        let path = path.as_str();
-        let trimmed = path.trim_end_matches(['\\', '/']);
-        if trimmed.is_empty() || trimmed.ends_with(':') {
-            path.to_owned()
-        } else {
-            trimmed.to_owned()
-        }
-    };
-    trim(left).eq_ignore_ascii_case(&trim(right))
-}
-
 impl SessionCoordinator {
     /// Called with every committed sample's directory under the Session gate. The first
     /// directory seen for a Workspace's first terminal, and each later different one, including
-    /// one from a replacement first terminal, names an automatic Workspace. Repeating a directory
-    /// does nothing, so another Workspace's later rename never reshuffles this one's suffix.
+    /// one from a replacement first terminal, is recorded and names an automatic Workspace.
+    /// Repeating a directory does nothing, so another Workspace's later rename never reshuffles
+    /// this one's suffix.
     pub(super) fn follow_first_terminal_directory(
         &mut self,
         binding: &PresentationBinding,
@@ -73,7 +62,7 @@ impl SessionCoordinator {
         if self
             .followed_directories
             .insert(workspace_id.clone(), directory.clone())
-            .is_none_or(|previous| !same_directory(&previous, directory))
+            .is_none_or(|previous| !same_directory(previous.as_str(), directory.as_str()))
         {
             workbench.follow_workspace_directory(&workspace_id, directory);
         }

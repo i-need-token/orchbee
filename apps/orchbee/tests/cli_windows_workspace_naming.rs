@@ -1,7 +1,8 @@
 //! A Workspace follows its first terminal's directory: the CLI, Server, Worker and Zig Host under
 //! test, with a TUI Client running in a terminal of a second Session. A `cd` in the first terminal
-//! of a Workspace whose name was generated renames it until a rename fixes the name, and a new
-//! Workspace created from the TUI starts where that terminal now is.
+//! of a Workspace whose name was generated renames it until a rename fixes the name, the recorded
+//! terminal directory and the sidebar's folder line follow it either way, and a new Workspace
+//! created from the TUI starts where that terminal now is.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -53,7 +54,15 @@ fn a_generated_workspace_name_follows_the_first_terminal_until_a_rename_fixes_it
         record(&fixture, &witness_id)
     );
     thread::sleep(Duration::from_secs(1));
-    assert_eq!(record(&fixture, &workspace)["label"], "beta");
+    let fixed = record(&fixture, &workspace);
+    assert_eq!(fixed["label"], "beta");
+    // A fixed name still records where its first terminal is.
+    assert!(
+        fixed["terminalDirectory"]
+            .as_str()
+            .is_some_and(|directory| directory.ends_with("gamma")),
+        "the renamed Workspace never recorded its terminal directory: {fixed}"
+    );
 }
 
 #[test]
@@ -72,6 +81,14 @@ fn a_new_workspace_starts_in_the_selected_workspace_first_terminal_directory() {
             "beta"
         )),
         "the sidebar never showed the followed name:\n{}",
+        fixture.screen(&tui.terminal)
+    );
+    assert!(
+        until(OBSERVATION, || sidebar_folder_ends_with(
+            &fixture.screen(&tui.terminal),
+            "beta"
+        )),
+        "the sidebar's folder line never followed the first terminal:\n{}",
         fixture.screen(&tui.terminal)
     );
 
@@ -188,6 +205,18 @@ fn sidebar_shows(screen: &str, label: &str) -> bool {
             .next()
             .and_then(|cell| cell.trim().strip_prefix(label))
             .is_some_and(|rest| rest.is_empty() || rest.starts_with(' '))
+    })
+}
+
+/// Whether a sidebar row shows a folder whose last component is `name`; a folder truncates in
+/// the middle, so its end stays visible.
+fn sidebar_folder_ends_with(screen: &str, name: &str) -> bool {
+    screen.lines().any(|line| {
+        line.split('│').next().is_some_and(|cell| {
+            cell.trim()
+                .strip_suffix(name)
+                .is_some_and(|rest| rest.ends_with(['\\', '/']))
+        })
     })
 }
 

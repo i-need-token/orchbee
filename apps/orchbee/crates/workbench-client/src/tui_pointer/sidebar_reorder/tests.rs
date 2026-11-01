@@ -81,6 +81,7 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
                 })
                 .collect(),
             workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                terminal_directory: None,
                 automatic_label: false,
                 workspace_id: fixture_workspace_id.clone(),
                 terminal_context_id: fixture_context_id.clone(),
@@ -93,6 +94,7 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
                     .into_iter()
                     .enumerate()
                     .map(|(index, group)| Workspace {
+                        terminal_directory: None,
                         automatic_label: false,
                         workspace_id: workspace(index),
                         project_id: group.map(project),

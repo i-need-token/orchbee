@@ -20,6 +20,8 @@ pub(crate) struct Row {
     pub(crate) tokens: MetadataTokens,
     /// Canonical directory identity fences reuse of a last known Git observation.
     pub(crate) directory: Option<orchbee_workbench_protocol::Directory>,
+    /// The first terminal's observed directory while it differs from `directory`.
+    pub(crate) terminal_directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
     pub(crate) git: Option<Git>,
     pub(crate) git_stale: bool,
 }

@@ -24,6 +24,7 @@ fn close_snapshot() -> Snapshot {
     });
     for index in 0..3 {
         source.navigation.workspaces.push(Workspace {
+            terminal_directory: None,
             automatic_label: false,
             workspace_id: workspace_id(index),
             project_id: (index != 2).then(project_id),

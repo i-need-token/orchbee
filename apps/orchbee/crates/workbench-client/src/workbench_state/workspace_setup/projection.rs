@@ -181,6 +181,7 @@ impl SetupKnownCommit {
                 navigation
                     .workspaces
                     .push(orchbee_workbench_protocol::Workspace {
+                        terminal_directory: None,
                         automatic_label: false,
                         project_id: project_id.clone(),
                         label: label.as_str().to_owned(),
@@ -380,6 +381,7 @@ impl SetupKnownCommit {
             navigation
                 .workspaces
                 .push(orchbee_workbench_protocol::Workspace {
+                    terminal_directory: None,
                     automatic_label: *automatic_label,
                     workspace_id: commit.workspace_id.clone(),
                     project_id: commit.project_id.clone(),

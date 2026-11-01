@@ -292,6 +292,7 @@ fn workspace_order_supports_the_complete_1024_member_domain() {
                 WorkbenchTerminalContextId::parse(&identity(10000 + value)).unwrap();
             ids.push(workspace_id.clone());
             source.navigation.workspaces.push(Workspace {
+                terminal_directory: None,
                 automatic_label: false,
                 project_id: Some(project.project_id.clone()),
                 workspace_id,

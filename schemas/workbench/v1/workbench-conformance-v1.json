@@ -725,7 +725,7 @@
 				}
 			]
 		},
-		"snapshot-automatic-labels-r2": {
+		"snapshot-first-terminal-directory-r2": {
 			"kind": "workbench.snapshot",
 			"navigation": {
 				"projects": [],
@@ -737,7 +737,8 @@
 						"projectId": null,
 						"primaryDirectoryId": null,
 						"label": "Workspace",
-						"automaticLabel": true
+						"automaticLabel": true,
+						"terminalDirectory": "/work/orchbee/api"
 					}
 				]
 			},
@@ -1565,7 +1566,7 @@
 		"snapshot-panel-input-r2",
 		"snapshot-launch-failure-r2",
 		"snapshot-launch-program-boundary-r2",
-		"snapshot-automatic-labels-r2",
+		"snapshot-first-terminal-directory-r2",
 		"snapshot-workspace-order-legacy",
 		"snapshot-workspace-order-explicit-empty",
 		"snapshot-workspace-order-cross-project",

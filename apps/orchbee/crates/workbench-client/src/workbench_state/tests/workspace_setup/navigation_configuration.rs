@@ -24,6 +24,7 @@ fn baseline() -> orchbee_workbench_protocol::Snapshot {
         let index = u128::try_from(index).unwrap();
         let terminal_context_id = WorkbenchTerminalContextId::parse(&id(920 + index)).unwrap();
         snapshot.navigation.workspaces.push(Workspace {
+            terminal_directory: None,
             automatic_label: false,
             workspace_id: workspace(910 + index),
             project_id: group.map(project),

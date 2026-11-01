@@ -446,6 +446,7 @@ fn move_revision_growth_at_the_exact_projection_byte_bound_refuses_before_public
         });
         snapshot.navigation.directories.extend(Vec::new());
         snapshot.navigation.workspaces.extend(vec![Workspace {
+            terminal_directory: None,
             automatic_label: false,
             project_id: Some(WorkbenchProjectId::parse(&identity(4000 + index)).unwrap()),
             primary_directory_id: None,

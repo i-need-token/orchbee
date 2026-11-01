@@ -85,6 +85,7 @@ fn snapshot() -> Snapshot {
     let directory_id = WorkbenchDirectoryId::parse(&id(260)).unwrap();
     let workspaces: Vec<_> = (0..3)
         .map(|index| Workspace {
+            terminal_directory: None,
             automatic_label: false,
             workspace_id: WorkbenchWorkspaceId::parse(&id(271 + index)).unwrap(),
             project_id: (index < 2).then(|| project_id(Scope::Project)),

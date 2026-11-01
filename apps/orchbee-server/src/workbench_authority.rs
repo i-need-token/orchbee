@@ -71,6 +71,7 @@ pub use terminal_tab_create::{
     WorkbenchSettlementTokenMismatch, WorkbenchTabCreateAdmission, WorkbenchTabCreateBegin,
     WorkbenchTabCreatePreparation, WorkbenchTabCreateRuntimeUnavailableReason,
 };
+pub use workspace_directory_label::same_directory;
 mod terminal_panel_create;
 pub use terminal_panel_create::{
     CommittedWorkbenchPanelCreateMetadata, PendingWorkbenchPanelCreate,
@@ -802,6 +803,7 @@ impl WorkbenchAuthority {
                             .map_err(|_error| PlanFailure::Internal)?;
                     let revision = self.next_revision()?;
                     candidate.navigation.workspaces.push(Workspace {
+                        terminal_directory: None,
                         automatic_label: false,
                         project_id,
                         workspace_id: workspace_id.clone(),

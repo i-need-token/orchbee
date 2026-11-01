@@ -155,6 +155,7 @@ impl WorkbenchAuthority {
             return WorkbenchTabCreateBegin::Ready(self.retire(&command));
         };
         candidate.navigation.workspaces.push(Workspace {
+            terminal_directory: None,
             automatic_label,
             project_id: project_id.clone(),
             workspace_id: workspace_id.clone(),

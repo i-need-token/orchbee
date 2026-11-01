@@ -155,6 +155,7 @@ fn direct_cross_context_agent_installs_exact_child_without_intermediate_default_
         WorkbenchTerminalContextId::parse(&format!("{:032x}", 40)).unwrap();
     let workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 41)).unwrap();
     snapshot.navigation.workspaces.push(Workspace {
+        terminal_directory: None,
         automatic_label: false,
         project_id: None,
         label: "other".into(),

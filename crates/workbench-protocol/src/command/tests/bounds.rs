@@ -50,6 +50,7 @@ fn near_limit_snapshot() -> Snapshot {
             let terminal_context_id = WorkbenchTerminalContextId::parse(&id(next)).unwrap();
             next += 1;
             snapshot.navigation.workspaces.push(Workspace {
+                terminal_directory: None,
                 automatic_label: false,
                 project_id: Some(project.project_id.clone()),
                 workspace_id,

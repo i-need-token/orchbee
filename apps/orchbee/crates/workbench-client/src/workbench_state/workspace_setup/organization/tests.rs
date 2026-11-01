@@ -92,6 +92,7 @@ fn fixture() -> (WorkbenchClientState, Snapshot) {
     });
     let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", 82)).unwrap();
     snapshot.navigation.workspaces.push(Workspace {
+        terminal_directory: None,
         automatic_label: false,
         workspace_id: workspace_id(),
         project_id: None,

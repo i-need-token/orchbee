@@ -402,8 +402,8 @@ row_gap = 0
 ```
 
 Defaults are `[["workspace", "git_status"], ["location"]]`, gap 0.
-`location` shows the branch, otherwise the Workspace folder with a local home folder shortened to
-`~`. An explicit `rows = []` keeps an identity/navigation row. The other builtin is
+`location` shows the branch, otherwise the Workspace folder, the first terminal's current
+directory when Server recorded one, with a local home folder shortened to `~`. An explicit `rows = []` keeps an identity/navigation row. The other builtin is
 `state_text`; `$name` reads Workspace reports and never replaces a builtin. `state_icon` remains
 accepted for compatibility but paints nothing on a Workspace row.
 Styles and first-match rules share Agent admission, but icons/Git counts reject

@@ -160,6 +160,7 @@ impl Reader<'_> {
                 label: Some(workspace.label),
                 tokens: metadata.remove(&workspace.workspace_id).ok_or(())?,
                 directory,
+                terminal_directory: workspace.terminal_directory,
                 git,
                 git_stale: false,
             });

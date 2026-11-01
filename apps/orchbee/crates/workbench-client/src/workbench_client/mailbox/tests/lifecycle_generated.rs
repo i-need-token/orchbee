@@ -4890,6 +4890,7 @@ impl Authority {
                     project_order: Vec::new(),
                     directories: Vec::new(),
                     workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                        terminal_directory: None,
                         automatic_label: false,
                         workspace_id: fixture_workspace_id.clone(),
                         terminal_context_id: fixture_context_id.clone(),

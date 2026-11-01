@@ -27,6 +27,7 @@ fn workspace_snapshot() -> Snapshot {
         tabs: vec![tab],
     });
     snapshot.navigation.workspaces.extend(vec![Workspace {
+        terminal_directory: None,
         automatic_label: false,
         project_id: Some(
             (WorkbenchProjectId::parse("00000000000000000000000000000070").unwrap()).clone(),

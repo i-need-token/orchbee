@@ -208,6 +208,10 @@ pub struct Workspace {
     #[serde(deserialize_with = "deserialize_required_nullable")]
     pub primary_directory_id: Option<WorkbenchDirectoryId>,
     pub terminal_context_id: WorkbenchTerminalContextId,
+    /// The working directory Server last observed in the first terminal, present only while it
+    /// differs from the primary Directory. It is an observation, never Directory identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terminal_directory: Option<WorkbenchDirectoryPath>,
     pub workspace_id: WorkbenchWorkspaceId,
 }
 

@@ -396,6 +396,7 @@ fn maximum_context_snapshot() -> Result<Snapshot, Box<dyn Error>> {
                 terminal_context_id: terminal_context_id.clone(),
             });
             workspaces.push(Workspace {
+                terminal_directory: None,
                 automatic_label: false,
                 project_id: Some(WorkbenchProjectId::parse(&prefixed_identity(
                     '2',

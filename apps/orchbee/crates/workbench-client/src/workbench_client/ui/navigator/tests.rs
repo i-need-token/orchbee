@@ -216,6 +216,7 @@ fn long_navigator_lists_paint_only_complete_scrolled_rows_in_both_locales_and_si
             terminal_context_id: context_id.clone(),
         });
         workspaces.push(Workspace {
+            terminal_directory: None,
             automatic_label: false,
             project_id: Some(WorkbenchProjectId::parse(&format!("{:032x}", 900)).unwrap()),
             label: format!("Workspace 工作区 {index} with a long label"),

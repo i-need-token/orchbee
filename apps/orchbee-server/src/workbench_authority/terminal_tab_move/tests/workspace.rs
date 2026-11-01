@@ -16,6 +16,7 @@ pub(super) fn workspace_authority(count: usize) -> (WorkbenchAuthority, Workbenc
         });
         snapshot.navigation.directories.extend(Vec::new());
         snapshot.navigation.workspaces.extend(vec![Workspace {
+            terminal_directory: None,
             automatic_label: false,
             project_id: Some(WorkbenchProjectId::parse(&identity(200 + workspace)).unwrap()),
             workspace_id: WorkbenchWorkspaceId::parse(&identity(300 + workspace)).unwrap(),

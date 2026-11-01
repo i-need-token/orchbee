@@ -61,8 +61,9 @@ Every Presentation binding is `null`; `customLabel` is required-nullable.
 Panel `rightClick`, Split `ratio` and Presentation `binding` are explicit even at their default or
 null values. The runtime-only `launchProgram` and `launchFailure` fields are not admitted into retained configuration.
 Retained navigation stores the protocol Workspace shape, so Workspace `automaticLabel` keeps its
-protocol omission rule: it appears only when true, and its absence restores a fixed name. The
-directory an automatic name last followed is process-local and is not retained; see
+protocol omission rule: it appears only when true, and its absence restores a fixed name.
+Optional `terminalDirectory` is retained the same way. The directory Server last sampled for each
+first terminal is process-local and is not retained; see
 [automatic Workspace names](../../orchbee/docs/native-location-labels.md#automatic-workspace-names).
 
 ### Per-terminal directory restoration

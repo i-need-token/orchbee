@@ -162,6 +162,7 @@ pub(in crate::workbench_client::ui) fn launched(
             .clone(),
     });
     snapshot.navigation.workspaces.push(Workspace {
+        terminal_directory: None,
         automatic_label: *automatic_label,
         workspace_id: commit.workspace_id.clone(),
         project_id: commit.project_id.clone(),

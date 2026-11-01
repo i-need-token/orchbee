@@ -61,6 +61,7 @@ fn removal_snapshot(tab_count: usize, revision: u64) -> Snapshot {
                 project_order: Vec::new(),
                 directories: Vec::new(),
                 workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    terminal_directory: None,
                     automatic_label: false,
                     workspace_id: fixture_workspace_id.clone(),
                     terminal_context_id: fixture_context_id.clone(),
@@ -359,6 +360,7 @@ fn removal_classification_diverges_on_uncertain_provenance_malformed_navigation_
     // this case cannot pass on an unrelated early rejection.
     let mut moved = removal_snapshot(1, 2);
     moved.navigation.workspaces.extend(vec![Workspace {
+        terminal_directory: None,
         automatic_label: false,
         project_id: Some((WorkbenchProjectId::parse(&id(80)).unwrap()).clone()),
         label: "moved workspace".into(),

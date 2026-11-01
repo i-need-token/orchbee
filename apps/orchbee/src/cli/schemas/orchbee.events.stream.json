@@ -938,6 +938,9 @@
 				"terminalContextId": {
 					"$ref": "#/$defs/publicPanel_d15"
 				},
+				"terminalDirectory": {
+					"$ref": "#/$defs/publicPanel_d40"
+				},
 				"workspaceId": {
 					"$ref": "#/$defs/publicPanel_d8"
 				},

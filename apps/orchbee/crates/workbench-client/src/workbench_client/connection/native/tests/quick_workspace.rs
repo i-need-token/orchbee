@@ -68,6 +68,7 @@ fn quick_workspace_falls_back_to_the_focused_workspace_directory_then_the_launch
         path: WorkbenchDirectoryPath::parse("C:/项目 space")?,
     });
     workspace.navigation.workspaces.push(Workspace {
+        terminal_directory: None,
         automatic_label: false,
         label: "Workspace".into(),
         project_id: None,

@@ -74,6 +74,7 @@ impl Checkpoint {
                 label: Some(workspace.label.clone()),
                 tokens: known.map_or_else(MetadataTokens::default, |row| row.tokens.clone()),
                 directory,
+                terminal_directory: workspace.terminal_directory.clone(),
                 git_stale: git.is_some()
                     && known.is_some_and(|row| {
                         row.git_stale

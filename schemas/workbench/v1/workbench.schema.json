@@ -372,6 +372,9 @@
 				"terminalContextId": {
 					"$ref": "#/$defs/terminalContextId"
 				},
+				"terminalDirectory": {
+					"$ref": "#/$defs/directoryPath"
+				},
 				"workspaceId": {
 					"$ref": "#/$defs/workspaceId"
 				},

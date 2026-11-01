@@ -229,6 +229,9 @@
 									"terminalContextId": {
 										"$ref": "#/$defs/id"
 									},
+									"terminalDirectory": {
+										"type": "string"
+									},
 									"workspaceId": {
 										"$ref": "#/$defs/id"
 									},

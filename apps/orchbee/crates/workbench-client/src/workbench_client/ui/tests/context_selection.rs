@@ -18,6 +18,7 @@ pub(in crate::workbench_client::ui) fn snapshot(empty: bool) -> Snapshot {
         terminal_context_id: context_id.clone(),
     });
     snapshot.navigation.workspaces.extend(vec![Workspace {
+        terminal_directory: None,
         automatic_label: false,
         project_id: Some((WorkbenchProjectId::parse(&format!("{:032x}", 70)).unwrap()).clone()),
         label: "Workspace".into(),

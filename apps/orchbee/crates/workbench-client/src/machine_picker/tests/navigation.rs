@@ -93,6 +93,7 @@ fn checkpoint(session: u8) -> crate::machine_spaces::checkpoint::Observation {
             })
             .collect(),
         rows: vec![SpaceRow {
+            terminal_directory: None,
             target,
             project_id: Some(WorkbenchProjectId::parse(&format!("{:032x}", 1)).unwrap()),
             label: Some("same 工作区".into()),
