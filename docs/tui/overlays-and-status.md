@@ -217,8 +217,9 @@ Every dialog uses the same rows from top to bottom. An omitted row closes up wit
 
 1. Top edge: the title, and the close control when [Closing](#closing) admits one.
 2. One blank row.
-3. Target or context: at most one line.
-4. Fields or list: each field is a label row, the field row, and its help or error row.
+3. Target or context: at most one line, followed by one blank row.
+4. Body: the prose of a confirmation or notice, the fields of a form, or the query and list of a
+   picker. Each field is a label row, the field row, and its help or error row.
 5. Status: one row for the pending, failure, or recovery state of the whole task.
 6. One blank row.
 7. Footer: the action row in a confirmation, form, or notice; the hint row in a picker.
@@ -307,7 +308,8 @@ Every dialog uses the same rows from top to bottom. An omitted row closes up wit
 
 - Write the fewest words that let the person decide. A consequence is one sentence of facts with
   counts: what ends and what is deleted. Add one sentence of what is kept only when people would
-  otherwise worry, as in `Ends 3 terminals.` followed by `Branches and folders are kept.`
+  otherwise worry, as in `Ends 3 terminals.` followed by `Branches and folders are kept.` Each
+  of these sentences starts on its own line.
 - Mention other Clients once, with the glossary term, and only when another Client is attached.
 - Name in-product actions. A CLI command appears only when it is the only recovery, as code text on
   its own line.

@@ -169,9 +169,9 @@ auxiliary-action slots required by any state that the component can enter.
   `accent-focus` on that marker and its brackets. Pointer hover paints the full button extent with
   `surface-hover`; press uses `surface-pressed` without erasing the focus marker. An enabled button
   label takes `BOLD` only while pressed.
-- A dialog's action row ends at the right content edge with the primary button last. Adjacent
-  buttons are separated by two blank cells, and each button's focus-marker cell sits directly before
-  its left bracket. Initial focus follows
+- A dialog's action row ends at the right content edge with the primary button last. Each button
+  keeps its focus-marker cell directly before its left bracket, and one blank cell separates a
+  button from the next button's marker cell. Initial focus follows
   [`overlays-and-status.md`](overlays-and-status.md#focus-and-pointer).
 - A pending button reserves a status-glyph slot and sizes its label area for the larger of its idle
   and pending localized labels. Its outer extent does not change when the operation starts.

@@ -167,8 +167,9 @@ content within the range of their class:
 - Content width excludes the frame and the two padding cells on each side, so the outer width is
   the content width plus 6.
 - The content width is the widest required line, clamped to the class range. Required lines are the
-  title row with its controls, the action row with its focus-marker cells and gaps, the target line,
-  and each field's minimum: 24 cells for a name and the class maximum for a path. Prose, help, and
+  title row with its controls, the footer (the action row with its focus-marker cells and gaps, or a
+  picker's hint row), the target line, and each field's minimum: 24 cells for a name and the class
+  maximum for a path. Prose, help, and
   errors wrap at that width and never widen it. A target wider than the maximum truncates.
 - Height is the number of rows the content needs, at most the viewport height minus 2. Content
   beyond that scrolls inside the list or prose region; the fixed rows never scroll.
@@ -177,15 +178,14 @@ content within the range of their class:
 
 ### Dialogs in small windows
 
-A dialog that does not fit gives up space in this order until it fits, never skipping a step:
+A dialog that does not fit gives up space in a fixed order, only along the axis that does not fit:
 
-1. The outer margin shrinks from two columns and one row to none.
-2. Blank rows go: the row below the top edge, the rows between field groups, and the row above the
-   action row.
-3. Help lines go; errors stay.
-4. A form's context line goes. A confirmation's target line stays.
-5. Buttons drop their key text, as in `[ Cancel ]  [ Rename ]`; the keys keep working.
-6. Prose truncates to one line with `…`.
+1. The outer margin of two columns and one row shrinks to none.
+2. Width: the dialog narrows below its class minimum while its complete action row fits, and the
+   title, target, and fields truncate. Then buttons drop their key text, as in
+   `[ Cancel ]  [ Rename ]`; the keys keep working.
+3. Height: blank rows go, then help lines, then a form's context line; errors and a confirmation's
+   target line stay. Then prose truncates to one line with `…`.
 
 The minimum is the frame, the target line or the focused field, the error row of an invalid field,
 and the complete action row. Below it, a new dialog is refused with a status notice and an open
