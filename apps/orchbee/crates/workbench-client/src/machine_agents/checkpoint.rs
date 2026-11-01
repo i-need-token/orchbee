@@ -21,6 +21,12 @@ pub struct Target {
     pub(crate) physical: AgentLaunchBinding,
     pub(crate) agent: String,
 }
+impl Target {
+    /// The Context whose terminal runs this Agent, where a navigation to it lands.
+    pub fn destination(&self) -> &ClientContextTarget {
+        &self.context
+    }
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Row {
     pub(crate) seen: bool,

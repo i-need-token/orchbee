@@ -231,6 +231,7 @@ impl WorkbenchClientUi {
         if self.worktrees.launcher.reopen() {
             return ClientActionDisposition::DismissNavigator;
         }
+        let landing = self.switch_landing();
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
             return ClientActionDisposition::KeepNavigator;
         };
@@ -238,7 +239,7 @@ impl WorkbenchClientUi {
             return ClientActionDisposition::KeepNavigator;
         };
         // A landing switch settles on its own: the key waits for it rather than being refused.
-        if state.switch_landing() {
+        if landing {
             self.hold_intent(super::held_intent::HeldIntent::Worktree(mode));
             return ClientActionDisposition::DismissNavigator;
         }

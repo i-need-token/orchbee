@@ -585,7 +585,46 @@ impl Manager {
             && (self.attempt.is_some() || self.candidate.is_some() || self.queued.is_some());
         change.redraw |= busy != view.machines.busy || change.switched;
         view.machines.busy = busy;
+        // The Client's own tick replays held keys before this tick retries the navigation, so it
+        // learns here that a newer destination still waits.
+        surface
+            .active()
+            .observe_direct_navigation(self.direct_navigation(view));
         change
+    }
+
+    /// The Context the user's current sidebar selection still has to reach through the attached
+    /// Session's Client: queued behind that Client's switch or read, or an Agent row in
+    /// verification.
+    fn direct_navigation(&self, view: &ClientView) -> Option<&ClientContextTarget> {
+        if !self
+            .selection_scope
+            .is_some_and(|scope| scope.origin == SelectionOrigin::Sidebar)
+            || !self.selection_current(view)
+        {
+            return None;
+        }
+        let (profile, target) = match (&self.queued, &self.attempt) {
+            (Some(queued), _) => (
+                queued.profile.as_ref(),
+                match &queued.destination {
+                    Destination::Startup(Some(ClientStartupTarget::Context(target))) => target,
+                    Destination::Startup(Some(ClientStartupTarget::Agent(target)))
+                    | Destination::VerifiedAgent(target) => target.destination(),
+                    Destination::Startup(_) => return None,
+                },
+            ),
+            (None, Some(attempt)) => (
+                attempt.profile.as_ref(),
+                match attempt.context.as_ref()? {
+                    ClientStartupTarget::Context(target) => target,
+                    ClientStartupTarget::Agent(target) => target.destination(),
+                    _ => return None,
+                },
+            ),
+            (None, None) => return None,
+        };
+        same_machine_endpoint(self.current.as_ref(), profile).then_some(target)
     }
     fn refresh_catalog(
         &mut self,

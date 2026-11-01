@@ -154,6 +154,15 @@ impl WorkbenchClient {
             })
     }
 
+    /// Reports the user's direct navigation that the shell still holds for this Client because
+    /// an earlier switch or a read keeps it from admission, or `None` once it was admitted or the
+    /// selection ended. Meanwhile keys aim at its destination and held invocations wait for it.
+    pub fn observe_direct_navigation(&mut self, target: Option<&ClientContextTarget>) {
+        if let Some(native) = self.backend.native_mut() {
+            native.observe_direct_navigation(target);
+        }
+    }
+
     /// Bind or release the shell's waiter without transferring mailbox ownership.
     pub fn set_ui_wakeup(&mut self, wakeup: Option<UiWakeup>) {
         if let Some(native) = self.backend.native_mut() {
@@ -900,6 +909,12 @@ impl TerminalInputPort for WorkbenchClient {
         match &self.backend {
             ClientBackend::Native(native) => native.navigation_pending(),
         }
+    }
+
+    fn unresolved_press(&mut self) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(ui::WorkbenchClientUi::unresolved_press)
     }
 
     fn observe_terminal(&mut self, observation: TerminalObservation) {

@@ -102,11 +102,7 @@ impl WorkbenchClientUi {
         let Some(request) = self.state.as_ref().and_then(|state| {
             WorkspaceDeleteRequest::capture(state, workspace_id, deadlines.total())
         }) else {
-            if self
-                .state
-                .as_ref()
-                .is_some_and(WorkbenchClientState::switch_landing)
-            {
+            if self.switch_landing() {
                 self.hold_intent(HeldIntent::WorkspaceCloseAt(workspace_id.clone()));
                 return ClientActionDisposition::DismissNavigator;
             }
@@ -147,17 +143,32 @@ impl WorkbenchClientUi {
     }
 
     pub(super) fn request_workspace_close(&mut self) -> ClientActionDisposition {
-        if self.modal_owns_input() {
+        if self.modal_owns_input() || self.state.is_none() {
+            return ClientActionDisposition::KeepNavigator;
+        }
+        // The key names where the landing switch is headed, never the Workspace being left: it
+        // closes that destination once the switch landed there. A destination that a click the
+        // Client could not resolve made uncertain is refused instead, and once more after the
+        // landing, since the user may have pressed the key before seeing what the switch shows.
+        if self.switch_landing() {
+            if let Some(destination) = self.landing_destination() {
+                self.hold_intent(HeldIntent::CurrentWorkspaceClose(destination));
+                return ClientActionDisposition::DismissNavigator;
+            }
+            if let Some(state) = self.state.as_mut() {
+                state.set_notice(ClientNotice::WorkspaceChanged);
+            }
+            return ClientActionDisposition::KeepNavigator;
+        }
+        if self.take_destination_uncertainty() {
+            if let Some(state) = self.state.as_mut() {
+                state.set_notice(ClientNotice::WorkspaceChanged);
+            }
             return ClientActionDisposition::KeepNavigator;
         }
         let Some(state) = self.state.as_ref() else {
             return ClientActionDisposition::KeepNavigator;
         };
-        // The key names what the landing switch shows; resolve the Workspace once it landed.
-        if state.switch_landing() {
-            self.hold_intent(HeldIntent::CurrentWorkspaceClose);
-            return ClientActionDisposition::DismissNavigator;
-        }
         let crate::workbench_projection::ClientContextLocation::Workspace { workspace_id, .. } =
             state.cache().location()
         else {

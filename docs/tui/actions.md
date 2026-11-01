@@ -161,9 +161,16 @@ unless the owning workflow explicitly defines that behavior.
   visible busy refusal, and the replay revalidates every fact. An invocation is never dropped
   because unrelated background work was in flight.
 - The user's own switch that is still landing settles the same way: an invocation pressed while
-  the destination's read or terminal attach is in flight waits for the switch and then runs
-  against the destination, resolving "current" targets only after the switch lands. The switch is
-  no reason to report the invocation as busy or its target as not ready.
+  the destination's read or terminal attach is in flight, or while a requested navigation still
+  waits behind an earlier switch or read, waits for the switch and then runs against the
+  destination. An invocation that targets "current" binds to the destination of the newest
+  request when it is pressed and runs only once the switch lands there; a switch that lands
+  elsewhere or not at all refuses it with the localized changed-target notice instead of
+  resolving it against whatever is shown. A pointer click dropped while the switch lands may have
+  chosen another destination, so it makes the destination uncertain: such an invocation is
+  refused the same way while the switch lands and, until a bounded interval after the click has
+  passed, once more after it landed, so that the user's retry acts on what is shown. The switch
+  is no reason to report the invocation as busy or its target as not ready.
 - A commit refused only because the projection advanced past the invocation's baseline is retried
   once against the newer projection when the targeted facts are unchanged; otherwise, or when the
   retry is refused the same way, the action ends with the localized changed-target notice.

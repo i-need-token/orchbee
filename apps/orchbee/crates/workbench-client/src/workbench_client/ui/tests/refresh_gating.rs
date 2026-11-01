@@ -234,3 +234,78 @@ fn close_and_worktree_keys_wait_for_a_landing_switch() {
         }
     }
 }
+
+/// F-1: a second sidebar click follows the switch an earlier click still lands, then `Ctrl+b D`.
+/// A click that waits behind that switch makes the key wait for the clicked Workspace, and a
+/// navigation that ends without landing refuses it with a notice. A click the held frame could
+/// not resolve leaves the destination uncertain: the key, pressed before or after it, and once
+/// more right after the landing, is refused. None of them closes the idle Workspace the earlier
+/// switch landed on; trying again after the refusal does.
+#[test]
+fn close_key_after_a_second_click_never_closes_the_earlier_destination() {
+    use super::context_selection::{make_desired_ready, ready, settle_nonempty_context_selection};
+    for key_first in [true, false] {
+        let (mut ui, mailbox, clock, _) = ready(false);
+        settle_nonempty_context_selection(&mut ui, mailbox.as_ref(), &clock, true, snapshot(false));
+        if key_first {
+            ui.apply_client_action(ClientAction::RequestWorkspaceClose);
+            assert!(ui.unresolved_press(), "the press met the landing switch");
+        } else {
+            assert!(ui.unresolved_press(), "the press met the landing switch");
+            ui.apply_client_action(ClientAction::RequestWorkspaceClose);
+            assert_eq!(
+                ui.view().notice(),
+                Some(WorkbenchClientNotice::WorkspaceChanged),
+                "refused at once"
+            );
+        }
+        make_desired_ready(&mut ui, 2);
+        ui.tick();
+        if !key_first {
+            // Pressed as the switch lands, the key may come before its frame was seen.
+            ui.apply_client_action(ClientAction::RequestWorkspaceClose);
+        }
+        assert!(mailbox.try_recv().unwrap().is_none(), "nothing closes");
+        assert_eq!(
+            ui.view().notice(),
+            Some(WorkbenchClientNotice::WorkspaceChanged)
+        );
+        assert!(!ui.unresolved_press(), "the switch landed");
+        ui.apply_client_action(ClientAction::RequestWorkspaceClose);
+        assert!(
+            mailbox.try_recv().unwrap().is_some(),
+            "trying again after the refusal closes the Workspace shown"
+        );
+    }
+    let (mut ui, mailbox, clock, _) = ready(false);
+    settle_nonempty_context_selection(&mut ui, mailbox.as_ref(), &clock, true, snapshot(false));
+    let earlier = ui.state.as_ref().unwrap().cache().location().clone();
+    let clicked = {
+        let view = ui.view();
+        (0..view.context_count())
+            .map(|index| view.context_at(index).unwrap().location().clone())
+            .find(|location| location != &earlier)
+            .map(|location| ClientContextTarget {
+                session_id: view.navigation_session().unwrap().clone(),
+                location,
+            })
+            .expect("another Context to click")
+    };
+    ui.observe_direct_navigation(Some(&clicked));
+    ui.apply_client_action(ClientAction::RequestWorkspaceClose);
+    assert_eq!(ui.view().notice(), None, "the key waits, it is not refused");
+    make_desired_ready(&mut ui, 2);
+    ui.tick();
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "the earlier switch landed, but the key waits for the clicked Workspace"
+    );
+    // The click's navigation ends without landing, as a failed or cancelled selection does.
+    ui.observe_direct_navigation(None);
+    ui.tick();
+    assert!(mailbox.try_recv().unwrap().is_none(), "nothing closes");
+    assert_eq!(
+        ui.view().notice(),
+        Some(WorkbenchClientNotice::WorkspaceChanged)
+    );
+}

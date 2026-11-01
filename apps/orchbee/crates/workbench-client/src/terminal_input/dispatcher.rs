@@ -1427,6 +1427,12 @@ impl InputDispatcher {
             }
             match self.pointer.cancelled_ui_event(event) {
                 PointerOutcome::InteractionEnded => {
+                    // A click whose painted authority ended before its release reached nothing.
+                    // When the user's own switch began holding its frame meanwhile, it is
+                    // reported like a press on that frame.
+                    if port.unresolved_press() {
+                        view.report_input_held_for_navigation();
+                    }
                     self.modal_release = None;
                     {
                         // A generic menu interaction and the legacy packet

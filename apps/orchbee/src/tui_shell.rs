@@ -1350,6 +1350,12 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     ) -> crate::workbench_client::ContextNavigationAdmission {
         crate::workbench_client::ContextNavigationAdmission::Unavailable
     }
+    /// The direct navigation the shell still holds for this surface, after every machine tick.
+    fn observe_direct_navigation(
+        &mut self,
+        _target: Option<&crate::workbench_client::ClientContextTarget>,
+    ) {
+    }
     fn set_ui_wakeup(&mut self, _wakeup: Option<crate::workbench_client::UiWakeup>) {}
     /// Process exit: asks every background owner of this surface to stop without waiting.
     fn request_stop(&mut self) {}
@@ -1441,6 +1447,12 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
         target: &crate::workbench_client::ClientContextTarget,
     ) -> crate::workbench_client::ContextNavigationAdmission {
         self.navigate_context(target)
+    }
+    fn observe_direct_navigation(
+        &mut self,
+        target: Option<&crate::workbench_client::ClientContextTarget>,
+    ) {
+        self.observe_direct_navigation(target);
     }
     fn set_ui_wakeup(&mut self, wakeup: Option<crate::workbench_client::UiWakeup>) {
         self.set_ui_wakeup(wakeup);

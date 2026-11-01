@@ -84,9 +84,18 @@ meets a background publication read waits for that read and then starts over the
 installed; one that a newer projection or `RevisionMismatch` kept from admission while its target
 facts stayed unchanged is repeated over the newer projection, up to four times, because commits
 elsewhere in the Workbench keep advancing the revision while other Workspaces work. A request
-pressed while the user's own switch is still landing waits for the switch; `Ctrl+b D` then
-addresses the Workspace the switch landed on. A conditional request the Client cannot admit shows
-the localized busy or unavailable notice. No path discards a request silently.
+pressed while the user's own switch is still landing, including a sidebar click that still waits
+behind an earlier switch or read, waits for the switch. `Ctrl+b D` names the Workspace the newest
+switch request was headed for when the key was pressed and closes it only once the switch landed
+there; a switch that lands elsewhere or not at all shows the localized Workspace changed notice and
+closes nothing, so the key never falls back to the Workspace being left. While the switch lands, the
+shell keeps the previous frame on screen without pointer targets; a click there, such as on another
+Workspace's row, is dropped with the localized switching notice and makes the destination uncertain.
+`Ctrl+b D` pressed before or after that click is then refused the same way while the switch lands,
+and within five seconds of the click once more after it landed; the next press closes the Workspace
+shown. A conditional request the
+Client cannot admit shows the localized busy or unavailable notice. No path discards a request
+silently.
 
 ## Inputs and ownership
 

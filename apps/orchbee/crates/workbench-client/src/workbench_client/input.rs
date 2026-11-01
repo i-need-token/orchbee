@@ -300,6 +300,13 @@ pub trait TerminalInputPort {
         false
     }
 
+    /// A pointer press reached no target because no presented frame could resolve it. Returns
+    /// whether the user's own switch is landing: the press was then aimed at the frame that switch
+    /// keeps on screen, and the switch's destination no longer names the user's latest intent.
+    fn unresolved_press(&mut self) -> bool {
+        false
+    }
+
     /// One host or input-stream fact; see [`TerminalObservation`].
     fn observe_terminal(&mut self, _observation: TerminalObservation) {}
 

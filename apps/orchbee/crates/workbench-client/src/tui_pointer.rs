@@ -1777,6 +1777,12 @@ impl PointerState {
             return PointerOutcome::Ignored;
         }
         let Some(map) = self.map.as_ref() else {
+            // While the user's own switch lands, the shell keeps the previous frame on screen
+            // without targets. A press aimed at it reaches nothing, so it is reported rather than
+            // lost silently, and the switch's destination stops counting as the user's choice.
+            if event.action == MouseAction::Press && port.unresolved_press() {
+                view.report_input_held_for_navigation();
+            }
             return PointerOutcome::Ignored;
         };
         if event.action == MouseAction::Press

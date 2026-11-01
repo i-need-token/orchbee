@@ -208,6 +208,15 @@ impl WorkbenchClientState {
         self.context_selection.is_some()
     }
 
+    /// Where the user's own landing switch is headed: the requested Context while its read is in
+    /// flight, then the Context whose terminal attaches.
+    pub(crate) fn landing_destination(&self) -> Option<&ClientContextLocation> {
+        match &self.context_selection {
+            Some(intent) => Some(&intent.target),
+            None => matches!(self.phase, ClientPhase::Switching(_)).then(|| self.cache.location()),
+        }
+    }
+
     pub(crate) fn context_selection_deadlines(&self) -> Option<OperationDeadlines> {
         self.context_selection
             .as_ref()

@@ -107,7 +107,9 @@ Pointer interaction preserves these separate facts:
   new geometry. A resize or structural layout replacement invalidates affected authority before
   the next input decision, and events are dropped until a new map is successfully presented. If a
   write with interaction changes is partial or its result is unknown, authority remains suspended
-  rather than falling back to the stale map.
+  rather than falling back to the stale map. A press, or an armed click whose authority ended
+  before its release, dropped while the user's own switch keeps the previous frame on screen is
+  reported with the localized switching notice, never lost silently.
 - After a new map is published, reconcile transient state by stable target identity and interaction
   revision. Keep an armed gesture only when its target remains present with the same revision;
   otherwise cancel it without activation. A target omitted for width, capability, availability,
