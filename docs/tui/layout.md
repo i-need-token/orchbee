@@ -109,10 +109,10 @@ instead of presenting an incomplete task.
 
 ## Overlays
 
-- An overlay is positioned relative to the content area, centered horizontally and vertically.
-  Centering rounds toward the top-left cell. An application-wide Settings surface instead centers
-  within the full host viewport, independent of navigation chrome; the floating status reserves no
-  row of it.
+- A dialog, a reference surface such as Help or Settings, and every other overlay without an anchor
+  centers horizontally and vertically in the full host viewport: the whole window, including the
+  sidebar, the Tab strip, and the last row. It never centers in the panel or any other region.
+  Centering rounds toward the top-left cell, and the floating status reserves no row of it.
 - A pointer-opened context menu instead anchors to the pressed cell in the full viewport,
   including navigation chrome and the last row. Its frame starts at the pressed column on the row
   below the trigger: the complete sidebar row, Tab or group header that owns the cell, otherwise
@@ -123,14 +123,17 @@ instead of presenting an incomplete task.
   that area.
 - A keyboard-opened sidebar row menu opens beside its row: the frame starts at the first column
   after the row, its top edge level with the row, and moves up only when it does not fit below.
-  Other keyboard-opened menus retain the owning surface's deterministic placement.
+  A keyboard-opened menu without a row anchor, such as a global action menu, centers in the full
+  viewport like a dialog.
 - A cascaded submenu opens beside its parent menu with its first row level with the row that
   opened it, moving up only when it does not fit. It opens to the right of the parent, else to its
   left, else against the viewport's right edge over the parent's end. The parent stays painted,
   with its window following the row that opened the submenu; a submenu taller than the viewport
   scrolls its rows.
-- Overlay width is `min(preferred, area.width − 4)` and height is `min(preferred, area.height − 2)`.
-  Preferred sizes are cells or percentages resolved through the rules above.
+- Overlay width is `min(preferred, area.width − 4)` and height is `min(preferred, area.height − 2)`,
+  where `area` is the full viewport for an overlay without an anchor. Preferred sizes are cells or
+  percentages resolved through the rules above; dialogs resolve theirs through
+  [Dialog size](#dialog-size).
 - A newly requested overlay whose resolved inner area is smaller than 4 columns by 3 rows is not
   opened. The triggering action reports its refusal through the status line and performs no domain
   effect. An already-open overlay follows the suspension contract in
@@ -149,6 +152,45 @@ instead of presenting an incomplete task.
 - Overlay content that exceeds the remaining inner height scrolls and shows its position, except
   compact context menus omit the position counter. Variable
   row heights participate in that viewport calculation.
+
+### Dialog size
+
+Dialogs, defined in [`overlays-and-status.md`](overlays-and-status.md#dialogs), size from their
+content within the range of their class:
+
+| Class  | Dialogs                                 | Content width                                 |
+| ------ | --------------------------------------- | --------------------------------------------- |
+| Narrow | Confirmation, notice, single-field form | 40–56 cells                                   |
+| Medium | Multi-field form, picker                | 48–72 cells                                   |
+| Wide   | Reference surface                       | The owner's preferred width, at most 88 cells |
+
+- Content width excludes the frame and the two padding cells on each side, so the outer width is
+  the content width plus 6.
+- The content width is the widest required line, clamped to the class range. Required lines are the
+  title row with its controls, the action row with its focus-marker cells and gaps, the target line,
+  and each field's minimum: 24 cells for a name and the class maximum for a path. Prose, help, and
+  errors wrap at that width and never widen it. A target wider than the maximum truncates.
+- Height is the number of rows the content needs, at most the viewport height minus 2. Content
+  beyond that scrolls inside the list or prose region; the fixed rows never scroll.
+- Both measurements use the localized strings in display cells, so en-US and zh-CN can resolve to
+  different sizes.
+
+### Dialogs in small windows
+
+A dialog that does not fit gives up space in this order until it fits, never skipping a step:
+
+1. The outer margin shrinks from two columns and one row to none.
+2. Blank rows go: the row below the top edge, the rows between field groups, and the row above the
+   action row.
+3. Help lines go; errors stay.
+4. A form's context line goes. A confirmation's target line stays.
+5. Buttons drop their key text, as in `[ Cancel ]  [ Rename ]`; the keys keep working.
+6. Prose truncates to one line with `…`.
+
+The minimum is the frame, the target line or the focused field, the error row of an invalid field,
+and the complete action row. Below it, a new dialog is refused with a status notice and an open
+dialog is suspended as described in
+[`overlays-and-status.md`](overlays-and-status.md#lifecycle-and-return).
 
 ## Truncation and wrapping
 

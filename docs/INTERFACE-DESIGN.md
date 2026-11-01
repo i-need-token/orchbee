@@ -159,16 +159,25 @@ parity. Program-authored terminal content is outside Orchbee chrome styling.
 
 ## Recurring interaction patterns
 
-| Pattern                      | Common behavior                                                                                                             | Permitted adaptation                                                                                     |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Navigation and resource rows | Same identity, hierarchy, current-context meaning, and distinction between highlight and activation                         | GUI tree or list; TUI rows or navigator; pointer and keyboard entry                                      |
-| Menus and commands           | Same action names, target scope, relative order of common groups, availability reasons, and destructive meaning             | GUI menu or command surface; TUI menu or prefix help; Client-only actions remain in their relevant group |
-| Search and filtering         | Same search scope, query meaning, default options, result identity, next/previous ordering, and clear/close effects         | GUI field or panel; TUI editor or overlay; different visible result counts                               |
-| Editing and pickers          | Same field meaning, defaults, validation, draft/commit boundary, and cancellation result                                    | Inline control, Dialog, or capturing overlay according to task and host                                  |
-| Direct manipulation          | Same operation, target, constraints, committed result, and cancellation before commit                                       | GUI pointer gesture and keyboard alternative; TUI command or mode with the same effect                   |
-| Confirmation                 | Same effect, affected scope, consequence, and safe cancellation                                                             | GUI action control or exact TUI confirm key; geometry failure never grants consent                       |
-| Async feedback               | Same pending, success, failure, cancellation, and unknown meanings and recovery action                                      | Inline status, notice, or status line; background work does not take focus                               |
-| Settings                     | Same semantic setting identity, units, domain default, validation, application timing, and reset meaning for the same scope | GUI control or native configuration; presentation-only settings may remain Client-local                  |
+| Pattern                      | Common behavior                                                                                                              | Permitted adaptation                                                                                                      |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Navigation and resource rows | Same identity, hierarchy, current-context meaning, and distinction between highlight and activation                          | GUI tree or list; TUI rows or navigator; pointer and keyboard entry                                                       |
+| Menus and commands           | Same action names, target scope, relative order of common groups, availability reasons, and destructive meaning              | GUI menu or command surface; TUI menu or prefix help; Client-only actions remain in their relevant group                  |
+| Search and filtering         | Same search scope, query meaning, default options, result identity, next/previous ordering, and clear/close effects          | GUI field or panel; TUI editor or overlay; different visible result counts                                                |
+| Editing and pickers          | Same field meaning, defaults, validation, draft/commit boundary, and cancellation result                                     | Inline control, Dialog, or capturing overlay according to task and host                                                   |
+| Direct manipulation          | Same operation, target, constraints, committed result, and cancellation before commit                                        | GUI pointer gesture and keyboard alternative; TUI command or mode with the same effect                                    |
+| Confirmation                 | Same effect, affected scope, consequence, and safe cancellation                                                              | GUI action control or exact TUI confirm key; geometry failure never grants consent                                        |
+| Dialogs                      | Same kind, admission, window-centered placement, content order, copy, outcome verbs, single close target, and close outcomes | GUI Dialog or Alert Dialog with a backdrop; TUI capturing overlay with bracketed controls; sizes from each Client's scale |
+| Async feedback               | Same pending, success, failure, cancellation, and unknown meanings and recovery action                                       | Inline status, notice, or status line; background work does not take focus                                                |
+| Settings                     | Same semantic setting identity, units, domain default, validation, application timing, and reset meaning for the same scope  | GUI control or native configuration; presentation-only settings may remain Client-local                                   |
+
+The TUI dialog contract in [`tui/overlays-and-status.md`](tui/overlays-and-status.md#dialogs) is
+the reference composition for both Clients. A GUI confirmation is an Alert Dialog; forms, pickers,
+and notices use the Dialog shell in
+[`frontend/dialogs-and-forms.md`](frontend/dialogs-and-forms.md#compact-desktop-dialog-shell). Both
+Clients use the same wording for titles, targets, labels, help, errors, and buttons, end the footer
+with the primary action, show one close target, and give `Esc`, that close target, and an admitted
+outside press the same no-commit outcome.
 
 Product terminology is stable within each locale. Short TUI labels are documented variants of the
 same term; they must not rename an entity or operation. Localized copy uses the existing catalog

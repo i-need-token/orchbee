@@ -3,7 +3,7 @@
 ## Authority and scope
 
 This standard owns surface selection, overlay composition, input capture, interaction lifecycle,
-confirmations, the status line, hints, pointer tooltips, transient notices, and asynchronous outcome
+dialogs and confirmations, the status line, hints, pointer tooltips, transient notices, and asynchronous outcome
 presentation for Orchbee-authored terminal interfaces.
 Geometry follows [`layout.md`](layout.md#overlays); colors and hierarchy follow
 [`visual-foundations.md`](visual-foundations.md); key ownership follows
@@ -22,14 +22,14 @@ steal focus for background status.
 
 ## Surface selection
 
-| Surface               | Use when                                                                           | Avoid when                                                            |
-| --------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Status notice         | A result, state change, or refusal can be stated in one line and needs no response | The person must choose or type                                        |
-| Status-line editor    | One short value is edited in place in the status row                               | The value is long, multi-field, or needs surrounding context to judge |
-| Non-capturing overlay | A passive preview while typing continues to the pane                               | The content must be acted on before the pane can continue             |
-| Capturing overlay     | A choice, picker, draft, or reference surface whose keys must not reach the pane   | One line of status or a status-line editor suffices                   |
-| Confirmation          | A brief decision precedes an effect that is not readily reversible                 | The effect is reversible, or the surface merely reports information   |
-| Pointer tooltip       | A resting pointer asks what a glyph, bracket control, or cut name in chrome means  | The words are already painted, or the information is needed to act    |
+| Surface               | Use when                                                                              | Avoid when                                                            |
+| --------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Status notice         | A result, state change, or refusal can be stated in one line and needs no response    | The person must choose or type                                        |
+| Status-line editor    | One short value is edited in place in the status row                                  | The value is long, multi-field, or needs surrounding context to judge |
+| Non-capturing overlay | A passive preview while typing continues to the pane                                  | The content must be acted on before the pane can continue             |
+| Capturing overlay     | A choice, picker, draft, or reference surface whose keys must not reach the pane      | One line of status or a status-line editor suffices                   |
+| Confirmation          | A brief decision precedes an effect that loses something, as in [Dialogs](#admission) | The effect is reversible, or the surface merely reports information   |
+| Pointer tooltip       | A resting pointer asks what a glyph, bracket control, or cut name in chrome means     | The words are already painted, or the information is needed to act    |
 
 Any surface that consumes every key is capturing regardless of its size or name. A surface never
 changes capture kind while open.
@@ -83,9 +83,9 @@ and global action discovery.
   doubled frame. The overlay already owns input through exclusive occlusion; its heading and its
   terminal caret or provisional marker identify that ownership, so the border never repeats a focus
   accent.
-- The header title sits on the top-left edge as `─ Title ` in heading text. The close control sits
-  on the top-right edge as `─ [x] ─`, with one blank cell beside each bracket and one rule cell
-  before the corner. Other title controls, such as page controls, precede the close control with one
+- The header title sits on the top-left edge as `─ Title ` in heading text. When the surface admits
+  a close control under [Closing](#closing), it sits on the top-right edge as `─ [x] ─`, with one
+  blank cell beside each bracket and one rule cell before the corner. Other title controls, such as page controls, precede the close control with one
   blank cell between controls. The title truncates before any title control loses a cell.
 - One blank row separates the top edge from the first slot when height permits. It is the first space
   removed under height pressure, before any content, status, or footer row.
@@ -118,9 +118,11 @@ and global action discovery.
   sacrificing the target, field, exit, or primary action. Refuse or suspend an unusable task rather
   than paint a partial required control.
 - Show each binding once in the footer. When an action has a button, put its formatted key inside
-  that button's shared shortcut slot and omit the duplicate key-and-verb hint. The fixed button row
-  follows any secondary editing or navigation hints; hints drop only as whole records. Button labels
-  retain their primary, secondary, destructive, or disabled role while shortcut text stays subdued.
+  that button's shared shortcut slot and omit the duplicate key-and-verb hint. Dialogs choose
+  between an action row and a hint row as described in [Dialogs](#structure); other overlays place
+  the fixed button row after any secondary navigation hints. Hints drop only as whole records.
+  Button labels retain their primary, secondary, destructive, or disabled role while shortcut text
+  stays subdued.
 
 ## Lifecycle and return
 
@@ -177,18 +179,145 @@ and global action discovery.
 - Asynchronous validation and preview results bind to the exact target and draft revision that
   produced them. A result for an older draft cannot enable commitment or replace current feedback.
 
-## Confirmations
+## Dialogs
 
-- A confirmation is required before an effect that destroys retained state, ends a process, or
-  affects other attached Clients. It names the consequence and its scope in one sentence.
-- Unmodified `Enter` confirms; `Esc` cancels; the default outcome is cancel. Their subordinate key
-  hints appear inside the corresponding button brackets rather than a duplicate footer row. No
-  other key is interpreted, and the decision packet is captured as described in
+A dialog is a capturing overlay that holds one bounded task: a confirmation, a form, a picker, or a
+notice. Reference surfaces such as Help, the navigator, the Agent board and Settings share its
+placement, frame and closing rules but keep their own sizes, navigation and footers. Context menus
+keep their compact composition. Geometry follows [`layout.md`](layout.md#dialog-size); buttons and
+fields follow [`components.md`](components.md).
+
+### Admission
+
+| Kind         | Use when                                                                                              | Otherwise                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Confirmation | This invocation would lose something that cannot be restored in one step (see below)                  | Run the action and report the result with a status notice                               |
+| Form         | The task cannot run without values the person types                                                   | Use a safe default and let the person change it later, or edit inline on the object     |
+| Picker       | The person chooses one item from a list that is long, filterable, or described by more than its label | Use a menu for a few fixed choices; skip the step when context already decides the item |
+| Notice       | A failure or result needs a recovery choice, or detail that cannot fit one status line                | Use a status notice                                                                     |
+
+- Start without a dialog. An action that is reversible, or that loses nothing in this invocation,
+  runs immediately and reports its result through a status notice.
+- Confirm only what is lost: a running program, files or a checkout on disk, other retained data,
+  an unsent draft, or terminals while another Client is attached. Decide per invocation from the
+  actual state. A shell that is known to be idle at its prompt is not a running program, so closing
+  its Tab or Panel while no other Client is attached runs without a confirmation.
+- Progress and waiting stay in the dialog that started the work, in its status row; they never open
+  a separate dialog or replace the task with a progress-only stage. Work that continues after the
+  dialog closes reports its result as a status notice.
+- A follow-up step, such as a confirmation that a submitted form needs, replaces the dialog's content
+  inside the same frame, and `Esc` returns to the step before it.
+- A dialog that cannot be drawn when requested is refused with a status notice; its effect does not
+  run. A dialog already open follows the suspension contract in
+  [Lifecycle and return](#lifecycle-and-return).
+
+### Structure
+
+Every dialog uses the same rows from top to bottom. An omitted row closes up without leaving a gap.
+
+1. Top edge: the title, and the close control when [Closing](#closing) admits one.
+2. One blank row.
+3. Target or context: at most one line.
+4. Fields or list: each field is a label row, the field row, and its help or error row.
+5. Status: one row for the pending, failure, or recovery state of the whole task.
+6. One blank row.
+7. Footer: the action row in a confirmation, form, or notice; the hint row in a picker.
+
+- A dialog shows an action row or a hint row, never both. A form has no hint row: editing keys are
+  listed in Help, and a key that only one field uses is named in that field's help.
+- Content starts at the left content edge, two cells inside the frame. The action row ends at the
+  right content edge.
+- Multi-field forms separate field groups with one blank row.
+
+### Titles, targets, and labels
+
+- The title names the task in a few words: `Rename Project`, `New Workspace`,
+  `Move Workspace to Project`. A confirmation title is a question that names the action and the kind
+  of object: `Close Workspace?`, `Remove Worktree?`. A title may carry a count, as in
+  `Close 3 Tabs?`, but never a name or path.
+- The target line names the exact object in `text-primary`: the Workspace name, the Tab label, or
+  the checkout path. Names truncate at the end and paths in the middle.
+- A context line names what the task acts within when neither the title nor a field shows it, as
+  `Noun: value` in `text-secondary`, for example `Project: orchbee` in a New Workspace form. It never
+  repeats the title, the target, or a prefilled value, and it uses the singular noun.
+- A field label is the shortest noun for the value, such as `Name`, `Directory`, or `Branch`. It
+  never repeats the title's noun or carries instructions. A single-field dialog whose title already
+  names the value, such as `Rename Project`, omits the label; its prefilled field shows the current
+  value.
+- en-US titles, labels, and buttons use title case; prose uses sentence case. zh-CN titles carry no
+  trailing punctuation except the full-width question mark of a confirmation, as in `关闭工作区？`.
+
+### Help and validation
+
+- Help is one optional `text-secondary` line below its field. It states an effect, format, or rule
+  that the person could not guess, such as `Leave blank to restore the default name.` It never
+  restates the title or label, a limit that the field's error states, or that the change is shared
+  with other Clients. Help never widens the dialog.
+- A field that can fail validation keeps its help row even without help text, so an error never
+  moves the rows below it.
+- Validate on submission. After a failed submission, the error follows the draft as it changes and
+  disappears once the value is valid.
+- An error replaces its field's help: the `status-error` glyph and one `text-primary` sentence that
+  states the fix, such as `Enter a name.` or `Use at most 512 characters.` A refusal from the owner
+  that concerns the value uses the same row; any other failure uses the status row.
+- The primary action stays enabled while the draft is invalid. Submitting reveals the error and
+  moves the caret to the first invalid field. Only a pending submission disables the primary action.
+
+### Actions and keys
+
+- The action row is the last content row. The secondary action comes first and the primary last,
+  and the row ends at the right content edge. A dialog has at most three buttons and exactly one
+  primary.
+- The primary button names the outcome with the title's verb: `Rename`, `Create`, `Move`, `Close`,
+  `Remove`. Generic labels such as `Submit`, `OK`, `Yes`, `Confirm`, `提交`, or `确定` are not used.
+  Add the object only when the verb alone is ambiguous.
+- Each button carries its key inside its brackets: `Esc` on the cancel or close action, `Enter` on
+  the primary, and a lowercase letter on any other button. These keys never appear again in a hint
+  row.
+- A confirmation that ends programs, deletes files or a checkout, or discards a draft gives its
+  primary button the destructive tone. The title, frame, and prose keep their ordinary roles.
+- A picker's hint row lists the exit key, the choice key, and then navigation, as in
+  `Esc close  │  Enter choose  │  ↑↓ select`.
+- Unmodified `Enter` takes the focused button's action and `Esc` cancels. A confirmation interprets
+  no other key, and its decision packet is captured as described in
   [`keyboard-input.md`](keyboard-input.md#editing-and-drafts).
-- A confirmation is not used for reversible effects, routine edits, or information. Prefer direct
-  execution with a notice.
-- A confirmation that cannot be drawn when requested is refused with a status notice; the effect
-  does not run. A confirmation already awaiting a decision follows the suspension contract instead.
+
+### Closing
+
+- `Esc` closes the dialog without effect, or returns from a follow-up step to the step before it. It
+  never cancels work the dialog already started; running work offers its own named action.
+- A dialog shows one close target. With an action row, that is the cancel or close button. Without
+  one, as in a picker or a reference surface, it is the `[x]` control on the top edge.
+- A press outside the dialog closes it like `Esc` when nothing would be lost: a picker, a notice, a
+  reference surface, or a form whose fields are unchanged. A confirmation, a changed form, and a
+  pending step ignore the press and stay open.
+
+### Focus and pointer
+
+- A form opens with the caret at the end of the first field's value. A confirmation or notice opens
+  with focus on its primary button. A picker opens with its query empty and the current item, or
+  else the first item, selected.
+- `Tab` and `Shift+Tab` move through the fields and then the buttons in reading order, wrapping
+  inside the dialog. The close control is not a stop because `Esc` is its key. `Enter` in a
+  single-line field submits the form.
+- A click places the caret in a field, activates a button, or chooses a picker row. Hover follows
+  [`components.md`](components.md#action-controls) and never makes text bold.
+
+### Copy
+
+- Write the fewest words that let the person decide. A consequence is one sentence of facts with
+  counts: what ends and what is deleted. Add one sentence of what is kept only when people would
+  otherwise worry, as in `Ends 3 terminals.` followed by `Branches and folders are kept.`
+- Mention other Clients once, with the glossary term, and only when another Client is attached.
+- Name in-product actions. A CLI command appears only when it is the only recovery, as code text on
+  its own line.
+- Every string comes from the localization catalog in both en-US and zh-CN, and fits its row by
+  display cells: a CJK character takes two cells. Prose wraps to at most two lines at the dialog's
+  width; rewrite copy that needs more.
+- zh-CN uses full-width punctuation (`，。：？`), one space between CJK text and Latin words or
+  digits, glossary nouns such as `工作区`, `项目`, `标签页`, `面板`, `工作树`, and `客户端`, and
+  Latin key names such as `Esc` and `Enter`. Copy in one locale contains no words from the other,
+  except key names, commands, paths, and user data.
 
 ## Status line
 

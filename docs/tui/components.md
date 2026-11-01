@@ -169,6 +169,10 @@ auxiliary-action slots required by any state that the component can enter.
   `accent-focus` on that marker and its brackets. Pointer hover paints the full button extent with
   `surface-hover`; press uses `surface-pressed` without erasing the focus marker. An enabled button
   label takes `BOLD` only while pressed.
+- A dialog's action row ends at the right content edge with the primary button last. Adjacent
+  buttons are separated by two blank cells, and each button's focus-marker cell sits directly before
+  its left bracket. Initial focus follows
+  [`overlays-and-status.md`](overlays-and-status.md#focus-and-pointer).
 - A pending button reserves a status-glyph slot and sizes its label area for the larger of its idle
   and pending localized labels. Its outer extent does not change when the operation starts.
 - An inline action has an explicit group boundary and spacing from adjacent content. Its effective
@@ -303,6 +307,12 @@ padding and continuation rows retain their declared owner.
 - A focused editor uses `frame-focused`, its unframed `accent-focus` marker, or its query-slot label,
   and shows the terminal cursor. An unfocused editor retains its boundary and draft but never paints
   a fake cursor.
+- A form field is a bracketed boundary, `[ value ]`, with one blank cell inside each bracket, that
+  spans the dialog's content width. Its brackets use `text-secondary` at rest and `accent-focus`
+  while focused, and its value uses `text-primary`. A placeholder uses `text-secondary`, appears
+  only while the field is empty, and never replaces the label. While focused, a value wider than the
+  field scrolls to keep the caret visible; at rest, a long path truncates in the middle. Label, help,
+  and error rows follow [`overlays-and-status.md`](overlays-and-status.md#dialogs).
 - Prefix, mode, validation, pending, and auxiliary-action slots remain stable as the draft changes.
   Contextual hints may change, but the editable origin and submit boundary do not move.
 - Editing behavior, atomic paste, composition, and maximum length follow
@@ -361,9 +371,10 @@ renders only inside the returned content slot.
   preserve its model, accepted submissions, and pending work, and publish only the valid return,
   exit, or recovery targets. Resume it when geometry returns. Both paths clear stale modal and child
   hit regions.
-- The close control is an icon action with a localized name and the effective cancel binding. It
-  sits on the frame's top-right edge as defined in
-  [`overlays-and-status.md`](overlays-and-status.md#frame-chrome) and follows the same hover,
+- The close control appears only on a surface without a cancel or close button, as
+  [`overlays-and-status.md`](overlays-and-status.md#closing) requires. It is an icon action with a
+  localized name and the effective cancel binding. It sits on the frame's top-right edge as defined
+  in [`overlays-and-status.md`](overlays-and-status.md#frame-chrome) and follows the same hover,
   pressed, disabled, and focus rules as other actions.
 - One modal owner is active at a time. A nested task replaces content, title context, and footer
   actions inside that owner; it does not stack another modal or leave two active footers.

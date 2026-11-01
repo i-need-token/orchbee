@@ -175,6 +175,8 @@ clear.
 - Give every control a persistent visible label. Append a localized “(optional)” to an individually
   visible optional field unless an enclosing titled group already states that the complete group is
   optional. Never mark required fields with an asterisk.
+- A single-field Dialog whose title already names the value, such as “Rename Tab”, uses that title
+  as the field's visible label through `aria-labelledby` and adds no second label.
 - Write labels as the shortest unambiguous question or value name. Supporting text explains only a
   non-obvious reason, consequence, format, privacy boundary, or recovery rule.
 - A placeholder is optional. It never replaces a label, carries persistent instructions, or exists
@@ -195,7 +197,9 @@ clear.
 
 - Keep one primary action in the current task. Its localized label names the outcome, such as
   “Connect” or “Save”; use “Continue” only when it advances to another visible step.
-- Place the non-destructive cancel action before the primary action. Scope every exit path to a
+- End-align the footer and place the non-destructive cancel action before the primary action, so
+  the primary action is last. Show one close target: the footer cancel or close action when the
+  footer has one, otherwise the header close button. Scope every exit path to a
   named task boundary. In a single-step surface, Close, Escape, backdrop dismissal, and Cancel have
   the same no-commit outcome whenever enabled. In a multistep surface before commit, Cancel and
   Escape cancel the innermost foreground step and restore the preceding stable step, while the
