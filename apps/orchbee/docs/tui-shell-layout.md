@@ -355,7 +355,9 @@ Presentation selectors belong to pane title lines, or to the strip's end for a b
 disappear with the strip below Compact.
 The fixed New workspace row immediately creates a Workspace through the existing quick action;
 an eligible current-site Project row has a create action beside its row menu whenever the painted
-width admits a separate control. Disclosure, content, create and menu cells are disjoint. Compact
+width admits a separate control. Current-site rows belong to the attached Client's Session, which
+the Client's own topology identifies even while no Workspace is open, so a Project left empty keeps
+its menu and create action. Disclosure, content, create and menu cells are disjoint. Compact
 glyphs are locale-neutral; full action labels and unavailable reasons use
 the existing English and Chinese catalogs.
 

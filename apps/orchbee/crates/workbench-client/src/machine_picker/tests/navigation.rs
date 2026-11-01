@@ -741,6 +741,51 @@ fn complete_checkpoints_preserve_empty_projects_and_machine_session_identity() {
 }
 
 #[test]
+fn attached_session_without_a_workspace_keeps_its_empty_project_menu_and_creation() {
+    let mut snapshot = crate::machine_agents::test_support::fixture();
+    snapshot.navigation.workspaces.clear();
+    snapshot.navigation.workspace_order.clear();
+    snapshot.terminal_contexts.clear();
+    let project_id = WorkbenchProjectId::parse(&format!("{:032x}", 70)).unwrap();
+    snapshot
+        .navigation
+        .projects
+        .push(orchbee_workbench_protocol::Project {
+            project_id: project_id.clone(),
+            label: "Empty".into(),
+        });
+    let mut picker = Picker {
+        available: true,
+        ..Picker::default()
+    };
+    picker.observe_agent_sidebar(true);
+    picker.observe_native_navigation(
+        Choice::Local,
+        Some(
+            crate::machine_spaces::navigation_projection::SidebarNavigationProjection {
+                snapshot: Arc::new(snapshot.clone()),
+                pending: None,
+            },
+        ),
+    );
+    picker.observe_focus(Choice::Local, None, None);
+    let project = SidebarTarget::Project {
+        machine: Choice::Local,
+        session_id: snapshot.session_id,
+        project_id,
+    };
+    assert!(
+        picker
+            .sidebar_navigation_rows()
+            .iter()
+            .any(|row| row.target() == project)
+    );
+    let source = picker.sidebar_source();
+    assert!(source.has_part(&project, SidebarPart::Menu));
+    assert!(source.has_part(&project, SidebarPart::Create));
+}
+
+#[test]
 fn regroup_and_dissolve_preserve_focused_agent_and_exact_activation() {
     let mut picker = picker();
     let active = workspace(1, 21).target;

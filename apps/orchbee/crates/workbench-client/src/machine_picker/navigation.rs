@@ -787,10 +787,18 @@ impl Picker {
     /// Renderers call this once per candidate frame and clone its `Arc` into painted targets.
     pub(crate) fn sidebar_source(&self) -> SidebarSource {
         let admitted = self.available && self.spaces.visible() && !self.open;
+        // With no Workspace open there is no current Context, yet the attached Client still owns
+        // its Session's empty Projects.
         let menu_session = self
             .current_context
             .as_ref()
-            .map(|context| &context.session_id);
+            .map(|context| &context.session_id)
+            .or_else(|| {
+                self.native_navigation
+                    .as_ref()
+                    .filter(|(machine, _)| machine == &self.current)
+                    .map(|(_, navigation)| &navigation.snapshot.session_id)
+            });
         let rows = self
             .sidebar_navigation_rows()
             .into_iter()
