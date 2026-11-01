@@ -4,9 +4,9 @@ use crate::workbench_state::workspace_setup::quick::QuickPreparation;
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
 impl ClientExecutor {
-    /// A folder chosen in the menu, else the focused Workspace's own directory, otherwise the
-    /// directory this Client was launched from. A terminal's later working directory never moves
-    /// the default.
+    /// A folder chosen in the menu, else the current directory of the focused Workspace's first
+    /// terminal, else that Workspace's own directory, otherwise the directory this Client was
+    /// launched from.
     pub(super) fn prepare_quick_cwd(
         &mut self,
         preparation: &QuickPreparation,
@@ -30,6 +30,17 @@ impl ClientExecutor {
             .and_then(|target| target.directory())
         {
             return Ok(Some(directory.clone()));
+        }
+        if let Some(binding) = &preparation.first_terminal
+            && let super::source_directory::RootDirectory::Available(Some(path)) = self
+                .read_source_root(
+                    &preparation.baseline,
+                    preparation.first_terminal_pane.as_ref(),
+                    preparation.deadlines,
+                    binding,
+                )?
+        {
+            return Ok(Some(path));
         }
         if let Some(directory) = preparation.baseline.directory() {
             return Ok(Some(directory.path.clone()));

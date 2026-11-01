@@ -27,10 +27,13 @@ under the Workspace. [Worktree launch](native-worktrees.md) owns checkout creati
 ## Creation defaults and result ownership
 
 Read-only preparation captures the exact initiating context, revision and token. The directory is
-the focused Workspace's recorded directory. Without one, including an empty Session,
-it is the directory the Client was launched from. A terminal's later working directory,
-including a `cd` inside that Workspace, never moves this default, and preparation samples no
-terminal. A missing or invalid directory refuses preparation; the Client does not invent one.
+the current directory of the focused Workspace's first terminal: the primary terminal of the first
+Tab's leading Panel, so a `cd` there moves the default. Preparation samples that terminal's root
+process directory once, borrowing this Client's live Viewer when it has one and otherwise using a
+temporary Viewer it releases; a child process directory never substitutes. When the sample is
+unavailable or invalid, the directory is the focused Workspace's recorded directory. Without one,
+including an empty Session, it is the directory the Client was launched from. A missing or invalid
+directory refuses preparation; the Client does not invent one.
 The directory basename supplies the initial name,
 with a localized fallback for a root path. Generated names avoid every Workspace label in the
 captured snapshot, adding ` (2)`, ` (3)` and subsequent suffixes as needed. Truncation leaves room

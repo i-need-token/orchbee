@@ -1,6 +1,7 @@
-//! Quick Workspace defaults come from canonical directories or the Client launch directory.
+//! Quick Workspace defaults come from the first terminal, canonical directories or the launch directory.
 use super::super::ClientExecutor;
 use super::setup::{TestResult, admit, fixture_geometry, snapshot};
+use super::source_root;
 use crate::local_client::LocalClient;
 use crate::local_client::test_support::server::FakeServer;
 use crate::workbench_client::mailbox::CommandMailbox;
@@ -11,6 +12,10 @@ use crate::workbench_projection::{
 use crate::workbench_state::OperationDeadlines;
 use crate::workbench_state::workspace_setup::SetupToken;
 use crate::workbench_state::workspace_setup::quick::QuickPreparation;
+use orchbee_client_server_protocol::{
+    ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalViewerResult, ViewerUnavailableReason, read_client_message, write_server_message,
+};
 use orchbee_workbench_protocol::{
     Directory, TerminalContext, WorkbenchDirectoryId, WorkbenchDirectoryPath,
     WorkbenchSnapshotOutcome, WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
@@ -20,22 +25,37 @@ use std::io::{self, Read};
 use std::{sync::Arc, time::Instant};
 
 fn quick(baseline: ClientContextTabs) -> QuickPreparation {
+    let first_terminal = baseline.tabs()[0]
+        .panel(0)
+        .and_then(|panel| panel.primary().binding())
+        .cloned();
     QuickPreparation {
         review_directory: false,
         target: None,
         generation: 1,
         token: SetupToken::for_test(1),
         baseline,
+        first_terminal,
+        first_terminal_pane: None,
         deadlines: OperationDeadlines::from_sample(Instant::now()).unwrap(),
     }
 }
 
 #[test]
-fn quick_workspace_uses_the_focused_workspace_directory_then_the_launch_directory_without_sampling()
+fn quick_workspace_uses_the_first_terminal_directory() -> TestResult {
+    source_root::borrow(|executor, source, outcome| {
+        let mut preparation = quick(source.baseline.clone());
+        preparation.first_terminal_pane.clone_from(&source.primary_pane);
+        executor.prepare_quick_cwd(&preparation, outcome)
+    })
+}
+
+#[test]
+fn quick_workspace_falls_back_to_the_focused_workspace_directory_then_the_launch_directory()
 -> TestResult {
     let initial_workspace = snapshot(1, 1);
-    // Move the live terminal into a Workspace whose recorded directory differs from any
-    // terminal working directory; the default must still be the recorded directory.
+    // Move the live terminal into a Workspace with a recorded directory; while its first
+    // terminal cannot be sampled, the default is the recorded directory.
     let mut workspace = snapshot(0, 1);
     let workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 300))?;
     let context_id = WorkbenchTerminalContextId::parse(&format!("{:032x}", 301))?;
@@ -87,9 +107,27 @@ fn quick_workspace_uses_the_focused_workspace_directory_then_the_launch_director
     ] {
         let server = FakeServer::start(|mut stream| {
             admit(&mut stream)?;
+            let ClientMessage::TerminalViewer(request) =
+                read_client_message(&mut stream).map_err(io::Error::other)?
+            else {
+                return Err(io::Error::other("first terminal sample expected"));
+            };
+            if !matches!(request.action(), TerminalViewerAction::AttachBinding { .. }) {
+                return Err(io::Error::other("temporary Viewer expected"));
+            }
+            write_server_message(
+                &mut stream,
+                &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                    request.request_id().clone(),
+                    TerminalViewerOutcome::Unavailable {
+                        reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+                    },
+                )),
+            )
+            .map_err(io::Error::other)?;
             let mut trailing = [0];
             if stream.read(&mut trailing)? != 0 {
-                return Err(io::Error::other("quick defaults never sample a terminal"));
+                return Err(io::Error::other("an unavailable sample is not retried"));
             }
             Ok(())
         })?;

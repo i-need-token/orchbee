@@ -322,6 +322,7 @@ impl QuickWorkspaceFields {
 }
 
 use super::{SetupDraft, SetupStage, SetupToken, WorkbenchClientState};
+use crate::workbench_projection::ClientTerminalBinding;
 use crate::workbench_state::OperationDeadlines;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -331,6 +332,10 @@ pub(crate) struct QuickPreparation {
     pub(crate) generation: u64,
     pub(crate) token: SetupToken,
     pub(crate) baseline: ClientContextTabs,
+    /// The focused Workspace's first terminal: the first Tab's leading Panel primary binding,
+    /// with this Client's live pane for it when one is attached.
+    pub(crate) first_terminal: Option<ClientTerminalBinding>,
+    pub(crate) first_terminal_pane: Option<super::super::PaneRef>,
     pub(crate) deadlines: OperationDeadlines,
 }
 
@@ -411,12 +416,28 @@ impl WorkbenchClientState {
             return None;
         }
         let token = SetupToken(self.setup.last_token.checked_add(1)?);
+        let first_terminal = self
+            .cache
+            .tabs()
+            .first()
+            .and_then(|tab| tab.panel(0)?.primary().binding())
+            .cloned();
+        let first_terminal_pane = first_terminal.as_ref().and_then(|binding| {
+            self.panes
+                .iter()
+                .find(|record| {
+                    !record.departing && record.attached() && record.binding() == binding
+                })
+                .map(super::super::PaneRecord::pane_ref)
+        });
         let preparation = QuickPreparation {
             review_directory,
             target: request.map(|request| request.target),
             generation,
             token,
             baseline: self.cache.clone(),
+            first_terminal,
+            first_terminal_pane,
             deadlines,
         };
         if !self.start_pending_refresh(generation) {
