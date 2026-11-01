@@ -42,7 +42,9 @@ pub struct Checkpoint {
 pub(crate) type Observation = crate::machine_observation::outcome::Observation<Checkpoint>;
 
 impl Checkpoint {
-    /// Missing reads retain facts only for the same exact Workspace and canonical source.
+    /// Missing reads retain facts only for the same exact Workspace and observed source. A read
+    /// that asked for Git and got none makes the retained fact stale; a metadata-only read says
+    /// nothing about Git, so the fact keeps the freshness it had.
     pub(crate) fn retaining_git(&self, previous: &Self) -> Self {
         let mut checkpoint = self.clone();
         if self.session_id != previous.session_id
@@ -57,13 +59,14 @@ impl Checkpoint {
         for row in &mut rows {
             if row.git.is_none()
                 && row.directory.is_some()
-                && let Some(known) = previous
-                    .rows
-                    .iter()
-                    .find(|known| known.target == row.target && known.directory == row.directory)
+                && let Some(known) = previous.rows.iter().find(|known| {
+                    known.target == row.target
+                        && known.directory == row.directory
+                        && known.terminal_directory == row.terminal_directory
+                })
             {
                 row.git.clone_from(&known.git);
-                row.git_stale = row.git.is_some();
+                row.git_stale = row.git.is_some() && (self.git_requested || known.git_stale);
             }
         }
         checkpoint.rows = rows.into();

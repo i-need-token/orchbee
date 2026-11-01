@@ -2,12 +2,13 @@
 use super::physical::PhysicalAttentionState;
 use super::{
     AgentReadLane, Instant, LaneCommand, LaneOutcome, LocalClientOrigin, LocalOperationClock,
-    PhysicalRound, READ_BUDGET, READ_INTERVAL,
+    PhysicalRound, READ_BUDGET, READ_INTERVAL, ROUND_FRESH_FOR,
 };
 use crate::workbench_client::agent_notifications::{
     AgentNotificationCommand, AgentNotificationIdentity, AgentNotificationPolicy,
     AgentNotificationScheduler, AgentSoundPolicy,
 };
+use crate::workbench_client::agent_read_lane::LaneFailure;
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_local_runtime::{AgentSoundSetting, NotificationDelivery, NotificationSettings};
 
@@ -24,6 +25,7 @@ pub(super) struct PhysicalObserver {
     epoch: u64,
     inflight: Option<(u64, Instant)>,
     next_read: Option<Instant>,
+    read_at: Option<Instant>,
     stopping: bool,
 }
 
@@ -51,6 +53,7 @@ impl PhysicalObserver {
             epoch: 0,
             inflight: None,
             next_read: None,
+            read_at: None,
             stopping: false,
         }
     }
@@ -70,6 +73,7 @@ impl PhysicalObserver {
         self.origin = None;
         self.changes = None;
         self.inflight = None;
+        self.read_at = None;
         self.stopping = false;
         self.unavailable();
     }
@@ -184,6 +188,26 @@ impl PhysicalObserver {
             .ok()
     }
 
+    fn settle(&mut self, now: Instant, result: Result<PhysicalRound, LaneFailure>) -> bool {
+        match result {
+            Ok(round) => match self.publish(&round) {
+                Ok(updated) => {
+                    self.read_at = Some(now);
+                    updated
+                }
+                Err(()) => self.unavailable(),
+            },
+            Err(_) => {
+                self.dirty = true;
+                // Displayed versions and notification baselines survive until the round ages out,
+                // so the transition that failed this read is still inferred from the next one.
+                self.read_at
+                    .is_none_or(|at| now.saturating_duration_since(at) > ROUND_FRESH_FOR)
+                    && self.unavailable()
+            }
+        }
+    }
+
     pub(super) fn tick(&mut self) -> bool {
         let now = self.clock.now();
         if self
@@ -213,20 +237,7 @@ impl PhysicalObserver {
                 changed |= self.unavailable();
                 continue;
             }
-            match result {
-                Ok(round) => match self.publish(&round) {
-                    Ok(updated) => {
-                        changed |= updated;
-                    }
-                    Err(()) => {
-                        changed |= self.unavailable();
-                    }
-                },
-                Err(_) => {
-                    self.dirty = true;
-                    changed |= self.unavailable();
-                }
-            }
+            changed |= self.settle(now, result);
         }
         if self.lane.as_ref().is_some_and(AgentReadLane::finished) {
             self.lane.take();
@@ -291,3 +302,6 @@ impl Drop for PhysicalObserver {
         self.close();
     }
 }
+
+#[cfg(test)]
+mod tests;

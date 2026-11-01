@@ -282,6 +282,34 @@ fn only_authoritative_same_source_git_results_can_clear_or_replace_a_retained_br
     assert!(next.retaining_git(&previous).rows[0].git.is_none());
 }
 #[test]
+fn metadata_reads_keep_git_freshness_and_a_changed_terminal_directory_drops_the_fact() {
+    let previous = git_checkpoint(1);
+    let mut next = previous.as_ref().clone();
+    next.git_requested = false;
+    let mut rows = next.rows.to_vec();
+    for row in &mut rows {
+        row.git = None;
+    }
+    rows[1].terminal_directory = Some(WorkbenchDirectoryPath::parse("C:/elsewhere").unwrap());
+    next.rows = rows.into();
+    let retained = next.retaining_git(&previous);
+    assert_eq!(retained.rows[0].git, previous.rows[0].git);
+    assert!(
+        !retained.rows[0].git_stale,
+        "a metadata read says nothing about Git"
+    );
+    assert!(
+        retained.rows[1].git.is_none(),
+        "a cd can reach another repository"
+    );
+    // A read that asked for Git and got none does make it stale, and metadata reads keep that.
+    let mut failed = next.clone();
+    failed.git_requested = true;
+    let stale = failed.retaining_git(&previous);
+    assert!(stale.rows[0].git_stale);
+    assert!(next.retaining_git(&stale).rows[0].git_stale);
+}
+#[test]
 fn unified_tree_window_scrolls_and_focus_clips_oversized_rows() {
     let mut picker = picker(7);
     let heights = [1, 1, 3, 2, 1, 4, 1, 2];

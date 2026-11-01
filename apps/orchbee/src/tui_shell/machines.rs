@@ -296,15 +296,20 @@ impl Manager {
         } else {
             Vec::new()
         };
-        change.redraw |= view.machines.observe_spaces(self.spaces.tick(
-            space_sources,
-            now,
-            if space_git {
-                crate::machine_spaces::read_with_git
-            } else {
-                crate::machine_spaces::read_metadata
-            },
-        ));
+        // Commits refresh canonical metadata at once; Git keeps its own sampling cooldown, so they
+        // cannot queue one Git request per Workspace on the carrier the terminals share.
+        let spaces = if space_git {
+            self.spaces.tick_split(
+                space_sources,
+                now,
+                crate::machine_spaces::read_metadata,
+                crate::machine_spaces::read_with_git,
+            )
+        } else {
+            self.spaces
+                .tick(space_sources, now, crate::machine_spaces::read_metadata)
+        };
+        change.redraw |= view.machines.observe_spaces(spaces);
         // Failed observers retain their background transport guard until both collectors have
         // dropped cached origins/subscriptions. Remaining cancelled jobs dispose on their threads.
         self.discovery.finish_retirement();

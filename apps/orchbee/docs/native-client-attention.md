@@ -70,7 +70,8 @@ unavailable canonical observations cannot be used as physical evidence or vice v
 | New physical binding or reappearing entry                       | Start unseen after the initial baseline.                                                                    |
 | Removed or unavailable binding                                  | Remove its readable entry; no seen/unseen fact is manufactured.                                             |
 | Sequence regression or changed Agent/state at the same sequence | Reject the round before any partial publication.                                                            |
-| Read failure, retirement or shutdown                            | Disable acknowledgement; interrupt and join owned readers.                                                  |
+| Failed round within ten seconds of the last complete one        | Keep entries and notification baselines: a commit landing inside a read says nothing about them.            |
+| Older read failure, retirement or shutdown                      | Disable acknowledgement; interrupt and join owned readers.                                                  |
 | Successful visible paint                                        | Acknowledge only the exact binding/sequence, Host frame route and paint serial still current after drawing. |
 
 The existing overlay, scrollback, zoom, geometry and outer-focus gates apply to physical paint too.

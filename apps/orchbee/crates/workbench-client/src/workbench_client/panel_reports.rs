@@ -1,5 +1,5 @@
 //! Windows selected-Presentation observations on an isolated, cancellable read lane.
-use super::agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome};
+use super::agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome, ROUND_FRESH_FOR};
 use super::{ClientPanel, ClientPresentation};
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use crate::workbench_state::WorkbenchClientState;
@@ -24,6 +24,7 @@ pub(super) struct PanelReports {
     lane: Option<AgentReadLane>,
     scope: Option<Scope>,
     round: Option<Round>,
+    round_at: Option<Instant>,
     unavailable: bool,
     epoch: u64,
     inflight: Option<(u64, Instant)>,
@@ -37,6 +38,7 @@ impl PanelReports {
     pub(in crate::workbench_client) fn publish_for_test(&mut self, round: Round) {
         self.scope = Some(round.scope.clone());
         self.round = Some(round);
+        self.round_at = Some(self.clock.now());
         self.unavailable = false;
     }
     pub(super) fn new(clock: LocalOperationClock) -> Self {
@@ -46,6 +48,7 @@ impl PanelReports {
             lane: None,
             scope: None,
             round: None,
+            round_at: None,
             unavailable: false,
             epoch: 0,
             inflight: None,
@@ -66,6 +69,7 @@ impl PanelReports {
         self.origin = None;
         self.scope = None;
         self.round = None;
+        self.round_at = None;
         self.inflight = None;
         self.stopping = false;
         self.unavailable = true;
@@ -83,36 +87,54 @@ impl PanelReports {
             .as_mut()
             .map_or(Ok(()), |lane| lane.stop_before(deadline))
     }
+    /// Rows answer for exact Presentations, so only another Session hides them.
     pub(super) fn matches(&self, state: &WorkbenchClientState) -> bool {
-        self.scope.is_some() && self.scope == Scope::capture(state)
+        self.scope
+            .as_ref()
+            .is_some_and(|scope| &scope.session == state.cache().session_id())
     }
     pub(super) fn view(
         &self,
         panel: &ClientPanel,
         presentation: &ClientPresentation,
     ) -> PanelReportView<'_> {
-        let Some(selected) = SelectedPanel::capture(panel, presentation) else {
-            return PanelReportView::Unavailable;
-        };
-        if self
+        SelectedPanel::capture(panel, presentation)
+            .map_or(PanelReportView::Unavailable, |selected| {
+                self.selected_view(&selected)
+            })
+    }
+    fn selected_view(&self, selected: &SelectedPanel) -> PanelReportView<'_> {
+        // A round answers for the Presentations it read at whatever revision the Client has since
+        // reached, so a commit cannot blank a state glyph until the next read completes.
+        if let Some(row) = self
+            .round
+            .as_ref()
+            .filter(|round| round.scope.panels.contains(selected))
+            .and_then(|round| round.rows.get(&selected.panel_id))
+        {
+            return PanelReportView::Ready(row);
+        }
+        let current = self
             .scope
             .as_ref()
-            .is_none_or(|s| !s.panels.contains(&selected))
-        {
-            return PanelReportView::Pending;
+            .is_some_and(|scope| scope.panels.contains(selected));
+        if current && self.unavailable {
+            PanelReportView::Unavailable
+        } else {
+            PanelReportView::Pending
         }
-        if self.unavailable {
-            return PanelReportView::Unavailable;
-        }
-        self.round
-            .as_ref()
-            .and_then(|r| r.rows.get(panel.panel_id()))
-            .map_or(PanelReportView::Pending, PanelReportView::Ready)
     }
-    fn fail(&mut self) -> bool {
+    fn fail(&mut self, now: Instant) -> bool {
+        if self
+            .round_at
+            .is_some_and(|at| now.saturating_duration_since(at) <= ROUND_FRESH_FOR)
+        {
+            return false;
+        }
         let changed = !self.unavailable || self.round.is_some();
         self.unavailable = true;
         self.round = None;
+        self.round_at = None;
         changed
     }
     fn interrupt(&mut self) {
@@ -135,8 +157,26 @@ impl PanelReports {
         if self.scope != scope {
             self.interrupt();
             self.inflight = None;
+            // A commit keeps the round for the Presentations it read until it ages out; another
+            // Session, or a scope sharing none of them such as another Tab, has nothing to keep.
+            let fresh = self
+                .round_at
+                .is_some_and(|at| now.saturating_duration_since(at) <= ROUND_FRESH_FOR);
+            let kept = fresh
+                && self.round.as_ref().is_some_and(|round| {
+                    scope.as_ref().is_some_and(|scope| {
+                        round.scope.session == scope.session
+                            && scope
+                                .panels
+                                .iter()
+                                .any(|panel| round.scope.panels.contains(panel))
+                    })
+                });
+            if !kept {
+                self.round = None;
+                self.round_at = None;
+            }
             self.scope = scope;
-            self.round = None;
             self.unavailable = false;
             self.next_read = None;
             changed = true;
@@ -144,7 +184,7 @@ impl PanelReports {
         while let Some(outcome) = self.lane.as_mut().and_then(AgentReadLane::take_outcome) {
             let LaneOutcome::PanelReports { epoch, result } = outcome else {
                 self.interrupt();
-                changed |= self.fail();
+                changed |= self.fail(now);
                 continue;
             };
             let Some((expected, deadline)) = self.inflight else {
@@ -164,21 +204,22 @@ impl PanelReports {
                     changed |= self.unavailable || self.round.as_ref() != Some(&round);
                     self.unavailable = false;
                     self.round = Some(round);
+                    self.round_at = Some(now);
                 }
-                _ => changed |= self.fail(),
+                _ => changed |= self.fail(now),
             }
         }
         if self.lane.as_ref().is_some_and(AgentReadLane::finished) {
             self.lane.take();
             self.stopping = false;
             if self.inflight.take().is_some() {
-                changed |= self.fail();
+                changed |= self.fail(now);
                 self.next_read = now.checked_add(INTERVAL);
             }
         }
         if self.inflight.is_some_and(|(_, deadline)| now >= deadline) && !self.stopping {
             self.interrupt();
-            changed |= self.fail();
+            changed |= self.fail(now);
         }
         if self.inflight.is_some() || self.stopping || self.next_read.is_some_and(|next| now < next)
         {
@@ -195,7 +236,7 @@ impl PanelReports {
                 Ok(lane) => self.lane = Some(lane),
                 Err(_) => {
                     self.next_read = now.checked_add(INTERVAL);
-                    return changed | self.fail();
+                    return changed | self.fail(now);
                 }
             }
         }
@@ -215,7 +256,7 @@ impl PanelReports {
             self.inflight = Some((epoch, deadline));
         } else {
             self.interrupt();
-            changed |= self.fail();
+            changed |= self.fail(now);
         }
         changed
     }

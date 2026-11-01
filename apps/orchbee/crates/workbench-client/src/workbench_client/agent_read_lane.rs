@@ -15,7 +15,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, SyncSender},
     },
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use orchbee_agent_observation_protocol::{
@@ -96,6 +96,11 @@ pub(super) struct ListRound {
     pub(super) complete: bool,
     pub(super) revision: Option<u64>,
 }
+
+/// A round is an optimistic multi-request read, so a commit landing inside it fails it and says
+/// nothing about the facts. Its owner keeps presenting the last complete round this long; only
+/// sustained loss is an observation gap.
+pub(super) const ROUND_FRESH_FOR: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum LaneFailure {

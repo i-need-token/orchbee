@@ -15,10 +15,17 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+// A sampled observation stays valid this long after its read completed, through failed refreshes,
+// reset subscriptions and carrier blips; only sustained loss withdraws it.
 const FRESH_FOR: Duration = Duration::from_secs(10);
 // Host process titles and optional external Git observations have no committed notification source.
 // Only collectors requesting those observations sample; canonical metadata follows invalidations.
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(2);
+// A sampled read shares the carrier with the terminals. Its cooldown stretches to this many times
+// the read, so Workspaces reporting Git normally take at most a quarter of the carrier. The cap lets
+// the next five-second read complete before the last checkpoint ages out.
+const SAMPLE_DUTY: u32 = 3;
+const MAXIMUM_SAMPLE_COOLDOWN: Duration = Duration::from_secs(4);
 // Failed admission/reads retry independently of successful state subscriptions. This is bounded
 // recovery backoff, never a periodic read of a successful canonical checkpoint.
 fn retry_after(failures: &mut u8) -> Duration {
@@ -132,6 +139,36 @@ struct Entry<T> {
     waiting_snapshot: bool,
     /// A publication arriving during a read requires another complete read afterwards.
     changed: bool,
+    /// The running job refreshes sampled facts, so its completion restarts their cooldown.
+    sampling: bool,
+    started: Instant,
+}
+impl<T> Entry<T> {
+    /// A failed refresh is no canonical deletion: a sampling source keeps its last Ready until
+    /// that checkpoint ages out, which keeps the presented rows from flashing away when a commit
+    /// lands inside a multi-request read.
+    fn withdraw(&mut self, sampling: bool) {
+        if !sampling || !matches!(self.observation, Observation::Ready(_)) {
+            self.observed = None;
+            self.observation = Observation::Unavailable;
+        }
+    }
+    fn presented(&self, sampling: bool, now: Instant) -> Observation<T>
+    where
+        T: Clone,
+    {
+        let withdrawn = if sampling && matches!(self.observation, Observation::Ready(_)) {
+            self.observed
+                .is_some_and(|at| now.saturating_duration_since(at) > FRESH_FOR)
+        } else {
+            !self.connection.is_current(now)
+        };
+        if withdrawn {
+            Observation::Unavailable
+        } else {
+            self.observation.clone()
+        }
+    }
 }
 pub struct Collector<T> {
     entries: Vec<Entry<T>>,
@@ -173,7 +210,24 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
         self.reconcile(&sources, now);
         self.observe_changes(now);
         let wakeup = self.wakeup.clone();
-        self.tick_jobs(now, |source, deadline| {
+        self.tick_jobs(now, false, |source, deadline, _| {
+            Job::start(source, deadline, read, wakeup.clone())
+        })
+    }
+    /// Answers invalidations with `canonical` alone. Only `sampled` refreshes the external facts
+    /// and owns their cooldown, so a commit never adds an expensive external read.
+    pub fn tick_split(
+        &mut self,
+        sources: Vec<Source>,
+        now: Instant,
+        canonical: Reader<T>,
+        sampled: Reader<T>,
+    ) -> Vec<(Choice, Observation<T>)> {
+        self.reconcile(&sources, now);
+        self.observe_changes(now);
+        let wakeup = self.wakeup.clone();
+        self.tick_jobs(now, true, |source, deadline, sampling| {
+            let read = if sampling { sampled } else { canonical };
             Job::start(source, deadline, read, wakeup.clone())
         })
     }
@@ -202,6 +256,8 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                     read_failures: 0,
                     waiting_snapshot: false,
                     changed: false,
+                    sampling: false,
+                    started: now,
                 });
             self.entries.push(entry);
         }
@@ -213,6 +269,7 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
         }
     }
     fn observe_changes(&mut self, now: Instant) {
+        let sampling = self.sample_external;
         for entry in &mut self.entries {
             if !entry.watch_started && entry.watch_retry.is_none_or(|retry| now >= retry) {
                 entry.watch_started = true;
@@ -229,7 +286,7 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                         entry.watch_started = false;
                         entry.watch_retry = Some(now + retry_after(&mut entry.watch_failures));
                         entry.waiting_snapshot = true;
-                        entry.observation = Observation::Unavailable;
+                        entry.withdraw(sampling);
                     }
                 }
             }
@@ -237,6 +294,10 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                 match watch.poll() {
                     Ok(Some(ChangeEvent::Published)) => {
                         entry.watch_failures = 0;
+                        // A fresh baseline reads everything, sampled facts included.
+                        if entry.waiting_snapshot {
+                            entry.next = Some(now);
+                        }
                         entry.waiting_snapshot = false;
                         entry.changed = true;
                         self.hinted.push(entry.choice.clone());
@@ -250,8 +311,7 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                         entry.waiting_snapshot = true;
                         entry.changed = false;
                         entry.next = None;
-                        entry.observed = None;
-                        entry.observation = Observation::Unavailable;
+                        entry.withdraw(sampling);
                         if result.is_err() {
                             entry.watch = None;
                             entry.watch_started = false;
@@ -267,24 +327,29 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
     fn tick_jobs(
         &mut self,
         now: Instant,
-        mut start: impl FnMut(Connection, Instant) -> Result<Job<T>, ()>,
+        split: bool,
+        mut start: impl FnMut(Connection, Instant, bool) -> Result<Job<T>, ()>,
     ) -> Vec<(Choice, Observation<T>)> {
         for entry in &mut self.entries {
             if entry.job.as_ref().is_some_and(Job::finished) {
                 let mut job = entry.job.take().expect("finished job");
-                entry.observation = match job.task.join().expect("owned job") {
+                match job.task.join().expect("owned job") {
                     Ok(Completed { at, rows: Ok(rows) }) => {
                         entry.read_failures = 0;
                         entry.observed = Some(at);
-                        entry.next = self.sample_external.then_some(now + SAMPLE_INTERVAL);
-                        Observation::Ready(rows)
+                        if entry.sampling {
+                            let took = at.saturating_duration_since(entry.started);
+                            let cooldown = (took * SAMPLE_DUTY)
+                                .clamp(SAMPLE_INTERVAL, MAXIMUM_SAMPLE_COOLDOWN);
+                            entry.next = self.sample_external.then_some(now + cooldown);
+                        }
+                        entry.observation = Observation::Ready(rows);
                     }
                     _ => {
-                        entry.observed = None;
                         entry.next = Some(now + retry_after(&mut entry.read_failures));
-                        Observation::Unavailable
+                        entry.withdraw(self.sample_external);
                     }
-                };
+                }
             }
         }
         let mut active =
@@ -296,19 +361,26 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
             if active >= 4 {
                 break;
             }
-            if entry.job.is_none()
-                && !entry.waiting_snapshot
-                && (entry.next.is_some_and(|next| now >= next) || entry.changed)
-            {
+            let due = entry.next.is_some_and(|next| now >= next);
+            if entry.job.is_none() && !entry.waiting_snapshot && (due || entry.changed) {
                 entry.changed = false;
-                entry.next = None;
-                match start(entry.connection.clone(), now + Duration::from_secs(5)) {
+                // Only a sampled read consumes the cooldown; a split canonical read leaves it armed.
+                entry.sampling = due || !split;
+                if entry.sampling {
+                    entry.next = None;
+                }
+                entry.started = now;
+                match start(
+                    entry.connection.clone(),
+                    now + Duration::from_secs(5),
+                    entry.sampling,
+                ) {
                     Ok(job) => {
                         entry.job = Some(job);
                         active += 1;
                     }
                     Err(()) => {
-                        entry.observation = Observation::Unavailable;
+                        entry.withdraw(self.sample_external);
                         entry.next = Some(now + retry_after(&mut entry.read_failures));
                     }
                 }
@@ -322,16 +394,7 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
             .map(|entry| {
                 (
                     entry.choice.clone(),
-                    if !entry.connection.is_current(now)
-                        || (self.sample_external
-                            && entry
-                                .observed
-                                .is_some_and(|at| now.saturating_duration_since(at) > FRESH_FOR))
-                    {
-                        Observation::Unavailable
-                    } else {
-                        entry.observation.clone()
-                    },
+                    entry.presented(self.sample_external, now),
                 )
             })
             .collect()
@@ -341,11 +404,21 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
         &mut self,
         sources: Vec<Source>,
         now: Instant,
-        start: impl FnMut(Connection, Instant) -> Result<Job<T>, ()>,
+        mut start: impl FnMut(Connection, Instant) -> Result<Job<T>, ()>,
     ) -> Vec<(Choice, Observation<T>)> {
         // Scheduling evidence injects completed/bounded jobs; carrier evidence uses tick itself.
         self.reconcile(&sources, now);
-        self.tick_jobs(now, start)
+        self.tick_jobs(now, false, |source, deadline, _| start(source, deadline))
+    }
+    #[cfg(test)]
+    fn tick_split_with_start(
+        &mut self,
+        sources: Vec<Source>,
+        now: Instant,
+        start: impl FnMut(Connection, Instant, bool) -> Result<Job<T>, ()>,
+    ) -> Vec<(Choice, Observation<T>)> {
+        self.reconcile(&sources, now);
+        self.tick_jobs(now, true, start)
     }
 }
 impl<T> Collector<T> {

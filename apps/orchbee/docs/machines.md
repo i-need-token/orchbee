@@ -355,13 +355,20 @@ At most four observation jobs run concurrently. Each job owns a logical lane, a 
 budget and one result slot; reads admit at most 4096 bound Presentations and 8 MiB of serialized
 physical, report and metadata rows. Each source registers one shared-carrier invalidation stream
 before its first read and waits for an accepted initial snapshot. A commit during a read schedules
-another complete read. Gap/Disconnected retire even a completed old job before consuming results,
-withdraw observations and wait for a fresh subscription snapshot; coalesced reset/snapshot delivery
-still preserves retirement. Source identity includes the carrier, not just the saved choice.
-Registration or read failure retries only while failed, starting at 500 milliseconds and doubling
-to at most 30 seconds; successful canonical checkpoints have no periodic fallback. Agent Host
-process titles and requested external Git state have no notification source, so those observations
-retain a two-second sampling cooldown and ten-second age from job completion. Completed reads
+another complete read. Gap/Disconnected retire even a completed old job before consuming results
+and wait for a fresh subscription snapshot; a canonical source withdraws its observation there, and
+coalesced reset/snapshot delivery still preserves retirement. Source identity includes the carrier,
+not just the saved choice. Registration or read failure retries only while failed, starting at 500
+milliseconds and doubling to at most 30 seconds; successful canonical checkpoints have no periodic
+fallback. Agent Host process titles and requested external Git state have no notification source,
+so those observations retain a two-second sampling cooldown and ten-second age from job completion.
+A read is an optimistic multi-request round, so a commit landing inside one fails it without saying
+anything about the facts: a sampling source keeps presenting its last complete checkpoint through
+failed reads, Gap/Disconnected and carrier loss until that age passes. Workspaces answer a commit
+with a canonical read alone; their Git read runs only when its cooldown ends or after a fresh
+subscription snapshot. One Client's requests run in order on the carrier its terminals share, so
+that cooldown stretches to three times a slow sampled read, capped at four seconds so that the next
+read completes within the age. Completed reads
 signal the UI wakeup; invalidations are consumed in the existing UI tick with at most the existing
 50-millisecond input wait, without an extra forwarding thread. Attached-machine hints also expedite
 Agent attention and Panel report reads. Hiding the last consumer cancels jobs and subscriptions;
@@ -702,10 +709,12 @@ Client presentation retains its last accepted Workspace checkpoint while a refre
 unavailable, expired or temporarily missing. Project disclosure, current identity and the manual
 scroll window remain stable. A newer complete checkpoint replaces canonical membership; decreasing
 Workbench or metadata revisions from the same Session cannot overwrite it. A partial Git failure
-retains only the last result for the exact Workspace/context, directory ID, path and Worker.
-An observed null branch confirms absence and clears the old branch; a changed directory or Session
-never inherits it. Retained Git text reserves a two-cell freshness track (` ?` when stale), and the
-Workspace picker reports Stale. Endpoint replacement/removal invalidates its retained checkpoint;
+retains only the last result for the exact Workspace/context, directory ID, path, terminal directory
+and Worker. An observed null branch confirms absence and clears the old branch; a changed directory
+or Session never inherits it. A read that asked for Git and got none makes the retained fact stale;
+a metadata-only read says nothing about Git and leaves its freshness unchanged. Retained Git text
+reserves a two-cell freshness track (` ?` when stale), and the Workspace picker reports Stale.
+Endpoint replacement/removal invalidates its retained checkpoint;
 hiding the last Workspace consumer releases it. No retained fact grants navigation or effect authority.
 `crates/workbench-client/src/machine_picker/tests/spaces.rs` covers failed/missing and out-of-order rounds, stable grouping,
 scroll/current identity, partial Git failure, confirmed absence and source replacement. These are

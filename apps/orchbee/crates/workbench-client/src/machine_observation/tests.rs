@@ -44,6 +44,112 @@ fn completed(at: Instant) -> Job<Checkpoint> {
         task: BackgroundThread::adopt(task),
     }
 }
+fn failed(at: Instant) -> Job<Checkpoint> {
+    let task = thread::spawn(move || Completed { at, rows: Err(()) });
+    let cutoff = Instant::now() + Duration::from_secs(3);
+    while !task.is_finished() {
+        assert!(Instant::now() < cutoff);
+        thread::yield_now();
+    }
+    Job {
+        cancel: Arc::new(OwnedCancellation::new().unwrap()),
+        task: BackgroundThread::adopt(task),
+    }
+}
+#[test]
+fn a_failed_refresh_keeps_a_sampled_checkpoint_until_it_ages_out() -> io::Result<()> {
+    let connection = source_connection()?;
+    let now = Instant::now();
+    let source = || sources(&connection, 1);
+    let mut collector = Collector::<Checkpoint>::default();
+    collector.sample_external_sources(true);
+    // With nothing to keep, a failed first read is unavailable rather than an empty list.
+    collector.tick_with_start(source(), now, |_, _| Ok(failed(now)));
+    let first = collector.tick_with_start(source(), now, |_, _| panic!("recovery backoff"));
+    assert_eq!(first[0].1, Observation::Unavailable);
+    // Recovery succeeds; this is the checkpoint the later failures must keep presenting.
+    let recovery = now + Duration::from_secs(1);
+    collector.tick_with_start(source(), recovery, |_, _| Ok(completed(recovery)));
+    let ready = collector.tick_with_start(source(), recovery, |_, _| panic!("cooldown"));
+    assert!(matches!(ready[0].1, Observation::Ready(_)));
+    let mut retry = recovery + SAMPLE_INTERVAL;
+    while retry < recovery + FRESH_FOR {
+        collector.tick_with_start(source(), retry, |_, _| Ok(failed(retry)));
+        let held = collector.tick_with_start(source(), retry, |_, _| panic!("recovery backoff"));
+        assert_eq!(held[0].1, ready[0].1);
+        retry = collector.entries[0]
+            .next
+            .expect("failure schedules recovery");
+    }
+    // Only the age withdraws it.
+    let age = recovery + FRESH_FOR;
+    assert_eq!(
+        collector.tick_with_start(source(), age, |_, _| Ok(failed(age)))[0].1,
+        ready[0].1
+    );
+    let expired = age + Duration::from_secs(1);
+    assert_eq!(
+        collector.tick_with_start(source(), expired, |_, _| Ok(failed(expired)))[0].1,
+        Observation::Unavailable
+    );
+    Ok(())
+}
+#[test]
+fn a_commit_rereads_canonical_state_and_only_the_cooldown_samples() -> io::Result<()> {
+    let connection = source_connection()?;
+    let now = Instant::now();
+    let source = || sources(&connection, 1);
+    let mut collector = Collector::<Checkpoint>::default();
+    collector.sample_external_sources(true);
+    let mut reads = Vec::new();
+    collector.tick_split_with_start(source(), now, |_, _, sampling| {
+        reads.push(sampling);
+        Ok(completed(now))
+    });
+    assert_eq!(reads, [true], "a fresh baseline reads everything");
+    collector.tick_split_with_start(source(), now, |_, _, _| panic!("cooldown"));
+    let cooldown = now + SAMPLE_INTERVAL;
+    assert_eq!(collector.entries[0].next, Some(cooldown));
+    // Commits arrive faster than the cooldown: each rereads canonical state and none postpones
+    // the sampled read, however long they keep coming.
+    for offset in [100, 900, 1900] {
+        let at = now + Duration::from_millis(offset);
+        collector.entries[0].changed = true;
+        collector.tick_split_with_start(source(), at, |_, _, sampling| {
+            reads.push(sampling);
+            Ok(completed(at))
+        });
+        collector.tick_split_with_start(source(), at, |_, _, _| panic!("no change, no read"));
+        assert_eq!(collector.entries[0].next, Some(cooldown));
+    }
+    assert_eq!(reads, [true, false, false, false]);
+    // A sampled read that took a second stretches its own cooldown to three times that.
+    collector.entries[0].changed = true;
+    collector.tick_split_with_start(source(), cooldown, |_, _, sampling| {
+        reads.push(sampling);
+        Ok(completed(cooldown + Duration::from_secs(1)))
+    });
+    assert_eq!(reads[4..], [true]);
+    assert!(
+        !collector.entries[0].changed,
+        "a sampled read is also canonical"
+    );
+    let finished = cooldown + Duration::from_secs(1);
+    collector.tick_split_with_start(source(), finished, |_, _, _| panic!("cooldown"));
+    assert_eq!(
+        collector.entries[0].next,
+        Some(finished + Duration::from_secs(3))
+    );
+    // A read at its whole five-second budget still gets replaced before the checkpoint ages out.
+    let due = finished + Duration::from_secs(3);
+    let budget = Duration::from_secs(5);
+    let refreshed = due + budget;
+    collector.tick_split_with_start(source(), due, |_, _, _| Ok(completed(refreshed)));
+    collector.tick_split_with_start(source(), refreshed, |_, _, _| panic!("cooldown"));
+    let next = collector.entries[0].next.expect("the next sampled read");
+    assert!(next + budget - refreshed < FRESH_FOR);
+    Ok(())
+}
 #[test]
 fn observation_collector_bounds_workers_and_cancels_removed_sources() -> io::Result<()> {
     let connection = source_connection()?;
@@ -278,6 +384,114 @@ fn carrier_snapshot_gate_and_reset_retire_completed_reads_before_accepting_fresh
         collector.entries[0].job.is_none(),
         "canonical state does not start a two-second fallback read"
     );
+    drop((collector, source, client));
+    server.finish()
+}
+
+#[test]
+fn a_reset_keeps_a_sampled_checkpoint_until_a_fresh_read_replaces_it() -> io::Result<()> {
+    use crate::local_client::test_support::multiplex_peer::{Open, admit, read_open, respond};
+    use orchbee_workbench_protocol::{
+        MultiplexMessage, StreamFrameKind, WorkbenchRequest, WorkbenchResponse, WorkbenchRevision,
+        WorkbenchSnapshotResult, read_multiplex_message, read_workbench_request,
+        write_multiplex_message, write_workbench_response,
+    };
+    use std::{num::NonZeroU64, sync::mpsc};
+    fn reply(open: &Open, revision: u64) -> WorkbenchResponse {
+        let WorkbenchRequest::SnapshotRead(request) =
+            read_workbench_request(&mut io::Cursor::new(&open.request)).unwrap()
+        else {
+            panic!("only snapshot reads");
+        };
+        let mut snapshot = crate::machine_agents::test_support::fixture();
+        snapshot.revision = WorkbenchRevision::new(revision);
+        WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            outcome: WorkbenchSnapshotOutcome::Available { snapshot },
+        })
+    }
+    fn read_revision(
+        client: &mut LocalClient,
+        deadline: Instant,
+        cancel: Cancellation<'_>,
+    ) -> Result<Arc<u64>, ()> {
+        snapshot(client, deadline, cancel).map(|snapshot| Arc::new(snapshot.revision.value()))
+    }
+    let (reset, reset_requested) = mpsc::sync_channel(1);
+    let server = FakeServer::start(move |mut peer| {
+        admit(&mut peer, 1)?;
+        let watch = read_open(&mut peer)?;
+        respond(&mut peer, &watch, &reply(&watch, 1), 1)?;
+        let first = read_open(&mut peer)?;
+        respond(&mut peer, &first, &reply(&first, 1), 1)?;
+        reset_requested
+            .recv_timeout(Duration::from_secs(2))
+            .unwrap();
+        write_multiplex_message(
+            &mut peer,
+            &MultiplexMessage::Gap {
+                stream_id: watch.id,
+                through: NonZeroU64::new(1).unwrap(),
+            },
+        )?;
+        let mut record = Vec::new();
+        write_workbench_response(&mut record, &reply(&watch, 3)).map_err(io::Error::other)?;
+        write_multiplex_message(
+            &mut peer,
+            &MultiplexMessage::StreamFrame {
+                stream_id: watch.id,
+                sequence: NonZeroU64::new(2).unwrap(),
+                kind: StreamFrameKind::Snapshot,
+                record,
+            },
+        )?;
+        // This correlated reply proves the reset was delivered before the UI drains its watch.
+        let fence = read_open(&mut peer)?;
+        respond(&mut peer, &fence, &reply(&fence, 30), 1)?;
+        let fresh = read_open(&mut peer)?;
+        respond(&mut peer, &fresh, &reply(&fresh, 3), 1)?;
+        loop {
+            match read_multiplex_message(&mut peer) {
+                Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(()),
+                Ok(_) => {}
+                Err(error) => return Err(error),
+            }
+        }
+    })?;
+    let mut client = LocalClient::connect(server.endpoint(), "test-cohort")
+        .map_err(io::Error::other)?
+        .into_multiplexed()?;
+    let source = Connection::from_origin(client.origin(), client.operation_clock());
+    let mut collector = Collector::<u64>::default();
+    collector.sample_external_sources(true);
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        let values = collector.tick(sources(&source, 1), Instant::now(), read_revision);
+        if matches!(&values[0].1, Observation::Ready(revision) if **revision == 1) {
+            break;
+        }
+        assert!(Instant::now() < deadline);
+        thread::yield_now();
+    }
+    reset.send(()).unwrap();
+    assert_eq!(
+        *read_revision(&mut client, deadline, Cancellation::new(None)).unwrap(),
+        30
+    );
+    let after_reset = collector.tick(sources(&source, 1), Instant::now(), read_revision);
+    assert!(
+        matches!(&after_reset[0].1, Observation::Ready(revision) if **revision == 1),
+        "a reset carrier does not take the presented rows away"
+    );
+    loop {
+        let values = collector.tick(sources(&source, 1), Instant::now(), read_revision);
+        if matches!(&values[0].1, Observation::Ready(revision) if **revision == 3) {
+            break;
+        }
+        assert!(Instant::now() < deadline);
+        thread::yield_now();
+    }
     drop((collector, source, client));
     server.finish()
 }

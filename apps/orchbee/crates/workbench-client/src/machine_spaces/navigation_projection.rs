@@ -66,7 +66,10 @@ impl Checkpoint {
                 .workspace_directory(&workspace.workspace_id)
                 .cloned();
             let git = known
-                .filter(|row| row.directory == directory)
+                .filter(|row| {
+                    row.directory == directory
+                        && row.terminal_directory == workspace.terminal_directory
+                })
                 .and_then(|row| row.git.clone());
             rows.push(Row {
                 target,
