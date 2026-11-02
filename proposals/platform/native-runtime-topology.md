@@ -1061,8 +1061,9 @@ These choices stand unless review changes them:
   with no deadline of its own. A stale revision is shown and never replayed, and an unknown outcome
   is never repeated.
 - **The read model comes only from publications.** Terminal lifecycle comes from Presentation
-  bindings: a known launch failure is a non-retryable failed state and a missing binding is pending.
-  Selection, expansion, focus, and maximize stay local, and Split ratios are shared.
+  bindings: a known launch failure and a missing binding are both failed states that nothing
+  retries, because no Client launches implicitly and an unbound member stays unbound until someone
+  starts it. Selection, expansion, focus, and maximize stay local, and Split ratios are shared.
 - **Creation follows the TUI.** Automatic Workspace names avoid the snapshot's labels at submit, so
   they never jump. A later press revokes landing and the keyboard handover while creation completes
   in the background, and the first Workspace still replaces the empty location.
@@ -1122,6 +1123,13 @@ These choices stand unless review changes them:
   may have typed them again. A surface being replaced still sends what it had accepted before its
   lane closes, for at most half a second, and the next surface waits for it. Before this, a split
   lost three to five keys. Keys typed through a swap with an input method are untested.
+- **A terminal that cannot be shown says so.** As in the TUI, a failed launch says that creation
+  failed and names the program when the launch named one, and a missing binding says only that no
+  terminal is available. Both offer New Tab and the Panel's Close, and nothing retries. The page
+  takes the keyboard where the terminal would have, so a key typed as it appears runs nothing.
+  Without a launch profile client, it names no profile and offers no Launch profiles link or
+  diagnostics copy. Only the CLI's `panel create-terminal` starts an unbound member, as with the
+  TUI, and Close does nothing on a failed child terminal while child terminals have no close.
 - **`panel.relocate` and `panel.rename` stay unconnected.** The GUI has no entry for either.
 
 Measured on 2026-11-01 on Windows with a Release cohort, in a real window beside a real TUI on the
@@ -1156,6 +1164,8 @@ same Session:
 | Directory of a new Panel      | With `file://host/C:/Windows` and `file:///C:/Users` reported, new terminals opened in `C:\Windows` and `C:\Users`. With nothing reported, the command asked for no directory.                                                                       |
 | Panels on both Clients        | A split with the TUI's `Ctrl+B \|` reached the window in 156 ms from the key, and the window's focus stayed. A split and a divider from the window were on the TUI's screen at an 800 ms sample. The TUI's terminal opened read-only here in 307 ms. |
 | Typing through a swap         | Keys 8 ms apart through five splits from another Client, two of its own and a Tab switch reached the shell whole and in order. A held Enter ran once, a held Tab completed, and keys held past a focus move or 1.3 s went nowhere.                   |
+| Terminal that cannot start    | A Tab and a split given a missing executable by the CLI showed the page with its path, in English and Chinese. Three ordinary creations never showed it. Keys typed on the page after Ctrl+PageDown sent nothing.                                    |
+| Leaving a failed terminal     | New Tab sent one `tab.create`, answered in 20 ms, and typing reached the new terminal. Close sent one `tab.close` for a lone Panel and one `panel.close` for a split's failed half, where typing in the other half stayed intact.                    |
 
 ### Evidence
 

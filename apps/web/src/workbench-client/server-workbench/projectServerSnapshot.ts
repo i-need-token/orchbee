@@ -36,6 +36,9 @@ const UNUSED_SEQUENCE = 1;
 
 const EVEN_SPLIT_RATIO = 0.5;
 
+/** This Client's name for a member with no terminal, beside the Server's launch failure reasons. */
+const UNBOUND_TERMINAL_FAILURE_CODE = 'terminal-unbound';
+
 /**
  * Projects what the Server published onto the model the React Workbench reads. Every Workspace gets
  * its own one-directory resource scope, because the Server has no scopes and a Workspace it holds
@@ -247,9 +250,11 @@ function projectPresentation(
 
 /**
  * A surface attaches only to a `running` terminal's binding, and reports for itself once that
- * terminal ends. A failed launch keeps its binding, yet every Client leaves it unattached, so it is
- * not `running`, nor `failed`, which a surface would try to attach to. Nothing retries it: a person
- * creates another terminal or closes this one.
+ * terminal ends. A failed launch keeps its binding, yet every Client leaves it unattached, and a
+ * member with no binding never launches by itself, since the Server binds one only when a command or
+ * a restore starts its terminal. Neither is `running`, nor `failed`, which a surface would try to
+ * attach to, nor `provisioning`, which would claim a launch is under way. Nothing retries either: a
+ * person creates another terminal or closes this one.
  */
 function projectTerminalState(presentation: WorkbenchPresentation): {
 	readonly intent: WorkbenchSharedPresentation['intent'];
@@ -263,13 +268,13 @@ function projectTerminalState(presentation: WorkbenchPresentation): {
 	);
 	return {
 		intent: { kind: 'provision', operationId },
-		lifecycle:
-			presentation.launchFailure === undefined
-				? { kind: 'provisioning', operationId }
-				: {
-						failure: { code: presentation.launchFailure.reason, retryable: false },
-						kind: 'provision-failed',
-						operationId,
-					},
+		lifecycle: {
+			failure: {
+				code: presentation.launchFailure?.reason ?? UNBOUND_TERMINAL_FAILURE_CODE,
+				retryable: false,
+			},
+			kind: 'provision-failed',
+			operationId,
+		},
 	};
 }

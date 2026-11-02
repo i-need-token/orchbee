@@ -148,6 +148,13 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.scrollToBottom.unchanged': '已在显示最新的终端输出。',
 	'terminal.projected.selectAll.completed': '已选择所有保留的终端输出。',
 	'terminal.projected.selection.evicted': '终端所选内容已从保留历史中逐出。',
+	'terminal.projected.launch.close': '关闭',
+	'terminal.projected.launch.executableFailed':
+		'可执行文件路径不可用，无法启动。请检查文件是否存在且可访问。',
+	'terminal.projected.launch.failed': '终端创建失败',
+	'terminal.projected.launch.newTab': '新建标签页',
+	'terminal.projected.launch.shellFailed': '无法启动所配置的 Shell。请检查启动配置和工作目录。',
+	'terminal.projected.launch.unavailable': '终端不可用',
 	'terminal.projected.session.startNew': '启动新会话',
 	'terminal.projected.session.startFailed': '无法启动终端会话。',
 	'terminal.projected.session.stopped': '终端会话已停止',

@@ -42,6 +42,7 @@ import {
 import type { ServerConnection } from '../server-connection';
 import {
 	createServerWorkbenchAuthority,
+	findServerPresentation,
 	findServerTerminalBinding,
 	projectServerSnapshot,
 	ServerTerminalProjectionClient,
@@ -220,6 +221,10 @@ export function createServerWorkbenchRuntime({
 		},
 		presentationSnapshots,
 		projectionClient,
+		readTerminalLaunchFailure: (presentationId) => {
+			const failure = findServerPresentation(session.snapshot, presentationId)?.launchFailure;
+			return failure === undefined ? null : { executable: failure.executable };
+		},
 		...(shortcutBindingSource === undefined ? {} : { shortcutBindingSource }),
 		shortcutPlatform,
 		startStoppedTerminalSession: (presentationId) =>

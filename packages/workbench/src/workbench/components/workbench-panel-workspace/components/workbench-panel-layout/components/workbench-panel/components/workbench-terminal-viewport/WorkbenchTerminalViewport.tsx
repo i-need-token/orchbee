@@ -229,6 +229,8 @@ export function WorkbenchTerminalViewport({
 						}
 						bindActionContextProvider={terminalActions.bindActionContextProvider}
 						bindBroadcastInputSink={bindBroadcastInputSink}
+						closeTerminal={(source) => view.closeActiveTerminal(panelId, source)}
+						createTab={view.createTerminalTab}
 						onTerminalEdit={() => view.onTerminalEdit?.(terminal.presentationId)}
 						onPresentationReady={(readiness) => {
 							setDisplayReady((current) =>

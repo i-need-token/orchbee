@@ -21,14 +21,20 @@ import {
 	type MobileTerminalKey,
 	type MobileTerminalModifier,
 } from '../../projected-terminal-renderer';
-import { ProjectedTerminalSurfaceCapabilityContext } from '../contexts/projected-terminal-surface-capability';
+import {
+	ProjectedTerminalSurfaceCapabilityContext,
+	type ProjectedTerminalSurfaceCapability,
+} from '../contexts/projected-terminal-surface-capability';
 import { MountedTerminalProjectionRequest } from '../model/MountedTerminalProjectionRequest';
 import {
 	ProjectedTerminalRecoveryController,
 	type ProjectedTerminalRecoveryState,
 } from '../model/ProjectedTerminalRecoveryController';
 import { runApplicationCleanup } from '../../../runApplicationCleanup';
-import type { ProjectedTerminalSurfaceView } from '../types/projected-terminal-surface-view';
+import type {
+	ProjectedTerminalLaunchFailureView,
+	ProjectedTerminalSurfaceView,
+} from '../types/projected-terminal-surface-view';
 
 interface PendingPasteDecision {
 	readonly abort: () => void;
@@ -74,6 +80,8 @@ type ProjectedTerminalSurfaceWorkbenchHost = Pick<
 		Pick<
 			WorkbenchTerminalSurfaceProps,
 			| 'bindBroadcastInputSink'
+			| 'closeTerminal'
+			| 'createTab'
 			| 'focusRequest'
 			| 'onPresentationReady'
 			| 'presentationMode'
@@ -91,6 +99,8 @@ export function useProjectedTerminalSurface(
 	const autoFocus = workbenchHost?.autoFocus ?? false;
 	const bindActionContextProvider = workbenchHost?.bindActionContextProvider;
 	const bindBroadcastInputSink = workbenchHost?.bindBroadcastInputSink;
+	const closeTerminal = workbenchHost?.closeTerminal;
+	const createTab = workbenchHost?.createTab;
 	const focusRequest = workbenchHost?.focusRequest ?? 0;
 	const onPresentationReady = workbenchHost?.onPresentationReady;
 	const onTerminalEdit = workbenchHost?.onTerminalEdit;
@@ -98,6 +108,7 @@ export function useProjectedTerminalSurface(
 	const capability = React.useContext(ProjectedTerminalSurfaceCapabilityContext);
 	const intl = useOrchbeeIntl();
 	const root = React.useRef<HTMLDivElement>(null);
+	const launchFailureRoot = React.useRef<HTMLElement>(null);
 	const recoveryController = React.useRef<{
 		readonly controller: ProjectedTerminalRecoveryController;
 		readonly presentationId: string;
@@ -131,6 +142,11 @@ export function useProjectedTerminalSurface(
 	const sessionPolicyReference = React.useRef(sessionPolicy);
 	sessionPolicyReference.current = sessionPolicy;
 	const stopped = presentation.lifecycle.kind === 'stopped';
+	const creationFailed = presentation.lifecycle.kind === 'provision-failed';
+	// Read on every render: the record changes only with a new lifecycle, which renders again.
+	const launchFailure = creationFailed
+		? describeLaunchFailure(capability?.readTerminalLaunchFailure, presentation.presentationId)
+		: null;
 	const currentRecovery =
 		presentationRecovery?.presentationId === presentation.presentationId
 			? presentationRecovery.state
@@ -434,6 +450,11 @@ export function useProjectedTerminalSurface(
 		presentation.presentationId,
 		presentationMode,
 	]);
+	// Without this, focus stays on the document body, where Tab starts from the sidebar.
+	React.useEffect(() => {
+		if (presentationMode !== 'active' || !autoFocus || !creationFailed) return;
+		launchFailureRoot.current?.focus({ preventScroll: true });
+	}, [autoFocus, creationFailed, focusRequest, presentationMode]);
 
 	let projectionState: ProjectedTerminalSurfaceView['projectionState'] = 'inactive';
 	if (projectable) projectionState = 'requested';
@@ -487,10 +508,14 @@ export function useProjectedTerminalSurface(
 	return {
 		approvePaste: () => settlePasteReview(true),
 		cancelPaste: () => settlePasteReview(false),
+		closeTerminal: () => closeTerminal?.('button'),
+		createTab: () => createTab?.('button'),
 		failureMessage,
 		handleFileDragOver,
 		handleFileDrop,
 		imagePreview: currentImagePreview,
+		launchFailure,
+		launchFailureRoot,
 		mobileInputState,
 		pasteReview,
 		projectionState,
@@ -507,4 +532,15 @@ export function useProjectedTerminalSurface(
 		toggleMobileKeyboard,
 		toggleMobileModifier,
 	};
+}
+
+function describeLaunchFailure(
+	read: ProjectedTerminalSurfaceCapability['readTerminalLaunchFailure'],
+	presentationId: WorkbenchTerminalPresentation['presentationId'],
+): ProjectedTerminalLaunchFailureView {
+	if (read === undefined) return { executable: null, kind: 'failed' };
+	const failure = read(presentationId);
+	return failure === null
+		? { kind: 'unavailable' }
+		: { executable: failure.executable, kind: 'failed' };
 }

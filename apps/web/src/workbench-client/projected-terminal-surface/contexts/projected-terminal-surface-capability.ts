@@ -21,6 +21,12 @@ import type { TerminalCompletionReminderObserver } from '../../../terminal-feedb
 import type { TerminalInputConfigurationSource } from '../../../terminal-input-configuration';
 import type { TerminalTrailingBlankRowsPreferenceSource } from '../../../terminal-interaction-settings';
 
+/** Why a terminal launch failed, as the Server recorded it. */
+interface ProjectedTerminalLaunchFailure {
+	/** The program that could not start, when the launch named one. */
+	readonly executable: string | null;
+}
+
 export interface ProjectedTerminalSurfaceCapability {
 	readonly agentObservationSource?: AgentSnapshotSource | undefined;
 	readonly applicationLocaleSource?: ApplicationLocaleSource | undefined;
@@ -28,6 +34,13 @@ export interface ProjectedTerminalSurfaceCapability {
 	readonly preferredLocales: readonly string[];
 	readonly platformEffects: ProjectedTerminalPlatformEffects;
 	readonly projectionClient: Pick<TerminalProjectionClient, 'open'>;
+	/**
+	 * The recorded failure of a terminal whose creation failed, or null when nothing launched it. A
+	 * Client without this record reports every failed creation without its reason.
+	 */
+	readonly readTerminalLaunchFailure?:
+		| ((presentationId: TerminalPresentationId) => ProjectedTerminalLaunchFailure | null)
+		| undefined;
 	readonly presentationSnapshots?:
 		| {
 				get(

@@ -163,6 +163,14 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.selectAll.completed': 'Selected all retained terminal output.',
 	'terminal.projected.selection.evicted':
 		'The terminal selection was evicted from retained history.',
+	'terminal.projected.launch.close': 'Close',
+	'terminal.projected.launch.executableFailed':
+		'The executable path could not be started. Check that the file exists and is accessible.',
+	'terminal.projected.launch.failed': 'Terminal creation failed',
+	'terminal.projected.launch.newTab': 'New Tab',
+	'terminal.projected.launch.shellFailed':
+		'The configured shell could not be started. Check its launch profile and working directory.',
+	'terminal.projected.launch.unavailable': 'Terminal unavailable',
 	'terminal.projected.session.startNew': 'Start New Session',
 	'terminal.projected.session.startFailed': 'The terminal session could not be started.',
 	'terminal.projected.session.stopped': 'Terminal session stopped',

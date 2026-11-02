@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 
 import styles from './ProjectedTerminalSurface.module.css';
 import { ProjectedTerminalImagePreviewCard } from './components/projected-terminal-image-preview-card/ProjectedTerminalImagePreviewCard';
+import { ProjectedTerminalLaunchFailure } from './components/projected-terminal-launch-failure/ProjectedTerminalLaunchFailure';
 import { ProjectedTerminalMobileInputBar } from './components/projected-terminal-mobile-input-bar/ProjectedTerminalMobileInputBar';
 import { ProjectedTerminalPasteReviewDialog } from './components/projected-terminal-paste-review-dialog/ProjectedTerminalPasteReviewDialog';
 import { useProjectedTerminalSurface } from './hooks/useProjectedTerminalSurface';
@@ -16,6 +17,8 @@ export function ProjectedTerminalSurface({
 	autoFocus,
 	bindActionContextProvider,
 	bindBroadcastInputSink,
+	closeTerminal,
+	createTab,
 	focusRequest,
 	onPresentationReady,
 	onTerminalEdit,
@@ -29,18 +32,21 @@ export function ProjectedTerminalSurface({
 		autoFocus,
 		bindActionContextProvider,
 		bindBroadcastInputSink,
+		closeTerminal,
+		createTab,
 		focusRequest,
 		onPresentationReady,
 		onTerminalEdit,
 		presentationMode,
 	});
 	const intl = useOrchbeeIntl();
+	const terminalShown = !view.stopped && view.launchFailure === null;
 	return (
 		<>
 			<div
 				className={styles['terminalSurface']}
 				data-projected-terminal-close-activity={presentation.closeActivity}
-				data-projected-terminal-mobile-controls={view.stopped ? 'hidden' : 'visible'}
+				data-projected-terminal-mobile-controls={terminalShown ? 'visible' : 'hidden'}
 				data-terminal-presentation-id={presentation.presentationId}
 				data-terminal-projection-state={view.projectionState}
 				onDragOver={view.handleFileDragOver}
@@ -69,17 +75,25 @@ export function ProjectedTerminalSurface({
 						) : null}
 					</div>
 				)}
+				{view.launchFailure === null ? null : (
+					<ProjectedTerminalLaunchFailure
+						failure={view.launchFailure}
+						onClose={view.closeTerminal}
+						onCreateTab={view.createTab}
+						rootRef={view.launchFailureRoot}
+					/>
+				)}
 				{view.imagePreview === null ? null : (
 					<ProjectedTerminalImagePreviewCard preview={view.imagePreview} />
 				)}
-				{view.stopped ? null : (
+				{terminalShown ? (
 					<ProjectedTerminalMobileInputBar
 						onKey={view.sendMobileKey}
 						onKeyboardToggle={view.toggleMobileKeyboard}
 						onModifierToggle={view.toggleMobileModifier}
 						state={view.mobileInputState}
 					/>
-				)}
+				) : null}
 			</div>
 			{view.pasteReview === null ? null : (
 				<ProjectedTerminalPasteReviewDialog

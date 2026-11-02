@@ -1,6 +1,7 @@
 import type {
 	ActionDisposable,
 	ActionExecution,
+	ActionInvocationSource,
 	ActionRuntime,
 	ActionScope,
 	ActionTarget,
@@ -96,6 +97,13 @@ export interface WorkbenchTerminalSurfaceProps {
 		provider: WorkbenchTerminalActionContextProvider,
 	) => ActionDisposable;
 	readonly bindBroadcastInputSink: (sink: WorkbenchTerminalBroadcastInputSink) => ActionDisposable;
+	/**
+	 * Closes the terminal this surface shows as its Panel's Close does, which closes the Tab when
+	 * the terminal is all it holds. A surface that cannot show a terminal offers it.
+	 */
+	readonly closeTerminal: (source: ActionInvocationSource) => void;
+	/** Opens a new Tab as the Workbench's New Tab does. */
+	readonly createTab: (source: ActionInvocationSource) => void;
 	/** Report actual display readiness for both initial active and incoming surfaces. */
 	readonly onPresentationReady: (readiness: WorkbenchTerminalPresentationReadiness) => void;
 	readonly presentation: WorkbenchTerminalPresentation;

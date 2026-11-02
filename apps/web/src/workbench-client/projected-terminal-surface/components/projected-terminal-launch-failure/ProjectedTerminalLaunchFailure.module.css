@@ -1,0 +1,47 @@
+.root {
+	box-sizing: border-box;
+	display: grid;
+	position: absolute;
+	z-index: var(--ob-ref-layer-raised);
+	inset: 0;
+	place-items: center;
+	overflow: auto;
+	padding: var(--ob-ref-space-4);
+	background: var(--ob-sys-color-surface-canvas);
+	outline: none;
+}
+
+.content {
+	display: grid;
+	justify-items: start;
+	max-width: var(--ob-ref-layout-prose-width);
+	min-width: 0;
+	gap: var(--ob-ref-space-2);
+}
+
+.title {
+	margin: 0;
+	color: var(--ob-sys-color-text-heading);
+	font: var(--ob-sys-typography-heading-sm);
+}
+
+.reason {
+	margin: 0;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.executable {
+	max-width: 100%;
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-code-sm);
+	overflow-wrap: anywhere;
+	user-select: text;
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ob-ref-space-2);
+	margin-block-start: var(--ob-ref-space-2);
+}
