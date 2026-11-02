@@ -334,6 +334,7 @@ fn consecutive_scrolls_preserve_direction_across_entry_and_committed_windows() {
         start = match origin {
             ViewportRowOrigin::Tail { rows_before } => 102 - 20 - i64::from(*rows_before),
             ViewportRowOrigin::Committed { delta } => start + i64::from(*delta),
+            ViewportRowOrigin::Absolute { .. } => panic!("the TUI reads no absolute viewport row"),
         };
         assert_eq!(start, expected_start, "intent {intent}: {origin:?}");
         let sequence = *request_sequence;

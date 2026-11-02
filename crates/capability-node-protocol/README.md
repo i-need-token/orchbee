@@ -343,13 +343,15 @@ all reject.
 
 - Tag 7 `set-projection-demand` adds `demand` (`u8`): 1 active, 2 paused.
 - Tag 8 `set-history-demand` adds `demand` (`u8`): 1 following-bottom, 2 viewing-history.
-- Tag 9 `read-viewport-rows` adds `origin` (`u8`: 1 tail, 2 committed) followed by `rowsBefore`
-  (`u32`) for tail or `delta` (`i32`) for committed, then `rowCount` (`u16`, 1 through 4096),
-  `revision` (`u64`), positive `generation` (`u64`), positive `requestSequence` (`u64`), and
-  `maximumBytes` (`u32`, 112 through 8,388,608 — an OBRW payload bound, not a record bound).
-  Tag 9 selects text detail; tag 14 selects render detail with the identical bounded body.
-  Purpose and revision policy stay viewport/current-view. Existing text bytes are unchanged;
-  old receivers reject tag 14. Upgrade or roll back complete cohorts.
+- Tag 9 `read-viewport-rows` adds `origin` (`u8`: 1 tail, 2 committed, 3 absolute) followed by
+  `rowsBefore` (`u32`) for tail, `delta` (`i32`) for committed or `row` (`u64`) for absolute, then
+  `rowCount` (`u16`, 1 through 4096), `revision` (`u64`), positive `generation` (`u64`), positive
+  `requestSequence` (`u64`), and `maximumBytes` (`u32`, 112 through 8,388,608 — an OBRW payload
+  bound, not a record bound). Tag 9 selects text detail; tag 14 selects render detail with the
+  identical bounded body. The purpose stays viewport. Tail and committed reads use the
+  current-view revision policy, and an absolute read the exact policy, so the Host refuses it as
+  stale once the history moved past its revision. Existing text bytes are unchanged; old receivers
+  reject tag 14 and origin 3. Upgrade or roll back complete cohorts.
 - Tag 10 `rows-applied` adds positive `requestSequence` (`u64`), positive `generation` (`u64`),
   and `revision` (`u64`) — the same field order `FrameApplied` uses.
 - Tag 11 `history-observed` adds positive `sequence` (`u64`), positive `generation` (`u64`), and

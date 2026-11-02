@@ -89,13 +89,17 @@ existing attachment-scoped actions.
 attachment and demand pair, so callers match them by correlation plus echoed demand — there is no
 generation field to compare.
 
-`read-viewport-rows` carries an `origin` object (`{"kind":"tail","rowsBefore":u32}` or
-`{"kind":"committed","delta":i32}`), `rowCount` (`1..=4096`), `revision`, `generation`,
-`requestSequence` (positive u64 decimal strings), and `maximumBytes` (`112..=8,388,608`, the same
-OBRW payload bound `read-rows` uses). The Host serves the current view: the returned revision
-becomes the window's captured identity, so the binding does not require revision equality with the
-request. `rowsBefore` and `delta` are bounded JSON integers (`u32`/`i32` domains, both inside the
-JavaScript safe-integer range); `delta` is signed natively and admits negative scroll deltas.
+`read-viewport-rows` carries an `origin` object (`{"kind":"tail","rowsBefore":u32}`,
+`{"kind":"committed","delta":i32}` or `{"kind":"absolute","row":"u64"}`), `rowCount`
+(`1..=4096`), `revision`, `generation`, `requestSequence` (positive u64 decimal strings), and
+`maximumBytes` (`112..=8,388,608`, the same OBRW payload bound `read-rows` uses). For a tail or
+committed origin the Host serves the current view: the returned revision becomes the window's
+captured identity, so the binding does not require revision equality with the request. An absolute
+origin, which a GUI sends to reveal a find match in history, names a row of the request's revision,
+so the Host answers `rows-rejected` with `stale-revision` once the history has moved. `rowsBefore` and `delta`
+are bounded JSON integers (`u32`/`i32` domains, both inside the JavaScript safe-integer range);
+`delta` is signed natively and admits negative scroll deltas. `row` is a canonical decimal string
+like the other u64 fields.
 The optional `detail` is `text` (default, omitted in canonical encoding) or `render`. Server
 forwards that exact detail and rejects a response of the other kind. Interactive history requests
 render; existing text requests preserve their bytes. Upgrade or roll back complete cohorts.

@@ -491,8 +491,33 @@ fn history_viewport_action_tags_seven_through_eleven_layout_is_fixed() -> TestRe
         )?[65..],
         expected.as_slice()
     );
-    // The committed delta is a signed big-endian i32 and the tail distance an
-    // unsigned u32; both round-trip across their full ranges.
+    let mut expected = vec![14_u8, 3];
+    expected.extend_from_slice(&0x0102_0304_0506_0708_u64.to_be_bytes());
+    expected.extend_from_slice(&24_u16.to_be_bytes());
+    expected.extend_from_slice(&7_u64.to_be_bytes());
+    expected.extend_from_slice(&1_u64.to_be_bytes());
+    expected.extend_from_slice(&1_u64.to_be_bytes());
+    expected.extend_from_slice(&112_u32.to_be_bytes());
+    assert_eq!(
+        &encode(
+            request,
+            TerminalViewerAction::ReadViewportRows {
+                detail: orchbee_capability_node_protocol::ViewerRowDetail::Render,
+                origin: ViewportRowOrigin::Absolute {
+                    row: 0x0102_0304_0506_0708,
+                },
+                row_count: 24,
+                revision: 7,
+                generation: NonZeroU64::MIN,
+                request_sequence: NonZeroU64::MIN,
+                maximum_bytes: 112,
+            },
+        )?[65..],
+        expected.as_slice()
+    );
+    // The committed delta is a signed big-endian i32, the tail distance an
+    // unsigned u32 and the absolute row an unsigned u64; all round-trip across
+    // their full ranges.
     for origin in [
         ViewportRowOrigin::Tail { rows_before: 0 },
         ViewportRowOrigin::Tail {
@@ -503,6 +528,8 @@ fn history_viewport_action_tags_seven_through_eleven_layout_is_fixed() -> TestRe
         ViewportRowOrigin::Committed { delta: 0 },
         ViewportRowOrigin::Committed { delta: 1 },
         ViewportRowOrigin::Committed { delta: i32::MAX },
+        ViewportRowOrigin::Absolute { row: 0 },
+        ViewportRowOrigin::Absolute { row: u64::MAX },
     ] {
         let message = CapabilityNodeMessage::TerminalViewerRequest(TerminalViewerRequest {
             action: TerminalViewerAction::ReadViewportRows {
@@ -584,7 +611,7 @@ fn history_viewport_actions_reject_out_of_bounds_and_unknown_values() -> TestRes
     // request_sequence 89..97, maximum_bytes 97..101.
     for (offset, bytes) in [
         (66, 0_u8.to_be_bytes().to_vec()),
-        (66, 3_u8.to_be_bytes().to_vec()),
+        (66, 4_u8.to_be_bytes().to_vec()),
         (71, 0_u16.to_be_bytes().to_vec()),
         (71, 4097_u16.to_be_bytes().to_vec()),
         (81, 0_u64.to_be_bytes().to_vec()),

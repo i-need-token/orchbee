@@ -256,32 +256,44 @@ fn apply(
             generation,
             request_sequence,
             maximum_bytes,
-        } => read_rows(
-            host,
-            server,
-            correlation,
-            request.attachment_id,
-            ReadRows {
-                attachment_id: id,
-                detail: match detail {
-                    ViewerRowDetail::Text => RowWindowDetail::Text,
-                    ViewerRowDetail::Render => RowWindowDetail::Render,
+        } => {
+            // A relative origin reads the Host's current view; an absolute row names a place in
+            // one revision of history, so a changed history refuses it rather than moving it.
+            let (origin, revision_policy) = match origin {
+                ViewportRowOrigin::Tail { rows_before } => (
+                    RowWindowOrigin::Tail { rows_before },
+                    RowRevisionPolicy::CurrentView,
+                ),
+                ViewportRowOrigin::Committed { delta } => (
+                    RowWindowOrigin::Committed { delta },
+                    RowRevisionPolicy::CurrentView,
+                ),
+                ViewportRowOrigin::Absolute { row } => {
+                    (RowWindowOrigin::Absolute { row }, RowRevisionPolicy::Exact)
+                }
+            };
+            read_rows(
+                host,
+                server,
+                correlation,
+                request.attachment_id,
+                ReadRows {
+                    attachment_id: id,
+                    detail: match detail {
+                        ViewerRowDetail::Text => RowWindowDetail::Text,
+                        ViewerRowDetail::Render => RowWindowDetail::Render,
+                    },
+                    generation,
+                    maximum_bytes,
+                    origin,
+                    purpose: RowWindowPurpose::Viewport,
+                    request_sequence,
+                    revision,
+                    revision_policy,
+                    row_count,
                 },
-                generation,
-                maximum_bytes,
-                origin: match origin {
-                    ViewportRowOrigin::Tail { rows_before } => {
-                        RowWindowOrigin::Tail { rows_before }
-                    }
-                    ViewportRowOrigin::Committed { delta } => RowWindowOrigin::Committed { delta },
-                },
-                purpose: RowWindowPurpose::Viewport,
-                request_sequence,
-                revision,
-                revision_policy: RowRevisionPolicy::CurrentView,
-                row_count,
-            },
-        ),
+            )
+        }
         TerminalViewerAction::Detach => {
             if !host.viewers.borrow().contains(request.attachment_id) {
                 if host.disposed_viewer(request.attachment_id) {

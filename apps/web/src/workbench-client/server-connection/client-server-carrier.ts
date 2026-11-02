@@ -224,7 +224,8 @@ export type ClientServerViewerAction =
 			readonly maximumBytes: number;
 			readonly origin:
 				| { readonly kind: 'tail'; readonly rowsBefore: number }
-				| { readonly delta: number; readonly kind: 'committed' };
+				| { readonly delta: number; readonly kind: 'committed' }
+				| { readonly kind: 'absolute'; readonly row: string };
 			readonly requestSequence: string;
 			readonly revision: string;
 			readonly rowCount: number;

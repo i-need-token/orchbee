@@ -43,8 +43,9 @@ pub enum HistoryDemand {
 }
 
 /// The row window origin a `read-viewport-rows` action resolves against the
-/// Host's retained rows: a distance back from the live tail, or a signed
-/// delta from the Host-committed viewport anchor.
+/// Host's retained rows: a distance back from the live tail or a signed delta
+/// from the Host-committed viewport anchor, both read from the Host's current
+/// view, or an absolute row, read only at the revision the request names.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
@@ -53,8 +54,16 @@ pub enum HistoryDemand {
     deny_unknown_fields
 )]
 pub enum ViewportRowOrigin {
-    Tail { rows_before: u32 },
-    Committed { delta: i32 },
+    Tail {
+        rows_before: u32,
+    },
+    Committed {
+        delta: i32,
+    },
+    Absolute {
+        #[serde(with = "crate::number::decimal")]
+        row: u64,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

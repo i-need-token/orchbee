@@ -1042,8 +1042,9 @@ focus-claim repair on pause and detach were proved on the earlier cohort. Limits
   `apps/web/README.md` requires.
 - Paste in a real window waits for step 3, which supplies the clipboard platform effects; only the
   connection layer has proved it.
-- An absolute row read with viewport origin, such as a scrollbar drag, cannot be expressed over OBCS
-  yet. ORC-305 owns it with the other renderer commands the relay still refuses.
+- An absolute row read for the viewport, which revealing a find match in history sends, could not
+  be expressed over OBCS. Step 3 added it as an absolute `read-viewport-rows` origin; a scrollbar
+  drag reads by distance from the bottom and never needed it.
 - After Worker loss, `server stop` fails in its background-jobs phase and the CLI cannot stop the
   Session. After Server loss with a live Host, `server start` refuses fresh activation because
   nothing adopts the Host. Step 4 owns both.
@@ -1224,6 +1225,7 @@ real TUI or CLI on the same Session:
 | Reset                         | From the action search, the page sent `reset` 25 ms after the click and had `reset-accepted` 13 ms later. The screen emptied with no failure. Typing reached PowerShell, at the old prompt's place but without it, as reset is not PTY input.        |
 | Window colors                 | Opening a terminal sent the light defaults 1 ms after control was granted, answered in 9 ms. A page-local switch of the system appearance to dark sent the dark ones 12 ms later, answered in 4 ms, and the terminal recolored with the window.      |
 | Terminal display theme        | Choosing Dark in Settings repainted the open terminal and the space around it 27 ms after the change and sent the terminal nothing. Typing reached PowerShell. Host brought the light colors back 29 ms after the change, again sending nothing.     |
+| Find in history               | Finding line 37 of 400 lines of output read the history and then the window at that absolute row, answered in 3 and 6 ms. The match showed centered 71 ms after the last key with no failure, and typing brought the bottom back in 32 ms.           |
 
 ### Evidence
 

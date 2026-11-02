@@ -181,10 +181,13 @@ response (not event) content.
 
 `set-projection-demand` and `set-history-demand` each carry `attachmentId` and one `demand`:
 `active` or `paused` for projection, `following-bottom` or `viewing-history` for history.
-`read-viewport-rows` performs one buffer read of retained history plus visible rows anchored
-relative to the Client's history position rather than an absolute row: `origin` is either
-`{"kind":"tail","rowsBefore":N}` with `rowsBefore` an integer 0 through 4,294,967,295, or
-`{"kind":"committed","delta":N}` with `delta` an integer -2,147,483,648 through 2,147,483,647.
+`read-viewport-rows` performs one buffer read of retained history plus visible rows for the
+Client's viewport: `origin` is `{"kind":"tail","rowsBefore":N}` with `rowsBefore` an integer 0
+through 4,294,967,295, `{"kind":"committed","delta":N}` with `delta` an integer -2,147,483,648
+through 2,147,483,647, or `{"kind":"absolute","row":"N"}` with `row` a canonical decimal string.
+Tail and committed origins resolve against the Host's current view; an absolute origin names a row
+of the request's `revision` and is answered `rows-rejected` with `stale-revision` once the history
+has moved.
 Alongside `attachmentId` and `origin` it carries `rowCount` as an integer 1 through 4096,
 `maximumBytes` as an integer 112 through 8,388,608 bounding the OBRW payload (not the carrier
 record), `revision` as a canonical decimal string that may be stale, and `generation` and

@@ -160,6 +160,21 @@ describe('Client-Server carrier binding', () => {
 		},
 		{
 			action: {
+				attachmentId: ID,
+				detail: 'render',
+				generation: '1',
+				kind: 'read-viewport-rows',
+				maximumBytes: 112,
+				origin: { kind: 'absolute', row: '400' },
+				requestSequence: '2',
+				revision: '1',
+				rowCount: 24,
+			},
+			kind: 'terminal.viewer',
+			requestId: ID,
+		},
+		{
+			action: {
 				...selectionGesture,
 				action: 'start',
 				clickCount: 2,

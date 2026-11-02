@@ -82,11 +82,14 @@ impl ViewerHistoryDemand {
 
 /// The row window origin a `read-viewport-rows` action resolves against the
 /// Host's retained rows. Binary `origin` tag: 1 `Tail` then `u32`
-/// `rows_before`, 2 `Committed` then `i32` `delta`.
+/// `rows_before`, 2 `Committed` then `i32` `delta`, 3 `Absolute` then `u64`
+/// `row`. Tail and committed reads take the Host's current view; an absolute
+/// read holds only at the request's revision.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ViewportRowOrigin {
     Tail { rows_before: u32 },
     Committed { delta: i32 },
+    Absolute { row: u64 },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

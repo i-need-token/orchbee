@@ -131,6 +131,10 @@ pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
                     bytes.push(2);
                     bytes.extend_from_slice(&delta.to_be_bytes());
                 }
+                ViewportRowOrigin::Absolute { row } => {
+                    bytes.push(3);
+                    bytes.extend_from_slice(&row.to_be_bytes());
+                }
             }
             bytes.extend_from_slice(&row_count.to_be_bytes());
             bytes.extend_from_slice(&revision.to_be_bytes());
@@ -338,6 +342,9 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalViewerRequest, Prot
                 },
                 2 => ViewportRowOrigin::Committed {
                     delta: reader.read_i32()?,
+                },
+                3 => ViewportRowOrigin::Absolute {
+                    row: reader.read_u64()?,
                 },
                 _ => return Err(ProtocolError::InvalidPayload),
             };

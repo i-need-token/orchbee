@@ -601,11 +601,14 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		let action: ClientServerViewerAction;
 		if (payload.origin.kind === 'committed' || payload.origin.kind === 'tail') {
 			action = { ...shared, kind: 'read-viewport-rows', origin: payload.origin };
-		} else if (payload.origin.kind === 'absolute' && payload.purpose !== 'viewport') {
-			action = { ...shared, kind: 'read-rows', startRow: payload.origin.row };
+		} else if (payload.origin.kind === 'absolute') {
+			// A viewport read, such as the one revealing a find match, pins the window its rows-applied
+			// acknowledges; any other purpose reads buffer rows.
+			action =
+				payload.purpose === 'viewport'
+					? { ...shared, kind: 'read-viewport-rows', origin: payload.origin }
+					: { ...shared, kind: 'read-rows', startRow: payload.origin.row };
 		} else {
-			// The Worker only pins a viewport for tail and committed reads, so an absolute viewport
-			// read could not be acknowledged by the rows-applied that follows it.
 			this.#fail(command, 'unsupported-message', 'This row origin is unavailable.', false);
 			return;
 		}

@@ -796,6 +796,19 @@
 											"maximum": 2147483647
 										}
 									}
+								},
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["kind", "row"],
+									"properties": {
+										"kind": {
+											"const": "absolute"
+										},
+										"row": {
+											"$ref": "#/$defs/projectionUnsigned"
+										}
+									}
 								}
 							]
 						},

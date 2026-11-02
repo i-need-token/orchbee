@@ -197,6 +197,9 @@ impl LocalTerminalConnection<'_> {
                     ViewportRowOrigin::Committed { delta } => {
                         WorkerViewportRowOrigin::Committed { delta: *delta }
                     }
+                    ViewportRowOrigin::Absolute { row } => {
+                        WorkerViewportRowOrigin::Absolute { row: *row }
+                    }
                 },
                 row_count: *row_count,
                 revision: *revision,
