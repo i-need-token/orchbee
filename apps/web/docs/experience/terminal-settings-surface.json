@@ -120,7 +120,7 @@
 		"Completion-reminder preferences stay device-local, default to off, and never include command text; qualifying events retain a localized terminal status when system notification is unavailable.",
 		"Remote development exposes one constant read-only command and explanation; opening, searching, and switching categories starts no process, writes no terminal input, persists no remote data, and performs no remote installation.",
 		"Ghostty migration analyzes pasted text only, emits one visible source-ordered finding per assignment, never applies or persists a value, and clears its source and report when its category unmounts.",
-		"The Web/Desktop composition keeps defaultColorOverride null; Light, Dark, and Custom derive a complete Host-owned terminal-theme transaction while explicit colors, palette projection, cursor, VT, and OSC state retain their Host authority.",
+		"The Main-owned Web/Desktop composition keeps defaultColorOverride null and derives a complete Host-owned terminal-theme transaction for Light, Dark, and Custom; a Server Client paints default-coded cells through that override without a Host transaction. Either way explicit colors, palette projection, cursor, VT, and OSC state retain their Host authority.",
 		"The complete strict appearance and interaction preference records are local to one browser origin and all product copy ships in English and Simplified Chinese.",
 		"Navigation and search project only currently implemented categories, settings, and management entries whose required composition capabilities are present; roadmap-only categories and controls remain absent."
 	],

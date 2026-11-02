@@ -39,14 +39,17 @@ import {
 	TerminalPresentationSnapshotCache,
 	type ProjectedTerminalSurfaceCapability,
 } from '../projected-terminal-surface';
-import type { ServerConnection, ServerHostColorsSource } from '../server-connection';
+import type { ServerConnection } from '../server-connection';
 import {
 	createServerWorkbenchAuthority,
 	findServerPresentation,
 	findServerTerminalBinding,
 	nameServerTerminalTitle,
+	presentServerTerminalColors,
 	projectServerSnapshot,
+	serverHostColors,
 	ServerTerminalProjectionClient,
+	type ServerTerminalColorsSource,
 	type ServerWorkbenchSession,
 } from '../server-workbench';
 import {
@@ -82,9 +85,9 @@ export interface CreateServerWorkbenchRuntimeOptions {
 	readonly session: ServerWorkbenchSession;
 	readonly shortcutBindingSource?: ProjectedTerminalShortcutBindingSource | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
+	/** What the window paints default-coded cells with, and the colors it reports to a terminal. */
+	readonly terminalColorsSource?: ServerTerminalColorsSource | undefined;
 	readonly terminalCompletionReminderObserver?: TerminalCompletionReminderObserver | undefined;
-	/** The window's colors, reported to each terminal it controls. */
-	readonly terminalHostColorsSource?: ServerHostColorsSource | undefined;
 	readonly terminalHostName: string;
 	readonly terminalInputConfigurationSource?: TerminalInputConfigurationSource | undefined;
 	readonly terminalInteractionConfigurationSource?:
@@ -114,8 +117,8 @@ export function createServerWorkbenchRuntime({
 	session,
 	shortcutBindingSource,
 	shortcutPlatform,
+	terminalColorsSource,
 	terminalCompletionReminderObserver,
-	terminalHostColorsSource,
 	terminalHostName,
 	terminalInputConfigurationSource = DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
 	terminalInteractionConfigurationSource = DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
@@ -198,7 +201,7 @@ export function createServerWorkbenchRuntime({
 	const projectionClient = new ServerTerminalProjectionClient(
 		connection,
 		() => session.snapshot,
-		terminalHostColorsSource,
+		terminalColorsSource === undefined ? undefined : serverHostColors(terminalColorsSource),
 	);
 	const presentationSnapshots =
 		new TerminalPresentationSnapshotCache<ProjectedTerminalPresentationSnapshot>();
@@ -251,12 +254,12 @@ export function createServerWorkbenchRuntime({
 		},
 		platformEffects: terminalPlatformEffects,
 		preferredLocales,
-		// A Server terminal's colors come from its Host, so no renderer joins a theme presentation; the
-		// projection reports the window's colors instead, which only a following terminal takes.
-		presentationConfigurationSource: {
-			current: () => terminalPresentationConfigurationSource.current(),
-			subscribe: (listener) => terminalPresentationConfigurationSource.subscribe(listener),
-		},
+		// The Server offers no Host theme transaction. As in the TUI, the window paints default-coded
+		// cells in the selected theme's colors, and a terminal following its controller takes them too.
+		presentationConfigurationSource: presentServerTerminalColors(
+			terminalPresentationConfigurationSource,
+			terminalColorsSource,
+		),
 		presentationSnapshots,
 		projectionClient,
 		readTerminalLaunchFailure: (presentationId) => {

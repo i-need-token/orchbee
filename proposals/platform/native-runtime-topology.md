@@ -1165,6 +1165,13 @@ These choices stand unless review changes them:
   agree, and a language change renames them at once by projecting the snapshot again. Unlike the
   TUI, a terminal that sets no title but reports its directory is named by that directory, a step
   the shared Workbench keeps for the frozen path.
+- **Terminal colors follow the TUI.** The Server has no Host theme transaction, so a window paints
+  every terminal's default-coded cells in the selected theme's colors itself, and a theme change
+  recolors open terminals at once. Under the Host theme with the System application theme it also
+  reports the light or dark defaults for the system's appearance as `host-colors`, so a terminal
+  that follows its controller answers color queries to match. Programs in other terminals keep
+  querying their launch colors, as in the TUI. Selection and search keep the dark overlay colors on
+  a light terminal; step 5 decides them with the rest of the GUI's colors.
 - **`panel.relocate` and `panel.rename` stay unconnected.** The GUI has no entry for either.
 
 Measured on 2026-11-01 and 2026-11-02 on Windows with a Release cohort, in a real window beside a
@@ -1216,6 +1223,7 @@ real TUI or CLI on the same Session:
 | Terminal link                 | Ctrl+click on a printed address reached Main's browser call, stubbed for the run, 5 ms after the click. No window opened, nothing reached the projection, and no failure showed. A plain click opened nothing.                                       |
 | Reset                         | From the action search, the page sent `reset` 25 ms after the click and had `reset-accepted` 13 ms later. The screen emptied with no failure. Typing reached PowerShell, at the old prompt's place but without it, as reset is not PTY input.        |
 | Window colors                 | Opening a terminal sent the light defaults 1 ms after control was granted, answered in 9 ms. A page-local switch of the system appearance to dark sent the dark ones 12 ms later, answered in 4 ms, and the terminal recolored with the window.      |
+| Terminal display theme        | Choosing Dark in Settings repainted the open terminal and the space around it 27 ms after the change and sent the terminal nothing. Typing reached PowerShell. Host brought the light colors back 29 ms after the change, again sending nothing.     |
 
 ### Evidence
 

@@ -1,10 +1,15 @@
 export { ServerTerminalProjectionClient } from './ServerTerminalProjectionClient';
 export { ServerUserPreferencesClient } from './ServerUserPreferencesClient';
 export { ServerWorkbenchSession } from './ServerWorkbenchSession';
-export { createServerHostColorsSource } from './createServerHostColorsSource';
 export { createServerWorkbenchAuthority } from './createServerWorkbenchAuthority';
 export { findServerPresentation } from './findServerPresentation';
 export { findServerTerminalBinding } from './findServerTerminalBinding';
 export { projectServerSnapshot } from './projectServerSnapshot';
+export {
+	createServerTerminalColorsSource,
+	presentServerTerminalColors,
+	serverHostColors,
+} from './server-terminal-colors';
+export type { ServerTerminalColors, ServerTerminalColorsSource } from './server-terminal-colors';
 export { nameServerTerminalTitle } from './server-terminal-names';
 export { admitsAutomaticWorkspace, workspaceLaunchAction } from './workspace-launch';

@@ -13,7 +13,7 @@ export { registerTerminalProductFonts } from './projected-terminal-renderer';
 export { type ServerCarrier, ServerConnection } from './server-connection';
 export {
 	admitsAutomaticWorkspace,
-	createServerHostColorsSource,
+	createServerTerminalColorsSource,
 	ServerUserPreferencesClient,
 	ServerWorkbenchSession,
 	workspaceLaunchAction,

@@ -27,7 +27,7 @@ import { TerminalInteractionSettingsController } from '../../terminal-interactio
 import { TerminalSettingsController } from '../../terminal-settings';
 import {
 	admitsAutomaticWorkspace,
-	createServerHostColorsSource,
+	createServerTerminalColorsSource,
 	createServerWorkbenchRuntime,
 	ProjectedTerminalSurface,
 	ServerConnection,
@@ -185,7 +185,7 @@ async function run(
 		shortcutBindingSource: keyboardShortcutSettingsController,
 		shortcutPlatform,
 		terminalCompletionReminderObserver: terminalFeedbackSettingsController,
-		terminalHostColorsSource: createServerHostColorsSource(terminalSettingsController, systemTheme),
+		terminalColorsSource: createServerTerminalColorsSource(terminalSettingsController, systemTheme),
 		terminalHostName: bootstrap.terminalHostName,
 		terminalInputConfigurationSource: macosTerminalInputSettingsController,
 		terminalInteractionConfigurationSource: terminalInteractionSettingsController,

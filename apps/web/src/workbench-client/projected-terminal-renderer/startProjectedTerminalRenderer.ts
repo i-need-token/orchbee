@@ -511,7 +511,10 @@ export async function startProjectedTerminalRenderer(
 	};
 	const syncRootBackground = (): void => {
 		if (lastMetadata === undefined) return;
-		const background = terminalRgbColor(lastMetadata.defaultColors.backgroundRgb);
+		// Default-coded cells take a client-only override when one is set; the space around them follows.
+		const background =
+			committedPresentationConfiguration.defaultColorOverride?.background ??
+			terminalRgbColor(lastMetadata.defaultColors.backgroundRgb);
 		const backgroundColor = terminalBackgroundColor(
 			background,
 			committedPresentationConfiguration.backgroundOpacity,

@@ -11,8 +11,9 @@ Option-as-Alt remain renderer-local. Browser Preview retains an independent orig
 Main owns launch adaptation, Host default publication and Agent integration effects.
 Preferences are not Workbench content and never synchronize to remote devices.
 Host metadata remains authoritative for VT state, palette, cursor and OSC behavior.
-A theme update coordinates complete Host and renderer revisions; Option-as-Alt crosses only as
-a semantic input decision. The source-neutral defaultColorOverride remains null.
+In the Main-owned composition, a theme update coordinates complete Host and renderer revisions and
+the source-neutral defaultColorOverride remains null; a Server Client sets that override instead, as
+the [Web README](../README.md) describes. Option-as-Alt crosses only as a semantic input decision.
 Mounted geometry pins the first presentation configuration while forwarding live theme registration;
 the mounted terminal still participates in later theme transactions and releases that registration on disposal.
 Desktop supplies configured Host default colors separately from the active theme. Choosing Host restores
@@ -290,12 +291,15 @@ publication retires the appearance controller, it cannot then start a common Res
 
 ## Effective terminal colors and opacity
 
-Host runtime theme replacement is the only color mutation path used by this Settings feature. After
-commit, its frame metadata and resolved palette cells remain the renderer authority. The renderer's
-`defaultColorOverride` is always null: default tokens use the Host default foreground/background;
-explicit RGB, projected ANSI/palette colors, `none`, and explicit black retain their Host-projected
-value. Inverse swaps the already resolved display roles. The default underline uses the Host
-foreground, and the cursor uses the Host cursor color or its Host-defined foreground fallback.
+In the Main-owned composition, Host runtime theme replacement is the only color mutation path used
+by this Settings feature. After commit, its frame metadata and resolved palette cells remain the
+renderer authority. The renderer's `defaultColorOverride` is always null there: default tokens use
+the Host default foreground/background; explicit RGB, projected ANSI/palette colors, `none`, and
+explicit black retain their Host-projected value. Inverse swaps the already resolved display roles.
+The default underline uses the Host foreground, and the cursor uses the Host cursor color or its
+Host-defined foreground fallback. A Server Client's override replaces the default foreground and
+background wherever they paint, including the default underline, the empty canvas and the terminal
+root; the cursor and everything else keep the same Host authority.
 
 Background opacity is derived from `backgroundOpacityPercent`; `allowTransparency` is not a second
 user preference. At 100%, renderer clear and the terminal root are opaque. From 10% through 99%,
