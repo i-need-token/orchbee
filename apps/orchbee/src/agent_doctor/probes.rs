@@ -1,8 +1,8 @@
 //! Deterministic probe classification — the pure half of `agent doctor`.
 //! Every function takes bytes/typed adapter outcomes and returns typed
-//! facts; no path, no IO, no clock. The mappings are direct ports of the
-//! owning Desktop adapters' check contracts (each cites its source), with
-//! the contract's own divergences noted inline.
+//! facts; no path, no IO, no clock. The mappings mirror the writer's check
+//! contracts (each cites its source), with the contract's own divergences
+//! noted inline.
 
 use std::cmp::Ordering;
 
@@ -20,14 +20,13 @@ pub(crate) enum PathStyle {
     Windows,
 }
 
-/// The only current contract — `ENTRY_CONTRACT_VERSION`,
-/// `CLINE_CONTRACT_VERSION`, and `CAPSULE_CONTRACT_VERSION` all pin `1` in
-/// the Desktop sources. A non-current owned installation requires reinstall.
+/// The only current contract — the writer's `ENTRY_CONTRACT_VERSION` and
+/// `CLINE_CONTRACT_VERSION` and the Capsule manifest's `contractVersion` all
+/// pin `1`. A non-current owned installation requires reinstall.
 pub(crate) const SUPPORTED_CONTRACT_VERSION: u64 = 1;
 
 // ---------------------------------------------------------------------------
-// Provider binding table — the literals of
-// `createDesktopAgentIntegrationAdapters.ts`.
+// Provider binding table — the literals of the writer's provider registry.
 // ---------------------------------------------------------------------------
 
 /// The inspection mechanism a provider's hook declaration admits.

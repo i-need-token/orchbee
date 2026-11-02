@@ -49,8 +49,7 @@ pub(crate) enum CommandResult {
 }
 
 /// Resolve `name` on the ambient PATH — first absolute, regular, executable
-/// candidate wins. Mirrors `resolveAgentExecutableCandidates` bounds:
-/// ≤256 directories per source, ≤4096 chars each, absolute-only, no control
+/// candidate wins. Bounds: ≤256 directories per source, ≤4096 chars each, absolute-only, no control
 /// characters; an invalid name shape resolves to nothing.
 pub(crate) fn resolve_executable(
     name: &str,

@@ -1,10 +1,8 @@
 //! The native provider registry and the canonical inspection orchestration.
-//! Per-provider behavior is the verbatim port of the Desktop adapters'
-//! `inspect()` paths — including which providers gate their state on the
-//! executable being resolvable (the CLI-command adapters) and which inspect
-//! the filesystem regardless (codex, cline, the guarded entries). The
-//! capsule fold (`enabled` + capsule-not-ready → `update-required`) wraps
-//! every provider exactly as `CapsuleAgentIntegrationAdapter` does.
+//! The CLI-command providers gate their state on the executable being
+//! resolvable; codex, cline, and the guarded entries inspect the filesystem
+//! regardless. The capsule fold (`enabled` + capsule-not-ready →
+//! `update-required`) wraps every provider.
 
 use std::{
     ffi::OsStr,

@@ -41,8 +41,8 @@ pub(crate) fn current_adapter_directory(observation: Observation) -> Option<Path
 }
 
 /// Native path admission: byte-bounded before rendering — never silently
-/// truncated, never lossy-decoded. The Desktop PATH helper's ≤4096-*character*
-/// directory cap is a separate source fact; admission here is in bytes.
+/// truncated, never lossy-decoded. The writer's PATH search keeps its own
+/// per-directory cap; admission here is in bytes.
 pub(crate) const MAX_PATH_BYTES: usize = 4096;
 
 /// The entry kind an `lstat`-shaped observation reports — the consumer's own

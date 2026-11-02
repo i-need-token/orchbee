@@ -1,6 +1,5 @@
-//! Per-provider observation — the Rust port of the canonical classifiers in
-//! `agent-integration-state-parsers.ts`, `CodexAgentIntegrationAdapter.ts`,
-//! `ClineAgentIntegrationAdapter.ts`, and `GuardedLocalAgentIntegrationAdapter.ts`.
+//! Per-provider observation — the canonical state classifiers for managed
+//! plugins, Codex, Cline, and the guarded local entries.
 //! Resource identity is a payload digest, with no ordering between siblings.
 //! Safely verified non-current owned contracts require explicit reinstall.
 
@@ -629,9 +628,8 @@ fn parse_basic_string(value: &str) -> Option<String> {
     }
 }
 
-/// `lstat`-disciplined bounded read — a symlink is rejected before any
-/// follow. Canonical `readBoundedFile` semantics (guarded targets, markers,
-/// fingerprint entries).
+/// `lstat`-disciplined bounded read for guarded targets, markers, and
+/// fingerprint entries — a symlink is rejected before any follow.
 #[cfg(unix)]
 fn bounded_file(path: &Path, maximum: u64) -> std::io::Result<Option<Vec<u8>>> {
     let metadata = match fs::symlink_metadata(path) {
@@ -663,9 +661,8 @@ fn bounded_file_follow(path: &Path, maximum: u64) -> std::io::Result<Option<Vec<
     bounded_file(path, maximum)
 }
 
-/// `open`+`fstat` bounded read — follows a symlinked configuration file the
-/// way canonical `readBoundedConfiguration`/`readJsonRecord` do (dotfile
-/// managers legitimately symlink these paths).
+/// `open`+`fstat` bounded read — follows a symlinked configuration file,
+/// because dotfile managers legitimately symlink these paths.
 #[cfg(unix)]
 fn bounded_file_follow(path: &Path, maximum: u64) -> std::io::Result<Option<Vec<u8>>> {
     let file = match fs::File::open(path) {
@@ -817,7 +814,8 @@ fn read_json_record(path: &Path, maximum: u64) -> Option<Value> {
 /// `pathToFileURL` equivalent for POSIX paths, pinned by the Node v22.23.2
 /// receipt: `:` stays literal (pchar), `~` encodes `%7E`, `/` separators and
 /// UTF-8 bytes stay/encode per the runtime's own table. The bootstrap bytes
-/// must match what Desktop wrote or inspection sees `conflict`.
+/// must match those earlier Desktop releases wrote, or inspection sees
+/// `conflict`.
 fn file_url(path: &Path) -> String {
     #[cfg(unix)]
     use std::os::unix::ffi::OsStrExt;

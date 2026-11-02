@@ -5,6 +5,10 @@
 //! liveness. `fs` is the module's only IO boundary; `probes` is the pure
 //! classification half. The command's machine document and text belong to
 //! the CLI composition root; this module returns the typed [`Report`].
+//! `orchbee-agent-integration-writer` owns the contracts these checks
+//! mirror. A comment that cites a TypeScript function, such as
+//! `parseDirectoryMarker`, names the retired Desktop source the check was
+//! first ported from.
 
 mod fs;
 mod probes;

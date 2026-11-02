@@ -147,7 +147,7 @@ pub(crate) fn payload_digest(root: &Path) -> Option<String> {
             ));
         }
     }
-    // Canonical `compareCapsulePayloadEntries` sorts by PATH — directories and
+    // The verifier sorts entries by path — directories and
     // files interleave (`bundle/package.json` sits between the `bundle/*`
     // directories), so the sort key is the path, never the serialized entry.
     entries.sort_by(|left, right| left.0.encode_utf16().cmp(right.0.encode_utf16()));
@@ -216,8 +216,8 @@ pub(crate) fn validate(root: &Path) -> CapsuleValidity {
 }
 
 /// Whether the installed capsule is usable for management: it validates AND,
-/// when a distinct source is present, the source's digest still matches (the
-/// canonical `isReady` — a moved/replaced bundle downgrades the entry). An
+/// when a distinct source is present, the source's digest still matches (a
+/// moved or replaced bundle downgrades the entry). An
 /// ENOENT source is tolerable; any other read failure is not.
 pub(crate) fn is_ready(root: &Path, source: Option<&Path>) -> bool {
     if validate(root) != CapsuleValidity::Ready {

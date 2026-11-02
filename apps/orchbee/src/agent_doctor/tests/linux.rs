@@ -400,7 +400,7 @@ fn codex_hook_total_order() {
     assert_eq!(detail["enabledFlag"], json!("absent"));
 
     // CDX-06: a local absolute source pointing anywhere is admitted — the
-    // probe never imports Desktop's foreign-source authority.
+    // probe never imports the writer's foreign-source authority.
     let home = scratch("codex-anywhere");
     let (recorded, probe) = codex_probe(
         &home,

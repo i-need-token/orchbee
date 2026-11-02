@@ -789,7 +789,7 @@ fn run_step_with(
     }
 }
 
-/// Canonical `runCommandSequence`: stop at the first non-attempted step.
+/// Runs the steps in order and stops at the first non-attempted step.
 fn run_sequence(
     executable: &Path,
     commands: &[Vec<String>],
