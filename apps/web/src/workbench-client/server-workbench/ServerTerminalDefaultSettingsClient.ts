@@ -1,7 +1,3 @@
-import type {
-	DesktopTerminalDefaultSettingsFailureCode,
-	DesktopTerminalDefaultSettingsSnapshot,
-} from '@orchbee/desktop-client-protocol';
 import type { TerminalConfiguration } from '@orchbee/terminal-protocol';
 import {
 	DEFAULT_USER_PREFERENCES,
@@ -9,9 +5,11 @@ import {
 } from '@orchbee/workbench-client-protocol';
 
 import type {
-	DesktopTerminalDefaultSettingsClientOperationResult,
-	DesktopTerminalDefaultSettingsClientSnapshot,
-	DesktopTerminalDefaultSettingsControl,
+	TerminalDefaultSettingsClientOperationResult,
+	TerminalDefaultSettingsClientSnapshot,
+	TerminalDefaultSettingsControl,
+	TerminalDefaultSettingsFailureCode,
+	TerminalDefaultSettingsSnapshot,
 } from '../../terminal-default-settings-control';
 import type { UserPreferencesControl } from '../../user-preferences';
 
@@ -19,15 +17,15 @@ import type { UserPreferencesControl } from '../../user-preferences';
  * Scrollback is one of the Session's shared preferences. The Worker gives it to each terminal it
  * launches after the save, so nothing here reconfigures a running terminal.
  */
-export class ServerTerminalDefaultSettingsClient implements DesktopTerminalDefaultSettingsControl {
+export class ServerTerminalDefaultSettingsClient implements TerminalDefaultSettingsControl {
 	readonly #listeners = new Set<() => void>();
 	readonly #preferences: UserPreferencesControl;
 	readonly #stopObserving: () => void;
 	#disposed = false;
-	#failureCode: DesktopTerminalDefaultSettingsFailureCode | null = null;
+	#failureCode: TerminalDefaultSettingsFailureCode | null = null;
 	#observed: UserPreferencesSnapshot | null;
 	#pending = false;
-	#snapshot: DesktopTerminalDefaultSettingsClientSnapshot;
+	#snapshot: TerminalDefaultSettingsClientSnapshot;
 
 	constructor(preferences: UserPreferencesControl) {
 		this.#preferences = preferences;
@@ -42,7 +40,7 @@ export class ServerTerminalDefaultSettingsClient implements DesktopTerminalDefau
 		});
 	}
 
-	getSnapshot = (): DesktopTerminalDefaultSettingsClientSnapshot => this.#snapshot;
+	getSnapshot = (): TerminalDefaultSettingsClientSnapshot => this.#snapshot;
 
 	subscribe = (listener: () => void): (() => void) => {
 		if (this.#disposed) return () => undefined;
@@ -53,7 +51,7 @@ export class ServerTerminalDefaultSettingsClient implements DesktopTerminalDefau
 	async update(
 		configuration: TerminalConfiguration,
 		preferencesSource?: string,
-	): Promise<DesktopTerminalDefaultSettingsClientOperationResult> {
+	): Promise<TerminalDefaultSettingsClientOperationResult> {
 		const observed = this.#observed;
 		if (this.#disposed || observed === null) return { kind: 'unavailable' };
 		if (this.#pending) {
@@ -91,7 +89,7 @@ export class ServerTerminalDefaultSettingsClient implements DesktopTerminalDefau
 		this.#listeners.clear();
 	}
 
-	#project(): DesktopTerminalDefaultSettingsClientSnapshot {
+	#project(): TerminalDefaultSettingsClientSnapshot {
 		const observed = this.#observed;
 		return {
 			configuration: {
@@ -121,8 +119,8 @@ export class ServerTerminalDefaultSettingsClient implements DesktopTerminalDefau
 }
 
 function settingsSnapshot(
-	snapshot: DesktopTerminalDefaultSettingsClientSnapshot,
-): DesktopTerminalDefaultSettingsSnapshot {
+	snapshot: TerminalDefaultSettingsClientSnapshot,
+): TerminalDefaultSettingsSnapshot {
 	return {
 		configuration: snapshot.configuration,
 		persistenceIssue: snapshot.persistenceIssue,

@@ -10,7 +10,7 @@ The package owns the announcement of a document's Server connection: its ports, 
 
 Local Project Folder acquisition distinguishes existing-Folder selection, native parent selection, and explicit child creation. Creation commands carry the parent selection identity, a monotonic attempt and one bounded name, never a renderer-selected path. Known no-effect failures permit explicit correction on that parent. Successful or uncertain creation consumes it and requires an exact creation-request acknowledgement before another operation; retirement reports retained receipts only during Main lifetime. Folder acquisition returns a validated path without carrying group membership; Workbench resolves addition through the immutable resource namespace. See the [owning contract](../../apps/desktop/docs/project-folder-acquisition.md).
 
-The Agent integration, terminal default, and terminal launch-profile contracts supply the data shapes and event vocabulary of the Web settings controls, which the Server path fills from Server operations. No Electron channel carries their commands, and no boundary parses their events; the terminal snapshot and launch-profile identity schemas stay exported as `@internal` fixture parsers for Web Stories and tests. They expose no executable path, packaged-resource path, raw Agent output, or generic process or filesystem capability.
+Settings data shapes belong to their controls in `apps/web`, and launch profiles to `@orchbee/workbench-client-protocol`; no Electron channel carries them.
 
 It contains no Electron imports, UI, broker, coordinator, transport lifecycle, authentication, terminal projection, PTY, or VT behavior. The contract grants only the scoped capability represented by each port.
 

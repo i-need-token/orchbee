@@ -1,20 +1,19 @@
 // @vitest-environment jsdom
 
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
-import {
-	DESKTOP_AGENT_INTEGRATION_IDS,
-	type DesktopAgentIntegrationId,
-	type DesktopAgentIntegrationSnapshotItem,
-} from '@orchbee/desktop-client-protocol';
+
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
+	AGENT_INTEGRATION_IDS,
 	AgentIntegrationReminderController,
+	type AgentIntegrationId,
 	type AgentIntegrationManagementClientOperationResult,
 	type AgentIntegrationManagementClientSnapshot,
 	type AgentIntegrationManagementControl,
+	type AgentIntegrationSnapshotItem,
 } from '../../agent-integration-management';
 import { AgentIntegrationReminder } from '../AgentIntegrationReminder';
 
@@ -44,7 +43,7 @@ describe('AgentIntegrationReminder', () => {
 			getItem: () => null,
 			setItem: () => undefined,
 		});
-		const onOpenSettings = vi.fn<(integrationId: DesktopAgentIntegrationId) => void>();
+		const onOpenSettings = vi.fn<(integrationId: AgentIntegrationId) => void>();
 		const root = createRoot(container);
 
 		await act(async () => {
@@ -109,7 +108,7 @@ describe('AgentIntegrationReminder', () => {
 					createElement(AgentIntegrationReminder, {
 						control,
 						controller,
-						onOpenSettings: vi.fn<(integrationId: DesktopAgentIntegrationId) => void>(),
+						onOpenSettings: vi.fn<(integrationId: AgentIntegrationId) => void>(),
 					}),
 				),
 			);
@@ -139,24 +138,22 @@ function requiredElement<ElementType extends Element>(
 }
 
 interface TestControl extends AgentIntegrationManagementControl {
-	readonly disableCalls: DesktopAgentIntegrationId[];
-	readonly enableCalls: DesktopAgentIntegrationId[];
-	recordLaunch(integrationId: DesktopAgentIntegrationId): void;
+	readonly disableCalls: AgentIntegrationId[];
+	readonly enableCalls: AgentIntegrationId[];
+	recordLaunch(integrationId: AgentIntegrationId): void;
 	updateIntegration(
-		integrationId: DesktopAgentIntegrationId,
-		patch: Partial<DesktopAgentIntegrationSnapshotItem>,
+		integrationId: AgentIntegrationId,
+		patch: Partial<AgentIntegrationSnapshotItem>,
 	): void;
 }
 
 function createTestControl(
-	initial: Partial<
-		Readonly<Record<DesktopAgentIntegrationId, Partial<DesktopAgentIntegrationSnapshotItem>>>
-	>,
+	initial: Partial<Readonly<Record<AgentIntegrationId, Partial<AgentIntegrationSnapshotItem>>>>,
 ): TestControl {
 	let snapshot: AgentIntegrationManagementClientSnapshot = {
 		failureCode: null,
 		failureIntegrationId: null,
-		integrations: DESKTOP_AGENT_INTEGRATION_IDS.map((integrationId) => ({
+		integrations: AGENT_INTEGRATION_IDS.map((integrationId) => ({
 			availability: 'not-found',
 			integrationId,
 			issue: null,

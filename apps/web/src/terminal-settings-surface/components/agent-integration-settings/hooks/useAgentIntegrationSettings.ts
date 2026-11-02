@@ -4,10 +4,11 @@ import {
 	useOrchbeeIntl,
 	type MessageDescriptor,
 } from '@orchbee/i18n';
-import type { DesktopAgentIntegrationId } from '@orchbee/desktop-client-protocol';
+
 import * as React from 'react';
 
 import type {
+	AgentIntegrationId,
 	AgentIntegrationManagementControl,
 	AgentIntegrationReminderController,
 } from '../../../../agent-integration-management';
@@ -19,7 +20,7 @@ import {
 	type AgentIntegrationSettingsView,
 } from '../model/agent-integration-settings-view';
 
-const AGENT_NAME_MESSAGES: Readonly<Record<DesktopAgentIntegrationId, MessageDescriptor>> = {
+const AGENT_NAME_MESSAGES: Readonly<Record<AgentIntegrationId, MessageDescriptor>> = {
 	'claude-code': agentObservationMessages.providerClaudeCode,
 	cline: agentObservationMessages.providerCline,
 	codex: agentObservationMessages.providerCodex,

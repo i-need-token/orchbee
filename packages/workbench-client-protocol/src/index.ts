@@ -70,9 +70,15 @@ export {
 	BUILT_IN_USER_LAUNCH_PROFILE_ID,
 	USER_LAUNCH_PROFILE_LIMITS,
 	UserLaunchProfileCatalogSchema,
-	UserLaunchProfileIdSchema,
 	UserLaunchProfileNameSchema,
 	UserLaunchProfileSchema,
+} from './user-launch-profile-contract';
+/** @internal Fixture parser for Web tests and Stories; production parses it only inside the catalog schemas. */
+export { UserLaunchProfileIdSchema } from './user-launch-profile-contract';
+export type {
+	UserLaunchProfile,
+	UserLaunchProfileCatalog,
+	UserLaunchProfileId,
 } from './user-launch-profile-contract';
 
 export {

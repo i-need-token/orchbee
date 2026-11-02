@@ -1,10 +1,11 @@
 import { agentIntegrationMessages, type MessageDescriptor } from '@orchbee/i18n';
-import type { DesktopAgentIntegrationSnapshotItem } from '@orchbee/desktop-client-protocol';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
 	AgentIntegrationReminderController,
 	type AgentIntegrationManagementControl,
+	type AgentIntegrationSnapshotItem,
 } from '../../../../../agent-integration-management';
 import {
 	enableAgentIntegration,
@@ -12,7 +13,7 @@ import {
 	resolveAgentIntegrationStatusView,
 } from '../agent-integration-settings-view';
 
-const integration: DesktopAgentIntegrationSnapshotItem = {
+const integration: AgentIntegrationSnapshotItem = {
 	availability: 'available',
 	integrationId: 'codex',
 	issue: null,

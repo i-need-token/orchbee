@@ -1,7 +1,7 @@
-import type { DesktopAgentIntegrationSnapshotItem } from '@orchbee/desktop-client-protocol';
+import type { AgentIntegrationSnapshotItem } from '../../agent-integration-management';
 
 export function isAgentIntegrationReminderEligible(
-	integration: DesktopAgentIntegrationSnapshotItem,
+	integration: AgentIntegrationSnapshotItem,
 ): boolean {
 	return (
 		integration.availability === 'available' &&

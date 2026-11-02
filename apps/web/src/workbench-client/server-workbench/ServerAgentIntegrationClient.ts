@@ -1,20 +1,19 @@
 import {
-	DESKTOP_AGENT_INTEGRATION_IDS,
-	type DesktopAgentIntegrationId,
-	type DesktopAgentIntegrationManagementFailureCode,
-	type DesktopAgentIntegrationSnapshotItem,
-} from '@orchbee/desktop-client-protocol';
-import {
 	WORKBENCH_PROTOCOL_VERSION,
 	parseWorkbenchRequest,
 	type WorkbenchRequest,
 	type WorkbenchResponse,
 } from '@orchbee/workbench-client-protocol';
 
-import type {
-	AgentIntegrationManagementClientOperationResult,
-	AgentIntegrationManagementClientSnapshot,
-	AgentIntegrationManagementControl,
+import {
+	AGENT_INTEGRATION_IDS,
+	type AgentIntegrationId,
+	type AgentIntegrationManagementClientOperationResult,
+	type AgentIntegrationManagementClientSnapshot,
+	type AgentIntegrationManagementControl,
+	type AgentIntegrationManagementFailureCode,
+	type AgentIntegrationManagementSnapshot,
+	type AgentIntegrationSnapshotItem,
 } from '../../agent-integration-management';
 import {
 	type ServerConnection,
@@ -38,11 +37,11 @@ type ReportedItem = Extract<Report, { readonly kind: 'list' }>['items'][number];
 type MutationReport = Extract<Report, { readonly kind: 'mutation' }>['report'];
 type Verdict = MutationReport['verdict'];
 type Rows = AgentIntegrationManagementClientSnapshot['integrations'];
-type FailureCode = DesktopAgentIntegrationManagementFailureCode;
+type FailureCode = AgentIntegrationManagementFailureCode;
 
 interface Mutation {
 	readonly direction: 'disable' | 'enable';
-	readonly integrationId: DesktopAgentIntegrationId;
+	readonly integrationId: AgentIntegrationId;
 }
 
 /** How a job ended for this window, as the CLI's job driver reports it. */
@@ -89,7 +88,7 @@ export class ServerAgentIntegrationClient implements AgentIntegrationManagementC
 	#snapshot: AgentIntegrationManagementClientSnapshot = {
 		failureCode: null,
 		failureIntegrationId: null,
-		integrations: DESKTOP_AGENT_INTEGRATION_IDS.map((integrationId) => ({
+		integrations: AGENT_INTEGRATION_IDS.map((integrationId) => ({
 			availability: 'unknown',
 			integrationId,
 			issue: null,
@@ -120,13 +119,13 @@ export class ServerAgentIntegrationClient implements AgentIntegrationManagementC
 	}
 
 	enable(
-		integrationId: DesktopAgentIntegrationId,
+		integrationId: AgentIntegrationId,
 	): Promise<AgentIntegrationManagementClientOperationResult> {
 		return this.#operate({ direction: 'enable', integrationId });
 	}
 
 	disable(
-		integrationId: DesktopAgentIntegrationId,
+		integrationId: AgentIntegrationId,
 	): Promise<AgentIntegrationManagementClientOperationResult> {
 		return this.#operate({ direction: 'disable', integrationId });
 	}
@@ -277,10 +276,7 @@ export class ServerAgentIntegrationClient implements AgentIntegrationManagementC
 		}
 	}
 
-	#protocolSnapshot(): Extract<
-		AgentIntegrationManagementClientOperationResult,
-		{ readonly kind: 'completed' }
-	>['snapshot'] {
+	#protocolSnapshot(): AgentIntegrationManagementSnapshot {
 		return {
 			integrations: this.#snapshot.integrations,
 			launchedIntegrationIds: [...this.#snapshot.launchedIntegrationIds],
@@ -432,8 +428,8 @@ function postEffectFailure(
 
 function reportedRow(
 	item: ReportedItem,
-	integrationId: DesktopAgentIntegrationId,
-): DesktopAgentIntegrationSnapshotItem {
+	integrationId: AgentIntegrationId,
+): AgentIntegrationSnapshotItem {
 	return {
 		availability: item.availability,
 		integrationId,
@@ -452,17 +448,13 @@ function listedRows(items: readonly ReportedItem[], rows: Rows): Rows {
 	});
 }
 
-function uncertainRows(rows: Rows, integrationId: DesktopAgentIntegrationId): Rows {
+function uncertainRows(rows: Rows, integrationId: AgentIntegrationId): Rows {
 	return rows.map((row) =>
 		row.integrationId === integrationId ? { ...row, issue: null, state: 'unknown' } : row,
 	);
 }
 
-function mutatedRows(
-	rows: Rows,
-	report: MutationReport,
-	integrationId: DesktopAgentIntegrationId,
-): Rows {
+function mutatedRows(rows: Rows, report: MutationReport, integrationId: AgentIntegrationId): Rows {
 	const { observed } = report;
 	if (observed?.integrationId === integrationId) {
 		return rows.map((row) =>

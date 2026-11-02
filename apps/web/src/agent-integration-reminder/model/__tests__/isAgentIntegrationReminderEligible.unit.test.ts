@@ -1,9 +1,9 @@
-import type { DesktopAgentIntegrationSnapshotItem } from '@orchbee/desktop-client-protocol';
 import { describe, expect, it } from 'vitest';
 
+import type { AgentIntegrationSnapshotItem } from '../../../agent-integration-management';
 import { isAgentIntegrationReminderEligible } from '../isAgentIntegrationReminderEligible';
 
-const integration: DesktopAgentIntegrationSnapshotItem = {
+const integration: AgentIntegrationSnapshotItem = {
 	availability: 'available',
 	integrationId: 'codex',
 	issue: null,

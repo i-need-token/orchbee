@@ -10,10 +10,10 @@ import type { ApplicationLocaleController } from '../application-locale';
 import type { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
 import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
 
-import type { DesktopTerminalDefaultSettingsControl } from '../terminal-default-settings-control';
+import type { TerminalDefaultSettingsControl } from '../terminal-default-settings-control';
 import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
 import type { TerminalInteractionSettingsController } from '../terminal-interaction-settings';
-import type { DesktopTerminalLaunchProfileControl } from '../terminal-launch-profile-control';
+import type { TerminalLaunchProfileControl } from '../terminal-launch-profile-control';
 import type { TerminalSettingsController } from '../terminal-settings';
 import { AgentIntegrationSettings } from './components/agent-integration-settings/AgentIntegrationSettings';
 import { ApplicationLanguageSettings } from './components/application-language-settings/ApplicationLanguageSettings';
@@ -43,8 +43,8 @@ export interface TerminalSettingsSurfaceProps {
 	readonly requestedCategory?: TerminalSettingsCategory | undefined;
 
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
-	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
-	readonly terminalDefaultSettingsControl?: DesktopTerminalDefaultSettingsControl | undefined;
+	readonly terminalLaunchProfileClient?: TerminalLaunchProfileControl | undefined;
+	readonly terminalDefaultSettingsControl?: TerminalDefaultSettingsControl | undefined;
 	readonly terminalInteractionSettingsController?:
 		| TerminalInteractionSettingsController
 		| undefined;

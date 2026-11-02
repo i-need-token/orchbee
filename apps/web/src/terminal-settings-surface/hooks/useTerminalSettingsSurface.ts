@@ -9,7 +9,7 @@ import {
 } from '../../keyboard-shortcuts';
 import { useApplicationLocale } from '../../application-locale';
 import { useTerminalInteractionSettings } from '../../terminal-interaction-settings';
-import type { DesktopTerminalDefaultSettingsClientSnapshot } from '../../terminal-default-settings-control';
+import type { TerminalDefaultSettingsClientSnapshot } from '../../terminal-default-settings-control';
 import { normalizeTerminalHexColor, useTerminalSettings } from '../../terminal-settings';
 import { TERMINAL_SETTINGS_SEARCH_RESULTS_ID } from '../constants/terminal-settings-search-catalog';
 import {
@@ -31,14 +31,13 @@ import {
 	parseTerminalPadding,
 } from '../utils/terminal-settings-draft-parsing';
 
-const UNAVAILABLE_TERMINAL_DEFAULT_SETTINGS_SNAPSHOT: DesktopTerminalDefaultSettingsClientSnapshot =
-	{
-		configuration: { scrollbackBytes: 10_000_000 },
-		failureCode: 'control-unavailable',
-		pending: false,
-		persistenceIssue: null,
-		source: 'runtime',
-	};
+const UNAVAILABLE_TERMINAL_DEFAULT_SETTINGS_SNAPSHOT: TerminalDefaultSettingsClientSnapshot = {
+	configuration: { scrollbackBytes: 10_000_000 },
+	failureCode: 'control-unavailable',
+	pending: false,
+	persistenceIssue: null,
+	source: 'runtime',
+};
 
 export function useTerminalSettingsSurface({
 	agentIntegrationManagementControl,
@@ -62,7 +61,7 @@ export function useTerminalSettingsSurface({
 	const interactionSnapshot = useTerminalInteractionSettings(terminalInteractionSettingsController);
 	const unavailableTerminalDefaultSettingsSource = React.useMemo(
 		() => ({
-			getSnapshot: (): DesktopTerminalDefaultSettingsClientSnapshot =>
+			getSnapshot: (): TerminalDefaultSettingsClientSnapshot =>
 				UNAVAILABLE_TERMINAL_DEFAULT_SETTINGS_SNAPSHOT,
 			subscribe: (): (() => void) => () => undefined,
 		}),

@@ -1,13 +1,8 @@
 import { DEFAULT_TERMINAL_APPEARANCE_PREFERENCES } from '../src/terminal-settings/model/terminal-appearance-preferences';
 import {
-	DESKTOP_AGENT_INTEGRATION_IDS,
-	DesktopTerminalLaunchProfileIdSchema,
-	DesktopTerminalLaunchProfileSnapshotSchema,
-	DesktopTerminalDefaultSettingsSnapshotSchema,
-	type DesktopTerminalLaunchProfileCatalog,
-	type DesktopAgentIntegrationId,
-	type DesktopAgentIntegrationSnapshotItem,
-} from '@orchbee/desktop-client-protocol';
+	UserLaunchProfileIdSchema,
+	type UserLaunchProfileCatalog,
+} from '@orchbee/workbench-client-protocol';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
 import { TerminalSettingsController } from '../src/terminal-settings';
@@ -18,18 +13,23 @@ import {
 	UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY,
 } from '../src/terminal-feedback-settings';
 import { TerminalSettingsSurface } from '../src/terminal-settings-surface';
-import type {
-	DesktopTerminalLaunchProfileClientSnapshot,
-	DesktopTerminalLaunchProfileControl,
+import {
+	TerminalLaunchProfileSnapshotSchema,
+	type TerminalLaunchProfileClientSnapshot,
+	type TerminalLaunchProfileControl,
 } from '../src/terminal-launch-profile-control';
 import { TerminalInteractionSettingsController } from '../src/terminal-interaction-settings';
-import type {
-	DesktopTerminalDefaultSettingsClientSnapshot,
-	DesktopTerminalDefaultSettingsControl,
+import {
+	TerminalDefaultSettingsSnapshotSchema,
+	type TerminalDefaultSettingsClientSnapshot,
+	type TerminalDefaultSettingsControl,
 } from '../src/terminal-default-settings-control';
-import type {
-	AgentIntegrationManagementClientSnapshot,
-	AgentIntegrationManagementControl,
+import {
+	AGENT_INTEGRATION_IDS,
+	type AgentIntegrationId,
+	type AgentIntegrationManagementClientSnapshot,
+	type AgentIntegrationManagementControl,
+	type AgentIntegrationSnapshotItem,
 } from '../src/agent-integration-management';
 import { ApplicationLocaleController } from '../src/application-locale';
 import { ApplicationLocaleProvider } from '../src/application-locale-provider';
@@ -190,9 +190,9 @@ function createInteractionStoryController(): TerminalInteractionSettingsControll
 
 function createTerminalDefaultSettingsStoryControl(
 	scrollbackBytes = 10_000_000,
-): DesktopTerminalDefaultSettingsControl {
-	let snapshot: DesktopTerminalDefaultSettingsClientSnapshot = {
-		...DesktopTerminalDefaultSettingsSnapshotSchema.parse({
+): TerminalDefaultSettingsControl {
+	let snapshot: TerminalDefaultSettingsClientSnapshot = {
+		...TerminalDefaultSettingsSnapshotSchema.parse({
 			configuration: { scrollbackBytes },
 			persistenceIssue: null,
 			source: 'stored',
@@ -217,11 +217,11 @@ function createTerminalDefaultSettingsStoryControl(
 
 function createTerminalLaunchProfileStoryControl(
 	loginShell: boolean,
-): DesktopTerminalLaunchProfileControl {
-	const builtInProfileId = DesktopTerminalLaunchProfileIdSchema.parse('system-default');
+): TerminalLaunchProfileControl {
+	const builtInProfileId = UserLaunchProfileIdSchema.parse('system-default');
 	let profileSequence = 1;
-	let snapshot: DesktopTerminalLaunchProfileClientSnapshot = {
-		...DesktopTerminalLaunchProfileSnapshotSchema.parse({
+	let snapshot: TerminalLaunchProfileClientSnapshot = {
+		...TerminalLaunchProfileSnapshotSchema.parse({
 			capabilities: { loginShell },
 			catalog: {
 				defaultProfileId: builtInProfileId,
@@ -250,7 +250,7 @@ function createTerminalLaunchProfileStoryControl(
 		pending: false,
 	};
 	const listeners = new Set<() => void>();
-	const commit = (catalog: DesktopTerminalLaunchProfileCatalog) => {
+	const commit = (catalog: UserLaunchProfileCatalog) => {
 		snapshot = { ...snapshot, catalog };
 		for (const listener of listeners) listener();
 		return Promise.resolve({ kind: 'completed' as const, snapshot });
@@ -262,7 +262,7 @@ function createTerminalLaunchProfileStoryControl(
 			);
 			const source = snapshot.catalog.profiles[sourceIndex];
 			if (source === undefined) return Promise.resolve({ kind: 'unavailable' });
-			const id = DesktopTerminalLaunchProfileIdSchema.parse(`story-profile-${++profileSequence}`);
+			const id = UserLaunchProfileIdSchema.parse(`story-profile-${++profileSequence}`);
 			const profiles = [...snapshot.catalog.profiles];
 			profiles.splice(sourceIndex + 1, 0, { ...source, id, name });
 			return commit({
@@ -306,7 +306,7 @@ function createTerminalLaunchProfileStoryControl(
 function createAgentIntegrationStoryControl(): AgentIntegrationManagementControl {
 	let snapshot: AgentIntegrationManagementClientSnapshot = createAgentIntegrationStorySnapshot();
 	const listeners = new Set<() => void>();
-	const update = (integrationId: DesktopAgentIntegrationId, enabled: boolean) => {
+	const update = (integrationId: AgentIntegrationId, enabled: boolean) => {
 		snapshot = {
 			...snapshot,
 			integrations: snapshot.integrations.map((integration) =>
@@ -348,7 +348,7 @@ function createAgentIntegrationStoryControl(): AgentIntegrationManagementControl
 
 function createAgentIntegrationStorySnapshot(): AgentIntegrationManagementClientSnapshot {
 	const examples: Partial<
-		Readonly<Record<DesktopAgentIntegrationId, Partial<DesktopAgentIntegrationSnapshotItem>>>
+		Readonly<Record<AgentIntegrationId, Partial<AgentIntegrationSnapshotItem>>>
 	> = {
 		'claude-code': { availability: 'available', state: 'enabled' },
 		codex: { availability: 'available', state: 'not-installed' },
@@ -358,7 +358,7 @@ function createAgentIntegrationStorySnapshot(): AgentIntegrationManagementClient
 	return {
 		failureCode: null,
 		failureIntegrationId: null,
-		integrations: DESKTOP_AGENT_INTEGRATION_IDS.map((integrationId) => ({
+		integrations: AGENT_INTEGRATION_IDS.map((integrationId) => ({
 			availability: 'not-found',
 			integrationId,
 			issue: null,

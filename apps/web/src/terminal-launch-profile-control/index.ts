@@ -1,5 +1,9 @@
+/** @internal Fixture parser for the Web terminal settings Stories and tests; no production boundary parses it. */
+export { TerminalLaunchProfileSnapshotSchema } from './terminal-launch-profile-control';
 export type {
-	DesktopTerminalLaunchProfileClientOperationResult,
-	DesktopTerminalLaunchProfileClientSnapshot,
-	DesktopTerminalLaunchProfileControl,
-} from './desktop-terminal-launch-profile-control';
+	TerminalLaunchProfileClientOperationResult,
+	TerminalLaunchProfileClientSnapshot,
+	TerminalLaunchProfileControl,
+	TerminalLaunchProfileFailureCode,
+	TerminalLaunchProfileSnapshot,
+} from './terminal-launch-profile-control';

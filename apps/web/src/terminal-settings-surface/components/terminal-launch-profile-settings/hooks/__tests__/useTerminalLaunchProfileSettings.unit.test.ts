@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 
-import { DesktopTerminalLaunchProfileSnapshotSchema } from '@orchbee/desktop-client-protocol';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { cleanup, renderHook } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { DesktopTerminalLaunchProfileControl } from '../../../../../terminal-launch-profile-control';
+import {
+	TerminalLaunchProfileSnapshotSchema,
+	type TerminalLaunchProfileControl,
+} from '../../../../../terminal-launch-profile-control';
 import { useTerminalLaunchProfileSettings } from '../useTerminalLaunchProfileSettings';
 
 function I18nWrapper({ children }: { readonly children: ReactNode }) {
@@ -18,7 +20,7 @@ afterEach(() => cleanup());
 describe('useTerminalLaunchProfileSettings', () => {
 	it('projects the localized built-in profile and platform login capability', () => {
 		const snapshot = {
-			...DesktopTerminalLaunchProfileSnapshotSchema.parse({
+			...TerminalLaunchProfileSnapshotSchema.parse({
 				capabilities: { loginShell: false },
 				catalog: {
 					defaultProfileId: 'system-default',
@@ -40,7 +42,7 @@ describe('useTerminalLaunchProfileSettings', () => {
 		const unavailable = async (): Promise<{ readonly kind: 'unavailable' }> => ({
 			kind: 'unavailable',
 		});
-		const client: DesktopTerminalLaunchProfileControl = {
+		const client: TerminalLaunchProfileControl = {
 			createProfile: unavailable,
 			deleteProfile: unavailable,
 			getSnapshot: () => snapshot,

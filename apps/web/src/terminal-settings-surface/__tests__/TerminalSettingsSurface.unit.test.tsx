@@ -18,8 +18,8 @@ import { TerminalInteractionSettingsController } from '../../terminal-interactio
 import { TerminalSettingsController } from '../../terminal-settings';
 import { REMOTE_DEVELOPMENT_DIAGNOSTIC_COMMAND } from '../constants/remote-development-diagnostic';
 import type {
-	DesktopTerminalDefaultSettingsClientSnapshot,
-	DesktopTerminalDefaultSettingsControl,
+	TerminalDefaultSettingsClientSnapshot,
+	TerminalDefaultSettingsControl,
 } from '../../terminal-default-settings-control';
 
 type TerminalAppearanceStorage = ConstructorParameters<
@@ -1151,10 +1151,10 @@ function memoryStorage(): {
 }
 
 function createTerminalDefaultSettingsControl(): {
-	readonly control: DesktopTerminalDefaultSettingsControl;
-	readonly update: ReturnType<typeof vi.fn<DesktopTerminalDefaultSettingsControl['update']>>;
+	readonly control: TerminalDefaultSettingsControl;
+	readonly update: ReturnType<typeof vi.fn<TerminalDefaultSettingsControl['update']>>;
 } {
-	let snapshot: DesktopTerminalDefaultSettingsClientSnapshot = {
+	let snapshot: TerminalDefaultSettingsClientSnapshot = {
 		configuration: { scrollbackBytes: 10_000_000 },
 		failureCode: null,
 		pending: false,
@@ -1162,7 +1162,7 @@ function createTerminalDefaultSettingsControl(): {
 		source: 'stored',
 	};
 	const listeners = new Set<() => void>();
-	const update = vi.fn<DesktopTerminalDefaultSettingsControl['update']>(async (configuration) => {
+	const update = vi.fn<TerminalDefaultSettingsControl['update']>(async (configuration) => {
 		snapshot = {
 			configuration,
 			failureCode: null,

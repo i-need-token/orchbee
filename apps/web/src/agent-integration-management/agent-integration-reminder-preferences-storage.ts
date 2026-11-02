@@ -1,9 +1,10 @@
-import {
-	DESKTOP_AGENT_INTEGRATION_IDS,
-	DesktopAgentIntegrationIdSchema,
-	type DesktopAgentIntegrationId,
-} from '@orchbee/desktop-client-protocol';
 import { z } from 'zod';
+
+import {
+	AGENT_INTEGRATION_IDS,
+	AgentIntegrationIdSchema,
+	type AgentIntegrationId,
+} from './agent-integration-management-control';
 
 const AGENT_INTEGRATION_REMINDER_STORAGE_KEY = 'orchbee:web:agent-integration-reminders:v1';
 
@@ -18,7 +19,7 @@ export interface AgentIntegrationReminderStorage {
 }
 
 export interface AgentIntegrationReminderPreferences {
-	readonly dismissedIntegrationIds: readonly DesktopAgentIntegrationId[];
+	readonly dismissedIntegrationIds: readonly AgentIntegrationId[];
 }
 
 const DEFAULT_AGENT_INTEGRATION_REMINDER_PREFERENCES: AgentIntegrationReminderPreferences =
@@ -26,8 +27,8 @@ const DEFAULT_AGENT_INTEGRATION_REMINDER_PREFERENCES: AgentIntegrationReminderPr
 
 const storedAgentIntegrationReminderPreferencesSchema = z.strictObject({
 	dismissedIntegrationIds: z
-		.array(DesktopAgentIntegrationIdSchema)
-		.max(DESKTOP_AGENT_INTEGRATION_IDS.length)
+		.array(AgentIntegrationIdSchema)
+		.max(AGENT_INTEGRATION_IDS.length)
 		.refine((ids) => new Set(ids).size === ids.length, 'Integration IDs must be unique'),
 });
 
@@ -88,10 +89,8 @@ export function writeAgentIntegrationReminderPreferences(
 }
 
 export function canonicalizeIntegrationIds(
-	ids: ReadonlySet<DesktopAgentIntegrationId> | readonly DesktopAgentIntegrationId[],
-): readonly DesktopAgentIntegrationId[] {
+	ids: ReadonlySet<AgentIntegrationId> | readonly AgentIntegrationId[],
+): readonly AgentIntegrationId[] {
 	const idSet = new Set(ids);
-	return Object.freeze(
-		DESKTOP_AGENT_INTEGRATION_IDS.filter((integrationId) => idSet.has(integrationId)),
-	);
+	return Object.freeze(AGENT_INTEGRATION_IDS.filter((integrationId) => idSet.has(integrationId)));
 }

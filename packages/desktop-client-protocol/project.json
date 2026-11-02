@@ -3,10 +3,11 @@
 	"domain": "desktop-client-protocol",
 	"runtime": ["universal"],
 	"stability": "experimental",
-	"responsibility": "Strict data contracts for the Desktop window's Server-connection announcement and its fixed port order, local Project Folder acquisition, and the Agent-integration, terminal-default, and terminal-launch-profile data shapes the Web settings controls share.",
+	"responsibility": "Strict data contracts for the Desktop window's Server-connection announcement and its fixed port order, and local Project Folder acquisition.",
 	"nonGoals": [
 		"Owning Electron Main, preload, renderer, network, authentication, or transport lifecycle implementations.",
 		"Owning the Server's Client protocol, canonical Agent transitions, provider payloads or correlation capabilities, terminal projection, projected attachment, Workbench document, TerminalPresentation, PTY, VT, terminal process, or product-interface semantics.",
-		"Providing generic IPC, arbitrary Electron channels, compatibility aliases, or a protocol for ordinary Browser clients."
+		"Providing generic IPC, arbitrary Electron channels, compatibility aliases, or a protocol for ordinary Browser clients.",
+		"Owning Settings data shapes, which belong to their Web controls."
 	]
 }

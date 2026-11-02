@@ -839,7 +839,7 @@ product-sunset evidence, and deletion of stale documentation and tests in one ac
 
 | Workspace or package                                                               | Candidate review outcome                                                                                                                                                                                                                                                                                                                       |
 | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@orchbee/desktop-client-protocol`                                                 | **Accepted reduction:** retain only sandboxed Desktop bootstrap and exact platform-local capabilities; remove Server, Worker, terminal-authority, canonical Agent, managed-Worktree, Archive, Profile, and SSH execution messages after their accepted migrations                                                                              |
+| `@orchbee/desktop-client-protocol`                                                 | **Reduced in step 4:** retains only the sandboxed Server-connection bootstrap and native Project Folder acquisition; the Server, Worker, terminal-authority, Agent, Worktree, Archive, SSH, and settings messages left with Main or moved to `apps/web`                                                                                        |
 | `@orchbee/remote-client-protocol`                                                  | **Retired:** no runtime consumers. Browser authentication belongs to the native Server; future Web consumes its admitted contracts without a separate TS authentication package.                                                                                                                                                               |
 | `@orchbee/workbench-client-protocol`                                               | **Accepted bounded retention:** keep only as the TypeScript binding for a transport-neutral Client session, semantic-intent, snapshot, and delta boundary while real TS consumers remain; the canonical cross-language schema is framework-neutral, and Rust/mobile bindings do not depend on this package                                     |
 | `@orchbee/terminal-protocol`                                                       | **Accepted retention:** keep the TypeScript binding; `schemas/terminal` is the common Host wire authority for Rust, Zig and TypeScript conformance                                                                                                                                                                                             |
@@ -1423,9 +1423,13 @@ guides. These choices stand unless review changes them:
   still carries the terminal theme transaction, transport-committed selection copy, and the local
   file and image-preview capability, and the renderer still handles them, though no current
   transport sends them. The Worktree forms and the Agent observation source in `apps/web` have no
-  provider either. Step 5 decides which return; the rest are pruned. The Agent integration,
-  terminal default, and launch-profile contracts in `@orchbee/desktop-client-protocol` keep only
-  the shapes and event vocabulary that the Settings controls render.
+  provider either. Step 5 decides which return; the rest are pruned.
+- **Settings shapes live with their controls.** The Agent integration, terminal default, and
+  launch-profile shapes that only the Settings controls use moved from
+  `@orchbee/desktop-client-protocol` into those controls in `apps/web` without the `Desktop`
+  prefix, and their Main-event wrappers left. Launch profiles use the `UserLaunchProfile` schemas
+  and types of `@orchbee/workbench-client-protocol`, where their schema test moved. The package
+  keeps only the Server-connection bootstrap and Project Folder acquisition.
 - **The Web runtime that spoke to Main left too.** The client session, the Workbench document
   control, and `createWorkbenchRuntime` are deleted with their tests, as are the client-session
   and projection-control contracts in `@orchbee/workbench-client-protocol` and the
@@ -1493,8 +1497,8 @@ the window joins.
   authorizes each operation; CLI, TUI, and Desktop Settings are Clients of the same operation.
 - The Agent identity provider registry is the one provider vocabulary. Worker owns the integration
   specification, and [`schemas/agent-integration`](../../schemas/agent-integration/README.md) is the
-  operation contract's language-neutral schema; the TypeScript Desktop contract goes with Main's
-  writer.
+  operation contract's language-neutral schema. Main's TypeScript contract left with its writer,
+  and Web Settings keeps only the rows it renders.
 - The Capsule source lives with the native writer in
   `crates/agent-integration-writer/agent-observation-adapters`; Desktop packaging and native
   staging consume the same staged artifact, and `payloadSha256` remains its identity. Its README is
@@ -1508,7 +1512,7 @@ the window joins.
 | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | `tokens.css` in `@orchbee/design-tokens`                                                   | One language-neutral palette, at the GUI design follow-up                          | CSS registry and native theme                          |
 | Agent canonical corpus generated from `@orchbee/agent`, and the join corpus citing Desktop | Contract-authored corpora in [`schemas/agent`](../../schemas/agent/README.md)      | Server, Worker, and TypeScript bindings until deletion |
-| Integration vocabulary declared canonical in `@orchbee/desktop-client-protocol`            | [`schemas/agent-integration`](../../schemas/agent-integration/README.md), in place | Worker, Server, native Client, and Desktop Settings    |
+| Integration vocabulary in `@orchbee/workbench-client-protocol` and Web Settings            | [`schemas/agent-integration`](../../schemas/agent-integration/README.md), in place | Worker, Server, native Client, and Desktop Settings    |
 
 ## Correctness claims and evidence plan
 

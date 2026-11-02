@@ -1,22 +1,22 @@
 import {
-	DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
-	DESKTOP_TERMINAL_LAUNCH_PROFILE_LIMITS,
-	DesktopTerminalLaunchProfileCatalogSchema,
-	type DesktopTerminalLaunchProfile,
-	type DesktopTerminalLaunchProfileCatalog,
-	type DesktopTerminalLaunchProfileFailureCode,
-	type DesktopTerminalLaunchProfileId,
-	type DesktopTerminalLaunchProfileSnapshot,
-} from '@orchbee/desktop-client-protocol';
+	BUILT_IN_USER_LAUNCH_PROFILE_ID,
+	USER_LAUNCH_PROFILE_LIMITS,
+	UserLaunchProfileCatalogSchema,
+} from '@orchbee/workbench-client-protocol';
 import type {
+	UserLaunchProfile,
+	UserLaunchProfileCatalog,
+	UserLaunchProfileId,
 	UserPreferencesResponse,
 	UserPreferencesSnapshot,
 } from '@orchbee/workbench-client-protocol';
 
 import type {
-	DesktopTerminalLaunchProfileClientOperationResult,
-	DesktopTerminalLaunchProfileClientSnapshot,
-	DesktopTerminalLaunchProfileControl,
+	TerminalLaunchProfileClientOperationResult,
+	TerminalLaunchProfileClientSnapshot,
+	TerminalLaunchProfileControl,
+	TerminalLaunchProfileFailureCode,
+	TerminalLaunchProfileSnapshot,
 } from '../../terminal-launch-profile-control';
 import type { UserPreferencesControl } from '../../user-preferences';
 
@@ -24,15 +24,15 @@ type CatalogChange =
 	| {
 			readonly kind: 'create';
 			readonly name: string;
-			readonly sourceProfileId: DesktopTerminalLaunchProfileId;
+			readonly sourceProfileId: UserLaunchProfileId;
 	  }
-	| { readonly kind: 'delete'; readonly profileId: DesktopTerminalLaunchProfileId }
+	| { readonly kind: 'delete'; readonly profileId: UserLaunchProfileId }
 	| { readonly kind: 'reset' }
-	| { readonly kind: 'select-default'; readonly profileId: DesktopTerminalLaunchProfileId }
-	| { readonly kind: 'update'; readonly profile: DesktopTerminalLaunchProfile };
+	| { readonly kind: 'select-default'; readonly profileId: UserLaunchProfileId }
+	| { readonly kind: 'update'; readonly profile: UserLaunchProfile };
 
 type CatalogRefusal = Extract<
-	DesktopTerminalLaunchProfileFailureCode,
+	TerminalLaunchProfileFailureCode,
 	| 'catalog-full'
 	| 'default-profile-delete'
 	| 'invalid-profile'
@@ -46,16 +46,16 @@ type CatalogRefusal = Extract<
  * as `source-changed` rather than overwritten. The Server decides what this machine can launch, and
  * the Worker launches the default profile for every terminal created after the save.
  */
-export class ServerTerminalLaunchProfileClient implements DesktopTerminalLaunchProfileControl {
-	readonly #capabilities: DesktopTerminalLaunchProfileSnapshot['capabilities'];
+export class ServerTerminalLaunchProfileClient implements TerminalLaunchProfileControl {
+	readonly #capabilities: TerminalLaunchProfileSnapshot['capabilities'];
 	readonly #listeners = new Set<() => void>();
 	readonly #preferences: UserPreferencesControl;
 	readonly #stopObserving: () => void;
 	#disposed = false;
-	#failureCode: DesktopTerminalLaunchProfileFailureCode | null = null;
+	#failureCode: TerminalLaunchProfileFailureCode | null = null;
 	#observed: UserPreferencesSnapshot | null;
 	#pending = false;
-	#snapshot: DesktopTerminalLaunchProfileClientSnapshot;
+	#snapshot: TerminalLaunchProfileClientSnapshot;
 
 	constructor(preferences: UserPreferencesControl, loginShellAvailable: boolean) {
 		this.#capabilities = { loginShell: loginShellAvailable };
@@ -71,7 +71,7 @@ export class ServerTerminalLaunchProfileClient implements DesktopTerminalLaunchP
 		});
 	}
 
-	getSnapshot = (): DesktopTerminalLaunchProfileClientSnapshot => this.#snapshot;
+	getSnapshot = (): TerminalLaunchProfileClientSnapshot => this.#snapshot;
 
 	subscribe = (listener: () => void): (() => void) => {
 		if (this.#disposed) return () => undefined;
@@ -81,31 +81,31 @@ export class ServerTerminalLaunchProfileClient implements DesktopTerminalLaunchP
 
 	createProfile(
 		name: string,
-		sourceProfileId: DesktopTerminalLaunchProfileId,
-	): Promise<DesktopTerminalLaunchProfileClientOperationResult> {
+		sourceProfileId: UserLaunchProfileId,
+	): Promise<TerminalLaunchProfileClientOperationResult> {
 		return this.#change({ kind: 'create', name, sourceProfileId });
 	}
 
 	updateProfile(
-		profile: DesktopTerminalLaunchProfile,
+		profile: UserLaunchProfile,
 		preferencesSource?: string,
-	): Promise<DesktopTerminalLaunchProfileClientOperationResult> {
+	): Promise<TerminalLaunchProfileClientOperationResult> {
 		return this.#change({ kind: 'update', profile }, preferencesSource);
 	}
 
 	selectDefault(
-		profileId: DesktopTerminalLaunchProfileId,
-	): Promise<DesktopTerminalLaunchProfileClientOperationResult> {
+		profileId: UserLaunchProfileId,
+	): Promise<TerminalLaunchProfileClientOperationResult> {
 		return this.#change({ kind: 'select-default', profileId });
 	}
 
 	deleteProfile(
-		profileId: DesktopTerminalLaunchProfileId,
-	): Promise<DesktopTerminalLaunchProfileClientOperationResult> {
+		profileId: UserLaunchProfileId,
+	): Promise<TerminalLaunchProfileClientOperationResult> {
 		return this.#change({ kind: 'delete', profileId });
 	}
 
-	reset(): Promise<DesktopTerminalLaunchProfileClientOperationResult> {
+	reset(): Promise<TerminalLaunchProfileClientOperationResult> {
 		return this.#change({ kind: 'reset' });
 	}
 
@@ -119,7 +119,7 @@ export class ServerTerminalLaunchProfileClient implements DesktopTerminalLaunchP
 	async #change(
 		change: CatalogChange,
 		draftSource?: string,
-	): Promise<DesktopTerminalLaunchProfileClientOperationResult> {
+	): Promise<TerminalLaunchProfileClientOperationResult> {
 		const observed = this.#observed;
 		if (this.#disposed || observed === null) return { kind: 'unavailable' };
 		if (this.#pending) {
@@ -129,7 +129,7 @@ export class ServerTerminalLaunchProfileClient implements DesktopTerminalLaunchP
 		if (draftSource !== undefined && draftSource !== observed.source) {
 			return this.#fail('source-changed');
 		}
-		let catalog: DesktopTerminalLaunchProfileCatalog | null = null;
+		let catalog: UserLaunchProfileCatalog | null = null;
 		if (change.kind !== 'reset') {
 			const transition = transitionCatalog(observed.values.launchProfiles, change);
 			if (typeof transition === 'string') return this.#fail(transition);
@@ -146,15 +146,13 @@ export class ServerTerminalLaunchProfileClient implements DesktopTerminalLaunchP
 		return { kind: 'completed', snapshot: profileSnapshot(this.#snapshot) };
 	}
 
-	#fail(
-		code: DesktopTerminalLaunchProfileFailureCode,
-	): DesktopTerminalLaunchProfileClientOperationResult {
+	#fail(code: TerminalLaunchProfileFailureCode): TerminalLaunchProfileClientOperationResult {
 		this.#failureCode = code;
 		this.#present();
 		return { code, kind: 'failed', snapshot: profileSnapshot(this.#snapshot) };
 	}
 
-	#project(): DesktopTerminalLaunchProfileClientSnapshot {
+	#project(): TerminalLaunchProfileClientSnapshot {
 		const observed = this.#observed;
 		if (observed === null) {
 			return {
@@ -192,9 +190,9 @@ export class ServerTerminalLaunchProfileClient implements DesktopTerminalLaunchP
 }
 
 function transitionCatalog(
-	catalog: DesktopTerminalLaunchProfileCatalog,
+	catalog: UserLaunchProfileCatalog,
 	change: Exclude<CatalogChange, { readonly kind: 'reset' }>,
-): DesktopTerminalLaunchProfileCatalog | CatalogRefusal {
+): UserLaunchProfileCatalog | CatalogRefusal {
 	const { profiles } = catalog;
 	let profileId: string;
 	if (change.kind === 'create') profileId = change.sourceProfileId;
@@ -206,7 +204,7 @@ function transitionCatalog(
 	let candidate: unknown;
 	switch (change.kind) {
 		case 'create': {
-			if (profiles.length >= DESKTOP_TERMINAL_LAUNCH_PROFILE_LIMITS.maximumProfileCount) {
+			if (profiles.length >= USER_LAUNCH_PROFILE_LIMITS.maximumProfileCount) {
 				return 'catalog-full';
 			}
 			const created = {
@@ -240,25 +238,25 @@ function transitionCatalog(
 			};
 			break;
 	}
-	const parsed = DesktopTerminalLaunchProfileCatalogSchema.safeParse(candidate);
+	const parsed = UserLaunchProfileCatalogSchema.safeParse(candidate);
 	return parsed.success ? parsed.data : 'invalid-profile';
 }
 
 /** The TUI names a new profile the same way, so either Client takes the first free number. */
-function nextProfileId(catalog: DesktopTerminalLaunchProfileCatalog): string {
+function nextProfileId(catalog: UserLaunchProfileCatalog): string {
 	const taken = new Set<string>(catalog.profiles.map((profile) => profile.id));
 	let number = 1;
 	while (taken.has(`profile-${number}`)) number += 1;
 	return `profile-${number}`;
 }
 
-function builtInCatalog(): DesktopTerminalLaunchProfileCatalog {
-	return DesktopTerminalLaunchProfileCatalogSchema.parse({
-		defaultProfileId: DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
+function builtInCatalog(): UserLaunchProfileCatalog {
+	return UserLaunchProfileCatalogSchema.parse({
+		defaultProfileId: BUILT_IN_USER_LAUNCH_PROFILE_ID,
 		profiles: [
 			{
 				command: { kind: 'system-shell', login: false },
-				id: DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
+				id: BUILT_IN_USER_LAUNCH_PROFILE_ID,
 				name: null,
 			},
 		],
@@ -268,7 +266,7 @@ function builtInCatalog(): DesktopTerminalLaunchProfileCatalog {
 
 function failureCode(
 	response: Exclude<UserPreferencesResponse, { readonly kind: 'snapshot' }>,
-): DesktopTerminalLaunchProfileFailureCode {
+): TerminalLaunchProfileFailureCode {
 	if (response.kind === 'outcome-unknown') return 'outcome-unknown';
 	switch (response.reason) {
 		case 'busy':
@@ -286,8 +284,8 @@ function failureCode(
 }
 
 function profileSnapshot(
-	snapshot: DesktopTerminalLaunchProfileClientSnapshot,
-): DesktopTerminalLaunchProfileSnapshot {
+	snapshot: TerminalLaunchProfileClientSnapshot,
+): TerminalLaunchProfileSnapshot {
 	return {
 		capabilities: snapshot.capabilities,
 		catalog: snapshot.catalog,

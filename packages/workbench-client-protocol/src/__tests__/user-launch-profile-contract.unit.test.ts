@@ -1,28 +1,28 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-	DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
-	DesktopTerminalLaunchProfileCatalogSchema,
-	DesktopTerminalLaunchProfileNameSchema,
-	DesktopTerminalLaunchProfileSchema,
-} from '../desktop-terminal-launch-profile-contract';
+	BUILT_IN_USER_LAUNCH_PROFILE_ID,
+	UserLaunchProfileCatalogSchema,
+	UserLaunchProfileNameSchema,
+	UserLaunchProfileSchema,
+} from '../user-launch-profile-contract';
 
-const catalog = DesktopTerminalLaunchProfileCatalogSchema.parse({
-	defaultProfileId: DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
+const catalog = UserLaunchProfileCatalogSchema.parse({
+	defaultProfileId: BUILT_IN_USER_LAUNCH_PROFILE_ID,
 	profiles: [
 		{
 			command: { kind: 'system-shell', login: false },
-			id: DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
+			id: BUILT_IN_USER_LAUNCH_PROFILE_ID,
 			name: null,
 		},
 	],
 	version: 1,
 });
 
-describe('Desktop terminal launch-profile contract', () => {
+describe('User launch-profile contract', () => {
 	it('requires canonical profile names and preserves literal custom arguments', () => {
 		expect(
-			DesktopTerminalLaunchProfileSchema.parse({
+			UserLaunchProfileSchema.parse({
 				command: {
 					arguments: ['--name', 'two words', ''],
 					executable: '/usr/bin/example',
@@ -35,19 +35,19 @@ describe('Desktop terminal launch-profile contract', () => {
 			command: { arguments: ['--name', 'two words', ''] },
 			name: 'Example',
 		});
-		expect(DesktopTerminalLaunchProfileNameSchema.safeParse('  Example  ').success).toBe(false);
+		expect(UserLaunchProfileNameSchema.safeParse('  Example  ').success).toBe(false);
 	});
 
 	it('rejects duplicate IDs, a missing default, foreign localized markers, and invalid text', () => {
 		expect(
-			DesktopTerminalLaunchProfileCatalogSchema.safeParse({
+			UserLaunchProfileCatalogSchema.safeParse({
 				defaultProfileId: 'missing',
 				profiles: [catalog.profiles[0], catalog.profiles[0]],
 				version: 1,
 			}).success,
 		).toBe(false);
 		expect(
-			DesktopTerminalLaunchProfileCatalogSchema.safeParse({
+			UserLaunchProfileCatalogSchema.safeParse({
 				defaultProfileId: 'profile-1',
 				profiles: [
 					{ command: { kind: 'system-shell', login: false }, id: 'profile-1', name: null },
@@ -55,13 +55,13 @@ describe('Desktop terminal launch-profile contract', () => {
 				version: 1,
 			}).success,
 		).toBe(false);
-		expect(DesktopTerminalLaunchProfileNameSchema.safeParse('bad\0name').success).toBe(false);
-		expect(DesktopTerminalLaunchProfileNameSchema.safeParse('bad\ud800name').success).toBe(false);
+		expect(UserLaunchProfileNameSchema.safeParse('bad\0name').success).toBe(false);
+		expect(UserLaunchProfileNameSchema.safeParse('bad\ud800name').success).toBe(false);
 	});
 
 	it('rejects a catalog whose encoded profile data exceeds the storage boundary', () => {
 		expect(
-			DesktopTerminalLaunchProfileCatalogSchema.safeParse({
+			UserLaunchProfileCatalogSchema.safeParse({
 				defaultProfileId: 'system-default',
 				profiles: Array.from({ length: 64 }, (_, index) => ({
 					command: {

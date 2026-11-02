@@ -1,19 +1,19 @@
 // @vitest-environment jsdom
 
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
-import {
-	DESKTOP_AGENT_INTEGRATION_IDS,
-	type DesktopAgentIntegrationManagementSnapshot,
-} from '@orchbee/desktop-client-protocol';
 import { cleanup, renderHook } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentIntegrationManagementControl } from '../../../../../agent-integration-management';
+import {
+	AGENT_INTEGRATION_IDS,
+	type AgentIntegrationManagementControl,
+	type AgentIntegrationManagementSnapshot,
+} from '../../../../../agent-integration-management';
 import { useAgentIntegrationSettings } from '../useAgentIntegrationSettings';
 
-const protocolSnapshot: DesktopAgentIntegrationManagementSnapshot = {
-	integrations: DESKTOP_AGENT_INTEGRATION_IDS.map((integrationId) => ({
+const protocolSnapshot: AgentIntegrationManagementSnapshot = {
+	integrations: AGENT_INTEGRATION_IDS.map((integrationId) => ({
 		availability: integrationId === 'codex' ? 'available' : 'not-found',
 		integrationId,
 		issue: null,
@@ -52,7 +52,7 @@ describe('useAgentIntegrationSettings', () => {
 			wrapper: I18nWrapper,
 		});
 
-		expect(rendered.result.current.rows).toHaveLength(DESKTOP_AGENT_INTEGRATION_IDS.length);
+		expect(rendered.result.current.rows).toHaveLength(AGENT_INTEGRATION_IDS.length);
 		expect(rendered.result.current.rows[1]).toMatchObject({
 			agentName: 'Codex',
 			checked: false,

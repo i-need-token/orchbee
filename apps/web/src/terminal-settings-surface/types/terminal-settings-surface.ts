@@ -12,8 +12,8 @@ import type {
 } from '../../terminal-settings';
 import type { TerminalFeedbackSettingsController } from '../../terminal-feedback-settings';
 import type { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
-import type { DesktopTerminalLaunchProfileControl } from '../../terminal-launch-profile-control';
-import type { DesktopTerminalDefaultSettingsControl } from '../../terminal-default-settings-control';
+import type { TerminalLaunchProfileControl } from '../../terminal-launch-profile-control';
+import type { TerminalDefaultSettingsControl } from '../../terminal-default-settings-control';
 import type { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
 import type { ApplicationLocaleController } from '../../application-locale';
 
@@ -179,8 +179,8 @@ export interface UseTerminalSettingsSurfaceOptions {
 	readonly requestedCategory?: TerminalSettingsCategory | undefined;
 
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
-	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
-	readonly terminalDefaultSettingsControl?: DesktopTerminalDefaultSettingsControl | undefined;
+	readonly terminalLaunchProfileClient?: TerminalLaunchProfileControl | undefined;
+	readonly terminalDefaultSettingsControl?: TerminalDefaultSettingsControl | undefined;
 	readonly terminalInteractionSettingsController?:
 		| TerminalInteractionSettingsController
 		| undefined;

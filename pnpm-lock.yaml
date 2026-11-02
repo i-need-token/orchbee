@@ -411,12 +411,6 @@ importers:
 
   packages/desktop-client-protocol:
     dependencies:
-      '@orchbee/terminal-protocol':
-        specifier: workspace:^
-        version: link:../terminal-protocol
-      '@orchbee/workbench-client-protocol':
-        specifier: workspace:^
-        version: link:../workbench-client-protocol
       zod:
         specifier: 'catalog:'
         version: 4.4.3

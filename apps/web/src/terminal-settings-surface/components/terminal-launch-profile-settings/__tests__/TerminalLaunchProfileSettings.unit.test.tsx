@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 
 import {
-	DesktopTerminalLaunchProfileCatalogSchema,
-	DesktopTerminalLaunchProfileIdSchema,
-	type DesktopTerminalLaunchProfile,
-	type DesktopTerminalLaunchProfileCatalog,
-	type DesktopTerminalLaunchProfileId,
-} from '@orchbee/desktop-client-protocol';
+	UserLaunchProfileCatalogSchema,
+	UserLaunchProfileIdSchema,
+	type UserLaunchProfile,
+	type UserLaunchProfileCatalog,
+	type UserLaunchProfileId,
+} from '@orchbee/workbench-client-protocol';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { getByLabelText } from '@testing-library/react';
 import { act, createElement } from 'react';
@@ -14,9 +14,9 @@ import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type {
-	DesktopTerminalLaunchProfileClientOperationResult,
-	DesktopTerminalLaunchProfileClientSnapshot,
-	DesktopTerminalLaunchProfileControl,
+	TerminalLaunchProfileClientOperationResult,
+	TerminalLaunchProfileClientSnapshot,
+	TerminalLaunchProfileControl,
 } from '../../../../terminal-launch-profile-control';
 import { TerminalLaunchProfileSettings } from '../TerminalLaunchProfileSettings';
 
@@ -188,8 +188,8 @@ async function createHarness() {
 	};
 }
 
-function builtInCatalog(): DesktopTerminalLaunchProfileCatalog {
-	return DesktopTerminalLaunchProfileCatalogSchema.parse({
+function builtInCatalog(): UserLaunchProfileCatalog {
+	return UserLaunchProfileCatalogSchema.parse({
 		defaultProfileId: 'system-default',
 		profiles: [
 			{
@@ -203,7 +203,7 @@ function builtInCatalog(): DesktopTerminalLaunchProfileCatalog {
 }
 
 interface RecordedCommand {
-	readonly profile?: DesktopTerminalLaunchProfile | undefined;
+	readonly profile?: UserLaunchProfile | undefined;
 	readonly type:
 		| 'desktop-terminal-launch-profile-create-requested'
 		| 'desktop-terminal-launch-profile-default-requested'
@@ -212,11 +212,11 @@ interface RecordedCommand {
 		| 'desktop-terminal-launch-profile-update-requested';
 }
 
-class TestTerminalLaunchProfileControl implements DesktopTerminalLaunchProfileControl {
+class TestTerminalLaunchProfileControl implements TerminalLaunchProfileControl {
 	readonly commands: RecordedCommand[] = [];
 	readonly #listeners = new Set<() => void>();
 	#updateMustFail = false;
-	#snapshot: DesktopTerminalLaunchProfileClientSnapshot = {
+	#snapshot: TerminalLaunchProfileClientSnapshot = {
 		capabilities: { loginShell: true },
 		catalog: builtInCatalog(),
 		failureCode: null,
@@ -227,8 +227,8 @@ class TestTerminalLaunchProfileControl implements DesktopTerminalLaunchProfileCo
 
 	createProfile = async (
 		name: string,
-		sourceProfileId: DesktopTerminalLaunchProfileId,
-	): Promise<DesktopTerminalLaunchProfileClientOperationResult> => {
+		sourceProfileId: UserLaunchProfileId,
+	): Promise<TerminalLaunchProfileClientOperationResult> => {
 		this.commands.push({ type: 'desktop-terminal-launch-profile-create-requested' });
 		const sourceIndex = this.#snapshot.catalog.profiles.findIndex(
 			(profile) => profile.id === sourceProfileId,
@@ -238,15 +238,15 @@ class TestTerminalLaunchProfileControl implements DesktopTerminalLaunchProfileCo
 		const profiles = [...this.#snapshot.catalog.profiles];
 		profiles.splice(sourceIndex + 1, 0, {
 			...source,
-			id: DesktopTerminalLaunchProfileIdSchema.parse('profile-created'),
+			id: UserLaunchProfileIdSchema.parse('profile-created'),
 			name,
 		});
 		return this.#commit({ ...this.#snapshot.catalog, profiles });
 	};
 
 	deleteProfile = async (
-		profileId: DesktopTerminalLaunchProfileId,
-	): Promise<DesktopTerminalLaunchProfileClientOperationResult> => {
+		profileId: UserLaunchProfileId,
+	): Promise<TerminalLaunchProfileClientOperationResult> => {
 		this.commands.push({ type: 'desktop-terminal-launch-profile-delete-requested' });
 		return this.#commit({
 			...this.#snapshot.catalog,
@@ -254,20 +254,20 @@ class TestTerminalLaunchProfileControl implements DesktopTerminalLaunchProfileCo
 		});
 	};
 
-	getSnapshot = (): DesktopTerminalLaunchProfileClientSnapshot => this.#snapshot;
+	getSnapshot = (): TerminalLaunchProfileClientSnapshot => this.#snapshot;
 
 	failNextUpdate(): void {
 		this.#updateMustFail = true;
 	}
 
-	reset = async (): Promise<DesktopTerminalLaunchProfileClientOperationResult> => {
+	reset = async (): Promise<TerminalLaunchProfileClientOperationResult> => {
 		this.commands.push({ type: 'desktop-terminal-launch-profile-reset-requested' });
 		return this.#commit(builtInCatalog());
 	};
 
 	selectDefault = async (
-		profileId: DesktopTerminalLaunchProfileId,
-	): Promise<DesktopTerminalLaunchProfileClientOperationResult> => {
+		profileId: UserLaunchProfileId,
+	): Promise<TerminalLaunchProfileClientOperationResult> => {
 		this.commands.push({ type: 'desktop-terminal-launch-profile-default-requested' });
 		return this.#commit({ ...this.#snapshot.catalog, defaultProfileId: profileId });
 	};
@@ -278,14 +278,14 @@ class TestTerminalLaunchProfileControl implements DesktopTerminalLaunchProfileCo
 	};
 
 	updateProfile = async (
-		profile: DesktopTerminalLaunchProfile,
-	): Promise<DesktopTerminalLaunchProfileClientOperationResult> => {
+		profile: UserLaunchProfile,
+	): Promise<TerminalLaunchProfileClientOperationResult> => {
 		this.commands.push({ profile, type: 'desktop-terminal-launch-profile-update-requested' });
 		if (this.#updateMustFail) {
 			this.#updateMustFail = false;
 			this.#snapshot = {
 				...this.#snapshot,
-				catalog: DesktopTerminalLaunchProfileCatalogSchema.parse(
+				catalog: UserLaunchProfileCatalogSchema.parse(
 					JSON.parse(JSON.stringify(this.#snapshot.catalog)),
 				),
 				failureCode: 'write-failed',
@@ -302,9 +302,7 @@ class TestTerminalLaunchProfileControl implements DesktopTerminalLaunchProfileCo
 		});
 	};
 
-	#commit(
-		catalog: DesktopTerminalLaunchProfileCatalog,
-	): DesktopTerminalLaunchProfileClientOperationResult {
+	#commit(catalog: UserLaunchProfileCatalog): TerminalLaunchProfileClientOperationResult {
 		this.#snapshot = { ...this.#snapshot, catalog };
 		for (const listener of this.#listeners) listener();
 		return { kind: 'completed', snapshot: this.#snapshot };

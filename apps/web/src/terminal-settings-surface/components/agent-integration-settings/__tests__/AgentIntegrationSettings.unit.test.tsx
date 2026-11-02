@@ -1,20 +1,19 @@
 // @vitest-environment jsdom
 
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
-import {
-	DESKTOP_AGENT_INTEGRATION_IDS,
-	type DesktopAgentIntegrationId,
-	type DesktopAgentIntegrationSnapshotItem,
-} from '@orchbee/desktop-client-protocol';
+
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
+	AGENT_INTEGRATION_IDS,
 	AgentIntegrationReminderController,
+	type AgentIntegrationId,
 	type AgentIntegrationManagementClientOperationResult,
 	type AgentIntegrationManagementClientSnapshot,
 	type AgentIntegrationManagementControl,
+	type AgentIntegrationSnapshotItem,
 } from '../../../../agent-integration-management';
 import { AgentIntegrationSettings } from '../AgentIntegrationSettings';
 
@@ -136,24 +135,22 @@ function findButtonWithExactText(
 }
 
 interface TestControl extends AgentIntegrationManagementControl {
-	readonly disableCalls: DesktopAgentIntegrationId[];
-	readonly enableCalls: DesktopAgentIntegrationId[];
+	readonly disableCalls: AgentIntegrationId[];
+	readonly enableCalls: AgentIntegrationId[];
 	updateIntegration(
-		integrationId: DesktopAgentIntegrationId,
-		patch: Partial<DesktopAgentIntegrationSnapshotItem>,
+		integrationId: AgentIntegrationId,
+		patch: Partial<AgentIntegrationSnapshotItem>,
 	): void;
 }
 
 function createTestControl(
-	initial: Partial<
-		Readonly<Record<DesktopAgentIntegrationId, Partial<DesktopAgentIntegrationSnapshotItem>>>
-	>,
+	initial: Partial<Readonly<Record<AgentIntegrationId, Partial<AgentIntegrationSnapshotItem>>>>,
 	autoPublish = true,
 ): TestControl {
 	let snapshot: AgentIntegrationManagementClientSnapshot = {
 		failureCode: null,
 		failureIntegrationId: null,
-		integrations: DESKTOP_AGENT_INTEGRATION_IDS.map((integrationId) => ({
+		integrations: AGENT_INTEGRATION_IDS.map((integrationId) => ({
 			availability: 'not-found',
 			integrationId,
 			issue: null,

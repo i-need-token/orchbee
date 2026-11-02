@@ -147,7 +147,7 @@ modifyOtherKeys, and Kitty keyboard encoding.
 
 ## Desktop terminal launch profiles
 
-Only the Desktop composition injects `DesktopTerminalLaunchProfileControl`, filled from the
+Only the Desktop composition injects `TerminalLaunchProfileControl`, filled from the
 Session's shared preferences, whose `launchProfiles` value the TUI edits too and the
 [shared preference inventory](../../../crates/workbench-protocol/docs/user-preferences.md) owns. Its
 snapshot exposes one bounded canonical catalog and the current default identity; it is the built-in
@@ -185,7 +185,7 @@ this feature.
 
 ## Desktop terminal defaults
 
-Only the Desktop composition injects `DesktopTerminalDefaultSettingsControl`, filled from the
+Only the Desktop composition injects `TerminalDefaultSettingsControl`, filled from the
 Session's shared `scrollbackBytes` preference. The Terminal page exposes `terminal.scrollback` as a
 decimal byte count from `0` through `1_000_000_000` and states that running terminals keep their
 current limit. The row commits through the shared draft, and the TUI shows the same value in

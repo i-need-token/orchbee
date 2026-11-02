@@ -2,7 +2,7 @@
 	"name": "@orchbee/desktop-client-protocol",
 	"version": "0.2.0",
 	"private": true,
-	"description": "Desktop Server-connection bootstrap, native Project Folder acquisition, and the settings data contracts its renderer shares",
+	"description": "Desktop Server-connection bootstrap and native Project Folder acquisition contracts",
 	"files": [
 		"dist",
 		"README.md"
@@ -29,8 +29,6 @@
 		"test:exports": "node ../../scripts/check-package-exports.mjs ."
 	},
 	"dependencies": {
-		"@orchbee/terminal-protocol": "workspace:^",
-		"@orchbee/workbench-client-protocol": "workspace:^",
 		"zod": "catalog:"
 	},
 	"devDependencies": {

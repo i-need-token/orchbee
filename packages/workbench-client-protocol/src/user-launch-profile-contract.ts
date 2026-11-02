@@ -47,6 +47,7 @@ function boundedText(maximumBytes: number, label: string): z.ZodString {
 
 export const BUILT_IN_USER_LAUNCH_PROFILE_ID = 'system-default';
 
+/** @internal Fixture parser for Web tests and Stories; production parses it only inside this module's catalog schemas. */
 export const UserLaunchProfileIdSchema = z
 	.string()
 	.min(1)
@@ -121,3 +122,7 @@ export const UserLaunchProfileCatalogSchema = z
 			});
 		}
 	});
+
+export type UserLaunchProfile = z.infer<typeof UserLaunchProfileSchema>;
+export type UserLaunchProfileCatalog = z.infer<typeof UserLaunchProfileCatalogSchema>;
+export type UserLaunchProfileId = z.infer<typeof UserLaunchProfileIdSchema>;

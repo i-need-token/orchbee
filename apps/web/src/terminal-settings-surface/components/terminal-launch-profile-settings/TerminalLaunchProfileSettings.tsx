@@ -12,12 +12,12 @@ import {
 } from '@orchbee/ui/components';
 import type * as React from 'react';
 
-import type { DesktopTerminalLaunchProfileControl } from '../../../terminal-launch-profile-control';
+import type { TerminalLaunchProfileControl } from '../../../terminal-launch-profile-control';
 import { useTerminalLaunchProfileSettings } from './hooks/useTerminalLaunchProfileSettings';
 import styles from './TerminalLaunchProfileSettings.module.css';
 
 interface TerminalLaunchProfileSettingsProps {
-	readonly client: DesktopTerminalLaunchProfileControl;
+	readonly client: TerminalLaunchProfileControl;
 }
 
 export function TerminalLaunchProfileSettings({

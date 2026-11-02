@@ -1,4 +1,4 @@
-import type { DesktopAgentIntegrationId } from '@orchbee/desktop-client-protocol';
+import type { AgentIntegrationId } from './agent-integration-management-control';
 
 import {
 	canonicalizeIntegrationIds,
@@ -9,8 +9,8 @@ import {
 } from './agent-integration-reminder-preferences-storage';
 
 export interface AgentIntegrationReminderSnapshot {
-	readonly activeIntegrationId: DesktopAgentIntegrationId | null;
-	readonly dismissedIntegrationIds: readonly DesktopAgentIntegrationId[];
+	readonly activeIntegrationId: AgentIntegrationId | null;
+	readonly dismissedIntegrationIds: readonly AgentIntegrationId[];
 	readonly persistenceIssue: AgentIntegrationReminderPersistenceIssue | null;
 	readonly revision: number;
 }
@@ -49,7 +49,7 @@ export class AgentIntegrationReminderController {
 		return () => this.#listeners.delete(listener);
 	};
 
-	offer(integrationId: DesktopAgentIntegrationId): boolean {
+	offer(integrationId: AgentIntegrationId): boolean {
 		if (
 			this.#disposed ||
 			this.#consumedThisSession ||
@@ -62,14 +62,12 @@ export class AgentIntegrationReminderController {
 		return true;
 	}
 
-	hide(integrationId: DesktopAgentIntegrationId): void {
+	hide(integrationId: AgentIntegrationId): void {
 		if (this.#disposed || this.#snapshot.activeIntegrationId !== integrationId) return;
 		this.#replaceSnapshot({ activeIntegrationId: null });
 	}
 
-	dismiss(
-		integrationId: DesktopAgentIntegrationId,
-	): AgentIntegrationReminderPreferenceUpdateResult {
+	dismiss(integrationId: AgentIntegrationId): AgentIntegrationReminderPreferenceUpdateResult {
 		if (this.#disposed) return { kind: 'disposed' };
 		this.#consumedThisSession = true;
 		const dismissedIntegrationIds = new Set(this.#snapshot.dismissedIntegrationIds);
@@ -86,9 +84,7 @@ export class AgentIntegrationReminderController {
 		);
 	}
 
-	restore(
-		integrationId: DesktopAgentIntegrationId,
-	): AgentIntegrationReminderPreferenceUpdateResult {
+	restore(integrationId: AgentIntegrationId): AgentIntegrationReminderPreferenceUpdateResult {
 		if (this.#disposed) return { kind: 'disposed' };
 		if (!this.#snapshot.dismissedIntegrationIds.includes(integrationId)) {
 			return { kind: 'unchanged' };
@@ -108,8 +104,8 @@ export class AgentIntegrationReminderController {
 	}
 
 	#commit(
-		dismissedIntegrationIds: readonly DesktopAgentIntegrationId[],
-		activeIntegrationId: DesktopAgentIntegrationId | null,
+		dismissedIntegrationIds: readonly AgentIntegrationId[],
+		activeIntegrationId: AgentIntegrationId | null,
 	): AgentIntegrationReminderPreferenceUpdateResult {
 		const saved = writeAgentIntegrationReminderPreferences(this.#storage, {
 			dismissedIntegrationIds,

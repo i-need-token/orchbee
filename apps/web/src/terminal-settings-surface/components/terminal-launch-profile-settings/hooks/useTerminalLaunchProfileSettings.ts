@@ -1,19 +1,19 @@
 import {
-	DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
-	DESKTOP_TERMINAL_LAUNCH_PROFILE_LIMITS,
-	DesktopTerminalLaunchProfileNameSchema,
-	DesktopTerminalLaunchProfileSchema,
-	type DesktopTerminalLaunchProfile,
-} from '@orchbee/desktop-client-protocol';
+	BUILT_IN_USER_LAUNCH_PROFILE_ID,
+	USER_LAUNCH_PROFILE_LIMITS,
+	UserLaunchProfileNameSchema,
+	UserLaunchProfileSchema,
+	type UserLaunchProfile,
+} from '@orchbee/workbench-client-protocol';
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
-import type { DesktopTerminalLaunchProfileControl } from '../../../../terminal-launch-profile-control';
+import type { TerminalLaunchProfileControl } from '../../../../terminal-launch-profile-control';
 
 interface ProfileDraft {
 	readonly arguments: readonly string[];
 	readonly executable: string;
-	readonly kind: DesktopTerminalLaunchProfile['command']['kind'];
+	readonly kind: UserLaunchProfile['command']['kind'];
 	readonly login: boolean;
 	readonly name: string;
 }
@@ -48,7 +48,7 @@ interface NameEditorView {
 
 interface CommandOptionView {
 	readonly label: string;
-	readonly value: DesktopTerminalLaunchProfile['command']['kind'];
+	readonly value: UserLaunchProfile['command']['kind'];
 }
 
 interface CommandEditorCommonView {
@@ -131,7 +131,7 @@ interface TerminalLaunchProfileSettingsView {
 }
 
 export function useTerminalLaunchProfileSettings(
-	client: DesktopTerminalLaunchProfileControl,
+	client: TerminalLaunchProfileControl,
 ): TerminalLaunchProfileSettingsView {
 	const intl = useOrchbeeIntl();
 	const snapshot = React.useSyncExternalStore(
@@ -257,7 +257,7 @@ export function useTerminalLaunchProfileSettings(
 		section: intl.formatMessage(terminalSettingsMessages.profilesSection),
 		systemShell: intl.formatMessage(terminalSettingsMessages.profilesSystemShell),
 	};
-	const profileLabel = (profile: DesktopTerminalLaunchProfile): string =>
+	const profileLabel = (profile: UserLaunchProfile): string =>
 		profile.name ??
 		(profile.command.kind === 'system-shell' ? messages.systemShell : messages.commandCustom);
 	let operationWarning: string | null = null;
@@ -311,7 +311,7 @@ export function useTerminalLaunchProfileSettings(
 	const isDefault = selectedProfile.id === snapshot.catalog.defaultProfileId;
 	const canDelete = snapshot.catalog.profiles.length > 1 && !isDefault;
 	const addProfile = async (): Promise<void> => {
-		const name = DesktopTerminalLaunchProfileNameSchema.safeParse(newProfileName.trim());
+		const name = UserLaunchProfileNameSchema.safeParse(newProfileName.trim());
 		if (!name.success) {
 			setLocalError(messages.nameInvalid);
 			return;
@@ -329,10 +329,10 @@ export function useTerminalLaunchProfileSettings(
 	const saveProfile = async (): Promise<void> => {
 		const trimmedName = draft.name.trim();
 		const name =
-			selectedProfile.id === DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID && trimmedName === ''
+			selectedProfile.id === BUILT_IN_USER_LAUNCH_PROFILE_ID && trimmedName === ''
 				? null
 				: trimmedName;
-		const candidate = DesktopTerminalLaunchProfileSchema.safeParse({
+		const candidate = UserLaunchProfileSchema.safeParse({
 			command:
 				draft.kind === 'system-shell'
 					? { kind: 'system-shell', login: draft.login }
@@ -396,8 +396,7 @@ export function useTerminalLaunchProfileSettings(
 			: {
 					...commandCommon,
 					addArgumentDisabled:
-						disabled ||
-						draft.arguments.length >= DESKTOP_TERMINAL_LAUNCH_PROFILE_LIMITS.maximumArgumentCount,
+						disabled || draft.arguments.length >= USER_LAUNCH_PROFILE_LIMITS.maximumArgumentCount,
 					addArgumentLabel: messages.argumentAdd,
 					arguments: draft.arguments.map((argument, index) => ({
 						disabled,
@@ -448,8 +447,7 @@ export function useTerminalLaunchProfileSettings(
 		addProfile: {
 			buttonDisabled:
 				disabled ||
-				snapshot.catalog.profiles.length >=
-					DESKTOP_TERMINAL_LAUNCH_PROFILE_LIMITS.maximumProfileCount,
+				snapshot.catalog.profiles.length >= USER_LAUNCH_PROFILE_LIMITS.maximumProfileCount,
 			buttonLabel: messages.add,
 			inputDisabled: disabled,
 			inputLabel: messages.addNameLabel,
@@ -490,7 +488,7 @@ export function useTerminalLaunchProfileSettings(
 				setDraft((current) => ({ ...current, name }));
 			},
 			placeholder: profileLabel(selectedProfile),
-			required: selectedProfile.id !== DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
+			required: selectedProfile.id !== BUILT_IN_USER_LAUNCH_PROFILE_ID,
 			value: draft.name,
 		},
 		notice: messages.futureTerminalsNotice,

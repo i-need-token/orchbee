@@ -1,8 +1,9 @@
 import { Button, ProductIcon } from '@orchbee/ui/components';
-import type { DesktopAgentIntegrationId } from '@orchbee/desktop-client-protocol';
+
 import type * as React from 'react';
 
 import type {
+	AgentIntegrationId,
 	AgentIntegrationManagementControl,
 	AgentIntegrationReminderController,
 } from '../agent-integration-management';
@@ -12,7 +13,7 @@ import styles from './AgentIntegrationReminder.module.css';
 export interface AgentIntegrationReminderProps {
 	readonly control: AgentIntegrationManagementControl;
 	readonly controller: AgentIntegrationReminderController;
-	readonly onOpenSettings: (integrationId: DesktopAgentIntegrationId) => void;
+	readonly onOpenSettings: (integrationId: AgentIntegrationId) => void;
 }
 
 export function AgentIntegrationReminder({

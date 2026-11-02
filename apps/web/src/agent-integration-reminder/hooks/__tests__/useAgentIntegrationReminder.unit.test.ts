@@ -1,23 +1,22 @@
 // @vitest-environment jsdom
 
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
-import {
-	DESKTOP_AGENT_INTEGRATION_IDS,
-	type DesktopAgentIntegrationManagementSnapshot,
-} from '@orchbee/desktop-client-protocol';
+
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+	AGENT_INTEGRATION_IDS,
 	AgentIntegrationReminderController,
 	type AgentIntegrationManagementClientSnapshot,
 	type AgentIntegrationManagementControl,
+	type AgentIntegrationManagementSnapshot,
 } from '../../../agent-integration-management';
 import { useAgentIntegrationReminder } from '../useAgentIntegrationReminder';
 
-const protocolSnapshot: DesktopAgentIntegrationManagementSnapshot = {
-	integrations: DESKTOP_AGENT_INTEGRATION_IDS.map((integrationId) => ({
+const protocolSnapshot: AgentIntegrationManagementSnapshot = {
+	integrations: AGENT_INTEGRATION_IDS.map((integrationId) => ({
 		availability: integrationId === 'codex' || integrationId === 'grok' ? 'available' : 'not-found',
 		integrationId,
 		issue: null,

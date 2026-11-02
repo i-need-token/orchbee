@@ -1,15 +1,15 @@
-import {
-	DESKTOP_AGENT_INTEGRATION_IDS,
-	type DesktopAgentIntegrationId,
-} from '@orchbee/desktop-client-protocol';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
 import type {
+	AgentIntegrationId,
 	AgentIntegrationManagementClientSnapshot,
 	AgentIntegrationManagementControl,
 } from '../src/agent-integration-management';
-import { AgentIntegrationReminderController } from '../src/agent-integration-management';
+import {
+	AGENT_INTEGRATION_IDS,
+	AgentIntegrationReminderController,
+} from '../src/agent-integration-management';
 import { AgentIntegrationReminder } from '../src/agent-integration-reminder';
 
 const englishControl = createStoryControl('codex', 'not-installed');
@@ -62,13 +62,13 @@ export const ChineseDisabled: Story = {
 };
 
 function createStoryControl(
-	integrationId: DesktopAgentIntegrationId,
+	integrationId: AgentIntegrationId,
 	state: 'disabled' | 'not-installed',
 ): AgentIntegrationManagementControl {
 	const snapshot: AgentIntegrationManagementClientSnapshot = {
 		failureCode: null,
 		failureIntegrationId: null,
-		integrations: DESKTOP_AGENT_INTEGRATION_IDS.map((candidateId) => ({
+		integrations: AGENT_INTEGRATION_IDS.map((candidateId) => ({
 			availability: candidateId === integrationId ? 'available' : 'not-found',
 			integrationId: candidateId,
 			issue: null,

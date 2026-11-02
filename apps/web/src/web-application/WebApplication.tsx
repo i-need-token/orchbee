@@ -35,8 +35,8 @@ import type { TerminalInteractionSettingsController } from '../terminal-interact
 import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
 import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
 import { TerminalSettingsSurface } from '../terminal-settings-surface';
-import type { DesktopTerminalLaunchProfileControl } from '../terminal-launch-profile-control';
-import type { DesktopTerminalDefaultSettingsControl } from '../terminal-default-settings-control';
+import type { TerminalLaunchProfileControl } from '../terminal-launch-profile-control';
+import type { TerminalDefaultSettingsControl } from '../terminal-default-settings-control';
 
 import { useWebApplication } from './hooks/useWebApplication';
 import styles from './WebApplication.module.css';
@@ -70,8 +70,8 @@ export interface WebApplicationProps {
 		| TerminalInteractionSettingsController
 		| undefined;
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
-	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
-	readonly terminalDefaultSettingsControl?: DesktopTerminalDefaultSettingsControl | undefined;
+	readonly terminalLaunchProfileClient?: TerminalLaunchProfileControl | undefined;
+	readonly terminalDefaultSettingsControl?: TerminalDefaultSettingsControl | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 }
 

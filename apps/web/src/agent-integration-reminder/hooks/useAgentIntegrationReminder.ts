@@ -4,17 +4,18 @@ import {
 	useOrchbeeIntl,
 	type MessageDescriptor,
 } from '@orchbee/i18n';
-import type { DesktopAgentIntegrationId } from '@orchbee/desktop-client-protocol';
+
 import * as React from 'react';
 
 import type {
+	AgentIntegrationId,
 	AgentIntegrationManagementControl,
 	AgentIntegrationReminderController,
 } from '../../agent-integration-management';
 import { isAgentIntegrationReminderEligible } from '../model/isAgentIntegrationReminderEligible';
 import type { AgentIntegrationReminderView } from '../types/agent-integration-reminder-view';
 
-const AGENT_NAME_MESSAGES: Readonly<Record<DesktopAgentIntegrationId, MessageDescriptor>> = {
+const AGENT_NAME_MESSAGES: Readonly<Record<AgentIntegrationId, MessageDescriptor>> = {
 	'claude-code': agentObservationMessages.providerClaudeCode,
 	cline: agentObservationMessages.providerCline,
 	codex: agentObservationMessages.providerCodex,
@@ -30,7 +31,7 @@ const AGENT_NAME_MESSAGES: Readonly<Record<DesktopAgentIntegrationId, MessageDes
 export function useAgentIntegrationReminder(
 	control: AgentIntegrationManagementControl,
 	controller: AgentIntegrationReminderController,
-	onOpenSettings: (integrationId: DesktopAgentIntegrationId) => void,
+	onOpenSettings: (integrationId: AgentIntegrationId) => void,
 ): AgentIntegrationReminderView | null {
 	const intl = useOrchbeeIntl();
 	const managementSnapshot = React.useSyncExternalStore(

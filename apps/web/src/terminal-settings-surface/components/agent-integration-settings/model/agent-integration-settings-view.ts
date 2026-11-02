@@ -1,13 +1,11 @@
 import { agentIntegrationMessages, type MessageDescriptor } from '@orchbee/i18n';
-import type {
-	DesktopAgentIntegrationId,
-	DesktopAgentIntegrationManagementFailureCode,
-	DesktopAgentIntegrationSnapshotItem,
-} from '@orchbee/desktop-client-protocol';
 
 import type {
+	AgentIntegrationId,
 	AgentIntegrationManagementControl,
+	AgentIntegrationManagementFailureCode,
 	AgentIntegrationReminderController,
+	AgentIntegrationSnapshotItem,
 } from '../../../../agent-integration-management';
 
 export interface AgentIntegrationSettingsRowView {
@@ -15,7 +13,7 @@ export interface AgentIntegrationSettingsRowView {
 	readonly checked: boolean;
 	readonly description: string;
 	readonly disabled: boolean;
-	readonly integrationId: DesktopAgentIntegrationId;
+	readonly integrationId: AgentIntegrationId;
 	readonly onCheckedChange: (checked: boolean) => void;
 	readonly pending: boolean;
 	readonly settingId: string;
@@ -39,14 +37,14 @@ export interface AgentIntegrationSettingsView {
 export async function enableAgentIntegration(
 	control: AgentIntegrationManagementControl,
 	reminderController: AgentIntegrationReminderController | undefined,
-	integrationId: DesktopAgentIntegrationId,
+	integrationId: AgentIntegrationId,
 ): Promise<void> {
 	const result = await control.enable(integrationId);
 	if (result.kind === 'completed') reminderController?.restore(integrationId);
 }
 
 export function resolveAgentIntegrationStatusView(
-	integration: DesktopAgentIntegrationSnapshotItem,
+	integration: AgentIntegrationSnapshotItem,
 	format: (descriptor: MessageDescriptor) => string,
 ): Pick<AgentIntegrationSettingsRowView, 'status' | 'statusTone'> {
 	if (integration.managementMode === 'manual-only') {
@@ -102,7 +100,7 @@ export function resolveAgentIntegrationStatusView(
 }
 
 export function resolveAgentIntegrationFailureMessage(
-	code: DesktopAgentIntegrationManagementFailureCode,
+	code: AgentIntegrationManagementFailureCode,
 ): MessageDescriptor {
 	switch (code) {
 		case 'agent-unavailable':
