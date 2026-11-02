@@ -168,6 +168,10 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		return this.#disposed ? 'none' : (this.#active?.session.getControlPresentation?.() ?? 'none');
 	}
 
+	isLiveCropped(): boolean {
+		return !this.#disposed && this.#active?.session.isLiveCropped?.() === true;
+	}
+
 	subscribeControlPresentation(listener: () => void): { dispose(): void } {
 		if (!this.#disposed) this.#controlPresentationListeners.add(listener);
 		return { dispose: () => this.#controlPresentationListeners.delete(listener) };

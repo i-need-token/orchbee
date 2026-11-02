@@ -165,7 +165,9 @@ type ProjectedTerminalDriver = Pick<
 			| 'focusMobileInput'
 			| 'injectInput'
 			| 'injectedInputReadiness'
+			| 'liveCropped'
 			| 'onInjectedInputReadinessChange'
+			| 'onLiveCropChange'
 			| 'textarea'
 		>
 	>;
@@ -277,6 +279,8 @@ export interface ProjectedTerminalRendererSession {
 	readonly displayReady?: Promise<void> | undefined;
 	focus(): void;
 	getControlPresentation?(): ProjectedTerminalControlPresentation;
+	/** Whether the surface shows only the part of a larger terminal around its cursor. */
+	isLiveCropped?(): boolean;
 	getMobileInputState?(): MobileTerminalInputState;
 	getBroadcastInputReadiness?(): WorkbenchTerminalBroadcastInputReadiness;
 	isTransportAvailable(): boolean;
@@ -291,6 +295,7 @@ export interface ProjectedTerminalRendererSession {
 	): Promise<WorkbenchTerminalBroadcastInputResult>;
 	sendMobileKey?(key: MobileTerminalKey): boolean;
 	subscribeBroadcastInputReadiness?(listener: () => void): ActionDisposable;
+	/** Notifies when the control presentation or the live crop changes. */
 	subscribeControlPresentation?(listener: () => void): ActionDisposable;
 	subscribeMobileInputState?(listener: () => void): MobileTerminalInputSubscription;
 	/** Runs Take control as a button does, settling with whether this surface now holds the terminal. */
@@ -1151,6 +1156,8 @@ export async function startProjectedTerminalRenderer(
 			pendingSubscriptions.push(
 				terminal.onHistoryChange((event) => activeFindController.applyHistoryEvent(event)),
 			);
+			const liveCropSubscription = terminal.onLiveCropChange?.(notifyControlPresentation);
+			if (liveCropSubscription !== undefined) pendingSubscriptions.push(liveCropSubscription);
 			if (isProjectedTerminalBroadcastInputDriver(terminal)) {
 				pendingSubscriptions.push(
 					terminal.onInjectedInputReadinessChange(() => {
@@ -1638,6 +1645,7 @@ export async function startProjectedTerminalRenderer(
 			terminal.focus();
 		},
 		getControlPresentation: readControlPresentation,
+		isLiveCropped: () => !disposed && !frozen && terminal.liveCropped === true,
 		getMobileInputState: () =>
 			mobileInputController?.state ?? {
 				alt: false,

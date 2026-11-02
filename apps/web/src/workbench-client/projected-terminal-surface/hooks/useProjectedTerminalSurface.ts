@@ -54,6 +54,7 @@ interface PresentationMobileInputState {
 }
 
 interface PresentationControl {
+	readonly liveCropped: boolean;
 	readonly presentation: ProjectedTerminalControlPresentation;
 	readonly presentationId: string;
 }
@@ -415,6 +416,7 @@ export function useProjectedTerminalSurface(
 		const controlSubscription = controller.subscribeControlPresentation(() => {
 			if (cancelled) return;
 			setPresentationControl({
+				liveCropped: controller.isLiveCropped(),
 				presentation: controller.getControlPresentation(),
 				presentationId: presentation.presentationId,
 			});
@@ -514,10 +516,11 @@ export function useProjectedTerminalSurface(
 		presentationMobileInput?.presentationId === presentation.presentationId
 			? presentationMobileInput.state
 			: unavailableMobileInputState;
-	const controlPresentation =
+	const currentControl =
 		presentationControl?.presentationId === presentation.presentationId
-			? presentationControl.presentation
-			: 'none';
+			? presentationControl
+			: null;
+	const controlPresentation = currentControl?.presentation ?? 'none';
 	if (failureMessage === null && currentFileDropFailure !== null) {
 		switch (currentFileDropFailure.reason) {
 			case 'too-many-files':
@@ -559,6 +562,7 @@ export function useProjectedTerminalSurface(
 		imagePreview: currentImagePreview,
 		launchFailure,
 		launchFailureRoot,
+		liveCropped: currentControl?.liveCropped === true,
 		mobileInputState,
 		pasteReview,
 		projectionState,

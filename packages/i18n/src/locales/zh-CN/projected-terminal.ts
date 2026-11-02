@@ -40,6 +40,9 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.control.taken': '已接管。终端现使用本窗格的尺寸。',
 	'terminal.projected.control.taking': '正在接管…',
 	'terminal.projected.control.viewOnly': '仅查看',
+	'terminal.projected.control.viewOnlyCropped': '仅查看 · 实时裁切',
+	'terminal.projected.control.viewOnlyCroppedReason':
+		'其他客户端正在控制此终端及其尺寸。本窗格只显示光标附近的部分，向上滚动可查看其余内容。',
 	'terminal.projected.control.viewOnlyReason': '其他客户端正在控制此终端',
 	'terminal.projected.failure.control': '无法确认终端控制操作的结果。',
 	'terminal.projected.failure.input': '无法确认终端输入请求的结果。',

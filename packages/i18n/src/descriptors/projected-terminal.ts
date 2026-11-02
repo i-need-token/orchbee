@@ -20,6 +20,8 @@ export const projectedTerminalMessages = defineMessages({
 	controlTaken: message('terminal.projected.control.taken'),
 	controlTaking: message('terminal.projected.control.taking'),
 	controlViewOnly: message('terminal.projected.control.viewOnly'),
+	controlViewOnlyCropped: message('terminal.projected.control.viewOnlyCropped'),
+	controlViewOnlyCroppedReason: message('terminal.projected.control.viewOnlyCroppedReason'),
 	controlViewOnlyReason: message('terminal.projected.control.viewOnlyReason'),
 	runtimeFailure: message('terminal.projected.runtimeFailure'),
 	copyAction: message('terminal.projected.action.copy'),

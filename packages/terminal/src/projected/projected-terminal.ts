@@ -181,6 +181,7 @@ import {
 	PROJECTED_PROMPT_NAVIGATION_PAGE_ROWS,
 	type ProjectedPromptNavigationDirection,
 } from './projected-prompt-navigation';
+import { cropLiveGrid, type LiveCrop } from './cropLiveGrid';
 import { trailingBlankRowsToTrim } from './trailingBlankRowsToTrim';
 
 const terminalKeyCodes: ReadonlyMap<string, TerminalKeyCodeValue> = new Map(
@@ -241,11 +242,13 @@ function setAttributeIfChanged(element: Element, name: string, value: string): v
 }
 
 type ProjectedPresentationStyleProperty =
+	| 'clipPath'
 	| 'height'
 	| 'left'
 	| 'lineHeight'
 	| 'opacity'
 	| 'top'
+	| 'transform'
 	| 'width';
 
 function setStyleIfChanged(
@@ -947,6 +950,7 @@ export class ProjectedTerminal {
 		new EventEmitter<ProjectedTerminalInjectedInputReadiness>();
 	#lastPublishedInjectedInputReadiness: ProjectedTerminalInjectedInputReadiness | undefined;
 	readonly #metadataEmitter = new EventEmitter<ProjectedTerminalMetadata>();
+	readonly #liveCropEmitter = new EventEmitter<boolean>();
 	readonly #linkOpenEmitter = new EventEmitter<ProjectedTerminalLinkOpenRequest>();
 	readonly #linkCompletions = new Map<
 		CanonicalUint64Text,
@@ -1041,6 +1045,9 @@ export class ProjectedTerminal {
 	#lastPresentedMetadata: ProjectedTerminalMetadata | undefined;
 	#lastPresentedSnapshot: ProjectedTerminalPresentationSnapshot | undefined;
 	#lastPresentedSource: PackedTerminalStore | PackedTerminalViewport | undefined;
+	#liveCrop: LiveCrop | undefined;
+	/** The canvas transform and clip last applied for `#liveCrop`, so unchanged frames skip them. */
+	#liveCropStyle = '';
 	#listenerDisposers: Array<() => void> = [];
 	#hoveredLink: ILink | undefined;
 	#hoveredLinkPoint: PendingLinkPoint | undefined;
@@ -1188,6 +1195,11 @@ export class ProjectedTerminal {
 		return metadata === null ? null : this.#metadataWithLiveCloseActivity(metadata);
 	}
 
+	/** Whether the surface shows only part of the drawn grid, as a viewer smaller than it does. */
+	get liveCropped(): boolean {
+		return this.#liveCrop?.clipped === true;
+	}
+
 	get historyPhase(): ProjectedHistoryPhase {
 		return this.#historyPhase;
 	}
@@ -1306,6 +1318,8 @@ export class ProjectedTerminal {
 	readonly onFrameTelemetry: IEvent<ProjectedTerminalFrameTelemetry> =
 		this.#frameTelemetryEmitter.event;
 	readonly onMetadataChange: IEvent<ProjectedTerminalMetadata> = this.#metadataEmitter.event;
+	/** Fires with `liveCropped` whenever it changes. */
+	readonly onLiveCropChange: IEvent<boolean> = this.#liveCropEmitter.event;
 	readonly onRendererHealth: IEvent<RendererHealthEvent> = this.#healthEmitter.event;
 	readonly onHistoryChange: IEvent<HistoryChanged> = this.#historyEmitter.event;
 	readonly onImagePreviewChange: IEvent<TerminalImagePreviewPresentation> =
@@ -1462,6 +1476,7 @@ export class ProjectedTerminal {
 				this.#lastPresentedMetadata = metadata;
 				this.#lastPresentedSnapshot = undefined;
 				this.#lastPresentedSource = source;
+				this.#syncLiveCrop();
 				this.#frameTelemetryEmitter.fire({
 					...event,
 					generation: CanonicalUint64TextSchema.parse(metadata.generation.toString()),
@@ -1481,6 +1496,7 @@ export class ProjectedTerminal {
 				this.#lastPresentedMetadata = openingPresentationSnapshot.metadata;
 				this.#lastPresentedSnapshot = openingPresentationSnapshot;
 				this.#lastPresentedSource = undefined;
+				this.#syncLiveCrop();
 				this.#updateInputPosition(true);
 			}
 			this.#installDevicePixelRatioListeners(view);
@@ -2203,7 +2219,9 @@ export class ProjectedTerminal {
 			return true;
 		}
 		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
-			if (rows > 0 || this.#historyTotalRows <= BigInt(this.#store.metadata?.rows ?? 0)) {
+			// A cropped screen hides rows even without scrollback, so it has history to read.
+			const windowRows = this.#historyWindowRows(this.#store.metadata?.rows ?? 0);
+			if (rows > 0 || this.#historyTotalRows <= BigInt(windowRows)) {
 				return false;
 			}
 			this.#historyRowsBefore = Math.min(Number(this.#historyTotalRows), -rows);
@@ -2231,7 +2249,7 @@ export class ProjectedTerminal {
 	}
 
 	scrollPages(amount: number): boolean {
-		const visibleRows = this.metadata?.rows ?? 0;
+		const visibleRows = this.#liveCrop?.rows ?? this.metadata?.rows ?? 0;
 		return this.scrollLines(amount * Math.max(visibleRows - 1, 0));
 	}
 
@@ -2963,10 +2981,22 @@ export class ProjectedTerminal {
 				session.cancel('stale');
 				return await session.completion;
 			}
+			const crop = this.#liveCrop;
+			// A cropped surface labels only the links it shows; the canvas origin still places them.
 			const hints = detectTerminalHints(
 				completeTerminalHintRows(result.rows),
 				currentMetadata.currentDirectory ?? '',
-			);
+			).filter((hint) => {
+				if (crop?.clipped !== true) return true;
+				const row = hint.range.start.y - Number(visibleStartRow);
+				const column = hint.range.start.x;
+				return (
+					row >= crop.row &&
+					row < crop.row + crop.rows &&
+					column >= crop.column &&
+					column < crop.column + crop.columns
+				);
+			});
 			if (hints.length === 0) {
 				session.finish({ kind: 'empty' });
 				return await session.completion;
@@ -3519,6 +3549,7 @@ export class ProjectedTerminal {
 	}
 
 	#rollbackOpen(): void {
+		const wasCropped = this.liveCropped;
 		this.#cancelThemePresentationStage('disposed');
 		const inputCleanup = this.#prepareFocusLossInputRepair(false);
 		this.#dispatchDisposedInputCleanup(inputCleanup);
@@ -3534,6 +3565,7 @@ export class ProjectedTerminal {
 		this.#demandSent = undefined;
 		this.#phase = ProjectedTerminalPhase.constructed;
 		this.#publishInjectedInputReadiness();
+		if (wasCropped) this.#liveCropEmitter.fire(false);
 	}
 
 	#performDispose(inputCleanupAttempted = false, publishLifecycle = true): void {
@@ -3595,6 +3627,7 @@ export class ProjectedTerminal {
 		this.#renderingLiveMetadata = undefined;
 		this.#renderingLiveSource = undefined;
 		this.#releaseSurfaceDom();
+		this.#liveCropEmitter.dispose();
 		this.#errorEmitter.dispose();
 		this.#clipboardWriteRequestEmitter.dispose();
 		this.#exitEmitter.dispose();
@@ -3653,6 +3686,8 @@ export class ProjectedTerminal {
 		this.#accessibilityPositionedRetainedRows = undefined;
 		this.#accessibilityPositionedVisibleStart = undefined;
 		this.#canvas = undefined;
+		this.#liveCrop = undefined;
+		this.#liveCropStyle = '';
 		this.#inputHelper = undefined;
 		this.#input = undefined;
 		this.#inputSurfaceOffset = undefined;
@@ -3692,6 +3727,7 @@ export class ProjectedTerminal {
 					this.#lastPresentedMetadata = openingPresentationSnapshot.metadata;
 					this.#lastPresentedSnapshot = openingPresentationSnapshot;
 					this.#lastPresentedSource = undefined;
+					this.#syncLiveCrop();
 					this.#updateInputPosition(true);
 				} else {
 					if (visibleStore.metadata !== null) this.#openingPresentationSnapshot = undefined;
@@ -3948,7 +3984,13 @@ export class ProjectedTerminal {
 		const withinProtocolLimits =
 			metadata.rows <= PROTOCOL_LIMITS.maxRowWindowRows &&
 			metadata.rows * metadata.columns <= PROTOCOL_LIMITS.maxFrameCells;
-		if (rowsBefore === 0 || !withinProtocolLimits) {
+		// As in the native Client, a viewer's cropped grid follows its cursor, not a tail window. The
+		// controller's grid crops only until its own resize lands, so its tail window stays meanwhile.
+		if (
+			rowsBefore === 0 ||
+			!withinProtocolLimits ||
+			(!this.#ownsResizeLease && this.#liveGridClipped(metadata))
+		) {
 			this.#clearTailPresentation(true);
 			return;
 		}
@@ -4226,6 +4268,18 @@ export class ProjectedTerminal {
 		);
 	}
 
+	/**
+	 * Fit a history window to a surface that crops the live grid, as the native Client reads
+	 * history at its pane height, so reading starts from the rows the crop showed. A window shrunk
+	 * that way grows back toward the live grid's height when the surface grows.
+	 */
+	#historyWindowRows(windowRows: number): number {
+		const surfaceRows = this.#measureSurfaceGeometry()?.rows;
+		if (surfaceRows === undefined) return windowRows;
+		const liveRows = this.#store.metadata?.rows ?? windowRows;
+		return Math.min(Math.max(windowRows, liveRows), surfaceRows);
+	}
+
 	#requestHistoryRows(origin: ReadRows['origin'], overscanRows = HISTORY_OVERSCAN_ROWS): void {
 		const metadata = this.#store.metadata ?? this.#historyStore?.metadata;
 		const historyMetadata = this.#historyStore?.metadata;
@@ -4246,7 +4300,8 @@ export class ProjectedTerminal {
 			return;
 		}
 		const visibleRowCount =
-			this.#historyViewportGeometry?.rows ?? historyMetadata?.rows ?? metadata.rows;
+			this.#historyViewportGeometry?.rows ??
+			this.#historyWindowRows(historyMetadata?.rows ?? metadata.rows);
 		const visibleColumnCount =
 			this.#historyViewportGeometry?.columns ?? historyMetadata?.columns ?? metadata.columns;
 		const visibleStartRow = this.#resolveHistoryVisibleStart(origin, visibleRowCount);
@@ -5250,9 +5305,11 @@ export class ProjectedTerminal {
 
 	#selectionAutoscrollDirectionAt(clientY: number): 'down' | 'up' | undefined {
 		const bounds = this.#canvas?.getBoundingClientRect();
-		if (bounds === undefined) return undefined;
-		if (clientY < bounds.top) return 'up';
-		return clientY > bounds.bottom ? 'down' : undefined;
+		const surface = this.#root?.getBoundingClientRect();
+		if (bounds === undefined || surface === undefined) return undefined;
+		// A cropped canvas extends past the surface, whose edges are where its rows leave view.
+		if (clientY < Math.max(bounds.top, surface.top)) return 'up';
+		return clientY > Math.min(bounds.bottom, surface.bottom) ? 'down' : undefined;
 	}
 
 	readonly #runSelectionAutoscrollTick = (): void => {
@@ -7965,8 +8022,10 @@ export class ProjectedTerminal {
 		this.#renderer?.syncSurfacePadding();
 		this.#historyScrollbarViewportSize = undefined;
 		this.#syncHistoryScrollbarPresentation();
+		this.#syncLiveCrop();
 		this.#updateInputPosition(true);
 		this.#sendResizeIfChanged();
+		this.#reconcileTailPresentation();
 	}
 
 	#installDevicePixelRatioListeners(view: Window | null): void {
@@ -7984,6 +8043,7 @@ export class ProjectedTerminal {
 		this.#renderer?.syncSurfacePadding();
 		this.#historyScrollbarViewportSize = undefined;
 		this.#syncHistoryScrollbarPresentation();
+		this.#syncLiveCrop();
 		this.#updateInputPosition(true);
 		this.#sendResizeIfChanged();
 	};
@@ -8001,6 +8061,7 @@ export class ProjectedTerminal {
 		this.#invalidateLinkCache();
 		this.#devicePixelRatio = Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
 		this.#watchDevicePixelRatio(view);
+		this.#syncLiveCrop();
 		this.#updateInputPosition(true);
 		this.#sendResizeIfChanged();
 	}
@@ -8054,6 +8115,7 @@ export class ProjectedTerminal {
 		if (this.#selectionGestureActive || this.#selectionPointer !== undefined) {
 			this.#cancelSelectionGesture(true);
 		}
+		this.#syncLiveCrop();
 		this.#updateInputPosition();
 		this.#sendResizeIfChanged();
 		this.#scheduleRender();
@@ -8173,6 +8235,53 @@ export class ProjectedTerminal {
 			columns,
 			rows,
 		};
+	}
+
+	/**
+	 * Show the part of the drawn grid that `cropLiveGrid` picks when the grid outgrows the surface.
+	 * The canvas keeps the whole grid and only moves and clips, so pointer, selection, link, and
+	 * input geometry, which read the canvas bounds, keep addressing the cells shown under them.
+	 */
+	#syncLiveCrop(): void {
+		const canvas = this.#canvas;
+		const renderer = this.#renderer;
+		if (canvas === undefined || renderer === undefined) return;
+		const metadata = this.#lastPresentedMetadata;
+		const surface = metadata === undefined ? undefined : this.#measureSurfaceGeometry();
+		const crop =
+			metadata === undefined || surface === undefined
+				? undefined
+				: cropLiveGrid(metadata, surface.columns, surface.rows);
+		let transform = '';
+		let clipPath = '';
+		if (metadata !== undefined && crop?.clipped === true) {
+			const left = crop.column * renderer.charWidth;
+			const top = crop.row * renderer.charHeight;
+			const right = (metadata.columns - crop.column - crop.columns) * renderer.charWidth;
+			const bottom = (metadata.rows - crop.row - crop.rows) * renderer.charHeight;
+			transform = `translate(${-left}px, ${-top}px)`;
+			clipPath = `inset(${top}px ${right}px ${bottom}px ${left}px)`;
+		}
+		const wasClipped = this.liveCropped;
+		this.#liveCrop = crop;
+		const style = transform === '' ? '' : `${transform} ${clipPath}`;
+		if (style !== this.#liveCropStyle) {
+			this.#liveCropStyle = style;
+			setStyleIfChanged(canvas.style, 'transform', transform);
+			setStyleIfChanged(canvas.style, 'clipPath', clipPath);
+			// Overlays anchored to cells, such as a hovered link's hint, would stay where they were.
+			this.#clearHoveredLink();
+			this.#updateInputPosition(true);
+		}
+		if (this.liveCropped !== wasClipped) this.#liveCropEmitter.fire(this.liveCropped);
+	}
+
+	/** Whether the surface is too small for the live grid, which then gives up its tail window. */
+	#liveGridClipped(metadata: ProjectedTerminalMetadata): boolean {
+		const surface = this.#measureSurfaceGeometry();
+		return (
+			surface !== undefined && (metadata.columns > surface.columns || metadata.rows > surface.rows)
+		);
 	}
 
 	#reconcileCommittedGeometry(metadata: ProjectedTerminalMetadata): void {

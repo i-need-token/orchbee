@@ -363,6 +363,19 @@ clipping as competing PTY geometry. `setResizeOwnership` applies an attachment-s
 Promotion clears resize deduplication and immediately measures the existing surface, so ownership
 does not require reopening the attachment.
 
+A surface smaller than the drawn grid crops it as the native Client's live view does, by the rule
+[Server takeover](../../apps/orchbee-server/docs/terminal-controller-takeover.md#sizing-across-clients)
+states for every Client: it shows the cells around the visible cursor, or the bottom-left corner
+while the cursor is hidden, and a larger surface keeps drawing from the top-left corner.
+`cropLiveGrid` chooses those cells after each drawn frame and each surface, device-pixel-ratio, or
+configuration change. The canvas keeps the whole grid and only moves and clips, so pointer,
+selection, mouse-report, link, and IME geometry, which read the canvas bounds, keep addressing the
+cells shown beneath them, and link hints label only shown cells. While cropped, a screen without
+scrollback can still enter history, a history window is no taller than the surface, and a page is
+the shown row count. A Viewer drops the Agent tail window while cropped; the controller keeps it
+until its own resize lands, so its content does not jump during a pane resize. `liveCropped` and
+`onLiveCropChange` report the state so the composing Client can say the view is cropped.
+
 An open attachment accepts one complete `TerminalPresentationConfiguration` transaction containing
 `fontFamily`, `fontSize`, `fontWeight`, `fontWeightBold`, `fontLigatures`,
 `fontMetricModifiers`, `terminalPadding`, `paddingBalance`, `allowTransparency`, `backgroundOpacity`, and

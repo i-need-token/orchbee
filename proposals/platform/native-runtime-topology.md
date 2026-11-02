@@ -1126,10 +1126,10 @@ These choices stand unless review changes them:
   in the Workspace's directory, unlike the CLI's `follow`. Decision 2 leaves this as it is, because
   the TUI's split does not sample either; the CLI keeps its own sample.
 - **A surface that only views a terminal never waits to fit.** It cannot change the terminal's size,
-  and waiting left the whole Tab inert for as long as the other Client held control. It draws the
-  other Client's grid from its top-left corner, so a larger grid is cut off at the right and bottom
-  and can hide the prompt. The TUI follows the cursor in a smaller viewer and says the view is
-  cropped; the GUI does neither yet.
+  and waiting left the whole Tab inert for as long as the other Client held control. As in the TUI, a
+  surface smaller than the other Client's grid follows the cursor, or shows the bottom-left corner
+  while the cursor is hidden, and its View only notice adds Live crop; a larger one draws the grid
+  from its top-left corner. While View only shows, the terminal's rows stay above the notice.
 - **Take control is the way back, as in the TUI.** No notice arrives when another Client takes
   control, so a surface learns that it only views when its next input or resize is refused, and the
   keys of that attempt go nowhere. It then shows View only with a Take control button at the bottom

@@ -50,6 +50,19 @@ is dropped outside those locks; its cleanup never touches the replacement. A sti
 Active self grant is returned as Acquired without allocating or submitting another grant.
 Ordinary Acquire retains its controller-busy behavior.
 
+## Sizing across Clients
+
+Only the controller's surface sizes the terminal. Acquiring a vacant terminal or an explicit
+takeover resizes it once to the new controller's surface; afterwards only changes to that surface
+resize it. Typing, pointer input, selection, focus changes and viewing never acquire control or
+resize, so Clients of different sizes never contend for the geometry, and a takeover leaves the old
+controller an ordinary Viewer. A Viewer keeps the controller's grid and adapts locally: a smaller
+surface shows the cells around the visible cursor, or the bottom-left corner while the cursor is
+hidden, and says the view is cropped; a larger surface draws the grid from its top-left corner. The
+native Client implements this in its
+[smaller live viewers](../../orchbee/docs/native-terminal-viewport.md#smaller-live-viewers), and
+the GUI in the [projected terminal](../../../packages/terminal/README.md)'s live crop.
+
 ## Compatibility and evidence
 
 This additive unshipped OBCS v1 action and private OBCN action tag 5 require one development cohort.

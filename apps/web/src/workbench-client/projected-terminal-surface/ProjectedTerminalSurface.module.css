@@ -18,6 +18,17 @@
 	pointer-events: none;
 }
 
+/*
+ * While View only shows, the terminal's rows stay above its notice, as the TUI keeps a viewer's
+ * prompt above its status line. The band is the notice's block size plus its inset.
+ */
+.terminalSurface[data-projected-terminal-control='view-only'] {
+	padding-block-end: calc(
+		var(--ob-ref-size-control-xs) + 2 * var(--ob-ref-space-1) + 2 *
+			var(--ob-ref-border-width-default) + var(--ob-ref-space-2)
+	);
+}
+
 @keyframes projected-terminal-bell-a {
 	0% {
 		background-color: var(--ob-sys-color-status-info-surface);
@@ -203,5 +214,12 @@
 @media (hover: none) and (pointer: coarse) {
 	.terminalSurface[data-projected-terminal-mobile-controls='visible'] {
 		padding-block-end: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-4));
+	}
+
+	.terminalSurface[data-projected-terminal-mobile-controls='visible'][data-projected-terminal-control='view-only'] {
+		padding-block-end: calc(
+			var(--ob-ref-size-control-lg) + var(--ob-ref-space-4) + var(--ob-ref-size-control-xs) + 2 *
+				var(--ob-ref-space-1) + 2 * var(--ob-ref-border-width-default) + var(--ob-ref-space-2)
+		);
 	}
 }

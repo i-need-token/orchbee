@@ -21,6 +21,8 @@ export interface ProjectedTerminalSurfaceView {
 	> | null;
 	readonly launchFailure: ProjectedTerminalLaunchFailureView | null;
 	readonly launchFailureRoot: RefObject<HTMLElement | null>;
+	/** The pane shows only the part of a larger terminal around its cursor. */
+	readonly liveCropped: boolean;
 	readonly mobileInputState: MobileTerminalInputState;
 	readonly pasteReview: ProjectedPasteReview | null;
 	readonly projectionState: 'failed' | 'inactive' | 'recovering' | 'requested';

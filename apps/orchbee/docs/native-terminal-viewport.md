@@ -35,8 +35,10 @@ keys for local row paging while it owns input.
 The native Client's `terminal_live_view::LiveView` projects a physical grid into a smaller local
 pane without changing the controller, terminal size, process or projection demand. It follows the
 visible cursor on both axes; a hidden cursor follows the physical bottom. A clear that moves the
-cursor to the top therefore reveals the new output rather than an empty bottom suffix. This is a
-native cell-grid adaptation; GUI terminal rendering remains with its existing terminal presenter.
+cursor to the top therefore reveals the new output rather than an empty bottom suffix. The GUI's
+projected terminal crops by the same rule, which
+[Server takeover](../../orchbee-server/docs/terminal-controller-takeover.md#sizing-across-clients)
+states for every Client.
 
 A clipped pane keeps a localized live-crop indicator above its cells, with the effective history
 entry binding when it fits and a complete scroll-up instruction at narrow widths. Minimal hides the

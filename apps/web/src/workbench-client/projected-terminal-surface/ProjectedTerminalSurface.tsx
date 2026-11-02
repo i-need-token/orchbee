@@ -47,6 +47,7 @@ export function ProjectedTerminalSurface({
 			<div
 				className={styles['terminalSurface']}
 				data-projected-terminal-close-activity={presentation.closeActivity}
+				data-projected-terminal-control={terminalShown ? view.controlPresentation : 'none'}
 				data-projected-terminal-mobile-controls={terminalShown ? 'visible' : 'hidden'}
 				data-terminal-presentation-id={presentation.presentationId}
 				data-terminal-projection-state={view.projectionState}
@@ -89,6 +90,7 @@ export function ProjectedTerminalSurface({
 				)}
 				{terminalShown && view.controlPresentation !== 'none' ? (
 					<ProjectedTerminalViewOnly
+						cropped={view.liveCropped}
 						onTakeControl={view.takeControl}
 						taking={view.controlPresentation === 'taking-control'}
 					/>

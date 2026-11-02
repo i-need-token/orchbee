@@ -37,6 +37,7 @@ describe('ProjectedTerminalSurface', () => {
 			imagePreview: null,
 			launchFailure: null,
 			launchFailureRoot: { current: null },
+			liveCropped: false,
 			pasteReview: null,
 			mobileInputState: {
 				alt: false,
@@ -102,6 +103,7 @@ describe('ProjectedTerminalSurface', () => {
 			imagePreview: null,
 			launchFailure: null,
 			launchFailureRoot: { current: null },
+			liveCropped: false,
 			pasteReview: null,
 			mobileInputState: {
 				alt: false,
