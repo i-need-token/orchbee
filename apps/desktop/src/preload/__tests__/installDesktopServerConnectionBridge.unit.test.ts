@@ -15,6 +15,7 @@ import {
 const BOOTSTRAP = {
 	automaticWorkspaceAllowed: true,
 	defaultDirectory: 'C:\\Users\\someone',
+	loginShellAvailable: false,
 	terminalHostName: 'host',
 };
 const ISOLATED = { contextIsolated: true, sandboxed: true };

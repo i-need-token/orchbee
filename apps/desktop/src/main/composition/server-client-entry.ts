@@ -173,6 +173,7 @@ void app.whenReady().then(async () => {
 					// A later document follows a person's own actions; an empty Session may be what they chose.
 					automaticWorkspaceAllowed: !everConnected && restore === 'intact',
 					defaultDirectory: app.getPath('home'),
+					loginShellAvailable: process.platform !== 'win32',
 					terminalHostName: hostname(),
 				},
 				document: document.data,

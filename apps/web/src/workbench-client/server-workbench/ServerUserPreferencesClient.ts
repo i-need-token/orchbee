@@ -11,6 +11,7 @@ import {
 import type { UserPreferencesControl, UserPreferencesState } from '../../user-preferences';
 import {
 	type ServerConnection,
+	type ServerSubscription,
 	ServerStreamRefusedError,
 	decodeWorkbenchResponse,
 	encodeWorkbenchRequest,
@@ -50,16 +51,20 @@ function readResponse(outcome: SettingsResult['outcome']): UserPreferencesRespon
 }
 
 /**
- * The Session's shared preferences, through its Server. The Server publishes no preference changes,
- * so another Client's save appears at the next refresh, and a save that raced it is refused as
- * `source-changed` rather than overwriting it.
+ * The Session's shared preferences, through its Server. As in the TUI, a State stream of the settings
+ * read carries every later change: another Client's save, and a write the Server finds in the
+ * preference file. A save that raced another is refused as `source-changed` rather than overwriting
+ * it.
  */
 export class ServerUserPreferencesClient implements UserPreferencesControl {
-	readonly #connection: Pick<ServerConnection, 'exchange'>;
+	readonly #connection: Pick<ServerConnection, 'exchange' | 'subscribe'>;
 	readonly #listeners = new Set<() => void>();
 	readonly #sessionId: string;
 	#disposed = false;
+	#observation: ServerSubscription | null = null;
 	#requesting = false;
+	/** A failed or uncertain save stays reported until the person refreshes, whatever arrives after. */
+	#retainFailure = false;
 	#state: UserPreferencesState = {
 		applicationIssue: null,
 		available: false,
@@ -69,7 +74,7 @@ export class ServerUserPreferencesClient implements UserPreferencesControl {
 		snapshot: null,
 	};
 
-	constructor(connection: Pick<ServerConnection, 'exchange'>, sessionId: string) {
+	constructor(connection: Pick<ServerConnection, 'exchange' | 'subscribe'>, sessionId: string) {
 		this.#connection = connection;
 		this.#sessionId = sessionId;
 	}
@@ -86,6 +91,8 @@ export class ServerUserPreferencesClient implements UserPreferencesControl {
 		const response = await this.#request({ kind: 'open' });
 		if (!this.#disposed && response.kind === 'snapshot') {
 			this.#publish({ ...this.#state, draftResetRevision: this.#state.draftResetRevision + 1 });
+			// Observing starts after this answer, so the stream's first snapshot is never the older one.
+			if (this.#observation === null) this.#observe();
 		}
 		return response;
 	}
@@ -108,6 +115,8 @@ export class ServerUserPreferencesClient implements UserPreferencesControl {
 
 	dispose(): void {
 		this.#disposed = true;
+		this.#observation?.close();
+		this.#observation = null;
 		this.#listeners.clear();
 	}
 
@@ -122,6 +131,7 @@ export class ServerUserPreferencesClient implements UserPreferencesControl {
 		let failure: UserPreferencesState['failure'] = null;
 		if (response.kind === 'outcome-unknown') failure = 'outcome-unknown';
 		else if (response.kind === 'refused') failure = response.reason;
+		this.#retainFailure = operation.kind === 'save' && response.kind !== 'snapshot';
 		this.#publish({
 			...this.#state,
 			available: response.kind === 'snapshot',
@@ -129,32 +139,23 @@ export class ServerUserPreferencesClient implements UserPreferencesControl {
 			pending: false,
 			snapshot: response.kind === 'snapshot' ? response.snapshot : this.#state.snapshot,
 		});
+		// A source is a digest, not an ordered revision, so a snapshot observed around this save may be
+		// older than its answer. A new stream's first snapshot is read after the save and has the last word.
+		if (operation.kind === 'save') this.#observe();
 		return response;
 	}
 
 	async #exchange(operation: SettingsOperation): Promise<UserPreferencesResponse> {
 		const requestId = createWorkbenchRequestId();
-		let request: ReturnType<typeof parseWorkbenchRequest>;
-		try {
-			request = parseWorkbenchRequest({
-				kind: 'workbench.settings',
-				operation,
-				protocolVersion: WORKBENCH_PROTOCOL_VERSION,
-				requestId,
-				sessionId: this.#sessionId,
-			});
-		} catch {
-			return { kind: 'refused', reason: 'invalid-changes' };
-		}
-		if (request.kind !== 'workbench.settings')
-			return { kind: 'refused', reason: 'invalid-changes' };
+		const request = this.#settingsRequest(operation, requestId);
+		if (request === null) return { kind: 'refused', reason: 'invalid-changes' };
 		const unanswered: UserPreferencesResponse =
 			operation.kind === 'save'
 				? { kind: 'outcome-unknown' }
 				: { kind: 'refused', reason: 'unavailable' };
 		let record: Uint8Array;
 		try {
-			record = await this.#connection.exchange(encodeWorkbenchRequest(request), {
+			record = await this.#connection.exchange(request, {
 				timeoutMilliseconds: REQUEST_DEADLINE_MILLISECONDS,
 			});
 		} catch (error) {
@@ -169,6 +170,75 @@ export class ServerUserPreferencesClient implements UserPreferencesControl {
 				: unanswered;
 		} catch {
 			return unanswered;
+		}
+	}
+
+	#observe(): void {
+		this.#observation?.close();
+		this.#observation = null;
+		const requestId = createWorkbenchRequestId();
+		const request = this.#settingsRequest({ kind: 'open' }, requestId);
+		if (this.#disposed || request === null) return;
+		let observation: ServerSubscription;
+		try {
+			observation = this.#connection.subscribe('state', request, {
+				onClosed: () => {
+					if (this.#observation !== observation) return;
+					this.#observation = null;
+					// Changes would stop arriving unseen, so saving waits for a refresh to observe again.
+					this.#publish({ ...this.#state, available: false, failure: 'unavailable' });
+				},
+				onFrame: (_kind, record) => {
+					if (this.#observation === observation) this.#observed(record, requestId);
+				},
+				// Every frame is a complete snapshot, so a gap loses nothing.
+				onGap: () => undefined,
+			});
+		} catch {
+			// The connection has ended, which its Workbench session reports.
+			return;
+		}
+		this.#observation = observation;
+	}
+
+	#observed(record: Uint8Array, requestId: string): void {
+		let response: WorkbenchResponse;
+		try {
+			response = decodeWorkbenchResponse(record);
+		} catch {
+			return;
+		}
+		if (response.kind !== 'workbench.settings.result' || response.requestId !== requestId) return;
+		const observed = readResponse(response.outcome);
+		if (observed.kind === 'outcome-unknown') return;
+		const available = observed.kind === 'snapshot';
+		const snapshot = observed.kind === 'snapshot' ? observed.snapshot : this.#state.snapshot;
+		let failure: UserPreferencesState['failure'] = null;
+		if (this.#retainFailure) failure = this.#state.failure;
+		else if (observed.kind === 'refused') failure = observed.reason;
+		// A source names its record's content, so an unchanged source is the snapshot already shown.
+		if (
+			available === this.#state.available &&
+			failure === this.#state.failure &&
+			snapshot?.source === this.#state.snapshot?.source
+		) {
+			return;
+		}
+		this.#publish({ ...this.#state, available, failure, snapshot });
+	}
+
+	#settingsRequest(operation: SettingsOperation, requestId: string): Uint8Array | null {
+		try {
+			const request = parseWorkbenchRequest({
+				kind: 'workbench.settings',
+				operation,
+				protocolVersion: WORKBENCH_PROTOCOL_VERSION,
+				requestId,
+				sessionId: this.#sessionId,
+			});
+			return request.kind === 'workbench.settings' ? encodeWorkbenchRequest(request) : null;
+		} catch {
+			return null;
 		}
 	}
 

@@ -181,6 +181,18 @@ feature. An unavailable custom executable fails visibly through the terminal lif
 system-shell fallback. The full Main model is authoritative in
 [`../../desktop/docs/terminal-launch-profiles.md`](../../desktop/docs/terminal-launch-profiles.md).
 
+A Server-path window supplies the same control from the Session's shared preferences, whose
+`launchProfiles` value the TUI edits too and the
+[shared preference inventory](../../../crates/workbench-protocol/docs/user-preferences.md) owns.
+Each change saves the complete catalog under the preference source the window last observed, so a
+change another Client made in between is refused as `source-changed` rather than overwritten, and a
+draft begun on an older source is refused without being sent. A created profile follows its source
+and takes the first free `profile-{n}` identity, as in the TUI. The Server decides what this
+machine can launch and refuses a relative executable as an invalid profile; Main's connection
+bootstrap reports whether a login shell is available. The Worker launches the default profile for
+each terminal created after the save. The snapshot is the built-in catalog only until the first
+read and never carries a persistence issue.
+
 ## Desktop terminal defaults
 
 Only a local Electron composition injects `DesktopTerminalDefaultSettingsControl`. Its snapshot
@@ -193,6 +205,11 @@ The renderer freezes the source on first edit. Shared CAS refusal keeps the conf
 draft; confirmed persistence with failed Host application shows an application issue. Lost writes
 never replay. Existing terminal history is unchanged. The authoritative Main transaction is
 [`../../desktop/docs/terminal-settings.md`](../../desktop/docs/terminal-settings.md).
+
+A Server-path window supplies the control from the Session's shared `scrollbackBytes` preference,
+so the row commits through the shared draft and the TUI shows the same value in megabytes. The
+Worker gives the value to each terminal it launches after the save, so no Host application step
+can fail.
 
 ## Read, commit, and recovery model
 

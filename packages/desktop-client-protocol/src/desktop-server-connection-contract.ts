@@ -22,6 +22,8 @@ const DesktopServerConnectionBootstrapSchema = z.strictObject({
 	/** The first document of a window on a Session with no sign of damage may open a Workspace. */
 	automaticWorkspaceAllowed: z.boolean(),
 	defaultDirectory: z.string().min(1),
+	/** Whether this machine's Host can start the system shell as a login shell; Windows cannot. */
+	loginShellAvailable: z.boolean(),
 	terminalHostName: z.string().min(1),
 });
 

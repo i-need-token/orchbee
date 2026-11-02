@@ -31,6 +31,8 @@ import {
 	createServerWorkbenchRuntime,
 	ProjectedTerminalSurface,
 	ServerConnection,
+	ServerTerminalDefaultSettingsClient,
+	ServerTerminalLaunchProfileClient,
 	ServerUserPreferencesClient,
 	ServerWorkbenchSession,
 	workspaceLaunchAction,
@@ -112,6 +114,11 @@ async function run(
 	session.onEnded((end) => stopSession(end.kind));
 
 	const userPreferences = new ServerUserPreferencesClient(connection, session.snapshot.sessionId);
+	const terminalDefaultSettingsClient = new ServerTerminalDefaultSettingsClient(userPreferences);
+	const terminalLaunchProfileClient = new ServerTerminalLaunchProfileClient(
+		userPreferences,
+		bootstrap.loginShellAvailable,
+	);
 	const applicationLocaleController = new ApplicationLocaleController({
 		documentElement,
 		preferredLocales,
@@ -160,6 +167,8 @@ async function run(
 					() => terminalFeedbackSettingsController.dispose(),
 					() => macosTerminalInputSettingsController?.dispose(),
 					() => applicationLocaleController.dispose(),
+					() => terminalLaunchProfileClient.dispose(),
+					() => terminalDefaultSettingsClient.dispose(),
 					() => userPreferences.dispose(),
 					() => session.dispose(),
 				],
@@ -205,8 +214,10 @@ async function run(
 			projectWorkspaceRuntime: runtime.projectWorkspaceRuntime,
 			shortcutPlatform,
 			standaloneTerminalAvailable: false,
+			terminalDefaultSettingsControl: terminalDefaultSettingsClient,
 			terminalFeedbackSettingsController,
 			terminalInteractionSettingsController,
+			terminalLaunchProfileClient,
 			terminalSettingsController,
 			terminalSurface: ProjectedTerminalSurface,
 		},

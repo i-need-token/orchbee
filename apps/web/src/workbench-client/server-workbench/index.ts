@@ -1,3 +1,5 @@
+export { ServerTerminalDefaultSettingsClient } from './ServerTerminalDefaultSettingsClient';
+export { ServerTerminalLaunchProfileClient } from './ServerTerminalLaunchProfileClient';
 export { ServerTerminalProjectionClient } from './ServerTerminalProjectionClient';
 export { ServerUserPreferencesClient } from './ServerUserPreferencesClient';
 export { ServerWorkbenchSession } from './ServerWorkbenchSession';

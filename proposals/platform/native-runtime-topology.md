@@ -1227,6 +1227,33 @@ real TUI or CLI on the same Session:
 | Terminal display theme        | Choosing Dark in Settings repainted the open terminal and the space around it 27 ms after the change and sent the terminal nothing. Typing reached PowerShell. Host brought the light colors back 29 ms after the change, again sending nothing.     |
 | Find in history               | Finding line 37 of 400 lines of output read the history and then the window at that absolute row, answered in 3 and 6 ms. The match showed centered 71 ms after the last key with no failure, and typing brought the bottom back in 32 ms.           |
 
+### Step 4 progress
+
+Settings in the Server-path window read and commit through the Server settings requests the TUI
+uses. These choices stand unless review changes them:
+
+- **Changes arrive as they do in the TUI.** The window keeps a State stream of the settings read,
+  which carries another Client's save and a change the Server finds in the preference file. A
+  source names content rather than an ordered revision, so the window opens a new stream after each
+  of its saves instead of asking for a resnapshot, which stays the Server's recovery from an
+  overrun. A closed stream makes preferences unavailable until a refresh.
+- **Profiles and scrollback keep the Settings page's controls.** Two adapters present the shared
+  `launchProfiles` and `scrollbackBytes` values through the existing Desktop control seams, so the
+  page itself is unchanged. Renaming those seams and removing Main's stores belong to the removal
+  of the Desktop owners later in this step.
+- **The Server owns launch admission.** A profile this machine cannot launch, such as a relative
+  executable, is the Server's refusal, shown as an invalid profile. The login-shell capability comes
+  from Main's connection bootstrap, and a new profile takes the TUI's `profile-{n}` identity.
+
+| Question                       | Result                                                                                                                                                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A TUI save, window open        | The TUI's Save of Terminal history showed 11,000,000 bytes in the window's open Settings 18 ms after the key, with no refresh.                                                                         |
+| A window save, then the TUI    | Enter in the window wrote 23,456,789 bytes to the record within 19 ms, and the TUI's Settings, opened afterwards, showed 23.456789 MB.                                                                 |
+| A profile made in the window   | A relative `cmd.exe` reached the Server and was refused as an invalid profile. `C:\Windows\System32\cmd.exe` saved as `profile-1`, became the default, and New Tab opened Command Prompt.              |
+| A draft against another change | With a rename drafted, the TUI's Save reached the window 17 ms after its key. The draft's Save showed the conflict and sent nothing, the record kept the old name, and reselecting allowed the rename. |
+| Server restart                 | After `server stop` and `server start`, the reloaded window and a new TUI showed 24,456,789 bytes and the renamed default profile, as the record on disk did.                                          |
+| Delete and reset               | A second profile took `profile-2`. Delete removed it, and Reset left only the built-in default, with one save each.                                                                                    |
+
 ### Evidence
 
 - Each step records the owning Web and Desktop builds and a Server-backed run of the path it
