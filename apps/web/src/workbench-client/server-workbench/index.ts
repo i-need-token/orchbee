@@ -1,6 +1,7 @@
 export { ServerTerminalProjectionClient } from './ServerTerminalProjectionClient';
 export { ServerUserPreferencesClient } from './ServerUserPreferencesClient';
 export { ServerWorkbenchSession } from './ServerWorkbenchSession';
+export { createServerHostColorsSource } from './createServerHostColorsSource';
 export { createServerWorkbenchAuthority } from './createServerWorkbenchAuthority';
 export { findServerPresentation } from './findServerPresentation';
 export { findServerTerminalBinding } from './findServerTerminalBinding';

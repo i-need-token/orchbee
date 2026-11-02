@@ -27,6 +27,7 @@ import { TerminalInteractionSettingsController } from '../../terminal-interactio
 import { TerminalSettingsController } from '../../terminal-settings';
 import {
 	admitsAutomaticWorkspace,
+	createServerHostColorsSource,
 	createServerWorkbenchRuntime,
 	ProjectedTerminalSurface,
 	ServerConnection,
@@ -125,9 +126,10 @@ async function run(
 		shortcutPlatform === 'apple'
 			? new MacosTerminalInputSettingsController(storage.preferences)
 			: undefined;
+	const systemTheme = targetWindow.matchMedia('(prefers-color-scheme: dark)');
 	const terminalSettingsController = new TerminalSettingsController({
 		storage: storage.preferences,
-		systemTheme: targetWindow.matchMedia('(prefers-color-scheme: dark)'),
+		systemTheme,
 		themeTarget: documentElement,
 		userPreferences,
 	});
@@ -183,6 +185,7 @@ async function run(
 		shortcutBindingSource: keyboardShortcutSettingsController,
 		shortcutPlatform,
 		terminalCompletionReminderObserver: terminalFeedbackSettingsController,
+		terminalHostColorsSource: createServerHostColorsSource(terminalSettingsController, systemTheme),
 		terminalHostName: bootstrap.terminalHostName,
 		terminalInputConfigurationSource: macosTerminalInputSettingsController,
 		terminalInteractionConfigurationSource: terminalInteractionSettingsController,

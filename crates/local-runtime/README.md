@@ -78,7 +78,7 @@ and global sound policy, including values governed by shared preferences.
 It returns `Some(true)` or `Some(false)` only for the documented `REG_DWORD` values `1` and `0`;
 missing, unreadable, and other values return `None`. The Client invokes this once only when its
 native terminal OSC `10`/`11` probe has no valid OSC `11` background by the deadline. The Worker
-invokes it for a Host-default launch before any Client has reported outer-terminal colors. Each
+invokes it for a Host-default launch before any Client has reported `host-colors`. Each
 caller owns its precedence; this runtime helper changes no Windows setting and reads no other theme
 state.
 

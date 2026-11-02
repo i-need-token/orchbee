@@ -46,6 +46,11 @@ import {
 } from './client-server-carrier';
 import { type ServerConnection, ServerConnectionEndedError } from './server-connection';
 import { ServerSelectionCopy, readSelectionAnswer } from './server-selection-copy';
+import {
+	type ServerHostColors,
+	ServerHostColorsReport,
+	type ServerHostColorsSource,
+} from './ServerHostColorsReport';
 import { ServerTerminalEffects } from './ServerTerminalEffects';
 
 export interface ServerTerminalBinding {
@@ -197,6 +202,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	readonly #connection: ServerConnection;
 	readonly #controlSteps = new SerialSteps();
 	readonly #effects: ServerTerminalEffects;
+	readonly #hostColors: ServerHostColorsReport | null;
 	readonly #laneId: bigint;
 	readonly #selectionCopy: ServerSelectionCopy;
 	readonly #viewerSteps = new SerialSteps();
@@ -221,11 +227,20 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		laneId: bigint,
 		bootstrap: ProjectedAttachmentBootstrap,
 		controllerId: string | null,
+		hostColors: ServerHostColorsSource | undefined,
 	) {
 		this.#bootstrap = bootstrap;
 		this.#connection = connection;
 		this.#controllerId = controllerId;
 		this.#effects = new ServerTerminalEffects(bootstrap.attachmentId, (event) => this.#post(event));
+		this.#hostColors =
+			hostColors === undefined
+				? null
+				: new ServerHostColorsReport({
+						enqueue: (step) => this.#enqueueHostColors(step),
+						source: hostColors,
+						submit: (colors) => this.#submitHostColors(colors),
+					});
 		this.#laneId = laneId;
 		this.#selectionCopy = new ServerSelectionCopy({
 			attachmentId: bootstrap.attachmentId,
@@ -241,6 +256,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 				this.#pollNow();
 			},
 		);
+		if (controllerId !== null) this.#hostColors?.granted();
 	}
 
 	subscribe(listener: (value: unknown) => void, unavailable: () => void): () => void {
@@ -398,6 +414,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		this.#closed = true;
 		this.#unsubscribeEnded();
 		this.#unwatchViewerReady();
+		this.#hostColors?.dispose();
 		if (this.#pollTimer !== null) clearTimeout(this.#pollTimer);
 		this.#pollTimer = null;
 		this.#viewerSteps.clear();
@@ -742,29 +759,80 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		}
 	}
 
-	/** The renderer requires each capability change to advance its revision by exactly one. */
+	/**
+	 * The renderer requires each capability change to advance its revision by exactly one. Each new
+	 * grant reports the window's colors, even one that leaves the capabilities as they were.
+	 */
 	#setController(controllerId: string | null): void {
-		const hadControl = this.#controllerId !== null;
+		const previous = this.#controllerId;
 		const hasControl = controllerId !== null;
 		this.#controllerId = controllerId;
-		if (hadControl === hasControl) return;
-		if (!hasControl) this.#controlSteps.clear();
-		this.#capabilityRevision += 1n;
-		const { attachmentId, terminalId } = this.#bootstrap;
-		this.#post({
-			capabilities: {
-				attachmentId,
-				capabilities: { input: hasControl, read: true, resize: hasControl },
-				capabilityRevision: CanonicalUint64TextSchema.parse(this.#capabilityRevision.toString()),
-				resizeLease: hasControl,
-				terminalId,
-			},
-			kind: 'attachment-input-capability-changed',
-		});
-		this.#post({
-			event: { attachmentId, resizeLease: hasControl, terminalId },
-			kind: 'resize-lease-changed',
-		});
+		if ((previous !== null) !== hasControl) {
+			if (!hasControl) this.#controlSteps.clear();
+			this.#capabilityRevision += 1n;
+			const { attachmentId, terminalId } = this.#bootstrap;
+			this.#post({
+				capabilities: {
+					attachmentId,
+					capabilities: { input: hasControl, read: true, resize: hasControl },
+					capabilityRevision: CanonicalUint64TextSchema.parse(this.#capabilityRevision.toString()),
+					resizeLease: hasControl,
+					terminalId,
+				},
+				kind: 'attachment-input-capability-changed',
+			});
+			this.#post({
+				event: { attachmentId, resizeLease: hasControl, terminalId },
+				kind: 'resize-lease-changed',
+			});
+		}
+		if (hasControl && controllerId !== previous) this.#hostColors?.granted();
+	}
+
+	#enqueueHostColors(step: () => Promise<void>): boolean {
+		if (
+			this.#closed ||
+			this.#closing !== null ||
+			this.#controlSteps.length >= MAXIMUM_QUEUED_COMMANDS
+		) {
+			return false;
+		}
+		this.#controlSteps.push(step);
+		return true;
+	}
+
+	/** Losing control or the attachment matters here; any other answer settles the colors. */
+	async #submitHostColors({ background, foreground }: ServerHostColors): Promise<boolean> {
+		const controllerId = this.#controllerId;
+		if (this.#closed || controllerId === null) return false;
+		const { attachmentId } = this.#bootstrap;
+		let outcome: ClientServerControlOutcome;
+		try {
+			outcome = await this.#submitControl(controllerId, (id, sequence) =>
+				encodeClientServerRequest({
+					action: {
+						attachmentId,
+						background,
+						controllerId: id,
+						foreground,
+						kind: 'host-colors',
+						sequence: sequence.toString(),
+					},
+					kind: 'terminal.control',
+					requestId: createClientServerRequestId(),
+				}),
+			);
+		} catch {
+			return false;
+		}
+		if (outcome.kind === 'outcome-unknown') return false;
+		if (outcome.kind === 'rejected' && outcome.reason === 'not-controller') {
+			this.#setController(null);
+		} else if (outcome.kind === 'rejected' && outcome.reason === 'viewer-unavailable') {
+			this.#retire(true);
+		}
+		this.#pollAfterProgress();
+		return true;
 	}
 
 	/**
@@ -958,12 +1026,14 @@ function acquireMeansReadOnly(outcome: ClientServerControlOutcome): boolean {
 
 /**
  * Attaches a viewer, tries to take input and resize, and resizes to the caller's geometry. A
- * terminal another Client controls opens read-only.
+ * terminal another Client controls opens read-only. A controlling projection reports the window's
+ * colors first when it has any.
  */
 export async function openServerTerminalProjection(
 	connection: ServerConnection,
 	binding: ServerTerminalBinding,
 	geometry: TerminalGeometry,
+	hostColors?: ServerHostColorsSource,
 ): Promise<ServerTerminalProjection> {
 	const laneId = connection.openLane();
 	try {
@@ -1014,6 +1084,7 @@ export async function openServerTerminalProjection(
 			laneId,
 			bootstrap,
 			controllerId,
+			hostColors,
 		);
 		if (controllerId !== null) {
 			transport.send({

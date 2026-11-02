@@ -3,6 +3,7 @@ import type { TerminalPresentationId, WorkbenchSnapshot } from '@orchbee/workben
 
 import {
 	type ServerConnection,
+	type ServerHostColorsSource,
 	type ServerTerminalProjection,
 	ServerTerminalProjectionError,
 	openServerTerminalProjection,
@@ -27,13 +28,19 @@ function refusedRequest(code: string, retryable: boolean): TerminalProjectionReq
 export class ServerTerminalProjectionClient implements TerminalProjectionClient {
 	readonly #closing = new Map<string, Promise<void>>();
 	readonly #connection: ServerConnection;
+	readonly #hostColors: ServerHostColorsSource | undefined;
 	readonly #readSnapshot: () => WorkbenchSnapshot;
 	readonly #releases = new Set<() => void>();
 	readonly #tails = new Map<string, Promise<void>>();
 	#disposed = false;
 
-	constructor(connection: ServerConnection, readSnapshot: () => WorkbenchSnapshot) {
+	constructor(
+		connection: ServerConnection,
+		readSnapshot: () => WorkbenchSnapshot,
+		hostColors?: ServerHostColorsSource,
+	) {
 		this.#connection = connection;
+		this.#hostColors = hostColors;
 		this.#readSnapshot = readSnapshot;
 	}
 
@@ -64,7 +71,12 @@ export class ServerTerminalProjectionClient implements TerminalProjectionClient 
 			// Read only now: the surface this one replaces may release in the same commit, after this.
 			await this.#closing.get(key);
 			if (released) throw new ServerTerminalProjectionError('terminal-projection-released', false);
-			const opened = await openServerTerminalProjection(this.#connection, binding, geometry);
+			const opened = await openServerTerminalProjection(
+				this.#connection,
+				binding,
+				geometry,
+				this.#hostColors,
+			);
 			if (released) {
 				await opened.close();
 				throw new ServerTerminalProjectionError('terminal-projection-released', false);

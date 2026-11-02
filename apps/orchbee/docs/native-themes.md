@@ -42,7 +42,7 @@ These are Client-local display values, not shared terminal launch policy.
 The shared `UserTerminalColors` resolver also supplies the Worker's new-terminal profile from the
 same confirmed snapshot as scrollback and launch selection. OSC 10/11 queries then report those
 captured defaults from terminal creation, before a program chooses its appearance. Host with System
-launches with the outer-terminal colors most recently reported by a controlling Client, then the
+launches with the colors a controlling Client, TUI or window, most recently reported, then the
 Worker's OS light/dark fallback, then the shipped light baseline. Once both probe colors settle, the
 Client reports them through the `host-colors` controller action; the Worker applies them to the
 controlled terminal only while that terminal still follows Host defaults. Existing terminals

@@ -39,7 +39,7 @@ import {
 	TerminalPresentationSnapshotCache,
 	type ProjectedTerminalSurfaceCapability,
 } from '../projected-terminal-surface';
-import type { ServerConnection } from '../server-connection';
+import type { ServerConnection, ServerHostColorsSource } from '../server-connection';
 import {
 	createServerWorkbenchAuthority,
 	findServerPresentation,
@@ -83,6 +83,8 @@ export interface CreateServerWorkbenchRuntimeOptions {
 	readonly shortcutBindingSource?: ProjectedTerminalShortcutBindingSource | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly terminalCompletionReminderObserver?: TerminalCompletionReminderObserver | undefined;
+	/** The window's colors, reported to each terminal it controls. */
+	readonly terminalHostColorsSource?: ServerHostColorsSource | undefined;
 	readonly terminalHostName: string;
 	readonly terminalInputConfigurationSource?: TerminalInputConfigurationSource | undefined;
 	readonly terminalInteractionConfigurationSource?:
@@ -113,6 +115,7 @@ export function createServerWorkbenchRuntime({
 	shortcutBindingSource,
 	shortcutPlatform,
 	terminalCompletionReminderObserver,
+	terminalHostColorsSource,
 	terminalHostName,
 	terminalInputConfigurationSource = DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
 	terminalInteractionConfigurationSource = DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
@@ -192,7 +195,11 @@ export function createServerWorkbenchRuntime({
 			? undefined
 			: projectWorkspaceRuntime.subscribeClientView(persistFocusRecovery);
 
-	const projectionClient = new ServerTerminalProjectionClient(connection, () => session.snapshot);
+	const projectionClient = new ServerTerminalProjectionClient(
+		connection,
+		() => session.snapshot,
+		terminalHostColorsSource,
+	);
 	const presentationSnapshots =
 		new TerminalPresentationSnapshotCache<ProjectedTerminalPresentationSnapshot>();
 	// A revision only orders metadata of one terminal, and a Presentation can be bound to another.
@@ -244,7 +251,8 @@ export function createServerWorkbenchRuntime({
 		},
 		platformEffects: terminalPlatformEffects,
 		preferredLocales,
-		// A Server terminal's colors come from its Host, so no renderer joins a theme presentation.
+		// A Server terminal's colors come from its Host, so no renderer joins a theme presentation; the
+		// projection reports the window's colors instead, which only a following terminal takes.
 		presentationConfigurationSource: {
 			current: () => terminalPresentationConfigurationSource.current(),
 			subscribe: (listener) => terminalPresentationConfigurationSource.subscribe(listener),

@@ -271,7 +271,8 @@ string. Gaps are allowed; an accepted submission consumes the sequence even if d
 fails or is rejected. Grant mismatch or stale sequence has no terminal effect. A new grant starts
 with no consumed sequence; an old grant never regains authority by resetting its sequence.
 
-`host-colors` reports the controlling Client's observed outer-terminal defaults. Besides
+`host-colors` reports the default colors around the controlling Client's view, such as a TUI's
+observed outer-terminal defaults or the colors a window paints for its appearance. Besides
 `attachmentId`, `controllerId`, and a `sequence` from the same strictly increasing space, it carries
 `foreground` and `background`, each an integer RGB value from 0 through 16,777,215. It is best
 effort: the Worker retains the most recent report for new Host-default launches and recolors the

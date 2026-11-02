@@ -237,6 +237,11 @@ describe('Client-Server carrier binding', () => {
 			kind: 'terminal.control',
 			requestId: ID,
 		},
+		{
+			action: { ...ids, background: 0xfc_fc_fc, foreground: 0x14_14_14, kind: 'host-colors' },
+			kind: 'terminal.control',
+			requestId: ID,
+		},
 	])('encodes a request the schema admits: $kind $action.kind', (request) => {
 		const frame = encodeClientServerRequest(request);
 		expect(new TextDecoder().decode(frame.subarray(0, 4))).toBe('OBCS');

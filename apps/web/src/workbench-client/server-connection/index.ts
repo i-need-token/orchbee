@@ -11,4 +11,5 @@ export {
 	ServerTerminalProjectionError,
 	openServerTerminalProjection,
 } from './server-terminal-projection';
+export type { ServerHostColors, ServerHostColorsSource } from './ServerHostColorsReport';
 export { decodeWorkbenchResponse, encodeWorkbenchRequest } from './workbench-carrier';
