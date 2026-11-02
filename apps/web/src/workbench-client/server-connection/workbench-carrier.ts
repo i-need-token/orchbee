@@ -16,6 +16,7 @@ const HEADER_BYTES = 12;
 type FramedRequest = Exclude<WorkbenchRequest, { readonly kind: 'workbench.client-view' }>;
 
 const REQUEST_FRAME_KINDS: Readonly<Record<FramedRequest['kind'], number>> = {
+	'workbench.agent-integration': 63,
 	'workbench.agent-manifests': 37,
 	'workbench.close-operation.read': 61,
 	'workbench.command': 2,
@@ -48,6 +49,7 @@ const REQUEST_FRAME_KINDS: Readonly<Record<FramedRequest['kind'], number>> = {
 const RESPONSE_FRAME_KINDS: Readonly<
 	Record<Exclude<WorkbenchResponse['kind'], 'workbench.client-view.result'>, number>
 > = {
+	'workbench.agent-integration.result': 64,
 	'workbench.agent-manifests.result': 38,
 	'workbench.close-operation.result': 62,
 	'workbench.command.result': 4,

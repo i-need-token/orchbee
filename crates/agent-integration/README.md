@@ -14,8 +14,12 @@ never appears in contract documents.
 
 ## Contract
 
+[`schemas/agent-integration/v1`](../../schemas/agent-integration/README.md) is the language-neutral
+authority; this crate is its Rust binding.
+
 - Documents are UTF-8 JSON objects with camelCase fields, kebab-case `kind` tags, and no unknown
-  fields.
+  fields. A field-less variant is an empty struct variant, because serde ignores unknown fields
+  beside an internally tagged unit variant.
 - `IntegrationRequest` is `{operation, adapterSource?, budgetMilliseconds?}`. `operation.kind` is
   `list` with an optional `provider`, or `explain`, `enable`, or `disable` with a required
   `provider`. A present budget is 1 through 40,000 milliseconds. An encoded request is at most
@@ -41,4 +45,6 @@ embeds them as JSON values between Client and Server.
 ## Verification
 
 `src/contract/tests.rs` covers registry provider ids, budget and unknown-field refusal, lossless
-node paths, and closed report vocabularies.
+node paths, and closed report vocabularies. The Workbench binding decides the shared
+[conformance corpus](../../schemas/workbench/v1/workbench-agent-integration-conformance-v1.json)
+with this crate's decoders.

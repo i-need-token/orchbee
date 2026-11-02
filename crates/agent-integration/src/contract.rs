@@ -102,7 +102,8 @@ impl IntegrationRequest {
 }
 
 /// The typed answer of one operation. `HomeUnavailable` means the executing node has no
-/// admitted home directory, so nothing was inspected or changed.
+/// admitted home directory, so nothing was inspected or changed. Field-less variants are empty
+/// struct variants because serde ignores unknown fields beside an internally tagged unit variant.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
@@ -124,7 +125,7 @@ pub enum IntegrationReport {
     Mutation {
         report: MutationReport,
     },
-    HomeUnavailable,
+    HomeUnavailable {},
 }
 
 pub fn encode_request(request: &IntegrationRequest) -> Result<Vec<u8>, ContractError> {
@@ -336,7 +337,8 @@ impl TargetState {
 }
 
 /// The detailed guard dimensions an `explain` surfaces — the canonical per-provider inspection
-/// internals, captured in the same read pass as the snapshot row.
+/// internals, captured in the same read pass as the snapshot row. `Plain` is an empty struct
+/// variant so its decoder refuses unknown fields.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
@@ -358,7 +360,7 @@ pub enum InspectionDetail {
         source_ready: bool,
         obsolete_target_state: Option<TargetState>,
     },
-    Plain,
+    Plain {},
 }
 
 /// One step of the guard-evaluated enable plan — the same vector the frontier would run for the
@@ -522,7 +524,12 @@ impl FailureCode {
 
 /// `refused` and `failed` carry their typed code in `code`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "code", rename_all = "kebab-case")]
+#[serde(
+    tag = "kind",
+    content = "code",
+    rename_all = "kebab-case",
+    deny_unknown_fields
+)]
 pub enum Verdict {
     /// The goal state is observed (or was already true pre-effect).
     Completed,

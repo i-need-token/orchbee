@@ -487,7 +487,7 @@ pub(crate) fn inspect_full(
                 super::hook_configuration_windows::inspect(id.as_str(), context.home, &options);
             #[cfg(not(windows))]
             let state = State::Unknown;
-            (state, state == State::Unknown, InspectionDetail::Plain)
+            (state, state == State::Unknown, InspectionDetail::Plain {})
         }
         Kind::Cli(CliKind::Hermes) => {
             #[cfg(windows)]
@@ -513,7 +513,7 @@ pub(crate) fn inspect_full(
             };
             #[cfg(not(windows))]
             let state = State::Unknown;
-            (state, state == State::Unknown, InspectionDetail::Plain)
+            (state, state == State::Unknown, InspectionDetail::Plain {})
         }
         Kind::Cli(CliKind::Claude) => {
             let executable = executable.as_deref().expect("gated above");
@@ -602,7 +602,7 @@ pub(crate) fn inspect_full(
                 } else {
                     raw
                 };
-            (observed, raw == State::Unknown, InspectionDetail::Plain)
+            (observed, raw == State::Unknown, InspectionDetail::Plain {})
         }
         Kind::Guarded(guarded) => {
             let source_path = context.capsule_root.join(guarded.source_relative);

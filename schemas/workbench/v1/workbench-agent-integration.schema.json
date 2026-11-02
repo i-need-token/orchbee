@@ -1,0 +1,154 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-agent-integration.schema.json",
+	"title": "Agent integration jobs",
+	"$comment": "Rust and TypeScript additionally enforce the 10 KiB request and 36 KiB result budgets and the refinements the Agent integration contract names.",
+	"$defs": {
+		"job": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["workerId", "generation", "jobId"],
+			"properties": {
+				"workerId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workerId"
+				},
+				"generation": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision",
+					"not": {
+						"const": "0"
+					}
+				},
+				"jobId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
+				}
+			}
+		}
+	},
+	"oneOf": [
+		{
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"],
+			"properties": {
+				"kind": {
+					"const": "workbench.agent-integration"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"action": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "request"],
+							"properties": {
+								"kind": {
+									"const": "start"
+								},
+								"request": {
+									"$ref": "urn:orchbee:schema:agent-integration:v1#/$defs/request"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "job"],
+							"properties": {
+								"kind": {
+									"enum": ["poll", "cancel"]
+								},
+								"job": {
+									"$ref": "#/$defs/job"
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"],
+			"properties": {
+				"kind": {
+					"const": "workbench.agent-integration.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "job"],
+							"properties": {
+								"kind": {
+									"enum": ["accepted", "pending", "cancel-registered", "already-terminal"]
+								},
+								"job": {
+									"$ref": "#/$defs/job"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "job", "report"],
+							"properties": {
+								"kind": {
+									"const": "completed"
+								},
+								"job": {
+									"$ref": "#/$defs/job"
+								},
+								"report": {
+									"$ref": "urn:orchbee:schema:agent-integration:v1#/$defs/report"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "reason"],
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"enum": [
+										"denied",
+										"session-mismatch",
+										"invalid-request",
+										"worker-unavailable",
+										"worker-changed",
+										"busy",
+										"job-unknown",
+										"abandoned",
+										"malformed"
+									]
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	]
+}

@@ -235,8 +235,10 @@ Outcomes are `accepted`, `pending`, `completed` with one Agent integration repor
 `session-mismatch`, `invalid-request`, `worker-unavailable`, `worker-changed`, `busy`,
 `job-unknown`, `abandoned`, or `malformed`. A result answers only its request's protocol version,
 request ID, Session, and action; poll and cancel outcomes answer only their own job. Starting
-`enable` or `disable` is mutating. Only native Clients consume this direction, so it has no
-TypeScript schema or shared JSON corpus.
+`enable` or `disable` is mutating. The
+[direction schema](../../schemas/workbench/v1/workbench-agent-integration.schema.json) governs it
+for every language, and Rust, TypeScript, and JSON Schema share its
+[conformance corpus](../../schemas/workbench/v1/workbench-agent-integration-conformance-v1.json).
 
 ## Workspace Git status reads
 

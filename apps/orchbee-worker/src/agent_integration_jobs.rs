@@ -288,7 +288,7 @@ fn run(request: IntegrationRequest, cancel: Arc<CancelFlag>) -> Report {
         Some(source),
         ceiling,
     ) {
-        Err(_) => IntegrationReport::HomeUnavailable,
+        Err(_) => IntegrationReport::HomeUnavailable {},
         Ok(context) => match request.operation {
             IntegrationOperation::List { provider } => {
                 let (items, capsule) = orchbee_agent_integration_writer::list(&context, provider);

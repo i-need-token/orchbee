@@ -204,7 +204,7 @@ fn prepare(
 ) -> Result<Prepared, Failure> {
     use crate::agent_integrations::IntegrationReport as Report;
     match (report, command) {
-        (Report::HomeUnavailable, _) => Err(Failure::new(FailureKind::ServiceUnavailable)
+        (Report::HomeUnavailable {}, _) => Err(Failure::new(FailureKind::ServiceUnavailable)
             .details(stage_reason_details("environment", "home-unavailable"))),
         (Report::List { items, capsule }, AgentIntegrationCommand::List { outdated_only, .. }) => {
             Ok(Prepared::List {
@@ -458,7 +458,7 @@ fn detail_json(detail: &InspectionDetail) -> Value {
             "targetState": target_state.as_str(),
             "sourceReady": source_ready,
         }),
-        InspectionDetail::Plain => json!({ "kind": "none" }),
+        InspectionDetail::Plain {} => json!({ "kind": "none" }),
     }
 }
 
@@ -780,7 +780,7 @@ fn detail_line(detail: &InspectionDetail) -> Option<String> {
             target_state.as_str(),
             if *source_ready { "yes" } else { "no" },
         )),
-        InspectionDetail::Plain => None,
+        InspectionDetail::Plain {} => None,
     }
 }
 

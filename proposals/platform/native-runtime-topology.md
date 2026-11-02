@@ -1272,8 +1272,9 @@ uses. These choices stand unless review changes them:
 - Worker is the only node-local writer of provider configuration and Capsule installation. Server
   authorizes each operation; CLI, TUI, and Desktop Settings are Clients of the same operation.
 - The Agent identity provider registry is the one provider vocabulary. Worker owns the integration
-  specification, and the operation contract gets a language-neutral schema in place of the
-  TypeScript Desktop contract.
+  specification, and [`schemas/agent-integration`](../../schemas/agent-integration/README.md) is the
+  operation contract's language-neutral schema; the TypeScript Desktop contract goes with Main's
+  writer.
 - The Capsule source moves from `apps/desktop` to the owner of the native writer; Desktop packaging
   and native staging consume the same staged artifact, and `payloadSha256` remains its identity.
   The Capsule README is part of that payload, and its repository links and maintainer commands name
@@ -1285,11 +1286,11 @@ uses. These choices stand unless review changes them:
 
 ### Cross-language parity sources
 
-| Current source                                                                             | Target authority                                                              | Consumers                                              |
-| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `tokens.css` in `@orchbee/design-tokens`                                                   | One language-neutral palette, at the GUI design follow-up                     | CSS registry and native theme                          |
-| Agent canonical corpus generated from `@orchbee/agent`, and the join corpus citing Desktop | Contract-authored corpora in [`schemas/agent`](../../schemas/agent/README.md) | Server, Worker, and TypeScript bindings until deletion |
-| Integration vocabulary declared canonical in `@orchbee/desktop-client-protocol`            | A language-neutral integration operation schema                               | Worker, Server, native Client, and Desktop Settings    |
+| Current source                                                                             | Target authority                                                                   | Consumers                                              |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `tokens.css` in `@orchbee/design-tokens`                                                   | One language-neutral palette, at the GUI design follow-up                          | CSS registry and native theme                          |
+| Agent canonical corpus generated from `@orchbee/agent`, and the join corpus citing Desktop | Contract-authored corpora in [`schemas/agent`](../../schemas/agent/README.md)      | Server, Worker, and TypeScript bindings until deletion |
+| Integration vocabulary declared canonical in `@orchbee/desktop-client-protocol`            | [`schemas/agent-integration`](../../schemas/agent-integration/README.md), in place | Worker, Server, native Client, and Desktop Settings    |
 
 ## Correctness claims and evidence plan
 

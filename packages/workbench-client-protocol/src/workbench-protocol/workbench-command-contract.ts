@@ -36,6 +36,12 @@ import {
 	CurrentDirectoryResultSchema,
 	WORKBENCH_MAXIMUM_CURRENT_DIRECTORY_BYTES,
 } from './workbench-current-directory-contract';
+import {
+	AgentIntegrationRequestSchema,
+	AgentIntegrationResultSchema,
+	WORKBENCH_MAXIMUM_ENCODED_AGENT_INTEGRATION_REQUEST_BYTES,
+	WORKBENCH_MAXIMUM_ENCODED_AGENT_INTEGRATION_RESULT_BYTES,
+} from './workbench-agent-integration-contract';
 import { PluginRequestSchema, PluginResultSchema } from './workbench-plugin-contract';
 import {
 	WindowTitleRequestSchema,
@@ -630,6 +636,7 @@ export const WorkbenchRequestSchema = z
 		SemanticEventsRequestSchema,
 		PaneGraphicsRequestSchema,
 		PluginRequestSchema,
+		AgentIntegrationRequestSchema,
 		WindowTitleRequestSchema,
 		NotificationRequestSchema,
 		PanelAgentRequestSchema,
@@ -647,6 +654,8 @@ export const WorkbenchRequestSchema = z
 			maximum = WORKBENCH_MAXIMUM_CONFIGURED_COMMAND_BYTES;
 		if (value.kind === 'workbench.events') maximum = WORKBENCH_MAXIMUM_EVENTS_BYTES;
 		if (value.kind === 'workbench.pane-graphics') maximum = GRAPHICS_REQUEST_BYTES;
+		if (value.kind === 'workbench.agent-integration')
+			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_INTEGRATION_REQUEST_BYTES;
 		if (value.kind === 'workbench.command' && value.action.kind === 'tab.create-layout')
 			maximum = WORKBENCH_MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES;
 		if (
@@ -762,6 +771,7 @@ export const WorkbenchResponseSchema = z
 		SemanticEventsResultSchema,
 		PaneGraphicsResultSchema,
 		PluginResultSchema,
+		AgentIntegrationResultSchema,
 		WindowTitleResultSchema,
 		NotificationResultSchema,
 		PanelAgentResultSchema,
@@ -811,6 +821,8 @@ export const WorkbenchResponseSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES;
 		} else if (value.kind === 'workbench.current-directory.result') {
 			maximum = WORKBENCH_MAXIMUM_CURRENT_DIRECTORY_BYTES;
+		} else if (value.kind === 'workbench.agent-integration.result') {
+			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_INTEGRATION_RESULT_BYTES;
 		}
 
 		if (value.kind === 'workbench.command.result' && value.outcome.kind === 'workspaces-reordered')

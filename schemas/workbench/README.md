@@ -772,6 +772,18 @@ directory and 26 KiB result limits. The
 [Server](../../apps/orchbee-server/README.md#workspace-current-directory-reads) owns which
 directory answers.
 
+## Agent integration jobs
+
+[`workbench-agent-integration.schema.json`](v1/workbench-agent-integration.schema.json) owns
+`workbench.agent-integration` and its `.result`, OBWP kinds 63/64. `start` embeds one
+[Agent integration request](../agent-integration/README.md) and `completed` one report; every other
+action and outcome names the Worker generation and job it is fenced to. The
+[shared corpus](v1/workbench-agent-integration-conformance-v1.json) checks closed shapes and
+vocabularies, node path forms, job identities, and a report above the default result limit; the
+bindings also enforce the 10 KiB request and 36 KiB result limits and the operation contract's
+byte rules. The [Workbench binding](../../crates/workbench-protocol/README.md#agent-integration-jobs)
+owns correlation.
+
 ## Configured command wire contract
 
 [Configured commands](v1/workbench-configured-command.schema.json) close the native installed-command catalog, invoke and private independent-popup lifecycle. Native CLI `orchbee.command` embeds the same nested receipts; its Client popup follow-up uses the version-1 control contract. IDs identify the normalized installed configuration and do not authorize caller-provided executable text. Required nullable source and selection fields distinguish global shell/plugin actions from current presentation-bound invocation; selected plugin text is captured from the exact terminal revision. Rust and TypeScript check ID/source/context correlation, row span, shared byte bounds and nested receipt identity in addition to JSON shape checks. [The native model](../../apps/orchbee/docs/windows-custom-commands.md) owns execution, uncertain effects, process retention and cleanup.

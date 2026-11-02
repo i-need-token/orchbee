@@ -56,7 +56,7 @@ fn requests_use_registry_provider_ids_and_bounded_budgets() {
 #[test]
 fn reports_round_trip_lossless_node_paths_and_reject_open_vocabularies() {
     for report in [
-        IntegrationReport::HomeUnavailable,
+        IntegrationReport::HomeUnavailable {},
         listed(PathBuf::from("capsule")),
         listed(non_unicode_path()),
     ] {

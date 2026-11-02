@@ -47,6 +47,25 @@ fn result(
 }
 
 #[test]
+fn agent_integration_shared_corpus() {
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../schemas/workbench/v1/workbench-agent-integration-conformance-v1.json"
+    ))
+    .unwrap();
+    for (key, expected) in [("valid", true), ("invalid", false)] {
+        for case in corpus[key].as_array().unwrap() {
+            let bytes = serde_json::to_vec(&case["document"]).unwrap();
+            let actual = if case["direction"] == "request" {
+                parse_workbench_request(&bytes).is_ok()
+            } else {
+                parse_workbench_response(&bytes).is_ok()
+            };
+            assert_eq!(actual, expected, "{}", case["name"]);
+        }
+    }
+}
+
+#[test]
 fn agent_integration_uses_distinct_carriers_and_answers_only_its_job() {
     let list = start(IntegrationOperation::List { provider: None });
     assert!(!list.action.mutating());
@@ -86,7 +105,7 @@ fn agent_integration_uses_distinct_carriers_and_answers_only_its_job() {
     let poll = request(AgentIntegrationAction::Poll { job: job(3) });
     let completed = AgentIntegrationOutcome::Completed {
         job: job(3),
-        report: Box::new(IntegrationReport::HomeUnavailable),
+        report: Box::new(IntegrationReport::HomeUnavailable {}),
     };
     assert!(result(&poll, completed).answers(&poll));
     assert!(!result(&poll, AgentIntegrationOutcome::Pending { job: job(5) }).answers(&poll));

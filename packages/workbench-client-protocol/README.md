@@ -422,6 +422,17 @@ the [shared corpus](../../schemas/workbench/v1/workbench-current-directory-confo
 Rust binding. The read changes no state; the [Server](../../apps/orchbee-server/README.md#workspace-current-directory-reads)
 owns which directory answers.
 
+## Agent integration jobs
+
+`workbench-agent-integration-contract.ts` joins the main request/response unions with the job
+direction and binds the [Agent integration operation](../../schemas/agent-integration/README.md)
+it embeds: closed vocabularies, all three node path forms, the 4,096-byte text path, and the
+10 KiB request and 36 KiB result budgets. It consumes the
+[shared corpus](../../schemas/workbench/v1/workbench-agent-integration-conformance-v1.json) and
+[schema](../../schemas/workbench/v1/workbench-agent-integration.schema.json) with the independent
+Rust binding. It rebuilds no path and grants no mutation; the Worker's writer decides every
+operation.
+
 ## Plugin overlay contract
 
 The closed plugin union additionally validates exact read-only `pane-observe`/`pane-observed` membership and boolean settlement. Client `overlay` intent pins created and return member identities, expected binding, required nullable return binding and prior zoom. Self-return identities and Applied without zoom/multiple leaves fail semantic validation. The shared Rust/JSON Schema corpus covers these additive shapes; runtime ownership stays with the [Windows native Client and Server](../../apps/orchbee/docs/windows-plugins.md#overlay-lifecycle-model), with no Desktop placement or mutation permission. Use a matched native cohort.

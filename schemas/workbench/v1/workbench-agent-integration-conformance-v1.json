@@ -1,0 +1,1819 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "start-list-every-provider",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"request": {
+						"operation": {
+							"kind": "list"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "start-list-explicit-nulls",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"request": {
+						"operation": {
+							"kind": "list",
+							"provider": null
+						},
+						"adapterSource": null,
+						"budgetMilliseconds": null
+					}
+				}
+			}
+		},
+		{
+			"name": "start-explain-shortest-budget",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"request": {
+						"operation": {
+							"kind": "explain",
+							"provider": "github-copilot"
+						},
+						"budgetMilliseconds": 1
+					}
+				}
+			}
+		},
+		{
+			"name": "start-enable-with-adapter-source",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"request": {
+						"operation": {
+							"kind": "enable",
+							"provider": "pi"
+						},
+						"adapterSource": {
+							"text": "C:\\dev\\target\\agent-observation-adapters"
+						},
+						"budgetMilliseconds": 40000
+					}
+				}
+			}
+		},
+		{
+			"name": "start-disable-registry-spelling",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"request": {
+						"operation": {
+							"kind": "disable",
+							"provider": "antigravity"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "poll-full-width-generation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "poll",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "18446744073709551615",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					}
+				}
+			}
+		},
+		{
+			"name": "cancel",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "cancel",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					}
+				}
+			}
+		},
+		{
+			"name": "accepted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "accepted",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					}
+				}
+			}
+		},
+		{
+			"name": "pending",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "pending",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					}
+				}
+			}
+		},
+		{
+			"name": "completed-list",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "list",
+						"items": [
+							{
+								"availability": "available",
+								"integrationId": "pi",
+								"issue": null,
+								"managementMode": "managed-local",
+								"state": "disabled",
+								"timedOut": false
+							},
+							{
+								"availability": "available",
+								"integrationId": "cline",
+								"issue": "unsupported-platform",
+								"managementMode": "manual-only",
+								"state": "unknown",
+								"timedOut": false
+							},
+							{
+								"availability": "not-found",
+								"integrationId": "antigravity",
+								"managementMode": "managed-local",
+								"state": "not-installed",
+								"timedOut": false
+							},
+							{
+								"availability": "unknown",
+								"integrationId": "claude-code",
+								"issue": "inspection-failed",
+								"managementMode": "managed-local",
+								"state": "unknown",
+								"timedOut": true
+							}
+						],
+						"capsule": {
+							"ready": true,
+							"root": {
+								"text": "C:\\Users\\me\\.orchbee\\agent-observation-adapters\\a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+							},
+							"sourceKind": "cohort-sidecar",
+							"bindingFailure": false,
+							"payloadSha256": "a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "completed-explain-guarded",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "explain",
+						"item": {
+							"availability": "available",
+							"integrationId": "pi",
+							"issue": null,
+							"managementMode": "managed-local",
+							"state": "disabled",
+							"timedOut": false
+						},
+						"detail": {
+							"kind": "guarded",
+							"targetState": "missing",
+							"sourceReady": true,
+							"obsoleteTargetState": null
+						},
+						"capsule": {
+							"ready": true,
+							"root": {
+								"text": "C:\\Users\\me\\.orchbee\\agent-observation-adapters\\a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+							},
+							"sourceKind": "cohort-sidecar",
+							"bindingFailure": false,
+							"payloadSha256": "a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+						},
+						"plan": [
+							{
+								"kind": "capsule-publish",
+								"target": {
+									"text": "C:\\Users\\me\\.orchbee\\agent-observation-adapters\\a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+								}
+							},
+							{
+								"kind": "guarded-write",
+								"target": {
+									"text": "C:\\Users\\me\\.pi\\agent\\extensions\\orchbee-agent-observation.cjs"
+								}
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "completed-explain-cli-uninspected",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "explain",
+						"item": {
+							"availability": "unknown",
+							"integrationId": "claude-code",
+							"issue": "inspection-failed",
+							"managementMode": "managed-local",
+							"state": "unknown",
+							"timedOut": true
+						},
+						"detail": {
+							"kind": "cli"
+						},
+						"capsule": {
+							"ready": true,
+							"root": {
+								"text": "C:\\Users\\me\\.orchbee\\agent-observation-adapters\\a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+							},
+							"sourceKind": "cohort-sidecar",
+							"bindingFailure": false,
+							"payloadSha256": "a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+						},
+						"plan": [
+							{
+								"kind": "command",
+								"executable": "C:\\tools\\claude.exe",
+								"argv": ["plugin", "marketplace", "list"]
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "completed-explain-codex",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "explain",
+						"item": {
+							"availability": "available",
+							"integrationId": "codex",
+							"issue": null,
+							"managementMode": "managed-local",
+							"state": "update-required",
+							"timedOut": false
+						},
+						"detail": {
+							"kind": "codex",
+							"marketplace": "update-required",
+							"pluginPresent": true
+						},
+						"capsule": {
+							"ready": false,
+							"root": {
+								"text": "C:\\Users\\me\\.orchbee\\agent-observation-adapters\\a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+							},
+							"sourceKind": "absent",
+							"bindingFailure": false,
+							"payloadSha256": "a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+						},
+						"plan": []
+					}
+				}
+			}
+		},
+		{
+			"name": "completed-explain-plain-removal",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "explain",
+						"item": {
+							"availability": "available",
+							"integrationId": "qwen-code",
+							"issue": null,
+							"managementMode": "managed-local",
+							"state": "enabled",
+							"timedOut": false
+						},
+						"detail": {
+							"kind": "plain"
+						},
+						"capsule": {
+							"ready": true,
+							"root": {
+								"text": "C:\\Users\\me\\.orchbee\\agent-observation-adapters\\a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+							},
+							"sourceKind": "adapter-source-override",
+							"bindingFailure": true,
+							"payloadSha256": "a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+						},
+						"plan": [
+							{
+								"kind": "guarded-remove",
+								"target": {
+									"text": "C:\\Users\\me\\.qwen\\obsolete.js"
+								}
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "completed-mutation-enabled",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "enable",
+							"attempted": [
+								{
+									"step": {
+										"kind": "filesystem",
+										"operation": "publish-capsule",
+										"path": {
+											"text": "C:\\Users\\me\\.orchbee\\agent-observation-adapters\\a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+										}
+									},
+									"outcome": "completed"
+								},
+								{
+									"step": {
+										"kind": "filesystem",
+										"operation": "publish-entry",
+										"path": {
+											"text": "C:\\Users\\me\\.pi\\agent\\extensions\\orchbee-agent-observation.cjs"
+										}
+									},
+									"outcome": "completed"
+								}
+							],
+							"residuals": [],
+							"observed": {
+								"availability": "available",
+								"integrationId": "pi",
+								"issue": null,
+								"managementMode": "managed-local",
+								"state": "enabled",
+								"timedOut": false
+							},
+							"provenance": "post-effect",
+							"effectBegun": true,
+							"verdict": {
+								"kind": "completed"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "completed-mutation-refused-before-effect",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "claude-code",
+							"direction": "enable",
+							"attempted": [],
+							"residuals": [],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "refused",
+								"code": "agent-unavailable"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "completed-mutation-failed-with-residual",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "codex",
+							"direction": "disable",
+							"attempted": [
+								{
+									"step": {
+										"kind": "command",
+										"executable": "codex",
+										"argv": ["plugin", "remove", "orchbee"]
+									},
+									"outcome": "timed-out"
+								}
+							],
+							"residuals": [
+								{
+									"text": "C:\\Users\\me\\.codex\\config.toml.orchbee-backup"
+								}
+							],
+							"provenance": "partial",
+							"effectBegun": true,
+							"verdict": {
+								"kind": "failed",
+								"code": "timed-out"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "completed-mutation-unknown",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "disable",
+							"attempted": [],
+							"residuals": [],
+							"observed": null,
+							"provenance": "unavailable",
+							"effectBegun": true,
+							"verdict": {
+								"kind": "unknown"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "completed-mutation-cancelled",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "enable",
+							"attempted": [],
+							"residuals": [],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "cancelled"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "completed-mutation-above-default-budget",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "disable",
+							"attempted": [],
+							"residuals": [
+								{
+									"text": "C:\\0rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+								},
+								{
+									"text": "C:\\1rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+								},
+								{
+									"text": "C:\\2rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+								},
+								{
+									"text": "C:\\3rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+								},
+								{
+									"text": "C:\\4rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+								}
+							],
+							"observed": null,
+							"provenance": "partial",
+							"effectBegun": true,
+							"verdict": {
+								"kind": "failed",
+								"code": "operation-failed"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "completed-home-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "home-unavailable"
+					}
+				}
+			}
+		},
+		{
+			"name": "cancel-registered",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "cancel-registered",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					}
+				}
+			}
+		},
+		{
+			"name": "already-terminal",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "already-terminal",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					}
+				}
+			}
+		},
+		{
+			"name": "failed-worker-changed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "worker-changed"
+				}
+			}
+		},
+		{
+			"name": "failed-malformed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "malformed"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "request-extra-field",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"request": {
+						"operation": {
+							"kind": "list"
+						}
+					}
+				},
+				"deadline": 5
+			}
+		},
+		{
+			"name": "payload-provider-spelling",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"request": {
+						"operation": {
+							"kind": "enable",
+							"provider": "antigravity-cli"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "explain-without-provider",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"request": {
+						"operation": {
+							"kind": "explain"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "list-unknown-operation-field",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"request": {
+						"operation": {
+							"kind": "list",
+							"providers": ["pi"]
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "zero-budget",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"request": {
+						"operation": {
+							"kind": "list"
+						},
+						"budgetMilliseconds": 0
+					}
+				}
+			}
+		},
+		{
+			"name": "budget-above-ceiling",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"request": {
+						"operation": {
+							"kind": "list"
+						},
+						"budgetMilliseconds": 40001
+					}
+				}
+			}
+		},
+		{
+			"name": "fractional-budget",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"request": {
+						"operation": {
+							"kind": "list"
+						},
+						"budgetMilliseconds": 1.5
+					}
+				}
+			}
+		},
+		{
+			"name": "poll-zero-generation",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "poll",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "0",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					}
+				}
+			}
+		},
+		{
+			"name": "poll-uppercase-job",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "poll",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789ABCDEF0123456789ABCDEF"
+					}
+				}
+			}
+		},
+		{
+			"name": "poll-zero-worker",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "poll",
+					"job": {
+						"workerId": "00000000000000000000000000000000",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					}
+				}
+			}
+		},
+		{
+			"name": "start-carrying-job",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					}
+				}
+			}
+		},
+		{
+			"name": "cancel-without-job",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "cancel"
+				}
+			}
+		},
+		{
+			"name": "unknown-failure-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "timeout"
+				}
+			}
+		},
+		{
+			"name": "completed-without-report",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					}
+				}
+			}
+		},
+		{
+			"name": "pending-carrying-report",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "pending",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "home-unavailable"
+					}
+				}
+			}
+		},
+		{
+			"name": "snapshot-item-extra-field",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "list",
+						"items": [
+							{
+								"availability": "available",
+								"integrationId": "pi",
+								"issue": null,
+								"managementMode": "managed-local",
+								"state": "disabled",
+								"timedOut": false,
+								"label": "Pi"
+							}
+						],
+						"capsule": {
+							"ready": true,
+							"root": {
+								"text": "C:\\Users\\me\\.orchbee\\agent-observation-adapters\\a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+							},
+							"sourceKind": "cohort-sidecar",
+							"bindingFailure": false,
+							"payloadSha256": "a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "snapshot-item-unknown-state",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "list",
+						"items": [
+							{
+								"availability": "available",
+								"integrationId": "pi",
+								"issue": null,
+								"managementMode": "managed-local",
+								"state": "installed",
+								"timedOut": false
+							}
+						],
+						"capsule": {
+							"ready": true,
+							"root": {
+								"text": "C:\\Users\\me\\.orchbee\\agent-observation-adapters\\a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+							},
+							"sourceKind": "cohort-sidecar",
+							"bindingFailure": false,
+							"payloadSha256": "a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "capsule-unknown-source-kind",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "list",
+						"items": [],
+						"capsule": {
+							"ready": true,
+							"root": {
+								"text": "C:\\Users\\me\\.orchbee\\agent-observation-adapters\\a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+							},
+							"sourceKind": "download",
+							"bindingFailure": false,
+							"payloadSha256": "a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "capsule-without-digest",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "list",
+						"items": [],
+						"capsule": {
+							"ready": true,
+							"root": {
+								"text": "C:\\Users\\me\\.orchbee\\agent-observation-adapters\\a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+							},
+							"sourceKind": "cohort-sidecar",
+							"bindingFailure": false
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "filesystem-step-unknown-operation",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "enable",
+							"attempted": [
+								{
+									"step": {
+										"kind": "filesystem",
+										"operation": "chmod",
+										"path": {
+											"text": "C:\\Users\\me\\.pi\\agent\\extensions\\orchbee-agent-observation.cjs"
+										}
+									},
+									"outcome": "completed"
+								}
+							],
+							"residuals": [],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "completed"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "step-unknown-outcome",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "enable",
+							"attempted": [
+								{
+									"step": {
+										"kind": "command",
+										"executable": "pi",
+										"argv": []
+									},
+									"outcome": "skipped"
+								}
+							],
+							"residuals": [],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "completed"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "refused-with-failure-code",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "enable",
+							"attempted": [],
+							"residuals": [],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "refused",
+								"code": "operation-failed"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "verdict-extra-field",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "enable",
+							"attempted": [],
+							"residuals": [],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "failed",
+								"code": "leaked",
+								"detail": "pid 1"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "completed-verdict-with-code",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "enable",
+							"attempted": [],
+							"residuals": [],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "completed",
+								"code": "conflict"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "completed-verdict-extra-field",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "enable",
+							"attempted": [],
+							"residuals": [],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "completed",
+								"observed": true
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "plain-detail-extra-field",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "explain",
+						"item": {
+							"availability": "available",
+							"integrationId": "pi",
+							"issue": null,
+							"managementMode": "managed-local",
+							"state": "disabled",
+							"timedOut": false
+						},
+						"detail": {
+							"kind": "plain",
+							"marketplace": null
+						},
+						"capsule": {
+							"ready": true,
+							"root": {
+								"text": "C:\\Users\\me\\.orchbee\\agent-observation-adapters\\a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+							},
+							"sourceKind": "cohort-sidecar",
+							"bindingFailure": false,
+							"payloadSha256": "a3f1c0de5b2e4d6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7"
+						},
+						"plan": []
+					}
+				}
+			}
+		},
+		{
+			"name": "path-with-nul",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "enable",
+							"attempted": [],
+							"residuals": [
+								{
+									"text": "C:\\a\u0000b"
+								}
+							],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "completed"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "path-in-two-forms",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "enable",
+							"attempted": [],
+							"residuals": [
+								{
+									"text": "C:\\a",
+									"windowsUtf16": [67]
+								}
+							],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "completed"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "empty-windows-path",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "enable",
+							"attempted": [],
+							"residuals": [
+								{
+									"windowsUtf16": []
+								}
+							],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "completed"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "nul-unix-path",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "enable",
+							"attempted": [],
+							"residuals": [
+								{
+									"unixBytesHex": "2f00"
+								}
+							],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "completed"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "odd-unix-path",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "enable",
+							"attempted": [],
+							"residuals": [
+								{
+									"unixBytesHex": "2f7"
+								}
+							],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "completed"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "unknown-report-kind",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "snapshot"
+					}
+				}
+			}
+		},
+		{
+			"name": "home-unavailable-extra-field",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "home-unavailable",
+						"home": null
+					}
+				}
+			}
+		},
+		{
+			"name": "mutation-unknown-direction",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "toggle",
+							"attempted": [],
+							"residuals": [],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "completed"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "adapter-source-over-path-bytes",
+			"direction": "request",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.agent-integration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"request": {
+						"operation": {
+							"kind": "enable",
+							"provider": "pi"
+						},
+						"adapterSource": {
+							"text": "C:\\ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "residual-over-path-bytes",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.agent-integration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "completed",
+					"job": {
+						"workerId": "00000000000000000000000000000004",
+						"generation": "1",
+						"jobId": "0123456789abcdef0123456789abcdef"
+					},
+					"report": {
+						"kind": "mutation",
+						"report": {
+							"integrationId": "pi",
+							"direction": "enable",
+							"attempted": [],
+							"residuals": [
+								{
+									"text": "C:\\ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+								}
+							],
+							"observed": null,
+							"provenance": "pre-effect",
+							"effectBegun": false,
+							"verdict": {
+								"kind": "completed"
+							}
+						}
+					}
+				}
+			}
+		}
+	]
+}

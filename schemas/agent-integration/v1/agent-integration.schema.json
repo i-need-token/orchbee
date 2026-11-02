@@ -1,0 +1,518 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "urn:orchbee:schema:agent-integration:v1",
+	"title": "Agent integration operation contract",
+	"$comment": "Bindings additionally enforce each carrier's encoded budget, a 4096-byte UTF-8 text path, and rebuild a non-text path only on the platform family that produced it. A nullable field may be omitted, which means null.",
+	"$defs": {
+		"provider": {
+			"enum": [
+				"claude-code",
+				"codex",
+				"grok",
+				"opencode",
+				"kilo",
+				"cursor",
+				"qodercli",
+				"antigravity",
+				"mastracode",
+				"droid",
+				"kimi",
+				"letta",
+				"devin",
+				"hermes",
+				"pi",
+				"omp",
+				"gemini",
+				"github-copilot",
+				"cline",
+				"qwen-code"
+			]
+		},
+		"nodePath": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["text"],
+					"properties": {
+						"text": {
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["unixBytesHex"],
+					"properties": {
+						"unixBytesHex": {
+							"type": "string",
+							"maxLength": 8192,
+							"pattern": "^(?:(?!00)[0-9A-Fa-f]{2})+$"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["windowsUtf16"],
+					"properties": {
+						"windowsUtf16": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 4096,
+							"items": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 65535
+							}
+						}
+					}
+				}
+			]
+		},
+		"operation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "list"
+						},
+						"provider": {
+							"oneOf": [{ "$ref": "#/$defs/provider" }, { "type": "null" }]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "provider"],
+					"properties": {
+						"kind": {
+							"enum": ["explain", "enable", "disable"]
+						},
+						"provider": {
+							"$ref": "#/$defs/provider"
+						}
+					}
+				}
+			]
+		},
+		"request": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["operation"],
+			"properties": {
+				"operation": {
+					"$ref": "#/$defs/operation"
+				},
+				"adapterSource": {
+					"oneOf": [{ "$ref": "#/$defs/nodePath" }, { "type": "null" }]
+				},
+				"budgetMilliseconds": {
+					"oneOf": [{ "type": "integer", "minimum": 1, "maximum": 40000 }, { "type": "null" }]
+				}
+			}
+		},
+		"state": {
+			"enum": ["conflict", "disabled", "enabled", "not-installed", "update-required", "unknown"]
+		},
+		"snapshotItem": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["availability", "integrationId", "managementMode", "state", "timedOut"],
+			"properties": {
+				"availability": {
+					"enum": ["available", "not-found", "unknown"]
+				},
+				"integrationId": {
+					"$ref": "#/$defs/provider"
+				},
+				"issue": {
+					"enum": [
+						"inspection-failed",
+						"manual-action-required",
+						"unsupported-platform",
+						"unsupported-version",
+						null
+					]
+				},
+				"managementMode": {
+					"enum": ["managed-local", "manual-only"]
+				},
+				"state": {
+					"$ref": "#/$defs/state"
+				},
+				"timedOut": {
+					"type": "boolean"
+				}
+			}
+		},
+		"capsuleStatus": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["ready", "root", "sourceKind", "bindingFailure", "payloadSha256"],
+			"properties": {
+				"ready": {
+					"type": "boolean"
+				},
+				"root": {
+					"$ref": "#/$defs/nodePath"
+				},
+				"sourceKind": {
+					"enum": ["cohort-sidecar", "adapter-source-override", "absent"]
+				},
+				"bindingFailure": {
+					"type": "boolean"
+				},
+				"payloadSha256": {
+					"type": "string"
+				}
+			}
+		},
+		"marketplace": {
+			"enum": ["absent", "current", "update-required"]
+		},
+		"targetState": {
+			"enum": ["conflict", "current", "missing", "unknown", "update-required"]
+		},
+		"inspectionDetail": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "cli"
+						},
+						"marketplace": {
+							"oneOf": [{ "$ref": "#/$defs/marketplace" }, { "type": "null" }]
+						},
+						"pluginPresent": {
+							"type": ["boolean", "null"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "marketplace", "pluginPresent"],
+					"properties": {
+						"kind": {
+							"const": "codex"
+						},
+						"marketplace": {
+							"$ref": "#/$defs/marketplace"
+						},
+						"pluginPresent": {
+							"type": "boolean"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "targetState", "sourceReady"],
+					"properties": {
+						"kind": {
+							"const": "guarded"
+						},
+						"targetState": {
+							"$ref": "#/$defs/targetState"
+						},
+						"sourceReady": {
+							"type": "boolean"
+						},
+						"obsoleteTargetState": {
+							"oneOf": [{ "$ref": "#/$defs/targetState" }, { "type": "null" }]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "plain"
+						}
+					}
+				}
+			]
+		},
+		"command": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "executable", "argv"],
+			"properties": {
+				"kind": {
+					"const": "command"
+				},
+				"executable": {
+					"type": "string"
+				},
+				"argv": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"plannedStep": {
+			"oneOf": [
+				{
+					"$ref": "#/$defs/command"
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "target"],
+					"properties": {
+						"kind": {
+							"enum": ["capsule-publish", "guarded-write", "guarded-remove"]
+						},
+						"target": {
+							"$ref": "#/$defs/nodePath"
+						}
+					}
+				}
+			]
+		},
+		"attemptedStep": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["step", "outcome"],
+			"properties": {
+				"step": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/command"
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "operation", "path"],
+							"properties": {
+								"kind": {
+									"const": "filesystem"
+								},
+								"operation": {
+									"enum": [
+										"publish-capsule",
+										"digest-verify",
+										"move-aside",
+										"publish-entry",
+										"restore-backup",
+										"remove-backup",
+										"remove-entry",
+										"prepare-codex-home",
+										"stage-configuration",
+										"move-configuration-aside",
+										"preserve-configuration-metadata",
+										"publish-configuration",
+										"verify-configuration",
+										"remove-configuration-backup",
+										"restore-configuration-backup"
+									]
+								},
+								"path": {
+									"$ref": "#/$defs/nodePath"
+								}
+							}
+						}
+					]
+				},
+				"outcome": {
+					"enum": [
+						"completed",
+						"conflict",
+						"failed",
+						"deadline",
+						"timed-out",
+						"leaked",
+						"output-too-large",
+						"cancelled"
+					]
+				}
+			}
+		},
+		"verdict": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"enum": ["completed", "unknown", "cancelled"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "code"],
+					"properties": {
+						"kind": {
+							"const": "refused"
+						},
+						"code": {
+							"enum": [
+								"agent-unavailable",
+								"conflict",
+								"manual-action-required",
+								"inspection-failed",
+								"capsule-unavailable",
+								"timed-out"
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "code"],
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"code": {
+							"enum": [
+								"conflict",
+								"manual-action-required",
+								"operation-failed",
+								"verification-failed",
+								"timed-out",
+								"output-too-large",
+								"leaked"
+							]
+						}
+					}
+				}
+			]
+		},
+		"mutationReport": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"integrationId",
+				"direction",
+				"attempted",
+				"residuals",
+				"provenance",
+				"effectBegun",
+				"verdict"
+			],
+			"properties": {
+				"integrationId": {
+					"$ref": "#/$defs/provider"
+				},
+				"direction": {
+					"enum": ["enable", "disable"]
+				},
+				"attempted": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/attemptedStep"
+					}
+				},
+				"residuals": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/nodePath"
+					}
+				},
+				"observed": {
+					"oneOf": [{ "$ref": "#/$defs/snapshotItem" }, { "type": "null" }]
+				},
+				"provenance": {
+					"enum": ["pre-effect", "post-effect", "partial", "unavailable"]
+				},
+				"effectBegun": {
+					"type": "boolean"
+				},
+				"verdict": {
+					"$ref": "#/$defs/verdict"
+				}
+			}
+		},
+		"report": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "items", "capsule"],
+					"properties": {
+						"kind": {
+							"const": "list"
+						},
+						"items": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/snapshotItem"
+							}
+						},
+						"capsule": {
+							"$ref": "#/$defs/capsuleStatus"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "item", "detail", "capsule", "plan"],
+					"properties": {
+						"kind": {
+							"const": "explain"
+						},
+						"item": {
+							"$ref": "#/$defs/snapshotItem"
+						},
+						"detail": {
+							"$ref": "#/$defs/inspectionDetail"
+						},
+						"capsule": {
+							"$ref": "#/$defs/capsuleStatus"
+						},
+						"plan": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/plannedStep"
+							}
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "report"],
+					"properties": {
+						"kind": {
+							"const": "mutation"
+						},
+						"report": {
+							"$ref": "#/$defs/mutationReport"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "home-unavailable"
+						}
+					}
+				}
+			]
+		}
+	}
+}
