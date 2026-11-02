@@ -32,7 +32,18 @@ export const DesktopServerConnectionReplySchema = z.strictObject({
 	document: DesktopServerConnectionDocumentSchema,
 });
 
-/** Announces the one transferred port that carries this document's Client connection bytes. */
+/**
+ * What the ports transferred with a reply carry, in this order: the document's Client connection
+ * bytes, and the native folder picker a new Project starts from, which only Main can open.
+ */
+export const DESKTOP_SERVER_CONNECTION_PORT_ROLES = [
+	'server-connection',
+	'project-folder-acquisition',
+] as const;
+
+export type DesktopServerConnectionPortRole = (typeof DESKTOP_SERVER_CONNECTION_PORT_ROLES)[number];
+
+/** Announces this document's ports, transferred in `DESKTOP_SERVER_CONNECTION_PORT_ROLES` order. */
 export const DesktopServerConnectionWindowMessageSchema = z.strictObject({
 	bootstrap: DesktopServerConnectionBootstrapSchema,
 	security: z.strictObject({

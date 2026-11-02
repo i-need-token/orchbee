@@ -3,13 +3,19 @@
  * this document reads and writes. It replaces the Main-owned renderer once that path is removed.
  */
 import {
+	DESKTOP_SERVER_CONNECTION_PORT_ROLES,
 	DESKTOP_SERVER_CONNECTION_WINDOW_REQUEST,
 	DesktopServerConnectionWindowMessageSchema,
 	type DesktopServerConnectionBootstrap,
+	type DesktopServerConnectionPortRole,
 } from '@orchbee/desktop-client-protocol';
 import { createOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import { normalizePermittedExternalTerminalUrl } from '@orchbee/terminal';
-import type { WorkbenchShortcutPlatform } from '@orchbee/workbench';
+import {
+	matchesWorkbenchProjectCreation,
+	type WorkbenchShortcutPlatform,
+} from '@orchbee/workbench';
+import { workbenchSharedDocumentRevision } from '@orchbee/workbench-client-protocol';
 import { createMemoryHistory } from '@tanstack/react-router';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -42,6 +48,7 @@ import {
 	type ServerWorkbenchRuntime,
 } from '../../workbench-client';
 import { DesktopWorkbench } from '../desktop-workbench';
+import { DesktopProjectFolderAcquisitionClient } from '../project-folder-acquisition';
 import { MessagePortServerCarrier } from './MessagePortServerCarrier';
 
 interface DesktopServerWorkbenchStorage {
@@ -49,17 +56,33 @@ interface DesktopServerWorkbenchStorage {
 	readonly preferences: Pick<Storage, 'getItem' | 'setItem'>;
 }
 
-function receiveConnection(
-	targetWindow: Window,
-): Promise<{ readonly bootstrap: DesktopServerConnectionBootstrap; readonly port: MessagePort }> {
+interface DesktopServerConnectionAnnouncement {
+	readonly bootstrap: DesktopServerConnectionBootstrap;
+	readonly connectionPort: MessagePort;
+	readonly projectFolderPort: MessagePort;
+}
+
+function receiveConnection(targetWindow: Window): Promise<DesktopServerConnectionAnnouncement> {
 	return new Promise((resolve, reject) => {
 		const handleMessage = (event: MessageEvent<unknown>): void => {
-			const port = event.ports[0];
-			if (event.source !== targetWindow || port === undefined) return;
+			if (event.source !== targetWindow || event.ports.length === 0) return;
 			targetWindow.removeEventListener('message', handleMessage);
+			const portFor = (role: DesktopServerConnectionPortRole): MessagePort | undefined =>
+				event.ports[DESKTOP_SERVER_CONNECTION_PORT_ROLES.indexOf(role)];
+			const connectionPort = portFor('server-connection');
+			const projectFolderPort = portFor('project-folder-acquisition');
 			const message = DesktopServerConnectionWindowMessageSchema.safeParse(event.data);
-			if (message.success) resolve({ bootstrap: message.data.bootstrap, port });
-			else reject(new Error('The Server connection announcement is invalid.'));
+			if (
+				message.success &&
+				event.ports.length === DESKTOP_SERVER_CONNECTION_PORT_ROLES.length &&
+				connectionPort !== undefined &&
+				projectFolderPort !== undefined
+			) {
+				resolve({ bootstrap: message.data.bootstrap, connectionPort, projectFolderPort });
+				return;
+			}
+			for (const port of event.ports) port.close();
+			reject(new Error('The Server connection announcement is invalid.'));
 		};
 		targetWindow.addEventListener('message', handleMessage);
 		targetWindow.postMessage(
@@ -105,8 +128,8 @@ async function run(
 	shortcutPlatform: WorkbenchShortcutPlatform,
 	storage: DesktopServerWorkbenchStorage,
 ): Promise<void> {
-	const { bootstrap, port } = await receiveConnection(targetWindow);
-	const connection = new ServerConnection(new MessagePortServerCarrier(port));
+	const { bootstrap, connectionPort, projectFolderPort } = await receiveConnection(targetWindow);
+	const connection = new ServerConnection(new MessagePortServerCarrier(connectionPort));
 	targetWindow.addEventListener('unload', () => connection.close(), { once: true });
 	const session = await ServerWorkbenchSession.open(connection);
 	const stopSession = (reason: string): void => {
@@ -163,6 +186,20 @@ async function run(
 	let reactRoot: Root | undefined;
 	let routing: WebApplicationRouting | undefined;
 	let runtime: ServerWorkbenchRuntime | undefined;
+	const projectFolderAcquisition = new DesktopProjectFolderAcquisitionClient(
+		projectFolderPort,
+		undefined,
+		// The Server settles a creation only once its publication carries it, so a Project this
+		// document shows is already every Client's.
+		(receipt) =>
+			Promise.resolve(
+				runtime !== undefined &&
+					matchesWorkbenchProjectCreation(
+						runtime.projectWorkspaceRuntime.getSharedDocument(workbenchSharedDocumentRevision('0')),
+						receipt,
+					),
+			),
+	);
 	targetWindow.addEventListener(
 		'unload',
 		() => {
@@ -171,6 +208,7 @@ async function run(
 					() => reactRoot?.unmount(),
 					() => routing?.dispose(),
 					() => runtime?.dispose(),
+					() => projectFolderAcquisition.dispose(),
 					() => keyboardShortcutSettingsController.dispose(),
 					() => terminalSettingsController.dispose(),
 					() => terminalInteractionSettingsController.dispose(),
@@ -225,6 +263,7 @@ async function run(
 			keyboardShortcutSettingsController,
 			layoutStorage: storage.preferences,
 			macosTerminalInputSettingsController,
+			projectFolderAcquisition,
 			projectWorkspaceRuntime: runtime.projectWorkspaceRuntime,
 			shortcutPlatform,
 			standaloneTerminalAvailable: false,

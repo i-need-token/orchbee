@@ -30,7 +30,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.newFolder.creating': 'Creating folder…',
 	'workbench.projects.newFolder.opening': 'Opening Project…',
 	'workbench.projects.newFolder.retained':
-		'The folder was created and has been kept. Project opening was not confirmed. Use Select Folder to open the existing folder.',
+		'The folder was created and has been kept. Project opening was not confirmed. If the Project is not in the sidebar, use Select Folder to open the existing folder.',
 	'workbench.projects.newFolder.unknown':
 		'The creation result could not be confirmed. The folder may exist. Use Select Folder to check and open it; do not repeat creation.',
 	'workbench.projects.folderAcquisition.failure.alreadyExists':

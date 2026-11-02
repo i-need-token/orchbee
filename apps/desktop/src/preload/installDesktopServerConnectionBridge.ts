@@ -1,5 +1,6 @@
 import {
 	DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
+	DESKTOP_SERVER_CONNECTION_PORT_ROLES,
 	DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL,
 	DESKTOP_SERVER_CONNECTION_WINDOW_MESSAGE,
 	DesktopServerConnectionReplySchema,
@@ -20,8 +21,8 @@ export interface DesktopServerConnectionWindow {
 }
 
 /**
- * Carries the page's request to Main and Main's connection port back; each document asks once and
- * receives exactly one.
+ * Carries the page's request to Main and Main's ports back; each document asks once and receives
+ * exactly one set, one port for each role in order.
  */
 export function installDesktopServerConnectionBridge(
 	ipc: DesktopServerConnectionIpc,
@@ -39,7 +40,6 @@ export function installDesktopServerConnectionBridge(
 		ipc.send(DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL, awaitedDocument);
 	});
 	ipc.on(DESKTOP_SERVER_CONNECTION_IPC_CHANNEL, (event, value) => {
-		const port = event.ports[0];
 		const reply = DesktopServerConnectionReplySchema.safeParse(value);
 		const message = DesktopServerConnectionWindowMessageSchema.safeParse({
 			bootstrap: reply.data?.bootstrap,
@@ -47,8 +47,7 @@ export function installDesktopServerConnectionBridge(
 			type: DESKTOP_SERVER_CONNECTION_WINDOW_MESSAGE,
 		});
 		if (
-			port === undefined ||
-			event.ports.length !== 1 ||
+			event.ports.length !== DESKTOP_SERVER_CONNECTION_PORT_ROLES.length ||
 			!message.success ||
 			reply.data?.document !== awaitedDocument
 		) {
@@ -59,7 +58,7 @@ export function installDesktopServerConnectionBridge(
 		targetWindow.postMessage(
 			message.data,
 			targetWindow.location.origin === 'null' ? '*' : targetWindow.location.origin,
-			[port],
+			[...event.ports],
 		);
 	});
 }

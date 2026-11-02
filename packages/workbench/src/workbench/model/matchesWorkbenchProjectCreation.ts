@@ -44,6 +44,8 @@ function containsPresentation(
 	return [node.primaryPresentation, ...node.childPresentations].some(
 		(presentation) =>
 			presentation.presentationId === receipt.presentationId &&
-			presentation.launchCwd === receipt.path,
+			// A Server Client's document records no launch directory, since the Server publishes none; the
+			// Server's Workspace launch started this presentation in the receipt's Directory.
+			(presentation.launchCwd === null || presentation.launchCwd === receipt.path),
 	);
 }

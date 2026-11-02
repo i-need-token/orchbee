@@ -28,7 +28,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.projects.newFolder.creating': '正在创建文件夹…',
 	'workbench.projects.newFolder.opening': '正在打开项目…',
 	'workbench.projects.newFolder.retained':
-		'文件夹已创建并保留，但尚未确认项目打开成功。请通过“选择文件夹”打开该现有文件夹。',
+		'文件夹已创建并保留，但尚未确认项目打开成功。如果侧边栏中没有该项目，请通过“选择文件夹”打开该现有文件夹。',
 	'workbench.projects.newFolder.unknown':
 		'无法确认创建结果，文件夹可能已存在。请通过“选择文件夹”检查并打开，请勿重复创建。',
 	'workbench.projects.folderAcquisition.failure.alreadyExists':

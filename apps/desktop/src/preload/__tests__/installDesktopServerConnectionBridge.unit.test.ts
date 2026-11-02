@@ -22,6 +22,11 @@ const ISOLATED = { contextIsolated: true, sandboxed: true };
 const DOCUMENT = '00000000-0000-4000-8000-000000000001';
 const OTHER_DOCUMENT = '00000000-0000-4000-8000-000000000002';
 
+/** The connection port and the Project folder picker port Main sends with a reply. */
+function documentPorts(count = 2): MessagePort[] {
+	return Array.from({ length: count }, () => new MessageChannel().port1);
+}
+
 function install(security: { readonly contextIsolated: boolean; readonly sandboxed: boolean }) {
 	let receiveReply: ((event: IpcRendererEvent, reply: unknown) => void) | undefined;
 	let receiveWindow: ((event: MessageEvent<unknown>) => void) | undefined;
@@ -54,6 +59,10 @@ function install(security: { readonly contextIsolated: boolean; readonly sandbox
 	return { ipc, mainAnswers, pageAsks, targetWindow };
 }
 
+function closeAll(ports: readonly MessagePort[]): void {
+	for (const port of ports) port.close();
+}
+
 describe('installDesktopServerConnectionBridge', () => {
 	it('asks Main once for the page, however often the page asks', () => {
 		const { ipc, pageAsks } = install(ISOLATED);
@@ -67,79 +76,79 @@ describe('installDesktopServerConnectionBridge', () => {
 		]);
 	});
 
-	it('hands the page its one connection port only from an isolated sandbox', () => {
+	it('hands the page its ports, in Main order, only from an isolated sandbox', () => {
 		const { mainAnswers, pageAsks, targetWindow } = install(ISOLATED);
 		pageAsks();
-		const { port1 } = new MessageChannel();
-		mainAnswers([port1], { bootstrap: BOOTSTRAP, document: DOCUMENT });
+		const ports = documentPorts();
+		mainAnswers(ports, { bootstrap: BOOTSTRAP, document: DOCUMENT });
 		expect(targetWindow.postMessage).toHaveBeenCalledWith(
 			expect.objectContaining({ bootstrap: BOOTSTRAP, security: ISOLATED }),
 			'orchbee://app',
-			[port1],
+			ports,
 		);
-		port1.close();
+		closeAll(ports);
 	});
 
 	it('closes what Main meant for the document this one replaced', () => {
 		const { mainAnswers, pageAsks, targetWindow } = install(ISOLATED);
-		const early = new MessageChannel().port1;
-		const closeEarly = vi.spyOn(early, 'close');
-		mainAnswers([early], { bootstrap: BOOTSTRAP, document: OTHER_DOCUMENT });
-		expect(closeEarly).toHaveBeenCalledOnce();
+		const early = documentPorts();
+		const closeEarly = early.map((port) => vi.spyOn(port, 'close'));
+		mainAnswers(early, { bootstrap: BOOTSTRAP, document: OTHER_DOCUMENT });
+		for (const close of closeEarly) expect(close).toHaveBeenCalledOnce();
 
 		pageAsks();
-		const replaced = new MessageChannel().port1;
-		const closeReplaced = vi.spyOn(replaced, 'close');
-		mainAnswers([replaced], { bootstrap: BOOTSTRAP, document: OTHER_DOCUMENT });
-		expect(closeReplaced).toHaveBeenCalledOnce();
+		const replaced = documentPorts();
+		const closeReplaced = replaced.map((port) => vi.spyOn(port, 'close'));
+		mainAnswers(replaced, { bootstrap: BOOTSTRAP, document: OTHER_DOCUMENT });
+		for (const close of closeReplaced) expect(close).toHaveBeenCalledOnce();
 		expect(targetWindow.postMessage).not.toHaveBeenCalled();
 
-		const own = new MessageChannel().port1;
-		mainAnswers([own], { bootstrap: BOOTSTRAP, document: DOCUMENT });
+		const own = documentPorts();
+		mainAnswers(own, { bootstrap: BOOTSTRAP, document: DOCUMENT });
 		expect(targetWindow.postMessage).toHaveBeenCalledOnce();
-		own.close();
+		closeAll(own);
 	});
 
-	it('hands over only one port for a document', () => {
+	it('hands over one set of ports for a document', () => {
 		const { mainAnswers, pageAsks, targetWindow } = install(ISOLATED);
 		pageAsks();
-		const first = new MessageChannel().port1;
-		mainAnswers([first], { bootstrap: BOOTSTRAP, document: DOCUMENT });
-		const second = new MessageChannel().port1;
-		const closeSecond = vi.spyOn(second, 'close');
-		mainAnswers([second], { bootstrap: BOOTSTRAP, document: DOCUMENT });
+		const first = documentPorts();
+		mainAnswers(first, { bootstrap: BOOTSTRAP, document: DOCUMENT });
+		const second = documentPorts();
+		const closeSecond = second.map((port) => vi.spyOn(port, 'close'));
+		mainAnswers(second, { bootstrap: BOOTSTRAP, document: DOCUMENT });
 		expect(targetWindow.postMessage).toHaveBeenCalledOnce();
-		expect(closeSecond).toHaveBeenCalledOnce();
-		first.close();
+		for (const close of closeSecond) expect(close).toHaveBeenCalledOnce();
+		closeAll(first);
 	});
 
 	it.each([
 		{ contextIsolated: false, sandboxed: true },
 		{ contextIsolated: true, sandboxed: false },
-	])('withholds and closes the port without the required isolation: %o', (security) => {
+	])('withholds and closes the ports without the required isolation: %o', (security) => {
 		const { mainAnswers, pageAsks, targetWindow } = install(security);
 		pageAsks();
-		const { port1 } = new MessageChannel();
-		const close = vi.spyOn(port1, 'close');
-		mainAnswers([port1], { bootstrap: BOOTSTRAP, document: DOCUMENT });
+		const ports = documentPorts();
+		const closes = ports.map((port) => vi.spyOn(port, 'close'));
+		mainAnswers(ports, { bootstrap: BOOTSTRAP, document: DOCUMENT });
 		expect(targetWindow.postMessage).not.toHaveBeenCalled();
-		expect(close).toHaveBeenCalledOnce();
+		for (const close of closes) expect(close).toHaveBeenCalledOnce();
 	});
 
-	it('withholds and closes the port when Main sends an unreadable reply', () => {
+	it('withholds and closes the ports when Main sends an unreadable reply', () => {
 		const { mainAnswers, pageAsks, targetWindow } = install(ISOLATED);
 		pageAsks();
-		const { port1 } = new MessageChannel();
-		const close = vi.spyOn(port1, 'close');
-		mainAnswers([port1], null);
+		const ports = documentPorts();
+		const closes = ports.map((port) => vi.spyOn(port, 'close'));
+		mainAnswers(ports, null);
 		expect(targetWindow.postMessage).not.toHaveBeenCalled();
-		expect(close).toHaveBeenCalledOnce();
+		for (const close of closes) expect(close).toHaveBeenCalledOnce();
 	});
 
-	it('closes every port when Main sends anything but exactly one', () => {
+	it.each([1, 3])('closes every port when Main sends %i instead of one per role', (count) => {
 		const { mainAnswers, pageAsks, targetWindow } = install(ISOLATED);
 		pageAsks();
-		const ports = [new MessageChannel().port1, new MessageChannel().port1];
+		const ports = documentPorts(count);
 		const closes = ports.map((port) => vi.spyOn(port, 'close'));
 		mainAnswers(ports, { bootstrap: BOOTSTRAP, document: DOCUMENT });
 		expect(targetWindow.postMessage).not.toHaveBeenCalled();

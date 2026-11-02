@@ -3,13 +3,26 @@ import { hostname } from 'node:os';
 
 import {
 	DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
+	DESKTOP_SERVER_CONNECTION_PORT_ROLES,
 	DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL,
 	DesktopServerConnectionDocumentSchema,
+	type DesktopServerConnectionPortRole,
 	type DesktopServerConnectionReply,
 } from '@orchbee/desktop-client-protocol';
-import { BrowserWindow, MessageChannelMain, app, screen, shell } from 'electron';
+import {
+	BrowserWindow,
+	MessageChannelMain,
+	app,
+	screen,
+	shell,
+	type MessagePortMain,
+} from 'electron';
 
 import { isSameDesktopRendererOrigin } from '../desktop-renderer-protocol';
+import {
+	DesktopProjectFolderAcquisitionBroker,
+	DesktopProjectFolderAcquisitionRuntime,
+} from '../project-folder-acquisition';
 import { ServerConnectionRelay, readServerRestoreState } from '../server-connection';
 import type { DesktopWindowStateAttachment, DesktopWindowStateOwner } from '../window-state';
 
@@ -44,6 +57,12 @@ function openExternalLink(address: string): void {
 	shell.openExternal(url.href).catch(() => undefined);
 }
 
+/** What Main holds for one document: its Client connection and the folder picker it may open. */
+interface DocumentConnection {
+	readonly folderAcquisition: DesktopProjectFolderAcquisitionBroker;
+	readonly relay: ServerConnectionRelay;
+}
+
 /** Electron rejects a load that another navigation of the same window replaced with `ERR_ABORTED`. */
 function isSupersededLoad(error: unknown): boolean {
 	return error instanceof Error && 'code' in error && error.code === 'ERR_ABORTED';
@@ -51,8 +70,9 @@ function isSupersededLoad(error: unknown): boolean {
 
 /**
  * Desktop as a Server Client: one window, whose every document holds one Client connection through
- * an `orchbee server connect` relay. Main keeps what belongs to this computer, the window and its
- * place on screen; closing it ends only this Client, and the Session's terminals keep running.
+ * an `orchbee server connect` relay. Main keeps what belongs to this computer: the window, its place
+ * on screen, and the native folder picker a new Project starts from. Closing the window ends only
+ * this Client, and the Session's terminals keep running.
  */
 export class DesktopServerClientApplication {
 	readonly #options: DesktopServerClientApplicationOptions;
@@ -182,18 +202,20 @@ export class DesktopServerClientApplication {
 	}
 
 	/**
-	 * A document asks once it is listening, and its asking ends the connection of the one it replaced.
-	 * Returns what ends the current document's connection.
+	 * A document asks once it is listening, and its asking ends what the one it replaced held.
+	 * Returns what ends the current document's connection and folder picker.
 	 */
 	#serveDocuments(window: BrowserWindow): () => void {
 		const options = this.#options;
-		let relay: ServerConnectionRelay | undefined;
+		let current: DocumentConnection | undefined;
 		let requests = 0;
 		let everConnected = false;
 		const end = (): void => {
 			requests += 1;
-			relay?.close();
-			relay = undefined;
+			current?.relay.close();
+			// A folder made for a Project the document never confirmed is reported to the person here.
+			current?.folderAcquisition.dispose();
+			current = undefined;
 		};
 		window.webContents.ipc.on(DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL, (_event, value) => {
 			const document = DesktopServerConnectionDocumentSchema.safeParse(value);
@@ -206,7 +228,7 @@ export class DesktopServerClientApplication {
 				options.clientEnvironment,
 			).then((restore) => {
 				if (request !== requests || window.isDestroyed()) return;
-				relay = this.#connect(window, {
+				current = this.#connect(window, {
 					bootstrap: {
 						// A later document follows a person's own actions; an empty Session may be what they chose.
 						automaticWorkspaceAllowed: !everConnected && restore === 'intact',
@@ -222,16 +244,30 @@ export class DesktopServerClientApplication {
 		return end;
 	}
 
-	#connect(window: BrowserWindow, reply: DesktopServerConnectionReply): ServerConnectionRelay {
+	#connect(window: BrowserWindow, reply: DesktopServerConnectionReply): DocumentConnection {
 		const options = this.#options;
 		const relayProcess = spawn(
 			options.clientExecutable,
 			[...options.sessionArguments, 'server', 'connect'],
 			{ env: options.clientEnvironment, stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true },
 		);
-		const { port1, port2 } = new MessageChannelMain();
-		const relay = new ServerConnectionRelay(relayProcess, port1);
-		window.webContents.postMessage(DESKTOP_SERVER_CONNECTION_IPC_CHANNEL, reply, [port2]);
-		return relay;
+		const connection = new MessageChannelMain();
+		const folders = new MessageChannelMain();
+		const relay = new ServerConnectionRelay(relayProcess, connection.port1);
+		const folderAcquisition = new DesktopProjectFolderAcquisitionBroker(
+			folders.port1,
+			new DesktopProjectFolderAcquisitionRuntime(window),
+		);
+		folderAcquisition.start();
+		const pagePorts: Readonly<Record<DesktopServerConnectionPortRole, MessagePortMain>> = {
+			'project-folder-acquisition': folders.port2,
+			'server-connection': connection.port2,
+		};
+		window.webContents.postMessage(
+			DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
+			reply,
+			DESKTOP_SERVER_CONNECTION_PORT_ROLES.map((role) => pagePorts[role]),
+		);
+		return { folderAcquisition, relay };
 	}
 }

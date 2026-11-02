@@ -1314,6 +1314,40 @@ a Session deleted afterwards.
 | Quit and start again    | The terminal was still listed after the quit, and a new start showed its earlier output after 924 ms.                                         |
 | A hidden window         | No window-state record was written.                                                                                                           |
 
+Select Folder and New Folder in the Server-path window use Main's native folder picker, and a new
+Project still comes from the Server's Workspace launch. These choices stand unless review changes
+them:
+
+- **Two ports in one reply.** Main answers a document's request with its connection port and its
+  folder-picker port, in the order `DESKTOP_SERVER_CONNECTION_PORT_ROLES` fixes, and the preload
+  forwards a reply only with exactly that many. Each document has its own broker, which ends with
+  that document's relay.
+- **The Server's publication confirms a new Project.** The Server settles a Workspace launch only
+  once a publication carries it, so the page checks the receipt against the document it shows and
+  waits for no flush.
+- **A launch directory is compared only where one is recorded.** The Server publishes none for a
+  presentation, so the shared receipt check skips that comparison for a document that records none.
+  The frozen path records one and still compares it.
+- **Main reports an unconfirmed folder over the window.** The Server may already have created that
+  folder's Project, as the run below found, and a new-Project launch never reuses one, so following
+  the old advice would have opened a second Project for the folder. The report now points to Select
+  Folder only when the Project is missing from the sidebar.
+- **A reloaded document expands a Project once.** A reload after creating a Project left the window
+  blank: the recovered view already expanded that Project, and the first publication expanded it
+  again as one the runtime had not seen. The runtime now keeps one expansion per Project, in display
+  order, and a regression case in the projection tests fails without the fix.
+
+The run below used a hidden window shown off-screen, a stubbed picker and message box, scratch
+`APPDATA`, configuration file and folders, and a Session deleted afterwards.
+
+| Question                       | Result                                                                                                                                                                                    |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Create menu                    | Select Folder and New Folder were both present and enabled.                                                                                                                               |
+| Select Folder                  | One folder dialog opened over the window. The Project's row appeared 53 ms after the choice, and its terminal's prompt in that folder after 752 ms.                                       |
+| New Folder                     | Create made the folder, its Project opened 57 ms later, and the prompt in the new folder appeared after 749 ms. A reload afterwards made Main report nothing.                             |
+| A document ending mid-creation | With the Server's replies held back, a reload while the Project was opening made Main report the kept folder over the window 110 ms later. The next document already showed that Project. |
+| Reload after a new Project     | Before the expansion fix, the next document stopped on a duplicate expanded Project and stayed blank; after it, both reloads in the run showed every Workspace.                           |
+
 ### Evidence
 
 - Each step records the owning Web and Desktop builds and a Server-backed run of the path it
