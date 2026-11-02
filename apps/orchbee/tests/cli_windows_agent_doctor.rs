@@ -219,7 +219,7 @@ fn codex_installation_disabled_and_corrupt_capsule_facts_do_not_claim_delivery()
     let assets = fixture.0.join("中文 capsule");
     copy_tree(
         &Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../desktop/resources/agent-observation-adapters"),
+            .join("../../crates/agent-integration-writer/agent-observation-adapters"),
         &assets,
     );
     let supplied = fixture.run(
@@ -336,7 +336,7 @@ fn changed_sidecar_bytes_require_reinstall_even_with_refreshed_manifests() {
     use std::os::windows::process::CommandExt;
     let fixture = Fixture::new();
     let source = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../desktop/resources/agent-observation-adapters");
+        .join("../../crates/agent-integration-writer/agent-observation-adapters");
     let manifest: Value =
         serde_json::from_slice(&fs::read(source.join("capsule.json")).unwrap()).unwrap();
     let installed = fixture
@@ -364,7 +364,8 @@ fn changed_sidecar_bytes_require_reinstall_even_with_refreshed_manifests() {
     );
 
     // Runtime and documentation bytes both participate in the same identity.
-    // Desktop's canonical implementation supplies an independent digest oracle.
+    // The staging script's verifier supplies an independent digest oracle. The
+    // Capsule path comes first so the script's entry guard never runs staging.
     for relative in ["bundle/scripts/forward-hook.mjs", "README.md"] {
         fs::write(
             current.join(relative),
@@ -372,10 +373,10 @@ fn changed_sidecar_bytes_require_reinstall_even_with_refreshed_manifests() {
         )
         .unwrap();
         let output = Command::new("node.exe")
-            .args(["--experimental-strip-types", "--input-type=module", "--eval",
-                "import {pathToFileURL} from 'node:url'; const {FileAgentObservationAdapterCapsule:C}=await import(pathToFileURL(process.argv[1]).href); process.stdout.write(await C.computePayloadDigest(process.argv[2]));"])
-            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../desktop/src/main/agent-integration-management/FileAgentObservationAdapterCapsule.ts"))
+            .args(["--input-type=module", "--eval",
+                "import {pathToFileURL} from 'node:url'; const {capsulePayloadDigest}=await import(pathToFileURL(process.argv[2]).href); process.stdout.write(capsulePayloadDigest(process.argv[1]) ?? '');"])
             .arg(&current)
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/stage-local-runtime.mjs"))
             .creation_flags(0x0800_0000)
             .output().unwrap();
         assert!(

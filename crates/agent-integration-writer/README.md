@@ -14,6 +14,19 @@ retained mutation outcomes. Values and report vocabularies come from the
   for its Session, and `orchbee`, which reuses the read-only configuration helpers for offline
   `agent doctor` and Windows update verification.
 
+## Observation adapter Capsule
+
+[`agent-observation-adapters/`](agent-observation-adapters/README.md) is the source of the Capsule
+this writer installs. Native staging and Desktop packaging copy it into each cohort, and
+`bundled_payload_sha256` embeds its manifest's identity. Every byte of it except `capsule.json` is
+payload, so any edit, including its README, needs a new `payloadSha256` and makes existing
+installations `update-required` until `orchbee agent integration enable` repairs them. Its adapter
+tests run from the repository root:
+
+```sh
+pnpm test:agent-observation-adapters
+```
+
 ## Conformance fixtures
 
 `tests/fixtures/` holds the corpora replayed by this crate's harnesses. The `test-support`

@@ -1667,7 +1667,7 @@ impl Fixture {
     }
     fn assets(&self) -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../desktop/resources/agent-observation-adapters")
+            .join("../../crates/agent-integration-writer/agent-observation-adapters")
             .canonicalize()
             .unwrap()
     }

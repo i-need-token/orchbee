@@ -1,5 +1,5 @@
 * text=auto eol=lf
 
 # Integrity-checked resources must retain identical bytes on every checkout.
-apps/desktop/resources/agent-observation-adapters/** text eol=lf
+crates/agent-integration-writer/agent-observation-adapters/** text eol=lf
 apps/terminal-host/licenses/Microsoft.ConPTY-LICENSE.txt -text

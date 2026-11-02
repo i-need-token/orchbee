@@ -61,9 +61,8 @@ export async function prepareDesktopDevelopmentCohort(input: {
 		path.join(hostRoot, 'windows-conpty.json'),
 		path.join(
 			sourceRoot,
-			'apps',
-			'desktop',
-			'resources',
+			'crates',
+			'agent-integration-writer',
 			'agent-observation-adapters',
 			'capsule.json',
 		),

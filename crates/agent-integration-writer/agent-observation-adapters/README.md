@@ -1,11 +1,12 @@
 # Agent observation adapters
 
-This packaged resource contains twenty explicitly installed, provider-bound observation adapters for
+This Capsule contains twenty explicitly installed, provider-bound observation adapters for
 Claude Code, Codex, Grok, OpenCode, Kilo, Cursor, Qoder CLI, Antigravity CLI, Mastracode, Droid, Kimi, Letta, Devin, Hermes, Pi, OMP, Gemini CLI, GitHub Copilot CLI, Cline, and Qwen Code.
 Each adapter validates its own upstream event contract and emits the same content-free normalized
-facts through Orchbee's shared local socket/pipe plus private-APC correlation transport. Desktop's closed
-registry, not an adapter payload, grants provider identity, accepted events, and maximum
-capabilities.
+facts through Orchbee's shared local socket/pipe plus private-APC correlation transport. The
+Server's closed adapter registry, not an adapter payload, grants provider identity, accepted
+events, and maximum capabilities. The [integration writer](../README.md) owns this source and
+installs it; native staging and Desktop packaging copy it into each cohort.
 
 ## Windows Codex transport
 
@@ -52,30 +53,34 @@ outside the matrix are unsupported until their event fixtures and capability gra
 ### Execution host
 
 Install the selected adapter on every machine where that Agent process runs. For
-Orchbee → SSH → remote tmux/Zellij → Agent, installation therefore occurs on the remote host; the
-local shell integration and OpenSSH reverse Unix-socket forward provide transport only. Orchbee
-never installs or changes an adapter automatically. On the local Desktop device, the user may
-explicitly enable or disable Orchbee's exact entry through Agent Integrations Settings. Orchbee
-never copies this resource to another host, edits remote Agent configuration, or runs remote setup;
-remote installation remains manual.
+Orchbee → SSH → remote tmux/Zellij → Agent, installation therefore occurs on the remote host, and
+an OpenSSH reverse Unix-socket forward provides transport only. Orchbee currently sets up no such
+forward, so a remote adapter finds no endpoint. Orchbee never installs or changes an adapter
+automatically. On the local machine, the user may explicitly enable or disable Orchbee's exact
+entry with `orchbee agent integration enable` or `disable`, or through Desktop Settings, which
+runs the same Worker operation. Orchbee never copies this resource to another host, edits remote
+Agent configuration, or runs remote setup; remote installation remains manual.
 
 Use a durable standalone copy of this directory as `<adapter-root>`. Do not persist a path into an
 Orchbee application bundle: deleting or replacing the application must not break Agent startup.
-Local Settings first publishes a validated, versioned Capsule under the user's application-data
-directory and points managed CLI integrations at that durable copy. Provider-local module entries
+A managed enable first publishes a validated Capsule under
+`~/.orchbee/agent-observation-adapters/<payloadSha256>` and points the provider's entry at that
+durable copy. Provider-local module entries
 catch a missing Capsule, shell command hooks test that their runtime still exists, and Gemini/Qwen entries
 are self-contained copies. An uninstaller must retain every Capsule still referenced by any
 provider declaration; explicit disable owns removal of the corresponding provider entry.
 
 Local Claude and Copilot inspection verifies both the exact plugin and its marketplace source;
-Grok inspection verifies the copied plugin's recorded source and version. An exact old Orchbee
-application-bundle path or sibling Capsule version is migration evidence, not an enabled current
-adapter. It is changed only by an explicit Settings action. Any same-named entry with a different
-source remains an untouched conflict.
+Grok inspection verifies the copied plugin's recorded source and version. A sibling Capsule version
+under the same installation parent reads as `update-required`, not an enabled current adapter, and
+changes only through an explicit enable. Any same-named entry with a different source remains an
+untouched conflict.
 
-The local Settings transaction, exact managed entries, conflict handling, and rollback behavior are
-defined in the [Agent integration guide](../../docs/agent-integrations.md). The commands below remain
-the manual setup path and are always required on remote hosts.
+The [integration writer](../README.md) defines the managed transaction, exact managed entries,
+conflict handling, and rollback, and the
+[Windows integration contract](../../../apps/orchbee/docs/windows-agent-integrations.md) records
+Windows paths and evidence. The commands below remain the manual setup path and are always
+required on remote hosts.
 
 ### Claude Code
 
@@ -105,16 +110,16 @@ grok plugin install <adapter-root>/bundle
 ```
 
 Review the plugin before accepting installation. Disable or uninstall
-`orchbee-agent-observation` to roll back. Local Settings uninstalls only a source-proven Orchbee
-copy when its switch is turned off.
+`orchbee-agent-observation` to roll back. A managed disable uninstalls only a source-proven
+Orchbee copy.
 
 ### OpenCode
 
 Add the absolute entry path
 `<adapter-root>/bundle/opencode/orchbee-agent-observation.mjs` as a local plugin. Keep the durable
 standalone root in place because the entry imports the shared transport beside it, and remove the
-configured path to roll back. Local Settings instead writes a provider-local guarded bootstrap; if
-the Capsule is later unavailable, that bootstrap catches the failed import and returns no hooks or
+configured path to roll back. A managed enable instead writes a provider-local guarded bootstrap;
+if the Capsule is later unavailable, that bootstrap catches the failed import and returns no hooks or
 output.
 
 ### Pi
@@ -148,8 +153,8 @@ cp -R <adapter-root>/bundle/gemini/. ~/.gemini/extensions/orchbee-agent-observat
 cp -R <adapter-root>/bundle/scripts ~/.gemini/extensions/orchbee-agent-observation/scripts
 ```
 
-Remove only that exact copied extension to roll back. Local Settings publishes and fingerprints the
-same bounded self-contained layout atomically; modified, expanded, or unmarked directories remain
+Remove only that exact copied extension to roll back. A managed enable publishes and fingerprints
+the same bounded self-contained layout atomically; modified, expanded, or unmarked directories remain
 untouched conflicts.
 
 ### GitHub Copilot CLI
@@ -185,8 +190,8 @@ cp -R <adapter-root>/bundle/qwen-code/. ~/.qwen/extensions/orchbee-agent-observa
 cp -R <adapter-root>/bundle/scripts ~/.qwen/extensions/orchbee-agent-observation/scripts
 ```
 
-Remove only that exact copied extension to roll back. Local Settings publishes and fingerprints the
-same bounded self-contained layout atomically; modified, expanded, or unmarked directories remain
+Remove only that exact copied extension to roll back. A managed enable publishes and fingerprints
+the same bounded self-contained layout atomically; modified, expanded, or unmarked directories remain
 untouched conflicts.
 
 ## Status fidelity
@@ -211,8 +216,8 @@ disconnected SSH path degrade to stale or unknown rather than guessed completion
 
 ## Security and failure boundary
 
-Desktop injects only `ORCHBEE_AGENT_OBSERVATION_SOCKET` through a non-persistent terminal
-environment overlay. Before transport, each entry selects only bounded event, session, Turn,
+The Worker injects only `ORCHBEE_AGENT_OBSERVATION_SOCKET` into the terminals it launches, through
+a non-persistent environment overlay. Before transport, each entry selects only bounded event, session, Turn,
 tool-operation, and subagent identifiers and discards prompts, questions, tool input/output,
 transcript paths, working directories, error text, notification text, and unknown fields. When the
 Agent inherited a well-formed `ORCHBEE_RUN_TOKEN` from its managed launch command, the envelope
@@ -223,7 +228,7 @@ candidates, and discovery requires an inherited non-empty `SSH_CONNECTION`, `SSH
 `SSH_TTY` marker. An ordinary local terminal without the exact overlay performs no socket scan.
 Only after an endpoint returns the exact bounded v1 acceptance ACK does the adapter
 write one content-free private APC correlation half directly to each resolved outer TTY. With no
-exact ACK, the adapter writes no terminal control sequence. Desktop requires an exact
+exact ACK, the adapter writes no terminal control sequence. The Server requires an exact
 event/correlation join for a live terminal generation, so neither half can associate and authorize
 rich state alone; unmatched envelopes sent to another live instance expire without canonical
 effect.
@@ -235,9 +240,8 @@ regular file or another user's terminal.
 The Unix resolver supports direct terminals, every attached tmux client, conservative Zellij
 client visibility, and nested mux environments. It asserts `hidden` only when an attached mux
 client is showing another pane; direct and active-pane routes remain `unknown` because the hook
-cannot prove application-window visibility. Workbench combines that mux evidence with its own
-current Tab and Panel view. An explicitly sourced Orchbee shell integration can add a random
-mode-`0600` remote Unix socket that OpenSSH reverse-forwards to Desktop. There is no
+cannot prove application-window visibility. Orchbee currently ships no shell integration that adds
+the mode-`0600` remote Unix socket an OpenSSH reverse forward would carry. There is no
 HTTP listener, TCP port, Bearer token, inherited terminal secret, automatic remote installation, or
 durable remote cache. Every adapter is passive, writes no shell output, and fails open on missing
 configuration, invalid input, timeout, resolver failure, or listener failure. Persisted command
@@ -251,22 +255,23 @@ notification popups.
 From the repository root:
 
 ```sh
-claude plugin validate apps/desktop/resources/agent-observation-adapters --strict
-grok plugin validate apps/desktop/resources/agent-observation-adapters/bundle
-pnpm --filter @orchbee/desktop test:unit
+claude plugin validate crates/agent-integration-writer/agent-observation-adapters --strict
+grok plugin validate crates/agent-integration-writer/agent-observation-adapters/bundle
+pnpm test:agent-observation-adapters
 ```
 
-The owning runtime and transport contract is documented in the [Desktop guide](../../README.md).
+The Server's [Agent observation model](../../../apps/orchbee-server/docs/agent-canonical-model.md)
+owns the ingress, the join, and transport admission.
 
 ## Claude direct execution
 
 The capsule launches Claude hooks with `node` plus an explicit argument vector, following the [upstream exec contract](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form). A fixed module expression imports the literal plugin script path through pathToFileURL and catches import failures. Script removal and malformed input remain silent; Node itself must exist on the provider PATH. If Node cannot start, Claude may display its non-blocking diagnostic. The integration never produces a tool permission decision.
 
-This shared declaration allows native Windows onboarding without a shell dependency. Existing events, hook deadlines, input bounds, sanitization and transport ownership are unchanged. The [native Windows contract](../../../orchbee/docs/windows-agent-integrations.md) owns installation and controlled Windows evidence; this change does not establish authenticated Agent task completion or new macOS/Linux workflow support. Old capsules remain immutable and explicit repair installs the current payload.
+This shared declaration allows native Windows onboarding without a shell dependency. Existing events, hook deadlines, input bounds, sanitization and transport ownership are unchanged. The [native Windows contract](../../../apps/orchbee/docs/windows-agent-integrations.md) owns installation and controlled Windows evidence; this change does not establish authenticated Agent task completion or new macOS/Linux workflow support. Old capsules remain immutable and explicit repair installs the current payload.
 
 ## Copilot direct execution
 
-The capsule uses the [Copilot exec hook contract](https://docs.github.com/en/copilot/reference/hooks-reference) with Node. The fixed import guard reads COPILOT_PLUGIN_ROOT directly from the provider child environment, checks that it is absolute, and passes its joined script path through pathToFileURL. It emits no output when the root or script is absent. Node is a prerequisite; an unavailable executable is a provider launch error, not a delivered observation. PascalCase event names retain the documented VS Code compatible input fields used by the existing sanitizer. No shell interprets the path. Windows onboarding uses the separately verified current plugin command/JSON contract; shared payload compatibility does not promote Desktop CLI parity.
+The capsule uses the [Copilot exec hook contract](https://docs.github.com/en/copilot/reference/hooks-reference) with Node. The fixed import guard reads COPILOT_PLUGIN_ROOT directly from the provider child environment, checks that it is absolute, and passes its joined script path through pathToFileURL. It emits no output when the root or script is absent. Node is a prerequisite; an unavailable executable is a provider launch error, not a delivered observation. PascalCase event names retain the documented VS Code compatible input fields used by the existing sanitizer. No shell interprets the path. Windows onboarding uses the separately verified current plugin command/JSON contract.
 
 ### Grok command bootstrap
 
@@ -274,11 +279,11 @@ The capsule keeps Grok's command-only hook contract with a fixed base64-encoded 
 
 ## OpenCode-family Windows onboarding
 
-The capsule adds Kilo and shares its event normalizer with OpenCode. The shared factory admits lifecycle identities from sessionID or legacy info.id, rejecting disagreement. Callback arguments and outputs remain private. Delivery retains at most 64 outstanding sanitized events, in order; overflow/dispose stops new admission and drops the queued suffix until reload, while an in-flight send may finish. Transport failures are silent. Windows native onboarding installs discoverable .js bootstraps and preserves foreign/newer entries. See the [owning Windows model](../../../orchbee/docs/windows-agent-integrations.md#kilo-windows-integration-and-shared-event-model) for paths, transitions and evidence. Desktop onboarding retains its separate provider registry.
+The capsule adds Kilo and shares its event normalizer with OpenCode. The shared factory admits lifecycle identities from sessionID or legacy info.id, rejecting disagreement. Callback arguments and outputs remain private. Delivery retains at most 64 outstanding sanitized events, in order; overflow/dispose stops new admission and drops the queued suffix until reload, while an in-flight send may finish. Transport failures are silent. Windows native onboarding installs discoverable .js bootstraps and preserves foreign/newer entries. See the [owning Windows model](../../../apps/orchbee/docs/windows-agent-integrations.md#kilo-windows-integration-and-shared-event-model) for paths, transitions and evidence.
 
 ## Gemini and Qwen command roots
 
-The capsule executes fixed Node guards using ORCHBEE_AGENT_EXTENSION_ROOT in the provider's per-hook environment. Gemini supplies the value by recursively hydrating its external hook file; Qwen supplies it through recursively hydrated inline hooks in qwen-extension.json. Substitution affects an environment value, never command source. Both entries import their self-contained scripts and keep existing content-free event/transport bounds. Windows native onboarding and doctor share provider-specific directory overrides and refuse invalid explicit roots. Windows directory ownership checks retain exact marker and file-digest validation; unrecognized entry contracts remain refused. See the [Windows extension model](../../../orchbee/docs/windows-agent-integrations.md#gemini-and-qwen-windows-extensions).
+The capsule executes fixed Node guards using ORCHBEE_AGENT_EXTENSION_ROOT in the provider's per-hook environment. Gemini supplies the value by recursively hydrating its external hook file; Qwen supplies it through recursively hydrated inline hooks in qwen-extension.json. Substitution affects an environment value, never command source. Both entries import their self-contained scripts and keep existing content-free event/transport bounds. Windows native onboarding and doctor share provider-specific directory overrides and refuse invalid explicit roots. Windows directory ownership checks retain exact marker and file-digest validation; unrecognized entry contracts remain refused. See the [Windows extension model](../../../apps/orchbee/docs/windows-agent-integrations.md#gemini-and-qwen-windows-extensions).
 
 The Cursor adapter emits session-identified from consistent session/conversation identity aliases. It never derives working/idle or permission decisions. Windows native JSON onboarding installs the fixed encoded launcher; no authenticated provider execution is implied.
 
@@ -286,7 +291,7 @@ Qoder CLI uses qodercli identity-only observations for exact SessionStart/sessio
 
 Antigravity CLI admits only conversationId from PreInvocation as session-identified; antigravity-cli is the adapter ID and antigravity is the canonical provider. Named Windows hooks return an empty JSON object and make no lifecycle or permission claims.
 
-Mastracode admits content-free run, tool, approval and subagent facts from its ten selected hooks. AgentEnd alone determines the terminal outcome; suspended does not imply completion. See the [Windows contract](../../../orchbee/docs/windows-agent-integrations.md#mastracode-windows-lifecycle-hooks).
+Mastracode admits content-free run, tool, approval and subagent facts from its ten selected hooks. AgentEnd alone determines the terminal outcome; suspended does not imply completion. See the [Windows contract](../../../apps/orchbee/docs/windows-agent-integrations.md#mastracode-windows-lifecycle-hooks).
 
 Droid admits only SessionStart/session_id as session-identified, including resume and compaction. Its Windows manager edits the active configuration source; the adapter never infers idle or readiness.
 
@@ -310,7 +315,7 @@ Compute SHA-256 over the UTF-8 encoding of `JSON.stringify(entries)`. Entries us
 as `{kind,path}`, files as `{kind,path,sha256,size}` in that member order. Exclude
 only `capsule.json`; include both documentation files and every other packaged
 file and directory. Every byte change, including formatting, requires recomputing
-`payloadSha256` over the final tree. Desktop, Rust and native staging recompute
+`payloadSha256` over the final tree. The Rust writer and native staging recompute
 this digest before admitting the payload, with the same bounds and required files.
 
 Doctor verifies installed bytes against their manifest, then compares that verified

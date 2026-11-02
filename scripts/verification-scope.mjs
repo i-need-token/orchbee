@@ -18,7 +18,6 @@ const foreignDependencies = [
 	['apps/desktop', 'apps/web'],
 ];
 const foreignPaths = [
-	['apps/desktop/resources/', 'apps/orchbee'],
 	['packages/design-tokens/src/tokens.css', 'apps/orchbee/crates/workbench-client'],
 	['crates/local-runtime/src/directory/windows/initialization.ps1', 'apps/terminal-host'],
 	['crates/local-runtime/src/directory/windows/reader.ps1', 'apps/terminal-host'],

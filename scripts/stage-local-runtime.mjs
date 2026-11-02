@@ -48,7 +48,8 @@ function readCapsuleManifest(filePath) {
 		return null;
 	}
 }
-function capsulePayloadDigest(rootPath) {
+// Exported as the independent digest oracle the CLI's Windows doctor test checks Rust against.
+export function capsulePayloadDigest(rootPath) {
 	try {
 		if (!lstatSync(rootPath).isDirectory()) return null;
 	} catch {
@@ -221,11 +222,15 @@ function main() {
 			hashes[artifact] = createHash('sha256').update(readFileSync(staged)).digest('hex');
 		}
 		const capsuleDestination = path.join(destination, CAPSULE_DIRECTORY);
-		cpSync(path.join(root, 'apps', 'desktop', 'resources', CAPSULE_DIRECTORY), capsuleDestination, {
-			errorOnExist: true,
-			recursive: true,
-			verbatimSymlinks: true,
-		});
+		cpSync(
+			path.join(root, 'crates', 'agent-integration-writer', CAPSULE_DIRECTORY),
+			capsuleDestination,
+			{
+				errorOnExist: true,
+				recursive: true,
+				verbatimSymlinks: true,
+			},
+		);
 		const adaptersDigest = verifiedCapsuleDigest(capsuleDestination);
 		if (adaptersDigest === null)
 			throw new Error('Staged observation-adapters capsule failed canonical verification');

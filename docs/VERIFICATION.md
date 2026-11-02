@@ -54,7 +54,7 @@ The private root verification owner maintains `scripts/verification-scope.mjs`. 
 takes current pnpm/Cargo workspace dependencies and changed paths, and returns one immutable plan.
 The plan contains the affected owner and transitive consumer closure across normal, development,
 optional, peer, build and target-specific local dependencies. Reviewed foreign edges also cover
-native process cohorts, shared protocol fixtures, Desktop adapter resources and Storybook discovery.
+native process cohorts, shared protocol fixtures and Storybook discovery.
 Changes to those relationships must update the resolver and its positive controls in the same change.
 Missing or ambiguous owners fail conservatively. The command reports selected and unaffected suites
 separately from executed results; an unaffected suite is unexecuted, never a pass or a cache hit.

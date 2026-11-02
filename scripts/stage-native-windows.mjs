@@ -141,11 +141,15 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule) {
 			);
 		}
 		const capsule = path.join(prepared, 'agent-observation-adapters');
-		cpSync(path.join(root, 'apps', 'desktop', 'resources', 'agent-observation-adapters'), capsule, {
-			errorOnExist: true,
-			recursive: true,
-			verbatimSymlinks: true,
-		});
+		cpSync(
+			path.join(root, 'crates', 'agent-integration-writer', 'agent-observation-adapters'),
+			capsule,
+			{
+				errorOnExist: true,
+				recursive: true,
+				verbatimSymlinks: true,
+			},
+		);
 		const digest = verifyCapsule(capsule);
 		if (digest === null)
 			throw new Error('Staged observation-adapters capsule failed canonical verification');

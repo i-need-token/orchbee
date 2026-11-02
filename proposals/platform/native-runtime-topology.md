@@ -1409,8 +1409,9 @@ guides. These choices stand unless review changes them:
   the data root's configuration file.
 - **Zsh, Bash, and Fish integration left with Main.** Main injected it into the shells it launched.
   The Server launches them now and ships none, so those shells report command boundaries only
-  through the person's own configuration, and Settings drops the setup cards. On Windows the
-  Terminal Host still loads its PowerShell integration.
+  through the person's own configuration, and Settings drops the setup cards. The SSH reverse
+  socket it offered for remote Agent observation left too, so an Agent on an SSH host reports
+  nothing. On Windows the Terminal Host still loads its PowerShell integration.
 - **Retired evidence is disclosed, not replaced.** The Desktop Electron suite drove the Main-owned
   application, so its 44 witnesses of that application retired with it, and the guides that cited
   them say so. The 23 witnesses that drive only Web fixture pages moved unchanged to the explicit
@@ -1445,10 +1446,14 @@ guides. These choices stand unless review changes them:
   replaces; the terminal settings fixture parsers behind the Web Stories; Terminal Protocol
   constants and decoders that tests check directly; and the file-drop capability, which waits for
   decision 6 to settle file drop.
-- **The Capsule's guide link waits for its move.** The observation Capsule's README links the
-  Desktop Agent integration guide, and editing it changes the Capsule's digest, so that guide is
-  now a short page naming the Worker's integration writer. The Capsule's move out of
-  `apps/desktop/resources` rewrites the README once and removes the page.
+- **The Capsule lives with its writer.** Its source moved to
+  `crates/agent-integration-writer/agent-observation-adapters`, and its README was rewritten once
+  for the native owners: the Server's registry and ingress, the Worker's endpoint and writer, and
+  the CLI or Settings to enable an adapter. That changed `payloadSha256` to `e42981a4…`, so an
+  installed adapter reads `update-required` until `orchbee agent integration enable` repairs it.
+  The adapter tests that left with Main's observation runtime came back beside the Capsule and run
+  in every `pnpm test` as `test:agent-observation-adapters`, checking envelopes against a copy of
+  the Server's admission rules. Like the other root checks, nothing type-checks them any more.
 
 The runs below used the development profile on Windows, a hidden window, scratch `APPDATA`, and
 Sessions deleted afterwards. The Web dev server listened on 3020 because another checkout held
@@ -1475,7 +1480,8 @@ the window joins.
 - Each step records the owning Web and Desktop builds and a Server-backed run of the path it
   changed. While macOS Rust CI is excluded, macOS evidence is a recorded manual run.
 - Step 4 removed the Desktop `test:native` step with the addon, and Xvfb with the Desktop Electron
-  tests; Terminal Host tests stay.
+  tests; Terminal Host tests stay. The Capsule's adapter tests moved with it to the root
+  `test:agent-observation-adapters` check.
 - Steps that delete Desktop or Web inputs update `scripts/verification-scope.mjs` and the affected
   model triggers in `scripts/tla/models.json`, such as the projected-terminal and settings-save
   models.
@@ -1489,14 +1495,12 @@ the window joins.
   specification, and [`schemas/agent-integration`](../../schemas/agent-integration/README.md) is the
   operation contract's language-neutral schema; the TypeScript Desktop contract goes with Main's
   writer.
-- The Capsule source moves from `apps/desktop` to the owner of the native writer; Desktop packaging
-  and native staging consume the same staged artifact, and `payloadSha256` remains its identity.
-  The Capsule README is part of that payload, and its repository links and maintainer commands name
-  the Desktop app, so the move rewrites it and changes the identity once. The move therefore lands
-  with the Desktop writer's removal in step 4, whose README changes it would otherwise repeat.
-- Until step 4, the Desktop TypeScript writer is frozen: no new providers, targets, or Capsule
-  semantics. A shared hook-transport change updates the Capsule and both envelope parsers together,
-  and users repair through `orchbee agent integration enable`.
+- The Capsule source lives with the native writer in
+  `crates/agent-integration-writer/agent-observation-adapters`; Desktop packaging and native
+  staging consume the same staged artifact, and `payloadSha256` remains its identity. Its README is
+  part of that payload, so step 4 rewrote it once with the move, after the Desktop writer left.
+- A hook-transport change updates the Capsule and the Server's envelope parser together, and users
+  repair through `orchbee agent integration enable`.
 
 ### Cross-language parity sources
 

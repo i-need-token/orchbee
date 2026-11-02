@@ -174,10 +174,9 @@ pub(crate) fn manifest_declared_digest(root: &Path) -> Option<String> {
 
 /// The build's bundled payload identity, also available when no cohort is staged.
 pub fn bundled_payload_sha256() -> String {
-    let manifest: Value = serde_json::from_str(include_str!(
-        "../../../apps/desktop/resources/agent-observation-adapters/capsule.json"
-    ))
-    .expect("the checked-in capsule manifest is valid JSON");
+    let manifest: Value =
+        serde_json::from_str(include_str!("../agent-observation-adapters/capsule.json"))
+            .expect("the checked-in capsule manifest is valid JSON");
     manifest["payloadSha256"]
         .as_str()
         .filter(|digest| valid_sha256(&Value::String((*digest).to_owned())))

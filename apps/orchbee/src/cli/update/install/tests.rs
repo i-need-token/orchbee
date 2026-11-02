@@ -118,7 +118,7 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
         );
     }
     let adapters = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../desktop/resources/agent-observation-adapters");
+        .join("../../crates/agent-integration-writer/agent-observation-adapters");
     copy_tree(&adapters, &source.join("agent-observation-adapters"));
     let capsule: serde_json::Value = serde_json::from_slice(
         &fs::read(source.join("agent-observation-adapters/capsule.json")).unwrap(),

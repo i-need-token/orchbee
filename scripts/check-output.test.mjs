@@ -302,6 +302,7 @@ test('the daily gate retains host tests while full builds and cross checks requi
 			'test:storage-contract',
 			'test:experience-contract',
 			'test:stage-local-runtime',
+			'test:agent-observation-adapters',
 		],
 	);
 	assert.equal(steps[1].name, 'workspace tests');

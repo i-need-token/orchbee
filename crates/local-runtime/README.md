@@ -273,8 +273,8 @@ mixed, malformed, or unsafe artifacts fail admission before activation. Explicit
 modes retain their existing version cohort and do not acquire managed startup authority.
 
 The staging script builds and copies all four executables into a new private directory, copies the
-canonical `apps/desktop/resources/agent-observation-adapters` capsule verbatim to the sidecar
-directory, verifies its strict `capsule.json` members (`contractVersion` 3, a declared
+canonical `crates/agent-integration-writer/agent-observation-adapters` capsule verbatim to the
+sidecar directory, verifies its strict `capsule.json` members (`contractVersion` 1, a declared
 `payloadSha256`, the required payload entries, and a recomputed canonical digest equal to the
 declared one), then writes the manifest last. A capsule that fails that verification stops staging
 rather than emitting a bad package. This is unsigned, per-user development staging: release signing,

@@ -147,8 +147,10 @@ test('real workspace selection retains foreign fixture, resource, process and di
 	assert.equal(binding.cargo.length, 0);
 	assert.ok(!binding.pnpm.includes('@orchbee/terminal-host'));
 	const resources = selectVerificationScope(actual, [
-		'apps/desktop/resources/agent-observation-adapters/capsule.json',
+		'crates/agent-integration-writer/agent-observation-adapters/capsule.json',
 	]);
+	assert.equal(resources.all, false, resources.reasons.join('\n'));
+	assert.ok(resources.cargo.includes('orchbee-agent-integration-writer'));
 	assert.ok(resources.cargo.includes('orchbee'));
 	const windowsConsoleHost = selectVerificationScope(actual, [
 		'crates/windows-console-host/src/output.rs',

@@ -21,7 +21,12 @@ import { assertWindowsFileSymlinkSupport } from './stage-native-windows.mjs';
 import { verifyConptyBundle } from '../apps/terminal-host/scripts/windows-conpty.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const canonical = path.join(root, 'apps', 'desktop', 'resources', 'agent-observation-adapters');
+const canonical = path.join(
+	root,
+	'crates',
+	'agent-integration-writer',
+	'agent-observation-adapters',
+);
 const CAPSULE_STAGING_PREFIX = 'orchbee-capsule-staging-';
 
 function removeOwnedTemporaryDirectory(directory, parent, prefix) {
