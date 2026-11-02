@@ -46,6 +46,7 @@ import {
 } from './client-server-carrier';
 import { type ServerConnection, ServerConnectionEndedError } from './server-connection';
 import { ServerSelectionCopy, readSelectionAnswer } from './server-selection-copy';
+import { ServerTerminalEffects } from './ServerTerminalEffects';
 
 export interface ServerTerminalBinding {
 	readonly sessionId: string;
@@ -195,6 +196,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	readonly #bootstrap: ProjectedAttachmentBootstrap;
 	readonly #connection: ServerConnection;
 	readonly #controlSteps = new SerialSteps();
+	readonly #effects: ServerTerminalEffects;
 	readonly #laneId: bigint;
 	readonly #selectionCopy: ServerSelectionCopy;
 	readonly #viewerSteps = new SerialSteps();
@@ -223,6 +225,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		this.#bootstrap = bootstrap;
 		this.#connection = connection;
 		this.#controllerId = controllerId;
+		this.#effects = new ServerTerminalEffects(bootstrap.attachmentId, (event) => this.#post(event));
 		this.#laneId = laneId;
 		this.#selectionCopy = new ServerSelectionCopy({
 			attachmentId: bootstrap.attachmentId,
@@ -299,6 +302,16 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 			}
 			case 'clear-terminal':
 				this.#controlAction(command, () => ({ attachmentId, kind: 'clear' }));
+				return;
+			case 'clipboard-write-decision':
+				if (!this.#effects.decide(command.payload)) {
+					this.#fail(
+						command,
+						'clipboard-decision-mismatch',
+						'The clipboard decision does not answer the waiting request.',
+						false,
+					);
+				}
 				return;
 			case 'selection-gesture':
 				this.#selectionChange(command, { ...command.payload, kind: 'selection-gesture' });
@@ -877,6 +890,12 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 				} else {
 					this.#selectionEventFailure('A selection event named another attachment.');
 				}
+				return;
+			}
+			case MessageKind.terminalBell:
+			case MessageKind.terminalClipboardWriteRequest: {
+				const refusal = this.#effects.receive(envelope);
+				if (refusal !== null) this.#protocolFailure('invalid-host-effect', refusal);
 				return;
 			}
 			case MessageKind.selectionExportChunk:
