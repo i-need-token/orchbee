@@ -435,6 +435,8 @@ export async function startProjectedTerminalRenderer(
 	const broadcastInputReadinessListeners = new Set<() => void>();
 	let activationPresentationDrawn = false;
 	let displayPresentationDrawn = false;
+	let inputGranted = bootstrap.canInput;
+	let resizeLeaseHeld = bootstrap.canResize;
 	let presentationVisible = terminalThemeSource === undefined;
 	let resolveDisplayReady: (() => void) | undefined;
 	let resolveTransportUnavailable: (() => void) | undefined;
@@ -459,6 +461,13 @@ export async function startProjectedTerminalRenderer(
 			resolvePresentationReady = undefined;
 		}
 	};
+	const reportPresentationDrawn = (): void => {
+		displayPresentationDrawn = true;
+		activationPresentationDrawn = true;
+		resolveReadiness();
+	};
+	// A viewer cannot bring the terminal to its own size, so no frame that fits it better is coming.
+	const isViewer = (): boolean => !inputGranted && !resizeLeaseHeld;
 	const reportTransportUnavailable = (): void => {
 		if (!transportAvailable) return;
 		transportAvailable = false;
@@ -1087,10 +1096,7 @@ export async function startProjectedTerminalRenderer(
 					rootElement.dataset['projectedTerminalPresentationGeometryCurrent'] = String(
 						presentationGeometryCurrent,
 					);
-					if (!presentationGeometryCurrent) return;
-					displayPresentationDrawn = true;
-					activationPresentationDrawn = true;
-					resolveReadiness();
+					if (presentationGeometryCurrent || isViewer()) reportPresentationDrawn();
 				}),
 			);
 			pendingSubscriptions.push(
@@ -1269,6 +1275,7 @@ export async function startProjectedTerminalRenderer(
 					reportFailure();
 					return;
 				}
+				inputGranted = capabilities.capabilities.input;
 				rootElement.dataset['projectedTerminalInputCapability'] = capabilities.capabilities.input
 					? 'read-write'
 					: 'read-only';
@@ -1340,6 +1347,8 @@ export async function startProjectedTerminalRenderer(
 					return;
 				}
 				terminal.setResizeOwnership(event.data.event.resizeLease);
+				resizeLeaseHeld = event.data.event.resizeLease;
+				if (isViewer() && renderedFrames > 0) reportPresentationDrawn();
 				return;
 			case 'selection-changed':
 				terminal.notifySelectionChanged(event.data.event);

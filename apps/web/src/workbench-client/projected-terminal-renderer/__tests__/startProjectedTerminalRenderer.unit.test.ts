@@ -1116,7 +1116,7 @@ describe('startProjectedTerminalRenderer', () => {
 			const liveBootstrap = {
 				attachmentId: bootstrap.attachmentId,
 				canInput: bootstrap.canInput,
-				canResize: bootstrap.canResize,
+				canResize: true,
 				capabilityRevision: bootstrap.capabilityRevision,
 				creationId: bootstrap.creationId,
 				hostEpoch: bootstrap.hostEpoch,
@@ -1548,6 +1548,44 @@ describe('startProjectedTerminalRenderer', () => {
 				mismatchedSnapshotElements.additionalRoot.dataset['projectedTerminalCachedPresentation'],
 			).toBeUndefined();
 			mismatchedSnapshotSession.dispose();
+
+			const viewerElements = createAdditionalRoot();
+			const viewerTransport = createAdditionalTransport();
+			const viewerSession = await startProjectedTerminalRenderer(
+				viewerElements.additionalRoot,
+				documentElement,
+				['en-US'],
+				'apple',
+				{ ...liveBootstrap, canResize: false },
+				viewerTransport.additionalTransport,
+				dependencies,
+			);
+			emitFrameTelemetry(frameTelemetry);
+			await expect(viewerSession.presentationReady).resolves.toBeUndefined();
+			viewerSession.dispose();
+
+			const demotedElements = createAdditionalRoot();
+			const demotedTransport = createAdditionalTransport();
+			const demotedSession = await startProjectedTerminalRenderer(
+				demotedElements.additionalRoot,
+				documentElement,
+				['en-US'],
+				'apple',
+				liveBootstrap,
+				demotedTransport.additionalTransport,
+				dependencies,
+			);
+			emitFrameTelemetry(frameTelemetry);
+			demotedTransport.emitMessage({
+				event: {
+					attachmentId: liveBootstrap.attachmentId,
+					resizeLease: false,
+					terminalId: liveBootstrap.terminalId,
+				},
+				kind: 'resize-lease-changed',
+			});
+			await expect(demotedSession.presentationReady).resolves.toBeUndefined();
+			demotedSession.dispose();
 			isPresentationGeometryCurrent.mockReturnValue(true);
 
 			const hostCloseElements = createAdditionalRoot();

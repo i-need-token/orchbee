@@ -813,7 +813,8 @@ until a matching Host frame has painted. An injected display snapshot may satisf
 only when its exact geometry already matches the target surface. The query is read-only: it never
 resizes a canvas, submits PTY geometry, acknowledges a frame, or grants input authority. Application
 handoffs may use it to keep an older meaningful layer visible until the target canvas is safe to
-commit.
+commit. A surface without the resize lease can stay mismatched for as long as another owner keeps
+the terminal at a different size, so a handoff cannot wait on this alone for such a surface.
 
 WebGPU adapter acquisition, device creation, preferred format, and the immutable background/text
 pipeline pair are shared by renderers in one `Document`. Every configured renderer owns its glyph
