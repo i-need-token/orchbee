@@ -1289,6 +1289,31 @@ storage there was deleted afterwards.
 | Another Client's job   | A CLI list started with Refresh was refused as busy while the window's Refresh completed; started 150 or 400 ms apart, both completed.                                                                |
 | The person's real home | The 27 protected files kept their write times, and neither `.pi` nor the Capsule folder appeared.                                                                                                     |
 
+The Server-path entry now has the frozen entry's window shell, composed from the retained modules:
+one instance, the hidden title bar, the window's place, the window Actions in the menu, and Secure
+Keyboard Entry. These choices stand unless review changes them:
+
+- **Leaving asks nothing.** Closing the window or quitting ends only this Client, so there is no
+  close confirmation. Main records the window's place, and the Session's terminals keep running.
+- **A crashed renderer reloads and connects again.** Main closes the old document's relay. The new
+  document opens no first Workspace, like any later document of the window.
+- **A replaced first load is not a failed start.** Electron rejects the first load when another load
+  of the window replaces it, as a reload during it does. The frozen entry quits then; this one
+  continues with the newer document.
+
+The run below used a hidden window shown off-screen, a scratch `APPDATA` and configuration file, and
+a Session deleted afterwards.
+
+| Question                | Result                                                                                                                                        |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| A load during the first | The start continued: the menu was installed 31 ms after the second load began, and one relay connected.                                       |
+| Title bar               | The page reported the system's controls drawn over its title bar, leaving it 962 of 1,100 pixels.                                             |
+| Menu                    | Enter or exit full screen (F11) and Maximize or restore (Ctrl+Shift+M) were present and enabled.                                              |
+| A second start          | The second process exited with 0 within a second, and the first kept its one window.                                                          |
+| Renderer crash          | Main saw the crash in 28 ms. The reloaded document showed the terminal after 443 ms and its earlier output after 529 ms, through a new relay. |
+| Quit and start again    | The terminal was still listed after the quit, and a new start showed its earlier output after 924 ms.                                         |
+| A hidden window         | No window-state record was written.                                                                                                           |
+
 ### Evidence
 
 - Each step records the owning Web and Desktop builds and a Server-backed run of the path it

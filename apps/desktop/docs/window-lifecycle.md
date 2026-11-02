@@ -62,6 +62,11 @@ Focusing an existing minimized window first restores and shows it, then focuses 
 single-instance, close-confirmation, renderer-document retirement, shared Workbench, and Terminal
 Host lifecycles are unchanged.
 
+The [Server Client entry](../README.md#server-client-entry) applies the same record, projection,
+Actions, menu, and single instance. It has no close confirmation: closing the window or quitting
+ends only that Client, so the window's place is captured at close and flushed before the process
+exits. A window started hidden for automation neither restores nor records its place.
+
 ## State model and invariants
 
 The durable state is `normal bounds + maximized`. Runtime observation additionally distinguishes
@@ -87,3 +92,7 @@ maximize events, and native full-screen transitions. macOS native behavior is ex
 current development runner. Linux and Windows are covered by deterministic model and adapter tests
 until their native runners execute the same system trace; Wayland compositors may constrain absolute
 positioning even though Orchbee always supplies a safe requested rectangle.
+
+On Windows, a hidden Server Client window has been checked in a real process for the title-bar overlay,
+the enabled window Actions, the second start, and the absent record. A visible window's restore and record
+were not exercised there; they share the owner and store above.

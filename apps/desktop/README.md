@@ -577,6 +577,15 @@ These finite implementation cases do not establish exhaustive archive or applica
 
 The page has the Client authority of the Session it joined. That adds nothing to what it could already do by typing into a terminal, and Main does not interpret terminal content. A terminal link the page opens asks for a window, which Main refuses, handing an `http`, `https`, or `mailto` address to the person's browser instead.
 
+Main keeps the frozen entry's window shell:
+
+- One instance; starting it again brings the window forward.
+- A hidden title bar, with the system's controls drawn over the page.
+- The window's place, restored and recorded as [Window lifecycle](docs/window-lifecycle.md) describes.
+- The menu with the window Actions and, on macOS, Secure Keyboard Entry. It is installed once the window has opened, because a hidden title bar never opens the menu that would refresh what its accelerators may do.
+
+A renderer that crashes is reloaded, and the new document connects again. Closing the window or quitting asks nothing, because nothing ends with it: Main records the window's place and the Session's terminals keep running. On macOS the application stays open without a window, and activating it opens one.
+
 It needs no Terminal Host of its own and has only been exercised on Windows so far. After `pnpm --filter @orchbee/web build` and `rsbuild build` in this directory, set these and run `electron dist/main/server-client.cjs`:
 
 | Variable                                  | Meaning                                                                   |
@@ -585,7 +594,7 @@ It needs no Terminal Host of its own and has only been exercised on Windows so f
 | `ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT` | This checkout, which scopes the development data directory                |
 | `ORCHBEE_DESKTOP_RENDERER_ROOT`           | `apps/web/dist`, or set `ORCHBEE_DESKTOP_RENDERER_URL` for a loopback URL |
 | `ORCHBEE_DESKTOP_SESSION`                 | Optional Session name                                                     |
-| `ORCHBEE_DESKTOP_WINDOW_HIDDEN`           | Optional; start without showing the window, for automation                |
+| `ORCHBEE_DESKTOP_WINDOW_HIDDEN`           | Optional; for automation, a window never shown, restored, or recorded     |
 
 A window that stays hidden produces no frames; automation that needs pixels shows it off-screen with `showInactive`.
 
