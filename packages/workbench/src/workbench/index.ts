@@ -34,6 +34,8 @@ export type {
 	WorkbenchAuthorityClosure,
 	WorkbenchAuthorityContext,
 	WorkbenchAuthorityCreation,
+	WorkbenchAuthorityTabCreation,
+	WorkbenchAuthorityTabReceipt,
 } from './types/workbench-authority';
 export type { WorkbenchEnvironmentProjectConnectionCapability } from './types/workbench-environment-project-connection';
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';

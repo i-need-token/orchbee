@@ -7,6 +7,7 @@ import type {
 import {
 	TabStrip,
 	type TabModel,
+	type TabStripChangeCallback,
 	type TabStripCrossWindowDragRuntimeFactory,
 	type TabStripCloseCallback,
 	type TabStripCloseConfirmation,
@@ -36,6 +37,7 @@ interface WorkbenchTabBarProps {
 	readonly onOrientationChange: (orientation: TabStripOrientation) => void;
 	readonly onSelectTab?: TabStripSelectCallback | undefined;
 	readonly onSetTabTitle: (tabId: string) => void;
+	readonly onTabsChange: TabStripChangeCallback | undefined;
 	readonly onVerticalCollapsedChange: (collapsed: boolean) => void;
 	readonly orientation: TabStripOrientation;
 	readonly reserveSidebarToggleSpace: boolean;
@@ -58,6 +60,7 @@ export function WorkbenchTabBar({
 	onOrientationChange,
 	onSelectTab,
 	onSetTabTitle,
+	onTabsChange,
 	onVerticalCollapsedChange,
 	orientation,
 	parentActionScope,
@@ -100,6 +103,7 @@ export function WorkbenchTabBar({
 				onOrientationChange={onOrientationChange}
 				onSelectTab={onSelectTab}
 				onSetTabTitle={onSetTabTitle}
+				onTabsChange={onTabsChange}
 				orientation={orientation}
 				parentActionScope={parentActionScope}
 				showGroupHoverCards={false}

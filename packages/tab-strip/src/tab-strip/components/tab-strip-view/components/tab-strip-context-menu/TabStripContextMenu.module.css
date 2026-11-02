@@ -9,7 +9,3 @@
 .ct-group-editor__colors {
 	composes: ct-group-editor__colors from '../../TabStripView.module.css';
 }
-
-.ct-group-editor__title {
-	composes: ct-group-editor__title from '../../TabStripView.module.css';
-}

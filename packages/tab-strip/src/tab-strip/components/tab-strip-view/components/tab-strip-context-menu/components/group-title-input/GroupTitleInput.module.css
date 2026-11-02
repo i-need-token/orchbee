@@ -1,0 +1,3 @@
+.ct-group-editor__title {
+	composes: ct-group-editor__title from '../../../../TabStripView.module.css';
+}

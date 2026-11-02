@@ -1,3 +1,4 @@
+import type { ActionExecution } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import {
 	type MouseEvent as ReactMouseEvent,
@@ -157,6 +158,7 @@ export function useTabStrip(
 		onCloseTabs,
 		getCloseTabsConfirmation,
 		onSelectTab,
+		onTabsChange,
 		onSetTabTitle,
 		onNewTabButtonPressed,
 		parentActionScope,
@@ -288,6 +290,7 @@ export function useTabStrip(
 	const suppressGroupToggleResetTimer = useRef<number | null>(null);
 	const previousDraggingRef = useRef(false);
 	const onDraggingChangeRef = useRef(onDraggingChange);
+	const currentModelRef = useRef(model);
 	const groupEditorTrackerRef = useRef<TabGroupEditorBubbleTracker | null>(null);
 	const previousOrientationRef = useRef(orientation);
 	if (groupEditorTrackerRef.current === null) {
@@ -332,6 +335,7 @@ export function useTabStrip(
 	});
 	dragRef.current = drag;
 	onDraggingChangeRef.current = onDraggingChange;
+	currentModelRef.current = model;
 	const actions = useTabStripActions({
 		actionRuntime,
 		comboButtonController,
@@ -344,6 +348,7 @@ export function useTabStrip(
 		onCloseTabs,
 		getCloseTabsConfirmation,
 		onSelectTab,
+		onTabsChange,
 		onVerticalCollapsedChange,
 		onVerticalExpandOnHoverChange,
 		onVerticalTabSearchClick,
@@ -492,7 +497,8 @@ export function useTabStrip(
 		}
 		setDrag((candidate) => {
 			if (!candidate?.settling) return candidate;
-			if (horizontal && candidate.horizontalGroupDrag !== null) {
+			// An authority's answer may already have replaced the model this drag ended on.
+			if (onTabsChange === undefined && horizontal && candidate.horizontalGroupDrag !== null) {
 				const settled = transitionHorizontalGroupDrag(candidate.horizontalGroupDrag, {
 					type: 'settle',
 				});
@@ -562,9 +568,34 @@ export function useTabStrip(
 			} else {
 				model.restoreCanceledDrag(current.restoreState);
 			}
+			// A new model can arrive under a held pointer, and a drag only means something on the Tabs it
+			// picked up. The person sees it end and starts again from what is now there.
+			if (current.groupHeaderId !== null) {
+				suppressGroupToggleRef.current = null;
+			}
+			dragRef.current = null;
+			cancelVerticalGroupPickupFrame();
+			setDrag(null);
+			announce(messages.tabMoveCanceled);
 		},
-		[horizontal, model],
+		[cancelVerticalGroupPickupFrame, horizontal, messages.tabMoveCanceled, model],
 	);
+
+	// A press has moved nothing yet, so a new model keeps it. A group press is armed against the
+	// arrangement it saw, so it gives up the drag and stays a click.
+	useEffect(() => {
+		const current = dragRef.current;
+		if (current === null || current.started) return;
+		if (current.groupHeaderId === null) {
+			setDrag({ ...current, restoreState: model.captureDragRestoreState() });
+			return;
+		}
+		if (touchLongPressTimer.current !== null) {
+			window.clearTimeout(touchLongPressTimer.current);
+			touchLongPressTimer.current = null;
+		}
+		setDrag(null);
+	}, [model]);
 
 	useEffect(() => {
 		const current = dragRef.current;
@@ -611,6 +642,16 @@ export function useTabStrip(
 
 	const announce = (text: string) => {
 		setAnnouncement((current) => ({ text, sequence: current.sequence + 1 }));
+	};
+	/** An authority moves Tabs when it answers, so saying so any earlier could be untrue. */
+	const announceWhenMoved = (execution: ActionExecution, announceMove: () => void) => {
+		if (onTabsChange === undefined) {
+			announceMove();
+			return;
+		}
+		void execution.completion.then((result) => {
+			if (result.kind === 'completed') announceMove();
+		});
 	};
 
 	useEffect(
@@ -1650,10 +1691,12 @@ export function useTabStrip(
 		else if (event.key === nextKey) direction = 1;
 		if (direction === 0) return;
 		event.preventDefault();
-		actions.execute(TAB_STRIP_ACTION_IDS.moveGroup, { direction, groupId }, 'keyboard');
 		let relativeDirection: TabStripMoveDirection = direction < 0 ? 'up' : 'down';
 		if (horizontal) relativeDirection = direction < 0 ? 'left' : 'right';
-		announce(messages.formatGroupMovedAnnouncement(relativeDirection));
+		announceWhenMoved(
+			actions.execute(TAB_STRIP_ACTION_IDS.moveGroup, { direction, groupId }, 'keyboard'),
+			() => announce(messages.formatGroupMovedAnnouncement(relativeDirection)),
+		);
 	};
 
 	const dragPresent = drag !== null;
@@ -2283,10 +2326,12 @@ export function useTabStrip(
 				}
 				if (!externalTargetActive) {
 					const committedArrangement = model.captureDragRestoreState();
-					model.restoreCanceledDrag(current.restoreState);
+					// Only the Tabs go back. The press moved the selection, and taking it away for a
+					// moment would send navigation after a Tab the person has already left.
+					model.restoreArrangement(current.restoreState);
 					actions.execute(
 						TAB_STRIP_ACTION_IDS.applyArrangement,
-						{ state: committedArrangement },
+						{ before: current.restoreState, state: committedArrangement, tabIds: current.tabIds },
 						'pointer',
 					);
 				}
@@ -2436,16 +2481,19 @@ export function useTabStrip(
 		if (!reorder) return;
 		event.preventDefault();
 		if (reorder.moveToEnd) {
-			actions.execute(
-				TAB_STRIP_ACTION_IDS.moveTab,
-				{ direction: reorder.direction < 0 ? 'first' : 'last', tabId },
-				'keyboard',
-			);
-			announce(
-				messages.formatTabMoveAnnouncement(
-					reorder.direction < 0 ? 'first' : 'last',
-					horizontal ? 'horizontal' : 'vertical',
+			announceWhenMoved(
+				actions.execute(
+					TAB_STRIP_ACTION_IDS.moveTab,
+					{ direction: reorder.direction < 0 ? 'first' : 'last', tabId },
+					'keyboard',
 				),
+				() =>
+					announce(
+						messages.formatTabMoveAnnouncement(
+							reorder.direction < 0 ? 'first' : 'last',
+							horizontal ? 'horizontal' : 'vertical',
+						),
+					),
 			);
 		} else {
 			const before = model.getSnapshot();
@@ -2458,38 +2506,42 @@ export function useTabStrip(
 			const tabsInBeforeGroup = beforeGroup
 				? before.tabs.filter((tab) => tab.group === beforeGroup.id)
 				: [];
-			actions.execute(
-				TAB_STRIP_ACTION_IDS.moveTab,
-				{ direction: reorder.direction < 0 ? 'previous' : 'next', tabId },
-				'keyboard',
+			announceWhenMoved(
+				actions.execute(
+					TAB_STRIP_ACTION_IDS.moveTab,
+					{ direction: reorder.direction < 0 ? 'previous' : 'next', tabId },
+					'keyboard',
+				),
+				() => {
+					const after = currentModelRef.current.getSnapshot();
+					const afterIndex = after.tabs.findIndex((tab) => tab.id === tabId);
+					const afterTab = after.tabs.find((tab) => tab.id === tabId);
+					const afterGroup =
+						afterTab?.group === null || afterTab?.group === undefined
+							? null
+							: (after.groups.find((group) => group.id === afterTab.group) ?? null);
+					if (beforeTab?.group !== afterTab?.group && (beforeGroup || afterGroup)) {
+						const targetGroup = afterGroup ?? requireDefined(beforeGroup);
+						const groupTabs = afterGroup
+							? before.tabs.filter((tab) => tab.group === afterGroup.id)
+							: tabsInBeforeGroup;
+						announce(
+							messages.formatTabGroupMembershipAnnouncement(
+								afterGroup ? 'added' : 'removed',
+								targetGroup,
+								groupTabs,
+							),
+						);
+					} else if (beforeIndex !== afterIndex) {
+						announce(
+							messages.formatTabMoveAnnouncement(
+								reorder.direction < 0 ? 'previous' : 'next',
+								horizontal ? 'horizontal' : 'vertical',
+							),
+						);
+					}
+				},
 			);
-			const after = model.getSnapshot();
-			const afterIndex = after.tabs.findIndex((tab) => tab.id === tabId);
-			const afterTab = after.tabs.find((tab) => tab.id === tabId);
-			const afterGroup =
-				afterTab?.group === null || afterTab?.group === undefined
-					? null
-					: (after.groups.find((group) => group.id === afterTab.group) ?? null);
-			if (beforeTab?.group !== afterTab?.group && (beforeGroup || afterGroup)) {
-				const targetGroup = afterGroup ?? requireDefined(beforeGroup);
-				const groupTabs = afterGroup
-					? before.tabs.filter((tab) => tab.group === afterGroup.id)
-					: tabsInBeforeGroup;
-				announce(
-					messages.formatTabGroupMembershipAnnouncement(
-						afterGroup ? 'added' : 'removed',
-						targetGroup,
-						groupTabs,
-					),
-				);
-			} else if (beforeIndex !== afterIndex) {
-				announce(
-					messages.formatTabMoveAnnouncement(
-						reorder.direction < 0 ? 'previous' : 'next',
-						horizontal ? 'horizontal' : 'vertical',
-					),
-				);
-			}
 		}
 	};
 

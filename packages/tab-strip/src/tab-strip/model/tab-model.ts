@@ -876,6 +876,18 @@ export class TabModel {
 		this.mostRecentGroupId = mostRecentGroupId;
 		this.commit();
 	}
+
+	/** Puts Tabs and groups back as captured, leaving what is selected as it is now. */
+	public restoreArrangement(state: TabDragRestoreState): void {
+		this.restoreCanceledDrag({
+			...state,
+			activeTabId: this.activeTabId,
+			mostRecentGroupId: this.mostRecentGroupId,
+			selectedTabIds: [...this.selectedTabIds],
+			selectionAnchorId: this.selectionAnchorId,
+		});
+	}
+
 	public moveTabsByDrag(
 		tabIds: readonly string[],
 		targetIndex: number,

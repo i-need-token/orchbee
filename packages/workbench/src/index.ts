@@ -14,6 +14,8 @@ export type {
 	WorkbenchAuthorityClosure,
 	WorkbenchAuthorityContext,
 	WorkbenchAuthorityCreation,
+	WorkbenchAuthorityTabCreation,
+	WorkbenchAuthorityTabReceipt,
 	WorkbenchEnvironmentProjectConnectionCapability,
 	WorkbenchProjectFolderAcquisition,
 	WorkbenchProjectFolderAcquisitionFailureCode,

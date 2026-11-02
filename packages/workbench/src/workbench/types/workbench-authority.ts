@@ -1,10 +1,11 @@
 import type { ActionExecutionContext, ActionResult } from '@orchbee/actions';
+import type { TabStripArrangementChange } from '@orchbee/tab-strip';
 
 import type { ProjectWorkspaceEvent } from '../../project-workspace';
 import type { WorkbenchProjectCreationReceipt } from './workbench-project-folder-acquisition';
 
-/** A change to the Workbench structure every Client shares, in this Workbench's own vocabulary. */
-export type WorkbenchAuthorityChange = Extract<
+/** A change the navigation states without an authority too, as one event of its own. */
+export type WorkbenchAuthorityNavigationChange = Extract<
 	ProjectWorkspaceEvent,
 	{
 		readonly type:
@@ -17,6 +18,21 @@ export type WorkbenchAuthorityChange = Extract<
 			| 'workspace-updated';
 	}
 >;
+
+/** A change to the Workbench structure every Client shares, in this Workbench's own vocabulary. */
+export type WorkbenchAuthorityChange =
+	| WorkbenchAuthorityNavigationChange
+	| {
+			readonly type: 'tab-renamed';
+			readonly label: string;
+			readonly tabId: string;
+			readonly terminalContextId: string;
+	  }
+	| {
+			readonly type: 'tabs-changed';
+			readonly change: TabStripArrangementChange;
+			readonly terminalContextId: string;
+	  };
 
 /** A Workspace with its first terminal. The authority names it and commits it as one change. */
 export type WorkbenchAuthorityCreation =
@@ -32,6 +48,28 @@ export type WorkbenchAuthorityCreation =
 			readonly path: string;
 			readonly projectName: string;
 	  };
+
+/** A Tab with its first terminal, committed as one change. */
+export interface WorkbenchAuthorityTabCreation {
+	/** Where the terminal starts. Without one, the authority chooses as it does for any new Tab. */
+	readonly cwd?: string | undefined;
+	/** Null goes last, in no group. */
+	readonly placement:
+		| { readonly kind: 'after-tab'; readonly tabId: string }
+		/** Follows its source with the same name, pin, and group, and none of its terminals. */
+		| { readonly kind: 'duplicate'; readonly tabId: string }
+		| { readonly groupId: string; readonly kind: 'in-group' }
+		| { readonly kind: 'new-group' }
+		| null;
+	readonly terminalContextId: string;
+}
+
+export interface WorkbenchAuthorityTabReceipt {
+	readonly tabId: string;
+	readonly terminalContextId: string;
+	/** False when the Tab exists and its terminal is still starting, failed, or may not have started. */
+	readonly terminalStarted: boolean;
+}
 
 /** Something whose terminals end for every Client. */
 export type WorkbenchAuthorityClosure =
@@ -80,6 +118,11 @@ export interface WorkbenchAuthority {
 		context: WorkbenchAuthorityContext,
 		creation: WorkbenchAuthorityCreation,
 	): Promise<ActionResult<WorkbenchProjectCreationReceipt>>;
+	/** A completed creation without a receipt exists, but this Client can no longer read it. */
+	createTab(
+		context: WorkbenchAuthorityContext,
+		creation: WorkbenchAuthorityTabCreation,
+	): Promise<ActionResult<WorkbenchAuthorityTabReceipt>>;
 	/** Reports when what a confirmation of `closure` describes has changed. Returns how to stop. */
 	watchClose(closure: WorkbenchAuthorityClosure, onChanged: () => void): () => void;
 }

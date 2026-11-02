@@ -15,6 +15,7 @@ import { DEFAULT_TAB_STRIP_MESSAGES } from '../../constants/default-tab-strip-me
 import { TabModel } from '../../model/tab-model';
 import { TabStripComboButtonController } from '../../model/TabStripComboButtonController';
 import type {
+	TabStripChangeCallback,
 	TabStripCloseCallback,
 	TabStripCloseConfirmation,
 	TabStripNewTabRequest,
@@ -36,6 +37,7 @@ interface HarnessProps {
 	readonly onCloseTabs?: TabStripCloseCallback | undefined;
 	readonly onNewTab?: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onSelectTab?: TabStripSelectCallback | undefined;
+	readonly onTabsChange?: TabStripChangeCallback | undefined;
 	readonly parentScope?: ActionScope | undefined;
 	readonly runtime?: ActionRuntime | undefined;
 }
@@ -50,6 +52,7 @@ function Harness({
 	onCloseTabs,
 	onNewTab,
 	onSelectTab,
+	onTabsChange,
 	parentScope,
 	runtime,
 }: HarnessProps): ReactNode {
@@ -65,6 +68,7 @@ function Harness({
 		onNewTab,
 		onCloseTabs,
 		onSelectTab,
+		onTabsChange,
 		parentActionScope: parentScope,
 		requestCloseTabs: (tabIds) => {
 			model.closeTabs(tabIds);
@@ -226,7 +230,9 @@ describe('useTabStripActions', () => {
 				runtime.execute(
 					TAB_STRIP_ACTION_IDS.applyArrangement,
 					{
+						before: state,
 						state: { ...state, tabs: [...state.tabs].reverse() },
+						tabIds: ['p'],
 					},
 					{ scope, source: 'programmatic' },
 				).completion,
@@ -242,6 +248,145 @@ describe('useTabStripActions', () => {
 			rendered.unmount();
 			runtime.dispose();
 		}
+	});
+
+	describe('when an authority decides the Tabs', () => {
+		const orderOf = (model: TabModel) => model.getSnapshot().tabs.map((tab) => tab.id);
+
+		function mounted(onTabsChange: TabStripChangeCallback, model: TabModel) {
+			let actions: TabStripActions | undefined;
+			render(
+				createElement(Harness, {
+					captureActions: (value) => {
+						actions = value;
+					},
+					captureScope: () => undefined,
+					model,
+					onTabsChange,
+				}),
+			);
+			if (actions === undefined) throw new Error('Expected the Tab strip actions');
+			return actions;
+		}
+
+		/** Where a pointer release leaves things: the model as it was, and where the Tabs ended up. */
+		function releaseFirstPastSecond(model: TabModel) {
+			const before = model.captureDragRestoreState();
+			model.moveTabsByDrag(['a'], 2, 0, 3, null, { coalesceNonconsecutive: true });
+			const state = model.captureDragRestoreState();
+			model.restoreCanceledDrag(before);
+			return { before, state, tabIds: ['a'] };
+		}
+
+		const threeTabs = () =>
+			new TabModel({
+				tabs: [
+					{ group: null, id: 'a', pinned: false, title: 'A' },
+					{ group: null, id: 'b', pinned: false, title: 'B' },
+					{ group: null, id: 'c', pinned: false, title: 'C' },
+				],
+			});
+
+		it('asks nothing of a drag that ended where it started', async () => {
+			const onTabsChange = vi.fn<TabStripChangeCallback>(() => ({ kind: 'completed' }));
+			const model = threeTabs();
+			const actions = mounted(onTabsChange, model);
+			const before = model.captureDragRestoreState();
+
+			await expect(
+				actions.execute(
+					TAB_STRIP_ACTION_IDS.applyArrangement,
+					{ before, state: before, tabIds: ['a'] },
+					'pointer',
+				).completion,
+			).resolves.toEqual({ kind: 'unchanged' });
+
+			expect(onTabsChange).not.toHaveBeenCalled();
+		});
+
+		it('keeps a dragged arrangement on screen while the authority decides it', async () => {
+			let answer: (result: { readonly kind: 'completed' }) => void = () => undefined;
+			const onTabsChange = vi.fn<TabStripChangeCallback>(
+				() =>
+					new Promise((resolve) => {
+						answer = resolve;
+					}),
+			);
+			const model = threeTabs();
+			const actions = mounted(onTabsChange, model);
+
+			const execution = actions.execute(
+				TAB_STRIP_ACTION_IDS.applyArrangement,
+				releaseFirstPastSecond(model),
+				'pointer',
+			);
+
+			expect(orderOf(model)).toEqual(['b', 'a', 'c']);
+			expect(onTabsChange).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+				groupId: null,
+				insertIndex: 2,
+				kind: 'tabs-dragged',
+				sourceOrder: ['a', 'b', 'c'],
+				tabIds: ['a'],
+			});
+			answer({ kind: 'completed' });
+			await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
+			expect(orderOf(model)).toEqual(['b', 'a', 'c']);
+		});
+
+		it('returns refused Tabs and keeps what was selected while waiting', async () => {
+			let refuse: (result: { readonly code: string; readonly kind: 'blocked' }) => void = () =>
+				undefined;
+			const model = threeTabs();
+			const actions = mounted(
+				() =>
+					new Promise((resolve) => {
+						refuse = resolve;
+					}),
+				model,
+			);
+
+			const execution = actions.execute(
+				TAB_STRIP_ACTION_IDS.applyArrangement,
+				releaseFirstPastSecond(model),
+				'pointer',
+			);
+			model.selectTab('c');
+			refuse({ code: 'revision-mismatch', kind: 'blocked' });
+
+			await expect(execution.completion).resolves.toEqual({
+				code: 'revision-mismatch',
+				kind: 'blocked',
+			});
+			expect(orderOf(model)).toEqual(['a', 'b', 'c']);
+			expect(model.getSnapshot().activeTabId).toBe('c');
+		});
+
+		it('says when a move would land on a collapsed group, and leaves its model alone', async () => {
+			const onTabsChange = vi.fn<TabStripChangeCallback>(() => ({ kind: 'completed' }));
+			const model = new TabModel({
+				groups: [{ collapsed: true, color: 'blue', id: 'g', title: 'G' }],
+				tabs: [
+					{ group: null, id: 'a', pinned: false, title: 'A' },
+					{ group: 'g', id: 'b', pinned: false, title: 'B' },
+				],
+			});
+			const actions = mounted(onTabsChange, model);
+
+			await actions.execute(
+				TAB_STRIP_ACTION_IDS.moveTab,
+				{ direction: 'next', tabId: 'a' },
+				'pointer',
+			).completion;
+
+			expect(onTabsChange).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+				adjacentGroupCollapsed: true,
+				direction: 'next',
+				kind: 'tab-moved',
+				tabId: 'a',
+			});
+			expect(orderOf(model)).toEqual(['a', 'b']);
+		});
 	});
 
 	it.each([
@@ -292,7 +437,7 @@ describe('useTabStripActions', () => {
 						case 'nested duplicate':
 							nested = runtime.execute(
 								TAB_STRIP_ACTION_IDS.applyArrangement,
-								{ state },
+								{ before: state, state, tabIds: ['a'] },
 								invocation,
 							);
 							break;
@@ -304,7 +449,9 @@ describe('useTabStripActions', () => {
 					runtime.execute(
 						TAB_STRIP_ACTION_IDS.applyArrangement,
 						{
+							before: state,
 							state: { ...state, tabs: [...state.tabs].reverse() },
+							tabIds: ['a'],
 						},
 						invocation,
 					).completion,
@@ -634,7 +781,11 @@ describe('useTabStripActions', () => {
 							groupId: null,
 							tabIds: ['tab-1'],
 						},
-						[TAB_STRIP_ACTION_IDS.applyArrangement]: { state: arrangement },
+						[TAB_STRIP_ACTION_IDS.applyArrangement]: {
+							before: arrangement,
+							state: arrangement,
+							tabIds: ['tab-1'],
+						},
 						[TAB_STRIP_ACTION_IDS.moveTabsToWindow]: { tabIds: ['tab-1'] },
 						[TAB_STRIP_ACTION_IDS.selectTab]: {
 							mode: 'replace',
@@ -693,10 +844,12 @@ describe('useTabStripActions', () => {
 		await runtime.execute(
 			TAB_STRIP_ACTION_IDS.applyArrangement,
 			{
+				before: reorderedArrangement,
 				state: {
 					...reorderedArrangement,
 					tabs: [...reorderedArrangement.tabs].reverse(),
 				},
+				tabIds: ['tab-1'],
 			},
 			{ scope, source: 'pointer' },
 		).completion;

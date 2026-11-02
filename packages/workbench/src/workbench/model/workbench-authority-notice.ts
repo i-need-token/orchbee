@@ -1,6 +1,7 @@
 import type { ActionResult } from '@orchbee/actions';
 import { workbenchMessages } from '@orchbee/i18n';
 
+import type { WorkbenchTabDuplicationStop } from '../actions/workbench-shared-tab-creation';
 import type { WorkbenchAuthorityClosure } from '../types/workbench-authority';
 import type { WorkbenchProjectWorkspaceRuntime } from './WorkbenchProjectWorkspaceRuntime';
 
@@ -253,16 +254,15 @@ export function workbenchCloseResultNotice(
 }
 
 /** Only a refusal or an unknown outcome needs words: a committed change shows in the Workbench. */
-export function workbenchFailureNotice(
+function failureNotice(
 	result: ActionResult<unknown>,
+	notApplied: WorkbenchAuthorityNotice['descriptor'],
+	stale: WorkbenchAuthorityNotice['descriptor'],
 ): WorkbenchAuthorityNotice | null {
 	switch (result.kind) {
 		case 'blocked':
 			return {
-				descriptor:
-					result.code === 'revision-mismatch'
-						? workbenchMessages.workspaceSetupStale
-						: workbenchMessages.workspaceSetupNotApplied,
+				descriptor: result.code === 'revision-mismatch' ? stale : notApplied,
 				lifetime: 'until-press',
 			};
 		case 'failed':
@@ -270,7 +270,7 @@ export function workbenchFailureNotice(
 				descriptor:
 					result.failure.code === 'outcome-unknown'
 						? workbenchMessages.workspaceSetupOutcomeUnknown
-						: workbenchMessages.workspaceSetupNotApplied,
+						: notApplied,
 				lifetime: 'until-press',
 			};
 		case 'cancelled':
@@ -279,4 +279,50 @@ export function workbenchFailureNotice(
 		case 'unsupported':
 			return null;
 	}
+}
+
+export function workbenchFailureNotice(
+	result: ActionResult<unknown>,
+): WorkbenchAuthorityNotice | null {
+	return failureNotice(
+		result,
+		workbenchMessages.workspaceSetupNotApplied,
+		workbenchMessages.workspaceSetupStale,
+	);
+}
+
+export function workbenchTabsFailureNotice(
+	result: ActionResult<unknown>,
+): WorkbenchAuthorityNotice | null {
+	return failureNotice(
+		result,
+		workbenchMessages.tabsNotApplied,
+		workbenchMessages.workspaceSetupStale,
+	);
+}
+
+export function workbenchTabCreationFailureNotice(
+	result: ActionResult<unknown>,
+): WorkbenchAuthorityNotice | null {
+	return failureNotice(
+		result,
+		workbenchMessages.tabCreateNotCreated,
+		workbenchMessages.tabCreateNotCreated,
+	);
+}
+
+const DUPLICATION_STOP_DESCRIPTORS: Readonly<
+	Record<WorkbenchTabDuplicationStop, WorkbenchAuthorityNotice['descriptor']>
+> = {
+	changed: workbenchMessages.tabDuplicationChanged,
+	deadline: workbenchMessages.tabDuplicationDeadline,
+	'not-created': workbenchMessages.tabDuplicationNotCreated,
+	'terminal-not-started': workbenchMessages.tabDuplicationUncertain,
+};
+
+export function workbenchTabDuplicationStoppedNotice(
+	stop: WorkbenchTabDuplicationStop,
+	counts: { readonly created: number; readonly total: number },
+): WorkbenchAuthorityNotice {
+	return { descriptor: DUPLICATION_STOP_DESCRIPTORS[stop], lifetime: 'timed', values: counts };
 }

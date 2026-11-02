@@ -1,12 +1,17 @@
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import * as React from 'react';
 
+import type { WorkbenchTabDuplicationStop } from '../actions/workbench-shared-tab-creation';
 import {
 	readWorkbenchCloseSubject,
 	workbenchCloseProgressNotice,
 	workbenchCloseResultNotice,
 	workbenchCloseWithdrawnNotice,
 	workbenchFailureNotice,
+	workbenchTabCreationFailureNotice,
+	workbenchTabDuplicationStoppedNotice,
+	workbenchTabsFailureNotice,
 	type WorkbenchAuthorityNotice,
 } from '../model/workbench-authority-notice';
 import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-location-activation';
@@ -16,6 +21,10 @@ import type { WorkbenchAuthority, WorkbenchAuthorityClosure } from '../types/wor
 export interface WorkbenchAuthorityNoticeView {
 	readonly authority: WorkbenchAuthority | undefined;
 	readonly notice: { readonly message: string; readonly persistent: boolean } | null;
+	readonly reportDuplicationStopped: (
+		stop: WorkbenchTabDuplicationStop,
+		counts: { readonly created: number; readonly total: number },
+	) => void;
 }
 
 /** The same lifetime a TUI status line gives a transient notice. */
@@ -72,6 +81,8 @@ export function useWorkbenchAuthorityNotice(
 										: workbenchMessages.workspaceSetupProjectDissolvedEmpty,
 									lifetime: 'timed',
 								});
+							} else if (change.type === 'tab-renamed' || change.type === 'tabs-changed') {
+								setNotice(workbenchTabsFailureNotice(result));
 							} else {
 								setNotice(workbenchFailureNotice(result));
 							}
@@ -126,6 +137,12 @@ export function useWorkbenchAuthorityNotice(
 							setNotice(workbenchFailureNotice(result));
 							return result;
 						},
+						createTab: async (context, creation) => {
+							setNotice(null);
+							const result = await authority.createTab(context, creation);
+							setNotice(workbenchTabCreationFailureNotice(result));
+							return result;
+						},
 						watchClose: (closure, onChanged) =>
 							authority.watchClose(closure, () => {
 								setNotice(workbenchCloseWithdrawnNotice(closure));
@@ -133,6 +150,14 @@ export function useWorkbenchAuthorityNotice(
 							}),
 					},
 		[authority, projectWorkspaceRuntime],
+	);
+	const reportDuplicationStopped = useMemoizedFn(
+		(
+			stop: WorkbenchTabDuplicationStop,
+			counts: { readonly created: number; readonly total: number },
+		) => {
+			setNotice(workbenchTabDuplicationStoppedNotice(stop, counts));
+		},
 	);
 	React.useEffect(() => {
 		if (notice === null || notice.lifetime === 'until-replaced') return undefined;
@@ -157,5 +182,6 @@ export function useWorkbenchAuthorityNotice(
 						message: intl.formatMessage(notice.descriptor, notice.values),
 						persistent: notice.lifetime === 'until-press',
 					},
+		reportDuplicationStopped,
 	};
 }

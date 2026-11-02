@@ -1107,6 +1107,8 @@ describe('TabStrip', () => {
 		document.removeEventListener('keydown', outerKeyDown);
 
 		expect(outerKeyDown).not.toHaveBeenCalled();
+		expect(model.getGroup('research')?.title).toBe('Research');
+		fireEvent.blur(input);
 		expect(model.getGroup('research')?.title).toBe('Working');
 		fireEvent.click(screen.getByRole('radio', { name: /^blue$/i }));
 		fireEvent.click(screen.getByRole('menuitem', { name: 'Ungroup' }));
@@ -1127,6 +1129,25 @@ describe('TabStrip', () => {
 			'research-b',
 			'loose',
 		]);
+	});
+
+	it.each([
+		{ key: 'Enter', expected: 'Working' },
+		{ key: 'Escape', expected: 'Research' },
+	])('leaves a typed group name as $expected when $key closes the menu', ({ expected, key }) => {
+		const model = createModel();
+		render(<TabStrip model={model} />);
+		fireEvent.contextMenu(screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ }), {
+			clientX: 80,
+			clientY: 20,
+		});
+		const input = screen.getByRole('textbox', { name: 'Group name' });
+
+		fireEvent.change(input, { target: { value: 'Working' } });
+		fireEvent.keyDown(input, { key });
+
+		expect(screen.queryByRole('textbox', { name: 'Group name' })).toBeNull();
+		expect(model.getGroup('research')?.title).toBe(expected);
 	});
 
 	it('uses the shared context-menu keyboard navigation for the tab group submenu', () => {
@@ -2216,6 +2237,55 @@ describe('TabStrip', () => {
 				.tabs.filter((tab) => tab.group === 'research')
 				.map((tab) => tab.id),
 		).toEqual(['research-a', 'research-b']);
+	});
+
+	it('ends a drag when a new model arrives under the pointer, restoring the old one', () => {
+		const model = createModel();
+		const onDraggingChange = vi.fn<() => void>();
+		const { rerender } = render(<TabStrip model={model} onDraggingChange={onDraggingChange} />);
+		const pinned = screen.getByRole('tab', { name: /^Pinned/ });
+		const researchA = screen.getByRole('tab', { name: /^Research A/ });
+		const researchB = screen.getByRole('tab', { name: /^Research B/ });
+		const loose = screen.getByRole('tab', { name: /^Loose/ });
+		setRect(pinned, 0, 50);
+		setRect(researchA, 50, 100);
+		setRect(researchB, 150, 100);
+		setRect(loose, 250, 100);
+		fireEvent.pointerDown(loose, { button: 0, pointerId: 11, clientX: 300, clientY: 20 });
+		fireEvent.pointerMove(window, { pointerId: 11, clientX: 60, clientY: 20 });
+		expect(onDraggingChange).toHaveBeenLastCalledWith(true);
+
+		const published = createModel();
+		rerender(<TabStrip model={published} onDraggingChange={onDraggingChange} />);
+
+		expect(onDraggingChange).toHaveBeenLastCalledWith(false);
+		const order = ['pinned', 'research-a', 'research-b', 'loose'];
+		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual(order);
+		// A later move belongs to no drag, so it moves nothing in what was published.
+		fireEvent.pointerMove(window, { pointerId: 11, clientX: 120, clientY: 20 });
+		fireEvent.pointerUp(window, { pointerId: 11, clientX: 120, clientY: 20 });
+		expect(published.getSnapshot().tabs.map((tab) => tab.id)).toEqual(order);
+	});
+
+	it('never takes the selection back from the pressed Tab when its drag ends', () => {
+		const model = createModel();
+		render(<TabStrip model={model} />);
+		const researchA = screen.getByRole('tab', { name: /^Research A/ });
+		const researchB = screen.getByRole('tab', { name: /^Research B/ });
+		const loose = screen.getByRole('tab', { name: /^Loose/ });
+		setRect(screen.getByRole('tab', { name: /^Pinned/ }), 0, 50);
+		setRect(researchA, 50, 100);
+		setRect(researchB, 150, 100);
+		setRect(loose, 250, 100);
+		fireEvent.pointerDown(loose, { button: 0, pointerId: 11, clientX: 300, clientY: 20 });
+		const activeTabs = new Set<string | null>();
+		const unsubscribe = model.subscribe(() => activeTabs.add(model.getSnapshot().activeTabId));
+		fireEvent.pointerMove(window, { pointerId: 11, clientX: 60, clientY: 20 });
+		fireEvent.pointerUp(window, { pointerId: 11, clientX: 60, clientY: 20 });
+		unsubscribe();
+
+		expect(model.getSnapshot().tabs[1]?.id).toBe('loose');
+		expect([...activeTabs]).toEqual(['loose']);
 	});
 
 	it('keeps the new-tab button fixed and does not resubmit a horizontal reorder', () => {

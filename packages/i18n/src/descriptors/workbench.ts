@@ -359,6 +359,38 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.description'],
 		description: 'Confirmation text naming the Tabs that close and how many terminals end.',
 	},
+	tabCreateNotCreated: {
+		id: 'workbench.tabs.create.notCreated',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.create.notCreated'],
+		description: 'Status notice when the Workbench authority did not create a Tab.',
+	},
+	tabDuplicationChanged: {
+		id: 'workbench.tabs.duplicate.changed',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.duplicate.changed'],
+		description:
+			'Status notice when duplicating Tabs stopped because the selection or Workspace changed.',
+	},
+	tabDuplicationDeadline: {
+		id: 'workbench.tabs.duplicate.deadline',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.duplicate.deadline'],
+		description: 'Status notice when duplicating Tabs stopped at its time limit.',
+	},
+	tabDuplicationNotCreated: {
+		id: 'workbench.tabs.duplicate.notCreated',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.duplicate.notCreated'],
+		description: 'Status notice when duplicating Tabs stopped because a copy was not created.',
+	},
+	tabDuplicationUncertain: {
+		id: 'workbench.tabs.duplicate.uncertain',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.duplicate.uncertain'],
+		description:
+			'Status notice when duplicating Tabs stopped because a copy or its terminal has no definite result.',
+	},
+	tabsNotApplied: {
+		id: 'workbench.tabs.update.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.update.notApplied'],
+		description: 'Status notice when the Workbench authority refused a change to Tabs.',
+	},
 	tabCloseNotApplied: {
 		id: 'workbench.tabs.close.notApplied',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.notApplied'],

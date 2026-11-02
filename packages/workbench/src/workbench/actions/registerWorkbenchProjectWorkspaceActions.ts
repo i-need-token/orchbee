@@ -20,9 +20,9 @@ import { matchesWorkbenchProjectCreation } from '../model/matchesWorkbenchProjec
 import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-location-activation';
 import type {
 	WorkbenchAuthority,
-	WorkbenchAuthorityChange,
 	WorkbenchAuthorityClosure,
 	WorkbenchAuthorityCreation,
+	WorkbenchAuthorityNavigationChange,
 } from '../types/workbench-authority';
 import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import type { WorkbenchNavigationPort } from '../types/workbench-host-actions';
@@ -134,7 +134,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 		concurrencyKey: (input: WorkbenchProjectInput) => input.projectId,
 		mode: 'foreground' as const,
 	};
-	const commit = (context: ActionExecutionContext, change: WorkbenchAuthorityChange) =>
+	const commit = (context: ActionExecutionContext, change: WorkbenchAuthorityNavigationChange) =>
 		authority === undefined
 			? resultFor(transitionWithCommit(context, projectWorkspaceRuntime, change))
 			: authority.change(context, change);

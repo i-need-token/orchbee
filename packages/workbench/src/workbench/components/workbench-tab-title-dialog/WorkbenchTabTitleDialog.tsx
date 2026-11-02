@@ -6,7 +6,7 @@ import {
 	FieldLabel,
 	Input,
 } from '@orchbee/ui/components';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 
 import { ResourceDialogForm } from '../resource-dialog-form/ResourceDialogForm';
 import { ResourceDialogFooter } from '../resource-dialog-footer/ResourceDialogFooter';
@@ -18,7 +18,8 @@ interface WorkbenchTabTitleDialogMessages {
 	readonly description: string;
 	readonly field: string;
 	readonly placeholder: string;
-	readonly restoreDescription: string;
+	/** Null when emptying the field cannot bring back the title the terminal reports. */
+	readonly restoreDescription: string | null;
 	readonly save: string;
 	readonly title: string;
 }
@@ -43,6 +44,8 @@ export function WorkbenchTabTitleDialog({
 	const descriptionId = 'workbench-tab-title-description';
 	const formId = 'workbench-tab-title-form';
 	const inputId = 'workbench-tab-title-input';
+	// Not `autoFocus`: the menu this can open from returns focus as it closes, after that has run.
+	const input = useRef<HTMLInputElement>(null);
 	return (
 		<Dialog
 			onOpenChange={(open) => {
@@ -54,21 +57,24 @@ export function WorkbenchTabTitleDialog({
 				closeLabel={messages.close}
 				data-slot='workbench-tab-title-dialog'
 				finalFocus={finalFocus}
+				initialFocus={input}
 			>
 				<ResourceDialogHeader description={messages.description} title={messages.title} />
 				<ResourceDialogForm id={formId} onSubmit={onSubmit} submitDisabled={false}>
 					<Field>
 						<FieldLabel htmlFor={inputId}>{messages.field}</FieldLabel>
 						<Input
-							aria-describedby={descriptionId}
-							autoFocus
+							aria-describedby={messages.restoreDescription === null ? undefined : descriptionId}
 							id={inputId}
 							placeholder={messages.placeholder}
+							ref={input}
 							value={title}
 							onChange={(event) => onTitleChange(event.currentTarget.value)}
 							onFocus={(event) => event.currentTarget.select()}
 						/>
-						<FieldDescription id={descriptionId}>{messages.restoreDescription}</FieldDescription>
+						{messages.restoreDescription === null ? null : (
+							<FieldDescription id={descriptionId}>{messages.restoreDescription}</FieldDescription>
+						)}
 					</Field>
 				</ResourceDialogForm>
 				<ResourceDialogFooter

@@ -320,6 +320,16 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.close.description':
 		'{names}{more, plural, =0 {} =1 { … and 1 more Tab} other { … and # more Tabs}}. Ends {running, plural, =1 {# terminal} other {# terminals}}.',
 	'workbench.tabs.close.notApplied': 'Close request was not applied',
+	'workbench.tabs.create.notCreated': 'Tab not created · previous Tab unchanged',
+	'workbench.tabs.duplicate.changed':
+		'Duplication stopped: selection or workspace changed · {created}/{total} tabs created',
+	'workbench.tabs.duplicate.deadline':
+		'Duplication stopped: time limit · {created}/{total} tabs created',
+	'workbench.tabs.duplicate.notCreated':
+		'Duplication stopped: tab not created · {created}/{total} tabs created',
+	'workbench.tabs.duplicate.uncertain':
+		'Duplication stopped: check pending, failed or unknown result; no replay · {created}/{total} tabs created',
+	'workbench.tabs.update.notApplied': 'Tabs not updated · check the target before trying again',
 	'workbench.tabs.close.outcomeUnknown': '{label} · Close outcome unknown',
 	'workbench.tabs.close.setProgress': 'Closing Tabs: {completed} closed, {remaining} remaining',
 	'workbench.tabs.close.setStopped':

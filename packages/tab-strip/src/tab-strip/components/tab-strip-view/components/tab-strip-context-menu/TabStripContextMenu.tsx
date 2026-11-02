@@ -20,6 +20,7 @@ import {
 	type MenuState,
 } from '../../../../utils/tab-strip-internals';
 import { GroupEditorMenuIcon } from './components/group-editor-menu-icon/GroupEditorMenuIcon';
+import { GroupTitleInput } from './components/group-title-input/GroupTitleInput';
 import { useTabStripMessages } from '../../../../hooks/useTabStripMessages';
 import type { TabStripActions } from '../../../../types/tab-strip-actions';
 import { TAB_STRIP_ACTION_IDS } from '../../../../actions/tab-strip-action-contracts';
@@ -200,28 +201,19 @@ export function TabStripContextMenu({
 		};
 		return (
 			<ContextMenuContent className={styles['ct-group-editor']} aria-label={messages.groupOptions}>
-				<input
-					className={styles['ct-group-editor__title']}
-					aria-label={messages.groupName}
-					autoFocus
-					value={group.title}
+				<GroupTitleInput
+					key={group.id}
+					label={messages.groupName}
 					placeholder={messages.groupNamePlaceholder}
-					onChange={(event) =>
+					title={group.title}
+					onClose={onClose}
+					onCommit={(title) =>
 						actions.execute(
 							TAB_STRIP_ACTION_IDS.updateGroup,
-							{ groupId: group.id, title: event.target.value },
+							{ groupId: group.id, title },
 							'context-menu',
 						)
 					}
-					onKeyDown={(event) => {
-						event.stopPropagation();
-						if (event.key !== 'Enter' && event.key !== 'Escape') return;
-						event.preventDefault();
-						onClose();
-					}}
-					onKeyUp={(event) => event.stopPropagation()}
-					onPointerDown={(event) => event.stopPropagation()}
-					onClick={(event) => event.stopPropagation()}
 				/>
 				<div
 					className={styles['ct-group-editor__colors']}

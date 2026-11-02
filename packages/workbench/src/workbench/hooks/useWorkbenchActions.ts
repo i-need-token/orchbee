@@ -184,6 +184,7 @@ export function useWorkbenchActions({
 				typedRuntime,
 			}),
 			registerWorkbenchTabTitleAction({
+				authority,
 				openEditor: openTabTitleEditor,
 				projectWorkspaceRuntime,
 				scope,
@@ -237,6 +238,17 @@ export function useWorkbenchActions({
 									code: 'host-capability-unavailable',
 									kind: 'blocked',
 								};
+							}
+							if (
+								authority !== undefined &&
+								projectWorkspaceRuntime.getSnapshot().activeLocation.kind !== 'workspace'
+							) {
+								// A Tab needs a Workspace, and creating one explicitly has its own owner.
+								typedRuntime.execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined, {
+									scope,
+									source: context.source,
+								});
+								return { kind: 'unchanged' };
 							}
 							return onNewTerminal(context, input);
 						},

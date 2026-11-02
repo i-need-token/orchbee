@@ -11,6 +11,7 @@ import type { AgentSnapshotSource } from '@orchbee/agent';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import {
 	type TabModel,
+	type TabStripChangeCallback,
 	type TabStripCloseCallback,
 	type TabStripCloseConfirmation,
 	type TabStripNewTabRequest,
@@ -69,6 +70,12 @@ import {
 	getWorkbenchTabCreationAvailability,
 	getWorkbenchTerminalCreationAvailability,
 } from '../actions/workbench-terminal-creation-action';
+import {
+	createSharedTab,
+	createSharedTerminal,
+	duplicateSharedTabs,
+	getSharedTabCreationAvailability,
+} from '../actions/workbench-shared-tab-creation';
 import type { WorkbenchAuthority } from '../types/workbench-authority';
 import { useWorkbenchActions } from './useWorkbenchActions';
 import {
@@ -129,6 +136,8 @@ interface WorkbenchView {
 	readonly leftPanelSize: string;
 	readonly newTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onCloseTabs: TabStripCloseCallback;
+	/** Present when an authority decides the Tabs, which then show only as it answers. */
+	readonly onTabsChange: TabStripChangeCallback | undefined;
 	readonly getCloseTabsConfirmation: TabStripCloseConfirmation;
 	readonly getTabCreationAvailability: (intent: TabStripTabCreationIntent) => ActionAvailability;
 	readonly onLayoutChanged: (
@@ -184,7 +193,7 @@ interface WorkbenchView {
 		readonly description: string;
 		readonly field: string;
 		readonly placeholder: string;
-		readonly restoreDescription: string;
+		readonly restoreDescription: string | null;
 		readonly save: string;
 		readonly title: string;
 	};
@@ -337,7 +346,7 @@ export function useWorkbench({
 	}, [searchState.kind]);
 	const openTabTitleEditor = useMemoizedFn((request: WorkbenchTabTitleEditorRequest) => {
 		tabTitleReturnFocus.current = findActiveTerminalFocusTarget(projectWorkspaceRuntime);
-		setTabTitleEditor({ ...request, draftTitle: request.title });
+		setTabTitleEditor({ ...request, draftTitle: request.unnamed ? '' : request.title });
 	});
 	const tabTitleEditorFinalFocus = useMemoizedFn(() => {
 		const capturedTarget = tabTitleReturnFocus.current;
@@ -357,32 +366,78 @@ export function useWorkbench({
 		writeWorkbenchTabStripOrientation(storage, orientation);
 	});
 	const getNewTerminalAvailability = useMemoizedFn((input: WorkbenchTerminalCreateInput) =>
-		getWorkbenchTerminalCreationAvailability(
-			projectWorkspaceRuntime,
-			remoteTerminalCreation,
-			input,
-		),
+		authorityNotice.authority === undefined
+			? getWorkbenchTerminalCreationAvailability(
+					projectWorkspaceRuntime,
+					remoteTerminalCreation,
+					input,
+				)
+			: getSharedTabCreationAvailability(projectWorkspaceRuntime, {
+					groupId: input.groupId,
+					kind: 'new-tab',
+					...(input.index === undefined ? {} : { index: input.index }),
+				}),
 	);
 	const getTabCreationAvailability = useMemoizedFn((intent: TabStripTabCreationIntent) =>
-		getWorkbenchTabCreationAvailability(projectWorkspaceRuntime, remoteTerminalCreation, intent),
+		authorityNotice.authority === undefined
+			? getWorkbenchTabCreationAvailability(projectWorkspaceRuntime, remoteTerminalCreation, intent)
+			: getSharedTabCreationAvailability(projectWorkspaceRuntime, intent),
 	);
 	const createTerminal = useMemoizedFn<
 		void,
 		Parameters<WorkbenchTerminalCreateCallback>,
 		ReturnType<WorkbenchTerminalCreateCallback>
 	>((context, input) =>
-		executeWorkbenchTerminalCreationAction(context, input, {
-			fallbackTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
-			onLocalTerminalCreated: () => {
-				focusRouting.requestTerminalFocus();
-			},
-			onRemoteTerminalCreated: () => {
-				focusRouting.requestTerminalFocus();
-			},
-			remoteTerminalCreation,
-			runtime: projectWorkspaceRuntime,
-		}),
+		authorityNotice.authority === undefined
+			? executeWorkbenchTerminalCreationAction(context, input, {
+					fallbackTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
+					onLocalTerminalCreated: () => {
+						focusRouting.requestTerminalFocus();
+					},
+					onRemoteTerminalCreated: () => {
+						focusRouting.requestTerminalFocus();
+					},
+					remoteTerminalCreation,
+					runtime: projectWorkspaceRuntime,
+				})
+			: createSharedTerminal(context, input, {
+					authority: authorityNotice.authority,
+					beginTerminalHandover: focusRouting.beginTerminalHandover,
+					runtime: projectWorkspaceRuntime,
+				}),
 	);
+	const changeSharedTabs = useMemoizedFn<
+		void,
+		Parameters<TabStripChangeCallback>,
+		ReturnType<TabStripChangeCallback>
+	>((context, change) => {
+		const decider = authorityNotice.authority;
+		if (decider === undefined) return { kind: 'unsupported' };
+		switch (change.kind) {
+			case 'tab-created-in-new-group':
+				return createSharedTab(
+					context,
+					{ placement: { kind: 'new-group' } },
+					{
+						authority: decider,
+						beginTerminalHandover: focusRouting.beginTerminalHandover,
+						runtime: projectWorkspaceRuntime,
+					},
+				);
+			case 'tabs-duplicated':
+				return duplicateSharedTabs(context, change.tabIds, {
+					authority: decider,
+					onStopped: authorityNotice.reportDuplicationStopped,
+					runtime: projectWorkspaceRuntime,
+				});
+			default:
+				return decider.change(context, {
+					change,
+					terminalContextId: projectWorkspaceRuntime.getActiveTerminalContext().terminalContextId,
+					type: 'tabs-changed',
+				});
+		}
+	});
 	/** In the order the strip shows them, which is the order a set of Tabs closes in. */
 	const sharedTabsClosure = (tabIds: readonly string[]) => {
 		const { tabModel: activeTabModel, terminalContextId } =
@@ -672,6 +727,7 @@ export function useWorkbench({
 				request.source,
 			),
 		onCloseTabs: closeTabs,
+		onTabsChange: authorityNotice.authority === undefined ? undefined : changeSharedTabs,
 		getCloseTabsConfirmation,
 		getTabCreationAvailability,
 		onLayoutChanged: (_layout, meta) => {
@@ -932,8 +988,14 @@ export function useWorkbench({
 			close: intl.formatMessage(workbenchMessages.resourceClose),
 			description: intl.formatMessage(workbenchTabMessages.tabTitleDescription),
 			field: intl.formatMessage(workbenchTabMessages.tabTitleField),
-			placeholder: intl.formatMessage(workbenchTabMessages.tabTitlePlaceholder),
-			restoreDescription: intl.formatMessage(workbenchTabMessages.tabTitleRestoreDescription),
+			placeholder:
+				tabTitleEditor?.unnamed === true
+					? tabTitleEditor.title
+					: intl.formatMessage(workbenchTabMessages.tabTitlePlaceholder),
+			restoreDescription:
+				authorityNotice.authority === undefined
+					? intl.formatMessage(workbenchTabMessages.tabTitleRestoreDescription)
+					: null,
 			save: intl.formatMessage(workbenchMessages.resourceSave),
 			title: intl.formatMessage(workbenchTabMessages.setTabTitle),
 		},

@@ -5,6 +5,7 @@ import {
 	noActionInput,
 	type ActionCatalogId,
 	type ActionExecution,
+	type ActionExecutionContext,
 	type ActionInputFor,
 	type ActionInvocationSource,
 	type ActionOutputFor,
@@ -33,10 +34,18 @@ import {
 	tabSelectionInput,
 } from '../actions/tab-strip-action-contracts';
 import type { TabCloseSource } from '../layout/tab-closing-mode';
-import { TabModelInvariantError, type TabModel } from '../model/tab-model';
+import { describeTabDragRelease } from '../model/describeTabDragRelease';
+import {
+	TabModelInvariantError,
+	type TabDragRestoreState,
+	type TabModel,
+} from '../model/tab-model';
 import type { TabStripComboButtonController } from '../model/TabStripComboButtonController';
 import type { TabStripMessages } from '../types/tab-strip-messages';
 import type {
+	TabStripArrangementChange,
+	TabStripChange,
+	TabStripChangeCallback,
 	TabStripCloseCallback,
 	TabStripCloseConfirmation,
 	TabStripNewTabRequest,
@@ -48,6 +57,35 @@ import { createGroupForTabs, createNewTabGroup } from '../utils/tab-strip-intern
 
 function hasTargetGroup(model: TabModel, groupId: string | null): boolean {
 	return groupId === null || model.getGroup(groupId) !== null;
+}
+
+/** Collapsing is this Client's own view, and an authority needs it to know where a move lands. */
+function adjoinsCollapsedGroup(
+	model: TabModel,
+	tabId: string,
+	direction: Extract<TabStripArrangementChange, { kind: 'tab-moved' }>['direction'],
+): boolean {
+	const { tabs } = model.getSnapshot();
+	const index = tabs.findIndex((tab) => tab.id === tabId);
+	const group = tabs[direction === 'previous' ? index - 1 : index + 1]?.group ?? null;
+	return group !== null && model.getGroup(group)?.collapsed === true;
+}
+
+/**
+ * The dragged arrangement stays on screen until the authority answers, because its publication
+ * replaces this model. Any other answer publishes nothing, so the Tabs go back, keeping what the
+ * person has selected since they were pressed.
+ */
+async function proposeDraggedArrangement(
+	context: ActionExecutionContext,
+	model: TabModel,
+	onTabsChange: TabStripChangeCallback,
+	change: TabStripChange,
+	before: TabDragRestoreState,
+) {
+	const result = await onTabsChange(context, change);
+	if (result.kind !== 'completed') model.restoreArrangement(before);
+	return result;
 }
 
 interface UseTabStripActionsOptions {
@@ -66,6 +104,7 @@ interface UseTabStripActionsOptions {
 	readonly onCloseTabs: TabStripCloseCallback | undefined;
 	readonly getCloseTabsConfirmation: TabStripCloseConfirmation | undefined;
 	readonly onSelectTab: TabStripSelectCallback | undefined;
+	readonly onTabsChange: TabStripChangeCallback | undefined;
 	readonly parentActionScope: ActionScope | undefined;
 	readonly requestCloseTabs: (tabIds: readonly string[], source?: TabCloseSource) => void;
 	readonly onVerticalCollapsedChange: ((collapsed: boolean) => void) | undefined;
@@ -87,6 +126,7 @@ export function useTabStripActions({
 	onCloseTabs,
 	getCloseTabsConfirmation,
 	onSelectTab,
+	onTabsChange,
 	parentActionScope,
 	requestCloseTabs,
 	onVerticalCollapsedChange,
@@ -179,6 +219,8 @@ export function useTabStripActions({
 				? { kind: 'unchanged' as const }
 				: { kind: 'completed' as const };
 		};
+		const apply = (context: ActionExecutionContext, change: TabStripChange, local: () => void) =>
+			onTabsChange === undefined ? commit(context, local) : onTabsChange(context, change);
 		const createTabRegistration =
 			onNewTab === undefined
 				? typedRuntime.register(
@@ -301,22 +343,35 @@ export function useTabStripActions({
 					getAvailability: (_context, input) => tabAvailability([input.tabId]),
 					handler: {
 						execute: (context, input) =>
-							commit(context, () => {
-								switch (input.direction) {
-									case 'first':
-										model.moveTabFirst(input.tabId);
-										break;
-									case 'last':
-										model.moveTabLast(input.tabId);
-										break;
-									case 'next':
-										model.shiftTabRelative(input.tabId, 1);
-										break;
-									case 'previous':
-										model.shiftTabRelative(input.tabId, -1);
-										break;
-								}
-							}),
+							apply(
+								context,
+								{
+									adjacentGroupCollapsed: adjoinsCollapsedGroup(
+										model,
+										input.tabId,
+										input.direction,
+									),
+									direction: input.direction,
+									kind: 'tab-moved',
+									tabId: input.tabId,
+								},
+								() => {
+									switch (input.direction) {
+										case 'first':
+											model.moveTabFirst(input.tabId);
+											break;
+										case 'last':
+											model.moveTabLast(input.tabId);
+											break;
+										case 'next':
+											model.shiftTabRelative(input.tabId, 1);
+											break;
+										case 'previous':
+											model.shiftTabRelative(input.tabId, -1);
+											break;
+									}
+								},
+							),
 					},
 					id: TAB_STRIP_ACTION_IDS.moveTab,
 					input: tabMoveInput,
@@ -331,7 +386,9 @@ export function useTabStripActions({
 					getAvailability: (_context, input) => tabAvailability(input.tabIds),
 					handler: {
 						execute: (context, input) =>
-							commit(context, () => createGroupForTabs(model, input.tabIds)),
+							apply(context, { kind: 'tabs-grouped', tabIds: existingTabIds(input.tabIds) }, () =>
+								createGroupForTabs(model, input.tabIds),
+							),
 					},
 					id: TAB_STRIP_ACTION_IDS.createGroup,
 					input: tabIdsInput,
@@ -342,15 +399,18 @@ export function useTabStripActions({
 				scope,
 				defineAction({
 					category,
+					// An authority can take longer to answer than a person takes to press again.
 					execution: {
-						concurrency: 'parallel',
+						concurrency: 'reject-duplicate',
 						concurrencyKey: () => 'new-group',
 						mode: 'foreground',
 					},
 					getAvailability: () => getCreationAvailability({ kind: 'new-group' }),
 					handler: {
 						execute: (context) =>
-							commit(context, () => createNewTabGroup(model, messages.newTabTitle)),
+							apply(context, { kind: 'tab-created-in-new-group' }, () =>
+								createNewTabGroup(model, messages.newTabTitle),
+							),
 					},
 					id: TAB_STRIP_ACTION_IDS.createGroupWithTab,
 					input: noActionInput,
@@ -371,7 +431,15 @@ export function useTabStripActions({
 							if (!hasTargetGroup(model, input.groupId)) {
 								return { kind: 'blocked', code: 'group-not-found' };
 							}
-							return commit(context, () => model.moveTabsToGroup(input.tabIds, input.groupId));
+							return apply(
+								context,
+								{
+									groupId: input.groupId,
+									kind: 'tabs-group-set',
+									tabIds: existingTabIds(input.tabIds),
+								},
+								() => model.moveTabsToGroup(input.tabIds, input.groupId),
+							);
 						},
 					},
 					id: TAB_STRIP_ACTION_IDS.moveTabsToGroup,
@@ -410,7 +478,8 @@ export function useTabStripActions({
 				scope,
 				defineAction({
 					category,
-					execution: parallelByTabs,
+					// An authority can take longer to answer than a person takes to press again.
+					execution: { ...parallelByTabs, concurrency: 'reject-duplicate' },
 					getAvailability: (_context, input) => {
 						const availability = getCreationAvailability({
 							kind: 'duplicate',
@@ -419,12 +488,14 @@ export function useTabStripActions({
 						return availability.kind === 'enabled' ? tabAvailability(input.tabIds) : availability;
 					},
 					handler: {
-						execute: (context, input) =>
-							commit(context, () => {
-								for (const id of existingTabIds(input.tabIds)) {
+						execute: (context, input) => {
+							const tabIds = existingTabIds(input.tabIds);
+							return apply(context, { kind: 'tabs-duplicated', tabIds }, () => {
+								for (const id of tabIds) {
 									model.duplicateTab(id);
 								}
-							}),
+							});
+						},
 					},
 					id: TAB_STRIP_ACTION_IDS.duplicateTabs,
 					input: tabIdsInput,
@@ -439,7 +510,15 @@ export function useTabStripActions({
 					getAvailability: (_context, input) => tabAvailability(input.tabIds),
 					handler: {
 						execute: (context, input) =>
-							commit(context, () => model.setTabsPinned(input.tabIds, input.pinned)),
+							apply(
+								context,
+								{
+									kind: 'tabs-pinned-set',
+									pinned: input.pinned,
+									tabIds: existingTabIds(input.tabIds),
+								},
+								() => model.setTabsPinned(input.tabIds, input.pinned),
+							),
 					},
 					id: TAB_STRIP_ACTION_IDS.setTabsPinned,
 					input: tabPinnedInput,
@@ -463,7 +542,10 @@ export function useTabStripActions({
 								}
 							: { kind: 'enabled' },
 					handler: {
-						execute: (context, input) => commit(context, () => model.ungroup(input.groupId)),
+						execute: (context, input) =>
+							apply(context, { groupId: input.groupId, kind: 'group-ungrouped' }, () =>
+								model.ungroup(input.groupId),
+							),
 					},
 					id: TAB_STRIP_ACTION_IDS.ungroup,
 					input: tabGroupIdInput,
@@ -526,7 +608,11 @@ export function useTabStripActions({
 							: { kind: 'enabled' },
 					handler: {
 						execute: (context, input) =>
-							commit(context, () => model.shiftGroupRelative(input.groupId, input.direction)),
+							apply(
+								context,
+								{ direction: input.direction, groupId: input.groupId, kind: 'group-moved' },
+								() => model.shiftGroupRelative(input.groupId, input.direction),
+							),
 					},
 					id: TAB_STRIP_ACTION_IDS.moveGroup,
 					input: tabGroupShiftInput,
@@ -556,10 +642,16 @@ export function useTabStripActions({
 								}
 								throw error;
 							}
-							// Synchronous publication may request cancellation; the committed
-							// model still owns the result when this handler returns.
-							context.markCommitted();
-							return { kind: 'completed' };
+							if (onTabsChange === undefined) {
+								// Synchronous publication may request cancellation; the committed
+								// model still owns the result when this handler returns.
+								context.markCommitted();
+								return { kind: 'completed' };
+							}
+							const release = describeTabDragRelease(input.before, input.state, input.tabIds);
+							return release === null
+								? { kind: 'unchanged' }
+								: proposeDraggedArrangement(context, model, onTabsChange, release, input.before);
 						},
 					},
 					id: TAB_STRIP_ACTION_IDS.applyArrangement,
@@ -585,11 +677,19 @@ export function useTabStripActions({
 							: { kind: 'enabled' },
 					handler: {
 						execute: (context, input) =>
-							commit(context, () =>
-								model.updateGroup(input.groupId, {
-									...(input.color === undefined ? {} : { color: input.color }),
-									...(input.title === undefined ? {} : { title: input.title }),
-								}),
+							apply(
+								context,
+								{
+									color: input.color,
+									groupId: input.groupId,
+									kind: 'group-updated',
+									title: input.title,
+								},
+								() =>
+									model.updateGroup(input.groupId, {
+										...(input.color === undefined ? {} : { color: input.color }),
+										...(input.title === undefined ? {} : { title: input.title }),
+									}),
 							),
 					},
 					id: TAB_STRIP_ACTION_IDS.updateGroup,
@@ -770,6 +870,7 @@ export function useTabStripActions({
 		onNewTab,
 		onCloseTabs,
 		onSelectTab,
+		onTabsChange,
 		onVerticalCollapsedChange,
 		onVerticalExpandOnHoverChange,
 		onVerticalTabSearchClick,

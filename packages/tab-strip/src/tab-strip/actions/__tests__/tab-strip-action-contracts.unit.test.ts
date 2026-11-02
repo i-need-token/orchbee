@@ -71,24 +71,23 @@ describe('tab strip action contracts', () => {
 			success: true,
 		});
 		expect(booleanValueInput.parse({ value: true })).toMatchObject({ success: true });
-		expect(
-			tabArrangementInput.parse({
-				state: {
-					activeTabId: 'tab-1',
-					groups: [
-						{
-							collapsed: false,
-							color: 'blue',
-							id: 'group-1',
-							title: 'Group 1',
-						},
-					],
-					mostRecentGroupId: 'group-1',
-					selectedTabIds: ['tab-1'],
-					selectionAnchorId: 'tab-1',
-					tabs: [{ group: 'group-1', id: 'tab-1' }],
+		const arrangement = {
+			activeTabId: 'tab-1',
+			groups: [
+				{
+					collapsed: false,
+					color: 'blue',
+					id: 'group-1',
+					title: 'Group 1',
 				},
-			}),
+			],
+			mostRecentGroupId: 'group-1',
+			selectedTabIds: ['tab-1'],
+			selectionAnchorId: 'tab-1',
+			tabs: [{ group: 'group-1', id: 'tab-1' }],
+		};
+		expect(
+			tabArrangementInput.parse({ before: arrangement, state: arrangement, tabIds: ['tab-1'] }),
 		).toMatchObject({ success: true });
 		expect(tabGroupUpdateInput.parse({ color: 'blue', groupId: 'group-1' })).toMatchObject({
 			success: true,
@@ -139,9 +138,11 @@ describe('tab strip action contracts', () => {
 				selectionAnchorId: 'tab-1',
 				tabs: [{ group: 'group-1', id: 'tab-1' }],
 			};
-			expect(tabArrangementInput.parse({ state })).toMatchObject({ success: true });
+			const input = { before: state, tabIds: ['tab-1'] };
+			expect(tabArrangementInput.parse({ ...input, state })).toMatchObject({ success: true });
 			expect(
 				tabArrangementInput.parse({
+					...input,
 					state: { ...state, [field]: [...state[field], ...state[field]] },
 				}),
 			).toEqual({ success: false, code: 'expected-tab-arrangement-input' });
@@ -168,15 +169,18 @@ describe('tab strip action contracts', () => {
 			title: 'Group 1',
 		};
 		const sourceGroups = [sourceGroup];
+		const sourceState = {
+			activeTabId: 'tab-1',
+			groups: sourceGroups,
+			mostRecentGroupId: 'group-1',
+			selectedTabIds: sourceSelectedTabIds,
+			selectionAnchorId: 'tab-1',
+			tabs: sourceTabs,
+		};
 		const parsedArrangement = tabArrangementInput.parse({
-			state: {
-				activeTabId: 'tab-1',
-				groups: sourceGroups,
-				mostRecentGroupId: 'group-1',
-				selectedTabIds: sourceSelectedTabIds,
-				selectionAnchorId: 'tab-1',
-				tabs: sourceTabs,
-			},
+			before: sourceState,
+			state: sourceState,
+			tabIds: ['tab-1'],
 		});
 		expect(parsedArrangement.success).toBe(true);
 		if (!parsedArrangement.success) {

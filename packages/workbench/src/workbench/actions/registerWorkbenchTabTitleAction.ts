@@ -10,6 +10,7 @@ import type {
 	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalContext,
 } from '../model/WorkbenchProjectWorkspaceRuntime';
+import type { WorkbenchAuthority } from '../types/workbench-authority';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
@@ -21,9 +22,15 @@ export interface WorkbenchTabTitleEditorRequest {
 	readonly tabId: string;
 	readonly terminalContextId: string;
 	readonly title: string;
+	/**
+	 * The shared name follows the terminal until someone names it, so there is nothing to edit:
+	 * `title` is only what shows now, and only what the person types becomes a name.
+	 */
+	readonly unnamed: boolean;
 }
 
 interface RegisterWorkbenchTabTitleActionOptions {
+	readonly authority?: WorkbenchAuthority | undefined;
 	readonly openEditor: (request: WorkbenchTabTitleEditorRequest) => void;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly scope: ActionScope;
@@ -31,6 +38,7 @@ interface RegisterWorkbenchTabTitleActionOptions {
 }
 
 export function registerWorkbenchTabTitleAction({
+	authority,
 	openEditor,
 	projectWorkspaceRuntime,
 	scope,
@@ -59,20 +67,33 @@ export function registerWorkbenchTabTitleAction({
 					if (target === null) {
 						return { code: 'tab-title-target-unavailable', kind: 'blocked' };
 					}
+					const titlePolicy = target.terminalContext.panelWorkspaceStore
+						.getTabTitlePolicies()
+						.find((policy) => policy.tabId === target.tabId);
 					if (input?.kind !== 'commit') {
 						context.markCommitted();
 						openEditor({
 							tabId: target.tabId,
 							terminalContextId: target.terminalContext.terminalContextId,
 							title: target.title,
+							unnamed: authority !== undefined && titlePolicy?.customTitle === null,
 						});
 						return { kind: 'completed' };
 					}
 
+					if (authority !== undefined) {
+						const label = input.title?.trim() ?? '';
+						// A shared name has no way back to following the terminal, so empty asks for nothing.
+						return label === ''
+							? { kind: 'unchanged' }
+							: authority.change(context, {
+									label,
+									tabId: target.tabId,
+									terminalContextId: target.terminalContext.terminalContextId,
+									type: 'tab-renamed',
+								});
+					}
 					const title = input.title?.trim() || null;
-					const titlePolicy = target.terminalContext.panelWorkspaceStore
-						.getTabTitlePolicies()
-						.find((policy) => policy.tabId === target.tabId);
 					if (titlePolicy === undefined) {
 						return { code: 'tab-title-target-unavailable', kind: 'blocked' };
 					}

@@ -863,7 +863,7 @@ describe('Workbench Project and Workspace management', () => {
 		const titleCancel = within(dialog).getByRole('button', { name: 'Cancel' });
 		const titleSave = within(dialog).getByRole('button', { name: 'Save' });
 		expect(titleInput.value).toBe('system');
-		expect(document.activeElement).toBe(titleInput);
+		await waitFor(() => expect(document.activeElement).toBe(titleInput));
 		expect(titleInput.selectionStart).toBe(0);
 		expect(titleInput.selectionEnd).toBe(titleInput.value.length);
 		expect(within(titleCancel).getByText('Esc')).toBeDefined();
@@ -894,6 +894,7 @@ describe('Workbench Project and Workspace management', () => {
 		dialog = await screen.findByRole('dialog', { name: 'Set Tab Title' });
 		titleInput = within(dialog).getByLabelText<HTMLInputElement>('Tab title');
 		expect(titleInput.value).toBe('Focus work');
+		await waitFor(() => expect(document.activeElement).toBe(titleInput));
 		fireEvent.change(titleInput, { target: { value: '   ' } });
 		form = dialog.querySelector('form');
 		expect(form).not.toBeNull();

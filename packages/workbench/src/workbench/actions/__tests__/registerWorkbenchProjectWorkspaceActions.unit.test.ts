@@ -444,6 +444,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 			registerWorkbenchProjectWorkspaceActions({
 				authority: {
 					close: () => Promise.reject(new Error('Nothing closes here.')),
+					createTab: () => Promise.reject(new Error('No Tab is created here.')),
 					watchClose: () => () => undefined,
 					...authority,
 				},

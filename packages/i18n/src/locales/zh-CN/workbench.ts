@@ -295,6 +295,15 @@ export const zhCNWorkbenchMessages = {
 	'workbench.tabs.close.description':
 		'{names}{more, plural, =0 {} other {……以及另外 # 个标签页}}。将结束 {running} 个终端。',
 	'workbench.tabs.close.notApplied': '关闭请求未执行',
+	'workbench.tabs.create.notCreated': '未创建标签页 · 原标签页未更改',
+	'workbench.tabs.duplicate.changed':
+		'复制已停止：选择或工作区已改变 · 已创建 {created}/{total} 个标签页',
+	'workbench.tabs.duplicate.deadline': '复制已停止：已到时限 · 已创建 {created}/{total} 个标签页',
+	'workbench.tabs.duplicate.notCreated':
+		'复制已停止：标签页未创建 · 已创建 {created}/{total} 个标签页',
+	'workbench.tabs.duplicate.uncertain':
+		'复制已停止：请检查待定、失败或未知结果；不会重放 · 已创建 {created}/{total} 个标签页',
+	'workbench.tabs.update.notApplied': '标签页未更新 · 请检查目标后再试',
 	'workbench.tabs.close.outcomeUnknown': '{label} · 关闭结果未知',
 	'workbench.tabs.close.setProgress': '正在关闭标签页：{completed} 个已关闭，剩余 {remaining} 个',
 	'workbench.tabs.close.setStopped':

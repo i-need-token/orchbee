@@ -6,7 +6,7 @@ import type { ServerWorkbenchAction } from './ServerWorkbenchSession';
 const MAXIMUM_WORKSPACE_LABEL_SCALARS = 512;
 
 /** Every surface resizes its terminal once attached, so this only has to be a usable first size. */
-const DEFAULT_TERMINAL_GEOMETRY = {
+export const DEFAULT_TERMINAL_GEOMETRY = {
 	cellPixelHeight: 18,
 	cellPixelWidth: 9,
 	columns: 120,

@@ -84,7 +84,10 @@ interface BooleanValueInput {
 }
 
 interface TabArrangementInput {
+	/** What the drag started from, so an authority can be told one change instead of each step. */
+	readonly before: TabDragRestoreState;
 	readonly state: TabDragRestoreState;
+	readonly tabIds: readonly string[];
 }
 
 export interface TabStripActionCatalog {
@@ -329,52 +332,56 @@ export const booleanValueInput: ActionInputValidation<BooleanValueInput> = {
 			: { success: false, code: 'expected-boolean-value-input' },
 };
 
+function parseArrangementState(state: unknown): TabDragRestoreState | null {
+	if (!isRecord(state)) return null;
+	const tabs = state['tabs'];
+	const groups = state['groups'];
+	const selectedTabIds = state['selectedTabIds'];
+	if (
+		!Array.isArray(tabs) ||
+		!tabs.every(isArrangementTab) ||
+		new Set(tabs.map((tab) => tab.id)).size !== tabs.length ||
+		!Array.isArray(groups) ||
+		!groups.every(isArrangementGroup) ||
+		new Set(groups.map((group) => group.id)).size !== groups.length ||
+		!Array.isArray(selectedTabIds) ||
+		!selectedTabIds.every((id) => typeof id === 'string') ||
+		!(state['activeTabId'] === null || typeof state['activeTabId'] === 'string') ||
+		!(state['selectionAnchorId'] === null || typeof state['selectionAnchorId'] === 'string') ||
+		!(state['mostRecentGroupId'] === null || typeof state['mostRecentGroupId'] === 'string')
+	) {
+		return null;
+	}
+	return {
+		activeTabId: state['activeTabId'],
+		groups: groups.map((group) => ({
+			collapsed: group.collapsed,
+			color: group.color,
+			id: group.id,
+			title: group.title,
+			...(group.attention === undefined ? {} : { attention: group.attention }),
+		})),
+		mostRecentGroupId: state['mostRecentGroupId'],
+		selectedTabIds: Object.freeze([...selectedTabIds]),
+		selectionAnchorId: state['selectionAnchorId'],
+		tabs: tabs.map((tab) => ({
+			group: tab.group,
+			id: tab.id,
+		})),
+	};
+}
+
 export const tabArrangementInput: ActionInputValidation<TabArrangementInput> = {
 	name: 'TabArrangementInput',
 	parse: (input) => {
-		if (!isRecord(input) || !isRecord(input['state'])) {
+		const tabIds = parseTabIds(input);
+		if (tabIds === null || !isRecord(input)) {
 			return { success: false, code: 'expected-tab-arrangement-input' };
 		}
-		const state = input['state'];
-		const tabs = state['tabs'];
-		const groups = state['groups'];
-		const selectedTabIds = state['selectedTabIds'];
-		if (
-			!Array.isArray(tabs) ||
-			!tabs.every(isArrangementTab) ||
-			new Set(tabs.map((tab) => tab.id)).size !== tabs.length ||
-			!Array.isArray(groups) ||
-			!groups.every(isArrangementGroup) ||
-			new Set(groups.map((group) => group.id)).size !== groups.length ||
-			!Array.isArray(selectedTabIds) ||
-			!selectedTabIds.every((id) => typeof id === 'string') ||
-			!(state['activeTabId'] === null || typeof state['activeTabId'] === 'string') ||
-			!(state['selectionAnchorId'] === null || typeof state['selectionAnchorId'] === 'string') ||
-			!(state['mostRecentGroupId'] === null || typeof state['mostRecentGroupId'] === 'string')
-		) {
-			return { success: false, code: 'expected-tab-arrangement-input' };
-		}
-		return {
-			success: true,
-			data: {
-				state: {
-					activeTabId: state['activeTabId'],
-					groups: groups.map((group) => ({
-						collapsed: group.collapsed,
-						color: group.color,
-						id: group.id,
-						title: group.title,
-						...(group.attention === undefined ? {} : { attention: group.attention }),
-					})),
-					mostRecentGroupId: state['mostRecentGroupId'],
-					selectedTabIds: Object.freeze([...selectedTabIds]),
-					selectionAnchorId: state['selectionAnchorId'],
-					tabs: tabs.map((tab) => ({
-						group: tab.group,
-						id: tab.id,
-					})),
-				},
-			},
-		};
+		const before = parseArrangementState(input['before']);
+		const state = parseArrangementState(input['state']);
+		return before === null || state === null
+			? { success: false, code: 'expected-tab-arrangement-input' }
+			: { success: true, data: { before, state, tabIds } };
 	},
 };

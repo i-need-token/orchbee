@@ -13,7 +13,7 @@ import type { ReactNode } from 'react';
 import type { TabSelectionInput } from '../actions/tab-strip-action-contracts';
 import type { TabHoverCardController } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
 import type { HoverCardThumbnailSource } from '../components/tab-strip-view/components/hover-card/model/TabHoverCardThumbnailObserver';
-import type { TabData, TabGroupData, TabModel } from '../model/tab-model';
+import type { TabData, TabGroupColor, TabGroupData, TabModel } from '../model/tab-model';
 import type { TabCloseSource } from '../layout/tab-closing-mode';
 import type {
 	CrossWindowDragEndReason,
@@ -72,6 +72,54 @@ export type TabStripCloseConfirmation = (
 export type TabStripSelectCallback = (
 	context: ActionExecutionContext,
 	input: TabSelectionInput,
+) => ActionResult<void> | Promise<ActionResult<void>>;
+
+/** How Tabs are arranged, in the words an authority that decides them for every Client can apply. */
+export type TabStripArrangementChange =
+	| { readonly direction: -1 | 1; readonly groupId: string; readonly kind: 'group-moved' }
+	| { readonly groupId: string; readonly kind: 'group-ungrouped' }
+	| {
+			readonly color?: TabGroupColor | undefined;
+			readonly groupId: string;
+			readonly kind: 'group-updated';
+			readonly title?: string | undefined;
+	  }
+	| {
+			/** Moving onto a collapsed group goes past it, because none of its members are showing. */
+			readonly adjacentGroupCollapsed: boolean;
+			readonly direction: 'first' | 'last' | 'next' | 'previous';
+			readonly kind: 'tab-moved';
+			readonly tabId: string;
+	  }
+	| {
+			/** A group that was dragged whole keeps its identity, so null never dissolves it. */
+			readonly groupId: string | null;
+			/** A boundary in `sourceOrder`, so it says nothing about any later order. */
+			readonly insertIndex: number;
+			readonly kind: 'tabs-dragged';
+			readonly sourceOrder: readonly string[];
+			readonly tabIds: readonly string[];
+	  }
+	| {
+			readonly groupId: string | null;
+			readonly kind: 'tabs-group-set';
+			readonly tabIds: readonly string[];
+	  }
+	| { readonly kind: 'tabs-grouped'; readonly tabIds: readonly string[] }
+	| {
+			readonly kind: 'tabs-pinned-set';
+			readonly pinned: boolean;
+			readonly tabIds: readonly string[];
+	  };
+
+export type TabStripChange =
+	| TabStripArrangementChange
+	| { readonly kind: 'tab-created-in-new-group' }
+	| { readonly kind: 'tabs-duplicated'; readonly tabIds: readonly string[] };
+
+export type TabStripChangeCallback = (
+	context: ActionExecutionContext,
+	change: TabStripChange,
 ) => ActionResult<void> | Promise<ActionResult<void>>;
 
 export interface TabStripShortcutLabels {
@@ -154,6 +202,12 @@ export interface TabStripOptions {
 	onCloseTabs?: TabStripCloseCallback | undefined;
 	getCloseTabsConfirmation?: TabStripCloseConfirmation | undefined;
 	onSelectTab?: TabStripSelectCallback | undefined;
+	/**
+	 * Present when another authority decides this collection. The strip then says what the person
+	 * asked for instead of changing its model, and shows the answer as a new `model`. A dragged
+	 * arrangement stays on screen until the result settles, and returns unless it completed.
+	 */
+	onTabsChange?: TabStripChangeCallback | undefined;
 	onSetTabTitle?: ((tabId: string) => void) | undefined;
 	onNewTabButtonPressed?: () => void;
 	/** Current platform-formatted bindings supplied by the composing application. */

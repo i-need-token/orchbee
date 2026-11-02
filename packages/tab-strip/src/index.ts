@@ -4,6 +4,8 @@ export {
 	TAB_STRIP_ACTION_IDS,
 	TabStripOrientation,
 	type TabData,
+	type TabStripArrangementChange,
+	type TabStripChangeCallback,
 	type TabStripCrossWindowDragRuntimeFactory,
 	type TabStripCloseCallback,
 	type TabStripCloseConfirmation,

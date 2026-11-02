@@ -5,6 +5,8 @@ import { TabStripMessagesContext } from './contexts/tab-strip-messages-context';
 import { useTabStrip } from './hooks/useTabStrip';
 import type { TabStripMessages } from './types/tab-strip-messages';
 import type {
+	TabStripArrangementChange,
+	TabStripChangeCallback,
 	TabStripCrossWindowDragRuntimeFactory,
 	TabStripCloseCallback,
 	TabStripCloseConfirmation,
@@ -23,6 +25,8 @@ interface TabStripProps extends TabStripOptions {
 }
 
 export type {
+	TabStripArrangementChange,
+	TabStripChangeCallback,
 	TabStripCrossWindowDragRuntimeFactory,
 	TabStripCloseCallback,
 	TabStripCloseConfirmation,

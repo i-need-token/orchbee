@@ -5,6 +5,8 @@ export {
 	type TabSelectionInput,
 } from './actions/tab-strip-action-contracts';
 export type {
+	TabStripArrangementChange,
+	TabStripChangeCallback,
 	TabStripCrossWindowDragRuntimeFactory,
 	TabStripCloseCallback,
 	TabStripCloseConfirmation,

@@ -4,6 +4,7 @@ import type {
 	WorkbenchAuthorityChange,
 	WorkbenchAuthorityContext,
 	WorkbenchAuthorityCreation,
+	WorkbenchAuthorityTabReceipt,
 	WorkbenchProjectCreationReceipt,
 } from '@orchbee/workbench';
 import type { WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
@@ -11,6 +12,7 @@ import type { WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 import { handOverServerWorkbenchAction } from './handOverServerWorkbenchAction';
 import { readServerWorkbenchAction } from './readServerWorkbenchAction';
 import { closeServerWorkbench, watchServerWorkbenchClose } from './server-workbench-close';
+import { tabCreateAction, tabsChangeAction } from './server-workbench-tabs';
 import { serverResourceScopeId } from './serverResourceScopeId';
 import type {
 	ServerWorkbenchAction,
@@ -37,6 +39,15 @@ function changeAction(
 	snapshot: WorkbenchSnapshot,
 ): ServerWorkbenchAction | null {
 	switch (change.type) {
+		case 'tab-renamed':
+			return readServerWorkbenchAction({
+				kind: 'tab.rename',
+				label: change.label,
+				tabId: change.tabId,
+				terminalContextId: change.terminalContextId,
+			});
+		case 'tabs-changed':
+			return tabsChangeAction(change, snapshot);
 		case 'project-dissolved':
 			return readServerWorkbenchAction({ kind: 'project.dissolve', projectId: change.projectId });
 		case 'project-renamed':
@@ -230,6 +241,25 @@ export function createServerWorkbenchAuthority({
 					: { kind: 'completed' },
 			);
 		},
+		createTab: async (context, creation) =>
+			resultOf<WorkbenchAuthorityTabReceipt>(
+				context,
+				await session.submit((snapshot) =>
+					handOverServerWorkbenchAction(context, tabCreateAction(creation, snapshot)),
+				),
+				(outcome) =>
+					outcome.kind === 'tab-create-pending' || outcome.kind === 'tab-created'
+						? {
+								kind: 'completed',
+								value: {
+									tabId: outcome.tabId,
+									terminalContextId: outcome.terminalContextId,
+									terminalStarted:
+										outcome.kind === 'tab-created' && outcome.terminalOutcome.kind === 'started',
+								},
+							}
+						: { kind: 'completed' },
+			),
 		watchClose: (closure, onChanged) => watchServerWorkbenchClose(session, closure, onChanged),
 	};
 }

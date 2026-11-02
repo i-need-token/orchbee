@@ -326,6 +326,7 @@ export function Workbench({
 								getTabCreationAvailability={view.getTabCreationAvailability}
 								onSelectTab={navigation?.selectTab}
 								onSetTabTitle={view.setTabTitle}
+								onTabsChange={view.onTabsChange}
 								parentActionScope={view.actionScope}
 								reserveSidebarToggleSpace={!view.isSidebarVisible}
 								shortcutLabels={{
