@@ -275,7 +275,7 @@ describe('closeServerWorkbench', () => {
 
 	it('does not repeat a close once what it closes has changed', async () => {
 		const { actions, session } = fakeSession([
-			{ answer: STALE, delivered:readSnapshot({ workspaceLabel: 'renamed' }) },
+			{ answer: STALE, delivered: readSnapshot({ workspaceLabel: 'renamed' }) },
 		]);
 
 		await expect(
@@ -287,7 +287,7 @@ describe('closeServerWorkbench', () => {
 
 	it('asks for confirmation when the Workspace is still what was shown', async () => {
 		const { actions, session } = fakeSession([
-			{ answer: NEEDS_CONFIRMATION, delivered:readSnapshot({ revision: '6' }) },
+			{ answer: NEEDS_CONFIRMATION, delivered: readSnapshot({ revision: '6' }) },
 		]);
 
 		await expect(
@@ -300,8 +300,8 @@ describe('closeServerWorkbench', () => {
 	it('takes one fresh look when the refusal described a Workspace that has moved on', async () => {
 		const moved = readSnapshot({ workspaceLabel: 'renamed' });
 		const { actions, session } = fakeSession([
-			{ answer: NEEDS_CONFIRMATION, delivered:moved },
-			{ answer: NEEDS_CONFIRMATION, delivered:moved },
+			{ answer: NEEDS_CONFIRMATION, delivered: moved },
+			{ answer: NEEDS_CONFIRMATION, delivered: moved },
 		]);
 
 		await expect(
@@ -310,8 +310,8 @@ describe('closeServerWorkbench', () => {
 		expect(actions).toHaveLength(2);
 
 		const again = fakeSession([
-			{ answer: NEEDS_CONFIRMATION, delivered:moved },
-			{ answer: NEEDS_CONFIRMATION, delivered:readSnapshot({ workspaceLabel: 'renamed again' }) },
+			{ answer: NEEDS_CONFIRMATION, delivered: moved },
+			{ answer: NEEDS_CONFIRMATION, delivered: readSnapshot({ workspaceLabel: 'renamed again' }) },
 		]);
 		await expect(
 			closeServerWorkbench(again.session, executionContext().context, CLOSE_WORKSPACE),
@@ -382,7 +382,7 @@ describe('closeServerWorkbench', () => {
 
 	it('leaves a Tab that changed after the question was answered', async () => {
 		const { actions, session } = fakeSession(
-			[{ answer: FIRST_TAB_ACCEPTED, delivered:readSnapshot({ secondTabLabel: 'Renamed' }) }],
+			[{ answer: FIRST_TAB_ACCEPTED, delivered: readSnapshot({ secondTabLabel: 'Renamed' }) }],
 			[CLOSED],
 		);
 
