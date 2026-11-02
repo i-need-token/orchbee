@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 pub(super) struct Entry {
     member: crate::workbench_projection::ClientMemberTarget,
     binding: crate::workbench_projection::ClientTerminalBinding,
-    directory: orchbee_workbench_protocol::WorkbenchDirectoryId,
+    directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryId>,
     location: crate::workbench_projection::ClientContextLocation,
     minimum_revision: orchbee_workbench_protocol::WorkbenchRevision,
     stage: EntryStage,
@@ -297,7 +297,7 @@ fn target_context(
     snapshot: &Snapshot,
 ) -> Option<(
     crate::workbench_projection::ClientContextTabs,
-    orchbee_workbench_protocol::WorkbenchDirectoryId,
+    Option<orchbee_workbench_protocol::WorkbenchDirectoryId>,
 )> {
     let WorkbenchWorktreeOutcome::Available { status, .. } = op.outcome.as_ref()? else {
         return None;
@@ -323,11 +323,21 @@ fn target_context(
         return None;
     }
     let workspace = snapshot.navigation.workspace(workspace_id)?;
-    let directory = snapshot.navigation.workspace_directory(workspace_id)?;
-    if !orchbee_workbench_protocol::same_windows_path_spelling(
-        directory.path.as_str(),
-        checkout.path.as_str(),
-    ) || directory.worker_id != op.plan.discovery.worker
+    let directory = snapshot.navigation.workspace_directory(workspace_id);
+    // A reused Workspace may stand at the checkout only by following its first terminal there.
+    let names_checkout = |path: &orchbee_workbench_protocol::WorkbenchDirectoryPath| {
+        orchbee_workbench_protocol::same_windows_path_spelling(
+            path.as_str(),
+            checkout.path.as_str(),
+        )
+    };
+    let at_checkout = directory.is_some_and(|directory| names_checkout(&directory.path))
+        || workspace
+            .terminal_directory
+            .as_ref()
+            .is_some_and(names_checkout);
+    if !at_checkout
+        || directory.is_some_and(|directory| directory.worker_id != op.plan.discovery.worker)
     {
         return None;
     }
@@ -337,7 +347,10 @@ fn target_context(
     };
     let candidate =
         crate::workbench_projection::project_native_context_tabs(snapshot, &location).ok()?;
-    Some((candidate, directory.directory_id.clone()))
+    Some((
+        candidate,
+        directory.map(|directory| directory.directory_id.clone()),
+    ))
 }
 
 #[cfg(test)]

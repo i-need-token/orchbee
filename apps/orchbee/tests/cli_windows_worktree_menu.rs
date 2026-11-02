@@ -3,7 +3,8 @@
 //! terminal of a second Session, driven by pointer. Opening the linked checkout from Open Worktree
 //! creates the Project that holds the Workspace and the opened one, and a Worktree created from
 //! New Worktree… joins it. The same holds wherever the first terminal stands, by process cwd or by a
-//! directory its shell only reports, and for a checkout another Workspace already holds.
+//! directory its shell only reports, and for a checkout another Workspace already holds. A checkout
+//! belongs to the Workspace the sidebar shows there, not to the one created there.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -203,6 +204,84 @@ fn opening_a_checkout_another_workspace_holds_groups_that_workspace_too() {
         known,
         "the checkout's Workspace is reused"
     );
+    control.release();
+}
+
+/// `arrived` was created elsewhere and stands in the checkout; `gone` was created in the checkout and
+/// stands in a folder outside Git. The sidebar shows the first at the checkout.
+#[test]
+fn opening_a_checkout_reuses_the_workspace_shown_there_not_the_one_created_there() {
+    let fixture = Fixture::new("orchbee-worktree-shown-", &["repo", "plain", "elsewhere"]);
+    repository(&fixture);
+    let source = fixture.workspace_in("source", "repo")["workspaceId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let gone = move_workspace(&fixture, "gone", "linked-checkout", "plain");
+    let arrived = move_workspace(&fixture, "arrived", "elsewhere", "linked-checkout");
+    let tui = fixture.start_tui(COLUMNS, ROWS);
+    fixture.settle_ready(&tui.client);
+    let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
+    control.input(b"[I");
+
+    let known = workspace_ids(&fixture);
+    open_menu(&fixture, &tui, &mut control, "source");
+    choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
+        screen.contains(LINKED_BRANCH)
+    });
+    choose(&fixture, &tui, &mut control, LINKED_BRANCH, menu_closed);
+    grouped(&fixture, &source);
+    assert_same_new_project(&fixture, &source, &arrived);
+    assert!(
+        record(&fixture, &gone)["projectId"].is_null(),
+        "a Workspace that left the checkout was grouped: {}",
+        snapshot(&fixture)
+    );
+    assert_eq!(workspace_ids(&fixture), known, "the Workspace is reused");
+    // The Client enters the Workspace it reused.
+    let context = record(&fixture, &arrived)["terminalContextId"].clone();
+    let deadline = Instant::now() + OPERATION;
+    while fixture.client(&tui.client)["view"]["selection"]["terminalContextId"] != context {
+        assert!(
+            Instant::now() < deadline,
+            "the Client never entered the reused Workspace:
+{}",
+            fixture.screen(&tui.terminal)
+        );
+        thread::sleep(Duration::from_millis(250));
+    }
+    control.release();
+}
+
+/// Every Workspace created in the checkout has left it, so none is shown there.
+#[test]
+fn opening_a_checkout_every_workspace_left_starts_a_new_workspace_there() {
+    let fixture = Fixture::new("orchbee-worktree-left-", &["repo", "plain"]);
+    repository(&fixture);
+    let source = fixture.workspace_in("source", "repo")["workspaceId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let gone = move_workspace(&fixture, "gone", "linked-checkout", "plain");
+    let tui = fixture.start_tui(COLUMNS, ROWS);
+    fixture.settle_ready(&tui.client);
+    let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
+    control.input(b"[I");
+
+    let known = workspace_ids(&fixture);
+    open_menu(&fixture, &tui, &mut control, "source");
+    choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
+        screen.contains(LINKED_BRANCH)
+    });
+    choose(&fixture, &tui, &mut control, LINKED_BRANCH, menu_closed);
+    grouped(&fixture, &source);
+    assert!(
+        record(&fixture, &gone)["projectId"].is_null(),
+        "a Workspace that left the checkout was grouped: {}",
+        snapshot(&fixture)
+    );
+    let opened = added(&fixture, &tui, &known);
+    assert_same_new_project(&fixture, &source, &opened);
     control.release();
 }
 
@@ -427,6 +506,29 @@ fn stands_in(fixture: &Fixture, workspace: &str, directory: &str) {
             snapshot(fixture)
         );
         thread::sleep(Duration::from_millis(200));
+    }
+}
+
+/// Opens a Workspace in `from` and walks its first terminal to `to`; returns the Workspace.
+fn move_workspace(fixture: &Fixture, label: &str, from: &str, to: &str) -> String {
+    let created = fixture.workspace_in(label, from);
+    let workspace = created["workspaceId"].as_str().unwrap().to_owned();
+    let command = format!("cd \"{}\"", fixture.path(to));
+    enter(fixture, &terminal_of(fixture, &created), &command);
+    stands_in(fixture, &workspace, to);
+    workspace
+}
+
+/// Waits until the Worktree operation has put `workspace` in a Project.
+fn grouped(fixture: &Fixture, workspace: &str) {
+    let deadline = Instant::now() + OPERATION;
+    while !record(fixture, workspace)["projectId"].is_string() {
+        assert!(
+            Instant::now() < deadline,
+            "the Workspace stayed ungrouped: {}",
+            snapshot(fixture)
+        );
+        thread::sleep(Duration::from_millis(250));
     }
 }
 

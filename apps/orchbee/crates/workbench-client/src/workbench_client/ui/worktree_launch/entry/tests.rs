@@ -476,6 +476,20 @@ fn worktree_entry_matches_server_directory_spelling_without_relaxing_worker_or_p
     assert!(entry(op, &snapshot, ui.clock.now()).is_none());
 }
 
+#[test]
+fn worktree_entry_accepts_a_workspace_whose_first_terminal_stands_at_the_checkout() {
+    let (ui, _, mut snapshot) = case();
+    snapshot.navigation.directories[0].path = WorkbenchDirectoryPath::parse("C:/launch").unwrap();
+    let op = ui.worktrees.launcher.operation().unwrap();
+    assert!(entry(op, &snapshot, ui.clock.now()).is_none());
+    let workspace = snapshot.navigation.workspaces.last_mut().unwrap();
+    workspace.terminal_directory = Some(WorkbenchDirectoryPath::parse(r"c:\REPO\").unwrap());
+    assert!(entry(op, &snapshot, ui.clock.now()).is_some());
+    snapshot.navigation.directories[0].worker_id =
+        orchbee_workbench_protocol::WorkerId::parse(&format!("{:032x}", 9999)).unwrap();
+    assert!(entry(op, &snapshot, ui.clock.now()).is_none());
+}
+
 fn publish_snapshot(
     ui: &WorkbenchClientUi,
     lease: &crate::workbench_client::mailbox::CommandLease,

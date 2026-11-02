@@ -5,7 +5,9 @@
 use super::{Driver, identity};
 use crate::local_terminal_service::{create_reference, lease_expiry, placement};
 use crate::terminal_coordinator::CreateInputs;
-use orchbee_server::{WorkbenchAuthority, WorkbenchGrant, WorkbenchReadOrNavigationRequest};
+use orchbee_server::{
+    WorkbenchAuthority, WorkbenchGrant, WorkbenchReadOrNavigationRequest, WorktreeOperationPlan,
+};
 use orchbee_workbench_protocol::{
     LaunchOptions, ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchLabel, WorkbenchRequest, WorkbenchResponse, WorkbenchTabCloseStatus,
@@ -153,9 +155,7 @@ impl Driver<'_> {
                 if !authority.associate_worktree(self.plan, workspace_id, checkout.clone()) {
                     return Err(Failure::AssociationFailed {});
                 }
-                if let Some(source) = &self.plan.source_workspace_id {
-                    group_reused(authority, source, workspace_id, &checkout)?;
-                }
+                group_reused(authority, self.plan, workspace_id, &checkout)?;
                 return Ok(Status::Opened {
                     checkout,
                     workspace_id: workspace_id.clone(),
@@ -269,7 +269,7 @@ impl Driver<'_> {
         let authority = coordinator
             .worktree_authority()
             .ok_or(Failure::Internal {})?;
-        let current = authority.checkout_workspaces(&checkout.path, &self.plan.source.worker_id);
+        let current = authority.checkout_holders(&checkout.path, &self.plan.source.worker_id);
         let closed = matches!(
             self.plan.progress.workspace,
             WorktreeWorkspaceDisposition::Closed { .. }
@@ -461,46 +461,53 @@ impl Driver<'_> {
     }
 }
 
-/// Puts a reused ungrouped Workspace where a new one would land: the source's Project, or a new
-/// one the two found together. A Workspace that already has a Project stays in it.
+/// Puts a reused ungrouped Workspace where a new one would land: the requested Project, the source's
+/// Project, or a new one the two found together. A Workspace that already has a Project stays in it,
+/// and a Directory source without a Project leaves it ungrouped.
 fn group_reused(
     authority: &mut WorkbenchAuthority,
-    source: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
+    plan: &WorktreeOperationPlan,
     reused: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
     checkout: &orchbee_workbench_protocol::WorktreeCheckoutFacts,
 ) -> Result<(), Failure> {
     let navigation = &authority.snapshot().navigation;
-    if source == reused
-        || !navigation
-            .workspace(reused)
-            .is_some_and(|workspace| workspace.project_id.is_none())
+    if !navigation
+        .workspace(reused)
+        .is_some_and(|workspace| workspace.project_id.is_none())
     {
         return Ok(());
     }
-    let grouped = navigation
-        .workspace(source)
-        .ok_or(Failure::AssociationFailed {})?
-        .project_id
-        .clone();
-    let project_id = match grouped {
-        Some(project_id) => project_id,
-        None => {
-            let outcome = organize(
-                authority,
-                WorkbenchAction::WorkspaceCreateProject {
-                    workspace_id: source.clone(),
-                    label: project_label(checkout),
-                },
-            )?;
-            let WorkbenchCommandOutcome::WorkspaceProjectChanged {
-                project_id: Some(project_id),
-                ..
-            } = outcome
-            else {
-                return Err(Failure::AssociationFailed {});
-            };
-            project_id
+    let project_id = match (&plan.source_workspace_id, &plan.project_id) {
+        (Some(source), _) if source == reused => return Ok(()),
+        (Some(source), _) => {
+            let grouped = navigation
+                .workspace(source)
+                .ok_or(Failure::AssociationFailed {})?
+                .project_id
+                .clone();
+            match grouped {
+                Some(project_id) => project_id,
+                None => {
+                    let outcome = organize(
+                        authority,
+                        WorkbenchAction::WorkspaceCreateProject {
+                            workspace_id: source.clone(),
+                            label: project_label(checkout),
+                        },
+                    )?;
+                    let WorkbenchCommandOutcome::WorkspaceProjectChanged {
+                        project_id: Some(project_id),
+                        ..
+                    } = outcome
+                    else {
+                        return Err(Failure::AssociationFailed {});
+                    };
+                    project_id
+                }
+            }
         }
+        (None, Some(project_id)) => project_id.clone(),
+        (None, None) => return Ok(()),
     };
     let outcome = organize(
         authority,

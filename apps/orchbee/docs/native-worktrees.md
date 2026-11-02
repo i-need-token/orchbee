@@ -21,11 +21,16 @@ The directory follows the [CLI Worktree policy](windows-worktrees.md). The nativ
 unavailable. A worktree-backed Workspace
 is a peer of ordinary Workspaces. Creating from an ungrouped source Workspace atomically creates
 a Project containing source and new Workspace; a grouped source uses its current Project at
-the authoritative commit. An existing linked source creates another peer. Opening a checkout
-already associated with one Workspace reuses it instead of duplicating it. From a Workspace source,
-a reused ungrouped Workspace lands where a new one would: the source's Project, or a new Project the
-two found together. A reused Workspace that already has a Project stays in it. Ambiguous associations
-remain explicit failures.
+the authoritative commit. An existing linked source creates another peer. Opening a checkout reuses
+the one Workspace standing there, the one whose location line shows it, instead of duplicating it. A
+Workspace stands where the Server last followed its first terminal, or in its primary directory while
+nothing was followed away from it, compared by exact checkout path: a Workspace created in the
+checkout that moved elsewhere is not picked, one that moved in is, and one in a subdirectory of the
+checkout is not. With nothing standing there, Open starts a new Workspace. A reused ungrouped
+Workspace lands where a new one would: the requested Project, the source's Project, or a new Project
+the two found together; a Directory source without a Project leaves it ungrouped. A reused Workspace
+that already has a Project stays in it. Several Workspaces standing at one checkout remain an explicit
+failure.
 
 The Open list shows main and linked checkouts and resolves exact canonical paths, never duplicate
 branch or Workspace labels. Keyboard arrows, Enter and mouse selection operate the same choices;
@@ -165,8 +170,10 @@ the Workspace stays the grouping owner. Both keep required-nullable `projectId: 
 existing Server Alongside owner resolves that Workspace's grouping, so an ungrouped Workspace and the
 Worktree it creates or opens land in one new Project, wherever its first terminal stands. A
 `workspace-directory` source says nothing about the Workspace's own checkout: Remove still addresses
-the canonical directory, and no association is retained for the directory it stood in. A Client must
-not copy the Project onto either Start, which the strict wire contract rejects.
+the canonical directory, and no association is retained for the directory it stood in. The menu offers
+Remove only while the Workspace stands in its own checkout, so the row never names a checkout the user
+no longer sees it in. A Client must not copy the Project onto either Start, which the strict wire
+contract rejects.
 
 A Project source keeps the Directory form and may carry the frozen existing Project in Start. Its
 followed directory leads an admitted sample, and it still needs that sample: an admitted explicit
@@ -191,8 +198,9 @@ integration evidence. `cli_windows_worktree_menu` runs the CLI, Server, Worker a
 test against a real repository with a TUI Client driven by pointer: from an ungrouped Workspace's
 row menu, Open Worktree ▸ opens a linked checkout into a new Project with the Workspace, and New
 Worktree… then joins that Project. It also covers a first terminal in a subdirectory, a directory the
-shell only reports, a directory change under the open menu and a checkout another Workspace holds.
-A direct Cargo run needs the Server and Worker built first.
+shell only reports, a directory change under the open menu, a checkout another Workspace holds, a
+Workspace that walked into the checkout beside one that walked out of it, and a checkout every
+Workspace left. A direct Cargo run needs the Server and Worker built first.
 
 ## Entry and failure
 

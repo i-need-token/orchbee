@@ -214,6 +214,133 @@ fn asynchronous_worktree_completion_uses_the_sources_current_project_and_regroup
     );
 }
 
+/// A Workspace outside any Project whose own Directory is the opened checkout.
+fn ungrouped_holder(fixture: &Fixture, label: &str) -> WorkbenchWorkspaceId {
+    let WorkbenchCommandOutcome::WorkspaceCreated { workspace_id, .. } = navigation(
+        &fixture.service,
+        50,
+        WorkbenchAction::WorkspaceCreate {
+            project_id: None,
+            label: WorkbenchLabel::parse(label).unwrap(),
+        },
+    ) else {
+        panic!("workspace")
+    };
+    let snapshot = snapshot(&fixture.service);
+    let command = WorkbenchCommand {
+        protocol_version: ProtocolVersion,
+        request_id: id(51),
+        session_id: snapshot.session_id,
+        expected_revision: snapshot.revision,
+        action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
+            workspace_id: workspace_id.clone(),
+            path: WorkbenchDirectoryPath::parse("C:/new-checkout").unwrap(),
+        },
+    };
+    let result = fixture
+        .service
+        .coordinator
+        .lock()
+        .unwrap()
+        .accept_workspace_directory(command, WorkerId::parse(&"09".repeat(16)).unwrap());
+    assert!(matches!(
+        result.outcome,
+        WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted { .. }
+    ));
+    workspace_id
+}
+
+fn open_from_directory() -> WorktreeIntent {
+    WorktreeIntent::Open {
+        source: WorktreeSource::Directory {
+            path: WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
+        },
+        selector: WorktreeSelector::Path {
+            path: WorkbenchDirectoryPath::parse("C:/new-checkout").unwrap(),
+        },
+        label: None,
+        geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+        trust_repository: false,
+    }
+}
+
+/// The Project menu's Open Worktree: the reused Workspace lands where a new one would.
+#[test]
+fn directory_source_with_a_project_moves_a_reused_ungrouped_workspace_into_it() {
+    let mut fixture = Fixture::new();
+    let holder = ungrouped_holder(&fixture, "holder");
+    assert!(matches!(
+        fixture.start(open_from_directory()),
+        Outcome::Available { .. }
+    ));
+    fixture.finish_job(checkout(false));
+    fixture.finish_job(opened());
+    let Status::Opened {
+        workspace_id,
+        reused: true,
+        ..
+    } = fixture.settled()
+    else {
+        panic!("reused")
+    };
+    assert_eq!(workspace_id, holder);
+    assert_eq!(
+        snapshot(&fixture.service)
+            .navigation
+            .workspace(&holder)
+            .unwrap()
+            .project_id,
+        Some(fixture.project.clone())
+    );
+}
+
+/// A Workspace created in the checkout has moved away: Open starts a new one there, while Remove
+/// still counts the checkout as that Workspace's own Directory.
+#[test]
+fn a_workspace_that_left_a_checkout_is_not_reused_but_still_holds_it_against_removal() {
+    let mut fixture = Fixture::new();
+    let gone = ungrouped_holder(&fixture, "gone");
+    let (path, worker) = (
+        WorkbenchDirectoryPath::parse("C:/new-checkout").unwrap(),
+        WorkerId::parse(&"09".repeat(16)).unwrap(),
+    );
+    {
+        let mut coordinator = fixture.service.coordinator.lock().unwrap();
+        let authority = coordinator.worktree_authority().unwrap();
+        authority
+            .follow_workspace_directory(&gone, &WorkbenchDirectoryPath::parse("C:/plain").unwrap());
+        assert_eq!(authority.checkout_workspaces(&path, &worker), []);
+        assert_eq!(
+            authority.checkout_holders(&path, &worker),
+            std::slice::from_ref(&gone)
+        );
+    }
+    assert!(matches!(
+        fixture.start(open_from_directory()),
+        Outcome::Available { .. }
+    ));
+    fixture.finish_job(checkout(false));
+    fixture.finish_job(opened());
+    complete_one_shell(&mut fixture);
+    let Status::Opened {
+        workspace_id,
+        reused: false,
+        ..
+    } = fixture.settled()
+    else {
+        panic!("a new Workspace")
+    };
+    assert_ne!(workspace_id, gone);
+    assert_eq!(
+        snapshot(&fixture.service)
+            .navigation
+            .workspace(&gone)
+            .unwrap()
+            .project_id,
+        None
+    );
+}
+
 #[test]
 fn directory_source_without_a_project_opens_an_ungrouped_workspace() {
     let mut fixture = Fixture::new();
