@@ -461,6 +461,45 @@ impl SessionCoordinator {
         Some((binding.worker_id.clone(), sample.directory.clone()?))
     }
 
+    /// What a current-directory read samples and what it falls back to: the Workspace's first
+    /// terminal as an unfenced observation target, and the Workspace's own directory.
+    pub(crate) fn current_directory_sources(
+        &mut self,
+        session_id: &orchbee_workbench_protocol::SessionId,
+        workspace_id: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
+    ) -> Result<
+        (
+            Option<ProcessObservationTarget>,
+            Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
+        ),
+        orchbee_workbench_protocol::CurrentDirectoryFailure,
+    > {
+        use orchbee_workbench_protocol::CurrentDirectoryFailure as Failure;
+        let workbench = self.workbench.as_ref().ok_or(Failure::Unavailable)?;
+        if workbench.session_id() != session_id {
+            return Err(Failure::Denied);
+        }
+        let snapshot = workbench.snapshot();
+        let workspace = snapshot
+            .navigation
+            .workspace(workspace_id)
+            .ok_or(Failure::NotFound)?;
+        let primary = snapshot
+            .navigation
+            .workspace_directory(workspace_id)
+            .map(|directory| directory.path.clone());
+        let Some(binding) = super::directory_label::first_terminal(snapshot, workspace).cloned()
+        else {
+            return Ok((None, primary));
+        };
+        // A registration that cannot be read leaves the Workspace's own directory to answer.
+        let target = self
+            .process_observation_targets()
+            .ok()
+            .and_then(|targets| targets.into_iter().find(|target| target.binding == binding));
+        Ok((target, primary))
+    }
+
     /// Read existing exact-physical samples only; never attach a viewer or substitute a child cwd.
     #[cfg(windows)]
     pub(crate) fn cached_checkpoint_directories(

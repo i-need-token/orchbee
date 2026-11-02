@@ -72,7 +72,8 @@ the same binding and report context must still hold before publication. A change
 without retry. Raw rule prediction is distinct from the effective, stabilized reported state.
 
 The process-observer thread owns at most one executing and one queued diagnostic request, together
-with its existing sole pending viewer cleanup. CLI cancellation ends the caller wait; it is not a wire cancellation request. The Server gives
+with its existing sole pending viewer cleanup. [Current-directory reads](../README.md#workspace-current-directory-reads)
+keep their own such pair on the same thread, which runs one read at a time. CLI cancellation ends the caller wait; it is not a wire cancellation request. The Server gives
 each diagnostic one four-second queue/read budget; timeout and Session shutdown stop new work, while
 admitted Required exchanges still settle. Unconfirmed Detach keeps ownership and blocks
 new attachments. Queued expired work cannot attach. Diagnostics never send input, acquire control,

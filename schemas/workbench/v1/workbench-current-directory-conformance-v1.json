@@ -1,0 +1,135 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.current-directory",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003"
+			}
+		},
+		{
+			"name": "observed-windows",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.current-directory.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "observed",
+					"directory": "C:\\Users\\me\\项目 space"
+				}
+			}
+		},
+		{
+			"name": "observed-posix",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.current-directory.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "observed",
+					"directory": "/home/me/work"
+				}
+			}
+		},
+		{
+			"name": "not-found",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.current-directory.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "failed",
+					"reason": "not-found"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "extra-field",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.current-directory",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"terminalId": "00000000000000000000000000000004"
+			}
+		},
+		{
+			"name": "zero-workspace",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.current-directory",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000000"
+			}
+		},
+		{
+			"name": "relative-directory",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.current-directory.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "observed",
+					"directory": "work"
+				}
+			}
+		},
+		{
+			"name": "observed-without-directory",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.current-directory.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "observed"
+				}
+			}
+		},
+		{
+			"name": "open-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.current-directory.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "failed",
+					"reason": "timeout"
+				}
+			}
+		}
+	]
+}

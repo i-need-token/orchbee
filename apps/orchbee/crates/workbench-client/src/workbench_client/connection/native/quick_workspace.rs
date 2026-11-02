@@ -1,12 +1,17 @@
 //! Quick Workspace directory defaults under the ordinary bounded refresh lease.
-use super::{ClientExecutor, Result, WorkbenchSnapshotOutcome};
+use super::{CarrierFailure, ClientExecutor, Result, WorkbenchSnapshotOutcome, closed};
+use crate::client_context::ClientContextLocation;
+use crate::local_client::workbench::CurrentDirectoryError;
 use crate::workbench_state::workspace_setup::quick::QuickPreparation;
-use orchbee_workbench_protocol::WorkbenchDirectoryPath;
+use orchbee_workbench_protocol::{
+    CurrentDirectoryOutcome, CurrentDirectoryRequest, ProtocolVersion, WorkbenchDirectoryPath,
+    WorkbenchWorkspaceId,
+};
 
 impl ClientExecutor {
-    /// A folder chosen in the menu, else the current directory of the focused Workspace's first
-    /// terminal, else that Workspace's own directory, otherwise the directory this Client was
-    /// launched from.
+    /// A folder chosen in the menu, else where the Server says the focused Workspace is working:
+    /// the current directory of its first terminal, else its own directory. Without either, the
+    /// directory this Client was launched from.
     pub(super) fn prepare_quick_cwd(
         &mut self,
         preparation: &QuickPreparation,
@@ -31,32 +36,56 @@ impl ClientExecutor {
         {
             return Ok(Some(directory.clone()));
         }
-        if let Some(binding) = &preparation.first_terminal
-            && let super::source_directory::RootDirectory::Available(Some(path)) = self
-                .read_source_root(
-                    &preparation.baseline,
-                    preparation.first_terminal_pane.as_ref(),
-                    preparation.deadlines,
-                    binding,
-                )?
+        if let ClientContextLocation::Workspace { workspace_id, .. } =
+            preparation.baseline.location()
+            && let Some(directory) = self.read_current_directory(preparation, workspace_id)?
         {
-            return Ok(Some(without_trailing_separator(path)));
+            return Ok(Some(directory));
         }
         if let Some(directory) = preparation.baseline.directory() {
             return Ok(Some(directory.path.clone()));
         }
-        launch_directory().map_err(|_| super::CarrierFailure::Transport)
+        launch_directory().map_err(|_| CarrierFailure::Transport)
     }
-}
 
-/// A process reports its directory with a trailing separator, which would otherwise become part
-/// of the new Workspace's directory; a drive root keeps its own.
-fn without_trailing_separator(path: WorkbenchDirectoryPath) -> WorkbenchDirectoryPath {
-    let trimmed = path.as_str().trim_end_matches(['/', '\\']);
-    if trimmed.len() == path.as_str().len() || trimmed.is_empty() || trimmed.ends_with(':') {
-        return path;
+    fn read_current_directory(
+        &mut self,
+        preparation: &QuickPreparation,
+        workspace_id: &WorkbenchWorkspaceId,
+    ) -> Result<Option<WorkbenchDirectoryPath>> {
+        let deadline = preparation.deadlines.forward_cutoff();
+        self.ensure_before(deadline)?;
+        let request_id = self
+            .mailbox
+            .allocate_workbench_request_id()
+            .map_err(closed)?;
+        let result = self
+            .client
+            .current_directory(
+                CurrentDirectoryRequest {
+                    protocol_version: ProtocolVersion,
+                    request_id,
+                    session_id: preparation.baseline.session_id().clone(),
+                    workspace_id: workspace_id.clone(),
+                },
+                deadline,
+                None,
+            )
+            .map_err(|error| match error {
+                CurrentDirectoryError::Unavailable | CurrentDirectoryError::Transport => {
+                    CarrierFailure::Transport
+                }
+                CurrentDirectoryError::Encoding | CurrentDirectoryError::Protocol => {
+                    CarrierFailure::Protocol
+                }
+                CurrentDirectoryError::Timeout => CarrierFailure::Deadline,
+            })?;
+        // A Workspace closed since the snapshot leaves the directories that snapshot recorded.
+        Ok(match result.outcome {
+            CurrentDirectoryOutcome::Observed { directory } => Some(directory),
+            CurrentDirectoryOutcome::Failed { .. } => None,
+        })
     }
-    WorkbenchDirectoryPath::parse(trimmed).unwrap_or(path)
 }
 
 #[cfg(windows)]

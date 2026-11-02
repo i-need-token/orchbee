@@ -71,7 +71,7 @@ pub use terminal_tab_create::{
     WorkbenchSettlementTokenMismatch, WorkbenchTabCreateAdmission, WorkbenchTabCreateBegin,
     WorkbenchTabCreatePreparation, WorkbenchTabCreateRuntimeUnavailableReason,
 };
-pub use workspace_directory_label::same_directory;
+pub use workspace_directory_label::{same_directory, without_trailing_separator};
 mod terminal_panel_create;
 pub use terminal_panel_create::{
     CommittedWorkbenchPanelCreateMetadata, PendingWorkbenchPanelCreate,
@@ -179,6 +179,7 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorkspaceMetadata(_)
             | WorkbenchRequest::ClientView(_)
             | WorkbenchRequest::WorkspaceGit(_)
+            | WorkbenchRequest::CurrentDirectory(_)
             | WorkbenchRequest::ConfiguredCommand(_)
             | WorkbenchRequest::Events(_)
             | WorkbenchRequest::PaneGraphics(_)) => Err(request),

@@ -1070,9 +1070,18 @@ These choices stand unless review changes them:
 - **No speculative order or pending row.** Measured frame by frame, a released row otherwise flashed
   back for about 20 ms. It now holds where it was dropped until its result, which keeps the benefit
   without a second order to reconcile.
-- **The default directory is not sampled yet.** New Workspace uses the last terminal directory the
-  Server observed. Whether that sampling moves into Server is decided with the other multi-step
-  workflows under decision 2.
+- **The Server says where New Workspace starts.** Both Clients ask `workbench.current-directory`
+  for the focused Workspace. The Server samples its first terminal on its process observer and
+  otherwise answers the Workspace's directory. The sample takes a directory the shell reported
+  before the root process's, where the TUI used to read only the root process. The GUI waits at
+  most five seconds, then uses the last directory the Server followed.
+- **Decision 2 has moved one workflow so far.** Of the Rust Client's multi-step workflows, only the
+  New Workspace directory moved to the Server. A Tab set close waits until ORC-301 settles the TUI's
+  own sequence, and Duplicate waits for step 5's decision on progress and the full comparison. The
+  TUI's Worktree launch and Worktree sidebar keep sampling the source terminal themselves until step 5. The rest stays in each Client, either as presentation, such as selection, navigation memory,
+  drafts, and the close and take-control prompts, or because it belongs to the Client's own
+  connection: Viewer membership and switching, settling a commit against the publications that
+  Client sees, recovery fences, and removing a closed context.
 - **A close follows the TUI's states without its probes.** A Workspace asks the Server's conditional
   close first and a Project always asks. A single Tab or Panel asks from the close activity its
   surface last observed, not from the TUI's shell report and process sample, and a set of Tabs always
@@ -1112,8 +1121,8 @@ These choices stand unless review changes them:
   or names lets it continue.
 - **A new Panel takes a directory only if its source reported one.** Otherwise the Server's default
   applies, as for the TUI's split. The runtime's PowerShell reports none, so after `cd` a split opens
-  in the Workspace's directory, unlike the CLI's `follow`. Whether to sample the source process is
-  decided with the other multi-step workflows under decision 2.
+  in the Workspace's directory, unlike the CLI's `follow`. Decision 2 leaves this as it is, because
+  the TUI's split does not sample either; the CLI keeps its own sample.
 - **A surface that only views a terminal never waits to fit.** It cannot change the terminal's size,
   and waiting left the whole Tab inert for as long as the other Client held control. It draws the
   other Client's grid from its top-left corner, so a larger grid is cut off at the right and bottom

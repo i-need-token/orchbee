@@ -10,6 +10,7 @@ mod close_operation;
 pub(crate) mod configuration;
 mod configured_command;
 pub(crate) mod creation;
+mod current_directory;
 mod events;
 pub(crate) mod metadata_exchange;
 pub(crate) mod notification;
@@ -54,6 +55,7 @@ pub(crate) mod workspace_launch;
 pub(crate) mod workspace_setup;
 mod worktree_operation;
 pub(crate) mod worktree_query;
+pub use current_directory::CurrentDirectoryError;
 pub use launch_profile::{LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure};
 pub use tab_close::{
     WorkbenchTabCloseAccepted, WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted,

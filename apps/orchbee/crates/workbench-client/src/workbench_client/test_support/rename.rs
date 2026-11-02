@@ -98,6 +98,7 @@ impl RenameServer {
                             | WorkbenchRequest::PanelMetadata(_)
                             | WorkbenchRequest::WorkspaceMetadata(_)
                             | WorkbenchRequest::WorkspaceGit(_)
+                            | WorkbenchRequest::CurrentDirectory(_)
                             | WorkbenchRequest::ClientView(_)
                             | WorkbenchRequest::WorkspaceGroupClose(_)
                             | WorkbenchRequest::LaunchProfileCatalogRead(_) => {

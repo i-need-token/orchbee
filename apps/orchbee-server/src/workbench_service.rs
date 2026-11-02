@@ -124,7 +124,7 @@ impl WorkbenchService {
                 | orchbee_workbench_protocol::PanelAgentAction::Observe { .. } => self.policy.read,
                 orchbee_workbench_protocol::PanelAgentAction::Report { .. } | orchbee_workbench_protocol::PanelAgentAction::ReportPresentation { .. } => self.policy.manage_navigation,
             },
-            WorkbenchRequest::WorkspaceGit(_) => self.policy.read,
+            WorkbenchRequest::WorkspaceGit(_) | WorkbenchRequest::CurrentDirectory(_) => self.policy.read,
             WorkbenchRequest::WorkspaceMetadata(request) => match request.action {
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Read { .. } => self.policy.read,
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Report { .. } => self.policy.manage_navigation,
@@ -243,6 +243,11 @@ impl WorkbenchService {
 
             WorkbenchRequest::WorkspaceGit(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorkspaceGit(self.terminals.execute_workspace_git(request.clone())));
+            }
+            WorkbenchRequest::CurrentDirectory(request) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::CurrentDirectory(
+                    self.terminals.execute_current_directory(request.clone()),
+                ));
             }
             WorkbenchRequest::WorkspaceMetadata(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorkspaceMetadata(
@@ -668,6 +673,21 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                 },
             })
         }
+        WorkbenchRequest::CurrentDirectory(request) => WorkbenchResponse::CurrentDirectory(
+            orchbee_workbench_protocol::CurrentDirectoryResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                session_id: request.session_id,
+                workspace_id: request.workspace_id,
+                outcome: orchbee_workbench_protocol::CurrentDirectoryOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::CurrentDirectoryFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::CurrentDirectoryFailure::Unavailable
+                    },
+                },
+            },
+        ),
         WorkbenchRequest::WorkspaceMetadata(request) => WorkbenchResponse::WorkspaceMetadata(
             orchbee_workbench_protocol::WorkspaceMetadataResult {
                 protocol_version: ProtocolVersion,

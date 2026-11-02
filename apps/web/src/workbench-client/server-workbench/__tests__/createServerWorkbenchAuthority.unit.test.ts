@@ -165,10 +165,26 @@ function tabsConfigured(operation: Record<string, unknown>): Record<string, unkn
 	return { kind: 'tabs.configure', operation, terminalContextId: TABS_CONTEXT };
 }
 
-function harness(answer: ServerWorkbenchSubmission, focusedWorkspaceId: string | null = null) {
+function harness(
+	answer: ServerWorkbenchSubmission,
+	focusedWorkspaceId: string | null = null,
+	currentDirectory: string | null = null,
+) {
 	const actions: ServerWorkbenchAction[] = [];
 	const session: Parameters<typeof createServerWorkbenchAuthority>[0]['session'] = {
-		ask: () => Promise.resolve({ kind: 'not-submitted' }),
+		ask: (request) =>
+			Promise.resolve(
+				currentDirectory === null || request.kind !== 'workbench.current-directory'
+					? { kind: 'not-submitted' }
+					: {
+							kind: 'answered',
+							response: parseWorkbenchResponse({
+								...request,
+								kind: 'workbench.current-directory.result',
+								outcome: { directory: currentDirectory, kind: 'observed' },
+							}),
+						},
+			),
 		published: () => Promise.resolve(),
 		snapshot: SNAPSHOT,
 		submit: (decide) => {
@@ -465,9 +481,23 @@ describe('createServerWorkbenchAuthority', () => {
 		expect(actions).toEqual([]);
 	});
 
+	it('opens New Workspace where the Server finds the focused Workspace working now', async () => {
+		const { actions, authority } = harness(LAUNCHED, SECOND_WORKSPACE, 'D:\\now');
+
+		await authority.create(executionContext().context, { type: 'workspace-created-default' });
+
+		expect(actions).toEqual([
+			expect.objectContaining({
+				kind: 'workspace.launch',
+				label: 'now',
+				options: expect.objectContaining({ cwd: 'D:\\now' }),
+			}),
+		]);
+	});
+
 	it.each<[string, WorkbenchAuthorityCreation, string | null, Record<string, unknown>]>([
 		[
-			'opens New Workspace in the directory the focused Workspace last reported',
+			'opens New Workspace in the directory the focused Workspace last reported when the Server cannot read it',
 			{ type: 'workspace-created-default' },
 			SECOND_WORKSPACE,
 			{

@@ -54,6 +54,7 @@ mod tab_close;
 mod tab_create;
 mod viewer_connection;
 pub(crate) use viewer_connection::LocalTerminalConnection;
+mod current_directory;
 mod workspace_directory;
 mod workspace_git;
 mod workspace_group_close;

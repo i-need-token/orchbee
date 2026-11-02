@@ -250,6 +250,17 @@ cover both Rust and TypeScript. This read grants no mutation or Desktop command.
 Configuration publication additionally carries separate required 32 KiB
 `spacesSidebarProfile`; its matched-cohort frame budget is 256 KiB.
 
+## Workspace current directory reads
+
+`CurrentDirectoryRequest`/`CurrentDirectoryResult` add the closed `workbench.current-directory`
+and `workbench.current-directory.result` directions, OBWP kinds 65/66. An outcome is `observed`
+with a `WorkbenchDirectoryPath`, or `failed` with `denied`, `not-found` or `unavailable`. The
+26 KiB pre-allocation limit holds the longest directory with every byte escaped. Exact
+request/Session/Workspace correlation is mandatory, and the read changes no Workbench state. The
+[schema and shared corpus](../../schemas/workbench/README.md#workspace-current-directory-reads)
+cover both Rust and TypeScript; the [Server](../../apps/orchbee-server/README.md#workspace-current-directory-reads)
+owns which directory answers.
+
 ## Plugin overlay observation and Client return identity
 
 Read-only `PaneObserve` carries exact `PluginPaneInfo`; `PaneObserved` echoes it with a nonzero canonical revision and a boolean settlement fact. Correlation includes selector, context/Tab/Panel/Presentation and binding. It grants no lifecycle mutation. Private Client `Overlay` control carries the created bound member, exact nullable return member and previous zoom. Validation rejects self-return identities; Applied requires the requested focused member, zoom and multiple leaves. Required nullability and semantic failures share the Rust/TypeScript corpus. [Windows plugins](../../apps/orchbee/docs/windows-plugins.md#overlay-lifecycle-model) owns runtime records, observation cleanup and canonical Close. These extensions require the matched native cohort and add no Desktop command.

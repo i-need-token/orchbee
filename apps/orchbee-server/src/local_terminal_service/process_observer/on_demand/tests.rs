@@ -4,8 +4,9 @@ use orchbee_capability_node_protocol::{
     HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity, TerminalId, WorkerGeneration,
     WorkerId,
 };
+const WINDOW: Duration = Duration::from_secs(4);
 
-fn job(now: Instant) -> (Job, mpsc::Receiver<Option<CapturedAgentExplanation>>) {
+fn job(now: Instant) -> (Job<(), ()>, mpsc::Receiver<Option<()>>) {
     let (result, receiver) = mpsc::sync_channel(1);
     let job = Job {
         target: ProcessObservationTarget {
@@ -27,15 +28,15 @@ fn job(now: Instant) -> (Job, mpsc::Receiver<Option<CapturedAgentExplanation>>) 
                 },
             },
         },
-        provider: AgentReportProvider::Codex,
-        deadline: now + READ_WINDOW,
+        parameters: (),
+        deadline: now + WINDOW,
         cancelled: Arc::new(AtomicBool::new(false)),
         result,
     };
     (job, receiver)
 }
 #[test]
-fn explanation_queue_keeps_one_active_one_waiting_and_exact_completion() {
+fn queue_keeps_one_active_one_waiting_and_exact_completion() {
     let requests = Requests::default();
     let stop = AtomicBool::new(false);
     let now = Instant::now();
@@ -43,18 +44,21 @@ fn explanation_queue_keeps_one_active_one_waiting_and_exact_completion() {
     let (second, _second_read) = job(now);
     let (third, _third_read) = job(now);
     requests.enqueue(first, &stop).unwrap();
+    assert!(requests.waiting());
     let active = requests.take(now, &stop).unwrap();
     requests.enqueue(second, &stop).unwrap();
-    assert_eq!(requests.enqueue(third, &stop), Err(Failure::ResourceLimit));
+    assert!(!requests.waiting());
+    assert_eq!(requests.enqueue(third, &stop), Err(Refusal::Busy));
     assert!(requests.take(now, &stop).is_none());
     let (foreign, _foreign_read) = job(now);
     requests.finish(&foreign);
     assert!(requests.take(now, &stop).is_none());
     requests.finish(&active);
+    assert!(requests.waiting());
     assert!(requests.take(now, &stop).is_some());
 }
 #[test]
-fn explanation_expiry_cancellation_and_shutdown_prevent_queued_work() {
+fn expiry_cancellation_and_shutdown_prevent_queued_work() {
     for case in ["expired", "cancelled", "stopped"] {
         let requests = Requests::default();
         let stop = AtomicBool::new(false);
@@ -70,14 +74,7 @@ fn explanation_expiry_cancellation_and_shutdown_prevent_queued_work() {
         }
         assert!(
             requests
-                .take(
-                    if case == "expired" {
-                        now + READ_WINDOW
-                    } else {
-                        now
-                    },
-                    &stop
-                )
+                .take(if case == "expired" { now + WINDOW } else { now }, &stop)
                 .is_none()
         );
         assert!(matches!(

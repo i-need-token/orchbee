@@ -50,7 +50,7 @@ pub use workbench_authority::{
     WorkbenchWorkspaceCloseResumeAdmission, WorkbenchWorkspaceCloseResumeBegin,
     WorkbenchWorkspaceCloseResumePreparation, WorkspaceGroupCloseMemberPlan,
     WorkspaceGroupClosePlan, WorktreeListResolution, WorktreeListTarget, WorktreeOperationPlan,
-    WorktreeRebindError, WorktreeSourceTarget, same_directory,
+    WorktreeRebindError, WorktreeSourceTarget, same_directory, without_trailing_separator,
 };
 
 #[cfg(test)]

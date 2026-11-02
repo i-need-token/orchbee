@@ -1,0 +1,82 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-current-directory.schema.json",
+	"title": "Workspace current directory read",
+	"$comment": "Rust and TypeScript additionally enforce the 4096-byte UTF-8 directory limit and the 26 KiB result budget.",
+	"oneOf": [
+		{
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "workspaceId"],
+			"properties": {
+				"kind": {
+					"const": "workbench.current-directory"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"workspaceId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				}
+			}
+		},
+		{
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "workspaceId", "outcome"],
+			"properties": {
+				"kind": {
+					"const": "workbench.current-directory.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"workspaceId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "directory"],
+							"properties": {
+								"kind": {
+									"const": "observed"
+								},
+								"directory": {
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/directoryPath"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "reason"],
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"enum": ["denied", "not-found", "unavailable"]
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	]
+}

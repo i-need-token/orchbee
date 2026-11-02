@@ -28,13 +28,14 @@ under the Workspace. [Worktree launch](native-worktrees.md) owns checkout creati
 
 Read-only preparation captures the exact initiating context, revision and token. The directory is
 the current directory of the focused Workspace's first terminal: the primary terminal of the first
-Tab's leading Panel, so a `cd` there moves the default. Preparation samples that terminal's root
-process directory once, borrowing this Client's live Viewer when it has one and otherwise using a
-temporary Viewer it releases; a child process directory never substitutes. The sample drops the
-trailing separator a process reports, except at a drive root. When the sample is
-unavailable or invalid, the directory is the focused Workspace's recorded directory. Without one,
-including an empty Session, it is the directory the Client was launched from. A missing or invalid
-directory refuses preparation; the Client does not invent one.
+Tab's leading Panel, so a `cd` there moves the default. Preparation asks the Server once with the
+[current-directory read](../../orchbee-server/README.md#workspace-current-directory-reads), which
+samples that terminal and otherwise answers the Workspace's recorded directory; the Client attaches
+no Viewer of its own. When the Server refuses the read or no longer finds the Workspace, the
+directory is the focused Workspace's recorded directory in the captured snapshot. Without one,
+including an empty Session, it is the directory the Client was launched from. A failed exchange
+fails preparation like any other carrier failure. A missing or invalid directory refuses
+preparation; the Client does not invent one.
 The directory basename supplies the initial name,
 with a localized fallback for a root path. Generated names avoid every Workspace label in the
 captured snapshot, adding ` (2)`, ` (3)` and subsequent suffixes as needed. Truncation leaves room

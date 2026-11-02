@@ -30,14 +30,15 @@ pub mod subscription {
 
 pub mod workbench {
     pub use crate::local_client::workbench::{
-        GroupCloseExchangeError, LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure,
-        PublicationReadError, PublicationReadFailure, SnapshotReadError, SnapshotReadFailure,
-        WorkbenchTabCloseAccepted, WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted,
-        WorkbenchTabClosePrecommit, WorkbenchTabCloseReadError, WorkbenchTabCloseRequest,
-        WorkbenchTabCloseResumeSubmission, WorkbenchTabCloseSubmission, WorkbenchTabCreateCommit,
-        WorkbenchTabCreateNotSubmitted, WorkbenchTabCreateOutcomeUnknownReason,
-        WorkbenchTabCreatePrecommit, WorkbenchTabCreateRequest, WorkbenchTabCreateSubmission,
-        WorkbenchTabMoveCommit, WorkbenchTabMoveNotSubmitted, WorkbenchTabMoveOutcomeUnknownReason,
+        CurrentDirectoryError, GroupCloseExchangeError, LaunchProfileCatalogReadError,
+        LaunchProfileCatalogReadFailure, PublicationReadError, PublicationReadFailure,
+        SnapshotReadError, SnapshotReadFailure, WorkbenchTabCloseAccepted,
+        WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted, WorkbenchTabClosePrecommit,
+        WorkbenchTabCloseReadError, WorkbenchTabCloseRequest, WorkbenchTabCloseResumeSubmission,
+        WorkbenchTabCloseSubmission, WorkbenchTabCreateCommit, WorkbenchTabCreateNotSubmitted,
+        WorkbenchTabCreateOutcomeUnknownReason, WorkbenchTabCreatePrecommit,
+        WorkbenchTabCreateRequest, WorkbenchTabCreateSubmission, WorkbenchTabMoveCommit,
+        WorkbenchTabMoveNotSubmitted, WorkbenchTabMoveOutcomeUnknownReason,
         WorkbenchTabMovePrecommit, WorkbenchTabMoveRequest, WorkbenchTabMoveSubmission,
         WorkbenchWorkspaceCloseAccepted, WorkbenchWorkspaceCloseFailure,
         WorkbenchWorkspaceCloseNotSubmitted, WorkbenchWorkspaceClosePrecommit,

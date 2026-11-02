@@ -17,7 +17,8 @@ pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
         | WorkbenchRequest::WorktreeListRead(_)
         | WorkbenchRequest::LaunchProfileCatalogRead(_)
         | WorkbenchRequest::WorktreeQuery(_)
-        | WorkbenchRequest::WorkspaceGit(_) => true,
+        | WorkbenchRequest::WorkspaceGit(_)
+        | WorkbenchRequest::CurrentDirectory(_) => true,
         WorkbenchRequest::Configuration(request) => {
             matches!(request.action, ConfigurationAction::Current)
         }

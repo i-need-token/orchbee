@@ -89,6 +89,7 @@ pub fn write_workbench_response(
 
 fn request_kind(request: &WorkbenchRequest) -> u16 {
     match request {
+        WorkbenchRequest::CurrentDirectory(_) => 65,
         WorkbenchRequest::AgentIntegration(_) => 63,
         WorkbenchRequest::CloseOperationRead(_) => 61,
         WorkbenchRequest::Settings(_) => 59,
@@ -139,6 +140,7 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
 
 fn response_kind(response: &WorkbenchResponse) -> u16 {
     match response {
+        WorkbenchResponse::CurrentDirectory(_) => 66,
         WorkbenchResponse::AgentIntegration(_) => 64,
         WorkbenchResponse::CloseOperation(_) => 62,
         WorkbenchResponse::Settings(_) => 60,
@@ -221,6 +223,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 59
                     | 61
                     | 63
+                    | 65
             ))
         || (!request
             && !matches!(
@@ -255,6 +258,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 60
                     | 62
                     | 64
+                    | 66
             ))
     {
         return Err(WorkbenchWireError::InvalidHeader);
@@ -277,6 +281,8 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
         crate::MAXIMUM_TERMINAL_EDITOR_BYTES
     } else if matches!(kind, 49 | 50) {
         crate::MAXIMUM_WORKSPACE_GIT_BYTES
+    } else if matches!(kind, 65 | 66) {
+        crate::MAXIMUM_CURRENT_DIRECTORY_BYTES
     } else if matches!(kind, 47 | 48) {
         crate::MAXIMUM_AGENT_VIEW_BYTES
     } else if kind == 63 {

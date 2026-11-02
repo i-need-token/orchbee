@@ -8,6 +8,7 @@ mod close_operation;
 mod configuration;
 mod configured_commands;
 mod conformance;
+mod current_directory;
 mod events;
 mod multiplex_conformance;
 mod notification;

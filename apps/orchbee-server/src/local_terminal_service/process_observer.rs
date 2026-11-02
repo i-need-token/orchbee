@@ -21,17 +21,26 @@ pub(super) struct Schedule {
     agents: Option<Cursor>,
     discovery: Option<Cursor>,
 }
+mod directory;
 mod explanation;
 mod host_sampling;
 mod manifests;
+mod on_demand;
 #[derive(Default)]
 struct Wake {
     stop: AtomicBool,
     wait: Mutex<()>,
     changed: Condvar,
     pending: Mutex<Option<PendingCleanup>>,
+    directories: directory::Requests,
     explanations: explanation::Requests,
     manifests: manifests::Registry,
+}
+impl Wake {
+    /// A read queued while the sampler was busy, whose wake-up therefore found no waiter.
+    fn reads_waiting(&self) -> bool {
+        self.directories.waiting() || self.explanations.waiting()
+    }
 }
 #[derive(Default)]
 pub(super) struct ProcessObserver {
@@ -47,6 +56,7 @@ impl ProcessObserver {
     }
     fn cancel(&self) {
         self.wake.stop.store(true, Ordering::Release);
+        self.wake.directories.cancel();
         self.wake.explanations.cancel();
         self.wake.manifests.cancel();
         if let Ok(_guard) = self.wake.wait.lock() {
@@ -317,8 +327,10 @@ fn turn(
         .map(|i| (&discovery[i], false))
         .chain(active.into_iter().map(|i| (&agents[i], true)))
     {
+        // A queued read waits at most one sample; the cursors resume here next turn.
         if wake.stop.load(Ordering::Acquire)
             || (Instant::now() >= deadline && (!is_agent || observed_agent))
+            || wake.reads_waiting()
         {
             break;
         }
@@ -356,6 +368,9 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: Scree
         }
         if wake.stop.load(Ordering::Acquire) {
             wake.manifests.cancel();
+            // A stopping observer serves no read, so none may keep its wait from sleeping.
+            wake.directories.cancel();
+            wake.explanations.cancel();
         }
         wake.manifests.schedule(Instant::now());
         updates.serve(service.as_deref(), &wake, &mut detector);
@@ -364,12 +379,15 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: Scree
                 return;
             }
         } else if let Some(service) = service.as_deref() {
+            directory::serve(service, &wake);
             explanation::serve(service, &wake, &detector);
             service.sample_configuration(&mut configuration, Instant::now());
             interval = turn(service, &wake, &mut schedule, &detector);
         }
         drop(service);
         match wake.wait.lock() {
+            // Checked under the wait lock, a read queued after this point still wakes the wait.
+            Ok(_guard) if wake.reads_waiting() => {}
             Ok(guard) => {
                 // Include sampling time in the cadence instead of adding a fixed wait to it.
                 let wait = interval

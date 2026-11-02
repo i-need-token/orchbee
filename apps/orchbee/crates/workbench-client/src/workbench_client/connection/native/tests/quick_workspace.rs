@@ -1,63 +1,112 @@
-//! Quick Workspace defaults come from the first terminal, canonical directories or the launch directory.
+//! Quick Workspace defaults come from the Server's current-directory read, then the focused
+//! Workspace's directory, then the launch directory.
 use super::super::ClientExecutor;
 use super::setup::{TestResult, admit, fixture_geometry, snapshot};
-use super::source_root;
+use crate::client_context::ClientContextLocation;
 use crate::local_client::LocalClient;
 use crate::local_client::test_support::server::FakeServer;
 use crate::workbench_client::mailbox::CommandMailbox;
 use crate::workbench_projection::{
-    ClientContextLocation, ClientContextTabs, project_native_context_tabs,
-    project_preferred_workspace,
+    ClientContextTabs, project_native_context_tabs, project_preferred_workspace,
 };
-use crate::workbench_state::OperationDeadlines;
 use crate::workbench_state::workspace_setup::SetupToken;
 use crate::workbench_state::workspace_setup::quick::QuickPreparation;
-use orchbee_client_server_protocol::{
-    ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
-    TerminalViewerResult, ViewerUnavailableReason, read_client_message, write_server_message,
-};
+use crate::workbench_state::{CarrierFailure, OperationDeadlines};
 use orchbee_workbench_protocol::{
-    Directory, TerminalContext, WorkbenchDirectoryId, WorkbenchDirectoryPath,
-    WorkbenchSnapshotOutcome, WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
-    Workspace,
+    CurrentDirectoryFailure, CurrentDirectoryOutcome, CurrentDirectoryResult, Directory,
+    ProtocolVersion, Snapshot, TerminalContext, WorkbenchDirectoryId, WorkbenchDirectoryPath,
+    WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome, WorkbenchTerminalContextId,
+    WorkbenchWorkspaceId, WorkerId, Workspace, read_workbench_request, write_workbench_response,
 };
 use std::io::{self, Read};
 use std::{sync::Arc, time::Instant};
 
 fn quick(baseline: ClientContextTabs) -> QuickPreparation {
-    let first_terminal = baseline.tabs()[0]
-        .panel(0)
-        .and_then(|panel| panel.primary().binding())
-        .cloned();
     QuickPreparation {
         review_directory: false,
         target: None,
         generation: 1,
         token: SetupToken::for_test(1),
         baseline,
-        first_terminal,
-        first_terminal_pane: None,
         deadlines: OperationDeadlines::from_sample(Instant::now()).unwrap(),
     }
 }
 
+/// Prepares the default for `baseline` against a Server that answers one read of the focused
+/// Workspace with `outcome` and then expects nothing more.
+fn prepare(
+    baseline: ClientContextTabs,
+    snapshot: Snapshot,
+    outcome: CurrentDirectoryOutcome,
+) -> TestResult<Result<Option<WorkbenchDirectoryPath>, CarrierFailure>> {
+    let ClientContextLocation::Workspace { workspace_id, .. } = baseline.location().clone() else {
+        return Err("a focused Workspace is expected".into());
+    };
+    let session_id = baseline.session_id().clone();
+    let server = FakeServer::start(move |mut stream| {
+        admit(&mut stream)?;
+        let WorkbenchRequest::CurrentDirectory(request) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            return Err(io::Error::other("one current-directory read expected"));
+        };
+        if request.session_id != session_id || request.workspace_id != workspace_id {
+            return Err(io::Error::other("the focused Workspace is read"));
+        }
+        write_workbench_response(
+            &mut stream,
+            &WorkbenchResponse::CurrentDirectory(CurrentDirectoryResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                session_id: request.session_id,
+                workspace_id: request.workspace_id,
+                outcome,
+            }),
+        )
+        .map_err(io::Error::other)?;
+        // The Server samples the terminal, so the Client attaches no Viewer of its own.
+        let mut trailing = [0];
+        if stream.read(&mut trailing)? != 0 {
+            return Err(io::Error::other("nothing follows the read"));
+        }
+        Ok(())
+    })?;
+    let client = LocalClient::connect(server.endpoint(), "native-quick-test")?;
+    let mut executor = ClientExecutor::new(
+        client,
+        Arc::new(CommandMailbox::new(10, fixture_geometry()?)),
+    );
+    let prepared = executor.prepare_quick_cwd(
+        &quick(baseline),
+        &WorkbenchSnapshotOutcome::Available { snapshot },
+    );
+    drop(executor);
+    server.finish()?;
+    Ok(prepared)
+}
+
 #[test]
-fn quick_workspace_uses_the_first_terminal_directory() -> TestResult {
-    source_root::borrow(|executor, source, outcome| {
-        let mut preparation = quick(source.baseline.clone());
-        preparation
-            .first_terminal_pane
-            .clone_from(&source.primary_pane);
-        executor.prepare_quick_cwd(&preparation, outcome)
-    })
+fn quick_workspace_uses_the_directory_the_server_reads() -> TestResult {
+    let snapshot = snapshot(1, 1);
+    let directory = WorkbenchDirectoryPath::parse("C:/work")?;
+    assert_eq!(
+        prepare(
+            project_preferred_workspace(&snapshot).unwrap(),
+            snapshot,
+            CurrentDirectoryOutcome::Observed {
+                directory: directory.clone()
+            },
+        )?,
+        Ok(Some(directory))
+    );
+    Ok(())
 }
 
 #[test]
 fn quick_workspace_falls_back_to_the_focused_workspace_directory_then_the_launch_directory()
 -> TestResult {
     let initial_workspace = snapshot(1, 1);
-    // Move the live terminal into a Workspace with a recorded directory; while its first
-    // terminal cannot be sampled, the default is the recorded directory.
+    // A Workspace with a recorded directory that closes before the read keeps that directory.
     let mut workspace = snapshot(0, 1);
     let workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 300))?;
     let context_id = WorkbenchTerminalContextId::parse(&format!("{:032x}", 301))?;
@@ -97,58 +146,29 @@ fn quick_workspace_falls_back_to_the_focused_workspace_directory_then_the_launch
         std::env::current_dir,
     )
     .unwrap();
-    for (baseline, snapshot, expected) in [
+    for (baseline, snapshot, reason, expected) in [
         (
             project_native_context_tabs(&workspace, &location).unwrap(),
             workspace.clone(),
+            CurrentDirectoryFailure::NotFound,
             "C:/项目 space".to_owned(),
         ),
+        // Neither a sample nor a directory of its own leaves the launch directory.
         (
             project_preferred_workspace(&initial_workspace).unwrap(),
             initial_workspace.clone(),
+            CurrentDirectoryFailure::Unavailable,
             launch.clone(),
         ),
     ] {
-        let server = FakeServer::start(|mut stream| {
-            admit(&mut stream)?;
-            let ClientMessage::TerminalViewer(request) =
-                read_client_message(&mut stream).map_err(io::Error::other)?
-            else {
-                return Err(io::Error::other("first terminal sample expected"));
-            };
-            if !matches!(request.action(), TerminalViewerAction::AttachBinding { .. }) {
-                return Err(io::Error::other("temporary Viewer expected"));
-            }
-            write_server_message(
-                &mut stream,
-                &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
-                    request.request_id().clone(),
-                    TerminalViewerOutcome::Unavailable {
-                        reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
-                    },
-                )),
-            )
-            .map_err(io::Error::other)?;
-            let mut trailing = [0];
-            if stream.read(&mut trailing)? != 0 {
-                return Err(io::Error::other("an unavailable sample is not retried"));
-            }
-            Ok(())
-        })?;
-        let client = LocalClient::connect(server.endpoint(), "native-quick-test")?;
-        let mut executor = ClientExecutor::new(
-            client,
-            Arc::new(CommandMailbox::new(10, fixture_geometry()?)),
-        );
         assert_eq!(
-            executor.prepare_quick_cwd(
-                &quick(baseline),
-                &WorkbenchSnapshotOutcome::Available { snapshot }
-            ),
+            prepare(
+                baseline,
+                snapshot,
+                CurrentDirectoryOutcome::Failed { reason }
+            )?,
             Ok(Some(WorkbenchDirectoryPath::parse(&expected)?))
         );
-        drop(executor);
-        server.finish()?;
     }
     Ok(())
 }

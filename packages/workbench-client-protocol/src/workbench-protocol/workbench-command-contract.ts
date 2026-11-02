@@ -31,6 +31,11 @@ import {
 	WorkspaceGitRequestSchema,
 	WorkspaceGitResultSchema,
 } from './workbench-workspace-git-contract';
+import {
+	CurrentDirectoryRequestSchema,
+	CurrentDirectoryResultSchema,
+	WORKBENCH_MAXIMUM_CURRENT_DIRECTORY_BYTES,
+} from './workbench-current-directory-contract';
 import { PluginRequestSchema, PluginResultSchema } from './workbench-plugin-contract';
 import {
 	WindowTitleRequestSchema,
@@ -615,6 +620,7 @@ export const WorkbenchRequestSchema = z
 		WorkbenchWorktreeQuerySchema,
 		WorkspaceMetadataRequestSchema,
 		WorkspaceGitRequestSchema,
+		CurrentDirectoryRequestSchema,
 		AgentManifestsRequestSchema,
 		ConfigurationRequestSchema,
 		CloseOperationReadSchema,
@@ -746,6 +752,7 @@ export const WorkbenchResponseSchema = z
 		WorkbenchWorktreeQueryResultSchema,
 		WorkspaceMetadataResultSchema,
 		WorkspaceGitResultSchema,
+		CurrentDirectoryResultSchema,
 		AgentManifestsResultSchema,
 		ConfigurationResultSchema,
 		CloseOperationResultSchema,
@@ -802,6 +809,8 @@ export const WorkbenchResponseSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES;
 		} else if (value.kind === 'workbench.worktree-list.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES;
+		} else if (value.kind === 'workbench.current-directory.result') {
+			maximum = WORKBENCH_MAXIMUM_CURRENT_DIRECTORY_BYTES;
 		}
 
 		if (value.kind === 'workbench.command.result' && value.outcome.kind === 'workspaces-reordered')

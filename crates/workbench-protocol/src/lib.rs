@@ -45,6 +45,10 @@ pub use command::{
     MAXIMUM_CONFIGURED_COMMAND_BYTES,
 };
 pub use command::{
+    CurrentDirectoryFailure, CurrentDirectoryOutcome, CurrentDirectoryRequest,
+    CurrentDirectoryResult, MAXIMUM_CURRENT_DIRECTORY_BYTES,
+};
+pub use command::{
     EditorPopupCapture, MAXIMUM_TERMINAL_EDITOR_BYTES, ScrollbackEditorSpec, TerminalEditorAction,
     TerminalEditorFailure, TerminalEditorOutcome, TerminalEditorRequest, TerminalEditorResult,
 };

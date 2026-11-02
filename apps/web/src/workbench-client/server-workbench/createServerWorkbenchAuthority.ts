@@ -7,8 +7,12 @@ import type {
 	WorkbenchAuthorityTabReceipt,
 	WorkbenchProjectCreationReceipt,
 } from '@orchbee/workbench';
-import type { WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
+import {
+	WORKBENCH_PROTOCOL_VERSION,
+	type WorkbenchSnapshot,
+} from '@orchbee/workbench-client-protocol';
 
+import { createWorkbenchRequestId } from './createWorkbenchRequestId';
 import { handOverServerWorkbenchAction } from './handOverServerWorkbenchAction';
 import { readServerWorkbenchAction } from './readServerWorkbenchAction';
 import { closeServerWorkbench, watchServerWorkbenchClose } from './server-workbench-close';
@@ -23,6 +27,9 @@ import { serverResourceScopeId } from './serverResourceScopeId';
 import { serverWorkbenchResult } from './serverWorkbenchResult';
 import type { ServerWorkbenchAction } from './ServerWorkbenchSession';
 import { workspaceLaunchAction, type ServerWorkspacePlacement } from './workspace-launch';
+
+/** The Server answers within its two-second sampling window; waiting longer only holds New Workspace back. */
+const CURRENT_DIRECTORY_MILLISECONDS = 5000;
 
 interface ServerWorkbenchAuthorityOptions {
 	/** Where this Client works when nothing it shows names a directory. */
@@ -123,16 +130,40 @@ function changeAction(
 	}
 }
 
-/** Where New Workspace opens: where the person is working, otherwise where this Client works. */
-function defaultWorkspaceDirectory(
-	snapshot: WorkbenchSnapshot,
+/**
+ * Where New Workspace opens: where the person is working, otherwise where this Client works. The
+ * Server reads the directory the focused Workspace's first terminal is in now; without an answer,
+ * the last directory it followed or the Workspace's own stands in.
+ */
+async function defaultWorkspaceDirectory(
+	session: ServerWorkbenchAuthorityOptions['session'],
 	focusedWorkspaceId: string | null,
 	defaultDirectory: string,
-): string {
+): Promise<string> {
+	const { snapshot } = session;
 	const workspace = snapshot.navigation.workspaces.find(
 		(candidate) => candidate.workspaceId === focusedWorkspaceId,
 	);
 	if (workspace === undefined) return defaultDirectory;
+	const requestId = createWorkbenchRequestId();
+	const answer = await session.ask(
+		{
+			kind: 'workbench.current-directory',
+			protocolVersion: WORKBENCH_PROTOCOL_VERSION,
+			requestId,
+			sessionId: snapshot.sessionId,
+			workspaceId: workspace.workspaceId,
+		},
+		CURRENT_DIRECTORY_MILLISECONDS,
+	);
+	if (
+		answer.kind === 'answered' &&
+		answer.response.kind === 'workbench.current-directory.result' &&
+		answer.response.requestId === requestId &&
+		answer.response.outcome.kind === 'observed'
+	) {
+		return answer.response.outcome.directory;
+	}
 	return (
 		workspace.terminalDirectory ??
 		snapshot.navigation.directories.find(
@@ -145,8 +176,7 @@ function defaultWorkspaceDirectory(
 function launchPlan(
 	creation: WorkbenchAuthorityCreation,
 	snapshot: WorkbenchSnapshot,
-	focusedWorkspaceId: string | null,
-	defaultDirectory: string,
+	workingDirectory: string,
 ): WorkspaceLaunchPlan | null {
 	switch (creation.type) {
 		case 'project-created':
@@ -168,10 +198,7 @@ function launchPlan(
 			};
 		}
 		case 'workspace-created-default':
-			return {
-				directory: defaultWorkspaceDirectory(snapshot, focusedWorkspaceId, defaultDirectory),
-				placement: { kind: 'ungrouped' },
-			};
+			return { directory: workingDirectory, placement: { kind: 'ungrouped' } };
 	}
 }
 
@@ -207,9 +234,14 @@ export function createServerWorkbenchAuthority({
 		},
 		close: (context, closure) => closeServerWorkbench(session, context, closure),
 		create: async (context, creation) => {
+			// A read names no revision, so it is asked before the command's turn instead of in it.
+			const workingDirectory =
+				creation.type === 'workspace-created-default'
+					? await defaultWorkspaceDirectory(session, focusedWorkspaceId(), defaultDirectory)
+					: defaultDirectory;
 			let directory = '';
 			const submission = await session.submit((snapshot) => {
-				const plan = launchPlan(creation, snapshot, focusedWorkspaceId(), defaultDirectory);
+				const plan = launchPlan(creation, snapshot, workingDirectory);
 				if (plan === null) return null;
 				directory = plan.directory;
 				return handOverServerWorkbenchAction(

@@ -761,6 +761,17 @@ at 32 KiB independently of `agentSidebarProfile`. The configuration frame is 256
 including JSON escaping; Clients validate all four profiles before installing any.
 Public configuration check, failure, Session configuration and catalog documents use version 1.
 
+## Workspace current directory reads
+
+[`workbench-current-directory.schema.json`](v1/workbench-current-directory.schema.json)
+owns `workbench.current-directory` and its `.result`, OBWP kinds 65/66. Identities and the
+observed directory reuse the [Workbench definitions](v1/workbench.schema.json); failures are
+denied/not-found/unavailable. The [shared corpus](v1/workbench-current-directory-conformance-v1.json)
+checks closed shapes, identities and directory syntax; the bindings also enforce the 4,096-byte
+directory and 26 KiB result limits. The
+[Server](../../apps/orchbee-server/README.md#workspace-current-directory-reads) owns which
+directory answers.
+
 ## Configured command wire contract
 
 [Configured commands](v1/workbench-configured-command.schema.json) close the native installed-command catalog, invoke and private independent-popup lifecycle. Native CLI `orchbee.command` embeds the same nested receipts; its Client popup follow-up uses the version-1 control contract. IDs identify the normalized installed configuration and do not authorize caller-provided executable text. Required nullable source and selection fields distinguish global shell/plugin actions from current presentation-bound invocation; selected plugin text is captured from the exact terminal revision. Rust and TypeScript check ID/source/context correlation, row span, shared byte bounds and nested receipt identity in addition to JSON shape checks. [The native model](../../apps/orchbee/docs/windows-custom-commands.md) owns execution, uncertain effects, process retention and cleanup.

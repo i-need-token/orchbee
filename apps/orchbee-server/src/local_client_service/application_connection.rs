@@ -92,12 +92,14 @@ impl ApplicationRequest {
     pub(super) fn multiplex_safe(&self) -> bool {
         !matches!(self.workbench(), Some(WorkbenchRequest::Events(request)) if matches!(request.action, orchbee_workbench_protocol::SemanticEventsAction::Wait { .. }))
     }
-    /// A read that waits on a Worker job, whose duration belongs to an external process.
+    /// A read that waits on a Worker job or a terminal sample, whose duration belongs to an external
+    /// process.
     pub(super) fn waits_for_worker_job(&self) -> bool {
         matches!(
             self.workbench(),
             Some(
                 WorkbenchRequest::WorkspaceGit(_)
+                    | WorkbenchRequest::CurrentDirectory(_)
                     | WorkbenchRequest::WorktreeQuery(_)
                     | WorkbenchRequest::WorktreeListRead(_)
             )

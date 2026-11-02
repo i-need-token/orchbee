@@ -12,7 +12,7 @@ pub fn same_directory(left: &str, right: &str) -> bool {
 }
 
 /// A process reports its directory with a trailing separator; a drive root keeps its own.
-fn without_trailing_separator(path: &str) -> &str {
+pub fn without_trailing_separator(path: &str) -> &str {
     let trimmed = path.trim_end_matches(['\\', '/']);
     if trimmed.is_empty() || trimmed.ends_with(':') {
         path

@@ -152,6 +152,11 @@ pub use agent_integration::{
     MAXIMUM_ENCODED_AGENT_INTEGRATION_REQUEST_BYTES,
     MAXIMUM_ENCODED_AGENT_INTEGRATION_RESULT_BYTES,
 };
+mod current_directory;
+pub use current_directory::{
+    CurrentDirectoryFailure, CurrentDirectoryOutcome, CurrentDirectoryRequest,
+    CurrentDirectoryResult, MAXIMUM_CURRENT_DIRECTORY_BYTES,
+};
 mod workspace_git;
 mod workspace_metadata;
 pub use workspace_git::{
@@ -1045,6 +1050,8 @@ pub enum WorkbenchRequest {
     WorkspaceMetadata(WorkspaceMetadataRequest),
     #[serde(rename = "workbench.workspace-git")]
     WorkspaceGit(WorkspaceGitRequest),
+    #[serde(rename = "workbench.current-directory")]
+    CurrentDirectory(CurrentDirectoryRequest),
     #[serde(rename = "workbench.client-view")]
     ClientView(WorkbenchClientViewRequest),
     #[serde(rename = "workbench.workspace-group-close")]
@@ -1461,6 +1468,8 @@ pub enum WorkbenchResponse {
     WorkspaceMetadata(WorkspaceMetadataResult),
     #[serde(rename = "workbench.workspace-git.result")]
     WorkspaceGit(WorkspaceGitResult),
+    #[serde(rename = "workbench.current-directory.result")]
+    CurrentDirectory(CurrentDirectoryResult),
     #[serde(rename = "workbench.client-view.result")]
     ClientView(WorkbenchClientViewResult),
     #[serde(rename = "workbench.workspace-group-close.result")]
@@ -1810,6 +1819,9 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         WorkbenchResponse::WorkspaceGit(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_WORKSPACE_GIT_BYTES)?;
             result.validate()
+        }
+        WorkbenchResponse::CurrentDirectory(_) => {
+            enforce_encoded_limit(encoded, MAXIMUM_CURRENT_DIRECTORY_BYTES)
         }
         WorkbenchResponse::WorkspaceMetadata(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKSPACE_METADATA_RESULT_BYTES)?;
