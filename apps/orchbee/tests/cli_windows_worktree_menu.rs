@@ -158,6 +158,53 @@ fn a_directory_change_under_the_open_menu_keeps_it_and_asks_git_again() {
     control.release();
 }
 
+/// Open Worktree ▸ depends on the checkout list, so a menu starts it from the last list Git gave for
+/// the same checkout: a repository with one checkout never offers it, and one with a linked checkout
+/// offers it from the first paint of every menu after its first.
+#[test]
+fn open_worktree_starts_from_the_last_list_for_the_same_checkout() {
+    let fixture = Fixture::new("orchbee-worktree-list-", &["repo", "solo"]);
+    repository(&fixture);
+    only_checkout(&fixture, "solo");
+    fixture.workspace_in("alone", "solo");
+    fixture.workspace_in("pair", "repo");
+    let tui = fixture.start_tui(COLUMNS, ROWS);
+    fixture.settle_ready(&tui.client);
+    let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
+    control.input(b"\x1b[I");
+    // Both rows show their branch, so New Worktree… starts enabled from the sidebar.
+    let deadline = Instant::now() + DISCOVERY;
+    while fixture.screen(&tui.terminal).matches("main").count() < 2 {
+        assert!(
+            Instant::now() < deadline,
+            "the rows never showed their branch"
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    for _ in 0..2 {
+        open_menu(&fixture, &tui, &mut control, "alone");
+        // Spans Git's answer.
+        let watch = Instant::now() + Duration::from_secs(3);
+        while Instant::now() < watch {
+            let read = MenuRead::first(&fixture, &tui);
+            assert!(!read.enabled(OPEN_WORKTREE), "{}", read.text());
+        }
+        close_menu(&fixture, &tui, &mut control);
+    }
+
+    open_menu(&fixture, &tui, &mut control, "pair");
+    worktrees_enable(&fixture, &tui);
+    close_menu(&fixture, &tui, &mut control);
+    open_menu(&fixture, &tui, &mut control, "pair");
+    let watch = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < watch {
+        let read = MenuRead::first(&fixture, &tui);
+        assert!(read.enabled(OPEN_WORKTREE), "{}", read.text());
+    }
+    control.release();
+}
+
 /// A Workspace that left its repository for a folder outside Git shows nothing Git said about the
 /// repository: its menu's Worktree rows are disabled from the first paint and say why, and choosing
 /// them does nothing.
@@ -175,13 +222,8 @@ fn a_workspace_that_left_its_repository_offers_no_worktree_rows() {
 
     // The menu used there.
     open_menu(&fixture, &tui, &mut control, "source");
-    menu_is_steady(&fixture, &tui, None);
-    control.input(b"\x1b");
-    let deadline = Instant::now() + DISCOVERY;
-    while !menu_closed(&fixture.screen(&tui.terminal)) {
-        assert!(Instant::now() < deadline, "the menu never closed");
-        thread::sleep(Duration::from_millis(100));
-    }
+    worktrees_enable(&fixture, &tui);
+    close_menu(&fixture, &tui, &mut control);
 
     let command = format!("cd \"{}\"", fixture.path("plain"));
     enter(&fixture, &terminal_of(&fixture, &created), &command);
@@ -238,9 +280,9 @@ fn a_workspace_that_left_its_repository_offers_no_worktree_rows() {
     control.release();
 }
 
-/// A menu opened on a row that shows the repository's branch has every row enabled and its one
-/// height from its first paint, through Git's first answer, and through a `cd` inside the
-/// repository with the Git read it starts.
+/// A menu opened again on a repository Git answered has every row enabled and its one height from
+/// its first paint, through Git's answer, and through a `cd` inside the repository with the Git read
+/// it starts.
 #[test]
 fn a_menu_on_a_known_repository_stays_enabled_at_one_height_through_a_directory_change() {
     let fixture = Fixture::new("orchbee-worktree-refresh-", &["repo"]);
@@ -253,10 +295,13 @@ fn a_menu_on_a_known_repository_stays_enabled_at_one_height_through_a_directory_
     let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
     control.input(b"\x1b[I");
     shows_branch(&fixture, &tui, true);
+    open_menu(&fixture, &tui, &mut control, "source");
+    worktrees_enable(&fixture, &tui);
+    close_menu(&fixture, &tui, &mut control);
 
     open_menu(&fixture, &tui, &mut control, "source");
     let height = menu_is_steady(&fixture, &tui, None);
-    // Spans Git's first answer.
+    // Spans Git's answer.
     let watch = Instant::now() + Duration::from_secs(3);
     while Instant::now() < watch {
         menu_is_steady(&fixture, &tui, Some(height));
@@ -427,31 +472,69 @@ fn opening_a_checkout_every_workspace_left_starts_a_new_workspace_there() {
 
 /// A repository in the fixture's `repo` with one commit and a linked checkout beside it.
 fn repository(fixture: &Fixture) {
-    let git = |words: &[&str]| {
-        let output = Command::new("git")
-            .arg("-C")
-            .arg(fixture.path("repo"))
-            .args(words)
-            .env("HOME", fixture.path("home"))
-            .env("USERPROFILE", fixture.path("home"))
-            .stdin(Stdio::null())
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "git {words:?}: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    };
+    only_checkout(fixture, "repo");
+    let linked = fixture.path("linked-checkout");
+    git_in(
+        fixture,
+        "repo",
+        &["worktree", "add", "--quiet", "-b", LINKED_BRANCH, &linked],
+    );
+}
+
+/// A repository in the fixture's `name` with one commit on `main` and no other checkout.
+fn only_checkout(fixture: &Fixture, name: &str) {
+    let git = |words: &[&str]| git_in(fixture, name, words);
     git(&["init", "--quiet", "--initial-branch=main"]);
     git(&["config", "user.name", "Orchbee Fixture"]);
     git(&["config", "user.email", "fixture@example.invalid"]);
     git(&["config", "commit.gpgsign", "false"]);
-    std::fs::write(fixture.path("repo/seed.txt"), b"seed\n").unwrap();
+    std::fs::write(fixture.path(&format!("{name}/seed.txt")), b"seed\n").unwrap();
     git(&["add", "seed.txt"]);
     git(&["commit", "--quiet", "-m", "seed"]);
-    let linked = fixture.path("linked-checkout");
-    git(&["worktree", "add", "--quiet", "-b", LINKED_BRANCH, &linked]);
+}
+
+fn git_in(fixture: &Fixture, name: &str, words: &[&str]) {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(fixture.path(name))
+        .args(words)
+        .env("HOME", fixture.path("home"))
+        .env("USERPROFILE", fixture.path("home"))
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git {words:?}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// Waits for the open menu's New Worktree… and Open Worktree ▸ to enable.
+fn worktrees_enable(fixture: &Fixture, tui: &Tui) {
+    let deadline = Instant::now() + DISCOVERY;
+    loop {
+        let read = MenuRead::first(fixture, tui);
+        if read.enabled(NEW_WORKTREE) && read.enabled(OPEN_WORKTREE) {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the rows never enabled:\n{}",
+            read.text()
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// Closes the open menu.
+fn close_menu(fixture: &Fixture, tui: &Tui, control: &mut Control) {
+    control.input(b"\x1b");
+    let deadline = Instant::now() + DISCOVERY;
+    while !menu_closed(&fixture.screen(&tui.terminal)) {
+        assert!(Instant::now() < deadline, "the menu never closed");
+        thread::sleep(Duration::from_millis(100));
+    }
 }
 
 /// The checkouts Git lists for the repository.

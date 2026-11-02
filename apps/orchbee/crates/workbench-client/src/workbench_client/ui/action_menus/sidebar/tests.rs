@@ -655,6 +655,67 @@ fn a_move_within_the_answered_checkout_keeps_the_worktree_rows_and_any_other_dro
     }
 }
 
+/// Open Worktree ▸ depends on the checkout list, so a menu starts it from the last list Git gave
+/// for the same Workspace in the same checkout, and from nothing else.
+#[test]
+fn open_worktree_starts_from_the_last_list_for_the_same_checkout() {
+    use crate::action_menu::MenuUnavailable;
+    let (mut ui, _, _, target) = closed_ungrouped_git_workspace();
+    let open = |ui: &mut WorkbenchClientUi| {
+        ui.observe_sidebar_git(Some(
+            WorkbenchDirectoryPath::parse(SIDEBAR_DIRECTORY).unwrap(),
+        ));
+        assert!(ui.open_action_menu(target.clone(), None, false));
+    };
+    let close = |ui: &mut WorkbenchClientUi| {
+        for _ in 0..3 {
+            if ui.action_menu_active() {
+                press(ui, KeyCode::Esc);
+            }
+        }
+        assert!(!ui.action_menu_active());
+    };
+    let worktrees = |ui: &WorkbenchClientUi| unavailable(ui, &MenuAction::WorkspaceWorktrees);
+    open(&mut ui);
+    let label = ui.view().action_menu().unwrap().title.to_owned();
+    assert_eq!(worktrees(&ui), Some(MenuUnavailable::WorktreeChecking));
+
+    // The only checkout: every later menu says so from its first paint.
+    let mut only = workspace_discovery(&ui);
+    only.discovery.entries.truncate(1);
+    settle(&mut ui, Ok(Box::new(only)));
+    close(&mut ui);
+    open(&mut ui);
+    assert_eq!(worktrees(&ui), Some(MenuUnavailable::NoOtherWorktrees));
+
+    // A linked checkout: the next menu offers the list at once.
+    let answer = workspace_discovery(&ui);
+    settle(&mut ui, Ok(Box::new(answer)));
+    close(&mut ui);
+    open(&mut ui);
+    assert_eq!(worktrees(&ui), None);
+    choose(&mut ui, &MenuAction::WorkspaceWorktrees);
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(matches!(
+        ui.view().action_menu().unwrap().source,
+        MenuTarget::WorkspaceWorktrees(_)
+    ));
+    close(&mut ui);
+
+    // Nothing is kept for a checkout the Workspace left, or after Git stopped answering there.
+    first_terminal_moves(&mut ui, &label, "C:/first-repository-two");
+    open(&mut ui);
+    assert_eq!(worktrees(&ui), Some(MenuUnavailable::WorktreeChecking));
+    close(&mut ui);
+    first_terminal_moves(&mut ui, &label, "C:/first-repository/sub");
+    open(&mut ui);
+    assert_eq!(worktrees(&ui), None);
+    settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
+    close(&mut ui);
+    open(&mut ui);
+    assert_eq!(worktrees(&ui), Some(MenuUnavailable::WorktreeChecking));
+}
+
 /// A row chosen on an answer the Workspace then left, or that Git no longer repeats, closes the menu
 /// with the notice at once; it neither runs nor waits out the menu's deadline.
 #[test]
@@ -788,39 +849,40 @@ fn a_chosen_checkout_the_new_answer_no_longer_lists_is_reported() {
 const SIDEBAR_DIRECTORY: &str = "C:/first-repository";
 
 #[test]
-fn rows_the_sidebar_knows_in_git_start_enabled_and_a_chosen_one_waits_for_the_answer() {
+fn new_worktree_starts_enabled_where_the_sidebar_shows_a_branch_and_waits_when_chosen() {
     use crate::action_menu::MenuUnavailable;
     let rows = [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees];
 
-    // Nothing changes when Git agrees, and Open Worktree ▸ waits for the checkouts it lists.
+    // Git facts prove New Worktree…, and Open Worktree ▸ waits for the checkouts it lists.
     let mut ui = opened_on_sidebar_git(SIDEBAR_DIRECTORY);
-    for action in &rows {
-        assert_eq!(unavailable(&ui, action), None, "{action:?} before the read");
-    }
-    let token = draw(&mut ui);
+    assert_eq!(unavailable(&ui, &MenuAction::NewWorktree), None);
+    assert_eq!(
+        unavailable(&ui, &MenuAction::WorkspaceWorktrees),
+        Some(MenuUnavailable::WorktreeChecking)
+    );
     let answer = workspace_discovery(&ui);
     settle(&mut ui, Ok(Box::new(answer.clone())));
-    assert_eq!(ui.view().action_menu().unwrap().token, token);
+    for action in &rows {
+        assert_eq!(unavailable(&ui, action), None, "{action:?} after the read");
+    }
 
     let mut ui = opened_on_sidebar_git(SIDEBAR_DIRECTORY);
-    choose(&mut ui, &MenuAction::WorkspaceWorktrees);
+    choose(&mut ui, &MenuAction::NewWorktree);
     assert!(ui.take_action_menu_action(false).is_none());
-    assert_eq!(ui.view().action_menu_cascade().len(), 0, "it waits");
-    assert!(ui.action_menu_active());
+    assert!(ui.action_menu_active(), "it waits");
+    assert!(ui.worktrees.launcher.view().is_none());
     settle(&mut ui, Ok(Box::new(answer.clone())));
     assert!(ui.take_action_menu_action(false).is_none());
-    assert!(matches!(
-        ui.view().action_menu().unwrap().source,
-        MenuTarget::WorkspaceWorktrees(_)
-    ));
+    assert!(!ui.action_menu_active());
+    assert!(ui.worktrees.launcher.view().is_some());
 
     // An answer that no longer offers the chosen row closes the menu and says so.
     let mut only = answer;
     only.discovery.entries.truncate(1);
     let mut ui = opened_on_sidebar_git(SIDEBAR_DIRECTORY);
-    choose(&mut ui, &MenuAction::WorkspaceWorktrees);
+    choose(&mut ui, &MenuAction::NewWorktree);
     assert!(ui.take_action_menu_action(false).is_none());
-    settle(&mut ui, Ok(Box::new(only.clone())));
+    settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
     assert!(ui.take_action_menu_action(false).is_none());
     assert!(!ui.action_menu_active());
     assert_eq!(
@@ -848,9 +910,7 @@ fn rows_the_sidebar_knows_in_git_start_enabled_and_a_chosen_one_waits_for_the_an
     let mut ui = opened_on_sidebar_git(SIDEBAR_DIRECTORY);
     let label = ui.view().action_menu().unwrap().title.to_owned();
     first_terminal_moves(&mut ui, &label, "C:/first-repository/sub");
-    for action in &rows {
-        assert_eq!(unavailable(&ui, action), None, "{action:?} after the move");
-    }
+    assert_eq!(unavailable(&ui, &MenuAction::NewWorktree), None);
     first_terminal_moves(&mut ui, &label, "C:/plain");
     for action in &rows {
         assert_eq!(

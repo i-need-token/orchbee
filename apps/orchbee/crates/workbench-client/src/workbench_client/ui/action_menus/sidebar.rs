@@ -288,9 +288,10 @@ pub(super) fn unavailable(
         DiscoveryState::Ready(ready) => (action == &MenuAction::WorkspaceWorktrees
             && other_checkout_actions(ready).is_empty())
         .then_some(MenuUnavailable::NoOtherWorktrees),
-        DiscoveryState::Waiting | DiscoveryState::Querying => {
-            (!episode.known_git()).then_some(MenuUnavailable::WorktreeChecking)
-        }
+        // Git facts prove New Worktree…; the other rows depend on the checkout list.
+        DiscoveryState::Waiting | DiscoveryState::Querying => (action != &MenuAction::NewWorktree
+            || !episode.known_git())
+        .then_some(MenuUnavailable::WorktreeChecking),
         DiscoveryState::Absent => Some(MenuUnavailable::WorktreeUnavailable),
     }
 }
@@ -330,7 +331,7 @@ pub(super) fn project_choices(
 
 impl WorkbenchClientUi {
     /// The shell reports where the sidebar row of the menu about to open stands, while that row
-    /// shows a branch for it. The menu's worktree rows then start enabled instead of waiting.
+    /// shows a branch for it. The menu's New Worktree… then starts enabled instead of waiting.
     pub(in crate::workbench_client) fn observe_sidebar_git(
         &mut self,
         directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,

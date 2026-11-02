@@ -249,8 +249,12 @@ a noncurrent Workspace. Empty conditional creation sections publish no orphan se
 Opening a Project or Workspace menu starts Git discovery of the addressed source. New Worktree…
 and Open Worktree ▸ stay disabled with a localized reason until discovery succeeds; a non-Git or
 failed source keeps them disabled, and Open Worktree ▸ also stays disabled while the Workspace's own
-checkout is the only one. A Workspace menu opened from a sidebar row that already shows a branch for
-the directory it stands in starts both rows enabled instead; a row chosen before the first answer
+checkout is the only one. Until the first answer, a menu shows the last success the Client keeps for
+the same source, the newest for each of up to 16 recent sources, while the source stands in the
+checkout it describes; a failed answer drops it. Otherwise a Workspace menu opened from a sidebar row that already shows a
+branch for the directory it stands in starts New Worktree… enabled; Open Worktree ▸ depends on the
+checkout list, so it waits for Git, and a repository with linked checkouts may enable it once on its
+first menu. A row chosen before the first answer
 waits for it as below, and an answer that differs changes the rows then. A row without a branch proves
 nothing, because a folder outside Git and a detached HEAD both show none, so its menu waits for Git. A
 directory change of the first terminal keeps the menu open and starts discovery over, and an answer

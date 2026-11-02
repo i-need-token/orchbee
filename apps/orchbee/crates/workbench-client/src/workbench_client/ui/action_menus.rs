@@ -1548,7 +1548,7 @@ impl WorkbenchClientUi {
             }
             _ => None,
         };
-        // Open Worktree ▸ lists what Git answers; a row enabled before the first answer waits for it.
+        // Open Worktree ▸ lists only what Git answered.
         if action == MenuAction::WorkspaceWorktrees
             && self.menus.discovery()?.recognized().is_none()
         {

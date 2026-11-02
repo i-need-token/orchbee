@@ -263,11 +263,11 @@ pub(super) struct Discovery {
     source: AddressedWorktreeSource,
     deadline: Instant,
     state: DiscoveryState,
-    /// The success the rows keep while `state` asks about a first terminal that moved within the
-    /// checkout it describes. Nothing is kept across any other move.
+    /// The last success for this source the rows show until `state` is answered, kept only while
+    /// the first terminal stands in the checkout it describes.
     earlier: Option<DiscoveryState>,
-    /// The menu's row showed a branch for this directory or one above it, so the rows stay enabled
-    /// until the first answer.
+    /// The menu's row showed a branch for this directory or one above it, so New Worktree… stays
+    /// enabled until the first answer.
     known_git: bool,
 }
 
@@ -295,7 +295,7 @@ impl Discovery {
         &self.state
     }
 
-    /// Whether the rows stay enabled until the first answer.
+    /// Whether New Worktree… stays enabled until the first answer.
     pub(super) const fn known_git(&self) -> bool {
         self.known_git
     }
@@ -333,23 +333,19 @@ impl Discovery {
                 .is_some_and(|seeded| next.stands_under(seeded))
     }
 
-    /// The success that still speaks for `next`: one about the checkout `next` stands in. A failed
-    /// answer speaks only for its own directory, so another folder outside Git is asked again.
-    fn answer_for(self, next: &AddressedWorktreeSource) -> Option<DiscoveryState> {
-        let answer = match self.state {
-            DiscoveryState::Waiting | DiscoveryState::Querying => self.earlier,
-            settled => Some(settled),
-        };
-        answer.filter(|answer| {
-            matches!(answer, DiscoveryState::Ready(ready)
-                if next.stands_under(&ready.discovery.source.checkout_path))
-        })
-    }
-
     fn settle(&mut self, state: DiscoveryState) {
         self.state = state;
         self.earlier = None;
     }
+}
+
+/// Recent sources whose last success a later menu may show, across menus and moves.
+const REMEMBERED_ANSWERS: usize = 16;
+
+/// Whether `answer` still speaks for `next`: the same source, standing in the checkout it describes.
+/// A failed answer speaks only for its own directory, so it is never kept.
+fn speaks_for(answer: &SidebarDiscovery, next: &AddressedWorktreeSource) -> bool {
+    answer.addressed.moved_to(next) && next.stands_under(&answer.discovery.source.checkout_path)
 }
 
 #[derive(Default)]
@@ -361,6 +357,8 @@ pub(in crate::workbench_client::ui) struct MenuEpisode {
     resume_handoff: Option<ResumeHandoff>,
     discovery: Option<Discovery>,
     next_discovery: u64,
+    /// The newest success for each of the most recent sources, newest first.
+    remembered: Vec<SidebarDiscovery>,
     /// Where the sidebar row of the menu about to open stands, while it shows a branch for it.
     sidebar_git: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
 }
@@ -589,7 +587,11 @@ impl MenuEpisode {
             || moved
                 .as_ref()
                 .is_some_and(|moved| moved.known_git_for(&source));
-        let earlier = moved.and_then(|moved| moved.answer_for(&source));
+        let earlier = self
+            .remembered
+            .iter()
+            .find(|answer| speaks_for(answer, &source))
+            .map(|answer| DiscoveryState::Ready(Box::new(answer.clone())));
         self.discovery = Some(Discovery {
             id,
             source,
@@ -624,7 +626,8 @@ impl MenuEpisode {
     }
 
     /// Settles the querying discovery `id`: a result for its source, before its deadline, that
-    /// `valid` admits becomes ready, and anything else absent. Reports whether `id` was current.
+    /// `valid` admits becomes ready, and anything else absent. The outcome replaces what is
+    /// remembered for the source. Reports whether `id` was current.
     pub(super) fn settle_discovery(
         &mut self,
         id: u64,
@@ -647,6 +650,13 @@ impl MenuEpisode {
             }
             _ => DiscoveryState::Absent,
         };
+        let target = &discovery.source.target;
+        self.remembered
+            .retain(|answer| &answer.addressed.target != target);
+        if let DiscoveryState::Ready(found) = &settled {
+            self.remembered.insert(0, found.as_ref().clone());
+            self.remembered.truncate(REMEMBERED_ANSWERS);
+        }
         discovery.settle(settled);
         true
     }
