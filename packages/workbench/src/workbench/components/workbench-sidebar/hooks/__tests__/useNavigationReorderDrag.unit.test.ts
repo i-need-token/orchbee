@@ -13,7 +13,7 @@ afterEach(() => {
 
 describe('useNavigationReorderDrag', () => {
 	it('keeps a singleton navigation list inert', () => {
-		const reorderItem = vi.fn<(itemId: string, beforeItemId: string | null) => void>();
+		const reorderItem = settledReorder();
 		const items = [item('item-1')];
 		const rendered = renderHook(() => useNavigationReorderDrag(items, reorderItem));
 		const row = document.createElement('div');
@@ -26,8 +26,8 @@ describe('useNavigationReorderDrag', () => {
 		expect(reorderItem).not.toHaveBeenCalled();
 	});
 
-	it('ignores row controls and commits a mouse reorder only after drag activation', () => {
-		const reorderItem = vi.fn<(itemId: string, beforeItemId: string | null) => void>();
+	it('ignores row controls and commits a mouse reorder only after drag activation', async () => {
+		const reorderItem = settledReorder();
 		const items = [item('item-1'), item('item-2')];
 		const rendered = renderHook(() => useNavigationReorderDrag(items, reorderItem));
 		const list = navigationList();
@@ -72,7 +72,7 @@ describe('useNavigationReorderDrag', () => {
 			secondRow.style.getPropertyValue('--ob-comp-workbench-navigation-reorder-translate-y'),
 		).toBe('-59px');
 
-		fireEvent.pointerUp(document, { pointerId: 1 });
+		await act(async () => fireEvent.pointerUp(document, { pointerId: 1 }));
 		expect(rendered.result.current.draggingItemId).toBeNull();
 		expect(
 			secondRow.style.getPropertyValue('--ob-comp-workbench-navigation-reorder-translate-y'),
@@ -89,7 +89,7 @@ describe('useNavigationReorderDrag', () => {
 			pendingFrame = callback;
 			return 1;
 		});
-		const reorderItem = vi.fn<(itemId: string, beforeItemId: string | null) => void>();
+		const reorderItem = settledReorder();
 		const items = [item('item-1'), item('item-2')];
 		const rendered = renderHook(() => useNavigationReorderDrag(items, reorderItem));
 		const scrollElement = document.createElement('div');
@@ -128,8 +128,8 @@ describe('useNavigationReorderDrag', () => {
 		).toBe(`${98 - 20}px`);
 	});
 
-	it('squeezes the final sibling when the dragged row midpoint crosses its midpoint', () => {
-		const reorderItem = vi.fn<(itemId: string, beforeItemId: string | null) => void>();
+	it('squeezes the final sibling when the dragged row midpoint crosses its midpoint', async () => {
+		const reorderItem = settledReorder();
 		const items = [item('item-1'), item('item-2')];
 		const rendered = renderHook(() => useNavigationReorderDrag(items, reorderItem));
 		const list = navigationList();
@@ -153,12 +153,14 @@ describe('useNavigationReorderDrag', () => {
 		expect(rendered.result.current.displacementDirection).toBe('up');
 		expect(rendered.result.current.displacedItemIds).toEqual(['item-2']);
 
-		fireEvent.pointerUp(document, { clientX: 10, clientY: 41, pointerId: 1 });
+		await act(async () =>
+			fireEvent.pointerUp(document, { clientX: 10, clientY: 41, pointerId: 1 }),
+		);
 		expect(reorderItem).toHaveBeenCalledWith('item-1', null);
 	});
 
-	it('commits the visible squeeze when pointerup jitters back across a midpoint', () => {
-		const reorderItem = vi.fn<(itemId: string, beforeItemId: string | null) => void>();
+	it('commits the visible squeeze when pointerup jitters back across a midpoint', async () => {
+		const reorderItem = settledReorder();
 		const items = [item('item-1'), item('item-2')];
 		const rendered = renderHook(() => useNavigationReorderDrag(items, reorderItem));
 		const list = navigationList();
@@ -179,12 +181,54 @@ describe('useNavigationReorderDrag', () => {
 		expect(rendered.result.current.displacementDirection).toBe('down');
 		expect(rendered.result.current.displacedItemIds).toEqual(['item-1']);
 
-		fireEvent.pointerUp(document, { clientX: 10, clientY: 21, pointerId: 1 });
+		await act(async () =>
+			fireEvent.pointerUp(document, { clientX: 10, clientY: 21, pointerId: 1 }),
+		);
 		expect(reorderItem).toHaveBeenCalledWith('item-2', 'item-1');
 	});
 
+	it('holds a released row where it was dropped until its reorder settles', async () => {
+		const settlement: { finish?: () => void } = {};
+		const reorderItem = vi.fn<Reorder>(
+			() =>
+				new Promise<void>((resolve) => {
+					settlement.finish = resolve;
+				}),
+		);
+		const rendered = renderHook(() =>
+			useNavigationReorderDrag([item('item-1'), item('item-2')], reorderItem),
+		);
+		const list = navigationList();
+		rendered.result.current.listRef.current = list;
+		const secondRow = list.querySelector<HTMLDivElement>(
+			'[data-navigation-reorder-id="item-2"] [data-navigation-reorder-row]',
+		);
+		if (secondRow === null) throw new Error('Expected the second navigation row.');
+
+		act(() =>
+			rendered.result.current.onItemPointerDown('item-2', pointerEvent(secondRow, secondRow)),
+		);
+		fireEvent.pointerMove(document, { clientX: 10, clientY: 1, pointerId: 1 });
+		fireEvent.pointerUp(document, { clientX: 10, clientY: 1, pointerId: 1 });
+
+		expect(reorderItem).toHaveBeenCalledWith('item-2', 'item-1');
+		expect(rendered.result.current.draggingItemId).toBe('item-2');
+		expect(rendered.result.current.displacedItemIds).toEqual(['item-1']);
+		expect(rendered.result.current.displacementAnimated).toBe(false);
+		expect(
+			secondRow.style.getPropertyValue('--ob-comp-workbench-navigation-reorder-translate-y'),
+		).toBe('-59px');
+
+		await act(async () => settlement.finish?.());
+
+		expect(rendered.result.current.draggingItemId).toBeNull();
+		expect(
+			secondRow.style.getPropertyValue('--ob-comp-workbench-navigation-reorder-translate-y'),
+		).toBe('');
+	});
+
 	it('cancels an invalidated drag and suppresses its document-level trailing click', () => {
-		const reorderItem = vi.fn<(itemId: string, beforeItemId: string | null) => void>();
+		const reorderItem = settledReorder();
 		const rendered = renderHook(
 			({ currentItems }) => useNavigationReorderDrag(currentItems, reorderItem),
 			{ initialProps: { currentItems: [item('item-1'), item('item-2')] } },
@@ -216,7 +260,7 @@ describe('useNavigationReorderDrag', () => {
 	});
 
 	it('suppresses a trailing click when an active drag unmounts', () => {
-		const reorderItem = vi.fn<(itemId: string, beforeItemId: string | null) => void>();
+		const reorderItem = settledReorder();
 		const rendered = renderHook(() =>
 			useNavigationReorderDrag([item('item-1'), item('item-2')], reorderItem),
 		);
@@ -245,6 +289,12 @@ describe('useNavigationReorderDrag', () => {
 		outside.remove();
 	});
 });
+
+type Reorder = (itemId: string, beforeItemId: string | null) => Promise<void>;
+
+function settledReorder() {
+	return vi.fn<Reorder>(() => Promise.resolve());
+}
 
 function pointerEvent(
 	currentTarget: HTMLDivElement,

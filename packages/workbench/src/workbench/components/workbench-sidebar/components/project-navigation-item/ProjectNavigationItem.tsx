@@ -50,7 +50,7 @@ interface ProjectNavigationItemProps {
 	readonly deleteWorkspace: (workspaceId: string) => void;
 	readonly displacement: 'down' | 'up' | null;
 	readonly disconnectEnvironment?: ((projectId: string) => void) | undefined;
-	readonly duplicateWorkspace: (workspaceId: string) => void;
+	readonly duplicateWorkspace?: ((workspaceId: string) => void) | undefined;
 	readonly expandedAgentWorkspaceId: string | null;
 	readonly dragging: boolean;
 	readonly expanded: boolean;
@@ -61,7 +61,10 @@ interface ProjectNavigationItemProps {
 	readonly refreshWorktrees?: ((workspaceId: string) => void) | undefined;
 	readonly onPointerDown: (projectId: string, event: PointerEvent<HTMLDivElement>) => void;
 	readonly reorderActive: boolean;
-	readonly reorderWorkspace: (workspaceId: string, beforeWorkspaceId: string | null) => void;
+	readonly reorderWorkspace: (
+		workspaceId: string,
+		beforeWorkspaceId: string | null,
+	) => Promise<unknown>;
 	readonly removeProject: (projectId: string) => void;
 	readonly showProjectManager: (projectId: string) => void;
 	readonly showWorkspaceManager: (workspaceId: string) => void;
@@ -306,13 +309,17 @@ export function ProjectNavigationItem({
 								setWorkspaceProject,
 								showWorkspaceProjectCreation,
 							}),
-							{
-								icon: 'copy',
-								id: 'duplicate-workspace',
-								kind: 'command',
-								label: messages.duplicateWorkspace,
-								onSelect: () => duplicateWorkspace(workspace.id),
-							},
+							...(duplicateWorkspace === undefined
+								? []
+								: [
+										{
+											icon: 'copy' as const,
+											id: 'duplicate-workspace',
+											kind: 'command' as const,
+											label: messages.duplicateWorkspace,
+											onSelect: () => duplicateWorkspace(workspace.id),
+										},
+									]),
 							{
 								icon: 'settings',
 								id: 'manage-workspace',
@@ -341,9 +348,7 @@ export function ProjectNavigationItem({
 								data-dragging={workspaceDragging || undefined}
 								data-navigation-reorder-id={workspace.id}
 								data-workspace-id={workspace.id}
-								data-workspace-reorder-active={
-									workspaceReorder.draggingItemId !== null || undefined
-								}
+								data-workspace-reorder-active={workspaceReorder.displacementAnimated || undefined}
 								data-workspace-reorder-displacement={workspaceDisplacement ?? undefined}
 							>
 								<ContextMenu

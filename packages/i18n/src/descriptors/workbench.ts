@@ -990,6 +990,31 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.names.primary'],
 		description: 'Default name of the Workspace created with a Project.',
 	},
+	workspaceSetupNotApplied: {
+		id: 'workbench.workspaces.setup.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.setup.notApplied'],
+		description: 'Status notice when the Workbench authority definitely refused a change.',
+	},
+	workspaceSetupOutcomeUnknown: {
+		id: 'workbench.workspaces.setup.outcomeUnknown',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.setup.outcomeUnknown'],
+		description: 'Status notice when a change may or may not have taken effect.',
+	},
+	workspaceSetupProjectDissolved: {
+		id: 'workbench.workspaces.setup.projectDissolved',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.setup.projectDissolved'],
+		description: 'Status notice after dissolving a Project that held Workspaces.',
+	},
+	workspaceSetupProjectDissolvedEmpty: {
+		id: 'workbench.workspaces.setup.projectDissolvedEmpty',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.setup.projectDissolvedEmpty'],
+		description: 'Status notice after dissolving a Project that held no Workspace.',
+	},
+	workspaceSetupStale: {
+		id: 'workbench.workspaces.setup.stale',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.setup.stale'],
+		description: 'Status notice when a change was refused because the Workbench changed elsewhere.',
+	},
 	workspaceDelete: {
 		id: 'workbench.workspaces.actions.delete',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.actions.delete'],
@@ -1019,6 +1044,11 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.workspaces.manage.description',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.manage.description'],
 		description: 'Accessible description for the Workspace management interface.',
+	},
+	workspaceManageNameOnlyDescription: {
+		id: 'workbench.workspaces.manage.nameOnlyDescription',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.manage.nameOnlyDescription'],
+		description: 'Description of the Workspace management interface when only its name can change.',
 	},
 	workspaceManageName: {
 		id: 'workbench.workspaces.manage.name',

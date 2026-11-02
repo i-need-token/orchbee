@@ -19,6 +19,7 @@ import { useWorkspaceDirectoryManager } from './hooks/useWorkspaceDirectoryManag
 import styles from './WorkspaceManagerDialog.module.css';
 
 interface WorkspaceManagerDialogProps {
+	readonly directoriesEditable: boolean;
 	readonly directorySelectionPending?: boolean | undefined;
 	readonly onAddDirectory: (path: string) => void;
 	readonly onRemoveDirectory: (directoryId: string) => void;
@@ -37,6 +38,7 @@ interface WorkspaceManagerDialogProps {
 }
 
 export function WorkspaceManagerDialog({
+	directoriesEditable,
 	directorySelectionPending = false,
 	onAddDirectory,
 	onRemoveDirectory,
@@ -65,7 +67,11 @@ export function WorkspaceManagerDialog({
 		>
 			<DialogContent closeLabel={messages.close} data-slot='workbench-workspace-manager'>
 				<ResourceDialogHeader
-					description={messages.workspaceManageDescription}
+					description={
+						directoriesEditable
+							? messages.workspaceManageDescription
+							: messages.workspaceManageNameOnlyDescription
+					}
 					title={messages.workspaceManageTitle}
 				/>
 				<ResourceDialogForm
@@ -85,7 +91,7 @@ export function WorkspaceManagerDialog({
 							onChange={(event) => onNameChange(event.currentTarget.value)}
 						/>
 					</Field>
-					{resources.directories.length > 1 && (
+					{directoriesEditable && resources.directories.length > 1 && (
 						<Field>
 							<FieldLabel htmlFor={`workspace-directory-${workspace.id}`}>
 								{messages.workspaceManagePrimaryFolder}
@@ -108,24 +114,26 @@ export function WorkspaceManagerDialog({
 							</NativeSelect>
 						</Field>
 					)}
-					<ProjectDirectoryList
-						addingFolder={view.addingFolder}
-						canAddFolder={view.canAddFolder}
-						closeFolderInput={view.closeFolderInput}
-						folderAlreadyAdded={view.folderAlreadyAdded}
-						folderPath={view.folderPath}
-						nativeSelectionPending={directorySelectionPending}
-						messages={messages}
-						onFolderPathKeyDown={view.onFolderPathKeyDown}
-						onRemoveDirectory={onRemoveDirectory}
-						onSetPrimaryDirectory={onSetPrimaryDirectory}
-						onSelectFolder={onSelectDirectory}
-						onSelectSshFolder={onSelectSshDirectory}
-						resources={resources}
-						setFolderPath={view.setFolderPath}
-						showFolderInput={view.showFolderInput}
-						submitFolder={view.submitFolder}
-					/>
+					{directoriesEditable && (
+						<ProjectDirectoryList
+							addingFolder={view.addingFolder}
+							canAddFolder={view.canAddFolder}
+							closeFolderInput={view.closeFolderInput}
+							folderAlreadyAdded={view.folderAlreadyAdded}
+							folderPath={view.folderPath}
+							nativeSelectionPending={directorySelectionPending}
+							messages={messages}
+							onFolderPathKeyDown={view.onFolderPathKeyDown}
+							onRemoveDirectory={onRemoveDirectory}
+							onSetPrimaryDirectory={onSetPrimaryDirectory}
+							onSelectFolder={onSelectDirectory}
+							onSelectSshFolder={onSelectSshDirectory}
+							resources={resources}
+							setFolderPath={view.setFolderPath}
+							showFolderInput={view.showFolderInput}
+							submitFolder={view.submitFolder}
+						/>
+					)}
 				</ResourceDialogForm>
 				<ResourceDialogFooter
 					cancelLabel={messages.cancel}

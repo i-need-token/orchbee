@@ -46,12 +46,17 @@ import type {
 	WorkbenchTerminalFontSizeChangeCallback,
 	WorkbenchTerminalCreateCallback,
 } from '../types/workbench-host-actions';
+import type { WorkbenchAuthority } from '../types/workbench-authority';
 import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import { WORKBENCH_SHORTCUTS, type WorkbenchShortcutBinding } from '../utils/workbench-shortcuts';
 
 interface UseWorkbenchActionsOptions {
 	readonly agentObservationSource?: AgentSnapshotSource | undefined;
-	readonly focusRouting: Pick<WorkbenchFocusRouting, 'focus' | 'getResolution'>;
+	readonly authority?: WorkbenchAuthority | undefined;
+	readonly focusRouting: Pick<
+		WorkbenchFocusRouting,
+		'beginTerminalHandover' | 'focus' | 'getResolution'
+	>;
 	readonly isSidebarVisible: boolean;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onNewTerminal: WorkbenchTerminalCreateCallback | undefined;
@@ -90,6 +95,7 @@ interface WorkbenchActions {
 
 export function useWorkbenchActions({
 	agentObservationSource,
+	authority,
 	focusRouting,
 	isSidebarVisible,
 	navigation,
@@ -196,6 +202,8 @@ export function useWorkbenchActions({
 				typedRuntime,
 			}),
 			...registerWorkbenchProjectWorkspaceActions({
+				authority,
+				beginTerminalHandover: focusRouting.beginTerminalHandover,
 				navigation,
 				primaryWorkspaceName,
 				defaultWorkspaceName,
@@ -394,6 +402,7 @@ export function useWorkbenchActions({
 		};
 	}, [
 		agentObservationSource,
+		authority,
 		focusRouting,
 		isSidebarVisible,
 		navigation,

@@ -9,6 +9,10 @@ export {
 	resolveTerminalNaturalMetadataObservation,
 } from './workbench';
 export type {
+	WorkbenchAuthority,
+	WorkbenchAuthorityChange,
+	WorkbenchAuthorityContext,
+	WorkbenchAuthorityCreation,
 	WorkbenchEnvironmentProjectConnectionCapability,
 	WorkbenchProjectFolderAcquisition,
 	WorkbenchProjectFolderAcquisitionFailureCode,

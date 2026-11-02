@@ -12,6 +12,12 @@ export type NavigationReorderDragState =
 			readonly itemId: string;
 			readonly kind: 'dragging';
 			readonly pointerId: number;
+	  }
+	/** Released, and shown where it was dropped until the reorder it asked for settles. */
+	| {
+			readonly beforeItemId: string | null;
+			readonly itemId: string;
+			readonly kind: 'settling';
 	  };
 
 type NavigationReorderDragEvent =
@@ -38,7 +44,8 @@ type NavigationReorderDragEvent =
 			readonly type: 'pointer-cancelled';
 	  }
 	| { readonly type: 'escape-pressed' }
-	| { readonly type: 'item-invalidated' };
+	| { readonly type: 'item-invalidated' }
+	| { readonly type: 'reorder-settled' };
 
 interface NavigationReorderCommitCommand {
 	readonly beforeItemId: string | null;
@@ -59,7 +66,11 @@ export function transitionNavigationReorderDrag(
 	state: NavigationReorderDragState,
 	event: NavigationReorderDragEvent,
 ): NavigationReorderDragTransition {
-	if (event.type === 'escape-pressed' || event.type === 'item-invalidated') {
+	if (
+		event.type === 'escape-pressed' ||
+		event.type === 'item-invalidated' ||
+		event.type === 'reorder-settled'
+	) {
 		return state.kind === 'idle'
 			? { command: null, state }
 			: { command: null, state: createNavigationReorderDragState() };
@@ -78,7 +89,7 @@ export function transitionNavigationReorderDrag(
 				}
 			: { command: null, state };
 	}
-	if (state.kind === 'idle' || event.pointerId !== state.pointerId) {
+	if (state.kind === 'idle' || state.kind === 'settling' || event.pointerId !== state.pointerId) {
 		return { command: null, state };
 	}
 	if (event.type === 'pointer-cancelled') {
@@ -92,7 +103,7 @@ export function transitionNavigationReorderDrag(
 						itemId: state.itemId,
 						type: 'commit-navigation-reorder',
 					},
-					state: createNavigationReorderDragState(),
+					state: { beforeItemId: state.beforeItemId, itemId: state.itemId, kind: 'settling' },
 				}
 			: { command: null, state: createNavigationReorderDragState() };
 	}

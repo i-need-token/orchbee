@@ -65,14 +65,30 @@ describe('navigation-reorder-drag-state', () => {
 				type: 'pointer-released',
 			}),
 		).toEqual({ command: null, state: moved.state });
-		expect(
-			transitionNavigationReorderDrag(moved.state, { pointerId: 7, type: 'pointer-released' }),
-		).toEqual({
+		const released = transitionNavigationReorderDrag(moved.state, {
+			pointerId: 7,
+			type: 'pointer-released',
+		});
+		expect(released).toEqual({
 			command: {
 				beforeItemId: null,
 				itemId: 'item-1',
 				type: 'commit-navigation-reorder',
 			},
+			state: { beforeItemId: null, itemId: 'item-1', kind: 'settling' },
+		});
+
+		expect(
+			transitionNavigationReorderDrag(released.state, {
+				beforeItemId: 'item-2',
+				clientX: 10,
+				clientY: 10,
+				pointerId: 7,
+				type: 'pointer-moved',
+			}),
+		).toEqual({ command: null, state: released.state });
+		expect(transitionNavigationReorderDrag(released.state, { type: 'reorder-settled' })).toEqual({
+			command: null,
 			state: { kind: 'idle' },
 		});
 	});

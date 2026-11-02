@@ -20,7 +20,7 @@ export type ServerWorkbenchOutcome = WorkbenchCommandResult['outcome'];
 export type ServerWorkbenchSubmission =
 	/** The Server answered. Any commit it reports has already reached this session's snapshot. */
 	| { readonly kind: 'settled'; readonly outcome: ServerWorkbenchOutcome }
-	/** The Server refused the stream before running the request. */
+	/** Nothing reached the Server: it refused the stream, or there was nothing to ask. */
 	| { readonly kind: 'not-submitted' }
 	/** The request may have taken effect. It is never replayed. */
 	| { readonly kind: 'outcome-unknown' };
@@ -134,8 +134,15 @@ export class ServerWorkbenchSession {
 		return () => this.#endListeners.delete(listener);
 	}
 
-	submit(action: ServerWorkbenchAction): Promise<ServerWorkbenchSubmission> {
-		const submission = this.#queue.then(() => this.#submitNext(action));
+	/**
+	 * `decide` runs when this command's turn comes and reads the snapshot its revision names, so nothing
+	 * it chose is older than what the Server checks it against. Null asks for nothing. It must not
+	 * throw, because the commands queued behind it would never run.
+	 */
+	submit(
+		decide: (snapshot: WorkbenchSnapshot) => ServerWorkbenchAction | null,
+	): Promise<ServerWorkbenchSubmission> {
+		const submission = this.#queue.then(() => this.#submitNext(decide));
 		this.#queue = submission;
 		return submission;
 	}
@@ -144,8 +151,12 @@ export class ServerWorkbenchSession {
 		this.#finish({ kind: 'connection-ended' });
 	}
 
-	async #submitNext(action: ServerWorkbenchAction): Promise<ServerWorkbenchSubmission> {
+	async #submitNext(
+		decide: (snapshot: WorkbenchSnapshot) => ServerWorkbenchAction | null,
+	): Promise<ServerWorkbenchSubmission> {
 		if (this.#end !== null) return { kind: 'not-submitted' };
+		const action = decide(this.#snapshot);
+		if (action === null) return { kind: 'not-submitted' };
 		const requestId = createWorkbenchRequestId();
 		let record: Uint8Array;
 		try {

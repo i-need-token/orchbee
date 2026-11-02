@@ -3,6 +3,7 @@ import {
 	noActionInput,
 	type ActionDisposable,
 	type ActionExecutionContext,
+	type ActionResult,
 	type ActionScope,
 	type TypedActionRuntime,
 } from '@orchbee/actions';
@@ -16,7 +17,15 @@ import {
 } from '../../project-workspace';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { matchesWorkbenchProjectCreation } from '../model/matchesWorkbenchProjectCreation';
+import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-location-activation';
+import type {
+	WorkbenchAuthority,
+	WorkbenchAuthorityChange,
+	WorkbenchAuthorityCreation,
+} from '../types/workbench-authority';
+import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import type { WorkbenchNavigationPort } from '../types/workbench-host-actions';
+import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
@@ -38,6 +47,9 @@ import {
 } from './workbench-action-ids';
 
 interface RegisterWorkbenchProjectWorkspaceActionsOptions {
+	/** Decides shared structure when this Client does not; without one, this runtime does. */
+	readonly authority?: WorkbenchAuthority | undefined;
+	readonly beginTerminalHandover?: WorkbenchFocusRouting['beginTerminalHandover'] | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly primaryWorkspaceName: string;
 	readonly defaultWorkspaceName: string;
@@ -67,6 +79,12 @@ function transitionWithCommit(
 	return runtime.transition(event, context.markCommitted);
 }
 
+function withoutReceipt(result: ActionResult<WorkbenchProjectCreationReceipt>): ActionResult<void> {
+	return result.kind === 'completed' || result.kind === 'unchanged'
+		? { kind: result.kind }
+		: result;
+}
+
 function enteredFolderForPath(path: string) {
 	return {
 		available: true,
@@ -81,6 +99,8 @@ function enteredFolderForPath(path: string) {
 }
 
 export function registerWorkbenchProjectWorkspaceActions({
+	authority,
+	beginTerminalHandover,
 	navigation,
 	primaryWorkspaceName,
 	defaultWorkspaceName,
@@ -113,6 +133,48 @@ export function registerWorkbenchProjectWorkspaceActions({
 		concurrencyKey: (input: WorkbenchProjectInput) => input.projectId,
 		mode: 'foreground' as const,
 	};
+	const commit = (context: ActionExecutionContext, change: WorkbenchAuthorityChange) =>
+		authority === undefined
+			? resultFor(transitionWithCommit(context, projectWorkspaceRuntime, change))
+			: authority.change(context, change);
+	const enterWorkspace = (context: ActionExecutionContext, workspaceId: string) =>
+		navigation === undefined
+			? resultFor(
+					transitionWithCommit(context, projectWorkspaceRuntime, {
+						type: 'workspace-activated',
+						workspaceId,
+					}),
+				)
+			: navigation.navigate(context, { kind: 'workspace', workspaceId });
+	const createAndEnter = async (
+		context: ActionExecutionContext,
+		decider: WorkbenchAuthority,
+		creation: WorkbenchAuthorityCreation,
+	): Promise<ActionResult<WorkbenchProjectCreationReceipt>> => {
+		const origin = projectWorkspaceRuntime.getSnapshot().activeLocation;
+		const handover = beginTerminalHandover?.();
+		const created = await decider.create(context, creation);
+		if (created.kind !== 'completed' || created.value === undefined) return created;
+		// Late completion never takes someone from where they have since gone, or from what they did next.
+		if (
+			context.signal.aborted ||
+			handover?.held() === false ||
+			workspaceFor(created.value) === undefined
+		) {
+			return created;
+		}
+		if (
+			workbenchActiveLocationsEqual(origin, projectWorkspaceRuntime.getSnapshot().activeLocation)
+		) {
+			await enterWorkspace(context, created.value.workspaceId);
+		}
+		// The first Workspace has already replaced the empty location, so this asks what is shown now.
+		const location = projectWorkspaceRuntime.getSnapshot().activeLocation;
+		if (location.kind === 'workspace' && location.workspaceId === created.value.workspaceId) {
+			handover?.complete();
+		}
+		return created;
+	};
 
 	return [
 		typedRuntime.register(
@@ -127,6 +189,13 @@ export function registerWorkbenchProjectWorkspaceActions({
 				getAvailability: () => ({ kind: 'enabled' }),
 				handler: {
 					execute: (context, input) => {
+						if (authority !== undefined) {
+							return createAndEnter(context, authority, {
+								path: input.path,
+								projectName: deriveProjectNameFromPath(input.path),
+								type: 'project-created',
+							});
+						}
 						const directory = enteredFolderForPath(input.path);
 						const transition = transitionWithCommit(context, projectWorkspaceRuntime, {
 							directory,
@@ -171,14 +240,11 @@ export function registerWorkbenchProjectWorkspaceActions({
 				},
 				handler: {
 					execute: (context, input) =>
-						resultFor(
-							transitionWithCommit(context, projectWorkspaceRuntime, {
-								beforeWorkspaceId: input.beforeWorkspaceId,
-
-								type: 'workspace-reordered',
-								workspaceId: input.workspaceId,
-							}),
-						),
+						commit(context, {
+							beforeWorkspaceId: input.beforeWorkspaceId,
+							type: 'workspace-reordered',
+							workspaceId: input.workspaceId,
+						}),
 				},
 				id: WORKBENCH_ACTION_IDS.reorderWorkspace,
 				input: workbenchWorkspaceReorderInput,
@@ -195,7 +261,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) =>
-					resourcesFor(input.resourceScopeId) === undefined
+					authority !== undefined || resourcesFor(input.resourceScopeId) === undefined
 						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
 						: { kind: 'enabled' },
 				handler: {
@@ -258,13 +324,11 @@ export function registerWorkbenchProjectWorkspaceActions({
 						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
 				handler: {
 					execute: (context, input) =>
-						resultFor(
-							transitionWithCommit(context, projectWorkspaceRuntime, {
-								beforeProjectId: input.beforeProjectId,
-								projectId: input.projectId,
-								type: 'project-reordered',
-							}),
-						),
+						commit(context, {
+							beforeProjectId: input.beforeProjectId,
+							projectId: input.projectId,
+							type: 'project-reordered',
+						}),
 				},
 				id: WORKBENCH_ACTION_IDS.reorderProject,
 				input: workbenchProjectReorderInput,
@@ -376,6 +440,19 @@ export function registerWorkbenchProjectWorkspaceActions({
 				},
 				handler: {
 					execute: (context, input) => {
+						if (authority !== undefined) {
+							return createAndEnter(
+								context,
+								authority,
+								input === undefined
+									? { type: 'workspace-created-default' }
+									: {
+											directoryId: input.directoryId,
+											projectId: input.projectId,
+											type: 'workspace-created',
+										},
+							).then(withoutReceipt);
+						}
 						if (input === undefined)
 							return resultFor(
 								projectWorkspaceRuntime.createDefaultWorkspace(
@@ -405,15 +482,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 										primary.git.repositoryId === directory.git.repositoryId
 									);
 								});
-							if (associated !== undefined)
-								return navigation === undefined
-									? resultFor(
-											transitionWithCommit(context, projectWorkspaceRuntime, {
-												type: 'workspace-activated',
-												workspaceId: associated.id,
-											}),
-										)
-									: navigation.navigate(context, { kind: 'workspace', workspaceId: associated.id });
+							if (associated !== undefined) return enterWorkspace(context, associated.id);
 						}
 						return resultFor(
 							transitionWithCommit(context, projectWorkspaceRuntime, {
@@ -443,7 +512,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) =>
-					workspaceFor(input) === undefined
+					authority !== undefined || workspaceFor(input) === undefined
 						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
 						: { kind: 'enabled' },
 				handler: {
@@ -487,7 +556,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) =>
-					workspaceFor(input) === undefined
+					authority !== undefined || workspaceFor(input) === undefined
 						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
 						: { kind: 'enabled' },
 				handler: {
@@ -515,13 +584,11 @@ export function registerWorkbenchProjectWorkspaceActions({
 						: { kind: 'enabled' },
 				handler: {
 					execute: (context, input) =>
-						resultFor(
-							transitionWithCommit(context, projectWorkspaceRuntime, {
-								name: input.name,
-								projectId: input.projectId,
-								type: 'project-renamed',
-							}),
-						),
+						commit(context, {
+							name: input.name,
+							projectId: input.projectId,
+							type: 'project-renamed',
+						}),
 				},
 				id: WORKBENCH_ACTION_IDS.renameProject,
 				input: workbenchProjectRenameInput,
@@ -542,7 +609,8 @@ export function registerWorkbenchProjectWorkspaceActions({
 					const directory = project?.directories.find(
 						(candidate) => candidate.id === input.directoryId,
 					);
-					return project === undefined ||
+					return authority !== undefined ||
+						project === undefined ||
 						directory === undefined ||
 						directory.kind === 'worktree' ||
 						project.directories.length < 2
@@ -578,7 +646,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 					const directory = project?.directories.find(
 						(candidate) => candidate.id === input.directoryId,
 					);
-					return directory?.available === true
+					return authority === undefined && directory?.available === true
 						? {
 								checked: project?.primaryDirectoryId === input.directoryId,
 								kind: 'enabled',
@@ -617,7 +685,8 @@ export function registerWorkbenchProjectWorkspaceActions({
 					const directory = project?.directories.find(
 						(candidate) => candidate.id === input.primaryDirectoryId,
 					);
-					return workspaceFor(input) !== undefined && directory?.available === true
+					return workspaceFor(input) !== undefined &&
+						(authority !== undefined || directory?.available === true)
 						? { kind: 'enabled' }
 						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable };
 				},
@@ -627,16 +696,13 @@ export function registerWorkbenchProjectWorkspaceActions({
 						if (workspace === undefined) {
 							return { code: 'workspace-not-found', kind: 'blocked' };
 						}
-						return resultFor(
-							transitionWithCommit(context, projectWorkspaceRuntime, {
-								launchConfigurationId: workspace.launchConfigurationId,
-								name: input.name,
-								primaryDirectoryId: input.primaryDirectoryId,
-
-								type: 'workspace-updated',
-								workspaceId: input.workspaceId,
-							}),
-						);
+						return commit(context, {
+							launchConfigurationId: workspace.launchConfigurationId,
+							name: input.name,
+							primaryDirectoryId: input.primaryDirectoryId,
+							type: 'workspace-updated',
+							workspaceId: input.workspaceId,
+						});
 					},
 				},
 				id: WORKBENCH_ACTION_IDS.updateWorkspace,
@@ -655,12 +721,10 @@ export function registerWorkbenchProjectWorkspaceActions({
 						: { kind: 'enabled' },
 				handler: {
 					execute: (context, input) =>
-						resultFor(
-							transitionWithCommit(context, projectWorkspaceRuntime, {
-								projectId: input.projectId,
-								type: 'project-dissolved',
-							}),
-						),
+						commit(context, {
+							projectId: input.projectId,
+							type: 'project-dissolved',
+						}),
 				},
 				id: WORKBENCH_ACTION_IDS.removeProject,
 				input: workbenchProjectInput,
@@ -686,12 +750,10 @@ export function registerWorkbenchProjectWorkspaceActions({
 						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
 				handler: {
 					execute: (context, input) =>
-						resultFor(
-							transitionWithCommit(context, projectWorkspaceRuntime, {
-								...input,
-								type: 'workspace-project-set',
-							}),
-						),
+						commit(context, {
+							...input,
+							type: 'workspace-project-set',
+						}),
 				},
 			}),
 		),
@@ -713,12 +775,10 @@ export function registerWorkbenchProjectWorkspaceActions({
 						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
 				handler: {
 					execute: (context, input) =>
-						resultFor(
-							transitionWithCommit(context, projectWorkspaceRuntime, {
-								...input,
-								type: 'workspace-project-created',
-							}),
-						),
+						commit(context, {
+							...input,
+							type: 'workspace-project-created',
+						}),
 				},
 			}),
 		),
@@ -731,7 +791,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 				input: workbenchProjectInput,
 				execution: projectExecution,
 				getAvailability: (_context, input) =>
-					projectFor(input.projectId) !== undefined
+					authority === undefined && projectFor(input.projectId) !== undefined
 						? { kind: 'enabled' }
 						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
 				confirmation: (input) => ({

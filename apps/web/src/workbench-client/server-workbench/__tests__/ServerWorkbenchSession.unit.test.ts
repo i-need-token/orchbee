@@ -147,7 +147,7 @@ describe('ServerWorkbenchSession', () => {
 	it('settles a commit only after a publication carries its revision', async () => {
 		const connection = new FakeConnection();
 		const session = await openSession(connection);
-		const submission = session.submit(RENAME);
+		const submission = session.submit(() => RENAME);
 		await flush();
 		answer(connection.exchanges[0], { kind: 'renamed', revision: '6' });
 
@@ -166,8 +166,13 @@ describe('ServerWorkbenchSession', () => {
 	it('decides each queued command from the revision the previous one published', async () => {
 		const connection = new FakeConnection();
 		const session = await openSession(connection);
-		const first = session.submit(RENAME);
-		const second = session.submit(RENAME);
+		const decided: string[] = [];
+		const decide = (snapshot: { readonly revision: string }): typeof RENAME => {
+			decided.push(snapshot.revision);
+			return RENAME;
+		};
+		const first = session.submit(decide);
+		const second = session.submit(decide);
 		await flush();
 		expect(connection.exchanges).toHaveLength(1);
 
@@ -177,6 +182,7 @@ describe('ServerWorkbenchSession', () => {
 		await flush();
 
 		const next = connection.exchanges[1];
+		expect(decided).toEqual(['5', '6']);
 		expect(next === undefined ? null : requestOf(next.request).expectedRevision).toBe('6');
 		answer(next, { kind: 'rejected', reason: 'revision-mismatch', revision: '7' });
 		await expect(second).resolves.toMatchObject({
@@ -185,17 +191,26 @@ describe('ServerWorkbenchSession', () => {
 		});
 	});
 
+	it('asks nothing when a queued command decides there is nothing to ask', async () => {
+		const connection = new FakeConnection();
+		const session = await openSession(connection);
+
+		await expect(session.submit(() => null)).resolves.toEqual({ kind: 'not-submitted' });
+
+		expect(connection.exchanges).toHaveLength(0);
+	});
+
 	it('reports an unknown outcome and never replays when the connection ends mid-request', async () => {
 		const connection = new FakeConnection();
 		const session = await openSession(connection);
-		const submission = session.submit(RENAME);
+		const submission = session.submit(() => RENAME);
 		await flush();
 
 		connection.end();
 
 		await expect(submission).resolves.toEqual({ kind: 'outcome-unknown' });
 		expect(session.ended).toEqual({ kind: 'connection-ended' });
-		await expect(session.submit(RENAME)).resolves.toEqual({ kind: 'not-submitted' });
+		await expect(session.submit(() => RENAME)).resolves.toEqual({ kind: 'not-submitted' });
 		expect(connection.exchanges).toHaveLength(1);
 	});
 

@@ -28,6 +28,12 @@ export type {
 	WorkbenchProjectWorktreeFailureCode,
 } from './types/workbench-project-worktree';
 export type { WorkbenchRemoteTerminalCreationCapability } from './types/workbench-remote-terminal-creation';
+export type {
+	WorkbenchAuthority,
+	WorkbenchAuthorityChange,
+	WorkbenchAuthorityContext,
+	WorkbenchAuthorityCreation,
+} from './types/workbench-authority';
 export type { WorkbenchEnvironmentProjectConnectionCapability } from './types/workbench-environment-project-connection';
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';
 export type {

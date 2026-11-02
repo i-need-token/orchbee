@@ -16,6 +16,30 @@
 	white-space: nowrap;
 }
 
+.statusNotice {
+	position: absolute;
+	inset-block-end: var(--ob-ref-space-2);
+	inset-inline-end: var(--ob-ref-space-2);
+	z-index: var(--ob-ref-layer-toast);
+	pointer-events: none;
+}
+
+.statusNoticeText {
+	display: block;
+	padding-block: var(--ob-ref-space-1);
+	padding-inline: var(--ob-ref-space-3);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	color: var(--ob-sys-color-text-secondary);
+	background: var(--ob-sys-color-surface-overlay);
+	box-shadow: var(--ob-sys-shadow-overlay);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.statusNoticeText[data-persistent] {
+	color: var(--ob-sys-color-status-danger-text);
+}
+
 .sidebarToggle {
 	position: absolute;
 	inset-block-start: calc(

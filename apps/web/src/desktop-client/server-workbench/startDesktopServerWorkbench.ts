@@ -27,11 +27,11 @@ import { TerminalSettingsController } from '../../terminal-settings';
 import {
 	admitsAutomaticWorkspace,
 	createServerWorkbenchRuntime,
-	defaultWorkspaceLaunch,
 	ProjectedTerminalSurface,
 	ServerConnection,
 	ServerUserPreferencesClient,
 	ServerWorkbenchSession,
+	workspaceLaunchAction,
 	type ProjectedTerminalPlatformEffects,
 	type ServerWorkbenchRuntime,
 } from '../../workbench-client';
@@ -187,6 +187,7 @@ async function run(
 		{
 			actionRuntime: runtime.actionRuntime,
 			applicationLocaleController,
+			authority: runtime.authority,
 			keyboardShortcutSettingsController,
 			layoutStorage: storage.preferences,
 			macosTerminalInputSettingsController,
@@ -212,16 +213,20 @@ async function run(
 		}),
 	);
 
-	if (bootstrap.automaticWorkspaceAllowed && admitsAutomaticWorkspace(session.snapshot)) {
+	if (bootstrap.automaticWorkspaceAllowed) {
 		// A refusal leaves the Session as it is and the empty state offers the same creation; a lost
 		// answer must not be repeated, because the Workspace may exist.
-		void session.submit(
-			defaultWorkspaceLaunch(
-				bootstrap.defaultDirectory,
-				createOrchbeeIntl(applicationLocaleController.current()).formatMessage(
-					workbenchMessages.workspaceDefaultName,
-				),
-			),
+		void session.submit((snapshot) =>
+			admitsAutomaticWorkspace(snapshot)
+				? workspaceLaunchAction({
+						directory: bootstrap.defaultDirectory,
+						fallbackLabel: createOrchbeeIntl(applicationLocaleController.current()).formatMessage(
+							workbenchMessages.workspaceDefaultName,
+						),
+						placement: { kind: 'ungrouped' },
+						snapshot,
+					})
+				: null,
 		);
 	}
 }

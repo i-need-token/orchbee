@@ -1048,6 +1048,43 @@ focus-claim repair on pause and detach were proved on the earlier cohort. Limits
   Session. After Server loss with a live Host, `server start` refuses fresh activation because
   nothing adopts the Host. Step 4 owns both.
 
+### Step 3 progress
+
+Reads, and writes of Project and Workspace structure, go through Server. Tab, Panel, and close flows
+remain to connect. These choices stand unless review changes them:
+
+- **The write port is the Workbench's existing event vocabulary.** `WorkbenchAuthority` takes those
+  events and the preview keeps its reducer, so product surfaces stay unchanged. Step 6 decides what
+  remains of the shared-document shape along with the preview.
+- **A write waits for its publication.** Commands run one at a time and each is decided from the
+  snapshot its revision names. A result carrying a revision settles when a publication reaches it,
+  with no deadline of its own. A stale revision is shown and never replayed, and an unknown outcome
+  is never repeated.
+- **The read model comes only from publications.** Terminal lifecycle comes from Presentation
+  bindings: a known launch failure is a non-retryable failed state and a missing binding is pending.
+  Selection, expansion, focus, and maximize stay local, and Split ratios are shared.
+- **Creation follows the TUI.** Automatic Workspace names avoid the snapshot's labels at submit, so
+  they never jump. A later press revokes landing and the keyboard handover while creation completes
+  in the background, and the first Workspace still replaces the empty location.
+- **No speculative order or pending row.** Measured frame by frame, a released row otherwise flashed
+  back for about 20 ms. It now holds where it was dropped until its result, which keeps the benefit
+  without a second order to reconcile.
+- **The default directory is not sampled yet.** New Workspace uses the last terminal directory the
+  Server observed. Whether that sampling moves into Server is decided with the other multi-step
+  workflows under decision 2.
+
+Measured on 2026-11-01 on Windows with a Release cohort, in a real window beside a real TUI on the
+same Session:
+
+| Question                      | Measurement                                                                                                                                                                                                                                     |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Same state on both Clients    | A Workspace made in the window was on the TUI's screen at its first read, 78 ms later. One made with the TUI's `Ctrl+B a` reached the window 78 ms after the key and left the window's selection alone. A rename reached the TUI in 63 ms.      |
+| Command to visible result     | New Workspace row 28–62 ms, and the location moved 6–14 ms later. Rename 19–22 ms, move to a Project 17–28 ms, reorder 12–17 ms.                                                                                                                |
+| Keyboard after creation       | New workspace, a row menu, the folder dialog, and the empty state each left typing in the new terminal without a click, and the Workspace count did not change.                                                                                 |
+| Later press during a creation | With the Server's answer held back, a click on another row or a key press kept the person where they were, and the Workspace still appeared when the answer arrived.                                                                            |
+| Reorder held back             | A dropped row stayed at its drop position for the 600 ms the answer was held. A real `revision-mismatch` then restored the order and showed the stale notice, 3 ms after the answer arrived. Six plain drags showed only two frame states each. |
+| Refused input                 | A relative path was refused locally and a missing path by the Server's `directory-unavailable`. Both showed the same notice without moving focus, past the transient lifetime, until the next press.                                            |
+
 ### Evidence
 
 - Each step records the owning Web and Desktop builds and a Server-backed run of the path it

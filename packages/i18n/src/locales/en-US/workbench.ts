@@ -188,6 +188,7 @@ export const enUSWorkbenchMessages = {
 		'This deletes “{name}”, including its tabs, panels, and terminal context. Its folder stays on disk.',
 	'workbench.workspaces.confirmDelete.title': 'Close Workspace?',
 	'workbench.workspaces.manage.description': 'Change the Workspace name and default folder.',
+	'workbench.workspaces.manage.nameOnlyDescription': 'Change the Workspace name.',
 	'workbench.workspaces.manage.name': 'Name',
 	'workbench.workspaces.manage.namePlaceholder': 'Enter a workspace name',
 	'workbench.workspaces.manage.primaryFolder': 'Primary folder',
@@ -195,6 +196,13 @@ export const enUSWorkbenchMessages = {
 	'workbench.workspaces.names.copySuffix': 'Copy',
 	'workbench.workspaces.names.default': 'Workspace',
 	'workbench.workspaces.names.primary': 'Primary',
+	'workbench.workspaces.setup.notApplied':
+		'Workspace setup not applied · check the target and input before trying again',
+	'workbench.workspaces.setup.outcomeUnknown':
+		'Setup outcome unknown · connection retired; do not repeat the mutation',
+	'workbench.workspaces.setup.projectDissolved': 'Project dissolved · Workspaces retained',
+	'workbench.workspaces.setup.projectDissolvedEmpty': 'Project dissolved',
+	'workbench.workspaces.setup.stale': 'Setup not applied · Workbench changed',
 	'workbench.search.dialog.title': 'Search Orchbee',
 	'workbench.search.dialog.description':
 		'Find agents, actions, and settings, then open or run the selected result.',

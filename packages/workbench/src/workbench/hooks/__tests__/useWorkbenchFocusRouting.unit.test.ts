@@ -153,4 +153,47 @@ describe('useWorkbenchFocusRouting', () => {
 
 		expect(screen.getByLabelText('terminal autofocus').textContent).toBe('true');
 	});
+
+	it('hands the terminal the keyboard after the surface that asked has closed', async () => {
+		let routing: WorkbenchFocusRouting | undefined;
+		const capture = (candidate: WorkbenchFocusRouting): void => {
+			routing = candidate;
+		};
+		const rendered = render(React.createElement(FocusRoutingHarness, { capture }));
+		await act(async () => undefined);
+
+		act(() => routing?.beginTerminalHandover().complete());
+		expect(routing?.terminalFocusRequest).toBeNull();
+
+		rendered.rerender(React.createElement(FocusRoutingHarness, { capture, showDialog: false }));
+		await act(async () => undefined);
+
+		expect(routing?.terminalFocusRequest).toEqual({
+			presentationId: 'terminal-presentation-1',
+			sequence: 1,
+		});
+	});
+
+	it.each(['keydown', 'pointerdown'])(
+		'lets a later %s end a handover, including one waiting for a surface to close',
+		async (press) => {
+			let routing: WorkbenchFocusRouting | undefined;
+			const capture = (candidate: WorkbenchFocusRouting): void => {
+				routing = candidate;
+			};
+			const rendered = render(React.createElement(FocusRoutingHarness, { capture }));
+			await act(async () => undefined);
+
+			const unfinished = routing?.beginTerminalHandover();
+			const waiting = routing?.beginTerminalHandover();
+			act(() => waiting?.complete());
+			document.body.dispatchEvent(new Event(press, { bubbles: true }));
+			rendered.rerender(React.createElement(FocusRoutingHarness, { capture, showDialog: false }));
+			await act(async () => undefined);
+			act(() => unfinished?.complete());
+
+			expect(unfinished?.held()).toBe(false);
+			expect(routing?.terminalFocusRequest).toBeNull();
+		},
+	);
 });

@@ -1,5 +1,5 @@
 import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
@@ -12,6 +12,9 @@ import {
 	type WorkbenchTerminalPresentationComposition,
 } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import type { WorkbenchAuthority } from '../../types/workbench-authority';
+import type { WorkbenchTerminalHandover } from '../../types/workbench-focus-routing';
+import type { WorkbenchProjectCreationReceipt } from '../../types/workbench-project-folder-acquisition';
 import { registerWorkbenchProjectWorkspaceActions } from '../registerWorkbenchProjectWorkspaceActions';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../workbench-action-ids';
 
@@ -427,6 +430,230 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		).toMatchObject([{ primaryDirectoryId: 'directory-1' }]);
 
 		for (const registration of registrations) registration.dispose();
+	});
+
+	describe('with an authority', () => {
+		function withAuthority(
+			authority: WorkbenchAuthority,
+			handover: WorkbenchTerminalHandover = { complete: () => undefined, held: () => true },
+		) {
+			const actionRuntime = new ActionRuntime();
+			const scope = actionRuntime.createScope('workbench');
+			const projectWorkspaceRuntime = projectRuntime();
+			registerWorkbenchProjectWorkspaceActions({
+				authority,
+				beginTerminalHandover: () => handover,
+				defaultWorkspaceName: 'Workspace',
+				primaryWorkspaceName: 'Primary',
+				projectWorkspaceRuntime,
+				scope,
+				typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(actionRuntime),
+				workspaceCopySuffix: 'Copy',
+				workspaceTerminalTitle: 'Terminal 1',
+			});
+			return {
+				execute: (actionId: string, input: unknown) =>
+					actionRuntime.execute(actionId, input, { scope, source: 'programmatic' }).completion,
+				projectWorkspaceRuntime,
+			};
+		}
+		const receiptFor = (workspaceId: string): WorkbenchProjectCreationReceipt => ({
+			directoryId: 'directory-1',
+			path: '/workspace/orchbee',
+			presentationId: 'presentation-1',
+			projectId: null,
+			resourceScopeId: 'resource-scope-1',
+			terminalContextId: 'terminal-context-1',
+			workspaceId,
+		});
+
+		it('asks the authority for a shared change and leaves the read model to its publication', async () => {
+			const change = vi.fn<WorkbenchAuthority['change']>(() =>
+				Promise.resolve({ kind: 'completed' }),
+			);
+			const { execute, projectWorkspaceRuntime } = withAuthority({
+				change,
+				create: () => Promise.resolve({ kind: 'cancelled' }),
+			});
+			const before = projectWorkspaceRuntime.getSnapshot();
+
+			await expect(
+				execute(WORKBENCH_ACTION_IDS.renameProject, { name: 'Renamed', projectId: 'project-1' }),
+			).resolves.toEqual({ kind: 'completed' });
+
+			expect(change).toHaveBeenCalledWith(expect.anything(), {
+				name: 'Renamed',
+				projectId: 'project-1',
+				type: 'project-renamed',
+			});
+			expect(projectWorkspaceRuntime.getSnapshot()).toBe(before);
+		});
+
+		it('enters a Workspace it created and gives its terminal the keyboard', async () => {
+			const complete = vi.fn<() => void>();
+			const { execute, projectWorkspaceRuntime } = withAuthority(
+				{
+					change: () => Promise.resolve({ kind: 'completed' }),
+					create: () => Promise.resolve({ kind: 'completed', value: receiptFor('workspace-1') }),
+				},
+				{ complete, held: () => true },
+			);
+			projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+
+			await expect(execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined)).resolves.toEqual({
+				kind: 'completed',
+			});
+
+			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+				kind: 'workspace',
+				workspaceId: 'workspace-1',
+			});
+			expect(complete).toHaveBeenCalledOnce();
+		});
+
+		it('gives the keyboard to a first Workspace the read model already entered', async () => {
+			const complete = vi.fn<() => void>();
+			const { execute, projectWorkspaceRuntime } = withAuthority(
+				{
+					change: () => Promise.resolve({ kind: 'completed' }),
+					create: () => {
+						projectWorkspaceRuntime.transition({
+							type: 'workspace-activated',
+							workspaceId: 'workspace-1',
+						});
+						return Promise.resolve({ kind: 'completed', value: receiptFor('workspace-1') });
+					},
+				},
+				{ complete, held: () => true },
+			);
+			projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+
+			await execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined);
+
+			expect(complete).toHaveBeenCalledOnce();
+		});
+
+		it('stays where it is after a later press, while the creation still completes', async () => {
+			const complete = vi.fn<() => void>();
+			const { execute, projectWorkspaceRuntime } = withAuthority(
+				{
+					change: () => Promise.resolve({ kind: 'completed' }),
+					create: () => Promise.resolve({ kind: 'completed', value: receiptFor('workspace-1') }),
+				},
+				{ complete, held: () => false },
+			);
+			projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+
+			await expect(execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined)).resolves.toEqual({
+				kind: 'completed',
+			});
+
+			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
+			expect(complete).not.toHaveBeenCalled();
+		});
+
+		it('leaves the person where they went while a creation was pending', async () => {
+			const pending: { finish?: () => void } = {};
+			const complete = vi.fn<() => void>();
+			const { execute, projectWorkspaceRuntime } = withAuthority(
+				{
+					change: () => Promise.resolve({ kind: 'completed' }),
+					create: () =>
+						new Promise((resolve) => {
+							pending.finish = () =>
+								resolve({ kind: 'completed', value: receiptFor('workspace-1') });
+						}),
+				},
+				{ complete, held: () => true },
+			);
+			projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+			const creation = execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined);
+			await vi.waitFor(() => expect(pending.finish).toBeDefined());
+
+			projectWorkspaceRuntime.transition({
+				directoryId: 'directory-1',
+				launchConfigurationId: null,
+				name: 'Feature',
+				projectId: 'project-1',
+				resourceScopeId: 'resource-scope-1',
+				terminalTitle: 'Terminal 2',
+				type: 'workspace-created',
+			});
+			projectWorkspaceRuntime.transition({
+				type: 'workspace-activated',
+				workspaceId: 'workspace-2',
+			});
+			pending.finish?.();
+			await creation;
+
+			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+				kind: 'workspace',
+				workspaceId: 'workspace-2',
+			});
+			expect(complete).not.toHaveBeenCalled();
+		});
+
+		it('offers nothing the authority has no command for', async () => {
+			const { execute, projectWorkspaceRuntime } = withAuthority({
+				change: () => Promise.reject(new Error('No command exists for this.')),
+				create: () => Promise.reject(new Error('No command exists for this.')),
+			});
+			const before = projectWorkspaceRuntime.getSnapshot();
+
+			for (const [actionId, input] of [
+				[WORKBENCH_ACTION_IDS.duplicateWorkspace, { workspaceId: 'workspace-1' }],
+				[
+					WORKBENCH_ACTION_IDS.addResourceFolder,
+					{ path: '/workspace/other', resourceScopeId: 'resource-scope-1' },
+				],
+				[
+					WORKBENCH_ACTION_IDS.removeResourceDirectory,
+					{ directoryId: 'directory-2', resourceScopeId: 'resource-scope-1' },
+				],
+				[
+					WORKBENCH_ACTION_IDS.setResourcePrimaryDirectory,
+					{ directoryId: 'directory-2', resourceScopeId: 'resource-scope-1' },
+				],
+				[WORKBENCH_ACTION_IDS.deleteWorkspace, { workspaceId: 'workspace-1' }],
+				[WORKBENCH_ACTION_IDS.closeProjectWorkspaces, { projectId: 'project-1' }],
+			] as const) {
+				await expect(execute(actionId, input)).resolves.toMatchObject({
+					code: 'action-unavailable',
+					kind: 'blocked',
+				});
+			}
+
+			expect(projectWorkspaceRuntime.getSnapshot()).toBe(before);
+		});
+
+		it('still renames a Workspace the Server holds without a directory', async () => {
+			const change = vi.fn<WorkbenchAuthority['change']>(() =>
+				Promise.resolve({ kind: 'completed' }),
+			);
+			const { execute, projectWorkspaceRuntime } = withAuthority({
+				change,
+				create: () => Promise.resolve({ kind: 'cancelled' }),
+			});
+			const resources = projectWorkspaceRuntime.getSnapshot().resourceScopes[0];
+			const directory = resources?.directories[0];
+			if (resources === undefined || directory === undefined) {
+				throw new Error('The Workspace has no directory.');
+			}
+			projectWorkspaceRuntime.transition({
+				directory: { ...directory, available: false },
+				resourceScopeId: resources.id,
+				type: 'directory-updated',
+			});
+
+			await expect(
+				execute(WORKBENCH_ACTION_IDS.updateWorkspace, {
+					name: 'Renamed',
+					primaryDirectoryId: 'directory-1',
+					workspaceId: 'workspace-1',
+				}),
+			).resolves.toEqual({ kind: 'completed' });
+			expect(change).toHaveBeenCalledOnce();
+		});
 	});
 });
 

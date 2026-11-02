@@ -2,6 +2,7 @@ import type { ActionRuntime } from '@orchbee/actions';
 import type { AgentSnapshotSource } from '@orchbee/agent';
 import {
 	Workbench,
+	type WorkbenchAuthority,
 	type WorkbenchEnvironmentProjectConnectionCapability,
 	type WorkbenchLayoutStorage,
 	type WorkbenchNavigationPort,
@@ -46,6 +47,7 @@ export interface WebApplicationProps {
 	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
 	readonly agentIntegrationReminderController?: AgentIntegrationReminderController | undefined;
 	readonly agentObservationSource?: AgentSnapshotSource | undefined;
+	readonly authority?: WorkbenchAuthority | undefined;
 	readonly environmentProjectConnection?:
 		| WorkbenchEnvironmentProjectConnectionCapability
 		| undefined;
@@ -79,6 +81,7 @@ export function WebApplication({
 	agentIntegrationManagementControl,
 	agentIntegrationReminderController,
 	agentObservationSource,
+	authority,
 	environmentProjectConnection,
 	keyboardShortcutSettingsController,
 	layoutStorage,
@@ -141,6 +144,7 @@ export function WebApplication({
 					actionRuntime={actionRuntime}
 					agentNotificationObserver={terminalFeedbackSettingsController}
 					agentObservationSource={agentObservationSource}
+					authority={authority}
 					environmentProjectConnection={environmentProjectConnection}
 					isShortcutScopeActive={!view.settingsOpen}
 					layoutStorage={layoutStorage}

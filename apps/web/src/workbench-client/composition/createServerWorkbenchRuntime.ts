@@ -1,5 +1,5 @@
 import { ActionRuntime } from '@orchbee/actions';
-import { createOrchbeeIntl, workbenchTabMessages } from '@orchbee/i18n';
+import { createOrchbeeIntl, workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
 import {
 	DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
 	type ProjectedTerminalPresentationSnapshot,
@@ -8,6 +8,7 @@ import {
 import {
 	resolveTerminalMetadataObservation,
 	WorkbenchProjectWorkspaceRuntime,
+	type WorkbenchAuthority,
 	type WorkbenchShortcutPlatform,
 } from '@orchbee/workbench';
 import {
@@ -40,6 +41,7 @@ import {
 } from '../projected-terminal-surface';
 import type { ServerConnection } from '../server-connection';
 import {
+	createServerWorkbenchAuthority,
 	findServerTerminalBinding,
 	projectServerSnapshot,
 	ServerTerminalProjectionClient,
@@ -55,6 +57,7 @@ import {
 
 export interface ServerWorkbenchRuntime {
 	readonly actionRuntime: ActionRuntime;
+	readonly authority: WorkbenchAuthority;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly terminalSurfaceCapability: ProjectedTerminalSurfaceCapability;
 	dispose(): void;
@@ -151,6 +154,18 @@ export function createServerWorkbenchRuntime({
 		}
 	};
 	const stopPublication = session.subscribe(adoptPublication);
+	const authority = createServerWorkbenchAuthority({
+		defaultDirectory,
+		defaultWorkspaceLabel: () =>
+			createOrchbeeIntl(applicationLocaleSource.current()).formatMessage(
+				workbenchMessages.workspaceDefaultName,
+			),
+		focusedWorkspaceId: () => {
+			const location = projectWorkspaceRuntime.getSnapshot().activeLocation;
+			return location.kind === 'workspace' ? location.workspaceId : null;
+		},
+		session,
+	});
 
 	const persistFocusRecovery = (): void => {
 		if (focusRecoveryStorage === undefined) return;
@@ -219,6 +234,7 @@ export function createServerWorkbenchRuntime({
 
 	return {
 		actionRuntime,
+		authority,
 		dispose: () => {
 			if (disposed) return;
 			disposed = true;

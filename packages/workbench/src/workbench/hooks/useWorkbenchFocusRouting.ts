@@ -7,7 +7,10 @@ import {
 	type WorkbenchFocusRegion,
 	type WorkbenchFocusResolution,
 } from '../model/resolveWorkbenchFocusTarget';
-import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
+import type {
+	WorkbenchFocusRouting,
+	WorkbenchTerminalHandover,
+} from '../types/workbench-focus-routing';
 import {
 	hasWorkbenchExclusiveFocusSurface,
 	isWorkbenchExclusiveFocusTarget,
@@ -31,6 +34,8 @@ export function useWorkbenchFocusRouting({
 	const terminalFocusSequenceReference = React.useRef(0);
 	const [terminalFocusRequest, setTerminalFocusRequest] =
 		React.useState<WorkbenchFocusRouting['terminalFocusRequest']>(null);
+	const interactionSequenceReference = React.useRef(0);
+	const terminalHandoverPendingReference = React.useRef(false);
 
 	const updateOwner = useMemoizedFn((nextOwner: WorkbenchFocusOwner): void => {
 		setOwner(nextOwner);
@@ -54,6 +59,22 @@ export function useWorkbenchFocusRouting({
 			sequence: terminalFocusSequenceReference.current,
 		});
 		return true;
+	});
+	const beginTerminalHandover = useMemoizedFn((): WorkbenchTerminalHandover => {
+		const claimedInteraction = interactionSequenceReference.current;
+		const held = (): boolean => interactionSequenceReference.current === claimedInteraction;
+		return {
+			complete: () => {
+				if (!held()) return;
+				// A closing menu or dialog still gives focus back, so the terminal takes it after that.
+				if (typeof document !== 'undefined' && hasWorkbenchExclusiveFocusSurface(document)) {
+					terminalHandoverPendingReference.current = true;
+					return;
+				}
+				requestTerminalFocus();
+			},
+			held,
+		};
 	});
 	const getResolution = useMemoizedFn((intent: WorkbenchFocusIntent): WorkbenchFocusResolution => {
 		const activeElement = typeof document === 'undefined' ? null : document.activeElement;
@@ -136,8 +157,27 @@ export function useWorkbenchFocusRouting({
 				: resolveWorkbenchFocusRegionFromTarget(document.activeElement);
 		});
 	}, [exclusiveSurfaceMounted]);
+	React.useEffect(() => {
+		if (exclusiveSurfaceMounted || !terminalHandoverPendingReference.current) return;
+		terminalHandoverPendingReference.current = false;
+		requestTerminalFocus();
+	}, [exclusiveSurfaceMounted, requestTerminalFocus]);
+	React.useEffect(() => {
+		const countInteraction = (): void => {
+			interactionSequenceReference.current += 1;
+			terminalHandoverPendingReference.current = false;
+		};
+		// Ahead of every document-level shortcut, so a press never revokes the request it starts.
+		window.addEventListener('keydown', countInteraction, true);
+		window.addEventListener('pointerdown', countInteraction, true);
+		return () => {
+			window.removeEventListener('keydown', countInteraction, true);
+			window.removeEventListener('pointerdown', countInteraction, true);
+		};
+	}, []);
 
 	return {
+		beginTerminalHandover,
 		focus,
 		getResolution,
 		onBlurCapture,

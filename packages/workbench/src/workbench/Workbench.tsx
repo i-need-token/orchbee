@@ -34,6 +34,7 @@ import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchAgentPresentation } from './hooks/useWorkbenchAgentPresentation';
 import { useWorkbenchActionShortcutLabel } from './hooks/useWorkbenchActionShortcutLabel';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
+import type { WorkbenchAuthority } from './types/workbench-authority';
 import type { WorkbenchTerminalActionShortcutLabels } from './types/workbench-terminal-action-shortcut-labels';
 import type {
 	WorkbenchHostActionCallback,
@@ -59,6 +60,8 @@ interface WorkbenchProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly agentNotificationObserver?: WorkbenchAgentNotificationObserver | undefined;
 	readonly agentObservationSource?: AgentSnapshotSource | undefined;
+	/** Decides shared Workbench structure for a Client that does not hold it. */
+	readonly authority?: WorkbenchAuthority | undefined;
 	readonly createCrossWindowDragRuntime?: TabStripCrossWindowDragRuntimeFactory | undefined;
 	readonly environmentProjectConnection?:
 		| WorkbenchEnvironmentProjectConnectionCapability
@@ -86,6 +89,7 @@ export function Workbench({
 	actionRuntime,
 	agentNotificationObserver,
 	agentObservationSource,
+	authority,
 	createCrossWindowDragRuntime,
 	environmentProjectConnection,
 	isShortcutScopeActive = true,
@@ -117,6 +121,7 @@ export function Workbench({
 	const view = useWorkbench({
 		actionRuntime,
 		agentObservationSource,
+		authority,
 		isShortcutScopeActive,
 		navigation,
 		onSettings,
@@ -208,6 +213,18 @@ export function Workbench({
 					</span>
 				)}
 			</div>
+			{authority === undefined ? null : (
+				<div className={styles['statusNotice']} data-slot='workbench-status-notice' role='status'>
+					{view.authorityNotice === null ? null : (
+						<span
+							className={styles['statusNoticeText']}
+							data-persistent={view.authorityNotice.persistent || undefined}
+						>
+							{view.authorityNotice.message}
+						</span>
+					)}
+				</div>
+			)}
 			<div className={styles['sidebarToggle']} data-slot='workbench-sidebar-toggle-position'>
 				{sidebarToggle}
 			</div>
@@ -278,6 +295,7 @@ export function Workbench({
 										setResourcePrimaryDirectory={view.setResourcePrimaryDirectory}
 										toggleProjectExpansion={view.toggleProjectExpansion}
 										updateWorkspace={view.updateWorkspace}
+										workspaceResourcesEditable={authority === undefined}
 									/>
 									<div
 										aria-hidden='true'

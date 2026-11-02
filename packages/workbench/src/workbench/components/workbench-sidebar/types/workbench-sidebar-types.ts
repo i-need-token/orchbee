@@ -93,6 +93,7 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly setProjectPrimaryFolder: string;
 	readonly workspaceManage: string;
 	readonly workspaceManageDescription: string;
+	readonly workspaceManageNameOnlyDescription: string;
 	readonly workspaceManageName: string;
 	readonly workspaceManageNamePlaceholder: string;
 	readonly workspaceManagePrimaryFolder: string;

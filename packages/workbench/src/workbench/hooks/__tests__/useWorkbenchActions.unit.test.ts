@@ -18,6 +18,7 @@ import { WORKBENCH_SHORTCUTS } from '../../utils/workbench-shortcuts';
 import { useWorkbenchActions } from '../useWorkbenchActions';
 
 const unavailableFocusRouting = {
+	beginTerminalHandover: () => ({ complete: () => undefined, held: () => true }),
 	focus: () => ({ kind: 'unavailable', reason: 'no-available-region' }) as const,
 	getResolution: () => ({ kind: 'unavailable', reason: 'no-available-region' }) as const,
 };
@@ -402,6 +403,7 @@ describe('useWorkbenchActions', () => {
 		const runtime = new ActionRuntime();
 		type TestFocusRouting = Parameters<typeof useWorkbenchActions>[0]['focusRouting'];
 		const focusRouting: TestFocusRouting = {
+			beginTerminalHandover: unavailableFocusRouting.beginTerminalHandover,
 			focus: vi.fn<TestFocusRouting['focus']>((intent) =>
 				intent.kind === 'cycle' && intent.direction === 'next'
 					? ({ kind: 'target', region: 'tab-strip' } as const)

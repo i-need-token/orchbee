@@ -85,8 +85,11 @@ interface WorkbenchSidebarProps {
 	readonly subscribeNavigation: (listener: () => void) => () => void;
 	readonly removeProject: (projectId: string) => void;
 	readonly removeResourceDirectory: (resourceScopeId: string, directoryId: string) => void;
-	readonly reorderProject: (projectId: string, beforeProjectId: string | null) => void;
-	readonly reorderWorkspace: (workspaceId: string, beforeWorkspaceId: string | null) => void;
+	readonly reorderProject: (projectId: string, beforeProjectId: string | null) => Promise<unknown>;
+	readonly reorderWorkspace: (
+		workspaceId: string,
+		beforeWorkspaceId: string | null,
+	) => Promise<unknown>;
 	readonly renameProject: (projectId: string, name: string) => void;
 	readonly searchLabel: string;
 	readonly searchShortcutId: string;
@@ -99,6 +102,8 @@ interface WorkbenchSidebarProps {
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly updateWorkspace: (workspaceId: string, name: string, primaryDirectoryId: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
+	/** A Workspace whose resources are decided elsewhere can only be renamed here. */
+	readonly workspaceResourcesEditable: boolean;
 }
 
 export function WorkbenchSidebar({
@@ -146,6 +151,7 @@ export function WorkbenchSidebar({
 	toggleProjectExpansion,
 	updateWorkspace,
 	workspaceAgentOverviews,
+	workspaceResourcesEditable,
 }: WorkbenchSidebarProps): ReactNode {
 	const agentOverview = useWorkbenchSidebarAgentOverview({
 		expandedProjectIds: projectWorkspaceState.expandedProjectIds,
@@ -289,7 +295,7 @@ export function WorkbenchSidebar({
 											? projectReorder.displacementDirection
 											: null
 									}
-									duplicateWorkspace={duplicateWorkspace}
+									duplicateWorkspace={workspaceResourcesEditable ? duplicateWorkspace : undefined}
 									expandedAgentWorkspaceId={agentOverview.expandedWorkspace?.workspaceId ?? null}
 									environmentConnection={
 										project === null
@@ -314,7 +320,7 @@ export function WorkbenchSidebar({
 										projectWorktree === undefined ? undefined : worktreeMenu.refresh
 									}
 									onPointerDown={projectReorder.onItemPointerDown}
-									reorderActive={projectReorder.draggingItemId !== null}
+									reorderActive={projectReorder.displacementAnimated}
 									reorderWorkspace={reorderWorkspace}
 									removeProject={removeProject}
 									showProjectManager={view.showProjectManager}
@@ -433,6 +439,7 @@ export function WorkbenchSidebar({
 					}}
 					primaryDirectoryId={workspaceManagement.primaryDirectoryId}
 					resources={workspaceManagement.resources}
+					directoriesEditable={workspaceResourcesEditable}
 					directorySelectionPending={folderAcquisition.selecting}
 					onAddDirectory={(path) => addResourceDirectory(workspaceManagement.resources.id, path)}
 					onRemoveDirectory={(directoryId) =>

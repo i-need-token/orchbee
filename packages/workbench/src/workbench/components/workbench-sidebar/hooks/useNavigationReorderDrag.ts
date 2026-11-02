@@ -25,15 +25,18 @@ interface NavigationReorderItem {
 
 interface NavigationReorderDragView {
 	readonly displacedItemIds: readonly string[];
+	/** Off once released: a row that animated while the list changed under it would slide from a place it never was. */
+	readonly displacementAnimated: boolean;
 	readonly displacementDirection: 'down' | 'up' | null;
 	readonly draggingItemId: string | null;
 	readonly onItemPointerDown: (itemId: string, event: React.PointerEvent<HTMLDivElement>) => void;
 	readonly listRef: React.RefObject<HTMLUListElement | null>;
 }
 
+/** A released row holds the place it was dropped until `reorderItem` settles, so the list never shows the old order in between. */
 export function useNavigationReorderDrag(
 	items: readonly NavigationReorderItem[],
-	reorderItem: (itemId: string, beforeItemId: string | null) => void,
+	reorderItem: (itemId: string, beforeItemId: string | null) => Promise<unknown>,
 ): NavigationReorderDragView {
 	const listRef = React.useRef<HTMLUListElement>(null);
 	const itemsRef = React.useRef(items);
@@ -155,24 +158,31 @@ export function useNavigationReorderDrag(
 				ownerDocument.defaultView?.cancelAnimationFrame(animationFrame);
 				animationFrame = null;
 			}
-			clearDragVisual();
-			const clearState = () => {
-				setDragState(transition.state);
-				setSession(null);
+			ownerDocument.documentElement.style.cursor = initialDocumentCursor;
+			const settle = () => {
+				semanticState = transitionNavigationReorderDrag(semanticState, {
+					type: 'reorder-settled',
+				}).state;
+				clearDragVisual();
+				const clearState = () => {
+					setDragState(semanticState);
+					setSession(null);
+				};
+				if (synchronous) flushSync(clearState);
+				else clearState();
 			};
-			if (synchronous) flushSync(clearState);
-			else clearState();
 			if (wasDragging) suppressTrailingClick();
 			const command = transition.command;
-			if (command !== null) {
-				const currentItems = itemsRef.current;
-				const sourceExists = currentItems.some((item) => item.id === command.itemId);
-				const targetExists =
-					command.beforeItemId === null ||
-					currentItems.some((item) => item.id === command.beforeItemId);
-				if (sourceExists && targetExists) {
-					reorderItemRef.current(command.itemId, command.beforeItemId);
-				}
+			const reorderAdmitted =
+				command !== null &&
+				itemsRef.current.some((item) => item.id === command.itemId) &&
+				(command.beforeItemId === null ||
+					itemsRef.current.some((item) => item.id === command.beforeItemId));
+			if (reorderAdmitted) {
+				setDragState(semanticState);
+				void reorderItemRef.current(command.itemId, command.beforeItemId).then(settle, settle);
+			} else {
+				settle();
 			}
 			releaseCapture();
 		};
@@ -279,7 +289,7 @@ export function useNavigationReorderDrag(
 			if (event.pointerId === session.pointerId) finish(false);
 		};
 		const handleKeyDown = (event: KeyboardEvent) => {
-			if (event.key !== 'Escape') return;
+			if (finished || event.key !== 'Escape') return;
 			event.preventDefault();
 			finish(false);
 		};
@@ -322,7 +332,7 @@ export function useNavigationReorderDrag(
 		setSession(null);
 	}, [dragState, items]);
 	const displacement = React.useMemo(() => {
-		if (dragState.kind !== 'dragging') {
+		if (dragState.kind !== 'dragging' && dragState.kind !== 'settling') {
 			return { direction: null, itemIds: [] };
 		}
 		const sourceIndex = items.findIndex((item) => item.id === dragState.itemId);
@@ -351,8 +361,10 @@ export function useNavigationReorderDrag(
 
 	return {
 		displacedItemIds: displacement.itemIds,
+		displacementAnimated: dragState.kind === 'dragging',
 		displacementDirection: displacement.direction,
-		draggingItemId: dragState.kind === 'dragging' ? dragState.itemId : null,
+		draggingItemId:
+			dragState.kind === 'dragging' || dragState.kind === 'settling' ? dragState.itemId : null,
 		onItemPointerDown,
 		listRef,
 	};

@@ -68,7 +68,12 @@ import {
 	getWorkbenchTabCreationAvailability,
 	getWorkbenchTerminalCreationAvailability,
 } from '../actions/workbench-terminal-creation-action';
+import type { WorkbenchAuthority } from '../types/workbench-authority';
 import { useWorkbenchActions } from './useWorkbenchActions';
+import {
+	useWorkbenchAuthorityNotice,
+	type WorkbenchAuthorityNoticeView,
+} from './useWorkbenchAuthorityNotice';
 import { useWorkbenchFocusRouting } from './useWorkbenchFocusRouting';
 import type { WorkbenchTerminalFocusRequest } from '../model/resolveWorkbenchFocusTarget';
 import { useWorkbenchShortcuts } from './useWorkbenchShortcuts';
@@ -93,6 +98,7 @@ interface WorkbenchView {
 		readonly message: string;
 		readonly sequence: number;
 	} | null;
+	readonly authorityNotice: WorkbenchAuthorityNoticeView['notice'];
 	readonly activateStandalone: (origin: WorkbenchTerminalLocationActivationOrigin) => void;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly actionScope: ActionScope;
@@ -145,8 +151,11 @@ interface WorkbenchView {
 	readonly projectWorkspaceState: ProjectWorkspaceState;
 	readonly removeProject: (projectId: string) => void;
 	readonly removeResourceDirectory: (resourceScopeId: string, directoryId: string) => void;
-	readonly reorderProject: (projectId: string, beforeProjectId: string | null) => void;
-	readonly reorderWorkspace: (workspaceId: string, beforeWorkspaceId: string | null) => void;
+	readonly reorderProject: (projectId: string, beforeProjectId: string | null) => Promise<unknown>;
+	readonly reorderWorkspace: (
+		workspaceId: string,
+		beforeWorkspaceId: string | null,
+	) => Promise<unknown>;
 	readonly renameProject: (projectId: string, name: string) => void;
 	readonly searchLabel: string;
 	readonly search: (returnFocus: HTMLElement) => void;
@@ -201,6 +210,7 @@ interface WorkbenchView {
 interface UseWorkbenchOptions {
 	readonly actionRuntime: ActionRuntime;
 	readonly agentObservationSource?: AgentSnapshotSource | undefined;
+	readonly authority?: WorkbenchAuthority | undefined;
 	readonly isShortcutScopeActive: boolean;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
@@ -216,6 +226,7 @@ interface UseWorkbenchOptions {
 export function useWorkbench({
 	actionRuntime,
 	agentObservationSource,
+	authority,
 	isShortcutScopeActive,
 	navigation,
 	onSettings,
@@ -228,6 +239,7 @@ export function useWorkbench({
 	terminalSurfaceAvailable,
 }: UseWorkbenchOptions): WorkbenchView {
 	const intl = useOrchbeeIntl();
+	const authorityNotice = useWorkbenchAuthorityNotice(authority, projectWorkspaceRuntime);
 	const [agentNavigationAnnouncementSequence, setAgentNavigationAnnouncementSequence] =
 		React.useState(0);
 	const pendingProjectWorkspaceConfirmation = React.useRef<((accepted: boolean) => void) | null>(
@@ -263,8 +275,12 @@ export function useWorkbench({
 		resolveTerminalTarget: resolveTerminalFocusTarget,
 	});
 	const focusRouter = React.useMemo(
-		() => ({ focus: focusRouting.focus, getResolution: focusRouting.getResolution }),
-		[focusRouting.focus, focusRouting.getResolution],
+		() => ({
+			beginTerminalHandover: focusRouting.beginTerminalHandover,
+			focus: focusRouting.focus,
+			getResolution: focusRouting.getResolution,
+		}),
+		[focusRouting.beginTerminalHandover, focusRouting.focus, focusRouting.getResolution],
 	);
 	const [tabStripOrientation, setTabStripOrientationState] = React.useState<TabStripOrientation>(
 		() => readWorkbenchTabStripOrientation(storage),
@@ -397,6 +413,7 @@ export function useWorkbench({
 	});
 	const actions = useWorkbenchActions({
 		agentObservationSource,
+		authority: authorityNotice.authority,
 		focusRouting: focusRouter,
 		getNewTerminalAvailability,
 		isSidebarVisible,
@@ -535,6 +552,7 @@ export function useWorkbench({
 						message: intl.formatMessage(workbenchMessages.workspaceAgentNavigationUnavailable),
 						sequence: agentNavigationAnnouncementSequence,
 					},
+		authorityNotice: authorityNotice.notice,
 		activateStandalone,
 		navigateAgent,
 		actionScope: actions.scope,
@@ -786,6 +804,9 @@ export function useWorkbench({
 			setProjectPrimaryFolder: intl.formatMessage(workbenchMessages.projectSetPrimaryFolder),
 			workspaceManage: intl.formatMessage(workbenchMessages.workspaceManage),
 			workspaceManageDescription: intl.formatMessage(workbenchMessages.workspaceManageDescription),
+			workspaceManageNameOnlyDescription: intl.formatMessage(
+				workbenchMessages.workspaceManageNameOnlyDescription,
+			),
 			workspaceManageName: intl.formatMessage(workbenchMessages.workspaceManageName),
 			workspaceManageNamePlaceholder: intl.formatMessage(
 				workbenchMessages.workspaceManageNamePlaceholder,
@@ -809,20 +830,15 @@ export function useWorkbench({
 				'button',
 			);
 		},
-		reorderProject: (projectId, beforeProjectId) => {
-			actions.invoke(
-				WORKBENCH_ACTION_IDS.reorderProject,
-				{ beforeProjectId, projectId },
-				'pointer',
-			);
-		},
-		reorderWorkspace: (workspaceId, beforeWorkspaceId) => {
+		reorderProject: (projectId, beforeProjectId) =>
+			actions.invoke(WORKBENCH_ACTION_IDS.reorderProject, { beforeProjectId, projectId }, 'pointer')
+				.completion,
+		reorderWorkspace: (workspaceId, beforeWorkspaceId) =>
 			actions.invoke(
 				WORKBENCH_ACTION_IDS.reorderWorkspace,
 				{ beforeWorkspaceId, workspaceId },
 				'pointer',
-			);
-		},
+			).completion,
 		renameProject: (projectId, name) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.renameProject, { name, projectId }, 'button');
 		},

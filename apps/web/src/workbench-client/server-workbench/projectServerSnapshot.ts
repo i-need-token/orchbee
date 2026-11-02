@@ -13,6 +13,8 @@ import {
 	type WorkbenchTerminalContext,
 } from '@orchbee/workbench-client-protocol';
 
+import { serverResourceScopeId } from './serverResourceScopeId';
+
 type Navigation = WorkbenchSnapshot['navigation'];
 type Directory = Navigation['directories'][number];
 type Workspace = Navigation['workspaces'][number];
@@ -53,7 +55,7 @@ export function projectServerSnapshot(
 		(workspace) => workspace.workspaceId,
 	).map((workspace) => ({
 		directory: projectWorkspaceDirectory(workspace, directories, defaultDirectory),
-		scopeId: `resource-scope:${workspace.workspaceId}`,
+		scopeId: serverResourceScopeId(workspace.workspaceId),
 		workspace,
 	}));
 	const facts: WritablePublishedFacts = { presentations: new Map(), splitWeights: new Map() };

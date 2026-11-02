@@ -13,9 +13,9 @@ export { registerTerminalProductFonts } from './projected-terminal-renderer';
 export { type ServerCarrier, ServerConnection } from './server-connection';
 export {
 	admitsAutomaticWorkspace,
-	defaultWorkspaceLaunch,
 	ServerUserPreferencesClient,
 	ServerWorkbenchSession,
+	workspaceLaunchAction,
 } from './server-workbench';
 export { ProjectedTerminalSurface } from './projected-terminal-surface';
 export { WorkbenchClientApplication } from './workbench-client-application';
