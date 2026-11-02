@@ -14,6 +14,7 @@ import { createMemoryHistory } from '@tanstack/react-router';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
+import { AgentIntegrationReminderController } from '../../agent-integration-management';
 import { ApplicationLocaleController } from '../../application-locale';
 import { createWebApplicationRouting, type WebApplicationRouting } from '../../application-routing';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
@@ -30,6 +31,7 @@ import {
 	createServerTerminalColorsSource,
 	createServerWorkbenchRuntime,
 	ProjectedTerminalSurface,
+	ServerAgentIntegrationClient,
 	ServerConnection,
 	ServerTerminalDefaultSettingsClient,
 	ServerTerminalLaunchProfileClient,
@@ -149,6 +151,14 @@ async function run(
 		storage: storage.preferences,
 		userPreferences,
 	});
+	const agentIntegrationManagementClient = new ServerAgentIntegrationClient(
+		connection,
+		session.snapshot.sessionId,
+	);
+	// Settings still records dismissals; a reminder waits until this path observes Agent launches.
+	const agentIntegrationReminderController = new AgentIntegrationReminderController(
+		storage.preferences,
+	);
 
 	let reactRoot: Root | undefined;
 	let routing: WebApplicationRouting | undefined;
@@ -167,6 +177,8 @@ async function run(
 					() => terminalFeedbackSettingsController.dispose(),
 					() => macosTerminalInputSettingsController?.dispose(),
 					() => applicationLocaleController.dispose(),
+					() => agentIntegrationReminderController.dispose(),
+					() => agentIntegrationManagementClient.dispose(),
 					() => terminalLaunchProfileClient.dispose(),
 					() => terminalDefaultSettingsClient.dispose(),
 					() => userPreferences.dispose(),
@@ -206,6 +218,8 @@ async function run(
 	routing = createWebApplicationRouting(
 		{
 			actionRuntime: runtime.actionRuntime,
+			agentIntegrationManagementControl: agentIntegrationManagementClient,
+			agentIntegrationReminderController,
 			applicationLocaleController,
 			authority: runtime.authority,
 			keyboardShortcutSettingsController,

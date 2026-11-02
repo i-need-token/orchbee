@@ -1254,6 +1254,41 @@ uses. These choices stand unless review changes them:
 | Server restart                 | After `server stop` and `server start`, the reloaded window and a new TUI showed 24,456,789 bytes and the renamed default profile, as the record on disk did.                                          |
 | Delete and reset               | A second profile took `profile-2`. Delete removed it, and Reset left only the built-in default, with one save each.                                                                                    |
 
+Agent integrations in the Server-path window run as Worker jobs through the Server, the path the
+CLI uses, so Main writes nothing. These choices stand unless review changes them:
+
+- **The Worker decides.** Refresh runs one `list` job and a switch one `enable` or `disable` job,
+  with no check of the window's own first. A change the window cannot follow to its report reads as
+  unverified, marks its row unknown, and is never repeated.
+- **The page keeps its controls and ten rows.** `ServerAgentIntegrationClient` presents the
+  Desktop-shaped snapshot through the existing control seam. The other ten providers and the seam's
+  rename wait for the Desktop owners' removal later in this step.
+- **Rows wait for Refresh, as Main's did.** Until then every row reads Unknown, because the window
+  holds no provider facts and only the Worker's report marks a row for manual setup. On Windows,
+  where Main managed nothing and every row read Manual setup, the window now changes what the
+  Worker's writer manages there, as the CLI does.
+- **No reminder yet.** This path observes no Agent launch until step 5, so the reminder controller
+  only records the dismissals a Settings change makes.
+- **One operation contract for every language.**
+  [`schemas/agent-integration`](../../schemas/agent-integration/README.md) is its language-neutral
+  authority, and the Workbench job direction gained a schema and a corpus that Rust, TypeScript, and
+  JSON Schema decide alike. The corpus found that serde ignored unknown fields beside the two
+  field-less variants; they now refuse them, with the wire shape unchanged.
+
+The run below used one window, the CLI, and a fake `pi` on a PATH holding only it and the Windows
+folders. Every process had a scratch `USERPROFILE`, `APPDATA`, and Codex and Grok homes.
+`LOCALAPPDATA` stayed real, because Session activation refuses a scratch one, and the Session's
+storage there was deleted afterwards.
+
+| Question               | Result                                                                                                                                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Before Refresh         | All ten rows read Unknown with locked switches, and no job was sent.                                                                                                                                  |
+| Refresh                | One start and two polls settled 121 ms after the click. Pi read Not enabled with an open switch, Cline Manual setup, Codex Status unavailable as the CLI also reported, and the rest Agent not found. |
+| Enable Pi              | Settled in 212 ms with three polls. The extension and the Capsule appeared only under the scratch home, and `agent integration list --provider pi` read enabled.                                      |
+| Disable Pi             | Settled in 110 ms. The extension was removed, the Capsule stayed, and the CLI read `not-installed`.                                                                                                   |
+| Another Client's job   | A CLI list started with Refresh was refused as busy while the window's Refresh completed; started 150 or 400 ms apart, both completed.                                                                |
+| The person's real home | The 27 protected files kept their write times, and neither `.pi` nor the Capsule folder appeared.                                                                                                     |
+
 ### Evidence
 
 - Each step records the owning Web and Desktop builds and a Server-backed run of the path it

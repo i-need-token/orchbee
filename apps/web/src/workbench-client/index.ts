@@ -14,6 +14,7 @@ export { type ServerCarrier, ServerConnection } from './server-connection';
 export {
 	admitsAutomaticWorkspace,
 	createServerTerminalColorsSource,
+	ServerAgentIntegrationClient,
 	ServerTerminalDefaultSettingsClient,
 	ServerTerminalLaunchProfileClient,
 	ServerUserPreferencesClient,

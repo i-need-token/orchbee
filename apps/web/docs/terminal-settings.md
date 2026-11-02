@@ -459,6 +459,20 @@ wrappers, remote Agents, and terminals without Orchbee shell integration do not 
 Desktop Main's exact effects, reconciliation, conflicts, rollback, and remote exclusion are
 authoritative in the [Desktop Agent integration guide](../../desktop/docs/agent-integrations.md).
 
+A Server-path window injects `ServerAgentIntegrationClient` instead, so Main writes nothing. Refresh
+runs one `list` job and a switch one `enable` or `disable` job on the Session's Worker through the
+[Workbench job direction](../../../crates/workbench-protocol/README.md#agent-integration-jobs), the
+writer the CLI's `orchbee agent integration` uses. The window polls a job from 20 ms up to every
+250 ms and, after 50 seconds, asks it to stop. Rows start unknown, as Main's did before its first
+inspection, and each completed report replaces them. Main manages no integration on Windows and
+marks every row there for manual setup; on this path the Worker's report decides that for each row,
+on Windows as elsewhere. The Worker alone decides whether a change may
+proceed, so the window checks nothing before it asks. A change the window cannot follow to its
+report reads as unverified, marks its row unknown, and is never repeated. The window does not yet
+observe Agent launches, so no reminder appears, while a Settings disable or verified enable still
+updates the dismissal record. The
+[writer](../../../crates/agent-integration-writer/README.md) is authoritative for that path's effects.
+
 ## Remote-development diagnostic
 
 The Remote development category documents the Desktop launch baseline
