@@ -639,12 +639,12 @@ fn several_tabs_count_at_once_and_stop_reporting_once_all_are_confirmed_closed()
         (
             Locale::EnUs,
             "Closing Tabs: 0 closed, 2 remaining",
-            "Closing stopped: 1 closed, 1 not confirmed closed.",
+            "Closing stopped: 1 closed, 1 unconfirmed",
         ),
         (
             Locale::ZhCn,
             "正在关闭标签页：0 个已关闭，剩余 2 个",
-            "关闭已停止：1 个已关闭，1 个未确认关闭。",
+            "关闭已停止：1 个已关闭，1 个未确认",
         ),
     ] {
         let now = Instant::now();
@@ -714,7 +714,9 @@ fn close_set_same_tick_local_drift_before_owned_membership_install_cannot_be_lau
 }
 
 #[test]
-fn close_set_precommit_race_halts_without_retarget_or_mutation_replay() {
+fn close_set_revision_race_goes_again_as_a_new_request_and_any_other_refusal_stops() {
+    use crate::local_client::workbench::WorkbenchTabClosePrecommit;
+    use crate::localization::Locale;
     let now = Instant::now();
     let mut state = ready(3);
     let source = state.cache().canonical_snapshot().clone();
@@ -723,28 +725,208 @@ fn close_set_precommit_race_halts_without_retarget_or_mutation_replay() {
     state
         .settle_close_exchange(
             &close,
-            &CloseResult::Precommit(
-                crate::local_client::workbench::WorkbenchTabClosePrecommit::Rejected {
-                    revision: WorkbenchRevision::new(2),
-                    reason: orchbee_workbench_protocol::WorkbenchRejectionReason::RevisionMismatch,
-                },
-            ),
+            &CloseResult::Precommit(WorkbenchTabClosePrecommit::Rejected {
+                revision: WorkbenchRevision::new(2),
+                reason: orchbee_workbench_protocol::WorkbenchRejectionReason::RevisionMismatch,
+            }),
         )
         .unwrap();
     state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(close.key().clone()));
     let status = state.close_set_status().unwrap();
     assert_eq!(
         (status.completed, status.total, status.halted),
-        (0, 2, true)
+        (0, 2, false)
     );
+    assert_eq!(state.notice(), None);
     assert!(!state.has_retained_close_records());
     assert_eq!(state.cache().canonical_snapshot(), &source);
     assert_eq!(state.desired(), desired.as_ref());
+    assert!(state.close_set_ready());
+    let again = state
+        .plan_next_close_set(workbench_request_id(10002), close.deadline())
+        .unwrap();
+    assert_ne!(again.key().request_id(), close.key().request_id());
+    assert_eq!(again.key().target(), close.key().target());
+    assert_eq!(again.set_source(), Some(&source));
+
+    // Only a Server refusal of the revision goes again; the count reports any other.
+    state.begin_next_close_set(&again, now).unwrap();
+    state
+        .settle_close_exchange(
+            &again,
+            &CloseResult::Precommit(WorkbenchTabClosePrecommit::Denied),
+        )
+        .unwrap();
+    state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(again.key().clone()));
+    let status = state.close_set_status().unwrap();
+    assert_eq!(
+        (status.completed, status.total, status.halted),
+        (0, 2, true)
+    );
+    assert_eq!(state.notice(), None);
+    let shown = screen(&state, Locale::EnUs);
+    assert!(
+        shown.contains("Closing stopped: 0 closed, 2 still open"),
+        "{shown}"
+    );
     assert!(
         state
-            .plan_next_close_set(workbench_request_id(10002), close.deadline())
+            .plan_next_close_set(workbench_request_id(10003), close.deadline())
             .is_err()
     );
+}
+
+#[test]
+fn close_set_premises_leave_out_only_what_the_server_follows() {
+    use crate::workbench_state::close_set_premises_match;
+    let source = snapshot(3, 4, None);
+    fn workspace(snapshot: &mut Snapshot) -> &mut orchbee_workbench_protocol::Workspace {
+        &mut snapshot.navigation.workspaces[0]
+    }
+    assert!(close_set_premises_match(&source, &source));
+
+    let mut followed = source.clone();
+    followed.revision = WorkbenchRevision::new(9);
+    workspace(&mut followed).terminal_directory =
+        Some(orchbee_workbench_protocol::WorkbenchDirectoryPath::parse("/elsewhere").unwrap());
+    assert!(close_set_premises_match(&followed, &source));
+    // A person's name stays out of what following may change.
+    let mut renamed = followed.clone();
+    workspace(&mut renamed).label = "peer edit".into();
+    assert!(!close_set_premises_match(&renamed, &source));
+
+    let mut automatic = source.clone();
+    workspace(&mut automatic).automatic_label = true;
+    let mut named = automatic.clone();
+    workspace(&mut named).label = "elsewhere".into();
+    assert!(close_set_premises_match(&named, &automatic));
+    workspace(&mut named).automatic_label = false;
+    assert!(!close_set_premises_match(&named, &automatic));
+
+    let mut tab = followed.clone();
+    tab.terminal_contexts[0].tabs[0].label = "peer edit".into();
+    assert!(!close_set_premises_match(&tab, &source));
+    let mut session = followed.clone();
+    session.navigation.workspaces.clear();
+    assert!(!close_set_premises_match(&session, &source));
+}
+
+/// The follow lands on its own revision: between a Closed receipt and its install here, as in the
+/// real close of a first terminal, and on top of the source the next preflight compares against.
+fn followed(mut source: Snapshot, directory: &str) -> Snapshot {
+    source.revision = WorkbenchRevision::new(source.revision.value() + 1);
+    source.navigation.workspaces[0].terminal_directory =
+        Some(orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(directory).unwrap());
+    source
+}
+
+#[test]
+fn close_set_finishes_through_a_followed_directory_and_stops_for_any_other_change() {
+    let now = Instant::now();
+    let mut state = ready(3);
+    let close = open(&mut state, &[1, 2], now);
+    observe_closed(&mut state, &close, now);
+    let source = followed(removed(&state, close.key().target().tab_id()), "/elsewhere");
+    install(&mut state, &close, source.clone(), now);
+    assert!(!state.close_set_status().unwrap().halted);
+    assert!(state.close_set_ready());
+    let next = state
+        .plan_next_close_set(workbench_request_id(10001), close.deadline())
+        .unwrap();
+    assert_eq!(next.set_source(), Some(&source));
+    assert_eq!(next.selection().base_revision(), source.revision);
+    let later = now + Duration::from_secs(1);
+    state.begin_next_close_set(&next, later).unwrap();
+    observe_closed(&mut state, &next, later);
+    let source = followed(removed(&state, next.key().target().tab_id()), "/back");
+    install(&mut state, &next, source, later);
+    let status = state.close_set_status().unwrap();
+    assert_eq!(
+        (status.completed, status.total, status.halted),
+        (2, 2, false)
+    );
+
+    // The same follow beside a change of another kind still stops the set.
+    let mut state = ready(3);
+    let close = open(&mut state, &[1, 2], now);
+    observe_closed(&mut state, &close, now);
+    let mut source = followed(removed(&state, close.key().target().tab_id()), "/elsewhere");
+    source.terminal_contexts[0].tabs[0].label = "peer edit".into();
+    install(&mut state, &close, source, now);
+    assert!(state.close_set_status().unwrap().halted);
+    assert!(!state.close_set_ready());
+}
+
+#[test]
+fn a_stopped_set_reports_while_a_close_may_finish_and_then_clears_like_any_notice() {
+    use crate::localization::Locale;
+    for (locale, left_open, in_doubt) in [
+        (
+            Locale::EnUs,
+            "Closing stopped: 1 closed, 2 still open",
+            "Closing stopped: 0 closed, 1 unconfirmed, 2 still open",
+        ),
+        (
+            Locale::ZhCn,
+            "关闭已停止：1 个已关闭，2 个仍打开",
+            "关闭已停止：0 个已关闭，1 个未确认，2 个仍打开",
+        ),
+    ] {
+        for dismissed in [false, true] {
+            // An outside change stops the set between members: nothing is in flight.
+            let now = Instant::now();
+            let mut state = ready(4);
+            let close = open(&mut state, &[1, 2, 3], now);
+            observe_closed(&mut state, &close, now);
+            let mut source = removed(&state, close.key().target().tab_id());
+            source.terminal_contexts[0].tabs[0].label = "peer edit".into();
+            install(&mut state, &close, source, now);
+            let facts = state.close_set_status();
+            assert!(facts.unwrap().halted);
+            assert!(!facts.unwrap().unconfirmed);
+            assert!(screen(&state, locale).contains(left_open));
+            assert!(state.settle_close_set(now));
+            assert_eq!(
+                state.close_set_summary_deadline(),
+                Some(now + Duration::from_secs(5))
+            );
+            assert!(!state.settle_close_set(now + Duration::from_secs(4)));
+            assert!(screen(&state, locale).contains(left_open));
+            if dismissed {
+                state.dismiss_close_set_summary();
+            } else {
+                // Expiry is a change the next wake redraws.
+                assert!(state.settle_close_set(now + Duration::from_secs(5)));
+            }
+            assert!(state.view().close_set_status().is_none());
+            assert!(state.close_set_summary_deadline().is_none());
+            assert!(!screen(&state, locale).contains(left_open));
+            assert_eq!(state.close_set_status(), facts);
+        }
+
+        // A submitted close stands in doubt at the cutoff; its report outlasts any idle time.
+        let now = Instant::now();
+        let mut state = ready(4);
+        let close = open(&mut state, &[1, 2, 3], now);
+        accept(&mut state, &close);
+        assert!(state.settle_close_set(close.deadline()));
+        assert!(state.close_set_status().unwrap().unconfirmed);
+        assert!(screen(&state, locale).contains(in_doubt));
+        assert!(state.close_set_summary_deadline().is_none());
+        state.dismiss_close_set_summary();
+        assert!(!state.settle_close_set(close.deadline() + Duration::from_secs(60)));
+        assert!(screen(&state, locale).contains(in_doubt));
+
+        // Its outcome leaves nothing in flight, and the report starts to clear.
+        let later = close.deadline() + Duration::from_secs(60);
+        let closed = closed_status(&state);
+        read_status(&mut state, &close, closed, later);
+        assert!(!state.close_set_status().unwrap().unconfirmed);
+        assert!(screen(&state, locale).contains(left_open));
+        assert!(state.settle_close_set(later));
+        assert!(state.settle_close_set(later + Duration::from_secs(5)));
+        assert!(state.view().close_set_status().is_none());
+    }
 }
 
 fn rebind_same_focused_pane(state: &mut WorkbenchClientState, now: Instant) {
@@ -947,7 +1129,7 @@ fn close_set_same_pane_key_rebind_revokes_confirmation_waiting_and_preinstall_pr
 fn close_set_expected_removal_preserves_other_contexts_and_unrelated_empty_groups() {
     use crate::workbench_projection::project_preferred_workspace;
     use orchbee_workbench_protocol::{TabGroup, TabGroupColor};
-    for drift in ["none", "context", "group", "revision"] {
+    for drift in ["none", "context", "group"] {
         let now = Instant::now();
         let mut source = super::super::context_selection::contexts(1, 1);
         let source_group = TabGroup {
@@ -973,9 +1155,6 @@ fn close_set_expected_removal_preserves_other_contexts_and_unrelated_empty_group
         match drift {
             "context" => candidate.terminal_contexts[1].tabs[0].label = "peer label".into(),
             "group" => candidate.terminal_contexts[0].groups[1].color = TabGroupColor::Red,
-            "revision" => {
-                candidate.revision = WorkbenchRevision::new(candidate.revision.value() + 1)
-            }
             "none" => {}
             _ => unreachable!(),
         }

@@ -28,7 +28,10 @@ const DISCOVERY: Duration = Duration::from_secs(15);
 /// Bounds one Worktree operation, from the click through Git to the committed Workspace.
 const OPERATION: Duration = Duration::from_secs(60);
 const LINKED_BRANCH: &str = "feature-linked";
+const NEW_WORKTREE: &str = "New Worktree…";
 const OPEN_WORKTREE: &str = "Open Worktree ▸";
+/// The short reason on the frame's edge for a directory outside Git.
+const GIT_UNAVAILABLE: &str = "Git unavailable";
 
 #[test]
 fn worktree_rows_of_an_ungrouped_workspace_group_it_with_every_worktree_they_add() {
@@ -122,24 +125,124 @@ fn a_directory_change_under_the_open_menu_keeps_it_and_asks_git_again() {
     control.input(b"\x1b[I");
 
     open_menu(&fixture, &tui, &mut control, "source");
-    let deadline = Instant::now() + DISCOVERY;
-    while !fixture.screen(&tui.terminal).contains(OPEN_WORKTREE) {
-        assert!(Instant::now() < deadline, "the Workspace menu never opened");
-        thread::sleep(Duration::from_millis(100));
+    let opened = MenuRead::first(&fixture, &tui);
+    worktree_rows_are(&opened, false);
+    let height = opened.height();
+    // Spans Git's answer about the folder.
+    let watch = Instant::now() + Duration::from_secs(3);
+    while Instant::now() < watch {
+        let read = MenuRead::first(&fixture, &tui);
+        worktree_rows_are(&read, false);
+        assert_eq!(read.height(), height, "{}", read.text());
     }
     let command = format!("cd \"{}\"", fixture.path("repo"));
     enter(&fixture, &terminal_of(&fixture, &created), &command);
     stands_in(&fixture, source, "repo");
+    let deadline = Instant::now() + DISCOVERY;
+    loop {
+        let read = MenuRead::first(&fixture, &tui);
+        assert_eq!(read.height(), height, "{}", read.text());
+        if read.enabled(NEW_WORKTREE) && read.enabled(OPEN_WORKTREE) {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the rows never enabled:\n{}",
+            read.text()
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
     choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
         screen.contains(LINKED_BRANCH)
     });
     control.release();
 }
 
-/// A `cd` inside the repository, with the menu open, leaves the rows the menu already recognized
-/// enabled while Git is asked again.
+/// A Workspace that left its repository for a folder outside Git shows nothing Git said about the
+/// repository: its menu's Worktree rows are disabled from the first paint and say why, and choosing
+/// them does nothing.
 #[test]
-fn a_directory_change_under_the_open_menu_leaves_its_worktree_rows_enabled() {
+fn a_workspace_that_left_its_repository_offers_no_worktree_rows() {
+    let fixture = Fixture::new("orchbee-worktree-left-", &["repo", "plain"]);
+    repository(&fixture);
+    let created = fixture.workspace_in("source", "repo");
+    let source = created["workspaceId"].as_str().unwrap();
+    let tui = fixture.start_tui(COLUMNS, ROWS);
+    fixture.settle_ready(&tui.client);
+    let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
+    control.input(b"\x1b[I");
+    shows_branch(&fixture, &tui, true);
+
+    // The menu used there.
+    open_menu(&fixture, &tui, &mut control, "source");
+    menu_is_steady(&fixture, &tui, None);
+    control.input(b"\x1b");
+    let deadline = Instant::now() + DISCOVERY;
+    while !menu_closed(&fixture.screen(&tui.terminal)) {
+        assert!(Instant::now() < deadline, "the menu never closed");
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    let command = format!("cd \"{}\"", fixture.path("plain"));
+    enter(&fixture, &terminal_of(&fixture, &created), &command);
+    stands_in(&fixture, source, "plain");
+    shows_branch(&fixture, &tui, false);
+    let workspaces = workspace_ids(&fixture);
+    let checkouts = checkouts(&fixture);
+
+    open_menu(&fixture, &tui, &mut control, "source");
+    let opened = MenuRead::first(&fixture, &tui);
+    worktree_rows_are(&opened, false);
+    let height = opened.height();
+    // Spans Git's answer about the folder.
+    let watch = Instant::now() + Duration::from_secs(3);
+    while Instant::now() < watch {
+        let read = MenuRead::first(&fixture, &tui);
+        worktree_rows_are(&read, false);
+        assert_eq!(read.height(), height, "{}", read.text());
+    }
+
+    // The first key reveals the first row; the third reaches New Worktree….
+    control.input(b"\x1b[B\x1b[B\x1b[B");
+    let deadline = Instant::now() + DISCOVERY;
+    loop {
+        let screen = fixture.screen(&tui.terminal);
+        if screen
+            .lines()
+            .any(|line| line.contains('└') && line.contains(GIT_UNAVAILABLE))
+        {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "no reason on the edge:\n{screen}"
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    // Neither the key nor the pointer chooses a row that is disabled.
+    control.input(b"\r");
+    for text in [NEW_WORKTREE, OPEN_WORKTREE] {
+        let screen = fixture.screen(&tui.terminal);
+        let (row, column) = menu_row(&screen, text).unwrap_or_else(|| panic!("{screen}"));
+        control.input(format!("\x1b[<35;{column};{row}M\x1b[<0;{column};{row}M").as_bytes());
+        thread::sleep(HOLD);
+        control.input(format!("\x1b[<0;{column};{row}m").as_bytes());
+    }
+    thread::sleep(Duration::from_secs(2));
+    let read = MenuRead::first(&fixture, &tui);
+    worktree_rows_are(&read, false);
+    assert!(!read.text().contains(LINKED_BRANCH), "{}", read.text());
+    assert_eq!(workspace_ids(&fixture), workspaces);
+    assert_eq!(self::checkouts(&fixture), checkouts);
+    control.release();
+}
+
+/// A menu opened on a row that shows the repository's branch has every row enabled and its one
+/// height from its first paint, through Git's first answer, and through a `cd` inside the
+/// repository with the Git read it starts.
+#[test]
+fn a_menu_on_a_known_repository_stays_enabled_at_one_height_through_a_directory_change() {
     let fixture = Fixture::new("orchbee-worktree-refresh-", &["repo"]);
     repository(&fixture);
     std::fs::create_dir_all(fixture.path("repo/sub")).unwrap();
@@ -149,32 +252,24 @@ fn a_directory_change_under_the_open_menu_leaves_its_worktree_rows_enabled() {
     fixture.settle_ready(&tui.client);
     let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
     control.input(b"\x1b[I");
+    shows_branch(&fixture, &tui, true);
 
     open_menu(&fixture, &tui, &mut control, "source");
-    let deadline = Instant::now() + DISCOVERY;
-    loop {
-        let screen = fixture.screen(&tui.terminal);
-        if every_row_enabled(&screen) {
-            break;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "the rows never enabled:\n{screen}"
-        );
-        thread::sleep(Duration::from_millis(100));
+    let height = menu_is_steady(&fixture, &tui, None);
+    // Spans Git's first answer.
+    let watch = Instant::now() + Duration::from_secs(3);
+    while Instant::now() < watch {
+        menu_is_steady(&fixture, &tui, Some(height));
     }
     let command = format!("cd \"{}\"", fixture.path("repo/sub"));
     enter(&fixture, &terminal_of(&fixture, &created), &command);
     // Spans the commit of the new directory and the Git read after it.
-    let watch = Instant::now() + Duration::from_secs(2);
+    let watch = Instant::now() + Duration::from_secs(3);
     while Instant::now() < watch {
-        let screen = fixture.screen(&tui.terminal);
-        assert!(
-            every_row_enabled(&screen),
-            "the rows left their enabled state:\n{screen}"
-        );
+        menu_is_steady(&fixture, &tui, Some(height));
     }
     stands_in(&fixture, source, "repo/sub");
+    menu_is_steady(&fixture, &tui, Some(height));
     choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
         screen.contains(LINKED_BRANCH)
     });
@@ -359,6 +454,43 @@ fn repository(fixture: &Fixture) {
     git(&["worktree", "add", "--quiet", "-b", LINKED_BRANCH, &linked]);
 }
 
+/// The checkouts Git lists for the repository.
+fn checkouts(fixture: &Fixture) -> String {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(fixture.path("repo"))
+        .args(["worktree", "list", "--porcelain"])
+        .env("HOME", fixture.path("home"))
+        .env("USERPROFILE", fixture.path("home"))
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    String::from_utf8(output.stdout).unwrap()
+}
+
+/// Waits for the sidebar to show, or no longer show, the repository's branch.
+fn shows_branch(fixture: &Fixture, tui: &Tui, expected: bool) {
+    let deadline = Instant::now() + DISCOVERY;
+    loop {
+        let screen = fixture.screen(&tui.terminal);
+        if screen.contains("main") == expected {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the row's branch never settled:\n{screen}"
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+fn worktree_rows_are(read: &MenuRead, enabled: bool) {
+    for text in [NEW_WORKTREE, OPEN_WORKTREE] {
+        assert_eq!(read.enabled(text), enabled, "{text}:\n{}", read.text());
+    }
+}
+
 /// Right-clicks the sidebar row of `label`.
 fn open_menu(fixture: &Fixture, tui: &Tui, control: &mut Control, label: &str) {
     let row = sidebar_row(fixture, tui, label);
@@ -426,14 +558,142 @@ fn rest_on(
     }
 }
 
-/// Whether the open Workspace menu ends with its last row, Close. A row that is unavailable differs
-/// from an enabled one in color, and adds a reason row to the bottom of the frame.
-fn every_row_enabled(screen: &str) -> bool {
-    let lines: Vec<_> = screen.lines().collect();
-    lines
-        .iter()
-        .position(|line| line.contains('└'))
-        .is_some_and(|bottom| bottom > 0 && lines[bottom - 1].contains("Close"))
+/// One read of the open Workspace menu, with its colors.
+struct MenuRead(String);
+
+impl MenuRead {
+    /// Waits for the menu's first paint.
+    fn first(fixture: &Fixture, tui: &Tui) -> Self {
+        let deadline = Instant::now() + DISCOVERY;
+        loop {
+            let read = Self::take(fixture, tui);
+            if read.row("Move to Project").is_some() {
+                return read;
+            }
+            assert!(Instant::now() < deadline, "no menu:\n{}", read.text());
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    fn take(fixture: &Fixture, tui: &Tui) -> Self {
+        let read = fixture.run(&[
+            "terminal",
+            "read",
+            "--session",
+            "host",
+            &tui.terminal,
+            "--source",
+            "visible",
+            "--ansi",
+        ]);
+        Self(
+            read.document["result"]["content"]["text"]
+                .as_str()
+                .unwrap_or_else(|| panic!("{read}"))
+                .to_owned(),
+        )
+    }
+
+    fn row(&self, text: &str) -> Option<&str> {
+        self.0.lines().find(|line| plain(line).contains(text))
+    }
+
+    fn text(&self) -> String {
+        plain(&self.0)
+    }
+
+    /// The frame's rows from its top edge to its bottom edge.
+    fn height(&self) -> usize {
+        let lines: Vec<_> = self.0.lines().map(plain).collect();
+        let first = lines
+            .iter()
+            .position(|line| line.contains("Move to Project"))
+            .unwrap_or_else(|| panic!("no menu:\n{}", self.text()));
+        let top = (0..first)
+            .rev()
+            .find(|index| lines[*index].contains('┌'))
+            .unwrap_or_else(|| panic!("no top edge:\n{}", self.text()));
+        let bottom = (first..lines.len())
+            .find(|index| lines[*index].contains('└'))
+            .unwrap_or_else(|| panic!("no bottom edge:\n{}", self.text()));
+        bottom - top + 1
+    }
+
+    /// Whether the row of `text` colors as Rename, which is always enabled here.
+    fn enabled(&self, text: &str) -> bool {
+        let style = |text: &str| {
+            let row = self
+                .row(text)
+                .unwrap_or_else(|| panic!("no row {text}:\n{}", self.text()));
+            style_of(row, text)
+        };
+        style(text) == style("Rename")
+    }
+}
+
+/// Every row of the open Workspace menu must color as an enabled one, and the frame must keep
+/// `height`. Returns the height it read.
+fn menu_is_steady(fixture: &Fixture, tui: &Tui, height: Option<usize>) -> usize {
+    let read = MenuRead::first(fixture, tui);
+    let measured = read.height();
+    assert_eq!(
+        height.unwrap_or(measured),
+        measured,
+        "the menu changed height:\n{}",
+        read.text()
+    );
+    for text in ["Move to Project", NEW_WORKTREE, OPEN_WORKTREE] {
+        assert!(
+            read.enabled(text),
+            "{text} is not enabled:\n{}",
+            read.text()
+        );
+    }
+    measured
+}
+
+/// `line` without its escape sequences.
+fn plain(line: &str) -> String {
+    let mut text = String::new();
+    let mut characters = line.chars();
+    while let Some(character) = characters.next() {
+        if character == '\x1b' {
+            characters.by_ref().find(char::is_ascii_alphabetic);
+        } else {
+            text.push(character);
+        }
+    }
+    text
+}
+
+/// The color sequences in force where `text` starts in `line`, from the last reset on.
+fn style_of(line: &str, text: &str) -> String {
+    let start = plain(line).find(text).expect("the row is on this line");
+    let mut style = String::new();
+    let mut offset = 0;
+    let mut characters = line.chars();
+    while let Some(character) = characters.next() {
+        if character != '\x1b' {
+            if offset == start {
+                break;
+            }
+            offset += character.len_utf8();
+            continue;
+        }
+        let mut sequence = String::from(character);
+        for next in characters.by_ref() {
+            sequence.push(next);
+            if next.is_ascii_alphabetic() {
+                break;
+            }
+        }
+        if sequence == "\x1b[0m" || sequence == "\x1b[m" {
+            style.clear();
+        } else {
+            style.push_str(&sequence);
+        }
+    }
+    style
 }
 
 /// The one-based row and a column inside the first row that shows `text`.

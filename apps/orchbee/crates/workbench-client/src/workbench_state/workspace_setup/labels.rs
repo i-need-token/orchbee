@@ -74,10 +74,6 @@ impl ProjectRenameRequest {
 }
 
 impl WorkbenchClientState {
-    pub(crate) fn project_rename_available(&self) -> bool {
-        !self.setup_blocks_structure() && self.setup_authority_available() && self.invariant_holds()
-    }
-
     pub(crate) fn settle_stale_project_rename(&mut self) -> bool {
         let stale = self.setup.draft.as_ref().is_some_and(|draft| {
             draft

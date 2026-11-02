@@ -258,7 +258,9 @@ pub(super) fn unavailable(
     action: &MenuAction,
 ) -> Option<crate::action_menu::MenuUnavailable> {
     use crate::action_menu::MenuUnavailable;
-    // New Worktree… and Open Worktree ▸ wait for the addressed source's Git discovery.
+    // New Worktree… and Open Worktree ▸ wait for the addressed source's Git discovery. A checkout or
+    // removal row exists only by an earlier answer, so one chosen while the Workspace leaves it, or
+    // Git no longer answers, must not wait out the menu's deadline.
     let waits = match action {
         MenuAction::NewWorktree => {
             matches!(
@@ -267,22 +269,29 @@ pub(super) fn unavailable(
             )
         }
         MenuAction::WorkspaceWorktrees => matches!(entry, MenuTarget::Workspace(_)),
+        MenuAction::OpenWorktreeAt(_) | MenuAction::RemoveWorktree => matches!(
+            entry,
+            MenuTarget::WorkspaceCreation(_)
+                | MenuTarget::Create(_)
+                | MenuTarget::Workspace(_)
+                | MenuTarget::WorkspaceWorktrees(_)
+        ),
         _ => false,
     };
     if !waits {
         return None;
     }
-    match episode
-        .filter(|episode| belongs(entry, episode))
-        .map(Discovery::shown)
-    {
-        Some(DiscoveryState::Ready(ready)) => (action == &MenuAction::WorkspaceWorktrees
+    let Some(episode) = episode.filter(|episode| belongs(entry, episode)) else {
+        return Some(MenuUnavailable::WorktreeUnavailable);
+    };
+    match episode.shown() {
+        DiscoveryState::Ready(ready) => (action == &MenuAction::WorkspaceWorktrees
             && other_checkout_actions(ready).is_empty())
         .then_some(MenuUnavailable::NoOtherWorktrees),
-        Some(DiscoveryState::Waiting | DiscoveryState::Querying) => {
-            Some(MenuUnavailable::WorktreeChecking)
+        DiscoveryState::Waiting | DiscoveryState::Querying => {
+            (!episode.known_git()).then_some(MenuUnavailable::WorktreeChecking)
         }
-        Some(DiscoveryState::Absent) | None => Some(MenuUnavailable::WorktreeUnavailable),
+        DiscoveryState::Absent => Some(MenuUnavailable::WorktreeUnavailable),
     }
 }
 
@@ -320,6 +329,15 @@ pub(super) fn project_choices(
 }
 
 impl WorkbenchClientUi {
+    /// The shell reports where the sidebar row of the menu about to open stands, while that row
+    /// shows a branch for it. The menu's worktree rows then start enabled instead of waiting.
+    pub(in crate::workbench_client) fn observe_sidebar_git(
+        &mut self,
+        directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
+    ) {
+        self.menus.observe_sidebar_git(directory);
+    }
+
     pub(super) fn prepare_sidebar_worktrees(&mut self) {
         let Some(intent) = self.menus.intent() else {
             return;

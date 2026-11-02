@@ -120,7 +120,55 @@ fn admit_close_set(harness: &mut Harness) -> TestResult<CloseOperation> {
 }
 
 #[test]
-fn close_set_full_preflight_cannot_reserve_cas_and_revision_race_is_never_retried() -> TestResult {
+fn close_set_preflight_goes_ahead_at_the_revision_it_read_past_what_the_server_followed()
+-> TestResult {
+    let mut harness = Harness::start(steps(2), fixture_geometry()?)?;
+    ready(&mut harness)?;
+    let mut source = harness.ui.state().cache().canonical_snapshot().clone();
+    let operation = admit_close_set(&mut harness)?;
+    let read = harness.carrier.take_read()?;
+    source.revision = WorkbenchRevision::new(2);
+    source.navigation.workspaces[0].terminal_directory =
+        Some(orchbee_workbench_protocol::WorkbenchDirectoryPath::parse("/elsewhere").unwrap());
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Available { snapshot: source },
+    )?;
+    let WorkbenchRequest::Command(command) = harness.carrier.take_workbench()? else {
+        return Err(test_error("the preflight must lead to the Close command"));
+    };
+    assert_eq!(&command.request_id, operation.key().request_id());
+    assert_eq!(command.expected_revision, WorkbenchRevision::new(2));
+    let target = operation.key().target();
+    harness
+        .carrier
+        .respond_workbench(WorkbenchResponse::Command(WorkbenchCommandResult {
+            protocol_version: ProtocolVersion,
+            request_id: command.request_id,
+            outcome: WorkbenchCommandOutcome::TabCloseAccepted {
+                close_request_id: operation.key().request_id().clone(),
+                terminal_context_id: target.terminal_context_id().clone(),
+                tab_id: target.tab_id().clone(),
+                accepted_revision: WorkbenchRevision::new(2),
+            },
+        }))?;
+    let (wait, actual, outcome) = take_result(&harness)?;
+    assert_eq!(actual, operation);
+    assert!(matches!(outcome, CloseResult::Accepted(_)));
+    harness
+        .ui
+        .state_mut()
+        .settle_close_exchange(&operation, &outcome)
+        .unwrap();
+    assert!(!harness.ui.state().close_set_status().unwrap().halted);
+    settle(&harness, &wait, operation.key())?;
+    harness.finish()?;
+    Ok(())
+}
+
+#[test]
+fn close_set_full_preflight_cannot_reserve_cas_and_goes_again_only_after_a_revision_race()
+-> TestResult {
     for changed_before_read in [false, true] {
         let mut harness = Harness::start(
             steps(if changed_before_read { 1 } else { 2 }),
@@ -133,6 +181,7 @@ fn close_set_full_preflight_cannot_reserve_cas_and_revision_race_is_never_retrie
         let read = harness.carrier.take_read()?;
         if changed_before_read {
             source.revision = WorkbenchRevision::new(2);
+            source.terminal_contexts[0].tabs[0].label = "peer edit".into();
         }
         harness.carrier.respond_read(
             &read,
@@ -173,10 +222,12 @@ fn close_set_full_preflight_cannot_reserve_cas_and_revision_race_is_never_retrie
             .state_mut()
             .settle_close_exchange(&operation, &outcome)
             .unwrap();
-        assert!(harness.ui.state().close_set_status().unwrap().halted);
+        assert_eq!(
+            harness.ui.state().close_set_status().unwrap().halted,
+            changed_before_read
+        );
         assert_eq!(harness.ui.state().desired(), desired.as_ref());
         assert_eq!(harness.ui.state().cache().tabs().len(), 2);
-        assert!(!harness.ui.state().close_set_ready());
         settle(&harness, &wait, operation.key())?;
         harness.finish()?;
     }

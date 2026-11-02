@@ -345,6 +345,32 @@ impl Picker {
             .filter(|checkpoint| checkpoint.session_id == context.target.session_id)
             .and_then(|checkpoint| checkpoint.rows.iter().find(|r| r.target == context.target))
     }
+    /// Where the drawn Workspace row that `target` names stands, while it shows a branch for it. A
+    /// row without one proves nothing: the Server answers a folder outside Git and a detached HEAD
+    /// alike, with no branch.
+    pub(crate) fn sidebar_git_directory(
+        &self,
+        target: &crate::action_menu::MenuTarget,
+    ) -> Option<orchbee_workbench_protocol::WorkbenchDirectoryPath> {
+        use crate::action_menu::MenuTarget;
+        let MenuTarget::Drawn { source, target } = target else {
+            return None;
+        };
+        let MenuTarget::Workspace(location) = target.as_ref() else {
+            return None;
+        };
+        self.space_checkpoint(&self.current)
+            .filter(|checkpoint| checkpoint.session_id == source.session)?
+            .rows
+            .iter()
+            .find(|row| &row.target.location == location)
+            .filter(|row| {
+                !row.git_stale && row.git.as_ref().is_some_and(|git| git.branch.is_some())
+            })?
+            .source_path()
+            .cloned()
+    }
+
     pub(crate) fn workspace_state(&self, row: &Row) -> Option<MetadataState> {
         self.workspace_agent_states(row).first().copied()
     }

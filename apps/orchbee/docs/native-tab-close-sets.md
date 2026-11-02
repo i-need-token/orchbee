@@ -134,8 +134,11 @@ its notice. A local change around a lone Tab does not halt it, because no later 
 stop.
 
 Several Tabs show their running count from the first draw. Its last value becomes `N Tabs closed`.
-A halted set whose members were all later confirmed closed stops reporting. `close_status` stays
-unfiltered because Client control uses it as a busy gate; rendering reads `announced_close_status`.
+A halted count separates the Tabs still open from the one submitted close whose outcome is unknown,
+as in `Closing stopped: 1 closed, 1 unconfirmed, 1 still open`, and reports a refused member itself,
+without a separate notice. A halted set whose members were all later confirmed closed stops
+reporting. `close_status` stays unfiltered because Client control uses it as a busy gate; rendering
+reads `announced_close_status`.
 
 ## Incremental lifecycle owner
 
@@ -148,9 +151,13 @@ stop new close submissions.
 Already submitted work was not cancelled: preserve its `CloseRecord`, operation/alias, attempts,
 disposal facts, worker handoffs and ordinary status/recovery paths. Late validated `Closed` facts
 update the bounded completed/remaining counts without restarting the sequence.
-The successful summary of several Tabs expires after five seconds or the next action/notice, using the existing
-bounded-notice convention. This retires only display state; retained counts and Close recovery
-facts survive. Halted/partial counts remain available, and current notices take display priority.
+The final report of several Tabs expires after five seconds or the next action/notice, using the
+existing bounded-notice convention. A report is final once nothing is left in flight: the set
+finished, or it stopped and its last submitted close, if any, reached a known outcome. A close in
+doubt keeps the report on the status line through any idle time, because its outcome and Resume are
+still to come. This retires only display state; retained counts and Close recovery facts survive,
+and current notices take display priority. A Tab the set left behind is an ordinary open Tab: its
+`[x]`, Close Tab key and Tab menu work again as soon as the set stops.
 
 For an already presented resumable status, the exact Tab's menu offers **Resume closing
 this Tab** separately from set closure, including background members. It uses the existing single-Close confirmation and Resume
@@ -164,31 +171,38 @@ this focus fence, and the exact displayed record is required before opening so a
 cannot fall back to Start. An unrelated active record cannot replace the modal's status token.
 The resumable single-Close status takes priority over the set summary. Ordinary footer hints may
 yield so the complete recovery status can be drawn; input-mode indicators and newer notices keep
-their priority. The Resume confirmation includes the retained set counts and submitted-work
-warning for that exact halted member, so the summary remains available without hiding the status
-needed to enter recovery. The halted member and then its Resume confirmation take status priority
+their priority. The Resume confirmation includes the retained set counts for that exact halted
+member, so the summary remains available without hiding the status needed to enter recovery. The halted member and then its Resume confirmation take status priority
 over unrelated records on the active Tab.
 
 Before each submission, read the full canonical Snapshot and compare it to the frozen source.
-This preflight reserves nothing. The existing revision CAS may still reject with
-`RevisionMismatch`; halt without retargeting or retry. An accepted alias is correlated by existing
-`CloseRecord` rules, not by assuming its primary ID equals the new request ID.
+The comparison leaves out only what the Server publishes on its own as a first terminal moves: the
+revision, every Workspace's followed directory and an automatic Workspace name. Closing a first
+terminal causes that change itself, in a revision of its own and at any moment around the close, so
+it never stops a set; every other difference does. The Close command carries the revision this read
+returned. This preflight reserves nothing. The existing revision CAS may still reject with
+`RevisionMismatch`, which refuses that request whole: the same target goes again under a new request
+ID and a new preflight, which decides whether the change that moved the revision stops the set. The
+sequence cutoff bounds these. One Tab has no sequence to keep alive and reports the refusal instead.
+An accepted alias is correlated by existing `CloseRecord` rules, not by assuming its primary ID
+equals the new request ID.
 
 The next target becomes eligible only after the exact correlated `Closed` result, owned membership
 installation and exchange/reconciliation lease release. Immediately before installation changes
 state, recheck old local marks, focused incarnation/Presentation/binding, context and full source.
-After installation, require the exact previous Snapshot minus that target and the admitted group
-cleanup, at exactly the next revision. Surviving trees, identities, metadata and unrelated contexts
-must match. Only this owned transition may advance expected survivor selection and source revision.
-A wrong/newer Snapshot or a same-tick local change halts; canonical recovery may still install
+After installation, require the previous Snapshot minus that target and the admitted group cleanup,
+under the same comparison, at or after the revision its `Closed` receipt names. Surviving trees,
+identities, metadata and unrelated contexts must match. Only this owned transition may advance
+expected survivor selection and source, which becomes the Snapshot it installed. A Snapshot that
+differs in any other way or a same-tick local change halts; canonical recovery may still install
 truth under its existing rules, but that installation cannot authorize the remaining set.
 
 ## Group cleanup boundary
 
 The Server publication owner removes only the closed Tab's source group when that removal leaves
 it empty. Nonempty source groups and every unrelated group, including empty groups created by a
-peer while disposal was in flight, survive. The frozen next-Snapshot expectation admits exactly
-this cleanup. It never sweeps the latest document for unrelated empties.
+peer while disposal was in flight, survive. The frozen expectation admits exactly this cleanup. It
+never sweeps the latest document for unrelated empties.
 
 This intentionally differs from GUI `TabModel.closeTabs`, whose `removeEmptyGroups` prunes all
 empty groups in that context. The narrower terminal lifecycle owner avoids deleting unrelated

@@ -136,6 +136,20 @@ impl AddressedWorktreeSource {
         })
     }
 
+    /// The directory the sidebar's row describes: the first terminal's, otherwise the Workspace's.
+    pub(crate) fn stands_in(&self) -> Option<&WorkbenchDirectoryPath> {
+        let MenuContextSource::Workspace { directory, .. } = &self.source;
+        self.followed
+            .as_ref()
+            .or(directory.as_ref().map(|directory| &directory.path))
+    }
+
+    /// Whether this source stands in `directory` or below it.
+    pub(crate) fn stands_under(&self, directory: &WorkbenchDirectoryPath) -> bool {
+        self.stands_in()
+            .is_some_and(|here| super::removal::inside_checkout(here.as_str(), directory.as_str()))
+    }
+
     /// The same source, standing in the same directory.
     pub(crate) fn unchanged(&self, snapshot: &Snapshot) -> bool {
         Self::capture(snapshot, &self.target)
@@ -148,8 +162,7 @@ impl AddressedWorktreeSource {
         Self::capture(snapshot, &self.target).is_some_and(|current| self.same_owner(&current))
     }
 
-    /// Whether `next` is this source after its first terminal moved, so that an answer about this
-    /// one may stand until `next` is answered.
+    /// Whether `next` is this source after its first terminal moved.
     pub(crate) fn moved_to(&self, next: &Self) -> bool {
         self.target == next.target && self.same_owner(next)
     }

@@ -1821,6 +1821,7 @@ impl InputDispatcher {
                                 });
                         if let Some(target) = self.pointer.sidebar_menu_target(view, &target) {
                             mode(ModeRequest::BracketedPaste(true))?;
+                            port.observe_sidebar_git(view.machines.sidebar_git_directory(&target));
                             if port.open_action_menu(target, anchor, view.pointer_released()) {
                                 self.menu_packet = true;
                                 self.keys.capture_pending();
@@ -2101,6 +2102,7 @@ impl InputDispatcher {
                         } = &outcome
                         {
                             mode(ModeRequest::BracketedPaste(true))?;
+                            port.observe_sidebar_git(view.machines.sidebar_git_directory(target));
                             if port.open_action_menu(
                                 target.clone(),
                                 Some(crate::action_menu::MenuAnchor::from(*anchor)),

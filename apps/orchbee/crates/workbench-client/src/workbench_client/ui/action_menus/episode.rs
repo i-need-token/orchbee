@@ -263,8 +263,12 @@ pub(super) struct Discovery {
     source: AddressedWorktreeSource,
     deadline: Instant,
     state: DiscoveryState,
-    /// The settled answer the rows keep while `state` asks about a first terminal that moved.
+    /// The success the rows keep while `state` asks about a first terminal that moved within the
+    /// checkout it describes. Nothing is kept across any other move.
     earlier: Option<DiscoveryState>,
+    /// The menu's row showed a branch for this directory or one above it, so the rows stay enabled
+    /// until the first answer.
+    known_git: bool,
 }
 
 pub(super) enum DiscoveryState {
@@ -291,6 +295,11 @@ impl Discovery {
         &self.state
     }
 
+    /// Whether the rows stay enabled until the first answer.
+    pub(super) const fn known_git(&self) -> bool {
+        self.known_git
+    }
+
     /// The answer about where the first terminal stands now, which an action runs against.
     pub(super) fn ready(&self) -> Option<&SidebarDiscovery> {
         match &self.state {
@@ -315,11 +324,26 @@ impl Discovery {
         }
     }
 
-    fn into_settled(self) -> Option<DiscoveryState> {
-        match self.state {
+    /// Whether the seed still speaks for `next`, where the first terminal moved.
+    fn known_git_for(&self, next: &AddressedWorktreeSource) -> bool {
+        self.known_git
+            && self
+                .source
+                .stands_in()
+                .is_some_and(|seeded| next.stands_under(seeded))
+    }
+
+    /// The success that still speaks for `next`: one about the checkout `next` stands in. A failed
+    /// answer speaks only for its own directory, so another folder outside Git is asked again.
+    fn answer_for(self, next: &AddressedWorktreeSource) -> Option<DiscoveryState> {
+        let answer = match self.state {
             DiscoveryState::Waiting | DiscoveryState::Querying => self.earlier,
             settled => Some(settled),
-        }
+        };
+        answer.filter(|answer| {
+            matches!(answer, DiscoveryState::Ready(ready)
+                if next.stands_under(&ready.discovery.source.checkout_path))
+        })
     }
 
     fn settle(&mut self, state: DiscoveryState) {
@@ -337,6 +361,8 @@ pub(in crate::workbench_client::ui) struct MenuEpisode {
     resume_handoff: Option<ResumeHandoff>,
     discovery: Option<Discovery>,
     next_discovery: u64,
+    /// Where the sidebar row of the menu about to open stands, while it shows a branch for it.
+    sidebar_git: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
 }
 
 impl MenuEpisode {
@@ -529,9 +555,16 @@ impl MenuEpisode {
         self.discovery = None;
     }
 
-    /// Starts discovering `source`, keeping an answer about this same source from before its first
-    /// terminal moved; false when its identity or deadline is unrepresentable. The clock is read
-    /// only once a new identity exists.
+    pub(super) fn observe_sidebar_git(
+        &mut self,
+        directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
+    ) {
+        self.sidebar_git = directory;
+    }
+
+    /// Starts discovering `source`, keeping from before its first terminal moved only what still
+    /// speaks for where it stands; false when its identity or deadline is unrepresentable. The
+    /// clock is read only once a new identity exists.
     pub(super) fn begin_discovery(
         &mut self,
         source: AddressedWorktreeSource,
@@ -544,17 +577,26 @@ impl MenuEpisode {
             return false;
         };
         self.next_discovery = id;
-        let earlier = self
+        let moved = self
             .discovery
             .take()
-            .filter(|discovery| discovery.source.moved_to(&source))
-            .and_then(Discovery::into_settled);
+            .filter(|discovery| discovery.source.moved_to(&source));
+        let seeded = self
+            .sidebar_git
+            .take()
+            .is_some_and(|directory| source.stands_in() == Some(&directory));
+        let known_git = seeded
+            || moved
+                .as_ref()
+                .is_some_and(|moved| moved.known_git_for(&source));
+        let earlier = moved.and_then(|moved| moved.answer_for(&source));
         self.discovery = Some(Discovery {
             id,
             source,
             deadline,
             state: DiscoveryState::Waiting,
             earlier,
+            known_git,
         });
         true
     }

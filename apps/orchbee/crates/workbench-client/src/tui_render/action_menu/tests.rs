@@ -530,7 +530,7 @@ fn context_menus_omit_chrome_and_hidden_controls_without_changing_global_discove
 }
 
 #[test]
-fn context_menu_admission_requires_one_action_and_its_reserved_reason_without_footer_rows() {
+fn context_menu_admission_requires_one_action_without_footer_or_reason_rows() {
     for width in [15, 16, 17] {
         for height in [2, 3, 4] {
             for unavailable in [false, true] {
@@ -562,7 +562,7 @@ fn context_menu_admission_requires_one_action_and_its_reserved_reason_without_fo
                         );
                     })
                     .unwrap();
-                let expected = width >= 16 && height >= if unavailable { 4 } else { 3 };
+                let expected = width >= 16 && height >= 3;
                 assert_eq!(
                     matches!(presentation, ModalPresentation::Presented(_)),
                     expected,

@@ -19,7 +19,7 @@ The Workspace sidebar admits right-click only for an exact, still-present row on
 current machine and painted Session. It uses the existing Workspace menu and never
 requests a machine or context switch on opening or cancellation.
 
-A context menu's frame title names its target; a Tab menu uses the Tab's shared displayed name, and a Workspace menu follows the Workspace's name as it changes under the open menu. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Zoom; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles, tooltips and shortcut help keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, then a separated Close. A reason row exists only while some row of the menu is unavailable.
+A context menu's frame title names its target; a Tab menu uses the Tab's shared displayed name, and a Workspace menu follows the Workspace's name as it changes under the open menu. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Zoom; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles, tooltips and shortcut help keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, then a separated Close. Which rows are available never changes a context menu's height: the candidate's reason takes the frame's bottom edge.
 
 A pointer-opened menu follows the press: its frame starts at the pressed column on the row below the complete painted trigger (a sidebar row, Tab or group header, otherwise the pressed cell), else ends on the row above it, and shifts left to stay inside the viewport. Height yields to scrolling before covering the trigger row; fewer than three rows on both sides keeps the existing recovery surface. A keyboard-opened sidebar row menu opens beside its row, top edge level with it, moving up only to fit; other keyboard menus stay centered. While a pointer-opened row menu is open, its row keeps the hover fill; a keyboard-opened one keeps the sidebar focus on its row. Placement changes no target or focus. `docs/tui/layout.md` owns the general geometry.
 
@@ -157,17 +157,17 @@ navigation marker) and one blank cell after the widest row's content, so no labe
 the right border; labels that exceed the available width truncate on grapheme boundaries with the
 theme's ellipsis.
 Selection fills the complete inner row and uses the shared navigation-marker track; hover uses the
-independent shared pointer state. A reason row is reserved only when the menu has unavailable
-actions, so hover never changes row geometry. Each frame derives its visible window from the current
-row budget. Keyboard navigation keeps the selected action visible, while a manually scrolled
+independent shared pointer state. The global menu reserves a reason row only when it has unavailable
+actions, and a context menu reserves none, so hover never changes row geometry. Each frame derives
+its visible window from the current row budget. Keyboard navigation keeps the selected action visible, while a manually scrolled
 viewport remains where the user placed it. The successful draw commits the exact first action,
 visible action count and selected action for pointer and activation admission; a larger frame fills
 available rows without changing selection.
 A cancellation or owner unavailability outcome appears once after the menu closes; it does not
 duplicate the open menu's footer or geometry-recovery status.
 A newly requested global menu that cannot present its title, a row and its exit instruction is refused
-with a localized notice. A context menu instead requires its border, at least one action row and
-any reserved reason row; its minimum complete frame is 16 columns by 3 rows without a reason.
+with a localized notice. A context menu instead requires its border and at least one action row;
+its minimum complete frame is 16 columns by 3 rows.
 If an admitted menu later becomes too small, it enters `Suspended`, retains
 its source, selection, viewport, parent and anchor, and accepts only its current local exit or return.
 Restoring sufficient geometry resumes the same menu incarnation after a fresh successful paint.
@@ -177,13 +177,19 @@ cancelling restores the ordinary pane projection without changing focus.
 Known unavailable actions use the full disabled text style, retaining its modifiers
 at every color level. They can be selected to read a localized reason; Enter or clicking keeps the menu open and
 cannot confirm or navigate. A fixed reason row leaves the global exit instruction and
-selection count visible even at the smallest presentable geometry, while a context menu reserves
-the reason without adding footer chrome. The global footer omits the Enter action
+selection count visible even at the smallest presentable geometry, while a context menu paints
+the reason on its bottom edge, where its heading sits on the top one, truncated to that edge,
+without adding a row or footer chrome. The global footer omits the Enter action
 for a disabled or offscreen selection.
 Actions unsupported by the current host are hidden rather than presented as disabled learning
 rows; no placeholder or unsupported-host reason row is emitted. Context-relevant
 actions whose ordinary prerequisites are unmet remain visible with their owner-derived disabled
 reason.
+
+A background publication read, such as the one a `cd` starts, disables no row. A row that leads to a
+setup request, such as Move to Project ▸ or Rename on a Project, stays enabled through it; a chosen
+one waits for the read to settle, ahead of any further background read, and captures its request
+from what the read installed. The Client's own refresh still reports the row busy.
 
 Browsing has no time limit: reading, selection, repainting and disabled activation
 do not start an execution timer. Confirming an available action creates one
@@ -243,14 +249,22 @@ a noncurrent Workspace. Empty conditional creation sections publish no orphan se
 Opening a Project or Workspace menu starts Git discovery of the addressed source. New Worktree…
 and Open Worktree ▸ stay disabled with a localized reason until discovery succeeds; a non-Git or
 failed source keeps them disabled, and Open Worktree ▸ also stays disabled while the Workspace's own
-checkout is the only one. A directory change of the first terminal keeps the menu open and starts
-discovery over: until the new answer arrives the rows keep the last one, enabled or disabled, and they change
-only if it differs. A row chosen meanwhile waits for that answer, bounded by discovery's 10 s deadline, and runs
-against it; an answer that no longer offers the row closes the menu with the localized unavailable notice.
+checkout is the only one. A Workspace menu opened from a sidebar row that already shows a branch for
+the directory it stands in starts both rows enabled instead; a row chosen before the first answer
+waits for it as below, and an answer that differs changes the rows then. A row without a branch proves
+nothing, because a folder outside Git and a detached HEAD both show none, so its menu waits for Git. A
+directory change of the first terminal keeps the menu open and starts discovery over, and an answer
+speaks only for where it was read. Until the new answer arrives the rows keep a success whose checkout
+contains the new directory, so a move inside a checkout neither greys them nor changes the height, and
+they change only if the answer differs. Any other move, or a failed answer, leaves them disabled until
+Git answers, and an open Open Worktree ▸ list closes. The sidebar row cannot decide this during a
+move, because it holds its old facts until its own read arrives. A row chosen meanwhile waits for the
+new answer, bounded by discovery's 10 s deadline, and runs only against it; an answer that no longer offers
+the row, or a move out of the checkout, closes the menu with the localized unavailable notice.
 Success enables them, appends the Git Worktrees group to New Workspace ▸ and, when the
 Workspace directory is a linked non-bare checkout, appends a destructive Remove Worktree… after
-Close Workspace…. New rows only follow existing ones, so no row above them moves; the reason row
-disappears once no row is unavailable, so the frame may shrink. Completion changes availability
+Close Workspace…. New rows only follow existing ones, so no row above them moves; that late row is
+the only thing discovery adds to a Workspace menu's height. Completion changes availability
 under a fresh menu token and requires repaint; it never changes the candidate or the selected
 action's identity.
 

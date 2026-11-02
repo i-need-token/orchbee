@@ -151,14 +151,10 @@ fn action_availability(
     {
         return ActionAvailability::Disabled(MenuUnavailable::NoMatchingTabs);
     }
-    if matches!(
-        action,
-        MenuAction::WorkspaceAtDirectory | MenuAction::WorkspaceInFolder(_)
-    ) || matches!(target, Target::Project { .. }) && action == MenuAction::QuickWorkspace
-    {
+    if setup_row(target, &action) {
         return ActionAvailability::from_disabled_reason(
             state
-                .is_none_or(|state| !state.quick_workspace_available())
+                .is_none_or(|state| !state.setup_row_available())
                 .then_some(MenuUnavailable::OperationBusy),
         );
     }
@@ -178,25 +174,6 @@ fn action_availability(
         });
         return ActionAvailability::from_disabled_reason(
             (!available).then_some(MenuUnavailable::OperationBusy),
-        );
-    }
-    if (matches!(target, Target::Project { .. })
-        && matches!(
-            action,
-            MenuAction::RenameProject | MenuAction::DeleteProject
-        ))
-        || matches!(
-            action,
-            MenuAction::WorkspaceProjects
-                | MenuAction::CreateWorkspaceProject
-                | MenuAction::LeaveWorkspaceProject
-                | MenuAction::JoinWorkspaceProject(_)
-        )
-    {
-        return ActionAvailability::from_disabled_reason(
-            state
-                .is_none_or(|state| !state.project_rename_available())
-                .then_some(MenuUnavailable::OperationBusy),
         );
     }
     if matches!(target, Target::Project { .. }) && action == MenuAction::WorkspaceCreation {
@@ -255,6 +232,23 @@ fn action_availability(
             DirectoryConfigurationUnavailable::Busy => MenuUnavailable::OperationBusy,
         },
     ))
+}
+
+/// A row that leads to a request of the setup owner, whose admission needs the refresh slot.
+fn setup_row(target: &Target, action: &MenuAction) -> bool {
+    matches!(
+        action,
+        MenuAction::WorkspaceAtDirectory
+            | MenuAction::WorkspaceInFolder(_)
+            | MenuAction::WorkspaceProjects
+            | MenuAction::CreateWorkspaceProject
+            | MenuAction::LeaveWorkspaceProject
+            | MenuAction::JoinWorkspaceProject(_)
+    ) || (matches!(target, Target::Project { .. })
+        && matches!(
+            action,
+            MenuAction::QuickWorkspace | MenuAction::RenameProject | MenuAction::DeleteProject
+        ))
 }
 
 fn visible_unavailable(
@@ -408,6 +402,18 @@ impl WorkbenchClientUi {
         }
         self.cancel_action_menu();
         self.note_action_menu_unavailable();
+    }
+
+    /// Whether a chosen row waits for the refresh slot, which no further background read may take.
+    pub(super) fn action_menu_awaits_refresh_slot(&self) -> bool {
+        self.menus.intent().is_some_and(|intent| {
+            matches!(intent.stage(), Stage::Offered(..))
+                && self
+                    .menus
+                    .menu
+                    .confirmed()
+                    .is_some_and(|action| setup_row(intent.target(), &action))
+        })
     }
 
     fn note_action_menu_unavailable(&mut self) {
@@ -1542,8 +1548,18 @@ impl WorkbenchClientUi {
             }
             _ => None,
         };
+        // Open Worktree ▸ lists what Git answers; a row enabled before the first answer waits for it.
+        if action == MenuAction::WorkspaceWorktrees
+            && self.menus.discovery()?.recognized().is_none()
+        {
+            return None;
+        }
         if let Some(child) = child {
             self.open_child_action_menu(child, action, pointer_released);
+            return None;
+        }
+        // The read settles on its own, and the request captures what it installed.
+        if setup_row(intent.target(), &action) && self.state.as_ref()?.background_refresh_only() {
             return None;
         }
         if matches!(

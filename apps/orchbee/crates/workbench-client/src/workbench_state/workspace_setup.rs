@@ -219,8 +219,21 @@ impl WorkbenchClientState {
             })
     }
     pub(crate) fn setup_authority_available(&self) -> bool {
-        self.pending_refresh.is_none()
-            && !self.workspace_close_blocks_structure()
+        self.pending_refresh.is_none() && self.setup_authority_quiet()
+    }
+
+    /// Whether a menu row that leads to a setup request stays enabled. A background publication
+    /// read settles on its own, so it is no reason to grey the row; the chosen row waits for it,
+    /// since the request's admission needs the refresh slot.
+    pub(crate) fn setup_row_available(&self) -> bool {
+        !self.own_refresh_pending()
+            && !self.setup_blocks_structure()
+            && self.setup_authority_quiet()
+            && self.invariant_holds()
+    }
+
+    fn setup_authority_quiet(&self) -> bool {
+        !self.workspace_close_blocks_structure()
             && self.pending_mutation.is_none()
             && self.pending_membership.is_none()
             && !self.recovery_fences(RecoveryFence::Setup)

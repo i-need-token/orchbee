@@ -34,6 +34,8 @@ pub(crate) struct CloseSetStatus {
     pub(crate) completed: usize,
     pub(crate) total: usize,
     pub(crate) halted: bool,
+    /// The one member whose submitted Close stopped short and may still finish.
+    pub(crate) unconfirmed: bool,
 }
 
 /// Current close feedback only; no target token or executable close authority.
@@ -78,23 +80,38 @@ impl Locale {
         }
     }
     /// A sequence of one Tab shows only its halt. The completed form replaces the running count, so
-    /// a finished close never reads as work that continues.
+    /// a finished close never reads as work that continues. A halted count names the Tabs left open
+    /// apart from the one submitted close whose outcome is still unknown.
     pub(crate) fn close_set_status(self, status: crate::localization::CloseSetStatus) -> String {
         let crate::localization::CloseSetStatus {
             completed,
             total,
             halted,
+            unconfirmed,
         } = status;
         let remaining = total.saturating_sub(completed);
+        let open = remaining.saturating_sub(usize::from(unconfirmed));
         match (self, halted, remaining) {
             (Self::EnUs, true, _) if total == 1 => "Close not confirmed".into(),
             (Self::ZhCn, true, _) if total == 1 => "关闭未确认".into(),
-            (Self::EnUs, true, _) => format!(
-                "Closing stopped: {completed} closed, {remaining} not confirmed closed. Submitted closes may continue."
-            ),
-            (Self::ZhCn, true, _) => format!(
-                "关闭已停止：{completed} 个已关闭，{remaining} 个未确认关闭。已提交的关闭操作可能继续。"
-            ),
+            (Self::EnUs, true, _) if unconfirmed && open == 0 => {
+                format!("Closing stopped: {completed} closed, 1 unconfirmed")
+            }
+            (Self::ZhCn, true, _) if unconfirmed && open == 0 => {
+                format!("关闭已停止：{completed} 个已关闭，1 个未确认")
+            }
+            (Self::EnUs, true, _) if unconfirmed => {
+                format!("Closing stopped: {completed} closed, 1 unconfirmed, {open} still open")
+            }
+            (Self::ZhCn, true, _) if unconfirmed => {
+                format!("关闭已停止：{completed} 个已关闭，1 个未确认，{open} 个仍打开")
+            }
+            (Self::EnUs, true, _) => {
+                format!("Closing stopped: {completed} closed, {open} still open")
+            }
+            (Self::ZhCn, true, _) => {
+                format!("关闭已停止：{completed} 个已关闭，{open} 个仍打开")
+            }
             (Self::EnUs, false, 0) => format!("{total} Tabs closed"),
             (Self::ZhCn, false, 0) => format!("已关闭 {total} 个标签页"),
             (Self::EnUs, false, _) => {

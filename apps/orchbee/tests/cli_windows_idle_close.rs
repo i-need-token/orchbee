@@ -27,6 +27,7 @@ const POLL: Duration = Duration::from_millis(50);
 const PROMPT_RETURN: Duration = Duration::from_secs(2);
 const CLOSE_TAB: &[u8] = b"\x02x";
 const CLOSE_PANEL: &[u8] = b"\x02X";
+const FOLLOWED: &str = "followed";
 
 struct Driver {
     fixture: Fixture,
@@ -158,6 +159,145 @@ impl Driver {
         });
     }
 
+    /// The Column of the Tab named `label`, one-based.
+    fn tab_column(&self, label: &str) -> usize {
+        let screen = self.screen();
+        let strip = screen.lines().next().unwrap();
+        let start = strip
+            .find(label)
+            .unwrap_or_else(|| panic!("no Tab {label}:\n{screen}"));
+        strip[..start].chars().count() + 1
+    }
+
+    /// Opens the menu of the Tab named `label` and clicks its row that shows `row_text`.
+    fn choose_in_tab_menu(&mut self, label: &str, row_text: &str) {
+        let column = self.tab_column(label);
+        self.pointer(35, column, 1);
+        self.pointer(2, column, 1);
+        thread::sleep(HOLD);
+        self.control
+            .input(format!("\x1b[<2;{column};1m").as_bytes());
+        let screen = self.await_screen(row_text, |screen| screen.contains(row_text));
+        let (row, column) = screen
+            .lines()
+            .enumerate()
+            .find_map(|(index, line)| {
+                let start = line.find(row_text)?;
+                Some((index + 1, line[..start].chars().count() + 2))
+            })
+            .unwrap();
+        self.click(column, row);
+    }
+
+    /// The labels of the Workspace's Tabs, as the Server holds them.
+    fn tab_labels(&self, workspace: &str) -> Vec<String> {
+        let read = self.fixture.run(&["api", "snapshot"]);
+        assert_eq!(read.code, Some(0), "{read}");
+        let snapshot = &read.document["result"]["snapshot"];
+        let context = snapshot["navigation"]["workspaces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|listed| listed["label"] == workspace)
+            .unwrap_or_else(|| panic!("no Workspace {workspace}: {snapshot}"))["terminalContextId"]
+            .clone();
+        snapshot["terminalContexts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|listed| listed["terminalContextId"] == context)
+            .unwrap_or_else(|| panic!("no context {context}: {snapshot}"))["tabs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|tab| tab["label"].as_str().unwrap_or_default().to_owned())
+            .collect()
+    }
+
+    /// Waits until the Server follows the Workspace's first terminal to `directory`.
+    fn await_followed(&self, workspace: &str, directory: &str) {
+        let spelled = |path: &str| path.replace('/', "\\").to_ascii_lowercase();
+        let expected = spelled(&self.fixture.path(directory));
+        let deadline = Instant::now() + LANDING;
+        loop {
+            let read = self.fixture.run(&["api", "snapshot"]);
+            assert_eq!(read.code, Some(0), "{read}");
+            let snapshot = &read.document["result"]["snapshot"];
+            let followed = snapshot["navigation"]["workspaces"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|listed| listed["label"] == workspace)
+                .and_then(|listed| listed["terminalDirectory"].as_str())
+                .is_some_and(|path| spelled(path) == expected);
+            if followed {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the first terminal never reached {expected}: {snapshot}"
+            );
+            thread::sleep(POLL);
+        }
+    }
+
+    /// A Workspace of four Tabs whose first terminal stands apart from the others, so closing it
+    /// makes the Server follow the next terminal while the sequence runs.
+    fn start_with_first_terminal_apart(prefix: &'static str) -> Self {
+        let fixture = Fixture::new(prefix, &["elsewhere"]);
+        let panel = fixture.workspace(FOLLOWED);
+        assert!(!panel.is_empty());
+        let tui = fixture.start_tui(COLUMNS, ROWS);
+        fixture.settle_ready(&tui.client);
+        let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
+        control.input(b"\x1b[I");
+        let mut driver = Self {
+            fixture,
+            tui,
+            control,
+        };
+        driver.await_screen("the first prompt", |screen| screen.contains("PS "));
+        for label in ["second", "third", "fourth"] {
+            driver.tab(FOLLOWED, label);
+        }
+        // Let every shell reach its prompt; the selected one already shows it.
+        thread::sleep(Duration::from_secs(5));
+        let elsewhere = driver.fixture.path("elsewhere");
+        driver.run_in_focus(&format!("cd '{elsewhere}'"), "elsewhere>");
+        driver.await_followed(FOLLOWED, "elsewhere");
+        driver
+    }
+
+    /// Closes the other Tabs of `second` from its menu and requires every one of them to go,
+    /// through the completed form, without the sequence ever reporting that it stopped.
+    fn close_others_of_second_completes(&mut self) {
+        self.choose_in_tab_menu("second", "Close 3 other Tabs");
+        self.await_screen("the set's confirmation", |screen| {
+            screen.contains("Close 3 Tabs?")
+        });
+        self.control.input(b"\r");
+        let deadline = Instant::now() + LANDING;
+        loop {
+            let screen = self.screen();
+            assert!(
+                !screen.contains("Closing stopped"),
+                "the set stopped partway:\n{screen}"
+            );
+            if screen.contains("3 Tabs closed") {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the set never finished:\n{screen}"
+            );
+            thread::sleep(POLL);
+        }
+        assert_eq!(self.tab_labels(FOLLOWED), ["second"]);
+        self.await_screen("the completed form to clear", |screen| {
+            !screen.contains("3 Tabs closed")
+        });
+    }
+
     fn finish(self) {
         self.control.release();
     }
@@ -165,6 +305,53 @@ impl Driver {
 
 fn strip_lacks(label: &'static str) -> impl Fn(&str) -> bool {
     move |screen| !screen.lines().next().unwrap().contains(label)
+}
+
+/// The retest's report: Tab 2's menu with Tab 4 selected, so the set closes the first terminal,
+/// then a background Tab, then the selected one.
+#[test]
+fn closing_the_other_tabs_finishes_when_the_first_terminal_is_among_them() {
+    let mut driver = Driver::start_with_first_terminal_apart("orchbee-set-first-");
+    let fourth = driver.tab_column("fourth");
+    driver.click(fourth, 1);
+    driver.await_screen("the fourth Tab selected", |screen| {
+        screen.lines().next().unwrap().contains("fourth [x]")
+    });
+    driver.close_others_of_second_completes();
+    driver.finish();
+}
+
+/// An outside rename mid-set stops what is left, reports it at this width, and leaves no report
+/// behind. The rename goes out right after the first close starts and lands well before the last.
+#[test]
+fn an_outside_change_stops_the_other_tabs_closing_and_its_report_clears() {
+    let mut driver = Driver::start_with_first_terminal_apart("orchbee-set-outside-");
+    driver.choose_in_tab_menu("second", "Close 3 other Tabs");
+    driver.await_screen("the set's confirmation", |screen| {
+        screen.contains("Close 3 Tabs?")
+    });
+    driver.control.input(b"\r");
+    let renamed = driver
+        .fixture
+        .run(&["workspace", "rename", FOLLOWED, "--label", "renamed"]);
+    assert_eq!(renamed.code, Some(0), "{renamed}");
+    driver.await_screen("the stopped set's report", |screen| {
+        screen.contains("Closing stopped: ") && screen.contains(" still open")
+    });
+    assert!(driver.tab_labels("renamed").contains(&"fourth".to_owned()));
+    driver.await_screen("the report to clear", |screen| {
+        !screen.contains("Closing stopped")
+    });
+    assert!(driver.tab_labels("renamed").contains(&"fourth".to_owned()));
+    driver.finish();
+}
+
+/// The same set closing the selected first Tab first, which moves the selection before the rest.
+#[test]
+fn closing_the_other_tabs_finishes_when_the_selected_first_terminal_is_among_them() {
+    let mut driver = Driver::start_with_first_terminal_apart("orchbee-set-selected-");
+    driver.close_others_of_second_completes();
+    driver.finish();
 }
 
 #[test]

@@ -535,16 +535,19 @@ impl WorkbenchClientState {
         // The single worker cannot execute a successor before consuming this exact UI reply.
         self.close.completed_handoff =
             Some(PendingCloseResult::new(operation.clone(), result.clone()));
-        if matches!(
+        let refused_start = matches!(
             result,
-            CloseResult::NotSubmitted
-                | CloseResult::Precommit(_)
-                | CloseResult::Resume(
-                    WorkbenchTabCloseResumeOutcome::Denied {}
-                        | WorkbenchTabCloseResumeOutcome::Unavailable { .. }
-                        | WorkbenchTabCloseResumeOutcome::Rejected { .. }
-                )
-        ) {
+            CloseResult::NotSubmitted | CloseResult::Precommit(_)
+        );
+        let refused_resume = matches!(
+            result,
+            CloseResult::Resume(
+                WorkbenchTabCloseResumeOutcome::Denied {}
+                    | WorkbenchTabCloseResumeOutcome::Unavailable { .. }
+                    | WorkbenchTabCloseResumeOutcome::Rejected { .. }
+            )
+        );
+        if refused_resume || (refused_start && !self.close.set_reports_refusal(operation)) {
             self.notice = Some(ClientNotice::CloseRequestNotApplied);
         }
         Ok(())

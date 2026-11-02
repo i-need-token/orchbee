@@ -29,7 +29,7 @@ pub(crate) use reconciliation::{
 };
 pub(crate) use set::CloseSetCapture;
 pub(crate) use set::CloseSetStatus;
-pub(crate) use set::{CloseSetKind, close_set_targets};
+pub(crate) use set::{CloseSetKind, close_set_premises_match, close_set_targets};
 
 const MAXIMUM_CLOSE_RECORDS: usize = 256;
 const DISPOSED_AUTO_ADMISSIONS: u8 = 32;

@@ -689,7 +689,7 @@ fn targeted_project_rename_preserves_nonfirst_tab_panel_and_settles_changed_focu
             assert!(state.setup_draft().is_none());
             assert!(state.settle_stale_project_rename());
             assert!(!state.setup_blocks_structure());
-            assert!(state.project_rename_available());
+            assert!(state.setup_row_available());
         } else {
             let known = operation
                 .known_commit(WorkbenchSetupCommit::ProjectRenamed {

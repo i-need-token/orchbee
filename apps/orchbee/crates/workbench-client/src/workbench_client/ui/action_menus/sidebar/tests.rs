@@ -414,6 +414,33 @@ fn ungrouped_git_workspace() -> (
     std::sync::Arc<crate::workbench_client::mailbox::CommandMailbox>,
     MenuTarget,
 ) {
+    let (mut ui, mailbox, _, target) = closed_ungrouped_git_workspace();
+    assert!(ui.open_action_menu(target.clone(), None, false));
+    (ui, mailbox, target)
+}
+
+/// That Workspace's menu, opened from a sidebar row that shows Git facts for `directory`.
+fn opened_on_sidebar_git(directory: &str) -> WorkbenchClientUi {
+    let (mut ui, _, _, target) = closed_ungrouped_git_workspace();
+    ui.observe_sidebar_git(Some(WorkbenchDirectoryPath::parse(directory).unwrap()));
+    assert!(ui.open_action_menu(target, None, false));
+    ui
+}
+
+/// Chooses the row that `action` names.
+fn choose(ui: &mut WorkbenchClientUi, action: &MenuAction) {
+    let token = draw(ui);
+    let source = ui.view().action_menu().unwrap().source.clone();
+    let index = row(ui, action);
+    ui.activate_action_menu_row(&source, token, index);
+}
+
+fn closed_ungrouped_git_workspace() -> (
+    WorkbenchClientUi,
+    std::sync::Arc<crate::workbench_client::mailbox::CommandMailbox>,
+    crate::local_client::LocalOperationClock,
+    MenuTarget,
+) {
     let mut snapshot = crate::workbench_state::worktree_launch::addressed::tests::fixture();
     let member = snapshot
         .navigation
@@ -427,11 +454,9 @@ fn ungrouped_git_workspace() -> (
         workspace_id: member.workspace_id.clone(),
         terminal_context_id: member.terminal_context_id.clone(),
     };
-    let (mut ui, mailbox, _, _) =
+    let (ui, mailbox, clock, _) =
         crate::workbench_client::ui::tests::move_membership::ready_ui_with_snapshot(snapshot);
-    let target = MenuTarget::Workspace(location);
-    assert!(ui.open_action_menu(target.clone(), None, false));
-    (ui, mailbox, target)
+    (ui, mailbox, clock, MenuTarget::Workspace(location))
 }
 
 /// The discovery the lane reports for that shell's cwd: the main checkout and one linked one.
@@ -542,7 +567,7 @@ fn unavailable(
 }
 
 #[test]
-fn a_directory_change_keeps_the_worktree_rows_until_the_new_answer_differs() {
+fn a_move_within_the_answered_checkout_keeps_the_worktree_rows_and_any_other_drops_them() {
     use crate::action_menu::MenuUnavailable;
     let rows = [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees];
     let (mut ui, _, _) = ungrouped_git_workspace();
@@ -573,20 +598,117 @@ fn a_directory_change_keeps_the_worktree_rows_until_the_new_answer_differs() {
         unavailable(&ui, &MenuAction::WorkspaceWorktrees),
         Some(MenuUnavailable::NoOtherWorktrees)
     );
-    first_terminal_moves(&mut ui, &label, "C:/plain");
-    assert_eq!(unavailable(&ui, &MenuAction::NewWorktree), None);
-    settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
-    assert_eq!(
-        unavailable(&ui, &MenuAction::NewWorktree),
-        Some(MenuUnavailable::WorktreeUnavailable)
-    );
 
-    // Walking between folders outside Git is no change either.
+    // A path that only starts like the checkout's, or climbs out of it, stands elsewhere.
+    for elsewhere in ["C:/first-repository-two", "C:/first-repository/../plain"] {
+        first_terminal_moves(&mut ui, &label, elsewhere);
+        for action in &rows {
+            assert_eq!(
+                unavailable(&ui, action),
+                Some(MenuUnavailable::WorktreeChecking),
+                "{action:?} in {elsewhere}"
+            );
+        }
+        let answer = answer_where_it_stands(&ui, 2);
+        settle(&mut ui, Ok(Box::new(answer)));
+    }
+    // The shell's own spelling of a directory in the checkout stands in it.
+    first_terminal_moves(&mut ui, &label, "c:\\First-Repository\\sub");
+    assert_eq!(unavailable(&ui, &MenuAction::NewWorktree), None);
+    let answer = answer_where_it_stands(&ui, 2);
+    settle(&mut ui, Ok(Box::new(answer)));
+
+    // Leaving for a folder outside Git leaves nothing of what Git said about the repository.
+    first_terminal_moves(&mut ui, &label, "C:/plain");
+    for action in &rows {
+        assert_eq!(
+            unavailable(&ui, action),
+            Some(MenuUnavailable::WorktreeChecking),
+            "{action:?} during the read"
+        );
+    }
+    settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
+    for action in &rows {
+        assert_eq!(
+            unavailable(&ui, action),
+            Some(MenuUnavailable::WorktreeUnavailable),
+            "{action:?} after the read"
+        );
+    }
+
+    // No answer about one folder speaks for another, in or out of Git.
     first_terminal_moves(&mut ui, &label, "C:/plain/deeper");
     assert_eq!(
         unavailable(&ui, &MenuAction::NewWorktree),
-        Some(MenuUnavailable::WorktreeUnavailable)
+        Some(MenuUnavailable::WorktreeChecking)
     );
+    settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
+    first_terminal_moves(&mut ui, &label, "C:/first-repository/back");
+    assert_eq!(
+        unavailable(&ui, &MenuAction::NewWorktree),
+        Some(MenuUnavailable::WorktreeChecking)
+    );
+    let answer = answer_where_it_stands(&ui, 2);
+    settle(&mut ui, Ok(Box::new(answer)));
+    for action in &rows {
+        assert_eq!(unavailable(&ui, action), None, "{action:?} back in Git");
+    }
+}
+
+/// A row chosen on an answer the Workspace then left, or that Git no longer repeats, closes the menu
+/// with the notice at once; it neither runs nor waits out the menu's deadline.
+#[test]
+fn a_chosen_row_never_acts_on_what_git_said_about_another_directory() {
+    let closed_with_the_notice = |ui: &mut WorkbenchClientUi| {
+        assert!(ui.take_action_menu_action(false).is_none());
+        assert!(!ui.action_menu_active());
+        assert!(ui.worktrees.launcher.view().is_none());
+        assert_eq!(
+            ui.command_notice.current(ui.clock.now()),
+            Some(crate::localization::WorkbenchClientNotice::MenuUnavailable)
+        );
+    };
+    let on_the_checkout_list = || {
+        let (mut ui, _, _) = ungrouped_git_workspace();
+        let discovery = workspace_discovery(&ui);
+        settle(&mut ui, Ok(Box::new(discovery)));
+        choose(&mut ui, &MenuAction::WorkspaceWorktrees);
+        assert!(ui.take_action_menu_action(false).is_none(), "a submenu");
+        ui
+    };
+    let linked = MenuAction::OpenWorktreeAt(WorkbenchDirectoryPath::parse("C:/trees/猫").unwrap());
+
+    // Chosen on what the sidebar showed, then the Workspace leaves before Git answers.
+    let mut ui = opened_on_sidebar_git(SIDEBAR_DIRECTORY);
+    let label = ui.view().action_menu().unwrap().title.to_owned();
+    choose(&mut ui, &MenuAction::NewWorktree);
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(ui.action_menu_active(), "it waits for the answer");
+    first_terminal_moves(&mut ui, &label, "C:/plain");
+    closed_with_the_notice(&mut ui);
+
+    // An open list of the repository's checkouts ends when the Workspace leaves it.
+    let mut ui = on_the_checkout_list();
+    first_terminal_moves(&mut ui, "plain", "C:/plain");
+    assert!(!ui.action_menu_active());
+    assert!(ui.worktrees.launcher.view().is_none());
+
+    // A listed checkout chosen after a move within the checkout waits for the new answer.
+    let mut ui = on_the_checkout_list();
+    first_terminal_moves(&mut ui, "sub", "C:/first-repository/sub");
+    choose(&mut ui, &linked);
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(ui.action_menu_active(), "it waits for the answer");
+    settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
+    closed_with_the_notice(&mut ui);
+
+    let mut ui = on_the_checkout_list();
+    first_terminal_moves(&mut ui, "sub", "C:/first-repository/sub");
+    choose(&mut ui, &linked);
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(ui.action_menu_active(), "it waits for the answer");
+    first_terminal_moves(&mut ui, "plain", "C:/plain");
+    closed_with_the_notice(&mut ui);
 }
 
 #[test]
@@ -660,6 +782,149 @@ fn a_chosen_checkout_the_new_answer_no_longer_lists_is_reported() {
     assert_eq!(
         ui.command_notice.current(ui.clock.now()),
         Some(crate::localization::WorkbenchClientNotice::MenuUnavailable)
+    );
+}
+
+const SIDEBAR_DIRECTORY: &str = "C:/first-repository";
+
+#[test]
+fn rows_the_sidebar_knows_in_git_start_enabled_and_a_chosen_one_waits_for_the_answer() {
+    use crate::action_menu::MenuUnavailable;
+    let rows = [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees];
+
+    // Nothing changes when Git agrees, and Open Worktree ▸ waits for the checkouts it lists.
+    let mut ui = opened_on_sidebar_git(SIDEBAR_DIRECTORY);
+    for action in &rows {
+        assert_eq!(unavailable(&ui, action), None, "{action:?} before the read");
+    }
+    let token = draw(&mut ui);
+    let answer = workspace_discovery(&ui);
+    settle(&mut ui, Ok(Box::new(answer.clone())));
+    assert_eq!(ui.view().action_menu().unwrap().token, token);
+
+    let mut ui = opened_on_sidebar_git(SIDEBAR_DIRECTORY);
+    choose(&mut ui, &MenuAction::WorkspaceWorktrees);
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert_eq!(ui.view().action_menu_cascade().len(), 0, "it waits");
+    assert!(ui.action_menu_active());
+    settle(&mut ui, Ok(Box::new(answer.clone())));
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(matches!(
+        ui.view().action_menu().unwrap().source,
+        MenuTarget::WorkspaceWorktrees(_)
+    ));
+
+    // An answer that no longer offers the chosen row closes the menu and says so.
+    let mut only = answer;
+    only.discovery.entries.truncate(1);
+    let mut ui = opened_on_sidebar_git(SIDEBAR_DIRECTORY);
+    choose(&mut ui, &MenuAction::WorkspaceWorktrees);
+    assert!(ui.take_action_menu_action(false).is_none());
+    settle(&mut ui, Ok(Box::new(only.clone())));
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(!ui.action_menu_active());
+    assert_eq!(
+        ui.command_notice.current(ui.clock.now()),
+        Some(crate::localization::WorkbenchClientNotice::MenuUnavailable)
+    );
+
+    // An answer that differs changes the rows it concerns, and the rows it leaves stay.
+    let mut ui = opened_on_sidebar_git(SIDEBAR_DIRECTORY);
+    settle(&mut ui, Ok(Box::new(only)));
+    assert_eq!(unavailable(&ui, &MenuAction::NewWorktree), None);
+    assert_eq!(
+        unavailable(&ui, &MenuAction::WorkspaceWorktrees),
+        Some(MenuUnavailable::NoOtherWorktrees)
+    );
+    let mut ui = opened_on_sidebar_git(SIDEBAR_DIRECTORY);
+    settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
+    assert_eq!(
+        unavailable(&ui, &MenuAction::NewWorktree),
+        Some(MenuUnavailable::WorktreeUnavailable)
+    );
+
+    // A `cd` below that directory before the first answer leaves the rows as they are, and any
+    // other leaves nothing of what the sidebar showed.
+    let mut ui = opened_on_sidebar_git(SIDEBAR_DIRECTORY);
+    let label = ui.view().action_menu().unwrap().title.to_owned();
+    first_terminal_moves(&mut ui, &label, "C:/first-repository/sub");
+    for action in &rows {
+        assert_eq!(unavailable(&ui, action), None, "{action:?} after the move");
+    }
+    first_terminal_moves(&mut ui, &label, "C:/plain");
+    for action in &rows {
+        assert_eq!(
+            unavailable(&ui, action),
+            Some(MenuUnavailable::WorktreeChecking),
+            "{action:?} after leaving"
+        );
+    }
+
+    // Facts about another directory say nothing about this one.
+    let ui = opened_on_sidebar_git("C:/elsewhere");
+    for action in &rows {
+        assert_eq!(
+            unavailable(&ui, action),
+            Some(MenuUnavailable::WorktreeChecking)
+        );
+    }
+}
+
+#[test]
+fn a_background_read_greys_no_setup_row_and_a_chosen_one_waits_for_it() {
+    use crate::action_menu::MenuUnavailable;
+    use crate::workbench_client::ui::tests::refresh_gating::{
+        background_read, settle_background_read,
+    };
+    let (mut ui, mailbox, clock, target) = closed_ungrouped_git_workspace();
+    assert!(ui.open_action_menu(target, None, false));
+    let token = draw(&mut ui);
+    let mut snapshot = ui
+        .state
+        .as_ref()
+        .unwrap()
+        .cache()
+        .canonical_snapshot()
+        .clone();
+
+    let read = background_read(&mut ui, &mailbox);
+    assert!(ui.state.as_ref().unwrap().background_refresh_only());
+    ui.drive_action_menu();
+    assert_eq!(unavailable(&ui, &MenuAction::WorkspaceProjects), None);
+    assert_eq!(
+        ui.view().action_menu().unwrap().token,
+        token,
+        "nothing to repaint"
+    );
+
+    // Move to Project opens at once. The row with an effect holds what it needs until the read
+    // settled, and no further read overtakes it.
+    choose(&mut ui, &MenuAction::WorkspaceProjects);
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(matches!(
+        ui.view().action_menu().unwrap().source,
+        MenuTarget::WorkspaceProjects(_)
+    ));
+    assert_eq!(unavailable(&ui, &MenuAction::CreateWorkspaceProject), None);
+    choose(&mut ui, &MenuAction::CreateWorkspaceProject);
+    assert!(ui.take_action_menu_action(false).is_none(), "it waits");
+    assert!(ui.action_menu_active());
+    assert!(ui.background_reads_yield());
+    snapshot.revision =
+        orchbee_workbench_protocol::WorkbenchRevision::new(snapshot.revision.value() + 1);
+    settle_background_read(&mut ui, &mailbox, &clock, read, snapshot, true);
+    assert!(
+        ui.take_action_menu_action(false).is_some(),
+        "the request runs against what the read installed"
+    );
+
+    // The Client's own read still makes the row busy.
+    let (mut ui, _, _) = ungrouped_git_workspace();
+    assert!(ui.state.as_mut().unwrap().start_pending_refresh(44));
+    ui.drive_action_menu();
+    assert_eq!(
+        unavailable(&ui, &MenuAction::WorkspaceProjects),
+        Some(MenuUnavailable::OperationBusy)
     );
 }
 

@@ -1,13 +1,17 @@
 //! One confirmed, frozen Tab set advances through existing single-Tab Close and membership owners.
-//! A halt stops new submissions, never cancels or discards a submitted Close's recovery facts.
+//! A halt stops new submissions, never cancels or discards a submitted Close's recovery facts. The
+//! Server's own following of a first terminal is no outside change: it stops nothing.
 use super::{
     ClientTerminalBinding, CloseConfirmation, CloseConfirmationToken, CloseFlightKey, CloseIntent,
     CloseOperation, CloseOperationKind, CloseResult, CloseSelection, CloseState, CloseStateError,
     CloseTarget, PaneKey, WorkbenchLabel, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchTabClosePublicationReason, WorkbenchTabCloseStatus, WorkbenchTabId,
 };
+use crate::exchange_values::workbench::WorkbenchTabClosePrecommit;
 use crate::workbench_state::{ClientPhase, PaneRef, WorkbenchClientState};
-use orchbee_workbench_protocol::{Snapshot, TerminalPresentationId, WorkbenchTabCloseReadOutcome};
+use orchbee_workbench_protocol::{
+    Snapshot, TerminalPresentationId, WorkbenchRejectionReason, WorkbenchTabCloseReadOutcome,
+};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -61,6 +65,32 @@ pub(crate) fn close_set_targets(
         })
         .map(|(_, tab)| tab.tab_id.clone())
         .collect()
+}
+
+/// Whether `current` is `source` but for what the Server publishes on its own as a first terminal
+/// moves: the revision, each Workspace's followed directory and an automatic Workspace name. A
+/// close of a first terminal causes exactly that, in a revision of its own and at a moment of its
+/// own. Every other difference, whoever made it, is one the frozen set did not agree to.
+pub(crate) fn close_set_premises_match(current: &Snapshot, source: &Snapshot) -> bool {
+    let mut followed = source.clone();
+    followed.revision = current.revision;
+    for workspace in &mut followed.navigation.workspaces {
+        let Some(moved) = current
+            .navigation
+            .workspaces
+            .iter()
+            .find(|moved| moved.workspace_id == workspace.workspace_id)
+        else {
+            return false;
+        };
+        workspace
+            .terminal_directory
+            .clone_from(&moved.terminal_directory);
+        if workspace.automatic_label && moved.automatic_label {
+            workspace.label.clone_from(&moved.label);
+        }
+    }
+    &followed == current
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -125,10 +155,11 @@ pub(super) struct CloseSetRun {
     completed: usize,
     deadline: Instant,
     step: Step,
-    summary: CompletedSummary,
+    summary: SettledSummary,
 }
 
-enum CompletedSummary {
+/// The report of a set with nothing left in flight, which clears like any other bounded notice.
+enum SettledSummary {
     Pending,
     Until(Instant),
     Hidden,
@@ -152,6 +183,7 @@ impl CloseSetRun {
                 completed: self.completed,
                 total: self.capture.tabs.len(),
                 halted: true,
+                unconfirmed: true,
             })
     }
 
@@ -210,6 +242,15 @@ impl CloseState {
         }
         match result {
             CloseResult::Accepted(_) if start == operation.key() => {}
+            // The Server refused this request whole, so it can go again under a new identity; its
+            // preflight then decides whether what moved the revision still lets it. One Tab has
+            // no sequence to keep alive and reports the refusal instead.
+            CloseResult::Precommit(WorkbenchTabClosePrecommit::Rejected {
+                reason: WorkbenchRejectionReason::RevisionMismatch,
+                ..
+            }) if start == operation.key() && set.capture.tabs.len() > 1 => {
+                set.step = Step::Ready;
+            }
             CloseResult::Read(WorkbenchTabCloseReadOutcome::Available { status, .. }) => {
                 match status {
                     WorkbenchTabCloseStatus::Closing { .. }
@@ -232,6 +273,36 @@ impl CloseState {
             }
             // This Close continuation requires the corresponding published receipt; other child states cannot prove final disposal.
             _ => set.halt(),
+        }
+    }
+
+    /// Whether this refused Start is already on the status line, as the count of several Tabs that
+    /// stopped or as a sequence that goes on. Any other refusal reports through a notice.
+    pub(super) fn set_reports_refusal(&self, operation: &CloseOperation) -> bool {
+        self.set.as_ref().is_some_and(|set| {
+            set.capture.tabs.len() > 1
+                && match &set.step {
+                    Step::Ready => true,
+                    Step::Halted {
+                        awaiting: Some(key),
+                    } => key == operation.key(),
+                    _ => false,
+                }
+        })
+    }
+
+    /// Whether the halted member's submitted Close may still finish.
+    fn set_unconfirmed(&self, set: &CloseSetRun) -> bool {
+        set.halted_target()
+            .is_some_and(|target| self.record_index(target).is_some())
+    }
+
+    /// Whether the set's report is final: it finished, or it stopped with nothing left in flight.
+    fn set_settled(&self, set: &CloseSetRun) -> bool {
+        match set.step {
+            Step::Complete => true,
+            Step::Halted { .. } => !self.set_unconfirmed(set),
+            _ => false,
         }
     }
 }
@@ -396,7 +467,7 @@ impl WorkbenchClientState {
             completed: 0,
             deadline: operation.deadline(),
             step: Step::Waiting(operation.key().clone()),
-            summary: CompletedSummary::Pending,
+            summary: SettledSummary::Pending,
         });
     }
 
@@ -429,6 +500,7 @@ impl WorkbenchClientState {
     }
 
     /// Only a correlated membership install can advance the frozen source or expected local focus.
+    /// It adopts what it installed, so the Server's own following stays out of every later check.
     pub(in crate::workbench_state) fn installed_close_set_member(&mut self, target: &CloseTarget) {
         let Some(set) = &self.close.set else {
             return;
@@ -464,12 +536,13 @@ impl WorkbenchClientState {
                     .iter()
                     .any(|tab| tab.group_id.as_ref() == Some(&group.group_id))
         });
-        let sequential = expected.revision.value().checked_add(1) == Some(revision.value());
-        expected.revision = *revision;
-        if !sequential || self.cache.canonical_snapshot() != &expected {
+        if self.cache.revision() < *revision
+            || !close_set_premises_match(self.cache.canonical_snapshot(), &expected)
+        {
             self.close.halt_set();
             return;
         }
+        let installed = Arc::new(self.cache.canonical_snapshot().clone());
         let marked = self.close_set_marks();
         let focus = self.close_set_focus();
         let set = self
@@ -477,7 +550,7 @@ impl WorkbenchClientState {
             .set
             .as_mut()
             .expect("the inspected coordinator remains owned here");
-        set.source = Arc::new(expected);
+        set.source = installed;
         set.focus = focus;
         set.marked = marked;
         set.step = if set.completed == set.capture.tabs.len() {
@@ -488,19 +561,24 @@ impl WorkbenchClientState {
     }
 
     pub(crate) fn settle_close_set(&mut self, now: Instant) -> bool {
+        let settled = self
+            .close
+            .set
+            .as_ref()
+            .is_some_and(|set| self.close.set_settled(set));
         let Some(set) = &mut self.close.set else {
             return false;
         };
-        if matches!(set.step, Step::Complete) {
+        if settled {
             return match set.summary {
-                CompletedSummary::Pending => {
+                SettledSummary::Pending => {
                     set.summary = now
                         .checked_add(Duration::from_secs(5))
-                        .map_or(CompletedSummary::Hidden, CompletedSummary::Until);
+                        .map_or(SettledSummary::Hidden, SettledSummary::Until);
                     true
                 }
-                CompletedSummary::Until(until) if now >= until => {
-                    set.summary = CompletedSummary::Hidden;
+                SettledSummary::Until(until) if now >= until => {
+                    set.summary = SettledSummary::Hidden;
                     true
                 }
                 _ => false,
@@ -536,37 +614,38 @@ impl WorkbenchClientState {
     }
 
     pub(crate) fn close_set_summary_deadline(&self) -> Option<Instant> {
-        let set = self.close.set.as_ref()?;
-        match (&set.step, &set.summary) {
-            (Step::Complete, CompletedSummary::Until(until)) => Some(*until),
+        match self.close.set.as_ref()?.summary {
+            SettledSummary::Until(until) => Some(until),
             _ => None,
         }
     }
 
     /// Display retirement is independent of retained counts and CloseRecord recovery facts.
     pub(crate) fn dismiss_close_set_summary(&mut self) {
+        let settled = self
+            .close
+            .set
+            .as_ref()
+            .is_some_and(|set| self.close.set_settled(set));
         if let Some(set) = &mut self.close.set
-            && matches!(set.step, Step::Complete)
+            && settled
         {
-            set.summary = CompletedSummary::Hidden;
+            set.summary = SettledSummary::Hidden;
         }
     }
 
     /// The count the status line shows. One Tab has no count to report: it speaks only when its
     /// retained close stopped short, and a refused close already left its own notice. Nothing is
-    /// left to report once every Tab is confirmed closed, whatever stopped the sequence.
+    /// left to report once every Tab is confirmed closed, whatever stopped the sequence, and a
+    /// final report clears with its summary. A submitted close that may still finish stays.
     pub(super) fn close_set_display_status(&self) -> Option<CloseSetStatus> {
         let set = self.close.set.as_ref()?;
-        if matches!(
-            (&set.step, &set.summary),
-            (Step::Complete, CompletedSummary::Hidden)
-        ) {
+        if matches!(set.summary, SettledSummary::Hidden) {
             return None;
         }
         let status = self.close_set_status()?;
         let visible = if status.total == 1 {
-            set.halted_target()
-                .is_some_and(|target| self.close.record_index(target).is_some())
+            status.unconfirmed
         } else {
             status.completed < status.total || !status.halted
         };
@@ -652,6 +731,7 @@ impl WorkbenchClientState {
             completed: set.completed,
             total: set.capture.tabs.len(),
             halted: matches!(set.step, Step::Halted { .. }),
+            unconfirmed: self.close.set_unconfirmed(set),
         })
     }
 }

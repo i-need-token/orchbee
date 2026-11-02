@@ -10,6 +10,7 @@ use crate::local_client::workbench::{
 use crate::workbench_client::mailbox::{CommandLease, MutationResult, UiReply};
 use crate::workbench_state::{
     CarrierFailure, CloseOperation, CloseOperationKind, CloseResult, PendingCloseResult,
+    close_set_premises_match,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchTabCloseRead,
@@ -75,25 +76,32 @@ impl ClientExecutor {
         let request_id = operation.key().request_id().clone();
         let result = match operation.kind() {
             CloseOperationKind::Close => {
+                let mut expected_revision = operation.selection().base_revision();
                 if let Some(source) = operation.set_source() {
                     let read_id = self
                         .mailbox
                         .allocate_workbench_request_id()
                         .map_err(closed)?;
                     let outcome = self.read_workbench_before(read_id, cutoff)?;
-                    if !matches!(outcome, orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available { ref snapshot } if snapshot == source)
-                    {
+                    let orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available {
+                        snapshot,
+                    } = outcome
+                    else {
+                        return Ok((CloseResult::NotSubmitted, None));
+                    };
+                    if !close_set_premises_match(&snapshot, source) {
                         return Ok((CloseResult::NotSubmitted, None));
                     }
-                    // This read reserves nothing. The existing Tab Close revision CAS remains
-                    // the only admission authority; a later RevisionMismatch is never retried.
+                    // This read reserves nothing. The existing Tab Close revision CAS remains the
+                    // only admission authority, at the revision this read just proved acceptable.
+                    expected_revision = snapshot.revision;
                     self.ensure_before(cutoff)?;
                 }
                 let request = WorkbenchTabCloseRequest::try_from(WorkbenchCommand {
                     protocol_version: ProtocolVersion,
                     request_id,
                     session_id: target.session_id().clone(),
-                    expected_revision: operation.selection().base_revision(),
+                    expected_revision,
                     action: WorkbenchAction::TabClose {
                         terminal_context_id: target.terminal_context_id().clone(),
                         tab_id: target.tab_id().clone(),

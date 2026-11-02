@@ -190,9 +190,11 @@ impl WorkbenchClientUi {
         self.held_intents.navigation_until = None;
     }
 
-    /// Background reads wait while a held invocation or retrying navigation needs the slot.
+    /// Background reads wait while a held invocation, a chosen menu row or retrying navigation
+    /// needs the slot.
     pub(super) fn background_reads_yield(&self) -> bool {
         self.held_intents.held.is_some()
+            || self.action_menu_awaits_refresh_slot()
             || self
                 .held_intents
                 .navigation_until

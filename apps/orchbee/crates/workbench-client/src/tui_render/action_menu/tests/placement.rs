@@ -368,6 +368,51 @@ fn cascade_opens_level_with_its_row_right_else_left_else_over_the_parent_end() {
     }
 }
 
+/// The grey row and the moment it stops being grey leave every painted cell of the frame's
+/// geometry alone: the reason takes the bottom edge, and only for the candidate.
+#[test]
+fn a_context_menu_keeps_its_height_and_shows_a_reason_on_its_bottom_edge() {
+    let theme = Theme::terminal_native();
+    let anchor = MenuAnchor::Pointer { column: 6, row: 2 };
+    let reason = MenuUnavailable::WorktreeChecking;
+    let mut menu = project_menu(anchor);
+    menu.select_action(MenuAction::RenameProject);
+    let bottom = |painted: &Painted| {
+        let frame = painted.frame(u16::try_from(PROJECT_ACTIONS.len()).unwrap() + 1);
+        (frame, frame.bottom() - 1)
+    };
+    let enabled = paint((80, 24), None, menu.view().unwrap(), &[], &theme);
+    let (frame, edge) = bottom(&enabled);
+    let line = |painted: &Painted, y: u16| -> String {
+        (frame.x..frame.right())
+            .map(|x| painted.buffer[(x, y)].symbol())
+            .collect()
+    };
+    let border = line(&enabled, edge);
+    assert!(border.starts_with(theme.corners.to_border_set().bottom_left));
+
+    menu.refresh_availability(|action| {
+        matches!(action, MenuAction::RenameProject).then_some(reason)
+    });
+    let greyed = paint((80, 24), None, menu.view().unwrap(), &[], &theme);
+    let (greyed_frame, greyed_edge) = bottom(&greyed);
+    assert_eq!(greyed_frame, frame, "the frame stays where it was");
+    assert_eq!(greyed_edge, edge);
+    let painted = line(&greyed, edge);
+    assert!(
+        painted.contains(Locale::EnUs.menu_unavailable(reason, false)),
+        "{painted}"
+    );
+    assert!(painted.starts_with(theme.corners.to_border_set().bottom_left));
+    assert!(painted.ends_with(theme.corners.to_border_set().bottom_right));
+
+    // Off the grey row, the edge is a plain border again.
+    menu.select_action(MenuAction::DeleteProject);
+    let elsewhere = paint((80, 24), None, menu.view().unwrap(), &[], &theme);
+    assert_eq!(bottom(&elsewhere).0, frame);
+    assert_eq!(line(&elsewhere, edge), border);
+}
+
 #[test]
 fn clicked_submenu_paints_no_candidate_or_reason_until_a_key_reveals_its_first_row() {
     let theme = Theme::terminal_native();

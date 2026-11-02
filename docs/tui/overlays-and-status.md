@@ -40,8 +40,9 @@ An overlay is one bordered region with the following reusable slots. Required sl
 present; optional slots are omitted without reordering the remaining slots or recreating them
 inside content.
 
-Context menus use a compact composition instead: a rectangular border whose top edge names the
-root menu's target, action rows and any owner-required reason row. Because the border already names
+Context menus use a compact composition instead: action rows in a rectangular border whose top edge
+names the root menu's target. An owner-required reason takes the bottom edge rather than a row, so
+availability never changes the frame's height. Because the border already names
 the target, a row that acts on that target alone shows only its verb, such as `Rename` or `Close`;
 rows that name another object or a counted set keep their full text. Global discovery, dialog
 titles and tooltips keep the object noun. Separators and `text-secondary`

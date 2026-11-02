@@ -138,8 +138,8 @@ instead of presenting an incomplete task.
   opened. The triggering action reports its refusal through the status line and performs no domain
   effect. An already-open overlay follows the suspension contract in
   [`overlays-and-status.md`](overlays-and-status.md#lifecycle-and-return).
-  A compact context menu instead needs one complete action row, its frame and any reserved reason;
-  it allocates no title or footer rows and never publishes controls that did not fit. A cascade is
+  A compact context menu instead needs one complete action row and its frame; it allocates no
+  title, footer or reason rows and never publishes controls that did not fit. A cascade is
   presented only when every one of its frames fits.
 - The overlay clears the cells beneath it before drawing so pane content never shows through.
 - Capturing overlays retain a visible, current mode indicator and exit hint; compact context menus

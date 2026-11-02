@@ -184,8 +184,11 @@ These pre-submit choices freeze exact Project identity and ordered members, addr
 Context, first primary binding and directory proof. Membership, order, removal, rebind or source
 drift retires them; unrelated canonical writes do not become source drift. A followed directory
 change, and the automatic label it moves, keeps an open menu and starts its discovery over: the rows
-keep the last answer until the new one arrives, and a row chosen meanwhile waits for it and runs
-against it. A launch form already open reports the source change at Start. Sidebar preparation uses
+keep a success only while its checkout contains the new directory, and otherwise stay disabled until
+Git answers. A row chosen meanwhile waits for the new answer and runs only against it. A sidebar row
+that already shows a branch for the directory it stands in opens its menu with those rows enabled,
+under the same wait for the first answer. A launch form already open reports the
+source change at Start. Sidebar preparation uses
 the existing background Worktree lane's own authenticated Session and a temporary read-only Viewer,
 released after root samples before and after Git. It never borrows the interactive Viewer or its
 controller. Every failure path detaches or retires that auxiliary Session within the original bounded

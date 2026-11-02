@@ -352,6 +352,13 @@ pub trait TerminalInputPort {
         None
     }
 
+    /// Where the sidebar row of the menu about to open stands, while it shows Git facts for it.
+    fn observe_sidebar_git(
+        &mut self,
+        _directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
+    ) {
+    }
+
     fn open_action_menu(
         &mut self,
         _target: crate::action_menu::MenuTarget,

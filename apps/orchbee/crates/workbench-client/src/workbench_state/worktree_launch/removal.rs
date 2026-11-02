@@ -76,6 +76,25 @@ pub(super) fn same_checkout(directory: &str, checkout: &str) -> bool {
     orchbee_workbench_protocol::same_windows_path_spelling(directory, checkout)
 }
 
+/// Whether `directory` is `checkout` or lies below it, under the same two spelling rules. A dot
+/// component may climb out, so a path with one is not inside.
+pub(super) fn inside_checkout(directory: &str, checkout: &str) -> bool {
+    let below = |directory: &str, checkout: &str| {
+        directory
+            .strip_prefix(checkout.trim_end_matches('/'))
+            .is_some_and(|rest| {
+                rest.trim_end_matches('/').is_empty()
+                    || (rest.starts_with('/')
+                        && rest.split('/').all(|part| part != "." && part != ".."))
+            })
+    };
+    if directory.starts_with('/') || checkout.starts_with('/') {
+        return below(directory, checkout);
+    }
+    let spelled = |path: &str| path.replace('\\', "/").to_ascii_lowercase();
+    below(&spelled(directory), &spelled(checkout))
+}
+
 fn resumable(op: &Operation) -> bool {
     op.plan.removal.is_some()
         && op.attempt < MAXIMUM_WORKTREE_OPERATION_ATTEMPTS

@@ -881,6 +881,14 @@ impl TerminalInputPort for WorkbenchClient {
     ) -> Option<ClientAction> {
         self.backend.native_mut()?.tab_create_action(target)
     }
+    fn observe_sidebar_git(
+        &mut self,
+        directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
+    ) {
+        if let Some(native) = self.backend.native_mut() {
+            native.observe_sidebar_git(directory);
+        }
+    }
     fn open_action_menu(
         &mut self,
         target: crate::action_menu::MenuTarget,

@@ -25,6 +25,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     style::{Modifier, Style},
+    text::{Line, Span},
     widgets::{Clear, Padding, Paragraph},
 };
 
@@ -341,11 +342,13 @@ fn measure<'v>(
     let width = u16::try_from(desired.max(26))
         .unwrap_or(u16::MAX)
         .min(content.width);
-    // The reason row exists only while one of the rows is unavailable.
+    // The global menu's reason row exists only while one of the rows is unavailable. A context menu
+    // keeps its height whatever its rows' availability: the reason takes the frame's bottom edge.
     let reason_rows = usize::from(
-        result_actions
-            .iter()
-            .any(|index| menu.unavailable[*index].is_some()),
+        !menu.context_menu
+            && result_actions
+                .iter()
+                .any(|index| menu.unavailable[*index].is_some()),
     );
     let search_rows = usize::from(menu.query.is_some());
     let result_row_count = if result_actions.is_empty() {
@@ -751,6 +754,32 @@ impl Chrome {
     }
 }
 
+/// A context menu's reason sits on its bottom edge, as its heading does on the top one.
+fn paint_edge_reason(frame: &mut Frame<'_>, area: Rect, reason: &str, theme: &Theme) {
+    let line = Line::from(vec![
+        Span::styled(
+            theme.corners.to_border_set().horizontal_bottom,
+            theme.style(Role::FrameUnfocused),
+        ),
+        Span::raw(" "),
+        Span::styled(
+            truncate_display(
+                reason,
+                usize::from(area.width).saturating_sub(6),
+                theme.glyphs.ellipsis,
+            ),
+            theme.style(Role::TextSecondary),
+        ),
+        Span::raw(" "),
+    ]);
+    frame.buffer_mut().set_line(
+        area.x.saturating_add(1),
+        area.bottom().saturating_sub(1),
+        &line,
+        area.width.saturating_sub(2),
+    );
+}
+
 fn paint_frame(
     frame: &mut Frame<'_>,
     measured: &Measured<'_>,
@@ -879,6 +908,10 @@ fn paint_frame(
         } else {
             locale.menu_unavailable(reason, true)
         };
+        if menu.context_menu {
+            paint_edge_reason(frame, area, reason, theme);
+            return;
+        }
         frame.render_widget(
             Paragraph::new(reason).style(theme.style(Role::TextSecondary)),
             Rect::new(
