@@ -1137,6 +1137,16 @@ export const workbenchMessages = defineMessages({
 		description: 'Default name for an independently created Workspace.',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.names.default'],
 	},
+	workspaceEmptyDirectory: {
+		id: 'workbench.workspaces.empty.directory',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.empty.directory'],
+		description: 'Where a new Tab of a Workspace without Tabs starts, shown in place of terminals.',
+	},
+	workspaceEmptyNoDirectory: {
+		id: 'workbench.workspaces.empty.noDirectory',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.empty.noDirectory'],
+		description: 'Shown in place of terminals when a Workspace without Tabs has no directory.',
+	},
 	workspacePrimaryName: {
 		id: 'workbench.workspaces.names.primary',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.names.primary'],

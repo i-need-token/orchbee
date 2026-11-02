@@ -1140,6 +1140,14 @@ These choices stand unless review changes them:
   Without a launch profile client, it names no profile and offers no Launch profiles link or
   diagnostics copy. Only the CLI's `panel create-terminal` starts an unbound member, as with the
   TUI, and Close does nothing on a failed child terminal while child terminals have no close.
+- **An empty Workspace says where a new Tab starts, as in the TUI.** Once its last Tab closes, the
+  content names the directory at the top left, where a terminal's first row would be, followed by a
+  hint pairing the New tab shortcut with its name. The hint is not a button, because the strip's
+  New tab control is the pointer's way, so the content still holds no centered creation control.
+  The keyboard is left on the page, where the shortcut works. A Workspace without a directory says
+  so without the hint, because no Tab can start there and the GUI cannot set a directory, unlike the
+  TUI. Windows Clients always create a Workspace with a directory, so no window has shown this yet.
+  Without a Workspace, the content stays blank.
 - **`panel.relocate` and `panel.rename` stay unconnected.** The GUI has no entry for either.
 
 Measured on 2026-11-01 and 2026-11-02 on Windows with a Release cohort, in a real window beside a
@@ -1180,6 +1188,9 @@ real TUI or CLI on the same Session:
 | View only                     | After the CLI took control at 60×12, the window drew that grid from its top-left and still acted as the controller until it typed. Those keys were refused and went nowhere, and View only appeared 2 ms later. At 200×50 the prompt was cut off.    |
 | Take control                  | From the button, View only left 11–18 ms after the click, and the pane's size and the keyboard were back 14–19 ms later. From the menu, all three took up to 125 ms, the keyboard returning as the menu closed. Typing then reached the shell.       |
 | The former controller         | The CLI received nothing until its next input, which was refused with `not-controller` and closed its stream.                                                                                                                                        |
+| Empty Workspace               | After its last Tab closed, the content named the directory at the top left with a Ctrl+Shift+T New tab hint, 262–276 ms after Close, in English and Chinese. A 120-character path wrapped in a 405-pixel pane.                                       |
+| New Tab from an empty one     | The keyboard was on the page, not in a control. Ctrl+Shift+T replaced the hint with a Tab in 29–32 ms, whose terminal had the keyboard 53–54 ms after the key, opened in the named directory, and took typing.                                       |
+| Close of an untouched shell   | A shell that had taken no input still asked Close Tab? 1.5 s after it started, in English and Chinese.                                                                                                                                               |
 
 ### Evidence
 

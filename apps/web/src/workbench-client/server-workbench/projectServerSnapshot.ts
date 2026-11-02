@@ -42,7 +42,8 @@ const UNBOUND_TERMINAL_FAILURE_CODE = 'terminal-unbound';
 /**
  * Projects what the Server published onto the model the React Workbench reads. Every Workspace gets
  * its own one-directory resource scope, because the Server has no scopes and a Workspace it holds
- * without a directory still needs one here. `defaultDirectory` only names that placeholder.
+ * without a directory still needs one here. `defaultDirectory` only names that placeholder, which is
+ * unavailable, so the Workbench opens no Workspace in it and says the Workspace has no directory.
  */
 export function projectServerSnapshot(
 	snapshot: WorkbenchSnapshot,

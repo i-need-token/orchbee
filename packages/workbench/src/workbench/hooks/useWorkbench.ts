@@ -44,6 +44,10 @@ import type { WorkbenchRemoteTerminalCreationCapability } from '../types/workben
 import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
 import { matchesWorkbenchProjectCreation } from '../model/matchesWorkbenchProjectCreation';
 import {
+	projectWorkbenchEmptyWorkspace,
+	type WorkbenchEmptyWorkspace,
+} from '../model/projectWorkbenchEmptyWorkspace';
+import {
 	createWorkbenchSearchState,
 	transitionWorkbenchSearch,
 	type WorkbenchSearchEvent,
@@ -211,6 +215,8 @@ interface WorkbenchView {
 	readonly terminalFocusRequest: WorkbenchTerminalFocusRequest | null;
 	readonly tabModel: TabModel;
 	readonly hasVisibleTerminalTabs: boolean;
+	/** Only a shared Workbench says anything in place of a Workspace's missing Tabs. */
+	readonly emptyWorkspace: WorkbenchEmptyWorkspace | null;
 	readonly terminalLabel: string;
 	readonly tabStripOrientation: TabStripOrientation;
 	readonly tabStripFocusRequest: number;
@@ -1043,6 +1049,10 @@ export function useWorkbench({
 		terminalFocusRequest: focusRouting.terminalFocusRequest,
 		tabModel,
 		hasVisibleTerminalTabs: tabModelSnapshot.tabs.length > 0,
+		emptyWorkspace:
+			authorityNotice.authority === undefined || tabModelSnapshot.tabs.length > 0
+				? null
+				: projectWorkbenchEmptyWorkspace(projectWorkspaceState, intl),
 		terminalLabel: intl.formatMessage(workbenchMessages.terminal),
 		tabStripOrientation,
 		tabStripFocusRequest: focusRouting.tabStripFocusRequest,

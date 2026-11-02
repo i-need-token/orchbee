@@ -187,6 +187,8 @@ export const zhCNWorkbenchMessages = {
 	'workbench.workspaces.confirmDelete.description':
 		'将结束“{name}”中的全部终端。分支和检出目录会保留。',
 	'workbench.workspaces.confirmDelete.title': '关闭工作区？',
+	'workbench.workspaces.empty.directory': '目录：{path}',
+	'workbench.workspaces.empty.noDirectory': '尚未配置目录。',
 	'workbench.workspaces.manage.description': '修改工作区名称和默认文件夹。',
 	'workbench.workspaces.manage.nameOnlyDescription': '修改工作区名称。',
 	'workbench.workspaces.manage.name': '名称',

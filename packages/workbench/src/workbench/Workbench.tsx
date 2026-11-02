@@ -23,6 +23,7 @@ import {
 	type WorkbenchLayoutStorage,
 } from '../workbench-layout-storage';
 import { WorkbenchSidebarToggle } from './components/workbench-sidebar-toggle/WorkbenchSidebarToggle';
+import { WorkbenchEmptyWorkspace } from './components/workbench-empty-workspace/WorkbenchEmptyWorkspace';
 import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSidebar';
 import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
 import { WorkbenchSearchSurface } from './components/workbench-search-surface/WorkbenchSearchSurface';
@@ -360,7 +361,17 @@ export function Workbench({
 										onTerminalEdit={agentPresentation.terminalEdited}
 									/>
 								) : (
-									<div className={styles['emptyWindow']} data-slot='workbench-empty-window' />
+									<div className={styles['emptyWindow']} data-slot='workbench-empty-window'>
+										{view.emptyWorkspace === null ? null : (
+											<WorkbenchEmptyWorkspace
+												fact={view.emptyWorkspace.fact}
+												newTabLabel={view.emptyWorkspace.newTabLabel}
+												newTabShortcutLabel={shortcutLabelForAction(
+													WORKBENCH_ACTION_IDS.createTerminal,
+												)}
+											/>
+										)}
+									</div>
 								)}
 							</div>
 						</div>

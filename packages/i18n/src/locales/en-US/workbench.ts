@@ -207,6 +207,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.workspaces.confirmDelete.description':
 		'Ends every terminal in “{name}”. Branches and checkouts are kept.',
 	'workbench.workspaces.confirmDelete.title': 'Close Workspace?',
+	'workbench.workspaces.empty.directory': 'Directory: {path}',
+	'workbench.workspaces.empty.noDirectory': 'No directory configured.',
 	'workbench.workspaces.manage.description': 'Change the Workspace name and default folder.',
 	'workbench.workspaces.manage.nameOnlyDescription': 'Change the Workspace name.',
 	'workbench.workspaces.manage.name': 'Name',
