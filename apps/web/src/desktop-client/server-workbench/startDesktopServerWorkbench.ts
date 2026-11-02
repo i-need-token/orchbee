@@ -8,6 +8,7 @@ import {
 	type DesktopServerConnectionBootstrap,
 } from '@orchbee/desktop-client-protocol';
 import { createOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
+import { normalizePermittedExternalTerminalUrl } from '@orchbee/terminal';
 import type { WorkbenchShortcutPlatform } from '@orchbee/workbench';
 import { createMemoryHistory } from '@tanstack/react-router';
 import { createElement } from 'react';
@@ -65,6 +66,13 @@ function receiveConnection(
 
 function browserPlatformEffects(targetWindow: Window): ProjectedTerminalPlatformEffects {
 	return {
+		// Main hands a window's address to the person's browser, as the TUI opens a link itself.
+		openExternal: (target) => {
+			const url = normalizePermittedExternalTerminalUrl(target);
+			if (url === null) return { code: 'link-policy-blocked', kind: 'failed', retryable: false };
+			targetWindow.open(url, '_blank', 'noopener,noreferrer');
+			return { kind: 'completed' };
+		},
 		readClipboardText: async () => {
 			try {
 				return { kind: 'completed', text: await targetWindow.navigator.clipboard.readText() };

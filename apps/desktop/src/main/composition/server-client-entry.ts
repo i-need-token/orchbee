@@ -13,7 +13,7 @@ import {
 	DesktopServerConnectionDocumentSchema,
 	type DesktopServerConnectionReply,
 } from '@orchbee/desktop-client-protocol';
-import { BrowserWindow, MessageChannelMain, app, net, protocol } from 'electron';
+import { BrowserWindow, MessageChannelMain, app, net, protocol, shell } from 'electron';
 
 import {
 	DESKTOP_RENDERER_URL,
@@ -33,6 +33,8 @@ const SESSION_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_SESSION';
 const WINDOW_HIDDEN_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_WINDOW_HIDDEN';
 /** Tells the shared page that it is a Server Client rather than the frozen Main entry's renderer. */
 const DESKTOP_SERVER_CLIENT_PARAMETER = 'orchbee-server-client';
+/** What a terminal link may open, as the page's own link policy permits. */
+const EXTERNAL_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 
 registerDesktopRendererScheme(protocol);
 const distribution = resolveDesktopApplicationDistribution({
@@ -66,6 +68,19 @@ async function resolveRendererUrl(): Promise<URL> {
 		(fileUrl) => net.fetch(fileUrl),
 	);
 	return new URL(DESKTOP_RENDERER_URL);
+}
+
+/** A link the page opens asks for a window; the person's browser takes it instead. */
+function openExternalLink(address: string): void {
+	let url: URL;
+	try {
+		url = new URL(address);
+	} catch {
+		return;
+	}
+	if (!EXTERNAL_LINK_PROTOCOLS.has(url.protocol)) return;
+	// The page has already counted the link as opened, as the TUI counts an accepted request.
+	shell.openExternal(url.href).catch(() => undefined);
 }
 
 function sessionArguments(): readonly string[] {
@@ -110,7 +125,10 @@ void app.whenReady().then(async () => {
 		},
 		width: 1100,
 	});
-	window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+	window.webContents.setWindowOpenHandler(({ url }) => {
+		openExternalLink(url);
+		return { action: 'deny' };
+	});
 	window.webContents.on('will-navigate', (event, navigationUrl) => {
 		if (!isSameDesktopRendererOrigin(navigationUrl, rendererUrl)) event.preventDefault();
 	});

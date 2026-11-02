@@ -1213,6 +1213,7 @@ real TUI or CLI on the same Session:
 | Command Prompt Tab            | Opened by the CLI, the Tab read `Command Prompt` within 2 ms while inactive. Running `ping -n 6 127.0.0.1` showed `Command Prompt - ping -n 6 127.0.0.1` 14 ms after Enter, and `Command Prompt` again once it ended.                                |
 | Language change               | Choosing Chinese in Settings renamed the Command Prompt Tab within 60 ms, and English renamed it back within 25 ms. Typing after the change reached cmd, and Close Tab? named the Tab in Chinese.                                                    |
 | Bell and OSC 52               | A bell's cue showed in the millisecond its record reached the page. An OSC 52 request reached the page's clipboard writer, stubbed for the run, 1 ms after its record. A second bell and a Chinese write followed, and no failure showed.            |
+| Terminal link                 | Ctrl+click on a printed address reached Main's browser call, stubbed for the run, 5 ms after the click. No window opened, nothing reached the projection, and no failure showed. A plain click opened nothing.                                       |
 
 ### Evidence
 
