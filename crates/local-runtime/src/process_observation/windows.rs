@@ -1,6 +1,7 @@
 //! Read-only exact process observations. These handles never carry termination rights.
 use crate::process_registration::{
-    ProcessIdentity, ProcessObservation, ProcessRole, RecoveryVerdict, SessionProcesses,
+    ProcessIdentity, ProcessObservation, ProcessRole, RecoveryVerdict, Registration,
+    SessionProcesses,
 };
 use std::io;
 use winsafe::{HPROCESS, co, guard::CloseHandleGuard};
@@ -42,6 +43,16 @@ impl ProcessSnapshot {
     }
     pub(crate) fn verdict(&self, processes: &SessionProcesses) -> RecoveryVerdict {
         processes.status(self.observations)
+    }
+}
+
+/// Whether `role`'s registration has no live process: never started, or exact identity gone.
+/// A reserved spawn and an unknown observation are not absence.
+pub(crate) fn role_absent(processes: &SessionProcesses, role: ProcessRole) -> bool {
+    match processes.registration(role) {
+        Registration::NotStarted => true,
+        Registration::Spawning => false,
+        Registration::Identified { identity } => observe(identity).0 == ProcessObservation::Gone,
     }
 }
 

@@ -13,7 +13,7 @@ use orchbee_capability_node_protocol::{
     OperationId, ShutdownBudget, ShutdownFailure, ShutdownStage, WorkerGeneration, WorkerId,
     WorkerShutdownOutcome, WorkerShutdownRequest,
 };
-use orchbee_local_client_protocol::{StopFailure, StopPhase};
+use orchbee_local_client_protocol::{StopFailure, StopId, StopPhase};
 use orchbee_local_runtime::{
     LockAttempt, ModeCheckedLocalSessionRendezvous, ModeCheckedSessionLock,
     RetainedActivationRecord, RetainedChild, RetainedSessionRecord, SessionStore,
@@ -96,7 +96,7 @@ pub(super) fn run(
     };
     let mut worker_completed = false;
     loop {
-        let attempt = shutdown.take();
+        let attempt = next_attempt(&mut owners, &shutdown);
         let deadline = Instant::now() + Duration::from_secs(60);
         let result = settle(
             &mut owners,
@@ -193,6 +193,21 @@ fn settle(
         .terminals
         .stop_graphics_before(deadline)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+    let worker_exited = owners
+        .worker
+        .try_wait()
+        .map_err(|_| Failure {
+            phase: StopPhase::BackgroundJobs,
+            failure: StopFailure::ProcessWait,
+            disposed: 0,
+        })?
+        .is_some();
+    if !*worker_completed && worker_exited {
+        let worker = checkpoint_worker(&owners.handle)
+            .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+        settle_without_worker(owners, &worker, deadline)?;
+        *worker_completed = true;
+    }
     if !*worker_completed {
         let worker = checkpoint_worker(&owners.handle)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
@@ -302,6 +317,71 @@ fn settle(
         error
     })?;
     Ok(())
+}
+
+/// Waits for a stop request. The managed Session never enrolls a replacement Worker, so once its
+/// Worker has exited and that Worker's Host is gone too, no terminal can run here again and the
+/// Server begins its own stop. While that Host still runs, the Server keeps running beside it.
+fn next_attempt(owners: &mut Owners, shutdown: &SessionShutdown) -> Attempt {
+    loop {
+        if let Some(attempt) = shutdown.take_within(Duration::from_secs(1)) {
+            return attempt;
+        }
+        if !shutdown.stopping()
+            && matches!(owners.worker.try_wait(), Ok(Some(_)))
+            && host_absent(owners)
+            && let Some(id) = own_stop_id()
+        {
+            shutdown.begin(id);
+        }
+    }
+}
+
+/// After its Worker exited, nothing can sample a terminal's directory or stop its Host. The stop
+/// finishes only when that Host is gone too, keeping each terminal's last sampled directory; a live
+/// Host is refused, because nothing here may end it.
+fn settle_without_worker(
+    owners: &Owners,
+    worker: &orchbee_workbench_protocol::WorkerId,
+    deadline: Instant,
+) -> Result<(), Failure> {
+    if !host_absent(owners) {
+        return Err(Failure {
+            phase: StopPhase::HostExit,
+            failure: StopFailure::Refused,
+            disposed: 0,
+        });
+    }
+    owners
+        .terminals
+        .finish_process_observer_after_worker_exit(&owners.handle)
+        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+    let bytes = owners
+        .terminals
+        .checkpoint_without_worker(worker)
+        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+    if Instant::now() >= deadline {
+        return Err(failure(
+            StopPhase::BackgroundJobs,
+            io::ErrorKind::TimedOut.into(),
+        ));
+    }
+    super::checkpoint_windows::autosave::publish_final(&owners.checkpoint_store, &bytes)
+        .map_err(|error| failure(StopPhase::BackgroundJobs, error))
+}
+
+/// Only an exact observation that the Host is gone, or that it never started, counts.
+fn host_absent(owners: &Owners) -> bool {
+    owners
+        .session_record
+        .as_ref()
+        .is_some_and(|record| matches!(record.host_absent(), Ok(true)))
+}
+
+fn own_stop_id() -> Option<StopId> {
+    let mut bytes = [0; 16];
+    getrandom::fill(&mut bytes).ok()?;
+    StopId::new(bytes).ok()
 }
 
 fn worker_phase(stage: ShutdownStage) -> StopPhase {

@@ -31,7 +31,7 @@ fn stop_freezes_admission_without_losing_existing_record_ownership() {
     assert!(!state.settle_records(Instant::now()));
     drop(record);
     assert!(state.settle_records(Instant::now()));
-    let attempt = state.take();
+    let attempt = state.take_within(Duration::ZERO).unwrap();
     assert_eq!(attempt.number.get(), 1);
     state.phase(attempt, StopPhase::Worker);
     assert_eq!(
@@ -57,9 +57,13 @@ fn stop_freezes_admission_without_losing_existing_record_ownership() {
 fn retries_are_explicit_fenced_and_bounded_and_preserve_failure_progress() {
     let state = SessionShutdown::default();
     state.request(&request(1, StopAction::Start));
-    let first = state.take();
+    let first = state.take_within(Duration::ZERO).unwrap();
     for number in 1..=64 {
-        let attempt = if number == 1 { first } else { state.take() };
+        let attempt = if number == 1 {
+            first
+        } else {
+            state.take_within(Duration::ZERO).unwrap()
+        };
         assert_eq!(attempt.number.get(), number);
         state.fail(first, StopPhase::Dispose, StopFailure::OutcomeUnknown, 9);
         if number > 1 {

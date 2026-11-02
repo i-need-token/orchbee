@@ -49,6 +49,12 @@ the separately owned Host-adoption protocol. Refusal offers read-only diagnosis.
 refuses only the Session it names or whose location it occupies, so an alternate named Session
 remains available; this grants no unknown-owner cleanup capability.
 
+A running Server may read its own retained generation's Host registration to learn whether that
+Host is absent: NotStarted, or an Identified identity observed gone. Spawning and an unknown
+observation are not absence, and the answer grants no termination authority. The Server's
+[managed stop](../../../apps/orchbee-server/README.md#managed-windows-session-shutdown) uses it
+after Worker loss.
+
 Crashed publication precedes runtime reconciliation. A failure after durable publication is a
 partial committed result, retried for the same activation identity under the same guards. New
 activation never reuses the old identity. Current record contents, rather than an early retained

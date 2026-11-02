@@ -5,7 +5,7 @@ use orchbee_local_client_protocol::{
 };
 use std::{
     sync::{Condvar, Mutex},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 /// Exact stop identity and attempt fence required by every progress update.
@@ -103,17 +103,43 @@ impl SessionShutdown {
         Some(RecordLease(self))
     }
 
-    /// Waits for one queued attempt and grants its execution ownership exactly once.
-    pub(crate) fn take(&self) -> Attempt {
+    /// Admits the lifecycle owner's own stop under `id` when no stop exists yet.
+    pub(crate) fn begin(&self, id: StopId) -> bool {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if state.entry.is_some() {
+            return false;
+        }
+        state.entry = Some(Entry {
+            attempt: Attempt {
+                id,
+                number: StopAttempt::new(1).expect("first attempt"),
+            },
+            progress: Progress::Queued,
+        });
+        self.changed.notify_all();
+        true
+    }
+
+    /// Waits up to `timeout` for one queued attempt and grants its execution ownership exactly once.
+    pub(crate) fn take_within(&self, timeout: Duration) -> Option<Attempt> {
+        let deadline = Instant::now() + timeout;
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         loop {
             if let Some(entry) = state.entry.as_mut()
                 && matches!(entry.progress, Progress::Queued)
             {
                 entry.progress = Progress::Running(StopPhase::Admission);
-                return entry.attempt;
+                return Some(entry.attempt);
             }
-            state = self.changed.wait(state).unwrap_or_else(|e| e.into_inner());
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return None;
+            }
+            state = self
+                .changed
+                .wait_timeout(state, remaining)
+                .unwrap_or_else(|e| e.into_inner())
+                .0;
         }
     }
 

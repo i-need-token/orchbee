@@ -58,6 +58,14 @@ remain queryable while the control listener survives; after listener closure, th
 record remains a positive receipt. No process discovery, adoption, path removal or platform stop
 implementation for Linux/macOS is part of this owner.
 
+A Worker that already exited can neither sample a directory nor stop its Host. A stop then
+continues only once the retained record observes that Worker's Host gone, or never started, and its
+final capture keeps each terminal's last cached directory. While that Host runs, the attempt fails
+in its host-exit phase as refused: nothing here may end the Host, which waits for Host adoption.
+The managed Session never enrolls a replacement Worker, so a Server whose Worker exited and whose
+Host is gone, with no stop admitted, begins its own stop under a fresh identity, checking once a
+second. It publishes the same Stopped record, and a later start restores from its final capture.
+
 Experimental, unshipped private Rust Server application. It owns the in-memory Workbench
 navigation authority and private projection kernel, the first POSIX local Server-Worker process spine and serialized post-admission
 OBCN carrier, local Human Client/Client Connection admission, and an in-memory terminal coordinator. The emitted

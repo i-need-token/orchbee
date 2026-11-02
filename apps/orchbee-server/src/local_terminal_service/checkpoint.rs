@@ -193,4 +193,21 @@ impl LocalTerminalService {
         }
         coordinator.checkpoint_with_terminal_directories(worker, &directories)
     }
+
+    /// The final checkpoint once the Worker has exited. Nothing can sample a directory any more, so
+    /// each terminal keeps its last sample, fenced to its exact generation as a background save
+    /// fences it, and otherwise its restart directory. No placement fence applies: the Worker those
+    /// samples name is the one that exited. Unreadable membership keeps only restart directories
+    /// rather than leaving the Session unable to stop.
+    pub(crate) fn checkpoint_without_worker(&self, worker: &WorkerId) -> io::Result<Vec<u8>> {
+        let coordinator = self
+            .coordinator
+            .lock()
+            .map_err(|_| io::Error::other("coordinator failed"))?;
+        let directories = coordinator
+            .checkpoint_observation_targets()
+            .map(|(_, targets)| coordinator.cached_checkpoint_directories(&targets))
+            .unwrap_or_default();
+        coordinator.checkpoint_with_terminal_directories(worker, &directories)
+    }
 }

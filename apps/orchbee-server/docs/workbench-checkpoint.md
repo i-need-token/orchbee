@@ -132,6 +132,9 @@ publication failure prevents disposal and remains a failed stop; preceding valid
 and any displaced invalid original remains in its raw archive. Clean stop first drains the single
 background saver, then performs fresh directory capture
 and final publication before Worker disposal. A late background write cannot replace this final snapshot.
+A stop after the Worker exited has nothing to sample. Its final capture keeps each terminal's last
+cached directory, fenced to its exact physical generation as a background save fences it, else its
+restart directory, and it publishes only once that Worker's Host is observed absent.
 Fresh physical creation establishes terminal bindings. Client and history recovery remain separate. Activation markers retain their existing recovery semantics on failed boot.
 
 ## Running save model

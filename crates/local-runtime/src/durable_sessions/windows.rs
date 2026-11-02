@@ -1,7 +1,9 @@
 //! Private lifecycle records outlive the runtime leaf. Effects derive their paths from admission.
 use crate::{
     ActivationState, ModeCheckedLocalSessionRendezvous as Rendezvous, SessionName,
-    private_filesystem as permissions, process_registration::SessionProcesses, session_name,
+    private_filesystem as permissions,
+    process_registration::{ProcessRole, SessionProcesses},
+    session_name,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -439,6 +441,22 @@ impl RetainedSessionRecord {
             scope: scope.to_owned(),
             active,
         }))
+    }
+    /// Whether this generation's Terminal Host was never started or its exact process is gone.
+    /// A reserved spawn or an unknown observation answers false. Observation grants no
+    /// termination authority.
+    pub fn host_absent(&self) -> io::Result<bool> {
+        let current = self
+            .directory
+            .read(&self.scope)?
+            .ok_or(io::ErrorKind::NotFound)?;
+        if !current.same_active_generation(&self.active) {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        Ok(crate::process_observation::role_absent(
+            &current.processes,
+            ProcessRole::Host,
+        ))
     }
     /// Only after confirmed child exit and listener cleanup, before the runtime stop receipt.
     pub fn complete(&mut self, request_id: [u8; 16]) -> io::Result<()> {
