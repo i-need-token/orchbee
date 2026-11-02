@@ -298,6 +298,17 @@ impl PanelProcessInfoDoc {
     pub(crate) fn foreground(&self) -> super::processes::Foreground {
         super::processes::foreground(&self.info, self.server)
     }
+
+    /// The provider input may reach ([`super::processes::input_provider`]), or the refusal reason
+    /// Agent input failures report.
+    pub(crate) fn input_provider(&self) -> Result<&'static str, &'static str> {
+        use super::processes::InputRefusal;
+        super::processes::input_provider(&self.info, self.server).map_err(|refusal| match refusal {
+            InputRefusal::NotRunning => "agent-not-running",
+            InputRefusal::Ambiguous => "agent-runtime-ambiguous",
+            InputRefusal::Unidentified => "agent-identity-unknown",
+        })
+    }
 }
 
 /// `terminal get`: the Server's point-in-time join — the current routing

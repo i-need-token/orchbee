@@ -95,8 +95,8 @@ pub mod application {
 
         pub mod processes {
             pub use crate::agent_runtime::processes::{
-                Foreground, Selection, ServerIdentity, filetime_utc, foreground, interpret,
-                program_name, provider, readable_command,
+                Foreground, InputRefusal, Selection, ServerIdentity, filetime_utc, foreground,
+                input_provider, interpret, program_name, provider, readable_command,
             };
         }
 

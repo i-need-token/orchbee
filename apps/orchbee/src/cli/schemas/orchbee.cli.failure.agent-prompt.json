@@ -467,6 +467,7 @@
 								"agent-identity-changed",
 								"agent-blocked",
 								"agent-runtime-ambiguous",
+								"agent-identity-unknown",
 								"agent-provider-mismatch",
 								"agent-provider-unsupported",
 								"output-too-large",

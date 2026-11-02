@@ -1047,16 +1047,6 @@ pub(super) fn identify_reply(
         AgentProcessIdentity as Identity, AgentProcessRow, AgentSampleVerdict,
         classify_agent_process, evaluate_agent_sample,
     };
-    use orchbee_workbench_protocol::{
-        PanelAgentAction, PanelAgentOutcome, PanelAgentResult, ProtocolVersion, WorkbenchRequest,
-        WorkbenchResponse, WorkbenchRevision, read_workbench_request, write_workbench_response,
-    };
-    let WorkbenchRequest::PanelAgent(request) = read_workbench_request(stream).unwrap() else {
-        panic!("one Identify after the process sample")
-    };
-    let PanelAgentAction::Identify { presentation_id } = &request.action else {
-        panic!("one Identify after the process sample")
-    };
     let rows: Vec<_> = processes
         .iter()
         .map(|process| {
@@ -1097,6 +1087,27 @@ pub(super) fn identify_reply(
             pid: anchor.pid,
             provider: anchor.provider,
         });
+    identified_reply(stream, identity, anchor, host_terminal);
+}
+
+/// Answer the `identify` that follows a process sample with the given result and run anchor, as
+/// a Server answers from its own samples, which need not match the CLI's.
+pub(super) fn identified_reply(
+    stream: &mut LocalStream,
+    identity: orchbee_agent_observation_protocol::AgentProcessIdentity,
+    anchor: Option<orchbee_agent_observation_protocol::AgentProcessAnchor>,
+    host_terminal: &str,
+) {
+    use orchbee_workbench_protocol::{
+        PanelAgentAction, PanelAgentOutcome, PanelAgentResult, ProtocolVersion, WorkbenchRequest,
+        WorkbenchResponse, WorkbenchRevision, read_workbench_request, write_workbench_response,
+    };
+    let WorkbenchRequest::PanelAgent(request) = read_workbench_request(stream).unwrap() else {
+        panic!("one Identify after the process sample")
+    };
+    let PanelAgentAction::Identify { presentation_id } = &request.action else {
+        panic!("one Identify after the process sample")
+    };
     let binding = serde_json::from_value(serde_json::json!({
         "presentationId": presentation_id,
         "generation": "4".repeat(32),

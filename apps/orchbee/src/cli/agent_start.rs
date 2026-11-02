@@ -176,6 +176,7 @@ fn integration_preflight(
     let id = IntegrationId::parse(crate::agent_provider::integration_id(provider)?)?;
     let budget = deadline
         .saturating_duration_since(Instant::now())
+        .saturating_sub(PREFLIGHT_SETTLEMENT)
         .min(PREFLIGHT_BUDGET);
     let request = IntegrationRequest {
         operation: IntegrationOperation::List { provider: Some(id) },
@@ -219,7 +220,9 @@ fn integration_preflight(
     Some(failure(FailureKind::CheckFailed, reason))
 }
 
-/// Beyond its own budget the preflight waits only this long for the job's final report.
+/// Beyond its own budget the preflight waits only this long for the job's final report; the
+/// Client cancels a job still pending once only this settlement remains, so the budget always
+/// leaves it before the start deadline.
 const PREFLIGHT_SETTLEMENT: Duration = Duration::from_secs(1);
 
 fn project(

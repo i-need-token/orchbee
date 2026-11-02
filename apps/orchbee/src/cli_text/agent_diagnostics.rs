@@ -187,6 +187,12 @@ impl super::CliText {
             (Locale::ZhCn, "agent-runtime-ambiguous") => {
                 Some("多个智能体进程无法确定为一条前台链。发送前请检查 panel process-info。")
             }
+            (Locale::EnUs, "agent-identity-unknown") => Some(
+                "The terminal's Agent cannot be identified well enough to receive input now. Inspect the identity in panel process-info, or use terminal send for explicit input.",
+            ),
+            (Locale::ZhCn, "agent-identity-unknown") => Some(
+                "目前无法充分确认终端中的智能体身份，暂不发送输入。请查看 panel process-info 中的身份信息，或用 terminal send 显式发送。",
+            ),
             (Locale::EnUs, "agent-provider-mismatch") => Some(
                 "The running Agent differs from the selected session. Inspect panel process-info and select the intended Agent.",
             ),

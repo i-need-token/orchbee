@@ -220,8 +220,11 @@ running, then runs as one job on the Session's Worker, which resolves the
 provider from its own home directory and `PATH` — those of the process that
 started the Session. Every mutation stays bounded and non-interactive. An
 interruption during activation ends the command like `server start`; once
-the job exists, the first interruption registers cooperative cancellation and
-the command waits for the job's final report.
+the job exists, the first interruption registers cooperative cancellation as
+soon as the exchange in flight answers, and the command waits for the job's
+final report. The last second of the deadline is kept for that settlement: a
+job still pending then is cancelled the same way. A final report that answers
+first stands; a mutation without one by the deadline is outcome unknown.
 
 ```sh
 orchbee agent integration list                     # every provider's local state

@@ -1527,4 +1527,5 @@ mod workspace_metadata;
 mod panel_agent;
 mod panel_metadata;
 
+mod agent_integration;
 mod agent_view;

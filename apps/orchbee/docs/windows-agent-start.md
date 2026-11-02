@@ -19,14 +19,16 @@ characters are refused, and the encoded command must fit 8000 ASCII characters. 
 invalid-value diagnostic list the complete `--provider` set.
 
 After the Session snapshot and before admission, the CLI asks the Session's Worker to inspect its
-managed integration for the kind, bounded by the start deadline and at most 10000 ms. A missing executable refuses with `provider-not-found`;
+managed integration for the kind within at most 10000 ms that leave one second of the start
+deadline for the final report; an inspection still pending when only that second remains is
+cancelled. A missing executable refuses with `provider-not-found`;
 a `not-installed`, `disabled` or `update-required` integration, or an unpublished adapter capsule,
 refuses with `integration-not-enabled`; `conflict` refuses with
 `integration-blocked`. These are `check-failed` (exit 1) with no reservation or input, and the
 diagnostic names `agent integration enable` or `agent integration explain`. The preflight never
 enables an integration, because that edits the provider's own configuration. Kinds without a
 managed integration, manual-only management, an `unknown` state, an inspection cut short by its
-budget and an interrupted or failed inspection job proceed to canonical readiness. On success the text result names the
+budget and an interrupted, cancelled or failed inspection job proceed to canonical readiness. On success the text result names the
 `agent prompt --name <name>` next step.
 
 After a complete empty read, the [Agent board](agent-board.md) runs fixed System32 `where.exe`

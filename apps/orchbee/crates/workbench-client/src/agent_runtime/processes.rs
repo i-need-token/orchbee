@@ -1,15 +1,18 @@
 //! Interpretation of a bounded Host Job sample. This never collects processes,
 //! expands commands, or creates canonical Agent state. The foreground Agent chain is the
 //! Server's: [`foreground`] projects its identity result and run anchor, never the sample.
+//! Input needs more than that display: [`input_provider`] also requires the sample to hold it.
 
 use orchbee_agent_observation_protocol::{
     AgentIdentityUnknownReason, AgentProcessAnchor, AgentProcessIdentity, AgentProcessRow,
-    AgentReportProvider, classify_agent_process,
+    AgentReportProvider, AgentSampleVerdict, classify_agent_process, evaluate_agent_sample,
 };
 #[cfg(test)]
 mod tests;
 
-use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessConsole, TerminalProcessInfo};
+use orchbee_terminal_protocol::{
+    MAXIMUM_PROCESS_SAMPLE_ROWS, TerminalProcess, TerminalProcessConsole, TerminalProcessInfo,
+};
 
 pub use crate::agent_provider::provider;
 
@@ -53,6 +56,17 @@ pub struct ServerIdentity {
     pub anchor: Option<AgentProcessAnchor>,
 }
 
+/// Why the Terminal's Agent must not receive input now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InputRefusal {
+    /// The Server publishes no run, or this sample no longer holds the run's anchor.
+    NotRunning,
+    /// Several candidates, or the Server and this sample name different chains.
+    Ambiguous,
+    /// The Server's result or this sample cannot show an interactive Agent at the anchor.
+    Unidentified,
+}
+
 /// Per-process facts for diagnostics: decoded arguments and the provider each row names alone.
 pub fn interpret(sample: &TerminalProcessInfo) -> Vec<Process<'_>> {
     sample
@@ -60,26 +74,89 @@ pub fn interpret(sample: &TerminalProcessInfo) -> Vec<Process<'_>> {
         .iter()
         .map(|facts| {
             let argv = facts.command_line.as_deref().and_then(arguments);
-            let row = AgentProcessRow {
-                pid: facts.pid,
-                parent_pid: facts.parent_pid,
-                creation_time: facts.creation_time,
-                opaque: facts.image.is_none(),
-                detached: matches!(
-                    facts.console,
-                    TerminalProcessConsole::Detached | TerminalProcessConsole::None
-                ),
-                recognition: classify_agent_process(facts.image.as_deref(), argv.as_deref()),
-            };
+            let provider = row(facts, argv.as_deref())
+                .anchor_provider()
+                .map(AgentReportProvider::native_provider_id);
             Process {
                 facts,
                 argv,
-                provider: row
-                    .anchor_provider()
-                    .map(AgentReportProvider::native_provider_id),
+                provider,
             }
         })
         .collect()
+}
+
+/// The identity row the Server's sampler decodes from the same Host facts.
+fn row(facts: &TerminalProcess, argv: Option<&[String]>) -> AgentProcessRow {
+    AgentProcessRow {
+        pid: facts.pid,
+        parent_pid: facts.parent_pid,
+        creation_time: facts.creation_time,
+        opaque: facts.image.is_none(),
+        detached: matches!(
+            facts.console,
+            TerminalProcessConsole::Detached | TerminalProcessConsole::None
+        ),
+        recognition: classify_agent_process(facts.image.as_deref(), argv),
+    }
+}
+
+/// The provider that may receive input. A published run only shows ([`foreground`]): the Server
+/// keeps it until a later sample of its own ends it, and keeps it under unknown or ambiguous
+/// results. Input also requires the Server's current result to name the run's provider as an
+/// interactive Agent, and this sample, read before that result, to hold the run's anchor and name
+/// it on its own as the only Agent by the verdict the Server applies.
+///
+/// # Errors
+/// Refuses without a run, without its anchor in this sample, or when either answer is unknown
+/// or names another chain.
+pub fn input_provider(
+    sample: &TerminalProcessInfo,
+    server: ServerIdentity,
+) -> Result<&'static str, InputRefusal> {
+    let ambiguous = AgentProcessIdentity::Unknown(AgentIdentityUnknownReason::AmbiguousCandidates);
+    let Some(anchor) = server.anchor else {
+        return Err(if server.identity == ambiguous {
+            InputRefusal::Ambiguous
+        } else {
+            InputRefusal::NotRunning
+        });
+    };
+    let rows: Vec<_> = sample
+        .processes
+        .iter()
+        .map(|facts| {
+            row(
+                facts,
+                facts.command_line.as_deref().and_then(arguments).as_deref(),
+            )
+        })
+        .collect();
+    if !rows
+        .iter()
+        .any(|row| row.pid == anchor.pid && row.anchor_provider() == Some(anchor.provider))
+    {
+        return Err(InputRefusal::NotRunning);
+    }
+    match server.identity {
+        AgentProcessIdentity::Agent { provider, .. } if provider == anchor.provider => {}
+        AgentProcessIdentity::Agent { .. } => return Err(InputRefusal::Ambiguous),
+        identity if identity == ambiguous => return Err(InputRefusal::Ambiguous),
+        _ => return Err(InputRefusal::Unidentified),
+    }
+    let at_limit = sample.processes.len() >= MAXIMUM_PROCESS_SAMPLE_ROWS;
+    match evaluate_agent_sample(&rows, at_limit) {
+        AgentSampleVerdict::Anchor(found) if found.pid == anchor.pid => match found.result() {
+            AgentProcessIdentity::Agent { .. } => Ok(anchor.provider.native_provider_id()),
+            _ => Err(InputRefusal::Unidentified),
+        },
+        AgentSampleVerdict::Unresolved { reason, .. }
+            if reason != AgentIdentityUnknownReason::AmbiguousCandidates =>
+        {
+            Err(InputRefusal::Unidentified)
+        }
+        _ => Err(InputRefusal::Ambiguous),
+    }
 }
 
 /// The foreground the Server attributes to the sampled Terminal: its published run is the Agent

@@ -75,6 +75,123 @@ fn foreground_projects_the_server_run_never_the_sample() {
 
 #[cfg(windows)]
 #[test]
+fn input_needs_the_servers_current_agent_and_its_anchor_alone_in_this_sample() {
+    use InputRefusal::{Ambiguous, NotRunning, Unidentified};
+    use orchbee_agent_observation_protocol::AgentIdentityGrade;
+    use orchbee_agent_observation_protocol::AgentIdentityUnknownReason as Reason;
+    let shell = process(10, None, r"C:\Windows\cmd.exe", "cmd.exe");
+    let claude = process(20, Some(10), r"C:\bin\claude.exe", "claude.exe");
+    let inner = process(25, Some(20), r"C:\bin\claude.exe", "claude.exe");
+    let codex = process(30, Some(10), r"C:\bin\codex.exe", "codex.exe");
+    let notepad = process(20, Some(10), r"C:\Windows\notepad.exe", "notepad.exe");
+    let mut opaque = process(40, Some(10), r"C:\bin\tool.exe", "tool.exe");
+    opaque.image = None;
+    let run = |pid| {
+        Some(AgentProcessAnchor {
+            pid,
+            provider: AgentReportProvider::Claude,
+        })
+    };
+    let agent = AgentProcessIdentity::Agent {
+        provider: AgentReportProvider::Claude,
+        grade: AgentIdentityGrade::Confirmed,
+    };
+    let unknown = AgentProcessIdentity::Unknown;
+    for (case, rows, identity, anchor, expected) in [
+        (
+            "current",
+            vec![&shell, &claude],
+            agent,
+            run(20),
+            Ok("claude-code"),
+        ),
+        // The Server still publishes the run after its process left, or the identifier now
+        // names another program.
+        ("exited", vec![&shell], agent, run(20), Err(NotRunning)),
+        (
+            "reused",
+            vec![&shell, &notepad],
+            agent,
+            run(20),
+            Err(NotRunning),
+        ),
+        // A published run under an ambiguous or otherwise unknown result only shows.
+        (
+            "ambiguous result",
+            vec![&shell, &claude],
+            unknown(Reason::AmbiguousCandidates),
+            run(20),
+            Err(Ambiguous),
+        ),
+        (
+            "unclassified",
+            vec![&shell, &claude],
+            unknown(Reason::UnclassifiedArguments),
+            run(20),
+            Err(Unidentified),
+        ),
+        (
+            "stale",
+            vec![&shell, &claude],
+            unknown(Reason::SampleFailed),
+            run(20),
+            Err(Unidentified),
+        ),
+        // This sample names another chain, or cannot name the anchor alone.
+        (
+            "second Agent",
+            vec![&shell, &claude, &codex],
+            agent,
+            run(20),
+            Err(Ambiguous),
+        ),
+        (
+            "outer Agent",
+            vec![&shell, &claude, &inner],
+            agent,
+            run(25),
+            Err(Ambiguous),
+        ),
+        (
+            "opaque",
+            vec![&shell, &claude, &opaque],
+            agent,
+            run(20),
+            Err(Unidentified),
+        ),
+        // Without a published run nothing receives input.
+        (
+            "settling",
+            vec![&shell, &claude],
+            unknown(Reason::Settling),
+            None,
+            Err(NotRunning),
+        ),
+        (
+            "no run",
+            vec![&shell, &claude, &codex],
+            unknown(Reason::AmbiguousCandidates),
+            None,
+            Err(Ambiguous),
+        ),
+    ] {
+        let facts = sample(rows.into_iter().cloned().collect());
+        let server = ServerIdentity { identity, anchor };
+        assert_eq!(input_provider(&facts, server), expected, "{case}");
+    }
+    // Display keeps the run that input refuses.
+    let server = ServerIdentity {
+        identity: agent,
+        anchor: run(20),
+    };
+    assert_eq!(
+        foreground(&sample(vec![shell]), server).selection,
+        Selection::AgentChain
+    );
+}
+
+#[cfg(windows)]
+#[test]
 fn rows_name_unlisted_argument_providers_and_exclude_noninteractive_forms() {
     let shell = process(10, None, r"C:\Windows\cmd.exe", "cmd.exe");
     let agent = |command| process(20, Some(10), r"C:\bin\claude.exe", command);

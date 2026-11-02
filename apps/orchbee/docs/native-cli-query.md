@@ -2674,12 +2674,27 @@ later arguments never identify an Agent. Known package entrypoints and executabl
 aliases are explicit. Provider matching is a diagnostic heuristic, not executable
 authentication. It does not create canonical Agent state or establish readiness.
 
-| Server identity state                          | Foreground projection              | Input preflight                        |
-| ---------------------------------------------- | ---------------------------------- | -------------------------------------- |
-| A published run (`anchor` present)             | `agent-chain`, anchor PID/provider | Expected canonical provider must match |
-| No run, `unknown` with `ambiguous-candidates`  | `ambiguous`, null PID/provider     | Refuse                                 |
-| No run, retained root is present in the sample | `root`, root PID, null provider    | Refuse                                 |
-| No run, root absent from the sample            | `unavailable`, null PID/provider   | Refuse                                 |
+| Server identity state                          | Foreground projection              | Input preflight                   |
+| ---------------------------------------------- | ---------------------------------- | --------------------------------- |
+| A published run (`anchor` present)             | `agent-chain`, anchor PID/provider | Current evidence, then provider   |
+| No run, `unknown` with `ambiguous-candidates`  | `ambiguous`, null PID/provider     | Refuse: `agent-runtime-ambiguous` |
+| No run, retained root is present in the sample | `root`, root PID, null provider    | Refuse: `agent-not-running`       |
+| No run, root absent from the sample            | `unavailable`, null PID/provider   | Refuse: `agent-not-running`       |
+
+A published run only shows. The Server keeps publishing it until one of its own later samples
+ends it, and keeps it under `unknown` results, so input requires current evidence in this order:
+
+1. The sample read before the identity must still hold the anchor's process as that provider;
+   otherwise `agent-not-running`, for example just after the Agent exits.
+2. The Server's result must be `agent` for the anchor's provider. `unknown` with
+   `ambiguous-candidates` refuses as `agent-runtime-ambiguous`; any other `unknown` refuses as
+   `agent-identity-unknown`.
+3. The shared sample verdict over that sample must name the same anchor as an interactive Agent.
+   Another outermost candidate or several candidates refuse as `agent-runtime-ambiguous`; any
+   other unresolved verdict refuses as `agent-identity-unknown`.
+4. The expected canonical provider must match the admitted one.
+
+`agent get` reports `promptReady` only when this preflight admits its sample.
 
 The anchor is the run Panel reports attribute to the Terminal, so `foreground`, Panel reports and
 the TUI Agent display name the same run. An `agent` identity always has that anchor; a published
@@ -2704,8 +2719,8 @@ outcome rules still apply; there is no retry or process lease.
 
 Runtime mismatches use `orchbee.cli.failure.agent-runtime` v1 with the correlated
 process source and bounded `stage/reason/sessionId/expectedProvider/detectedProvider`
-details. Unknown providers, absent Agents, ambiguous chains, provider mismatch, and
-changed canonical binding are distinct refusals. Collection and transport failures
+details. Unknown providers, absent Agents, ambiguous chains, unidentified Agents, provider
+mismatch, and changed canonical binding are distinct refusals. Collection and transport failures
 retain their original typed failure. Verification covers Windows Unicode/quoting,
 empty-command protection, runtime eval decoys, ancestor/cycle/reused-parent cases,
 closed result schemas, real CLI/named-pipe preflight ordering and no-input refusals,

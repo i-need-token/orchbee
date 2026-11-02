@@ -118,16 +118,22 @@ pub(super) struct Manager {
     spaces: crate::machine_spaces::Collector,
     space_git: Option<bool>,
     wakeup: crate::workbench_client::UiWakeup,
+    /// Clients no longer presented, kept until their threads end: dropping one only requests stop
+    /// and detaches what still runs, out of process exit's sight.
+    retired: Vec<Box<dyn TerminalSurface>>,
 }
 impl Manager {
-    /// Process exit: asks every cached and candidate Client, the connection attempt, and every
-    /// machine observer to stop without waiting.
+    /// Process exit: asks every cached, candidate and retired Client, the connection attempt, and
+    /// every machine observer to stop without waiting.
     pub(super) fn request_stop(&mut self) {
         for cached in &mut self.cached {
             cached.surface.request_stop();
         }
         if let Some(candidate) = &mut self.candidate {
             candidate.session.request_stop();
+        }
+        for retired in &mut self.retired {
+            retired.request_stop();
         }
         if let Some(attempt) = &self.attempt {
             attempt.cancel.cancel();
@@ -149,6 +155,11 @@ impl Manager {
             .candidate
             .as_mut()
             .map_or(Ok(()), |candidate| candidate.session.stop_before(deadline));
+        let retired = self
+            .retired
+            .iter_mut()
+            .map(|retired| retired.stop_before(deadline))
+            .fold(Ok(()), io::Result::and);
         let attempt = self
             .attempt
             .as_mut()
@@ -158,10 +169,17 @@ impl Manager {
         let discovery = self.discovery.stop_before(deadline);
         cached
             .and(candidate)
+            .and(retired)
             .and(attempt)
             .and(agents)
             .and(spaces)
             .and(discovery)
+    }
+
+    /// Stops presenting a Client: it is asked to stop now and stays owned until its threads end.
+    fn retire(&mut self, mut surface: Box<dyn TerminalSurface>) {
+        surface.request_stop();
+        self.retired.push(surface);
     }
 }
 impl Drop for Manager {
@@ -198,6 +216,7 @@ impl Manager {
             spaces: crate::machine_spaces::Collector::new(wakeup.clone(), false),
             space_git: None,
             wakeup,
+            retired: Vec::new(),
         }
     }
     fn valid(&self, profile: &Profile) -> bool {
@@ -211,7 +230,9 @@ impl Manager {
         if let Some(attempt) = &self.attempt {
             attempt.cancel.cancel();
         }
-        self.candidate = None;
+        if let Some(candidate) = self.candidate.take() {
+            self.retire(Box::new(candidate.session));
+        }
         self.queued = None;
         self.selection_scope = None;
     }
@@ -243,6 +264,9 @@ impl Manager {
         before_switch: &mut dyn FnMut(&mut dyn crate::terminal_input::TerminalInputPort),
     ) -> Change {
         let mut change = Change::default();
+        // Observing an elapsed deadline never waits: release the retired Clients that ended.
+        self.retired
+            .retain_mut(|retired| retired.stop_before(now).is_err());
         self.template
             .notifications
             .configure(view.notifications.policy().clone());
@@ -594,9 +618,11 @@ impl Manager {
             {
                 self.fail_selection(view, "removed");
                 change.redraw = true;
+                self.retire(Box::new(candidate.session));
             } else if failed {
                 self.fail_selection(view, "failed");
                 change.redraw = true;
+                self.retire(Box::new(candidate.session));
             } else if drawable {
                 if let Some(bank) = retained_frames_for_target(
                     self.current.as_ref(),
@@ -727,13 +753,18 @@ impl Manager {
                 if view.machines.error == Some("catalog") {
                     view.machines.error = None;
                 }
-                self.cached.retain(|cached| {
-                    cached.profile.as_ref().is_none_or(|old| {
-                        self.profiles
-                            .iter()
-                            .any(|p| p.enabled && same_endpoint(p, old))
+                let profiles = &self.profiles;
+                let removed: Vec<_> = self
+                    .cached
+                    .extract_if(.., |cached| {
+                        cached.profile.as_ref().is_some_and(|old| {
+                            !profiles.iter().any(|p| p.enabled && same_endpoint(p, old))
+                        })
                     })
-                });
+                    .collect();
+                for cached in removed {
+                    self.retire(cached.surface);
+                }
                 if self.current.as_ref().is_some_and(|p| !self.valid(p)) {
                     self.cancel();
                     self.restore(
@@ -815,6 +846,7 @@ impl Manager {
         }
         let next = self.cached.remove(index);
         if next.profile.is_some() && !next.surface.reusable_machine() {
+            self.retire(next.surface);
             return false;
         }
         self.install(next, surface, view, dimensions, keep_old, before_switch);
@@ -841,8 +873,14 @@ impl Manager {
             focused_member(next.surface.as_ref()),
         );
         // A targeted fresh connection supersedes a cached surface of that same machine.
-        self.cached
-            .retain(|cached| cached.choice() != next.choice());
+        let machine = next.choice();
+        let superseded: Vec<_> = self
+            .cached
+            .extract_if(.., |cached| cached.choice() == machine)
+            .collect();
+        for cached in superseded {
+            self.retire(cached.surface);
+        }
         picker.current_label = next
             .profile
             .as_ref()
@@ -865,11 +903,14 @@ impl Manager {
         self.current = next.profile;
         if keep_old {
             self.cached.push(old);
+        } else {
+            self.retire(old.surface);
         }
-        // Local is retained; at most four inactive remote surfaces remain owned.
+        // Local is retained; at most four inactive remote surfaces remain cached.
         while self.cached.iter().filter(|c| c.profile.is_some()).count() > 4 {
             if let Some(index) = self.cached.iter().position(|c| c.profile.is_some()) {
-                self.cached.remove(index);
+                let evicted = self.cached.remove(index);
+                self.retire(evicted.surface);
             }
         }
     }

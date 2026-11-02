@@ -25,7 +25,7 @@ pub(crate) fn verify_agent_terminal(
     selected: ResolvedAgentTerminal,
     deadline: Instant,
 ) -> Result<ResolvedAgentTerminal, Failure> {
-    use super::super::processes::{Selection, provider};
+    use super::super::processes::provider;
     let before = &selected.observation.session.snapshot;
     let (source, document) =
         read_terminal_processes(client, deadline, snapshot, &selected.terminal)?;
@@ -54,12 +54,9 @@ pub(crate) fn verify_agent_terminal(
     if expected.is_none() {
         return Err(refusal("agent-provider-unsupported"));
     }
-    match foreground.selection {
-        Selection::Ambiguous => return Err(refusal("agent-runtime-ambiguous")),
-        Selection::Root | Selection::Unavailable => return Err(refusal("agent-not-running")),
-        Selection::AgentChain => {}
-    }
-    if expected != detected {
+    // The shown run's provider stays in the details; input needs current evidence of it.
+    let admitted = document.input_provider().map_err(refusal)?;
+    if expected != Some(admitted) {
         return Err(refusal("agent-provider-mismatch"));
     }
     let observation = read_agent_observation(client, &before.session_id, deadline, None)?;

@@ -114,7 +114,11 @@ The current surface stays usable until the candidate reaches a drawable state;
 cancellation or failure keeps the current surface. Successful switching preserves
 per-machine views and invalidates pointer/input state before accepting new input.
 Local is retained; at most four inactive remote surfaces are cached. Eviction
-releases the Client connection, leaving the remote Session running. Cached inactive
+releases the Client connection, leaving the remote Session running. A Client the picker
+stops presenting — evicted, superseded or replaced by a fresh connection, removed with its
+profile, or a cancelled or failed candidate — is asked to stop at once and stays owned until
+its background threads end. Process exit observes those threads under the same deadline as
+every other Client owner and reports any still running as unfinished cleanup. Cached inactive
 surfaces withdraw their Client-control, notification and outer-title subscriptions;
 returning reopens them and transfers the host focus observation. A hidden surface
 must not advertise a Ready control destination or acknowledge visible drawing.

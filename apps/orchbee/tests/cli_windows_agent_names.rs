@@ -1245,7 +1245,12 @@ fn missing_panel_is_a_snapshot_refusal_without_an_agent_operation() {
 }
 
 #[test]
-fn agent_input_refuses_runtime_absence_decoys_mismatch_and_ambiguity_without_a_send() {
+fn agent_input_refuses_absent_retained_unidentified_mismatched_and_ambiguous_agents_without_a_send()
+{
+    use orchbee_agent_observation_protocol::{
+        AgentIdentityGrade, AgentIdentityUnknownReason, AgentProcessAnchor, AgentProcessIdentity,
+        AgentReportProvider,
+    };
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     for (case, reason) in [
@@ -1256,6 +1261,10 @@ fn agent_input_refuses_runtime_absence_decoys_mismatch_and_ambiguity_without_a_s
         ("unknown", "agent-provider-unsupported"),
         ("alias", "agent-provider-unsupported"),
         ("empty", "agent-not-running"),
+        // The Server shows runs its own later samples have not ended or settled yet.
+        ("exited", "agent-not-running"),
+        ("retained-ambiguous", "agent-runtime-ambiguous"),
+        ("unclassified", "agent-identity-unknown"),
     ] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
@@ -1281,11 +1290,40 @@ fn agent_input_refuses_runtime_absence_decoys_mismatch_and_ambiguity_without_a_s
                     rows.push(process(20, Some(10), "claude.exe"));
                     rows.push(process(30, Some(10), "codex.exe"));
                 }
-                "unknown" => rows.push(process(20, Some(10), "claude.exe")),
+                "unknown" | "retained-ambiguous" => rows.push(process(20, Some(10), "claude.exe")),
                 "alias" => rows.push(process(20, Some(10), "codex.exe")),
+                "exited" => {}
+                "unclassified" => {
+                    let mut claude = process(20, Some(10), "claude.exe");
+                    claude.command_line = Some("claude.exe --unlisted-flag".into());
+                    rows.push(claude);
+                }
                 _ => unreachable!(),
             }
-            process_reply_identified(&mut stream, rows);
+            let retained = match case {
+                "exited" => Some(AgentProcessIdentity::Agent {
+                    provider: AgentReportProvider::Claude,
+                    grade: AgentIdentityGrade::Recognized,
+                }),
+                "retained-ambiguous" => Some(AgentProcessIdentity::Unknown(
+                    AgentIdentityUnknownReason::AmbiguousCandidates,
+                )),
+                _ => None,
+            };
+            match retained {
+                Some(identity) => {
+                    process_reply(&mut stream, rows);
+                    let anchor = AgentProcessAnchor {
+                        pid: 20,
+                        provider: AgentReportProvider::Claude,
+                    };
+                    let host_terminal = orchbee_terminal_protocol::TerminalId::from_bytes([7; 16])
+                        .unwrap()
+                        .to_text();
+                    identified_reply(&mut stream, identity, Some(anchor), &host_terminal);
+                }
+                None => process_reply_identified(&mut stream, rows),
+            }
             assert_closed(&mut stream);
         });
         let output = fixture.run(&["agent", "send-keys", "alpha", "enter", "--format", "json"]);
