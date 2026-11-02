@@ -985,15 +985,15 @@ load and deployed-cohort behavior require separate observation.
 ## Workspace current directory reads
 
 `workbench.current-directory` (OBWP 65/66) is a read-granted query of where a Workspace is
-working, asked by the TUI and the Web and Desktop Server Clients before New Workspace. A request naming another Session
-answers `denied` and a missing Workspace `not-found`. Otherwise the Server finds the Workspace's
-first terminal, the primary terminal of its first Tab's leading Panel, among the current unfenced
-observation targets, then releases the Session lock before sampling. The Windows process observer
-samples that terminal on demand through the same temporary Viewer and sole pending-cleanup owner as
-its periodic samples: a valid terminal-reported directory, otherwise the root process directory,
-never a child's. The answer drops a trailing separator except at a drive root. Without a sample,
-including any platform whose Host offers none, the Workspace's own directory answers, and a
-Workspace without one answers `unavailable`.
+working, asked by the TUI and the Web and Desktop Server Clients before New Workspace. A request
+naming another Session answers `denied` and a missing Workspace `not-found`. Otherwise the Server
+finds the Workspace's first terminal, the primary terminal of its first Tab's leading Panel, among
+the current unfenced observation targets, then releases the Session lock before sampling. The
+Windows process observer samples that terminal on demand through the same temporary Viewer and
+sole pending-cleanup owner as its periodic samples: a valid terminal-reported directory, otherwise
+the root process directory, never a child's. The answer drops a trailing separator except at a
+drive root. Without a sample, including any platform whose Host offers none, the Workspace's own
+directory answers, and a Workspace without one answers `unavailable`.
 
 The observer keeps one executing and one waiting read for this kind, apart from Agent explanation
 diagnostics, so neither waits behind the other's queue. A waiting read ends the current sampling
@@ -1001,8 +1001,9 @@ turn after its next sample and is served before periodic work resumes; a read st
 two seconds attaches nothing and falls back. The read runs on the multiplexer's job-read thread,
 changes no Workbench state, and never feeds the [followed directory](../orchbee/docs/native-location-labels.md#automatic-workspace-names),
 which keeps its periodic owner. `process_observer::on_demand::tests` checks queue admission,
-exact completion, expiry, cancellation and shutdown; the sampled directory itself needs a real
-Windows Host.
+exact completion, expiry, cancellation and shutdown. On Windows, a real window and a real TUI each
+started New Workspace in the shell's directory after `cd`, and the window's read was answered in
+14 ms.
 
 ## Windows scrollback editor popup model
 
