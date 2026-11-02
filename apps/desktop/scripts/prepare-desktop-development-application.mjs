@@ -20,7 +20,6 @@ import {
 	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionProfile,
 } from '../src/distribution/desktop-distribution-profile.ts';
-import { materializeDarwinApplicationIcon } from './materialize-darwin-application-icon.mjs';
 
 const executeFile = promisify(execFile);
 const DEVELOPMENT_APPLICATION_IDENTITY_SCHEMA_VERSION = 1;
@@ -34,10 +33,9 @@ const ELECTRON_HELPER_NAMES = [
 
 export async function prepareDesktopDevelopmentExecutable(options) {
 	if (process.platform !== 'darwin') return options.electronExecutable;
-	const [sourceRoot, sourceExecutable, baseIconSvg] = await Promise.all([
+	const [sourceRoot, sourceExecutable] = await Promise.all([
 		realpath(options.sourceRoot),
 		realpath(options.electronExecutable),
-		readFile(options.baseIconPath, 'utf8'),
 	]);
 	const sourceApplicationPath = resolveSourceApplicationPath(sourceExecutable);
 	const electronPackage = createRequire(import.meta.url)('electron/package.json');
@@ -49,12 +47,14 @@ export async function prepareDesktopDevelopmentExecutable(options) {
 		createDesktopDevelopmentScope(sourceRoot, process.platform),
 		{ applicationName: resolveDesktopDevelopmentApplicationName(options.environment) },
 	);
+	const iconPath = path.join(options.iconDirectory, profile.iconFileName);
+	const icon = await readFile(iconPath);
 	const marker = `${JSON.stringify(
 		{
 			applicationName: profile.applicationName,
 			bundleIdentifier: profile.bundleIdentifier,
 			electronVersion: electronPackage.version,
-			iconDigest: createHash('sha256').update(baseIconSvg).digest('hex'),
+			iconDigest: createHash('sha256').update(icon).digest('hex'),
 			schemaVersion: DEVELOPMENT_APPLICATION_IDENTITY_SCHEMA_VERSION,
 			sourceApplicationPath,
 		},
@@ -78,9 +78,8 @@ export async function prepareDesktopDevelopmentExecutable(options) {
 		await cloneApplicationBundle(sourceApplicationPath, stagedApplicationPath);
 		await applyApplicationIdentity({
 			applicationPath: stagedApplicationPath,
-			baseIconSvg,
+			iconPath,
 			profile,
-			stagingDirectory,
 		});
 		await writeFile(path.join(stagingDirectory, DEVELOPMENT_APPLICATION_MARKER_FILE_NAME), marker, {
 			encoding: 'utf8',
@@ -104,53 +103,39 @@ export async function prepareDesktopDevelopmentExecutable(options) {
 }
 
 async function applyApplicationIdentity(options) {
-	const iconWorkspace = path.join(options.stagingDirectory, 'icon-workspace');
-	try {
-		const generatedIcon = await materializeDarwinApplicationIcon({
-			baseIconSvg: options.baseIconSvg,
-			outputDirectory: iconWorkspace,
-			profile: options.profile,
-		});
-		const iconFileName = 'orchbee-dev.icns';
-		await cp(
-			generatedIcon,
-			path.join(options.applicationPath, 'Contents', 'Resources', iconFileName),
-		);
-		await replacePlistString(
-			path.join(options.applicationPath, 'Contents', 'Info.plist'),
-			'CFBundleIconFile',
-			iconFileName,
-		);
-		const applicationInfoPlist = path.join(options.applicationPath, 'Contents', 'Info.plist');
-		await replacePlistString(
-			applicationInfoPlist,
-			'CFBundleDisplayName',
-			options.profile.applicationName,
-		);
-		await replacePlistString(
-			applicationInfoPlist,
-			'CFBundleIdentifier',
-			options.profile.bundleIdentifier,
-		);
-		await replacePlistString(applicationInfoPlist, 'CFBundleName', options.profile.applicationName);
-		await Promise.all(
-			ELECTRON_HELPER_NAMES.map(async (helperName) => {
-				await replacePlistString(
-					helperInformationPropertyList(options.applicationPath, helperName),
-					'CFBundleIdentifier',
-					`${options.profile.bundleIdentifier}.helper`,
-				);
-			}),
-		);
-		await executeFile(
-			'/usr/bin/codesign',
-			['--force', '--deep', '--sign', '-', '--timestamp=none', options.applicationPath],
-			{ encoding: 'utf8' },
-		);
-		await validatePreparedApplication(options.applicationPath, options.profile);
-	} finally {
-		await rm(iconWorkspace, { force: true, recursive: true });
-	}
+	const iconFileName = options.profile.iconFileName;
+	await cp(
+		options.iconPath,
+		path.join(options.applicationPath, 'Contents', 'Resources', iconFileName),
+	);
+	const applicationInfoPlist = path.join(options.applicationPath, 'Contents', 'Info.plist');
+	await replacePlistString(applicationInfoPlist, 'CFBundleIconFile', iconFileName);
+	await replacePlistString(
+		applicationInfoPlist,
+		'CFBundleDisplayName',
+		options.profile.applicationName,
+	);
+	await replacePlistString(
+		applicationInfoPlist,
+		'CFBundleIdentifier',
+		options.profile.bundleIdentifier,
+	);
+	await replacePlistString(applicationInfoPlist, 'CFBundleName', options.profile.applicationName);
+	await Promise.all(
+		ELECTRON_HELPER_NAMES.map(async (helperName) => {
+			await replacePlistString(
+				helperInformationPropertyList(options.applicationPath, helperName),
+				'CFBundleIdentifier',
+				`${options.profile.bundleIdentifier}.helper`,
+			);
+		}),
+	);
+	await executeFile(
+		'/usr/bin/codesign',
+		['--force', '--deep', '--sign', '-', '--timestamp=none', options.applicationPath],
+		{ encoding: 'utf8' },
+	);
+	await validatePreparedApplication(options.applicationPath, options.profile);
 }
 
 async function cloneApplicationBundle(sourceApplicationPath, destinationApplicationPath) {
@@ -198,7 +183,7 @@ async function validatePreparedApplication(applicationPath, profile) {
 	if (
 		applicationName !== profile.applicationName ||
 		bundleIdentifier !== profile.bundleIdentifier ||
-		iconFileName !== 'orchbee-dev.icns' ||
+		iconFileName !== profile.iconFileName ||
 		helperBundleIdentifiers.some(
 			(identifier) => identifier !== `${profile.bundleIdentifier}.helper`,
 		)

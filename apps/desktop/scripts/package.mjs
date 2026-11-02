@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 
 import { packager } from '@electron/packager';
 
-import { materializeDarwinApplicationIcon } from './materialize-darwin-application-icon.mjs';
 import {
 	DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME,
 	createDesktopDevelopmentScope,
@@ -80,7 +79,13 @@ const agentObservationAdapterResources = path.join(
 	'resources',
 	'agent-observation-adapters',
 );
-const baseApplicationIcon = path.join(repositoryRoot, 'resources', 'icon.svg');
+const darwinApplicationIcon = path.join(
+	repositoryRoot,
+	'resources',
+	'brand',
+	'icns',
+	distributionProfile.iconFileName,
+);
 
 await Promise.all([
 	access(path.join(desktopBuild, 'main', 'main.cjs')),
@@ -145,7 +150,7 @@ await Promise.all([
 	access(
 		path.join(agentObservationAdapterResources, 'bundle', 'omp', 'orchbee-agent-observation.cjs'),
 	),
-	...(usesDarwinApplicationIcon ? [access(baseApplicationIcon)] : []),
+	...(usesDarwinApplicationIcon ? [access(darwinApplicationIcon)] : []),
 ]);
 
 const packageWorkspace = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-package-'));
@@ -173,13 +178,6 @@ try {
 		encodeDesktopDistributionDescriptor(distributionProfile),
 		{ encoding: 'utf8', mode: 0o400 },
 	);
-	const applicationIcon = usesDarwinApplicationIcon
-		? await materializeDarwinApplicationIcon({
-				baseIconSvg: await readFile(baseApplicationIcon, 'utf8'),
-				outputDirectory: path.join(packageWorkspace, 'application-icon'),
-				profile: distributionProfile,
-			})
-		: undefined;
 	const outputs = await packager({
 		appBundleId: distributionProfile.bundleIdentifier,
 		asar: true,
@@ -194,7 +192,7 @@ try {
 			agentObservationAdapterResources,
 		],
 		helperBundleId: `${distributionProfile.bundleIdentifier}.helper`,
-		...(applicationIcon === undefined ? {} : { icon: applicationIcon }),
+		...(usesDarwinApplicationIcon ? { icon: darwinApplicationIcon } : {}),
 		name: distributionProfile.applicationName,
 		out: path.join(applicationRoot, 'out', distributionProfile.outputDirectoryName),
 		overwrite: true,

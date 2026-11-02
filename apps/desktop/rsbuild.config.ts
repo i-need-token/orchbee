@@ -37,9 +37,9 @@ export default defineConfig(({ command }) => {
 				const { DesktopDevelopmentRuntime, createNodeDesktopDevelopmentRuntimeDependencies } =
 					await import('./src/development');
 				const electronExecutable = await prepareDesktopDevelopmentExecutable({
-					baseIconPath: path.join(sourceRoot, 'resources', 'icon.svg'),
 					electronExecutable: sourceElectronExecutable,
 					environment: process.env,
+					iconDirectory: path.join(sourceRoot, 'resources', 'brand', 'icns'),
 					outputRoot: path.join(desktopRoot, 'out', 'development-runtime'),
 					sourceRoot,
 				});
@@ -109,12 +109,11 @@ export default defineConfig(({ command }) => {
 					path.join(sourceRoot, 'crates', 'workbench-protocol', 'src', 'user_preferences'),
 					path.join(sourceRoot, 'crates', 'workbench-protocol', 'src', 'user_preferences.rs'),
 
-					path.join(desktopRoot, 'scripts', 'materialize-darwin-application-icon.mjs'),
 					path.join(desktopRoot, 'scripts', 'prepare-desktop-development-application.mjs'),
 					path.join(desktopRoot, 'src', 'distribution'),
 					path.join(desktopRoot, 'src', 'native', 'posix-host-endpoint'),
 
-					path.join(sourceRoot, 'resources', 'icon.svg'),
+					path.join(sourceRoot, 'resources', 'brand', 'icns'),
 				],
 				type: 'reload-server',
 			},

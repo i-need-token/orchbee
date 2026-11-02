@@ -642,7 +642,7 @@ bundle path or identifier and never fall back to `/Applications/Orchbee.app`.
 
 ### Distribution profiles
 
-Runtime identity and descriptor parsing belong to `src/distribution/desktop-distribution-profile.ts`; packaging-only argument parsing, descriptor encoding and icon construction live in `src/distribution/tooling/`. Both use the same application-name validation. These source-executed commands require Node native type stripping (enabled by default in Node 22.18 and newer). Node-executed scripts import source modules through explicit `.ts` paths under the [TypeScript module contract](../../docs/TYPESCRIPT.md#module-syntax); the no-emit Desktop typecheck enables `allowImportingTsExtensions`, and the distribution tests include a real Node import witness. `@electron/packager` and `node-api-headers` are development dependencies.
+Runtime identity and descriptor parsing belong to `src/distribution/desktop-distribution-profile.ts`; packaging-only argument parsing and descriptor encoding live in `src/distribution/tooling/`. Both use the same application-name validation. These source-executed commands require Node native type stripping (enabled by default in Node 22.18 and newer). Node-executed scripts import source modules through explicit `.ts` paths under the [TypeScript module contract](../../docs/TYPESCRIPT.md#module-syntax); the no-emit Desktop typecheck enables `allowImportingTsExtensions`, and the distribution tests include a real Node import witness. `@electron/packager` and `node-api-headers` are development dependencies.
 
 Desktop owns exactly three explicit distribution profiles:
 
@@ -652,7 +652,7 @@ Desktop owns exactly three explicit distribution profiles:
 | `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | Green Local badge | `apps/desktop/out/local/`   |
 | `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Orchbee mark      | `apps/desktop/out/release/` |
 
-On macOS each profile's `.icns` is rendered from `resources/icon.svg` on Apple's 824 px icon grid, with the Dev or Local badge drawn over the lower-right corner. Windows and Linux packages still use the Electron default icon.
+On macOS each profile uses its committed `.icns` from `resources/brand/icns/`, drawn on Apple's 824 px icon grid with the Dev or Local badge over the lower-right corner. After changing `resources/icon.svg`, run `pnpm generate:brand-assets` (requires Google Chrome); `pnpm audit:brand-assets` fails while `resources/brand/` is stale. Windows and Linux packages still use the Electron default icon.
 
 `ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME` optionally overrides the default `Orchbee Dev` name
 for `pnpm desktop` and `pnpm desktop:package:dev`.
