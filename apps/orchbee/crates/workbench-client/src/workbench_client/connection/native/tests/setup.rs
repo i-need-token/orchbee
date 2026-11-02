@@ -2364,6 +2364,7 @@ impl UiDriver {
             | Some(TerminalViewerAction::ReadViewportRows { .. })
             | Some(TerminalViewerAction::RowsApplied { .. })
             | Some(TerminalViewerAction::SelectionGesture { .. })
+            | Some(TerminalViewerAction::SelectionCommand { .. })
             | Some(TerminalViewerAction::SelectionExport { .. })
             | Some(TerminalViewerAction::SelectionExportChunkApplied { .. })
             | Some(TerminalViewerAction::SelectionExportCancel { .. })
