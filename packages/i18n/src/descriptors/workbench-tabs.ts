@@ -43,6 +43,11 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.actions.collapse',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.collapse'],
 	},
+	commandPromptTitle: {
+		id: 'workbench.tabs.titles.commandPrompt',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.titles.commandPrompt'],
+		description: 'The name Windows gives cmd in this language, naming a terminal that runs it.',
+	},
 	duplicate: {
 		id: 'workbench.tabs.actions.duplicate',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.duplicate'],
@@ -250,6 +255,12 @@ export const workbenchTabMessages = defineMessages({
 	pinSearchTabs: {
 		id: 'workbench.tabs.actions.pinSearch',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.pinSearch'],
+	},
+	positionTitle: {
+		id: 'workbench.tabs.titles.position',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.titles.position'],
+		description:
+			'Names a Tab by its one-based place in the Tab Strip when nothing it runs gives a name.',
 	},
 	previewUnavailable: {
 		id: 'workbench.tabs.states.previewUnavailable',

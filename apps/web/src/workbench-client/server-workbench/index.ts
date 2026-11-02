@@ -5,4 +5,5 @@ export { createServerWorkbenchAuthority } from './createServerWorkbenchAuthority
 export { findServerPresentation } from './findServerPresentation';
 export { findServerTerminalBinding } from './findServerTerminalBinding';
 export { projectServerSnapshot } from './projectServerSnapshot';
+export { nameServerTerminalTitle } from './server-terminal-names';
 export { admitsAutomaticWorkspace, workspaceLaunchAction } from './workspace-launch';

@@ -1148,6 +1148,14 @@ These choices stand unless review changes them:
   so without the hint, because no Tab can start there and the GUI cannot set a directory, unlike the
   TUI. Windows Clients always create a Workspace with a directory, so no window has shown this yet.
   Without a Workspace, the content stays blank.
+- **Tabs and terminals are named as in the TUI.** A console's default title, the path of its
+  launched program, names that program instead, such as `PowerShell` or `Command Prompt`, and keeps
+  a command that cmd runs. Other titles show as written once one elevation prefix and one activity
+  mark are dropped. A terminal that shows no title takes the program the Server launched for it,
+  else its Tab's place, such as `Tab 2`. The strip, the close question, and each terminal's own name
+  agree, and a language change renames them at once by projecting the snapshot again. Unlike the
+  TUI, a terminal that sets no title but reports its directory is named by that directory, a step
+  the shared Workbench keeps for the frozen path.
 - **`panel.relocate` and `panel.rename` stay unconnected.** The GUI has no entry for either.
 
 Measured on 2026-11-01 and 2026-11-02 on Windows with a Release cohort, in a real window beside a
@@ -1191,6 +1199,9 @@ real TUI or CLI on the same Session:
 | Empty Workspace               | After its last Tab closed, the content named the directory at the top left with a Ctrl+Shift+T New tab hint, 262–276 ms after Close, in English and Chinese. A 120-character path wrapped in a 405-pixel pane.                                       |
 | New Tab from an empty one     | The keyboard was on the page, not in a control. Ctrl+Shift+T replaced the hint with a Tab in 29–32 ms, whose terminal had the keyboard 53–54 ms after the key, opened in the named directory, and took typing.                                       |
 | Close of an untouched shell   | A shell that had taken no input still asked Close Tab? 1.5 s after it started, in English and Chinese.                                                                                                                                               |
+| PowerShell Tab                | From the first strip sample, 9 ms after the Workspace opened, the Tab read `PowerShell`, with no path shown first, and Close Tab? said `PowerShell. Ends 1 terminal.`                                                                                |
+| Command Prompt Tab            | Opened by the CLI, the Tab read `Command Prompt` within 2 ms while inactive. Running `ping -n 6 127.0.0.1` showed `Command Prompt - ping -n 6 127.0.0.1` 14 ms after Enter, and `Command Prompt` again once it ended.                                |
+| Language change               | Choosing Chinese in Settings renamed the Command Prompt Tab within 60 ms, and English renamed it back within 25 ms. Typing after the change reached cmd, and Close Tab? named the Tab in Chinese.                                                    |
 
 ### Evidence
 

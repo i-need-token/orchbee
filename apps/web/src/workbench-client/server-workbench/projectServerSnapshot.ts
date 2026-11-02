@@ -1,3 +1,4 @@
+import { workbenchTabMessages, type IntlShape } from '@orchbee/i18n';
 import type { WorkbenchPublication } from '@orchbee/workbench';
 import { deriveProjectNameFromPath } from '@orchbee/workbench/project-workspace';
 import {
@@ -13,6 +14,7 @@ import {
 	type WorkbenchTerminalContext,
 } from '@orchbee/workbench-client-protocol';
 
+import { nameServerTerminalProgram } from './server-terminal-names';
 import { serverResourceScopeId } from './serverResourceScopeId';
 
 type Navigation = WorkbenchSnapshot['navigation'];
@@ -26,6 +28,12 @@ interface WritablePublishedFacts {
 		{ readonly customTitle: string | null; readonly lifecycle: TerminalPresentationLifecycle }
 	>;
 	readonly splitWeights: Map<string, readonly [first: number, second: number]>;
+}
+
+/** How a terminal of one Tab is named when it shows no title. */
+interface TerminalFallbackNaming {
+	readonly intl: IntlShape;
+	readonly tabTitle: string;
 }
 
 /** The React Workbench needs one context when no Workspace is open; a Server ID is never this. */
@@ -44,10 +52,13 @@ const UNBOUND_TERMINAL_FAILURE_CODE = 'terminal-unbound';
  * its own one-directory resource scope, because the Server has no scopes and a Workspace it holds
  * without a directory still needs one here. `defaultDirectory` only names that placeholder, which is
  * unavailable, so the Workbench opens no Workspace in it and says the Workspace has no directory.
+ * Names follow the TUI's: a terminal that shows no title takes the program the Server launched for
+ * it, else its Tab's place, both in `intl`'s language.
  */
 export function projectServerSnapshot(
 	snapshot: WorkbenchSnapshot,
 	defaultDirectory: string,
+	intl: IntlShape,
 ): WorkbenchPublication {
 	const { navigation } = snapshot;
 	const directories = new Map(
@@ -64,10 +75,11 @@ export function projectServerSnapshot(
 	}));
 	const facts: WritablePublishedFacts = { presentations: new Map(), splitWeights: new Map() };
 	return {
+		// A projected context holds names in one language, so another language replaces it.
 		contextFingerprints: new Map(
 			snapshot.terminalContexts.map((context) => [
 				context.terminalContextId,
-				JSON.stringify(context),
+				JSON.stringify([intl.locale, context]),
 			]),
 		),
 		document: createWorkbenchSharedDocument({
@@ -114,7 +126,7 @@ export function projectServerSnapshot(
 					tabCollection: { groups: [], tabs: [] },
 					terminalContextId: NO_WORKSPACE_TERMINAL_CONTEXT_ID,
 				},
-				...snapshot.terminalContexts.map((context) => projectTerminalContext(context, facts)),
+				...snapshot.terminalContexts.map((context) => projectTerminalContext(context, facts, intl)),
 			],
 		}),
 		presentations: facts.presentations,
@@ -166,7 +178,11 @@ function projectDirectory(id: string, path: string, available: boolean) {
 	};
 }
 
-function projectTerminalContext(context: WorkbenchTerminalContext, facts: WritablePublishedFacts) {
+function projectTerminalContext(
+	context: WorkbenchTerminalContext,
+	facts: WritablePublishedFacts,
+	intl: IntlShape,
+) {
 	return {
 		nextTabSequence: UNUSED_SEQUENCE,
 		panelWorkspace: {
@@ -175,8 +191,11 @@ function projectTerminalContext(context: WorkbenchTerminalContext, facts: Writab
 			nextSplitSequence: UNUSED_SEQUENCE,
 			nextTerminalSequence: UNUSED_SEQUENCE,
 			pendingRemovals: [],
-			tabs: context.tabs.map((tab) => ({
-				root: projectPanelNode(tab.root, facts),
+			tabs: context.tabs.map((tab, position) => ({
+				root: projectPanelNode(tab.root, facts, {
+					intl,
+					tabTitle: tabPositionTitle(position, intl),
+				}),
 				tabId: tab.tabId,
 			})),
 		},
@@ -191,11 +210,16 @@ function projectTerminalContext(context: WorkbenchTerminalContext, facts: Writab
 				group: tab.groupId,
 				id: tab.tabId,
 				pinned: tab.pinned,
-				title: tab.automaticLabel === true ? `${position + 1}` : tab.label,
+				title: tab.automaticLabel === true ? tabPositionTitle(position, intl) : tab.label,
 			})),
 		},
 		terminalContextId: context.terminalContextId,
 	};
+}
+
+/** Each Client numbers a Tab by its current place, so moving or closing a Tab renumbers others. */
+function tabPositionTitle(position: number, intl: IntlShape): string {
+	return intl.formatMessage(workbenchTabMessages.positionTitle, { position: `${position + 1}` });
 }
 
 /** A Tab without a chosen name follows its focused terminal, so a blank label chooses nothing. */
@@ -208,15 +232,16 @@ function customTabTitle(tab: Tab): string | null {
 function projectPanelNode(
 	node: WorkbenchPanelNode,
 	facts: WritablePublishedFacts,
+	naming: TerminalFallbackNaming,
 ): WorkbenchSharedPanelNode {
 	if (node.kind === 'panel') {
 		return {
 			childPresentations: node.childPresentations.map((presentation) =>
-				projectPresentation(presentation, facts),
+				projectPresentation(presentation, facts, naming),
 			),
 			id: node.panelId,
 			kind: 'panel',
-			primaryPresentation: projectPresentation(node.primaryPresentation, facts),
+			primaryPresentation: projectPresentation(node.primaryPresentation, facts, naming),
 		};
 	}
 	const firstWeight = (node.ratio ?? EVEN_SPLIT_RATIO) * 100;
@@ -224,7 +249,7 @@ function projectPanelNode(
 	return {
 		children: node.children.map((slot) => ({
 			id: slot.slotId,
-			node: projectPanelNode(slot.node, facts),
+			node: projectPanelNode(slot.node, facts, naming),
 		})),
 		id: node.splitId,
 		kind: 'split',
@@ -232,20 +257,28 @@ function projectPanelNode(
 	};
 }
 
+/**
+ * The program comes from the Server's launch of the current binding, else from its failed launch;
+ * the Server's raw label is not a name a person chose, so it never shows.
+ */
 function projectPresentation(
 	presentation: WorkbenchPresentation,
 	facts: WritablePublishedFacts,
+	naming: TerminalFallbackNaming,
 ): WorkbenchSharedPresentation {
 	const { intent, lifecycle } = projectTerminalState(presentation);
 	facts.presentations.set(presentation.presentationId, {
 		customTitle: presentation.customLabel,
 		lifecycle,
 	});
+	const launched = presentation.launchProgram ?? presentation.launchFailure?.executable ?? null;
 	return {
 		intent,
 		launchCwd: null,
 		presentationId: presentation.presentationId,
-		title: presentation.label,
+		title:
+			(launched === null ? null : nameServerTerminalProgram(launched, naming.intl)) ??
+			naming.tabTitle,
 	};
 }
 

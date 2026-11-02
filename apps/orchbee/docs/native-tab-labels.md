@@ -54,8 +54,8 @@ every platform, a program that has reported no title, and a Tab whose terminal t
 yet observed, show that program; only a Presentation without that fact shows its position. A
 Presentation lacks it when it is unbound, and a bound one lacks it when its launch's preference
 capture was unavailable, its Worker reported no System shell, or the program's file name exceeds 128
-bytes. The GUI Workbench does not yet attach to native Sessions and
-keeps its own title resolution; this naming is a staged native-only delivery.
+bytes. A GUI on a native Session names Tabs and terminals by this rule too, and
+[its README](../../web/README.md) records where it differs.
 
 Automatic rename drafts start empty with the same current display name as an informational
 placeholder; only typed text can submit. Fixed names prefill the editor. The native TUI renders the existing

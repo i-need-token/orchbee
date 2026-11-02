@@ -1,3 +1,4 @@
+import { createOrchbeeIntl } from '@orchbee/i18n';
 import { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
 import {
 	parseWorkbenchResponse,
@@ -11,6 +12,7 @@ import { describe, expect, it } from 'vitest';
 import { projectServerSnapshot } from '../projectServerSnapshot';
 
 const DEFAULT_DIRECTORY = 'C:\\Users\\someone';
+const INTL = createOrchbeeIntl('en-US');
 const WORKER_ID = hex(0x2);
 
 function hex(value: number): string {
@@ -106,7 +108,7 @@ function oneWorkspaceSnapshot(revision: number, tabs: readonly object[]): Workbe
 function createRuntime(initial: WorkbenchSnapshot): WorkbenchProjectWorkspaceRuntime {
 	let sequence = 0;
 	return new WorkbenchProjectWorkspaceRuntime({
-		initialPublication: projectServerSnapshot(initial, DEFAULT_DIRECTORY),
+		initialPublication: projectServerSnapshot(initial, DEFAULT_DIRECTORY, INTL),
 		standaloneCwd: DEFAULT_DIRECTORY,
 		standaloneTerminalTitle: 'Terminal',
 		terminalPresentation: {
@@ -121,7 +123,7 @@ function createRuntime(initial: WorkbenchSnapshot): WorkbenchProjectWorkspaceRun
 }
 
 function publish(runtime: WorkbenchProjectWorkspaceRuntime, next: WorkbenchSnapshot): void {
-	runtime.applyPublishedWorkbench(projectServerSnapshot(next, DEFAULT_DIRECTORY));
+	runtime.applyPublishedWorkbench(projectServerSnapshot(next, DEFAULT_DIRECTORY, INTL));
 }
 
 function activeLeaf(runtime: WorkbenchProjectWorkspaceRuntime, tabIndex = 0) {
@@ -242,6 +244,35 @@ describe('projectServerSnapshot', () => {
 			.tabs.map((candidate) => candidate.title);
 		expect(title).toBe('build');
 		expect(activeLeaf(runtime).primaryPresentation.currentCwd).toBe('C:\\elsewhere');
+	});
+
+	it('names a terminal that shows no title by its launched program, else by its Tab place', () => {
+		const runtime = createRuntime(
+			oneWorkspaceSnapshot(1, [
+				tab(1, panel(1, presentation(1, { launchProgram: 'pwsh.exe' })), { automaticLabel: true }),
+				tab(
+					2,
+					panel(
+						2,
+						presentation(2, {
+							launchFailure: {
+								executable: 'C:\\tools\\node.exe',
+								reason: 'terminal-create-failed',
+							},
+						}),
+					),
+					{ automaticLabel: true },
+				),
+				tab(3, panel(3, presentation(3, { binding: null })), { automaticLabel: true }),
+				tab(4, panel(4, presentation(4, { launchProgram: 'cmd.exe' })), { label: 'build' }),
+			]),
+		);
+
+		const titles = runtime
+			.getActiveTerminalContext()
+			.tabModel.getSnapshot()
+			.tabs.map((candidate) => candidate.title);
+		expect(titles).toEqual(['PowerShell', 'node', 'Tab 3', 'build']);
 	});
 });
 

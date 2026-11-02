@@ -44,6 +44,7 @@ import {
 	createServerWorkbenchAuthority,
 	findServerPresentation,
 	findServerTerminalBinding,
+	nameServerTerminalTitle,
 	projectServerSnapshot,
 	ServerTerminalProjectionClient,
 	type ServerWorkbenchSession,
@@ -55,6 +56,10 @@ import {
 	writeWorkbenchFocusRecovery,
 	type WorkbenchFocusRecoveryStorage,
 } from './workbench-focus-recovery-storage';
+
+type ServerTerminalMetadata = Parameters<
+	ProjectedTerminalSurfaceCapability['observeTerminalMetadata']
+>[1];
 
 export interface ServerWorkbenchRuntime {
 	readonly actionRuntime: ActionRuntime;
@@ -116,7 +121,9 @@ export function createServerWorkbenchRuntime({
 	terminalTrailingBlankRowsPreferenceSource,
 }: CreateServerWorkbenchRuntimeOptions): ServerWorkbenchRuntime {
 	let disposed = false;
-	const initialPublication = projectServerSnapshot(session.snapshot, defaultDirectory);
+	let locale = applicationLocaleSource.current();
+	let intl = createOrchbeeIntl(locale);
+	const initialPublication = projectServerSnapshot(session.snapshot, defaultDirectory, intl);
 	const actionRuntime = new ActionRuntime();
 	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 		initialClientView:
@@ -128,9 +135,7 @@ export function createServerWorkbenchRuntime({
 					),
 		initialPublication,
 		standaloneCwd: defaultDirectory,
-		standaloneTerminalTitle: createOrchbeeIntl(applicationLocaleSource.current()).formatMessage(
-			workbenchTabMessages.terminalTitle,
-		),
+		standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
 		terminalPresentation: {
 			createOperationId: () =>
 				terminalPresentationOperationId(`workbench:operation:${createBrowserRandomIdentifier()}`),
@@ -148,7 +153,7 @@ export function createServerWorkbenchRuntime({
 	const adoptPublication = (snapshot: WorkbenchSnapshot): void => {
 		try {
 			projectWorkspaceRuntime.applyPublishedWorkbench(
-				projectServerSnapshot(snapshot, defaultDirectory),
+				projectServerSnapshot(snapshot, defaultDirectory, intl),
 			);
 		} catch (error) {
 			onPublicationFailure(error);
@@ -191,10 +196,38 @@ export function createServerWorkbenchRuntime({
 	const presentationSnapshots =
 		new TerminalPresentationSnapshotCache<ProjectedTerminalPresentationSnapshot>();
 	// A revision only orders metadata of one terminal, and a Presentation can be bound to another.
+	// The latest metadata stays so that a language change can name its title again.
 	const metadataCursors = new Map<
 		TerminalPresentationId,
-		{ readonly revision: bigint; readonly terminal: string | null }
+		{
+			readonly metadata: ServerTerminalMetadata;
+			readonly revision: bigint;
+			readonly terminal: string | null;
+		}
 	>();
+	const applyTerminalMetadata = (
+		presentationId: TerminalPresentationId,
+		metadata: ServerTerminalMetadata,
+	): void => {
+		const observation = resolveTerminalMetadataObservation(metadata, terminalHostName);
+		projectWorkspaceRuntime.applyTerminalMetadataObservation(presentationId, {
+			...observation,
+			naturalTitle:
+				observation.naturalTitle === null
+					? null
+					: nameServerTerminalTitle(observation.naturalTitle, intl),
+		});
+	};
+	const stopLocaleObservation = applicationLocaleSource.subscribe(() => {
+		const next = applicationLocaleSource.current();
+		if (disposed || next === locale) return;
+		locale = next;
+		intl = createOrchbeeIntl(next);
+		adoptPublication(session.snapshot);
+		for (const [presentationId, { metadata }] of metadataCursors) {
+			applyTerminalMetadata(presentationId, metadata);
+		}
+	});
 	const terminalSurfaceCapability: ProjectedTerminalSurfaceCapability = {
 		applicationLocaleSource,
 		documentElement,
@@ -206,11 +239,8 @@ export function createServerWorkbenchRuntime({
 			const terminal = binding === null ? null : `${binding.workerId}:${binding.terminalId}`;
 			const previous = metadataCursors.get(presentationId);
 			if (previous?.terminal === terminal && previous.revision > metadata.revision) return;
-			metadataCursors.set(presentationId, { revision: metadata.revision, terminal });
-			projectWorkspaceRuntime.applyTerminalMetadataObservation(
-				presentationId,
-				resolveTerminalMetadataObservation(metadata, terminalHostName),
-			);
+			metadataCursors.set(presentationId, { metadata, revision: metadata.revision, terminal });
+			applyTerminalMetadata(presentationId, metadata);
 		},
 		platformEffects: terminalPlatformEffects,
 		preferredLocales,
@@ -248,6 +278,7 @@ export function createServerWorkbenchRuntime({
 			runApplicationCleanup(
 				[
 					() => stopPublication(),
+					() => stopLocaleObservation(),
 					() => stopFocusRecoveryDocumentObservation?.(),
 					() => stopFocusRecoveryViewObservation?.(),
 					() => actionRuntime.dispose(),
