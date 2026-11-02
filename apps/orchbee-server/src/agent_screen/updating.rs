@@ -3,10 +3,11 @@ use super::{RemoteCache, ScreenDetector, manifest::Manifest, version::Version};
 use orchbee_agent_observation_protocol::AgentReportProvider;
 use orchbee_local_runtime::PrivateCache;
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use std::{
     cmp::Ordering,
     collections::BTreeSet,
-    path::Path,
+    path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering as AtomicOrdering},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -139,8 +140,15 @@ fn update_provider(
     row.cached_version = Some(display);
     Ok(Disposition::Updated)
 }
-fn remote_root(root: &Path) -> std::path::PathBuf {
-    root.join("agent-detection").join("remote")
+/// Each catalog keeps its rules and their status in its own directory, named by the first 128 bits
+/// of the catalog URL's SHA-256, so no failed or interrupted update and no concurrent read can pair
+/// one catalog's status with another catalog's rules.
+fn remote_root(root: &Path, source: &CatalogUrl) -> PathBuf {
+    let mut prefix = [0; 16];
+    prefix.copy_from_slice(&Sha256::digest(source.as_str().as_bytes())[..16]);
+    root.join("agent-detection")
+        .join("remote")
+        .join(format!("{:032x}", u128::from_be_bytes(prefix)))
 }
 fn parse_status(bytes: &[u8]) -> Result<UpdateReport, Failure> {
     let report: UpdateReport = serde_json::from_slice(bytes).map_err(|_| Failure::Cache)?;
@@ -150,7 +158,7 @@ fn parse_status(bytes: &[u8]) -> Result<UpdateReport, Failure> {
 /// The persisted status of the configured catalog. A status recorded for another catalog
 /// describes no rules this Session may use, so it reads as absent.
 fn configured_status(root: &Path, source: &CatalogUrl) -> Result<Option<UpdateReport>, Failure> {
-    let Some(bytes) = PrivateCache::read_existing(&remote_root(root), "status.json", LIMIT)
+    let Some(bytes) = PrivateCache::read_existing(&remote_root(root, source), "status.json", LIMIT)
         .map_err(|_| Failure::Cache)?
     else {
         return Ok(None);
@@ -158,14 +166,14 @@ fn configured_status(root: &Path, source: &CatalogUrl) -> Result<Option<UpdateRe
     let report = parse_status(&bytes)?;
     Ok((report.catalog_url == source.as_str()).then_some(report))
 }
-/// Cached remote rules join selection only when the unique updater recorded the configured
-/// catalog as their source; a missing, unreadable, or foreign record means no cache.
+/// Cached remote rules join selection only from the configured catalog's directory, and only when
+/// its updater recorded that catalog there; a missing, unreadable, or foreign record means no cache.
 pub(crate) fn remote_cache(root: Option<&Path>, source: &Source) -> RemoteCache {
     match (root, source) {
         (Some(root), Ok(Some(source)))
             if matches!(configured_status(root, source), Ok(Some(_))) =>
         {
-            RemoteCache::Admitted
+            RemoteCache::Admitted(remote_root(root, source))
         }
         _ => RemoteCache::Ignored,
     }
@@ -235,7 +243,8 @@ fn run_with_fetch(
             .duration_since(UNIX_EPOCH)
             .map_err(|_| Failure::Clock)?
             .as_secs();
-        let writer = cache.insert(PrivateCache::acquire(&remote_root(root)).map_err(|e| {
+        let directory = remote_root(root, source);
+        let writer = cache.insert(PrivateCache::acquire(&directory).map_err(|e| {
             if e.kind() == std::io::ErrorKind::WouldBlock {
                 Failure::Busy
             } else {
@@ -249,10 +258,11 @@ fn run_with_fetch(
             Some(bytes) => Some(parse_status(&bytes)?.catalog_url),
             None => None,
         };
-        // This updater is the only writer of the cache and its status. Rules cached for another or
-        // an unrecorded catalog are removed before this catalog's status can claim the cache; a
-        // failed removal leaves the previous record, which this catalog does not admit.
+        // This updater is the only writer of its catalog's directory. Rules that no status there
+        // attributes to this catalog are removed, the status first, before this catalog's status
+        // can claim them; a failed removal stops the update with nothing admitting those rules.
         if recorded.as_deref() != Some(source.as_str()) {
+            writer.remove("status.json").map_err(|_| Failure::Cache)?;
             let bundled = ScreenDetector::bundled().map_err(|_| Failure::InvalidManifest)?;
             for manifest in &bundled.0 {
                 writer

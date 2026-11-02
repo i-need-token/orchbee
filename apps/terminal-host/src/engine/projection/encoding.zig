@@ -49,10 +49,15 @@ pub fn encodeOwned(
         self.graphics.requiresSnapshot(request.base_revision);
     const kind: FrameKind = if (snapshot) .snapshot else .delta;
     const base_revision: ?u64 = if (snapshot) null else request.base_revision;
+    const command_started = if (request.command_observation) |observation|
+        if (observation.command) |command| command.started_at_nanoseconds != 0 else false
+    else
+        false;
     const extension_count: u16 = 2 +
         @as(u16, @intFromBool(request.close_activity != .unknown)) +
         @as(u16, @intFromBool(request.command_completion != null)) +
-        @as(u16, @intFromBool(request.command_observation != null));
+        @as(u16, @intFromBool(request.command_observation != null)) +
+        @as(u16, @intFromBool(command_started));
     if (!snapshot and base_revision.? >= self.captured_revision) return error.ProjectionTooLarge;
 
     var strings = StringTable.init(self.allocator);
@@ -264,6 +269,12 @@ pub fn encodeOwned(
             try writer.appendInt(u64, command.generation);
             try writer.appendInt(u64, command.output_epoch);
             try writer.appendInt(i32, command.exit_code);
+            if (command_started) {
+                try writer.appendInt(u16, protocol.terminal_frame_extension_command_start);
+                try writer.appendInt(u16, 0);
+                try writer.appendInt(u32, 8);
+                try writer.appendInt(u64, command.started_at_nanoseconds);
+            }
         }
     }
 

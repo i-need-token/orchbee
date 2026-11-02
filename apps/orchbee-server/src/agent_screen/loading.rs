@@ -5,12 +5,17 @@ use orchbee_workbench_protocol::{
     AgentDetectionManifest, AgentManifestSource as Source, AgentManifestWarning as Warning,
     AgentManifestWarningKind as Reason,
 };
-use std::{fs::File, io::Read, path::Path};
+use std::{
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+};
 const MAXIMUM_MANIFEST_BYTES: u64 = 256 * 1024;
-/// Whether cached remote rules join selection. Ignored rules are never read or reported.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Whether cached remote rules join selection, read from the configured catalog's directory.
+/// Ignored rules are never read or reported.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum RemoteCache {
-    Admitted,
+    Admitted(PathBuf),
     Ignored,
 }
 
@@ -70,8 +75,7 @@ impl ScreenDetector {
         let root = root.join("agent-detection");
         for current in &mut detector.0 {
             let filename = format!("{}.toml", current.provider.report_label());
-            let remote = root.join("remote").join(&filename);
-            let local = root.join(filename);
+            let local = root.join(&filename);
             let mut info = AgentDetectionManifest {
                 source: Source::Bundled,
                 path: None,
@@ -80,18 +84,21 @@ impl ScreenDetector {
                 warnings: vec![],
             };
             let bundled_version = current.version.as_deref().and_then(Version::parse);
-            let remote_candidate = match remote_cache {
-                RemoteCache::Admitted => candidate(current.provider, &remote),
+            let remote_candidate = match &remote_cache {
+                RemoteCache::Admitted(directory) => {
+                    let path = directory.join(&filename);
+                    candidate(current.provider, &path).map(|found| found.map(|found| (path, found)))
+                }
                 RemoteCache::Ignored => Ok(None),
             };
             match remote_candidate {
-                Ok(Some(candidate)) if candidate.minimum_engine_version.is_none() => {
+                Ok(Some((_, candidate))) if candidate.minimum_engine_version.is_none() => {
                     info.warnings.push(Warning {
                         source: Source::RemoteCache,
                         kind: Reason::InvalidManifest,
                     });
                 }
-                Ok(Some(mut candidate)) => {
+                Ok(Some((remote, mut candidate))) => {
                     match candidate.version.as_deref().and_then(Version::parse) {
                         None => info.warnings.push(Warning {
                             source: Source::RemoteCache,

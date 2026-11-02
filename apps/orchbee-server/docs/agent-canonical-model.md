@@ -228,8 +228,8 @@ terminal access. The protocol schema and CLI envelope versions must agree with e
 On Windows the Session keeps one identity state per exact Terminal generation, fed only by complete
 Host process samples and failed sample attempts. The Agent observation protocol's per-sample
 verdict names the outermost candidate anchor, by process identifier and creation time, or why no
-anchor can be named. The state turns verdicts into one result: `agent` with grade `recognized`,
-`none`, `unknown` with one closed reason, or `unsupported` with `remote-execution`.
+anchor can be named. The state turns verdicts into one result: `agent` with grade `recognized` or
+`confirmed`, `none`, `unknown` with one closed reason, or `unsupported` with `remote-execution`.
 
 - Settle: a run starts only after the same anchor appears in two successful samples at least
   500 ms apart; until then the result is `unknown` with `settling`. An anchor that attaches to the
@@ -244,6 +244,10 @@ anchor can be named. The state turns verdicts into one result: `agent` with grad
   outer Agent. Before a run exists, they prevent settling.
 - Staleness: failed samples never end a run; they keep the last result for at most two seconds and
   then yield `unknown` with `sample-failed`.
+- Grade: a run is `confirmed` only while the typed command that started it stays open, and only when
+  every process from its anchor up to the sample's Job root was created after the Host read that
+  command's start marker; any missing evidence keeps `recognized`. The rule and its reasons are
+  in the CLI's [typed-run boundaries](../../orchbee/docs/native-terminal-run.md#typed-run-boundaries).
 - Consumption: Panel process reports and screen fallback attribute only the published run. A run is
   published when its result is `agent`, or `unknown` with `unclassified-arguments` or
   `command-line-unreadable`, so Agents started with unlisted arguments stay visible; a run that stays

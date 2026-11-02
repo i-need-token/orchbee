@@ -305,6 +305,7 @@ pub fn validateTerminalFrame(
     var progress: ?contract.TerminalProgress = null;
     var command_completion: ?contract.TerminalCommandCompletion = null;
     var command_observation: ?contract.TerminalCommandObservation = null;
+    var command_started_at: ?u64 = null;
     var close_activity: ?contract.TerminalCloseActivity = null;
     for (0..extension_count) |_| {
         const extension_kind = try reader.readInt(u16);
@@ -388,9 +389,19 @@ pub fn validateTerminalFrame(
                 else => return error.InvalidField,
             }
             command_observation = observation;
+        } else if (extension_kind == contract.terminal_frame_extension_command_start) {
+            if (command_started_at != null or extension.len != 8) return error.InvalidField;
+            command_started_at = std.mem.readInt(u64, extension[0..8], .little);
+            if (command_started_at == 0) return error.InvalidField;
         }
     }
     if (reader.offset != bytes.len) return error.LengthMismatch;
+    // The start time annotates the invocation of this frame's command observation.
+    if (command_started_at) |started_at| {
+        const observation = if (command_observation) |*value| value else return error.InvalidField;
+        const command = if (observation.command) |*value| value else return error.InvalidField;
+        command.started_at_nanoseconds = started_at;
+    }
 
     return .{
         .attachment_id = attachment_id,

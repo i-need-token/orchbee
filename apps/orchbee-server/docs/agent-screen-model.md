@@ -49,10 +49,11 @@ Working-to-plain-idle transitions hold for three further confirmations or 700 ms
 The accepted rule-maintenance model gives the Server one immutable compiled ruleset and its
 provenance. Windows startup resolves the shared configuration-file parent without rewriting user
 settings. For each bundled provider, `<config>/agent-detection/<report-label>.toml` overrides
-`<config>/agent-detection/remote/<report-label>.toml`, then bundled rules. The remote cache takes
-part only while a valid update catalog is configured and the cache status records that catalog as
-the source of its rules; otherwise its rules are never read, and a local override precedes bundled
-rules. Without a configured catalog the Server never reads `agent-detection/remote`. Reads admit regular UTF-8
+`<config>/agent-detection/remote/<catalog>/<report-label>.toml`, then bundled rules. `<catalog>` is
+the first 32 lowercase hexadecimal digits of the SHA-256 of the configured catalog URL. The remote
+cache takes part only while a valid update catalog is configured and the status in that catalog's
+directory records it as the source of its rules; otherwise its rules are never read, and a local
+override precedes bundled rules. Without a configured catalog the Server never reads `agent-detection/remote`. Reads admit regular UTF-8
 files of at most 256 KiB with the same provider, engine and complexity validation as bundled rules.
 Present versions must be dotted numeric; remote caches must also declare an engine version and
 be no older than bundled versions. Trailing zero segments compare equally. Normalized manifest
@@ -122,16 +123,19 @@ Cached versions never decrease. Equal numeric versions must have identical bytes
 without a version increase fail. Each newer valid manifest commits atomically, so partial provider
 failures retain independent outcomes and never masquerade as a successful whole update.
 
-The updater is the only writer of the remote cache and its `status.json`, which records the catalog
-URL each update used. Before an update records a catalog that differs from the recorded one, or when
-no status exists, it removes every cached bundled-provider rule, so the recorded catalog is the
-source of all cached rules. A failed removal records nothing. A missing status, or one that names
-another catalog, means no cache: rule selection and maintenance status ignore it until the
-configured catalog's next update. An unreadable status remains a cache status error and refuses
-updates.
+Each catalog has its own cache directory, holding its rules and the `status.json` that records the
+catalog URL each update used, and the updater is its only writer. No failed or interrupted update
+and no concurrent read can therefore pair one catalog's status with rules another catalog cached;
+within a catalog the status is replaced after the rules it describes. When the status in a
+catalog's directory names another catalog, or none exists, an update removes that status and then
+every cached bundled-provider rule before recording its own; a failed removal stops the update. A
+missing status, or one that names another catalog, means no cache: rule selection and maintenance
+status ignore it until the configured catalog's next update. An unreadable status remains a cache
+status error and refuses updates. Rules that earlier versions cached directly under
+`agent-detection/remote` are no longer read.
 
 The Server owns logical cache/update state. The Windows filesystem adapter pins admitted private
-ancestors/files and provides one cross-process writer lock under the shared remote-cache directory.
+ancestors/files and provides one cross-process writer lock in each catalog's cache directory.
 It preserves malformed or unsafe user data instead of repairing it. Bounded named pending leaves
 belong to this cache owner; explicit settlement removes them after child/file consumers end and
 later recovery only touches these owned leaves under the same lock. The downloader resolves the

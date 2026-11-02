@@ -63,6 +63,7 @@ fn report(ui: &mut WorkbenchClientUi, ready: bool, running: bool) {
             end_column: 0,
             generation: one,
             output_epoch: one,
+            started_at: None,
         }),
     });
     ui.projections[0].value.install_frame_for_test(next);

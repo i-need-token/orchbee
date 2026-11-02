@@ -40,5 +40,7 @@ pub const TerminalCommandObservation = struct {
         end_column: u16 = 0,
         generation: u64,
         output_epoch: u64,
+        /// Real-time Unix nanoseconds when the Host read the start marker; zero when unknown.
+        started_at_nanoseconds: u64 = 0,
     };
 };

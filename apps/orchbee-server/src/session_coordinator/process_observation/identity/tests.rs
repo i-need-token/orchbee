@@ -32,7 +32,17 @@ fn agent(pid: u32, parent: u32, created: u64, provider: P) -> AgentProcessRow {
 struct Trace {
     state: IdentityState,
     origin: Instant,
-    open: Option<[u8; 16]>,
+    open: Option<Open>,
+}
+
+/// A command the shell echoed and whose start marker the Host read at `started`, if it reported
+/// a time.
+fn open(command: u8, started: Option<u64>) -> Option<Open> {
+    Some(Open {
+        command: [command; 16],
+        started,
+        shell: SHELL.pid,
+    })
 }
 
 impl Trace {
@@ -80,13 +90,13 @@ fn confirmed(provider: P) -> Identity {
 }
 
 #[test]
-fn a_run_is_confirmed_only_inside_the_command_window_it_appeared_in() {
+fn a_run_is_confirmed_only_when_the_open_command_started_its_anchor() {
     let shell = [SHELL];
     let rows = [SHELL, agent(20, 10, 200, P::Claude)];
-    // Typed command observed after an idle sample; the anchor appears inside its window.
+    // The Host read the start marker at 150 and the shell started the anchor at 200.
     let mut t = Trace::new();
     t.sample(0, &shell);
-    t.open = Some([1; 16]);
+    t.open = open(1, Some(150));
     t.sample(100, &rows);
     t.sample(600, &rows);
     assert_eq!(t.result(), confirmed(P::Claude));
@@ -95,25 +105,51 @@ fn a_run_is_confirmed_only_inside_the_command_window_it_appeared_in() {
     t.sample(900, &rows);
     assert_eq!(t.result(), recognized(P::Claude));
 
-    // An anchor that predates the command, or a window without a prior sample, stays recognized.
+    // Created after the last idle sample but before the command started, at the same time as
+    // the start, or without a Host start time, the anchor stays recognized.
+    for started in [Some(250), Some(200), None] {
+        let mut t = Trace::new();
+        t.sample(0, &shell);
+        t.open = open(2, started);
+        t.sample(100, &rows);
+        t.sample(600, &rows);
+        assert_eq!(t.result(), recognized(P::Claude), "{started:?}");
+    }
+
+    // A launcher the command started may sit between the shell and the anchor. One that an
+    // earlier command left running, or a chain whose parent is gone, proves nothing.
+    let launcher = |created| AgentProcessRow {
+        pid: 30,
+        parent_pid: Some(10),
+        creation_time: created,
+        ..SHELL
+    };
+    for (rows, grade) in [
+        (
+            [SHELL, launcher(160), agent(20, 30, 200, P::Claude)],
+            confirmed(P::Claude),
+        ),
+        (
+            [SHELL, launcher(120), agent(20, 30, 200, P::Claude)],
+            recognized(P::Claude),
+        ),
+        (
+            [SHELL, launcher(160), agent(20, 31, 200, P::Claude)],
+            recognized(P::Claude),
+        ),
+    ] {
+        let mut t = Trace::new();
+        t.open = open(4, Some(150));
+        t.sample(0, &rows);
+        t.sample(500, &rows);
+        assert_eq!(t.result(), grade, "{rows:?}");
+    }
+
+    // A later command never adopts an anchor that predates it.
     let mut t = Trace::new();
-    t.sample(0, &rows);
-    t.open = Some([2; 16]);
-    t.sample(100, &rows);
-    t.sample(600, &rows);
-    assert_eq!(t.result(), recognized(P::Claude));
-    let mut t = Trace::new();
-    t.open = Some([3; 16]);
     t.sample(0, &rows);
     t.sample(500, &rows);
-    assert_eq!(t.result(), recognized(P::Claude));
-
-    // A failed sample before the window removes the floor.
-    let mut t = Trace::new();
-    t.sample(0, &shell);
-    t.fail(50);
-    t.open = Some([4; 16]);
-    t.sample(100, &rows);
+    t.open = open(3, Some(300));
     t.sample(600, &rows);
     assert_eq!(t.result(), recognized(P::Claude));
 }

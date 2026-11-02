@@ -1,6 +1,6 @@
-//! Decodes the closed OBTF shell-observation extension into Host row-origin, readiness, and
-//! correlated-command facts. It does not infer a command from screen text or decide whether a
-//! Client operation completed.
+//! Decodes the closed OBTF shell-observation extensions into Host row-origin, readiness,
+//! correlated-command facts, and the time the Host read a command's start. It does not infer a
+//! command from screen text or decide whether a Client operation completed.
 
 use super::{Reader, error};
 use crate::{ProtocolError, ProtocolErrorCode};
@@ -26,6 +26,17 @@ pub struct TerminalObservedCommand {
     pub end_column: u16,
     pub generation: NonZeroU64,
     pub output_epoch: NonZeroU64,
+    /// Real-time Unix nanoseconds when the Host read the start marker, from extension kind 6;
+    /// a process created after it started after the Shell wrote that marker.
+    pub started_at: Option<NonZeroU64>,
+}
+
+/// Decodes extension kind 6, the start time of the invocation in the same frame's kind 5.
+pub(super) fn decode_start(bytes: &[u8]) -> Result<NonZeroU64, ProtocolError> {
+    let bytes: [u8; 8] = bytes
+        .try_into()
+        .map_err(|_| error(ProtocolErrorCode::InvalidField))?;
+    NonZeroU64::new(u64::from_le_bytes(bytes)).ok_or_else(|| error(ProtocolErrorCode::InvalidField))
 }
 
 pub(super) fn decode(bytes: &[u8]) -> Result<TerminalCommandObservation, ProtocolError> {
@@ -58,6 +69,7 @@ pub(super) fn decode(bytes: &[u8]) -> Result<TerminalCommandObservation, Protoco
                 generation: NonZeroU64::new(reader.u64()?).ok_or_else(invalid)?,
                 output_epoch: NonZeroU64::new(reader.u64()?).ok_or_else(invalid)?,
                 exit_code: i32::from_le_bytes(reader.take(4)?.try_into().map_err(|_| invalid())?),
+                started_at: None,
             };
             if !command.completed
                 && (command.exit_code != 0 || command.end_row != 0 || command.end_column != 0)

@@ -64,11 +64,14 @@ pub const Tracker = struct {
         self.committed = self.staged;
     }
 
+    /// `now_nanoseconds` is the real-time clock read after the marker's bytes arrived, so a
+    /// process created later started after the Shell wrote the marker; zero when unreadable.
     pub fn accept(
         self: *Tracker,
         terminal: *ghostty_vt.Terminal,
         generation: u64,
         bytes: []const u8,
+        now_nanoseconds: u64,
     ) !bool {
         if (!std.mem.startsWith(u8, bytes, prefix)) return false;
         var parts = std.mem.splitScalar(u8, bytes[prefix.len..], ';');
@@ -97,6 +100,7 @@ pub const Tracker = struct {
                 .start_column = screen.cursor.x,
                 .generation = generation,
                 .output_epoch = self.staged.output_epoch,
+                .started_at_nanoseconds = now_nanoseconds,
             };
         } else if (std.mem.eql(u8, action, "finish")) {
             const status = parts.next() orelse return true;

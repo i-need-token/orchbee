@@ -1254,6 +1254,36 @@ test "shell correlation preserves the exact run and ignores unrelated finish mar
     try std.testing.expectEqual(@as(i32, 1), state.command_observation.committed.command.?.exit_code);
     try runtime.forceTerminate();
 }
+
+test "a start marker records when the Host read it and frames publish that time" {
+    const samples = [_]u64{ 1, 2, 3, 4 };
+    var clock: CommandClockProbe = .{
+        .monotonic_values = &samples,
+        .wall_milliseconds = 1_786_947_200_123,
+    };
+    const runtime = try createRuntimeWithHooks(clock.hooks());
+    defer runtime.destroy();
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b_orchbee.command.v1;start;11111111111111111111111111111111\x1b\\"));
+    const started_at: u64 = 1_786_947_200_123 * std.time.ns_per_ms;
+    try std.testing.expectEqual(started_at, runtimeState(runtime).command_observation.committed.command.?.started_at_nanoseconds);
+    const frame = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        .{
+            .attachment_id = AttachmentId.fromBytes([_]u8{0x47} ** 16),
+            .base_generation = null,
+            .base_revision = null,
+            .force_snapshot = true,
+            .host_epoch = HostEpoch.fromBytes([_]u8{0x48} ** 16),
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = 1,
+        },
+    ));
+    defer std.testing.allocator.free(frame.allocation);
+    const summary = try protocol.validateTerminalFrame(std.testing.allocator, frame.bytes);
+    try std.testing.expectEqual(started_at, summary.command_observation.?.command.?.started_at_nanoseconds);
+    try runtime.forceTerminate();
+}
 test "Windows child exiting 259 completes normally with exit code 259 (THCR-041)" {
     const builtin = @import("builtin");
     if (builtin.os.tag != .windows) return error.SkipZigTest;

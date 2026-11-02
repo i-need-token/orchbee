@@ -10,6 +10,7 @@ pub const terminal_frame_extension_kitty_graphics: u16 = 2;
 pub const terminal_frame_extension_progress: u16 = 3;
 pub const terminal_frame_extension_command_completion: u16 = 4;
 pub const terminal_frame_extension_command_observation: u16 = 5;
+pub const terminal_frame_extension_command_start: u16 = 6;
 pub const terminal_graphics_header_bytes = 40;
 pub const terminal_graphics_magic = "OBKG";
 pub const terminal_graphics_format_major: u8 = 0;

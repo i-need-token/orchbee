@@ -12,8 +12,10 @@
 //!   `unknown` with `sample-failed`.
 //! - A run is published to Panel reports at most once and stays published until it ends.
 //! - A run is `confirmed` only while the shell-echoed command it started in is still open, and
-//!   only when its anchor was created after every row of the last successful sample taken before
-//!   that command was observed; any missing evidence leaves the `recognized` grade.
+//!   only when its anchor descends from the shell through processes all created after the Host
+//!   read that command's start marker. Samples cannot place a start between two of them, and an
+//!   older process can start an Agent on its own, so without that evidence the run stays
+//!   `recognized`.
 
 use orchbee_agent_observation_protocol::{
     AgentAnchor, AgentIdentityGrade, AgentIdentityUnknownReason as Reason,
@@ -38,16 +40,19 @@ pub(crate) struct Run {
     pub(crate) created: u64,
     pub(crate) provider: AgentReportProvider,
     pub(crate) published: bool,
-    /// The shell-echoed command whose window the anchor appeared in.
+    /// The open shell-echoed command that started the anchor's chain below the shell.
     pub(crate) command: Option<[u8; 16]>,
 }
 
-/// One open shell-echoed command and the newest creation time of the last successful sample
-/// taken before it was observed; without that floor nothing proves an anchor appeared inside.
+/// The Terminal's open shell-echoed command, read after a sample's rows.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct Window {
-    command: [u8; 16],
-    floor: Option<u64>,
+pub(crate) struct Open {
+    pub(crate) command: [u8; 16],
+    /// No earlier than the Host reading the command's start marker, in row creation-time units;
+    /// `None` when the Host reported no time.
+    pub(crate) started: Option<u64>,
+    /// The sample's Job root: the shell that echoed the command.
+    pub(crate) shell: u32,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -63,8 +68,6 @@ pub(crate) struct IdentityState {
     pending: Option<Pending>,
     last_success: Option<Instant>,
     minted: u32,
-    window: Option<Window>,
-    floor: Option<u64>,
 }
 
 impl Default for IdentityState {
@@ -75,8 +78,6 @@ impl Default for IdentityState {
             pending: None,
             last_success: None,
             minted: 0,
-            window: None,
-            floor: None,
         }
     }
 }
@@ -102,23 +103,16 @@ impl IdentityState {
         self.run.is_some() || self.pending.is_some()
     }
 
-    /// Applies one successful sample and returns the run it ended, if any. `open` is the
-    /// Terminal's open shell-echoed command, read after this sample's rows.
+    /// Applies one successful sample and returns the run it ended, if any.
     pub(crate) fn observe(
         &mut self,
         at: Instant,
         rows: &[AgentProcessRow],
         verdict: AgentSampleVerdict,
-        open: Option<[u8; 16]>,
+        open: Option<Open>,
     ) -> Option<Run> {
         self.last_success = Some(at);
-        if self.window.map(|window| window.command) != open {
-            self.window = open.map(|command| Window {
-                command,
-                floor: self.floor,
-            });
-        }
-        self.floor = Some(rows.iter().map(|row| row.creation_time).max().unwrap_or(0));
+        let command = open.map(|open| open.command);
         let mut ended = None;
         if let Some(mut run) = self.run {
             if rows
@@ -127,7 +121,7 @@ impl IdentityState {
             {
                 self.result = match verdict {
                     AgentSampleVerdict::Anchor(anchor) if anchor_of(anchor, run) => {
-                        graded(anchor.result(), run, open)
+                        graded(anchor.result(), run, command)
                     }
                     AgentSampleVerdict::Unresolved { reason, .. } => Identity::Unknown(reason),
                     _ => Identity::Unknown(Reason::AmbiguousCandidates),
@@ -139,7 +133,7 @@ impl IdentityState {
                 run.pid = anchor.pid;
                 run.created = anchor.creation_time;
                 self.run = Some(run);
-                self.result = graded(anchor.result(), run, open);
+                self.result = graded(anchor.result(), run, command);
                 self.publish();
                 return None;
             }
@@ -160,17 +154,16 @@ impl IdentityState {
                         created: anchor.creation_time,
                         provider: anchor.provider,
                         published: false,
-                        command: self
-                            .window
-                            .filter(|window| {
-                                window
-                                    .floor
-                                    .is_some_and(|floor| anchor.creation_time > floor)
+                        command: open
+                            .filter(|open| {
+                                open.started.is_some_and(|started| {
+                                    started_within(rows, anchor, open.shell, started)
+                                })
                             })
-                            .map(|window| window.command),
+                            .map(|open| open.command),
                     };
                     self.run = Some(run);
-                    graded(anchor.result(), run, open)
+                    graded(anchor.result(), run, command)
                 }
                 Some(pending) if same_anchor(pending.anchor, anchor) => {
                     Identity::Unknown(Reason::Settling)
@@ -199,8 +192,6 @@ impl IdentityState {
 
     /// Applies one failed sample; it proves nothing about the anchor, so the run stays.
     pub(crate) fn fail(&mut self, at: Instant) {
-        // A gap in successful samples leaves no floor for a command observed after it.
-        self.floor = None;
         if self
             .last_success
             .is_none_or(|last| at.saturating_duration_since(last) >= STALE)
@@ -237,6 +228,32 @@ fn graded(result: Identity, run: Run, open: Option<[u8; 16]>) -> Identity {
         }
         other => other,
     }
+}
+
+/// Whether the anchor descends from the shell only through processes created after the Host
+/// read the start marker; an older process, such as one an earlier command left running, could
+/// have started the anchor without the open command.
+fn started_within(rows: &[AgentProcessRow], anchor: AgentAnchor, shell: u32, started: u64) -> bool {
+    let Some(mut row) = rows.iter().find(|row| row.pid == anchor.pid) else {
+        return false;
+    };
+    for _ in 0..rows.len() {
+        match row
+            .parent_pid
+            .and_then(|pid| rows.iter().find(|parent| parent.pid == pid))
+        {
+            Some(parent)
+                if row.creation_time > started && parent.creation_time <= row.creation_time =>
+            {
+                if parent.pid == shell {
+                    return true;
+                }
+                row = parent;
+            }
+            _ => return false,
+        }
+    }
+    false
 }
 
 fn same_anchor(a: AgentAnchor, b: AgentAnchor) -> bool {

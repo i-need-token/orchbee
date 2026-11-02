@@ -25,8 +25,12 @@ impl Root {
             .join("remote")
             .join("codex.toml")
     }
+    /// Admits the cached rules beside [`Self::remote`].
+    fn cache(&self) -> RemoteCache {
+        RemoteCache::Admitted(self.0.join("agent-detection").join("remote"))
+    }
     fn explain(&self) -> orchbee_workbench_protocol::AgentScreenExplanation {
-        ScreenDetector::load(Some(&self.0), RemoteCache::Admitted)
+        ScreenDetector::load(Some(&self.0), self.cache())
             .unwrap()
             .explain(Provider::Codex, input())
             .unwrap()
@@ -85,7 +89,7 @@ fn installed_rules_prioritize_local_then_valid_remote_and_leave_old_snapshot_imm
     assert_eq!(info.source, Source::Bundled);
     assert!(info.cached_remote_version.is_none() && info.warnings.is_empty());
     fs::write(root.local(), manifest("0", "local", "blocked")).unwrap();
-    let installed = ScreenDetector::load(Some(&root.0), RemoteCache::Admitted).unwrap();
+    let installed = ScreenDetector::load(Some(&root.0), root.cache()).unwrap();
     let local = installed.explain(Provider::Codex, input()).unwrap();
     assert_eq!(local.matched_rule.unwrap().id, "local");
     let info = local.manifest.unwrap();

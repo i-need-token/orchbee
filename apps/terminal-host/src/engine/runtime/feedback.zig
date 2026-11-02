@@ -29,6 +29,7 @@ pub fn privateApplicationSignalEffect(
             &self.terminal,
             self.generation,
             apc.content,
+            wallTimeNanoseconds(self) orelse 0,
         ) catch {
             self.feedback_sequence_overflow_pending = true;
             return;
@@ -357,14 +358,18 @@ fn validClipboardText(text: []const u8) bool {
 }
 
 fn wallTimeMilliseconds(self: *state.State) ?u64 {
+    return (wallTimeNanoseconds(self) orelse return null) / std.time.ns_per_ms;
+}
+
+fn wallTimeNanoseconds(self: *state.State) ?u64 {
     if (comptime @import("builtin").is_test) {
         if (self.testing_hooks.wall_time_milliseconds) |read| {
-            return read(self.testing_hooks.context.?);
+            return std.math.mul(u64, read(self.testing_hooks.context.?), std.time.ns_per_ms) catch null;
         }
     }
     return std.math.cast(
         u64,
-        std.Io.Timestamp.now(thread_sync.io(), .real).toMilliseconds(),
+        std.Io.Timestamp.now(thread_sync.io(), .real).toNanoseconds(),
     );
 }
 

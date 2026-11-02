@@ -71,6 +71,27 @@ fn rows(sample: &TerminalProcessInfo) -> Vec<AgentProcessRow> {
         })
         .collect()
 }
+/// Windows sample rows carry FILETIME creation times: 100 ns units since 1601.
+const UNIX_EPOCH_FILETIME: u64 = 116_444_736_000_000_000;
+
+/// Decodes the Host's start time into row creation-time units, rounded up so that a later
+/// creation time still proves a process started after the Host read the start marker.
+fn open_invocation(
+    command: orchbee_terminal_protocol::TerminalObservedCommand,
+    shell: u32,
+) -> identity::Open {
+    identity::Open {
+        command: command.id,
+        shell,
+        started: command.started_at.and_then(|nanoseconds| {
+            nanoseconds
+                .get()
+                .div_ceil(100)
+                .checked_add(UNIX_EPOCH_FILETIME)
+        }),
+    }
+}
+
 fn evaluate(sample: &TerminalProcessInfo) -> (Vec<AgentProcessRow>, AgentSampleVerdict) {
     let rows = rows(sample);
     let verdict =
@@ -181,7 +202,9 @@ impl SessionCoordinator {
         }
         let directory = directory.or_else(|| prior.and_then(|sample| sample.directory.clone()));
         // The projection read after this sample's rows supplies the open command.
-        let open = self.open_command(&physical);
+        let open = self
+            .open_command(&physical)
+            .map(|command| open_invocation(command, sample.root_pid));
         let Some(workbench) = self.workbench.as_mut() else {
             return false;
         };

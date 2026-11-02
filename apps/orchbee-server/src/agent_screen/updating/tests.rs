@@ -51,11 +51,11 @@ pub(crate) fn rules(provider: &str, version: &str) -> String {
 /// Scripted fetches and pre-fetch cancellation never contact this reserved example host.
 const CATALOG: &str = "https://example.com/agent-detection/index.toml";
 pub(crate) const INDEX: &str = "schema_version=1\n[[agents]]\nid='codex'\npath='codex.toml'\n";
-fn scripted(root: &Root, content: &str) -> UpdateReport {
+fn update(root: &Root, source: &CatalogUrl, content: &str) -> UpdateReport {
     let stop = AtomicBool::new(false);
     run_with_fetch(
         &root.0,
-        &CatalogUrl::parse(CATALOG).unwrap(),
+        source,
         &stop,
         Instant::now() + Duration::from_secs(10),
         |url, _, _| {
@@ -66,6 +66,26 @@ fn scripted(root: &Root, content: &str) -> UpdateReport {
             })
         },
     )
+}
+fn scripted(root: &Root, content: &str) -> UpdateReport {
+    update(root, &CatalogUrl::parse(CATALOG).unwrap(), content)
+}
+/// A leaf in the directory of the catalog that `scripted` updates.
+fn cached(root: &Root, name: &str) -> PathBuf {
+    remote_root(&root.0, &CatalogUrl::parse(CATALOG).unwrap()).join(name)
+}
+/// The cached Codex version that a Session configured with `source` selects, if any.
+fn selected(root: &Root, source: &CatalogUrl) -> Option<String> {
+    let cache = remote_cache(Some(&root.0), &Ok(Some(source.clone())));
+    let codex = ScreenDetector::load(Some(&root.0), cache)
+        .unwrap()
+        .summaries()
+        .into_iter()
+        .find(|m| m.agent == "codex")
+        .unwrap();
+    (codex.manifest.source == orchbee_workbench_protocol::AgentManifestSource::RemoteCache)
+        .then_some(codex.version)
+        .flatten()
 }
 #[test]
 fn cache_updates_preserve_versions_bytes_partial_outcomes_and_corrupt_inputs() {
@@ -83,7 +103,7 @@ fn cache_updates_preserve_versions_bytes_partial_outcomes_and_corrupt_inputs() {
     let older = scripted(&root, &rules("codex", "0.9"));
     assert_eq!(older.agents[0].error, Some(Failure::OlderVersion));
     assert_eq!(
-        fs::read_to_string(root.0.join("agent-detection/remote/codex.toml")).unwrap(),
+        fs::read_to_string(cached(&root, "codex.toml")).unwrap(),
         original
     );
     let stop = AtomicBool::new(false);
@@ -105,12 +125,12 @@ fn cache_updates_preserve_versions_bytes_partial_outcomes_and_corrupt_inputs() {
     assert_eq!(partial.agents[0].result, Disposition::Updated);
     assert_eq!(partial.agents[1].error, Some(Failure::InvalidManifest));
     assert!(partial.status_saved);
-    let path = root.0.join("agent-detection/remote/codex.toml");
+    let path = cached(&root, "codex.toml");
     fs::write(&path, b"corrupt").unwrap();
     let rejected = scripted(&root, &rules("codex", "3"));
     assert_eq!(rejected.agents[0].error, Some(Failure::Cache));
     assert_eq!(fs::read(&path).unwrap(), b"corrupt");
-    let status = root.0.join("agent-detection/remote/status.json");
+    let status = cached(&root, "status.json");
     fs::write(&status, b"corrupt status").unwrap();
     let rejected = scripted(&root, &rules("codex", "3"));
     assert_eq!(rejected.failure, Some(Failure::Cache));
@@ -118,48 +138,65 @@ fn cache_updates_preserve_versions_bytes_partial_outcomes_and_corrupt_inputs() {
     assert_eq!(fs::read(status).unwrap(), b"corrupt status");
 }
 #[test]
-fn cached_rules_serve_only_the_catalog_recorded_by_their_updater() {
+fn each_catalog_selects_only_rules_its_own_updates_cached() {
     let root = Root::new();
     let first = CatalogUrl::parse(CATALOG).unwrap();
     let other = CatalogUrl::parse("https://example.com/other/index.toml").unwrap();
-    let cached = root.0.join("agent-detection/remote/codex.toml");
-    let status = root.0.join("agent-detection/remote/status.json");
     assert_eq!(
         scripted(&root, &rules("codex", "2099.1")).agents[0].result,
         Disposition::Updated
     );
-    assert_eq!(
-        remote_cache(Some(&root.0), &Ok(Some(first.clone()))),
-        RemoteCache::Admitted
-    );
-    assert_eq!(
-        remote_cache(Some(&root.0), &Ok(Some(other.clone()))),
-        RemoteCache::Ignored
-    );
+    assert_eq!(selected(&root, &first).as_deref(), Some("2099.1"));
+    assert_eq!(selected(&root, &other), None);
     let foreign = maintenance(Some(&root.0), &Ok(Some(other.clone())));
     assert_eq!((foreign.last_update, foreign.status_error), (None, None));
-    // Even a failed catalog fetch discards rules cached for another catalog before recording its own.
+    // Read and write sharing without delete sharing refuses replacing a held status.
+    let hold = |source: &CatalogUrl| {
+        use std::os::windows::fs::OpenOptionsExt;
+        fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0x1 | 0x2)
+            .open(remote_root(&root.0, source).join("status.json"))
+            .unwrap()
+    };
+    // Switching catalogs while the first catalog's status cannot be replaced, and then failing to
+    // publish the new catalog's status after its rules were cached, never pairs one catalog's
+    // status with the other's rules.
+    let held = hold(&first);
+    assert!(update(&root, &other, &rules("codex", "2099.2")).status_saved);
+    drop(held);
+    assert_eq!(selected(&root, &first).as_deref(), Some("2099.1"));
+    assert_eq!(selected(&root, &other).as_deref(), Some("2099.2"));
+    let held = hold(&other);
+    let unpublished = update(&root, &other, &rules("codex", "2099.3"));
+    drop(held);
+    assert_eq!(
+        (unpublished.failure, unpublished.status_saved),
+        (Some(Failure::Cache), false)
+    );
+    assert_eq!(selected(&root, &first).as_deref(), Some("2099.1"));
+    assert_eq!(selected(&root, &other).as_deref(), Some("2099.3"));
+    // A status in a catalog's directory that names another catalog admits nothing. Even a failed
+    // catalog fetch removes it and then the rules before recording its own.
+    fs::copy(
+        remote_root(&root.0, &other).join("status.json"),
+        cached(&root, "status.json"),
+    )
+    .unwrap();
+    assert_eq!(selected(&root, &first), None);
     let report = run_with_fetch(
         &root.0,
-        &other,
+        &first,
         &AtomicBool::new(false),
         Instant::now() + Duration::from_secs(10),
         |_, _, _| Err(Failure::InvalidCatalog),
     );
     assert_eq!(report.failure, Some(Failure::InvalidCatalog));
     assert!(report.status_saved);
-    assert!(!cached.exists());
-    assert_eq!(
-        remote_cache(Some(&root.0), &Ok(Some(first))),
-        RemoteCache::Ignored
-    );
+    assert!(!cached(&root, "codex.toml").exists());
     // Rules without a recorded catalog are never admitted.
-    fs::write(&cached, rules("codex", "2099.1")).unwrap();
-    fs::remove_file(status).unwrap();
-    assert_eq!(
-        remote_cache(Some(&root.0), &Ok(Some(other))),
-        RemoteCache::Ignored
-    );
+    fs::remove_file(remote_root(&root.0, &other).join("status.json")).unwrap();
+    assert_eq!(selected(&root, &other), None);
 }
 #[test]
 fn catalog_and_cancellation_fail_before_any_manifest_commit() {
@@ -384,7 +421,11 @@ fn real_inbox_curl_commits_validated_rules_and_rejects_oversized_and_invalid_utf
     assert_eq!(report.failure, None, "{report:?}");
     assert!(report.status_saved);
     assert_eq!(report.agents[0].result, Disposition::Updated);
-    let active = ScreenDetector::load(Some(&root.0), RemoteCache::Admitted).unwrap();
+    let active = ScreenDetector::load(
+        Some(&root.0),
+        remote_cache(Some(&root.0), &Ok(Some(server.url.clone()))),
+    )
+    .unwrap();
     let codex = active
         .summaries()
         .into_iter()

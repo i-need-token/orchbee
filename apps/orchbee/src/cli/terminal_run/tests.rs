@@ -23,6 +23,7 @@ fn only_the_exact_completed_invocation_can_finish_a_wait() {
         end_column: 0,
         generation: NonZeroU64::new(1).unwrap(),
         output_epoch: NonZeroU64::new(1).unwrap(),
+        started_at: None,
     };
     frame.command_observation = Some(TerminalCommandObservation {
         output_epoch: NonZeroU64::new(1).unwrap(),

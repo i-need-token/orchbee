@@ -283,6 +283,7 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
     let mut progress = None;
     let mut command_completion = None;
     let mut command_observation = None;
+    let mut command_started_at = None;
     let mut graphics_present = None;
     for _ in 0..extensions_count {
         let kind = header.u16()?;
@@ -326,9 +327,22 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
             }
             command_observation = Some(command_observation::decode(bytes)?);
         }
+        if kind == 6 {
+            if command_started_at.is_some() {
+                return Err(error(ProtocolErrorCode::InvalidField));
+            }
+            command_started_at = Some(command_observation::decode_start(bytes)?);
+        }
     }
     if !header.bytes.is_empty() {
         return Err(error(ProtocolErrorCode::LengthMismatch));
+    }
+    if let Some(started_at) = command_started_at {
+        let command = command_observation
+            .as_mut()
+            .and_then(|observation| observation.command.as_mut())
+            .ok_or_else(|| error(ProtocolErrorCode::InvalidField))?;
+        command.started_at = Some(started_at);
     }
     Ok(TerminalTextFrame {
         route,

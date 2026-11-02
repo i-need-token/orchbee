@@ -32,6 +32,7 @@ pub const terminal_frame_extension_kitty_graphics = contract.terminal_frame_exte
 pub const terminal_frame_extension_progress = contract.terminal_frame_extension_progress;
 pub const terminal_frame_extension_command_completion = contract.terminal_frame_extension_command_completion;
 pub const terminal_frame_extension_command_observation = contract.terminal_frame_extension_command_observation;
+pub const terminal_frame_extension_command_start = contract.terminal_frame_extension_command_start;
 pub const terminal_graphics_header_bytes = contract.terminal_graphics_header_bytes;
 pub const terminal_graphics_magic = contract.terminal_graphics_magic;
 pub const terminal_graphics_format_major = contract.terminal_graphics_format_major;

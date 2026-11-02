@@ -231,3 +231,43 @@ fn correlated_command_observations_are_closed_and_transactional() {
     payload[9] = 1;
     assert!(decode_terminal_text_frame(&frame(&[(5, 0, &payload)])).is_err());
 }
+
+#[test]
+fn a_command_start_time_annotates_only_the_same_frames_invocation() {
+    let mut running = vec![0_u8; 66];
+    running[..8].copy_from_slice(&1_u64.to_le_bytes());
+    running[9] = 1;
+    running[10..26].fill(0x11);
+    running[46..54].copy_from_slice(&3_u64.to_le_bytes());
+    running[54..62].copy_from_slice(&1_u64.to_le_bytes());
+    let start = 7_u64.to_le_bytes();
+    let started = |extensions: &[(u16, u16, &[u8])]| {
+        decode_terminal_text_frame(&frame(extensions)).map(|frame| {
+            frame
+                .command_observation
+                .unwrap()
+                .command
+                .unwrap()
+                .started_at
+        })
+    };
+    for order in [
+        [(5, 0, &running[..]), (6, 0, &start[..])],
+        [(6, 0, &start[..]), (5, 0, &running[..])],
+    ] {
+        assert_eq!(
+            started(&order).unwrap().map(std::num::NonZeroU64::get),
+            Some(7)
+        );
+    }
+    assert_eq!(started(&[(5, 0, &running)]).unwrap(), None);
+    // Without an invocation to annotate, duplicated, zero, or mis-sized, the frame is invalid.
+    let idle = &running[..10];
+    let mut absent = idle.to_vec();
+    absent[9] = 0;
+    assert!(decode_terminal_text_frame(&frame(&[(6, 0, &start)])).is_err());
+    assert!(decode_terminal_text_frame(&frame(&[(5, 0, &absent), (6, 0, &start)])).is_err());
+    assert!(started(&[(5, 0, &running), (6, 0, &start), (6, 0, &start)]).is_err());
+    assert!(started(&[(5, 0, &running), (6, 0, &0_u64.to_le_bytes())]).is_err());
+    assert!(started(&[(5, 0, &running), (6, 0, &start[..7])]).is_err());
+}
