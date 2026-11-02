@@ -34,9 +34,9 @@ pub(crate) use set::{CloseSetKind, close_set_premises_match, close_set_targets};
 const MAXIMUM_CLOSE_RECORDS: usize = 256;
 const DISPOSED_AUTO_ADMISSIONS: u8 = 32;
 /// The Tab leaving its strip reports an ordinary close, so a progressing close stays off the status
-/// line this long after its submission. A real PowerShell Tab closes within about 0.7 s, including
-/// the 250 ms status read; this outlasts that, so the indication appears only for a close that is
-/// really slow, such as one waiting out the Server's five-second grace.
+/// line this long after its submission. A real PowerShell Tab closes within about 0.15 s; this
+/// leaves room for a slower shell, so the indication appears only for a close that is really slow,
+/// such as one waiting out the Server's five-second grace.
 const CLOSE_PENDING_DELAY: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -415,6 +415,9 @@ pub(crate) struct CloseState {
     pending: Option<CloseOperation>,
     completed_handoff: Option<PendingCloseResult>,
     last_read_admission: Option<std::time::Instant>,
+    /// A Workbench publication arrived while a close was retained. The Server publishes a closed
+    /// Tab as it finishes, so the next status read goes out without waiting for `READ_INTERVAL`.
+    publication_wake: bool,
     observation_cursor: usize,
     manual_pass: std::collections::VecDeque<CloseTarget>,
     carrier: CloseCarrier,

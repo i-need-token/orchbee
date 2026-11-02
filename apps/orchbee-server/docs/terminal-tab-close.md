@@ -328,7 +328,10 @@ and its receipt is always awaited and settled outside transport-spanning owner l
 Resume validates the retained old target and local dependencies without requiring a live Worker.
 
 An attempt has **30 seconds**, **32 submitted Host steps**, and **at least 250 ms between query
-submissions**. Sample Server-monotonic time at atomic primary acceptance or successful Resume;
+submissions**, except the first four queries after the Host accepts Terminate, spaced 40, 40, 70
+and 100 ms. A shell at its prompt exits within about 50 ms of Terminate, so its Tab is published
+without waiting out a whole spacing; the fourth query rejoins the 250 ms grid, and the three extra
+queries come out of the same step allowance. Sample Server-monotonic time at atomic primary acceptance or successful Resume;
 checked-add the deadline before commit. Queueing, backpressure, grace and all pages consume that
 same elapsed budget. Before the next step, require `now < deadline` and remaining step allowance;
 count a step when admitted to the carrier. A Worktree hold is the one exception: it defers a

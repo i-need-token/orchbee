@@ -513,6 +513,35 @@ fn partial_settled_observation_retained(stale_restart: bool) {
 }
 
 #[test]
+fn grace_queries_come_early_then_rejoin_the_query_grid() {
+    let now = Instant::now();
+    let running = |terminate_requested| {
+        final_page(Some(LifecycleTerminalPhase::Running {
+            terminate_requested,
+        }))
+    };
+    let mut close = core(now, None);
+    step(&mut close, now, NonZeroU64::MIN, running(false));
+    step(
+        &mut close,
+        now,
+        NonZeroU64::MIN,
+        TerminalLifecycleOutcome::TerminateAccepted,
+    );
+    // 40, 80 and 150 ms catch a shell that exits at once; 250 ms rejoins the grid.
+    for at in [40, 80, 150, 250] {
+        let at = now + Duration::from_millis(at);
+        assert_eq!(close.next(now), CloseContinuationNext::WaitUntil(at));
+        step(&mut close, at, NonZeroU64::MIN, running(true));
+    }
+    assert_eq!(
+        close.next(now),
+        CloseContinuationNext::WaitUntil(now + QUERY_SPACING * 2)
+    );
+    assert_eq!(close.submitted_steps, 6);
+}
+
+#[test]
 fn exact_settled_observation_ends_grace_early_without_force() {
     let now = Instant::now();
     let mut close = core(

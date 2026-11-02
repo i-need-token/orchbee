@@ -22,6 +22,16 @@ use orchbee_workbench_protocol::{
 
 const ATTEMPT_DURATION: Duration = Duration::from_secs(30);
 const QUERY_SPACING: Duration = Duration::from_millis(250);
+/// Spacing of the queries that follow an accepted Terminate. A shell at its prompt exits within
+/// about 50 ms, so querying at 40, 80 and 150 ms lets its Tab leave without waiting out a whole
+/// `QUERY_SPACING`; the fourth query lands on the 250 ms grid, which continues from there. The
+/// three extra queries come out of the same step budget.
+const GRACE_SPACING: [Duration; 4] = [
+    Duration::from_millis(40),
+    Duration::from_millis(40),
+    Duration::from_millis(70),
+    Duration::from_millis(100),
+];
 const TERMINATE_GRACE: Duration = Duration::from_secs(5);
 const MAXIMUM_STEPS: u8 = 32;
 
@@ -135,6 +145,8 @@ pub(super) struct CloseContinuation {
     last_query_at: Option<Instant>,
     backpressure_until: Option<Instant>,
     terminate_acknowledged: bool,
+    /// Queries admitted since Terminate was accepted, choosing the next `GRACE_SPACING`.
+    grace_queries: u8,
     grace_deadline: Option<Instant>,
     force_acknowledged: bool,
     settled_observed: bool,
@@ -188,6 +200,7 @@ impl CloseContinuation {
             last_query_at: None,
             backpressure_until: None,
             terminate_acknowledged: false,
+            grace_queries: 0,
             grace_deadline: None,
             force_acknowledged: false,
             settled_observed: initial_phase.is_some_and(is_settled),
@@ -340,7 +353,15 @@ impl CloseContinuation {
             }
             LifecycleStage::Observe | LifecycleStage::Grace | LifecycleStage::Outcome => {
                 if let Some(last) = self.last_query_at {
-                    let Some(until) = last.checked_add(QUERY_SPACING) else {
+                    let spacing = if stage == LifecycleStage::Grace {
+                        GRACE_SPACING
+                            .get(usize::from(self.grace_queries))
+                            .copied()
+                            .unwrap_or(QUERY_SPACING)
+                    } else {
+                        QUERY_SPACING
+                    };
+                    let Some(until) = last.checked_add(spacing) else {
                         self.park_lifecycle(BlockedReason::InventoryIncomplete, false);
                         return CloseContinuationNext::Parked;
                     };
@@ -413,6 +434,9 @@ impl CloseContinuation {
             TerminalLifecycleAction::InventoryPage { .. }
         ) {
             self.last_query_at = Some(admitted_observed_at);
+            if self.terminate_acknowledged && !self.force_acknowledged {
+                self.grace_queries = self.grace_queries.saturating_add(1);
+            }
             self.inventory.incomplete = true;
         }
         self.backpressure_until = None;

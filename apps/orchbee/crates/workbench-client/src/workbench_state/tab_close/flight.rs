@@ -123,6 +123,12 @@ impl PendingCloseResult {
 const READ_INTERVAL: Duration = Duration::from_millis(250);
 
 impl CloseState {
+    /// One publication lets the next status read skip its interval, so a close the Server has
+    /// just published settles at once. Reads stay one at a time, and a read clears the wake.
+    pub(crate) fn wake_for_publication(&mut self) {
+        self.publication_wake = !self.records.is_empty();
+    }
+
     fn read_candidate(&self, now: Instant) -> Option<(usize, CloseReadMode)> {
         if self.pending.is_some()
             || self.confirmation.is_some()
@@ -130,9 +136,10 @@ impl CloseState {
                 self.carrier,
                 super::CloseCarrier::MembershipRecoveryPending(_)
             )
-            || self
-                .last_read_admission
-                .is_some_and(|last| now.saturating_duration_since(last) < READ_INTERVAL)
+            || (!self.publication_wake
+                && self
+                    .last_read_admission
+                    .is_some_and(|last| now.saturating_duration_since(last) < READ_INTERVAL))
         {
             return None;
         }
@@ -513,6 +520,7 @@ impl WorkbenchClientState {
                     .ok_or(CloseStateError::UnknownTarget)?;
                 self.close.observation_cursor = (index + 1) % self.close.records.len();
                 self.close.last_read_admission = Some(admitted_at);
+                self.close.publication_wake = false;
             }
         }
         self.close.pending = Some(operation.clone());

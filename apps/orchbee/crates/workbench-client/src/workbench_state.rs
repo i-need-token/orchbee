@@ -3082,6 +3082,7 @@ impl WorkbenchClientState {
     /// and a hint during a live flight only marks late demand for one follow-up flight.
     /// A parked demand re-arms here because a new accepted hint is itself new evidence.
     pub(crate) fn note_publication_hint(&mut self) {
+        self.close.wake_for_publication();
         self.publication_debt = match self.publication_debt {
             PublicationDebt::Clean | PublicationDebt::Parked => PublicationDebt::Pending,
             PublicationDebt::Pending => PublicationDebt::Pending,

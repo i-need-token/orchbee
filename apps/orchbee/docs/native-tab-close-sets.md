@@ -124,9 +124,14 @@ the unknown and late facts a real run cannot force.
 A close of one Tab behaves the same from every route. The Tab leaving reports a normal close, so it
 adds no notice and no count. Until 1 second after submission an unreported close also withholds the
 selected Tab's connection and exit cues; the Panel title still says how its terminal ended. A real
-PowerShell Tab left 0.4 to 0.7 seconds after the click on a debug build, including the 250 ms read
-interval, so the 200 ms delay of other pending indications would flash on every close. Past the
-delay `{label} · Closing` appears, as when a shell outlasts the five-second Terminate grace.
+PowerShell Tab leaves 0.1 to 0.15 seconds after the close starts on a debug build, but a slower
+shell or a busy machine would flash the 200 ms delay of other pending indications. Past the delay
+`{label} · Closing` appears, as when a shell outlasts the five-second Terminate grace.
+
+Status reads of a retained close are 250 ms apart, except that a Workbench publication lets the
+next one go at once: the Server publishes a closed Tab as it finishes, and the close set holds
+every refresh until a read confirms it, so the Tab leaves without waiting out the interval. A wake
+admits one read; reads stay one at a time.
 
 Blocked, unknown, unavailable and uncertain closes report at once. A lone Tab's cutoff reads `Close
 not confirmed`, and a later validated `Closed` clears it. A refusal keeps the Tab and reports only
