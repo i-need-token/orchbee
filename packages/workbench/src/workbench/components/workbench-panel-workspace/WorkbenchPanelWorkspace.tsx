@@ -2,6 +2,7 @@ import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import type { ReactNode } from 'react';
 
 import type { PanelWorkspaceStore } from './model/PanelWorkspaceStore';
+import type { WorkbenchAuthority } from '../../types/workbench-authority';
 import type { WorkbenchTerminalSurface } from '../../types/workbench-terminal-surface';
 import { WorkbenchPanelCloseDialog } from './components/workbench-panel-close-dialog/WorkbenchPanelCloseDialog';
 import { WorkbenchPanelDragGhost } from './components/workbench-panel-drag-ghost/WorkbenchPanelDragGhost';
@@ -19,11 +20,12 @@ import styles from './WorkbenchPanelWorkspace.module.css';
 interface WorkbenchPanelWorkspaceProps {
 	readonly onTerminalEdit?: ((presentationId: string) => void) | undefined;
 	readonly actionRuntime: ActionRuntime;
+	readonly authority?: WorkbenchAuthority | undefined;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
-	readonly presentationScopeId: string;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly terminalAutoFocusAllowed: boolean;
+	readonly terminalContextId: string;
 	readonly terminalFocusRequest: WorkbenchTerminalFocusRequest | null;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 }
@@ -31,24 +33,27 @@ interface WorkbenchPanelWorkspaceProps {
 export function WorkbenchPanelWorkspace({
 	onTerminalEdit,
 	actionRuntime,
+	authority,
 	panelWorkspaceStore,
 	parentActionScope,
-	presentationScopeId,
 	shortcutLabelForAction,
 	terminalAutoFocusAllowed,
+	terminalContextId,
 	terminalFocusRequest,
 	terminalSurface,
 }: WorkbenchPanelWorkspaceProps): ReactNode {
 	const view = useWorkbenchPanelWorkspace({
 		onTerminalEdit,
 		actionRuntime,
+		authority,
 		panelWorkspaceStore,
 		parentActionScope,
 		shortcutLabelForAction,
+		terminalContextId,
 	});
 	const handoff = useTerminalTabPresentationHandoff({
 		activeTab: view.activeTab,
-		presentationScopeId,
+		presentationScopeId: terminalContextId,
 		tabs: view.state.tabs,
 		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});

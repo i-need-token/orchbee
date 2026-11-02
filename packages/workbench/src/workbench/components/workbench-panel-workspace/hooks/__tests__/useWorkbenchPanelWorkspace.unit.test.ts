@@ -39,6 +39,7 @@ function HookProjection() {
 		panelWorkspaceStore: serverPanelWorkspaceStore,
 		parentActionScope: serverParentActionScope,
 		shortcutLabelForAction: () => undefined,
+		terminalContextId: 'terminal-context-1',
 	});
 	return createElement(
 		'div',
@@ -65,6 +66,7 @@ function InteractiveHarness({
 		panelWorkspaceStore,
 		parentActionScope,
 		shortcutLabelForAction: () => undefined,
+		terminalContextId: 'terminal-context-1',
 	});
 	capture(view);
 	return null;

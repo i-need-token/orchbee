@@ -5,7 +5,18 @@ export const enUSWorkbenchMessages = {
 	'workbench.workspaces.createProject': 'New Project and Move',
 	'workbench.workspaces.ungroup': 'Remove from Project',
 	'workbench.projects.closeAll': 'Close All Workspaces',
-	'workbench.projects.closeAll.description': 'Close all Workspaces in {name} and their terminals?',
+	'workbench.projects.close.closed': 'Project Workspaces closed · {label}',
+	'workbench.projects.close.closing': 'Closing Project Workspaces · {label}',
+	'workbench.projects.close.outcomeUnknown':
+		'Project close-all outcome unknown; no replay · {label} · orchbee project close-status --request {operationId}',
+	'workbench.projects.close.refused':
+		'Project close-all was not submitted or was refused; refresh and try again · {label}',
+	'workbench.projects.close.stopped':
+		'Project close-all stopped; known results preserved · {label}',
+	'workbench.projects.closeAll.description':
+		'Ends every terminal in the Workspaces of “{name}”. The Project, branches and checkouts are kept.',
+	'workbench.projects.closeAll.title':
+		'{count, plural, =0 {Close Workspaces?} =1 {Close Workspace?} other {Close # Workspaces?}}',
 	'workbench.workspaces.new': 'New Workspace',
 	'workbench.sidebar.items.newWorkspace': 'New workspace',
 
@@ -184,8 +195,17 @@ export const enUSWorkbenchMessages = {
 	'workbench.workspaces.agents.navigationLabel': '{provider}, {status}, {location}',
 	'workbench.workspaces.agents.navigationUnavailable': 'This Agent is no longer available.',
 	'workbench.workspaces.agents.notNavigable': '{label}. This Agent cannot be opened right now.',
+	'workbench.workspaces.close.changed': 'Workspace changed; try again',
+	'workbench.workspaces.close.closed': 'Workspace closed · {label}',
+	'workbench.workspaces.close.closing': 'Closing Workspace · {label}',
+	'workbench.workspaces.close.outcomeUnknown':
+		'Workspace Close outcome unknown; no replay · {label} · orchbee workspace close-status --workspace {workspaceId}',
+	'workbench.workspaces.close.refused':
+		'Workspace Close was not submitted or was refused; refresh and try again · {label}',
+	'workbench.workspaces.close.stopped':
+		'Workspace Close stopped; known results preserved · {label}',
 	'workbench.workspaces.confirmDelete.description':
-		'This deletes “{name}”, including its tabs, panels, and terminal context. Its folder stays on disk.',
+		'Ends every terminal in “{name}”. Branches and checkouts are kept.',
 	'workbench.workspaces.confirmDelete.title': 'Close Workspace?',
 	'workbench.workspaces.manage.description': 'Change the Workspace name and default folder.',
 	'workbench.workspaces.manage.nameOnlyDescription': 'Change the Workspace name.',
@@ -290,7 +310,23 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.closeRunning.description':
 		'{count, plural, one {This terminal is still running. Closing it will end the running process.} other {# terminals are still running. Closing this panel will end their running processes.}}',
 	'workbench.panels.closeRunning.title': 'Close running terminal?',
+	'workbench.panels.close.notApplied': 'Panel operation was not applied',
 	'workbench.panels.childTerminals.label': 'Child terminals',
+	'workbench.tabs.close.awaitingRemoval': '{label} · Execution ended; awaiting Tab removal',
+	'workbench.tabs.close.cancelled': 'Close confirmation cancelled',
+	'workbench.tabs.close.cleanupBlocked': '{label} · Close cleanup blocked',
+	'workbench.tabs.close.closed': '{label} · Closed',
+	'workbench.tabs.close.closing': '{label} · Closing',
+	'workbench.tabs.close.description':
+		'{names}{more, plural, =0 {} =1 { … and 1 more Tab} other { … and # more Tabs}}. Ends {running, plural, =1 {# terminal} other {# terminals}}.',
+	'workbench.tabs.close.notApplied': 'Close request was not applied',
+	'workbench.tabs.close.outcomeUnknown': '{label} · Close outcome unknown',
+	'workbench.tabs.close.setProgress': 'Closing Tabs: {completed} closed, {remaining} remaining',
+	'workbench.tabs.close.setStopped':
+		'Closing stopped: {completed} closed, {remaining} not confirmed closed. Submitted closes may continue.',
+	'workbench.tabs.close.statusUnavailable':
+		'{label} · Awaiting Close status · Status check unavailable',
+	'workbench.tabs.close.title': '{count, plural, =1 {Close Tab?} other {Close # Tabs?}}',
 	'workbench.tabs.label': 'Terminal tabs',
 	'workbench.tabs.titles.loading': 'Loading…',
 	'workbench.tabs.titles.new': 'New Tab',

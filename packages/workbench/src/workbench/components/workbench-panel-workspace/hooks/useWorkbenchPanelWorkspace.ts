@@ -9,6 +9,7 @@ import {
 	WorkbenchTerminalBellEffectCoordinator,
 	type WorkbenchTerminalBellEffect,
 } from '../../../model/WorkbenchTerminalBellEffectCoordinator';
+import type { WorkbenchAuthority } from '../../../types/workbench-authority';
 import type { PanelWorkspaceStore } from '../model/PanelWorkspaceStore';
 import {
 	PANEL_ACTION_IDS,
@@ -58,9 +59,11 @@ import { useWorkbenchPanelBroadcastInput } from './useWorkbenchPanelBroadcastInp
 interface UseWorkbenchPanelWorkspaceOptions {
 	readonly onTerminalEdit?: ((presentationId: string) => void) | undefined;
 	readonly actionRuntime: ActionRuntime;
+	readonly authority?: WorkbenchAuthority | undefined;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
+	readonly terminalContextId: string;
 }
 
 interface PanelDragSession {
@@ -101,9 +104,11 @@ const EMPTY_PANEL_DRAG: WorkbenchPanelWorkspaceView['panelDrag'] = Object.freeze
 export function useWorkbenchPanelWorkspace({
 	onTerminalEdit,
 	actionRuntime,
+	authority,
 	panelWorkspaceStore,
 	parentActionScope,
 	shortcutLabelForAction,
+	terminalContextId,
 }: UseWorkbenchPanelWorkspaceOptions): WorkbenchPanelWorkspaceView {
 	const intl = useOrchbeeIntl();
 	const workspaceReference = React.useRef<HTMLDivElement>(null);
@@ -391,10 +396,12 @@ export function useWorkbenchPanelWorkspace({
 	);
 	const panelActions = useWorkbenchPanelActions({
 		activeTab,
+		authority,
 		operations,
 		panelCount,
 		parentScope: parentActionScope,
 		runtime: actionRuntime,
+		terminalContextId,
 	});
 	const executePanelAction = panelActions.execute;
 	const revalidatePanelVisualSelection = useMemoizedFn(

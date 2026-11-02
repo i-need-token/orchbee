@@ -909,6 +909,23 @@ export class WorkbenchProjectWorkspaceRuntime {
 			);
 	}
 
+	/** How many terminals these Tabs hold, whatever each one is doing. */
+	public getActiveTerminalTabsTerminalCount(tabIds: readonly string[]): number {
+		const requestedTabIds = new Set(tabIds);
+		return this.getActiveMutableContext()
+			.panelWorkspaceStore.getSnapshot()
+			.tabs.reduce(
+				(count, tab) =>
+					requestedTabIds.has(tab.tabId)
+						? collectPanelLeaves(tab.root).reduce(
+								(terminals, panel) => terminals + 1 + panel.childPresentations.length,
+								count,
+							)
+						: count,
+				0,
+			);
+	}
+
 	public applyTerminalPresentationEvent(
 		event: TerminalPresentationEvent,
 	): WorkbenchTerminalPresentationEventResult {

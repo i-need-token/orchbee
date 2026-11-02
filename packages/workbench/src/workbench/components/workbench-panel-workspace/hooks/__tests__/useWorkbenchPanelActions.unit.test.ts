@@ -98,6 +98,7 @@ function Harness({
 		panelCount,
 		parentScope,
 		runtime,
+		terminalContextId: 'terminal-context-1',
 	});
 	captureScope(actions.scope);
 	return null;
@@ -152,6 +153,7 @@ describe('useWorkbenchPanelActions', () => {
 					panelCount: 2,
 					parentScope,
 					runtime,
+					terminalContextId: 'terminal-context-1',
 				});
 				scope = actions.scope;
 				return null;

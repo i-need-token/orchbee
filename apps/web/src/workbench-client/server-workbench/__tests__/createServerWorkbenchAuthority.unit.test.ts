@@ -7,11 +7,7 @@ import { parseWorkbenchResponse, type WorkbenchSnapshot } from '@orchbee/workben
 import { describe, expect, it, vi } from 'vitest';
 
 import { createServerWorkbenchAuthority } from '../createServerWorkbenchAuthority';
-import type {
-	ServerWorkbenchAction,
-	ServerWorkbenchSession,
-	ServerWorkbenchSubmission,
-} from '../ServerWorkbenchSession';
+import type { ServerWorkbenchAction, ServerWorkbenchSubmission } from '../ServerWorkbenchSession';
 
 const SESSION = '11111111111111111111111111111111';
 const FIRST_WORKSPACE = '22222222222222222222222222222222';
@@ -102,13 +98,17 @@ const LAUNCHED = settled({
 
 function harness(answer: ServerWorkbenchSubmission, focusedWorkspaceId: string | null = null) {
 	const actions: ServerWorkbenchAction[] = [];
-	const session: Pick<ServerWorkbenchSession, 'submit'> = {
+	const session: Parameters<typeof createServerWorkbenchAuthority>[0]['session'] = {
+		ask: () => Promise.resolve({ kind: 'not-submitted' }),
+		published: () => Promise.resolve(),
+		snapshot: SNAPSHOT,
 		submit: (decide) => {
 			const action = decide(SNAPSHOT);
 			if (action === null) return Promise.resolve({ kind: 'not-submitted' });
 			actions.push(action);
 			return Promise.resolve(answer);
 		},
+		subscribe: () => () => undefined,
 	};
 	return {
 		actions,

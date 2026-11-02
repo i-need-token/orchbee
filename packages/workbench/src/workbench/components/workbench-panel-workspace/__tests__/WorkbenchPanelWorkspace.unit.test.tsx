@@ -179,7 +179,7 @@ function renderThreePanelWorkspace() {
 					actionRuntime={actionRuntime}
 					panelWorkspaceStore={panelWorkspaceStore}
 					parentActionScope={parentActionScope}
-					presentationScopeId='test-context'
+					terminalContextId='test-context'
 					shortcutLabelForAction={() => undefined}
 					terminalAutoFocusAllowed
 					terminalFocusRequest={null}
@@ -228,7 +228,7 @@ function renderRunningThreePanelWorkspace() {
 					actionRuntime={actionRuntime}
 					panelWorkspaceStore={panelWorkspaceStore}
 					parentActionScope={parentActionScope}
-					presentationScopeId='test-context'
+					terminalContextId='test-context'
 					shortcutLabelForAction={() => undefined}
 					terminalAutoFocusAllowed
 					terminalFocusRequest={null}
@@ -507,7 +507,7 @@ describe('WorkbenchPanelWorkspace', () => {
 						actionRuntime={actionRuntime}
 						panelWorkspaceStore={panelWorkspaceStore}
 						parentActionScope={actionRuntime.createScope('test.workbench')}
-						presentationScopeId='test-context'
+						terminalContextId='test-context'
 						shortcutLabelForAction={() => undefined}
 						terminalAutoFocusAllowed
 						terminalFocusRequest={null}
@@ -590,7 +590,7 @@ describe('WorkbenchPanelWorkspace', () => {
 						actionRuntime={actionRuntime}
 						panelWorkspaceStore={panelWorkspaceStore}
 						parentActionScope={actionRuntime.createScope('test.workbench')}
-						presentationScopeId='test-context'
+						terminalContextId='test-context'
 						shortcutLabelForAction={() => undefined}
 						terminalAutoFocusAllowed
 						terminalFocusRequest={null}
@@ -668,7 +668,7 @@ describe('WorkbenchPanelWorkspace', () => {
 						actionRuntime={actionRuntime}
 						panelWorkspaceStore={panelWorkspaceStore}
 						parentActionScope={actionRuntime.createScope('test.workbench')}
-						presentationScopeId='test-context'
+						terminalContextId='test-context'
 						shortcutLabelForAction={() => undefined}
 						terminalAutoFocusAllowed
 						terminalFocusRequest={null}
@@ -768,7 +768,7 @@ describe('WorkbenchPanelWorkspace', () => {
 						actionRuntime={actionRuntime}
 						panelWorkspaceStore={panelWorkspaceStore}
 						parentActionScope={actionRuntime.createScope('test.workbench')}
-						presentationScopeId='test-context'
+						terminalContextId='test-context'
 						shortcutLabelForAction={() => undefined}
 						terminalAutoFocusAllowed
 						terminalFocusRequest={null}

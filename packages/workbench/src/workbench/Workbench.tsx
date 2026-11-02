@@ -347,11 +347,12 @@ export function Workbench({
 								{view.hasVisibleTerminalTabs ? (
 									<WorkbenchPanelWorkspace
 										actionRuntime={actionRuntime}
+										authority={view.authority}
 										panelWorkspaceStore={view.terminalContext.panelWorkspaceStore}
 										parentActionScope={view.actionScope}
-										presentationScopeId={view.terminalContext.terminalContextId}
 										shortcutLabelForAction={shortcutLabelForAction}
 										terminalAutoFocusAllowed={view.terminalAutoFocusAllowed}
+										terminalContextId={view.terminalContext.terminalContextId}
 										terminalFocusRequest={view.terminalFocusRequest}
 										terminalSurface={terminalSurface}
 										onTerminalEdit={agentPresentation.terminalEdited}

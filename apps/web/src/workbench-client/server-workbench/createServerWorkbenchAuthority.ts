@@ -8,12 +8,13 @@ import type {
 } from '@orchbee/workbench';
 import type { WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 
+import { handOverServerWorkbenchAction } from './handOverServerWorkbenchAction';
 import { readServerWorkbenchAction } from './readServerWorkbenchAction';
+import { closeServerWorkbench, watchServerWorkbenchClose } from './server-workbench-close';
 import { serverResourceScopeId } from './serverResourceScopeId';
 import type {
 	ServerWorkbenchAction,
 	ServerWorkbenchOutcome,
-	ServerWorkbenchSession,
 	ServerWorkbenchSubmission,
 } from './ServerWorkbenchSession';
 import { workspaceLaunchAction, type ServerWorkspacePlacement } from './workspace-launch';
@@ -23,7 +24,7 @@ interface ServerWorkbenchAuthorityOptions {
 	readonly defaultDirectory: string;
 	readonly defaultWorkspaceLabel: () => string;
 	readonly focusedWorkspaceId: () => string | null;
-	readonly session: Pick<ServerWorkbenchSession, 'submit'>;
+	readonly session: Parameters<typeof closeServerWorkbench>[0];
 }
 
 interface WorkspaceLaunchPlan {
@@ -143,16 +144,6 @@ function launchPlan(
 	}
 }
 
-/** The commit point: past it, a cancellation can no longer say this did not happen. */
-function handOver(
-	context: WorkbenchAuthorityContext,
-	action: ServerWorkbenchAction | null,
-): ServerWorkbenchAction | null {
-	if (context.signal.aborted || action === null) return null;
-	context.markCommitted();
-	return action;
-}
-
 function resultOf<Output>(
 	context: WorkbenchAuthorityContext,
 	submission: ServerWorkbenchSubmission,
@@ -200,16 +191,19 @@ export function createServerWorkbenchAuthority({
 		change: async (context, change) =>
 			resultOf<void>(
 				context,
-				await session.submit((snapshot) => handOver(context, changeAction(change, snapshot))),
+				await session.submit((snapshot) =>
+					handOverServerWorkbenchAction(context, changeAction(change, snapshot)),
+				),
 				() => ({ kind: 'completed' }),
 			),
+		close: (context, closure) => closeServerWorkbench(session, context, closure),
 		create: async (context, creation) => {
 			let directory = '';
 			const submission = await session.submit((snapshot) => {
 				const plan = launchPlan(creation, snapshot, focusedWorkspaceId(), defaultDirectory);
 				if (plan === null) return null;
 				directory = plan.directory;
-				return handOver(
+				return handOverServerWorkbenchAction(
 					context,
 					workspaceLaunchAction({
 						directory: plan.directory,
@@ -236,5 +230,6 @@ export function createServerWorkbenchAuthority({
 					: { kind: 'completed' },
 			);
 		},
+		watchClose: (closure, onChanged) => watchServerWorkbenchClose(session, closure, onChanged),
 	};
 }

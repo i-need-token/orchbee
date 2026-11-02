@@ -434,14 +434,19 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 
 	describe('with an authority', () => {
 		function withAuthority(
-			authority: WorkbenchAuthority,
+			authority: Pick<WorkbenchAuthority, 'change' | 'create'> & Partial<WorkbenchAuthority>,
 			handover: WorkbenchTerminalHandover = { complete: () => undefined, held: () => true },
+			confirm: () => boolean = () => true,
 		) {
-			const actionRuntime = new ActionRuntime();
+			const actionRuntime = new ActionRuntime({ confirm });
 			const scope = actionRuntime.createScope('workbench');
 			const projectWorkspaceRuntime = projectRuntime();
 			registerWorkbenchProjectWorkspaceActions({
-				authority,
+				authority: {
+					close: () => Promise.reject(new Error('Nothing closes here.')),
+					watchClose: () => () => undefined,
+					...authority,
+				},
 				beginTerminalHandover: () => handover,
 				defaultWorkspaceName: 'Workspace',
 				primaryWorkspaceName: 'Primary',
@@ -614,8 +619,6 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 					WORKBENCH_ACTION_IDS.setResourcePrimaryDirectory,
 					{ directoryId: 'directory-2', resourceScopeId: 'resource-scope-1' },
 				],
-				[WORKBENCH_ACTION_IDS.deleteWorkspace, { workspaceId: 'workspace-1' }],
-				[WORKBENCH_ACTION_IDS.closeProjectWorkspaces, { projectId: 'project-1' }],
 			] as const) {
 				await expect(execute(actionId, input)).resolves.toMatchObject({
 					code: 'action-unavailable',
@@ -624,6 +627,86 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 			}
 
 			expect(projectWorkspaceRuntime.getSnapshot()).toBe(before);
+		});
+
+		it('closes a Workspace that runs nothing without asking and returns the keyboard', async () => {
+			const close = vi.fn<WorkbenchAuthority['close']>(() =>
+				Promise.resolve({ kind: 'completed' }),
+			);
+			const complete = vi.fn<() => void>();
+			const confirm = vi.fn<() => boolean>(() => true);
+			const { execute } = withAuthority(
+				{
+					change: () => Promise.resolve({ kind: 'completed' }),
+					close,
+					create: () => Promise.resolve({ kind: 'cancelled' }),
+				},
+				{ complete, held: () => true },
+				confirm,
+			);
+
+			await expect(
+				execute(WORKBENCH_ACTION_IDS.deleteWorkspace, { workspaceId: 'workspace-1' }),
+			).resolves.toEqual({ kind: 'completed' });
+
+			expect(close.mock.calls.map(([, closure]) => closure)).toEqual([
+				{ type: 'workspace-close-if-idle', workspaceId: 'workspace-1' },
+			]);
+			expect(confirm).not.toHaveBeenCalled();
+			expect(complete).toHaveBeenCalledOnce();
+		});
+
+		it('asks only after the authority refuses to close a busy Workspace unasked', async () => {
+			const close = vi.fn<WorkbenchAuthority['close']>((_context, closure) =>
+				Promise.resolve(
+					closure.type === 'workspace-close-if-idle'
+						? { code: 'confirmation-required', kind: 'blocked' }
+						: { kind: 'completed' },
+				),
+			);
+			const confirm = vi.fn<() => boolean>(() => true);
+			const { execute } = withAuthority(
+				{
+					change: () => Promise.resolve({ kind: 'completed' }),
+					close,
+					create: () => Promise.resolve({ kind: 'cancelled' }),
+				},
+				undefined,
+				confirm,
+			);
+
+			await expect(
+				execute(WORKBENCH_ACTION_IDS.deleteWorkspace, { workspaceId: 'workspace-1' }),
+			).resolves.toEqual({ kind: 'unchanged' });
+
+			await vi.waitFor(() =>
+				expect(close.mock.calls.map(([, closure]) => closure)).toEqual([
+					{ type: 'workspace-close-if-idle', workspaceId: 'workspace-1' },
+					{ type: 'workspace-close', workspaceId: 'workspace-1' },
+				]),
+			);
+			expect(confirm).toHaveBeenCalledOnce();
+		});
+
+		it('leaves a busy Workspace alone when the person declines', async () => {
+			const close = vi.fn<WorkbenchAuthority['close']>(() =>
+				Promise.resolve({ code: 'confirmation-required', kind: 'blocked' }),
+			);
+			const confirm = vi.fn<() => boolean>(() => false);
+			const { execute } = withAuthority(
+				{
+					change: () => Promise.resolve({ kind: 'completed' }),
+					close,
+					create: () => Promise.resolve({ kind: 'cancelled' }),
+				},
+				undefined,
+				confirm,
+			);
+
+			await execute(WORKBENCH_ACTION_IDS.deleteWorkspace, { workspaceId: 'workspace-1' });
+
+			await vi.waitFor(() => expect(confirm).toHaveBeenCalledOnce());
+			expect(close).toHaveBeenCalledOnce();
 		});
 
 		it('still renames a Workspace the Server holds without a directory', async () => {

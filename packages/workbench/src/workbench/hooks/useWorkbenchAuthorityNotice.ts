@@ -1,22 +1,17 @@
-import type { ActionResult } from '@orchbee/actions';
 import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import * as React from 'react';
 
+import {
+	readWorkbenchCloseSubject,
+	workbenchCloseProgressNotice,
+	workbenchCloseResultNotice,
+	workbenchCloseWithdrawnNotice,
+	workbenchFailureNotice,
+	type WorkbenchAuthorityNotice,
+} from '../model/workbench-authority-notice';
+import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-location-activation';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
-import type { WorkbenchAuthority } from '../types/workbench-authority';
-
-type NoticeDescriptor = (typeof workbenchMessages)[
-	| 'workspaceSetupNotApplied'
-	| 'workspaceSetupOutcomeUnknown'
-	| 'workspaceSetupProjectDissolved'
-	| 'workspaceSetupProjectDissolvedEmpty'
-	| 'workspaceSetupStale'];
-
-interface WorkbenchAuthorityNotice {
-	readonly descriptor: NoticeDescriptor;
-	/** A failure stays until the person's next press, because they have to act on it. */
-	readonly persistent: boolean;
-}
+import type { WorkbenchAuthority, WorkbenchAuthorityClosure } from '../types/workbench-authority';
 
 export interface WorkbenchAuthorityNoticeView {
 	readonly authority: WorkbenchAuthority | undefined;
@@ -24,38 +19,32 @@ export interface WorkbenchAuthorityNoticeView {
 }
 
 /** The same lifetime a TUI status line gives a transient notice. */
-const TRANSIENT_NOTICE_MILLISECONDS = 4_000;
+const TIMED_NOTICE_MILLISECONDS = 4_000;
+/** A close that settles faster than this reads as immediate, so it never says it is closing. */
+const CLOSING_NOTICE_DELAY_MILLISECONDS = 200;
 
-function failureNotice(result: ActionResult<unknown>): WorkbenchAuthorityNotice | null {
-	switch (result.kind) {
-		case 'blocked':
-			return {
-				descriptor:
-					result.code === 'revision-mismatch'
-						? workbenchMessages.workspaceSetupStale
-						: workbenchMessages.workspaceSetupNotApplied,
-				persistent: true,
-			};
-		case 'failed':
-			return {
-				descriptor:
-					result.failure.code === 'outcome-unknown'
-						? workbenchMessages.workspaceSetupOutcomeUnknown
-						: workbenchMessages.workspaceSetupNotApplied,
-				persistent: true,
-			};
-		case 'cancelled':
-		case 'completed':
-		case 'unchanged':
-		case 'unsupported':
-			return null;
+function closesActiveLocation(
+	closure: WorkbenchAuthorityClosure,
+	runtime: WorkbenchProjectWorkspaceRuntime,
+): boolean {
+	const state = runtime.getSnapshot();
+	const location = state.activeLocation;
+	if (location.kind !== 'workspace') return false;
+	if (closure.type === 'workspace-close' || closure.type === 'workspace-close-if-idle') {
+		return closure.workspaceId === location.workspaceId;
 	}
+	return (
+		closure.type === 'project-workspaces-close' &&
+		state.workspaces.find((workspace) => workspace.id === location.workspaceId)?.projectId ===
+			closure.projectId
+	);
 }
 
 /**
  * Reports what the authority decided without taking the person from what they are doing: only a
  * refusal or an unknown outcome needs words, because a committed change shows in the Workbench.
- * Dissolving a Project is the exception, since people need to hear that its Workspaces remain.
+ * Closing ends terminals for every Client, so it also says how it is going and how it ended, and
+ * dissolving a Project says that its Workspaces remain.
  */
 export function useWorkbenchAuthorityNotice(
 	authority: WorkbenchAuthority | undefined,
@@ -81,26 +70,74 @@ export function useWorkbenchAuthorityNotice(
 									descriptor: dissolvedWorkspaces
 										? workbenchMessages.workspaceSetupProjectDissolved
 										: workbenchMessages.workspaceSetupProjectDissolvedEmpty,
-									persistent: false,
+									lifetime: 'timed',
 								});
 							} else {
-								setNotice(failureNotice(result));
+								setNotice(workbenchFailureNotice(result));
 							}
 							return result;
+						},
+						close: async (context, closure) => {
+							const subject = readWorkbenchCloseSubject(closure, projectWorkspaceRuntime);
+							const origin = projectWorkspaceRuntime.getSnapshot().activeLocation;
+							const landsAutomatically = closesActiveLocation(closure, projectWorkspaceRuntime);
+							let progress: WorkbenchAuthorityNotice | null = null;
+							let closingShown = false;
+							const showProgress = (): void => {
+								if (!closingShown) return;
+								progress = workbenchCloseProgressNotice(subject, projectWorkspaceRuntime);
+								setNotice(progress);
+							};
+							setNotice(null);
+							const closingDelay = setTimeout(() => {
+								closingShown = true;
+								showProgress();
+							}, CLOSING_NOTICE_DELAY_MILLISECONDS);
+							const stopWatching = projectWorkspaceRuntime.subscribe(showProgress);
+							try {
+								const result = await authority.close(context, closure);
+								const next = workbenchCloseResultNotice(
+									subject,
+									result,
+									projectWorkspaceRuntime,
+									landsAutomatically ||
+										workbenchActiveLocationsEqual(
+											origin,
+											projectWorkspaceRuntime.getSnapshot().activeLocation,
+										),
+								);
+								const shown = progress;
+								setNotice((current) => {
+									// Saying nothing removes only what this close said, not what later work says.
+									if (next === null) return current === shown ? null : current;
+									return current?.lifetime === 'until-press' && next.lifetime === 'timed'
+										? current
+										: next;
+								});
+								return result;
+							} finally {
+								clearTimeout(closingDelay);
+								stopWatching();
+							}
 						},
 						create: async (context, creation) => {
 							setNotice(null);
 							const result = await authority.create(context, creation);
-							setNotice(failureNotice(result));
+							setNotice(workbenchFailureNotice(result));
 							return result;
 						},
+						watchClose: (closure, onChanged) =>
+							authority.watchClose(closure, () => {
+								setNotice(workbenchCloseWithdrawnNotice(closure));
+								onChanged();
+							}),
 					},
 		[authority, projectWorkspaceRuntime],
 	);
 	React.useEffect(() => {
-		if (notice === null) return undefined;
-		if (!notice.persistent) {
-			const expiry = setTimeout(() => setNotice(null), TRANSIENT_NOTICE_MILLISECONDS);
+		if (notice === null || notice.lifetime === 'until-replaced') return undefined;
+		if (notice.lifetime === 'timed') {
+			const expiry = setTimeout(() => setNotice(null), TIMED_NOTICE_MILLISECONDS);
 			return () => clearTimeout(expiry);
 		}
 		const dismiss = (): void => setNotice(null);
@@ -116,6 +153,9 @@ export function useWorkbenchAuthorityNotice(
 		notice:
 			notice === null
 				? null
-				: { message: intl.formatMessage(notice.descriptor), persistent: notice.persistent },
+				: {
+						message: intl.formatMessage(notice.descriptor, notice.values),
+						persistent: notice.lifetime === 'until-press',
+					},
 	};
 }

@@ -234,7 +234,8 @@ export function useTabStripActions({
 				defineAction({
 					category,
 					confirmation: (input) => getCloseTabsConfirmation?.(input) ?? null,
-					execution: parallelByTabs,
+					// A close can outlast the press that asked for it, and a middle click reports itself twice.
+					execution: { ...parallelByTabs, concurrency: 'reject-duplicate' },
 					getAvailability: (_context, input) => tabAvailability(input.tabIds),
 					handler: {
 						execute: (context, input) => {

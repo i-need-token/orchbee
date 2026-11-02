@@ -20,6 +20,7 @@ export const WORKBENCH_ACTION_IDS = {
 	setWorkspaceProject: 'workbench.workspace.set-project',
 	createWorkspaceProject: 'workbench.workspace.create-project',
 	closeProjectWorkspaces: 'workbench.project.close-all',
+	closeWorkspaceConfirmed: 'workbench.workspace.close-confirmed',
 	deleteWorkspace: 'workbench.workspace.delete',
 	duplicateWorkspace: 'workbench.workspace.duplicate',
 	equalizeActivePanels: 'workbench.panel.active.equalize',
@@ -174,6 +175,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.setWorkspaceProject]: ActionSignature<WorkbenchWorkspaceProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.createWorkspaceProject]: ActionSignature<WorkbenchWorkspaceProjectCreateInput>;
 	readonly [WORKBENCH_ACTION_IDS.closeProjectWorkspaces]: ActionSignature<WorkbenchProjectInput>;
+	readonly [WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed]: ActionSignature<WorkbenchWorkspaceInput>;
 	readonly [WORKBENCH_ACTION_IDS.navigateAgent]: ActionSignature<WorkbenchAgentNavigateInput>;
 	readonly [WORKBENCH_ACTION_IDS.activateStandalone]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.activateWorkspace]: ActionSignature<WorkbenchWorkspaceActivationInput>;

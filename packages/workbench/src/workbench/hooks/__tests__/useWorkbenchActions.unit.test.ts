@@ -289,7 +289,9 @@ describe('useWorkbenchActions', () => {
 		).toEqual(
 			new Set(
 				Object.values(WORKBENCH_ACTION_IDS).filter(
-					(actionId) => actionId !== WORKBENCH_ACTION_IDS.navigateAgent,
+					(actionId) =>
+						actionId !== WORKBENCH_ACTION_IDS.navigateAgent &&
+						actionId !== WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed,
 				),
 			),
 		);

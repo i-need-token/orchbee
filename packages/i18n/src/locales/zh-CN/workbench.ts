@@ -7,7 +7,16 @@ export const zhCNWorkbenchMessages = {
 	'workbench.workspaces.createProject': '新建项目并移入',
 	'workbench.workspaces.ungroup': '移出项目',
 	'workbench.projects.closeAll': '关闭所有工作区',
-	'workbench.projects.closeAll.description': '关闭 {name} 中的所有工作区及其终端？',
+	'workbench.projects.close.closed': '项目工作区已关闭 · {label}',
+	'workbench.projects.close.closing': '正在关闭项目工作区 · {label}',
+	'workbench.projects.close.outcomeUnknown':
+		'项目全部关闭结果未知；不会重放 · {label} · orchbee project close-status --request {operationId}',
+	'workbench.projects.close.refused': '项目全部关闭未提交或被拒绝；刷新后重试 · {label}',
+	'workbench.projects.close.stopped': '项目全部关闭已停止；已知结果保留 · {label}',
+	'workbench.projects.closeAll.description':
+		'将结束“{name}”各工作区中的全部终端。项目、分支和检出目录会保留。',
+	'workbench.projects.closeAll.title':
+		'{count, plural, =0 {关闭工作区？} =1 {关闭工作区？} other {关闭 # 个工作区？}}',
 	'workbench.workspaces.new': '新建工作区',
 	'workbench.sidebar.items.newWorkspace': '新建工作区',
 
@@ -168,8 +177,15 @@ export const zhCNWorkbenchMessages = {
 	'workbench.workspaces.agents.navigationLabel': '{provider}，{status}，{location}',
 	'workbench.workspaces.agents.navigationUnavailable': '这个 Agent 已不可用。',
 	'workbench.workspaces.agents.notNavigable': '{label}。当前无法打开这个 Agent。',
+	'workbench.workspaces.close.changed': '工作区已变化，请重试',
+	'workbench.workspaces.close.closed': '工作区已关闭 · {label}',
+	'workbench.workspaces.close.closing': '正在关闭工作区 · {label}',
+	'workbench.workspaces.close.outcomeUnknown':
+		'工作区关闭结果未知；不会重放 · {label} · orchbee workspace close-status --workspace {workspaceId}',
+	'workbench.workspaces.close.refused': '工作区关闭未提交或被拒绝；刷新后重试 · {label}',
+	'workbench.workspaces.close.stopped': '工作区关闭已停止；已知结果保留 · {label}',
 	'workbench.workspaces.confirmDelete.description':
-		'这会删除“{name}”，包括其中的标签页、面板和终端现场。对应文件夹仍保留在磁盘上。',
+		'将结束“{name}”中的全部终端。分支和检出目录会保留。',
 	'workbench.workspaces.confirmDelete.title': '关闭工作区？',
 	'workbench.workspaces.manage.description': '修改工作区名称和默认文件夹。',
 	'workbench.workspaces.manage.nameOnlyDescription': '修改工作区名称。',
@@ -269,7 +285,22 @@ export const zhCNWorkbenchMessages = {
 	'workbench.panels.closeRunning.description':
 		'{count, plural, one {这个终端仍在运行。关闭后将终止正在运行的进程。} other {# 个终端仍在运行。关闭此面板后将终止其中正在运行的进程。}}',
 	'workbench.panels.closeRunning.title': '关闭正在运行的终端？',
+	'workbench.panels.close.notApplied': '面板操作未执行',
 	'workbench.panels.childTerminals.label': '子终端',
+	'workbench.tabs.close.awaitingRemoval': '{label} · 执行已终止；等待移除标签页',
+	'workbench.tabs.close.cancelled': '关闭确认已取消',
+	'workbench.tabs.close.cleanupBlocked': '{label} · 关闭清理受阻',
+	'workbench.tabs.close.closed': '{label} · 已关闭',
+	'workbench.tabs.close.closing': '{label} · 正在关闭',
+	'workbench.tabs.close.description':
+		'{names}{more, plural, =0 {} other {……以及另外 # 个标签页}}。将结束 {running} 个终端。',
+	'workbench.tabs.close.notApplied': '关闭请求未执行',
+	'workbench.tabs.close.outcomeUnknown': '{label} · 关闭结果未知',
+	'workbench.tabs.close.setProgress': '正在关闭标签页：{completed} 个已关闭，剩余 {remaining} 个',
+	'workbench.tabs.close.setStopped':
+		'关闭已停止：{completed} 个已关闭，{remaining} 个未确认关闭。已提交的关闭操作可能继续。',
+	'workbench.tabs.close.statusUnavailable': '{label} · 等待关闭状态 · 状态查询不可用',
+	'workbench.tabs.close.title': '{count, plural, =1 {关闭标签页？} other {关闭 # 个标签页？}}',
 	'workbench.tabs.label': '终端标签页',
 	'workbench.tabs.titles.loading': '正在加载…',
 	'workbench.tabs.titles.new': '新标签页',

@@ -2,6 +2,7 @@ import {
 	WORKBENCH_PROTOCOL_VERSION,
 	type WorkbenchCommand,
 	type WorkbenchCommandResult,
+	type WorkbenchResponse,
 	type WorkbenchSnapshot,
 } from '@orchbee/workbench-client-protocol';
 
@@ -21,6 +22,13 @@ export type ServerWorkbenchSubmission =
 	/** The Server answered. Any commit it reports has already reached this session's snapshot. */
 	| { readonly kind: 'settled'; readonly outcome: ServerWorkbenchOutcome }
 	/** Nothing reached the Server: it refused the stream, or there was nothing to ask. */
+	| { readonly kind: 'not-submitted' }
+	/** The request may have taken effect. It is never replayed. */
+	| { readonly kind: 'outcome-unknown' };
+
+export type ServerWorkbenchAnswer =
+	| { readonly kind: 'answered'; readonly response: WorkbenchResponse }
+	/** The Server refused the stream, so the request never reached it. */
 	| { readonly kind: 'not-submitted' }
 	/** The request may have taken effect. It is never replayed. */
 	| { readonly kind: 'outcome-unknown' };
@@ -147,6 +155,36 @@ export class ServerWorkbenchSession {
 		return submission;
 	}
 
+	/** A request that names no revision has no place in the commands' line, so it never waits for one. */
+	async ask(
+		request: Parameters<typeof encodeWorkbenchRequest>[0],
+		timeoutMilliseconds?: number,
+	): Promise<ServerWorkbenchAnswer> {
+		if (this.#end !== null) return { kind: 'not-submitted' };
+		let record: Uint8Array;
+		try {
+			record = await this.#connection.exchange(
+				encodeWorkbenchRequest(request),
+				timeoutMilliseconds === undefined ? {} : { timeoutMilliseconds },
+			);
+		} catch (error) {
+			return error instanceof ServerStreamRefusedError
+				? { kind: 'not-submitted' }
+				: { kind: 'outcome-unknown' };
+		}
+		try {
+			return { kind: 'answered', response: decodeWorkbenchResponse(record) };
+		} catch {
+			this.#finish({ kind: 'protocol-violation' });
+			return { kind: 'outcome-unknown' };
+		}
+	}
+
+	/** Settles once this session's snapshot has reached `revision`, or once it can no longer. */
+	published(revision: string): Promise<void> {
+		return this.#published(BigInt(revision));
+	}
+
 	dispose(): void {
 		this.#finish({ kind: 'connection-ended' });
 	}
@@ -177,7 +215,7 @@ export class ServerWorkbenchSession {
 		}
 		const outcome = this.#readOutcome(record, requestId);
 		if (outcome === null) return { kind: 'outcome-unknown' };
-		const revision = committedRevision(outcome);
+		const revision = observableRevision(outcome);
 		if (revision !== null) await this.#published(revision);
 		return { kind: 'settled', outcome };
 	}
@@ -239,10 +277,16 @@ function readPublishedSnapshot(record: Uint8Array): WorkbenchSnapshot | null {
 	}
 }
 
-/** The revision a publication must reach before the commit is visible; null if nothing committed. */
-function committedRevision(outcome: ServerWorkbenchOutcome): bigint | null {
+/**
+ * The revision a publication must reach before the answer means what it says here: a commit is
+ * visible, and a refusal naming a newer Workbench can be compared with what the person was shown.
+ */
+function observableRevision(outcome: ServerWorkbenchOutcome): bigint | null {
 	switch (outcome.kind) {
 		case 'rejected':
+			return outcome.reason === 'revision-mismatch' || outcome.reason === 'confirmation-required'
+				? BigInt(outcome.revision)
+				: null;
 		case 'denied':
 		case 'unavailable':
 		case 'unchanged':

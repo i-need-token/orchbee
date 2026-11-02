@@ -33,6 +33,38 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.projects.closeAll.description',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.closeAll.description'],
 	},
+	projectCloseAllTitle: {
+		description: 'Title of the confirmation before closing the Workspaces of a Project.',
+		id: 'workbench.projects.closeAll.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.closeAll.title'],
+	},
+	projectCloseClosed: {
+		description: 'Status notice after every Workspace of a Project closed.',
+		id: 'workbench.projects.close.closed',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.close.closed'],
+	},
+	projectCloseClosing: {
+		description: 'Status notice while the Workspaces of a Project close.',
+		id: 'workbench.projects.close.closing',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.close.closing'],
+	},
+	projectCloseOutcomeUnknown: {
+		description:
+			'Status notice when closing the Workspaces of a Project may have taken effect, naming the command that reads its status.',
+		id: 'workbench.projects.close.outcomeUnknown',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.close.outcomeUnknown'],
+	},
+	projectCloseRefused: {
+		description:
+			'Status notice when closing the Workspaces of a Project was not submitted or was refused.',
+		id: 'workbench.projects.close.refused',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.close.refused'],
+	},
+	projectCloseStopped: {
+		description: 'Status notice when an accepted close of a Project stopped before finishing.',
+		id: 'workbench.projects.close.stopped',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.close.stopped'],
+	},
 	workspaceNew: {
 		description: 'Create an ungrouped Workspace with the default shell.',
 		id: 'workbench.workspaces.new',
@@ -291,10 +323,76 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.closeRunning.title'],
 		description: 'Title for the running-terminal close confirmation.',
 	},
+	panelCloseNotApplied: {
+		id: 'workbench.panels.close.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.close.notApplied'],
+		description: 'Status notice when closing a Panel was not applied.',
+	},
+	tabCloseAwaitingRemoval: {
+		id: 'workbench.tabs.close.awaitingRemoval',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.awaitingRemoval'],
+		description: 'Status notice when a closing Tab has ended but has not been removed yet.',
+	},
+	tabCloseCancelled: {
+		id: 'workbench.tabs.close.cancelled',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.cancelled'],
+		description:
+			'Status notice when an open close confirmation was withdrawn because its target changed.',
+	},
+	tabCloseCleanupBlocked: {
+		id: 'workbench.tabs.close.cleanupBlocked',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.cleanupBlocked'],
+		description: 'Status notice when cleanup stopped a Tab from closing.',
+	},
+	tabCloseClosed: {
+		id: 'workbench.tabs.close.closed',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.closed'],
+		description: 'Status notice after one Tab closed.',
+	},
+	tabCloseClosing: {
+		id: 'workbench.tabs.close.closing',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.closing'],
+		description: 'Status notice while one Tab closes.',
+	},
+	tabCloseDescription: {
+		id: 'workbench.tabs.close.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.description'],
+		description: 'Confirmation text naming the Tabs that close and how many terminals end.',
+	},
+	tabCloseNotApplied: {
+		id: 'workbench.tabs.close.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.notApplied'],
+		description: 'Status notice when closing a Tab was not applied.',
+	},
+	tabCloseOutcomeUnknown: {
+		id: 'workbench.tabs.close.outcomeUnknown',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.outcomeUnknown'],
+		description: 'Status notice when closing a Tab may have taken effect.',
+	},
 	tabCloseRunningDescription: {
 		id: 'workbench.tabs.closeRunning.description',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.closeRunning.description'],
 		description: 'Warning shown before closing tabs that contain running terminals.',
+	},
+	tabCloseSetProgress: {
+		id: 'workbench.tabs.close.setProgress',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.setProgress'],
+		description: 'Status notice counting the Tabs of a close set.',
+	},
+	tabCloseSetStopped: {
+		id: 'workbench.tabs.close.setStopped',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.setStopped'],
+		description: 'Status notice when closing a set of Tabs stopped before its end.',
+	},
+	tabCloseStatusUnavailable: {
+		id: 'workbench.tabs.close.statusUnavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.statusUnavailable'],
+		description: 'Status notice when a closing Tab can no longer be observed.',
+	},
+	tabCloseTitle: {
+		id: 'workbench.tabs.close.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.title'],
+		description: 'Title of the confirmation before closing one or several Tabs.',
 	},
 	panelMaximize: {
 		id: 'workbench.panels.actions.maximize',
@@ -1014,6 +1112,37 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.workspaces.setup.stale',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.setup.stale'],
 		description: 'Status notice when a change was refused because the Workbench changed elsewhere.',
+	},
+	workspaceCloseChanged: {
+		id: 'workbench.workspaces.close.changed',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.close.changed'],
+		description: 'Status notice when a Workspace close stopped because its target changed.',
+	},
+	workspaceCloseClosed: {
+		id: 'workbench.workspaces.close.closed',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.close.closed'],
+		description: 'Status notice after a Workspace closed.',
+	},
+	workspaceCloseClosing: {
+		id: 'workbench.workspaces.close.closing',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.close.closing'],
+		description: 'Status notice while a Workspace closes.',
+	},
+	workspaceCloseOutcomeUnknown: {
+		id: 'workbench.workspaces.close.outcomeUnknown',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.close.outcomeUnknown'],
+		description:
+			'Status notice when a Workspace close may have taken effect, naming the command that reads its status.',
+	},
+	workspaceCloseRefused: {
+		id: 'workbench.workspaces.close.refused',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.close.refused'],
+		description: 'Status notice when a Workspace close was not submitted or was refused.',
+	},
+	workspaceCloseStopped: {
+		id: 'workbench.workspaces.close.stopped',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.close.stopped'],
+		description: 'Status notice when an accepted Workspace close stopped before finishing.',
 	},
 	workspaceDelete: {
 		id: 'workbench.workspaces.actions.delete',

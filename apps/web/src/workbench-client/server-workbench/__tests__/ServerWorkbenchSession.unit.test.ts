@@ -185,6 +185,7 @@ describe('ServerWorkbenchSession', () => {
 		expect(decided).toEqual(['5', '6']);
 		expect(next === undefined ? null : requestOf(next.request).expectedRevision).toBe('6');
 		answer(next, { kind: 'rejected', reason: 'revision-mismatch', revision: '7' });
+		connection.publish('7');
 		await expect(second).resolves.toMatchObject({
 			kind: 'settled',
 			outcome: { reason: 'revision-mismatch' },

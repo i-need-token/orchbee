@@ -104,6 +104,11 @@ export interface ActionConfirmation {
 	readonly description: ActionMessageDescriptor;
 	readonly risk: 'destructive' | 'elevated' | 'routine';
 	readonly title: ActionMessageDescriptor;
+	/**
+	 * Withdraws the open question once what it asks about no longer holds. Runs while the question is
+	 * open and returns how to stop.
+	 */
+	readonly watch?: ((withdraw: () => void) => () => void) | undefined;
 }
 
 export type ActionConfirmationPresenter = (

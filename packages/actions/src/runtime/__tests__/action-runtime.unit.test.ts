@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ActionRuntime, defineAction, noActionInput } from '../action-runtime';
 import type {
 	ActionAvailability,
+	ActionConfirmation,
 	ActionDefinition,
 	ActionExecution,
 	ActionExecutionContext,
@@ -38,6 +39,7 @@ function action(
 		readonly availability?: (() => ActionAvailability) | undefined;
 		readonly concurrency?: 'parallel' | 'reject-duplicate' | 'replace-latest' | 'serialize';
 		readonly confirmation?: boolean;
+		readonly watch?: ActionConfirmation['watch'];
 	} = {},
 ): ActionDefinition<void, string> {
 	return defineAction({
@@ -52,6 +54,7 @@ function action(
 						description: { id: 'action.description' },
 						risk: 'routine',
 						title: { id: 'action.title' },
+						watch: options.watch,
 					})
 				: undefined,
 		execution: {
@@ -493,6 +496,42 @@ describe('ActionRuntime', () => {
 		await expect(second.completion).resolves.toEqual({ kind: 'completed' });
 		expect(handler).toHaveBeenCalledOnce();
 		firstConfirmation.resolve(false);
+	});
+
+	it('withdraws an open question when what it describes changes', async () => {
+		const stopWatching = vi.fn<() => void>();
+		const watching: { withdraw?: () => void } = {};
+		const runtime = new ActionRuntime({
+			confirm: (_confirmation, _invocation, signal) =>
+				new Promise<boolean>((resolve) => {
+					signal.addEventListener('abort', () => resolve(false));
+				}),
+		});
+		const scope = runtime.createScope('application');
+		const handler = vi.fn<() => ActionResult<string>>(() => ({ kind: 'completed' }));
+		runtime.register(
+			scope,
+			action('test.confirm-watch.run', handler, {
+				confirmation: true,
+				watch: (withdraw) => {
+					watching.withdraw = withdraw;
+					return stopWatching;
+				},
+			}),
+		);
+
+		const execution = runtime.execute('test.confirm-watch.run', undefined, {
+			scope,
+			source: 'button',
+		});
+		expect(execution.getSnapshot().state).toBe('awaiting-confirmation');
+		expect(stopWatching).not.toHaveBeenCalled();
+
+		watching.withdraw?.();
+
+		await expect(execution.completion).resolves.toEqual({ kind: 'cancelled' });
+		await vi.waitFor(() => expect(stopWatching).toHaveBeenCalledOnce());
+		expect(handler).not.toHaveBeenCalled();
 	});
 
 	it('does not present confirmation after an awaiting-confirmation observer cancels', async () => {

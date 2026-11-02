@@ -21,6 +21,7 @@ import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-locat
 import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityChange,
+	WorkbenchAuthorityClosure,
 	WorkbenchAuthorityCreation,
 } from '../types/workbench-authority';
 import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
@@ -175,6 +176,27 @@ export function registerWorkbenchProjectWorkspaceActions({
 		}
 		return created;
 	};
+	/** What closed was what the person acted from, so the keyboard goes to the terminal still shown. */
+	const closeAndReturnToTerminal = async (
+		context: ActionExecutionContext,
+		decider: WorkbenchAuthority,
+		closure: WorkbenchAuthorityClosure,
+	): Promise<ActionResult<void>> => {
+		const handover = beginTerminalHandover?.();
+		const result = await decider.close(context, closure);
+		if (result.kind === 'completed') handover?.complete();
+		return result;
+	};
+	const workspaceCloseConfirmation = (input: WorkbenchWorkspaceInput) => ({
+		cancelLabel: workbenchMessages.panelCancel,
+		confirmLabel: workbenchMessages.panelClose,
+		description: {
+			...workbenchMessages.workspaceDeleteDescription,
+			values: { name: workspaceFor(input)?.name ?? '' },
+		},
+		risk: 'destructive' as const,
+		title: workbenchMessages.workspaceDeleteTitle,
+	});
 
 	return [
 		typedRuntime.register(
@@ -540,39 +562,85 @@ export function registerWorkbenchProjectWorkspaceActions({
 			scope,
 			defineAction({
 				category: categoryProjects,
-				confirmation: (input) => ({
-					cancelLabel: workbenchMessages.panelCancel,
-					confirmLabel: workbenchMessages.workspaceDelete,
-					description: {
-						...workbenchMessages.workspaceDeleteDescription,
-						values: { name: workspaceFor(input)?.name ?? '' },
-					},
-					risk: 'destructive',
-					title: workbenchMessages.workspaceDeleteTitle,
-				}),
+				// A shared Workspace that runs nothing closes without asking, and only its authority can tell.
+				confirmation: (input) =>
+					authority === undefined ? workspaceCloseConfirmation(input) : null,
 				execution: {
 					concurrency: 'serialize',
 					concurrencyKey: (input) => input.workspaceId,
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) =>
-					authority !== undefined || workspaceFor(input) === undefined
+					workspaceFor(input) === undefined
 						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
 						: { kind: 'enabled' },
 				handler: {
-					execute: (context, input) =>
-						resultFor(
-							transitionWithCommit(context, projectWorkspaceRuntime, {
-								type: 'workspace-deleted',
-								workspaceId: input.workspaceId,
-							}),
-						),
+					execute: async (context, input) => {
+						if (authority === undefined) {
+							return resultFor(
+								transitionWithCommit(context, projectWorkspaceRuntime, {
+									type: 'workspace-deleted',
+									workspaceId: input.workspaceId,
+								}),
+							);
+						}
+						const result = await closeAndReturnToTerminal(context, authority, {
+							type: 'workspace-close-if-idle',
+							workspaceId: input.workspaceId,
+						});
+						if (result.kind !== 'blocked' || result.code !== 'confirmation-required') {
+							return result;
+						}
+						// The question is its own Action, because this one has already asked the authority.
+						typedRuntime.execute(WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed, input, {
+							scope,
+							source: context.source,
+						});
+						return { kind: 'unchanged' };
+					},
 				},
 				id: WORKBENCH_ACTION_IDS.deleteWorkspace,
 				input: workbenchWorkspaceInput,
 				title: workbenchMessages.workspaceDelete,
 			}),
 		),
+		...(authority === undefined
+			? []
+			: [
+					typedRuntime.register(
+						scope,
+						defineAction({
+							category: categoryProjects,
+							confirmation: (input) => ({
+								...workspaceCloseConfirmation(input),
+								watch: (withdraw) =>
+									authority.watchClose(
+										{ type: 'workspace-close', workspaceId: input.workspaceId },
+										withdraw,
+									),
+							}),
+							execution: {
+								concurrency: 'serialize',
+								concurrencyKey: (input) => input.workspaceId,
+								mode: 'foreground',
+							},
+							getAvailability: (_context, input) =>
+								workspaceFor(input) === undefined
+									? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
+									: { kind: 'enabled' },
+							handler: {
+								execute: (context, input) =>
+									closeAndReturnToTerminal(context, authority, {
+										type: 'workspace-close',
+										workspaceId: input.workspaceId,
+									}),
+							},
+							id: WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed,
+							input: workbenchWorkspaceInput,
+							title: workbenchMessages.workspaceDelete,
+						}),
+					),
+				]),
 		typedRuntime.register(
 			scope,
 			defineAction({
@@ -791,27 +859,47 @@ export function registerWorkbenchProjectWorkspaceActions({
 				input: workbenchProjectInput,
 				execution: projectExecution,
 				getAvailability: (_context, input) =>
-					authority === undefined && projectFor(input.projectId) !== undefined
-						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
+					projectFor(input.projectId) === undefined
+						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
+						: { kind: 'enabled' },
 				confirmation: (input) => ({
 					cancelLabel: workbenchMessages.panelCancel,
-					confirmLabel: workbenchMessages.projectCloseAll,
+					confirmLabel: workbenchMessages.panelClose,
 					description: {
 						...workbenchMessages.projectCloseAllDescription,
 						values: { name: projectFor(input.projectId)?.name ?? '' },
 					},
 					risk: 'destructive',
-					title: workbenchMessages.projectCloseAll,
+					title: {
+						...workbenchMessages.projectCloseAllTitle,
+						values: {
+							count: projectWorkspaceRuntime
+								.getSnapshot()
+								.workspaces.filter((workspace) => workspace.projectId === input.projectId).length,
+						},
+					},
+					watch:
+						authority === undefined
+							? undefined
+							: (withdraw) =>
+									authority.watchClose(
+										{ projectId: input.projectId, type: 'project-workspaces-close' },
+										withdraw,
+									),
 				}),
 				handler: {
 					execute: (context, input) =>
-						resultFor(
-							transitionWithCommit(context, projectWorkspaceRuntime, {
-								...input,
-								type: 'project-workspaces-closed',
-							}),
-						),
+						authority === undefined
+							? resultFor(
+									transitionWithCommit(context, projectWorkspaceRuntime, {
+										...input,
+										type: 'project-workspaces-closed',
+									}),
+								)
+							: closeAndReturnToTerminal(context, authority, {
+									projectId: input.projectId,
+									type: 'project-workspaces-close',
+								}),
 				},
 			}),
 		),

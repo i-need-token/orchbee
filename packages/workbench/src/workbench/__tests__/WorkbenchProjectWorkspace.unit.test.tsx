@@ -1898,7 +1898,7 @@ describe('Workbench Project and Workspace management', () => {
 		expect(document.querySelector('[data-slot="workbench-confirmation-popover"]')).toBeNull();
 		const confirmationCancel = within(confirmationDialog).getByRole('button', { name: 'Cancel' });
 		const confirmationSubmit = within(confirmationDialog).getByRole('button', {
-			name: 'Close Workspace',
+			name: 'Close',
 		});
 		expect(within(confirmationCancel).getByText('Esc')).toBeDefined();
 		expect(within(confirmationSubmit).queryByText('Enter')).toBeNull();

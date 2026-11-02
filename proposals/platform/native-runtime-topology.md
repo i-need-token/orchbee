@@ -1050,8 +1050,8 @@ focus-claim repair on pause and detach were proved on the earlier cohort. Limits
 
 ### Step 3 progress
 
-Reads, and writes of Project and Workspace structure, go through Server. Tab, Panel, and close flows
-remain to connect. These choices stand unless review changes them:
+Reads, writes of Project and Workspace structure, and every close go through Server. Tab and Panel
+structure remain to connect. These choices stand unless review changes them:
 
 - **The write port is the Workbench's existing event vocabulary.** `WorkbenchAuthority` takes those
   events and the preview keeps its reducer, so product surfaces stay unchanged. Step 6 decides what
@@ -1072,18 +1072,36 @@ remain to connect. These choices stand unless review changes them:
 - **The default directory is not sampled yet.** New Workspace uses the last terminal directory the
   Server observed. Whether that sampling moves into Server is decided with the other multi-step
   workflows under decision 2.
+- **A close follows the TUI's states without its probes.** A Workspace asks the Server's conditional
+  close first and a Project always asks. A single Tab or Panel asks from the close activity its
+  surface last observed, not from the TUI's shell report and process sample, and a set of Tabs always
+  asks. Step 5 decides whether the difference still matters. A set compares the facts of its own
+  Tabs, not the whole snapshot.
+- **A close is followed to an end and never replayed.** Stale Workspace closes alone are sent again,
+  within the TUI's limit and only on unchanged facts. An accepted close reads its operation for at
+  most 50 seconds. Resume and a status surface belong to step 5; until then an unknown outcome names
+  the status command.
+- **Child terminals have no close.** The Server has no command that closes one child Presentation,
+  so that entry stays disabled.
 
 Measured on 2026-11-01 on Windows with a Release cohort, in a real window beside a real TUI on the
 same Session:
 
-| Question                      | Measurement                                                                                                                                                                                                                                     |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Same state on both Clients    | A Workspace made in the window was on the TUI's screen at its first read, 78 ms later. One made with the TUI's `Ctrl+B a` reached the window 78 ms after the key and left the window's selection alone. A rename reached the TUI in 63 ms.      |
-| Command to visible result     | New Workspace row 28–62 ms, and the location moved 6–14 ms later. Rename 19–22 ms, move to a Project 17–28 ms, reorder 12–17 ms.                                                                                                                |
-| Keyboard after creation       | New workspace, a row menu, the folder dialog, and the empty state each left typing in the new terminal without a click, and the Workspace count did not change.                                                                                 |
-| Later press during a creation | With the Server's answer held back, a click on another row or a key press kept the person where they were, and the Workspace still appeared when the answer arrived.                                                                            |
-| Reorder held back             | A dropped row stayed at its drop position for the 600 ms the answer was held. A real `revision-mismatch` then restored the order and showed the stale notice, 3 ms after the answer arrived. Six plain drags showed only two frame states each. |
-| Refused input                 | A relative path was refused locally and a missing path by the Server's `directory-unavailable`. Both showed the same notice without moving focus, past the transient lifetime, until the next press.                                            |
+| Question                      | Measurement                                                                                                                                                                                                                                         |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Same state on both Clients    | A Workspace made in the window was on the TUI's screen at its first read, 78 ms later. One made with the TUI's `Ctrl+B a` reached the window 78 ms after the key and left the window's selection alone. A rename reached the TUI in 63 ms.          |
+| Command to visible result     | New Workspace row 28–62 ms, and the location moved 6–14 ms later. Rename 19–22 ms, move to a Project 17–28 ms, reorder 12–17 ms.                                                                                                                    |
+| Keyboard after creation       | New workspace, a row menu, the folder dialog, and the empty state each left typing in the new terminal without a click, and the Workspace count did not change.                                                                                     |
+| Later press during a creation | With the Server's answer held back, a click on another row or a key press kept the person where they were, and the Workspace still appeared when the answer arrived.                                                                                |
+| Reorder held back             | A dropped row stayed at its drop position for the 600 ms the answer was held. A real `revision-mismatch` then restored the order and showed the stale notice, 3 ms after the answer arrived. Six plain drags showed only two frame states each.     |
+| Refused input                 | A relative path was refused locally and a missing path by the Server's `directory-unavailable`. Both showed the same notice without moving focus, past the transient lifetime, until the next press.                                                |
+| Close with nothing running    | A Workspace or a shown Tab closed with no question, about 270 ms after the request, nearly all of it in the Server's `waiting-grace` phase. The keyboard stayed in or returned to the terminal.                                                     |
+| Close with a program running  | `Start-Sleep` made `workspace.close-if-idle` answer `confirmation-required`, and the question opened about 20 ms after the click. Cancel changed nothing. Close sent a new request, landed on the first Workspace, and typing reached its terminal. |
+| Question over changed facts   | A CLI rename withdrew the Workspace question within 64 ms, a new member withdrew the Project's, and a rename withdrew the Tab's. None sent a command.                                                                                               |
+| Stale close                   | An unrelated Workspace moved the revision under a held answer. A new request followed the real `revision-mismatch` 5 ms later and was accepted.                                                                                                     |
+| Project close all             | The start and its reads, each under a new request ID, removed both members in 573 ms. The Project stayed, the window landed on a survivor, and the keyboard reached its terminal.                                                                   |
+| Lost answer                   | With the command dropped and the Server stopped, the notice named the status command and nothing was sent again.                                                                                                                                    |
+| Close activity                | At PowerShell's prompt, a finished line returned to idle 107–342 ms after Enter. A line left unfinished stayed unknown, and a resize read unknown for about 500 ms.                                                                                 |
 
 ### Evidence
 

@@ -3,6 +3,7 @@ import type {
 	ActionConfirmation,
 	ActionAvailability,
 	ActionExecution,
+	ActionResult,
 	ActionRuntime,
 	ActionScope,
 } from '@orchbee/actions';
@@ -85,6 +86,9 @@ import {
 	type WorkbenchTerminalLocationActivationOrigin,
 } from '../model/workbench-terminal-location-activation';
 
+/** The TUI names this many Tabs in a close question and counts the rest. */
+const SHARED_TAB_CLOSE_NAMED_TABS = 3;
+
 interface ResizableLayoutChangedMeta {
 	readonly isUserInteraction: boolean;
 }
@@ -98,6 +102,7 @@ interface WorkbenchView {
 		readonly message: string;
 		readonly sequence: number;
 	} | null;
+	readonly authority: WorkbenchAuthorityNoticeView['authority'];
 	readonly authorityNotice: WorkbenchAuthorityNoticeView['notice'];
 	readonly activateStandalone: (origin: WorkbenchTerminalLocationActivationOrigin) => void;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
@@ -378,12 +383,39 @@ export function useWorkbench({
 			runtime: projectWorkspaceRuntime,
 		}),
 	);
+	/** In the order the strip shows them, which is the order a set of Tabs closes in. */
+	const sharedTabsClosure = (tabIds: readonly string[]) => {
+		const { tabModel: activeTabModel, terminalContextId } =
+			projectWorkspaceRuntime.getActiveTerminalContext();
+		const requested = new Set(tabIds);
+		return {
+			tabIds: activeTabModel
+				.getSnapshot()
+				.tabs.filter((tab) => requested.has(tab.id))
+				.map((tab) => tab.id),
+			terminalContextId,
+			type: 'tabs-close' as const,
+		};
+	};
+	const closeSharedTabs = async (
+		context: Parameters<TabStripCloseCallback>[0],
+		decider: WorkbenchAuthority,
+		tabIds: readonly string[],
+	): Promise<ActionResult<void>> => {
+		const handover = focusRouting.beginTerminalHandover();
+		const result = await decider.close(context, sharedTabsClosure(tabIds));
+		if (result.kind === 'completed') handover.complete();
+		return result;
+	};
 	const closeTabs = useMemoizedFn<
 		void,
 		Parameters<TabStripCloseCallback>,
 		ReturnType<TabStripCloseCallback>
 	>((context, request) => {
 		if (context.signal.aborted) return { kind: 'cancelled' };
+		if (authorityNotice.authority !== undefined) {
+			return closeSharedTabs(context, authorityNotice.authority, request.tabIds);
+		}
 		const result = projectWorkspaceRuntime.requestActiveTerminalTabsClose(request.tabIds);
 		if (result.kind === 'rejected') return { code: result.reason, kind: 'blocked' };
 		if (result.kind === 'unchanged') return { kind: 'unchanged' };
@@ -398,6 +430,30 @@ export function useWorkbench({
 		const count = projectWorkspaceRuntime.getActiveTerminalTabsCloseConfirmationCount(
 			request.tabIds,
 		);
+		const decider = authorityNotice.authority;
+		if (decider !== undefined) {
+			// A set always asks, because one press ends more than the Tab under the pointer.
+			if (count === 0 && request.tabIds.length < 2) return null;
+			const closure = sharedTabsClosure(request.tabIds);
+			const { tabModel: activeTabModel } = projectWorkspaceRuntime.getActiveTerminalContext();
+			const shown = closure.tabIds.slice(0, SHARED_TAB_CLOSE_NAMED_TABS);
+			const titles = new Map(activeTabModel.getSnapshot().tabs.map((tab) => [tab.id, tab.title]));
+			return {
+				cancelLabel: workbenchMessages.panelCancel,
+				confirmLabel: workbenchMessages.panelClose,
+				description: {
+					...workbenchMessages.tabCloseDescription,
+					values: {
+						more: closure.tabIds.length - shown.length,
+						names: shown.map((tabId) => titles.get(tabId) ?? '').join(', '),
+						running: projectWorkspaceRuntime.getActiveTerminalTabsTerminalCount(closure.tabIds),
+					},
+				},
+				risk: 'destructive',
+				title: { ...workbenchMessages.tabCloseTitle, values: { count: closure.tabIds.length } },
+				watch: (withdraw) => decider.watchClose(closure, withdraw),
+			};
+		}
 		return count === 0
 			? null
 			: {
@@ -552,6 +608,7 @@ export function useWorkbench({
 						message: intl.formatMessage(workbenchMessages.workspaceAgentNavigationUnavailable),
 						sequence: agentNavigationAnnouncementSequence,
 					},
+		authority: authorityNotice.authority,
 		authorityNotice: authorityNotice.notice,
 		activateStandalone,
 		navigateAgent,

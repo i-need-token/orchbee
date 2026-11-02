@@ -11,6 +11,7 @@ export {
 export type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityChange,
+	WorkbenchAuthorityClosure,
 	WorkbenchAuthorityContext,
 	WorkbenchAuthorityCreation,
 	WorkbenchEnvironmentProjectConnectionCapability,

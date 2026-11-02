@@ -31,6 +31,7 @@ export type { WorkbenchRemoteTerminalCreationCapability } from './types/workbenc
 export type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityChange,
+	WorkbenchAuthorityClosure,
 	WorkbenchAuthorityContext,
 	WorkbenchAuthorityCreation,
 } from './types/workbench-authority';

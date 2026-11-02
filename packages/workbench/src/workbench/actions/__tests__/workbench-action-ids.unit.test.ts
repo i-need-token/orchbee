@@ -34,6 +34,7 @@ describe('workbench action contracts', () => {
 			createTerminalInCurrentDirectory: 'workbench.terminal.create-current-directory',
 			createWorkspace: 'workbench.workspace.create',
 			closeActiveTerminal: 'workbench.terminal.active.close',
+			closeWorkspaceConfirmed: 'workbench.workspace.close-confirmed',
 			decreaseTerminalFontSize: 'workbench.terminal.font-size.decrease',
 			deleteWorkspace: 'workbench.workspace.delete',
 			duplicateWorkspace: 'workbench.workspace.duplicate',

@@ -14,6 +14,10 @@ import { workbenchMessages } from '@orchbee/i18n';
 import * as React from 'react';
 import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
+import type {
+	WorkbenchAuthority,
+	WorkbenchAuthorityClosure,
+} from '../../../types/workbench-authority';
 import {
 	PANEL_ACTION_IDS,
 	panelChildTerminalInput,
@@ -72,10 +76,13 @@ interface PanelActionOperations {
 
 interface UseWorkbenchPanelActionsOptions {
 	readonly activeTab: TabPanelWorkspace | null;
+	/** Decides shared structure when this Client does not; without one, the operations do. */
+	readonly authority?: WorkbenchAuthority | undefined;
 	readonly operations: PanelActionOperations;
 	readonly panelCount: number;
 	readonly parentScope: ActionScope;
 	readonly runtime: ActionRuntime;
+	readonly terminalContextId: string;
 }
 
 interface WorkbenchPanelActions {
@@ -89,10 +96,12 @@ interface WorkbenchPanelActions {
 
 export function useWorkbenchPanelActions({
 	activeTab,
+	authority,
 	operations,
 	panelCount,
 	parentScope,
 	runtime,
+	terminalContextId,
 }: UseWorkbenchPanelActionsOptions): WorkbenchPanelActions {
 	const scope = React.useMemo(
 		() => runtime.createScope('panel-workspace', parentScope),
@@ -135,6 +144,12 @@ export function useWorkbenchPanelActions({
 						);
 			return affectedTerminals.filter(terminalRequiresCloseConfirmation).length;
 		};
+		const closureFor = (input: PanelCloseInput): WorkbenchAuthorityClosure => ({
+			panelId: input.panelId,
+			tabId: input.tabId,
+			terminalContextId,
+			type: 'panel-close',
+		});
 		const targetAvailability = (panelId: string) =>
 			findTarget(panelId) === null
 				? {
@@ -329,6 +344,10 @@ export function useWorkbenchPanelActions({
 									},
 									risk: 'destructive',
 									title: workbenchMessages.panelCloseRunningTitle,
+									watch:
+										authority === undefined
+											? undefined
+											: (withdraw) => authority.watchClose(closureFor(input), withdraw),
 								};
 					},
 					execution: {
@@ -338,7 +357,11 @@ export function useWorkbenchPanelActions({
 					},
 					getAvailability: (_context, input) => {
 						const panel = findCloseTarget(input);
-						return panel === null || (input.childPresentationId === null && panelCount < 2)
+						// The Server contract closes a Panel, and has no command for one of its child terminals.
+						const childUnavailable = authority !== undefined && input.childPresentationId !== null;
+						return panel === null ||
+							childUnavailable ||
+							(input.childPresentationId === null && panelCount < 2)
 							? {
 									kind: 'disabled',
 									reason: workbenchMessages.actionUnavailable,
@@ -347,6 +370,7 @@ export function useWorkbenchPanelActions({
 					},
 					handler: {
 						execute: (context, input) => {
+							if (authority !== undefined) return authority.close(context, closureFor(input));
 							const transition = operations.closeDisplayedTerminal(input);
 							if (transition === null) {
 								return { code: 'stale-target', kind: 'blocked' };
@@ -526,7 +550,7 @@ export function useWorkbenchPanelActions({
 				registration.dispose();
 			}
 		};
-	}, [activeTab, operations, panelCount, scope, typedRuntime]);
+	}, [activeTab, authority, operations, panelCount, scope, terminalContextId, typedRuntime]);
 
 	const execute = useMemoizedFn(
 		<Id extends ActionCatalogId<PanelActionCatalog>>(

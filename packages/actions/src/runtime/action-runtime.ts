@@ -741,9 +741,12 @@ export class ActionRuntime implements ActionDisposable {
 			return;
 		}
 		let accepted: boolean | Promise<boolean>;
+		let stopWatching: (() => void) | undefined;
 		try {
+			stopWatching = confirmation.watch?.(() => execution.cancel());
 			accepted = confirm(confirmation, invocation, execution.signal);
 		} catch (error) {
+			stopWatching?.();
 			this.failUnexpected(action.descriptor.id, error, execution);
 			onFinished();
 			return;
@@ -752,15 +755,18 @@ export class ActionRuntime implements ActionDisposable {
 			if (isPromiseLike(accepted)) {
 				void Promise.resolve(accepted).then(
 					(value) => {
+						stopWatching?.();
 						this.afterConfirmation(value, execution, action, input, invocation, onFinished);
 					},
 					(error: unknown) => {
+						stopWatching?.();
 						this.failUnexpected(action.descriptor.id, error, execution);
 						onFinished();
 					},
 				);
 				return;
 			}
+			stopWatching?.();
 			this.afterConfirmation(accepted, execution, action, input, invocation, onFinished);
 		} catch (error) {
 			this.failUnexpected(action.descriptor.id, error, execution);

@@ -135,6 +135,42 @@ describe('useTabStripActions', () => {
 		}
 	});
 
+	it('asks once to close Tabs whose close is still running', async () => {
+		const model = new TabModel({ tabs: [{ id: 'tab', title: 'Tab', pinned: false, group: null }] });
+		let actions: TabStripActions | undefined;
+		let releaseClose: (() => void) | undefined;
+		const closeGate = new Promise<void>((resolve) => {
+			releaseClose = resolve;
+		});
+		const onCloseTabs = vi.fn<TabStripCloseCallback>(async () => {
+			await closeGate;
+			return { kind: 'completed' };
+		});
+		render(
+			createElement(Harness, {
+				captureActions: (value) => {
+					actions = value;
+				},
+				captureScope: () => undefined,
+				model,
+				onCloseTabs,
+			}),
+		);
+		if (actions === undefined) throw new Error('Expected the Tab strip actions');
+		const input = { closeSource: 'mouse', tabIds: ['tab'] } as const;
+
+		const first = actions.execute(TAB_STRIP_ACTION_IDS.closeTabs, input, 'pointer');
+		const second = actions.execute(TAB_STRIP_ACTION_IDS.closeTabs, input, 'pointer');
+
+		await expect(second.completion).resolves.toEqual({
+			code: 'duplicate-action-execution',
+			kind: 'blocked',
+		});
+		releaseClose?.();
+		await expect(first.completion).resolves.toEqual({ kind: 'completed' });
+		expect(onCloseTabs).toHaveBeenCalledOnce();
+	});
+
 	it('keeps its fallback runtime usable across injected runtime replacement', async () => {
 		const external = new ActionRuntime();
 		const model = new TabModel();

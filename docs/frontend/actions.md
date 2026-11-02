@@ -173,7 +173,9 @@ the runtime's last check.
 The feature decides whether resolved input and target require confirmation and supplies localized
 title, explanation, confirmation label, and risk. The runtime presents the model consistently,
 revalidates after acceptance, and does not invoke the handler before acceptance. Confirmation never
-substitutes for authorization, target validation, or domain guards.
+substitutes for authorization, target validation, or domain guards. When another party can change
+what an open question describes, the feature supplies `watch`, and the runtime withdraws the question
+as a cancellation once it reports a change.
 
 ## Results
 
