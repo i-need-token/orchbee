@@ -1,0 +1,39 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "desktop.session-disconnected-status",
+	"kind": "experience",
+	"status": "candidate",
+	"name": "Session Disconnected Status",
+	"description": "Keeps a window's last Workbench view after its Session connection ends and offers an explicit reconnect.",
+	"owner": "@orchbee/web",
+	"visibility": "private",
+	"intents": ["explain-session-disconnection", "reconnect-session"],
+	"implementation": [
+		"apps/web/src/desktop-client/session-disconnected-status/SessionDisconnectedStatus.tsx"
+	],
+	"stories": [
+		{
+			"exportName": "English",
+			"file": "apps/web/stories/session-disconnected-status.stories.tsx",
+			"id": "applications-web-desktop-session-disconnected-status--english",
+			"states": [
+				"Inspect the persistent Disconnected label and the Reconnect action with its explanation in English and Simplified Chinese."
+			]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"A Server Client window's connection to its Session ended while its last Workbench view remains."
+	],
+	"avoidWhen": [
+		"The window never reached its Session; the Session Unavailable surface explains that instead.",
+		"One terminal's projection failed while the Session connection remains; the terminal surface owns that recovery."
+	],
+	"invariants": [
+		"Nothing reconnects automatically; only the person's Reconnect starts a new connection.",
+		"The last Workbench view stays visible and is never replaced by the status.",
+		"The status stays clear of the bottom-end region that Workbench notices and terminal control status use.",
+		"All user-facing copy is provided by the Orchbee localization catalog."
+	],
+	"references": ["apps/web/README.md"]
+}

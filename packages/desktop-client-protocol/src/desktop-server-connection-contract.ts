@@ -24,6 +24,11 @@ const DesktopServerConnectionBootstrapSchema = z.strictObject({
 	defaultDirectory: z.string().min(1),
 	/** Whether this machine's Host can start the system shell as a login shell; Windows cannot. */
 	loginShellAvailable: z.boolean(),
+	/**
+	 * Whether starting the Session was refused until it is explicitly recovered. Its connection then
+	 * ends before anything is read, and only Main saw why.
+	 */
+	sessionRecoveryRequired: z.boolean(),
 	terminalHostName: z.string().min(1),
 });
 

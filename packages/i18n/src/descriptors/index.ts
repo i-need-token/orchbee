@@ -9,6 +9,7 @@ export { desktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-en
 export { desktopWindowMessages } from './desktop-window';
 export { keyboardShortcutMessages } from './keyboard-shortcuts';
 export { projectedTerminalMessages } from './projected-terminal';
+export { sessionConnectionMessages } from './session-connection';
 
 export { terminalSettingsMessages } from './terminal-settings';
 export { terminalSettingsCatalogMessages } from './terminal-settings-catalog';

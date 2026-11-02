@@ -8,6 +8,7 @@ export {
 	enUSKeyboardShortcutMessages,
 	enUSProjectedTerminalMessages,
 	enUSMessages,
+	enUSSessionConnectionMessages,
 	enUSTerminalSettingsMessages,
 	enUSTerminalSettingsCatalogMessages,
 	enUSWorkbenchMessages,

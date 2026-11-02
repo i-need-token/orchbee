@@ -20,6 +20,8 @@ export type { ProjectedTerminalMessageId } from './projected-terminal';
 
 export { enUSMessages } from './messages';
 export type { OrchbeeMessageId } from './messages';
+export { enUSSessionConnectionMessages } from './session-connection';
+export type { SessionConnectionMessageId } from './session-connection';
 export { enUSTerminalSettingsMessages } from './terminal-settings';
 export type { TerminalSettingsMessageId } from './terminal-settings';
 export { enUSTerminalSettingsCatalogMessages } from './terminal-settings-catalog';

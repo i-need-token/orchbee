@@ -1,0 +1,37 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "desktop.session-unavailable",
+	"kind": "experience",
+	"status": "candidate",
+	"name": "Session Unavailable",
+	"description": "Takes the place of a window that never reached its Session, says whether the Session needs recovery, and offers an explicit retry.",
+	"owner": "@orchbee/web",
+	"visibility": "private",
+	"intents": ["explain-unavailable-session", "retry-session-connection"],
+	"implementation": ["apps/web/src/desktop-client/session-unavailable/SessionUnavailable.tsx"],
+	"stories": [
+		{
+			"exportName": "RecoveryRequired",
+			"file": "apps/web/stories/session-unavailable.stories.tsx",
+			"id": "applications-web-desktop-session-unavailable--recovery-required",
+			"states": [
+				"Inspect the generic and recovery-required explanations and the Try Again action in English and Simplified Chinese."
+			]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"A Server Client window could not open its Session before reading any Workbench state."
+	],
+	"avoidWhen": [
+		"The connection ended after the Workbench was shown; the Session Disconnected Status keeps that view instead.",
+		"An explicit route no longer resolves; Route Unavailable owns that explanation."
+	],
+	"invariants": [
+		"Trying again is the only effect; nothing retries or recovers automatically.",
+		"Recovery stays an explicit command that the surface names but never runs.",
+		"The window stays movable through a title-bar strip, because no Workbench draws one.",
+		"All user-facing copy is provided by the Orchbee localization catalog."
+	],
+	"references": ["apps/web/README.md"]
+}

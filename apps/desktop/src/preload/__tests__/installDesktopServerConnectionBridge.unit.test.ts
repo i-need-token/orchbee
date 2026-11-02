@@ -16,6 +16,7 @@ const BOOTSTRAP = {
 	automaticWorkspaceAllowed: true,
 	defaultDirectory: 'C:\\Users\\someone',
 	loginShellAvailable: false,
+	sessionRecoveryRequired: false,
 	terminalHostName: 'host',
 };
 const ISOLATED = { contextIsolated: true, sandboxed: true };

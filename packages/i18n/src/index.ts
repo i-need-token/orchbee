@@ -9,6 +9,7 @@ export {
 	desktopWindowMessages,
 	keyboardShortcutMessages,
 	projectedTerminalMessages,
+	sessionConnectionMessages,
 	terminalSettingsMessages,
 	terminalSettingsCatalogMessages,
 	workbenchMessages,

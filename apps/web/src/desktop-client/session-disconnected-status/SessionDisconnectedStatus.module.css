@@ -1,0 +1,31 @@
+.root {
+	box-sizing: border-box;
+	position: fixed;
+	z-index: var(--ob-ref-layer-raised);
+	inset-block-end: var(--ob-ref-space-2);
+	inset-inline: 0;
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+	inline-size: fit-content;
+	max-inline-size: calc(100% - var(--ob-ref-space-4));
+	margin-inline: auto;
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-1) var(--ob-ref-space-1) var(--ob-ref-space-2);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: var(--ob-sys-color-surface-raised);
+	box-shadow: var(--ob-sys-shadow-raised);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.label {
+	min-inline-size: 0;
+	overflow: hidden;
+	color: var(--ob-sys-color-status-danger-text);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.root > button {
+	flex: none;
+}

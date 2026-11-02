@@ -10,6 +10,7 @@ import { enUSDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboar
 import { enUSDesktopWindowMessages } from './desktop-window';
 import { enUSKeyboardShortcutMessages } from './keyboard-shortcuts';
 import { enUSProjectedTerminalMessages } from './projected-terminal';
+import { enUSSessionConnectionMessages } from './session-connection';
 
 import { enUSTerminalSettingsMessages } from './terminal-settings';
 import { enUSTerminalSettingsCatalogMessages } from './terminal-settings-catalog';
@@ -28,6 +29,7 @@ export const enUSMessages = {
 	...enUSDesktopWindowMessages,
 	...enUSKeyboardShortcutMessages,
 	...enUSProjectedTerminalMessages,
+	...enUSSessionConnectionMessages,
 
 	...enUSTerminalSettingsMessages,
 	...enUSTerminalSettingsCatalogMessages,

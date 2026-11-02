@@ -1047,7 +1047,8 @@ focus-claim repair on pause and detach were proved on the earlier cohort. Limits
   drag reads by distance from the bottom and never needed it.
 - After Worker loss, `server stop` fails in its background-jobs phase and the CLI cannot stop the
   Session. After Server loss with a live Host, `server start` refuses fresh activation because
-  nothing adopts the Host. Step 4 owns both.
+  nothing adopts the Host. Step 4 owns both. It settled the first, as Step 4 progress records; the
+  second still waits for Host adoption.
 
 ### Step 3 progress
 
@@ -1347,6 +1348,45 @@ The run below used a hidden window shown off-screen, a stubbed picker and messag
 | New Folder                     | Create made the folder, its Project opened 57 ms later, and the prompt in the new folder appeared after 749 ms. A reload afterwards made Main report nothing.                             |
 | A document ending mid-creation | With the Server's replies held back, a reload while the Project was opening made Main report the kept folder over the window 110 ms later. The next document already showed that Project. |
 | Reload after a new Project     | Before the expansion fix, the next document stopped on a duplicate expanded Project and stayed blank; after it, both reloads in the run showed every Workspace.                           |
+
+A Server-path window now says when its Session connection ends and when it never reached its
+Session, and a stop no longer needs a Worker that already exited. These choices stand unless review
+changes them:
+
+- **Disconnected stays until the person acts.** As the TUI keeps its last state beside a persistent
+  Disconnected status, the window keeps its last view and shows Disconnected with Reconnect at the
+  bottom center, clear of the Workbench notices and a terminal's View only status at the bottom
+  end. Nothing reconnects on its own. Reconnect reloads the document, so Main starts the Session
+  again when it stopped and then connects.
+- **A window that never reaches its Session says why.** Session Unavailable takes the Workbench's
+  place, in the system's language and appearance because the Session holds the preferences, with a
+  strip to move the window by. Try Again is its only effect. Main announces a start refused until
+  recovery, and the page then names `orchbee server diagnose`; recovery stays an explicit command.
+- **A stop after Worker loss waits for the Host to be gone.** Its final save keeps each terminal's
+  last sampled directory. While the Host runs, the stop is refused in its host-exit phase, because
+  nothing may end a live Host before Host adoption.
+- **A Server left with nothing to run stops itself.** Once its Worker has exited and its Host is
+  gone, with no stop admitted, the Server begins its own stop within a second, so the next start
+  restores from that save instead of refusing the old generation.
+- **A live orphan Host stays protected.** After Server or Worker loss with the Host running,
+  `server start` refuses as recovery-required, as
+  [accepted decision 5](#accepted-decisions-from-product-review) leaves it until Host adoption.
+
+The runs below used a staged release cohort, a hidden window shown off-screen, scratch `APPDATA`
+and configuration file, and Sessions deleted afterwards. Before each loss, the terminal moved to
+`C:\Windows`.
+
+| Question           | Result                                                                                                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Before the changes | No loss showed a status. After Server loss, a reload left the window blank; after Worker or Host loss, the Server kept running and `server stop` failed.                        |
+| Session stop       | Disconnected appeared 2 ms after `server stop` returned. Reconnect showed the prompt in `C:\Windows` after 1,058 ms, and the Workspace took that name.                          |
+| Server loss        | Disconnected appeared after 56 ms; the Worker exited and the Host stayed. Reconnect showed Session Unavailable naming `orchbee server diagnose` after 400 ms.                   |
+| Worker loss        | Only the terminal changed, as it could not be restored, because the Server stayed. `server stop` failed as `host-exit` `refused`, and the Server and Host kept running.         |
+| Host loss          | Disconnected appeared after 429 and 631 ms in two runs, and the Server stopped itself. Reconnect showed the prompt in `C:\Windows` after 1,040 ms, from that stop's final save. |
+
+Two gaps remain. A terminal's Retry stays after the connection ends and cannot succeed until the
+projection transport reports an end it cannot retry. After Worker loss with the Host running, the
+window shows only that terminal's failure, and nothing can stop the Session before Host adoption.
 
 ### Evidence
 

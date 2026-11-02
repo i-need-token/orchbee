@@ -234,6 +234,7 @@ export class DesktopServerClientApplication {
 						automaticWorkspaceAllowed: !everConnected && restore === 'intact',
 						defaultDirectory: app.getPath('home'),
 						loginShellAvailable: options.platform !== 'win32',
+						sessionRecoveryRequired: restore === 'recovery-required',
 						terminalHostName: hostname(),
 					},
 					document: document.data,

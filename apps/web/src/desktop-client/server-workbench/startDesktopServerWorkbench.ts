@@ -9,7 +9,13 @@ import {
 	type DesktopServerConnectionBootstrap,
 	type DesktopServerConnectionPortRole,
 } from '@orchbee/desktop-client-protocol';
-import { createOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
+import {
+	createOrchbeeIntl,
+	getOrchbeeTextDirection,
+	OrchbeeI18nProvider,
+	resolveOrchbeeLocale,
+	workbenchMessages,
+} from '@orchbee/i18n';
 import { normalizePermittedExternalTerminalUrl } from '@orchbee/terminal';
 import {
 	matchesWorkbenchProjectCreation,
@@ -49,7 +55,11 @@ import {
 } from '../../workbench-client';
 import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopProjectFolderAcquisitionClient } from '../project-folder-acquisition';
+import { SessionDisconnectedStatus } from '../session-disconnected-status';
+import { SessionUnavailable } from '../session-unavailable';
 import { MessagePortServerCarrier } from './MessagePortServerCarrier';
+
+type DocumentElement = Pick<HTMLElement, 'dataset' | 'dir' | 'lang'>;
 
 interface DesktopServerWorkbenchStorage {
 	readonly focusRecovery?: Pick<Storage, 'getItem' | 'removeItem' | 'setItem'> | undefined;
@@ -120,10 +130,39 @@ function browserPlatformEffects(targetWindow: Window): ProjectedTerminalPlatform
 	};
 }
 
+/**
+ * The Session holds the person's language and theme, so a window that cannot reach it follows the
+ * system's. Trying again reloads the document, which has Main start the Session again.
+ */
+function showSessionUnavailable(
+	targetWindow: Window,
+	reactRoot: Root,
+	documentElement: DocumentElement,
+	preferredLocales: readonly string[],
+	reason: 'recovery-required' | 'unavailable',
+): void {
+	const locale = resolveOrchbeeLocale(preferredLocales);
+	documentElement.lang = locale;
+	documentElement.dir = getOrchbeeTextDirection(locale);
+	documentElement.dataset['theme'] = targetWindow.matchMedia('(prefers-color-scheme: dark)').matches
+		? 'dark'
+		: 'light';
+	reactRoot.render(
+		createElement(
+			OrchbeeI18nProvider,
+			{ locale },
+			createElement(SessionUnavailable, {
+				onTryAgain: () => targetWindow.location.reload(),
+				reason,
+			}),
+		),
+	);
+}
+
 async function run(
 	targetWindow: Window,
-	rootElement: HTMLElement,
-	documentElement: Pick<HTMLElement, 'dataset' | 'dir' | 'lang'>,
+	reactRoot: Root,
+	documentElement: DocumentElement,
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
 	storage: DesktopServerWorkbenchStorage,
@@ -131,12 +170,18 @@ async function run(
 	const { bootstrap, connectionPort, projectFolderPort } = await receiveConnection(targetWindow);
 	const connection = new ServerConnection(new MessagePortServerCarrier(connectionPort));
 	targetWindow.addEventListener('unload', () => connection.close(), { once: true });
-	const session = await ServerWorkbenchSession.open(connection);
-	const stopSession = (reason: string): void => {
-		// Recovering from this is the connection lifecycle's job; until then a developer reads the reason.
-		documentElement.dataset['serverWorkbenchEnded'] = reason;
-	};
-	session.onEnded((end) => stopSession(end.kind));
+	const session = await ServerWorkbenchSession.open(connection).catch(() => null);
+	if (session === null) {
+		// A refused start leaves Main's connection nothing to reach, so it ends before any read.
+		showSessionUnavailable(
+			targetWindow,
+			reactRoot,
+			documentElement,
+			preferredLocales,
+			bootstrap.sessionRecoveryRequired ? 'recovery-required' : 'unavailable',
+		);
+		return;
+	}
 
 	const userPreferences = new ServerUserPreferencesClient(connection, session.snapshot.sessionId);
 	const terminalDefaultSettingsClient = new ServerTerminalDefaultSettingsClient(userPreferences);
@@ -183,7 +228,6 @@ async function run(
 		storage.preferences,
 	);
 
-	let reactRoot: Root | undefined;
 	let routing: WebApplicationRouting | undefined;
 	let runtime: ServerWorkbenchRuntime | undefined;
 	const projectFolderAcquisition = new DesktopProjectFolderAcquisitionClient(
@@ -205,7 +249,7 @@ async function run(
 		() => {
 			runApplicationCleanup(
 				[
-					() => reactRoot?.unmount(),
+					() => reactRoot.unmount(),
 					() => routing?.dispose(),
 					() => runtime?.dispose(),
 					() => projectFolderAcquisition.dispose(),
@@ -235,10 +279,8 @@ async function run(
 		defaultDirectory: bootstrap.defaultDirectory,
 		documentElement,
 		focusRecoveryStorage: storage.focusRecovery,
-		onPublicationFailure: (error) => {
-			stopSession(String(error));
-			session.dispose();
-		},
+		// A publication this document cannot apply leaves nothing current to show, so it disconnects.
+		onPublicationFailure: () => session.dispose(),
 		preferredLocales,
 		session,
 		shortcutBindingSource: keyboardShortcutSettingsController,
@@ -278,10 +320,17 @@ async function run(
 		// returns it to where it was.
 		createMemoryHistory(),
 	);
-	reactRoot = createRoot(rootElement);
 	reactRoot.render(
 		createElement(DesktopWorkbench, {
 			applicationLocaleSource: applicationLocaleController,
+			// Reconnecting is a reload: Main starts the Session again when it stopped, then connects.
+			connectionStatus: createElement(SessionDisconnectedStatus, {
+				ended: {
+					getSnapshot: () => session.ended !== null,
+					subscribe: (listener) => session.onEnded(listener),
+				},
+				onReconnect: () => targetWindow.location.reload(),
+			}),
 			router: routing.router,
 			terminalSurfaceCapability: runtime.terminalSurfaceCapability,
 			windowControls: shortcutPlatform === 'apple' ? 'leading' : 'trailing',
@@ -309,7 +358,7 @@ async function run(
 export function startDesktopServerWorkbench(
 	targetWindow: Window,
 	rootElement: Element | null,
-	documentElement: Pick<HTMLElement, 'dataset' | 'dir' | 'lang'>,
+	documentElement: DocumentElement,
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
 	storage: DesktopServerWorkbenchStorage,
@@ -317,14 +366,21 @@ export function startDesktopServerWorkbench(
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee Desktop application root element is missing.');
 	}
+	const reactRoot = createRoot(rootElement);
 	void run(
 		targetWindow,
-		rootElement,
+		reactRoot,
 		documentElement,
 		preferredLocales,
 		shortcutPlatform,
 		storage,
-	).catch((error: unknown) => {
-		documentElement.dataset['serverWorkbenchFailure'] = String(error);
+	).catch(() => {
+		showSessionUnavailable(
+			targetWindow,
+			reactRoot,
+			documentElement,
+			preferredLocales,
+			'unavailable',
+		);
 	});
 }
