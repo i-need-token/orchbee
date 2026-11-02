@@ -17,12 +17,13 @@ const ServerStartDocumentSchema = z.looseObject({
 export function readServerRestoreState(
 	executable: string,
 	sessionArguments: readonly string[],
+	environment: NodeJS.ProcessEnv,
 ): Promise<'intact' | 'lost-or-unknown'> {
 	return new Promise((resolve) => {
 		execFile(
 			executable,
 			[...sessionArguments, 'server', 'start', '--format', 'json'],
-			{ timeout: COMMAND_DEADLINE_MILLISECONDS, windowsHide: true },
+			{ env: environment, timeout: COMMAND_DEADLINE_MILLISECONDS, windowsHide: true },
 			(error, stdout) => {
 				if (error !== null) {
 					resolve('lost-or-unknown');

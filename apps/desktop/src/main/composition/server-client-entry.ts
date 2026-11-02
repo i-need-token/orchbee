@@ -4,6 +4,7 @@
  * is removed.
  */
 import { spawn } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import path from 'node:path';
 
@@ -23,7 +24,7 @@ import {
 	registerDesktopRendererScheme,
 } from '../desktop-renderer-protocol';
 import { ServerConnectionRelay, readServerRestoreState } from '../server-connection';
-import { prepareDesktopDataRoot } from './prepareDesktopDataRoot';
+import { type DesktopDataRoot, prepareDesktopDataRoot } from './prepareDesktopDataRoot';
 import { resolveDesktopApplicationDistribution } from './resolveDesktopApplicationDistribution';
 
 const CLIENT_EXECUTABLE_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_CLIENT_EXECUTABLE';
@@ -44,14 +45,32 @@ const distribution = resolveDesktopApplicationDistribution({
 	platform: process.platform,
 });
 app.setName(distribution.applicationName);
-app.setPath(
-	'userData',
-	prepareDesktopDataRoot({
-		distribution,
-		homeDirectory: app.getPath('home'),
-		platform: process.platform,
-	}).path,
-);
+const dataRoot = prepareDesktopDataRoot({
+	distribution,
+	homeDirectory: app.getPath('home'),
+	platform: process.platform,
+});
+app.setPath('userData', dataRoot.path);
+
+/**
+ * What `orchbee` runs under. Outside a release, a Session it starts keeps this data directory's
+ * preferences, as the frozen entry's preference bridge does, rather than the installed release's.
+ */
+function resolveClientEnvironment(root: DesktopDataRoot): NodeJS.ProcessEnv {
+	if (process.env['ORCHBEE_CONFIG_FILE'] !== undefined || root.scope.kind === 'release') {
+		return process.env;
+	}
+	const configurationFile = path.join(root.path, 'config.toml');
+	// The runtime refuses an explicit configuration file that does not exist, so an empty one stands
+	// for the defaults; one already there is the person's and stays as it is.
+	try {
+		writeFileSync(configurationFile, '', { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+	} catch (error) {
+		if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error;
+	}
+	return { ...process.env, ORCHBEE_CONFIG_FILE: configurationFile };
+}
+const clientEnvironment = resolveClientEnvironment(dataRoot);
 
 function requiredEnvironment(key: string): string {
 	const value = process.env[key];
@@ -95,7 +114,7 @@ function connectDocument(
 	const relayProcess = spawn(
 		requiredEnvironment(CLIENT_EXECUTABLE_ENVIRONMENT_KEY),
 		[...sessionArguments(), 'server', 'connect'],
-		{ stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true },
+		{ env: clientEnvironment, stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true },
 	);
 	const { port1, port2 } = new MessageChannelMain();
 	const relay = new ServerConnectionRelay(relayProcess, port1);
@@ -146,6 +165,7 @@ void app.whenReady().then(async () => {
 		void readServerRestoreState(
 			requiredEnvironment(CLIENT_EXECUTABLE_ENVIRONMENT_KEY),
 			sessionArguments(),
+			clientEnvironment,
 		).then((restore) => {
 			if (request !== requests || window.isDestroyed()) return;
 			relay = connectDocument(window, {

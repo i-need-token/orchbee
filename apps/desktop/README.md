@@ -589,6 +589,8 @@ It needs no Terminal Host of its own and has only been exercised on Windows so f
 
 A window that stays hidden produces no frames; automation that needs pixels shows it off-screen with `showInactive`.
 
+Outside a release, Main runs both `orchbee` commands with that data directory's `config.toml` as `ORCHBEE_CONFIG_FILE` unless one is already set, as the frozen entry's preference bridge does. The runtime refuses a missing explicit file, so Main first creates an empty one when none is there and never replaces one that is. A Session they start therefore keeps its [shared preferences](../../crates/workbench-protocol/docs/user-preferences.md#scope-and-persistence) apart from the installed release's. A Session already running keeps the configuration it started with.
+
 ## Development
 
 The packaged observation Capsule includes its README files in its immutable payload digest. Their references to retired workflow models describe that packaged revision; current observation evidence is maintained in [Agent observation ingress](docs/agent-observation-ingress.md). Updating the verification portfolio does not republish a Capsule. Desktop retains only the document-store and projected-terminal IPC TLA protocols; local workflow correctness uses the owning implementation suites.
