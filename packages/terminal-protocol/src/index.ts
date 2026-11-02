@@ -1,20 +1,15 @@
 export {
 	ApplyTerminalThemeSchema,
-	AttachTerminalSchema,
 	AttachmentAcknowledgedSchema,
 	AttachmentCapabilitiesSchema,
 	CanonicalUint64TextSchema,
 	ClearTerminalSchema,
 	ClaimResizeLeaseSchema,
-	CreateTerminalSchema,
-	DEFAULT_TERMINAL_CONFIGURATION,
 	decodeControlJson,
 	encodeControlJson,
 	EmptyControlSchema,
-	ExitResultSchema,
 	FrameAppliedSchema,
 	HelloAcceptedSchema,
-	HelloSchema,
 	HistoryChangedSchema,
 	HistoryDemandAcceptedSchema,
 	HistoryObservedSchema,
@@ -33,7 +28,6 @@ export {
 	SelectionChangedSchema,
 	SelectionCommandSchema,
 	SelectionExportSchema,
-	SelectionExportChunkAppliedSchema,
 	SelectionExportFinishedSchema,
 	SelectionExportStartedSchema,
 	SelectionGestureSchema,
@@ -41,7 +35,6 @@ export {
 	SetHistoryDemandSchema,
 	SetProjectionDemandSchema,
 	SetTerminalDefaultsSchema,
-	StartTerminalSchema,
 	TerminalAcknowledgedSchema,
 	TerminalApplicationSignalSchema,
 	TerminalBellSchema,
@@ -54,10 +47,6 @@ export {
 	TerminalConfigurationAcceptedSchema,
 	TerminalControlAcceptedSchema,
 	TerminalDefaultsAcceptedSchema,
-	TerminalLaunchSchema,
-	TerminalEnvironmentOverlaySchema,
-	TerminalMetadataChangedSchema,
-	TerminalProfileSchema,
 	TerminalListSchema,
 	TerminalStartAcceptedSchema,
 	TerminalStartedSchema,
@@ -69,25 +58,18 @@ export {
 	UpdateAttachmentInputCapabilitySchema,
 } from './control';
 export type {
-	AttachmentAcknowledged,
-	AttachmentCapabilities,
 	CanonicalUint64Text,
 	ClearTerminal,
-	ExitResult,
-	TerminalEnvironmentOverlay,
 	FrameApplied,
-	HelloAccepted,
 	HistoryChanged,
 	HistoryObserved,
 	NeedSnapshot,
-	ProcessObservation,
 	ProjectionDemand,
 	ReadRows,
 	ResizeTerminal,
 	ResetTerminal,
 	RowsApplied,
 	RowRevisionPolicy,
-	RuntimeFailure,
 	SelectionChanged,
 	SelectionCommand,
 	SelectionExportCancel,
@@ -96,46 +78,27 @@ export type {
 	SelectionViewportPoint,
 	SetHistoryDemand,
 	SetProjectionDemand,
-	TerminalApplicationSignal,
 	TerminalBell,
 	TerminalClipboardWriteRequest,
 	TerminalExited,
 	TerminalFailed,
 	TerminalGeometry,
-	TerminalIdentity,
-	TerminalInventoryCursor,
 	TerminalConfiguration,
-	TerminalLaunch,
-	TerminalMetadataChanged,
-	TerminalProfile,
-	TerminalList,
-	TerminalSummary,
 	TerminalThemeState,
-	TypedFailure,
 } from './control';
 export { encodeControlRequest } from './encodeControlRequest';
 export {
 	decodeProtocolEnvelope,
 	encodeProtocolEnvelope,
-	messagePayloadEncoding,
 	MessageKind,
 	PayloadEncoding,
-	requestMessageContract,
-	TRANSPORT_ENVELOPE_HEADER_BYTES,
-	TRANSPORT_ENVELOPE_MAGIC,
 } from './envelope';
-export type {
-	DecodedProtocolEnvelope,
-	MessageKind as MessageKindValue,
-	MessageRole,
-	PayloadEncoding as PayloadEncodingValue,
-} from './envelope';
+export type { DecodedProtocolEnvelope } from './envelope';
 export {
 	ActiveScreen,
 	CellWidth,
 	CursorShape,
 	decodeTerminalFrame,
-	decodeTerminalFrameRoute,
 	encodeTerminalFrame,
 	inspectTerminalFrameHeader,
 	RowPromptClass,
@@ -165,21 +128,13 @@ export type {
 } from './frame';
 export {
 	AttachmentIdSchema,
-	ClientIdSchema,
 	CorrelationIdSchema,
 	CreationIdSchema,
 	HostEpochSchema,
 	TerminalIdSchema,
 	TerminalThemeOperationIdSchema,
 } from './identifiers';
-export type {
-	AttachmentId,
-	ClientId,
-	CorrelationId,
-	CreationId,
-	HostEpoch,
-	TerminalId,
-} from './identifiers';
+export type { AttachmentId, CorrelationId, CreationId, HostEpoch, TerminalId } from './identifiers';
 export {
 	decodeKeyInput,
 	decodePasteInput,
@@ -213,40 +168,24 @@ export {
 	TerminalRowWindowDetail,
 	viewTerminalRowWindow,
 } from './row-window';
-export type {
-	DecodedTerminalRenderRowWindow,
-	DecodedTerminalRowWindow,
-	TerminalTextRow,
-} from './row-window';
-export {
-	decodeSelectionExportChunk,
-	decodeSelectionExportChunkRoute,
-	encodeSelectionExportChunk,
-} from './selection';
+export type { DecodedTerminalRowWindow } from './row-window';
+export { decodeSelectionExportChunk, encodeSelectionExportChunk } from './selection';
 export type { SelectionExportChunk } from './selection';
-export { TerminalPhase } from './terminal-phase';
 
 export { PROTOCOL_LIMITS } from './limits';
 export { ProtocolErrorCode } from './protocol-result';
 export type { ProtocolFailure } from './protocol-result';
-export {
-	decodeTerminalGraphics,
-	encodeTerminalGraphics,
-	TerminalGraphicsUpdateKind,
-} from './terminal-graphics';
+export { TerminalGraphicsUpdateKind } from './terminal-graphics';
+/** @internal Fixture encoder for the `@orchbee/terminal` packed-store tests; production encodes graphics only inside this package. */
+export { encodeTerminalGraphics } from './terminal-graphics';
 export type {
 	TerminalGraphics,
 	TerminalGraphicsImage,
 	TerminalGraphicsPlacement,
 } from './terminal-graphics';
-export {
-	decodeTerminalProjectionBuffer,
-	encodeTerminalProjectionBuffer,
-	materializeTerminalProjectionFrame,
-	TerminalProjectionSection,
-	TERMINAL_PROJECTION_BUFFER_HEADER_BYTES,
-} from './projection-buffer';
+export { encodeTerminalProjectionBuffer, TerminalProjectionSection } from './projection-buffer';
+/** @internal Fixture decoder for the `@orchbee/terminal` packed-store tests; production decodes a standalone buffer only inside this package. */
+export { decodeTerminalProjectionBuffer } from './projection-buffer';
 export type { DecodedTerminalProjectionBuffer } from './projection-buffer';
 export { CURRENT_PROTOCOL_VERSION } from './version';
-export type { ProtocolVersion } from './version';
 export { TerminalProcessInfoSchema } from './process-info';

@@ -145,6 +145,7 @@ export function computeValue() {
 		);
 		write(root, 'apps/web/src/runtime.system-fixture.ts', 'export {};\n');
 		write(root, 'apps/web/src/__tests__/runtime.unit.test.ts', "import '../composition/entry';\n");
+		write(root, 'apps/web/system-tests/runtime.spec.ts', "import '../src/composition/entry';\n");
 		write(
 			root,
 			'packages/tab-strip/src/__tests__/runtime.unit.test.ts',
@@ -370,7 +371,7 @@ test('bundled subpaths resolve to their declared sources without hiding private 
 		const actual = JSON.parse(readFileSync(join(repositoryRoot, packagePath), 'utf8'));
 		for (const [subpath, name] of [
 			['document', 'documentValue'],
-			['runtime', 'runtimeEntryValue'],
+			['project-workspace', 'projectWorkspaceValue'],
 		]) {
 			const targets = actual.exports[`./${subpath}`];
 			manifest.exports[`./${subpath}`] = targets;
@@ -388,9 +389,9 @@ test('bundled subpaths resolve to their declared sources without hiding private 
 			consumerPath,
 			`${readFileSync(join(root, consumerPath), 'utf8')}
 import { documentValue } from '@orchbee/workbench/document';
-import { runtimeEntryValue } from '@orchbee/workbench/runtime';
+import { projectWorkspaceValue } from '@orchbee/workbench/project-workspace';
 void documentValue;
-void runtimeEntryValue;
+void projectWorkspaceValue;
 `,
 		);
 		for (const production of [false, true]) assertIssues(analyze(root, production));

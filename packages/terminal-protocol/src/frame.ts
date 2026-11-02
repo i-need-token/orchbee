@@ -522,11 +522,6 @@ export interface DecodedTerminalFrame {
 	readonly title: string | null;
 }
 
-interface DecodedTerminalFrameRoute {
-	readonly attachmentId: AttachmentId;
-	readonly hostEpoch: HostEpoch;
-}
-
 export interface InspectedTerminalFrameHeader {
 	readonly attachmentId: AttachmentId;
 	readonly baseRevision: bigint | null;
@@ -1688,18 +1683,6 @@ export function inspectTerminalFrameHeader(
 				revision: header.value.revision,
 				sequence: header.value.sequence,
 				themeRevision: header.value.themeRevision,
-			})
-		: header;
-}
-
-export function decodeTerminalFrameRoute(
-	bytes: Uint8Array,
-): ProtocolResult<DecodedTerminalFrameRoute> {
-	const header = decodeFrameHeader(bytes);
-	return header.ok
-		? protocolSuccess({
-				attachmentId: header.value.attachmentId,
-				hostEpoch: header.value.hostEpoch,
 			})
 		: header;
 }

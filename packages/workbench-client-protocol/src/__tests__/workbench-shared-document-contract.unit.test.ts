@@ -1,13 +1,12 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
+import { ZodError } from 'zod';
 
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 } from '../terminal-presentation-contract';
 import {
-	WorkbenchSharedDocumentRevisionSchema,
-	WorkbenchSharedDocumentSchema,
 	createWorkbenchSharedDocument,
 	parseWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
@@ -146,14 +145,14 @@ describe('Workbench shared document', () => {
 		const [terminalContext] = document.terminalContexts;
 		if (terminalContext === undefined) throw new Error('Expected one terminal context.');
 
-		expect(
-			WorkbenchSharedDocumentSchema.safeParse({ ...document, terminalContexts: [] }).success,
-		).toBe(false);
-		expect(
-			WorkbenchSharedDocumentSchema.safeParse({ ...document, terminalId: 'host-terminal' }).success,
-		).toBe(false);
-		expect(
-			WorkbenchSharedDocumentSchema.safeParse({
+		expect(() => parseWorkbenchSharedDocument({ ...document, terminalContexts: [] })).toThrow(
+			ZodError,
+		);
+		expect(() =>
+			parseWorkbenchSharedDocument({ ...document, terminalId: 'host-terminal' }),
+		).toThrow(ZodError);
+		expect(() =>
+			parseWorkbenchSharedDocument({
 				...document,
 				terminalContexts: [
 					{
@@ -164,10 +163,10 @@ describe('Workbench shared document', () => {
 						},
 					},
 				],
-			}).success,
-		).toBe(false);
-		expect(WorkbenchSharedDocumentRevisionSchema.safeParse('01').success).toBe(false);
-		expect(WorkbenchSharedDocumentRevisionSchema.safeParse('-1').success).toBe(false);
+			}),
+		).toThrow(ZodError);
+		expect(() => workbenchSharedDocumentRevision('01')).toThrow(ZodError);
+		expect(() => workbenchSharedDocumentRevision('-1')).toThrow(ZodError);
 	});
 
 	it('accepts a same-axis binary split as meaningful close ancestry', () => {
@@ -193,8 +192,8 @@ describe('Workbench shared document', () => {
 			],
 		};
 
-		expect(
-			WorkbenchSharedDocumentSchema.safeParse({
+		expect(() =>
+			parseWorkbenchSharedDocument({
 				...input,
 				version: 1,
 				terminalContexts: [
@@ -206,8 +205,8 @@ describe('Workbench shared document', () => {
 						},
 					},
 				],
-			}).success,
-		).toBe(true);
+			}),
+		).not.toThrow();
 	});
 
 	it('rejects an n-ary Split from the binary shared topology', () => {
@@ -219,8 +218,8 @@ describe('Workbench shared document', () => {
 			throw new Error('Expected a two-Panel shared-document fixture.');
 		}
 
-		expect(
-			WorkbenchSharedDocumentSchema.safeParse({
+		expect(() =>
+			parseWorkbenchSharedDocument({
 				...input,
 				version: 1,
 				terminalContexts: [
@@ -240,8 +239,8 @@ describe('Workbench shared document', () => {
 						},
 					},
 				],
-			}).success,
-		).toBe(false);
+			}),
+		).toThrow(ZodError);
 	});
 
 	it('round-trips generated hierarchies with a stable seed', () => {

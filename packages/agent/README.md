@@ -1,6 +1,6 @@
 # @orchbee/agent
 
-Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
+Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. An export whose only consumers are tests, Stories, or the conformance generator carries an `@internal` tag naming that use; production dependency analysis ignores it, and full analysis still requires that consumer. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
 
 Provider-neutral domain model and deterministic runtime for observed Agent state in Orchbee.
 
@@ -70,23 +70,21 @@ The bounded runtime change journal and its revision/reset behavior remain owned 
 
 ## Current application composition
 
-Desktop owns one volatile `DesktopAgentObservationRuntime` for the application lifetime, including
-the bounded change journal. Renderer document replacement retires only the previous broker; the
-runtime and journal remain alive, and the next renderer requests a fresh full snapshot through the
-strict `@orchbee/desktop-client-protocol` Agent-observation port. Version 1 of that port also
-publishes exact semantic events after their snapshot update so a renderer can evaluate one
-notification effect without reconstructing an event from state. The Web adapter rejects malformed
-or uncorrelated messages and ignores non-increasing revisions. Workbench consumes the narrow
-`AgentSnapshotSource`, projects non-ended state into exact terminal panel headers, and deduplicates
-all terminal presentations in a Tab into a provider identity icon plus one localized non-ended
-status adornment. It also derives live Session summaries for every Workspace without mounting
-inactive terminal surfaces. Retained ended state is excluded from panel, Tab, Workspace summary,
-and Workspace detail presentation, so the ordinary terminal or layout identity returns immediately.
-The retired Desktop semantic-command coordinator is not a current consumer of the change journal.
+No product composition creates an `AgentRuntime` or supplies an `AgentSnapshotSource`. The Desktop
+observation runtime, its renderer Agent-observation port, and its terminal and adapter ingress were
+retired with the legacy Desktop Main process, so Server-path windows show no Agent state or Agent
+notification until step 5 of the
+[native runtime topology proposal](../../proposals/platform/native-runtime-topology.md) delivers
+Agent observation through the Server. The Rust Server consumes the canonical corpus independently.
 
-Desktop admits two deliberately different observation classes. An exact private-APC v3 launch envelope from shell integration can create only a fresh heuristic Session with no capabilities and unknown status. It emits no semantic event or notification candidate, becomes stale after 30 seconds, and retires after 120 seconds unless refreshed. Retirement disconnects and ends only the local heuristic presence projection without emitting a semantic Session-end event. A successfully admitted rich observation for the same provider, presentation, and terminal generation retires the heuristic projection before taking over; later passive evidence remains suppressed while that exact rich route is live. Explicitly installed, provider-bound adapters for Claude Code, Codex, Grok, OpenCode, Pi, OMP, Gemini CLI, GitHub Copilot CLI, Cline, and Qwen Code each validate their own upstream contract before stripping prompts, tool content, transcript paths, working directories, error text, and unknown fields. They send the shared normalized v3 rich allowlist, including bounded correlation visibility, over a private Unix-domain socket. Only after at least one candidate returns the exact acceptance ACK do they write the separate content-free private-APC correlation hint to every resolved outer TTY. A closed application registry grants provider provenance, accepted events, and maximum capabilities; no adapter payload grants itself authority. Neither rich transport half has enough authority alone: Desktop accepts rich semantics only after an exact bounded event/correlation join for a live terminal generation. The shared resolver covers direct terminals, every attached tmux client, Zellij clients conservatively, and nested mux targets. The shell integration gives eligible interactive SSH sessions a random remote socket through OpenSSH reverse Unix-socket forwarding; there is no HTTP port, Bearer credential, inherited terminal secret, automatic remote installation, durable remote cache, or public terminal-notification channel. Any path may fail without affecting the Agent or terminal.
-
-One Session may attach to several presentations without duplicating its Turn, request, outcome, or semantic event. Workbench shows the aggregate in panel headers, Tab icons, and deduplicated live Workspace summaries. A Session attached to several presentations in one Workspace counts once there, while a cross-Workspace attachment appears once in each represented Workspace. When the user explicitly enables Agent notifications and system permission is already granted, exact attention, success, and failure events notify only while every attached destination is hidden; activation selects the corresponding Tab and panel. Notification copy is curated and never includes provider-controlled content. Provider identity remains provenance and optional curated presentation identity; business transitions and consumers depend only on canonical capabilities and events. Automatic provider setup, durable Agent history, delivery while SSH is fully disconnected, and continuity across Desktop or operating-system restart remain outside this slice.
+Workbench keeps its narrow `AgentSnapshotSource` consumer. Given a source, it projects non-ended
+state into exact terminal panel headers, deduplicates all terminal presentations in a Tab into a
+provider identity icon plus one localized non-ended status adornment, and derives live Session
+summaries for every Workspace without mounting inactive terminal surfaces. A Session attached to
+several presentations in one Workspace counts once there, and retained ended state is excluded from
+every presentation. Workbench tests and Stories and the canonical corpus generator drive this
+projection through the reference `AgentRuntime` and identity fixture parsers, exported as
+`@internal` until the Agent audit in that step removes or replaces them.
 
 ## Correctness evidence
 

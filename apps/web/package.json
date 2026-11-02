@@ -7,9 +7,10 @@
 	"scripts": {
 		"dev": "rsbuild dev",
 		"build": "rsbuild build --log-level error",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "tsc --noEmit && tsc --noEmit -p system-tests",
 		"test": "vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"test:system": "playwright test --config playwright.config.ts"
 	},
 	"dependencies": {
 		"@orchbee/actions": "workspace:^",
@@ -30,11 +31,13 @@
 		"zod": "catalog:"
 	},
 	"devDependencies": {
+		"@playwright/test": "1.61.1",
 		"@rsbuild/core": "catalog:",
 		"@rsbuild/plugin-react": "catalog:",
 		"@rsbuild/plugin-source-build": "catalog:",
 		"@rsbuild/plugin-tailwindcss": "catalog:",
 		"@testing-library/react": "16.3.2",
+		"@types/node": "catalog:",
 		"@types/react": "catalog:",
 		"@types/react-dom": "catalog:",
 		"ajv": "8.20.0",

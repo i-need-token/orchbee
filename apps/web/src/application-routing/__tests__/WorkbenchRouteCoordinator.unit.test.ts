@@ -3,7 +3,6 @@ import {
 	createWorkbenchPreviewTerminalPresentationComposition,
 	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchTerminalPresentationCommand,
-	type WorkbenchTerminalPresentationComposition,
 } from '@orchbee/workbench';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -15,6 +14,9 @@ import {
 import { WorkbenchRouteCoordinator } from '../WorkbenchRouteCoordinator';
 
 type WorkbenchRouteNavigation = ConstructorParameters<typeof WorkbenchRouteCoordinator>[1];
+type WorkbenchTerminalPresentationComposition = ReturnType<
+	typeof createWorkbenchPreviewTerminalPresentationComposition
+>;
 
 function createRuntime(
 	terminalPresentation?: WorkbenchTerminalPresentationComposition,

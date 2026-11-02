@@ -11,10 +11,6 @@ export interface DesktopTerminalLaunchProfileClientSnapshot extends DesktopTermi
 	readonly pending: boolean;
 }
 
-export type DesktopTerminalLaunchProfileClientInitialization =
-	| { readonly kind: 'ready' }
-	| { readonly kind: 'unavailable' };
-
 export type DesktopTerminalLaunchProfileClientOperationResult =
 	| DesktopTerminalLaunchProfileMainEvent['result']
 	| { readonly kind: 'unavailable' };

@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import {
 	MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES,
 	ProjectedAttachmentBootstrapSchema,
-	ProjectedTerminalCommandSchema,
 	ProjectedTerminalEventSchema,
 } from '../projected-terminal-contract';
 
@@ -208,95 +207,14 @@ describe('projected terminal contract', () => {
 		).toMatchObject({ localFileEffects: true });
 	});
 
-	it('keeps commands scoped to their attachment identity', () => {
-		for (const kind of ['clear-terminal', 'reset-terminal'] as const) {
-			expect(
-				ProjectedTerminalCommandSchema.safeParse({
-					kind,
-					payload:
-						kind === 'clear-terminal' ? { attachmentId, preservePrompt: false } : { attachmentId },
-				}).success,
-			).toBe(true);
-			expect(ProjectedTerminalCommandSchema.safeParse({ kind, payload: {} }).success).toBe(false);
-		}
-		expect(
-			ProjectedTerminalCommandSchema.safeParse({
-				kind: 'selection-copy',
-				payload: { attachmentId, requestSequence: '1' },
-			}).success,
-		).toBe(true);
-		expect(
-			ProjectedTerminalCommandSchema.safeParse({
-				kind: 'selection-copy',
-				payload: { requestSequence: '1' },
-			}).success,
-		).toBe(false);
-		expect(
-			ProjectedTerminalCommandSchema.safeParse({
-				kind: 'selection-copy',
-				payload: { attachmentId, format: 'html', requestSequence: '1' },
-			}).success,
-		).toBe(false);
-
-		const clipboardDecision = {
-			kind: 'clipboard-write-decision',
-			payload: {
-				approved: true,
-				attachmentId,
-				sequence: '1',
-				text: 'reviewed terminal text',
-			},
-		};
-		expect(ProjectedTerminalCommandSchema.safeParse(clipboardDecision).success).toBe(true);
-		expect(
-			ProjectedTerminalCommandSchema.safeParse({
-				...clipboardDecision,
-				payload: { ...clipboardDecision.payload, approved: undefined },
-			}).success,
-		).toBe(false);
-		expect(
-			ProjectedTerminalCommandSchema.safeParse({
-				...clipboardDecision,
-				payload: { ...clipboardDecision.payload, sequence: '0' },
-			}).success,
-		).toBe(false);
-		expect(
-			ProjectedTerminalCommandSchema.safeParse({
-				...clipboardDecision,
-				payload: {
-					...clipboardDecision.payload,
-					text: 'x'.repeat(PROTOCOL_LIMITS.maxClipboardTextBytes + 1),
-				},
-			}).success,
-		).toBe(false);
-	});
-
-	it('carries one attachment-scoped runtime theme operation and its correlated result', () => {
+	it('carries a correlated runtime theme result and failure', () => {
 		const operationId = '55'.repeat(16);
-		const command = {
-			kind: 'apply-terminal-theme',
-			payload: {
-				attachmentId,
-				expectedThemeRevision: '0',
-				operationId,
-				terminal: { ...terminalTheme, defaultBackgroundRgb: 0xfc_fc_fc },
-				terminalId: identity.terminalId,
-			},
-		};
-		expect(ProjectedTerminalCommandSchema.parse(command)).toEqual(command);
-		expect(
-			ProjectedTerminalCommandSchema.safeParse({
-				...command,
-				payload: { ...command.payload, attachmentId: undefined },
-			}).success,
-		).toBe(false);
-
 		const event = {
 			event: {
 				current: {
 					operationId,
 					revision: '1',
-					terminal: command.payload.terminal,
+					terminal: { ...terminalTheme, defaultBackgroundRgb: 0xfc_fc_fc },
 				},
 				operationId,
 				terminalId: identity.terminalId,
@@ -314,99 +232,7 @@ describe('projected terminal contract', () => {
 		).toMatchObject({ kind: 'terminal-theme-failed', operationId });
 	});
 
-	it('carries explicit accessible selection ranges without reconstructing a pointer gesture', () => {
-		expect(
-			ProjectedTerminalCommandSchema.safeParse({
-				kind: 'selection-command',
-				payload: {
-					attachmentId,
-					command: 'set-range',
-					end: { column: 5, row: '8' },
-					generation: '2',
-					rectangle: false,
-					revision: '3',
-					start: { column: 1, row: '7' },
-				},
-			}).success,
-		).toBe(true);
-	});
-
-	it('types and bounds open targets by their UTF-8 representation', () => {
-		const prefix = 'https://example.com/';
-		const exactAsciiTarget = `${prefix}${'a'.repeat(
-			PROTOCOL_LIMITS.maxStringBytes - prefix.length,
-		)}`;
-		const target = `https://example.com/${'界'.repeat(
-			Math.ceil(PROTOCOL_LIMITS.maxStringBytes / 3),
-		)}`;
-		expect(new TextEncoder().encode(exactAsciiTarget).byteLength).toBe(
-			PROTOCOL_LIMITS.maxStringBytes,
-		);
-		expect(
-			ProjectedTerminalCommandSchema.safeParse({
-				kind: 'link-open',
-				payload: {
-					attachmentId,
-					requestSequence: '1',
-					target: { kind: 'url', url: exactAsciiTarget },
-				},
-			}).success,
-		).toBe(true);
-		expect(
-			ProjectedTerminalCommandSchema.safeParse({
-				kind: 'link-open',
-				payload: {
-					attachmentId,
-					requestSequence: '1',
-					target: { kind: 'url', url: `${exactAsciiTarget}a` },
-				},
-			}).success,
-		).toBe(false);
-		expect(target.length).toBeLessThan(PROTOCOL_LIMITS.maxStringBytes);
-		expect(new TextEncoder().encode(target).byteLength).toBeGreaterThan(
-			PROTOCOL_LIMITS.maxStringBytes,
-		);
-		expect(
-			ProjectedTerminalCommandSchema.safeParse({
-				kind: 'link-open',
-				payload: { attachmentId, requestSequence: '1', target: { kind: 'url', url: target } },
-			}).success,
-		).toBe(false);
-		expect(
-			ProjectedTerminalCommandSchema.parse({
-				kind: 'link-open',
-				payload: {
-					attachmentId,
-					requestSequence: '2',
-					target: { column: 4, kind: 'file', line: 12, path: '/tmp/output image.png' },
-				},
-			}),
-		).toMatchObject({ payload: { target: { kind: 'file', line: 12 } } });
-		expect(
-			ProjectedTerminalCommandSchema.safeParse({
-				kind: 'link-open',
-				payload: {
-					attachmentId,
-					requestSequence: '2',
-					target: { kind: 'unknown', value: '/tmp/output.png' },
-				},
-			}).success,
-		).toBe(false);
-	});
-
-	it('bounds typed image-preview requests and binary results', () => {
-		expect(
-			ProjectedTerminalCommandSchema.parse({
-				kind: 'image-preview',
-				payload: { attachmentId, path: '/tmp/output.png', requestSequence: '7' },
-			}),
-		).toMatchObject({ kind: 'image-preview' });
-		expect(
-			ProjectedTerminalCommandSchema.parse({
-				kind: 'image-preview-cancel',
-				payload: { attachmentId, requestSequence: '7' },
-			}),
-		).toMatchObject({ kind: 'image-preview-cancel' });
+	it('bounds typed image-preview binary results', () => {
 		expect(
 			ProjectedTerminalEventSchema.safeParse({
 				content: new ArrayBuffer(MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES),

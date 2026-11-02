@@ -12,10 +12,11 @@ export {
 	DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
 	DESKTOP_TERMINAL_LAUNCH_PROFILE_LIMITS,
 	DesktopTerminalLaunchProfileCatalogSchema,
-	DesktopTerminalLaunchProfileIdSchema,
 	DesktopTerminalLaunchProfileNameSchema,
 	DesktopTerminalLaunchProfileSchema,
 };
+/** @internal Fixture parser for the Web terminal settings Stories and tests; no production boundary parses it. */
+export { DesktopTerminalLaunchProfileIdSchema };
 
 const DesktopTerminalLaunchProfilePersistenceIssueSchema = z.enum([
 	'invalid-record',
@@ -23,6 +24,7 @@ const DesktopTerminalLaunchProfilePersistenceIssueSchema = z.enum([
 	'write-failed',
 ]);
 
+/** @internal Fixture parser for the Web terminal settings Stories and tests; no production boundary parses it. */
 export const DesktopTerminalLaunchProfileSnapshotSchema = z.strictObject({
 	preferencesSource: UserPreferencesSourceSchema.optional(),
 	capabilities: z.strictObject({
@@ -33,49 +35,12 @@ export const DesktopTerminalLaunchProfileSnapshotSchema = z.strictObject({
 	source: z.enum(['built-in', 'stored']),
 });
 
-export const DesktopTerminalLaunchProfileRequestIdSchema = z
+const DesktopTerminalLaunchProfileRequestIdSchema = z
 	.string()
 	.min(1)
 	.max(128)
 	.regex(/^[A-Za-z0-9:._-]+$/u)
 	.brand<'DesktopTerminalLaunchProfileRequestId'>();
-
-const requestIdentityShape = {
-	preferencesSource: UserPreferencesSourceSchema.optional(),
-	requestId: DesktopTerminalLaunchProfileRequestIdSchema,
-} as const;
-
-export const DesktopTerminalLaunchProfileRendererCommandSchema = z.discriminatedUnion('type', [
-	z.strictObject({
-		...requestIdentityShape,
-		type: z.literal('desktop-terminal-launch-profile-snapshot-requested'),
-	}),
-	z.strictObject({
-		...requestIdentityShape,
-		name: DesktopTerminalLaunchProfileNameSchema,
-		sourceProfileId: DesktopTerminalLaunchProfileIdSchema,
-		type: z.literal('desktop-terminal-launch-profile-create-requested'),
-	}),
-	z.strictObject({
-		...requestIdentityShape,
-		profile: DesktopTerminalLaunchProfileSchema,
-		type: z.literal('desktop-terminal-launch-profile-update-requested'),
-	}),
-	z.strictObject({
-		...requestIdentityShape,
-		profileId: DesktopTerminalLaunchProfileIdSchema,
-		type: z.literal('desktop-terminal-launch-profile-default-requested'),
-	}),
-	z.strictObject({
-		...requestIdentityShape,
-		profileId: DesktopTerminalLaunchProfileIdSchema,
-		type: z.literal('desktop-terminal-launch-profile-delete-requested'),
-	}),
-	z.strictObject({
-		...requestIdentityShape,
-		type: z.literal('desktop-terminal-launch-profile-reset-requested'),
-	}),
-]);
 
 const DesktopTerminalLaunchProfileFailureCodeSchema = z.enum([
 	'busy',
@@ -104,7 +69,7 @@ const desktopTerminalLaunchProfileResultSchema = z.discriminatedUnion('kind', [
 	}),
 ]);
 
-export const DesktopTerminalLaunchProfileMainEventSchema = z.strictObject({
+const DesktopTerminalLaunchProfileMainEventSchema = z.strictObject({
 	requestId: DesktopTerminalLaunchProfileRequestIdSchema,
 	result: desktopTerminalLaunchProfileResultSchema,
 	type: z.literal('desktop-terminal-launch-profile-responded'),
@@ -121,13 +86,6 @@ export type DesktopTerminalLaunchProfileFailureCode = z.infer<
 export type DesktopTerminalLaunchProfileId = z.infer<typeof DesktopTerminalLaunchProfileIdSchema>;
 export type DesktopTerminalLaunchProfileMainEvent = z.infer<
 	typeof DesktopTerminalLaunchProfileMainEventSchema
->;
-
-export type DesktopTerminalLaunchProfileRendererCommand = z.infer<
-	typeof DesktopTerminalLaunchProfileRendererCommandSchema
->;
-export type DesktopTerminalLaunchProfileRequestId = z.infer<
-	typeof DesktopTerminalLaunchProfileRequestIdSchema
 >;
 export type DesktopTerminalLaunchProfileSnapshot = z.infer<
 	typeof DesktopTerminalLaunchProfileSnapshotSchema

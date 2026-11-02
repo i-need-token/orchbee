@@ -12,9 +12,13 @@ export function compareAgentIdentity(left: string, right: string): number {
 }
 
 export const AgentSessionIdSchema = opaqueIdentitySchema.brand<'AgentSessionId'>();
+/** @internal Fixture parser for Agent, Workbench, and Web tests; production parses it only in this module. */
 export const AgentTurnIdSchema = opaqueIdentitySchema.brand<'AgentTurnId'>();
+/** @internal Fixture parser for Agent, Workbench, and Web tests; production parses it only in this module. */
 export const AgentRequestIdSchema = opaqueIdentitySchema.brand<'AgentRequestId'>();
+/** @internal Fixture parser for Agent, Workbench, and Web tests and Stories; production parses it only in this module. */
 export const AgentEventIdSchema = opaqueIdentitySchema.brand<'AgentEventId'>();
+/** @internal Fixture parser for Agent and Workbench tests; production parses it only in this module. */
 export const AgentExecutionLocationIdSchema =
 	opaqueIdentitySchema.brand<'AgentExecutionLocationId'>();
 export const AgentProviderIdSchema = z
@@ -100,6 +104,7 @@ const AgentTurnStateSchema = z.discriminatedUnion('kind', [
 	}),
 ]);
 
+/** @internal Fixture parser for this package's runtime tests; production parses it only in this module. */
 export const AgentAttentionRequestSchema = z.strictObject({
 	actionPath: z.literal('navigate-only'),
 	kind: z.enum(['question', 'approval', 'authentication', 'unclassified']),
@@ -107,7 +112,7 @@ export const AgentAttentionRequestSchema = z.strictObject({
 	turnId: AgentTurnIdSchema.nullable(),
 });
 
-export const AgentTurnOutcomeSchema = z.strictObject({
+const AgentTurnOutcomeSchema = z.strictObject({
 	eventId: AgentEventIdSchema,
 	kind: z.enum(['succeeded', 'failed', 'canceled', 'interrupted']),
 	turnId: AgentTurnIdSchema,

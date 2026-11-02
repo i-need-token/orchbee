@@ -9,11 +9,12 @@ import {
 	transitionProjectWorkspace,
 	type ProjectWorkspaceState,
 } from '../../../../../project-workspace';
-import type {
-	WorkbenchProjectWorktreeCapability,
-	WorkbenchProjectWorktreeDiscoveryResult,
-} from '../../../../types/workbench-project-worktree';
+import type { WorkbenchProjectWorktreeCapability } from '../../../../types/workbench-project-worktree';
 import { useProjectWorktreeMenu } from '../useProjectWorktreeMenu';
+
+type WorkbenchProjectWorktreeDiscoveryResult = Awaited<
+	ReturnType<WorkbenchProjectWorktreeCapability['discover']>
+>;
 
 afterEach(cleanup);
 

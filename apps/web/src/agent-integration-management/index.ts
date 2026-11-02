@@ -1,5 +1,4 @@
 export type {
-	AgentIntegrationManagementClientInitialization,
 	AgentIntegrationManagementClientOperationResult,
 	AgentIntegrationManagementClientSnapshot,
 	AgentIntegrationManagementControl,

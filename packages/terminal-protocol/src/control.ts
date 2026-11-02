@@ -138,12 +138,6 @@ export const TerminalConfigurationSchema = z.strictObject({
 	scrollbackBytes: z.number().int().min(0).max(PROTOCOL_LIMITS.maxScrollbackBytes),
 });
 
-// Cross-language contract: search for `terminal-scrollback-configuration-contract` before
-// changing this value, then update every occurrence in the same change.
-export const DEFAULT_TERMINAL_CONFIGURATION = Object.freeze(
-	TerminalConfigurationSchema.parse({ scrollbackBytes: 10_000_000 }),
-);
-
 const terminalLaunchShape = {
 	arguments: z.array(boundedTextSchema).max(PROTOCOL_LIMITS.maxLaunchArguments),
 	configuration: TerminalConfigurationSchema.nullable(),
@@ -203,6 +197,7 @@ const environmentOverlayEntrySchema = z.strictObject({
 	value: environmentOverlayValueSchema,
 });
 
+/** @internal Exported for this package's tests; production parses it only inside `CreateTerminalSchema`. */
 export const TerminalEnvironmentOverlaySchema = z
 	.array(environmentOverlayEntrySchema)
 	.max(PROTOCOL_LIMITS.maxEnvironmentOverlayEntries)
@@ -245,6 +240,7 @@ const responseTextSchema = z
 	.refine((value) => !containsUnpairedSurrogate(value), 'Response contains an unpaired surrogate')
 	.refine((value) => !value.includes('\0'), 'Terminal response cannot contain NUL');
 
+/** @internal Exported for this package's tests; production parses it only inside `TerminalLaunchSchema`. */
 export const TerminalProfileSchema = z.strictObject({
 	colorScheme: z.enum(['dark', 'light']),
 	defaultBackgroundRgb: rgbSchema,
@@ -344,6 +340,7 @@ const deferredTerminalLaunchSchema = z.strictObject({
 	terminalProfile: TerminalProfileSchema,
 });
 
+/** @internal Exported for this package's tests; production parses it only inside `CreateTerminalSchema`. */
 export const TerminalLaunchSchema = z
 	.union([immediateTerminalLaunchSchema, deferredTerminalLaunchSchema])
 	.superRefine((launch, context) => {
@@ -581,13 +578,6 @@ export const TerminalBellSchema = z.strictObject({
 	sequence: positiveCanonicalUint64TextSchema,
 });
 
-export const TerminalMetadataChangedSchema = z.strictObject({
-	currentDirectory: boundedTextSchema.nullable(),
-	identity: TerminalIdentitySchema,
-	revision: positiveCanonicalUint64TextSchema,
-	title: boundedTextSchema.nullable(),
-});
-
 const terminalApplicationSignalPayloadSchema = z
 	.string()
 	.max(PROTOCOL_LIMITS.maxTerminalApplicationSignalBytes)
@@ -772,7 +762,7 @@ export const TerminalAcknowledgedSchema = z.strictObject({ terminalId: TerminalI
 
 export const AttachmentAcknowledgedSchema = z.strictObject({ attachmentId: AttachmentIdSchema });
 
-export const ExitResultSchema = z.discriminatedUnion('kind', [
+const ExitResultSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ code: uint32Schema, kind: z.literal('exit-code') }),
 	z.strictObject({ kind: z.literal('signal'), signal: uint32Schema.min(1) }),
 	z.strictObject({ kind: z.literal('unknown'), value: uint32Schema }),
@@ -1145,17 +1135,8 @@ export const HelloAcceptedSchema = z.strictObject({
 		.max(PROTOCOL_LIMITS.maxOptionalFeatures),
 });
 
-export type HelloAccepted = z.infer<typeof HelloAcceptedSchema>;
-
-export type AttachmentAcknowledged = z.infer<typeof AttachmentAcknowledgedSchema>;
-export type AttachmentCapabilities = z.infer<typeof AttachmentCapabilitiesSchema>;
-
 export type CanonicalUint64Text = z.infer<typeof CanonicalUint64TextSchema>;
 export type ClearTerminal = z.infer<typeof ClearTerminalSchema>;
-
-export type TerminalEnvironmentOverlay = z.infer<typeof TerminalEnvironmentOverlaySchema>;
-
-export type ExitResult = z.infer<typeof ExitResultSchema>;
 
 export type FrameApplied = z.infer<typeof FrameAppliedSchema>;
 export type NeedSnapshot = z.infer<typeof NeedSnapshotSchema>;
@@ -1172,8 +1153,6 @@ export type HistoryChanged = z.infer<typeof HistoryChangedSchema>;
 
 export type HistoryObserved = z.infer<typeof HistoryObservedSchema>;
 export type TerminalBell = z.infer<typeof TerminalBellSchema>;
-export type TerminalApplicationSignal = z.infer<typeof TerminalApplicationSignalSchema>;
-export type TerminalMetadataChanged = z.infer<typeof TerminalMetadataChangedSchema>;
 export type TerminalClipboardWriteRequest = z.infer<typeof TerminalClipboardWriteRequestSchema>;
 
 export type RowRevisionPolicy = z.infer<typeof RowRevisionPolicySchema>;
@@ -1191,20 +1170,9 @@ export type SetHistoryDemand = z.infer<typeof SetHistoryDemandSchema>;
 export type TerminalExited = z.infer<typeof TerminalExitedSchema>;
 export type TerminalFailed = z.infer<typeof TerminalFailedSchema>;
 export type TerminalGeometry = z.infer<typeof TerminalGeometrySchema>;
-export type TerminalIdentity = z.infer<typeof TerminalIdentitySchema>;
-export type TerminalLaunch = z.infer<typeof TerminalLaunchSchema>;
 export type TerminalConfiguration = z.infer<typeof TerminalConfigurationSchema>;
 
-export type TerminalProfile = z.infer<typeof TerminalProfileSchema>;
-export type TerminalList = z.infer<typeof TerminalListSchema>;
-export type TerminalInventoryCursor = z.infer<typeof TerminalInventoryCursorSchema>;
-
-export type TerminalSummary = z.infer<typeof TerminalSummarySchema>;
-
 export type TerminalThemeState = z.infer<typeof TerminalThemeStateSchema>;
-export type TypedFailure = z.infer<typeof TypedFailureSchema>;
-export type ProcessObservation = z.infer<typeof ProcessObservationSchema>;
-export type RuntimeFailure = z.infer<typeof RuntimeFailureSchema>;
 
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 

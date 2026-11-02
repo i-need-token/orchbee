@@ -246,7 +246,7 @@ const terminalContextSchema = z.strictObject({
 
 type WorkbenchSharedTerminalContext = z.infer<typeof terminalContextSchema>;
 
-export const WorkbenchSharedDocumentRevisionSchema = z
+const WorkbenchSharedDocumentRevisionSchema = z
 	.string()
 	.regex(/^(?:0|[1-9][0-9]*)$/u)
 	.brand<'WorkbenchSharedDocumentRevision'>();
@@ -259,7 +259,7 @@ const workbenchSharedDocumentBaseSchema = z.strictObject({
 	version: z.literal(1),
 });
 
-export const WorkbenchSharedDocumentSchema = workbenchSharedDocumentBaseSchema.superRefine(
+const WorkbenchSharedDocumentSchema = workbenchSharedDocumentBaseSchema.superRefine(
 	(document, context) => {
 		for (const issue of validateDocument(document)) {
 			context.addIssue({ code: 'custom', message: issue });

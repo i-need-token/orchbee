@@ -1,27 +1,20 @@
-export { AgentSemanticEventSchema } from './events';
-export type { AgentObservationEvent, AgentSemanticEvent } from './events';
+export type { AgentSemanticEvent } from './events';
 
-export type { AgentRuntimeChangeReadInput, AgentRuntimeChangeReadResult } from './changes';
+export { AgentProviderIdSchema, AgentSessionIdSchema } from './model';
+/** @internal Fixture parsers for Agent, Workbench, and Web tests and Workbench Stories; production parses them only in this package. */
 export {
-	AgentActivitySchema,
 	AgentEventIdSchema,
 	AgentExecutionLocationIdSchema,
-	AgentProviderIdSchema,
 	AgentRequestIdSchema,
 	AgentRuntimeSnapshotSchema,
-	AgentSessionIdSchema,
 	AgentTurnIdSchema,
 } from './model';
 export type {
 	AgentActivity,
-	AgentCapability,
-	AgentEventId,
-	AgentPresentationAttachment,
 	AgentProviderId,
 	AgentRuntimeSnapshot,
 	AgentSessionId,
 	AgentSessionSnapshot,
-	AgentTurnId,
 } from './model';
 export {
 	projectAgentLocation,
@@ -31,11 +24,7 @@ export {
 } from './projection';
 export type { AgentAggregatePresentation, AgentSemanticStatus } from './projection';
 
-export { createAgentRuntimeSnapshot, transitionAgentRuntime } from './reducer';
-export type { AgentTransition } from './reducer';
+export { createAgentRuntimeSnapshot } from './reducer';
+/** @internal Reference runtime for the Agent conformance corpus and Workbench tests and Stories; no product composition creates one. */
 export { AgentRuntime } from './AgentRuntime';
-export type {
-	AgentChangeSource,
-	AgentSemanticEventListener,
-	AgentSnapshotSource,
-} from './AgentRuntime';
+export type { AgentSnapshotSource } from './AgentRuntime';

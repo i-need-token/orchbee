@@ -43,7 +43,7 @@ const DesktopAgentIntegrationSnapshotItemSchema = z.strictObject({
 	state: DesktopAgentIntegrationStateSchema,
 });
 
-export const DesktopAgentIntegrationManagementSnapshotSchema = z.strictObject({
+const DesktopAgentIntegrationManagementSnapshotSchema = z.strictObject({
 	integrations: z
 		.array(DesktopAgentIntegrationSnapshotItemSchema)
 		.length(DESKTOP_AGENT_INTEGRATION_IDS.length)
@@ -64,37 +64,12 @@ export const DesktopAgentIntegrationManagementSnapshotSchema = z.strictObject({
 	revision: z.number().int().nonnegative(),
 });
 
-export const DesktopAgentIntegrationManagementRequestIdSchema = z
+const DesktopAgentIntegrationManagementRequestIdSchema = z
 	.string()
 	.min(1)
 	.max(128)
 	.regex(/^[A-Za-z0-9:._-]+$/u)
 	.brand<'DesktopAgentIntegrationManagementRequestId'>();
-
-const requestIdentityShape = {
-	requestId: DesktopAgentIntegrationManagementRequestIdSchema,
-} as const;
-
-export const DesktopAgentIntegrationManagementRendererCommandSchema = z.discriminatedUnion('type', [
-	z.strictObject({
-		...requestIdentityShape,
-		type: z.literal('desktop-agent-integration-inventory-requested'),
-	}),
-	z.strictObject({
-		...requestIdentityShape,
-		type: z.literal('desktop-agent-integration-refresh-requested'),
-	}),
-	z.strictObject({
-		...requestIdentityShape,
-		integrationId: DesktopAgentIntegrationIdSchema,
-		type: z.literal('desktop-agent-integration-enable-requested'),
-	}),
-	z.strictObject({
-		...requestIdentityShape,
-		integrationId: DesktopAgentIntegrationIdSchema,
-		type: z.literal('desktop-agent-integration-disable-requested'),
-	}),
-]);
 
 const DesktopAgentIntegrationManagementFailureCodeSchema = z.enum([
 	'agent-unavailable',
@@ -119,7 +94,7 @@ const operationResultSchema = z.discriminatedUnion('kind', [
 	}),
 ]);
 
-export const DesktopAgentIntegrationManagementMainEventSchema = z.discriminatedUnion('type', [
+const DesktopAgentIntegrationManagementMainEventSchema = z.discriminatedUnion('type', [
 	z
 		.strictObject({
 			integration: DesktopAgentIntegrationSnapshotItemSchema,
@@ -146,19 +121,9 @@ export type DesktopAgentIntegrationManagementFailureCode = z.infer<
 export type DesktopAgentIntegrationManagementMainEvent = z.infer<
 	typeof DesktopAgentIntegrationManagementMainEventSchema
 >;
-export type DesktopAgentIntegrationManagementMode = z.infer<
-	typeof DesktopAgentIntegrationManagementModeSchema
->;
-export type DesktopAgentIntegrationManagementRendererCommand = z.infer<
-	typeof DesktopAgentIntegrationManagementRendererCommandSchema
->;
-export type DesktopAgentIntegrationManagementRequestId = z.infer<
-	typeof DesktopAgentIntegrationManagementRequestIdSchema
->;
 export type DesktopAgentIntegrationManagementSnapshot = z.infer<
 	typeof DesktopAgentIntegrationManagementSnapshotSchema
 >;
 export type DesktopAgentIntegrationSnapshotItem = z.infer<
 	typeof DesktopAgentIntegrationSnapshotItemSchema
 >;
-export type DesktopAgentIntegrationState = z.infer<typeof DesktopAgentIntegrationStateSchema>;

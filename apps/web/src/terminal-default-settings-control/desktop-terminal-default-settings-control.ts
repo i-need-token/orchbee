@@ -10,10 +10,6 @@ export interface DesktopTerminalDefaultSettingsClientSnapshot extends DesktopTer
 	readonly pending: boolean;
 }
 
-export type DesktopTerminalDefaultSettingsClientInitialization =
-	| { readonly kind: 'ready' }
-	| { readonly kind: 'unavailable' };
-
 export type DesktopTerminalDefaultSettingsClientOperationResult =
 	| DesktopTerminalDefaultSettingsMainEvent['result']
 	| { readonly kind: 'unavailable' };

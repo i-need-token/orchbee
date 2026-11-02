@@ -1920,18 +1920,14 @@ execution evidence on Linux, macOS, and Windows; `test:cross` compiles the same 
 but does not promote that compile result to PTY, IPC, or ABI runtime evidence.
 
 Named application-system refinements close the affected cross-owner boundaries without replacing
-the native evidence below. `terminal-parity/SU-13-cursor-defaults` observes the Host-owned explicit
-block/non-blinking profile, a DECSCUSR override, and RIS restoration in real-PTY projected metadata;
-renderer geometry remains owner-local evidence. The POSIX-only
-`terminal-parity/SU-16-startup-geometry` records the child's first `stty size` before its shell
-starts and requires it to equal both the independently measured mounted grid and the sole first
-Host/client frame; it does not claim Windows ConPTY or a later resize. The controlled headed Canvas
+the native evidence below. The real-PTY `terminal-parity/SU-13-cursor-defaults`,
+`terminal-parity/SU-16-startup-geometry`, and `terminal-parity/HS-07-selection-export` refinements
+retired with the Desktop Electron suite; renderer geometry remains owner-local evidence. The controlled headed Canvas
 `terminal-parity/SU-09-theme`, `terminal-parity/PR-11-bell`,
 `terminal-parity/IN-10-read-only`, and `terminal-parity/IN-14-shared-focus` witnesses refine the
 Host theme revision, bell sequence, capability revision, and aggregate-focus contracts through the
 application boundary while capturing rather than claiming native theme, sound, notification, or
-multi-window focus effects. `terminal-parity/HS-07-selection-export` adds the real PTY-to-Electron
-plain clipboard consequence; generated TypeScript/Zig conformance remains the authority that HTML
+multi-window focus effects. Generated TypeScript/Zig conformance remains the authority that HTML
 and raw VT formats are rejected before runtime access.
 
 | Claims             | Required native evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |

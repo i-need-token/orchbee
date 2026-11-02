@@ -2,7 +2,6 @@ import { Button, Input, NativeSelect, NativeSelectOption, Switch } from '@orchbe
 import type * as React from 'react';
 
 import type { TerminalFeedbackSettingsController } from '../../../terminal-feedback-settings';
-import { ShellSetupCard } from './components/shell-setup-card/ShellSetupCard';
 import { useShellIntegrationSettings } from './hooks/useShellIntegrationSettings';
 import styles from './ShellIntegrationSettings.module.css';
 
@@ -22,19 +21,6 @@ export function ShellIntegrationSettings({
 					{view.persistenceWarning}
 				</p>
 			)}
-			<p className={styles['notice']}>{view.manualNotice}</p>
-			<div className={styles['setupGroup']}>
-				{view.setupCards.map((card) => (
-					<ShellSetupCard
-						key={card.id}
-						command={card.command}
-						commandLabel={card.commandLabel}
-						description={card.description}
-						settingId={`shell-integration.${card.id}`}
-						title={card.title}
-					/>
-				))}
-			</div>
 			<section className={styles['card']} id='shell-integration.completion-reminders'>
 				<h2 className={styles['title']}>{view.reminder.title}</h2>
 				<p className={styles['description']}>{view.reminder.description}</p>

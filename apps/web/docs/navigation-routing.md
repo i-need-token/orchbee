@@ -123,9 +123,9 @@ The navigation port exposes a read-only `isActive` predicate for the currently a
   weights, multi-selection, scroll, search, output, or unrelated Client View or viewport facts. Full Client
   View recovery and recovery across native-window or application restart remain excluded.
 - **Verification:** Deterministic tests cover primary and child targets, stale identity, strict
-  parsing, absence, storage failure, removal, and projection isolation. The Desktop system trace
-  focuses a non-first split terminal, reloads the renderer, and sends input through the naturally
-  restored DOM focus to that same presentation. TLA+ is not selected because the record has one
+  parsing, absence, storage failure, removal, and projection isolation. The Desktop system trace that
+  reloaded the renderer and sent input through the restored focus retired with the Desktop Electron
+  suite. TLA+ is not selected because the record has one
   synchronous writer, no asynchronous completion, and no ordering or cancellation state.
 
 ## Resolution invariants

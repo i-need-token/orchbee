@@ -1,6 +1,9 @@
+/**
+ * The Desktop application as a Server Client: one window whose document holds one Client connection
+ * through an `orchbee server connect` relay.
+ */
+import { writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { hostname } from 'node:os';
 
 import {
 	createOrchbeeIntl,
@@ -10,295 +13,212 @@ import {
 } from '@orchbee/i18n';
 import { app, net, protocol } from 'electron';
 
-import {
-	DESKTOP_DEVELOPMENT_RESTART_PLAN_ENVIRONMENT_KEY,
-	DesktopDevelopmentRestartPlanStore,
-	DesktopDevelopmentRestartRequestSchema,
-} from '../../development';
-import { resolveDesktopApplicationDistribution } from './resolveDesktopApplicationDistribution';
+import { DesktopDevelopmentRestartRequestSchema } from '../../development';
+import { resolveDesktopSessionName } from '../../distribution';
+import { installDesktopApplicationMenu } from '../application-menu';
 import {
 	DESKTOP_RENDERER_URL,
 	installDesktopRendererScheme,
+	isPermittedDesktopRendererUrl,
 	registerDesktopRendererScheme,
 } from '../desktop-renderer-protocol';
-import { POSIX_HOST_ENDPOINT_ADDON_NAME } from '../host';
-
-import { installDesktopApplicationMenu } from '../application-menu';
 import {
 	DesktopSecureKeyboardEntry,
 	DesktopSecureKeyboardEntryActions,
 } from '../secure-keyboard-entry';
 import { DesktopWindowActions } from '../window-actions';
-import { DesktopUserPreferencesController, NativeUserPreferencesClient } from '../user-preferences';
-import { DesktopApplication } from './DesktopApplication';
-import { prepareDesktopDataRoot } from './prepareDesktopDataRoot';
+import { DesktopWindowStateOwner, FileDesktopWindowStateStore } from '../window-state';
+import { DesktopServerClientApplication } from './DesktopServerClientApplication';
+import { type DesktopDataRoot, prepareDesktopDataRoot } from './prepareDesktopDataRoot';
+import { resolveDesktopApplicationDistribution } from './resolveDesktopApplicationDistribution';
 
-import { resolveDesktopRuntimeConfiguration } from './resolve-desktop-runtime-configuration';
-
-let desktopApplication: DesktopApplication | undefined;
-let desktopApplicationMenu: ReturnType<typeof installDesktopApplicationMenu> | undefined;
-let desktopSecureKeyboardEntry: DesktopSecureKeyboardEntry | undefined;
-let desktopSecureKeyboardEntryActions: DesktopSecureKeyboardEntryActions | undefined;
-let desktopSecureKeyboardEntryBlurListener: (() => void) | undefined;
-let desktopSecureKeyboardEntryFocusListener: (() => void) | undefined;
-let desktopWindowActions: DesktopWindowActions | undefined;
-let developmentRestartPlanStore: DesktopDevelopmentRestartPlanStore | undefined;
-let bypassQuitGate = false;
-const DARWIN_LOCALE_INVENTORY_MAX_BYTES = 64 * 1024;
-const DARWIN_LOCALE_INVENTORY_TIMEOUT_MILLISECONDS = 1_000;
+const CLIENT_EXECUTABLE_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_CLIENT_EXECUTABLE';
+const RENDERER_ROOT_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_RENDERER_ROOT';
+const RENDERER_URL_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_RENDERER_URL';
+const SESSION_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_SESSION';
+const WINDOW_HIDDEN_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_WINDOW_HIDDEN';
+// Cross-runtime contract: search for `packaged-desktop-resources` before changing these values.
+const PACKAGED_COHORT_DIRECTORY = 'cohort';
+const PACKAGED_RENDERER_DIRECTORY = 'dist';
 
 registerDesktopRendererScheme(protocol);
-const desktopDistribution = resolveDesktopApplicationDistribution({
+const distribution = resolveDesktopApplicationDistribution({
 	applicationPath: app.getAppPath(),
 	environment: process.env,
 	packaged: app.isPackaged,
 	platform: process.platform,
 });
-app.setName(desktopDistribution.applicationName);
-const desktopDataRoot = prepareDesktopDataRoot({
-	distribution: desktopDistribution,
+app.setName(distribution.applicationName);
+const dataRoot = prepareDesktopDataRoot({
+	distribution,
 	homeDirectory: app.getPath('home'),
 	platform: process.platform,
 });
-app.setPath('userData', desktopDataRoot.path);
-const singleInstanceLockOwned = app.requestSingleInstanceLock();
+app.setPath('userData', dataRoot.path);
 
-if (!singleInstanceLockOwned) {
-	bypassQuitGate = true;
-	app.quit();
-} else {
-	app.on('second-instance', () => {
-		if (desktopApplication?.hasWindow) {
-			desktopApplication.focusWindow();
-		} else {
-			void desktopApplication?.openWindow().catch(() => undefined);
-		}
+/**
+ * What `orchbee` runs under. Outside a release, a Session it starts keeps this data directory's
+ * preferences rather than the installed release's.
+ */
+function resolveClientEnvironment(root: DesktopDataRoot): NodeJS.ProcessEnv {
+	if (process.env['ORCHBEE_CONFIG_FILE'] !== undefined || root.scope.kind === 'release') {
+		return process.env;
+	}
+	const configurationFile = path.join(root.path, 'config.toml');
+	// The runtime refuses an explicit configuration file that does not exist, so an empty one stands
+	// for the defaults; one already there is the person's and stays as it is.
+	try {
+		writeFileSync(configurationFile, '', { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+	} catch (error) {
+		if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error;
+	}
+	return { ...process.env, ORCHBEE_CONFIG_FILE: configurationFile };
+}
+
+function requiredEnvironment(key: string): string {
+	const value = process.env[key];
+	if (value === undefined || value.length === 0) throw new Error(`${key} is required.`);
+	return value;
+}
+
+/** The bundled cohort's `orchbee`, or in a checkout the one its development runtime staged. */
+function resolveClientExecutable(): string {
+	if (!app.isPackaged) return requiredEnvironment(CLIENT_EXECUTABLE_ENVIRONMENT_KEY);
+	return path.join(
+		process.resourcesPath,
+		PACKAGED_COHORT_DIRECTORY,
+		process.platform === 'win32' ? 'orchbee.exe' : 'orchbee',
+	);
+}
+
+async function resolveRendererUrl(): Promise<URL> {
+	const developmentUrl = app.isPackaged ? undefined : process.env[RENDERER_URL_ENVIRONMENT_KEY];
+	if (developmentUrl !== undefined) return new URL(developmentUrl);
+	await installDesktopRendererScheme(
+		protocol,
+		app.isPackaged
+			? path.join(process.resourcesPath, PACKAGED_RENDERER_DIRECTORY)
+			: requiredEnvironment(RENDERER_ROOT_ENVIRONMENT_KEY),
+		(fileUrl) => net.fetch(fileUrl),
+	);
+	return new URL(DESKTOP_RENDERER_URL);
+}
+
+/** The menu, its window Actions, and macOS Secure Keyboard Entry; returns their removal. */
+function installPlatformActions(application: DesktopServerClientApplication): () => void {
+	const intl = createOrchbeeIntl(resolveOrchbeeLocale(app.getPreferredSystemLanguages()));
+	const windowActions = new DesktopWindowActions(application);
+	const secureKeyboardEntry = new DesktopSecureKeyboardEntry(
+		process.platform,
+		{
+			isEnabled: () => app.isSecureKeyboardEntryEnabled(),
+			setEnabled: (enabled) => app.setSecureKeyboardEntryEnabled(enabled),
+		},
+		process.platform === 'darwin' && app.isActive(),
+	);
+	const secureKeyboardEntryActions = new DesktopSecureKeyboardEntryActions(secureKeyboardEntry);
+	const activateSecureKeyboardEntry = (): void => secureKeyboardEntry.activate();
+	const deactivateSecureKeyboardEntry = (): void => secureKeyboardEntry.deactivate();
+	app.on('browser-window-focus', activateSecureKeyboardEntry);
+	app.on('browser-window-blur', deactivateSecureKeyboardEntry);
+	const menu = installDesktopApplicationMenu(
+		{
+			getSecureKeyboardEntryAvailability: () => secureKeyboardEntryActions.getToggleAvailability(),
+			getToggleFullScreenAvailability: () => windowActions.getToggleFullScreenAvailability(),
+			getToggleMaximizedAvailability: () => windowActions.getToggleMaximizedAvailability(),
+			invokeToggleFullScreen: (source) => windowActions.invokeToggleFullScreen(source),
+			invokeToggleMaximized: (source) => windowActions.invokeToggleMaximized(source),
+			invokeToggleSecureKeyboardEntry: (source) => secureKeyboardEntryActions.invokeToggle(source),
+		},
+		{
+			secureKeyboardEntry: intl.formatMessage(desktopSecureKeyboardEntryMessages.toggle),
+			securityCategory: intl.formatMessage(desktopSecureKeyboardEntryMessages.category),
+			toggleFullScreen: intl.formatMessage(desktopWindowMessages.toggleFullScreen),
+			toggleMaximized: intl.formatMessage(desktopWindowMessages.toggleMaximized),
+			windowCategory: intl.formatMessage(desktopWindowMessages.category),
+		},
+		process.platform,
+	);
+	return () => {
+		app.off('browser-window-focus', activateSecureKeyboardEntry);
+		app.off('browser-window-blur', deactivateSecureKeyboardEntry);
+		menu.dispose();
+		secureKeyboardEntryActions.dispose();
+		windowActions.dispose();
+		secureKeyboardEntry.dispose();
+	};
+}
+
+let application: DesktopServerClientApplication | undefined;
+let removePlatformActions: (() => void) | undefined;
+let windowStateSettled = false;
+
+async function start(): Promise<void> {
+	const rendererUrl = await resolveRendererUrl();
+	if (!isPermittedDesktopRendererUrl(rendererUrl)) {
+		throw new Error('The Desktop renderer URL is not permitted.');
+	}
+	const session = process.env[SESSION_ENVIRONMENT_KEY] ?? resolveDesktopSessionName(distribution);
+	const started = new DesktopServerClientApplication({
+		clientEnvironment: resolveClientEnvironment(dataRoot),
+		clientExecutable: resolveClientExecutable(),
+		platform: process.platform,
+		preloadPath: path.join(__dirname, '..', 'preload', 'preload.cjs'),
+		rendererUrl,
+		sessionArguments: session === undefined ? [] : ['--session', session],
+		windowHidden: process.env[WINDOW_HIDDEN_ENVIRONMENT_KEY] !== undefined,
+		windowStateOwner: new DesktopWindowStateOwner(
+			new FileDesktopWindowStateStore(path.join(dataRoot.path, 'window-state-v1.json')),
+			process.platform,
+		),
 	});
+	application = started;
+	app.on('activate', () => void started.openWindow().catch(() => undefined));
+	await started.openWindow();
+	// The menu reads each Action's availability when it is installed and when it opens; a hidden
+	// title bar never opens it, so it waits for the window its accelerators act on.
+	removePlatformActions = installPlatformActions(started);
+}
 
+if (app.requestSingleInstanceLock()) {
+	// Starting Orchbee again brings this window forward, or opens one where macOS kept none.
+	app.on('second-instance', () => void application?.openWindow().catch(() => undefined));
 	void app
 		.whenReady()
-		.then(async () => {
-			let darwinSupportedLocales: readonly string[] | undefined;
-			if (process.platform === 'darwin') {
-				const inventory = spawnSync('/usr/bin/locale', ['-a'], {
-					encoding: 'utf8',
-					env: { LANG: 'C', LC_ALL: 'C', LC_CTYPE: 'C' },
-					maxBuffer: DARWIN_LOCALE_INVENTORY_MAX_BYTES,
-					timeout: DARWIN_LOCALE_INVENTORY_TIMEOUT_MILLISECONDS,
-				});
-				darwinSupportedLocales =
-					inventory.status === 0 && typeof inventory.stdout === 'string'
-						? inventory.stdout.split(/\r?\n/u).filter((locale) => locale.length > 0)
-						: [];
-			}
-			let rendererUrl: string;
-			if (app.isPackaged) {
-				await installDesktopRendererScheme(
-					protocol,
-					path.join(process.resourcesPath, 'dist'),
-					(fileUrl) => net.fetch(fileUrl),
-				);
-				rendererUrl = DESKTOP_RENDERER_URL;
-			} else {
-				const developmentRendererUrl = process.env['ORCHBEE_DESKTOP_RENDERER_URL'];
-				if (developmentRendererUrl === undefined) {
-					throw new Error('ORCHBEE_DESKTOP_RENDERER_URL is required in development.');
-				}
-				rendererUrl = developmentRendererUrl;
-			}
-			let posixRuntimeBaseDirectory: string | undefined;
-			if (process.platform === 'linux') {
-				const getEffectiveUserId = process.geteuid;
-				if (getEffectiveUserId === undefined) {
-					throw new Error('Linux effective-user identity is unavailable.');
-				}
-				posixRuntimeBaseDirectory = `/run/user/${getEffectiveUserId()}`;
-			} else if (process.platform !== 'win32') {
-				posixRuntimeBaseDirectory = app.getPath('temp');
-			}
-			const nativePreferences = new NativeUserPreferencesClient({
-				artifactDirectory: app.isPackaged
-					? path.join(process.resourcesPath, 'settings-bridge')
-					: path.resolve(__dirname, '..', '..', 'out', 'settings-bridge'),
-				environment: {
-					...process.env,
-					// Development and local distributions retain their isolated data identity.
-					...(process.env['ORCHBEE_CONFIG_FILE'] !== undefined ||
-					desktopDataRoot.scope.kind === 'release'
-						? {}
-						: { ORCHBEE_CONFIG_FILE: path.join(desktopDataRoot.path, 'config.toml') }),
-				},
-			});
-			const systemShellExecutable = await nativePreferences.resolveSystemShell();
-			const runtime = resolveDesktopRuntimeConfiguration({
-				systemShellExecutable,
-				applicationPath: app.getAppPath(),
-				...(process.platform === 'darwin'
-					? {
-							darwinSupportedLocales: darwinSupportedLocales ?? [],
-							darwinSystemLocale: app.getSystemLocale(),
-						}
-					: {}),
-				...(app.isPackaged
-					? {}
-					: {
-							developmentAgentObservationAdapterDirectory: path.resolve(
-								__dirname,
-								'..',
-								'..',
-								'resources',
-								'agent-observation-adapters',
-							),
-							developmentPosixHostEndpointAddonPath: path.resolve(
-								__dirname,
-								'..',
-								'..',
-								'zig-out',
-								'lib',
-								POSIX_HOST_ENDPOINT_ADDON_NAME,
-							),
-
-							developmentShellIntegrationDirectory: path.resolve(
-								__dirname,
-								'..',
-								'..',
-								'resources',
-								'shell-integration',
-							),
-						}),
-				environment: process.env,
-				homeDirectory: app.getPath('home'),
-				...(app.isPackaged ? { packagedResourcesPath: process.resourcesPath } : {}),
-				platform: process.platform,
-				posixRuntimeBaseDirectory,
-				terminalHostName: hostname(),
-				userDataPath: app.getPath('userData'),
-			});
-			if (!app.isPackaged) {
-				const restartPlanPath = process.env[DESKTOP_DEVELOPMENT_RESTART_PLAN_ENVIRONMENT_KEY];
-				if (restartPlanPath !== undefined) {
-					developmentRestartPlanStore = new DesktopDevelopmentRestartPlanStore(restartPlanPath);
-				}
-			}
-			desktopApplication = new DesktopApplication({
-				resolveSystemShell: () => nativePreferences.resolveSystemShell(),
-				userPreferences: new DesktopUserPreferencesController(nativePreferences),
-				...(developmentRestartPlanStore === undefined
-					? {}
-					: {
-							prepareDevelopmentHostRestart: (documentRevision) =>
-								developmentRestartPlanStore?.markReady(documentRevision) ?? Promise.resolve(false),
-						}),
-				platform: process.platform,
-				preloadPath: path.join(__dirname, '..', 'preload', 'preload.cjs'),
-				rendererUrl,
-				runtime,
-
-				singleInstanceLockOwned,
-				traceCopyPath: process.env['ORCHBEE_DESKTOP_TRACE'] === '1',
-			});
-			await desktopApplication.start();
-			const intl = createOrchbeeIntl(resolveOrchbeeLocale(app.getPreferredSystemLanguages()));
-			desktopWindowActions = new DesktopWindowActions(desktopApplication);
-			desktopSecureKeyboardEntry = new DesktopSecureKeyboardEntry(
-				process.platform,
-				{
-					isEnabled: () => app.isSecureKeyboardEntryEnabled(),
-					setEnabled: (enabled) => app.setSecureKeyboardEntryEnabled(enabled),
-				},
-				process.platform === 'darwin' && app.isActive(),
-			);
-			desktopSecureKeyboardEntryActions = new DesktopSecureKeyboardEntryActions(
-				desktopSecureKeyboardEntry,
-			);
-			desktopSecureKeyboardEntryFocusListener = () => desktopSecureKeyboardEntry?.activate();
-			desktopSecureKeyboardEntryBlurListener = () => desktopSecureKeyboardEntry?.deactivate();
-			app.on('browser-window-focus', desktopSecureKeyboardEntryFocusListener);
-			app.on('browser-window-blur', desktopSecureKeyboardEntryBlurListener);
-			const windowActions = desktopWindowActions;
-			const secureKeyboardEntryActions = desktopSecureKeyboardEntryActions;
-			desktopApplicationMenu = installDesktopApplicationMenu(
-				{
-					getSecureKeyboardEntryAvailability: () =>
-						secureKeyboardEntryActions.getToggleAvailability(),
-					getToggleFullScreenAvailability: () => windowActions.getToggleFullScreenAvailability(),
-					getToggleMaximizedAvailability: () => windowActions.getToggleMaximizedAvailability(),
-					invokeToggleFullScreen: (source) => windowActions.invokeToggleFullScreen(source),
-					invokeToggleMaximized: (source) => windowActions.invokeToggleMaximized(source),
-					invokeToggleSecureKeyboardEntry: (source) =>
-						secureKeyboardEntryActions.invokeToggle(source),
-				},
-				{
-					secureKeyboardEntry: intl.formatMessage(desktopSecureKeyboardEntryMessages.toggle),
-					securityCategory: intl.formatMessage(desktopSecureKeyboardEntryMessages.category),
-					toggleFullScreen: intl.formatMessage(desktopWindowMessages.toggleFullScreen),
-					toggleMaximized: intl.formatMessage(desktopWindowMessages.toggleMaximized),
-					windowCategory: intl.formatMessage(desktopWindowMessages.category),
-				},
-				process.platform,
-			);
-			app.on('activate', () => void desktopApplication?.openWindow());
-		})
+		.then(start)
 		.catch((error: unknown) => {
 			console.error('Orchbee Desktop startup failed.', error);
 			process.exitCode = 1;
-			bypassQuitGate = true;
+			windowStateSettled = true;
 			app.quit();
 		});
-}
-
-if (!app.isPackaged) {
-	process.on('message', (message: unknown) => {
-		const parsed = DesktopDevelopmentRestartRequestSchema.safeParse(message);
-		if (!parsed.success || desktopApplication === undefined) return;
-		if (parsed.data.reason === 'terminal-host' && developmentRestartPlanStore === undefined) {
-			return;
-		}
-		console.info(
-			`Orchbee Desktop received development restart request ${parsed.data.generation} (${parsed.data.reason}).`,
-		);
-		void desktopApplication
-			.requestExitAndQuit(
-				parsed.data.reason === 'terminal-host' ? 'development-host-restart' : 'update-restart',
-			)
-			.then(() => {
-				if (desktopApplication?.quitPrepared !== true) {
-					console.warn('Orchbee Desktop development restart did not reach a ready exit.');
-				}
-			})
-			.catch((error: unknown) => {
-				console.error('Orchbee Desktop development restart failed.', error);
-			});
-	});
+} else {
+	windowStateSettled = true;
+	app.quit();
 }
 
 app.on('before-quit', (event) => {
-	if (bypassQuitGate || desktopApplication === undefined || desktopApplication.quitPrepared) {
-		return;
-	}
+	if (windowStateSettled || application === undefined) return;
 	event.preventDefault();
-	void desktopApplication?.requestExitAndQuit('user-quit');
+	void application.settleWindowState().finally(() => {
+		windowStateSettled = true;
+		app.quit();
+	});
 });
 
 app.on('window-all-closed', () => {
 	if (process.platform !== 'darwin') app.quit();
 });
 
+// The development runtime restarts Main after a rebuild through an ordinary quit, which records the
+// window's place first; the Session keeps running, as it does after any quit.
+if (!app.isPackaged && process.send !== undefined) {
+	process.on('message', (message: unknown) => {
+		if (DesktopDevelopmentRestartRequestSchema.safeParse(message).success) app.quit();
+	});
+}
+
 app.once('will-quit', () => {
-	if (desktopSecureKeyboardEntryFocusListener !== undefined) {
-		app.off('browser-window-focus', desktopSecureKeyboardEntryFocusListener);
-		desktopSecureKeyboardEntryFocusListener = undefined;
-	}
-	if (desktopSecureKeyboardEntryBlurListener !== undefined) {
-		app.off('browser-window-blur', desktopSecureKeyboardEntryBlurListener);
-		desktopSecureKeyboardEntryBlurListener = undefined;
-	}
-	desktopApplicationMenu?.dispose();
-	desktopApplicationMenu = undefined;
-	desktopSecureKeyboardEntryActions?.dispose();
-	desktopSecureKeyboardEntryActions = undefined;
-	desktopWindowActions?.dispose();
-	desktopWindowActions = undefined;
-	desktopSecureKeyboardEntry?.dispose();
-	desktopSecureKeyboardEntry = undefined;
+	removePlatformActions?.();
+	removePlatformActions = undefined;
 });

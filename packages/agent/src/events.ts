@@ -1,26 +1,18 @@
-import { z } from 'zod';
-
-import {
-	AgentAttentionRequestSchema,
-	AgentEventIdSchema,
-	AgentRequestIdSchema,
-	AgentSessionIdSchema,
-	AgentTurnIdSchema,
-	AgentTurnOutcomeSchema,
-	type AgentActivity,
-	type AgentAttentionRequest,
-	type AgentCapability,
-	type AgentEventId,
-	type AgentExecutionLocation,
-	type AgentObservation,
-	type AgentPresentationAttachment,
-	type AgentPresentationVisibility,
-	type AgentProviderId,
-	type AgentRequestId,
-	type AgentSessionId,
-	type AgentTurnId,
-	type AgentTurnOutcome,
-	type AgentTurnState,
+import type {
+	AgentActivity,
+	AgentAttentionRequest,
+	AgentCapability,
+	AgentEventId,
+	AgentExecutionLocation,
+	AgentObservation,
+	AgentPresentationAttachment,
+	AgentPresentationVisibility,
+	AgentProviderId,
+	AgentRequestId,
+	AgentSessionId,
+	AgentTurnId,
+	AgentTurnOutcome,
+	AgentTurnState,
 } from './model';
 
 interface AgentSessionEventBase {
@@ -129,30 +121,3 @@ export type AgentSemanticEvent =
 			readonly sessionId: AgentSessionId;
 			readonly type: 'session-ended';
 	  };
-
-export const AgentSemanticEventSchema = z.discriminatedUnion('type', [
-	z.strictObject({
-		eventId: AgentEventIdSchema,
-		request: AgentAttentionRequestSchema,
-		sessionId: AgentSessionIdSchema,
-		type: z.literal('attention-requested'),
-	}),
-	z.strictObject({
-		eventId: AgentEventIdSchema,
-		requestId: AgentRequestIdSchema,
-		sessionId: AgentSessionIdSchema,
-		type: z.literal('attention-resolved'),
-	}),
-	z.strictObject({
-		eventId: AgentEventIdSchema,
-		outcome: AgentTurnOutcomeSchema.shape.kind,
-		sessionId: AgentSessionIdSchema,
-		turnId: AgentTurnIdSchema,
-		type: z.literal('turn-outcome'),
-	}),
-	z.strictObject({
-		eventId: AgentEventIdSchema,
-		sessionId: AgentSessionIdSchema,
-		type: z.literal('session-ended'),
-	}),
-]);

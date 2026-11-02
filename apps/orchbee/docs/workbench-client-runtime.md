@@ -269,7 +269,6 @@ Model fairness covers only local expiry, lock release, exact UI consumption and 
 join; no network, lifecycle, reconnect or OS-success fairness is assumed. The composed Linux
 witness must close a shell and resisting descendant from an authorized read-only Viewer while
 another terminal survives, show removal to two Clients, then reach Empty and manual fresh Create.
-These obligations do not authorize the manual focus-stealing native-window test.
 
 ### Control and handoff model boundary
 

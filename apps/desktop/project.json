@@ -1,15 +1,15 @@
 {
 	"$schema": "../../schemas/project-contract.schema.json",
 	"domain": "desktop",
-	"runtime": ["electron", "native", "node"],
+	"runtime": ["electron", "node"],
 	"stability": "experimental",
-	"responsibility": "Electron Main and preload composition for the local Desktop client, secure packaged Web resource delivery, product-data-root and development-checkout isolation, dev/local/release distribution identities and current-platform packaging, development-only Electron and Terminal Host supervision, durable local terminal bindings and archives, local shell profiles and terminal defaults, one canonical Workbench document writer with transport-neutral client-session coordination, provider-neutral Agent observation and explicit local Agent integration management, managed local Project Worktree creation and recovery, local Host reconciliation and terminal lifetime orchestration, demand-driven local projection, atomic sandboxed ten-port renderer bootstrap and application-lifetime brokering, and the private local Desktop-to-Terminal-Host transport boundary.",
+	"responsibility": "Electron Main and preload composition for the local Desktop window as a Server Client: the Server restore read and one opaque `orchbee server connect` relay per renderer document, secure packaged or development Web resource delivery, native Project Folder acquisition, window state, menu, and window Actions, product-data-root and development-checkout isolation, dev/local/release distribution identities and current-platform packaging with a bundled native cohort, and development-only cohort staging and Electron restart.",
 	"nonGoals": [
-		"Defining Project, Workspace, Workbench, Tab, Panel, Agent, or product-session semantics; Desktop composes their owning package APIs.",
+		"Defining Project, Workspace, Workbench, Tab, Panel, Agent, or Session semantics; the Server owns them and apps/web presents them.",
 		"Owning authoritative VT state, PTY processes, terminal scrollback, or terminal history policy.",
 		"Owning Browser access, remote Project enrollment, or remote execution runtimes.",
 		"Owning a second Workbench product UI separate from apps/web.",
 		"Choosing product quit, Panel-close, retention, or confirmation policy and presentation.",
-		"Automatically merging stale document revisions, repairing invalid persisted documents, persisting Client View, or activating Desktop updates."
+		"Interpreting Server wire messages, persisting Session state, or activating Desktop updates."
 	]
 }

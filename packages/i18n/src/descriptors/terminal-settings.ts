@@ -253,12 +253,8 @@ export const terminalSettingsMessages = defineMessages({
 		'terminal.settings.remoteDevelopment.diagnostic.resultDescription',
 	),
 	remoteDevelopmentTitle: message('terminal.settings.remoteDevelopment.title'),
-	shellIntegrationBashTitle: message('terminal.settings.shellIntegration.bash.title'),
-	shellIntegrationBashVersion: message('terminal.settings.shellIntegration.bash.version'),
 	shellIntegrationCategory: message('terminal.settings.categories.shellIntegration'),
 	shellIntegrationDescription: message('terminal.settings.shellIntegration.description'),
-	shellIntegrationFishTitle: message('terminal.settings.shellIntegration.fish.title'),
-	shellIntegrationManualNotice: message('terminal.settings.shellIntegration.manualNotice'),
 	shellIntegrationNotificationDescription: message(
 		'terminal.settings.shellIntegration.notification.description',
 	),
@@ -311,11 +307,7 @@ export const terminalSettingsMessages = defineMessages({
 		'terminal.settings.shellIntegration.reminder.unfocused',
 	),
 	shellIntegrationResetDescription: message('terminal.settings.shellIntegration.reset.description'),
-	shellIntegrationSetupCommandLabel: message(
-		'terminal.settings.shellIntegration.setupCommand.label',
-	),
 	shellIntegrationTitle: message('terminal.settings.shellIntegration.title'),
-	shellIntegrationZshTitle: message('terminal.settings.shellIntegration.zsh.title'),
 	searchPlaceholder: message('terminal.settings.search.placeholder'),
 	scrollbackBytesBusyWarning: message('terminal.settings.terminal.scrollbackBytes.busyWarning'),
 	scrollbackBytesControlUnavailableWarning: message(

@@ -34,10 +34,8 @@ const REQUIRED_PAYLOAD_FILES = [
 	'bundle/scripts/observation-transport.mjs',
 ];
 
-// Faithful port of the canonical capsule verifier in
-// apps/desktop/src/main/agent-integration-management/
-// FileAgentObservationAdapterCapsule.ts — same bounds, same entry shape,
-// same digest. The strict manifest contains only contractVersion and payloadSha256.
+// Mirrors the capsule verifier in crates/agent-integration-writer/src/capsule.rs — same bounds,
+// same entry shape, same digest. The strict manifest contains only contractVersion and payloadSha256.
 function readCapsuleManifest(filePath) {
 	try {
 		const metadata = lstatSync(filePath);

@@ -175,6 +175,22 @@ export function resolveDesktopDistributionProfile(
 	};
 }
 
+/**
+ * The Session a distribution joins. A release joins the default Session that its own CLI shares. A
+ * checkout and a local build keep a named Session, as they keep their own data root, so an
+ * unreleased cohort never starts or stops the person's Session.
+ */
+export function resolveDesktopSessionName(profile: DesktopDistributionProfile): string | undefined {
+	switch (profile.dataScope.kind) {
+		case 'development':
+			return `desktop-dev-${profile.dataScope.digest}`;
+		case 'local':
+			return 'desktop-local';
+		case 'release':
+			return undefined;
+	}
+}
+
 export function resolveDesktopDevelopmentApplicationName(
 	environment: Readonly<Record<string, string | undefined>>,
 ): string {

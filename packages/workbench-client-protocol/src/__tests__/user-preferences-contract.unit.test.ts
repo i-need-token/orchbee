@@ -7,7 +7,6 @@ import {
 	DEFAULT_USER_PREFERENCES,
 	USER_PREFERENCE_KEYS,
 	UserPreferencesPatchSchema,
-	UserPreferencesRequestSchema,
 	UserPreferencesResponseSchema,
 } from '../user-preferences-contract';
 
@@ -53,18 +52,23 @@ describe('shared device preference contract', () => {
 		const validate = new Ajv2020({ allErrors: true, strict: true }).compile(schema);
 		expect(DEFAULT_USER_PREFERENCES).toEqual(corpus.defaults);
 		const schemas = {
-			request: UserPreferencesRequestSchema,
 			response: UserPreferencesResponseSchema,
 			values: UserPreferencesResponseSchema.options[0].shape.snapshot.shape.values,
 		};
 		for (const fixture of corpus.valid) {
+			expect({ name: fixture.name, schema: validate(fixture.document) }).toEqual({
+				name: fixture.name,
+				schema: true,
+			});
+			// Preference requests cross no TypeScript boundary; only the Rust binding admits them.
+			if (fixture.direction === 'request') continue;
 			expect({
 				name: fixture.name,
-				schema: validate(fixture.document),
 				typed: schemas[fixture.direction].safeParse(fixture.document).success,
-			}).toEqual({ name: fixture.name, schema: true, typed: true });
+			}).toEqual({ name: fixture.name, typed: true });
 		}
 		for (const fixture of corpus.invalid) {
+			if (fixture.direction === 'request') continue;
 			expect({
 				name: fixture.name,
 				typed: schemas[fixture.direction].safeParse(fixture.document).success,
@@ -89,12 +93,5 @@ describe('shared device preference contract', () => {
 		expect(UserPreferencesPatchSchema.parse({ soundEnabled: null })).toEqual({
 			soundEnabled: null,
 		});
-		expect(
-			UserPreferencesRequestSchema.safeParse({
-				operation: 'update',
-				source: 'missing',
-				changes: {},
-			}).success,
-		).toBe(false);
 	});
 });

@@ -51,7 +51,7 @@ import {
 } from './workbench-document-runtime';
 import type { WorkbenchPublication } from './workbench-publication';
 import { workbenchActiveLocationsEqual } from './workbench-terminal-location-activation';
-import type { WorkbenchTerminalMetadataObservation } from './resolve-terminal-metadata-observation';
+import type { WorkbenchTerminalMetadataObservation } from './resolveTerminalMetadataObservation';
 import {
 	revalidateCurrentDirectoryTerminalTarget,
 	resolveCurrentDirectoryTerminalTarget,

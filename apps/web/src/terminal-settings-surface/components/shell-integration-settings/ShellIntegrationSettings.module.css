@@ -4,21 +4,16 @@
 	gap: var(--ob-ref-space-6);
 }
 
-.card,
-.setupGroup {
+.card {
 	overflow: hidden;
 	border-radius: var(--ob-ref-radius-ui-lg);
 	background: var(--ob-sys-color-surface-subtle);
-}
-
-.card {
 	display: flex;
 	flex-direction: column;
 	gap: var(--ob-ref-space-2);
 	padding: var(--ob-ref-space-4);
 }
 
-.notice,
 .warning,
 .empty {
 	margin: var(--ob-ref-space-0);

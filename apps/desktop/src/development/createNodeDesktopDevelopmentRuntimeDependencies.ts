@@ -1,146 +1,27 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { createHash, randomBytes } from 'node:crypto';
-import { watch } from 'node:fs';
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-
-import { TerminalConfigurationSchema } from '@orchbee/terminal-protocol';
 
 import type { DesktopDevelopmentRestartRequest } from './desktop-development-contract';
-import { createInteractiveTerminalHostEnvironment } from './createInteractiveTerminalHostEnvironment';
-import { DesktopDevelopmentRestartPlanStore } from './DesktopDevelopmentRestartPlanStore';
-import { observeTerminalHostBuild } from './observeTerminalHostBuild';
-import { NodeHostBuildWatch } from './NodeHostBuildWatch';
-import { terminalHostInputDigest } from './terminalHostInputDigest';
 import type {
-	DesktopDevelopmentHostBuild,
-	DesktopDevelopmentHostBuildWatch,
-	DesktopDevelopmentHostCandidate,
 	DesktopDevelopmentRuntimeDependencies,
 	DesktopDevelopmentRuntimeLogger,
 	DesktopDevelopmentSupervisedProcess,
-	DesktopDevelopmentWorkspace,
 } from './DesktopDevelopmentRuntime';
+import { prepareDesktopDevelopmentCohort } from './prepareDesktopDevelopmentCohort';
 
-const ENDPOINT_ID_PATTERN = /^[0-9a-f]{32}$/u;
-const HOST_BUILD_DEBOUNCE_MILLISECONDS = 100;
 const PROCESS_TERMINATION_TIMEOUT_MILLISECONDS = 2_000;
 
 /** @internal Development-tool adapter consumed only by the Desktop Rsbuild configuration. */
 export function createNodeDesktopDevelopmentRuntimeDependencies(
 	logger: DesktopDevelopmentRuntimeLogger,
 ): DesktopDevelopmentRuntimeDependencies {
-	const candidateDirectories = new WeakMap<DesktopDevelopmentHostCandidate, string>();
-	const workspaceRoots = new WeakMap<DesktopDevelopmentWorkspace, string>();
-
 	return {
-		buildInitialHost: async (terminalHostRoot) => {
-			await runCommand('zig', ['build', '-fincremental', '-Doptimize=ReleaseSafe'], {
-				cwd: terminalHostRoot,
-			});
-			const binaryPath = terminalHostBinaryPath(terminalHostRoot);
-			return {
-				binaryPath,
-				digest: await fileDigest(binaryPath),
-				inputDigest: await terminalHostInputDigest(terminalHostRoot),
-			};
-		},
-		captureHostCandidate: async (build, workspace, generation) => {
-			const workspaceRoot = workspaceRoots.get(workspace);
-			if (workspaceRoot === undefined) {
-				throw new Error('Desktop development workspace root is unavailable.');
-			}
-			const directory = path.join(workspaceRoot, 'host-generations', String(generation));
-			await mkdir(directory, { mode: 0o700, recursive: true });
-			const binaryPath = path.join(directory, path.basename(build.binaryPath));
-			try {
-				await copyFile(build.binaryPath, binaryPath);
-				if (process.platform !== 'win32') await chmod(binaryPath, 0o700);
-				const digest = await fileDigest(binaryPath);
-				if (digest !== build.digest) {
-					throw new Error('Terminal Host build changed while its generation was being captured.');
-				}
-				const candidate = { binaryPath, digest, generation, inputDigest: build.inputDigest };
-				candidateDirectories.set(candidate, directory);
-				return candidate;
-			} catch (error: unknown) {
-				await rm(directory, { force: true, recursive: true }).catch(() => undefined);
-				throw error;
-			}
-		},
-		cleanupWorkspace: async (workspace) => {
-			const workspaceRoot = workspaceRoots.get(workspace);
-			if (workspaceRoot === undefined) return;
-			workspaceRoots.delete(workspace);
-			await rm(workspaceRoot, { force: true, recursive: true });
-		},
-		createRestartPlan: (filePath) => new DesktopDevelopmentRestartPlanStore(filePath),
-		createWorkspace: async (environment) => {
-			const endpointId =
-				environment['ORCHBEE_DESKTOP_ENDPOINT_ID'] ?? randomBytes(16).toString('hex');
-			if (!ENDPOINT_ID_PATTERN.test(endpointId)) {
-				throw new Error('ORCHBEE_DESKTOP_ENDPOINT_ID must be 32 lowercase hex digits.');
-			}
-			const terminalScrollbackBytes = resolveScrollbackBytes(
-				environment['ORCHBEE_TERMINAL_SCROLLBACK_BYTES'],
-			);
-			const temporaryRoot = process.platform === 'win32' ? tmpdir() : '/tmp';
-			const workspaceRoot = await mkdtemp(path.join(temporaryRoot, 'orchbee-desktop-development-'));
-			const runtimeDirectory = resolveOptionalDirectory(
-				environment['ORCHBEE_DESKTOP_RUNTIME_DIRECTORY'],
-				path.join(workspaceRoot, 'runtime'),
-			);
-			const recoveryDirectory = resolveOptionalDirectory(
-				environment['ORCHBEE_DESKTOP_RECOVERY_DIRECTORY'],
-				path.join(workspaceRoot, 'recovery'),
-			);
-			await Promise.all([
-				mkdir(runtimeDirectory, { mode: 0o700, recursive: true }),
-				mkdir(recoveryDirectory, { mode: 0o700, recursive: true }),
-			]);
-			const workspace: DesktopDevelopmentWorkspace = {
-				endpointId,
-				recoveryDirectory,
-				restartPlanPath: path.join(workspaceRoot, 'restart-plan-v1.json'),
-				runtimeDirectory,
-				terminalScrollbackBytes,
-			};
-			workspaceRoots.set(workspace, workspaceRoot);
-			return workspace;
-		},
-		releaseHostCandidate: async (candidate) => {
-			const directory = candidateDirectories.get(candidate);
-			if (directory === undefined) return;
-			candidateDirectories.delete(candidate);
-			await rm(directory, { force: true, recursive: true });
-		},
-		spawnElectron: async (input) =>
+		prepareCohort: ({ environment, sourceRoot }) =>
+			prepareDesktopDevelopmentCohort({ environment, logger, sourceRoot }),
+		spawnElectron: (input) =>
 			spawnSupervisedProcess(input.executable, [input.entryPath], {
 				env: input.environment,
 				stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
 			}),
-		spawnHost: async ({ candidate, workspace }) => {
-			const child = await spawnSupervisedProcess(
-				candidate.binaryPath,
-				[
-					'serve',
-					'--runtime-directory',
-					workspace.runtimeDirectory,
-					'--endpoint-id',
-					workspace.endpointId,
-					'--scrollback-bytes',
-					workspace.terminalScrollbackBytes,
-				],
-				{ env: createInteractiveTerminalHostEnvironment(process.env), stdio: 'inherit' },
-			);
-			if (await child.waitForExit(HOST_BUILD_DEBOUNCE_MILLISECONDS)) {
-				throw new Error('Terminal Host exited before accepting Desktop connections.');
-			}
-			return child;
-		},
-		watchHostBuilds: async (terminalHostRoot, initialBuild, onBuild) =>
-			startHostBuildWatch(terminalHostRoot, initialBuild, onBuild, logger),
 	};
 }
 
@@ -195,60 +76,6 @@ class NodeSupervisedProcess implements DesktopDevelopmentSupervisedProcess {
 	}
 }
 
-async function startHostBuildWatch(
-	terminalHostRoot: string,
-	initialBuild: DesktopDevelopmentHostBuild,
-	onBuild: (build: DesktopDevelopmentHostBuild) => Promise<void>,
-	logger: DesktopDevelopmentRuntimeLogger,
-): Promise<DesktopDevelopmentHostBuildWatch> {
-	const binaryPath = terminalHostBinaryPath(terminalHostRoot);
-	let currentDigest = initialBuild.digest;
-	let debounce: ReturnType<typeof setTimeout> | undefined;
-	let operationTail = Promise.resolve();
-	const inspectBuild = (): void => {
-		operationTail = operationTail
-			.then(async () => {
-				currentDigest = await observeTerminalHostBuild({
-					binaryPath,
-					currentDigest,
-					onBuild,
-					readBinaryDigest: fileDigest,
-					readInputDigest: () => terminalHostInputDigest(terminalHostRoot),
-				});
-			})
-			.catch((error: unknown) => {
-				logger.error(`Could not observe the Terminal Host build: ${errorMessage(error)}`);
-			});
-	};
-	const fileWatcher = watch(path.dirname(binaryPath), (_eventType, filename) => {
-		if (filename !== null && filename.toString() !== path.basename(binaryPath)) return;
-		if (debounce !== undefined) clearTimeout(debounce);
-		debounce = setTimeout(inspectBuild, HOST_BUILD_DEBOUNCE_MILLISECONDS);
-	});
-	fileWatcher.on('error', (error) => {
-		logger.error(`Terminal Host binary watch failed: ${error.message}`);
-	});
-	try {
-		const buildProcess = await spawnSupervisedProcess(
-			'zig',
-			['build', '--watch', '-fincremental', '-Doptimize=ReleaseSafe'],
-			{ cwd: terminalHostRoot, env: process.env, stdio: 'inherit' },
-		);
-		return new NodeHostBuildWatch(
-			buildProcess,
-			fileWatcher,
-			() => {
-				if (debounce !== undefined) clearTimeout(debounce);
-				debounce = undefined;
-			},
-			() => operationTail,
-		);
-	} catch (error: unknown) {
-		fileWatcher.close();
-		throw error;
-	}
-}
-
 async function spawnSupervisedProcess(
 	command: string,
 	arguments_: readonly string[],
@@ -271,56 +98,6 @@ async function spawnSupervisedProcess(
 	return process;
 }
 
-async function runCommand(
-	command: string,
-	arguments_: readonly string[],
-	options: Parameters<typeof spawn>[2],
-): Promise<void> {
-	const child = spawn(command, [...arguments_], { ...options, stdio: 'inherit' });
-	await new Promise<void>((resolve, reject) => {
-		child.once('error', reject);
-		child.once('exit', (code, signal) => {
-			if (code === 0) resolve();
-			else
-				reject(
-					new Error(`${command} exited with code ${String(code)} and signal ${String(signal)}.`),
-				);
-		});
-	});
-}
-
-function terminalHostBinaryPath(terminalHostRoot: string): string {
-	const binaryName =
-		process.platform === 'win32' ? 'orchbee-terminal-host.exe' : 'orchbee-terminal-host';
-	return path.join(terminalHostRoot, 'zig-out', 'bin', binaryName);
-}
-
-async function fileDigest(filePath: string): Promise<string> {
-	return createHash('sha256')
-		.update(await readFile(filePath))
-		.digest('hex');
-}
-
-function resolveOptionalDirectory(value: string | undefined, fallback: string): string {
-	return path.resolve(value ?? fallback);
-}
-
-function resolveScrollbackBytes(value: string | undefined): string {
-	const encoded = value ?? '10000000';
-	if (!/^(?:0|[1-9][0-9]*)$/u.test(encoded)) {
-		throw new Error('ORCHBEE_TERMINAL_SCROLLBACK_BYTES must be a decimal byte count.');
-	}
-	const parsed = TerminalConfigurationSchema.safeParse({ scrollbackBytes: Number(encoded) });
-	if (!parsed.success) {
-		throw new Error('ORCHBEE_TERMINAL_SCROLLBACK_BYTES exceeds the supported range.');
-	}
-	return String(parsed.data.scrollbackBytes);
-}
-
 function hasExited(child: ChildProcess): boolean {
 	return child.exitCode !== null || child.signalCode !== null;
-}
-
-function errorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : 'unknown failure';
 }

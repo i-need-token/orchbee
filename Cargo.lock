@@ -1017,15 +1017,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "orchbee-settings"
-version = "0.1.0"
-dependencies = [
- "orchbee-local-runtime",
- "orchbee-workbench-protocol",
- "serde_json",
-]
-
-[[package]]
 name = "orchbee-terminal-protocol"
 version = "0.1.0"
 dependencies = [

@@ -311,7 +311,7 @@ test('the daily gate retains host tests while full builds and cross checks requi
 	assert.equal(steps[3].name, 'prepare native test peers');
 	assert.equal(steps[4].name, 'Rust workspace tests');
 	assert.deepEqual(steps[4].args, ['scripts/run-rust-workspace.mjs', 'test']);
-	assert.doesNotMatch(JSON.stringify(steps), /test:cross|build:full|manual:native-window/u);
+	assert.doesNotMatch(JSON.stringify(steps), /test:cross|build:full/u);
 	for (const platform of ['win32', 'linux'])
 		assert.deepEqual(
 			checkSteps('verify:rust-native', undefined, platform).map((step) => step.name),
@@ -324,7 +324,7 @@ test('the daily gate retains host tests while full builds and cross checks requi
 		);
 	assert.doesNotMatch(
 		JSON.stringify(checkSteps('verify:rust-native', undefined, 'win32')),
-		/test:cross|build:full|manual:native-window/u,
+		/test:cross|build:full/u,
 	);
 	const cross = checkSteps('test:cross');
 	assert.equal(cross.length, 1);

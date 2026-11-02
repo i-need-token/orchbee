@@ -2,7 +2,7 @@
 	"name": "@orchbee/desktop-client-protocol",
 	"version": "0.2.0",
 	"private": true,
-	"description": "Electron-specific Desktop bootstrap and application-lifetime protocols",
+	"description": "Desktop Server-connection bootstrap, native Project Folder acquisition, and the settings data contracts its renderer shares",
 	"files": [
 		"dist",
 		"README.md"
@@ -29,7 +29,6 @@
 		"test:exports": "node ../../scripts/check-package-exports.mjs ."
 	},
 	"dependencies": {
-		"@orchbee/agent": "workspace:^",
 		"@orchbee/terminal-protocol": "workspace:^",
 		"@orchbee/workbench-client-protocol": "workspace:^",
 		"zod": "catalog:"

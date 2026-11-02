@@ -15,7 +15,7 @@ import {
 } from './reducer';
 
 type AgentRuntimeListener = () => void;
-export type AgentSemanticEventListener = (event: AgentSemanticEvent) => void;
+type AgentSemanticEventListener = (event: AgentSemanticEvent) => void;
 
 export interface AgentSnapshotSource {
 	getSnapshot(): AgentRuntimeSnapshot;
@@ -23,10 +23,11 @@ export interface AgentSnapshotSource {
 	subscribeSemanticEvents?(listener: AgentSemanticEventListener): () => void;
 }
 
-export interface AgentChangeSource extends AgentSnapshotSource {
+interface AgentChangeSource extends AgentSnapshotSource {
 	readChanges(input: AgentRuntimeChangeReadInput): AgentRuntimeChangeReadResult;
 }
 
+/** @internal Reference runtime for the Agent conformance corpus and Workbench tests and Stories; no product composition creates one. */
 export class AgentRuntime implements AgentChangeSource {
 	#disposed = false;
 	readonly #listeners = new Set<AgentRuntimeListener>();

@@ -3,7 +3,6 @@ import {
 	CURRENT_PROTOCOL_VERSION,
 	CanonicalUint64TextSchema,
 	MessageKind,
-	type MessageKindValue,
 	PayloadEncoding,
 	encodeProtocolEnvelope,
 	encodeSelectionExportChunk,
@@ -23,6 +22,8 @@ const CONTROLLER_ID = 'b'.repeat(32);
 const CREATION_ID = 'c'.repeat(32);
 const HOST_EPOCH = 'd'.repeat(32);
 const TERMINAL_ID = 'e'.repeat(32);
+
+type MessageKindValue = (typeof MessageKind)[keyof typeof MessageKind];
 
 interface ControlRequest {
 	readonly action: {

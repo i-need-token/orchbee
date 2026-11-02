@@ -1,5 +1,4 @@
 export type {
-	DesktopTerminalLaunchProfileClientInitialization,
 	DesktopTerminalLaunchProfileClientOperationResult,
 	DesktopTerminalLaunchProfileClientSnapshot,
 	DesktopTerminalLaunchProfileControl,

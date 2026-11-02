@@ -60,6 +60,7 @@ export function extractTerminalFileDropFiles(
 	return itemFiles;
 }
 
+/** @internal Kept without a provider until the migration decides file drop; its unit test covers path escaping. */
 export function createTerminalFileDropCapability(
 	resolver: TerminalFileDropPathResolver,
 ): TerminalFileDropCapability {

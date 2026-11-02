@@ -1,1 +1,0 @@
-export { DesktopTerminalDefaultSettingsClient } from './DesktopTerminalDefaultSettingsClient';

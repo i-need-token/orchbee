@@ -15,8 +15,6 @@ const foreignDependencies = [
 	['apps/orchbee-server', 'apps/orchbee-worker'],
 	['apps/orchbee-server', 'apps/terminal-host'],
 	['apps/orchbee-worker', 'apps/terminal-host'],
-	['apps/desktop', 'apps/terminal-host'],
-	['apps/desktop', 'apps/orchbee-settings'],
 	['apps/desktop', 'apps/web'],
 ];
 const foreignPaths = [

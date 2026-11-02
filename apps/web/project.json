@@ -3,7 +3,7 @@
 	"domain": "web",
 	"runtime": ["browser", "electron"],
 	"stability": "experimental",
-	"responsibility": "Shared Workbench renderer for the local Electron client and in-memory Browser Preview, Browser Router and URL-to-Client-View coordination, client-local application and terminal settings, Desktop-local shell profiles and terminal defaults, platform-neutral page-client runtime with Electron MessagePort adapters, strict Agent-observation snapshots and explicit local Agent-integration settings, native Project Folder acquisition and managed Project Worktree forms with unprivileged clients, and portable Browser terminal clipboard and link effects.",
+	"responsibility": "Shared Workbench renderer for the local Electron client and in-memory Browser Preview, Browser Router and URL-to-Client-View coordination, client-local application and terminal settings, Session-shared shell profiles and terminal defaults through the Server connection, platform-neutral page-client runtime with Electron MessagePort adapters, strict Agent-observation snapshots and explicit local Agent-integration settings, native Project Folder acquisition and managed Project Worktree forms with unprivileged clients, and portable Browser terminal clipboard and link effects.",
 	"nonGoals": [
 		"Owning cross-application reusable UI primitives; app-owned product experience compositions remain here.",
 		"Owning the supported-locale contract, product message descriptors, or translation catalogs.",

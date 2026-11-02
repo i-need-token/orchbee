@@ -3,8 +3,6 @@ import { enUSApplicationRoutingMessages } from './application-routing';
 import { enUSAgentIntegrationMessages } from './agent-integrations';
 import { enUSAgentObservationMessages } from './agent-observation';
 
-import { enUSDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
-
 import { enUSDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
 
 import { enUSDesktopWindowMessages } from './desktop-window';
@@ -21,8 +19,6 @@ export const enUSMessages = {
 	...enUSApplicationRoutingMessages,
 	...enUSAgentIntegrationMessages,
 	...enUSAgentObservationMessages,
-
-	...enUSDesktopApplicationLifetimeMessages,
 
 	...enUSDesktopSecureKeyboardEntryMessages,
 

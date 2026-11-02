@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { access, cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -54,31 +55,10 @@ if (
 	throw new Error('The Desktop package identity is unavailable.');
 }
 const desktopBuild = path.join(applicationRoot, 'dist');
+// Cross-runtime contract: search for `packaged-desktop-resources` before changing these names. Each
+// extra resource keeps its directory's base name under the application's resources directory.
 const rendererBuild = path.join(repositoryRoot, 'apps', 'web', 'dist');
-const terminalHostBinaryName =
-	process.platform === 'win32' ? 'orchbee-terminal-host.exe' : 'orchbee-terminal-host';
-const terminalHostBinary = path.join(
-	repositoryRoot,
-	'apps',
-	'terminal-host',
-	'zig-out',
-	'bin',
-	terminalHostBinaryName,
-);
-// Cross-runtime contract: search for `posix-host-endpoint-addon-name` before changing this value.
-const posixHostEndpointAddonName = 'orchbee-posix-host-endpoint.node';
-const posixHostEndpointAddon = path.join(
-	applicationRoot,
-	'zig-out',
-	'lib',
-	posixHostEndpointAddonName,
-);
-const shellIntegrationResources = path.join(applicationRoot, 'resources', 'shell-integration');
-const agentObservationAdapterResources = path.join(
-	applicationRoot,
-	'resources',
-	'agent-observation-adapters',
-);
+const cohortDirectoryName = 'cohort';
 const darwinApplicationIcon = path.join(
 	repositoryRoot,
 	'resources',
@@ -91,71 +71,21 @@ await Promise.all([
 	access(path.join(desktopBuild, 'main', 'main.cjs')),
 	access(path.join(desktopBuild, 'preload', 'preload.cjs')),
 	access(path.join(rendererBuild, 'index.html')),
-	access(terminalHostBinary),
-	...(process.platform === 'win32' ? [] : [access(posixHostEndpointAddon)]),
-	access(path.join(shellIntegrationResources, 'orchbee.zsh')),
-	access(path.join(shellIntegrationResources, 'orchbee.bash')),
-	access(path.join(shellIntegrationResources, 'orchbee.fish')),
-	access(path.join(shellIntegrationResources, 'automatic', 'zsh', '.zshenv')),
-	access(path.join(shellIntegrationResources, 'automatic', 'bash', 'orchbee.bash')),
-	access(
-		path.join(
-			shellIntegrationResources,
-			'automatic',
-			'fish',
-			'fish',
-			'vendor_conf.d',
-			'orchbee-shell-integration.fish',
-		),
-	),
-	access(path.join(agentObservationAdapterResources, '.agents', 'plugins', 'marketplace.json')),
-	access(path.join(agentObservationAdapterResources, '.claude-plugin', 'marketplace.json')),
-	access(path.join(agentObservationAdapterResources, 'bundle', '.claude-plugin', 'plugin.json')),
-	access(path.join(agentObservationAdapterResources, 'bundle', '.codex-plugin', 'plugin.json')),
-	access(path.join(agentObservationAdapterResources, 'bundle', '.grok-plugin', 'plugin.json')),
-	access(path.join(agentObservationAdapterResources, 'bundle', '.plugin', 'plugin.json')),
-	access(path.join(agentObservationAdapterResources, 'bundle', 'package.json')),
-	access(path.join(agentObservationAdapterResources, 'bundle', 'hooks', 'hooks.json')),
-	access(path.join(agentObservationAdapterResources, 'bundle', 'hooks', 'codex.json')),
-	access(path.join(agentObservationAdapterResources, 'bundle', 'hooks', 'grok.json')),
-	access(path.join(agentObservationAdapterResources, 'bundle', 'hooks', 'copilot.json')),
-	access(path.join(agentObservationAdapterResources, 'bundle', 'gemini', 'gemini-extension.json')),
-	access(path.join(agentObservationAdapterResources, 'bundle', 'gemini', 'hooks', 'hooks.json')),
-	access(path.join(agentObservationAdapterResources, 'bundle', 'qwen-code', 'qwen-extension.json')),
-	access(
-		path.join(agentObservationAdapterResources, 'bundle', 'cline', 'orchbee-agent-observation.js'),
-	),
-	access(path.join(agentObservationAdapterResources, 'bundle', 'scripts', 'forward-hook.mjs')),
-	access(path.join(agentObservationAdapterResources, 'bundle', 'scripts', 'hook-sanitizers.mjs')),
-	access(
-		path.join(agentObservationAdapterResources, 'bundle', 'scripts', 'observation-transport.mjs'),
-	),
-	access(
-		path.join(
-			agentObservationAdapterResources,
-			'bundle',
-			'opencode',
-			'orchbee-agent-observation.mjs',
-		),
-	),
-	access(
-		path.join(agentObservationAdapterResources, 'bundle', 'pi', 'orchbee-agent-observation.mjs'),
-	),
-	access(
-		path.join(agentObservationAdapterResources, 'bundle', 'pi', 'orchbee-agent-observation.cjs'),
-	),
-	access(
-		path.join(agentObservationAdapterResources, 'bundle', 'omp', 'orchbee-agent-observation.mjs'),
-	),
-	access(
-		path.join(agentObservationAdapterResources, 'bundle', 'omp', 'orchbee-agent-observation.cjs'),
-	),
 	...(usesDarwinApplicationIcon ? [access(darwinApplicationIcon)] : []),
 ]);
 
 const packageWorkspace = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-package-'));
 const stagingRoot = path.join(packageWorkspace, 'application');
+const cohortRoot = path.join(packageWorkspace, cohortDirectoryName);
 try {
+	// The window's Session runs this cohort, so the application carries all of it: `orchbee`, Server,
+	// Worker, Terminal Host, the observation Capsule, and the platform's terminal runtime.
+	execFileSync(
+		process.execPath,
+		[path.join(repositoryRoot, 'scripts', 'stage-local-runtime.mjs'), '--output', cohortRoot],
+		{ cwd: repositoryRoot, stdio: 'inherit' },
+	);
+	await access(path.join(cohortRoot, 'cohort.json'));
 	await mkdir(stagingRoot, { mode: 0o700 });
 	await cp(desktopBuild, path.join(stagingRoot, 'dist'), { recursive: true });
 	await writeFile(
@@ -183,14 +113,7 @@ try {
 		asar: true,
 		dir: stagingRoot,
 		electronVersion: electronPackage.version,
-		extraResource: [
-			path.join(applicationRoot, 'out', 'settings-bridge'),
-			rendererBuild,
-			terminalHostBinary,
-			...(process.platform === 'win32' ? [] : [posixHostEndpointAddon]),
-			shellIntegrationResources,
-			agentObservationAdapterResources,
-		],
+		extraResource: [rendererBuild, cohortRoot],
 		helperBundleId: `${distributionProfile.bundleIdentifier}.helper`,
 		...(usesDarwinApplicationIcon ? { icon: darwinApplicationIcon } : {}),
 		name: distributionProfile.applicationName,

@@ -9,7 +9,6 @@ import {
 	ClearTerminalSchema,
 	ClaimResizeLeaseSchema,
 	CreateTerminalSchema,
-	DEFAULT_TERMINAL_CONFIGURATION,
 	decodeControlJson,
 	EmptyControlSchema,
 	encodeControlJson,
@@ -44,7 +43,6 @@ import {
 	TerminalEnvironmentOverlaySchema,
 	TerminalGeometrySchema,
 	TerminalListSchema,
-	TerminalMetadataChangedSchema,
 	TerminalStartAcceptedSchema,
 	TerminalProfileSchema,
 	TerminalThemeResultSchema,
@@ -286,27 +284,6 @@ describe('control schemas', () => {
 		expect(TerminalBellSchema.safeParse({ ...bell, sequence: '0' }).success).toBe(false);
 		expect(TerminalBellSchema.safeParse({ ...bell, sequence: '01' }).success).toBe(false);
 		expect(TerminalBellSchema.safeParse({ sequence: '7' }).success).toBe(false);
-	});
-
-	it('publishes terminal-global title and current-directory metadata at one revision', () => {
-		const metadata = {
-			currentDirectory: 'file://orchbee-host/workspace',
-			identity: {
-				creationId: '11'.repeat(16),
-				hostEpoch: '22'.repeat(16),
-				terminalId: '33'.repeat(16),
-			},
-			revision: '7',
-			title: 'background agent',
-		};
-
-		expect(TerminalMetadataChangedSchema.parse(metadata)).toEqual(metadata);
-		expect(TerminalMetadataChangedSchema.safeParse({ ...metadata, revision: '0' }).success).toBe(
-			false,
-		);
-		expect(
-			TerminalMetadataChangedSchema.safeParse({ ...metadata, title: 'bad\0title' }).success,
-		).toBe(false);
 	});
 
 	it('bounds attachment-scoped terminal clipboard writes to valid plain text', () => {
@@ -1106,7 +1083,6 @@ describe('control schemas', () => {
 	});
 
 	it('separates user scrollback configuration from protocol hard limits', () => {
-		expect(DEFAULT_TERMINAL_CONFIGURATION).toEqual({ scrollbackBytes: 10_000_000 });
 		expect(
 			SetTerminalDefaultsSchema.safeParse({ configuration: { scrollbackBytes: 25_000_000 } })
 				.success,
@@ -1127,7 +1103,7 @@ describe('control schemas', () => {
 		const theme = { operationId: null, revision: '0', terminal: terminalTheme } as const;
 		const common = {
 			columns: 80,
-			configuration: DEFAULT_TERMINAL_CONFIGURATION,
+			configuration: { scrollbackBytes: 10_000_000 },
 			configurationRevision: '1',
 			identity: {
 				creationId: '11'.repeat(16),

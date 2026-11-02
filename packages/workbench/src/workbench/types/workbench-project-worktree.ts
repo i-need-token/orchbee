@@ -44,11 +44,11 @@ export interface WorkbenchProjectWorktreeDiscovery {
 	readonly repositories: readonly WorkbenchProjectWorktreeRepository[];
 }
 
-export type WorkbenchProjectWorktreeDiscoveryResult =
+type WorkbenchProjectWorktreeDiscoveryResult =
 	| { readonly discovery: WorkbenchProjectWorktreeDiscovery; readonly kind: 'discovered' }
 	| { readonly code: WorkbenchProjectWorktreeFailureCode; readonly kind: 'failed' };
 
-export type WorkbenchProjectWorktreeCreationResult =
+type WorkbenchProjectWorktreeCreationResult =
 	| {
 			readonly directoryId: string;
 			readonly kind: 'created';
@@ -56,7 +56,7 @@ export type WorkbenchProjectWorktreeCreationResult =
 	  }
 	| { readonly code: WorkbenchProjectWorktreeFailureCode; readonly kind: 'failed' };
 
-export type WorkbenchProjectWorktreeAdoptionResult =
+type WorkbenchProjectWorktreeAdoptionResult =
 	| {
 			readonly directoryId: string;
 			readonly kind: 'adopted';

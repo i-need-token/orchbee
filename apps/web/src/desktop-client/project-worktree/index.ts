@@ -1,1 +1,0 @@
-export { DesktopProjectWorktreeClient } from './DesktopProjectWorktreeClient';

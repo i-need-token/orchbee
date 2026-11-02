@@ -259,30 +259,6 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 	},
 	{
 		category: 'shell-integration',
-		description: terminalSettingsMessages.shellIntegrationManualNotice,
-		id: 'shell-integration.zsh',
-		keywords: [terminalSettingsMessages.shellIntegrationSetupCommandLabel, 'Zsh', 'source'],
-		label: terminalSettingsMessages.shellIntegrationZshTitle,
-		targetId: 'shell-integration.zsh',
-	},
-	{
-		category: 'shell-integration',
-		description: terminalSettingsMessages.shellIntegrationBashVersion,
-		id: 'shell-integration.bash',
-		keywords: [terminalSettingsMessages.shellIntegrationSetupCommandLabel, 'Bash', '4.4', 'source'],
-		label: terminalSettingsMessages.shellIntegrationBashTitle,
-		targetId: 'shell-integration.bash',
-	},
-	{
-		category: 'shell-integration',
-		description: terminalSettingsMessages.shellIntegrationManualNotice,
-		id: 'shell-integration.fish',
-		keywords: [terminalSettingsMessages.shellIntegrationSetupCommandLabel, 'Fish', 'source'],
-		label: terminalSettingsMessages.shellIntegrationFishTitle,
-		targetId: 'shell-integration.fish',
-	},
-	{
-		category: 'shell-integration',
 		description: terminalSettingsMessages.shellIntegrationReminderDescription,
 		id: 'shell-integration.completion-reminders',
 		keywords: [

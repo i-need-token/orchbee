@@ -8,10 +8,10 @@ The application is private and experimentally versioned. It installs an executab
 
 - [Runtime contract and correctness model](docs/runtime-model.md) owns Host lifecycle, state, delivery, retry, failure, concurrency, and evidence requirements.
 - [Terminal protocol reference](../../schemas/terminal/references/protocol.md) owns wire records, codecs, message schemas, format versions, and protocol safety limits.
-- [Desktop](../desktop/README.md) owns product topology, recovery policy, presentation, and platform effects.
-- [Worker](../orchbee-worker/README.md) owns its unshipped Server-first local broker connection and coupled peer liveness; it owns no terminal semantics.
+- [Worker](../orchbee-worker/README.md) is the Host's local broker and owns Host lifetime and coupled peer liveness; it owns no terminal semantics.
+- Clients, such as the TUI and [Desktop](../desktop/README.md), own presentation and platform effects through the Server.
 
-The [native runtime topology proposal](../../proposals/platform/native-runtime-topology.md#desktop-main-target-disposition) assigns Host lifetime to Worker and supersedes the former Desktop update-continuity design; the target proposal does not establish migration of the current Desktop runtime.
+The [native runtime topology proposal](../../proposals/platform/native-runtime-topology.md#desktop-main-target-disposition) assigns Host lifetime to Worker and supersedes the former Desktop update-continuity design.
 
 The runtime contract is accepted, but acceptance does not claim that every current implementation path already conforms. A behavioral change is complete only when its affected contract claims have the required executable evidence.
 
@@ -65,7 +65,7 @@ The accepted contract requires these externally visible properties:
   the same coherent revision.
 - Terminal output becomes a normal exit only after child completion, normal PTY drain, and complete quiescence of the PTY writer.
 - Unrecoverable PTY read, PTY write, terminal-reply, resize, or worker-integrity failures become an explicit typed failed outcome. The Host fences unsafe I/O, contains the owned process tree, and continues bounded cleanup retries even while no broker is connected.
-- Graceful termination, force termination, and disposal are distinct. Desktop owns escalation timing; disposal is explicit.
+- Graceful termination, force termination, and disposal are distinct. The broker owns escalation timing; disposal is explicit.
 - Bounds and scheduler backpressure reject or defer the current operation without corrupting retained state. A full outgoing batch returns its committed prefix and is not a connection failure.
 - Large projection and history records cross engine-to-egress ownership once: producers write into reserved response storage or transfer an owned envelope-ready allocation instead of copying a complete payload into a second buffer.
 - Input whose reply is lost after admission has an unknown outcome and must not be automatically replayed.
@@ -142,14 +142,13 @@ Non-Darwin builds use `src/platform/darwin-cross-libraries/libbsm.tbd` to link t
 
 These controls establish a same-user trust boundary. The endpoint identifier is not a secret, and Terminal Host does not distinguish one same-user application from another. It is not a multi-tenant service.
 
-Desktop reconnect is supported while the Host survives. On POSIX, Desktop's in-process native endpoint adapter owns the client socket and authenticates the Host before protocol work; Terminal Host independently authenticates every accepted client. Closing the Desktop connection does not terminate or otherwise own the Host. PTY migration or recovery after a Host or operating-system crash is not promised. The client-side model lives in the Desktop [POSIX Host endpoint contract](../desktop/docs/posix-host-endpoint.md).
+Terminal Host authenticates every accepted client, and closing a broker connection does not terminate or otherwise own the Host. PTY migration or recovery after a Host or operating-system crash is not promised.
 
-The unshipped Rust Worker is an additive second broker implementation, not a concurrent second
-session. Only after Server admission, it authenticates the same-user Host and completes the same
-exact-version `Hello` exchange. Its current slice sends no terminal command and creates no PTY;
-Server remains the launch-authorization owner and Host remains the terminal authority.
+The Worker connects only after Server admission: it authenticates the same-user Host and completes
+the exact-version `Hello` exchange. Server remains the launch-authorization owner and Host remains
+the terminal authority.
 
-Process-tree ownership follows the containment domain created at launch: a dedicated session on Linux and macOS, the retained direct-child process-reaper subtree on FreeBSD, or a Windows kill-on-close Job. Cleanup is complete only after that domain has no live members. On Windows, that domain is the Job members that hold the Terminal console: closing ends them and releases the other members, such as GUI programs started from the shell, from Terminal ownership, while any failure or a Host crash still ends the whole Job ([runtime model](docs/runtime-model.md)). The Host observes Job accounting at a quiet monotonic cadence and closes HPCON only after no member holds the console; Desktop-owned force escalation terminates the console holders, or the whole Job when that fails, so that observation can complete. Natural process exit does not signal the Job handle. On Linux and macOS, preventing a trusted same-user child from deliberately escaping the POSIX session is not an isolation promise.
+Process-tree ownership follows the containment domain created at launch: a dedicated session on Linux and macOS, the retained direct-child process-reaper subtree on FreeBSD, or a Windows kill-on-close Job. Cleanup is complete only after that domain has no live members. On Windows, that domain is the Job members that hold the Terminal console: closing ends them and releases the other members, such as GUI programs started from the shell, from Terminal ownership, while any failure or a Host crash still ends the whole Job ([runtime model](docs/runtime-model.md)). The Host observes Job accounting at a quiet monotonic cadence and closes HPCON only after no member holds the console; broker-owned force escalation terminates the console holders, or the whole Job when that fails, so that observation can complete. Natural process exit does not signal the Job handle. On Linux and macOS, preventing a trusted same-user child from deliberately escaping the POSIX session is not an isolation promise.
 
 ## Executable interface
 
@@ -162,10 +161,10 @@ orchbee-terminal-host serve \
   [--scrollback-bytes <decimal-bytes>]
 ```
 
-Desktop derives the runtime directory and endpoint identifier from its product user-data scope; the Host treats both as infrastructure values and does not infer product topology from them.
+The broker derives the runtime directory and endpoint identifier from its own runtime scope; the Host treats both as infrastructure values and does not infer product topology from them.
 
-The binary exposes no client connection or runtime-preparation command. Desktop owns those operations
-inside its platform adapter, while Terminal Host remains a separately retained server process.
+The binary exposes no client connection or runtime-preparation command. The broker owns those
+operations, while Terminal Host remains a separately retained server process.
 
 `--scrollback-bytes` sets the startup default for newly created terminals. The current default is 10,000,000 decimal bytes; accepted values range from `0` through `1,000,000,000`. A broker may replace the process default for later terminals or supply an explicit configuration when creating one. Zero disables retained scrollback.
 
@@ -179,12 +178,12 @@ automation owns cross-application assembly, signing inputs, and final bundles. T
 targets are `aarch64-macos` and `x86_64-linux-gnu`, built with Zig `0.16.0`, `ReleaseSafe`, stripping,
 and `-Dhost-version=<semver>`.
 
-After Desktop explicitly opens the accepted `terminal-host-v1` service, the remote SSH Runtime
+After a client explicitly opens the accepted `terminal-host-v1` service, the remote SSH Runtime
 connects to this executable's unchanged same-user private endpoint or starts the exact cohort-pinned
 version, then relays opaque Terminal Host protocol bytes over the existing SSH attachment. Terminal
 Host still owns native terminal identities, retained terminal state, PTYs, and process trees. The
 component itself gains no network listener, SSH parsing, or generic command authority; remote
-lifecycle and relay policy belong to Desktop and the SSH Runtime.
+lifecycle and relay policy belong to that client and the SSH Runtime.
 
 ## Pinned native inputs
 
@@ -288,14 +287,12 @@ remain unchanged, alongside the deterministic Host reader/resize ordering test.
 
 ## Development
 
-The repository-level `pnpm desktop` development runtime runs `zig build --watch -fincremental
--Doptimize=ReleaseSafe` for this package and observes the completed Host binary and source inputs by
-content digest. A failed build or a same-source binary rebuild leaves the last runnable Host process
-and binary generation untouched. Zig code is not patched into a live Host process: after a
-successful changed source build, Desktop durably stops and restages its current terminal
-presentations, retires the old Host, and starts the captured binary as a new process. PTY process
-state, VT history, and Host identities therefore do not cross a Zig source update. Packaged Host
-lifecycle and protocol behavior are unchanged.
+The repository-level `pnpm desktop` development runtime builds this package with
+`zig build -Doptimize=ReleaseSafe` into the native cohort it stages when it starts, and reuses an
+identical staged cohort. It does not watch Host sources; restart `pnpm desktop` after a Host change.
+A changed cohort first stops the development Session the previous cohort started, so PTY process
+state, VT history, and Host identities do not cross a Host update. Packaged Host lifecycle and
+protocol behavior are unchanged.
 
 Native Windows staging with `node scripts/stage-local-runtime.mjs --output <absolute-directory>`
 requires permission to create file symbolic links. The stager checks this before starting Cargo or
@@ -303,9 +300,8 @@ Zig; enable Windows Developer Mode or run the staging command from an elevated t
 unpack the pinned Ghostty source dependency.
 
 The build requires the repository's two `crates/local-runtime/src/directory/windows/*.ps1`
-startup assets. Tracked copy steps embed their exact concatenation, so asset-only edits wake Zig
-watch and change the Host module. Desktop's Host input digest includes these same two files;
-encoded command helpers consume only the common initialization asset.
+startup assets. Tracked copy steps embed their exact concatenation, so asset-only edits change the
+Host module. Encoded command helpers consume only the common initialization asset.
 
 Run from the repository root:
 
@@ -333,8 +329,8 @@ restricts child handle inheritance.
 [Verification](../../docs/VERIFICATION.md#required-tasks). A timeout lists the test binaries still
 running, terminates only the processes that run started, and fails the command.
 The generated cross-language selection cases admit only `plain` and require HTML/raw VT requests to
-fail strict decoding; `terminal-parity/HS-07-selection-export` adds the real-PTY/Electron clipboard
-consequence from the owning application system suite.
+fail strict decoding. The real-PTY/Electron clipboard witness `terminal-parity/HS-07-selection-export`
+retired with the Desktop Electron suite.
 `test:black-box` runs deterministic event-oracle checks followed by that external trace: it starts the built Host, creates and attaches a
 real terminal through Local IPC, disconnects, reconnects and replays the creation identity,
 reattaches the same attachment identity, drives the child through PTY input, observes drained PTY
@@ -435,9 +431,9 @@ pnpm --filter @orchbee/terminal-host benchmark -- \
   --mode active
 ```
 
-The file-fixture mode runs the repository's fixed workload as `time -p cat -n`, resolving both utilities through the child's effective `PATH` rather than fixed FHS paths; the Desktop harness applies the same synchronized policy. A maintained POSIX environment needs `time` and `cat` reachable on `PATH`, and the benchmark reports a clear error otherwise.
+The file-fixture mode runs the repository's fixed workload as `time -p cat -n`, resolving both utilities through the child's effective `PATH` rather than fixed FHS paths. A maintained POSIX environment needs `time` and `cat` reachable on `PATH`, and the benchmark reports a clear error otherwise.
 
-`ORCHBEE_TERMINAL_HOST_TRACE=1` enables bounded interaction timing records for the controlled Desktop benchmark harness. It is a test diagnostic, not product telemetry.
+`ORCHBEE_TERMINAL_HOST_TRACE=1` enables bounded interaction timing records for controlled benchmark runs. It is a test diagnostic, not product telemetry.
 
 Build output remains in ignored `.zig-cache/` and `zig-out/` directories.
 

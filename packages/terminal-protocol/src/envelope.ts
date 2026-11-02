@@ -19,7 +19,9 @@ import type { ProtocolResult } from './protocol-result';
 import { ProtocolVersionSchema } from './version';
 import type { ProtocolVersion } from './version';
 
+/** @internal Exported for the constants registry test; peers rely on the envelope codec instead. */
 export const TRANSPORT_ENVELOPE_HEADER_BYTES = 64;
+/** @internal Exported for the constants registry test; peers rely on the envelope codec instead. */
 export const TRANSPORT_ENVELOPE_MAGIC = new Uint8Array([0x4f, 0x42, 0x54, 0x50]);
 
 export {
@@ -27,10 +29,9 @@ export {
 	isInputRequestKind,
 	MessageKind,
 	PayloadEncoding,
-	requestMessageContract,
 } from './message-contract';
-export type { MessageRole } from './message-contract';
 
+/** @internal Exported for this package's message-contract tests; production checks it while encoding envelopes. */
 export function messagePayloadEncoding(
 	kind: number,
 	role: MessageRole,

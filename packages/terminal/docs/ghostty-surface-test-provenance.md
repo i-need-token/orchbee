@@ -61,11 +61,11 @@ surface.
 
 Evidence with a deliberate domain difference states and asserts that difference at its named
 witness: the DPR trace changes only device metrics, visibility traces control their own animation
-time, immediate wheel traces assert canonical canvas transforms, real Electron/PTY traces use the
-mounted native window, and WebGPU tests use deterministic owner-local adapters. Assertions compare exact semantic state, geometry,
-ordering, colors, or bytes; there is no screenshot threshold or normalization that may erase a
-semantic difference. This baseline does not claim identical operating-system antialiasing,
-native-monitor transfer, WebGPU driver behavior, another browser engine, or native OS effects.
+time, and WebGPU tests use deterministic owner-local adapters. Assertions compare exact semantic
+state, geometry, ordering, colors, or bytes; there is no screenshot threshold or normalization that
+may erase a semantic difference. This baseline does not claim identical operating-system
+antialiasing, native-monitor transfer, WebGPU driver behavior, another browser engine, or native OS
+effects.
 
 ## Provisioned product fonts
 
@@ -262,8 +262,7 @@ Application presentation remains a separate, narrower layer:
 - `allowTransparency` controls only renderer clear. `backgroundOpacity` remains a complete
   source-neutral configuration value for the composing terminal root, whose alpha affects neither
   glyphs nor explicit cell backgrounds; and
-- the Workbench terminal root adopts each committed effective default background, while Electron
-  uses the launch-profile background only as its pre-document window surface.
+- the Workbench terminal root adopts each committed effective default background.
 
 The native corpus sets OSC 4, 10, 11, and 12 values and proves the resulting metadata, resolved
 palette cell, cursor paint, Canvas output, and WebGPU uploads. The Host runtime additionally sends
@@ -279,8 +278,8 @@ exact committed revision. The application barrier synchronously preflights every
 commits their staged store and overlay state, and then changes the application design-token theme in
 the same JavaScript task. A renderer preparation failure sends no Host mutation; superseded,
 hidden, suspended, or mismatched stages cannot expose a mixed revision. The projected-terminal unit
-traces cover exact commit, resume-latest, and renderer-failure preservation, while Desktop
-`terminal-parity/SU-09-theme` observes the real runtime-presentation fixture holding the Host result
+traces cover exact commit, resume-latest, and renderer-failure preservation, while the Web
+system witness `terminal-parity/SU-09-theme` observes the real runtime-presentation fixture holding the Host result
 and revision-tagged frame before one complete release.
 
 ## Packed links and semantic boundaries
@@ -300,8 +299,9 @@ allowlisted external-link Action and environment-owned effect.
 
 Explicit OSC 8 ranges retain precedence over detected URL or path text. Source-neutral application
 policy limits activation to `http`, `https`, and `mailto`; Host metadata never grants filesystem or
-generic scheme authority. A separate, default-off Desktop-local attachment capability may admit a
-typed file target after the same generation/revision-pinned revalidation.
+generic scheme authority. A separate, default-off local attachment capability, which no composition
+supplies today, may admit a typed file target after the same generation/revision-pinned
+revalidation.
 
 The headed Canvas 2D witnesses `terminal-parity/FS-05-file-links` and
 `terminal-parity/FS-06-url-policy` feed generation-pinned synthetic Host row windows through the

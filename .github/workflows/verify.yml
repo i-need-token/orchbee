@@ -51,8 +51,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Desktop Linux test dependencies
-        run: sudo apt-get update && sudo apt-get install --yes xvfb xauth zsh
+      - name: Install Linux test dependencies
+        run: sudo apt-get update && sudo apt-get install --yes zsh
 
       - name: Verify repository
         run: pnpm verify --verbose
@@ -204,9 +204,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Test Desktop local endpoint adapters
-        run: pnpm --filter @orchbee/desktop test:native
 
       - name: Test native Terminal Host
         run: pnpm --filter @orchbee/terminal-host test

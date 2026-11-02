@@ -5,12 +5,5 @@
 		"types": ["node", "vitest/globals"],
 		"allowImportingTsExtensions": true
 	},
-	"include": [
-		"src",
-		"system-tests",
-		"playwright.config.ts",
-		"playwright.manual-native-window.config.ts",
-		"rsbuild.config.ts",
-		"vitest.config.ts"
-	]
+	"include": ["src", "rsbuild.config.ts", "vitest.config.ts"]
 }

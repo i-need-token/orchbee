@@ -2,7 +2,6 @@ export {
 	enUSApplicationRoutingMessages,
 	enUSAgentIntegrationMessages,
 	enUSAgentObservationMessages,
-	enUSDesktopApplicationLifetimeMessages,
 	enUSDesktopSecureKeyboardEntryMessages,
 	enUSDesktopWindowMessages,
 	enUSKeyboardShortcutMessages,

@@ -1,1 +1,0 @@
-export { WorkbenchDocumentCoordinator } from './WorkbenchDocumentCoordinator';

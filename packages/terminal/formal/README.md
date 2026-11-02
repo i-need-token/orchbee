@@ -1,6 +1,6 @@
 # Terminal correctness evidence
 
-Client-owned async workflows use controlled implementation tests. The shared cross-process attachment protocol is checked separately by the Desktop `projected-terminal-ipc-reliability` model; no local UI workflow needs its own TLA model merely because it awaits work.
+Client-owned async workflows use controlled implementation tests. The Server side of a projected attachment is checked separately by the orchbee-server `connection-viewer-routing` and `local-terminal-relay` models; no local UI workflow needs its own TLA model merely because it awaits work.
 
 ## Claims and implementation evidence
 
@@ -21,4 +21,4 @@ Tests control completion order, supersession, failure and disposal at the produc
 
 ## Verification
 
-Run `pnpm --filter @orchbee/terminal test`. Changes to the shared attachment protocol also require its registered Desktop model and adapter tests. The repository root gate remains required; this package has no `test:tla` command.
+Run `pnpm --filter @orchbee/terminal test`. Changes to the shared attachment protocol also require the registered Server models and the Web projection client tests. The repository root gate remains required; this package has no `test:tla` command.

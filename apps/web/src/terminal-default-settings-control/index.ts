@@ -1,5 +1,4 @@
 export type {
-	DesktopTerminalDefaultSettingsClientInitialization,
 	DesktopTerminalDefaultSettingsClientOperationResult,
 	DesktopTerminalDefaultSettingsClientSnapshot,
 	DesktopTerminalDefaultSettingsControl,

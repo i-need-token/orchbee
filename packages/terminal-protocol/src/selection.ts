@@ -72,6 +72,7 @@ export function decodeSelectionExportChunk(
 	return protocolSuccess({ ...route.value, bytes: chunkBytes });
 }
 
+/** @internal Exported for this package's selection tests; production decodes the route inside `decodeSelectionExportChunk`. */
 export function decodeSelectionExportChunkRoute(
 	bytes: Uint8Array,
 ): ProtocolResult<DecodedSelectionExportChunkRoute> {

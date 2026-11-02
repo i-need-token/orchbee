@@ -5,7 +5,6 @@ import {
 	CellWidth,
 	CursorShape,
 	decodeTerminalFrame,
-	decodeTerminalFrameRoute,
 	encodeTerminalFrame,
 	inspectTerminalFrameHeader,
 	RowPromptClass,
@@ -167,13 +166,6 @@ describe('packed terminal frame', () => {
 			durationMilliseconds: 5_500n,
 			exitCode: 42,
 			sequence: 7n,
-		});
-		expect(decodeTerminalFrameRoute(encoded.value)).toEqual({
-			ok: true,
-			value: {
-				attachmentId: '22222222222222222222222222222222',
-				hostEpoch: '11111111111111111111111111111111',
-			},
 		});
 		expect(inspectTerminalFrameHeader(encoded.value)).toEqual({
 			ok: true,

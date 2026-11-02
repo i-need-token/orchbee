@@ -41,6 +41,7 @@ import { z } from 'zod';
 
 const utf8Encoder = new TextEncoder();
 
+/** @internal Event boundary limit exported only for this package's contract tests. */
 export const MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES = 8 * 1024 * 1024;
 
 const projectedTerminalTargetTextSchema = z
@@ -122,7 +123,8 @@ export const ProjectedAttachmentBootstrapSchema = z
 		}
 	});
 
-export const ProjectedTerminalCommandSchema = z.discriminatedUnion('kind', [
+// Commands stay inside the renderer process, so this schema only defines their type.
+const ProjectedTerminalCommandSchema = z.discriminatedUnion('kind', [
 	z.strictObject({
 		kind: z.literal('apply-terminal-theme'),
 		payload: ApplyTerminalThemeSchema.extend({ attachmentId: AttachmentIdSchema }),

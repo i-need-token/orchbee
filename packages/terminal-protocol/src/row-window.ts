@@ -318,7 +318,7 @@ const TerminalRowWindowSchema = z.discriminatedUnion('detail', [
 
 type TerminalRowWindow = z.infer<typeof TerminalRowWindowSchema>;
 
-export type TerminalTextRow = z.infer<typeof TerminalTextRowSchema>;
+type TerminalTextRow = z.infer<typeof TerminalTextRowSchema>;
 type TerminalTextRowWindow = z.infer<typeof TerminalTextRowWindowSchema>;
 
 interface DecodedTerminalTextRow {
@@ -347,7 +347,7 @@ interface DecodedTerminalRowWindowBase {
 	readonly totalRows: bigint;
 }
 
-export interface DecodedTerminalRenderRowWindow extends DecodedTerminalRowWindowBase {
+interface DecodedTerminalRenderRowWindow extends DecodedTerminalRowWindowBase {
 	readonly detail: 'render';
 	readonly frame: DecodedTerminalProjectionBuffer;
 	readonly graphics: TerminalGraphics;

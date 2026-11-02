@@ -103,24 +103,6 @@ const UserPreferencesFailureSchema = z.enum([
 	'source-changed',
 	'write-failed',
 ]);
-const encoder = new TextEncoder();
-export const UserPreferencesRequestSchema = z
-	.discriminatedUnion('operation', [
-		z.strictObject({ operation: z.literal('read') }),
-		z.strictObject({
-			operation: z.literal('update'),
-			source: UserPreferencesSourceSchema,
-			changes: UserPreferencesPatchSchema.refine(
-				(changes) => Object.values(changes).some((value) => value !== undefined),
-				'Update requires a changed key',
-			),
-		}),
-	])
-	.refine(
-		(request) =>
-			encoder.encode(JSON.stringify(request)).byteLength <= MAXIMUM_USER_PREFERENCES_BYTES,
-		'Preference request exceeds its byte budget',
-	);
 export const UserPreferencesResponseSchema = z.discriminatedUnion('kind', [
 	z.strictObject({
 		kind: z.literal('snapshot'),
@@ -136,5 +118,4 @@ type UserPreferencesValues = z.infer<typeof UserPreferencesValuesSchema>;
 export type UserPreferencesPatch = z.infer<typeof UserPreferencesPatchSchema>;
 export type UserPreferencesSnapshot = z.infer<typeof UserPreferencesSnapshotSchema>;
 export type UserPreferencesFailure = z.infer<typeof UserPreferencesFailureSchema>;
-export type UserPreferencesRequest = z.infer<typeof UserPreferencesRequestSchema>;
 export type UserPreferencesResponse = z.infer<typeof UserPreferencesResponseSchema>;

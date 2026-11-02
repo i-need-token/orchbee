@@ -5,9 +5,6 @@ export type { AgentIntegrationMessageId } from './agent-integrations';
 export { enUSAgentObservationMessages } from './agent-observation';
 export type { AgentObservationMessageId } from './agent-observation';
 
-export { enUSDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
-export type { DesktopApplicationLifetimeMessageId } from './desktop-application-lifetime';
-
 export { enUSDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
 export type { DesktopSecureKeyboardEntryMessageId } from './desktop-secure-keyboard-entry';
 

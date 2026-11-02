@@ -6,8 +6,6 @@ import { defineConfig, type RsbuildPlugin } from '@rsbuild/core';
 import { pluginSourceBuild } from '@rsbuild/plugin-source-build';
 
 import type { DesktopDevelopmentRuntime, DesktopDevelopmentRuntimeLogger } from './src/development';
-import { buildPosixHostEndpoint } from './scripts/build-posix-host-endpoint.mjs';
-import { buildSettingsBridge } from './scripts/build-settings-bridge.mjs';
 
 import { prepareDesktopDevelopmentExecutable } from './scripts/prepare-desktop-development-application.mjs';
 
@@ -48,11 +46,8 @@ export default defineConfig(({ command }) => {
 						desktopEntryPath: path.join(desktopRoot, 'dist', 'main', 'main.cjs'),
 						electronExecutable,
 						environment: process.env,
-
 						rendererUrl,
-
 						sourceRoot,
-						terminalHostRoot: path.resolve(desktopRoot, '..', 'terminal-host'),
 					},
 					createNodeDesktopDevelopmentRuntimeDependencies(logger),
 					logger,
@@ -76,43 +71,17 @@ export default defineConfig(({ command }) => {
 			});
 		},
 	};
-	const nativeEndpointPlugin: RsbuildPlugin = {
-		name: 'orchbee-desktop-native-endpoints',
-		apply: 'serve',
-		setup(api) {
-			api.onBeforeCreateCompiler(async () => {
-				await buildPosixHostEndpoint();
-				await buildSettingsBridge();
-			});
-		},
-	};
 
 	return {
 		plugins:
 			command === 'dev'
-				? [
-						pluginSourceBuild({ sourceField: '@orchbee/source' }),
-						nativeEndpointPlugin,
-						developmentRuntimePlugin,
-					]
+				? [pluginSourceBuild({ sourceField: '@orchbee/source' }), developmentRuntimePlugin]
 				: [],
 		dev: {
 			watchFiles: {
 				paths: [
-					path.join(desktopRoot, 'scripts', 'build-posix-host-endpoint.mjs'),
-					path.join(desktopRoot, 'scripts', 'build-settings-bridge.mjs'),
-					path.join(sourceRoot, 'apps', 'orchbee-settings', 'src'),
-					path.join(sourceRoot, 'crates', 'local-runtime', 'src', 'user_preferences'),
-					path.join(sourceRoot, 'crates', 'local-runtime', 'src', 'user_preferences.rs'),
-					path.join(sourceRoot, 'crates', 'local-runtime', 'src', 'default_interactive_launch'),
-					path.join(sourceRoot, 'crates', 'local-runtime', 'src', 'default_interactive_launch.rs'),
-					path.join(sourceRoot, 'crates', 'workbench-protocol', 'src', 'user_preferences'),
-					path.join(sourceRoot, 'crates', 'workbench-protocol', 'src', 'user_preferences.rs'),
-
 					path.join(desktopRoot, 'scripts', 'prepare-desktop-development-application.mjs'),
 					path.join(desktopRoot, 'src', 'distribution'),
-					path.join(desktopRoot, 'src', 'native', 'posix-host-endpoint'),
-
 					path.join(sourceRoot, 'resources', 'brand', 'icns'),
 				],
 				type: 'reload-server',
@@ -128,12 +97,7 @@ export default defineConfig(({ command }) => {
 					module: false,
 					target: 'node',
 				},
-				source: {
-					entry: {
-						main: './src/main/composition/entry.ts',
-						'server-client': './src/main/composition/server-client-entry.ts',
-					},
-				},
+				source: { entry: { main: './src/main/composition/entry.ts' } },
 				splitChunks: false,
 				tools: {
 					rspack(config) {

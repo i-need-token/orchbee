@@ -1,1 +1,0 @@
-export { resolveDesktopTerminalFileDropCapability } from './resolveDesktopTerminalFileDropCapability';

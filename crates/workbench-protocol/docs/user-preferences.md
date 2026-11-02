@@ -79,7 +79,7 @@ automatically replayed. A saved snapshot describes that commit, not immunity
 from a later edit. Noncooperating external editors are outside the shared lock's
 transaction boundary.
 
-Desktop Main, renderer and native Clients read or update the current shared record. Explicit edits and resets claim keys even when the reset value already equals the default. Configuration files select the storage scope without supplying preference values.
+Desktop windows and native Clients read or update the current shared record through the Server. Explicit edits and resets claim keys even when the reset value already equals the default. Configuration files select the storage scope without supplying preference values.
 
 ## Client behavior and capability boundaries
 

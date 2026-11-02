@@ -2,7 +2,7 @@ import '@orchbee/ui/styles.css';
 import '@orchbee/tab-strip/styles.css';
 import '@orchbee/workbench/styles.css';
 
-import { startDesktopServerWorkbench, startDesktopWebApplication } from '../desktop-client';
+import { startDesktopServerWorkbench } from '../desktop-client';
 import { registerTerminalProductFonts } from '../workbench-client';
 import { projectMobileVisualViewport } from './projectMobileVisualViewport';
 import { resolveBrowserPreferenceStorage } from './resolveBrowserPreferenceStorage';
@@ -39,17 +39,22 @@ if (runtimeMode === 'browser') {
 		},
 		{ once: true },
 	);
-} else if (runtimeMode === 'desktop' || runtimeMode === 'desktop-server-client') {
+} else if (runtimeMode === 'desktop') {
 	let focusRecoveryStorage: Pick<Storage, 'getItem' | 'removeItem' | 'setItem'> | undefined;
 	try {
 		focusRecoveryStorage = window.sessionStorage;
 	} catch {
 		focusRecoveryStorage = undefined;
 	}
-	const start =
-		runtimeMode === 'desktop' ? startDesktopWebApplication : startDesktopServerWorkbench;
-	start(window, rootElement, document.documentElement, navigator.languages, shortcutPlatform, {
-		...(focusRecoveryStorage === undefined ? {} : { focusRecovery: focusRecoveryStorage }),
-		preferences: resolveBrowserPreferenceStorage(() => window.localStorage),
-	});
+	startDesktopServerWorkbench(
+		window,
+		rootElement,
+		document.documentElement,
+		navigator.languages,
+		shortcutPlatform,
+		{
+			...(focusRecoveryStorage === undefined ? {} : { focusRecovery: focusRecoveryStorage }),
+			preferences: resolveBrowserPreferenceStorage(() => window.localStorage),
+		},
+	);
 }

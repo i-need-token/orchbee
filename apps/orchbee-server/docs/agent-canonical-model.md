@@ -466,8 +466,9 @@ Fixtures `schemas/agent/v1/agent-observation-join-conformance-v1.json` and
 expected values with the source SHA-256 fingerprints of the Desktop files they were generated
 from; they drop generator paths, run history, and host specifics. Provenance and the refresh
 contract are owned here, not by `schemas/agent/README.md` (which covers only the canonical
-corpus): regeneration re-runs the recorded external harnesses against the real Desktop sources
-and re-verifies the fingerprints before replacement.
+corpus). Those Desktop sources left with Desktop's Main-owned runtime, so neither fixture can be
+regenerated: both are frozen expectations for the Server's Rust translator, and a deliberate
+behavior change edits them together with the Rust tests that read them.
 
 ## Conformance evidence and provenance
 

@@ -12,10 +12,6 @@ export interface AgentIntegrationManagementClientSnapshot extends DesktopAgentIn
 	readonly pendingIntegrationId: DesktopAgentIntegrationId | null;
 }
 
-export type AgentIntegrationManagementClientInitialization =
-	| { readonly kind: 'ready' }
-	| { readonly kind: 'unavailable' };
-
 export type AgentIntegrationManagementClientOperationResult =
 	| Extract<
 			DesktopAgentIntegrationManagementMainEvent,

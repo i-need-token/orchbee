@@ -23,7 +23,6 @@ export const TerminalThemeOperationIdSchema =
 	canonicalIdentifierSchema.brand<'TerminalThemeOperationId'>();
 
 export type AttachmentId = z.infer<typeof AttachmentIdSchema>;
-export type ClientId = z.infer<typeof ClientIdSchema>;
 export type CorrelationId = z.infer<typeof CorrelationIdSchema>;
 export type CreationId = z.infer<typeof CreationIdSchema>;
 export type HostEpoch = z.infer<typeof HostEpochSchema>;

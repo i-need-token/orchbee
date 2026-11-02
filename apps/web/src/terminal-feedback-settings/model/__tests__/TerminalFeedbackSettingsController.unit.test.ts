@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
 	AgentEventIdSchema,
 	AgentRequestIdSchema,
-	AgentSemanticEventSchema,
+	type AgentSemanticEvent,
 	AgentSessionIdSchema,
+	AgentTurnIdSchema,
 } from '@orchbee/agent';
 
 import {
@@ -251,7 +252,7 @@ describe('TerminalFeedbackSettingsController', () => {
 			storage: storage(),
 		});
 		controller.update({ agentNotificationMode: 'hidden' });
-		const event = AgentSemanticEventSchema.parse({
+		const event: AgentSemanticEvent = {
 			eventId: AgentEventIdSchema.parse('agent-event-1'),
 			request: {
 				actionPath: 'navigate-only',
@@ -261,7 +262,7 @@ describe('TerminalFeedbackSettingsController', () => {
 			},
 			sessionId: AgentSessionIdSchema.parse('agent-session-1'),
 			type: 'attention-requested',
-		});
+		};
 		const onActivate = vi.fn<() => void>();
 		const observation = {
 			event,
@@ -294,13 +295,13 @@ describe('TerminalFeedbackSettingsController', () => {
 			storage: storage(),
 		});
 		controller.update({ agentNotificationMode: 'hidden' });
-		const event = AgentSemanticEventSchema.parse({
-			eventId: 'agent-event-visible',
+		const event: AgentSemanticEvent = {
+			eventId: AgentEventIdSchema.parse('agent-event-visible'),
 			outcome: 'succeeded',
-			sessionId: 'agent-session-visible',
-			turnId: 'agent-turn-visible',
+			sessionId: AgentSessionIdSchema.parse('agent-session-visible'),
+			turnId: AgentTurnIdSchema.parse('agent-turn-visible'),
 			type: 'turn-outcome',
-		});
+		};
 		const notification = {
 			body: 'safe',
 			onActivate: () => undefined,

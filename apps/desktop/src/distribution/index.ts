@@ -5,5 +5,6 @@ export {
 	resolveDesktopDistributionDescriptor,
 	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionProfile,
+	resolveDesktopSessionName,
 } from './desktop-distribution-profile';
 export type { DesktopDistributionProfile } from './desktop-distribution-profile';

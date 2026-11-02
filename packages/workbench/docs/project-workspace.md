@@ -142,11 +142,11 @@ Optional SSH enrollment and group-status interfaces have no current application 
 
 `project-worktree-created` takes an exact source Workspace and Directory. The host revalidates its immutable scope, context and path after asynchronous preparation. A moved source uses its current group. An ungrouped source and the new Workspace gain one newly created Project in the same transition as the Directory and first shell. If no Workspace is requested, only the resource catalog changes. A closed source is never recreated.
 
-Publication preserves local navigation. Git effects and known partial-result retention are owned by [project-worktree-creation.md](../../../apps/desktop/docs/project-worktree-creation.md). A known created checkout is retained if the product commit fails; regrouping never authorizes compensation or deletion.
+Publication preserves local navigation. Git effects and known partial-result retention belong to the host that creates the checkout; Desktop offers no Worktree creation. A known created checkout is retained if the product commit fails; regrouping never authorizes compensation or deletion.
 
 ## Existing Worktree adoption
 
-`project-worktree-adopted` accepts host-revalidated `source: discovered` metadata, including detached `branch: null` and exact `HEAD`. It shares creation's current-membership and first-shell rules. Physical Git identity is checked across all groups and resource scopes. An already-associated Worktree returns its existing Workspace; an equivalent unassociated Folder descriptor may be upgraded in place without changing its ID. The host performs no Git mutation. See [project-worktree-adoption.md](../../../apps/desktop/docs/project-worktree-adoption.md).
+`project-worktree-adopted` accepts host-revalidated `source: discovered` metadata, including detached `branch: null` and exact `HEAD`. It shares creation's current-membership and first-shell rules. Physical Git identity is checked across all groups and resource scopes. An already-associated Worktree returns its existing Workspace; an equivalent unassociated Folder descriptor may be upgraded in place without changing its ID. The host performs no Git mutation; Desktop offers no Worktree adoption.
 
 ## Project navigation action menus
 
@@ -264,7 +264,7 @@ Workbench owns the pure organization model, action adapters, resource dialogs an
 
 Deterministic and fixed-seed generated tests cover independent creation, scoped ID collisions, move/new-group/ungroup/dissolve, peer ordering, close versus close-all, resource and selection retention, unavailable fallbacks, physical Worktree deduplication and rejected transitions. Current-shape tests cover graph validation and malformed Client Views. Two-client runtime tests preserve context object identity, focus, child selection and zoom; first-shell allocation failure leaves no published structure.
 
-Hook and component tests cover immediate creation, menus, stable management targets, Agent rows and late activation suppression. Desktop owns async Git races and retained partial results; Web owns stable routes and unavailable identities. DOM tests do not establish native-window focus or actual shell process behavior. The repository integration gate remains the integration owner's responsibility.
+Hook and component tests cover immediate creation, menus, stable management targets, Agent rows and late activation suppression. The host that creates a checkout owns async Git races and retained partial results; Web owns stable routes and unavailable identities. DOM tests do not establish native-window focus or actual shell process behavior. The repository integration gate remains the integration owner's responsibility.
 
 ## Delivery and recovery
 

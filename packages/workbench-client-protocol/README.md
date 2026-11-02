@@ -4,7 +4,7 @@ Private package entries export only symbols consumed in this repository, enforce
 
 `@orchbee/agent` is a runtime dependency because the Client-view binding reuses its Agent session identity.
 
-The Workbench bindings live under `src/workbench-protocol/`, are production code consumed by the Server Client path, and stay verified against the shared schemas and corpora by the suites beside them. Product session, projection, preference and launch schemas remain in `src/`. The package entry exports only what a consumer imports; the rest stays reachable from the suites.
+The Workbench bindings live under `src/workbench-protocol/`, are production code consumed by the Server Client path, and stay verified against the shared schemas and corpora by the suites beside them. Product projection, preference and launch schemas remain in `src/`. The package entry exports only what a consumer imports; the rest stays reachable from the suites.
 
 ## Project and Workspace organization
 
@@ -50,7 +50,7 @@ Strict, runtime-neutral data contracts for one Orchbee Workbench page client.
 
 ## Scope
 
-The package owns validated messages for a shared Workbench client session, terminal projection control, and the projected attachment stream opened for one visible terminal viewport. Electron, ordinary Browser pages, and future mobile clients may carry these messages through different transports without changing their Workbench-client meaning.
+The package owns validated messages for the projected attachment stream opened for one visible terminal viewport. Electron, ordinary Browser pages, and future mobile clients may carry these messages through different transports without changing their Workbench-client meaning.
 
 The package also supplies the independent TypeScript binding for the additive version-1 read-only
 Workbench projection kernel. The language-neutral authority and canonical conformance corpus live
@@ -116,12 +116,6 @@ The [Close wire contract](../../schemas/workbench/README.md#accepted-tab-close-w
 owns shapes and the shared oracle. These decoded-value parsers do not activate a lifecycle effect
 or prove Server/Worker/native integration; that cohort must move together.
 
-Every `terminal-projection-open-requested` command carries one complete positive
-`TerminalGeometry`. It is the caller's measured mounted geometry for a visual surface, not an
-optional resize hint or fallback. Request identity therefore includes presentation identity and
-geometry: an exact duplicate may replay, while reuse with different geometry is conflicting control
-traffic. The transport contract supplies no timeout or 80x24 default.
-
 The projected attachment stream carries semantic bell events without choosing a sound, visual
 flash, or notification policy. Each event retains the Host attachment identity and terminal-owned
 sequence so the projected terminal can suppress stale or duplicate delivery.
@@ -149,34 +143,23 @@ they never authorize automatic replay of input or another user effect.
 
 Local filesystem effects are an optional attachment capability, absent by default. When present,
 `link-open` carries a discriminated URL or file target instead of granting a generic opener. URL
-targets retain the shared scheme policy; file targets are meaningful only to the owning local
-Desktop broker. Browser, archived, and source-neutral attachments do not acquire local
+targets retain the shared scheme policy; file targets are meaningful only to an owning local
+broker, which no composition supplies today. Browser, archived, and source-neutral attachments do not acquire local
 application-launch or filesystem-read authority from terminal text.
 
 Image preview is a separate request-bound flow. A capable renderer may request one detected local
-image path and cancel the exact request sequence. Desktop replies with either an exact bounded
+image path and cancel the exact request sequence. The owning local broker replies with either an exact bounded
 `ArrayBuffer` plus one admitted raster media type, or an unavailable result that reveals no file
 detail. The protocol caps preview content at 8 MiB and transports no file handle, directory listing,
 cache key, or persistence instruction. Request identity lets the renderer reject late content after
 hover replacement or attachment retirement; it does not authorize retry or remote file transfer.
 
-Projection release remains correlated after the attachment stream closes. The client retains the
-request identity until Main returns either `terminal-projection-released` or the exact typed cleanup
-failure. The success acknowledgement transfers no port; a late cleanup result therefore settles only
-its released request and cannot be mistaken for an unknown message that retires unrelated projections.
-Because command delivery and asynchronous open completion are independently scheduled, a correlated
-`terminal-projection-opened` may reach the client after that client requested release. The client
-closes exactly the transferred attachment port, keeps the released request identity until cleanup
-settles, and leaves the shared control transport and unrelated requests available. A missing or extra
-transferred port, conflicting identity, or duplicate open remains invalid control traffic and retires
-the affected control transport.
-
 It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, authentication, PTY, or VT implementation. The additive version-1 projection semantics come from the language-neutral schema authority. Terminal Host wire semantics belong to [`schemas/terminal`](../../schemas/terminal/README.md); `@orchbee/terminal-protocol` is the TypeScript binding.
 
 Applications parse every untrusted IPC or network value with these schemas at the first trusted boundary. A transport owner remains responsible for framing, authentication, binary transfer, backpressure, and connection retirement.
 
-Each client-session bootstrap carries `terminalHostName`, supplied by the application runtime that
-owns the projected terminal machine. The shared Web client uses that trusted value to validate OSC
+The composing application supplies `terminalHostName` for the machine that owns the projected
+terminals; Desktop reads it from its Server connection bootstrap. The shared Web client uses that trusted value to validate OSC
 7 current-directory metadata; it never substitutes the Browser URL hostname, transport peer name, or
 renderer input. Projected frames carry the complete nullable natural title and current-directory
 observation. The protocol transports those values without selecting Tab-title precedence,
@@ -185,12 +168,12 @@ persistence, or URI trust policy; `@orchbee/workbench` owns those decisions.
 Projected frame and row-window events accept either an exact `ArrayBuffer` or a bounded `Uint8Array` view so in-process adapters can preserve a validated payload view. The visible payload is bounded by `maxFrameBytes` for frames and `maxRowWindowBytes` for row windows; a view's unrelated backing bytes do not count toward that limit. Before structured-cloning a view into a less-trusted capability, the transport owner must copy its visible bytes into an exact-size `ArrayBuffer`; structured clone carries the complete backing buffer, including bytes outside the view. Receivers still honor the declared byte offset and length, while transport trust and terminal-protocol validation remain separate responsibilities.
 
 Selection export remains attachment-scoped and plain-text-only. The projected command has no format
-selector. A Desktop-effect attachment receives `selection-copied` after Main commits the clipboard
-effect; a client-effect attachment receives `selection-copy-content` with bounded UTF-8 bytes and
+selector. A transport-effect attachment receives `selection-copied` after its transport commits the
+clipboard effect, which no current transport does; a client-effect attachment receives `selection-copy-content` with bounded UTF-8 bytes and
 commits those bytes through its own platform clipboard before reporting local completion. Neither
 event grants HTML, raw VT, or a generic clipboard capability.
 
-Host-originated clipboard-write commit is a separate, request-bound flow. Main forwards at most one pending bounded request per attachment, and the renderer automatically returns only an exact `clipboard-write-decision` containing the original attachment, sequence, and text plus the commit result. Desktop Main rejects mismatched and duplicate decisions and performs the privileged write only for a positive Desktop-effect decision. A client-effect attachment performs its local Browser write first and uses the same exact decision only to consume Main's pending request, so Main cannot duplicate the effect.
+Host-originated clipboard-write commit is a separate, request-bound flow. The transport forwards at most one pending bounded request per attachment, and the renderer automatically returns only an exact `clipboard-write-decision` containing the original attachment, sequence, and text plus the commit result. A transport that performs the write itself rejects mismatched and duplicate decisions and writes only for a positive transport-effect decision; no current transport does. A client-effect attachment performs its local Browser write first and uses the same exact decision only to consume the transport's pending request, so the transport cannot duplicate the effect.
 
 ## Shared document and TerminalPresentation contracts
 

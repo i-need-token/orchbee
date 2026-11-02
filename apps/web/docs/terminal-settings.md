@@ -4,16 +4,15 @@
 
 Web owns Settings, drafts and client presentation sources. Desktop common values come from the
 [device preference authority](../../../crates/workbench-protocol/docs/user-preferences.md) shared
-with TUI through Main's bounded capability. Common values never write back to browser storage.
+with TUI through the Session's Server. Common values never write back to browser storage.
 Seven host appearance leaves (fonts, weights, ligatures, pixel padding and opacity) and macOS
 Option-as-Alt remain renderer-local. Browser Preview retains an independent origin scope.
 
-Main owns launch adaptation, Host default publication and Agent integration effects.
+The Session's Server and Worker own launch adaptation, terminal defaults and Agent integration effects.
 Preferences are not Workbench content and never synchronize to remote devices.
 Host metadata remains authoritative for VT state, palette, cursor and OSC behavior.
-In the Main-owned composition, a theme update coordinates complete Host and renderer revisions and
-the source-neutral defaultColorOverride remains null; a Server Client sets that override instead, as
-the [Web README](../README.md) describes. Option-as-Alt crosses only as a semantic input decision.
+A theme update sets the renderer's source-neutral defaultColorOverride, as the
+[Web README](../README.md) describes. Option-as-Alt crosses only as a semantic input decision.
 Mounted geometry pins the first presentation configuration while forwarding live theme registration;
 the mounted terminal still participates in later theme transactions and releases that registration on disposal.
 Desktop supplies configured Host default colors separately from the active theme. Choosing Host restores
@@ -146,19 +145,20 @@ immediately without replacing its attachment. `KeyInput.optionAsAlt` then carrie
 semantic decision; Terminal Host remains responsible for Ghostty's mode-dependent legacy,
 modifyOtherKeys, and Kitty keyboard encoding.
 
-## Desktop local terminal launch profiles
+## Desktop terminal launch profiles
 
-Only a local Electron composition injects `DesktopTerminalLaunchProfileControl`. Its initial
-snapshot exposes one bounded canonical catalog, the current default identity, whether the catalog
-came from the built-in fallback or durable storage, an optional persistence issue, and the current
-platform's login-shell capability. Browser Preview compositions receive
-no control and omit the Profiles category. The renderer never receives a store
+Only the Desktop composition injects `DesktopTerminalLaunchProfileControl`, filled from the
+Session's shared preferences, whose `launchProfiles` value the TUI edits too and the
+[shared preference inventory](../../../crates/workbench-protocol/docs/user-preferences.md) owns. Its
+snapshot exposes one bounded canonical catalog and the current default identity; it is the built-in
+catalog only until the first read and never carries a persistence issue. Browser Preview
+compositions receive no control and omit the Profiles category. The renderer never receives a store
 path, Node error, filesystem primitive, or launch capability.
 
 Each profile has a stable identity, a user-visible name, and exactly one command choice:
 
-- System shell with a login-shell decision. Login mode is enabled only when Main reports support and
-  is unavailable on Windows.
+- System shell with a login-shell decision. Login mode is enabled only when the window's connection
+  bootstrap reports support and is unavailable on Windows.
 - Custom executable with one absolute platform path and an ordered vector of literal arguments.
   Arguments are not tokenized, quoted, interpolated, or joined into a command string.
 
@@ -167,49 +167,32 @@ names remain exact user data and duplicate names do not merge identities. The ed
 new profile by copying the selected command, rename it, change its command and arguments, save the
 draft, select it as default, or delete a non-default profile after confirmation. The default and
 final profile cannot be deleted. Reset requires confirmation and replaces the complete catalog with
-the built-in default only after Main durably commits it. Pending operations disable competing
+the built-in default only after the Server commits it. Pending operations disable competing
 mutations and surface bounded localized failures; invalid drafts never send a mutation. A failed
 commit retains the user's draft so they can correct or retry it instead of reconstructing their
 input.
 
 Create, edit, default selection, delete, and reset use explicit controls. They do not alter a
-running terminal. A newly provisioned terminal captures the default profile only once, and its
-durable binding retains that concrete launch across retries and recovery. Profile resolution changes
-only executable and arguments; environment, secrets, presentation, CWD, project or workspace data,
-one-off profile selection, remote connections, and shell startup-file mutation remain outside this
-feature. An unavailable custom executable fails visibly through the terminal lifecycle without a
-system-shell fallback. The full Main model is authoritative in
-[`../../desktop/docs/terminal-launch-profiles.md`](../../desktop/docs/terminal-launch-profiles.md).
-
-A Server-path window supplies the same control from the Session's shared preferences, whose
-`launchProfiles` value the TUI edits too and the
-[shared preference inventory](../../../crates/workbench-protocol/docs/user-preferences.md) owns.
-Each change saves the complete catalog under the preference source the window last observed, so a
-change another Client made in between is refused as `source-changed` rather than overwritten, and a
-draft begun on an older source is refused without being sent. A created profile follows its source
-and takes the first free `profile-{n}` identity, as in the TUI. The Server decides what this
-machine can launch and refuses a relative executable as an invalid profile; Main's connection
-bootstrap reports whether a login shell is available. The Worker launches the default profile for
-each terminal created after the save. The snapshot is the built-in catalog only until the first
-read and never carries a persistence issue.
+running terminal. Each change saves the complete catalog under the preference source the window last
+observed, so a change another Client made in between is refused as `source-changed` rather than
+overwritten, and a draft begun on an older source is refused without being sent. A created profile
+follows its source and takes the first free `profile-{n}` identity, as in the TUI. The Server
+decides what this machine can launch and refuses a relative executable as an invalid profile. The
+Worker launches the default profile for each terminal created after the save. Profile resolution
+changes only executable and arguments; environment, secrets, presentation, CWD, project or workspace
+data, one-off profile selection, remote connections, and shell startup-file mutation remain outside
+this feature.
 
 ## Desktop terminal defaults
 
-Only a local Electron composition injects `DesktopTerminalDefaultSettingsControl`. Its snapshot
-contains the complete bounded Host default, persistence issue, source, pending state, and bounded
-failure code. The Terminal page exposes `terminal.scrollback` as a decimal byte count from `0`
-through `1_000_000_000` and states that running terminals keep their current limit. Browser Preview compositions receive no control and omit this row. The Terminal category
-remains visible only when that composition supplies another current Terminal setting.
-
-The renderer freezes the source on first edit. Shared CAS refusal keeps the confirmed value and
-draft; confirmed persistence with failed Host application shows an application issue. Lost writes
-never replay. Existing terminal history is unchanged. The authoritative Main transaction is
-[`../../desktop/docs/terminal-settings.md`](../../desktop/docs/terminal-settings.md).
-
-A Server-path window supplies the control from the Session's shared `scrollbackBytes` preference,
-so the row commits through the shared draft and the TUI shows the same value in megabytes. The
-Worker gives the value to each terminal it launches after the save, so no Host application step
-can fail.
+Only the Desktop composition injects `DesktopTerminalDefaultSettingsControl`, filled from the
+Session's shared `scrollbackBytes` preference. The Terminal page exposes `terminal.scrollback` as a
+decimal byte count from `0` through `1_000_000_000` and states that running terminals keep their
+current limit. The row commits through the shared draft, and the TUI shows the same value in
+megabytes. The Worker gives the value to each terminal it launches after the save, so no Host
+application step can fail, and existing terminal history is unchanged. Browser Preview compositions
+receive no control and omit this row. The Terminal category remains visible only when that
+composition supplies another current Terminal setting.
 
 ## Read, commit, and recovery model
 
@@ -218,19 +201,6 @@ stale source, invalid storage and write refusal preserve the draft and last conf
 Reload explicitly discards the draft. Reset sends null, restores defaults and claims the selected
 keys. Unknown outcomes require rereading, never automatic replay. Pending controls are disabled;
 Enter followed by blur commits at most once.
-
-The launch-profile, terminal-default and Agent-integration control clients keep request ownership
-independent from presentation observers. A throwing observer cannot prevent request dispatch,
-correlated reply settlement or retirement completion. Each publication captures its callback set,
-visits each still-registered callback at most once, and excludes newly added callbacks. Retirement
-publishes the final unavailable state, clears callbacks and admits no new subscriptions; a callback
-that retires the client during pending publication prevents the subsequent port write. Controlled
-[client lifetime traces](../src/desktop-client/composition/__tests__/control-client-lifetimes.unit.test.ts)
-exercise these orderings across all three protocols; they do not replace native transport evidence.
-
-The Desktop preference client retains its final snapshot and receipt when retired.
-Late updates, Reset calls, subscriptions, refresh continuations cannot replace that state or start another request. Each publication visits
-each captured callback at most once and skips callbacks that are no longer registered.
 
 System appearance follows a live prefers-color-scheme subscription. Custom colors are enabled only
 for Custom terminal theme. Sound defaults off and selects silent system notification delivery.
@@ -308,13 +278,11 @@ publication retires the appearance controller, it cannot then start a common Res
 
 ## Effective terminal colors and opacity
 
-In the Main-owned composition, Host runtime theme replacement is the only color mutation path used
-by this Settings feature. After commit, its frame metadata and resolved palette cells remain the
-renderer authority. The renderer's `defaultColorOverride` is always null there: default tokens use
-the Host default foreground/background; explicit RGB, projected ANSI/palette colors, `none`, and
+Frame metadata and resolved palette cells remain the renderer authority. Without an override,
+default tokens use the Host default foreground/background; explicit RGB, projected ANSI/palette colors, `none`, and
 explicit black retain their Host-projected value. Inverse swaps the already resolved display roles.
 The default underline uses the Host foreground, and the cursor uses the Host cursor color or its
-Host-defined foreground fallback. A Server Client's override replaces the default foreground and
+Host-defined foreground fallback. A theme's override replaces the default foreground and
 background wherever they paint, including the default underline, the empty canvas and the terminal
 root; the cursor and everything else keep the same Host authority.
 
@@ -348,7 +316,7 @@ At narrow widths, Settings shows one pane at a time. It opens to the searchable 
 selecting a category or search result shows content, and the content-level Back affordance restores
 the list. Controls stack below their copy when the trailing column no longer fits. Browser-backed
 appearance, input, shortcut, and feedback changes apply immediately; shell-profile drafts require
-explicit Save because Main-owned durable catalog mutation is a separate transaction. Reference
+explicit Save because the Session's durable catalog mutation is a separate transaction. Reference
 branding, copy, categories, and pixel geometry are not compatibility targets.
 
 ## Settings information architecture and capability admission
@@ -427,51 +395,31 @@ ranking ties are explicitly excluded.
 
 ## Desktop Agent integrations
 
-Only a local Electron composition injects `AgentIntegrationManagementControl` and
-`AgentIntegrationReminderController`. Browser Preview clients omit the
-Agent Integrations category, its search entries, and the reminder. The renderer consumes one
+Only the Desktop composition injects `AgentIntegrationManagementControl`, as
+`ServerAgentIntegrationClient`, and `AgentIntegrationReminderController`. Browser Preview clients
+omit the Agent Integrations category, its search entries, and the reminder. The renderer consumes one
 canonical ten-entry snapshot and displays curated Agent names, bounded states and failures, and the
 shared privacy explanation. It receives no Agent command output, executable path, adapter resource
 path, filesystem capability, or remote-host authority.
 
 Opening Settings, selecting Agent Integrations, rendering rows, and searching are read-only. Refresh
-requests a new read-only Main inventory. Each local entry uses a snapshot-controlled switch. A
-switch change sends exactly one semantic enable or disable request, while its position continues to
-reflect Main's last re-inspected snapshot and never moves optimistically. Pending work labels the
-affected row **Working…** and disables every competing switch. A conflict,
-unsupported/manual-only entry, ambiguous inspection, or unavailable local Agent cannot be enabled.
-Remote hosts are explained as manual-only and the renderer never writes terminal input or attempts
-remote setup.
-
-The compact, visually quiet bottom-right reminder is eligible only after shell integration emits an
-exact direct-local launch hint and Main's lazy inspection finds the corresponding entry locally
-available, `managed-local`, issue-free, and `not-installed`, `disabled`, or `update-required`.
-First-observed eligible launch order selects the candidate, and the controller offers at most one
-reminder per application session. Rendering performs no integration mutation. **Open integration
-settings** hides the current reminder and opens Settings directly on Agent Integrations; only a
-subsequent explicit switch action can change provider configuration. Explicit close persists that
-one Agent ID in the strict, bounded
-`orchbee:web:agent-integration-reminders:v1` record. A Settings disable records the same dismissal
-before it requests Main; a verified successful enable removes it. Missing or invalid storage falls
-back to no dismissals, and write failure retains the current-session behavior. Aliases, functions,
-wrappers, remote Agents, and terminals without Orchbee shell integration do not trigger it.
-
-Desktop Main's exact effects, reconciliation, conflicts, rollback, and remote exclusion are
-authoritative in the [Desktop Agent integration guide](../../desktop/docs/agent-integrations.md).
-
-A Server-path window injects `ServerAgentIntegrationClient` instead, so Main writes nothing. Refresh
 runs one `list` job and a switch one `enable` or `disable` job on the Session's Worker through the
 [Workbench job direction](../../../crates/workbench-protocol/README.md#agent-integration-jobs), the
 writer the CLI's `orchbee agent integration` uses. The window polls a job from 20 ms up to every
-250 ms and, after 50 seconds, asks it to stop. Rows start unknown, as Main's did before its first
-inspection, and each completed report replaces them. Main manages no integration on Windows and
-marks every row there for manual setup; on this path the Worker's report decides that for each row,
-on Windows as elsewhere. The Worker alone decides whether a change may
+250 ms and, after 50 seconds, asks it to stop. Rows start unknown and each completed report replaces
+them; the Worker's report decides for each row whether it is managed or needs manual setup. A switch
+position reflects the last report and never moves optimistically. Pending work labels the affected
+row **Working…** and disables every competing switch. The Worker alone decides whether a change may
 proceed, so the window checks nothing before it asks. A change the window cannot follow to its
-report reads as unverified, marks its row unknown, and is never repeated. The window does not yet
-observe Agent launches, so no reminder appears, while a Settings disable or verified enable still
-updates the dismissal record. The
-[writer](../../../crates/agent-integration-writer/README.md) is authoritative for that path's effects.
+report reads as unverified, marks its row unknown, and is never repeated. Remote hosts are explained
+as manual-only and the renderer never writes terminal input or attempts remote setup. The
+[writer](../../../crates/agent-integration-writer/README.md) is authoritative for these effects.
+
+The window does not yet observe Agent launches, so no launch reminder appears. Its dismissal record,
+the strict, bounded `orchbee:web:agent-integration-reminders:v1`, still follows Settings: a disable
+records that Agent's dismissal before it asks the Worker, and a verified enable removes it. Missing
+or invalid storage falls back to no dismissals, and write failure retains the current-session
+behavior.
 
 ## Remote-development diagnostic
 
@@ -498,42 +446,13 @@ function in the user's interactive shell.
 Settings does not execute or paste the command; the read-only field uses normal text selection so
 the user remains responsible for choosing where and whether to run it.
 
-The explicitly sourced shell integration defines an `ssh` wrapper only when `ssh` is still a file,
-no earlier alias or function owns the name, a private local Agent-observation socket exists, and
-stdin and stdout are interactive terminals. It leaves configuration, control, forwarding-only, and
-version/query modes unchanged. An eligible call preserves every user argument and adds only
-`StreamLocalBindMask=0177`, `StreamLocalBindUnlink=yes`, and a reverse Unix-socket forward from a
-random `/tmp/orchbee-agent-v1-*.sock` on the remote host to the local Desktop socket. OpenSSH
-authentication, explicit arguments, and user configuration remain authoritative. Orchbee adds no
-`SendEnv` rule, persists no host or credential, installs no remote file, and maintains no remote
-cache. A standard requested SSH PTY still carries TERM according to OpenSSH behavior. OSC 7
-hostnames, process titles, and terminal output are not remote-identity authority.
-
 ## Shell integration and completion reminders
 
-The Shell integration category explains that Desktop automatically loads the Orchbee-owned
-integration for supported new local Zsh, non-login Bash, and Fish terminals. Exact `source`
-commands remain available as a manual fallback for unsupported launch forms and other clients. The
-surface never reads, creates, edits, or backs up a shell startup file and never executes a displayed
-command. Zsh uses `preexec` and `precmd`; Fish uses `fish_preexec` and `fish_postexec`; Bash requires
-version 4.4 or newer. The Bash 3.2 shipped by macOS is explicitly unsupported. Removing a
-user-added `source` line and starting a new shell rolls back only that manual fallback.
-
-Desktop supplies `ORCHBEE_SHELL_INTEGRATION_DIR` from its trusted application-resource path for
-new POSIX terminals. After launch-profile selection, supported local launch forms use a one-shot
-Zsh, Bash, or Fish loader that restores the shell's normal startup path before sourcing the shared
-integration; unsupported forms continue unchanged with the manual fallback available. The scripts
-emit standard OSC 133 command boundaries and OSC 7 current-directory state without transporting
-command text. Ambient environment cannot replace the resource path, and automatic loading never
-changes running or restored terminals, Windows terminals, remote connections, or user startup
-files.
-
-For an explicitly installed Agent observation adapter, the integration also enables the eligible
-SSH reverse-socket path described above. After a local or reverse-forwarded v1 socket returns the
-exact acceptance ACK, a remote adapter writes bounded private-APC correlation hints directly to
-resolved direct, tmux, Zellij, or nested-mux outer TTYs. Terminal Host projects only bounded
-application signals. OSC 9, OSC 777, OSC 99, OSC 1337, BEL, and provider notification hooks are not
-used as the Agent-observation correlation channel.
+The Shell integration category holds completion reminders, Agent notifications, and their reset.
+Reminders need standard OSC 133 command boundaries from the shell. On Windows, Terminal Host loads
+Orchbee's PowerShell integration itself; Orchbee ships no Zsh, Bash, or Fish integration for Desktop
+terminals, so those shells emit boundaries only through the user's own configuration. The surface
+never reads, creates, edits, or backs up a shell startup file.
 
 Browser Preview feedback reads only the complete `orchbee:web:terminal-feedback:v1` shape: Agent mode (never/hidden), completion mode (never/unfocused/always), minimum integer seconds (1–3600), and sound boolean. Defaults are never, never, 5 and false. Old v1 lacks required fields and is rejected; old v2/v3 keys are not read. Browser write failures retain session values with an issue. Desktop uses confirmed shared snapshots.
 
@@ -625,9 +544,12 @@ not claims about Ghostty's byte limits.
 - Source tests prove complete single presentation publication, independent interaction publication,
   live attachment updates, application-theme isolation, terminal-setting isolation, stable
   subscription, and disposal.
-- [Desktop preference consumer tests](../src/desktop-client/user-preferences/__tests__/DesktopUserPreferencesClient.unit.test.ts)
-  use real MessageChannels to check retired Reset admission, host-edit supersession, accepted common
-  write completion, obsolete refresh/import continuations, retained unknown receipts and subscriber reentry.
+- The Server-path preference client has no unit test of its own; the retired Desktop client's
+  MessageChannel tests left with it. Its current evidence is the Settings runs recorded under step 4
+  of the [native runtime topology proposal](../../../proposals/platform/native-runtime-topology.md):
+  another Client's save arriving live, a window save reaching the TUI, a stale draft refused without
+  a write, values kept across a Server restart, and profile Reset. Unknown write outcomes and
+  subscriber reentry have no current evidence.
 - macOS input tests cover strict storage recovery, all four Option-side values, live source
   publication, physical-side resolution, mounted-terminal updates, and Host encoding with the
   semantic flag both disabled and enabled.
@@ -642,30 +564,22 @@ not claims about Ghostty's byte limits.
   idempotent open, focus restoration. Story browser review covers
   the bounded shell, every available category, populated and empty search projections, wide and
   narrow one-pane layouts, and both light and dark themes.
-- Terminal-launch-profile protocol and client tests cover strict snapshots, correlation, one pending
-  mutation, malformed records, failure projection, and disposal. Settings component tests cover
+- Terminal-launch-profile protocol tests cover strict snapshots and malformed records. Settings
+  component tests cover
   literal custom executable arguments, the future-terminal boundary, create and default selection,
   delete constraints, reset confirmation, platform capabilities, and localized failures.
-- Terminal-default-settings protocol, Main controller, store, broker, renderer client, composition,
-  and component tests cover strict bounds, eleven-port bootstrap ordering, shared CAS commit, Host
-  application rejection, confirmed-value retention on write failure, application retry, future-terminal-only capture, capability gating,
-  localized validation, and visible failures. Implementation traces also check no live eviction.
+- Terminal-default-settings protocol and component tests cover strict bounds, capability gating,
+  localized validation, and visible failures. The Server-path clients that fill the launch-profile,
+  terminal-default and Agent-integration controls have no tests of their own.
 - Terminal-feedback model tests cover default-off behavior, strict persistence recovery, duration
   and focus policy, stale and future facts, sequence deduplication, notification rate limiting,
-  explicit permission requests, and disposal. Component tests cover both locales, all three manual
-  source commands, the Bash boundary, reminder controls, permission state, and Reset.
-- Agent-integration protocol, Main adapter/controller/broker, renderer client, composition, storage,
-  Settings, and reminder tests cover canonical ordering, read-only startup, one pending mutation,
-  exact-entry conflicts and disable, reconciliation, malformed messages, explicit user actions,
-  per-Agent dismissal, session offer limits, remote exclusion, localization, and no automatic
-  mutation. Controlled implementation traces check serialization, precommit preservation, reconciliation, reload,
-  and disposal safety.
+  explicit permission requests, and disposal. Component tests cover both locales, reminder controls,
+  permission state, and Reset.
+- Agent-integration protocol, storage, Settings, and reminder tests cover canonical ordering,
+  read-only startup, one pending mutation, explicit user actions, per-Agent dismissal, session offer
+  limits, remote exclusion, localization, and no automatic mutation.
 - Migration analyzer tests cover accepted syntax, exact target boundaries, scalar supersession,
   font resets and fallback lists, opacity-cell interaction, malformed lines, resource limits, and
   one-finding-per-assignment ordering without depending on React or storage.
-- Browser Preview and Desktop composition tests prove the shared sources, local-only profile
-  capability, and Settings entry; a
-  Desktop Electron witness proves an existing projected terminal stays attached while Settings is
-  opened and closed. A separate macOS Electron witness sources the
-  shipped Zsh resource, observes one real semantic completion and localized reminder, and proves
-  the projected attachment identity is unchanged.
+- Browser Preview composition tests prove the shared sources and Settings entry. No Desktop window
+  test covers Settings on the Server path.

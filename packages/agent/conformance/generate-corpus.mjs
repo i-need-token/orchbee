@@ -909,7 +909,7 @@ const VECTORS = [
 		purpose:
 			'After AgentRuntime.dispose() every dispatch is rejected runtime-disposed and neither snapshot nor journal changes.',
 		covers: ['runtime-lifecycle', 'rejection'],
-		sourceRefs: ['packages/agent/src/AgentRuntime.ts:41-70'],
+		sourceRefs: ['packages/agent/src/AgentRuntime.ts:42-71'],
 		assumptions: ['runtime-level behavior, not the pure reducer'],
 		events: [obs('sess-main', 1), ev('sess-main', 0, 2, 'session-idle-observed')],
 		disposeAfterStep: 1,

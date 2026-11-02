@@ -4,10 +4,7 @@ export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorksp
 export { matchesWorkbenchProjectCreation } from './model/matchesWorkbenchProjectCreation';
 
 export { createWorkbenchPreviewTerminalPresentationComposition } from './model/createWorkbenchPreviewTerminalPresentationComposition';
-export {
-	resolveTerminalMetadataObservation,
-	resolveTerminalNaturalMetadataObservation,
-} from './model/resolve-terminal-metadata-observation';
+export { resolveTerminalMetadataObservation } from './model/resolveTerminalMetadataObservation';
 export { WorkbenchTerminalBellEffectCoordinator } from './model/WorkbenchTerminalBellEffectCoordinator';
 export type { WorkbenchTerminalBellEffect } from './model/WorkbenchTerminalBellEffectCoordinator';
 export type {
@@ -20,13 +17,7 @@ export type {
 	WorkbenchNewProjectFolderParentResult,
 	WorkbenchNewProjectFolderResult,
 } from './types/workbench-project-folder-acquisition';
-export type {
-	WorkbenchProjectWorktreeCapability,
-	WorkbenchProjectWorktreeAdoptionResult,
-	WorkbenchProjectWorktreeCreationResult,
-	WorkbenchProjectWorktreeDiscoveryResult,
-	WorkbenchProjectWorktreeFailureCode,
-} from './types/workbench-project-worktree';
+export type { WorkbenchProjectWorktreeCapability } from './types/workbench-project-worktree';
 export type { WorkbenchRemoteTerminalCreationCapability } from './types/workbench-remote-terminal-creation';
 export type {
 	WorkbenchAuthority,
@@ -42,16 +33,10 @@ export type {
 } from './types/workbench-authority';
 export type { WorkbenchEnvironmentProjectConnectionCapability } from './types/workbench-environment-project-connection';
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';
-export type {
-	WorkbenchTerminalSessionStopSnapshot,
-	WorkbenchTerminalPresentationEventResult,
-} from './model/WorkbenchProjectWorkspaceRuntime';
+export type { WorkbenchTerminalPresentationEventResult } from './model/WorkbenchProjectWorkspaceRuntime';
 export type { WorkbenchPublication } from './model/workbench-publication';
 
-export type {
-	WorkbenchTerminalPresentationCommand,
-	WorkbenchTerminalPresentationComposition,
-} from './model/createWorkbenchPreviewTerminalPresentationComposition';
+export type { WorkbenchTerminalPresentationCommand } from './model/createWorkbenchPreviewTerminalPresentationComposition';
 export type { WorkbenchPanelPosition, WorkbenchTabPosition } from './actions/workbench-action-ids';
 export { TERMINAL_ACTION_IDS } from './actions/terminal-action-contracts';
 export type {

@@ -183,7 +183,7 @@ A replacement Session/editor episode cannot inherit an old completion.
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem      | GUI and TUI users edit the same device preferences without lost updates or divergent defaults.                                                                                                                |
 | Inputs       | Frozen configuration identity, complete confirmed snapshot, exact source token, typed dirty patch, painted-row receipt, explicit save/reset intent.                                                           |
-| Authority    | Workbench Protocol owns values/bounds; Local Runtime owns the private record/lock/commit; the Workbench Client and matched Desktop helper use that same store.                                                |
+| Authority    | Workbench Protocol owns values/bounds; Local Runtime owns the private record/lock/commit; the Workbench Client and Desktop windows use that same store.                                                       |
 | State        | Newest effective runtime values, independently frozen draft basis, local changes, viewport/focus anchor and painted activation authority, one admitted exchange, and explicit refusal/unknown reconciliation. |
 | Effects      | Confirmed snapshots govern runtime preferences; an independent reversible projection previews only authored copy, chrome and terminal default colors. Launch/default changes affect new terminal creation.    |
 | Refusal      | Invalid or unsafe source, scope mismatch, stale source, unsupported launch choice, busy lane or unavailable persistence preserves existing data and confirmed behavior.                                       |
@@ -230,12 +230,11 @@ Native configuration has two stores, and each setting lives in exactly one of th
 | --------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Session Server                          | Both stores                                  | The runtime authority. It reads `config.toml` at startup, on reload and when its sampler sees a change, and reads `preferences.json` once before it admits each creation and at its sampling deadline. It publishes one effective snapshot per revision over the Client's shared-carrier subscriptions; a refused candidate keeps the previous snapshot and publishes diagnostics. |
 | Worker                                  | Neither store                                | Server dispatch carries the launch intent; the Worker resolves device facts, such as System shell discovery, itself.                                                                                                                                                                                                                                                               |
-| Desktop                                 | `preferences.json`                           | Reads and writes it through `orchbee-settings`; the Server observes those writes at its sampling deadline.                                                                                                                                                                                                                                                                         |
 | Local Session activation                | The `config.toml` location and file validity | Rejects an unreadable file and freezes the location the Server reads.                                                                                                                                                                                                                                                                                                              |
 | `channel show`, `channel set`, `update` | `update.channel`                             | Release operations run without a Session.                                                                                                                                                                                                                                                                                                                                          |
 | `config check`                          | The whole `config.toml`                      | Validates the file the user edits; applies no runtime policy.                                                                                                                                                                                                                                                                                                                      |
 
-Every other Client consumer, including the TUI and CLI creation defaults, uses the Server's snapshots.
+Every other Client consumer, including the TUI, Desktop windows, and CLI creation defaults, uses the Server's snapshots.
 
 ## Apply timing and capability boundaries
 
@@ -265,8 +264,8 @@ rows. Windows TOML changes publish when the Server's sampler sees the edit, abou
 once per second, or immediately through `server reload-config` (default prefix F5). Configuration and shared preferences use separate state subscriptions on the
 Client's shared carrier, including while Settings is closed. The UI consumes their snapshots
 on its existing tick, whose input wait is at most 50 ms; neither observer polls the Server.
-Same-Server preference commits invalidate immediately. Desktop and other Sessions can write
-the shared preferences file without a Server notification, so the Server retains a separate
+Same-Server preference commits invalidate immediately. Other Sessions can write the shared
+preferences file without a Server notification, so the Server retains a separate
 one-second sampling deadline for that snapshot subscription. Unrelated carrier traffic and
 Host sampling neither advance nor postpone that deadline. Existing dispatcher work and scheduling
 can delay the due sample and its delivery; this is not a strict one-second observation guarantee.

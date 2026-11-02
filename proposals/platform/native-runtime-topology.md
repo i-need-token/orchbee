@@ -1388,14 +1388,94 @@ Two gaps remain. A terminal's Retry stays after the connection ends and cannot s
 projection transport reports an end it cannot retry. After Worker loss with the Host running, the
 window shows only that terminal's failure, and nothing can stop the Session before Host adoption.
 
+The Server path is now Desktop's only entry, and the Main-owned runtime is gone with its tests and
+guides. These choices stand unless review changes them:
+
+- **Nothing runs beside it.** Main keeps the window, its menu and Actions, the folder picker, the
+  data root, the distribution identities, and the relay. The Workbench coordinator, binding
+  registry, archives, Host broker and its POSIX endpoint addon, Agent observation ingress and
+  integration management, launch-profile and terminal-default stores, the preference bridge
+  `apps/orchbee-settings`, the Worktree workflows, the application-lifetime dialog, and automatic
+  shell integration left with it, as did their contracts in `@orchbee/desktop-client-protocol`.
+- **The application carries its cohort.** A package stages `orchbee`, Server, Worker, Terminal
+  Host, the observation Capsule, and the platform's terminal runtime into `resources/cohort`, beside
+  the renderer in `resources/dist`, and the window runs that cohort's `orchbee`.
+- **`pnpm desktop` stages a cohort and restarts only Electron.** It builds and stages the checkout's
+  cohort once per distinct build, stops a development Session that an earlier cohort started, and
+  restarts Electron after a Main or preload build. The Session outlives each restart and
+  `pnpm desktop` itself; a native change needs a new `pnpm desktop`.
+- **Each profile joins its own Session.** Dev joins `desktop-dev-<scope-digest>`, Local
+  `desktop-local`, and a release the default Session, and outside a release `orchbee` runs under
+  the data root's configuration file.
+- **Zsh, Bash, and Fish integration left with Main.** Main injected it into the shells it launched.
+  The Server launches them now and ships none, so those shells report command boundaries only
+  through the person's own configuration, and Settings drops the setup cards. On Windows the
+  Terminal Host still loads its PowerShell integration.
+- **Retired evidence is disclosed, not replaced.** The Desktop Electron suite drove the Main-owned
+  application, so its 44 witnesses of that application retired with it, and the guides that cited
+  them say so. The 23 witnesses that drive only Web fixture pages moved unchanged to the explicit
+  `apps/web` `test:system` suite, which lists them; this change did not run them, as this machine
+  has no Playwright browser. The `ProjectedTerminalIpcReliability` model and the manual
+  native-window test retired too, and Linux `verify` no longer installs Xvfb. A Server-path Desktop
+  suite is the gap left.
+- **Branches only the retired Main served stay for now.** `@orchbee/workbench-client-protocol`
+  still carries the terminal theme transaction, transport-committed selection copy, and the local
+  file and image-preview capability, and the renderer still handles them, though no current
+  transport sends them. The Worktree forms and the Agent observation source in `apps/web` have no
+  provider either. Step 5 decides which return; the rest are pruned. The Agent integration,
+  terminal default, and launch-profile contracts in `@orchbee/desktop-client-protocol` keep only
+  the shapes and event vocabulary that the Settings controls render.
+- **The Web runtime that spoke to Main left too.** The client session, the Workbench document
+  control, and `createWorkbenchRuntime` are deleted with their tests, as are the client-session
+  and projection-control contracts in `@orchbee/workbench-client-protocol` and the
+  `@orchbee/workbench/runtime` subpath.
+- **Checks for retired channels left with them.** The projected-command, presentation-event, and
+  preference-request schemas, the Desktop settings and Agent integration command schemas, and the
+  `@orchbee/terminal-protocol` helpers only Main used are deleted: archive frame materialization,
+  frame routing, the default terminal configuration, and the metadata-change schema. No current
+  boundary carries those values, so TypeScript no longer checks projected-command bounds (open
+  target UTF-8, clipboard decision, selection command, image-preview request), presentation
+  failure codes and exit or signal exclusivity, or the Desktop settings and Agent integration event
+  bounds. Rust still checks the preference-request fixtures. A transport that brings one back
+  restores its own checks.
+- **Exports only tests use are tagged.** A production symbol whose only consumers are tests,
+  Stories, or a conformance generator carries an `@internal` tag that names them, so the strict
+  dependency gate ignores it and the full gate still requires the consumer. Tagged now: the
+  reference `AgentRuntime` and Agent identity parsers, which the step 5 Agent audit removes or
+  replaces; the terminal settings fixture parsers behind the Web Stories; Terminal Protocol
+  constants and decoders that tests check directly; and the file-drop capability, which waits for
+  decision 6 to settle file drop.
+- **The Capsule's guide link waits for its move.** The observation Capsule's README links the
+  Desktop Agent integration guide, and editing it changes the Capsule's digest, so that guide is
+  now a short page naming the Worker's integration writer. The Capsule's move out of
+  `apps/desktop/resources` rewrites the README once and removes the page.
+
+The runs below used the development profile on Windows, a hidden window, scratch `APPDATA`, and
+Sessions deleted afterwards. The Web dev server listened on 3020 because another checkout held
+3000; otherwise each runtime run was `pnpm desktop`. The entry runs drove `dist/main/main.cjs`
+off-screen against the same staged cohort.
+
+| Question                 | Result                                                                                                                                                                             |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An edited Capsule        | A README edit inside the Capsule failed staging's digest check, and `pnpm desktop` stopped with that error.                                                                        |
+| Staging                  | The runtime staged a cohort with `cohort.json` and its Session marker and was ready 5.3 s after start, with the native build done. The next run reused the cohort, ready in 0.9 s. |
+| The development window   | It created its Workspace in `desktop-dev-<scope-digest>` within a second, and a Workspace the CLI created there was listed beside it.                                              |
+| A Main build             | Touching Main's entry replaced Electron within half a second. The Server, Worker, Host, and both terminals kept their processes, and the new window connected again.               |
+| Ending `pnpm desktop`    | After its process tree ended, the Session kept both Workspaces and its terminals until `server stop`.                                                                              |
+| The entry, Session off   | Main started the Session and showed the prompt 1.5 s after launch, and typing reached PowerShell.                                                                                  |
+| A Workspace from the CLI | It appeared in the window's sidebar 88 ms after the command began.                                                                                                                 |
+| Session stop             | Disconnected appeared 291 ms after `server stop` began, over the terminal's Restoring the terminal connection. Reconnect showed the prompt after 1,072 ms, with both Workspaces.   |
+| Closing the window       | The Session kept running until `server stop`.                                                                                                                                      |
+
+A development Session that an earlier cohort started was not exercised; staging stops it before
+the window joins.
+
 ### Evidence
 
 - Each step records the owning Web and Desktop builds and a Server-backed run of the path it
-  changed. While macOS Rust CI is excluded, macOS evidence is a recorded manual run; the manual
-  native-window test stays excluded unless explicitly authorized.
-- Step 4 removes the Desktop `test:native` step from the macOS and Windows native job once the addon
-  is gone; Terminal Host tests stay. Linux `verify` keeps Xvfb while Desktop Electron tests run
-  there.
+  changed. While macOS Rust CI is excluded, macOS evidence is a recorded manual run.
+- Step 4 removed the Desktop `test:native` step with the addon, and Xvfb with the Desktop Electron
+  tests; Terminal Host tests stay.
 - Steps that delete Desktop or Web inputs update `scripts/verification-scope.mjs` and the affected
   model triggers in `scripts/tla/models.json`, such as the projected-terminal and settings-save
   models.

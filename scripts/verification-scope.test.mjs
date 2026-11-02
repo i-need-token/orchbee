@@ -110,16 +110,11 @@ test('real workspace selection retains foreign fixture, resource, process and di
 	assert.equal(host.all, false, host.reasons.join('\n'));
 	for (const name of ['orchbee', 'orchbee-server', 'orchbee-worker'])
 		assert.ok(host.cargo.includes(name), name);
-	assert.ok(host.pnpm.includes('@orchbee/desktop'));
 	for (const [provider, consumers] of [
-		[
-			'apps/terminal-host',
-			['apps/orchbee', 'apps/orchbee-server', 'apps/orchbee-worker', 'apps/desktop'],
-		],
+		['apps/terminal-host', ['apps/orchbee', 'apps/orchbee-server', 'apps/orchbee-worker']],
 		['apps/orchbee-worker', ['apps/orchbee', 'apps/orchbee-server']],
 		['apps/orchbee-server', ['apps/orchbee']],
 		['apps/web', ['apps/desktop', 'apps/storybook']],
-		['apps/orchbee-settings', ['apps/desktop']],
 	]) {
 		const selected = selectVerificationScope(actual, [provider + '/src/changed']);
 		assert.equal(selected.all, false);
@@ -203,7 +198,6 @@ test('shared PowerShell startup assets select the Host and its native process co
 		const selected = selectVerificationScope(actual, [asset]);
 		assert.equal(selected.all, false, selected.reasons.join('\n'));
 		assert.ok(selected.pnpm.includes('@orchbee/terminal-host'), asset);
-		assert.ok(selected.pnpm.includes('@orchbee/desktop'), asset);
 		for (const consumer of ['orchbee', 'orchbee-server', 'orchbee-worker'])
 			assert.ok(selected.cargo.includes(consumer), `${asset} must select ${consumer}`);
 		assert.equal(
@@ -420,7 +414,7 @@ test('native test prerequisites follow their real consumers and host platform ev
 					'--locked',
 				]);
 			}
-			assert.doesNotMatch(JSON.stringify(steps), /test:cross|build:full|manual:native-window/u);
+			assert.doesNotMatch(JSON.stringify(steps), /test:cross|build:full/u);
 		}
 	}
 });

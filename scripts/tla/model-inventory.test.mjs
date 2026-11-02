@@ -438,10 +438,6 @@ test('protocol owner paths select their core while UI copy and deterministic loc
 		['crates/local-runtime/src/tests/durable_sessions.rs', 'windows-checkpoint-storage'],
 		['crates/local-runtime/src/tests/named_catalog.rs', 'windows-checkpoint-storage'],
 		['crates/local-runtime/src/process_registration.rs', 'session-crash-recovery'],
-		[
-			'apps/web/src/workbench-client/terminal-projection/terminal-projection.ts',
-			'projected-terminal-ipc-reliability',
-		],
 	];
 	for (const [file, id] of cases) {
 		await readFile(`${repositoryRoot}/${file}`);

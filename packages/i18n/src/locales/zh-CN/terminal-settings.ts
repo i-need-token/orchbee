@@ -208,13 +208,7 @@ export const zhCNTerminalSettingsMessages = {
 		'Orchbee Shell 集成会为符合条件的交互式 SSH 会话增加一条私有的反向 Unix socket 转发，用于 Agent 观测。其他 SSH 模式保持不变；Orchbee 不会安装远端文件，也不会保留远端缓存。你的显式参数与 OpenSSH 配置仍然是最终依据。',
 	'terminal.settings.remoteDevelopment.noChanges.title': '不会自动修改远端',
 	'terminal.settings.remoteDevelopment.title': '远程开发',
-	'terminal.settings.shellIntegration.bash.title': 'Bash',
-	'terminal.settings.shellIntegration.bash.version':
-		'需要 Bash 4.4 或更高版本；macOS 自带的 Bash 3.2 不受支持。',
 	'terminal.settings.shellIntegration.description': '为命令完成提醒和终端语义提供可靠的命令边界。',
-	'terminal.settings.shellIntegration.fish.title': 'Fish',
-	'terminal.settings.shellIntegration.manualNotice':
-		'Desktop 会为新建且受支持的本地 Zsh、非登录 Bash 和 Fish 终端自动加载集成。Orchbee 永远不会编辑 Shell 启动文件。不受支持的启动形式或其他客户端可使用下方 source 命令手动回退。',
 	'terminal.settings.shellIntegration.notification.description':
 		'只有点击这里的按钮才会请求系统通知权限；终端输出永远不会触发权限请求。',
 	'terminal.settings.shellIntegration.notification.agentMode.hidden': 'Agent 所在位置不可见时通知',
@@ -243,9 +237,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.shellIntegration.reminder.unfocused': '当前终端失去焦点时',
 	'terminal.settings.shellIntegration.reset.description':
 		'关闭命令完成提醒，并把最短时长恢复为五秒。',
-	'terminal.settings.shellIntegration.setupCommand.label': '手动回退 source 命令',
 	'terminal.settings.shellIntegration.title': 'Shell 集成',
-	'terminal.settings.shellIntegration.zsh.title': 'Zsh',
 	'terminal.settings.sections.applicationAppearance': '应用外观',
 	'terminal.settings.sections.language': '语言',
 	'terminal.settings.sections.terminalClipboard': '选择与剪贴板',

@@ -1,6 +1,6 @@
 # Terminal Protocol
 
-Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
+Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. An export whose only consumers are tests, in this package or in `@orchbee/terminal`, carries an `@internal` tag naming that use; production dependency analysis ignores it, and full analysis still requires the test consumer. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
 
 Input reference decoders used only by conformance suites live in `src/__tests__/conformance/input-decoders.ts`. They share the actual authority readers and field validation in `src/input-fields.ts` with production codecs. Full dependency analysis includes those helpers and rejects orphan sources; production analysis excludes only the conformance directory.
 
@@ -173,8 +173,6 @@ the admitted plain-text bytes as UTF-8 before a platform clipboard effect.
 
 OBPB format `0.1.0` has two intentionally separate entry points. `decodeTerminalProjectionBuffer` and `decodeTerminalRowWindow` fully validate untrusted external bytes. `viewTerminalProjectionBuffer` and `viewTerminalRowWindow` skip the per-cell rescan only for an immutable, capability-scoped local Terminal Host transport. The structural-view functions are not a faster general-purpose decoder.
 
-`materializeTerminalProjectionFrame` is a post-validation local composition helper. It creates one bounded snapshot from matching decoded OBPB snapshots and OBRW render sources, rebases the selected rows, and can suppress the live cursor. Missing rows or mismatched Host epoch, generation, revision, theme revision, or geometry fail closed. The result carries no extensions and is only a render projection; it does not restore VT, process, PTY, selection, or command state. Callers must still use the strict decoders for untrusted bytes.
-
 Mouse motion reports either no pressed buttons and a null active button, or a complete `pressedButtons` set plus one active button contained in that set. Press and release always identify their button; a wheel report is a button press and need not mark that button as held.
 
 Semantic `KeyInput` carries one per-event Option-as-Alt bit. A macOS client resolves its local
@@ -185,7 +183,6 @@ the current Ghostty legacy, modify-other-keys, and Kitty encoding modes.
 import {
 	decodeProtocolEnvelope,
 	decodeTerminalFrame,
-	decodeTerminalFrameRoute,
 	inspectTerminalFrameHeader,
 	PayloadEncoding,
 } from '@orchbee/terminal-protocol';
@@ -194,10 +191,6 @@ const envelope = decodeProtocolEnvelope(record);
 if (!envelope.ok) return closePeer(envelope.code);
 
 if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
-	const route = decodeTerminalFrameRoute(envelope.value.payload);
-	if (!route.ok) return closePeer(route.code);
-	forwardToAttachment(route.value.attachmentId, envelope.value.payload);
-
 	const header = inspectTerminalFrameHeader(envelope.value.payload);
 	if (!header.ok) return closePeer(header.code);
 	if (!isExpectedAttachmentScope(header.value)) return closePeer('invalid-identifier');
@@ -289,7 +282,7 @@ or action semantics. An application must apply its separately owned stricter pay
 This package implements the representation and validation defined by `schemas/terminal`. It deliberately does not define which lifecycle transition is legal, when an effect occurs, how delivery is committed, or how a product recovers. Those authorities live with their state owners:
 
 - [`apps/terminal-host/docs/runtime-model.md`](../../apps/terminal-host/docs/runtime-model.md) owns terminal lifecycle, runtime containment, attachment delivery, retry, and Host concurrency.
-- `apps/desktop` owns product binding, close escalation, reconnection, publication, and update policy.
+- The [Worker](../../apps/orchbee-worker/README.md) owns Host lifetime, coupled peer liveness, and terminal-close escalation; the [Server](../../apps/orchbee-server/README.md) above it owns product binding, publication, and durable intent.
 
 Protocol schemas make illegal wire combinations unrepresentable where possible. Consumer-owned models and tests decide whether a valid wire value is legal in the consumer's current state.
 

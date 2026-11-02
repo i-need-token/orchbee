@@ -5,79 +5,10 @@ import {
 	DesktopProjectFolderAcquisitionRendererCommandSchema,
 } from '@orchbee/desktop-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
-import { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
-import {
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
-	workbenchSharedDocumentRevision,
-} from '@orchbee/workbench-client-protocol';
 
 import { DesktopProjectFolderAcquisitionClient } from '../DesktopProjectFolderAcquisitionClient';
-import { confirmProjectFolderCreation } from '../confirmProjectFolderCreation';
 
 describe('DesktopProjectFolderAcquisitionClient', () => {
-	it('requires the exact captured first presentation in canonical and current state after a successful flush', async () => {
-		let sequence = 0;
-		const runtime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/workspace',
-			standaloneTerminalTitle: 'Terminal',
-			terminalPresentation: {
-				createOperationId: () => terminalPresentationOperationId(`operation:${++sequence}`),
-				createPresentationId: () => terminalPresentationId(`presentation:${++sequence}`),
-				createRemovalId: () => terminalPresentationRemovalId(`removal:${++sequence}`),
-				dispatchCommands: () => undefined,
-				initialPresentationId: terminalPresentationId('initial'),
-				kind: 'managed',
-			},
-		});
-		const revision = workbenchSharedDocumentRevision('1');
-		const empty = runtime.getSharedDocument(revision);
-		const creation = runtime.transition({
-			directory: {
-				available: true,
-				git: null,
-				id: 'folder',
-				kind: 'folder',
-				name: 'new',
-				path: '/workspace/new',
-				placement: { kind: 'local' },
-				source: 'selected',
-			},
-			launchConfigurations: [],
-			primaryWorkspaceLaunchConfigurationId: null,
-			primaryWorkspaceName: 'Primary',
-			projectName: 'new',
-			terminalTitle: 'Terminal',
-			type: 'project-created',
-		});
-		const receipt = creation.projectCreationReceipt;
-		if (receipt === undefined) throw new Error('Expected the Project creation receipt.');
-		const document = runtime.getSharedDocument(revision);
-		const flush = async () => ({ kind: 'flushed' as const, revision });
-		await expect(
-			confirmProjectFolderCreation({ committedDocument: document, flush }, runtime, receipt),
-		).resolves.toBe(true);
-		await expect(
-			confirmProjectFolderCreation({ committedDocument: empty, flush }, runtime, receipt),
-		).resolves.toBe(false);
-		await expect(
-			confirmProjectFolderCreation({ committedDocument: document, flush }, runtime, {
-				...receipt,
-				presentationId: 'different-first',
-			}),
-		).resolves.toBe(false);
-		await expect(
-			confirmProjectFolderCreation({ committedDocument: document, flush }, runtime, {
-				...receipt,
-				path: '/workspace/other',
-			}),
-		).resolves.toBe(false);
-		runtime.applySharedDocument(empty);
-		await expect(
-			confirmProjectFolderCreation({ committedDocument: document, flush }, runtime, receipt),
-		).resolves.toBe(false);
-	});
 	it('correlates creation attempts, blocks replay after a created result and acknowledges only that request', async () => {
 		const channel = new MessageChannel();
 		const commands: unknown[] = [];

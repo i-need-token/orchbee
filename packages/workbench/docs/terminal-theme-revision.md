@@ -106,7 +106,6 @@ preflight; `commitThemePresentation` swaps the store and prepared overlays/curso
 The Web settings owner waits for one prepared commit from every mounted terminal. If any participant
 fails, is superseded, or loses eligibility, it aborts all prepared handles and keeps the prior app
 theme. Otherwise it commits every terminal and changes `data-theme` in the same JavaScript task.
-Desktop Main forwards apply/reconcile commands, keeps the complete recovered Host theme in its
-lifecycle bootstrap, and reports unknown transport outcomes distinctly so the client reconciles
-before retry. A Host commit that loses the application barrier is not rolled back; its frame remains
+No current transport runs this transaction: a Desktop window's Server offers no theme command, so
+the window paints default-coded cells through `defaultColorOverride` instead. A Host commit that loses the application barrier is not rolled back; its frame remains
 quarantined until replacement or disposal restores alignment.

@@ -19,16 +19,17 @@ import { createWorkbenchPreviewTerminalPresentationComposition } from '../model/
 import { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchNavigationPort } from '../types/workbench-host-actions';
 import type { WorkbenchNewProjectFolderCapability } from '../types/workbench-project-folder-acquisition';
-import type {
-	WorkbenchProjectWorktreeAdoptionResult,
-	WorkbenchProjectWorktreeCapability,
-} from '../types/workbench-project-worktree';
+import type { WorkbenchProjectWorktreeCapability } from '../types/workbench-project-worktree';
 import type { WorkbenchTerminalSurfaceProps } from '../types/workbench-terminal-surface';
 import {
 	defaultWorkbenchShortcutBindings,
 	type WorkbenchShortcutBindings,
 } from '../utils/workbench-shortcuts';
 import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
+
+type WorkbenchProjectWorktreeAdoptionResult = Awaited<
+	ReturnType<WorkbenchProjectWorktreeCapability['adopt']>
+>;
 
 function createTestTerminalPresentationComposition(scope: string) {
 	let sequence = 0;

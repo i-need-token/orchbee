@@ -20,23 +20,6 @@ describe('resolveWebRuntimeMode', () => {
 		).toBe('browser');
 	});
 
-	it('selects the Server Client only inside Desktop and only when Main asks for it', () => {
-		expect(
-			resolveWebRuntimeMode({
-				protocol: 'orchbee:',
-				search: '?orchbee-server-client=1',
-				userAgent: 'Mozilla/5.0',
-			}),
-		).toBe('desktop-server-client');
-		expect(
-			resolveWebRuntimeMode({
-				protocol: 'https:',
-				search: '?orchbee-server-client=1',
-				userAgent: 'Mozilla/5.0',
-			}),
-		).toBe('browser');
-	});
-
 	it('selects Desktop mode from the packaged scheme or the Electron User Agent', () => {
 		expect(
 			resolveWebRuntimeMode({ protocol: 'orchbee:', search: '', userAgent: 'Mozilla/5.0' }),

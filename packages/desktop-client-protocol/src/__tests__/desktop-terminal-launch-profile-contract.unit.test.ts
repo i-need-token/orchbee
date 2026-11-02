@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
 	DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
 	DesktopTerminalLaunchProfileCatalogSchema,
-	DesktopTerminalLaunchProfileMainEventSchema,
-	DesktopTerminalLaunchProfileRendererCommandSchema,
+	DesktopTerminalLaunchProfileNameSchema,
+	DesktopTerminalLaunchProfileSchema,
 } from '../desktop-terminal-launch-profile-contract';
 
 const catalog = DesktopTerminalLaunchProfileCatalogSchema.parse({
@@ -20,32 +20,9 @@ const catalog = DesktopTerminalLaunchProfileCatalogSchema.parse({
 });
 
 describe('Desktop terminal launch-profile contract', () => {
-	it('parses the built-in catalog and correlated snapshot response', () => {
-		const command = DesktopTerminalLaunchProfileRendererCommandSchema.parse({
-			requestId: 'terminal-profile:request:1',
-			type: 'desktop-terminal-launch-profile-snapshot-requested',
-		});
-
-		expect(
-			DesktopTerminalLaunchProfileMainEventSchema.parse({
-				requestId: command.requestId,
-				result: {
-					kind: 'completed',
-					snapshot: {
-						capabilities: { loginShell: true },
-						catalog,
-						persistenceIssue: null,
-						source: 'built-in',
-					},
-				},
-				type: 'desktop-terminal-launch-profile-responded',
-			}),
-		).toMatchObject({ result: { kind: 'completed', snapshot: { catalog } } });
-	});
-
 	it('requires canonical profile names and preserves literal custom arguments', () => {
-		const command = DesktopTerminalLaunchProfileRendererCommandSchema.parse({
-			profile: {
+		expect(
+			DesktopTerminalLaunchProfileSchema.parse({
 				command: {
 					arguments: ['--name', 'two words', ''],
 					executable: '/usr/bin/example',
@@ -53,25 +30,12 @@ describe('Desktop terminal launch-profile contract', () => {
 				},
 				id: 'profile-1',
 				name: 'Example',
-			},
-			requestId: 'terminal-profile:request:2',
-			type: 'desktop-terminal-launch-profile-update-requested',
+			}),
+		).toMatchObject({
+			command: { arguments: ['--name', 'two words', ''] },
+			name: 'Example',
 		});
-
-		expect(command).toMatchObject({
-			profile: {
-				command: { arguments: ['--name', 'two words', ''] },
-				name: 'Example',
-			},
-		});
-		expect(
-			DesktopTerminalLaunchProfileRendererCommandSchema.safeParse({
-				name: '  Example  ',
-				requestId: 'terminal-profile:request:untrimmed',
-				sourceProfileId: DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
-				type: 'desktop-terminal-launch-profile-create-requested',
-			}).success,
-		).toBe(false);
+		expect(DesktopTerminalLaunchProfileNameSchema.safeParse('  Example  ').success).toBe(false);
 	});
 
 	it('rejects duplicate IDs, a missing default, foreign localized markers, and invalid text', () => {
@@ -91,22 +55,8 @@ describe('Desktop terminal launch-profile contract', () => {
 				version: 1,
 			}).success,
 		).toBe(false);
-		expect(
-			DesktopTerminalLaunchProfileRendererCommandSchema.safeParse({
-				name: 'bad\0name',
-				requestId: 'terminal-profile:request:3',
-				sourceProfileId: DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
-				type: 'desktop-terminal-launch-profile-create-requested',
-			}).success,
-		).toBe(false);
-		expect(
-			DesktopTerminalLaunchProfileRendererCommandSchema.safeParse({
-				name: 'bad\ud800name',
-				requestId: 'terminal-profile:request:4',
-				sourceProfileId: DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
-				type: 'desktop-terminal-launch-profile-create-requested',
-			}).success,
-		).toBe(false);
+		expect(DesktopTerminalLaunchProfileNameSchema.safeParse('bad\0name').success).toBe(false);
+		expect(DesktopTerminalLaunchProfileNameSchema.safeParse('bad\ud800name').success).toBe(false);
 	});
 
 	it('rejects a catalog whose encoded profile data exceeds the storage boundary', () => {

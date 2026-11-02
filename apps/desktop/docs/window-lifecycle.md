@@ -13,9 +13,8 @@ Host authority over window state remain out of scope.
 
 ## Ownership and boundaries
 
-Electron Main is the only owner of native window state and effects. The renderer, Workbench shared
-document, Terminal Host, terminal bindings, and projected attachments neither persist nor decide
-window geometry. The window-state file is a recoverable device-local preference beneath Electron's
+Electron Main is the only owner of native window state and effects. The renderer, the Server's
+Workbench, Terminal Host, and projected terminals neither persist nor decide window geometry. The window-state file is a recoverable device-local preference beneath Electron's
 product `userData` directory; it is not terminal recovery or shared product state.
 
 The strict version-1 record is:
@@ -58,14 +57,10 @@ The application menu and its accelerator call the same prepared Action path. Nat
 and compositor controls remain operating-system inputs to the same BrowserWindow state; they publish
 the normal Electron maximize, unmaximize, and full-screen events consumed by persistence.
 
-Focusing an existing minimized window first restores and shows it, then focuses it. The existing
-single-instance, close-confirmation, renderer-document retirement, shared Workbench, and Terminal
-Host lifecycles are unchanged.
-
-The [Server Client entry](../README.md#server-client-entry) applies the same record, projection,
-Actions, menu, and single instance. It has no close confirmation: closing the window or quitting
-ends only that Client, so the window's place is captured at close and flushed before the process
-exits. A window started hidden for automation neither restores nor records its place.
+Focusing an existing minimized window first restores and shows it, then focuses it. The window has
+no close confirmation: closing it or quitting ends only this Client, never its Session, so the
+window's place is captured at close and flushed before the process exits. A window started hidden
+for automation neither restores nor records its place.
 
 ## State model and invariants
 
@@ -83,16 +78,15 @@ The owner preserves these invariants:
 - window state and Actions never mutate a Workbench document, terminal binding, Host session, or
   projected attachment.
 
-Pure state tests cover ordered bounds capture, transient full-screen exclusion, display selection and clamp boundaries. File tests cover missing/valid/invalid/unreadable state, atomic replacement, serialized writes and failure. Composition tests cover restore-before-focus, shutdown flush and unchanged close gating. Native maximize/full-screen/restart/off-screen and attachment identity are covered by the manual-only native-window system test when explicitly authorized; routine verification excludes it. No separate TLA workflow proof is claimed.
+Pure state tests cover ordered bounds capture, transient full-screen exclusion, display selection and clamp boundaries. File tests cover missing/valid/invalid/unreadable state, atomic replacement, serialized writes and failure. Owner tests cover safe projection of the loaded record, ordered geometry and maximize capture on each platform's event set, listener removal, and continuation after a failed save. Native maximize, full-screen, restart, and off-screen behavior has no automated evidence: the manual native-window system test retired with the Desktop Electron suite. No separate TLA workflow proof is claimed.
 
 ## Evidence limits
 
 Electron and the operating system remain trusted for display enumeration, `getNormalBounds()`,
-maximize events, and native full-screen transitions. macOS native behavior is exercised on the
-current development runner. Linux and Windows are covered by deterministic model and adapter tests
-until their native runners execute the same system trace; Wayland compositors may constrain absolute
-positioning even though Orchbee always supplies a safe requested rectangle.
+maximize events, and native full-screen transitions. Every platform is covered by deterministic
+model and adapter tests only; Wayland compositors may constrain absolute positioning even though
+Orchbee always supplies a safe requested rectangle.
 
-On Windows, a hidden Server Client window has been checked in a real process for the title-bar overlay,
+On Windows, a hidden window has been checked in a real process for the title-bar overlay,
 the enabled window Actions, the second start, and the absent record. A visible window's restore and record
 were not exercised there; they share the owner and store above.

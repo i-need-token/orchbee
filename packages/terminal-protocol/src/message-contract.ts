@@ -561,10 +561,6 @@ export function isKnownMessageKind(value: number): value is MessageKind {
 	return Number.isInteger(value) && Object.hasOwn(MESSAGE_CONTRACTS, value);
 }
 
-export function requestMessageContract(kind: MessageKind): RequestMessageContract | null {
-	return MESSAGE_CONTRACTS[kind].request;
-}
-
 export function isControlRequestKind(kind: MessageKind): kind is ControlRequestKind {
 	return MESSAGE_CONTRACTS[kind].request?.payloadEncoding === PayloadEncoding.controlJson;
 }

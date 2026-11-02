@@ -1,26 +1,33 @@
 import { readFile } from 'node:fs/promises';
 import { expect, it } from 'vitest';
+import { z } from 'zod';
 
 import {
 	encodeProtocolEnvelope,
 	TRANSPORT_ENVELOPE_HEADER_BYTES,
 	TRANSPORT_ENVELOPE_MAGIC,
 } from '../envelope';
-import { encodeTerminalFrame } from '../frame';
+import { encodeTerminalFrame, TerminalFrameKind, TerminalFrameSchema } from '../frame';
 import { PROTOCOL_LIMITS } from '../limits';
 import { MESSAGE_CONTRACTS, MessageKind, PayloadEncoding } from '../message-contract';
-import {
-	encodeTerminalProjectionBuffer,
-	materializeTerminalProjectionFrame,
-} from '../projection-buffer';
+import { encodeTerminalProjectionBuffer } from '../projection-buffer';
 import type { ProtocolResult } from '../protocol-result';
-import {
-	decodeTerminalRowWindow,
-	encodeTerminalRowWindow,
-	TerminalRowWindowDetail,
-} from '../row-window';
+import { encodeTerminalRowWindow, TerminalRowWindowDetail } from '../row-window';
 import { encodeTerminalGraphics, TerminalGraphicsUpdateKind } from '../terminal-graphics';
 import { CURRENT_PROTOCOL_VERSION, type ProtocolVersion } from '../version';
+
+const canonicalUint64Schema = z.string().transform((value) => BigInt(value));
+
+// The JSON fixture spells 64-bit counters as decimal text.
+const CanonicalFrameFixtureSchema = z.object({
+	frame: z.looseObject({
+		generation: canonicalUint64Schema,
+		revision: canonicalUint64Schema,
+		scrollbackRows: canonicalUint64Schema,
+		sequence: canonicalUint64Schema,
+		themeRevision: canonicalUint64Schema,
+	}),
+});
 
 function format(magic: Uint8Array, version: ProtocolVersion, headerBytes: number) {
 	return { magic: new TextDecoder().decode(magic), version, header_bytes: headerBytes };
@@ -54,29 +61,21 @@ it('matches the language-neutral registry with real constants and encoded enum v
 			'utf8',
 		),
 	);
-	const snapshot = valueOf(
-		decodeTerminalRowWindow(
+	const canonical = CanonicalFrameFixtureSchema.parse(
+		JSON.parse(
 			await readFile(
-				new URL(
-					'../../../../schemas/terminal/v1/fixtures/ghostty-render-row-window.bin',
-					import.meta.url,
-				),
+				new URL('../../../../schemas/terminal/v1/fixtures/canonical.json', import.meta.url),
+				'utf8',
 			),
 		),
 	);
-	if (snapshot.detail !== TerminalRowWindowDetail.render)
-		throw new Error('Canonical render window has no projection snapshot');
-	const projection = snapshot.frame;
-	const frame = valueOf(
-		materializeTerminalProjectionFrame(projection, [projection], {
-			attachmentId: projection.attachmentId,
-			revealCursor: true,
-			rowCount: projection.rows,
-			scrollbackRows: projection.scrollbackRows,
-			sequence: projection.sequence,
-			sourceStartRow: projection.scrollbackRows,
-		}),
-	);
+	// A render row window admits only a snapshot, so the canonical delta drops its base and extension.
+	const frame = TerminalFrameSchema.parse({
+		...canonical.frame,
+		baseRevision: null,
+		extensions: [],
+		kind: TerminalFrameKind.snapshot,
+	});
 	const graphics = {
 		animationTick: 0n,
 		images: [],

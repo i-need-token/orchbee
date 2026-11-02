@@ -14,100 +14,6 @@
 	],
 	"models": [
 		{
-			"id": "projected-terminal-ipc-reliability",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/ProjectedTerminalIpcReliability.tla",
-			"config": "apps/desktop/formal/tla/ProjectedTerminalIpcReliability.cfg",
-			"claims": [
-				"apps/desktop/docs/multi-client-session-coordinator.md",
-				"apps/web/README.md",
-				"packages/workbench-client-protocol/README.md"
-			],
-			"triggers": [
-				"apps/desktop/src/main/broker/**",
-				"apps/desktop/src/main/host/**",
-				"apps/desktop/src/main/terminal-projection-control/**",
-				"apps/web/src/desktop-client/terminal-projection-control/**",
-				"apps/web/src/workbench-client/projected-terminal-actions/**",
-				"apps/web/src/workbench-client/projected-terminal-renderer/**",
-				"apps/web/src/workbench-client/projected-terminal-surface/**",
-				"apps/web/src/workbench-client/terminal-find-surface/**",
-				"apps/web/src/workbench-client/terminal-projection/**",
-				"crates/terminal-protocol/src/**",
-				"packages/workbench-client-protocol/src/**",
-				"schemas/terminal/v1/**"
-			],
-			"requiredCoverage": [
-				"BeginOpen",
-				"ClientRelease",
-				"DeliverReleaseCommand",
-				"ServiceAttach",
-				"PublishOpen",
-				"DeliverExpectedOpen",
-				"DiscardLateOpen",
-				"BeginDetach",
-				"DetachFails",
-				"DeliverCleanupFailure",
-				"RetireControl",
-				"RetirementCleanupSucceeds",
-				"DetachSucceeds",
-				"DeliverReleaseAck",
-				"ServiceOpenFailsAfterRelease",
-				"EndRequestTransport",
-				"SettleConnectionCleanup",
-				"ObserveDuplicateConnectionCleanup",
-				"QueueAttachResponse",
-				"QueueFirstFrame",
-				"QueueHostClose",
-				"DeliverAttachResponse",
-				"InstallProjectionContinuation",
-				"ResumeInbound",
-				"DeliverFirstFrame",
-				"InitializeRenderer",
-				"AcknowledgeFirstFrame",
-				"DeliverHostClose",
-				"StartSurface",
-				"ResolveProjection",
-				"CandidatePaintsFrame",
-				"PromoteCandidate",
-				"IssueSelection",
-				"ForwardSelection",
-				"HostCompletesSelection",
-				"DeliverSelection",
-				"OpenFindWithSelection",
-				"OpenFindWithoutSelection",
-				"ForwardSearchRead",
-				"CompleteSearch",
-				"TransportUnavailable",
-				"FireRetryTimer",
-				"CandidateUnavailable",
-				"FramedCandidateUnavailable",
-				"FailOpenAttempt",
-				"ExhaustRecoveryBudget"
-			],
-			"variants": [
-				{
-					"name": "release-race",
-					"constants": {
-						"Scenario": "release-race"
-					}
-				},
-				{
-					"name": "attach-order",
-					"constants": {
-						"Scenario": "attach-order"
-					}
-				},
-				{
-					"name": "recovery-operations",
-					"constants": {
-						"Scenario": "recovery-operations"
-					}
-				}
-			]
-		},
-		{
 			"id": "native-client-pane-membership",
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",
@@ -160,8 +66,6 @@
 				"apps/orchbee/crates/local-client/src/local_client/workbench/settings/**",
 				"apps/orchbee/crates/workbench-client/src/workbench_client/settings_lane*",
 				"apps/orchbee/crates/workbench-client/src/workbench_client/ui/settings*",
-				"apps/orchbee-settings/**",
-				"apps/desktop/src/main/user-preferences/**",
 				"apps/web/src/user-preferences/**",
 				"crates/local-runtime/src/user_preferences*",
 				"crates/local-runtime/src/user_preferences/**",

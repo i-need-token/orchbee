@@ -9,7 +9,7 @@
 		"sourceFingerprints": [
 			{
 				"path": "AgentRuntime.ts",
-				"sha256": "c2489f4eaabe7140ee9e77a0dbfad754d4b8799e1d5f901e9726d1db8317ca4c"
+				"sha256": "4d8dca030d03e81d45dc0e5afd2aaaf0bae9648b09444bcf087ee78f8ab49fc3"
 			},
 			{
 				"path": "__tests__/AgentRuntime.unit.test.ts",
@@ -61,15 +61,15 @@
 			},
 			{
 				"path": "events.ts",
-				"sha256": "26de93e0e60877bb7560da3c979dfb850a3bed60c6bfac2cbd8ec15164e8284b"
+				"sha256": "585a33cad8062be2eb927c5c4f8146436d45a90124972a75fbf1be52fad7ddbe"
 			},
 			{
 				"path": "index.ts",
-				"sha256": "69da20cbf9bc5d6b91abf9415b59534a2c3f4ea1b39d9d47205de0224b0d0cd4"
+				"sha256": "ee4f739fe13904a9b6e5ac22434d1e70ba9ed341c48c7817b70154a256e46a3e"
 			},
 			{
 				"path": "model.ts",
-				"sha256": "310259c67e3ef7e899772f3a62732ce2300176485d24b29d7e7c0e473856039f"
+				"sha256": "a90c3671e045f1b4f14a3ea1a6f6c6868d1aa7fc482f87114970fcf2adbdf8c6"
 			},
 			{
 				"path": "projection.ts",
@@ -21479,7 +21479,7 @@
 			"expectedNotes": [],
 			"id": "v29-runtime-disposed",
 			"purpose": "After AgentRuntime.dispose() every dispatch is rejected runtime-disposed and neither snapshot nor journal changes.",
-			"sourceRefs": ["packages/agent/src/AgentRuntime.ts:41-70"]
+			"sourceRefs": ["packages/agent/src/AgentRuntime.ts:42-71"]
 		}
 	]
 }

@@ -227,14 +227,8 @@ export const enUSTerminalSettingsMessages = {
 		'Orchbee shell integration augments eligible interactive SSH sessions with one private reverse Unix-socket forward for Agent observation. Other SSH modes remain unchanged; Orchbee installs no remote files and keeps no remote cache. Your explicit arguments and OpenSSH configuration remain authoritative.',
 	'terminal.settings.remoteDevelopment.noChanges.title': 'No automatic remote changes',
 	'terminal.settings.remoteDevelopment.title': 'Remote development',
-	'terminal.settings.shellIntegration.bash.title': 'Bash',
-	'terminal.settings.shellIntegration.bash.version':
-		'Bash 4.4 or newer is required. The Bash 3.2 included with macOS is not supported.',
 	'terminal.settings.shellIntegration.description':
 		'Expose reliable command boundaries for completion reminders and terminal semantics.',
-	'terminal.settings.shellIntegration.fish.title': 'Fish',
-	'terminal.settings.shellIntegration.manualNotice':
-		'Desktop automatically loads integration for supported new local Zsh, non-login Bash, and Fish terminals. Orchbee never edits shell startup files. Use these source commands as a manual fallback for unsupported launch forms and other clients.',
 	'terminal.settings.shellIntegration.notification.description':
 		'System notification permission is requested only from this button. Terminal output never requests permission.',
 	'terminal.settings.shellIntegration.notification.agentMode.hidden':
@@ -264,9 +258,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.shellIntegration.reminder.unfocused': 'When this terminal is unfocused',
 	'terminal.settings.shellIntegration.reset.description':
 		'Restore completion reminders to off and the minimum duration to five seconds.',
-	'terminal.settings.shellIntegration.setupCommand.label': 'Manual fallback source command',
 	'terminal.settings.shellIntegration.title': 'Shell integration',
-	'terminal.settings.shellIntegration.zsh.title': 'Zsh',
 	'terminal.settings.sections.applicationAppearance': 'Application appearance',
 	'terminal.settings.sections.language': 'Language',
 	'terminal.settings.sections.terminalClipboard': 'Selection and clipboard',

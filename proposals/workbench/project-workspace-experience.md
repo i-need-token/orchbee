@@ -41,12 +41,9 @@ The owning Desktop documentation defines current Folder admission and creation. 
 Git observation and mutation belong to a platform or Git capability owner. Workbench may consume
 validated Directory descriptors whose semantic kind is `worktree`.
 
-The accepted Desktop creation slice is maintained by
-[`apps/desktop/docs/project-worktree-creation.md`](../../apps/desktop/docs/project-worktree-creation.md),
-with its environment-isolated default path maintained by
-[`apps/desktop/docs/data-root.md`](../../apps/desktop/docs/data-root.md).
-Read-only discovery and adoption of existing Worktrees are maintained by
-[`apps/desktop/docs/project-worktree-adoption.md`](../../apps/desktop/docs/project-worktree-adoption.md).
+Desktop's Worktree creation, discovery, and adoption slice belonged to its Main-owned Workbench and
+ended with it. A Desktop window is a Server Client, and the Server offers no Worktree operation, so
+this direction waits for a Server capability.
 
 The accepted product direction is:
 

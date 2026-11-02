@@ -12,16 +12,7 @@ import {
 	type TerminalFeedbackSettingsController,
 	type TerminalNotificationPermission,
 } from '../../../../terminal-feedback-settings';
-import { SHELL_INTEGRATION_SETUP_COMMANDS } from '../constants/shell-integration-setup';
 import { useSharedPreferenceDraft } from '../../../hooks/useSharedPreferenceDraft';
-
-interface ShellSetupCardView {
-	readonly command: string;
-	readonly commandLabel: string;
-	readonly description?: string | undefined;
-	readonly id: 'bash' | 'fish' | 'zsh';
-	readonly title: string;
-}
 
 interface ReminderModeOptionView {
 	readonly label: string;
@@ -74,12 +65,10 @@ interface ResetSettingsView {
 }
 
 interface ShellIntegrationSettingsView {
-	readonly manualNotice: string;
 	readonly notification: NotificationSettingsView;
 	readonly persistenceWarning: string | null;
 	readonly reminder: ReminderSettingsView;
 	readonly reset: ResetSettingsView;
-	readonly setupCards: readonly ShellSetupCardView[];
 }
 
 export function useShellIntegrationSettings(
@@ -103,10 +92,6 @@ export function useShellIntegrationSettings(
 	}, [snapshot.preferences.completionReminderMinimumSeconds]);
 
 	const messages = {
-		bashTitle: intl.formatMessage(terminalSettingsMessages.shellIntegrationBashTitle),
-		bashVersion: intl.formatMessage(terminalSettingsMessages.shellIntegrationBashVersion),
-		fishTitle: intl.formatMessage(terminalSettingsMessages.shellIntegrationFishTitle),
-		manualNotice: intl.formatMessage(terminalSettingsMessages.shellIntegrationManualNotice),
 		minimumDescription: intl.formatMessage(
 			terminalSettingsMessages.shellIntegrationReminderMinimumDescription,
 		),
@@ -146,10 +131,6 @@ export function useShellIntegrationSettings(
 		reminderTitle: intl.formatMessage(terminalSettingsMessages.shellIntegrationReminderTitle),
 		reset: intl.formatMessage(terminalSettingsMessages.reset),
 		resetDescription: intl.formatMessage(terminalSettingsMessages.shellIntegrationResetDescription),
-		setupCommandLabel: intl.formatMessage(
-			terminalSettingsMessages.shellIntegrationSetupCommandLabel,
-		),
-		zshTitle: intl.formatMessage(terminalSettingsMessages.shellIntegrationZshTitle),
 	};
 	const notificationStatus = (() => {
 		switch (snapshot.notificationPermission) {
@@ -183,27 +164,6 @@ export function useShellIntegrationSettings(
 				return null;
 		}
 	})();
-	const setupCards: ShellSetupCardView[] = [
-		{
-			command: SHELL_INTEGRATION_SETUP_COMMANDS.zsh,
-			commandLabel: messages.setupCommandLabel,
-			id: 'zsh',
-			title: messages.zshTitle,
-		},
-		{
-			command: SHELL_INTEGRATION_SETUP_COMMANDS.bash,
-			commandLabel: messages.setupCommandLabel,
-			description: messages.bashVersion,
-			id: 'bash',
-			title: messages.bashTitle,
-		},
-		{
-			command: SHELL_INTEGRATION_SETUP_COMMANDS.fish,
-			commandLabel: messages.setupCommandLabel,
-			id: 'fish',
-			title: messages.fishTitle,
-		},
-	];
 	const commitMinimum = (): void => {
 		const seconds = Number(minimumDraft);
 		if (
@@ -298,11 +258,9 @@ export function useShellIntegrationSettings(
 	};
 
 	return {
-		manualNotice: messages.manualNotice,
 		notification,
 		persistenceWarning,
 		reminder,
 		reset,
-		setupCards,
 	};
 }
