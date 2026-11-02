@@ -17,7 +17,7 @@ use orchbee_client_server_protocol::{
     TerminalControlAction as Action, TerminalControlOutcome as Outcome, TerminalControlRequest,
 };
 use std::collections::BTreeMap;
-mod clear;
+mod screen_control;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(super) struct ControlTarget {
@@ -134,8 +134,14 @@ pub(super) fn execute<'service>(
             matches!(request.action(), Action::Takeover { .. }),
         );
     }
-    if matches!(request.action(), Action::Clear { .. }) {
-        return clear::execute(service, viewer);
+    match request.action() {
+        Action::Clear { .. } => {
+            return screen_control::execute(service, viewer, WorkerAction::Clear);
+        }
+        Action::Reset { .. } => {
+            return screen_control::execute(service, viewer, WorkerAction::Reset);
+        }
+        _ => {}
     }
     let Some(controller) = viewer.controller.as_mut() else {
         return rejected(Rejected::NotController);
@@ -166,7 +172,10 @@ pub(super) fn execute<'service>(
             sequence,
             ..
         } => (controller_id, *sequence),
-        Action::Acquire { .. } | Action::Takeover { .. } | Action::Clear { .. } => {
+        Action::Acquire { .. }
+        | Action::Takeover { .. }
+        | Action::Clear { .. }
+        | Action::Reset { .. } => {
             unreachable!("standalone action handled")
         }
     };
@@ -240,7 +249,10 @@ pub(super) fn execute<'service>(
             Ok(colors) => WorkerAction::HostColors { sequence, colors },
             Err(_) => return rejected(Rejected::HostRejected),
         },
-        Action::Acquire { .. } | Action::Takeover { .. } | Action::Clear { .. } => {
+        Action::Acquire { .. }
+        | Action::Takeover { .. }
+        | Action::Clear { .. }
+        | Action::Reset { .. } => {
             unreachable!("effect matched")
         }
     };
@@ -320,6 +332,8 @@ pub(super) fn execute<'service>(
             WorkerOutcome::Acquired
             | WorkerOutcome::Cleared { .. }
             | WorkerOutcome::ClearOutcomeUnknown
+            | WorkerOutcome::ResetAccepted { .. }
+            | WorkerOutcome::ResetOutcomeUnknown
             | WorkerOutcome::Released => {
                 viewer.controller.take();
                 Outcome::OutcomeUnknown {}
@@ -469,6 +483,8 @@ fn acquire<'service>(
             }
             WorkerOutcome::Cleared { .. }
             | WorkerOutcome::ClearOutcomeUnknown
+            | WorkerOutcome::ResetAccepted { .. }
+            | WorkerOutcome::ResetOutcomeUnknown
             | WorkerOutcome::Released
             | WorkerOutcome::InputAccepted
             | WorkerOutcome::Resized(_)

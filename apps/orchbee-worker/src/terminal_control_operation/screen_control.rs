@@ -1,4 +1,4 @@
-//! One transient input capability owns a prompt-preserving clear and its cleanup.
+//! One transient input capability owns a prompt-preserving clear or a full reset and its cleanup.
 use super::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
     ConnectionControl, CorrelationId, Error, HostBrokerConnection, NonZeroU64, Outcome,
@@ -22,6 +22,55 @@ const CAPABILITIES: AttachmentCapabilityState = AttachmentCapabilityState {
     input: true,
     resize: false,
 };
+
+/// The Host screen control one transient attachment performs.
+#[derive(Clone, Copy)]
+pub(super) enum Operation {
+    Clear,
+    Reset,
+}
+impl Operation {
+    fn command(self, attachment_id: AttachmentId) -> ScreenControl {
+        match self {
+            Self::Clear => ScreenControl::ClearTerminal(ClearTerminal {
+                attachment_id,
+                preserve_prompt: true,
+            }),
+            Self::Reset => ScreenControl::ResetTerminal(attachment_id),
+        }
+    }
+    const fn acknowledged(self) -> ScreenControlOperation {
+        match self {
+            Self::Clear => ScreenControlOperation::Clear,
+            Self::Reset => ScreenControlOperation::Reset,
+        }
+    }
+    const fn applied(
+        self,
+        generation: NonZeroU64,
+        revision: NonZeroU64,
+        cleanup_confirmed: bool,
+    ) -> Outcome {
+        match self {
+            Self::Clear => Outcome::Cleared {
+                generation,
+                revision,
+                cleanup_confirmed,
+            },
+            Self::Reset => Outcome::ResetAccepted {
+                generation,
+                revision,
+                cleanup_confirmed,
+            },
+        }
+    }
+    const fn unknown(self) -> Outcome {
+        match self {
+            Self::Clear => Outcome::ClearOutcomeUnknown,
+            Self::Reset => Outcome::ResetOutcomeUnknown,
+        }
+    }
+}
 
 struct Transient<'a> {
     host: &'a HostBrokerConnection,
@@ -70,6 +119,7 @@ pub(super) fn apply(
     request: &TerminalControlRequest,
     host: &HostBrokerConnection,
     server: &UnixStream,
+    operation: Operation,
 ) -> Result<Outcome, Box<dyn Error>> {
     let Some(target) = host.viewers.borrow().target(request.viewer_id) else {
         return Ok(Outcome::Rejected(Rejection::ViewerUnavailable));
@@ -111,14 +161,14 @@ pub(super) fn apply(
         let AttachmentControl::AttachmentCapabilities(accepted) =
             decode_attachment_control(envelope.kind, envelope.role, envelope.payload)?
         else {
-            return Err(invalid("Host did not grant clear attachment"));
+            return Err(invalid("Host did not grant the screen control attachment"));
         };
         if accepted.attachment_id != id
             || accepted.terminal_id != terminal_id
             || accepted.capabilities != CAPABILITIES
             || accepted.resize_lease
         {
-            return Err(invalid("Host clear attachment disagrees"));
+            return Err(invalid("Host screen control attachment disagrees"));
         }
         Ok(true)
     })();
@@ -127,16 +177,13 @@ pub(super) fn apply(
         Ok(false) => return Ok(Outcome::Rejected(Rejection::HostRejected)),
         Err(_) => return Ok(Outcome::Rejected(Rejection::HostInputUnavailable)),
     }
-    let command = encode_screen_control(ScreenControl::ClearTerminal(ClearTerminal {
-        attachment_id: id,
-        preserve_prompt: true,
-    }))?;
+    let command = encode_screen_control(operation.command(id))?;
     if Instant::now() >= deadline {
         transient.detach();
         return Ok(Outcome::Rejected(Rejection::HostInputUnavailable));
     }
     // Once this exchange begins, every untrusted response means unknown effect.
-    let acknowledged = (|| -> Result<Outcome, Box<dyn Error>> {
+    let acknowledged = (|| -> Result<Result<_, Rejection>, Box<dyn Error>> {
         let record = control_exchange(
             host,
             server,
@@ -149,45 +196,35 @@ pub(super) fn apply(
         if let Ok(ConnectionControl::TypedFailure(failure)) =
             decode_connection_control(envelope.kind, envelope.role, envelope.payload)
         {
-            return Ok(Outcome::Rejected(
-                if failure.code == "terminal-clear-alternate-screen" {
-                    Rejection::HostClearAlternateScreen
-                } else {
-                    Rejection::HostRejected
-                },
-            ));
+            return Ok(Err(if failure.code == "terminal-clear-alternate-screen" {
+                Rejection::HostClearAlternateScreen
+            } else {
+                Rejection::HostRejected
+            }));
         }
         let ScreenControl::TerminalControlAccepted(accepted) =
             decode_screen_control(envelope.kind, envelope.role, envelope.payload)?
         else {
-            return Err(invalid("Host did not acknowledge clear"));
+            return Err(invalid("Host did not acknowledge the screen control"));
         };
         if accepted.attachment_id != id
             || accepted.terminal_id != terminal_id
-            || accepted.operation != ScreenControlOperation::Clear
+            || accepted.operation != operation.acknowledged()
         {
-            return Err(invalid("Host clear acknowledgement disagrees"));
+            return Err(invalid("Host screen control acknowledgement disagrees"));
         }
-        Ok(Outcome::Cleared {
-            generation: accepted.generation,
-            revision: NonZeroU64::new(accepted.revision)
-                .ok_or_else(|| invalid("Host clear revision did not advance"))?,
-            cleanup_confirmed: false,
-        })
+        let revision = NonZeroU64::new(accepted.revision)
+            .ok_or_else(|| invalid("Host screen control revision did not advance"))?;
+        Ok(Ok((accepted.generation, revision)))
     })();
-    let mut outcome = match acknowledged {
-        Ok(outcome) => outcome,
-        Err(_) => return Ok(Outcome::ClearOutcomeUnknown),
+    let Ok(acknowledged) = acknowledged else {
+        return Ok(operation.unknown());
     };
     let cleanup_confirmed = transient.detach();
-    if let Outcome::Cleared {
-        cleanup_confirmed: cleanup,
-        ..
-    } = &mut outcome
-    {
-        *cleanup = cleanup_confirmed;
-    }
-    Ok(outcome)
+    Ok(match acknowledged {
+        Ok((generation, revision)) => operation.applied(generation, revision, cleanup_confirmed),
+        Err(rejection) => Outcome::Rejected(rejection),
+    })
 }
 
 fn control_exchange(

@@ -226,6 +226,7 @@ describe('Client-Server carrier binding', () => {
 		{ action: { attachmentId: ID, kind: 'acquire' }, kind: 'terminal.control', requestId: ID },
 		{ action: { attachmentId: ID, kind: 'takeover' }, kind: 'terminal.control', requestId: ID },
 		{ action: { attachmentId: ID, kind: 'clear' }, kind: 'terminal.control', requestId: ID },
+		{ action: { attachmentId: ID, kind: 'reset' }, kind: 'terminal.control', requestId: ID },
 		{
 			action: { ...ids, inputKind: 'key', kind: 'semantic-input', payload: '00ff' },
 			kind: 'terminal.control',

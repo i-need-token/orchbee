@@ -142,6 +142,12 @@ const ControlOutcomeSchema = z.discriminatedUnion('kind', [
 		kind: z.literal('cleared'),
 		revision: PositiveDecimalSchema,
 	}),
+	z.strictObject({
+		cleanupConfirmed: z.boolean(),
+		generation: PositiveDecimalSchema,
+		kind: z.literal('reset-accepted'),
+		revision: PositiveDecimalSchema,
+	}),
 	OutcomeUnknownSchema,
 	reasonOutcome('rejected', [
 		'viewer-unavailable',
@@ -263,7 +269,7 @@ export type ClientServerViewerAction =
 type ClientServerSemanticInputKind = 'focus' | 'key' | 'mouse' | 'text';
 
 export type ClientServerControlAction =
-	| { readonly attachmentId: string; readonly kind: 'acquire' | 'clear' | 'takeover' }
+	| { readonly attachmentId: string; readonly kind: 'acquire' | 'clear' | 'reset' | 'takeover' }
 	| {
 			readonly attachmentId: string;
 			readonly bytes: string;

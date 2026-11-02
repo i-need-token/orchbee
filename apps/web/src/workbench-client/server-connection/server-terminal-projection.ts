@@ -303,6 +303,9 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 			case 'clear-terminal':
 				this.#controlAction(command, () => ({ attachmentId, kind: 'clear' }));
 				return;
+			case 'reset-terminal':
+				this.#controlAction(command, () => ({ attachmentId, kind: 'reset' }));
+				return;
 			case 'clipboard-write-decision':
 				if (!this.#effects.decide(command.payload)) {
 					this.#fail(

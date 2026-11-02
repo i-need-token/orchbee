@@ -1,11 +1,16 @@
-//! Clear is an admitted viewer effect with its own transient input capability.
+//! Clear and reset are admitted viewer effects, each with its own transient input capability.
 use super::{
     LocalTerminalService, OperationId, Outcome, Rejected, TargetLifecycle, Unavailable,
     ViewerAttachment, WorkerAction, WorkerOperationRequest, WorkerOperationResult, WorkerOutcome,
     WorkerRequest, WorkerRequestError, placement, rejected, unavailable, worker_rejection,
 };
 
-pub(super) fn execute(service: &LocalTerminalService, viewer: &ViewerAttachment<'_>) -> Outcome {
+/// Runs `action`, which is `Clear` or `Reset`; the carrier admits only that action's results.
+pub(super) fn execute(
+    service: &LocalTerminalService,
+    viewer: &ViewerAttachment<'_>,
+    action: WorkerAction,
+) -> Outcome {
     let Some(template) = viewer.cleanup else {
         return rejected(Rejected::ViewerUnavailable);
     };
@@ -39,7 +44,7 @@ pub(super) fn execute(service: &LocalTerminalService, viewer: &ViewerAttachment<
             controller_id: attachment_id,
             worker_id: template.worker_id,
             worker_generation: template.worker_generation,
-            action: WorkerAction::Clear,
+            action,
         }
     };
     // Admission above fixes the old physical target; later binding changes never redirect it.
@@ -57,7 +62,18 @@ pub(super) fn execute(service: &LocalTerminalService, viewer: &ViewerAttachment<
                 revision,
                 cleanup_confirmed,
             },
-            WorkerOutcome::ClearOutcomeUnknown => Outcome::OutcomeUnknown {},
+            WorkerOutcome::ResetAccepted {
+                generation,
+                revision,
+                cleanup_confirmed,
+            } => Outcome::ResetAccepted {
+                generation,
+                revision,
+                cleanup_confirmed,
+            },
+            WorkerOutcome::ClearOutcomeUnknown | WorkerOutcome::ResetOutcomeUnknown => {
+                Outcome::OutcomeUnknown {}
+            }
             WorkerOutcome::Rejected(reason) => rejected(worker_rejection(reason)),
             WorkerOutcome::Acquired
             | WorkerOutcome::Released

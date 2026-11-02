@@ -1997,23 +1997,31 @@ fn launch_environment_roundtrips_and_rejects_hostile_tails()
 }
 
 #[test]
-fn transient_clear_control_codec_keeps_old_tags_and_closes_new_result_boundaries() {
+fn transient_clear_and_reset_codec_keeps_old_tags_and_closes_new_result_boundaries() {
     use crate::{
         TerminalControlAction as Action, TerminalControlOutcome as Outcome, TerminalControlRequest,
         TerminalControlResult,
     };
-    let request = TerminalControlRequest {
+    let request = |action| TerminalControlRequest {
         request_id: OperationId::from_bytes([1; 16]).unwrap(),
         worker_id: WorkerId::from_bytes([2; 16]).unwrap(),
         worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
         viewer_id: OperationId::from_bytes([3; 16]).unwrap(),
         controller_id: OperationId::from_bytes([4; 16]).unwrap(),
-        action: Action::Clear,
+        action,
     };
-    let message = CapabilityNodeMessage::TerminalControlRequest(request.clone());
-    let bytes = encode_message(&message).unwrap();
-    assert_eq!(*bytes.last().unwrap(), 6);
-    assert_eq!(decode_message(&bytes).unwrap(), message);
+    // Each transient effect admits only its own known and unknown results.
+    for (action, tag, foreign) in [
+        (Action::Clear, 6, Outcome::ResetOutcomeUnknown),
+        (Action::Reset, 9, Outcome::ClearOutcomeUnknown),
+    ] {
+        let message = CapabilityNodeMessage::TerminalControlRequest(request(action.clone()));
+        let bytes = encode_message(&message).unwrap();
+        assert_eq!(*bytes.last().unwrap(), tag);
+        assert_eq!(decode_message(&bytes).unwrap(), message);
+        assert!(!action.admits(&foreign));
+    }
+    let request = request(Action::Clear);
     for outcome in [
         Outcome::Cleared {
             generation: NonZeroU64::MAX,
@@ -2026,6 +2034,17 @@ fn transient_clear_control_codec_keeps_old_tags_and_closes_new_result_boundaries
             cleanup_confirmed: false,
         },
         Outcome::ClearOutcomeUnknown,
+        Outcome::ResetAccepted {
+            generation: NonZeroU64::MAX,
+            revision: NonZeroU64::MIN,
+            cleanup_confirmed: true,
+        },
+        Outcome::ResetAccepted {
+            generation: NonZeroU64::MIN,
+            revision: NonZeroU64::MAX,
+            cleanup_confirmed: false,
+        },
+        Outcome::ResetOutcomeUnknown,
         Outcome::Rejected(crate::ControlRejection::HostClearAlternateScreen),
     ] {
         let result = CapabilityNodeMessage::TerminalControlResult(TerminalControlResult {
@@ -2036,7 +2055,10 @@ fn transient_clear_control_codec_keeps_old_tags_and_closes_new_result_boundaries
         });
         let mut encoded = encode_message(&result).unwrap();
         assert_eq!(decode_message(&encoded).unwrap(), result);
-        if matches!(outcome, Outcome::Cleared { .. }) {
+        if matches!(
+            outcome,
+            Outcome::Cleared { .. } | Outcome::ResetAccepted { .. }
+        ) {
             *encoded.last_mut().unwrap() = 2;
             assert!(decode_message(&encoded).is_err());
         }

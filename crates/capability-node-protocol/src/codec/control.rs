@@ -150,6 +150,7 @@ pub(super) fn encode_request(request: &TerminalControlRequest) -> Vec<u8> {
     match &request.action {
         Action::Acquire => bytes.push(1),
         Action::Clear => bytes.push(6),
+        Action::Reset => bytes.push(9),
         Action::Takeover {
             previous_controller_id,
         } => {
@@ -211,6 +212,7 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalControlRequest, Pro
     let action = match reader.read_u8()? {
         1 => Action::Acquire,
         6 => Action::Clear,
+        9 => Action::Reset,
         5 => Action::Takeover {
             previous_controller_id: OperationId::from_bytes(reader.read_array()?)?,
         },
@@ -279,6 +281,17 @@ pub(super) fn encode_result(result: TerminalControlResult) -> Vec<u8> {
             bytes.push(u8::from(cleanup_confirmed));
         }
         Outcome::ClearOutcomeUnknown => bytes.push(8),
+        Outcome::ResetAccepted {
+            generation,
+            revision,
+            cleanup_confirmed,
+        } => {
+            bytes.push(10);
+            bytes.extend(generation.get().to_be_bytes());
+            bytes.extend(revision.get().to_be_bytes());
+            bytes.push(u8::from(cleanup_confirmed));
+        }
+        Outcome::ResetOutcomeUnknown => bytes.push(11),
         Outcome::Released => bytes.push(2),
         Outcome::InputAccepted => bytes.push(3),
         Outcome::Resized(geometry) => {
@@ -320,13 +333,15 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalControlResult, Proto
         7 => Outcome::Cleared {
             generation: positive(reader.read_u64()?)?,
             revision: positive(reader.read_u64()?)?,
-            cleanup_confirmed: match reader.read_u8()? {
-                0 => false,
-                1 => true,
-                _ => return Err(ProtocolError::InvalidPayload),
-            },
+            cleanup_confirmed: read_bool(&mut reader)?,
         },
         8 => Outcome::ClearOutcomeUnknown,
+        10 => Outcome::ResetAccepted {
+            generation: positive(reader.read_u64()?)?,
+            revision: positive(reader.read_u64()?)?,
+            cleanup_confirmed: read_bool(&mut reader)?,
+        },
+        11 => Outcome::ResetOutcomeUnknown,
         2 => Outcome::Released,
         3 => Outcome::InputAccepted,
         4 => Outcome::Resized(decode_geometry(&mut reader)?),
@@ -361,4 +376,11 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalControlResult, Proto
 }
 fn positive(value: u64) -> Result<NonZeroU64, ProtocolError> {
     NonZeroU64::new(value).ok_or(ProtocolError::InvalidPayload)
+}
+fn read_bool(reader: &mut PayloadReader<'_>) -> Result<bool, ProtocolError> {
+    match reader.read_u8()? {
+        0 => Ok(false),
+        1 => Ok(true),
+        _ => Err(ProtocolError::InvalidPayload),
+    }
 }

@@ -10,7 +10,7 @@ that carrier. It is not a public API or a compatibility promise.
 ## Terminal control result pairing
 
 `TerminalControlAction::admits` owns control action/result pairing. Every action may be rejected;
-only Clear admits `ClearOutcomeUnknown`. Resize requires an exact geometry echo, and Paste accepts
+only Clear admits `ClearOutcomeUnknown`, and only Reset admits `ResetOutcomeUnknown`. Resize requires an exact geometry echo, and Paste accepts
 at most twice its content length plus 12 encoded bytes. The action match is exhaustive, so adding
 an action requires declaring its admissible outcomes. The carrier separately validates request,
 viewer, and controller identities.
@@ -91,7 +91,9 @@ Pre-Host lazy launch refuses before startup. Existing unknown-receipt rules and
 Host document lifecycle remain authoritative; current-Client/focus admission,
 independent overlay and public CLI remain upstream obligations.
 
-## Transient terminal clear
+## Transient terminal clear and reset
+
+Control action tag 9 is `Reset`, framed and admitted exactly like `Clear` below; the Worker sends the Host's full reset instead of a prompt-preserving clear. Result tag 10 is `ResetAccepted` with `Cleared`'s fields, and tag 11 is `ResetOutcomeUnknown`, valid only for Reset.
 
 Control action tag 6 is `Clear`, using the request viewer plus a newly allocated transient attachment in `controller_id`; it never names or changes a controller reservation. Result tag 7 is `Cleared` with positive u64 generation/revision and a canonical one-byte cleanup Boolean; tag 8 is `ClearOutcomeUnknown` and is valid only for Clear. Rejection tag 12 denotes an alternate screen. Old tags and framing remain unchanged. The carrier validates the complete request/viewer/transient identity and result kind before delivery. [Native clear](../../apps/orchbee/docs/native-cli-query.md#clear-terminal-output) owns the end-to-end state machine; same-cohort deployment is required.
 

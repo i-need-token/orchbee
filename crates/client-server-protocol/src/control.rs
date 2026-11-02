@@ -188,6 +188,10 @@ pub enum TerminalControlAction {
     Clear {
         attachment_id: ViewerId,
     },
+    /// A full terminal reset, admitted like `Clear` and independent of the controller.
+    Reset {
+        attachment_id: ViewerId,
+    },
     Input {
         attachment_id: ViewerId,
         controller_id: ControllerId,
@@ -243,6 +247,9 @@ enum WireControlAction {
     Clear {
         attachment_id: ViewerId,
     },
+    Reset {
+        attachment_id: ViewerId,
+    },
     Input {
         attachment_id: ViewerId,
         controller_id: ControllerId,
@@ -282,6 +289,9 @@ impl Serialize for TerminalControlAction {
                 attachment_id: attachment_id.clone(),
             },
             Self::Clear { attachment_id } => WireControlAction::Clear {
+                attachment_id: attachment_id.clone(),
+            },
+            Self::Reset { attachment_id } => WireControlAction::Reset {
                 attachment_id: attachment_id.clone(),
             },
             Self::Acquire { attachment_id } => WireControlAction::Acquire {
@@ -348,6 +358,7 @@ impl<'de> Deserialize<'de> for TerminalControlAction {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         Ok(match WireControlAction::deserialize(deserializer)? {
             WireControlAction::Clear { attachment_id } => Self::Clear { attachment_id },
+            WireControlAction::Reset { attachment_id } => Self::Reset { attachment_id },
             WireControlAction::Acquire { attachment_id } => Self::Acquire { attachment_id },
             WireControlAction::Takeover { attachment_id } => Self::Takeover { attachment_id },
             WireControlAction::Input {
@@ -420,6 +431,9 @@ impl TerminalControlAction {
             Self::Clear { .. } => {
                 matches!(outcome, TerminalControlOutcome::Cleared { .. }) || failed
             }
+            Self::Reset { .. } => {
+                matches!(outcome, TerminalControlOutcome::ResetAccepted { .. }) || failed
+            }
             Self::Input { .. } | Self::SemanticInput { .. } => {
                 matches!(outcome, TerminalControlOutcome::InputAccepted {}) || failed
             }
@@ -441,6 +455,7 @@ impl TerminalControlAction {
         match self {
             Self::Acquire { attachment_id }
             | Self::Clear { attachment_id }
+            | Self::Reset { attachment_id }
             | Self::Takeover { attachment_id }
             | Self::Input { attachment_id, .. }
             | Self::SemanticInput { attachment_id, .. }
@@ -494,6 +509,14 @@ pub enum TerminalControlOutcome {
     },
     HostColorsAccepted {},
     Cleared {
+        #[serde(with = "crate::number::positive_decimal")]
+        generation: NonZeroU64,
+        #[serde(with = "crate::number::positive_decimal")]
+        revision: NonZeroU64,
+        cleanup_confirmed: bool,
+    },
+    /// The Host applied the reset; the fields mean what they mean for `Cleared`.
+    ResetAccepted {
         #[serde(with = "crate::number::positive_decimal")]
         generation: NonZeroU64,
         #[serde(with = "crate::number::positive_decimal")]

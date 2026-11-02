@@ -205,6 +205,7 @@ pub(super) fn run(
                             },
                         )
                     }
+                    TerminalControlAction::Reset => panic!("unexpected reset in viewer fixture"),
                     TerminalControlAction::Takeover { .. } => {
                         panic!("unexpected takeover in viewer fixture")
                     }

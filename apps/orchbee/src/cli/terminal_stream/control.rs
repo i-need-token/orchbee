@@ -538,6 +538,7 @@ pub(super) fn classify_control(outcome: ControlOutcome) -> Failure {
         | ControlOutcome::Pasted { .. }
         | ControlOutcome::HostColorsAccepted {}
         | ControlOutcome::Cleared { .. }
+        | ControlOutcome::ResetAccepted { .. }
         | ControlOutcome::Rejected { .. } => FailureKind::ProtocolInvalid,
     })
 }

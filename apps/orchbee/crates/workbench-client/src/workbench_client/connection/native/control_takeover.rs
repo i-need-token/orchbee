@@ -130,6 +130,7 @@ impl ClientExecutor {
                     | TerminalControlOutcome::Pasted { .. }
                     | TerminalControlOutcome::HostColorsAccepted {}
                     | TerminalControlOutcome::Cleared { .. }
+                    | TerminalControlOutcome::ResetAccepted { .. }
                     | TerminalControlOutcome::Rejected { .. }
                     | TerminalControlOutcome::Unavailable { .. } => {
                         return Err(CarrierFailure::Transport);
@@ -147,7 +148,8 @@ impl ClientExecutor {
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
             | TerminalControlOutcome::HostColorsAccepted {}
-            | TerminalControlOutcome::Cleared { .. } => return Err(CarrierFailure::Protocol),
+            | TerminalControlOutcome::Cleared { .. }
+            | TerminalControlOutcome::ResetAccepted { .. } => return Err(CarrierFailure::Protocol),
         }
         let evidence = self
             .pending_takeover

@@ -122,6 +122,8 @@ pub enum TerminalControlAction {
     Acquire,
     /// Independent transient input attachment; never acquires a controller lease.
     Clear,
+    /// A full terminal reset through its own transient input attachment, as Clear.
+    Reset,
     Takeover {
         previous_controller_id: OperationId,
     },
@@ -150,7 +152,7 @@ pub enum TerminalControlAction {
 }
 impl TerminalControlAction {
     /// Admits only this action's result, including its geometry or encoded paste bound.
-    /// Any action may be rejected; only Clear admits an unknown clear outcome.
+    /// Any action may be rejected; only Clear and Reset admit their own unknown outcome.
     #[must_use]
     pub fn admits(&self, outcome: &TerminalControlOutcome) -> bool {
         let rejected = matches!(outcome, TerminalControlOutcome::Rejected(_));
@@ -163,6 +165,13 @@ impl TerminalControlAction {
                     outcome,
                     TerminalControlOutcome::Cleared { .. }
                         | TerminalControlOutcome::ClearOutcomeUnknown
+                ) || rejected
+            }
+            Self::Reset => {
+                matches!(
+                    outcome,
+                    TerminalControlOutcome::ResetAccepted { .. }
+                        | TerminalControlOutcome::ResetOutcomeUnknown
                 ) || rejected
             }
             Self::Release => matches!(outcome, TerminalControlOutcome::Released) || rejected,
@@ -219,6 +228,13 @@ pub enum TerminalControlOutcome {
         cleanup_confirmed: bool,
     },
     ClearOutcomeUnknown,
+    /// The Host applied the reset; the fields match `Cleared`.
+    ResetAccepted {
+        generation: NonZeroU64,
+        revision: NonZeroU64,
+        cleanup_confirmed: bool,
+    },
+    ResetOutcomeUnknown,
     Released,
     InputAccepted,
     Resized(TerminalPixelGeometry),

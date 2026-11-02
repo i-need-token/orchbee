@@ -84,6 +84,7 @@ fn tag(message: &ServerMessage) -> String {
             ControlOutcome::Unavailable { reason } => format!("unavailable:{reason:?}"),
             ControlOutcome::OutcomeUnknown {} => "unknown".into(),
             ControlOutcome::Cleared { .. } => "clear".into(),
+            ControlOutcome::ResetAccepted { .. } => "reset".into(),
         },
         _ => "wrong-message".into(),
     }

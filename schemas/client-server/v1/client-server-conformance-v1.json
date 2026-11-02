@@ -673,6 +673,16 @@
 		},
 		{
 			"direction": "client-to-server",
+			"name": "reset-transient",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"reset\",\"attachmentId\":\"22222222222222222222222222222222\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "reset-known",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"reset-accepted\",\"generation\":\"1\",\"revision\":\"18446744073709551615\",\"cleanupConfirmed\":false}}"
+		},
+		{
+			"direction": "client-to-server",
 			"name": "control-semantic-input",
 			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"semantic-input\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"7\",\"inputKind\":\"key\",\"payload\":\"0a0b\"}}"
 		},
@@ -2365,6 +2375,18 @@
 			"direction": "server-to-client",
 			"name": "clear-nonboolean-cleanup",
 			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"cleared\",\"generation\":\"18446744073709551615\",\"revision\":\"1\",\"cleanupConfirmed\":\"true\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "reset-has-no-controller",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"reset\",\"attachmentId\":\"22222222222222222222222222222222\",\"controllerId\":\"33333333333333333333333333333333\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "reset-zero-revision",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"reset-accepted\",\"generation\":\"1\",\"revision\":\"0\",\"cleanupConfirmed\":true}}",
 			"boundary": "schema"
 		},
 		{

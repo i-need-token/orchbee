@@ -7,8 +7,8 @@ use crate::{
     terminal_viewer_operation::set_attachment_demand,
     worker_identity::fresh_identity,
 };
-mod clear;
 mod host_colors;
+mod screen_control;
 #[cfg(test)]
 mod tests;
 use orchbee_capability_node_protocol::{
@@ -56,8 +56,14 @@ fn apply(
     host: &HostBrokerConnection,
     server: &UnixStream,
 ) -> Result<Outcome, Box<dyn Error>> {
-    if request.action == Action::Clear {
-        return clear::apply(request, host, server);
+    match request.action {
+        Action::Clear => {
+            return screen_control::apply(request, host, server, screen_control::Operation::Clear);
+        }
+        Action::Reset => {
+            return screen_control::apply(request, host, server, screen_control::Operation::Reset);
+        }
+        _ => {}
     }
     if matches!(request.action, Action::Release) {
         let grant = host.controllers.borrow().for_viewer(request.viewer_id);
@@ -164,8 +170,12 @@ fn apply(
         | Action::Resize { sequence, .. }
         | Action::Paste { sequence, .. }
         | Action::HostColors { sequence, .. } => *sequence,
-        Action::Acquire | Action::Takeover { .. } | Action::Release | Action::Clear => {
-            unreachable!("acquisition, release, and clear handled")
+        Action::Acquire
+        | Action::Takeover { .. }
+        | Action::Release
+        | Action::Clear
+        | Action::Reset => {
+            unreachable!("acquisition, release, clear, and reset handled")
         }
     };
     let grant = match host.controllers.borrow_mut().admit(
@@ -220,6 +230,7 @@ fn apply(
         | Action::Takeover { .. }
         | Action::Release
         | Action::Clear
+        | Action::Reset
         | Action::HostColors { .. } => unreachable!("effect action matched"),
     };
     let response = exchange(host, server, correlation, kind, &payload, encoding)?;
@@ -239,6 +250,7 @@ fn apply(
             | Action::Takeover { .. }
             | Action::Release
             | Action::Clear
+            | Action::Reset
             | Action::Input { .. }
             | Action::Resize { .. }
             | Action::HostColors { .. } => Rejection::HostRejected,
@@ -312,6 +324,7 @@ fn apply(
         | Action::Takeover { .. }
         | Action::Release
         | Action::Clear
+        | Action::Reset
         | Action::HostColors { .. } => unreachable!("effect action matched"),
     }
 }

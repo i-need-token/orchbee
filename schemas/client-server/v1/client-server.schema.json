@@ -1470,6 +1470,19 @@
 							"$ref": "#/$defs/viewerId"
 						}
 					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId"],
+					"properties": {
+						"kind": {
+							"const": "reset"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						}
+					}
 				}
 			]
 		},
@@ -1590,6 +1603,25 @@
 					"properties": {
 						"kind": {
 							"const": "cleared"
+						},
+						"generation": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"revision": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"cleanupConfirmed": {
+							"type": "boolean"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "generation", "revision", "cleanupConfirmed"],
+					"properties": {
+						"kind": {
+							"const": "reset-accepted"
 						},
 						"generation": {
 							"$ref": "#/$defs/projectionPositive"

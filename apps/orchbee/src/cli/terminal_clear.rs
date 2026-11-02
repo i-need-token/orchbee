@@ -110,7 +110,8 @@ fn execute(
         | TerminalControlOutcome::InputAccepted {}
         | TerminalControlOutcome::Resized { .. }
         | TerminalControlOutcome::Pasted { .. }
-        | TerminalControlOutcome::HostColorsAccepted {} => {
+        | TerminalControlOutcome::HostColorsAccepted {}
+        | TerminalControlOutcome::ResetAccepted { .. } => {
             return Err(Failure::new(FailureKind::ProtocolInvalid).source(source));
         }
     };

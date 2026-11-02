@@ -672,7 +672,8 @@ impl ClientExecutor {
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
             | TerminalControlOutcome::HostColorsAccepted {}
-            | TerminalControlOutcome::Cleared { .. } => return Err(CarrierFailure::Protocol),
+            | TerminalControlOutcome::Cleared { .. }
+            | TerminalControlOutcome::ResetAccepted { .. } => return Err(CarrierFailure::Protocol),
             TerminalControlOutcome::OutcomeUnknown {} => {
                 return Err(CarrierFailure::OutcomeUnknown);
             }
@@ -983,6 +984,7 @@ impl ClientExecutor {
             | TerminalControlOutcome::Pasted { .. }
             | TerminalControlOutcome::HostColorsAccepted {}
             | TerminalControlOutcome::Cleared { .. }
+            | TerminalControlOutcome::ResetAccepted { .. }
             | TerminalControlOutcome::Unavailable { .. } => {
                 Err(ReadyFlowError::Carrier(CarrierFailure::Protocol))
             }
@@ -1046,6 +1048,7 @@ impl ClientExecutor {
             | TerminalControlOutcome::Pasted { .. }
             | TerminalControlOutcome::HostColorsAccepted {}
             | TerminalControlOutcome::Cleared { .. }
+            | TerminalControlOutcome::ResetAccepted { .. }
             | TerminalControlOutcome::Unavailable { .. } => {
                 return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
             }
@@ -2385,7 +2388,8 @@ impl ClientExecutor {
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
             | TerminalControlOutcome::HostColorsAccepted {}
-            | TerminalControlOutcome::Cleared { .. } => {
+            | TerminalControlOutcome::Cleared { .. }
+            | TerminalControlOutcome::ResetAccepted { .. } => {
                 return Err(CarrierFailure::Protocol);
             }
             TerminalControlOutcome::OutcomeUnknown {} => {
@@ -2929,7 +2933,8 @@ impl ClientExecutor {
             }),
             action @ (TerminalControlAction::Acquire { .. }
             | TerminalControlAction::Takeover { .. }
-            | TerminalControlAction::Clear { .. }) => Ok(action),
+            | TerminalControlAction::Clear { .. }
+            | TerminalControlAction::Reset { .. }) => Ok(action),
         }
     }
 
@@ -2985,6 +2990,7 @@ impl ClientExecutor {
                 | TerminalControlOutcome::Pasted { .. }
                 | TerminalControlOutcome::HostColorsAccepted {}
                 | TerminalControlOutcome::Cleared { .. }
+                | TerminalControlOutcome::ResetAccepted { .. }
                 | TerminalControlOutcome::Rejected { .. }
                 | TerminalControlOutcome::Unavailable { .. },
             ) => {
@@ -3016,6 +3022,7 @@ impl ClientExecutor {
             | TerminalControlOutcome::Pasted { .. }
             | TerminalControlOutcome::HostColorsAccepted {}
             | TerminalControlOutcome::Cleared { .. }
+            | TerminalControlOutcome::ResetAccepted { .. }
             | TerminalControlOutcome::Rejected { .. }
             | TerminalControlOutcome::Unavailable { .. } => {
                 if let Ok(attached) = self.attached_mut(key) {
