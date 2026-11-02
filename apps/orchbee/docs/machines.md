@@ -718,13 +718,17 @@ or Session never inherits it. A complete round that asked for Git and got none m
 fact stale; a commit, a metadata-only read and a read that asked about other Workspaces say nothing
 about Git and leave its freshness unchanged. The Workspace picker reports Stale; the sidebar paints
 no marker for it.
-A directory change moves the `location` line once. The Client keeps the Session's last Git answer
+A directory change moves the row once: its name and `location` line change together, to their final
+value, and neither shows another directory's facts. The Client keeps the Session's last Git answer
 for up to 64 directories, so a return to a known directory paints with the commit. For an unknown
-directory the row keeps its last settled location and counts and asks one read of that Workspace's
-Git ahead of the sampling cooldown, once per Workspace and directory; the answer replaces what it
-kept. A complete round without an answer or a withdrawn checkpoint ends the wait on the real folder.
-A row with no earlier Git answer has nothing to keep and shows the new folder at once. A kept answer
-is a presentation hint that the next sampled round corrects; it grants nothing.
+directory the row keeps the name, location and counts it last settled on, an automatic name committed
+with the directory included, and asks one read of that Workspace's Git ahead of the sampling cooldown,
+once per Workspace and directory; the answer replaces all it kept. The wait lasts at most one second,
+which covers a read of about 200 ms and one retry after a commit interrupted it, and a further
+directory change does not restart it. At the bound, or after a complete round without an answer, a
+withdrawn checkpoint or a rename, the row shows its real name and folder, and a late answer corrects
+the line. A view that shows nothing from Git never waits. A kept answer is a presentation hint that
+the next sampled round corrects; it grants nothing.
 Endpoint replacement/removal invalidates its retained checkpoint;
 hiding the last Workspace consumer releases it. No retained fact grants navigation or effect authority.
 `crates/workbench-client/src/machine_picker/tests/spaces.rs` covers failed/missing and out-of-order rounds, stable grouping,

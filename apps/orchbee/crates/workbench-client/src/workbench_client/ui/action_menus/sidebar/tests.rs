@@ -422,6 +422,7 @@ fn ungrouped_git_workspace() -> (
         .find(|workspace| workspace.workspace_id.as_str() == format!("{:032x}", 80))
         .unwrap();
     member.project_id = None;
+    member.automatic_label = true;
     let location = ClientContextLocation::Workspace {
         workspace_id: member.workspace_id.clone(),
         terminal_context_id: member.terminal_context_id.clone(),
@@ -466,6 +467,60 @@ fn workspace_discovery(ui: &WorkbenchClientUi) -> SidebarDiscovery {
     result
 }
 
+/// Publishes what the Server commits when the first terminal moves: the followed directory, and
+/// the automatic name it carries.
+fn first_terminal_moves(ui: &mut WorkbenchClientUi, label: &str, directory: &str) {
+    use orchbee_workbench_protocol::{WorkbenchRevision, WorkbenchSnapshotOutcome};
+    let now = ui.clock.now();
+    let state = ui.state.as_mut().unwrap();
+    let mut snapshot = state.cache().canonical_snapshot().clone();
+    snapshot.revision = WorkbenchRevision::new(snapshot.revision.value() + 1);
+    let member = snapshot
+        .navigation
+        .workspaces
+        .iter_mut()
+        .find(|workspace| workspace.workspace_id.as_str() == format!("{:032x}", 80))
+        .unwrap();
+    member.label = label.into();
+    member.terminal_directory = Some(WorkbenchDirectoryPath::parse(directory).unwrap());
+    assert!(state.start_pending_refresh(44));
+    let prepared = state.prepare_refresh(44, WorkbenchSnapshotOutcome::Available { snapshot });
+    state.apply_prepared_refresh(prepared, now);
+    ui.drive_sidebar_worktrees();
+    ui.drive_action_menu();
+}
+
+/// The answer the lane reports about where the first terminal stands now: the checkout it stands
+/// in and, with `entries` of two, one linked checkout.
+fn answer_where_it_stands(ui: &WorkbenchClientUi, entries: usize) -> SidebarDiscovery {
+    use orchbee_workbench_protocol::{WorktreeEntryText, WorktreeQuerySource, WorktreeSource};
+    let addressed = ui.menus.discovery().unwrap().source().clone();
+    let sample = crate::primary_directory::RootDirectory::Unavailable;
+    let source = addressed.resolve_sample(sample.clone()).unwrap();
+    let WorktreeSource::WorkspaceDirectory { workspace_id, path } = &source else {
+        panic!("a followed directory outside the Workspace's own: {source:?}");
+    };
+    let mut discovery = crate::workbench_state::worktree_launch::tests::discovery();
+    discovery.worker = addressed.cache.directory().unwrap().worker_id.clone();
+    discovery.source = WorktreeQuerySource {
+        requested_path: path.clone(),
+        repository_root: WorkbenchDirectoryPath::parse("C:/first-repository").unwrap(),
+        common_directory: WorkbenchDirectoryPath::parse("C:/first-repository/.git").unwrap(),
+        checkout_path: WorkbenchDirectoryPath::parse("C:/first-repository").unwrap(),
+        workspace_id: Some(workspace_id.clone()),
+    };
+    discovery.entries[0].checkout.path = WorktreeEntryText::Utf8(path.as_str().into());
+    discovery.entries.truncate(entries);
+    let result = SidebarDiscovery {
+        addressed,
+        sample,
+        source,
+        discovery,
+    };
+    assert!(result.valid(ui.state.as_ref().unwrap().cache().canonical_snapshot()));
+    result
+}
+
 fn settle(ui: &mut WorkbenchClientUi, result: Result<Box<SidebarDiscovery>, WorktreeNotice>) {
     ui.menus.mark_discovery_querying();
     let id = ui.menus.discovery().unwrap().id();
@@ -484,6 +539,148 @@ fn unavailable(
 ) -> Option<crate::action_menu::MenuUnavailable> {
     let index = row(ui, action);
     ui.view().action_menu().unwrap().unavailable[index]
+}
+
+#[test]
+fn a_directory_change_keeps_the_worktree_rows_until_the_new_answer_differs() {
+    use crate::action_menu::MenuUnavailable;
+    let rows = [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees];
+    let (mut ui, _, _) = ungrouped_git_workspace();
+    let discovery = workspace_discovery(&ui);
+    settle(&mut ui, Ok(Box::new(discovery)));
+    let token = draw(&mut ui);
+    let label = ui.view().action_menu().unwrap().title.to_owned();
+
+    // Nothing the person sees changes while Git is asked again, or when it says the same.
+    first_terminal_moves(&mut ui, &label, "C:/first-repository/sub");
+    for action in &rows {
+        assert_eq!(unavailable(&ui, action), None, "{action:?} during the read");
+    }
+    assert_eq!(ui.view().action_menu().unwrap().token, token);
+    let same = answer_where_it_stands(&ui, 2);
+    settle(&mut ui, Ok(Box::new(same)));
+    for action in &rows {
+        assert_eq!(unavailable(&ui, action), None, "{action:?} after the read");
+    }
+    assert_eq!(ui.view().action_menu().unwrap().token, token);
+
+    // A different answer changes the rows once, with the read.
+    first_terminal_moves(&mut ui, &label, "C:/first-repository/other");
+    let fewer = answer_where_it_stands(&ui, 1);
+    settle(&mut ui, Ok(Box::new(fewer)));
+    assert_eq!(unavailable(&ui, &MenuAction::NewWorktree), None);
+    assert_eq!(
+        unavailable(&ui, &MenuAction::WorkspaceWorktrees),
+        Some(MenuUnavailable::NoOtherWorktrees)
+    );
+    first_terminal_moves(&mut ui, &label, "C:/plain");
+    assert_eq!(unavailable(&ui, &MenuAction::NewWorktree), None);
+    settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
+    assert_eq!(
+        unavailable(&ui, &MenuAction::NewWorktree),
+        Some(MenuUnavailable::WorktreeUnavailable)
+    );
+
+    // Walking between folders outside Git is no change either.
+    first_terminal_moves(&mut ui, &label, "C:/plain/deeper");
+    assert_eq!(
+        unavailable(&ui, &MenuAction::NewWorktree),
+        Some(MenuUnavailable::WorktreeUnavailable)
+    );
+}
+
+#[test]
+fn a_row_chosen_during_the_read_waits_for_the_answer_and_acts_on_it() {
+    use crate::workbench_state::worktree_launch::WorktreeMode;
+    let (mut ui, _, _) = ungrouped_git_workspace();
+    let discovery = workspace_discovery(&ui);
+    settle(&mut ui, Ok(Box::new(discovery)));
+    first_terminal_moves(&mut ui, "sub", "C:/first-repository/sub");
+    let token = draw(&mut ui);
+    let source = ui.view().action_menu().unwrap().source.clone();
+    let index = row(&ui, &MenuAction::NewWorktree);
+    ui.activate_action_menu_row(&source, token, index);
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(ui.action_menu_active(), "it waits for the answer");
+    assert!(ui.worktrees.launcher.view().is_none());
+
+    let answer = answer_where_it_stands(&ui, 2);
+    settle(&mut ui, Ok(Box::new(answer)));
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(!ui.action_menu_active());
+    let origin = ui.state.as_ref().unwrap().worktree_origin().unwrap();
+    let launcher = &mut ui.worktrees.launcher;
+    assert_eq!(launcher.view().unwrap().mode(), WorktreeMode::Create);
+    let token = launcher.token().unwrap();
+    launcher.draw(Some(token));
+    let plan = launcher
+        .create_with_defaults(
+            orchbee_workbench_protocol::WorkbenchRequestId::parse(&format!("{:032x}", 903))
+                .unwrap(),
+            &origin,
+            crate::localization::Locale::EnUs,
+        )
+        .unwrap();
+    assert!(matches!(
+        &plan.intent,
+        orchbee_workbench_protocol::WorktreeIntent::Create {
+            source: orchbee_workbench_protocol::WorktreeSource::WorkspaceDirectory { path, .. },
+            ..
+        } if path.as_str() == "C:/first-repository/sub"
+    ));
+}
+
+#[test]
+fn a_chosen_checkout_the_new_answer_no_longer_lists_is_reported() {
+    let (mut ui, _, _) = ungrouped_git_workspace();
+    let discovery = workspace_discovery(&ui);
+    settle(&mut ui, Ok(Box::new(discovery)));
+    let token = draw(&mut ui);
+    let source = ui.view().action_menu().unwrap().source.clone();
+    let index = row(&ui, &MenuAction::WorkspaceWorktrees);
+    ui.activate_action_menu_row(&source, token, index);
+    assert!(ui.take_action_menu_action(false).is_none(), "a submenu");
+
+    first_terminal_moves(&mut ui, "sub", "C:/first-repository/sub");
+    let token = draw(&mut ui);
+    let source = ui.view().action_menu().unwrap().source.clone();
+    let index = row(
+        &ui,
+        &MenuAction::OpenWorktreeAt(WorkbenchDirectoryPath::parse("C:/trees/猫").unwrap()),
+    );
+    ui.activate_action_menu_row(&source, token, index);
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(ui.action_menu_active(), "it waits for the answer");
+
+    let answer = answer_where_it_stands(&ui, 1);
+    settle(&mut ui, Ok(Box::new(answer)));
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(!ui.action_menu_active());
+    assert!(ui.worktrees.launcher.view().is_none());
+    assert_eq!(
+        ui.command_notice.current(ui.clock.now()),
+        Some(crate::localization::WorkbenchClientNotice::MenuUnavailable)
+    );
+}
+
+#[test]
+fn the_menu_heading_follows_the_workspace_name_beside_an_open_submenu() {
+    let (mut ui, _, _) = ungrouped_git_workspace();
+    let discovery = workspace_discovery(&ui);
+    settle(&mut ui, Ok(Box::new(discovery)));
+    first_terminal_moves(&mut ui, "sub (2)", "C:/first-repository/sub");
+    assert_eq!(ui.view().action_menu().unwrap().title, "sub (2)");
+
+    let answer = answer_where_it_stands(&ui, 2);
+    settle(&mut ui, Ok(Box::new(answer)));
+    let token = draw(&mut ui);
+    let source = ui.view().action_menu().unwrap().source.clone();
+    let index = row(&ui, &MenuAction::WorkspaceWorktrees);
+    ui.activate_action_menu_row(&source, token, index);
+    assert!(ui.take_action_menu_action(false).is_none(), "a submenu");
+    first_terminal_moves(&mut ui, "deeper", "C:/first-repository/sub/deeper");
+    let view = ui.view();
+    assert_eq!(view.action_menu_cascade()[0].title, "deeper");
 }
 
 #[test]

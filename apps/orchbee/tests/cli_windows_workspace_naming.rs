@@ -2,7 +2,8 @@
 //! test, with a TUI Client running in a terminal of a second Session. A `cd` in the first terminal
 //! of a Workspace whose name was generated renames it until a rename fixes the name, the recorded
 //! terminal directory and the sidebar's folder line follow it either way, and a new Workspace
-//! created from the TUI starts where that terminal now is. The location line moves once per `cd`.
+//! created from the TUI starts where that terminal now is. A row's name and location line move once
+//! per `cd`, together.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -127,32 +128,78 @@ fn a_new_workspace_starts_in_the_selected_workspace_first_terminal_directory() {
     assert_eq!(added["automaticLabel"], true);
 }
 
+/// Every visit but the last is the first to its directory, so no earlier Git answer helps: a lagging
+/// line would name the last directory's branch or folder under the new name.
+#[test]
+fn a_first_visit_changes_the_sidebar_name_and_location_line_together() {
+    let fixture = Fixture::new(
+        "orchbee-first-visit-",
+        &["start", "first", "second", "outside"],
+    );
+    repository(&fixture, "first", "main");
+    repository(&fixture, "second", "topic");
+    let created = create_unnamed(&fixture, "start");
+    let terminal = terminal_of(&fixture, &created);
+    let tui = fixture.start_tui(COLUMNS, ROWS);
+    fixture.settle_ready(&tui.client);
+
+    let mut painted = Vec::new();
+    let mut sample = |until_step: Option<&(String, String)>| {
+        let screen = fixture.screen(&tui.terminal);
+        let row = ["start", "first", "second", "outside"]
+            .into_iter()
+            .find_map(|name| Some((name.to_owned(), location_line(&screen, name)?)));
+        if let Some(row) = row
+            && painted.last() != Some(&row)
+        {
+            painted.push(row);
+        }
+        (screen, painted.last() == until_step)
+    };
+    let mut reach = |name: &str, line: &str| {
+        let step = (name.to_owned(), line.to_owned());
+        let deadline = Instant::now() + FOLLOW;
+        loop {
+            let (screen, reached) = sample(Some(&step));
+            if reached {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "never reached {step:?}:\n{screen}"
+            );
+        }
+    };
+    reach("start", "start");
+    for (directory, line) in [
+        ("first", "main"),
+        ("second", "topic"),
+        ("outside", "outside"),
+        ("first", "main"),
+    ] {
+        change_directory(&fixture, &terminal, directory);
+        reach(directory, line);
+    }
+    // Time for a later sampled Git read to change what the row already painted.
+    let settled = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < settled {
+        sample(None);
+    }
+    let expected = [
+        ("start", "start"),
+        ("first", "main"),
+        ("second", "topic"),
+        ("outside", "outside"),
+        ("first", "main"),
+    ]
+    .map(|(name, line)| (name.to_owned(), line.to_owned()));
+    assert_eq!(painted, expected);
+}
+
 #[test]
 fn a_directory_change_moves_the_sidebar_location_line_in_one_step() {
     let fixture = Fixture::new("orchbee-location-", &["repo", "outside"]);
-    for words in [
-        &["init", "--quiet", "--initial-branch=main"][..],
-        &[
-            "-c",
-            "user.name=Orchbee Fixture",
-            "-c",
-            "user.email=fixture@example.invalid",
-            "-c",
-            "commit.gpgsign=false",
-            "commit",
-            "--quiet",
-            "--allow-empty",
-            "-m",
-            "seed",
-        ],
-    ] {
-        let git = Command::new("git")
-            .args(words)
-            .current_dir(fixture.path("repo"))
-            .output()
-            .unwrap();
-        assert!(git.status.success(), "git {words:?}: {git:?}");
-    }
+    repository(&fixture, "repo", "main");
     // Fixed names keep the rows findable while their terminals move.
     let created = create_unnamed(&fixture, "repo");
     let terminal = terminal_of(&fixture, &created);
@@ -205,6 +252,34 @@ fn a_directory_change_moves_the_sidebar_location_line_in_one_step() {
     }
     assert_eq!(moved, ["main", "outside", "main"]);
     assert_eq!(unmoved, ["main"]);
+}
+
+/// Makes the fixture directory a repository with one commit on `branch`.
+fn repository(fixture: &Fixture, directory: &str, branch: &str) {
+    let initial_branch = format!("--initial-branch={branch}");
+    for words in [
+        &["init", "--quiet", &initial_branch][..],
+        &[
+            "-c",
+            "user.name=Orchbee Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "-m",
+            "seed",
+        ],
+    ] {
+        let git = Command::new("git")
+            .args(words)
+            .current_dir(fixture.path(directory))
+            .output()
+            .unwrap();
+        assert!(git.status.success(), "git {words:?}: {git:?}");
+    }
 }
 
 /// The line below `label`'s sidebar row, with a folder reduced to its last component, which middle

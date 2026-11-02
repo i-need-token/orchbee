@@ -136,6 +136,51 @@ fn a_directory_change_under_the_open_menu_keeps_it_and_asks_git_again() {
     control.release();
 }
 
+/// A `cd` inside the repository, with the menu open, leaves the rows the menu already recognized
+/// enabled while Git is asked again.
+#[test]
+fn a_directory_change_under_the_open_menu_leaves_its_worktree_rows_enabled() {
+    let fixture = Fixture::new("orchbee-worktree-refresh-", &["repo"]);
+    repository(&fixture);
+    std::fs::create_dir_all(fixture.path("repo/sub")).unwrap();
+    let created = fixture.workspace_in("source", "repo");
+    let source = created["workspaceId"].as_str().unwrap();
+    let tui = fixture.start_tui(COLUMNS, ROWS);
+    fixture.settle_ready(&tui.client);
+    let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
+    control.input(b"\x1b[I");
+
+    open_menu(&fixture, &tui, &mut control, "source");
+    let deadline = Instant::now() + DISCOVERY;
+    loop {
+        let screen = fixture.screen(&tui.terminal);
+        if every_row_enabled(&screen) {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the rows never enabled:\n{screen}"
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+    let command = format!("cd \"{}\"", fixture.path("repo/sub"));
+    enter(&fixture, &terminal_of(&fixture, &created), &command);
+    // Spans the commit of the new directory and the Git read after it.
+    let watch = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < watch {
+        let screen = fixture.screen(&tui.terminal);
+        assert!(
+            every_row_enabled(&screen),
+            "the rows left their enabled state:\n{screen}"
+        );
+    }
+    stands_in(&fixture, source, "repo/sub");
+    choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
+        screen.contains(LINKED_BRANCH)
+    });
+    control.release();
+}
+
 /// PowerShell reports its directory and leaves its process cwd in the launch directory, here outside
 /// any repository, while the sidebar line follows the report.
 #[test]
@@ -379,6 +424,16 @@ fn rest_on(
         }
         thread::sleep(Duration::from_millis(100));
     }
+}
+
+/// Whether the open Workspace menu ends with its last row, Close. A row that is unavailable differs
+/// from an enabled one in color, and adds a reason row to the bottom of the frame.
+fn every_row_enabled(screen: &str) -> bool {
+    let lines: Vec<_> = screen.lines().collect();
+    lines
+        .iter()
+        .position(|line| line.contains('└'))
+        .is_some_and(|bottom| bottom > 0 && lines[bottom - 1].contains("Close"))
 }
 
 /// The one-based row and a column inside the first row that shows `text`.

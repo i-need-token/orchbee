@@ -293,6 +293,14 @@ fn intent_availability(
     }
 }
 
+/// The name a Workspace's own menus carry as their heading, the one its sidebar row shows.
+fn workspace_title(context: &crate::workbench_projection::ClientContext) -> String {
+    context
+        .workspace_label
+        .as_ref()
+        .map_or(String::new(), |label| label.as_str().to_owned())
+}
+
 enum ResumePermitSeed {
     CaptureDisplayed,
     Inherit(Option<TabCloseResumePermit>),
@@ -638,10 +646,7 @@ impl WorkbenchClientUi {
                 let actions = crate::action_menu::WORKSPACE_ACTIONS;
                 (
                     Target::Workspace { location, source },
-                    context
-                        .workspace_label
-                        .as_ref()
-                        .map_or(String::new(), |l| l.as_str().to_owned()),
+                    workspace_title(context),
                     actions.to_vec(),
                 )
             }
@@ -1332,6 +1337,16 @@ impl WorkbenchClientUi {
                 changed = menu.refresh_availability(|action| {
                     visible_unavailable(intent_availability(&intent, state, discovery, action))
                 });
+                // A `cd` can rename the Workspace under its open menu.
+                if let (Target::Workspace { location, .. }, Some(state)) = (intent.target(), state)
+                    && let Some(context) = state
+                        .cache()
+                        .navigation()
+                        .iter()
+                        .find(|context| &context.location == location)
+                {
+                    changed |= self.menus.set_workspace_title(&workspace_title(context));
+                }
             }
             Stage::Confirmed(deadline) => {
                 let deadline = *deadline;
@@ -1541,17 +1556,25 @@ impl WorkbenchClientUi {
                 | MenuTarget::Workspace(_)
                 | MenuTarget::WorkspaceWorktrees(_)
         ) {
+            // Its row may show the answer from before a `cd`. The action runs against the answer
+            // about where the first terminal stands now, which later turns bring or expire.
             let discovery = self.menus.discovery()?.ready()?.clone();
+            if !discovery.valid(self.state.as_ref()?.cache().canonical_snapshot()) {
+                return None;
+            }
             let checkout = match &action {
                 MenuAction::OpenWorktreeAt(path) => Some(path.clone()),
                 _ => None,
             };
             self.menus.menu.take()?;
             self.menus.end();
-            if action == MenuAction::RemoveWorktree {
-                self.remove_sidebar_worktree(discovery);
+            let opened = if action == MenuAction::RemoveWorktree {
+                self.remove_sidebar_worktree(discovery)
             } else {
-                self.open_sidebar_worktree(discovery, checkout);
+                self.open_sidebar_worktree(discovery, checkout)
+            };
+            if !opened {
+                self.note_action_menu_unavailable();
             }
             return None;
         }

@@ -536,6 +536,10 @@ pub(crate) struct RetainedMenu {
 }
 
 impl RetainedMenu {
+    pub(crate) fn set_title(&mut self, title: &str) {
+        title.clone_into(&mut self.title);
+    }
+
     /// The parent as last drawn, with its opening row as the selected row. Its window follows that
     /// row, so a resize can never scroll the row a submenu is level with out of view.
     pub(crate) fn view(&self, has_parent: bool) -> MenuView<'_> {
@@ -936,6 +940,30 @@ impl ActionMenu {
         menu.token = token;
         menu.drawn = None;
         menu.visible_rows = 0;
+    }
+
+    /// The heading is a display fact under the same successful-draw fence as row copy. Reports
+    /// whether it changed.
+    pub(crate) fn set_title(&mut self, title: &str) -> bool {
+        if self.menu.as_ref().is_none_or(|menu| menu.title == title) {
+            return false;
+        }
+        if self.confirmed.is_some() {
+            self.cancel();
+            return true;
+        }
+        let Some(token) = self.allocate() else {
+            self.cancel();
+            return true;
+        };
+        let Some(menu) = &mut self.menu else {
+            return false;
+        };
+        title.clone_into(&mut menu.title);
+        menu.token = token;
+        menu.drawn = None;
+        menu.visible_rows = 0;
+        true
     }
 
     /// Row notes are display facts under the same successful-draw fence as row copy.

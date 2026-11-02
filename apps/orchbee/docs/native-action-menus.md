@@ -19,7 +19,7 @@ The Workspace sidebar admits right-click only for an exact, still-present row on
 current machine and painted Session. It uses the existing Workspace menu and never
 requests a machine or context switch on opening or cancellation.
 
-A context menu's frame title names its target; a Tab menu uses the Tab's shared displayed name. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Zoom; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles, tooltips and shortcut help keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, then a separated Close. A reason row exists only while some row of the menu is unavailable.
+A context menu's frame title names its target; a Tab menu uses the Tab's shared displayed name, and a Workspace menu follows the Workspace's name as it changes under the open menu. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Zoom; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles, tooltips and shortcut help keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, then a separated Close. A reason row exists only while some row of the menu is unavailable.
 
 A pointer-opened menu follows the press: its frame starts at the pressed column on the row below the complete painted trigger (a sidebar row, Tab or group header, otherwise the pressed cell), else ends on the row above it, and shifts left to stay inside the viewport. Height yields to scrolling before covering the trigger row; fewer than three rows on both sides keeps the existing recovery surface. A keyboard-opened sidebar row menu opens beside its row, top edge level with it, moving up only to fit; other keyboard menus stay centered. While a pointer-opened row menu is open, its row keeps the hover fill; a keyboard-opened one keeps the sidebar focus on its row. Placement changes no target or focus. `docs/tui/layout.md` owns the general geometry.
 
@@ -243,8 +243,11 @@ a noncurrent Workspace. Empty conditional creation sections publish no orphan se
 Opening a Project or Workspace menu starts Git discovery of the addressed source. New Worktree…
 and Open Worktree ▸ stay disabled with a localized reason until discovery succeeds; a non-Git or
 failed source keeps them disabled, and Open Worktree ▸ also stays disabled while the Workspace's own
-checkout is the only one. A directory change of the first terminal keeps the menu open, returns these
-rows to waiting and starts discovery over. Success enables them, appends the Git Worktrees group to New Workspace ▸ and, when the
+checkout is the only one. A directory change of the first terminal keeps the menu open and starts
+discovery over: until the new answer arrives the rows keep the last one, enabled or disabled, and they change
+only if it differs. A row chosen meanwhile waits for that answer, bounded by discovery's 10 s deadline, and runs
+against it; an answer that no longer offers the row closes the menu with the localized unavailable notice.
+Success enables them, appends the Git Worktrees group to New Workspace ▸ and, when the
 Workspace directory is a linked non-bare checkout, appends a destructive Remove Worktree… after
 Close Workspace…. New rows only follow existing ones, so no row above them moves; the reason row
 disappears once no row is unavailable, so the frame may shrink. Completion changes availability

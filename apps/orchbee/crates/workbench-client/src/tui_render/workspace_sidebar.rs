@@ -110,8 +110,8 @@ struct Context<'a> {
     role: Role,
     no_workspace: &'static str,
     unnamed: &'static str,
-    /// The settled location this row keeps until the Git facts of its new directory are known.
-    held: Option<&'a crate::machine_spaces::HeldLocation>,
+    /// What this row keeps until the Git facts of its new directory are known.
+    held: Option<&'a crate::machine_spaces::HeldRow>,
     /// The Workspace folder shown by `location` when no branch is observed: the first terminal's
     /// current directory, else the Workspace's own directory.
     folder: Option<String>,
@@ -122,7 +122,7 @@ impl<'a> Context<'a> {
         let (key, role) =
             state_role(glyph_state.unwrap_or(orchbee_workbench_protocol::MetadataState::Unknown));
         let observed = view.machines.space_checkpoint_row(row);
-        let held = view.machines.space_held_location(row);
+        let held = view.machines.space_held_row(row);
         let folder = held
             .map_or_else(
                 || observed.and_then(crate::machine_spaces::Row::source_path),
@@ -148,9 +148,10 @@ impl<'a> Context<'a> {
         }
     }
     fn git(&self) -> Option<&'a crate::machine_spaces::Git> {
-        self.held
-            .map(|held| &held.git)
-            .or_else(|| self.observed?.git.as_ref())
+        match self.held {
+            Some(held) => held.git.as_ref(),
+            None => self.observed?.git.as_ref(),
+        }
     }
     fn branch(&self) -> Option<&'a str> {
         self.git()?.branch.as_deref()
@@ -175,8 +176,11 @@ impl<'a> Context<'a> {
             Kind::StateIcon | Kind::GitStatus => None,
             Kind::StateText => self.state,
             Kind::Workspace => Some(
-                self.observed
-                    .and_then(|r| r.label.as_deref())
+                self.held
+                    .map_or_else(
+                        || self.observed.and_then(|r| r.label.as_deref()),
+                        |held| held.label.as_deref(),
+                    )
                     .or_else(|| self.row.workspace_label())
                     .map(|label| {
                         if label.trim().is_empty() {

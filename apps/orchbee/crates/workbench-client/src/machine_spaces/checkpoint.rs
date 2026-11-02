@@ -15,12 +15,14 @@ pub(crate) struct Git {
     pub(crate) branch: Option<String>,
     pub(crate) divergence: Option<GitDivergence>,
 }
-/// The settled location a row keeps presenting while the Git facts of its new directory are
-/// unknown, so a directory change moves its line once rather than through the bare path.
+/// What a row keeps presenting, as one settled whole, while the Git facts of its new directory are
+/// unknown: a name that moved with the commit waits for the line below it, so a directory change
+/// moves the row once and never mixes one directory's name with another's facts.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct HeldLocation {
+pub(crate) struct HeldRow {
+    pub(crate) label: Option<String>,
     pub(crate) folder: Option<WorkbenchDirectoryPath>,
-    pub(crate) git: Git,
+    pub(crate) git: Option<Git>,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Row {
@@ -36,7 +38,7 @@ pub(crate) struct Row {
     pub(crate) git: Option<Git>,
     pub(crate) git_stale: bool,
     /// Present only while `git` is unknown for a directory the row just moved to.
-    pub(crate) held: Option<HeldLocation>,
+    pub(crate) held: Option<HeldRow>,
 }
 impl Row {
     /// The directory `git` describes: the first terminal's, otherwise the Workspace's own.
@@ -51,15 +53,19 @@ impl Row {
     }
 
     /// Completes a row without a Git answer from what `previous` knew. The same source keeps its
-    /// fact. A changed source takes the last answer for its directory, or else holds the location
-    /// the row last settled on. `asked` says a complete round wanted Git and got no answer: it
-    /// makes a retained fact stale and ends a hold, since no answer is coming soon.
+    /// fact. A changed source takes the last answer for its directory, or else holds what the row
+    /// last settled on. `asked` says a complete round wanted Git and got no answer: it makes a
+    /// retained fact stale and ends a hold, since no answer is coming soon. A rename under an unmoved
+    /// source also ends one, because the person who renamed it expects to see that at once.
     pub(super) fn carry_git(&mut self, known: Option<&Self>, previous: &Checkpoint, asked: bool) {
         match known.filter(|known| known.same_source(self)) {
             Some(known) => {
                 self.git.clone_from(&known.git);
                 self.git_stale = self.git.is_some() && (asked || known.git_stale);
-                self.held = known.held.clone().filter(|_| !asked);
+                self.held = known
+                    .held
+                    .clone()
+                    .filter(|_| !asked && self.label == known.label);
             }
             None => {
                 if let Some(git) = self
@@ -70,12 +76,11 @@ impl Row {
                     self.git = Some(git);
                     self.git_stale = asked;
                 } else if !asked {
-                    self.held = known.and_then(|known| {
-                        known.held.clone().or_else(|| {
-                            Some(HeldLocation {
-                                folder: known.source_path().cloned(),
-                                git: known.git.clone()?,
-                            })
+                    self.held = known.map(|known| {
+                        known.held.clone().unwrap_or_else(|| HeldRow {
+                            label: known.label.clone(),
+                            folder: known.source_path().cloned(),
+                            git: known.git.clone(),
                         })
                     });
                 }

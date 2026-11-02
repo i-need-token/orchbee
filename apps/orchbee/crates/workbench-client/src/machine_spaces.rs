@@ -19,7 +19,7 @@ const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
 pub(crate) mod checkpoint;
 pub(crate) mod navigation_projection;
 pub use checkpoint::Checkpoint;
-pub(crate) use checkpoint::{Git, HeldLocation, ProjectSummary, Row};
+pub(crate) use checkpoint::{Git, HeldRow, ProjectSummary, Row};
 pub type Collector = crate::machine_observation::Collector<Checkpoint>;
 
 /// Which Workspaces one read asks the Server about for Git.

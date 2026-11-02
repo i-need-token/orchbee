@@ -19,7 +19,7 @@ pub struct SidebarNavigationProjection {
 impl Checkpoint {
     /// Newer observed topology supersedes speculation. Older observations contribute metadata
     /// only by exact identity; Git additionally requires the same source, or the directory's last
-    /// answer, and a row that moved to an unknown directory holds its settled location.
+    /// answer, and a row that moved to an unknown directory holds what it settled on.
     pub(crate) fn project_navigation(
         source: &SidebarNavigationProjection,
         observed: Option<&Self>,

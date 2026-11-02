@@ -348,6 +348,8 @@ impl Manager {
                 .tick(space_sources, now, crate::machine_spaces::read_metadata)
         };
         change.redraw |= view.machines.observe_spaces(spaces);
+        // The UI loop runs at least this often, so a hold's bound needs no wake of its own.
+        change.redraw |= view.machines.advance_space_holds(now);
         // Failed observers retain their background transport guard until both collectors have
         // dropped cached origins/subscriptions. Remaining cancelled jobs dispose on their threads.
         self.discovery.finish_retirement();

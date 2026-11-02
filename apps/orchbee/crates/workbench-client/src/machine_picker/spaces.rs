@@ -1,6 +1,23 @@
 //! Workspace projection and identity-checked input over complete read-only checkpoints.
 use super::{Choice, Mode, Picker, Row, Selection, SelectionOrigin, SidebarRow, SidebarWindow};
 use orchbee_workbench_protocol::MetadataState;
+use std::time::{Duration, Instant};
+
+/// How long a row may hold what it settled on while it waits for Git. An answer normally takes about
+/// 200 ms; a read that a commit interrupted is retried after 500 ms and takes as long again, so this
+/// covers both. It stays far below the five-second budget of a Git read, because a hung read must not
+/// freeze a row that already knows its new name and folder.
+pub(crate) const SPACE_HOLD_BOUND: Duration = Duration::from_secs(1);
+
+/// One row's hold and when it gives up. Checkpoints stay clock-free, so the Picker keeps this beside
+/// them. A further directory change does not restart it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct SpaceHold {
+    choice: Choice,
+    target: crate::client_context::ClientContextTarget,
+    deadline: Instant,
+    expired: bool,
+}
 
 impl Picker {
     /// The active command lane publishes topology independently of metadata polling.
@@ -216,16 +233,52 @@ impl Picker {
                 .is_some_and(|row| row.git_stale)
     }
 
-    /// The location a row keeps presenting while the Git facts of its new directory are unknown.
-    /// A source whose whole read keeps failing ends the hold: no answer is coming.
-    pub(crate) fn space_held_location(
-        &self,
-        row: &Row,
-    ) -> Option<&crate::machine_spaces::HeldLocation> {
-        self.space_checkpoint_row(row)?
-            .held
-            .as_ref()
-            .filter(|_| !self.space_stale.contains(&row.choice))
+    /// What a row keeps presenting while the Git facts of its new directory are unknown. No answer
+    /// is coming for a source whose whole read keeps failing or a view that shows nothing from Git,
+    /// and a row past its bound shows what it knows.
+    pub(crate) fn space_held_row(&self, row: &Row) -> Option<&crate::machine_spaces::HeldRow> {
+        let observed = self.space_checkpoint_row(row)?;
+        observed.held.as_ref().filter(|_| {
+            self.spaces.settings.needs_git()
+                && !self.space_stale.contains(&row.choice)
+                && !self.space_holds.iter().any(|hold| {
+                    hold.expired && hold.choice == row.choice && hold.target == observed.target
+                })
+        })
+    }
+
+    /// Starts the bound of every new hold and ends the holds past it. Returns whether a row now
+    /// paints something else.
+    pub fn advance_space_holds(&mut self, now: Instant) -> bool {
+        use crate::machine_spaces::checkpoint::Observation;
+        let mut holds = Vec::new();
+        let mut expired = false;
+        for (choice, _) in self
+            .space_observations
+            .iter()
+            .filter(|(_, observation)| matches!(observation, Observation::Ready(_)))
+        {
+            let rows = self
+                .space_checkpoint(choice)
+                .map_or(&[][..], |checkpoint| &checkpoint.rows);
+            for row in rows.iter().filter(|row| row.held.is_some()) {
+                let known = self
+                    .space_holds
+                    .iter()
+                    .find(|hold| &hold.choice == choice && hold.target == row.target);
+                let deadline = known.map_or(now + SPACE_HOLD_BOUND, |hold| hold.deadline);
+                let past = now >= deadline;
+                expired |= past && !known.is_some_and(|hold| hold.expired);
+                holds.push(SpaceHold {
+                    choice: choice.clone(),
+                    target: row.target.clone(),
+                    deadline,
+                    expired: past,
+                });
+            }
+        }
+        self.space_holds = holds;
+        expired
     }
 
     /// Workspaces whose current directory has no Git answer yet, for one read ahead of the sampling

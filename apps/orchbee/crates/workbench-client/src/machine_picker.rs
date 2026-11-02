@@ -20,6 +20,8 @@ pub(crate) use navigation::{
     SidebarCommand, SidebarFixedAction, SidebarFixedActivation, SidebarIntent, SidebarPart,
     SidebarRow, SidebarSource, SidebarWindow, sidebar_binding_label,
 };
+#[cfg(test)]
+pub(crate) use spaces::SPACE_HOLD_BOUND;
 pub(crate) use spaces::TabAgent;
 pub(crate) use spaces::{most_urgent, urgency};
 
@@ -281,6 +283,7 @@ pub struct Picker {
         orchbee_workbench_protocol::WorkbenchWorkspaceId,
         orchbee_workbench_protocol::WorkbenchDirectoryPath,
     )>,
+    space_holds: Vec<spaces::SpaceHold>,
     native_navigation: Option<(
         Choice,
         crate::machine_spaces::navigation_projection::SidebarNavigationProjection,
@@ -342,6 +345,7 @@ impl Default for Picker {
             space_updates: Vec::new(),
             space_stale: Vec::new(),
             space_git_demanded: Vec::new(),
+            space_holds: Vec::new(),
             native_navigation: None,
             space_projection: None,
             editing_query: false,

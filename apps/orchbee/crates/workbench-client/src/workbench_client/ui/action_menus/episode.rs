@@ -263,6 +263,8 @@ pub(super) struct Discovery {
     source: AddressedWorktreeSource,
     deadline: Instant,
     state: DiscoveryState,
+    /// The settled answer the rows keep while `state` asks about a first terminal that moved.
+    earlier: Option<DiscoveryState>,
 }
 
 pub(super) enum DiscoveryState {
@@ -289,11 +291,40 @@ impl Discovery {
         &self.state
     }
 
+    /// The answer about where the first terminal stands now, which an action runs against.
     pub(super) fn ready(&self) -> Option<&SidebarDiscovery> {
         match &self.state {
             DiscoveryState::Ready(discovery) => Some(discovery),
             _ => None,
         }
+    }
+
+    /// What the rows show: the current answer or, until it arrives, the earlier one.
+    pub(super) fn shown(&self) -> &DiscoveryState {
+        match (&self.state, &self.earlier) {
+            (DiscoveryState::Waiting | DiscoveryState::Querying, Some(earlier)) => earlier,
+            (state, _) => state,
+        }
+    }
+
+    /// The checkouts the rows list, under the same rule as `shown`.
+    pub(super) fn recognized(&self) -> Option<&SidebarDiscovery> {
+        match self.shown() {
+            DiscoveryState::Ready(discovery) => Some(discovery),
+            _ => None,
+        }
+    }
+
+    fn into_settled(self) -> Option<DiscoveryState> {
+        match self.state {
+            DiscoveryState::Waiting | DiscoveryState::Querying => self.earlier,
+            settled => Some(settled),
+        }
+    }
+
+    fn settle(&mut self, state: DiscoveryState) {
+        self.state = state;
+        self.earlier = None;
     }
 }
 
@@ -453,6 +484,17 @@ impl MenuEpisode {
         }
     }
 
+    /// Names the open menu and the painted parents of its cascade `title`, which all address one
+    /// Workspace; reports whether the menu needs a new draw.
+    pub(super) fn set_workspace_title(&mut self, title: &str) -> bool {
+        for parent in &mut self.parents {
+            if let Some(retained) = &mut parent.retained {
+                retained.set_title(title);
+            }
+        }
+        self.menu.set_title(title)
+    }
+
     pub(super) fn push_parent(&mut self, parent: ParentMenu) {
         self.parents.push(parent);
     }
@@ -487,8 +529,9 @@ impl MenuEpisode {
         self.discovery = None;
     }
 
-    /// Starts discovering `source`; false when its identity or deadline is unrepresentable. The
-    /// clock is read only once a new identity exists.
+    /// Starts discovering `source`, keeping an answer about this same source from before its first
+    /// terminal moved; false when its identity or deadline is unrepresentable. The clock is read
+    /// only once a new identity exists.
     pub(super) fn begin_discovery(
         &mut self,
         source: AddressedWorktreeSource,
@@ -501,11 +544,17 @@ impl MenuEpisode {
             return false;
         };
         self.next_discovery = id;
+        let earlier = self
+            .discovery
+            .take()
+            .filter(|discovery| discovery.source.moved_to(&source))
+            .and_then(Discovery::into_settled);
         self.discovery = Some(Discovery {
             id,
             source,
             deadline,
             state: DiscoveryState::Waiting,
+            earlier,
         });
         true
     }
@@ -521,7 +570,7 @@ impl MenuEpisode {
         }) else {
             return false;
         };
-        discovery.state = DiscoveryState::Absent;
+        discovery.settle(DiscoveryState::Absent);
         true
     }
 
@@ -546,7 +595,7 @@ impl MenuEpisode {
         }) else {
             return false;
         };
-        discovery.state = match result {
+        let settled = match result {
             Some(found)
                 if now() < discovery.deadline
                     && found.addressed == discovery.source
@@ -556,6 +605,7 @@ impl MenuEpisode {
             }
             _ => DiscoveryState::Absent,
         };
+        discovery.settle(settled);
         true
     }
 

@@ -129,7 +129,7 @@ impl ChoiceLabels {
             labels.push((MenuAction::WorkspaceInFolder((*path).clone()), label));
         }
         let entries = episode
-            .and_then(Discovery::ready)
+            .and_then(Discovery::recognized)
             .map_or(&[][..], |ready| &ready.discovery.entries[..]);
         for action in actions {
             let MenuAction::OpenWorktreeAt(path) = action else {
@@ -207,7 +207,7 @@ pub(super) fn actions(
 ) -> Vec<MenuAction> {
     let ready = episode
         .filter(|episode| belongs(entry, episode))
-        .and_then(Discovery::ready);
+        .and_then(Discovery::recognized);
     match entry {
         // Checkouts join the submenu when discovery proves them; New Worktree… waits disabled.
         MenuTarget::WorkspaceCreation(_) => {
@@ -274,7 +274,7 @@ pub(super) fn unavailable(
     }
     match episode
         .filter(|episode| belongs(entry, episode))
-        .map(Discovery::state)
+        .map(Discovery::shown)
     {
         Some(DiscoveryState::Ready(ready)) => (action == &MenuAction::WorkspaceWorktrees
             && other_checkout_actions(ready).is_empty())

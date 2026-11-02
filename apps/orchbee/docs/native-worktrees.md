@@ -183,8 +183,9 @@ unavailable samples never mean absence, and an existing unbound first terminal i
 These pre-submit choices freeze exact Project identity and ordered members, addressed Workspace,
 Context, first primary binding and directory proof. Membership, order, removal, rebind or source
 drift retires them; unrelated canonical writes do not become source drift. A followed directory
-change, and the automatic label it moves, keeps an open menu and starts its discovery over; a launch
-form already open reports the source change at Start. Sidebar preparation uses
+change, and the automatic label it moves, keeps an open menu and starts its discovery over: the rows
+keep the last answer until the new one arrives, and a row chosen meanwhile waits for it and runs
+against it. A launch form already open reports the source change at Start. Sidebar preparation uses
 the existing background Worktree lane's own authenticated Session and a temporary read-only Viewer,
 released after root samples before and after Git. It never borrows the interactive Viewer or its
 controller. Every failure path detaches or retires that auxiliary Session within the original bounded
@@ -198,7 +199,7 @@ integration evidence. `cli_windows_worktree_menu` runs the CLI, Server, Worker a
 test against a real repository with a TUI Client driven by pointer: from an ungrouped Workspace's
 row menu, Open Worktree ▸ opens a linked checkout into a new Project with the Workspace, and New
 Worktree… then joins that Project. It also covers a first terminal in a subdirectory, a directory the
-shell only reports, a directory change under the open menu, a checkout another Workspace holds, a
+shell only reports, a directory change under the open menu with its rows staying enabled, a checkout another Workspace holds, a
 Workspace that walked into the checkout beside one that walked out of it, and a checkout every
 Workspace left. A direct Cargo run needs the Server and Worker built first.
 

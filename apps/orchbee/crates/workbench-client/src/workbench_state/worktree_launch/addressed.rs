@@ -148,6 +148,12 @@ impl AddressedWorktreeSource {
         Self::capture(snapshot, &self.target).is_some_and(|current| self.same_owner(&current))
     }
 
+    /// Whether `next` is this source after its first terminal moved, so that an answer about this
+    /// one may stand until `next` is answered.
+    pub(crate) fn moved_to(&self, next: &Self) -> bool {
+        self.target == next.target && self.same_owner(next)
+    }
+
     fn same_owner(&self, current: &Self) -> bool {
         self.cache.session_id() == current.cache.session_id()
             && self.owner == current.owner
