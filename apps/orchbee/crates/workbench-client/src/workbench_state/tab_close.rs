@@ -12,6 +12,7 @@ use orchbee_workbench_protocol::{
     WorkbenchTabCloseAttemptGeneration, WorkbenchTabClosePublicationReason,
     WorkbenchTabCloseStatus, WorkbenchTabId, WorkbenchTerminalContextId,
 };
+use std::time::{Duration, Instant};
 
 mod flight;
 mod reconciliation;
@@ -32,6 +33,11 @@ pub(crate) use set::{CloseSetKind, close_set_targets};
 
 const MAXIMUM_CLOSE_RECORDS: usize = 256;
 const DISPOSED_AUTO_ADMISSIONS: u8 = 32;
+/// The Tab leaving its strip reports an ordinary close, so a progressing close stays off the status
+/// line this long after its submission. A real PowerShell Tab closes within about 0.7 s, including
+/// the 250 ms status read; this outlasts that, so the indication appears only for a close that is
+/// really slow, such as one waiting out the Server's five-second grace.
+const CLOSE_PENDING_DELAY: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CloseConfirmationToken(u64);
@@ -202,12 +208,16 @@ struct CloseRecord {
     disposed_auto_admissions: u8,
     status_token: Option<CloseStatusToken>,
     displayed: bool,
+    submitted_at: Instant,
+    /// The pending delay passed, or this record already reached the status line. It stays there,
+    /// so a recovered read never turns a reported close silent again.
+    announced: bool,
     initial_read_pending: bool,
     reconciliation: Option<reconciliation::RetainedReconciliation>,
 }
 
 impl CloseRecord {
-    fn new(selection: CloseSelection) -> Self {
+    fn new(selection: CloseSelection, submitted_at: Instant) -> Self {
         Self {
             selection,
             operation: None,
@@ -222,9 +232,30 @@ impl CloseRecord {
             disposed_auto_admissions: 0,
             status_token: None,
             displayed: false,
+            submitted_at,
+            announced: false,
             initial_read_pending: false,
             reconciliation: None,
         }
+    }
+
+    /// Whether the status line reports this close: every failure, unknown and recovery at once,
+    /// and a close still progressing normally only after the pending delay.
+    fn announced(&self) -> bool {
+        let progressing = match &self.status {
+            None
+            | Some(
+                WorkbenchTabCloseStatus::Closing { .. } | WorkbenchTabCloseStatus::Closed { .. },
+            ) => true,
+            Some(WorkbenchTabCloseStatus::DisposedAwaitingPublication { .. }) => {
+                self.bounded_disposed_observation()
+            }
+            Some(
+                WorkbenchTabCloseStatus::CleanupBlocked { .. }
+                | WorkbenchTabCloseStatus::OutcomeUnknown { .. },
+            ) => false,
+        };
+        self.announced || self.unavailable || self.uncertain || !progressing
     }
 
     fn resumable(&self) -> bool {
@@ -551,9 +582,10 @@ impl CloseState {
         })
     }
 
-    pub(crate) fn latest_status(&self) -> Option<CloseStatusView<'_>> {
+    fn latest_status(&self, admit: impl Fn(&CloseRecord) -> bool) -> Option<CloseStatusView<'_>> {
         self.records
             .iter()
+            .filter(|record| admit(record))
             .filter_map(|record| {
                 Some(CloseStatusView {
                     record,
@@ -579,6 +611,7 @@ impl CloseState {
     ) {
         for record in &mut self.records {
             record.displayed = status.is_some() && record.status_token == status;
+            record.announced |= record.displayed;
         }
         let resume_displayed =
             self.confirmation
@@ -644,6 +677,7 @@ impl CloseState {
     pub(crate) fn retain_submission(
         &mut self,
         selection: CloseSelection,
+        submitted_at: Instant,
     ) -> Result<(), CloseStateError> {
         if self.record_index(&selection.target).is_some() {
             return Ok(());
@@ -651,7 +685,7 @@ impl CloseState {
         if self.records.len() == MAXIMUM_CLOSE_RECORDS {
             return Err(CloseStateError::Busy);
         }
-        self.records.push(CloseRecord::new(selection));
+        self.records.push(CloseRecord::new(selection, submitted_at));
         Ok(())
     }
 
@@ -964,6 +998,27 @@ impl super::WorkbenchClientState {
         self.close.invalidate_display();
     }
 
+    /// Announces each close still progressing at the end of its pending delay.
+    pub(crate) fn settle_close_pending(&mut self, now: Instant) -> bool {
+        let mut changed = false;
+        for record in &mut self.close.records {
+            if !record.announced() && now >= record.submitted_at + CLOSE_PENDING_DELAY {
+                record.announced = true;
+                changed = true;
+            }
+        }
+        changed
+    }
+
+    pub(crate) fn close_pending_deadline(&self) -> Option<Instant> {
+        self.close
+            .records
+            .iter()
+            .filter(|record| !record.announced())
+            .map(|record| record.submitted_at + CLOSE_PENDING_DELAY)
+            .min()
+    }
+
     /// The same frozen premise governs UI retirement, planning and mailbox admission.
     /// Targeted recovery captures today's selection, not the older CloseRecord revision.
     fn close_confirmation_current(&self, confirmation: &CloseConfirmation) -> bool {
@@ -1102,7 +1157,28 @@ impl<'a> super::WorkbenchClientView<'a> {
         }
         impact
     }
+    /// The close a recovery or a Client control request addresses, reported or not.
     pub(crate) fn close_status(&self) -> Option<CloseStatusView<'a>> {
+        self.select_close_status(|_| true)
+    }
+    /// The close the status line reports now.
+    pub(crate) fn announced_close_status(&self) -> Option<CloseStatusView<'a>> {
+        self.select_close_status(CloseRecord::announced)
+    }
+    /// Whether the selected Tab is closing unreported, so its terminal ending is no news.
+    pub(crate) fn close_quiet_on_selected(&self) -> bool {
+        let Some(selected) = self.state.active() else {
+            return false;
+        };
+        self.state.close.records.iter().any(|record| {
+            record.selection.target.tab_id() == selected.key().anchor().tab_id()
+                && !record.announced()
+        })
+    }
+    fn select_close_status(
+        &self,
+        admit: impl Fn(&CloseRecord) -> bool,
+    ) -> Option<CloseStatusView<'a>> {
         if let Some(status) = self
             .state
             .close
@@ -1127,10 +1203,15 @@ impl<'a> super::WorkbenchClientView<'a> {
                 self.state.cache.terminal_context_id()?.clone(),
                 selected.key().anchor().tab_id().clone(),
             );
-            if let Some(status) = self.state.close.status(&target) {
+            if let Some(status) = self
+                .state
+                .close
+                .status(&target)
+                .filter(|status| admit(status.record))
+            {
                 return Some(status);
             }
         }
-        self.state.close.latest_status()
+        self.state.close.latest_status(admit)
     }
 }

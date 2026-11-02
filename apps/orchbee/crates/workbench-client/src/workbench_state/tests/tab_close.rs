@@ -81,7 +81,7 @@ fn unseen_cancelled_and_replaced_confirmation_tokens_cannot_authorize_close() {
     ));
     state.cancel_confirmation();
     assert!(state.confirmation().is_none());
-    assert!(state.latest_status().is_none());
+    assert!(state.status(selected.target()).is_none());
     state.open_confirmation(selected).unwrap();
     let next = state.confirmation().unwrap().token();
     assert_ne!(first, next);
@@ -118,7 +118,9 @@ fn changed_display_revokes_prompt_before_input_and_complete_draw_rearms_same_int
 fn original_carrier_resume_requires_displayed_status_and_both_current_modal_tokens() {
     let selected = selection(0);
     let mut state = CloseState::default();
-    state.retain_submission(selected.clone()).unwrap();
+    state
+        .retain_submission(selected.clone(), Instant::now())
+        .unwrap();
     observe(&mut state, &selected, 1, parked());
     assert_eq!(
         state.open_confirmation(selected.clone()),
@@ -154,7 +156,10 @@ fn covered_menu_can_continue_only_the_exact_previously_displayed_resume() {
     let mut state = ready(3);
     let selected = selection(1);
     let tab_id = selected.target().tab_id().clone();
-    state.close.retain_submission(selected.clone()).unwrap();
+    state
+        .close
+        .retain_submission(selected.clone(), Instant::now())
+        .unwrap();
     observe(&mut state.close, &selected, 7, parked());
 
     assert!(state.capture_tab_close_resume_permit(&tab_id).is_none());
@@ -201,7 +206,10 @@ fn covered_resume_permit_never_retargets_or_falls_back_to_ordinary_close() {
     let mut state = ready(3);
     let selected = selection(1);
     let tab_id = selected.target().tab_id().clone();
-    state.close.retain_submission(selected.clone()).unwrap();
+    state
+        .close
+        .retain_submission(selected.clone(), Instant::now())
+        .unwrap();
     observe(&mut state.close, &selected, 7, parked());
     let status = state.close.status(selected.target()).unwrap().token();
     state.acknowledge_close_draw(None, Some(status));
@@ -251,7 +259,9 @@ fn another_targets_status_receipt_does_not_arm_resume() {
     let second = selection(1);
     let mut state = CloseState::default();
     for selected in [&first, &second] {
-        state.retain_submission(selected.clone()).unwrap();
+        state
+            .retain_submission(selected.clone(), Instant::now())
+            .unwrap();
         observe(&mut state, selected, 1, parked());
     }
     let first_status = state.status(first.target()).unwrap().token();
@@ -270,7 +280,9 @@ fn another_targets_status_receipt_does_not_arm_resume() {
 fn disposed_auto_admissions_enforce_31_32_33_without_same_attempt_renewal() {
     let selected = selection(0);
     let mut state = CloseState::default();
-    state.retain_submission(selected.clone()).unwrap();
+    state
+        .retain_submission(selected.clone(), Instant::now())
+        .unwrap();
     observe(&mut state, &selected, 1, disposed(false));
     for _ in 0..31 {
         state
@@ -322,7 +334,9 @@ fn disposed_auto_admissions_enforce_31_32_33_without_same_attempt_renewal() {
 fn disposed_and_closed_facts_survive_failed_or_contradictory_observation() {
     let selected = selection(0);
     let mut state = CloseState::default();
-    state.retain_submission(selected.clone()).unwrap();
+    state
+        .retain_submission(selected.clone(), Instant::now())
+        .unwrap();
     observe(&mut state, &selected, 1, disposed(false));
     let operation = workbench_request_id(701);
     let generation = WorkbenchTabCloseAttemptGeneration::new(1).unwrap();
@@ -364,7 +378,9 @@ fn disposed_and_closed_facts_survive_failed_or_contradictory_observation() {
 fn host_unknown_never_becomes_resumable_or_a_query_failure_class() {
     let selected = selection(0);
     let mut state = CloseState::default();
-    state.retain_submission(selected.clone()).unwrap();
+    state
+        .retain_submission(selected.clone(), Instant::now())
+        .unwrap();
     observe(
         &mut state,
         &selected,
@@ -501,7 +517,9 @@ fn split_close_uses_the_attached_leaf_binding_for_confirmation_and_submission() 
 fn canonical_receipt_and_closed_revision_are_retained_independently_of_reads() {
     let selected = selection(0);
     let mut state = CloseState::default();
-    state.retain_submission(selected.clone()).unwrap();
+    state
+        .retain_submission(selected.clone(), Instant::now())
+        .unwrap();
     observe(
         &mut state,
         &selected,
@@ -569,7 +587,9 @@ fn retained_record_capacity_rejects_257_before_opening_or_replacing_an_intent() 
     };
     let mut state = CloseState::default();
     for index in 0..255 {
-        state.retain_submission(selection_at(index)).unwrap();
+        state
+            .retain_submission(selection_at(index), Instant::now())
+            .unwrap();
     }
     state.open_confirmation(selection_at(255)).unwrap();
     let token = state.confirmation().unwrap().token();
@@ -579,9 +599,11 @@ fn retained_record_capacity_rejects_257_before_opening_or_replacing_an_intent() 
     );
     assert_eq!(state.confirmation().unwrap().token(), token);
     state.cancel_confirmation();
-    state.retain_submission(selection_at(255)).unwrap();
+    state
+        .retain_submission(selection_at(255), Instant::now())
+        .unwrap();
     assert_eq!(
-        state.retain_submission(selection_at(256)),
+        state.retain_submission(selection_at(256), Instant::now()),
         Err(CloseStateError::Busy)
     );
     assert_eq!(
@@ -589,7 +611,9 @@ fn retained_record_capacity_rejects_257_before_opening_or_replacing_an_intent() 
         Err(CloseStateError::Busy)
     );
     assert!(state.confirmation().is_none());
-    state.retain_submission(selection_at(0)).unwrap();
+    state
+        .retain_submission(selection_at(0), Instant::now())
+        .unwrap();
 }
 
 #[test]

@@ -1469,7 +1469,7 @@ fn native_status_actions(native: &WorkbenchClientView<'_>) -> Vec<StatusAction> 
     if native.workspace_close_status().is_some() {
         return Vec::new();
     }
-    if let Some(close) = native.close_status() {
+    if let Some(close) = native.announced_close_status() {
         let mut actions = Vec::with_capacity(2);
         if close.unavailable() || close.observation_paused() {
             actions.push(StatusAction::CheckAgain);

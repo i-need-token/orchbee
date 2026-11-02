@@ -387,7 +387,9 @@ fn join_retained_closed_keeps_its_first_origin_after_a_fresh_recovery_read() {
 fn a_closed_operation_cannot_move_to_another_attempt() {
     let selected = selection(0);
     let mut state = CloseState::default();
-    state.retain_submission(selected.clone()).unwrap();
+    state
+        .retain_submission(selected.clone(), Instant::now())
+        .unwrap();
     observe(
         &mut state,
         &selected,

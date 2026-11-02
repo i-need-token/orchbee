@@ -202,13 +202,14 @@ fields follow [`components.md`](components.md).
 | Notice       | A failure or result needs a recovery choice, or detail that cannot fit one status line                | Use a status notice                                                                     |
 
 - Start without a dialog. An action that is reversible, or that loses nothing in this invocation,
-  runs immediately and reports its result through a status notice.
+  runs immediately and reports its result through a status notice, unless the result is
+  [already visible](#pending-completion-and-attention) where the person acted.
 - Confirm only what is lost: a running program, files or a checkout on disk, an unsent draft,
   terminals while another Client is attached, or the terminals of more than one Tab at once, as
   when closing a Workspace. Decide per invocation from the actual state.
 - A shell that is known to be idle at its prompt is not a running program. Closing one Tab or Panel
-  whose terminals run no program, while no other Client is attached, closes it at once, and a
-  status notice reports the close.
+  whose terminals run no program, while no other Client is attached, closes it at once; its leaving
+  the screen reports the close.
 - Names, grouping, and order are organization, not content. Renaming a Project, moving a Workspace
   between Projects, and dissolving a Project end nothing and delete nothing: every Workspace,
   terminal, program, and file stays. They run without a confirmation, and the status notice states
@@ -442,6 +443,11 @@ pointer through help, menus, or the binding table.
   indicator in the affected region or the status line. This delay suppresses unnecessary progress
   animation, not acceptance feedback. Local acceptance, progress, first useful content, and
   authoritative completion remain separate observations.
+- A completion already visible where the person acted, such as the object they closed leaving the
+  screen, adds no status notice, and work that finishes within its delay leaves the status line
+  untouched. Failure and unknown outcomes are still reported at once.
+- A running count ends with its work. Its last value becomes a brief completed notice stating the
+  result, as in `2 Tabs closed`, never a running form such as `2 closed, 0 remaining`.
 - A pending indicator is a fixed-width glyph sequence plus a localized verb. It never blocks
   drawing or input for other regions.
 - A surface request carries the surface instance, target identity, and request generation. Only a

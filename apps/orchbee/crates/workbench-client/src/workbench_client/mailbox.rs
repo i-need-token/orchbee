@@ -1464,7 +1464,7 @@ impl CommandMailbox {
             .seen
     }
 
-    fn wake_ui(&self) {
+    pub(super) fn wake_ui(&self) {
         if let Some(wakeup) = &*self
             .ui_wakeup
             .lock()

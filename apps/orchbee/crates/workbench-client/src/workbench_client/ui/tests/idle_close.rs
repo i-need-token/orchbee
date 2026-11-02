@@ -3,6 +3,7 @@
 //! them on a real PowerShell.
 use super::super::test_support::{controlling_ui, frame, install_projection};
 use super::super::*;
+use super::normal_exit_hold::{exited, poll};
 use crate::agent_start::CloseSample;
 use crate::terminal_projection::ShellReport;
 use orchbee_terminal_protocol::{TerminalCommandObservation, TerminalObservedCommand};
@@ -180,6 +181,75 @@ fn the_button_route_of_one_tab_closes_unasked_and_a_larger_set_always_asks() {
     assert!(ui.request_close_set(&tabs).is_some());
     assert!(ui.view().close_confirmation().is_some());
     assert!(next_is_empty(&mailbox));
+}
+
+/// While a close stays unreported, its own terminal ending is no news; the UI wakes when its delay
+/// ends, and from then on the status line speaks again.
+#[test]
+fn an_unreported_close_withholds_the_exit_cue_and_wakes_at_the_end_of_its_delay() {
+    use crate::client_view::ClientView;
+    use crate::localization::Locale;
+    use crate::tui_hit_map::HitMapBuilder;
+    use crate::tui_theme::Theme;
+    use ratatui::{Terminal, backend::TestBackend};
+    // The status line alone: the Panel's own title keeps saying how its terminal ended.
+    let status_line = |ui: &WorkbenchClientUi| {
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        terminal
+            .draw(|frame| {
+                crate::tui_render::render_terminal_shell(
+                    frame,
+                    &ClientView::new(120),
+                    Locale::EnUs,
+                    Some(ui.view()),
+                    &Theme::terminal_native(),
+                    &mut HitMapBuilder::new(),
+                );
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        (0..120)
+            .map(|x| buffer[(x, 39)].symbol())
+            .collect::<String>()
+    };
+    let (mut ui, mailbox, elapsed) = armed_ui();
+    let key = ui.projections[0].key.clone();
+    let record = exited(&ui, &key, 1);
+    let clock = ui.clock.clone();
+    assert!(next_is_empty(&mailbox));
+    poll(&mut ui, &mailbox, &clock, &key, record);
+    let panel = key.pane().panel().clone();
+    assert!(ui.view().terminal_end(&panel).is_some());
+    let told = status_line(&ui);
+    assert!(told.contains("exited"), "{told}");
+
+    // Runs the close the way an unasked route does, from the confirmation it arms.
+    ui.apply_client_action(ClientAction::RequestCloseTab);
+    let token = ui.view().close_confirmation().unwrap().token();
+    assert!(ui.state.as_mut().unwrap().admit_unconfirmed_close(token));
+    let _ = ui.confirm_close();
+    assert!(matches!(next(&mailbox).record(), QueuedCommand::Close(_)));
+    assert!(ui.view().close_quiet_on_selected());
+    let quiet = status_line(&ui);
+    assert!(!quiet.contains("exited"), "{quiet}");
+    assert!(
+        ui.next_poll_delay()
+            .is_some_and(|delay| delay <= std::time::Duration::from_secs(1))
+    );
+
+    elapsed.fetch_add(1000, Ordering::SeqCst);
+    ui.after_draw();
+    assert!(ui.tick());
+    assert!(!ui.view().close_quiet_on_selected());
+    assert!(
+        ui.state
+            .as_ref()
+            .unwrap()
+            .close_pending_deadline()
+            .is_none()
+    );
+    let slow = status_line(&ui);
+    assert!(slow.contains("exited"), "{slow}");
 }
 
 /// A Tab this Client shows no pane of is read through a temporary Viewer, and judged by the report

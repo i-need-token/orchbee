@@ -98,11 +98,7 @@ fn open(state: &mut WorkbenchClientState, indexes: &[usize], now: Instant) -> Cl
     operation
 }
 
-fn observe_closed(
-    state: &mut WorkbenchClientState,
-    close: &CloseOperation,
-    now: Instant,
-) -> CloseOperation {
+fn accept(state: &mut WorkbenchClientState, close: &CloseOperation) {
     // Accepted can name an already admitted primary. The request ID need not be that identity.
     let alias = workbench_request_id(8888);
     assert_ne!(close.key().request_id(), &alias);
@@ -110,7 +106,7 @@ fn observe_closed(
         .settle_close_exchange(
             close,
             &CloseResult::Accepted(WorkbenchTabCloseAccepted {
-                close_request_id: alias.clone(),
+                close_request_id: alias,
                 terminal_context_id: close.key().target().terminal_context_id().clone(),
                 tab_id: close.key().target().tab_id().clone(),
                 accepted_revision: close.selection().base_revision(),
@@ -118,6 +114,15 @@ fn observe_closed(
         )
         .unwrap();
     state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(close.key().clone()));
+}
+
+fn read_status(
+    state: &mut WorkbenchClientState,
+    close: &CloseOperation,
+    status: WorkbenchTabCloseStatus,
+    now: Instant,
+) -> CloseOperation {
+    let alias = workbench_request_id(8888);
     let read = state
         .plan_close_read(
             workbench_request_id(8001 + u128::from(state.cache().revision().value())),
@@ -139,14 +144,82 @@ fn observe_closed(
                 terminal_context_id: close.key().target().terminal_context_id().clone(),
                 tab_id: close.key().target().tab_id().clone(),
                 attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
-                status: WorkbenchTabCloseStatus::Closed {
-                    revision: WorkbenchRevision::new(state.cache().revision().value() + 1),
-                },
+                status,
             }),
         )
         .unwrap();
     state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(read.key().clone()));
     read
+}
+
+fn closed_status(state: &WorkbenchClientState) -> WorkbenchTabCloseStatus {
+    WorkbenchTabCloseStatus::Closed {
+        revision: WorkbenchRevision::new(state.cache().revision().value() + 1),
+    }
+}
+
+fn observe_closed(
+    state: &mut WorkbenchClientState,
+    close: &CloseOperation,
+    now: Instant,
+) -> CloseOperation {
+    accept(state, close);
+    let closed = closed_status(state);
+    read_status(state, close, closed, now)
+}
+
+/// Closes `close` through its membership install and admits the next member.
+fn finish_and_start_next(
+    state: &mut WorkbenchClientState,
+    close: &CloseOperation,
+    now: Instant,
+) -> CloseOperation {
+    observe_closed(state, close, now);
+    let source = removed(state, close.key().target().tab_id());
+    install(state, close, source, now);
+    let next = state
+        .plan_next_close_set(workbench_request_id(9500), close.deadline())
+        .unwrap();
+    state.begin_next_close_set(&next, now).unwrap();
+    next
+}
+
+fn screen(state: &WorkbenchClientState, locale: crate::localization::Locale) -> String {
+    use crate::client_view::ClientView;
+    use crate::localization::ClientProjectionStatus;
+    use crate::tui_hit_map::HitMapBuilder;
+    use crate::tui_theme::Theme;
+    use crate::workbench_client::WorkbenchClientView;
+    use ratatui::{Terminal, backend::TestBackend};
+    let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+    terminal
+        .draw(|frame| {
+            crate::tui_render::render_terminal_shell(
+                frame,
+                &ClientView::new(120),
+                locale,
+                Some(WorkbenchClientView::test_view(
+                    state,
+                    &[],
+                    ClientProjectionStatus::Empty,
+                )),
+                &Theme::terminal_native(),
+                &mut HitMapBuilder::new(),
+            );
+        })
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    let mut text = String::new();
+    for y in 0..40 {
+        let mut x = 0;
+        while x < 120 {
+            let symbol = buffer[(x, y)].symbol();
+            text.push_str(symbol);
+            x += u16::try_from(crate::terminal_text::display_width(symbol).max(1)).unwrap();
+        }
+        text.push('\n');
+    }
+    text
 }
 
 fn removed(state: &WorkbenchClientState, tab: &WorkbenchTabId) -> Snapshot {
@@ -326,48 +399,12 @@ fn close_set_partial_completion_halts_on_unrelated_snapshot_change_or_unknown_ne
 
 #[test]
 fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_erasing_facts() {
-    use crate::client_view::ClientView;
-    use crate::localization::{ClientProjectionStatus, Locale};
-    use crate::tui_hit_map::HitMapBuilder;
-    use crate::tui_theme::Theme;
-    use crate::workbench_client::WorkbenchClientView;
-    use ratatui::{Terminal, backend::TestBackend};
-    let render = |state: &WorkbenchClientState, locale| {
-        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
-        terminal
-            .draw(|frame| {
-                crate::tui_render::render_terminal_shell(
-                    frame,
-                    &ClientView::new(120),
-                    locale,
-                    Some(WorkbenchClientView::test_view(
-                        state,
-                        &[],
-                        ClientProjectionStatus::Empty,
-                    )),
-                    &Theme::terminal_native(),
-                    &mut HitMapBuilder::new(),
-                );
-            })
-            .unwrap();
-        let buffer = terminal.backend().buffer();
-        let mut text = String::new();
-        for y in 0..40 {
-            let mut x = 0;
-            while x < 120 {
-                let symbol = buffer[(x, y)].symbol();
-                text.push_str(symbol);
-                x += u16::try_from(crate::terminal_text::display_width(symbol).max(1)).unwrap();
-            }
-            text.push('\n');
-        }
-        text
-    };
+    use crate::localization::Locale;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for next in ["timeout", "notice", "action", "halted-notice"] {
             let now = Instant::now();
             let mut state = ready(3);
-            let close = open(&mut state, &[1], now);
+            let close = open(&mut state, &[1, 2], now);
             if next == "halted-notice" {
                 state
                     .settle_close_exchange(&close, &CloseResult::Ambiguous)
@@ -376,18 +413,25 @@ fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_eras
                     close.key().clone(),
                 ));
             } else {
-                observe_closed(&mut state, &close, now);
-                let source = removed(&state, close.key().target().tab_id());
-                install(&mut state, &close, source, now);
+                let second = finish_and_start_next(&mut state, &close, now);
+                let later = now + Duration::from_secs(1);
+                observe_closed(&mut state, &second, later);
+                let source = removed(&state, second.key().target().tab_id());
+                install(&mut state, &second, source, later);
                 assert!(state.settle_close_set(now));
                 assert_eq!(
                     state.close_set_summary_deadline(),
                     Some(now + Duration::from_secs(5))
                 );
                 assert!(!state.settle_close_set(now + Duration::from_secs(4)));
+                // The completed form replaces the running count.
+                let shown = screen(&state, locale);
                 assert!(
-                    render(&state, locale)
-                        .contains(&locale.close_set_status(state.close_set_status().unwrap()))
+                    shown.contains(match locale {
+                        Locale::EnUs => "2 Tabs closed",
+                        Locale::ZhCn => "已关闭 2 个标签页",
+                    }),
+                    "{shown}"
                 );
             }
             let facts = state.close_set_status();
@@ -401,14 +445,14 @@ fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_eras
                 "action" => state.dismiss_close_set_summary(),
                 _ => {
                     state.set_notice(ClientNotice::CloseRequestNotApplied);
-                    let screen = render(&state, locale);
+                    let shown = screen(&state, locale);
                     assert!(
-                        screen.contains(&locale.native_notice(
+                        shown.contains(&locale.native_notice(
                             crate::localization::WorkbenchClientNotice::CloseRequestNotApplied
                         )),
-                        "{screen}"
+                        "{shown}"
                     );
-                    assert!(!screen.contains(&locale.close_set_status(facts.unwrap())));
+                    assert!(!shown.contains(&locale.close_set_status(facts.unwrap())));
                     state.clear_notice();
                 }
             }
@@ -433,10 +477,193 @@ fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_eras
             } else {
                 assert!(state.view().close_set_status().is_none());
                 assert!(state.close_set_summary_deadline().is_none());
-                assert!(!render(&state, locale).contains(&locale.close_set_status(facts.unwrap())));
+                assert!(!screen(&state, locale).contains(&locale.close_set_status(facts.unwrap())));
                 assert!(!state.settle_close_set(now + Duration::from_secs(60)));
             }
         }
+    }
+}
+
+#[test]
+fn one_tab_stays_off_the_status_line_unless_its_close_is_slow() {
+    use crate::localization::Locale;
+    let closing = WorkbenchTabCloseStatus::Closing {
+        phase: orchbee_workbench_protocol::WorkbenchTabClosePhase::WaitingGrace,
+    };
+    for (locale, word) in [(Locale::EnUs, "· Closing"), (Locale::ZhCn, "· 正在关闭")] {
+        // Waiting out a shell that ignores its termination, the close grows slow.
+        let now = Instant::now();
+        let mut state = ready(3);
+        let close = open(&mut state, &[1], now);
+        accept(&mut state, &close);
+        read_status(&mut state, &close, closing.clone(), now);
+        assert_eq!(
+            state.close_pending_deadline(),
+            Some(now + Duration::from_secs(1))
+        );
+        assert!(!state.settle_close_pending(now + Duration::from_millis(999)));
+        assert!(state.view().announced_close_status().is_none());
+        assert!(state.view().close_set_status().is_none());
+        assert!(!screen(&state, locale).contains(word));
+        // A Client control request still finds the close in flight.
+        assert!(state.view().close_status().is_some());
+        assert!(state.settle_close_pending(now + Duration::from_secs(1)));
+        assert_eq!(state.close_pending_deadline(), None);
+        assert!(screen(&state, locale).contains(word));
+
+        // The ordinary close finishes first and leaves nothing behind.
+        let now = Instant::now();
+        let mut state = ready(3);
+        let close = open(&mut state, &[1], now);
+        let soon = now + Duration::from_millis(700);
+        observe_closed(&mut state, &close, soon);
+        assert!(state.view().close_set_status().is_none());
+        let source = removed(&state, close.key().target().tab_id());
+        install(&mut state, &close, source, soon);
+        state.settle_close_set(soon);
+        assert!(!state.has_retained_close_records());
+        assert!(!state.settle_close_pending(now + Duration::from_secs(60)));
+        assert!(state.view().announced_close_status().is_none());
+        assert!(state.view().close_set_status().is_none());
+    }
+}
+
+#[test]
+fn a_selected_tab_closing_unreported_withholds_its_own_cues() {
+    let now = Instant::now();
+    let mut state = ready(3);
+    let close = open(&mut state, &[0], now);
+    assert!(state.view().close_quiet_on_selected());
+    accept(&mut state, &close);
+    state.settle_close_pending(now + Duration::from_secs(1));
+    assert!(!state.view().close_quiet_on_selected());
+}
+
+#[test]
+fn one_tab_reports_every_failure_at_once_and_a_change_around_it_is_no_failure() {
+    use crate::localization::Locale;
+    let failures = [
+        WorkbenchTabCloseStatus::CleanupBlocked {
+            reason: WorkbenchTabCloseBlockedReason::HostRefused,
+            resumable: false,
+        },
+        WorkbenchTabCloseStatus::OutcomeUnknown {
+            phase: WorkbenchTabCloseUnknownPhase::Dispose,
+            reason: WorkbenchTabCloseUnknownReason::TransportLost,
+        },
+        WorkbenchTabCloseStatus::DisposedAwaitingPublication {
+            reason: WorkbenchTabClosePublicationReason::PreparationFailed,
+            resumable: false,
+        },
+    ];
+    for (locale, stopped) in [
+        (Locale::EnUs, "Close not confirmed"),
+        (Locale::ZhCn, "关闭未确认"),
+    ] {
+        for failure in &failures {
+            let now = Instant::now();
+            let mut state = ready(3);
+            let close = open(&mut state, &[1], now);
+            accept(&mut state, &close);
+            read_status(&mut state, &close, failure.clone(), now);
+            assert!(state.view().announced_close_status().is_some());
+            let shown = screen(&state, locale);
+            assert!(shown.contains(stopped), "{shown}");
+        }
+
+        // An exchange whose result was lost, with no read to tell.
+        let now = Instant::now();
+        let mut state = ready(3);
+        let close = open(&mut state, &[1], now);
+        state
+            .settle_close_exchange(&close, &CloseResult::Ambiguous)
+            .unwrap();
+        assert!(state.view().announced_close_status().unwrap().unavailable());
+        assert!(screen(&state, locale).contains(stopped));
+
+        // The cutoff, and the Closed receipt that later settles it.
+        let now = Instant::now();
+        let mut state = ready(3);
+        let close = open(&mut state, &[1], now);
+        accept(&mut state, &close);
+        assert!(state.settle_close_set(close.deadline()));
+        assert!(screen(&state, locale).contains(stopped));
+        let closed = closed_status(&state);
+        read_status(&mut state, &close, closed, close.deadline());
+        assert!(state.view().close_set_status().is_none());
+        assert!(!screen(&state, locale).contains(stopped));
+    }
+
+    // A refusal keeps the Tab and already left its notice.
+    let now = Instant::now();
+    let mut state = ready(3);
+    let close = open(&mut state, &[1], now);
+    state
+        .settle_close_exchange(
+            &close,
+            &CloseResult::Precommit(
+                crate::local_client::workbench::WorkbenchTabClosePrecommit::Rejected {
+                    revision: WorkbenchRevision::new(2),
+                    reason: orchbee_workbench_protocol::WorkbenchRejectionReason::RevisionMismatch,
+                },
+            ),
+        )
+        .unwrap();
+    assert!(state.close_set_status().unwrap().halted);
+    assert!(state.view().close_set_status().is_none());
+    assert!(
+        screen(&state, Locale::EnUs).contains(
+            &Locale::EnUs
+                .native_notice(crate::localization::WorkbenchClientNotice::CloseRequestNotApplied)
+        )
+    );
+
+    // One Tab has no next member for a local change to protect.
+    let now = Instant::now();
+    let mut state = ready(3);
+    let other = state.cache().tabs()[2].tab_id().clone();
+    state
+        .mark_tabs(&other, crate::workbench_state::TabSelectionChange::Toggle)
+        .unwrap();
+    let close = open(&mut state, &[1], now);
+    state.clear_tab_selection();
+    assert!(!state.settle_close_set(now));
+    assert!(!state.close_set_status().unwrap().halted);
+    assert_eq!(state.close_set_deadline(), Some(close.deadline()));
+}
+
+#[test]
+fn several_tabs_count_at_once_and_stop_reporting_once_all_are_confirmed_closed() {
+    use crate::localization::Locale;
+    for (locale, running, stopped) in [
+        (
+            Locale::EnUs,
+            "Closing Tabs: 0 closed, 2 remaining",
+            "Closing stopped: 1 closed, 1 not confirmed closed.",
+        ),
+        (
+            Locale::ZhCn,
+            "正在关闭标签页：0 个已关闭，剩余 2 个",
+            "关闭已停止：1 个已关闭，1 个未确认关闭。",
+        ),
+    ] {
+        let now = Instant::now();
+        let mut state = ready(3);
+        let close = open(&mut state, &[1, 2], now);
+        let shown = screen(&state, locale);
+        assert!(shown.contains(running), "{shown}");
+
+        let second = finish_and_start_next(&mut state, &close, now);
+        accept(&mut state, &second);
+        assert!(state.settle_close_set(second.deadline()));
+        let shown = screen(&state, locale);
+        assert!(shown.contains(stopped), "{shown}");
+
+        let closed = closed_status(&state);
+        read_status(&mut state, &second, closed, second.deadline());
+        let facts = state.close_set_status().unwrap();
+        assert_eq!((facts.completed, facts.total, facts.halted), (2, 2, true));
+        assert!(state.view().close_set_status().is_none());
     }
 }
 
@@ -550,7 +777,10 @@ fn close_set_targeted_resume_rejects_same_key_rebind_at_plan_and_final_admission
         let now = Instant::now();
         let mut state = ready(3);
         let selected = selection(1);
-        state.close.retain_submission(selected.clone()).unwrap();
+        state
+            .close
+            .retain_submission(selected.clone(), Instant::now())
+            .unwrap();
         observe(&mut state.close, &selected, 7, parked());
         let status = state.close.status(selected.target()).unwrap().token();
         state.acknowledge_close_draw(None, Some(status));
@@ -597,7 +827,10 @@ fn close_set_background_resume_draw_uses_its_exact_record_when_active_record_com
         for (width, height) in [(120, 40), (80, 24)] {
             let mut state = ready(3);
             let selected = selection(1);
-            state.close.retain_submission(selected.clone()).unwrap();
+            state
+                .close
+                .retain_submission(selected.clone(), Instant::now())
+                .unwrap();
             observe(&mut state.close, &selected, 7, parked());
             let status = state.close.status(selected.target()).unwrap().token();
             state.acknowledge_close_draw(None, Some(status));
@@ -605,7 +838,10 @@ fn close_set_background_resume_draw_uses_its_exact_record_when_active_record_com
                 .open_tab_close_resume(selected.target().tab_id())
                 .unwrap();
             let competing = selection(0);
-            state.close.retain_submission(competing.clone()).unwrap();
+            state
+                .close
+                .retain_submission(competing.clone(), Instant::now())
+                .unwrap();
             observe(&mut state.close, &competing, 1, parked());
             let other = state.close.status(competing.target()).unwrap().token();
             assert_ne!(status, other);

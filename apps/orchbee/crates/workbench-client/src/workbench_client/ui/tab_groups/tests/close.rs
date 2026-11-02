@@ -1036,7 +1036,10 @@ fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_co
                     );
                     assert_eq!(operation.operation().set_source(), Some(&snapshot));
                     assert_eq!(ui.state.as_ref().unwrap().desired(), desired.as_ref());
-                    assert_eq!(ui.view().close_set_status().unwrap().total, expected.len());
+                    assert_eq!(
+                        ui.state.as_ref().unwrap().close_set_status().unwrap().total,
+                        expected.len()
+                    );
                     assert!(ui.view().close_confirmation().is_none());
                     assert!(ui.view().setup_draft().is_none());
                     assert!(

@@ -154,6 +154,11 @@ impl ChangeSubscription {
             }
         }
     }
+    /// Calls `listener` after each change arrives and when the watch ends, on the connection actor
+    /// or the thread cancelling the watch, so it must not block.
+    pub fn on_change(&self, listener: impl Fn() + Send + Sync + 'static) {
+        self.stream.on_ready(listener);
+    }
     pub fn changed(&self) -> io::Result<bool> {
         let mut changed = false;
         loop {

@@ -107,8 +107,8 @@ Viewer that attaches, takes its first frame and a sample, and detaches, because 
 may attach to a Terminal only once.
 
 When every terminal runs nothing, the state admits the armed confirmation without a draw and the
-ordinary confirmed close runs; its result reaches the status line as `{label} · Closed`, like any
-close. A shell on another platform has no process sample and presents the confirmation unless its
+ordinary confirmed close runs, reporting as [Close status](#close-status) describes. A shell on
+another platform has no process sample and presents the confirmation unless its
 shell reports its prompt. The Host's `TerminalCloseActivity` stays with `WorkspaceCloseIfIdle`:
 accepted input latches it to unknown, so it cannot answer for a shell a person typed into. A program
 the sample cannot see and the shell does not report still closes unasked: `pause` in `cmd`, or under
@@ -119,17 +119,36 @@ under the system ConHost by default and the product's ConPTY with `ORCHBEE_TEST_
 [decision witness](../crates/workbench-client/src/workbench_client/ui/tests/idle_close.rs) covers
 the unknown and late facts a real run cannot force.
 
+## Close status
+
+A close of one Tab behaves the same from every route. The Tab leaving reports a normal close, so it
+adds no notice and no count. Until 1 second after submission an unreported close also withholds the
+selected Tab's connection and exit cues; the Panel title still says how its terminal ended. A real
+PowerShell Tab left 0.4 to 0.7 seconds after the click on a debug build, including the 250 ms read
+interval, so the 200 ms delay of other pending indications would flash on every close. Past the
+delay `{label} · Closing` appears, as when a shell outlasts the five-second Terminate grace.
+
+Blocked, unknown, unavailable and uncertain closes report at once. A lone Tab's cutoff reads `Close
+not confirmed`, and a later validated `Closed` clears it. A refusal keeps the Tab and reports only
+its notice. A local change around a lone Tab does not halt it, because no later Start exists to
+stop.
+
+Several Tabs show their running count from the first draw. Its last value becomes `N Tabs closed`.
+A halted set whose members were all later confirmed closed stops reporting. `close_status` stays
+unfiltered because Client control uses it as a busy gate; rendering reads `announced_close_status`.
+
 ## Incremental lifecycle owner
 
 This is a bounded sequence over existing Close/Read/reconciliation owners, not an atomic batch.
 The first confirmed admission captures one 50-second sequence cutoff. Each new step uses the
 earlier of that cutoff and its ordinary operation budget; reconciliation cleanup/attach budgets
 also stay within it while the sequence is active. No progress, queue wait or UI delay renews it.
-At cutoff, refusal, uncertainty, unrelated change or retirement, stop new close submissions.
+At cutoff, refusal, uncertainty, retirement, or an unrelated change while another member remains,
+stop new close submissions.
 Already submitted work was not cancelled: preserve its `CloseRecord`, operation/alias, attempts,
 disposal facts, worker handoffs and ordinary status/recovery paths. Late validated `Closed` facts
 update the bounded completed/remaining counts without restarting the sequence.
-The successful summary expires after five seconds or the next action/notice, using the existing
+The successful summary of several Tabs expires after five seconds or the next action/notice, using the existing
 bounded-notice convention. This retires only display state; retained counts and Close recovery
 facts survive. Halted/partial counts remain available, and current notices take display priority.
 

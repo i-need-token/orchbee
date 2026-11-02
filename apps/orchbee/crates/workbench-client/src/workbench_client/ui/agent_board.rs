@@ -39,6 +39,15 @@ impl WorkbenchClientUi {
     ) {
         // Snapshot publications only: output-only commits must not keep a refresh in flight.
         self.publications = origin.watch_publications().ok();
+        // A change made outside this Client shows at once, not when the shell's wait next ends.
+        if let (Some(publications), Some(mailbox)) = (&self.publications, &self.mailbox) {
+            let mailbox = Arc::downgrade(mailbox);
+            publications.on_change(move || {
+                if let Some(mailbox) = mailbox.upgrade() {
+                    mailbox.wake_ui();
+                }
+            });
+        }
         self.launch_profiles.set_origin(&origin);
         self.attention.set_origin(origin.clone());
         self.reports.set_origin(origin.clone());

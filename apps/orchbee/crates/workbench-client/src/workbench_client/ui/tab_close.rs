@@ -310,6 +310,17 @@ impl<'a> WorkbenchClientView<'a> {
             .close_status()
             .map(|inner| self.close_status_view(inner))
     }
+    pub(crate) fn announced_close_status(&self) -> Option<CloseStatusView<'a>> {
+        self.state
+            .as_ref()?
+            .announced_close_status()
+            .map(|inner| self.close_status_view(inner))
+    }
+    pub(crate) fn close_quiet_on_selected(&self) -> bool {
+        self.state
+            .as_ref()
+            .is_some_and(|state| state.close_quiet_on_selected())
+    }
     fn close_status_view(
         &self,
         inner: workbench_state::CloseStatusView<'a>,

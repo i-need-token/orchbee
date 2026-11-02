@@ -89,6 +89,36 @@ fn cancellation_fences_a_late_reply_while_another_stream_completes() {
 }
 
 #[test]
+fn a_ready_listener_hears_a_record_no_reader_is_waiting_for() {
+    let (send, release) = mpsc::sync_channel(1);
+    let server = FakeServer::start(move |mut peer| {
+        admit(&mut peer, 1)?;
+        let stream = read_open(&mut peer)?;
+        release.recv().unwrap();
+        frame(&mut peer, stream.id, 1, StreamFrameKind::Result, 1)?;
+        Ok(())
+    })
+    .unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+        .unwrap()
+        .into_multiplexed()
+        .unwrap();
+    let stream = client
+        .origin()
+        .subscribe(&request(1), StreamMode::Request)
+        .unwrap();
+    let (heard, arrival) = mpsc::channel();
+    stream.on_ready(move || {
+        let _heard = heard.send(());
+    });
+    send.send(()).unwrap();
+    arrival.recv_timeout(Duration::from_secs(2)).unwrap();
+    assert!(matches!(stream.poll().unwrap(), Some(StreamEvent::Record(bytes)) if bytes == [1]));
+    drop((stream, client));
+    server.finish().unwrap();
+}
+
+#[test]
 fn event_overflow_requires_an_observed_gap_before_the_replacement_snapshot() {
     let (resynced, ready) = mpsc::sync_channel(1);
     let (release, finish) = mpsc::sync_channel(1);

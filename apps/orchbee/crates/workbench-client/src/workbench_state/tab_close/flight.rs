@@ -344,6 +344,7 @@ impl WorkbenchClientState {
         self.close.carrier = super::CloseCarrier::Client;
         for record in &mut self.close.records {
             record.unavailable = true;
+            record.announced = true;
             record.initial_read_pending = false;
         }
     }
@@ -480,7 +481,7 @@ impl WorkbenchClientState {
                     return Err(CloseStateError::StaleConfirmation);
                 }
                 self.close
-                    .retain_submission(operation.selection().clone())?;
+                    .retain_submission(operation.selection().clone(), admitted_at)?;
                 if let Some(super::CloseConfirmation {
                     intent: CloseIntent::Set(capture),
                     ..

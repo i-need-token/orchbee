@@ -1428,10 +1428,15 @@ impl WorkbenchClientUi {
             .state
             .as_ref()
             .and_then(WorkbenchClientState::close_set_summary_deadline);
+        let pending = self
+            .state
+            .as_ref()
+            .and_then(WorkbenchClientState::close_pending_deadline);
         ordinary
             .into_iter()
             .chain(close)
             .chain(summary)
+            .chain(pending)
             .min()
             .map(|at| at.saturating_duration_since(self.clock.now()))
     }
@@ -1884,6 +1889,7 @@ impl WorkbenchClientUi {
                     | state.tick_workspace_close_pending(self.clock.now())
                     | state.tick_takeover(self.clock.now())
                     | state.settle_close_set(self.clock.now())
+                    | state.settle_close_pending(self.clock.now())
             });
             // A held invocation takes the refresh slot its background read just released,
             // before the next background read can.

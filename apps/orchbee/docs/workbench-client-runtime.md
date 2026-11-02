@@ -929,7 +929,8 @@ holding something to Poll; the connection actor records it in the mailbox and wa
 polls that pane at once, the focused pane first. A hint is advice: it moves no record and grants
 nothing, so a pane whose hint was lost recovers through a fallback poll every 250 ms, shared among
 the projected panes in rotation. That fallback also carries the Worker-loss and publication
-observations an ordinary poll makes.
+observations an ordinary poll makes. A record on the UI's own snapshot subscription wakes it the
+same way, so a change made outside this Client shows without waiting for a poll or the outer ceiling.
 
 Two cases keep the earlier timer. Before this connection has delivered its first hint, and while any
 pollable pane is still owed a full frame, whose hint can arrive before the projection that would

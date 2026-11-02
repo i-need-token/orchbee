@@ -77,20 +77,30 @@ impl Locale {
             Self::ZhCn => format!("……以及另外 {count} 个标签页"),
         }
     }
+    /// A sequence of one Tab shows only its halt. The completed form replaces the running count, so
+    /// a finished close never reads as work that continues.
     pub(crate) fn close_set_status(self, status: crate::localization::CloseSetStatus) -> String {
-        let completed = status.completed;
-        let remaining = status.total.saturating_sub(completed);
-        match (self, status.halted) {
-            (Self::EnUs, true) => format!(
+        let crate::localization::CloseSetStatus {
+            completed,
+            total,
+            halted,
+        } = status;
+        let remaining = total.saturating_sub(completed);
+        match (self, halted, remaining) {
+            (Self::EnUs, true, _) if total == 1 => "Close not confirmed".into(),
+            (Self::ZhCn, true, _) if total == 1 => "关闭未确认".into(),
+            (Self::EnUs, true, _) => format!(
                 "Closing stopped: {completed} closed, {remaining} not confirmed closed. Submitted closes may continue."
             ),
-            (Self::ZhCn, true) => format!(
+            (Self::ZhCn, true, _) => format!(
                 "关闭已停止：{completed} 个已关闭，{remaining} 个未确认关闭。已提交的关闭操作可能继续。"
             ),
-            (Self::EnUs, false) => {
+            (Self::EnUs, false, 0) => format!("{total} Tabs closed"),
+            (Self::ZhCn, false, 0) => format!("已关闭 {total} 个标签页"),
+            (Self::EnUs, false, _) => {
                 format!("Closing Tabs: {completed} closed, {remaining} remaining")
             }
-            (Self::ZhCn, false) => {
+            (Self::ZhCn, false, _) => {
                 format!("正在关闭标签页：{completed} 个已关闭，剩余 {remaining} 个")
             }
         }

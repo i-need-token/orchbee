@@ -12,7 +12,7 @@ use std::{
     io::{self, Read, Write},
     num::NonZeroU64,
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
         atomic::{AtomicBool, AtomicU8, AtomicU64, AtomicUsize, Ordering},
     },
     thread::{self, JoinHandle},
@@ -81,11 +81,21 @@ struct DeliveryState {
     closed: bool,
     failure: Option<orchbee_workbench_protocol::MultiplexDisconnectReason>,
 }
+/// Runs on the connection actor or the thread cancelling the stream, so it must not block.
+struct ReadyListener(Box<dyn Fn() + Send + Sync>);
+
+impl std::fmt::Debug for ReadyListener {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ReadyListener")
+    }
+}
+
 #[derive(Debug)]
 struct Delivery {
     state: Mutex<DeliveryState>,
     ready: LocalStream,
     notify: LocalStream,
+    listener: OnceLock<ReadyListener>,
     handoff: AtomicU8,
     generation: AtomicU64,
     cancelled: AtomicBool,
@@ -100,6 +110,7 @@ impl Delivery {
             state: Mutex::default(),
             ready,
             notify,
+            listener: OnceLock::new(),
             handoff: AtomicU8::new(QUEUED),
             generation: AtomicU64::new(0),
             cancelled: AtomicBool::new(false),
@@ -108,6 +119,9 @@ impl Delivery {
     }
     fn signal(&self) {
         let _notified = (&self.notify).write(&[1]);
+        if let Some(listener) = self.listener.get() {
+            (listener.0)();
+        }
     }
     fn cancelled(&self) -> bool {
         self.cancelled.load(Ordering::Acquire)
@@ -687,6 +701,15 @@ impl Subscription {
     }
     pub fn readiness(&self) -> LocalIo<'_> {
         self.delivery.ready.as_local_io()
+    }
+    /// For a reader that cannot wait on [`Self::readiness`]: calls `listener` after each event
+    /// arrives and when the stream ends, on the connection actor or the thread cancelling the
+    /// stream, so it must not block. The first listener stays.
+    pub fn on_ready(&self, listener: impl Fn() + Send + Sync + 'static) {
+        let _first = self
+            .delivery
+            .listener
+            .set(ReadyListener(Box::new(listener)));
     }
 }
 impl Drop for Subscription {

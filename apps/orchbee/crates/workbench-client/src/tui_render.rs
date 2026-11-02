@@ -326,7 +326,7 @@ pub fn render_terminal_shell_with_resize<'a>(
         }
         Some(native) => {
             let phase_status = native.phase_status_text(locale);
-            let close = native.close_status();
+            let close = native.announced_close_status();
             let status = match (native.workspace_close_status(), close.as_ref()) {
                 (Some(status), _) => {
                     // The complete status names its executable command, so ordinary widths
@@ -874,7 +874,7 @@ pub fn render_terminal_shell_with_resize<'a>(
                 read_only,
                 recovery_status: matches!(workbench_client.as_ref(), Some(native)
                     if native.workspace_close_status().is_none()
-                        && native.close_status().is_some_and(|status| status.resumable())),
+                        && native.announced_close_status().is_some_and(|status| status.resumable())),
             },
             tier,
             theme,
@@ -955,7 +955,7 @@ pub fn render_terminal_shell_with_resize<'a>(
     }
     if capture_owner.is_none()
         && let Some(native) = workbench_client.as_ref()
-        && let Some(close) = native.close_status()
+        && let Some(close) = native.announced_close_status()
     {
         status_draw = status_draw.or(visible.map(|area| (close.token(), area)));
     }
@@ -2374,9 +2374,10 @@ fn status_overlay_visible(
                 DisplayPhase::Starting | DisplayPhase::Switching
             ) && native.projection_status()
                 == ClientProjectionStatus::FrameAvailable;
-            // A pane closing after a normal Shell exit raises no automatic connection,
-            // view-only or exit cue while Server removes it.
+            // A pane closing after a normal Shell exit, or a Tab closing unreported, raises no
+            // automatic connection, view-only or exit cue while Server removes it.
             let automatic = !native.normal_exit_closing()
+                && !native.close_quiet_on_selected()
                 && ((native.phase() != DisplayPhase::Ready && !connecting_frame)
                     || native
                         .focus_panel_id()
@@ -2387,7 +2388,7 @@ fn status_overlay_visible(
                 || native.notice().is_some()
                 || native.takeover_status().is_some()
                 || native.setup_status().is_some()
-                || native.close_status().is_some()
+                || native.announced_close_status().is_some()
                 || native.workspace_close_status().is_some()
                 || native.close_set_status().is_some();
             visible || native.duplicate_progress().is_some()

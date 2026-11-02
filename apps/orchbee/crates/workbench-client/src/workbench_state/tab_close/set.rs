@@ -515,9 +515,10 @@ impl WorkbenchClientState {
             .as_ref()
             .expect("the coordinator remains owned here");
         // A matched close install updates these premises at its commit point. Every other
-        // canonical or local focus/selection change stops the sequence before another Start.
+        // canonical or local focus/selection change stops the sequence before another Start;
+        // one Tab has no other Start for that change to stop.
         if now >= set.deadline
-            || !self.close_set_premises_current(set)
+            || (set.capture.tabs.len() > 1 && !self.close_set_premises_current(set))
             || matches!(self.phase, ClientPhase::Retired(_))
         {
             self.close.halt_set();
@@ -551,6 +552,9 @@ impl WorkbenchClientState {
         }
     }
 
+    /// The count the status line shows. One Tab has no count to report: it speaks only when its
+    /// retained close stopped short, and a refused close already left its own notice. Nothing is
+    /// left to report once every Tab is confirmed closed, whatever stopped the sequence.
     pub(super) fn close_set_display_status(&self) -> Option<CloseSetStatus> {
         let set = self.close.set.as_ref()?;
         if matches!(
@@ -559,7 +563,14 @@ impl WorkbenchClientState {
         ) {
             return None;
         }
-        self.close_set_status()
+        let status = self.close_set_status()?;
+        let visible = if status.total == 1 {
+            set.halted_target()
+                .is_some_and(|target| self.close.record_index(target).is_some())
+        } else {
+            status.completed < status.total || !status.halted
+        };
+        visible.then_some(status)
     }
 
     pub(crate) fn close_set_ready(&self) -> bool {
@@ -629,7 +640,7 @@ impl WorkbenchClientState {
             return Err(CloseStateError::StaleConfirmation);
         }
         self.close
-            .retain_submission(operation.selection().clone())?;
+            .retain_submission(operation.selection().clone(), now)?;
         self.close.pending = Some(operation.clone());
         self.close.set.as_mut().ok_or(CloseStateError::Busy)?.step =
             Step::Waiting(operation.key().clone());

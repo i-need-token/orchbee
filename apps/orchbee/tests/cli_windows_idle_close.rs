@@ -135,6 +135,10 @@ impl Driver {
                 !screen.contains(dialog),
                 "{what} presented its confirmation:\n{screen}"
             );
+            assert!(
+                !screen.contains("Closing Tabs"),
+                "{what} counted one Tab as a set:\n{screen}"
+            );
             if gone(&screen) {
                 return;
             }
