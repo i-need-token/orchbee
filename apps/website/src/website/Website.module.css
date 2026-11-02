@@ -79,9 +79,6 @@
 	gap: var(--ob-ref-space-2-5);
 	font: var(--ob-sys-typography-heading-md);
 }
-.brand img {
-	border-radius: var(--ob-ref-radius-ui-sm);
-}
 .navigation {
 	display: flex;
 	gap: var(--ob-ref-space-8);

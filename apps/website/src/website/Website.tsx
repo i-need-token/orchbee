@@ -23,7 +23,7 @@ export function Website({ locale }: { locale: OrchbeeLocale }): ReactElement {
 			<header className={styles['header']}>
 				<div className={styles['headerInner']}>
 					<a className={styles['brand']} href={home} aria-label='Orchbee'>
-						<img src='/brand-mark.svg' width='28' height='28' alt='' />
+						<img src='/icon.svg' width='28' height='28' alt='' />
 						Orchbee
 					</a>
 					<nav className={styles['navigation']} aria-label={t(messages.navigation)}>
@@ -203,7 +203,7 @@ export function Website({ locale }: { locale: OrchbeeLocale }): ReactElement {
 			<footer className={styles['footer']}>
 				<div>
 					<a className={styles['brand']} href={home}>
-						<img src='/brand-mark.svg' width='28' height='28' alt='' />
+						<img src='/icon.svg' width='28' height='28' alt='' />
 						Orchbee
 					</a>
 					<p>{t(messages.footerTagline)}</p>

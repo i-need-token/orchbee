@@ -636,7 +636,7 @@ pnpm desktop
 
 On macOS, the command materializes and ad-hoc signs a content-addressed `Orchbee Dev.app` beneath
 `apps/desktop/out/development-runtime/`, then launches its exact executable. Its application name,
-checkout-scoped bundle identifier, Electron default icon, and checkout-scoped data root are
+checkout-scoped bundle identifier, Dev-badged Orchbee icon, and checkout-scoped data root are
 separate from the installed release application. Development diagnostics must target that exact
 bundle path or identifier and never fall back to `/Applications/Orchbee.app`.
 
@@ -646,11 +646,13 @@ Runtime identity and descriptor parsing belong to `src/distribution/desktop-dist
 
 Desktop owns exactly three explicit distribution profiles:
 
-| Command                        | Application         | Bundle identifier                          | Data root                       | Icon             | Output                      |
-| ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ---------------- | --------------------------- |
-| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Electron default | `apps/desktop/out/dev/`     |
-| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | Electron default | `apps/desktop/out/local/`   |
-| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Electron default | `apps/desktop/out/release/` |
+| Command                        | Application         | Bundle identifier                          | Data root                       | Icon              | Output                      |
+| ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ----------------- | --------------------------- |
+| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Purple Dev badge  | `apps/desktop/out/dev/`     |
+| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | Green Local badge | `apps/desktop/out/local/`   |
+| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Orchbee mark      | `apps/desktop/out/release/` |
+
+On macOS each profile's `.icns` is rendered from `resources/icon.svg` on Apple's 824 px icon grid, with the Dev or Local badge drawn over the lower-right corner. Windows and Linux packages still use the Electron default icon.
 
 `ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME` optionally overrides the default `Orchbee Dev` name
 for `pnpm desktop` and `pnpm desktop:package:dev`.

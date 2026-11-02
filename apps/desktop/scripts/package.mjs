@@ -44,8 +44,7 @@ const distributionProfile = (() => {
 	}
 	return resolveDesktopDistributionProfile(profileId);
 })();
-const usesDarwinApplicationIcon =
-	process.platform === 'darwin' && distributionProfile.icon !== null;
+const usesDarwinApplicationIcon = process.platform === 'darwin';
 const applicationPackage = JSON.parse(
 	await readFile(path.join(applicationRoot, 'package.json'), 'utf8'),
 );

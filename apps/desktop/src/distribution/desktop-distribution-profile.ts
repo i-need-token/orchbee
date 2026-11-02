@@ -56,7 +56,7 @@ interface DesktopDistributionProfileDefinition {
 	readonly applicationName: string;
 	readonly baseBundleIdentifier: string;
 	readonly dataRootDirectoryName: string | null;
-	readonly icon: {
+	readonly iconBadge: {
 		readonly accentColor: string;
 		readonly variant: Exclude<DesktopDistributionProfileId, 'release'>;
 	} | null;
@@ -69,7 +69,7 @@ const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
 		applicationName: DEFAULT_DESKTOP_DEVELOPMENT_APPLICATION_NAME,
 		baseBundleIdentifier: 'com.electron.orchbee.dev',
 		dataRootDirectoryName: null,
-		icon: null,
+		iconBadge: { accentColor: '#625bf6', variant: 'dev' },
 		outputDirectoryName: 'dev',
 		packageName: 'orchbee-dev',
 	},
@@ -77,7 +77,7 @@ const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
 		applicationName: DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME,
 		baseBundleIdentifier: 'com.electron.orchbee.local',
 		dataRootDirectoryName: '.orchbee-local',
-		icon: null,
+		iconBadge: { accentColor: '#168f5b', variant: 'local' },
 		outputDirectoryName: 'local',
 		packageName: 'orchbee-local',
 	},
@@ -85,7 +85,7 @@ const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
 		applicationName: 'Orchbee',
 		baseBundleIdentifier: 'com.electron.orchbee',
 		dataRootDirectoryName: '.orchbee',
-		icon: null,
+		iconBadge: null,
 		outputDirectoryName: 'release',
 		packageName: 'orchbee',
 	},

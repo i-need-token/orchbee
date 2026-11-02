@@ -32,7 +32,7 @@ The workspace is the hero visual. Keep it front-facing so terminal text remains 
 
 Copy describes specific actions: run agents, group terminals, read output, and send prompts. English and Chinese are independently phrased. Keep sample terminal output visibly labeled and planned features in the FAQ; do not add unsupported customer claims or generic promotional slogans.
 
-`public/brand-mark.svg` uses the bee paths from `resources/icon.svg` with a transparent background and tighter framing for the header and footer. Preserve the original shape and colors; update this mark whenever the source identity changes. The original icon remains the favicon.
+The header, footer, and favicon all use `resources/icon.svg`, copied to `/icon.svg` at build time. The mark carries its own tile and corner radius, so do not crop, recolor, or round it again in page styles.
 
 ## Appearance and privacy
 

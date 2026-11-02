@@ -54,8 +54,7 @@ export async function prepareDesktopDevelopmentExecutable(options) {
 			applicationName: profile.applicationName,
 			bundleIdentifier: profile.bundleIdentifier,
 			electronVersion: electronPackage.version,
-			iconDigest:
-				profile.icon === null ? null : createHash('sha256').update(baseIconSvg).digest('hex'),
+			iconDigest: createHash('sha256').update(baseIconSvg).digest('hex'),
 			schemaVersion: DEVELOPMENT_APPLICATION_IDENTITY_SCHEMA_VERSION,
 			sourceApplicationPath,
 		},
@@ -105,26 +104,23 @@ export async function prepareDesktopDevelopmentExecutable(options) {
 }
 
 async function applyApplicationIdentity(options) {
-	const usesCustomIcon = options.profile.icon !== null;
 	const iconWorkspace = path.join(options.stagingDirectory, 'icon-workspace');
 	try {
-		if (usesCustomIcon) {
-			const generatedIcon = await materializeDarwinApplicationIcon({
-				baseIconSvg: options.baseIconSvg,
-				outputDirectory: iconWorkspace,
-				profile: options.profile,
-			});
-			const iconFileName = 'orchbee-dev.icns';
-			await cp(
-				generatedIcon,
-				path.join(options.applicationPath, 'Contents', 'Resources', iconFileName),
-			);
-			await replacePlistString(
-				path.join(options.applicationPath, 'Contents', 'Info.plist'),
-				'CFBundleIconFile',
-				iconFileName,
-			);
-		}
+		const generatedIcon = await materializeDarwinApplicationIcon({
+			baseIconSvg: options.baseIconSvg,
+			outputDirectory: iconWorkspace,
+			profile: options.profile,
+		});
+		const iconFileName = 'orchbee-dev.icns';
+		await cp(
+			generatedIcon,
+			path.join(options.applicationPath, 'Contents', 'Resources', iconFileName),
+		);
+		await replacePlistString(
+			path.join(options.applicationPath, 'Contents', 'Info.plist'),
+			'CFBundleIconFile',
+			iconFileName,
+		);
 		const applicationInfoPlist = path.join(options.applicationPath, 'Contents', 'Info.plist');
 		await replacePlistString(
 			applicationInfoPlist,
@@ -153,7 +149,7 @@ async function applyApplicationIdentity(options) {
 		);
 		await validatePreparedApplication(options.applicationPath, options.profile);
 	} finally {
-		if (usesCustomIcon) await rm(iconWorkspace, { force: true, recursive: true });
+		await rm(iconWorkspace, { force: true, recursive: true });
 	}
 }
 
@@ -202,16 +198,14 @@ async function validatePreparedApplication(applicationPath, profile) {
 	if (
 		applicationName !== profile.applicationName ||
 		bundleIdentifier !== profile.bundleIdentifier ||
-		(profile.icon !== null && iconFileName !== 'orchbee-dev.icns') ||
+		iconFileName !== 'orchbee-dev.icns' ||
 		helperBundleIdentifiers.some(
 			(identifier) => identifier !== `${profile.bundleIdentifier}.helper`,
 		)
 	) {
 		throw new Error('The generated Desktop development application identity is invalid.');
 	}
-	if (profile.icon !== null) {
-		await access(path.join(applicationPath, 'Contents', 'Resources', iconFileName));
-	}
+	await access(path.join(applicationPath, 'Contents', 'Resources', iconFileName));
 	await executeFile('/usr/bin/codesign', ['--verify', '--deep', '--strict', applicationPath], {
 		encoding: 'utf8',
 	});
