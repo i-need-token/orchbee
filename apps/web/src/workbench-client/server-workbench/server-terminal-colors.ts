@@ -14,7 +14,7 @@ const DARK_TERMINAL_COLORS: ServerHostColors = Object.freeze({
 	foreground: 0xd4_d4_d4,
 });
 
-export interface ServerTerminalColors {
+interface ServerTerminalColors {
 	/** Paints every terminal's default-coded cells, as the TUI substitutes the selected theme's. */
 	readonly display: ServerHostColors;
 	/** Reported to a controlled terminal; null unless a terminal launched now follows its controller. */
