@@ -12239,6 +12239,39 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('publishes what is still settling when frozen, since no later surface saw it', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('keydown', keyboardEvent('keydown', 'Digit1', '1', 49));
+		input.value = '1';
+
+		terminal.freeze();
+		await vi.advanceTimersByTimeAsync(31);
+
+		expect(
+			commands.flatMap((command) => (command.kind === 'text-input' ? [command.payload.text] : [])),
+		).toEqual(['1']);
+		terminal.dispose();
+	});
+
 	it('installs drop admission for an initially read-only attachment that is later upgraded', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);

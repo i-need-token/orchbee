@@ -7,6 +7,7 @@ export {
 } from './server-connection';
 export {
 	type ServerTerminalBinding,
+	type ServerTerminalProjection,
 	ServerTerminalProjectionError,
 	openServerTerminalProjection,
 } from './server-terminal-projection';

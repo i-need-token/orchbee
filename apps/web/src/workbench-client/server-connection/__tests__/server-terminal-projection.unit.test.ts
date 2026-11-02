@@ -37,6 +37,8 @@ interface ControlRequest {
 
 type Outcome = Record<string, unknown>;
 
+const doNothing = (): void => undefined;
+
 function encodeJsonFrame(value: object): Uint8Array {
 	const payload = new TextEncoder().encode(JSON.stringify({ ...value, protocolVersion: 1 }));
 	const frame = new Uint8Array(8 + payload.byteLength);
@@ -51,6 +53,9 @@ function encodeJsonFrame(value: object): Uint8Array {
 /** Answers OBCS requests over the real multiplex codec; a test scripts only the control replies. */
 class ScriptedServer implements ServerCarrier {
 	readonly controlRequests: ControlRequest[] = [];
+	/** Holds a control answer back when a test sets it, to keep later input queued. */
+	holdControl: Promise<void> | null = null;
+	lanesClosed = 0;
 	readonly #decoder = new MultiplexDecoder();
 	readonly #answerControl: (request: ControlRequest) => Outcome;
 	readonly #pollRecords: Uint8Array[] = [];
@@ -94,6 +99,7 @@ class ScriptedServer implements ServerCarrier {
 
 	send(bytes: Uint8Array): void {
 		for (const message of this.#decoder.push(bytes)) {
+			if (message.kind === 'lane-close') this.lanesClosed += 1;
 			if (message.kind !== 'stream-open') continue;
 			const request = JSON.parse(
 				new TextDecoder().decode(message.request.subarray(8)),
@@ -134,11 +140,12 @@ class ScriptedServer implements ServerCarrier {
 				});
 			}
 			this.controlRequests.push(request);
-			return encodeJsonFrame({
+			const answer = encodeJsonFrame({
 				kind: 'terminal.control.result',
 				outcome: this.#answerControl(request),
 				requestId,
 			});
+			return this.holdControl === null ? answer : this.holdControl.then(() => answer);
 		}
 		if (request.action.kind === 'attach-binding') {
 			return encodeJsonFrame({
@@ -351,6 +358,50 @@ describe('openServerTerminalProjection', () => {
 		expect(payloads[3]).not.toBe(payloads[0]);
 		expect(events.filter((event) => event.kind === 'failure')).toEqual([]);
 		projection.transport.close();
+	});
+
+	it('delivers what was typed before closing the lane, and takes nothing more', async () => {
+		const server = new ScriptedServer(accepted);
+		const { events, projection } = await open(server);
+		await settled(() => server.controlRequests.some((r) => r.action.kind === 'resize'));
+		const typed = (): number =>
+			server.controlRequests.filter((r) => r.action.inputKind === 'text').length;
+		let answer = doNothing;
+		server.holdControl = new Promise((resolve) => {
+			answer = resolve;
+		});
+		projection.transport.send(textInput(projection, 'a'));
+		projection.transport.send(textInput(projection, 'b'));
+		await settled(() => typed() === 1);
+
+		const closed = projection.close();
+		projection.transport.send(textInput(projection, 'late'));
+		await new Promise((resolve) => {
+			setTimeout(resolve, 5);
+		});
+		expect(server.lanesClosed).toBe(0);
+
+		server.holdControl = null;
+		answer();
+		await closed;
+
+		expect(typed()).toBe(2);
+		expect(server.lanesClosed).toBe(1);
+		expect(events.filter((event) => event.kind === 'unavailable')).toEqual([]);
+	});
+
+	it('stops waiting on input a Server does not answer', async () => {
+		const server = new ScriptedServer(accepted);
+		const { projection } = await open(server);
+		await settled(() => server.controlRequests.some((r) => r.action.kind === 'resize'));
+		server.holdControl = new Promise(() => undefined);
+		projection.transport.send(textInput(projection, 'a'));
+		projection.transport.send(textInput(projection, 'b'));
+
+		await projection.close();
+
+		expect(server.controlRequests.filter((r) => r.action.inputKind === 'text')).toHaveLength(1);
+		expect(server.lanesClosed).toBe(1);
 	});
 
 	it('becomes read-only when another Client took over, without reporting a failure', async () => {

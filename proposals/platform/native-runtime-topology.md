@@ -1116,6 +1116,12 @@ These choices stand unless review changes them:
 - **A surface that only views a terminal never waits to fit.** It cannot change the terminal's size,
   and waiting left the whole Tab inert for as long as the other Client held control. What it shows at
   another Client's size belongs with the takeover entry.
+- **Typing carries across a layer swap.** While both layers are inert, keys that reach nothing are
+  held, and once the new terminal has focus they reach it in order, with the text a real key would
+  insert. They go nowhere if focus ended up elsewhere or more than a second passed, since the person
+  may have typed them again. A surface being replaced still sends what it had accepted before its
+  lane closes, for at most half a second, and the next surface waits for it. Before this, a split
+  lost three to five keys. Keys typed through a swap with an input method are untested.
 - **`panel.relocate` and `panel.rename` stay unconnected.** The GUI has no entry for either.
 
 Measured on 2026-11-01 on Windows with a Release cohort, in a real window beside a real TUI on the
@@ -1149,6 +1155,7 @@ same Session:
 | Resize dialog                 | Each key sent one command, in order, with no trailing digits. At the limit the keyboard stayed in the dialog and the opposite key still worked. Reset and Evening sent one command per split that differed, with one visible change.                 |
 | Directory of a new Panel      | With `file://host/C:/Windows` and `file:///C:/Users` reported, new terminals opened in `C:\Windows` and `C:\Users`. With nothing reported, the command asked for no directory.                                                                       |
 | Panels on both Clients        | A split with the TUI's `Ctrl+B \|` reached the window in 156 ms from the key, and the window's focus stayed. A split and a divider from the window were on the TUI's screen at an 800 ms sample. The TUI's terminal opened read-only here in 307 ms. |
+| Typing through a swap         | Keys 8 ms apart through five splits from another Client, two of its own and a Tab switch reached the shell whole and in order. A held Enter ran once, a held Tab completed, and keys held past a focus move or 1.3 s went nowhere.                   |
 
 ### Evidence
 

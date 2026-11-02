@@ -415,10 +415,11 @@ once; that restoration draw is permitted even while explicit presentation demand
 after which the independent pause continues to suppress later draws. Canvas 2D visibility changes
 remain timer-and-draw suspension only.
 
-`freeze()` is the application recovery handoff: it retires input, transport-facing listeners,
-animation, resize, search, and in-flight side effects while retaining the last painted canvas and
-accessible row list. Frozen instances reject further frame and command work. A later `dispose()`
-releases the retained renderer resources and DOM after the application has painted a replacement.
+`freeze()` is the application recovery handoff: it publishes native text still settling, which no
+later surface saw, and then retires input, transport-facing listeners, animation, resize, search,
+and in-flight side effects while retaining the last painted canvas and accessible row list. Frozen
+instances reject further frame and command work. A later `dispose()` releases the retained renderer
+resources and DOM after the application has painted a replacement.
 
 WebGPU initialization, visibility restoration, and device-loss recovery fence every asynchronous
 completion against both lifecycle and visibility epochs. Hiding during pending initialization

@@ -11,6 +11,7 @@ import { WorkbenchPanelBroadcastInput } from './components/workbench-panel-broad
 import { WorkbenchPanelLayout } from './components/workbench-panel-layout/WorkbenchPanelLayout';
 import { WorkbenchPanelResizeDialog } from './components/workbench-panel-resize-dialog/WorkbenchPanelResizeDialog';
 import { useWorkbenchPanelWorkspace } from './hooks/useWorkbenchPanelWorkspace';
+import { useTerminalHandoffKeystrokes } from './hooks/useTerminalHandoffKeystrokes';
 import { useTerminalTabPresentationHandoff } from './hooks/useTerminalTabPresentationHandoff';
 import { projectTerminalTabPresentationLayers } from './model/projectTerminalTabPresentationLayers';
 import { projectWorkbenchPanelWorkspaceTabView } from './model/projectWorkbenchPanelWorkspaceTabView';
@@ -61,6 +62,7 @@ export function WorkbenchPanelWorkspace({
 		tabs: view.state.tabs,
 		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});
+	useTerminalHandoffKeystrokes(handoff.state.kind === 'settled');
 	const presentationLayers = projectTerminalTabPresentationLayers(
 		view.activeTab,
 		handoff.state,

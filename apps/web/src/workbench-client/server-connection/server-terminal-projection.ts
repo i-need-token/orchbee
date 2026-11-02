@@ -63,6 +63,8 @@ export class ServerTerminalProjectionError extends Error {
 }
 
 export interface ServerTerminalProjection extends TerminalProjection {
+	/** Closes the transport, and settles once what was already typed has gone and the lane closed. */
+	close(): Promise<void>;
 	/** Takes input and resize from whichever Client holds them. */
 	takeControl(): Promise<boolean>;
 }
@@ -75,6 +77,8 @@ const BUSY_RETRY_DELAYS_MILLISECONDS = [4, 8, 16, 32, 64, 128, 256] as const;
 const MINIMUM_ROW_READ_BYTES = 112;
 const MAXIMUM_ROW_READ_BYTES = 8 * 1024 * 1024;
 const MAXIMUM_QUEUED_COMMANDS = 1_024;
+/** How long closing waits on queued input. The next surface for the terminal waits on this in turn. */
+const INPUT_DELIVERY_LIMIT_MILLISECONDS = 500;
 /**
  * The bootstrap contract requires a theme, and only a renderer's theme participant reads it. A Server
  * terminal's colors come from its Host, which the Worker configures at launch, so these never paint.
@@ -104,6 +108,7 @@ type SemanticInputCommand = Extract<
 /** Runs asynchronous steps one at a time so a retry can never overtake a later step. */
 class SerialSteps {
 	readonly #queue: (() => Promise<void>)[] = [];
+	#onIdle: (() => void) | null = null;
 	#running = false;
 
 	get length(): number {
@@ -119,12 +124,19 @@ class SerialSteps {
 		this.#queue.length = 0;
 	}
 
+	/** Calls back once no step is left to run, which may be at once. */
+	whenIdle(listener: () => void): void {
+		if (this.#running) this.#onIdle = listener;
+		else listener();
+	}
+
 	async #run(): Promise<void> {
 		this.#running = true;
 		for (let step = this.#queue.shift(); step !== undefined; step = this.#queue.shift()) {
 			await step();
 		}
 		this.#running = false;
+		this.#onIdle?.();
 	}
 }
 
@@ -188,6 +200,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	readonly #unwatchViewerReady: () => void;
 	#capabilityRevision = 1n;
 	#closed = false;
+	#closing: Promise<void> | null = null;
 	#controllerId: string | null;
 	#latestOutcomeRevision: bigint | null = null;
 	#listener: ((event: ProjectedTerminalEvent) => void) | null = null;
@@ -236,7 +249,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	}
 
 	send(command: ProjectedTerminalCommand): void {
-		if (this.#closed) return;
+		if (this.#closed || this.#closing !== null) return;
 		const attachmentId = this.#bootstrap.attachmentId;
 		switch (command.kind) {
 			case 'frame-applied':
@@ -307,12 +320,29 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		}
 	}
 
-	close(): void {
-		this.#retire(false);
+	/**
+	 * Nothing more comes from or goes to the surface. What it already accepted still goes, one step at
+	 * a time as ever, and the lane holding control closes behind it: a person typing as a layout
+	 * changes is typing into a surface about to be replaced.
+	 */
+	close(): Promise<void> {
+		this.#closing ??= new Promise((resolve) => {
+			this.#listener = null;
+			this.#unavailable = null;
+			this.#viewerSteps.clear();
+			const finish = (): void => {
+				clearTimeout(limit);
+				this.#retire(false);
+				resolve();
+			};
+			const limit = setTimeout(finish, INPUT_DELIVERY_LIMIT_MILLISECONDS);
+			this.#controlSteps.whenIdle(finish);
+		});
+		return this.#closing;
 	}
 
 	async takeControl(): Promise<boolean> {
-		if (this.#closed) return false;
+		if (this.#closed || this.#closing !== null) return false;
 		const outcome = this.#controlOutcome(
 			await this.#exchange({
 				action: { attachmentId: this.#bootstrap.attachmentId, kind: 'takeover' },
@@ -947,7 +977,12 @@ export async function openServerTerminalProjection(
 				payload: { attachmentId: bootstrap.attachmentId, ...geometry },
 			});
 		}
-		return { bootstrap, takeControl: () => transport.takeControl(), transport };
+		return {
+			bootstrap,
+			close: () => transport.close(),
+			takeControl: () => transport.takeControl(),
+			transport,
+		};
 	} catch (error) {
 		connection.closeLane(laneId);
 		throw error;

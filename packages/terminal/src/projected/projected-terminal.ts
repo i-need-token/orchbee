@@ -3459,18 +3459,23 @@ export class ProjectedTerminal {
 		this.#performDispose();
 	}
 
+	#canFreeze(): boolean {
+		return (
+			this.#phase !== ProjectedTerminalPhase.disposed &&
+			this.#phase !== ProjectedTerminalPhase.frozen &&
+			this.#inputAdmission !== ProjectedInputAdmission.disposed
+		);
+	}
+
 	/**
 	 * Release live attachment behavior while leaving the last painted canvas and accessible rows
 	 * mounted for an application-owned recovery handoff.
 	 */
 	freeze(): void {
-		if (
-			this.#phase === ProjectedTerminalPhase.disposed ||
-			this.#phase === ProjectedTerminalPhase.frozen ||
-			this.#inputAdmission === ProjectedInputAdmission.disposed
-		) {
-			return;
-		}
+		if (!this.#canFreeze()) return;
+		// It was typed before this, and whatever surface comes next never saw it.
+		this.#publishSettlingNativeInput();
+		if (!this.#canFreeze()) return;
 		this.#inputAdmission = ProjectedInputAdmission.disposed;
 		this.#inputRepairEpoch++;
 		this.#inputDispatcher.invalidate();
@@ -6375,30 +6380,43 @@ export class ProjectedTerminal {
 			.dispatch(
 				async (signal) => {
 					await ready;
-					if (
-						signal.aborted ||
-						settlement.cancelled ||
-						this.#inputState.compositionPhase === TerminalCompositionPhase.eligible ||
-						!settlement.sealedText ||
-						textEncoder.encode(settlement.sealedText).byteLength > PROTOCOL_LIMITS.maxInputBytes
-					) {
-						return;
-					}
-					this.#publishCurrentInputCommand(
-						{
-							kind: 'text-input',
-							payload: {
-								attachmentId: this.#attachmentId,
-								capabilityRevision: this.#capabilityRevision,
-								text: settlement.sealedText,
-							},
-						},
-						ProjectedInputPublicationIntent.stateless,
-					);
+					if (!signal.aborted) this.#publishSealedNativeInput(settlement);
 				},
 				() => undefined,
 			)
 			.catch((error: unknown) => this.#errorEmitter.fire({ error, operation: 'command' }));
+	}
+
+	#publishSealedNativeInput(settlement: NativeInputSettlement): void {
+		if (
+			settlement.cancelled ||
+			this.#inputState.compositionPhase === TerminalCompositionPhase.eligible ||
+			!settlement.sealedText ||
+			textEncoder.encode(settlement.sealedText).byteLength > PROTOCOL_LIMITS.maxInputBytes
+		) {
+			return;
+		}
+		this.#publishCurrentInputCommand(
+			{
+				kind: 'text-input',
+				payload: {
+					attachmentId: this.#attachmentId,
+					capabilityRevision: this.#capabilityRevision,
+					text: settlement.sealedText,
+				},
+			},
+			ProjectedInputPublicationIntent.stateless,
+		);
+	}
+
+	/** Nothing can wait behind an open settlement, since the next key seals it, so order holds. */
+	#publishSettlingNativeInput(): void {
+		const settlement = this.#nativeInputSettlement;
+		if (settlement === undefined) return;
+		this.#sealNativeInputSettlement(settlement);
+		this.#publishSealedNativeInput(settlement);
+		// Its own publication is still waiting on the settlement.
+		settlement.cancelled = true;
 	}
 
 	#cancelNativeInputChange(): void {
