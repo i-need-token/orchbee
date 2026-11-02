@@ -61,6 +61,7 @@ import {
 	PROJECTED_TERMINAL_ACTION_IDS,
 	installProjectedTerminalShortcuts,
 	type ProjectedTerminalActionResultEvent,
+	type ProjectedTerminalControlPresentation,
 	type ProjectedTerminalShortcutBindingSource,
 	type ProjectedTerminalShortcutPlatform,
 } from '../projected-terminal-actions';
@@ -275,6 +276,7 @@ export interface ProjectedTerminalRendererSession {
 	dispose(): void;
 	readonly displayReady?: Promise<void> | undefined;
 	focus(): void;
+	getControlPresentation?(): ProjectedTerminalControlPresentation;
 	getMobileInputState?(): MobileTerminalInputState;
 	getBroadcastInputReadiness?(): WorkbenchTerminalBroadcastInputReadiness;
 	isTransportAvailable(): boolean;
@@ -289,7 +291,10 @@ export interface ProjectedTerminalRendererSession {
 	): Promise<WorkbenchTerminalBroadcastInputResult>;
 	sendMobileKey?(key: MobileTerminalKey): boolean;
 	subscribeBroadcastInputReadiness?(listener: () => void): ActionDisposable;
+	subscribeControlPresentation?(listener: () => void): ActionDisposable;
 	subscribeMobileInputState?(listener: () => void): MobileTerminalInputSubscription;
+	/** Runs Take control as a button does, settling with whether this surface now holds the terminal. */
+	takeControl?(): Promise<boolean>;
 	toggleMobileKeyboard?(): boolean;
 	toggleMobileModifier?(modifier: MobileTerminalModifier): void;
 	updatePresentationConfiguration(
@@ -437,6 +442,8 @@ export async function startProjectedTerminalRenderer(
 	let displayPresentationDrawn = false;
 	let inputGranted = bootstrap.canInput;
 	let resizeLeaseHeld = bootstrap.canResize;
+	let takingControl = false;
+	const controlPresentationListeners = new Set<() => void>();
 	let presentationVisible = terminalThemeSource === undefined;
 	let resolveDisplayReady: (() => void) | undefined;
 	let resolveTransportUnavailable: (() => void) | undefined;
@@ -468,10 +475,28 @@ export async function startProjectedTerminalRenderer(
 	};
 	// A viewer cannot bring the terminal to its own size, so no frame that fits it better is coming.
 	const isViewer = (): boolean => !inputGranted && !resizeLeaseHeld;
+	/** An ended terminal has nothing to take, and a transport without takeover no one to take from. */
+	const readControlPresentation = (): ProjectedTerminalControlPresentation => {
+		if (
+			transport.takeControl === undefined ||
+			disposed ||
+			frozen ||
+			!transportAvailable ||
+			terminalOutcomeKind !== undefined
+		) {
+			return 'none';
+		}
+		if (takingControl) return 'taking-control';
+		return inputGranted ? 'none' : 'view-only';
+	};
+	const notifyControlPresentation = (): void => {
+		for (const listener of controlPresentationListeners) listener();
+	};
 	const reportTransportUnavailable = (): void => {
 		if (!transportAvailable) return;
 		transportAvailable = false;
 		for (const listener of broadcastInputReadinessListeners) listener();
+		notifyControlPresentation();
 		resolveTransportUnavailable?.();
 		resolveTransportUnavailable = undefined;
 	};
@@ -909,6 +934,7 @@ export async function startProjectedTerminalRenderer(
 	): void => {
 		if (terminalOutcomeKind === 'exited') return;
 		terminalOutcomeKind = 'failed';
+		notifyControlPresentation();
 		terminal.notifyFailed(event);
 		rootElement.dataset['projectedTerminalState'] = 'failed';
 		rootElement.dataset['projectedTerminalFailureKind'] = event.failure.kind;
@@ -954,6 +980,25 @@ export async function startProjectedTerminalRenderer(
 			);
 			pendingTextViewerController = new TerminalTextViewerController();
 			pendingActions = createProjectedTerminalActionComposition(terminal, pendingFindController, {
+				control:
+					transport.takeControl === undefined
+						? undefined
+						: {
+								get controlPresentation() {
+									return readControlPresentation();
+								},
+								takeControl: async () => {
+									if (readControlPresentation() !== 'view-only') return 'refused';
+									takingControl = true;
+									notifyControlPresentation();
+									try {
+										return (await transport.takeControl?.()) ?? 'refused';
+									} finally {
+										takingControl = false;
+										notifyControlPresentation();
+									}
+								},
+							},
 				textViewerController: pendingTextViewerController,
 				platformEffects,
 				reportResult: reportActionResult,
@@ -1070,6 +1115,7 @@ export async function startProjectedTerminalRenderer(
 				terminal.onExit((event) => {
 					if (terminalOutcomeKind === 'failed') return;
 					terminalOutcomeKind = 'exited';
+					notifyControlPresentation();
 					rootElement.dataset['projectedTerminalState'] = 'exited';
 					rootElement.dataset['projectedTerminalFinalRevision'] = event.finalRevision;
 					finalRevision = BigInt(event.finalRevision);
@@ -1282,6 +1328,7 @@ export async function startProjectedTerminalRenderer(
 				rootElement.dataset['projectedTerminalCapabilityRevision'] =
 					capabilities.capabilityRevision;
 				delete rootElement.dataset['projectedTerminalCapabilityFailure'];
+				notifyControlPresentation();
 				return;
 			}
 			case 'bell':
@@ -1587,6 +1634,7 @@ export async function startProjectedTerminalRenderer(
 			if (disposed || frozen) return;
 			terminal.focus();
 		},
+		getControlPresentation: readControlPresentation,
 		getMobileInputState: () =>
 			mobileInputController?.state ?? {
 				alt: false,
@@ -1652,8 +1700,22 @@ export async function startProjectedTerminalRenderer(
 				dispose: () => broadcastInputReadinessListeners.delete(listener),
 			};
 		},
+		subscribeControlPresentation: (listener) => {
+			if (!disposed) controlPresentationListeners.add(listener);
+			return { dispose: () => controlPresentationListeners.delete(listener) };
+		},
 		subscribeMobileInputState: (listener) =>
 			mobileInputController?.subscribe(listener) ?? { dispose: () => undefined },
+		takeControl: async () => {
+			if (disposed || frozen) return false;
+			const execution = actions.execute(
+				PROJECTED_TERMINAL_ACTION_IDS.takeControl,
+				undefined,
+				actions.terminalScope,
+				'button',
+			);
+			return (await execution.completion).kind === 'completed';
+		},
 		toggleMobileKeyboard: () => mobileInputController?.toggleKeyboard() ?? false,
 		toggleMobileModifier: (modifier) => mobileInputController?.toggleModifier(modifier),
 		transportUnavailable,
@@ -1794,6 +1856,15 @@ function projectedTerminalActionResultPresentation(
 		event.result.kind === 'cancelled'
 	) {
 		return null;
+	}
+	if (event.actionId === PROJECTED_TERMINAL_ACTION_IDS.takeControl) {
+		if (event.result.kind === 'completed') {
+			return { message: projectedTerminalMessages.controlTaken, role: 'status' };
+		}
+		return event.result.kind === 'failed' &&
+			event.result.failure.code === 'terminal-control-outcome-unknown'
+			? { message: projectedTerminalMessages.controlOutcomeUnknown, role: 'alert' }
+			: { message: projectedTerminalMessages.controlRefused, role: 'alert' };
 	}
 	if (event.actionId === PROJECTED_TERMINAL_ACTION_IDS.hintsOpen) {
 		if (event.result.kind === 'completed') {

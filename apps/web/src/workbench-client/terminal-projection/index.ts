@@ -1,4 +1,5 @@
 export type {
+	ProjectedTerminalTakeControlOutcome,
 	ProjectedTerminalTransport,
 	TerminalProjection,
 	TerminalProjectionClient,

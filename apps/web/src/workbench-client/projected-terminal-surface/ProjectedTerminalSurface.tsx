@@ -8,6 +8,7 @@ import { ProjectedTerminalImagePreviewCard } from './components/projected-termin
 import { ProjectedTerminalLaunchFailure } from './components/projected-terminal-launch-failure/ProjectedTerminalLaunchFailure';
 import { ProjectedTerminalMobileInputBar } from './components/projected-terminal-mobile-input-bar/ProjectedTerminalMobileInputBar';
 import { ProjectedTerminalPasteReviewDialog } from './components/projected-terminal-paste-review-dialog/ProjectedTerminalPasteReviewDialog';
+import { ProjectedTerminalViewOnly } from './components/projected-terminal-view-only/ProjectedTerminalViewOnly';
 import { useProjectedTerminalSurface } from './hooks/useProjectedTerminalSurface';
 
 export function ProjectedTerminalSurface({
@@ -86,6 +87,12 @@ export function ProjectedTerminalSurface({
 				{view.imagePreview === null ? null : (
 					<ProjectedTerminalImagePreviewCard preview={view.imagePreview} />
 				)}
+				{terminalShown && view.controlPresentation !== 'none' ? (
+					<ProjectedTerminalViewOnly
+						onTakeControl={view.takeControl}
+						taking={view.controlPresentation === 'taking-control'}
+					/>
+				) : null}
 				{terminalShown ? (
 					<ProjectedTerminalMobileInputBar
 						onKey={view.sendMobileKey}

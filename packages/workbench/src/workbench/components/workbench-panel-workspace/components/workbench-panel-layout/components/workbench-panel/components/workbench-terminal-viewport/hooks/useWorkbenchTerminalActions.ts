@@ -38,6 +38,7 @@ interface WorkbenchTerminalActions {
 }
 
 const terminalActionOrder = [
+	TERMINAL_ACTION_IDS.takeControl,
 	TERMINAL_ACTION_IDS.openLink,
 	TERMINAL_ACTION_IDS.copySelection,
 	TERMINAL_ACTION_IDS.paste,
@@ -52,6 +53,7 @@ const terminalActionOrder = [
 const terminalActionIcons: Readonly<Record<(typeof terminalActionOrder)[number], ProductIconName>> =
 	{
 		[TERMINAL_ACTION_IDS.clear]: 'trash',
+		[TERMINAL_ACTION_IDS.takeControl]: 'terminal',
 		[TERMINAL_ACTION_IDS.copySelection]: 'copy',
 		[TERMINAL_ACTION_IDS.findOpen]: 'search',
 		[TERMINAL_ACTION_IDS.hintsOpen]: 'action',

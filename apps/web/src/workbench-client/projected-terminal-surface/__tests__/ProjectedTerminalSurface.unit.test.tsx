@@ -29,6 +29,7 @@ describe('ProjectedTerminalSurface', () => {
 			approvePaste: () => undefined,
 			cancelPaste: () => undefined,
 			closeTerminal: () => undefined,
+			controlPresentation: 'none',
 			createTab: () => undefined,
 			failureMessage: 'The terminal connection failed.',
 			handleFileDragOver: () => undefined,
@@ -50,6 +51,7 @@ describe('ProjectedTerminalSurface', () => {
 			sendMobileKey: () => false,
 			stopped: false,
 			startNewSession: () => undefined,
+			takeControl: () => undefined,
 			toggleMobileKeyboard: () => false,
 			toggleMobileModifier: () => undefined,
 		});
@@ -92,6 +94,7 @@ describe('ProjectedTerminalSurface', () => {
 			approvePaste: () => undefined,
 			cancelPaste: () => undefined,
 			closeTerminal: () => undefined,
+			controlPresentation: 'none',
 			createTab: () => undefined,
 			failureMessage: null,
 			handleFileDragOver: () => undefined,
@@ -113,6 +116,7 @@ describe('ProjectedTerminalSurface', () => {
 			sendMobileKey: () => false,
 			stopped: true,
 			startNewSession: () => undefined,
+			takeControl: () => undefined,
 			toggleMobileKeyboard: () => false,
 			toggleMobileModifier: () => undefined,
 		});

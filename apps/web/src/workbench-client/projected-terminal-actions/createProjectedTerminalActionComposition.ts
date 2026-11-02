@@ -21,6 +21,10 @@ import {
 	registerProjectedTerminalActions,
 	type ProjectedTerminalActionTarget,
 } from './registerProjectedTerminalActions';
+import {
+	registerProjectedTerminalControlAction,
+	type ProjectedTerminalControlTarget,
+} from './registerProjectedTerminalControlAction';
 
 export interface ProjectedTerminalActionComposition {
 	readonly findScope: ActionScope;
@@ -47,6 +51,8 @@ export interface ProjectedTerminalActionResultEvent {
 }
 
 interface ProjectedTerminalActionCompositionOptions {
+	/** Present only where another Client can hold the terminal's input and size. */
+	readonly control?: ProjectedTerminalControlTarget | undefined;
 	readonly textViewerController?: TerminalTextViewerController | undefined;
 	readonly platformEffects?: ProjectedTerminalPlatformEffects | undefined;
 	readonly reportResult?: ((event: ProjectedTerminalActionResultEvent) => void) | undefined;
@@ -61,6 +67,7 @@ export function createProjectedTerminalActionComposition(
 	options: ProjectedTerminalActionCompositionOptions,
 ): ProjectedTerminalActionComposition {
 	const {
+		control,
 		textViewerController = new TerminalTextViewerController(),
 		platformEffects = {},
 		reportResult,
@@ -72,15 +79,20 @@ export function createProjectedTerminalActionComposition(
 	const activeExecutions = new Set<ActionExecution>();
 	const clipboardActionCoordinator = createProjectedTerminalClipboardActionCoordinator();
 	let disposed = false;
-	const registrations = registerProjectedTerminalActions({
-		clipboardActionCoordinator,
-		findController,
-		textViewerController,
-		platformEffects,
-		scope: terminalScope,
-		terminal,
-		typedRuntime,
-	});
+	const registrations = [
+		...registerProjectedTerminalActions({
+			clipboardActionCoordinator,
+			findController,
+			textViewerController,
+			platformEffects,
+			scope: terminalScope,
+			terminal,
+			typedRuntime,
+		}),
+		...(control === undefined
+			? []
+			: [registerProjectedTerminalControlAction(typedRuntime, terminalScope, control)]),
+	];
 
 	return {
 		dispose: () => {

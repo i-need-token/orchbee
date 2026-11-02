@@ -30,6 +30,7 @@ export const PROJECTED_TERMINAL_ACTION_IDS = {
 	scrollToBottom: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.scrollToBottom,
 	scrollToTop: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.scrollToTop,
 	selectAll: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.selectAll,
+	takeControl: TERMINAL_ACTION_IDS.takeControl,
 } as const;
 
 export type ProjectedTerminalLinkActionInput = WorkbenchTerminalLinkActionInput;

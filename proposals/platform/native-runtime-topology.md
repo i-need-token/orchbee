@@ -1115,8 +1115,18 @@ These choices stand unless review changes them:
   in the Workspace's directory, unlike the CLI's `follow`. Whether to sample the source process is
   decided with the other multi-step workflows under decision 2.
 - **A surface that only views a terminal never waits to fit.** It cannot change the terminal's size,
-  and waiting left the whole Tab inert for as long as the other Client held control. What it shows at
-  another Client's size belongs with the takeover entry.
+  and waiting left the whole Tab inert for as long as the other Client held control. It draws the
+  other Client's grid from its top-left corner, so a larger grid is cut off at the right and bottom
+  and can hide the prompt. The TUI follows the cursor in a smaller viewer and says the view is
+  cropped; the GUI does neither yet.
+- **Take control is the way back, as in the TUI.** No notice arrives when another Client takes
+  control, so a surface learns that it only views when its next input or resize is refused, and the
+  keys of that attempt go nowhere. It then shows View only with a Take control button at the bottom
+  right, away from the alerts at the top, and the terminal context menu leads with Take control;
+  neither exists while the surface controls the terminal. A grant resizes the terminal to the pane
+  and returns the keyboard unless the person has moved it. Nothing repeats a request: a busy Server
+  read nothing, and an unknown outcome is reported for the person to repeat. Unlike the TUI, input
+  resumes at the grant rather than after a fresh frame, and Take control has no default shortcut.
 - **Typing carries across a layer swap.** While both layers are inert, keys that reach nothing are
   held, and once the new terminal has focus they reach it in order, with the text a real key would
   insert. They go nowhere if focus ended up elsewhere or more than a second passed, since the person
@@ -1132,8 +1142,8 @@ These choices stand unless review changes them:
   TUI, and Close does nothing on a failed child terminal while child terminals have no close.
 - **`panel.relocate` and `panel.rename` stay unconnected.** The GUI has no entry for either.
 
-Measured on 2026-11-01 on Windows with a Release cohort, in a real window beside a real TUI on the
-same Session:
+Measured on 2026-11-01 and 2026-11-02 on Windows with a Release cohort, in a real window beside a
+real TUI or CLI on the same Session:
 
 | Question                      | Measurement                                                                                                                                                                                                                                          |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1167,6 +1177,9 @@ same Session:
 | Terminal that cannot start    | A Tab and a split given a missing executable by the CLI showed the page with its path, in English and Chinese. Three ordinary creations never showed it. Keys typed on the page after Ctrl+PageDown sent nothing.                                    |
 | Leaving a failed terminal     | New Tab sent one `tab.create`, answered in 20 ms, and typing reached the new terminal. Close sent one `tab.close` for a lone Panel and one `panel.close` for a split's failed half, where typing in the other half stayed intact.                    |
 | Burst past the command queue  | 2,000 keys at about 610 per second overflowed it. The terminal had the first 1,418 in order and nothing typed after the hole; the surface said it was restoring, took control on a new attachment 523 ms later, and typing worked.                   |
+| View only                     | After the CLI took control at 60×12, the window drew that grid from its top-left and still acted as the controller until it typed. Those keys were refused and went nowhere, and View only appeared 2 ms later. At 200×50 the prompt was cut off.    |
+| Take control                  | From the button, View only left 11–18 ms after the click, and the pane's size and the keyboard were back 14–19 ms later. From the menu, all three took up to 125 ms, the keyboard returning as the menu closed. Typing then reached the shell.       |
+| The former controller         | The CLI received nothing until its next input, which was refused with `not-controller` and closed its stream.                                                                                                                                        |
 
 ### Evidence
 

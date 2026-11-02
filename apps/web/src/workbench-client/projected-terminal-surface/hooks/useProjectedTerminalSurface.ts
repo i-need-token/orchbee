@@ -14,6 +14,7 @@ import {
 	MAXIMUM_TERMINAL_FILE_DROP_INPUT_CHARACTERS,
 	type TerminalFileDropRejectionReason,
 } from '../../../terminal-file-drop';
+import type { ProjectedTerminalControlPresentation } from '../../projected-terminal-actions';
 import {
 	createTerminalTrailingBlankRowsPresentationSource,
 	startProjectedTerminalRenderer,
@@ -50,6 +51,11 @@ interface PresentationRecoveryState {
 interface PresentationMobileInputState {
 	readonly presentationId: string;
 	readonly state: MobileTerminalInputState;
+}
+
+interface PresentationControl {
+	readonly presentation: ProjectedTerminalControlPresentation;
+	readonly presentationId: string;
 }
 
 interface PresentationImagePreview {
@@ -120,6 +126,9 @@ export function useProjectedTerminalSurface(
 		React.useState<PresentationRecoveryState | null>(null);
 	const [presentationMobileInput, setPresentationMobileInput] =
 		React.useState<PresentationMobileInputState | null>(null);
+	const [presentationControl, setPresentationControl] = React.useState<PresentationControl | null>(
+		null,
+	);
 	const [presentationImagePreview, setPresentationImagePreview] =
 		React.useState<PresentationImagePreview | null>(null);
 	const [startFailurePresentationId, setStartFailurePresentationId] = React.useState<string | null>(
@@ -283,6 +292,24 @@ export function useProjectedTerminalSurface(
 			recovery.controller.toggleMobileModifier(modifier);
 		}
 	});
+	// The pressed button leaves with the view-only notice, so the keyboard goes to the terminal
+	// unless the person has moved it elsewhere meanwhile.
+	const takeControl = useMemoizedFn((): void => {
+		const recovery = recoveryController.current;
+		if (recovery?.presentationId !== presentation.presentationId) return;
+		void recovery.controller.takeControl().then((taken) => {
+			const ownerDocument = root.current?.ownerDocument;
+			const focused = ownerDocument?.activeElement;
+			if (
+				!taken ||
+				recoveryController.current !== recovery ||
+				(focused !== ownerDocument?.body && !root.current?.contains(focused ?? null))
+			) {
+				return;
+			}
+			recovery.controller.focusTerminal();
+		});
+	});
 	if (capability === null) {
 		throw new Error('ProjectedTerminalSurface requires its client capability.');
 	}
@@ -385,6 +412,13 @@ export function useProjectedTerminalSurface(
 			presentationId: presentation.presentationId,
 			state: controller.getMobileInputState(),
 		});
+		const controlSubscription = controller.subscribeControlPresentation(() => {
+			if (cancelled) return;
+			setPresentationControl({
+				presentation: controller.getControlPresentation(),
+				presentationId: presentation.presentationId,
+			});
+		});
 		const broadcastInputRegistration = bindBroadcastInputSink?.(controller);
 		if (sessionPolicyReference.current === 'retain') controller.retain();
 		else controller.start();
@@ -392,6 +426,9 @@ export function useProjectedTerminalSurface(
 			if (cancelled) return;
 			cancelled = true;
 			setPresentationImagePreview((current) =>
+				current?.presentationId === presentation.presentationId ? null : current,
+			);
+			setPresentationControl((current) =>
 				current?.presentationId === presentation.presentationId ? null : current,
 			);
 			fileDropEpoch.current += 1;
@@ -402,6 +439,7 @@ export function useProjectedTerminalSurface(
 				[
 					() => settlePasteReview(false),
 					() => mobileInputSubscription.dispose(),
+					() => controlSubscription.dispose(),
 					() => broadcastInputRegistration?.dispose(),
 					() => controller.dispose(),
 				],
@@ -476,6 +514,10 @@ export function useProjectedTerminalSurface(
 		presentationMobileInput?.presentationId === presentation.presentationId
 			? presentationMobileInput.state
 			: unavailableMobileInputState;
+	const controlPresentation =
+		presentationControl?.presentationId === presentation.presentationId
+			? presentationControl.presentation
+			: 'none';
 	if (failureMessage === null && currentFileDropFailure !== null) {
 		switch (currentFileDropFailure.reason) {
 			case 'too-many-files':
@@ -509,6 +551,7 @@ export function useProjectedTerminalSurface(
 		approvePaste: () => settlePasteReview(true),
 		cancelPaste: () => settlePasteReview(false),
 		closeTerminal: () => closeTerminal?.('button'),
+		controlPresentation,
 		createTab: () => createTab?.('button'),
 		failureMessage,
 		handleFileDragOver,
@@ -529,6 +572,7 @@ export function useProjectedTerminalSurface(
 		sendMobileKey,
 		stopped,
 		startNewSession,
+		takeControl,
 		toggleMobileKeyboard,
 		toggleMobileModifier,
 	};

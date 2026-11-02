@@ -2,6 +2,7 @@ import type { ActionSignature } from '@orchbee/actions';
 
 export const TERMINAL_ACTION_IDS = {
 	clear: 'terminal.clear',
+	takeControl: 'terminal.control.take',
 	copySelection: 'terminal.selection.copy',
 	findNext: 'terminal.search.next',
 	findOpen: 'terminal.search.open',
@@ -54,6 +55,8 @@ export interface WorkbenchTerminalLinkActionInput {
 export interface WorkbenchTerminalActionCatalog {
 	readonly 'terminal.clear': ActionSignature<void>;
 	readonly 'terminal.clipboard.paste': ActionSignature<void>;
+	/** Takes the terminal's input and size from the Client holding them, for this surface. */
+	readonly 'terminal.control.take': ActionSignature<void>;
 	readonly 'terminal.history.prompt-next': ActionSignature<void>;
 	readonly 'terminal.history.prompt-previous': ActionSignature<void>;
 	readonly 'terminal.history.copy': ActionSignature<void>;

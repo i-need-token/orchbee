@@ -1,5 +1,6 @@
 import type { DragEvent, RefObject } from 'react';
 import type { ProjectedPasteReview, TerminalImagePreviewPresentation } from '@orchbee/terminal';
+import type { ProjectedTerminalControlPresentation } from '../../projected-terminal-actions';
 import type {
 	MobileTerminalInputState,
 	MobileTerminalKey,
@@ -12,6 +13,7 @@ export type ProjectedTerminalLaunchFailureView =
 	| { readonly kind: 'unavailable' };
 
 export interface ProjectedTerminalSurfaceView {
+	readonly controlPresentation: ProjectedTerminalControlPresentation;
 	readonly failureMessage: string | null;
 	readonly imagePreview: Extract<
 		TerminalImagePreviewPresentation,
@@ -34,6 +36,7 @@ export interface ProjectedTerminalSurfaceView {
 	retryProjection(): void;
 	sendMobileKey(key: MobileTerminalKey): boolean;
 	startNewSession(): void;
+	takeControl(): void;
 	toggleMobileKeyboard(): boolean;
 	toggleMobileModifier(modifier: MobileTerminalModifier): void;
 }

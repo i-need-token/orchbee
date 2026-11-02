@@ -9,6 +9,7 @@ import type {
 	WorkbenchTerminalBroadcastInputSink,
 } from '@orchbee/workbench';
 
+import type { ProjectedTerminalControlPresentation } from '../../projected-terminal-actions';
 import type {
 	MobileTerminalInputState,
 	MobileTerminalKey,
@@ -64,9 +65,11 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 	readonly #startRenderer: ProjectedTerminalRecoveryControllerOptions['startRenderer'];
 	#active: ManagedProjectedTerminalSession | undefined;
 	#activeBroadcastInputSubscription: { dispose(): void } | undefined;
+	#activeControlSubscription: { dispose(): void } | undefined;
 	#activeMobileInputSubscription: { dispose(): void } | undefined;
 	#automaticRetryIndex = 0;
 	readonly #broadcastInputReadinessListeners = new Set<() => void>();
+	readonly #controlPresentationListeners = new Set<() => void>();
 	readonly #mobileInputStateListeners = new Set<() => void>();
 	#candidate: ManagedProjectedTerminalSession | undefined;
 	#disposed = false;
@@ -121,6 +124,7 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 			if (this.#disposed) return;
 			this.#notifyBroadcastInputReadiness();
 			this.#notifyMobileInputState();
+			this.#notifyControlPresentation();
 		} else {
 			const pending = this.#pending;
 			this.#pending = undefined;
@@ -158,6 +162,21 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		if (this.#disposed || this.#active === undefined) return false;
 		this.#active.session.focus();
 		return true;
+	}
+
+	getControlPresentation(): ProjectedTerminalControlPresentation {
+		return this.#disposed ? 'none' : (this.#active?.session.getControlPresentation?.() ?? 'none');
+	}
+
+	subscribeControlPresentation(listener: () => void): { dispose(): void } {
+		if (!this.#disposed) this.#controlPresentationListeners.add(listener);
+		return { dispose: () => this.#controlPresentationListeners.delete(listener) };
+	}
+
+	async takeControl(): Promise<boolean> {
+		const active = this.#active;
+		if (this.#disposed || active === undefined) return false;
+		return (await active.session.takeControl?.()) ?? false;
 	}
 
 	getMobileInputState(): MobileTerminalInputState {
@@ -223,8 +242,10 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		this.#disposed = true;
 		this.#opening = undefined;
 		const broadcastInputSubscription = this.#activeBroadcastInputSubscription;
+		const controlSubscription = this.#activeControlSubscription;
 		const mobileInputSubscription = this.#activeMobileInputSubscription;
 		const broadcastListeners = [...this.#broadcastInputReadinessListeners];
+		const controlListeners = [...this.#controlPresentationListeners];
 		const mobileListeners = [...this.#mobileInputStateListeners];
 		const resolveDisposed = this.#resolveDisposed;
 		const retryTimer = this.#retryTimer;
@@ -233,6 +254,7 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		const active = this.#active;
 		const frozen = this.#frozen;
 		this.#activeBroadcastInputSubscription = undefined;
+		this.#activeControlSubscription = undefined;
 		this.#activeMobileInputSubscription = undefined;
 		this.#resolveDisposed = undefined;
 		this.#retryTimer = undefined;
@@ -247,14 +269,19 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 				},
 				() => resolveDisposed?.(),
 				() => broadcastInputSubscription?.dispose(),
+				() => controlSubscription?.dispose(),
 				() => mobileInputSubscription?.dispose(),
 				...broadcastListeners.map((listener) => () => {
 					if (this.#broadcastInputReadinessListeners.has(listener)) listener();
+				}),
+				...controlListeners.map((listener) => () => {
+					if (this.#controlPresentationListeners.has(listener)) listener();
 				}),
 				...mobileListeners.map((listener) => () => {
 					if (this.#mobileInputStateListeners.has(listener)) listener();
 				}),
 				() => this.#broadcastInputReadinessListeners.clear(),
+				() => this.#controlPresentationListeners.clear(),
 				() => this.#mobileInputStateListeners.clear(),
 				() => pending?.release(),
 				() => disposeManagedSession(candidate),
@@ -382,6 +409,8 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		if (!this.#ownsActive(managed)) return;
 		this.#bindActiveMobileInput(managed);
 		if (!this.#ownsActive(managed)) return;
+		this.#bindActiveControl(managed);
+		if (!this.#ownsActive(managed)) return;
 		this.#automaticRetryIndex = 0;
 		this.#onStateChange({ kind: 'ready' });
 		if (!this.#ownsActive(managed)) return;
@@ -400,6 +429,7 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		if (!this.#ownsFrozen(managed)) return;
 		this.#notifyBroadcastInputReadiness();
 		this.#notifyMobileInputState();
+		this.#notifyControlPresentation();
 		this.#scheduleAutomaticRetry();
 	}
 
@@ -467,6 +497,8 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 			if (!this.#ownsFrozen(managed)) return;
 			this.#unbindActiveMobileInput();
 			if (!this.#ownsFrozen(managed)) return;
+			this.#unbindActiveControl();
+			if (!this.#ownsFrozen(managed)) return;
 			const snapshot =
 				source === 'retention' ? (managed.session.capturePresentationSnapshot?.() ?? null) : null;
 			if (!this.#ownsFrozen(managed)) return;
@@ -528,6 +560,30 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		const subscription = this.#activeMobileInputSubscription;
 		this.#activeMobileInputSubscription = undefined;
 		subscription?.dispose();
+	}
+
+	#bindActiveControl(managed: ManagedProjectedTerminalSession): void {
+		this.#unbindActiveControl();
+		if (!this.#ownsActive(managed)) return;
+		const subscription = managed.session.subscribeControlPresentation?.(() =>
+			this.#notifyControlPresentation(),
+		);
+		if (!this.#ownsActive(managed)) {
+			subscription?.dispose();
+			return;
+		}
+		this.#activeControlSubscription = subscription;
+		this.#notifyControlPresentation();
+	}
+
+	#unbindActiveControl(): void {
+		const subscription = this.#activeControlSubscription;
+		this.#activeControlSubscription = undefined;
+		subscription?.dispose();
+	}
+
+	#notifyControlPresentation(): void {
+		for (const listener of this.#controlPresentationListeners) listener();
 	}
 
 	#notifyBroadcastInputReadiness(): void {

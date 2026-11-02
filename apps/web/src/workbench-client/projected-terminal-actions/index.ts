@@ -3,6 +3,7 @@ export {
 	type ProjectedTerminalActionResultEvent,
 } from './createProjectedTerminalActionComposition';
 export { PROJECTED_TERMINAL_ACTION_IDS } from './projected-terminal-action-ids';
+export type { ProjectedTerminalControlPresentation } from './registerProjectedTerminalControlAction';
 export { installProjectedTerminalShortcuts } from './installProjectedTerminalShortcuts';
 export type {
 	ProjectedTerminalShortcutBindingSource,

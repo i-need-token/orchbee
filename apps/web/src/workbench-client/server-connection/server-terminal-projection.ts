@@ -24,7 +24,11 @@ import {
 	type ProjectedTerminalFailure,
 } from '@orchbee/workbench-client-protocol';
 
-import type { ProjectedTerminalTransport, TerminalProjection } from '../terminal-projection';
+import type {
+	ProjectedTerminalTakeControlOutcome,
+	ProjectedTerminalTransport,
+	TerminalProjection,
+} from '../terminal-projection';
 import {
 	type ClientServerControlAction,
 	type ClientServerControlOutcome,
@@ -65,8 +69,6 @@ export class ServerTerminalProjectionError extends Error {
 export interface ServerTerminalProjection extends TerminalProjection {
 	/** Closes the transport, and settles once what was already typed has gone and the lane closed. */
 	close(): Promise<void>;
-	/** Takes input and resize from whichever Client holds them. */
-	takeControl(): Promise<boolean>;
 }
 
 /** Pacing of an empty Poll for a viewer that cannot yet rely on a Server hint. */
@@ -341,18 +343,38 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		return this.#closing;
 	}
 
-	async takeControl(): Promise<boolean> {
-		if (this.#closed || this.#closing !== null) return false;
-		const outcome = this.#controlOutcome(
-			await this.#exchange({
-				action: { attachmentId: this.#bootstrap.attachmentId, kind: 'takeover' },
-				kind: 'terminal.control',
-				requestId: createClientServerRequestId(),
-			}),
-		);
-		if (outcome.kind !== 'acquired' || this.#closed) return false;
-		this.#setController(outcome.controllerId);
-		return true;
+	/**
+	 * Nothing here repeats a takeover: a busy Server read nothing and the person may ask again, and
+	 * one that may have taken effect is theirs to repeat. An attachment the Server no longer has
+	 * retires, and the surface's next attachment views until asked again.
+	 */
+	async takeControl(): Promise<ProjectedTerminalTakeControlOutcome> {
+		if (this.#closed || this.#closing !== null) return 'refused';
+		let outcome: ClientServerControlOutcome;
+		try {
+			outcome = this.#controlOutcome(
+				await this.#exchange({
+					action: { attachmentId: this.#bootstrap.attachmentId, kind: 'takeover' },
+					kind: 'terminal.control',
+					requestId: createClientServerRequestId(),
+				}),
+			);
+		} catch {
+			return this.#closed ? 'refused' : 'unknown';
+		}
+		if (this.#closed) return 'refused';
+		switch (outcome.kind) {
+			case 'acquired':
+				this.#setController(outcome.controllerId);
+				return 'acquired';
+			case 'outcome-unknown':
+				return 'unknown';
+			case 'rejected':
+				if (outcome.reason === 'viewer-unavailable') this.#retire(true);
+				return 'refused';
+			default:
+				return 'refused';
+		}
 	}
 
 	#retire(notify: boolean): void {
@@ -977,12 +999,7 @@ export async function openServerTerminalProjection(
 				payload: { attachmentId: bootstrap.attachmentId, ...geometry },
 			});
 		}
-		return {
-			bootstrap,
-			close: () => transport.close(),
-			takeControl: () => transport.takeControl(),
-			transport,
-		};
+		return { bootstrap, close: () => transport.close(), transport };
 	} catch (error) {
 		connection.closeLane(laneId);
 		throw error;
