@@ -1037,9 +1037,9 @@ focus-claim repair on pause and detach were proved on the earlier cohort. Limits
   connection while keys arrive; the backlog then drains at about 1,500 commands per second. 670 keys
   arrived intact. 970 keys overflowed the renderer queue's bound of 1,024 commands 30 times through
   `renderer-backpressure`, and those inputs never reached the connection.
-- The temporary page has no recovery surface, so input that follows an overflow can still land
-  behind the hole. The shared surface retires the attachment on that failure, as `apps/web/README.md`
-  requires; step 3 proves that on this transport.
+- The temporary page had no recovery surface, so input that followed an overflow could land behind
+  the hole. Step 3 proved that the shared surface retires the attachment on that failure, as
+  `apps/web/README.md` requires.
 - Paste in a real window waits for step 3, which supplies the clipboard platform effects; only the
   connection layer has proved it.
 - An absolute row read with viewport origin, such as a scrollbar drag, cannot be expressed over OBCS
@@ -1166,6 +1166,7 @@ same Session:
 | Typing through a swap         | Keys 8 ms apart through five splits from another Client, two of its own and a Tab switch reached the shell whole and in order. A held Enter ran once, a held Tab completed, and keys held past a focus move or 1.3 s went nowhere.                   |
 | Terminal that cannot start    | A Tab and a split given a missing executable by the CLI showed the page with its path, in English and Chinese. Three ordinary creations never showed it. Keys typed on the page after Ctrl+PageDown sent nothing.                                    |
 | Leaving a failed terminal     | New Tab sent one `tab.create`, answered in 20 ms, and typing reached the new terminal. Close sent one `tab.close` for a lone Panel and one `panel.close` for a split's failed half, where typing in the other half stayed intact.                    |
+| Burst past the command queue  | 2,000 keys at about 610 per second overflowed it. The terminal had the first 1,418 in order and nothing typed after the hole; the surface said it was restoring, took control on a new attachment 523 ms later, and typing worked.                   |
 
 ### Evidence
 
