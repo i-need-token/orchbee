@@ -7,6 +7,8 @@ interface ReconcileAdjacentPanelLayoutInput {
 	readonly availablePanelSizePx: number;
 	readonly candidateLayout: Readonly<Record<string, number>>;
 	readonly childIds: readonly string[];
+	/** The smallest share the layout's owner accepts, out of 100, on top of the pixel minimum. */
+	readonly minimumChildPercent?: number | undefined;
 	readonly minimumPanelSizePx: number;
 	readonly modelLayout: Readonly<Record<string, number>>;
 }
@@ -39,6 +41,7 @@ export function reconcileAdjacentPanelLayout({
 	availablePanelSizePx,
 	candidateLayout,
 	childIds,
+	minimumChildPercent = 0,
 	minimumPanelSizePx,
 	modelLayout,
 }: ReconcileAdjacentPanelLayoutInput): AdjacentPanelLayoutReconciliation {
@@ -78,7 +81,10 @@ export function reconcileAdjacentPanelLayout({
 		return { kind: 'rejected', reason: 'non-adjacent-change' };
 	}
 
-	const minimumChildWeight = (minimumPanelSizePx / availablePanelSizePx) * 100;
+	const minimumChildWeight = Math.max(
+		(minimumPanelSizePx / availablePanelSizePx) * 100,
+		minimumChildPercent,
+	);
 	const projection = projectAdjacentPanelLayout(
 		childIds,
 		leadingIndex,

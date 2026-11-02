@@ -174,6 +174,12 @@ export type PanelWorkspaceEvent =
 			readonly tabId: string;
 			readonly type: 'panel-focused';
 	  }
+	/** Brings a Panel this Client just asked for into view, even over a maximized one. */
+	| {
+			readonly panelId: string;
+			readonly tabId: string;
+			readonly type: 'panel-revealed';
+	  }
 	| {
 			readonly panelId: string;
 			readonly tabId: string;
@@ -2173,6 +2179,17 @@ export function transitionPanelWorkspace(
 		return tab.focusedPanelId === event.panelId
 			? unchanged(state)
 			: applied(replaceTab(state, tabIndex, focusPanelInTab(tab, event.panelId)));
+	}
+
+	if (event.type === 'panel-revealed') {
+		return tab.focusedPanelId === event.panelId && tab.maximizedPanelId === null
+			? unchanged(state)
+			: applied(
+					replaceTab(state, tabIndex, {
+						...focusPanelInTab(tab, event.panelId),
+						maximizedPanelId: null,
+					}),
+				);
 	}
 
 	if (event.type === 'panel-maximization-toggled') {

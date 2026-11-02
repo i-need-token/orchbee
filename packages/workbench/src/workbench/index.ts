@@ -34,6 +34,9 @@ export type {
 	WorkbenchAuthorityClosure,
 	WorkbenchAuthorityContext,
 	WorkbenchAuthorityCreation,
+	WorkbenchAuthorityPanelTerminalCreation,
+	WorkbenchAuthorityPanelTerminalReceipt,
+	WorkbenchAuthoritySplitRatioChange,
 	WorkbenchAuthorityTabCreation,
 	WorkbenchAuthorityTabReceipt,
 } from './types/workbench-authority';

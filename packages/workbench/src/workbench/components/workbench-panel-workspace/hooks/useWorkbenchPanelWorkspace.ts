@@ -4,12 +4,16 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
+import type { WorkbenchSharedPanelTerminalCreate } from '../../../actions/createSharedPanelTerminal';
 import { WORKBENCH_ACTION_IDS } from '../../../actions/workbench-action-ids';
 import {
 	WorkbenchTerminalBellEffectCoordinator,
 	type WorkbenchTerminalBellEffect,
 } from '../../../model/WorkbenchTerminalBellEffectCoordinator';
-import type { WorkbenchAuthority } from '../../../types/workbench-authority';
+import type {
+	WorkbenchAuthority,
+	WorkbenchAuthorityContext,
+} from '../../../types/workbench-authority';
 import type { PanelWorkspaceStore } from '../model/PanelWorkspaceStore';
 import {
 	PANEL_ACTION_IDS,
@@ -38,6 +42,7 @@ import {
 	type PanelVisualSelectionSession,
 	type PanelVisualSelectionTransition,
 } from '../model/panel-visual-selection';
+import { projectTerminalTabPresentationRevision } from '../model/projectTerminalTabPresentationRevision';
 import {
 	resolvePanelResize,
 	type PanelResizeAdjustment,
@@ -49,6 +54,7 @@ import type {
 	PanelWorkspaceMessages,
 	PendingPanelClose,
 	PendingPanelResize,
+	SharedSplitResize,
 	WorkbenchPanelWorkspaceView,
 } from '../types/panel-workspace-view';
 import { createPanelDragSnapshot } from '../utils/createPanelDragSnapshot';
@@ -60,6 +66,7 @@ interface UseWorkbenchPanelWorkspaceOptions {
 	readonly onTerminalEdit?: ((presentationId: string) => void) | undefined;
 	readonly actionRuntime: ActionRuntime;
 	readonly authority?: WorkbenchAuthority | undefined;
+	readonly createPanelTerminal?: WorkbenchSharedPanelTerminalCreate | undefined;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
@@ -77,6 +84,7 @@ interface PanelDragSession {
 	readonly previewWidth: number;
 	readonly sourceElement: HTMLElement;
 	readonly sourceHeight: number;
+	readonly sourceRevision: string;
 	readonly sourceRoot: PanelLayoutNode;
 	readonly sourceWidth: number;
 	readonly startX: number;
@@ -99,12 +107,19 @@ const EMPTY_PANEL_DRAG: WorkbenchPanelWorkspaceView['panelDrag'] = Object.freeze
 	dropTarget: null,
 	ghost: null,
 	previewRoot: null,
+	sourceRevision: null,
 });
+/** A divider's release is not an Action anyone can cancel: it settles once, with what it submitted. */
+const SPLIT_RATIO_CONTEXT: WorkbenchAuthorityContext = {
+	markCommitted: () => undefined,
+	signal: new AbortController().signal,
+};
 
 export function useWorkbenchPanelWorkspace({
 	onTerminalEdit,
 	actionRuntime,
 	authority,
+	createPanelTerminal,
 	panelWorkspaceStore,
 	parentActionScope,
 	shortcutLabelForAction,
@@ -148,11 +163,20 @@ export function useWorkbenchPanelWorkspace({
 		workspaceReference,
 		workspaceState: state,
 	});
+	// A drag places a Panel among the ones it started from. A publication that only changes sizes or
+	// names leaves those in place, and anything else leaves nothing for it to mean.
 	React.useLayoutEffect(() => {
-		if (panelDragSession === null || panelDragSession.tabId === activeTabId) return;
+		if (
+			panelDragSession === null ||
+			(panelDragSession.tabId === activeTabId &&
+				panelDragSession.sourceRevision ===
+					projectTerminalTabPresentationRevision(terminalContextId, activeTab))
+		) {
+			return;
+		}
 		setPanelDragSession(null);
 		setPanelDrag(EMPTY_PANEL_DRAG);
-	}, [activeTabId, panelDragSession]);
+	}, [activeTab, activeTabId, panelDragSession, terminalContextId]);
 	React.useLayoutEffect(() => {
 		if (pendingResize === null) return;
 		const tab = state.tabs.find((candidate) => candidate.tabId === pendingResize.tabId);
@@ -397,6 +421,7 @@ export function useWorkbenchPanelWorkspace({
 	const panelActions = useWorkbenchPanelActions({
 		activeTab,
 		authority,
+		createPanelTerminal,
 		operations,
 		panelCount,
 		parentScope: parentActionScope,
@@ -404,6 +429,27 @@ export function useWorkbenchPanelWorkspace({
 		terminalContextId,
 	});
 	const executePanelAction = panelActions.execute;
+	const commitSplitRatio = useMemoizedFn(
+		async (splitId: string, leadingWeight: number): Promise<void> => {
+			const tabId = store.getActiveTabId();
+			if (authority === undefined || tabId === null) return;
+			await authority.change(SPLIT_RATIO_CONTEXT, {
+				leadingWeight,
+				splitId,
+				tabId,
+				terminalContextId,
+				type: 'split-ratio-set',
+			});
+		},
+	);
+	const minimumSplitPercent = authority?.minimumSplitPercent;
+	const sharedSplitResize = React.useMemo<SharedSplitResize | undefined>(
+		() =>
+			minimumSplitPercent === undefined
+				? undefined
+				: { commit: commitSplitRatio, minimumChildPercent: minimumSplitPercent },
+		[commitSplitRatio, minimumSplitPercent],
+	);
 	const revalidatePanelVisualSelection = useMemoizedFn(
 		(session: PanelVisualSelectionSession): PanelVisualSelectionTransition => {
 			const currentActiveTabId = store.getActiveTabId();
@@ -437,7 +483,8 @@ export function useWorkbenchPanelWorkspace({
 							source,
 						);
 			const result = execution.getSnapshot().result;
-			return result?.kind === 'completed' || result?.kind === 'unchanged';
+			// Still with the authority, which reports its own refusal, is not a failure yet.
+			return result === null || result.kind === 'completed' || result.kind === 'unchanged';
 		},
 	);
 	const applyPanelVisualSelectionTransition = useMemoizedFn(
@@ -630,23 +677,31 @@ export function useWorkbenchPanelWorkspace({
 		};
 	}, [actionRuntime, panelActions.scope, store]);
 	const movePanel = useMemoizedFn(
-		(panelId: string, targetPanelId: string, direction: PanelSplitDirection) => {
+		(panelId: string, targetPanelId: string, direction: PanelSplitDirection) =>
 			executePanelAction(
 				PANEL_ACTION_IDS.move,
 				{ direction, panelId, targetPanelId } satisfies PanelMoveInput,
 				'pointer',
-			);
-		},
+			),
 	);
+	const readActiveTabId = useMemoizedFn(() => store.getActiveTabId());
+	const releasePanelDragHold = useMemoizedFn((sourceRevision: string) => {
+		setPanelDrag((current) =>
+			current.sourceRevision === sourceRevision ? EMPTY_PANEL_DRAG : current,
+		);
+	});
 	const startPanelDrag = useMemoizedFn(
 		(panelId: string, event: React.PointerEvent<HTMLElement>) => {
+			const sourceRevision = projectTerminalTabPresentationRevision(terminalContextId, activeTab);
 			if (
 				event.button !== 0 ||
 				panelDragSession !== null ||
+				panelDrag.draggingPanelId !== null ||
 				panelBroadcastInput.state.kind !== 'idle' ||
 				panelVisualSelection !== null ||
 				activeTab === null ||
 				activeTab.maximizedPanelId !== null ||
+				sourceRevision === null ||
 				panelCount < 2
 			) {
 				return;
@@ -686,6 +741,7 @@ export function useWorkbenchPanelWorkspace({
 				previewWidth: sourceBounds.width * previewScale,
 				sourceElement,
 				sourceHeight: sourceBounds.height,
+				sourceRevision,
 				sourceRoot: activeTab.root,
 				sourceWidth: sourceBounds.width,
 				startX: event.clientX,
@@ -705,23 +761,50 @@ export function useWorkbenchPanelWorkspace({
 		let dropTarget: PanelDropTarget | null = null;
 		let finished = false;
 		let mountSnapshot: PanelDragGhost['mountSnapshot'] | null = null;
-		const resetProjection = () => {
-			setPanelDrag(EMPTY_PANEL_DRAG);
+		let previewRoot: PanelLayoutNode | null = null;
+		/** Whether the drop stays on screen, because an authority still has to say what became of it. */
+		const submitDrop = (): boolean => {
+			if (
+				!dragStarted ||
+				dropTarget === null ||
+				// The preview of a Panel already at its target is the layout it started from.
+				previewRoot === panelDragSession.sourceRoot ||
+				readActiveTabId() !== panelDragSession.tabId
+			) {
+				return false;
+			}
+			const execution = movePanel(
+				panelDragSession.panelId,
+				dropTarget.panelId,
+				dropTarget.direction,
+			);
+			if (authority === undefined) {
+				return false;
+			}
+			const { panelId, sourceRevision } = panelDragSession;
+			setPanelDrag({
+				draggingPanelId: panelId,
+				dropTarget: null,
+				ghost: null,
+				previewRoot,
+				sourceRevision,
+			});
+			void execution.completion.then((result) => {
+				// A committed move ends the hold when the layer it replaces is gone.
+				if (result.kind !== 'completed') {
+					releasePanelDragHold(sourceRevision);
+				}
+			});
+			return true;
 		};
 		const finishDrag = (commit: boolean) => {
 			if (finished) {
 				return;
 			}
 			finished = true;
-			if (
-				commit &&
-				dragStarted &&
-				dropTarget !== null &&
-				store.getActiveTabId() === panelDragSession.tabId
-			) {
-				movePanel(panelDragSession.panelId, dropTarget.panelId, dropTarget.direction);
+			if (!commit || !submitDrop()) {
+				setPanelDrag(EMPTY_PANEL_DRAG);
 			}
-			resetProjection();
 			setPanelDragSession(null);
 			if (panelDragSession.captureElement.hasPointerCapture(panelDragSession.pointerId)) {
 				panelDragSession.captureElement.releasePointerCapture(panelDragSession.pointerId);
@@ -731,7 +814,7 @@ export function useWorkbenchPanelWorkspace({
 			if (event.pointerId !== panelDragSession.pointerId) {
 				return;
 			}
-			if (store.getActiveTabId() !== panelDragSession.tabId) {
+			if (readActiveTabId() !== panelDragSession.tabId) {
 				finishDrag(false);
 				return;
 			}
@@ -778,7 +861,7 @@ export function useWorkbenchPanelWorkspace({
 						: null;
 				dropTarget = direction === null || panelId === undefined ? null : { direction, panelId };
 			}
-			const previewRoot = projectPanelDrag(
+			previewRoot = projectPanelDrag(
 				panelDragSession.sourceRoot,
 				panelDragSession.panelId,
 				dropTarget === null
@@ -802,6 +885,7 @@ export function useWorkbenchPanelWorkspace({
 					width: panelDragSession.previewWidth,
 				},
 				previewRoot,
+				sourceRevision: panelDragSession.sourceRevision,
 			});
 			event.preventDefault();
 		};
@@ -837,7 +921,7 @@ export function useWorkbenchPanelWorkspace({
 				panelDragSession.captureElement.releasePointerCapture(panelDragSession.pointerId);
 			}
 		};
-	}, [movePanel, panelDragSession, store]);
+	}, [authority, movePanel, panelDragSession, readActiveTabId, releasePanelDragHold]);
 	let panelVisualSelectionLabel: string | undefined;
 	if (panelVisualSelection?.mode === 'focus') {
 		panelVisualSelectionLabel = messages.visualSelectionFocusLabel;
@@ -873,7 +957,8 @@ export function useWorkbenchPanelWorkspace({
 			return (
 				tab !== undefined &&
 				tab.maximizedPanelId === null &&
-				resolvePanelResize(tab.root, panelId, adjustment, multiplier).kind === 'applied'
+				resolvePanelResize(tab.root, panelId, adjustment, multiplier, minimumSplitPercent).kind ===
+					'applied'
 			);
 		},
 		canCreateTerminalTabInCurrentDirectory: (panelId) =>
@@ -941,6 +1026,7 @@ export function useWorkbenchPanelWorkspace({
 		panelVisualSelectionLabel,
 		pendingClose,
 		pendingResize,
+		releasePanelDragHold,
 		requestClose: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			const tabId = store.getActiveTabId();
 			const tab = store.getSnapshot().tabs.find((candidate) => candidate.tabId === tabId);
@@ -972,15 +1058,16 @@ export function useWorkbenchPanelWorkspace({
 				pendingResize.panelId !== panelId ||
 				store.getActiveTabId() !== pendingResize.tabId
 			) {
-				return false;
+				return Promise.resolve(false);
 			}
 			const execution = executePanelAction(
 				PANEL_ACTION_IDS.resize,
 				{ adjustment, multiplier, panelId } satisfies PanelResizeInput,
 				source,
 			);
-			return execution.getSnapshot().result?.kind === 'completed';
+			return execution.completion.then((result) => result.kind === 'completed');
 		},
+		sharedSplitResize,
 		showPrimaryTerminal: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			executePanelAction(
 				PANEL_ACTION_IDS.showPrimaryTerminal,

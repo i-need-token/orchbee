@@ -6,6 +6,7 @@ import {
 	type ActionInputFor,
 	type ActionInvocationSource,
 	type ActionOutputFor,
+	type ActionResult,
 	type ActionRuntime,
 	type ActionScope,
 } from '@orchbee/actions';
@@ -14,6 +15,7 @@ import { workbenchMessages } from '@orchbee/i18n';
 import * as React from 'react';
 import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
+import type { WorkbenchSharedPanelTerminalCreate } from '../../../actions/createSharedPanelTerminal';
 import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityClosure,
@@ -34,6 +36,7 @@ import {
 } from '../actions/panel-action-contracts';
 import {
 	findPanel,
+	getDisplayedTerminal,
 	terminalRequiresCloseConfirmation,
 	type PanelWorkspaceTransition,
 	type TabPanelWorkspace,
@@ -78,6 +81,7 @@ interface UseWorkbenchPanelActionsOptions {
 	readonly activeTab: TabPanelWorkspace | null;
 	/** Decides shared structure when this Client does not; without one, the operations do. */
 	readonly authority?: WorkbenchAuthority | undefined;
+	readonly createPanelTerminal?: WorkbenchSharedPanelTerminalCreate | undefined;
 	readonly operations: PanelActionOperations;
 	readonly panelCount: number;
 	readonly parentScope: ActionScope;
@@ -94,9 +98,16 @@ interface WorkbenchPanelActions {
 	readonly scope: ActionScope;
 }
 
+function withoutOutput(result: ActionResult<string>): ActionResult<void> {
+	return result.kind === 'completed' || result.kind === 'unchanged'
+		? { kind: result.kind }
+		: result;
+}
+
 export function useWorkbenchPanelActions({
 	activeTab,
 	authority,
+	createPanelTerminal,
 	operations,
 	panelCount,
 	parentScope,
@@ -150,6 +161,14 @@ export function useWorkbenchPanelActions({
 			terminalContextId,
 			type: 'panel-close',
 		});
+		/** What a shared change names, because it can settle after this Client has moved elsewhere. */
+		const sharedTabTarget =
+			activeTab === null ? null : { tabId: activeTab.tabId, terminalContextId };
+		/** A new terminal follows the directory its terminal reported, and otherwise the authority chooses. */
+		const reportedDirectory = (panelId: string) => {
+			const panel = findTarget(panelId);
+			return panel === null ? undefined : (getDisplayedTerminal(panel).currentCwd ?? undefined);
+		};
 		const targetAvailability = (panelId: string) =>
 			findTarget(panelId) === null
 				? {
@@ -252,6 +271,9 @@ export function useWorkbenchPanelActions({
 							: targetAvailability(input.panelId),
 					handler: {
 						execute: (context, input) => {
+							if (authority !== undefined && sharedTabTarget !== null) {
+								return authority.change(context, { ...sharedTabTarget, type: 'panels-equalized' });
+							}
 							const result = resultFor(operations.equalizePanels(input.panelId));
 							if (result.kind === 'completed') {
 								context.markCommitted();
@@ -285,6 +307,16 @@ export function useWorkbenchPanelActions({
 					},
 					handler: {
 						execute: (context, input) => {
+							if (authority !== undefined && sharedTabTarget !== null) {
+								// Which Panel holds this Client's focus is not the authority's to say.
+								operations.focusPanel(input.panelId);
+								return authority.change(context, {
+									...sharedTabTarget,
+									panelId: input.panelId,
+									targetPanelId: input.targetPanelId,
+									type: 'panels-swapped',
+								});
+							}
 							const result = resultFor(operations.swapPanels(input.panelId, input.targetPanelId));
 							if (result.kind === 'completed') {
 								context.markCommitted();
@@ -313,6 +345,15 @@ export function useWorkbenchPanelActions({
 					},
 					handler: {
 						execute: (context, input) => {
+							if (authority !== undefined && sharedTabTarget !== null) {
+								return authority.change(context, {
+									...sharedTabTarget,
+									adjustment: input.adjustment,
+									multiplier: input.multiplier,
+									panelId: input.panelId,
+									type: 'panel-size-adjusted',
+								});
+							}
 							const result = resultFor(
 								operations.resizePanel(input.panelId, input.adjustment, input.multiplier),
 							);
@@ -412,6 +453,14 @@ export function useWorkbenchPanelActions({
 					getAvailability: (_context, input) => targetAvailability(input.panelId),
 					handler: {
 						execute: (context, input) => {
+							if (createPanelTerminal !== undefined && sharedTabTarget !== null) {
+								return createPanelTerminal(context, {
+									...sharedTabTarget,
+									cwd: reportedDirectory(input.panelId),
+									panelId: input.panelId,
+									type: 'child-terminal',
+								}).then(withoutOutput);
+							}
 							context.markCommitted();
 							return resultFor(operations.createChildTerminal(input.panelId));
 						},
@@ -458,6 +507,17 @@ export function useWorkbenchPanelActions({
 					},
 					handler: {
 						execute: (context, input) => {
+							if (authority !== undefined && sharedTabTarget !== null) {
+								// Which Panel holds this Client's focus is not the authority's to say.
+								operations.focusPanel(input.panelId);
+								return authority.change(context, {
+									...sharedTabTarget,
+									direction: input.direction,
+									panelId: input.panelId,
+									targetPanelId: input.targetPanelId,
+									type: 'panel-moved',
+								});
+							}
 							context.markCommitted();
 							return resultFor(
 								operations.movePanel(input.panelId, input.targetPanelId, input.direction),
@@ -502,6 +562,15 @@ export function useWorkbenchPanelActions({
 					getAvailability: (_context, input) => targetAvailability(input.panelId),
 					handler: {
 						execute: (context, input) => {
+							if (createPanelTerminal !== undefined && sharedTabTarget !== null) {
+								return createPanelTerminal(context, {
+									...sharedTabTarget,
+									cwd: reportedDirectory(input.panelId),
+									direction: input.direction,
+									panelId: input.panelId,
+									type: 'panel-split',
+								});
+							}
 							context.markCommitted();
 							const result = operations.splitPanel(input.panelId, input.direction);
 							if (result === null || result.transition.outcome === 'rejected') {
@@ -550,7 +619,16 @@ export function useWorkbenchPanelActions({
 				registration.dispose();
 			}
 		};
-	}, [activeTab, authority, operations, panelCount, scope, terminalContextId, typedRuntime]);
+	}, [
+		activeTab,
+		authority,
+		createPanelTerminal,
+		operations,
+		panelCount,
+		scope,
+		terminalContextId,
+		typedRuntime,
+	]);
 
 	const execute = useMemoizedFn(
 		<Id extends ActionCatalogId<PanelActionCatalog>>(

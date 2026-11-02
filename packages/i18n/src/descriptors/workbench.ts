@@ -328,6 +328,28 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.close.notApplied'],
 		description: 'Status notice when closing a Panel was not applied.',
 	},
+	panelsNotApplied: {
+		id: 'workbench.panels.update.notApplied',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.update.notApplied'],
+		description:
+			'Status notice when the Workbench authority refused creating, moving, or swapping a Panel.',
+	},
+	panelResizeContended: {
+		id: 'workbench.panels.resize.contended',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.contended'],
+		description:
+			'Status notice when a Panel resize stopped trying because other Clients kept changing the Workbench.',
+	},
+	panelResizeFailed: {
+		id: 'workbench.panels.resize.failed',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.failed'],
+		description: 'Status notice when the Workbench authority refused a Panel resize.',
+	},
+	panelResizeOutcomeUnknown: {
+		id: 'workbench.panels.resize.outcomeUnknown',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.outcomeUnknown'],
+		description: 'Status notice when a Panel resize may or may not have taken effect.',
+	},
 	tabCloseAwaitingRemoval: {
 		id: 'workbench.tabs.close.awaitingRemoval',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.awaitingRemoval'],

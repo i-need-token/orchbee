@@ -2,6 +2,7 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 
 import type { PanelSplit } from '../../../../../model/panel-workspace-state';
+import type { SharedSplitResize } from '../../../../../types/panel-workspace-view';
 import { getPanelResizeId } from '../utils/getPanelResizeId';
 import { matchesPanelLayoutTopology } from '../utils/matchesPanelLayoutTopology';
 import { reconcileAdjacentPanelLayout } from '../utils/reconcileAdjacentPanelLayout';
@@ -13,7 +14,10 @@ interface ActiveResizeBase {
 	readonly minimumPanelSizePx: number;
 	readonly onResize: (splitId: string, separatorIndex: number, leadingWeight: number) => void;
 	readonly separatorIndex: number;
+	readonly shared: SharedSplitResize | undefined;
 	readonly splitId: string;
+	/** What a shared divider will submit when released. Null while nothing has moved. */
+	readonly unsubmittedLeadingWeight: number | null;
 }
 
 type ActiveResize =
@@ -41,9 +45,12 @@ export function useAdjacentPanelResize(
 	onResize: (splitId: string, separatorIndex: number, leadingWeight: number) => void,
 	minimumPanelSizePx: number,
 	maximizedChildId: string | null = null,
+	shared?: SharedSplitResize,
 ): UseAdjacentPanelResizeResult {
 	const activeResizeRef = React.useRef<ActiveResize | null>(null);
 	const correctingLayoutRef = React.useRef(false);
+	/** Commits still unanswered: the released divider stays where it is until the layout says. */
+	const settlingCommitsRef = React.useRef(0);
 	const [synchronizedMaximizedChildId, setSynchronizedMaximizedChildId] = React.useState<
 		string | null | undefined
 	>(maximizedChildId === null ? null : undefined);
@@ -70,7 +77,9 @@ export function useAdjacentPanelResize(
 					),
 		[modelLayout, maximizedChildId, split],
 	);
-	const canSynchronizeLayout = useMemoizedFn(() => activeResizeRef.current === null);
+	const canSynchronizeLayout = useMemoizedFn(
+		() => activeResizeRef.current === null && settlingCommitsRef.current === 0,
+	);
 	const markModelLayoutSynchronized = useMemoizedFn(() => {
 		setSynchronizedMaximizedChildId((current) =>
 			current === maximizedChildId ? current : maximizedChildId,
@@ -108,6 +117,7 @@ export function useAdjacentPanelResize(
 				availablePanelSizePx: measureAvailablePanelSize(),
 				candidateLayout,
 				childIds: activeResize.childIds,
+				minimumChildPercent: activeResize.shared?.minimumChildPercent,
 				minimumPanelSizePx: activeResize.minimumPanelSizePx,
 				modelLayout: activeResize.latestLayout,
 			});
@@ -120,6 +130,9 @@ export function useAdjacentPanelResize(
 			activeResizeRef.current = {
 				...activeResize,
 				latestLayout: reconciliation.layout,
+				unsubmittedLeadingWeight: reconciliation.modelNeedsUpdate
+					? reconciliation.leadingWeight
+					: activeResize.unsubmittedLeadingWeight,
 			};
 			if (writeAcceptedLayout || reconciliation.candidateNeedsCorrection) {
 				correctingLayoutRef.current = true;
@@ -129,7 +142,7 @@ export function useAdjacentPanelResize(
 					correctingLayoutRef.current = false;
 				}
 			}
-			if (reconciliation.modelNeedsUpdate) {
+			if (reconciliation.modelNeedsUpdate && activeResize.shared === undefined) {
 				activeResize.onResize(
 					activeResize.splitId,
 					reconciliation.separatorIndex,
@@ -138,23 +151,41 @@ export function useAdjacentPanelResize(
 			}
 		},
 	);
-	const finishResize = useMemoizedFn((predicate: (activeResize: ActiveResize) => boolean) => {
-		const activeResize = activeResizeRef.current;
-		if (activeResize === null || !predicate(activeResize)) {
-			return;
-		}
-		activeResizeRef.current = null;
-		requestLayoutSync();
-	});
+	const finishResize = useMemoizedFn(
+		(predicate: (activeResize: ActiveResize) => boolean, released: boolean) => {
+			const activeResize = activeResizeRef.current;
+			if (activeResize === null || !predicate(activeResize)) {
+				return;
+			}
+			activeResizeRef.current = null;
+			if (
+				!released ||
+				activeResize.shared === undefined ||
+				activeResize.unsubmittedLeadingWeight === null
+			) {
+				requestLayoutSync();
+				return;
+			}
+			settlingCommitsRef.current += 1;
+			void activeResize.shared
+				.commit(activeResize.splitId, activeResize.unsubmittedLeadingWeight)
+				.finally(() => {
+					settlingCommitsRef.current -= 1;
+					requestLayoutSync();
+				});
+		},
+	);
 	const finishKeyboardResize = useMemoizedFn((separatorIndex: number) => {
 		finishResize(
 			(activeResize) =>
 				activeResize.kind === 'keyboard' && activeResize.separatorIndex === separatorIndex,
+			true,
 		);
 	});
-	const finishPointerResize = useMemoizedFn((pointerId: number) => {
+	const finishPointerResize = useMemoizedFn((pointerId: number, released: boolean) => {
 		finishResize(
 			(activeResize) => activeResize.kind === 'pointer' && activeResize.pointerId === pointerId,
+			released,
 		);
 	});
 	const startResize = useMemoizedFn(
@@ -179,7 +210,9 @@ export function useAdjacentPanelResize(
 				minimumPanelSizePx,
 				onResize,
 				separatorIndex,
+				shared,
 				splitId: split.id,
+				unsubmittedLeadingWeight: null,
 			};
 		},
 	);
@@ -190,7 +223,7 @@ export function useAdjacentPanelResize(
 			return;
 		}
 		const handlePointerCompletion = (event: PointerEvent) => {
-			finishPointerResize(event.pointerId);
+			finishPointerResize(event.pointerId, event.type === 'pointerup');
 		};
 		ownerDocument.addEventListener('lostpointercapture', handlePointerCompletion, true);
 		ownerDocument.addEventListener('pointercancel', handlePointerCompletion, true);

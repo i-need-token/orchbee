@@ -37,6 +37,21 @@ describe('terminal metadata policy', () => {
 	});
 
 	it.each([
+		['file://Orchbee-Host/C:/Users/My%20Name', 'C:\\Users\\My Name'],
+		['file:///C:/Windows', 'C:\\Windows'],
+		['file://localhost/D:/', 'D:\\'],
+		['file://orchbee-host/C:\\Windows', 'C:\\Windows'],
+	])('reports %s in the form Windows accepts', (currentDirectory, currentCwd) => {
+		expect(
+			resolveTerminalMetadataObservation(
+				{ closeActivity: 'unknown', currentDirectory, title: null },
+				'orchbee-host',
+			).currentDirectory,
+		).toEqual({ currentCwd, kind: 'reported' });
+	});
+
+	it.each([
+		'file://remote-host/C:/Windows',
 		'file:///workspace',
 		'file://localhost/workspace',
 		'file://remote-host/workspace',

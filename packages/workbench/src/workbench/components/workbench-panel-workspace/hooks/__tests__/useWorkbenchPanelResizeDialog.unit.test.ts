@@ -12,8 +12,10 @@ afterEach(() => {
 });
 
 describe('useWorkbenchPanelResizeDialog', () => {
-	it('reports an unavailable resize and restores focus to the captured Panel', () => {
-		const resizePanel = vi.fn<WorkbenchPanelWorkspaceView['resizePanel']>(() => false);
+	it('reports an unavailable resize and restores focus to the captured Panel', async () => {
+		const resizePanel = vi.fn<WorkbenchPanelWorkspaceView['resizePanel']>(() =>
+			Promise.resolve(false),
+		);
 		const host = {
 			messages: { resizeUnavailable: 'Cannot resize farther' },
 			pendingResize: { panelId: 'panel-2', tabId: 'tab-1' },
@@ -27,15 +29,17 @@ describe('useWorkbenchPanelResizeDialog', () => {
 		document.body.append(viewport);
 		const rendered = renderHook(() => useWorkbenchPanelResizeDialog(host));
 
-		act(() => rendered.result.current.resize('wider', 2));
+		await act(async () => rendered.result.current.resize('wider', 2));
 
 		expect(resizePanel).toHaveBeenCalledExactlyOnceWith('panel-2', 'wider', 2);
 		expect(rendered.result.current.status).toBe('Cannot resize farther');
 		expect(rendered.result.current.finalFocus()).toBe(input);
 	});
 
-	it('keeps successful resize status quiet when no target has gone stale', () => {
-		const resizePanel = vi.fn<WorkbenchPanelWorkspaceView['resizePanel']>(() => true);
+	it('keeps successful resize status quiet when no target has gone stale', async () => {
+		const resizePanel = vi.fn<WorkbenchPanelWorkspaceView['resizePanel']>(() =>
+			Promise.resolve(true),
+		);
 		const host = {
 			messages: { resizeUnavailable: 'Cannot resize farther' },
 			pendingResize: { panelId: 'panel-1', tabId: 'tab-1' },
@@ -43,7 +47,7 @@ describe('useWorkbenchPanelResizeDialog', () => {
 		} satisfies Parameters<typeof useWorkbenchPanelResizeDialog>[0];
 		const rendered = renderHook(() => useWorkbenchPanelResizeDialog(host));
 
-		act(() => rendered.result.current.resize('reset', 1));
+		await act(async () => rendered.result.current.resize('reset', 1));
 
 		expect(rendered.result.current.status).toBeNull();
 	});

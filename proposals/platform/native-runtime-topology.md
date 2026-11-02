@@ -1050,8 +1050,8 @@ focus-claim repair on pause and detach were proved on the earlier cohort. Limits
 
 ### Step 3 progress
 
-Reads, writes of Project, Workspace, and Tab structure, and every close go through Server. Panel
-structure remains to connect. These choices stand unless review changes them:
+Reads, writes of Project, Workspace, Tab, and Panel structure, and every close go through Server.
+These choices stand unless review changes them:
 
 - **The write port is the Workbench's existing event vocabulary.** `WorkbenchAuthority` takes those
   events and the preview keeps its reducer, so product surfaces stay unchanged. Step 6 decides what
@@ -1096,6 +1096,27 @@ structure remains to connect. These choices stand unless review changes them:
   stops. It compares location, active Tab, and selection rather than the whole snapshot, and checks
   its 120-second bound only between copies. Step 5 decides whether progress and the full comparison
   are needed.
+- **A divider is one command, from its release.** Held moves stay local and the released geometry
+  holds until its publication. Following the TUI's divider rule, a stale revision goes again for at
+  most 5 seconds while the split still holds the ratio it moved from, which makes this the second
+  exception to never replaying. A ratio is rounded to five decimal places. Three differences from the
+  TUI stand until step 5 decides them: a drag during a pending commit is not queued, another Client's
+  change to that split under a held divider does not cancel the draft, and Esc does not cancel a
+  divider drag.
+- **Evening a Tab is several commands.** The Server changes one split per command, so a failure
+  leaves the earlier ones committed. Evening has no TUI counterpart.
+- **A dropped Panel holds its previewed place.** The preview already has the Server's geometry, so
+  the new layer takes over with no visible change. Any other result returns it at once. A publication
+  that changes the Tab's structure ends a held drag without a write, and one that changes only ratios
+  or names lets it continue.
+- **A new Panel takes a directory only if its source reported one.** Otherwise the Server's default
+  applies, as for the TUI's split. The runtime's PowerShell reports none, so after `cd` a split opens
+  in the Workspace's directory, unlike the CLI's `follow`. Whether to sample the source process is
+  decided with the other multi-step workflows under decision 2.
+- **A surface that only views a terminal never waits to fit.** It cannot change the terminal's size,
+  and waiting left the whole Tab inert for as long as the other Client held control. What it shows at
+  another Client's size belongs with the takeover entry.
+- **`panel.relocate` and `panel.rename` stay unconnected.** The GUI has no entry for either.
 
 Measured on 2026-11-01 on Windows with a Release cohort, in a real window beside a real TUI on the
 same Session:
@@ -1120,6 +1141,14 @@ same Session:
 | Tab drag against a change     | A rename from the CLI ended a held drag and its release sent nothing. A real `revision-mismatch` returned the Tabs and showed the stale notice. With the answer lost, the Tabs slid back in about 200 ms and the notice said the outcome is unknown. |
 | Duplicate                     | Two selected Tabs sent two requests in order, each copy following its source, and selection did not move. Changing the selection under a held answer stopped at 1 of 2 with a notice.                                                                |
 | Tabs on both Clients          | A Tab made with the TUI's `Ctrl+B c` reached the window 81–84 ms after the key, and a Tab made or dragged in the window reached the TUI's screen within a 600 ms sample. Neither Client's selection moved.                                           |
+| Split and child terminal      | One command, answered in 17–41 ms. The new layer settled about 125 ms after the key, and typing reached the new terminal without a click. A press during a held answer left the keyboard where it was.                                               |
+| Panel drop                    | One `panel.move`, answered in 7–9 ms. By frame, the dropped place held through the answer at the same geometry and the new layer took over about 90 ms after release. A release where it began sent nothing.                                         |
+| Panel drop against a change   | A real `revision-mismatch` returned the Panel in one frame with a notice. Another Client's split ended a held drag and its release sent nothing, while another Client's ratio let the drag finish.                                                   |
+| Divider                       | Nothing while moving and one command on release, with one picture from the press until 700 ms after release. It stopped at 0.1 and 0.9, and a release where it began sent nothing.                                                                   |
+| Divider against a change      | A rename under a held answer led to a new request with the same ratio at the new revision and no notice. Another Client's ratio on that split led to no second request, a notice, and that Client's ratio shown.                                     |
+| Resize dialog                 | Each key sent one command, in order, with no trailing digits. At the limit the keyboard stayed in the dialog and the opposite key still worked. Reset and Evening sent one command per split that differed, with one visible change.                 |
+| Directory of a new Panel      | With `file://host/C:/Windows` and `file:///C:/Users` reported, new terminals opened in `C:\Windows` and `C:\Users`. With nothing reported, the command asked for no directory.                                                                       |
+| Panels on both Clients        | A split with the TUI's `Ctrl+B \|` reached the window in 156 ms from the key, and the window's focus stayed. A split and a divider from the window were on the TUI's screen at an 800 ms sample. The TUI's terminal opened read-only here in 307 ms. |
 
 ### Evidence
 

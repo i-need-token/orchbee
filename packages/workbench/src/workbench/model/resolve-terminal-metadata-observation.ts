@@ -18,6 +18,9 @@ interface RawTerminalMetadataObservation {
 
 type RawTerminalNaturalMetadataObservation = Omit<RawTerminalMetadataObservation, 'closeActivity'>;
 
+/** A `file:` URL's path to a Windows directory, which Windows itself only accepts without the slash. */
+const WINDOWS_DRIVE_URL_PATH = /^\/[A-Za-z]:[/\\]/u;
+
 export function resolveTerminalMetadataObservation(
 	metadata: RawTerminalMetadataObservation,
 	terminalHostName: string,
@@ -50,21 +53,22 @@ function resolveOsc7CurrentDirectory(
 	const pathStart = remainder.indexOf('/');
 	if (pathStart === -1) return { kind: 'ignored' };
 	const host = remainder.slice(0, pathStart);
-	if (
-		host.length === 0 ||
-		asciiEqualsIgnoreCase(host, 'localhost') ||
-		!asciiEqualsIgnoreCase(host, terminalHostName)
-	) {
-		return { kind: 'ignored' };
-	}
+	const onThisHost = asciiEqualsIgnoreCase(host, terminalHostName);
+	let path: string;
 	try {
-		return {
-			currentCwd: decodeURIComponent(remainder.slice(pathStart)),
-			kind: 'reported',
-		};
+		path = decodeURIComponent(remainder.slice(pathStart));
 	} catch {
 		return { kind: 'ignored' };
 	}
+	if (WINDOWS_DRIVE_URL_PATH.test(path)) {
+		// Windows shells often leave the host out, and the drive still says which machine this is.
+		return onThisHost || host.length === 0 || asciiEqualsIgnoreCase(host, 'localhost')
+			? { currentCwd: path.slice(1).replaceAll('/', '\\'), kind: 'reported' }
+			: { kind: 'ignored' };
+	}
+	return onThisHost && host.length > 0 && !asciiEqualsIgnoreCase(host, 'localhost')
+		? { currentCwd: path, kind: 'reported' }
+		: { kind: 'ignored' };
 }
 
 function asciiEqualsIgnoreCase(left: string, right: string): boolean {

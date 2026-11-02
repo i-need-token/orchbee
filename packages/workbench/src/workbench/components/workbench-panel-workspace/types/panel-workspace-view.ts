@@ -94,6 +94,14 @@ export interface PendingPanelResize {
 	readonly tabId: string;
 }
 
+/** A divider whose position every Client shares: nothing leaves this Client until it is released. */
+export interface SharedSplitResize {
+	/** Settles once this Client's layout holds what happened. */
+	readonly commit: (splitId: string, leadingWeight: number) => Promise<void>;
+	/** The smallest share either side can hold, out of 100. */
+	readonly minimumChildPercent: number;
+}
+
 export interface WorkbenchPanelWorkspaceView {
 	readonly onTerminalEdit?: ((presentationId: string) => void) | undefined;
 	readonly actionRuntime: ActionRuntime;
@@ -143,13 +151,18 @@ export interface WorkbenchPanelWorkspaceView {
 	readonly panelDrag: {
 		readonly draggingPanelId: string | null;
 		readonly dropTarget: PanelDropTarget | null;
+		/** Null once released: the drop can stay on screen after the pointer lets go. */
 		readonly ghost: PanelDragGhost | null;
 		readonly previewRoot: PanelLayoutNode | null;
+		/** The presentation revision this drag belongs to. Only a layer showing it shows the drop. */
+		readonly sourceRevision: string | null;
 	};
 	readonly panelVisualSelection: PanelVisualSelectionSession | null;
 	readonly panelVisualSelectionLabel: string | undefined;
 	readonly pendingClose: PendingPanelClose | null;
 	readonly pendingResize: PendingPanelResize | null;
+	/** Stops showing a released drop once no layer of its revision remains. */
+	readonly releasePanelDragHold: (sourceRevision: string) => void;
 	readonly requestClose: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly dismissBroadcastInput: () => void;
 	readonly resizeAdjacentPanels: (
@@ -157,12 +170,14 @@ export interface WorkbenchPanelWorkspaceView {
 		separatorIndex: number,
 		leadingWeight: number,
 	) => void;
+	/** Settles true when the size changed. */
 	readonly resizePanel: (
 		panelId: string,
 		adjustment: PanelResizeAdjustment,
 		multiplier: PanelResizeMultiplier,
 		source?: ActionInvocationSource,
-	) => boolean;
+	) => Promise<boolean>;
+	readonly sharedSplitResize?: SharedSplitResize | undefined;
 	readonly showPrimaryTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly splitPanel: (

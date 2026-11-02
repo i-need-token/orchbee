@@ -43,8 +43,22 @@ export function useWorkbenchTerminalContextMenu({
 		}
 		const finalFocusTarget = capturedFinalFocus.current;
 		capturedFinalFocus.current = null;
-		return finalFocusTarget ?? false;
+		return finalFocusTarget === null || focusMovedOn(finalFocusTarget) ? false : finalFocusTarget;
 	};
 
 	return { captureFinalFocus, finalFocus, split };
+}
+
+/**
+ * The menu closes after a surface its command opened has taken focus, and Base UI takes focus back
+ * unconditionally for an explicit target, unlike the default one.
+ */
+function focusMovedOn(finalFocusTarget: HTMLElement): boolean {
+	const { activeElement, body } = finalFocusTarget.ownerDocument;
+	return (
+		activeElement !== null &&
+		activeElement !== finalFocusTarget &&
+		activeElement !== body &&
+		activeElement.closest('[role="menu"]') === null
+	);
 }

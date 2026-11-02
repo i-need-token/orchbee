@@ -349,6 +349,7 @@ export function Workbench({
 									<WorkbenchPanelWorkspace
 										actionRuntime={actionRuntime}
 										authority={view.authority}
+										createPanelTerminal={view.createPanelTerminal}
 										panelWorkspaceStore={view.terminalContext.panelWorkspaceStore}
 										parentActionScope={view.actionScope}
 										shortcutLabelForAction={shortcutLabelForAction}

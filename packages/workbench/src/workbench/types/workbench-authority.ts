@@ -19,9 +19,38 @@ export type WorkbenchAuthorityNavigationChange = Extract<
 	}
 >;
 
+type WorkbenchAuthorityPanelDirection = 'above' | 'below' | 'left' | 'right';
+
+/** Names a Tab, because a command can settle after this Client has moved to another. */
+interface WorkbenchAuthorityTabTarget {
+	readonly tabId: string;
+	readonly terminalContextId: string;
+}
+
+/** A change to how the Panels of one Tab share its space, in every Client that shows it. */
+export type WorkbenchAuthoritySplitRatioChange = WorkbenchAuthorityTabTarget &
+	(
+		| {
+				readonly type: 'split-ratio-set';
+				/** The first side's share, out of 100. */
+				readonly leadingWeight: number;
+				readonly splitId: string;
+		  }
+		/** Grows or shrinks the Panel's side of its nearest split on that axis. `reset` evens all of them. */
+		| {
+				readonly type: 'panel-size-adjusted';
+				readonly adjustment: 'narrower' | 'reset' | 'shorter' | 'taller' | 'wider';
+				readonly multiplier: 1 | 2;
+				readonly panelId: string;
+		  }
+		/** Gives every Panel the same share along each axis, as far as the authority's limit allows. */
+		| { readonly type: 'panels-equalized' }
+	);
+
 /** A change to the Workbench structure every Client shares, in this Workbench's own vocabulary. */
 export type WorkbenchAuthorityChange =
 	| WorkbenchAuthorityNavigationChange
+	| WorkbenchAuthoritySplitRatioChange
 	| {
 			readonly type: 'tab-renamed';
 			readonly label: string;
@@ -32,7 +61,18 @@ export type WorkbenchAuthorityChange =
 			readonly type: 'tabs-changed';
 			readonly change: TabStripArrangementChange;
 			readonly terminalContextId: string;
-	  };
+	  }
+	| (WorkbenchAuthorityTabTarget & {
+			readonly type: 'panel-moved';
+			readonly direction: WorkbenchAuthorityPanelDirection;
+			readonly panelId: string;
+			readonly targetPanelId: string;
+	  })
+	| (WorkbenchAuthorityTabTarget & {
+			readonly type: 'panels-swapped';
+			readonly panelId: string;
+			readonly targetPanelId: string;
+	  });
 
 /** A Workspace with its first terminal. The authority names it and commits it as one change. */
 export type WorkbenchAuthorityCreation =
@@ -71,6 +111,25 @@ export interface WorkbenchAuthorityTabReceipt {
 	readonly terminalStarted: boolean;
 }
 
+/** A terminal joining a Tab's Panels, committed as one change. */
+export type WorkbenchAuthorityPanelTerminalCreation = WorkbenchAuthorityTabTarget & {
+	/** Where the terminal starts. Without one, the authority chooses as it does for any new terminal. */
+	readonly cwd?: string | undefined;
+	/** The Panel that is split, or that gains the child. */
+	readonly panelId: string;
+} & (
+		| { readonly type: 'panel-split'; readonly direction: WorkbenchAuthorityPanelDirection }
+		| { readonly type: 'child-terminal' }
+	);
+
+export interface WorkbenchAuthorityPanelTerminalReceipt extends WorkbenchAuthorityTabTarget {
+	/** The new Panel of a split, or the Panel that gained the child. */
+	readonly panelId: string;
+	readonly presentationId: string;
+	/** False when the terminal is still starting, failed, or may not have started. */
+	readonly terminalStarted: boolean;
+}
+
 /** Something whose terminals end for every Client. */
 export type WorkbenchAuthorityClosure =
 	/** Closes only what runs nothing; otherwise settles `blocked` with `confirmation-required`. */
@@ -100,6 +159,8 @@ export type WorkbenchAuthorityContext = Pick<ActionExecutionContext, 'markCommit
  * never repeats a change whose outcome is unknown.
  */
 export interface WorkbenchAuthority {
+	/** The smallest share either side of a split can hold, out of 100. */
+	readonly minimumSplitPercent: number;
 	change(
 		context: WorkbenchAuthorityContext,
 		change: WorkbenchAuthorityChange,
@@ -118,6 +179,11 @@ export interface WorkbenchAuthority {
 		context: WorkbenchAuthorityContext,
 		creation: WorkbenchAuthorityCreation,
 	): Promise<ActionResult<WorkbenchProjectCreationReceipt>>;
+	/** A completed creation without a receipt exists, but this Client can no longer read it. */
+	createPanelTerminal(
+		context: WorkbenchAuthorityContext,
+		creation: WorkbenchAuthorityPanelTerminalCreation,
+	): Promise<ActionResult<WorkbenchAuthorityPanelTerminalReceipt>>;
 	/** A completed creation without a receipt exists, but this Client can no longer read it. */
 	createTab(
 		context: WorkbenchAuthorityContext,

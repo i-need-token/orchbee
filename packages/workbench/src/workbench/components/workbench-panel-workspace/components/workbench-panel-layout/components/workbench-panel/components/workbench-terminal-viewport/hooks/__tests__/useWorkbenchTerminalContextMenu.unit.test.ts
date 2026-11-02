@@ -58,12 +58,15 @@ describe('useWorkbenchTerminalContextMenu', () => {
 	});
 
 	it('restores the element focused before a product context menu opened', () => {
-		class FakeHTMLElement {}
-		const activeElement = new FakeHTMLElement() as HTMLElement;
+		class FakeHTMLElement {
+			ownerDocument: unknown;
+		}
+		const activeElement = new FakeHTMLElement() as unknown as HTMLElement;
 		const ownerDocument = {
 			activeElement,
 			defaultView: { HTMLElement: FakeHTMLElement },
 		} as unknown as Document;
+		(activeElement as unknown as FakeHTMLElement).ownerDocument = ownerDocument;
 		renderToStaticMarkup(
 			createElement(HookProjection, {
 				splitPanel: () => null,
@@ -74,6 +77,30 @@ describe('useWorkbenchTerminalContextMenu', () => {
 		contextMenu.captureFinalFocus(ownerDocument);
 
 		expect(contextMenu.finalFocus()).toBe(activeElement);
+		expect(contextMenu.finalFocus()).toBe(false);
+	});
+
+	it('leaves focus with a surface the chosen command already opened', () => {
+		class FakeHTMLElement {
+			ownerDocument: unknown;
+		}
+		const menuInvoker = new FakeHTMLElement() as unknown as HTMLElement;
+		const ownerDocument = {
+			activeElement: menuInvoker,
+			body: new FakeHTMLElement(),
+			defaultView: { HTMLElement: FakeHTMLElement },
+		};
+		(menuInvoker as unknown as FakeHTMLElement).ownerDocument = ownerDocument;
+		renderToStaticMarkup(
+			createElement(HookProjection, {
+				splitPanel: () => null,
+			}),
+		);
+
+		const contextMenu = getControls();
+		contextMenu.captureFinalFocus(ownerDocument as unknown as Document);
+		ownerDocument.activeElement = { closest: () => null } as unknown as HTMLElement;
+
 		expect(contextMenu.finalFocus()).toBe(false);
 	});
 });

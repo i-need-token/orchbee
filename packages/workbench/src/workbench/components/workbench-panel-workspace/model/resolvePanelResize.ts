@@ -33,6 +33,7 @@ export function resolvePanelResize(
 	panelId: string,
 	adjustment: PanelResizeAdjustment,
 	multiplier: PanelResizeMultiplier,
+	minimumBranchPercent: number = MINIMUM_VISIBLE_BRANCH_PERCENT,
 ): PanelResizeResolution {
 	if (multiplier !== 1 && multiplier !== 2) {
 		return { kind: 'rejected', reason: 'invalid-multiplier', root };
@@ -55,6 +56,7 @@ export function resolvePanelResize(
 		panelId,
 		orientation,
 		(increase ? 1 : -1) * KEYBOARD_RESIZE_STEP_PERCENT * multiplier,
+		minimumBranchPercent,
 	);
 	if (!traversal.handledAxis) {
 		return { kind: 'unchanged', reason: 'axis-unavailable', root };
@@ -91,13 +93,20 @@ function resizeNearestAncestor(
 	panelId: string,
 	orientation: PanelSplit['orientation'],
 	activeBranchDelta: number,
+	minimumBranchPercent: number,
 ): ResizeTraversal {
 	if (node.kind === 'panel') {
 		return { containsTarget: node.id === panelId, handledAxis: false, node };
 	}
 
 	for (const [index, child] of node.children.entries()) {
-		const childResult = resizeNearestAncestor(child.node, panelId, orientation, activeBranchDelta);
+		const childResult = resizeNearestAncestor(
+			child.node,
+			panelId,
+			orientation,
+			activeBranchDelta,
+			minimumBranchPercent,
+		);
 		if (!childResult.containsTarget) continue;
 		if (childResult.handledAxis) {
 			if (childResult.node === child.node) return { ...childResult, node };
@@ -111,7 +120,7 @@ function resizeNearestAncestor(
 		return {
 			containsTarget: true,
 			handledAxis: true,
-			node: resizeSplitBranch(node, index, activeBranchDelta),
+			node: resizeSplitBranch(node, index, activeBranchDelta, minimumBranchPercent),
 		};
 	}
 	return { containsTarget: false, handledAxis: false, node };
@@ -121,13 +130,14 @@ function resizeSplitBranch(
 	split: PanelSplit,
 	activeChildIndex: number,
 	activeBranchDelta: number,
+	minimumBranchPercent: number,
 ): PanelSplit {
 	const activeChild = split.children[activeChildIndex];
 	const otherChildIndex = activeChildIndex === 0 ? 1 : 0;
 	const otherChild = split.children[otherChildIndex];
 	if (activeChild === undefined || otherChild === undefined) return split;
 	const pairWeight = activeChild.weight + otherChild.weight;
-	const minimumWeight = Math.min(MINIMUM_VISIBLE_BRANCH_PERCENT, pairWeight / 2);
+	const minimumWeight = Math.min(minimumBranchPercent, pairWeight / 2);
 	if (
 		(activeBranchDelta < 0 && activeChild.weight <= minimumWeight) ||
 		(activeBranchDelta > 0 && otherChild.weight <= minimumWeight)

@@ -444,7 +444,9 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 			registerWorkbenchProjectWorkspaceActions({
 				authority: {
 					close: () => Promise.reject(new Error('Nothing closes here.')),
+					createPanelTerminal: () => Promise.reject(new Error('No Panel is created here.')),
 					createTab: () => Promise.reject(new Error('No Tab is created here.')),
+					minimumSplitPercent: 10,
 					watchClose: () => () => undefined,
 					...authority,
 				},

@@ -30,7 +30,7 @@ function tab(tabId: string): TabPanelWorkspace {
 }
 
 describe('projectWorkbenchPanelWorkspaceTabView', () => {
-	it('rebinds layout state and clears drag projection for a retained Tab', () => {
+	it('rebinds layout state and shows a drag only in the layer of its own revision', () => {
 		const active = tab('active');
 		const retained = tab('retained');
 		const view = {
@@ -40,6 +40,7 @@ describe('projectWorkbenchPanelWorkspaceTabView', () => {
 				dropTarget: { direction: 'right', panelId: 'active-panel' },
 				ghost: {},
 				previewRoot: active.root,
+				sourceRevision: 'drag-source',
 			},
 			panelVisualSelection: {
 				mode: 'focus',
@@ -51,32 +52,48 @@ describe('projectWorkbenchPanelWorkspaceTabView', () => {
 			},
 		} as unknown as WorkbenchPanelWorkspaceView;
 
-		const projected = projectWorkbenchPanelWorkspaceTabView(view, retained);
+		const noDrag = {
+			draggingPanelId: null,
+			dropTarget: null,
+			ghost: null,
+			previewRoot: null,
+			sourceRevision: null,
+		};
+
+		const projected = projectWorkbenchPanelWorkspaceTabView(view, retained, 'other-revision');
 
 		expect(projected).toMatchObject({
 			activeTab: retained,
 			displayedRoot: retained.root,
 			maximizedPanelId: null,
 			panelCount: 1,
-			panelDrag: {
-				draggingPanelId: null,
-				dropTarget: null,
-				ghost: null,
-				previewRoot: null,
-			},
+			panelDrag: noDrag,
 			panelVisualSelection: null,
 		});
-		expect(projectWorkbenchPanelWorkspaceTabView(view, active)).toBe(view);
+		expect(projectWorkbenchPanelWorkspaceTabView(view, active, 'drag-source')).toBe(view);
 
 		const retainedRevision = { ...active, maximizedPanelId: 'active-panel' };
-		const projectedRevision = projectWorkbenchPanelWorkspaceTabView(view, retainedRevision);
+		const projectedRevision = projectWorkbenchPanelWorkspaceTabView(
+			view,
+			retainedRevision,
+			'other-revision',
+		);
 		expect(projectedRevision).not.toBe(view);
 		expect(projectedRevision).toMatchObject({
 			activeTab: retainedRevision,
 			displayedRoot: retainedRevision.root,
 			maximizedPanelId: 'active-panel',
-			panelDrag: { draggingPanelId: null, dropTarget: null, ghost: null, previewRoot: null },
+			panelDrag: noDrag,
 			panelVisualSelection: null,
 		});
+
+		// A released drop stays with the layer it was made in, including one that is being replaced.
+		expect(projectWorkbenchPanelWorkspaceTabView(view, retained, 'drag-source').panelDrag).toBe(
+			view.panelDrag,
+		);
+		// The Tab that replaced it starts from what the authority published.
+		expect(projectWorkbenchPanelWorkspaceTabView(view, active, 'other-revision').panelDrag).toEqual(
+			noDrag,
+		);
 	});
 });

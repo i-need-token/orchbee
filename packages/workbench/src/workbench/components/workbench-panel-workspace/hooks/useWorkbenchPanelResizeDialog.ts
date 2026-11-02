@@ -30,13 +30,21 @@ export function useWorkbenchPanelResizeDialog(
 	React.useEffect(() => {
 		setStatus(null);
 	}, [pendingResize?.panelId, pendingResize?.tabId]);
+	const stillAsksFor = useMemoizedFn(
+		(asked: PendingPanelResize) =>
+			pendingResize?.panelId === asked.panelId && pendingResize.tabId === asked.tabId,
+	);
 	const resize = useMemoizedFn(
 		(adjustment: PanelResizeAdjustment, multiplier: PanelResizeMultiplier) => {
-			setStatus(
-				pendingResize !== null && view.resizePanel(pendingResize.panelId, adjustment, multiplier)
-					? null
-					: view.messages.resizeUnavailable,
-			);
+			if (pendingResize === null) {
+				setStatus(view.messages.resizeUnavailable);
+				return;
+			}
+			void view.resizePanel(pendingResize.panelId, adjustment, multiplier).then((resized) => {
+				if (stillAsksFor(pendingResize)) {
+					setStatus(resized ? null : view.messages.resizeUnavailable);
+				}
+			});
 		},
 	);
 	const onKeyDownCapture = useMemoizedFn((event: React.KeyboardEvent<HTMLElement>) => {

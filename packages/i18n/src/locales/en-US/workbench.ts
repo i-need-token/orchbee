@@ -311,6 +311,11 @@ export const enUSWorkbenchMessages = {
 		'{count, plural, one {This terminal is still running. Closing it will end the running process.} other {# terminals are still running. Closing this panel will end their running processes.}}',
 	'workbench.panels.closeRunning.title': 'Close running terminal?',
 	'workbench.panels.close.notApplied': 'Panel operation was not applied',
+	'workbench.panels.update.notApplied': 'Panel operation was not applied',
+	'workbench.panels.resize.contended': 'Resize not applied; the Workbench kept changing',
+	'workbench.panels.resize.failed': 'Resize failed; inspect the current layout',
+	'workbench.panels.resize.outcomeUnknown':
+		'Resize outcome unknown; inspect layout before trying again',
 	'workbench.panels.childTerminals.label': 'Child terminals',
 	'workbench.tabs.close.awaitingRemoval': '{label} · Execution ended; awaiting Tab removal',
 	'workbench.tabs.close.cancelled': 'Close confirmation cancelled',

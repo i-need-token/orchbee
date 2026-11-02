@@ -41,6 +41,7 @@ export function WorkbenchPanelSplit({
 		view.resizeAdjacentPanels,
 		MINIMUM_PANEL_SIZE_PX,
 		maximizedChildId,
+		view.sharedSplitResize,
 	);
 
 	return (
@@ -91,6 +92,9 @@ export function WorkbenchPanelSplit({
 								disableDoubleClick
 								hidden={maximizedChildId !== null}
 								id={getPanelSeparatorId(split.id, child.id, trailingChild.id)}
+								onBlurCapture={() => {
+									resize.finishKeyboardResize(index);
+								}}
 								onKeyDownCapture={(event) => {
 									if (DISABLED_SEPARATOR_KEYS.has(event.key)) {
 										event.preventDefault();

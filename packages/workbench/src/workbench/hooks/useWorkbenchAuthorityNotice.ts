@@ -9,6 +9,8 @@ import {
 	workbenchCloseResultNotice,
 	workbenchCloseWithdrawnNotice,
 	workbenchFailureNotice,
+	workbenchPanelsFailureNotice,
+	workbenchSplitRatioFailureNotice,
 	workbenchTabCreationFailureNotice,
 	workbenchTabDuplicationStoppedNotice,
 	workbenchTabsFailureNotice,
@@ -66,6 +68,7 @@ export function useWorkbenchAuthorityNotice(
 			authority === undefined
 				? undefined
 				: {
+						minimumSplitPercent: authority.minimumSplitPercent,
 						change: async (context, change) => {
 							const dissolvedWorkspaces =
 								change.type === 'project-dissolved' &&
@@ -83,6 +86,14 @@ export function useWorkbenchAuthorityNotice(
 								});
 							} else if (change.type === 'tab-renamed' || change.type === 'tabs-changed') {
 								setNotice(workbenchTabsFailureNotice(result));
+							} else if (change.type === 'panel-moved' || change.type === 'panels-swapped') {
+								setNotice(workbenchPanelsFailureNotice(result));
+							} else if (
+								change.type === 'panel-size-adjusted' ||
+								change.type === 'panels-equalized' ||
+								change.type === 'split-ratio-set'
+							) {
+								setNotice(workbenchSplitRatioFailureNotice(result));
 							} else {
 								setNotice(workbenchFailureNotice(result));
 							}
@@ -135,6 +146,12 @@ export function useWorkbenchAuthorityNotice(
 							setNotice(null);
 							const result = await authority.create(context, creation);
 							setNotice(workbenchFailureNotice(result));
+							return result;
+						},
+						createPanelTerminal: async (context, creation) => {
+							setNotice(null);
+							const result = await authority.createPanelTerminal(context, creation);
+							setNotice(workbenchPanelsFailureNotice(result));
 							return result;
 						},
 						createTab: async (context, creation) => {

@@ -311,6 +311,44 @@ export function workbenchTabCreationFailureNotice(
 	);
 }
 
+export function workbenchPanelsFailureNotice(
+	result: ActionResult<unknown>,
+): WorkbenchAuthorityNotice | null {
+	return failureNotice(
+		result,
+		workbenchMessages.panelsNotApplied,
+		workbenchMessages.panelsNotApplied,
+	);
+}
+
+export function workbenchSplitRatioFailureNotice(
+	result: ActionResult<unknown>,
+): WorkbenchAuthorityNotice | null {
+	switch (result.kind) {
+		case 'blocked':
+			return {
+				descriptor:
+					result.code === 'ratio-contended'
+						? workbenchMessages.panelResizeContended
+						: workbenchMessages.panelResizeFailed,
+				lifetime: 'until-press',
+			};
+		case 'failed':
+			return {
+				descriptor:
+					result.failure.code === 'outcome-unknown'
+						? workbenchMessages.panelResizeOutcomeUnknown
+						: workbenchMessages.panelResizeFailed,
+				lifetime: 'until-press',
+			};
+		case 'cancelled':
+		case 'completed':
+		case 'unchanged':
+		case 'unsupported':
+			return null;
+	}
+}
+
 const DUPLICATION_STOP_DESCRIPTORS: Readonly<
 	Record<WorkbenchTabDuplicationStop, WorkbenchAuthorityNotice['descriptor']>
 > = {

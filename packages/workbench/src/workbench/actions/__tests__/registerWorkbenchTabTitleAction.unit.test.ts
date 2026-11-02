@@ -95,7 +95,9 @@ describe('registerWorkbenchTabTitleAction', () => {
 			change,
 			close: () => Promise.reject(new Error('Nothing closes here.')),
 			create: () => Promise.reject(new Error('No Workspace is created here.')),
+			createPanelTerminal: () => Promise.reject(new Error('No Panel is created here.')),
 			createTab: () => Promise.reject(new Error('No Tab is created here.')),
+			minimumSplitPercent: 10,
 			watchClose: () => () => undefined,
 		});
 		const context = harness.projectWorkspaceRuntime.getActiveTerminalContext();

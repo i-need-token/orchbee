@@ -1,9 +1,9 @@
-import type { ActionResult } from '@orchbee/actions';
 import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityChange,
-	WorkbenchAuthorityContext,
 	WorkbenchAuthorityCreation,
+	WorkbenchAuthorityPanelTerminalReceipt,
+	WorkbenchAuthoritySplitRatioChange,
 	WorkbenchAuthorityTabReceipt,
 	WorkbenchProjectCreationReceipt,
 } from '@orchbee/workbench';
@@ -12,13 +12,16 @@ import type { WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 import { handOverServerWorkbenchAction } from './handOverServerWorkbenchAction';
 import { readServerWorkbenchAction } from './readServerWorkbenchAction';
 import { closeServerWorkbench, watchServerWorkbenchClose } from './server-workbench-close';
+import {
+	SERVER_MINIMUM_SPLIT_PERCENT,
+	changeServerSplitRatios,
+	panelTerminalCreateAction,
+	panelTerminalCreated,
+} from './server-workbench-panels';
 import { tabCreateAction, tabsChangeAction } from './server-workbench-tabs';
 import { serverResourceScopeId } from './serverResourceScopeId';
-import type {
-	ServerWorkbenchAction,
-	ServerWorkbenchOutcome,
-	ServerWorkbenchSubmission,
-} from './ServerWorkbenchSession';
+import { serverWorkbenchResult } from './serverWorkbenchResult';
+import type { ServerWorkbenchAction } from './ServerWorkbenchSession';
 import { workspaceLaunchAction, type ServerWorkspacePlacement } from './workspace-launch';
 
 interface ServerWorkbenchAuthorityOptions {
@@ -35,10 +38,27 @@ interface WorkspaceLaunchPlan {
 }
 
 function changeAction(
-	change: WorkbenchAuthorityChange,
+	change: Exclude<WorkbenchAuthorityChange, WorkbenchAuthoritySplitRatioChange>,
 	snapshot: WorkbenchSnapshot,
 ): ServerWorkbenchAction | null {
 	switch (change.type) {
+		case 'panel-moved':
+			return readServerWorkbenchAction({
+				direction: change.direction,
+				kind: 'panel.move',
+				panelId: change.panelId,
+				tabId: change.tabId,
+				targetPanelId: change.targetPanelId,
+				terminalContextId: change.terminalContextId,
+			});
+		case 'panels-swapped':
+			return readServerWorkbenchAction({
+				kind: 'panel.swap',
+				panelId: change.panelId,
+				tabId: change.tabId,
+				targetPanelId: change.targetPanelId,
+				terminalContextId: change.terminalContextId,
+			});
 		case 'tab-renamed':
 			return readServerWorkbenchAction({
 				kind: 'tab.rename',
@@ -155,42 +175,11 @@ function launchPlan(
 	}
 }
 
-function resultOf<Output>(
-	context: WorkbenchAuthorityContext,
-	submission: ServerWorkbenchSubmission,
-	committed: (outcome: ServerWorkbenchOutcome) => ActionResult<Output>,
-): ActionResult<Output> {
-	switch (submission.kind) {
-		case 'not-submitted':
-			return context.signal.aborted
-				? { kind: 'cancelled' }
-				: { code: 'not-submitted', kind: 'blocked' };
-		case 'outcome-unknown':
-			return { failure: { code: 'outcome-unknown' }, kind: 'failed' };
-		case 'settled':
-			break;
-	}
-	const { outcome } = submission;
-	switch (outcome.kind) {
-		case 'rejected':
-			return { code: outcome.reason, kind: 'blocked' };
-		case 'denied':
-		case 'launch-profile-ambiguous':
-		case 'launch-profile-unavailable':
-			return { code: outcome.kind, kind: 'blocked' };
-		case 'unavailable':
-			return { failure: { code: outcome.reason }, kind: 'failed' };
-		case 'unchanged':
-			return { kind: 'unchanged' };
-		default:
-			return committed(outcome);
-	}
-}
-
 /**
  * This Client's Workbench vocabulary, said to the Server. Every command is decided from the snapshot
  * it will name, one at a time, and a result settles once a publication carries what it reports. A
- * refused or unknown command is never repeated: the person decides from what they can see.
+ * refused or unknown command is never repeated, so the person decides from what they can see. Only
+ * a ratio goes again, when a commit elsewhere moved the revision and left the split as it was.
  */
 export function createServerWorkbenchAuthority({
 	defaultDirectory,
@@ -199,14 +188,23 @@ export function createServerWorkbenchAuthority({
 	session,
 }: ServerWorkbenchAuthorityOptions): WorkbenchAuthority {
 	return {
-		change: async (context, change) =>
-			resultOf<void>(
-				context,
-				await session.submit((snapshot) =>
-					handOverServerWorkbenchAction(context, changeAction(change, snapshot)),
-				),
-				() => ({ kind: 'completed' }),
-			),
+		minimumSplitPercent: SERVER_MINIMUM_SPLIT_PERCENT,
+		change: async (context, change) => {
+			switch (change.type) {
+				case 'panel-size-adjusted':
+				case 'panels-equalized':
+				case 'split-ratio-set':
+					return changeServerSplitRatios(session, context, change);
+				default:
+					return serverWorkbenchResult<void>(
+						context,
+						await session.submit((snapshot) =>
+							handOverServerWorkbenchAction(context, changeAction(change, snapshot)),
+						),
+						() => ({ kind: 'completed' }),
+					);
+			}
+		},
 		close: (context, closure) => closeServerWorkbench(session, context, closure),
 		create: async (context, creation) => {
 			let directory = '';
@@ -224,25 +222,36 @@ export function createServerWorkbenchAuthority({
 					}),
 				);
 			});
-			return resultOf<WorkbenchProjectCreationReceipt>(context, submission, (outcome) =>
-				outcome.kind === 'workspace-launch-pending' || outcome.kind === 'workspace-launched'
-					? {
-							kind: 'completed',
-							value: {
-								directoryId: outcome.directoryId,
-								path: directory,
-								presentationId: outcome.presentationId,
-								projectId: outcome.projectId,
-								resourceScopeId: serverResourceScopeId(outcome.workspaceId),
-								terminalContextId: outcome.terminalContextId,
-								workspaceId: outcome.workspaceId,
-							},
-						}
-					: { kind: 'completed' },
+			return serverWorkbenchResult<WorkbenchProjectCreationReceipt>(
+				context,
+				submission,
+				(outcome) =>
+					outcome.kind === 'workspace-launch-pending' || outcome.kind === 'workspace-launched'
+						? {
+								kind: 'completed',
+								value: {
+									directoryId: outcome.directoryId,
+									path: directory,
+									presentationId: outcome.presentationId,
+									projectId: outcome.projectId,
+									resourceScopeId: serverResourceScopeId(outcome.workspaceId),
+									terminalContextId: outcome.terminalContextId,
+									workspaceId: outcome.workspaceId,
+								},
+							}
+						: { kind: 'completed' },
 			);
 		},
+		createPanelTerminal: async (context, creation) =>
+			serverWorkbenchResult<WorkbenchAuthorityPanelTerminalReceipt>(
+				context,
+				await session.submit((snapshot) =>
+					handOverServerWorkbenchAction(context, panelTerminalCreateAction(creation, snapshot)),
+				),
+				panelTerminalCreated,
+			),
 		createTab: async (context, creation) =>
-			resultOf<WorkbenchAuthorityTabReceipt>(
+			serverWorkbenchResult<WorkbenchAuthorityTabReceipt>(
 				context,
 				await session.submit((snapshot) =>
 					handOverServerWorkbenchAction(context, tabCreateAction(creation, snapshot)),

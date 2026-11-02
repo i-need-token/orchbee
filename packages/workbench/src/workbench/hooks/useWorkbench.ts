@@ -76,6 +76,10 @@ import {
 	duplicateSharedTabs,
 	getSharedTabCreationAvailability,
 } from '../actions/workbench-shared-tab-creation';
+import {
+	createSharedPanelTerminal,
+	type WorkbenchSharedPanelTerminalCreate,
+} from '../actions/createSharedPanelTerminal';
 import type { WorkbenchAuthority } from '../types/workbench-authority';
 import { useWorkbenchActions } from './useWorkbenchActions';
 import {
@@ -117,6 +121,8 @@ interface WorkbenchView {
 	readonly addResourceDirectory: (resourceScopeId: string, path: string) => void;
 	readonly cancelProjectWorkspaceConfirmation: () => void;
 	readonly confirmProjectWorkspaceAction: () => void;
+	/** Present when an authority decides the Panels, whose new terminals then show as it answers. */
+	readonly createPanelTerminal: WorkbenchSharedPanelTerminalCreate | undefined;
 	readonly createProject: (path: string) => ActionExecution<WorkbenchProjectCreationReceipt>;
 	readonly activateCreatedProject: (
 		receipt: WorkbenchProjectCreationReceipt,
@@ -406,6 +412,20 @@ export function useWorkbench({
 					runtime: projectWorkspaceRuntime,
 				}),
 	);
+	const createPanelTerminal = useMemoizedFn<
+		void,
+		Parameters<WorkbenchSharedPanelTerminalCreate>,
+		ReturnType<WorkbenchSharedPanelTerminalCreate>
+	>((context, creation) => {
+		const decider = authorityNotice.authority;
+		return decider === undefined
+			? Promise.resolve({ kind: 'unsupported' })
+			: createSharedPanelTerminal(context, creation, {
+					authority: decider,
+					beginTerminalHandover: focusRouting.beginTerminalHandover,
+					runtime: projectWorkspaceRuntime,
+				});
+	});
 	const changeSharedTabs = useMemoizedFn<
 		void,
 		Parameters<TabStripChangeCallback>,
@@ -727,6 +747,7 @@ export function useWorkbench({
 				request.source,
 			),
 		onCloseTabs: closeTabs,
+		createPanelTerminal: authorityNotice.authority === undefined ? undefined : createPanelTerminal,
 		onTabsChange: authorityNotice.authority === undefined ? undefined : changeSharedTabs,
 		getCloseTabsConfirmation,
 		getTabCreationAvailability,

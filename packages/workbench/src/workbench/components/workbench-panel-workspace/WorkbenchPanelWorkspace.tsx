@@ -1,6 +1,7 @@
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
-import type { ReactNode } from 'react';
+import * as React from 'react';
 
+import type { WorkbenchSharedPanelTerminalCreate } from '../../actions/createSharedPanelTerminal';
 import type { PanelWorkspaceStore } from './model/PanelWorkspaceStore';
 import type { WorkbenchAuthority } from '../../types/workbench-authority';
 import type { WorkbenchTerminalSurface } from '../../types/workbench-terminal-surface';
@@ -21,6 +22,7 @@ interface WorkbenchPanelWorkspaceProps {
 	readonly onTerminalEdit?: ((presentationId: string) => void) | undefined;
 	readonly actionRuntime: ActionRuntime;
 	readonly authority?: WorkbenchAuthority | undefined;
+	readonly createPanelTerminal?: WorkbenchSharedPanelTerminalCreate | undefined;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
@@ -34,6 +36,7 @@ export function WorkbenchPanelWorkspace({
 	onTerminalEdit,
 	actionRuntime,
 	authority,
+	createPanelTerminal,
 	panelWorkspaceStore,
 	parentActionScope,
 	shortcutLabelForAction,
@@ -41,11 +44,12 @@ export function WorkbenchPanelWorkspace({
 	terminalContextId,
 	terminalFocusRequest,
 	terminalSurface,
-}: WorkbenchPanelWorkspaceProps): ReactNode {
+}: WorkbenchPanelWorkspaceProps): React.ReactNode {
 	const view = useWorkbenchPanelWorkspace({
 		onTerminalEdit,
 		actionRuntime,
 		authority,
+		createPanelTerminal,
 		panelWorkspaceStore,
 		parentActionScope,
 		shortcutLabelForAction,
@@ -62,6 +66,12 @@ export function WorkbenchPanelWorkspace({
 		handoff.state,
 		handoff.displayedTab,
 	);
+	const { releasePanelDragHold } = view;
+	const heldRevision = view.panelDrag.ghost === null ? view.panelDrag.sourceRevision : null;
+	const holdShown = presentationLayers.some((layer) => layer.revision === heldRevision);
+	React.useLayoutEffect(() => {
+		if (heldRevision !== null && !holdShown) releasePanelDragHold(heldRevision);
+	}, [heldRevision, holdShown, releasePanelDragHold]);
 
 	return (
 		<div
@@ -70,7 +80,7 @@ export function WorkbenchPanelWorkspace({
 				(view.broadcastInput.kind === 'active' ? view.messages.broadcastInputLabel : undefined)
 			}
 			className={styles['root']}
-			data-dragging={view.panelDrag.draggingPanelId !== null || undefined}
+			data-dragging={view.panelDrag.ghost !== null || undefined}
 			data-panel-visual-selection-mode={view.panelVisualSelection?.mode}
 			data-slot='workbench-panel-workspace'
 			data-workbench-keyboard-capture={
@@ -100,8 +110,8 @@ export function WorkbenchPanelWorkspace({
 						handoff.reportPresentationReady(epoch, tab.tabId, revision, presentationId, readiness);
 					},
 				};
-				const layerView = projectWorkbenchPanelWorkspaceTabView(view, tab);
-				const node = mode === 'active' ? (layerView.panelDrag.previewRoot ?? tab.root) : tab.root;
+				const layerView = projectWorkbenchPanelWorkspaceTabView(view, tab, revision);
+				const node = layerView.panelDrag.previewRoot ?? tab.root;
 				return (
 					<div
 						aria-hidden={mode === 'active' ? undefined : true}

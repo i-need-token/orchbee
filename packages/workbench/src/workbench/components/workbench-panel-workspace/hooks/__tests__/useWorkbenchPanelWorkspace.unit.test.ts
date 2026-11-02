@@ -248,7 +248,7 @@ describe('useWorkbenchPanelWorkspace', () => {
 		expect(releasePointerCapture).toHaveBeenCalledWith(7);
 	});
 
-	it('captures one resize target, commits through the Action, and closes on a Tab change', () => {
+	it('captures one resize target, commits through the Action, and closes on a Tab change', async () => {
 		const runtime = new ActionRuntime();
 		const parentScope = runtime.createScope('workbench');
 		const model = new TabModel({
@@ -287,11 +287,11 @@ describe('useWorkbenchPanelWorkspace', () => {
 		expect(view.pendingResize).toEqual({ panelId: resizePanelId, tabId: 'tab-a' });
 		expect(view.canResizePanel(resizePanelId, 'wider')).toBe(true);
 
-		let resized = false;
+		let resized: Promise<boolean> | undefined;
 		act(() => {
-			resized = view?.resizePanel(resizePanelId, 'wider', 1) ?? false;
+			resized = view?.resizePanel(resizePanelId, 'wider', 1);
 		});
-		expect(resized).toBe(true);
+		await expect(resized).resolves.toBe(true);
 		expect(view.activeTab?.root).toMatchObject({
 			children: [{ weight: 45 }, { weight: 55 }],
 			kind: 'split',
@@ -299,7 +299,7 @@ describe('useWorkbenchPanelWorkspace', () => {
 
 		act(() => model.selectTab('tab-b'));
 		expect(view.pendingResize).toBeNull();
-		expect(view.resizePanel(resizePanelId, 'wider', 1)).toBe(false);
+		await expect(view.resizePanel(resizePanelId, 'wider', 1)).resolves.toBe(false);
 	});
 
 	it('shares one terminal bell admission ledger across the panel workspace lifetime', () => {

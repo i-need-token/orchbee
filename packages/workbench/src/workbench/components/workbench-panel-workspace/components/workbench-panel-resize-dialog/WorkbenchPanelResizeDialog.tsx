@@ -23,8 +23,13 @@ export function WorkbenchPanelResizeDialog({
 	view,
 }: WorkbenchPanelResizeDialogProps): React.ReactNode {
 	const dialog = useWorkbenchPanelResizeDialog(view);
+	// Not `autoFocus`: the menu this can open from returns focus as it closes, after that has run.
+	const firstAvailableOption = React.useRef<HTMLButtonElement>(null);
 	const pendingResize = view.pendingResize;
 	if (pendingResize === null) return null;
+	const firstAvailableIndex = PANEL_RESIZE_OPTIONS.findIndex((option) =>
+		view.canResizePanel(pendingResize.panelId, option.adjustment),
+	);
 
 	return (
 		<Dialog
@@ -37,6 +42,7 @@ export function WorkbenchPanelResizeDialog({
 				closeLabel={view.messages.close}
 				data-slot='workbench-panel-resize-dialog'
 				finalFocus={dialog.finalFocus}
+				initialFocus={firstAvailableOption}
 				onKeyDownCapture={dialog.onKeyDownCapture}
 			>
 				<DialogHeader className={styles['header']}>
@@ -48,10 +54,12 @@ export function WorkbenchPanelResizeDialog({
 				<div className={styles['options']}>
 					{PANEL_RESIZE_OPTIONS.map((option, index) => (
 						<Button
-							autoFocus={index === 0}
 							className={styles['option']}
 							disabled={!view.canResizePanel(pendingResize.panelId, option.adjustment)}
+							// The key that just reached the limit must leave the keyboard in this dialog.
+							focusableWhenDisabled
 							key={option.adjustment}
+							ref={index === firstAvailableIndex ? firstAvailableOption : undefined}
 							type='button'
 							variant='outline'
 							onClick={() => dialog.resize(option.adjustment, 1)}
