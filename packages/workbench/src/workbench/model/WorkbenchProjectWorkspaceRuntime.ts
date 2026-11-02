@@ -1750,13 +1750,15 @@ function retainActiveLocation(
 
 /**
  * This Client's location outlives a publication unless its Workspace is gone, which selects the
- * first Workspace in display order. A Project it has not seen before starts expanded.
+ * first Workspace in display order. A Project it has not seen before starts expanded, even when
+ * the view it starts from, such as a reloaded document's, already expands it.
  */
 function publishedProjectWorkspaceState(
 	previous: ProjectWorkspaceState,
 	hydrated: ProjectWorkspaceState,
 ): ProjectWorkspaceState {
 	const knownProjectIds = new Set(previous.projects.map((project) => project.id));
+	const viewExpandedProjectIds = new Set(hydrated.expandedProjectIds);
 	const firstWorkspace = hydrated.workspaces[0];
 	return {
 		...hydrated,
@@ -1766,12 +1768,11 @@ function publishedProjectWorkspaceState(
 				? { kind: 'workspace', workspaceId: firstWorkspace.id }
 				: hydrated.activeLocation,
 		),
-		expandedProjectIds: [
-			...hydrated.expandedProjectIds,
-			...hydrated.projects
-				.map((project) => project.id)
-				.filter((projectId) => !knownProjectIds.has(projectId)),
-		],
+		expandedProjectIds: hydrated.projects
+			.map((project) => project.id)
+			.filter(
+				(projectId) => viewExpandedProjectIds.has(projectId) || !knownProjectIds.has(projectId),
+			),
 	};
 }
 

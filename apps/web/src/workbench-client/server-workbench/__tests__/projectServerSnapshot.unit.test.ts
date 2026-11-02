@@ -1,6 +1,10 @@
 import { createOrchbeeIntl } from '@orchbee/i18n';
 import { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
 import {
+	createDefaultWorkbenchClientView,
+	createWorkbenchClientView,
+} from '@orchbee/workbench/document';
+import {
 	parseWorkbenchResponse,
 	terminalPresentationId,
 	terminalPresentationOperationId,
@@ -105,10 +109,22 @@ function oneWorkspaceSnapshot(revision: number, tabs: readonly object[]): Workbe
 	]);
 }
 
-function createRuntime(initial: WorkbenchSnapshot): WorkbenchProjectWorkspaceRuntime {
+/** `recoveredExpansion` stands for the view a reloaded document recovers, which expands those Projects. */
+function createRuntime(
+	initial: WorkbenchSnapshot,
+	recoveredExpansion?: readonly string[],
+): WorkbenchProjectWorkspaceRuntime {
 	let sequence = 0;
+	const initialPublication = projectServerSnapshot(initial, DEFAULT_DIRECTORY, INTL);
 	return new WorkbenchProjectWorkspaceRuntime({
-		initialPublication: projectServerSnapshot(initial, DEFAULT_DIRECTORY, INTL),
+		initialClientView:
+			recoveredExpansion === undefined
+				? undefined
+				: createWorkbenchClientView({
+						...createDefaultWorkbenchClientView(initialPublication.document),
+						expandedProjectIds: [...recoveredExpansion],
+					}),
+		initialPublication,
 		standaloneCwd: DEFAULT_DIRECTORY,
 		standaloneTerminalTitle: 'Terminal',
 		terminalPresentation: {
@@ -375,5 +391,23 @@ describe('applyPublishedWorkbench', () => {
 		);
 
 		expect(runtime.getSnapshot().expandedProjectIds).toEqual([secondProject.projectId]);
+	});
+
+	it('expands a Project once when the recovered view of a reloaded document expands it', () => {
+		const project = { label: 'First', projectId: hex(0x201) };
+		const runtime = createRuntime(
+			snapshot(
+				1,
+				{
+					directories: [directory(1)],
+					projects: [project],
+					workspaces: [workspace(1, { projectId: project.projectId })],
+				},
+				[context(1, [tab(1)])],
+			),
+			[project.projectId],
+		);
+
+		expect(runtime.getClientView().expandedProjectIds).toEqual([project.projectId]);
 	});
 });
