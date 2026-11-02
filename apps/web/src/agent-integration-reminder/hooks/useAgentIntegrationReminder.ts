@@ -1,32 +1,15 @@
-import {
-	agentIntegrationMessages,
-	agentObservationMessages,
-	useOrchbeeIntl,
-	type MessageDescriptor,
-} from '@orchbee/i18n';
+import { agentIntegrationMessages, useOrchbeeIntl } from '@orchbee/i18n';
 
 import * as React from 'react';
 
-import type {
-	AgentIntegrationId,
-	AgentIntegrationManagementControl,
-	AgentIntegrationReminderController,
+import {
+	AGENT_INTEGRATION_NAME_MESSAGES,
+	type AgentIntegrationId,
+	type AgentIntegrationManagementControl,
+	type AgentIntegrationReminderController,
 } from '../../agent-integration-management';
 import { isAgentIntegrationReminderEligible } from '../model/isAgentIntegrationReminderEligible';
 import type { AgentIntegrationReminderView } from '../types/agent-integration-reminder-view';
-
-const AGENT_NAME_MESSAGES: Readonly<Record<AgentIntegrationId, MessageDescriptor>> = {
-	'claude-code': agentObservationMessages.providerClaudeCode,
-	cline: agentObservationMessages.providerCline,
-	codex: agentObservationMessages.providerCodex,
-	gemini: agentObservationMessages.providerGeminiCli,
-	'github-copilot': agentObservationMessages.providerGitHubCopilotCli,
-	grok: agentObservationMessages.providerGrok,
-	omp: agentObservationMessages.providerOmp,
-	opencode: agentObservationMessages.providerOpenCode,
-	pi: agentObservationMessages.providerPi,
-	'qwen-code': agentObservationMessages.providerQwenCode,
-};
 
 export function useAgentIntegrationReminder(
 	control: AgentIntegrationManagementControl,
@@ -80,7 +63,7 @@ export function useAgentIntegrationReminder(
 		return null;
 	}
 	const integrationId = activeIntegration.integrationId;
-	const agentName = intl.formatMessage(AGENT_NAME_MESSAGES[integrationId]);
+	const agentName = intl.formatMessage(AGENT_INTEGRATION_NAME_MESSAGES[integrationId]);
 	return {
 		actionLabel: intl.formatMessage(agentIntegrationMessages.reminderOpenSettings),
 		body: intl.formatMessage(agentIntegrationMessages.reminderBody, { agent: agentName }),

@@ -98,6 +98,56 @@ export const agentObservationMessages = defineMessages({
 		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.qwenCode'],
 		description: 'Curated product name for the Qwen Code Agent.',
 	},
+	providerKilo: {
+		id: 'agent.observation.provider.kilo',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.kilo'],
+		description: 'Curated product name for the Kilo Agent provider.',
+	},
+	providerCursor: {
+		id: 'agent.observation.provider.cursor',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.cursor'],
+		description: 'Curated product name for the Cursor Agent provider.',
+	},
+	providerQoderCli: {
+		id: 'agent.observation.provider.qoderCli',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.qoderCli'],
+		description: 'Curated product name for the Qoder CLI Agent.',
+	},
+	providerAntigravityCli: {
+		id: 'agent.observation.provider.antigravityCli',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.antigravityCli'],
+		description: 'Curated product name for the Antigravity CLI Agent.',
+	},
+	providerMastracode: {
+		id: 'agent.observation.provider.mastracode',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.mastracode'],
+		description: 'Curated product name for the Mastracode Agent provider.',
+	},
+	providerDroid: {
+		id: 'agent.observation.provider.droid',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.droid'],
+		description: 'Curated product name for the Droid Agent provider.',
+	},
+	providerKimi: {
+		id: 'agent.observation.provider.kimi',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.kimi'],
+		description: 'Curated product name for the Kimi Agent provider.',
+	},
+	providerLetta: {
+		id: 'agent.observation.provider.letta',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.letta'],
+		description: 'Curated product name for the Letta Agent provider.',
+	},
+	providerDevin: {
+		id: 'agent.observation.provider.devin',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.devin'],
+		description: 'Curated product name for the Devin Agent provider.',
+	},
+	providerHermes: {
+		id: 'agent.observation.provider.hermes',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.hermes'],
+		description: 'Curated product name for the Hermes Agent provider.',
+	},
 	statusCanceled: {
 		id: 'agent.observation.status.canceled',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.status.canceled'],

@@ -1261,9 +1261,10 @@ CLI uses, so Main writes nothing. These choices stand unless review changes them
 - **The Worker decides.** Refresh runs one `list` job and a switch one `enable` or `disable` job,
   with no check of the window's own first. A change the window cannot follow to its report reads as
   unverified, marks its row unknown, and is never repeated.
-- **The page keeps its controls and ten rows.** `ServerAgentIntegrationClient` presents the
-  Desktop-shaped snapshot through the existing control seam. The other ten providers and the seam's
-  rename wait for the Desktop owners' removal later in this step.
+- **The page keeps its controls and lists every provider.** `ServerAgentIntegrationClient`
+  presents the snapshot through the existing control seam. Once the Desktop owners left, the seam
+  lost its `Desktop` prefix and the page gained the other ten wire providers, in registry order and
+  with curated names.
 - **Rows wait for Refresh, as Main's did.** Until then every row reads Unknown, because the window
   holds no provider facts and only the Worker's report marks a row for manual setup. On Windows,
   where Main managed nothing and every row read Manual setup, the window now changes what the

@@ -49,6 +49,7 @@ export {
 } from './workbench-shared-project-workspace-contract';
 
 export {
+	AGENT_INTEGRATION_PROVIDERS,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchRequestIdSchema,
 	parseWorkbenchAction,

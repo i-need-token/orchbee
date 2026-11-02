@@ -27,6 +27,7 @@ type JobAction = Extract<
 	WorkbenchRequest,
 	{ readonly kind: 'workbench.agent-integration' }
 >['action'];
+type JobOperation = Extract<JobAction, { readonly kind: 'start' }>['request']['operation'];
 type JobOutcome = Extract<
 	WorkbenchResponse,
 	{ readonly kind: 'workbench.agent-integration.result' }
@@ -152,9 +153,7 @@ export class ServerAgentIntegrationClient implements AgentIntegrationManagementC
 			pendingIntegrationId: integrationId,
 		});
 		const end = await this.#runJob(
-			mutation === null
-				? { kind: 'list' }
-				: { kind: mutation.direction, provider: mutation.integrationId },
+			mutation === null ? { kind: 'list' } : mutationOperation(mutation),
 		);
 		this.#operating = false;
 		if (this.#disposed || end.kind === 'disposed') return { kind: 'unavailable' };
@@ -177,9 +176,7 @@ export class ServerAgentIntegrationClient implements AgentIntegrationManagementC
 	}
 
 	/** Starts one operation and polls it to its report; past the deadline it asks the job to stop. */
-	async #runJob(
-		operation: Extract<JobAction, { readonly kind: 'start' }>['request']['operation'],
-	): Promise<JobEnd> {
+	async #runJob(operation: JobOperation): Promise<JobEnd> {
 		const deadline = performance.now() + JOB_DEADLINE_MILLISECONDS;
 		const started = await this.#exchange({ kind: 'start', request: { operation } }, deadline);
 		if (started.kind === 'lost') {
@@ -295,6 +292,14 @@ export class ServerAgentIntegrationClient implements AgentIntegrationManagementC
 			}
 		}
 	}
+}
+
+// One literal per direction: a combined `kind` over every provider exceeds the compiler's
+// discriminated-union expansion limit.
+function mutationOperation(mutation: Mutation): JobOperation {
+	return mutation.direction === 'enable'
+		? { kind: 'enable', provider: mutation.integrationId }
+		: { kind: 'disable', provider: mutation.integrationId };
 }
 
 function delay(milliseconds: number): Promise<void> {

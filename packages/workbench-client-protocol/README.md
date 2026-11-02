@@ -414,7 +414,8 @@ it embeds: closed vocabularies, all three node path forms, the 4,096-byte text p
 [shared corpus](../../schemas/workbench/v1/workbench-agent-integration-conformance-v1.json) and
 [schema](../../schemas/workbench/v1/workbench-agent-integration.schema.json) with the independent
 Rust binding. It rebuilds no path and grants no mutation; the Worker's writer decides every
-operation.
+operation. `AGENT_INTEGRATION_PROVIDERS` exports the provider vocabulary in registry order, which
+Web Settings lists as its rows.
 
 ## Plugin overlay contract
 

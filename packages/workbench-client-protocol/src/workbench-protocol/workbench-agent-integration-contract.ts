@@ -16,8 +16,8 @@ const MAXIMUM_BUDGET_MILLISECONDS = 40_000;
 
 const utf8 = new TextEncoder();
 
-/** Provider-registry spellings, the only integration vocabulary on the wire. */
-const ProviderSchema = z.enum([
+/** Provider-registry spellings in registry order, the only integration vocabulary on the wire. */
+export const AGENT_INTEGRATION_PROVIDERS = [
 	'claude-code',
 	'codex',
 	'grok',
@@ -38,7 +38,9 @@ const ProviderSchema = z.enum([
 	'github-copilot',
 	'cline',
 	'qwen-code',
-]);
+] as const;
+
+const ProviderSchema = z.enum(AGENT_INTEGRATION_PROVIDERS);
 
 /** A path on the executing node. Only that node's platform family rebuilds a non-text form. */
 const NodePathSchema = z.union([

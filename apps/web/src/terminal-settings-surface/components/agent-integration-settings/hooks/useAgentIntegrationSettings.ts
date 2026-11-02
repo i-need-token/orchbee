@@ -1,16 +1,11 @@
-import {
-	agentIntegrationMessages,
-	agentObservationMessages,
-	useOrchbeeIntl,
-	type MessageDescriptor,
-} from '@orchbee/i18n';
+import { agentIntegrationMessages, useOrchbeeIntl } from '@orchbee/i18n';
 
 import * as React from 'react';
 
-import type {
-	AgentIntegrationId,
-	AgentIntegrationManagementControl,
-	AgentIntegrationReminderController,
+import {
+	AGENT_INTEGRATION_NAME_MESSAGES,
+	type AgentIntegrationManagementControl,
+	type AgentIntegrationReminderController,
 } from '../../../../agent-integration-management';
 import {
 	enableAgentIntegration,
@@ -19,19 +14,6 @@ import {
 	type AgentIntegrationSettingsRowView,
 	type AgentIntegrationSettingsView,
 } from '../model/agent-integration-settings-view';
-
-const AGENT_NAME_MESSAGES: Readonly<Record<AgentIntegrationId, MessageDescriptor>> = {
-	'claude-code': agentObservationMessages.providerClaudeCode,
-	cline: agentObservationMessages.providerCline,
-	codex: agentObservationMessages.providerCodex,
-	gemini: agentObservationMessages.providerGeminiCli,
-	'github-copilot': agentObservationMessages.providerGitHubCopilotCli,
-	grok: agentObservationMessages.providerGrok,
-	omp: agentObservationMessages.providerOmp,
-	opencode: agentObservationMessages.providerOpenCode,
-	pi: agentObservationMessages.providerPi,
-	'qwen-code': agentObservationMessages.providerQwenCode,
-};
 
 export function useAgentIntegrationSettings(
 	control: AgentIntegrationManagementControl,
@@ -44,7 +26,9 @@ export function useAgentIntegrationSettings(
 		control.getSnapshot,
 	);
 	const rows = snapshot.integrations.map((integration): AgentIntegrationSettingsRowView => {
-		const agentName = intl.formatMessage(AGENT_NAME_MESSAGES[integration.integrationId]);
+		const agentName = intl.formatMessage(
+			AGENT_INTEGRATION_NAME_MESSAGES[integration.integrationId],
+		);
 		const pending =
 			snapshot.pending &&
 			(snapshot.pendingIntegrationId === null ||

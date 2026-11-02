@@ -398,8 +398,9 @@ ranking ties are explicitly excluded.
 Only the Desktop composition injects `AgentIntegrationManagementControl`, as
 `ServerAgentIntegrationClient`, and `AgentIntegrationReminderController`. Browser Preview clients
 omit the Agent Integrations category, its search entries, and the reminder. The renderer consumes one
-canonical ten-entry snapshot and displays curated Agent names, bounded states and failures, and the
-shared privacy explanation. It receives no Agent command output, executable path, adapter resource
+canonical snapshot with a row for every wire provider in registry order, taken from
+`AGENT_INTEGRATION_PROVIDERS` in `@orchbee/workbench-client-protocol`, and displays curated Agent
+names, bounded states and failures, and the shared privacy explanation. It receives no Agent command output, executable path, adapter resource
 path, filesystem capability, or remote-host authority.
 
 Opening Settings, selecting Agent Integrations, rendering rows, and searching are read-only. Refresh

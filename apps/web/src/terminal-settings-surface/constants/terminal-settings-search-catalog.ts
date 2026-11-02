@@ -1,12 +1,15 @@
 import {
 	agentIntegrationMessages,
-	agentObservationMessages,
 	keyboardShortcutMessages,
 	terminalSettingsCatalogMessages,
 	terminalSettingsMessages,
 	type MessageDescriptor,
 } from '@orchbee/i18n';
 
+import {
+	AGENT_INTEGRATION_IDS,
+	AGENT_INTEGRATION_NAME_MESSAGES,
+} from '../../agent-integration-management';
 import type { TerminalSettingsCategory } from '../types/terminal-settings-surface';
 
 export type TerminalSettingsSearchCapability =
@@ -30,26 +33,13 @@ export interface TerminalSettingsSearchItemDefinition {
 }
 
 export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItemDefinition[] = [
-	...(
-		[
-			['claude-code', agentObservationMessages.providerClaudeCode],
-			['cline', agentObservationMessages.providerCline],
-			['codex', agentObservationMessages.providerCodex],
-			['gemini', agentObservationMessages.providerGeminiCli],
-			['github-copilot', agentObservationMessages.providerGitHubCopilotCli],
-			['grok', agentObservationMessages.providerGrok],
-			['opencode', agentObservationMessages.providerOpenCode],
-			['pi', agentObservationMessages.providerPi],
-			['omp', agentObservationMessages.providerOmp],
-			['qwen-code', agentObservationMessages.providerQwenCode],
-		] as const
-	).map(([integrationId, label]) => ({
+	...AGENT_INTEGRATION_IDS.map((integrationId) => ({
 		capability: 'desktop-agent-integrations' as const,
 		category: 'agent-integrations' as const,
 		description: agentIntegrationMessages.description,
 		id: `agent-integrations.${integrationId}`,
 		keywords: ['Agent', 'adapter', 'hook', 'status'],
-		label,
+		label: AGENT_INTEGRATION_NAME_MESSAGES[integrationId],
 		section: agentIntegrationMessages.localSection,
 		targetId: `agent-integrations.${integrationId}`,
 	})),

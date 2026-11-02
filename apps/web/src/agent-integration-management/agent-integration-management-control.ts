@@ -1,18 +1,8 @@
+import { AGENT_INTEGRATION_PROVIDERS } from '@orchbee/workbench-client-protocol';
 import { z } from 'zod';
 
-/** The Agents Settings lists, in row order. */
-export const AGENT_INTEGRATION_IDS = [
-	'claude-code',
-	'codex',
-	'grok',
-	'opencode',
-	'pi',
-	'omp',
-	'gemini',
-	'github-copilot',
-	'cline',
-	'qwen-code',
-] as const;
+/** The Agents Settings lists every wire provider, in registry order. */
+export const AGENT_INTEGRATION_IDS = AGENT_INTEGRATION_PROVIDERS;
 
 export const AgentIntegrationIdSchema = z.enum(AGENT_INTEGRATION_IDS);
 

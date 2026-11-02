@@ -1,3 +1,4 @@
+export { AGENT_INTEGRATION_PROVIDERS } from './workbench-agent-integration-contract';
 export {
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchRequestIdSchema,
