@@ -220,15 +220,22 @@ under its heading. The default Workspace gap is zero rows. These external separa
 background and an inert list-surface target; hover, press, current and navigation surfaces never
 include them. Only the gap between Agent siblings stays inside the following Agent row so its trunk continues.
 Current Workspace entries retain their exact targets and neutral full-width `surface-current`
-while typing, except when their active Agent is visible: the Agent keeps that fill and its parent
-Workspace uses the quieter `surface-related` background. When that Agent is folded away, the
-Workspace takes the current fill and repeats the hidden Agents' unread marker. A noncurrent
-Workspace also receives the related background while one of its Agents owns provisional keyboard
-navigation. Direct press, navigation and hover feedback on the Workspace takes precedence over its
+while typing. A visible active Agent shares that same fill, so the current Workspace and its current
+Agent read as one current group; the Agent's tree lead stays on chrome. When that Agent is folded
+away, the Workspace keeps the current fill and repeats the hidden Agents' unread marker. A
+noncurrent Workspace receives the quieter `surface-related` background while one of its Agents
+owns provisional keyboard navigation, so that tint never reads as current. Direct press, navigation and hover feedback on the Workspace takes precedence over its
 current and related backgrounds. This presentation never activates or focuses a second target.
 Unknown or reduced-color hosts, including `terminal-native` and Monochrome, leave the related fill
-empty; the guide then connects the filled Agent to its Workspace. Project and Recents headings are
-never current or related, even while folded around the current Workspace; a click only folds them.
+empty; the guide then connects the navigated Agent to its Workspace. Project and Recents headings are
+never current or related, even while folded around the current Workspace. A pointer folds them only
+through the disclosure glyph; a click elsewhere on the heading does nothing. Their row takes no
+hover or press fill, because their first Workspace sits directly beneath them: pointer presence
+on the heading raises the disclosure glyph to `text-primary` instead, and the glyph itself never
+takes a hover or press fill. A Workspace with Agents keeps its
+whole-row hover and click; pointer presence on that row also raises its disclosure glyph to
+`text-primary`, as it does on headings. Keyboard navigation keeps its
+selection surface, and Enter still toggles the focused heading.
 The same continuous rectangle includes the name, branch, configured metadata and
 identity continuations, including their gutters and trailing space. It stops at the entry's own
 last line, excluding separators, group headings and neighboring entries.
@@ -524,8 +531,8 @@ focus or selection. Menu, Create, right-click and wheel retain their specialized
 
 Agent vertical guides occupy a fixed one-cell track under the Workspace name. Configured
 continuation rows align with the Workspace name. Secondary rows use metadata text and retain
-explicit token overrides. Current Contexts and Agents use the same neutral current surface; a
-visible current Agent's Workspace uses the quieter related surface. The fill alone marks current
+explicit token overrides. Current Contexts and Agents use the same neutral current surface, including a
+current Workspace whose current Agent is visible. The fill alone marks current
 identity in the named themes; terminal-native also underlines it, and so does any collapsed palette
 or Monochrome that leaves no fill. Agent state, unread state and keyboard navigation remain in
 separate cells.

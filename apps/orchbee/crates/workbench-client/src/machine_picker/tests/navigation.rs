@@ -280,8 +280,13 @@ fn sidebar_source_mints_only_live_parts_and_rejects_structurally_stale_release()
             .drawn(agent_target, SidebarPart::Disclosure, window)
             .is_none()
     );
+    let project_disclosure = source
+        .drawn(project.clone(), SidebarPart::Disclosure, window)
+        .unwrap();
+    // A heading folds only through its disclosure; its body is inert.
+    assert_eq!(picker.sidebar_activation(&project_primary), None);
     assert_eq!(
-        picker.sidebar_activation(&project_primary),
+        picker.sidebar_activation(&project_disclosure),
         Some(SidebarActivation::ToggleGroup(project.clone()))
     );
     assert_eq!(

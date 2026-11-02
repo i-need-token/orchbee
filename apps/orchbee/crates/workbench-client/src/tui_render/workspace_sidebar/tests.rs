@@ -1706,9 +1706,7 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
             for x in 0..120 {
                 assert_eq!(
                     candidate[(x, y)].bg,
-                    theme.color(if target == &context {
-                        Role::SurfaceRelated
-                    } else if x < tracks.surface().x {
+                    theme.color(if target != &context && x < tracks.surface().x {
                         Role::SurfaceChrome
                     } else {
                         Role::SurfaceCurrent

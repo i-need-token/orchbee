@@ -206,6 +206,13 @@ impl CloseState {
         self.set.as_ref().is_some_and(CloseSetRun::active)
     }
 
+    /// Whether several Tabs are closing as one sequence, which any focus change stops.
+    pub(in crate::workbench_state) fn sequence_active(&self) -> bool {
+        self.set
+            .as_ref()
+            .is_some_and(|set| set.active() && set.capture.tabs.len() > 1)
+    }
+
     pub(in crate::workbench_state) fn halt_set(&mut self) {
         if let Some(set) = &mut self.set {
             set.halt();
@@ -473,6 +480,7 @@ impl WorkbenchClientState {
 
     /// Check the old local premises before the membership owner changes them. Checking only
     /// after its commit would launder same-tick user navigation/marking into an owned transition.
+    /// One Tab has no later Start for a local change to stop, such as the selection leaving it.
     pub(in crate::workbench_state) fn before_close_set_member_install(
         &mut self,
         target: &CloseTarget,
@@ -484,7 +492,7 @@ impl WorkbenchClientState {
             return;
         }
         if !matches!(&set.step, Step::Verifying { key, .. } if key.target() == target)
-            || !self.close_set_premises_current(set)
+            || (set.capture.tabs.len() > 1 && !self.close_set_premises_current(set))
         {
             self.close.halt_set();
         }

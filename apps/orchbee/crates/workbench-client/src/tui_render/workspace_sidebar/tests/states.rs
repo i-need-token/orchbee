@@ -90,7 +90,7 @@ fn move_pointer(pointer: &mut PointerState, view: &mut ClientView, x: u16, y: u1
 }
 
 #[test]
-fn current_workspace_and_agent_have_distinct_surfaces_and_collapse_restores_the_owner_fill() {
+fn current_workspace_and_agent_share_the_current_surface_and_collapse_keeps_the_owner_fill() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
@@ -108,7 +108,7 @@ fn current_workspace_and_agent_have_distinct_surfaces_and_collapse_restores_the_
             assert_eq!(agent_rows[0], owner_rows[1] + 1);
             for y in owner_rows {
                 assert_eq!(buffer[(0, y)].symbol(), " ");
-                assert!((0..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceRelated)));
+                assert!((0..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceCurrent)));
             }
             // The Agent surface includes one blank cell before state; the tree stays on chrome.
             let surface_x = agent_surface_x(&view, &agent);

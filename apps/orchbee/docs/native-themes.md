@@ -172,9 +172,9 @@ pickers. The native theme pairs ANSI gray with black body text, without DIM on h
 both named themes use a neutral fill against chrome and retain their primary/secondary
 text colors. One Light uses `[224, 228, 235]` against `[240, 242, 245]` chrome so the persistent
 row remains visible while input belongs to a terminal. This fill remains quieter than keyboard
-selection and preserves readable text contrast. The most specific visible current row owns the
-fill: when an active Agent is shown, its Workspace takes the quieter related surface instead of
-merging with that Agent's fill. Folding the Agents returns the fill to the Workspace. The fill alone
+selection and preserves readable text contrast. A current Workspace and its visible active
+Agent share this one fill rather than two neighboring shades; folding the Agents leaves the fill
+on the Workspace alone. The fill alone
 marks the current sidebar row in the named themes: names keep their normal weight and no marker is
 added; status glyphs and explicit token colors remain semantic. Terminal-native keeps the ANSI gray
 fill and also underlines the complete current row, as Monochrome does, because ANSI 7 can sit

@@ -117,8 +117,13 @@ distinct from focus, provisional navigation, validation, and pending state.
 Pointer hover never moves keyboard focus, current context, or a checked value, and never adds
 `BOLD`. It changes the background. An action whose own label or glyph rests in `text-secondary`,
 such as an inactive tab, an auxiliary button, or an icon action, rises to `text-primary`; list rows
-keep their content hierarchy, including secondary headings and metadata. `BOLD` marks press and
-any current identity whose owner documents bold. An open action menu updates its provisional
+keep their content hierarchy, including secondary headings and metadata. A group heading whose body
+is inert and that folds only through its disclosure glyph is the exception: its row paints no hover
+or press surface, so the feedback names the one control that acts and never merges with the rows
+beneath it. A disclosure glyph never takes a fill of its own; any row with one raises the glyph to
+`text-primary` while the pointer is on the row or the glyph, so a row that activates as a whole
+still shows where it folds. `BOLD` marks press and any current identity whose owner documents
+bold. An open action menu updates its provisional
 candidate on real unmodified, button-free movement over an enabled painted row, using the same
 full-row selection fill and navigation marker as keyboard navigation. This never executes an
 action. A cascaded submenu row also opens its child after the pointer rests on it briefly, as a

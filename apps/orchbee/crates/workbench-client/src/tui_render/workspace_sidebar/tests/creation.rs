@@ -254,12 +254,10 @@ fn foreground_creation_yields_to_the_admitted_member_after_commit() {
                     &hits,
                     &workspace,
                     &theme,
-                    if pending_current && !provisional {
-                        Role::SurfaceCurrent
-                    } else if pending_current {
+                    if pending_current && provisional {
                         Role::SurfaceChrome
                     } else {
-                        Role::SurfaceRelated
+                        Role::SurfaceCurrent
                     },
                 );
                 assert_creation_member_surface(&buffer, &hits, &alpha, &theme, Role::SurfaceChrome);
@@ -343,10 +341,8 @@ fn retained_committed_preview_follows_member_switches_and_collapsed_ancestors() 
                         &hits,
                         row,
                         &theme,
-                        if row == current {
+                        if row == current || row == &workspace && current != &other {
                             Role::SurfaceCurrent
-                        } else if row == &workspace && current != &other {
-                            Role::SurfaceRelated
                         } else {
                             Role::SurfaceChrome
                         },
@@ -377,11 +373,7 @@ fn retained_committed_preview_follows_member_switches_and_collapsed_ancestors() 
                     &hits,
                     &workspace,
                     &theme,
-                    if collapsed {
-                        Role::SurfaceCurrent
-                    } else {
-                        Role::SurfaceRelated
-                    },
+                    Role::SurfaceCurrent,
                 );
                 if collapsed {
                     assert!(sidebar_target_rows(&hits, 64, 20, &alpha).is_empty());

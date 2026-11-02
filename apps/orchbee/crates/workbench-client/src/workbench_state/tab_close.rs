@@ -242,7 +242,13 @@ impl CloseRecord {
     /// Whether the status line reports this close: every failure, unknown and recovery at once,
     /// and a close still progressing normally only after the pending delay.
     fn announced(&self) -> bool {
-        let progressing = match &self.status {
+        self.announced || self.unavailable || self.uncertain || !self.progressing()
+    }
+
+    /// Whether the close is on its ordinary way out: submitted, accepted, closing or closed, with
+    /// no failure, unknown outcome or lost observation.
+    fn progressing(&self) -> bool {
+        match &self.status {
             None
             | Some(
                 WorkbenchTabCloseStatus::Closing { .. } | WorkbenchTabCloseStatus::Closed { .. },
@@ -254,8 +260,14 @@ impl CloseRecord {
                 WorkbenchTabCloseStatus::CleanupBlocked { .. }
                 | WorkbenchTabCloseStatus::OutcomeUnknown { .. },
             ) => false,
-        };
-        self.announced || self.unavailable || self.uncertain || !progressing
+        }
+    }
+
+    fn leaving(&self, tab_id: &WorkbenchTabId) -> bool {
+        self.selection.target.tab_id() == tab_id
+            && !self.unavailable
+            && !self.uncertain
+            && self.progressing()
     }
 
     fn resumable(&self) -> bool {
@@ -437,6 +449,21 @@ impl CloseState {
     fn token(&mut self) -> Option<u64> {
         self.next_display_token = self.next_display_token.checked_add(1)?;
         Some(self.next_display_token)
+    }
+
+    /// Whether this Tab has already left the Client's view: its close is progressing normally, so
+    /// the strip and navigation leave it out at once instead of when the Server's publication
+    /// lands. A close that fails, turns unknown or loses its observation shows the Tab again with
+    /// its report.
+    pub(crate) fn tab_leaving(&self, tab_id: &WorkbenchTabId) -> bool {
+        self.records.iter().any(|record| record.leaving(tab_id))
+    }
+
+    /// Whether the Server accepted the close of this leaving Tab, so the selection may move off it.
+    pub(crate) fn tab_close_accepted(&self, tab_id: &WorkbenchTabId) -> bool {
+        self.records
+            .iter()
+            .any(|record| record.leaving(tab_id) && record.operation.is_some())
     }
 
     fn record_index(&self, target: &CloseTarget) -> Option<usize> {
@@ -913,6 +940,33 @@ impl super::WorkbenchClientState {
             confirmation.local_focus = Some(focus);
         }
         Ok(())
+    }
+
+    /// Whether the Tab at `index` is still in the Client's view, not leaving with its close.
+    pub(crate) fn tab_shown(&self, index: usize) -> bool {
+        self.cache
+            .tabs()
+            .get(index)
+            .is_some_and(|tab| !self.close.tab_leaving(tab.tab_id()))
+    }
+
+    /// Where the selection goes once the Server accepts the selected Tab's close: the next Tab
+    /// still shown, else the previous one, the survivor the removal itself would select. The
+    /// Panel then leaves with the strip entry instead of when the publication lands. There is
+    /// none for the last Tab, or while several Tabs close as one sequence, which a focus change
+    /// would stop.
+    pub(crate) fn leaving_selection_successor(&self) -> Option<usize> {
+        let selected = self.active()?.index();
+        if !self
+            .close
+            .tab_close_accepted(self.cache.tabs().get(selected)?.tab_id())
+            || self.close.sequence_active()
+        {
+            return None;
+        }
+        (selected + 1..self.cache.tabs().len())
+            .find(|index| self.tab_shown(*index))
+            .or_else(|| (0..selected).rev().find(|index| self.tab_shown(*index)))
     }
 
     fn close_confirmation_scope_available(&self) -> bool {

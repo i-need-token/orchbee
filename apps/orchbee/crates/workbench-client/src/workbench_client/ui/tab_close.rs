@@ -10,7 +10,8 @@ use crate::workbench_client::mailbox::{
 };
 use crate::workbench_state::{self, TabCloseResumePermit};
 use crate::workbench_state::{
-    CarrierFailure, CloseOperation, CloseResult, OPERATION_TOTAL, WorkbenchClientState,
+    CarrierFailure, CloseOperation, CloseResult, OPERATION_TOTAL, OperationDeadlines,
+    WorkbenchClientState,
 };
 use std::sync::Arc;
 
@@ -648,6 +649,52 @@ impl WorkbenchClientUi {
         );
         if let Err(CloseAdmissionError::Closed(closed)) = result {
             self.retire(closed.failure());
+        }
+    }
+
+    /// Moves the selection off a Tab whose close the Server accepted, onto the survivor its
+    /// removal would select, so the Panel leaves with the strip entry. The move is the Client's
+    /// own: a refused admission reports nothing and a later tick tries again while the close is
+    /// on its way.
+    pub(super) fn follow_leaving_selection(&mut self, mailbox: &Arc<CommandMailbox>) -> bool {
+        let Some(index) = self
+            .state
+            .as_ref()
+            .and_then(WorkbenchClientState::leaving_selection_successor)
+        else {
+            return false;
+        };
+        let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
+            self.retire(CarrierFailure::Deadline);
+            return true;
+        };
+        let Some(state) = self.state.as_mut() else {
+            return false;
+        };
+        let result = mailbox.try_enqueue_switch_for(
+            state,
+            |state, generation| super::build_switch_to(state, index, generation, deadlines),
+            |state, result, facts| {
+                if result.is_ok() {
+                    state.finish_switch_membership_admission(
+                        facts.discarded(),
+                        facts.inherited(),
+                        facts.authorized_cleanup(),
+                    );
+                }
+            },
+        );
+        match result {
+            Ok(_generation) => {
+                // As for any switch, state hides the old projections.
+                self.pending_draws.clear();
+                self.ordinary_poll_serial = None;
+                true
+            }
+            Err(error) => {
+                self.retire_for_admission(&error);
+                false
+            }
         }
     }
 

@@ -3890,31 +3890,44 @@ impl WorkbenchClientState {
         if matches!(&self.phase, ClientPhase::Retired(_)) {
             return SelectionPlan::Busy;
         }
-        let count = self.cache.tabs().len();
         let Some(anchor) = self.active().map(SelectedTab::index) else {
             return SelectionPlan::Busy;
         };
+        // A leaving Tab is already out of the strip, so cycling and positions count the Tabs it
+        // still shows.
+        let shown: Vec<usize> = (0..self.cache.tabs().len())
+            .filter(|index| self.tab_shown(*index))
+            .collect();
         let index = match action {
-            ClientAction::SelectNextTab if count != 0 => (anchor + 1) % count,
-            ClientAction::SelectPreviousTab if count != 0 => (anchor + count - 1) % count,
+            ClientAction::SelectNextTab => shown
+                .iter()
+                .find(|index| **index > anchor)
+                .or_else(|| shown.first()),
+            ClientAction::SelectPreviousTab => shown
+                .iter()
+                .rev()
+                .find(|index| **index < anchor)
+                .or_else(|| shown.last()),
             ClientAction::SelectTab(position) => {
-                let Some(index) = usize::from(position).checked_sub(1) else {
+                let Some(index) = usize::from(position)
+                    .checked_sub(1)
+                    .and_then(|index| shown.get(index))
+                else {
                     return SelectionPlan::OutOfRange(position);
                 };
-                if index >= count {
-                    return SelectionPlan::OutOfRange(position);
-                }
-                index
+                Some(index)
             }
             _ => return SelectionPlan::Busy,
         };
-        self.plan_selection_index(index)
+        index.map_or(SelectionPlan::NoOp, |index| {
+            self.plan_selection_index(*index)
+        })
     }
 
     pub(crate) fn plan_selection_index(&self, index: usize) -> SelectionPlan {
         if self.mutation_blocks_structure()
             || self.rename_draft_blocks_structure()
-            || index >= self.cache.tabs().len()
+            || !self.tab_shown(index)
         {
             return SelectionPlan::Busy;
         }
@@ -4301,6 +4314,17 @@ impl<'a> WorkbenchClientView<'a> {
 
     pub(crate) fn tab_count(&self) -> usize {
         self.state.cache.tabs().len()
+    }
+
+    /// Whether this Tab's close is progressing normally, so the strip already leaves it out.
+    pub(crate) fn tab_leaving(&self, tab_id: &WorkbenchTabId) -> bool {
+        self.state.close.tab_leaving(tab_id)
+    }
+
+    /// Whether the selected Tab is leaving with no other Tab shown for the selection to follow.
+    pub(crate) fn last_tab_leaving(&self) -> bool {
+        self.state.active().is_some()
+            && !(0..self.state.cache.tabs().len()).any(|index| self.state.tab_shown(index))
     }
 
     pub(crate) fn tab(&self, index: usize) -> Option<ClientTabView<'a>> {

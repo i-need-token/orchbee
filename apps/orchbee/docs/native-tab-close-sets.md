@@ -122,11 +122,23 @@ the unknown and late facts a real run cannot force.
 ## Close status
 
 A close of one Tab behaves the same from every route. The Tab leaving reports a normal close, so it
-adds no notice and no count. Until 1 second after submission an unreported close also withholds the
-selected Tab's connection and exit cues; the Panel title still says how its terminal ended. A real
-PowerShell Tab leaves 0.1 to 0.15 seconds after the close starts on a debug build, but a slower
-shell or a busy machine would flash the 200 ms delay of other pending indications. Past the delay
-`{label} · Closing` appears, as when a shell outlasts the five-second Terminate grace.
+adds no notice and no count. From the draw after its close is submitted, while that close is
+progressing normally, the Client treats the Tab as gone instead of waiting for the Server's
+publication to remove it from the canonical list: the strip leaves it out, next, previous and
+numbered Tab selection skip it and count positions without it, and nothing selects it. Once the
+Server accepts the close of the selected Tab, the selection moves to the next Tab still shown, else
+the previous one, the survivor the removal itself selects, so the Panel goes with the strip entry
+while the terminal ends in the background. The last Tab leaves the empty Workbench in the Panel at
+once. While several Tabs close as one sequence the selection stays, because a focus change stops
+the sequence. A refused, blocked, unknown or unobserved close shows the Tab again with its report,
+and the selection stays where it moved; a Tab of a set leaves as its own close is submitted. Until
+1 second after submission an unreported close also withholds the selected Tab's connection and exit
+cues; the Panel title still says how its terminal ended. On a debug build the Panel shows the next
+Tab 40 to 60 ms after the close starts, and a PowerShell Tab at its prompt leaves the canonical list
+0.1 to 0.15 seconds after it, but a slower shell or a busy machine would flash the 200 ms delay of
+other pending indications. Past the delay `{label} · Closing` appears, as when a program running in
+the shell keeps the console after Terminate ends the shell and the close waits out the five-second
+grace.
 
 Status reads of a retained close are 250 ms apart, except that a Workbench publication lets the
 next one go at once: the Server publishes a closed Tab as it finishes, and the close set holds

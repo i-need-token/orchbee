@@ -554,6 +554,71 @@ fn canonical_receipt_and_closed_revision_are_retained_independently_of_reads() {
     );
 }
 
+#[test]
+fn a_progressing_close_leaves_the_strip_and_a_blocked_one_returns() {
+    let selected = selection(0);
+    let tab = selected.target().tab_id().clone();
+    let mut state = CloseState::default();
+    assert!(!state.tab_leaving(&tab));
+    state
+        .retain_submission(selected.clone(), Instant::now())
+        .unwrap();
+    assert!(state.tab_leaving(&tab));
+    observe(
+        &mut state,
+        &selected,
+        1,
+        WorkbenchTabCloseStatus::Closing {
+            phase: orchbee_workbench_protocol::WorkbenchTabClosePhase::WaitingGrace,
+        },
+    );
+    assert!(state.tab_leaving(&tab));
+    assert!(!state.tab_leaving(selection(1).target().tab_id()));
+    observe(&mut state, &selected, 1, parked());
+    assert!(!state.tab_leaving(&tab));
+}
+
+#[test]
+fn navigation_skips_a_leaving_tab_and_an_accepted_close_moves_the_selection() {
+    use crate::client_view::ClientAction;
+    use crate::workbench_state::SelectionPlan;
+    let mut state = ready(3);
+    let now = Instant::now();
+    let operation = admit_close(&mut state, 821, now);
+    assert_eq!(state.plan_selection_index(0), SelectionPlan::Busy);
+    for (action, plan) in [
+        (
+            ClientAction::SelectNextTab,
+            SelectionPlan::Switch { index: 1 },
+        ),
+        (
+            ClientAction::SelectPreviousTab,
+            SelectionPlan::Switch { index: 2 },
+        ),
+        (
+            ClientAction::SelectTab(1),
+            SelectionPlan::Switch { index: 1 },
+        ),
+        (ClientAction::SelectTab(3), SelectionPlan::OutOfRange(3)),
+    ] {
+        assert_eq!(state.plan_selection(action), plan);
+    }
+    // The selection waits for the Server to accept the close before it moves.
+    assert_eq!(state.leaving_selection_successor(), None);
+    let target = operation.key().target();
+    let accepted = WorkbenchTabCloseAccepted {
+        close_request_id: operation.key().request_id().clone(),
+        terminal_context_id: target.terminal_context_id().clone(),
+        tab_id: target.tab_id().clone(),
+        accepted_revision: operation.selection().base_revision(),
+    };
+    state
+        .settle_close_exchange(&operation, &CloseResult::Accepted(accepted))
+        .unwrap();
+    assert_eq!(state.leaving_selection_successor(), Some(1));
+    assert!(!state.view().last_tab_leaving());
+}
+
 fn admit_close(state: &mut WorkbenchClientState, identity: u128, now: Instant) -> CloseOperation {
     state.open_close_confirmation().unwrap();
     let token = state.view().close_confirmation().unwrap().token();

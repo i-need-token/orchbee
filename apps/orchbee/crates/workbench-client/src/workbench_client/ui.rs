@@ -507,6 +507,20 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.as_ref().map_or(0, ClientStateView::tab_count)
     }
 
+    /// Whether the strip already leaves this Tab out while its close finishes.
+    pub(crate) fn tab_leaving(&self, tab_id: &WorkbenchTabId) -> bool {
+        self.state
+            .as_ref()
+            .is_some_and(|state| state.tab_leaving(tab_id))
+    }
+
+    /// Whether the selected Tab is leaving with no other Tab shown for the selection to follow.
+    pub(crate) fn last_tab_leaving(&self) -> bool {
+        self.state
+            .as_ref()
+            .is_some_and(ClientStateView::last_tab_leaving)
+    }
+
     /// The live Tab with this identity.
     pub(crate) fn tab_by_id(&self, id: &WorkbenchTabId) -> Option<ClientTabView<'a>> {
         (0..self.tab_count())
@@ -1896,6 +1910,8 @@ impl WorkbenchClientUi {
             changed |= self.replay_held_intent();
             // A lost focused viewer re-attaches before a background read can take the slot.
             changed |= self.drive_viewer_recovery(&mailbox);
+            // So does the selection leaving a Tab whose close the Server accepted.
+            changed |= self.follow_leaving_selection(&mailbox);
             if self
                 .publications
                 .as_ref()
@@ -4980,6 +4996,35 @@ fn build_switch(
         }
         SelectionPlan::Switch { index } => index,
     };
+    switch_to(state, index, generation, deadlines)
+}
+
+/// `build_switch` for a Tab chosen by index rather than by a navigation action, under the same
+/// selection plan.
+fn build_switch_to(
+    state: &mut WorkbenchClientState,
+    index: usize,
+    generation: u64,
+    deadlines: OperationDeadlines,
+) -> Result<SwitchMarker, ActionBuildError> {
+    if !state.invariant_holds() {
+        return Err(ActionBuildError::Protocol);
+    }
+    if !matches!(
+        state.plan_selection_index(index),
+        SelectionPlan::Switch { index: planned } if planned == index
+    ) {
+        return Err(ActionBuildError::Busy);
+    }
+    switch_to(state, index, generation, deadlines)
+}
+
+fn switch_to(
+    state: &mut WorkbenchClientState,
+    index: usize,
+    generation: u64,
+    deadlines: OperationDeadlines,
+) -> Result<SwitchMarker, ActionBuildError> {
     let tab_id = state
         .tab(index)
         .map(|tab| tab.tab_id().clone())

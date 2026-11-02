@@ -1406,10 +1406,14 @@ fn render_native_workbench(
             .sidebar
             .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay);
     let panel_area = areas.panel;
+    // The last Tab leaves the Panel with its strip entry: no other Tab remains for the selection
+    // to follow, so the Panel reads as the empty Workbench its removal leaves.
+    let last_tab_leaving = native.last_tab_leaving() && native.retirement().is_none();
     let active_tab = native
         .active_position()
         .and_then(|p| p.checked_sub(1))
-        .and_then(|index| native.tab(index));
+        .and_then(|index| native.tab(index))
+        .filter(|_| !last_tab_leaving);
     let pane_frame = PaneFrame::of(
         areas.tier.shows_panel_frame(),
         active_tab.map_or(0, |tab| tab.panel_count()),
@@ -1473,6 +1477,22 @@ fn render_native_workbench(
     }
 
     let content_area = native_terminal_area(panel_area, pane_frame);
+    if last_tab_leaving {
+        let empty = locale.native_phase_status_values(
+            DisplayPhase::Empty,
+            None,
+            None,
+            None,
+            native.projection_status(),
+            None,
+        );
+        frame.render_widget(
+            Paragraph::new(wrap_text(&Text::from(empty), content_area.width))
+                .style(theme.style(Role::TextSecondary)),
+            content_area,
+        );
+        return;
+    }
     if pane_frame != PaneFrame::Bare && active_tab.is_some() {
         frame.render_widget(
             Block::new()
@@ -1916,9 +1936,19 @@ fn render_tab_strip(
 
     let create_offset = {
         let selected = native.selected_tab_ids();
-        let displayed = (0..native.tab_count())
+        // A Tab whose close is progressing leaves the strip at once; the Server's publication
+        // removes it from the canonical list shortly after. Strip indices map through `shown`.
+        let shown = (0..native.tab_count())
+            .filter(|&index| {
+                native
+                    .tab(index)
+                    .is_some_and(|tab| !native.tab_leaving(tab.tab_id()))
+            })
+            .collect::<Vec<_>>();
+        let shown_tab = |index: usize| native.tab(*shown.get(index)?);
+        let displayed = (0..shown.len())
             .filter_map(|index| {
-                let tab = native.tab(index)?;
+                let tab = shown_tab(index)?;
                 Some(tabs::groups::GroupTabDisplay {
                     selected: selected.len() > 1 && selected.contains(tab.tab_id()),
                     tab: tabs::TabDisplay {
@@ -1936,7 +1966,7 @@ fn render_tab_strip(
             })
             .collect::<Vec<_>>();
         let tab_target = |index: usize, part: tabs::groups::StripPart| {
-            let tab = native.tab(index)?;
+            let tab = shown_tab(index)?;
             match part {
                 tabs::groups::StripPart::Header => Some(HitTarget::TabGroup {
                     tab: tab.tab_id().clone(),
@@ -1951,7 +1981,7 @@ fn render_tab_strip(
         // Close and the paging edge markers are release-activated controls, not Tab gestures.
         let control_target = |index: usize, part: tabs::groups::StripPart| {
             let source = tab_source.clone()?;
-            let tab = native.tab(index)?.tab_id().clone();
+            let tab = shown_tab(index)?.tab_id().clone();
             match part {
                 tabs::groups::StripPart::Close => {
                     Some(InteractionTarget::TabCloseRequest { source, tab })
@@ -1972,10 +2002,8 @@ fn render_tab_strip(
         let control_spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
         let start = native.tab_strip_start().and_then(|start| {
             Some(tabs::groups::StripStart {
-                index: (0..native.tab_count()).position(|index| {
-                    native
-                        .tab(index)
-                        .is_some_and(|tab| *tab.tab_id() == start.tab)
+                index: (0..shown.len()).position(|index| {
+                    shown_tab(index).is_some_and(|tab| *tab.tab_id() == start.tab)
                 })?,
                 header: start.header,
             })
@@ -2013,7 +2041,7 @@ fn render_tab_strip(
                     hits.projected_tab_pointer(source, &target, rect)
                 },
                 &mut |hits, index, part, rect, cue| {
-                    let active = native.tab(index).is_some_and(|tab| tab.active());
+                    let active = shown_tab(index).is_some_and(|tab| tab.active());
                     let content = tabs::strip_tooltip(view, active, part, cue, locale, theme);
                     if is_control(part) {
                         if let Some(target) = control_target(index, part) {

@@ -1114,30 +1114,6 @@ fn current_row(view: &ClientView, row: &SidebarRow<'_>) -> bool {
     }
 }
 
-// The most specific visible current row owns the strong fill. Its Workspace uses the quieter
-// related surface.
-fn current_descendant(
-    view: &ClientView,
-    rows: &[SidebarRow<'_>],
-    projected_current: &[bool],
-    target: &SidebarTarget,
-) -> bool {
-    rows.iter().zip(projected_current).any(|(row, current)| {
-        let descendant = row.target();
-        if !*current || &descendant == target {
-            return false;
-        }
-        let mut parent = view.machines.sidebar_parent(&descendant);
-        while let Some(ancestor) = parent {
-            if &ancestor == target {
-                return true;
-            }
-            parent = view.machines.sidebar_parent(&ancestor);
-        }
-        false
-    })
-}
-
 /// Project and Recents headings open the groups every Workspace belongs to.
 fn starts_group(rows: &[SidebarRow<'_>], index: usize) -> bool {
     matches!(
@@ -1463,22 +1439,19 @@ pub(super) fn render(
         };
         let focused = owns_keyboard && view.machines.sidebar_focused_target() == Some(&target);
         let current = projected_current[row_index];
-        // A visible current Agent owns the fill; its Workspace takes the related surface, as a
-        // noncurrent Workspace does while one of its Agents holds keyboard navigation.
-        let current_ancestor =
-            current && current_descendant(view, rows, &projected_current, &target);
-        let filled_current = current && !current_ancestor;
-        let related = !filled_current
-            && (current_ancestor
-                || (matches!(row, SidebarRow::Context { .. })
-                    && owns_keyboard
-                    && view
-                        .machines
-                        .sidebar_focused_target()
-                        .filter(|focused| matches!(focused, SidebarTarget::Agent { .. }))
-                        .and_then(|focused| view.machines.sidebar_parent(focused))
-                        .as_ref()
-                        == Some(&target)));
+        // A current Workspace and its visible current Agent share one current fill. A noncurrent
+        // Workspace takes the quieter related surface while one of its Agents holds keyboard
+        // navigation, so that tint never reads as current.
+        let related = !current
+            && matches!(row, SidebarRow::Context { .. })
+            && owns_keyboard
+            && view
+                .machines
+                .sidebar_focused_target()
+                .filter(|focused| matches!(focused, SidebarTarget::Agent { .. }))
+                .and_then(|focused| view.machines.sidebar_parent(focused))
+                .as_ref()
+                == Some(&target);
         frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), band);
 
         let expanded = match row {
@@ -1698,6 +1671,21 @@ pub(super) fn render(
         } else {
             row_pointer
         };
+        // Only a Project or Recents heading's disclosure folds it. The heading takes no fill that
+        // would join the Workspace surfaces directly beneath it.
+        let heading = matches!(row, SidebarRow::Project { .. } | SidebarRow::Recents { .. });
+        let surface_pointer = if heading {
+            PointerPresentation::Rest
+        } else {
+            row_paint_pointer
+        };
+        // Pointer presence anywhere on a foldable row, the glyph included, lights its disclosure
+        // glyph, which never takes a fill of its own.
+        let disclosure_role = if row_paint_pointer == PointerPresentation::Rest {
+            Role::TextSecondary
+        } else {
+            Role::TextPrimary
+        };
         // Revealed only by pointer presence on the row or the control itself; at rest the
         // trailing metadata owns the slot and no close target is published.
         let close = close_target.filter(|_| row_paint_pointer != PointerPresentation::Rest);
@@ -1736,10 +1724,10 @@ pub(super) fn render(
                 .with_plain_current(),
             &bands,
             ControlSurface::Chrome,
-            row_state(owns_keyboard, focused, filled_current, row_paint_pointer),
+            row_state(owns_keyboard, focused, current, surface_pointer),
             theme,
         );
-        let interaction = winning_surface(row_paint_pointer, focused, filled_current)
+        let interaction = winning_surface(surface_pointer, focused, current)
             .or(related.then_some(Role::SurfaceRelated));
         // Agent surfaces include the blank cell before state; the guide and its gap stay on chrome.
         let surface = tracks.surface();
@@ -1824,19 +1812,10 @@ pub(super) fn render(
                 Paragraph::new(disclosure).style(theme.content_on_surface(
                     Role::SurfaceChrome,
                     interaction,
-                    Some(Role::TextSecondary),
-                    theme.style(Role::TextSecondary),
+                    Some(disclosure_role),
+                    theme.style(disclosure_role),
                 )),
                 tracks.first_line(tracks.disclosure),
-            );
-            let _ = paint_pointer_target(
-                frame,
-                tracks.disclosure,
-                ControlSurface::Chrome,
-                disclosure_pointer,
-                Role::TextSecondary,
-                Availability::Enabled,
-                theme,
             );
         }
 
@@ -1915,8 +1894,8 @@ pub(super) fn render(
                 frame,
                 tracks.disclosure,
                 ControlSurface::Chrome,
-                disclosure_pointer,
-                Role::TextSecondary,
+                PointerPresentation::Rest,
+                disclosure_role,
                 Availability::Enabled,
                 theme,
             )

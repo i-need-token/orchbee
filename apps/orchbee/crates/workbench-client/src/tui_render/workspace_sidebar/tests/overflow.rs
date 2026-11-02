@@ -89,7 +89,7 @@ fn active_view() -> ClientView {
 }
 
 #[test]
-fn row_and_child_hover_share_the_whole_row_surface_without_an_overflow_slot() {
+fn heading_hover_raises_only_its_disclosure_without_an_overflow_slot() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for width in [24, 30, 60] {
             let mut view = active_view();
@@ -136,10 +136,13 @@ fn row_and_child_hover_share_the_whole_row_surface_without_an_overflow_slot() {
                         12,
                         pointer.projection(),
                     );
-                    assert!(
-                        (0..width)
-                            .all(|column| candidate[(column, y)].bg
-                                == theme.color(Role::SurfaceHover))
+                    // The heading and its disclosure stay on chrome; the glyph rises instead.
+                    assert!((0..=disclosure_x).all(
+                        |column| candidate[(column, y)].bg == theme.color(Role::SurfaceChrome)
+                    ));
+                    assert_eq!(
+                        candidate[(disclosure_x, y)].fg,
+                        theme.color(Role::TextPrimary)
                     );
                     assert!((0..12).all(|row| (0..width).all(|column| !matches!(
                         map.hit_target_at(column, row),
@@ -173,16 +176,13 @@ fn row_and_child_hover_share_the_whole_row_surface_without_an_overflow_slot() {
                     12,
                     pointer.projection(),
                 );
-                for x in 0..width {
-                    assert_eq!(
-                        candidate[(x, y)].bg,
-                        theme.color(if x == disclosure_x {
-                            Role::SurfacePressed
-                        } else {
-                            Role::SurfaceHover
-                        })
-                    );
+                for x in 0..=disclosure_x {
+                    assert_eq!(candidate[(x, y)].bg, theme.color(Role::SurfaceChrome));
                 }
+                assert_eq!(
+                    candidate[(disclosure_x, y)].fg,
+                    theme.color(Role::TextPrimary)
+                );
                 pointer.publish(map);
             }
             let outcome = pointer.event(
@@ -252,7 +252,7 @@ fn project_gap_view(label: &str) -> ClientView {
 }
 
 #[test]
-fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_cell() {
+fn project_group_gap_stays_inert_while_hover_raises_only_the_inline_disclosure_glyph() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [Theme::one_light(), Theme::one_dark()] {
             for width in [24, 30, 60] {
@@ -342,11 +342,15 @@ fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_
                                 Some(HitTarget::SidebarMenu(_))
                             ))));
                             assert!((0..width).all(|column| candidate[(column, project_y)].bg
-                                == theme.color(if on_row {
-                                    Role::SurfaceHover
+                                == theme.color(Role::SurfaceChrome)));
+                            assert_eq!(
+                                candidate[(disclosure_x, project_y)].fg,
+                                theme.color(if on_row {
+                                    Role::TextPrimary
                                 } else {
-                                    Role::SurfaceChrome
-                                })));
+                                    Role::TextSecondary
+                                })
+                            );
                             // The expanded Project's disclosure shows with or without the pointer.
                             assert_eq!(
                                 candidate[(disclosure_x, project_y)].symbol(),
@@ -364,9 +368,6 @@ fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_
                                         Some(HitTarget::MachineWorkspaceSurface(_))
                                     ));
                                 }
-                            }
-                            if x == disclosure_x && y == project_y {
-                                assert_eq!(candidate[(x, y)].bg, theme.color(Role::SurfaceHover));
                             }
                             pointer.publish(map);
                         }

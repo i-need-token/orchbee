@@ -878,9 +878,10 @@ impl Picker {
             return None;
         }
         match (&drawn.target, drawn.part) {
+            // A heading folds only through its disclosure glyph; its row body stays inert.
             (
                 SidebarTarget::Project { .. } | SidebarTarget::Recents { .. },
-                SidebarPart::Primary | SidebarPart::Disclosure,
+                SidebarPart::Disclosure,
             ) => Some(SidebarActivation::ToggleGroup(drawn.target.clone())),
             (SidebarTarget::Context { .. }, SidebarPart::Disclosure) => {
                 Some(SidebarActivation::ToggleContext(drawn.target.clone()))
@@ -900,7 +901,11 @@ impl Picker {
                 SidebarPart::Close,
             ) => Some(SidebarActivation::CloseWorkspace(workspace_id.clone())),
             (_, SidebarPart::Menu | SidebarPart::Create | SidebarPart::Close) => None,
-            (SidebarTarget::Agent { .. }, SidebarPart::Disclosure) => None,
+            (
+                SidebarTarget::Project { .. } | SidebarTarget::Recents { .. },
+                SidebarPart::Primary,
+            )
+            | (SidebarTarget::Agent { .. }, SidebarPart::Disclosure) => None,
         }
     }
 
