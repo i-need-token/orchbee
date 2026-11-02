@@ -990,7 +990,8 @@ describe('startProjectedTerminalRenderer', () => {
 				expect(dataset['projectedTerminalPresentationState']).toBe('completed');
 				expect(dataset['projectedTerminalPresentationCommittedEpoch']).toBe('1');
 			});
-			expect(root.style.backgroundColor).toBe('rgba(18, 52, 86, 0.6)');
+			// The space around default-coded cells follows their client-only override.
+			expect(root.style.backgroundColor).toBe('rgba(30, 30, 30, 0.6)');
 			expect(dataset['projectedTerminalBackgroundOpacity']).toBe('0.6');
 			emitFrameTelemetry({ ...telemetry, frameId: 2, timestamp: 2 });
 			expect(dataset['projectedTerminalPresentationDrawnEpoch']).toBe('1');
