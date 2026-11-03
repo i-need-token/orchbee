@@ -1,22 +1,25 @@
 //! One primary-button owner for sidebar clicks and drag organization.
-//! Preview never mutates navigation; only a matching release can submit a move.
+//! A drag shows its move live in this Client's sidebar, around the entry it holds; only a matching
+//! release submits that move, and every other ending restores the canonical order.
 use super::{
     FrameHitMap, Gesture, HitRegionResolution, InteractionTarget, MouseAction, MouseButton,
     MouseEvent, PointerOutcome, PointerState, PrimaryContract, SidebarReorderDraw,
     SidebarReorderPaint, contains,
 };
 use crate::client_view::{ClientView, Modifiers};
-use crate::machine_picker::{DrawnSidebarTarget, SidebarPart, SidebarTarget};
-use crate::tui_hit_map::sidebar_reorder::Placement;
+use crate::machine_picker::{DrawnSidebarTarget, SidebarPart, SidebarSource, SidebarTarget};
+use crate::machine_spaces::navigation_projection::SidebarNavigationProjection;
 use crate::workbench_client::input::{
     LayoutAction, SidebarReorderSource, SurfaceAction, TerminalInputPort,
 };
 use crate::workbench_projection::ClientContextLocation;
-use orchbee_workbench_protocol::NavigationConfiguration;
+use orchbee_workbench_protocol::{
+    NavigationConfiguration, WorkbenchProjectId, WorkbenchWorkspaceId, configure_navigation,
+};
 use ratatui::layout::Rect;
 use std::time::{Duration, Instant};
 mod destination;
-use destination::{Drop, Item};
+use destination::{Drop, Item, Landing};
 #[cfg(test)]
 mod tests;
 
@@ -42,6 +45,7 @@ impl SidebarReorderPreview {
 #[derive(Clone)]
 pub(super) struct SidebarReorder {
     pub(super) source: SidebarReorderSource,
+    /// The surface and catalog of the last frame this gesture accepted.
     paint: SidebarReorderPaint,
     target: DrawnSidebarTarget,
     fingerprint: crate::tui_hit_map::interaction::Fingerprint,
@@ -51,6 +55,10 @@ pub(super) struct SidebarReorder {
     dragging: bool,
     activation_cancelled: bool,
     last_scroll: Instant,
+    /// The move the sidebar shows while dragging; `None` shows the canonical order.
+    shown: Option<Box<Drop>>,
+    /// The move the accepted frame paints, which can trail `shown` until the next frame.
+    painted: Option<Box<Drop>>,
 }
 
 fn row_at(map: &FrameHitMap, column: u16, row: u16) -> Option<(&DrawnSidebarTarget, Rect)> {
@@ -110,31 +118,89 @@ impl SidebarReorder {
             dragging: false,
             activation_cancelled: false,
             last_scroll: now,
+            shown: None,
+            painted: None,
         })
     }
 
-    /// Whether `map` still paints this gesture's surface and catalog. Before a drag latches, the
-    /// press is a click on its row, so only that row's own painted facts matter: a repaint after
-    /// an unrelated canonical commit keeps it. A drag previews against its canonical baseline,
-    /// so the frame must be painted from that source.
-    pub(super) fn painted_in(&self, map: &FrameHitMap) -> bool {
-        let Some(paint) = &map.sidebar_reorder else {
-            return false;
-        };
-        let surface = (!map.overlay_active || paint.layer == super::HitLayer::Overlay)
+    /// The sidebar paint of `map` when it keeps this gesture's surface. A live move may change
+    /// the list's length, and with it the free rows that form the footer, so only the footer of
+    /// an accepted frame is compared.
+    fn surface<'a>(&self, map: &'a FrameHitMap) -> Option<&'a SidebarReorderPaint> {
+        let paint = map.sidebar_reorder.as_ref()?;
+        ((!map.overlay_active || paint.layer == super::HitLayer::Overlay)
             && paint.layer == self.paint.layer
             && paint.viewport == self.paint.viewport
-            && paint.body == self.paint.body
-            && paint.footer == self.paint.footer
-            && paint.source == self.paint.source;
-        surface
-            && if self.dragging {
-                map.menu_source
-                    .as_ref()
-                    .is_some_and(|painted| self.source.matches_menu_source(painted))
-            } else {
-                map.interaction_at(self.origin.0, self.origin.1).as_ref() == Some(&self.fingerprint)
-            }
+            && paint.body == self.paint.body)
+            .then_some(paint)
+    }
+
+    /// Whether `map` is the frame this gesture last accepted: the same surface and catalog. Before
+    /// a drag latches, the press is a click on its row, so only that row's own painted facts
+    /// matter: a repaint after an unrelated canonical commit keeps it. A drag shows its move over
+    /// its canonical baseline, so the frame must be painted from that source.
+    pub(super) fn painted_in(&self, map: &FrameHitMap) -> bool {
+        self.surface(map).is_some_and(|paint| {
+            paint.footer == self.paint.footer && paint.source == self.paint.source
+        }) && if self.dragging {
+            self.baseline_painted(map)
+        } else {
+            map.interaction_at(self.origin.0, self.origin.1).as_ref() == Some(&self.fingerprint)
+        }
+    }
+
+    fn baseline_painted(&self, map: &FrameHitMap) -> bool {
+        map.menu_source
+            .as_ref()
+            .is_some_and(|painted| self.source.matches_menu_source(painted))
+    }
+
+    /// Whether a drag's `map` paints its baseline with either the catalog of the frame it last
+    /// accepted or the move it now shows.
+    fn frames(&self, map: &FrameHitMap) -> bool {
+        self.dragging
+            && self.baseline_painted(map)
+            && self
+                .surface(map)
+                .is_some_and(|paint| paint.source == self.paint.source || self.shows(&paint.source))
+    }
+
+    fn shows(&self, painted: &SidebarSource) -> bool {
+        let moved;
+        let navigation = match &self.shown {
+            None => self.source.navigation(),
+            Some(drop) => match configure_navigation(self.source.navigation(), &drop.operation) {
+                Ok(Some(navigation)) => {
+                    moved = navigation;
+                    &moved
+                }
+                Ok(None) | Err(_) => return false,
+            },
+        };
+        painted.matches_navigation(
+            self.target.target().machine(),
+            self.source.session_id(),
+            navigation,
+        )
+    }
+
+    /// Takes a newly published frame and returns whether the gesture survives it, with whether
+    /// the move it shows changed. A click keeps only its own row's frame. A drag takes the frame
+    /// that shows its move and resolves against it from then on; a scroll moves other rows under
+    /// the pointer, so the destination follows it there.
+    fn accept(&mut self, map: &FrameHitMap) -> (bool, bool) {
+        if !self.dragging {
+            return (self.painted_in(map), false);
+        }
+        let Some(paint) = map.sidebar_reorder.as_ref().filter(|_| self.frames(map)) else {
+            return (false, false);
+        };
+        let scrolled = paint.window.top != self.paint.window.top;
+        if self.shows(&paint.source) {
+            self.painted.clone_from(&self.shown);
+        }
+        self.paint = paint.clone();
+        (true, scrolled && self.follow(map))
     }
 
     /// Before a drag, takes the exposure `map` recorded for the pressed row when that frame
@@ -161,26 +227,118 @@ impl SidebarReorder {
         !self.dragging || live.is_none_or(|live| *live == self.source)
     }
 
-    fn destination(&self, map: &FrameHitMap) -> Option<Drop> {
+    /// Moves the shown destination to the pointer over `map`, the frame on screen. Returns
+    /// whether the shown move changed.
+    fn follow(&mut self, map: &FrameHitMap) -> bool {
+        if !self.dragging {
+            return false;
+        }
+        let Some(shown) = self.resolve(map) else {
+            return false;
+        };
+        let changed = shown.as_ref().map(|drop| &drop.operation)
+            != self.shown.as_ref().map(|drop| &drop.operation);
+        self.shown = shown.map(Box::new);
+        changed
+    }
+
+    /// The destination under the pointer: `Some(None)` returns the dragged entry to its origin,
+    /// and `None` keeps what is shown, over gaps, rows that are not entries and destinations the
+    /// baseline refuses. Over the dragged entry itself the destination is where the frame paints
+    /// it; since a shown move puts that entry under the pointer, a pointer that stays put keeps
+    /// its destination.
+    fn resolve(&self, map: &FrameHitMap) -> Option<Option<Drop>> {
         let paint = map.sidebar_reorder.as_ref()?;
         let (x, y) = self.position;
-        if contains(paint.footer, x, y) {
-            return self
-                .source
-                .destination(&self.item, None, false, paint.footer);
+        let landing = if contains(paint.footer, x, y) {
+            self.source.destination(&self.item, None, false)
+        } else if !contains(paint.body, x, y) {
+            // Outside the list the sidebar shows the canonical order, which a release there keeps.
+            return Some(None);
+        } else {
+            // Child controls remain their own buttons on press. During an established
+            // drag their row is a destination, without invoking disclosure or Create.
+            let entries = self.entries(map);
+            let index = entries
+                .iter()
+                .position(|entry| contains(entry.rows, x, y))?;
+            let entry = &entries[index];
+            if entry.item == self.item {
+                return Some(self.painted.as_deref().cloned());
+            }
+            // The side of the dragged entry as painted; one hidden in a folded Project falls back
+            // to the press.
+            let dragged = entries
+                .iter()
+                .find(|entry| entry.item == self.item)
+                .map_or(self.origin.1, |entry| entry.rows.y);
+            let after = after(entry.rows, y, entry.rows.y > dragged);
+            match (&self.item, &entry.item) {
+                (Item::Workspace(workspace), Item::Project(project)) => {
+                    let Some(landing) =
+                        self.onto_heading(workspace, project, &entries, index, after)
+                    else {
+                        return Some(self.painted.as_deref().cloned());
+                    };
+                    landing
+                }
+                _ => self
+                    .source
+                    .destination(&self.item, Some(&entry.item), after),
+            }
+        };
+        match landing {
+            Landing::Unavailable => None,
+            Landing::Origin => Some(None),
+            Landing::Moved(drop) => Some(Some(drop)),
         }
-        if !contains(paint.body, x, y) {
-            return None;
+    }
+
+    /// A Workspace dragged onto the Project heading at `entries[index]`. A heading with no other
+    /// Workspace painted under it takes the Workspace in. Otherwise the heading is the Project's
+    /// top edge: from above, the Workspace becomes the Project's first; from below, it lands after
+    /// the Workspace painted just above the heading, or first when none is. `None` leaves the
+    /// Workspace where the frame paints it, just above the heading.
+    fn onto_heading(
+        &self,
+        workspace: &WorkbenchWorkspaceId,
+        project: &WorkbenchProjectId,
+        entries: &[Entry],
+        index: usize,
+        after: bool,
+    ) -> Option<Landing> {
+        let navigation = self.source.navigation();
+        let others = entries
+            .get(index + 1..)
+            .unwrap_or_default()
+            .iter()
+            .take_while(|entry| match &entry.item {
+                Item::Workspace(id) => {
+                    id == workspace
+                        || navigation
+                            .workspace(id)
+                            .is_some_and(|other| other.project_id.as_ref() == Some(project))
+                }
+                Item::Project(_) => false,
+            })
+            .any(|entry| entry.item != self.item);
+        if !others {
+            return Some(self.source.destination(
+                &self.item,
+                Some(&Item::Project(project.clone())),
+                false,
+            ));
         }
-        // Child controls remain their own buttons on press. During an established
-        // drag their row is a destination, without invoking disclosure or Create.
-        let entry = self
-            .entries(map)
-            .into_iter()
-            .find(|entry| contains(entry.rows, x, y))?;
-        let after = after(entry.rows, y, entry.rows.y > self.origin.1);
-        self.source
-            .destination(&self.item, Some(&entry.item), after, entry.block)
+        if !after
+            && let Some(above) = index.checked_sub(1).and_then(|index| entries.get(index))
+            && matches!(above.item, Item::Workspace(_))
+        {
+            if above.item == self.item {
+                return None;
+            }
+            return Some(self.source.destination(&self.item, Some(&above.item), true));
+        }
+        Some(self.source.first_in(workspace, project))
     }
 
     /// The painted entries of this gesture's machine and Session in display order.
@@ -193,27 +351,32 @@ impl SidebarReorder {
         )
     }
 
+    /// The order the sidebar shows while this gesture drags: its baseline with the shown move.
+    fn order(&self) -> Option<SidebarNavigationProjection> {
+        self.dragging.then(|| SidebarNavigationProjection {
+            snapshot: self.source.snapshot(),
+            pending: self.shown.as_ref().map(|drop| drop.operation.clone()),
+        })
+    }
+
     fn preview(&self, map: &FrameHitMap) -> Option<SidebarReorderDraw> {
-        if !self.dragging || !self.painted_in(map) {
+        if !self.frames(map) {
             return None;
         }
         Some(SidebarReorderDraw {
-            grabbed: map.regions.iter().find_map(|region| {
-                let InteractionTarget::Sidebar(target) = region.interaction.as_ref()?.target()
-                else {
-                    return None;
-                };
-                (target.part() == SidebarPart::Primary && target.target() == self.target.target())
-                    .then_some(region.rect)
-            }),
-            destination: self.destination(map).map(|drop| {
-                (
-                    insertion_edge(drop.area, drop.placement, self.paint.body),
-                    drop.placement,
-                    drop.label,
-                )
-            }),
-            footer: self.paint.footer,
+            grabbed: self
+                .entries(map)
+                .into_iter()
+                .find(|entry| entry.item == self.item)
+                .map(|entry| entry.block),
+            destination: self
+                .shown
+                .as_ref()
+                .map(|drop| (drop.placement, drop.label.clone())),
+            footer: map
+                .sidebar_reorder
+                .as_ref()
+                .map_or(self.paint.footer, |paint| paint.footer),
             workspace: matches!(self.item, Item::Workspace(_)),
         })
     }
@@ -221,7 +384,7 @@ impl SidebarReorder {
 
 /// One painted entry a drag can land on. `rows` is where the pointer selects it: a Workspace row
 /// with its Agent rows, or a Project heading. `block` is every line it moves as: a Project heading
-/// with the rows it groups.
+/// with the rows it groups while a Project is dragged.
 struct Entry {
     item: Item,
     rows: Rect,
@@ -304,28 +467,6 @@ fn after(rows: Rect, y: u16, below_dragged: bool) -> bool {
     y >= rows.y.saturating_add(half)
 }
 
-/// The one line whose underline lies on the gap a drop fills: the entry's last line for After, the
-/// line above it for Before. Into and the footer keep their whole area.
-fn insertion_edge(area: Rect, placement: Placement, body: Rect) -> Rect {
-    match placement {
-        Placement::After => Rect {
-            y: area.bottom().saturating_sub(1),
-            height: area.height.min(1),
-            ..area
-        },
-        Placement::Before if area.y > body.y => Rect {
-            y: area.y - 1,
-            height: 1,
-            ..area
-        },
-        Placement::Before => Rect {
-            height: area.height.min(1),
-            ..area
-        },
-        Placement::Into | Placement::Ungrouped | Placement::End => area,
-    }
-}
-
 impl PointerState {
     pub(crate) fn sidebar_reorder_captured(&self) -> bool {
         matches!(self.gesture, Gesture::SidebarReorder(_))
@@ -337,6 +478,13 @@ impl PointerState {
         (drag.dragging && drag.painted_in(self.map.as_ref()?))
             .then(|| SidebarReorderPreview { drag: drag.clone() })
     }
+    /// The order a drag shows in the sidebar; `None` while no drag shows one.
+    pub(crate) fn sidebar_reorder_order(&self) -> Option<SidebarNavigationProjection> {
+        let Gesture::SidebarReorder(drag) = &self.gesture else {
+            return None;
+        };
+        drag.order()
+    }
 
     pub(crate) fn cancel_sidebar_reorder(&mut self) -> bool {
         if !self.sidebar_reorder_captured() {
@@ -346,6 +494,21 @@ impl PointerState {
         self.cancelled_chrome_release
             .get_or_insert(super::CancelledChromeRelease::SidebarReorder);
         true
+    }
+
+    /// A published frame either carries the gesture or ends it. A drag that ends here, or whose
+    /// shown move follows a scroll here, still shows its old order, so the next frame repaints it.
+    pub(super) fn publish_sidebar_reorder(&mut self, map: &FrameHitMap) {
+        let Gesture::SidebarReorder(drag) = &mut self.gesture else {
+            return;
+        };
+        drag.follow_reveal(map);
+        let dragging = drag.dragging;
+        let (kept, moved) = drag.accept(map);
+        self.sidebar_reorder_redraw |= moved || (dragging && !kept);
+        if !kept {
+            self.cancel_sidebar_reorder();
+        }
     }
     pub(super) fn sidebar_reorder_projection(
         &self,
@@ -420,11 +583,16 @@ impl PointerState {
             }
             return PointerOutcome::SidebarReorderEnded;
         }
+        let map = self.map.as_ref().expect("alive drag has an admitted frame");
         if release {
-            drag.position = (event.column, event.row);
-            let map = self.map.as_ref().expect("alive drag has an admitted frame");
             if drag.dragging {
-                if let Some(drop) = drag.destination(map) {
+                // A release where the last motion left the pointer commits the move shown there;
+                // a terminal that reports it elsewhere first moves the destination to it.
+                if drag.position != (event.column, event.row) {
+                    drag.position = (event.column, event.row);
+                    drag.follow(map);
+                }
+                if let Some(drop) = drag.shown.take() {
                     port.surface_action(SurfaceAction::Layout(LayoutAction::SidebarReorder {
                         source: &drag.source,
                         operation: drop.operation,
@@ -448,35 +616,27 @@ impl PointerState {
                 && (drag.origin.0.abs_diff(event.column) >= 2 || drag.origin.1 != event.row)
             {
                 drag.dragging = true;
-                // The drag begins now, so it previews and moves against the canonical source
-                // painted now; the click it grew from never depended on one.
+                // The drag begins now, so it moves against the canonical source painted now; the
+                // click it grew from never depended on one.
                 if let Some(live) = port.sidebar_reorder_source()
-                    && self.map.as_ref().is_some_and(|map| {
-                        map.menu_source
-                            .as_ref()
-                            .is_some_and(|painted| live.matches_menu_source(painted))
-                    })
+                    && map
+                        .menu_source
+                        .as_ref()
+                        .is_some_and(|painted| live.matches_menu_source(painted))
                     && live.matches_sidebar(&drag.paint.source, &view.machines.current)
                 {
                     drag.source = live;
                 }
             }
             if !drag.dragging
-                && self
-                    .map
-                    .as_ref()
-                    .and_then(|map| map.interaction_at(event.column, event.row))
-                    .as_ref()
-                    != Some(&drag.fingerprint)
+                && map.interaction_at(event.column, event.row).as_ref() != Some(&drag.fingerprint)
             {
                 drag.activation_cancelled = true;
             }
+            drag.follow(map);
         } else if event.action == MouseAction::Press
             && matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown)
-            && let Some(paint) = self
-                .map
-                .as_ref()
-                .and_then(|map| map.sidebar_reorder.as_ref())
+            && let Some(paint) = map.sidebar_reorder.as_ref()
             && contains(paint.body, event.column, event.row)
         {
             drag.position = (event.column, event.row);

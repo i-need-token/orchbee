@@ -530,6 +530,14 @@ impl InputDispatcher {
         self.pointer.sidebar_reorder_preview()
     }
 
+    /// Before a frame paints, shows a sidebar drag's live order, or restores the native one once
+    /// no drag shows it. Running after the native observation lets an admitted drop hand its order
+    /// to the pending-move projection without passing through the old one.
+    pub fn show_sidebar_reorder(&self, view: &mut ClientView) -> bool {
+        view.machines
+            .preview_sidebar_reorder(self.pointer.sidebar_reorder_order())
+    }
+
     pub fn resize_projection(&self) -> crate::tui_layout::ResizeProjection {
         self.pointer.resize_projection()
     }

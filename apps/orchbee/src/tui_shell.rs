@@ -1088,6 +1088,7 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         dispatcher.invalidate_hit_map(surface);
         return Ok(false);
     }
+    dispatcher.show_sidebar_reorder(view);
     let mut notification_painted = false;
     let mut receipt = crate::workbench_client::DrawReceipt::default();
     let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());

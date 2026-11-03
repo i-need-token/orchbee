@@ -269,15 +269,22 @@ If the identity area cannot fit text, a separator and the glyph, disclosure is o
 existing keyboard route remains available.
 Project and Workspace primary rows support primary-button dragging; disclosure and Create remain
 independent controls. The Recents heading is neither a drag source nor a drop destination. Movement of two columns or one row latches a drag, even if the pointer returns
-to its origin. Dropping a Workspace on a Project appends it to that Project. Dropping on a Workspace
-entry, its Agent rows included, places it before that entry from the entry's upper half and after it
-from the lower half; on a one-line entry the side away from the dragged row decides. Grouping follows
-the destination Workspace. Projects reorder on other Project headers as complete groups, by the same
-one-line rule. A bottom footer drop area appears only during dragging: No Project moves a Workspace
-out of its group; End of Projects appends a Project. One underlined line on the gap the drop fills,
-the destination's last line for after or the line above it for before, and the localized status
-describe the actual before/after/into result. Invalid and unchanged destinations publish no move. Holding at the
-list edge scrolls at most once every 120 ms through the existing bounded list-scroll owner; wheel remains local.
+to its origin. While dragging, the held entry moves to its destination in the list itself, across
+Projects too, and the other rows close up around it; it is dimmed where it now stands, and the
+localized status names the actual before/after/into result. On a Workspace entry, its Agent rows
+included, the pointer places the held Workspace before that entry from the entry's upper half and
+after it from the lower half; on a one-line entry the side away from the held entry decides.
+Grouping follows the destination Workspace. A Project heading with no other Workspace shown under it
+takes the Workspace in; otherwise the heading is the Project's top edge: from above the Workspace
+becomes its first, from below it follows the Workspace shown just above the heading. Projects
+reorder on other Project headers as complete groups, by the same one-line rule. The held entry, gaps
+and rows that are no entry keep the shown destination, so a pointer resting where the move put the
+entry never makes it oscillate. A bottom footer drop area appears only during dragging: No Project
+moves a Workspace out of its group; End of Projects appends a Project. Outside the list, and on a
+destination that changes nothing, the canonical order shows; an invalid destination keeps the shown
+one. The window keeps its top row index while rows move under the pointer. Holding at the list edge
+scrolls at most once every 120 ms through the existing bounded list-scroll owner; wheel remains
+local; either scroll moves the destination to the row then under the pointer.
 
 Until movement latches a drag, the press is a click on its row: only that row's painted target, the
 Sidebar catalog and surface decide its release, so a background refresh or another Client's unrelated
@@ -286,17 +293,21 @@ the frame that reveals the row's close control; that frame recognizes the presse
 pointer reveal keeps the click, as [mouse input](native-mouse-input.md#region-map) describes, while
 a release on the revealed control resolves to the control and activates nothing. A drag latches
 against the canonical source painted at that moment.
-Dragging is preview-only until matching plain primary release. Escape, loss of focus/capture,
-resize, an occluding overlay, or changed canonical source cancels it; a refresh still in flight does
-not, and the drop rechecks the source. Cleanup consumes the late
-release without selecting another row or entering a terminal. Successful scroll redraws preserve
-the gesture while retaining the same source identities. Preview geometry resolves from the candidate
-frame being painted, so a scroll cannot display a stale insertion target. One `navigation.configure` changes
+The live order stays local to this Client until the matching plain primary release, which submits
+exactly the move shown; no motion reaches the Server, so other Clients never see an intermediate
+order and a cancelled drag has nothing to undo. Escape, a release outside the list, loss of
+focus/capture, resize, an occluding overlay, or changed canonical source cancels it and restores the
+canonical order; a refresh still in flight does not, and the drop rechecks the source. Cleanup
+consumes the late release without selecting another row or entering a terminal. Successful scroll
+redraws preserve the gesture while retaining the same source identities. Each frame paints the
+drag's order before it records its targets, so a destination always resolves against the rows on
+screen. One `navigation.configure` changes
 membership/order through the existing serialized setup and known-receipt recovery lane; current
 terminal and keyboard focus remain unchanged. No operation is automatically rebased or resubmitted.
 
 An admitted drop immediately displays its reversible order through the active Client navigation
-projection. The setup lane still owns canonical confirmation, refusal, unknown outcomes and recovery;
+projection, which takes over from the drag's order before the next frame, so a release never shows
+the old order in between. The setup lane still owns canonical confirmation, refusal, unknown outcomes and recovery;
 the independent metadata/Git polling interval never delays this local feedback or confirmed handoff.
 
 In sidebar keyboard navigation, Ctrl+Up and Ctrl+Down move the focused Project, or move a Workspace

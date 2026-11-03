@@ -102,7 +102,8 @@ targets the exact row without selecting a child.
 
 Sidebar drag and keyboard sorting instead submit one `navigation.configure` through the same
 nonmodal setup lane. The source captures Session, revision and complete Navigation; release or keyboard
-admission rechecks that source and requires the painted grouping and display order to match it; the
+admission rechecks that source and requires the painted grouping and display order to match it, or
+match it with the one move a drag shows live; the
 authority rechecks CAS. The shared pure transition supplies
 the exact expected membership and order for receipt verification; a same-revision partial or
 unrelated edit is divergent. A known receipt is retained before refresh, and subsequent recovery

@@ -23,13 +23,9 @@ fn drag_feedback_replaces_the_complete_previous_notice_and_footer() {
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                 let footer = Rect::new(0, height - 2, width.min(30), 1);
                 let status = Rect::new(0, height - 1, width, 1);
-                let destination = (
-                    Rect::new(0, 1, footer.width, 1),
-                    SidebarDropPlacement::Before,
-                    "Workspace 5".to_owned(),
-                );
+                let destination = (SidebarDropPlacement::Before, "Workspace 5".to_owned());
                 let hint = locale
-                    .sidebar_reorder_hint(Some((destination.1.into(), destination.2.as_str())));
+                    .sidebar_reorder_hint(Some((destination.0.into(), destination.1.as_str())));
                 let preview = SidebarReorderDraw {
                     grabbed: None,
                     destination: Some(destination),
@@ -95,7 +91,6 @@ fn preview_preserves_identity_styles_clips_wide_labels_and_keeps_monochrome_cues
                 let draw = SidebarReorderDraw {
                     grabbed: Some(Rect::new(0, 0, row_width, 1)),
                     destination: Some((
-                        Rect::new(0, 1, row_width, 1),
                         SidebarDropPlacement::Before,
                         "项目😀e\u{301}\u{1b}[31m a long identity".into(),
                     )),
@@ -123,7 +118,8 @@ fn preview_preserves_identity_styles_clips_wide_labels_and_keeps_monochrome_cues
                     assert_eq!(buffer[(x, 1)].fg, foreground);
                     assert_eq!(buffer[(x, 0)].bg, theme.color(Role::SurfaceChrome));
                     assert!(buffer[(x, 0)].modifier.contains(Modifier::DIM));
-                    assert!(buffer[(x, 1)].modifier.contains(Modifier::UNDERLINED));
+                    // The sidebar paints the move in place, so no line marks a destination.
+                    assert!(buffer[(x, 1)].modifier.is_empty());
                 }
                 assert!(
                     buffer

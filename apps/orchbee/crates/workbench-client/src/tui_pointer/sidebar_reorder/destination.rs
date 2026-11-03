@@ -2,7 +2,6 @@
 use super::{ClientContextLocation, NavigationConfiguration, SidebarReorderSource, SidebarTarget};
 use crate::tui_hit_map::sidebar_reorder::Placement;
 use orchbee_workbench_protocol::{WorkbenchProjectId, WorkbenchWorkspaceId, configure_navigation};
-use ratatui::layout::Rect;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum Item {
@@ -24,12 +23,23 @@ impl Item {
     }
 }
 
+/// One validated move off the canonical baseline, with the words the status line names it by.
+#[derive(Clone, Debug)]
 pub(super) struct Drop {
     pub(super) operation: NavigationConfiguration,
-    pub(super) area: Rect,
     pub(super) placement: Placement,
     pub(super) label: String,
 }
+
+/// Where a candidate destination leaves the dragged entry.
+pub(super) enum Landing {
+    /// The baseline refuses this destination.
+    Unavailable,
+    /// The destination is the slot the entry already holds in the baseline.
+    Origin,
+    Moved(Drop),
+}
+
 impl SidebarReorderSource {
     /// Keyboard sorting has the same destination semantics as a drag release.
     pub(crate) fn step(&self, target: &SidebarTarget, up: bool) -> Option<NavigationConfiguration> {
@@ -73,24 +83,54 @@ impl SidebarReorderSource {
         } else {
             index.checked_add(1)?
         };
-        Some(
-            self.destination(
-                &item,
-                Some(ordered.get(neighbor)?),
-                !up,
-                Rect::new(0, 0, 1, 1),
-            )?
-            .operation,
-        )
+        match self.destination(&item, Some(ordered.get(neighbor)?), !up) {
+            Landing::Moved(drop) => Some(drop.operation),
+            Landing::Unavailable | Landing::Origin => None,
+        }
     }
 
-    pub(super) fn destination(
+    /// The move that places `source` before or after `target`, into a Project `target`, or, with
+    /// no target, at the end: outside any Project for a Workspace, last for a Project.
+    pub(super) fn destination(&self, source: &Item, target: Option<&Item>, after: bool) -> Landing {
+        self.candidate(source, target, after)
+            .map_or(Landing::Unavailable, |drop| self.validate(drop))
+    }
+
+    /// A Workspace dragged onto a Project heading enters it as its first Workspace.
+    pub(super) fn first_in(
         &self,
-        source: &Item,
-        target: Option<&Item>,
-        after: bool,
-        area: Rect,
-    ) -> Option<Drop> {
+        workspace_id: &WorkbenchWorkspaceId,
+        project_id: &WorkbenchProjectId,
+    ) -> Landing {
+        let Ok(ordered) = self.navigation().ordered_workspaces() else {
+            return Landing::Unavailable;
+        };
+        let first = ordered
+            .into_iter()
+            .map(|(_, workspace)| workspace)
+            .find(|workspace| {
+                workspace.project_id.as_ref() == Some(project_id)
+                    && &workspace.workspace_id != workspace_id
+            });
+        let Some(first) = first else {
+            return self.destination(
+                &Item::Workspace(workspace_id.clone()),
+                Some(&Item::Project(project_id.clone())),
+                false,
+            );
+        };
+        self.validate(Drop {
+            operation: NavigationConfiguration::MoveWorkspace {
+                workspace_id: workspace_id.clone(),
+                project_id: Some(project_id.clone()),
+                before_workspace_id: Some(first.workspace_id.clone()),
+            },
+            placement: Placement::Before,
+            label: first.label.clone(),
+        })
+    }
+
+    fn candidate(&self, source: &Item, target: Option<&Item>, after: bool) -> Option<Drop> {
         use NavigationConfiguration::{MoveProject, MoveWorkspace};
         let (operation, placement, label) = match (source, target) {
             (Item::Project(project_id), None) => (
@@ -102,7 +142,14 @@ impl SidebarReorderSource {
                 String::new(),
             ),
             (Item::Project(project_id), Some(Item::Project(anchor))) => {
-                let ordered = self.navigation().ordered_projects().ok()?;
+                // The dragged entry leaves its slot, so the slot after an anchor skips it.
+                let ordered = self
+                    .navigation()
+                    .ordered_projects()
+                    .ok()?
+                    .into_iter()
+                    .filter(|project| &project.project_id != project_id)
+                    .collect::<Vec<_>>();
                 let index = ordered
                     .iter()
                     .position(|project| &project.project_id == anchor)?;
@@ -149,7 +196,10 @@ impl SidebarReorderSource {
                     .ok()?
                     .into_iter()
                     .map(|(_, workspace)| workspace)
-                    .filter(|workspace| workspace.project_id == target.project_id)
+                    .filter(|workspace| {
+                        workspace.project_id == target.project_id
+                            && &workspace.workspace_id != workspace_id
+                    })
                     .collect::<Vec<_>>();
                 let index = ordered
                     .iter()
@@ -172,13 +222,20 @@ impl SidebarReorderSource {
                 )
             }
         };
-        // No-op and invalid drops have no insertion affordance and never submit transport work.
-        configure_navigation(self.navigation(), &operation).ok()??;
         Some(Drop {
             operation,
-            area,
             placement,
             label,
         })
+    }
+
+    /// Invalid moves land nowhere; a move that changes nothing returns the entry to its origin.
+    /// Neither ever submits transport work.
+    fn validate(&self, drop: Drop) -> Landing {
+        match configure_navigation(self.navigation(), &drop.operation) {
+            Ok(Some(_)) => Landing::Moved(drop),
+            Ok(None) => Landing::Origin,
+            Err(_) => Landing::Unavailable,
+        }
     }
 }

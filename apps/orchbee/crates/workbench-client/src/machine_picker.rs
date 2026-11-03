@@ -289,6 +289,9 @@ pub struct Picker {
         crate::machine_spaces::navigation_projection::SidebarNavigationProjection,
     )>,
     space_projection: Option<(Choice, Arc<crate::machine_spaces::checkpoint::Checkpoint>)>,
+    /// A sidebar drag's live order over the native topology it moves.
+    reorder_preview:
+        Option<crate::machine_spaces::navigation_projection::SidebarNavigationProjection>,
     editing_query: bool,
     current_member: Option<ClientMemberTarget>,
     pending_navigation: Option<Navigation>,
@@ -348,6 +351,7 @@ impl Default for Picker {
             space_holds: Vec::new(),
             native_navigation: None,
             space_projection: None,
+            reorder_preview: None,
             editing_query: false,
             current_member: None,
             pending_navigation: None,

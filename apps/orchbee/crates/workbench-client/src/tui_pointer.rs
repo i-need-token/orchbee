@@ -484,6 +484,8 @@ pub struct PointerState {
     wheel: WheelStream,
     tooltip: tooltip::State,
     menu_rest: menu_rest::State,
+    /// A published frame moved or ended a sidebar drag whose order is still on screen.
+    sidebar_reorder_redraw: bool,
 }
 
 impl PointerState {
@@ -537,8 +539,9 @@ impl PointerState {
         let modal = self.take_modal_projection_redraw();
         let chrome = self.chrome_projection.take_redraw_after_publish();
         let tooltip = self.tooltip.take_redraw_after_publish();
+        let sidebar_reorder = std::mem::take(&mut self.sidebar_reorder_redraw);
 
-        interaction || modal || chrome || tooltip
+        interaction || modal || chrome || tooltip || sidebar_reorder
     }
 
     /// Any key closes the tooltip and still reaches its owner: this never consumes the key.
@@ -1431,12 +1434,7 @@ impl PointerState {
             self.cancel_tab_drag();
             self.cancel_sidebar_reorder();
         }
-        if let Gesture::SidebarReorder(drag) = &mut self.gesture {
-            drag.follow_reveal(&map);
-        }
-        if matches!(&self.gesture, Gesture::SidebarReorder(drag) if !drag.painted_in(&map)) {
-            self.cancel_sidebar_reorder();
-        }
+        self.publish_sidebar_reorder(&map);
         for press in [&mut self.close_press, &mut self.modal_press]
             .into_iter()
             .flatten()

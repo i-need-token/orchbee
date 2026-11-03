@@ -9,6 +9,8 @@ pub(super) struct Sidebar<S> {
     top: usize,
     order: Vec<SidebarTarget>,
     follow_focus: bool,
+    /// While a drag shows its live order, whether the window followed focus before it.
+    held: Option<bool>,
     pub(super) scroll: Option<Scroll>,
     pub(super) settings: std::sync::Arc<S>,
 }
@@ -66,6 +68,7 @@ impl<S: Default> Default for Sidebar<S> {
             top: 0,
             order: Vec::new(),
             follow_focus: true,
+            held: None,
             scroll: None,
             settings: Default::default(),
         }
@@ -73,12 +76,13 @@ impl<S: Default> Default for Sidebar<S> {
 }
 impl<S> Sidebar<S> {
     /// Manual reading retains the top identity across topology changes. If removed,
-    /// prefer the next surviving row in the old order, then the previous one.
+    /// prefer the next surviving row in the old order, then the previous one. A held window
+    /// keeps its top index instead, so a dragged row moves under a list that stays put.
     pub(super) fn reconcile(&mut self, order: &[SidebarTarget]) {
         if self.order == order {
             return;
         }
-        if !self.follow_focus {
+        if !self.follow_focus && self.held.is_none() {
             self.top = self
                 .order
                 .iter()
@@ -94,13 +98,29 @@ impl<S> Sidebar<S> {
     pub(super) fn reset(&mut self) {
         self.top = 0;
         self.follow_focus = true;
+        self.held = None;
         self.scroll = None;
+    }
+    /// Stops following focus while a drag moves rows; [`Self::release`] resumes what was before.
+    pub(super) fn hold(&mut self) {
+        if self.held.is_none() {
+            self.held = Some(self.follow_focus);
+            self.follow_focus = false;
+        }
+    }
+    pub(super) fn release(&mut self) {
+        if let Some(follow) = self.held.take() {
+            self.follow_focus = follow;
+        }
     }
     pub(super) fn visible(&self) -> bool {
         self.visible
     }
     pub(super) fn reveal(&mut self) {
-        self.follow_focus = true;
+        match &mut self.held {
+            Some(follow) => *follow = true,
+            None => self.follow_focus = true,
+        }
         self.scroll = None;
     }
 }
@@ -325,6 +345,10 @@ impl<S> Sidebar<S> {
         }
         self.top = window.top;
         self.follow_focus = false;
+        // Scrolling during a drag is manual reading that outlasts it.
+        if let Some(follow) = &mut self.held {
+            *follow = false;
+        }
         Scroll::queue(&mut self.scroll, window, up);
     }
     fn settle(&mut self, total: usize) -> bool {

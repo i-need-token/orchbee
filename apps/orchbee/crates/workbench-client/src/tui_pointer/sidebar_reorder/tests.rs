@@ -114,6 +114,22 @@ fn fixture_with(lines: u16) -> (PointerState, ClientView, Port, FrameHitMap) {
         }
     };
     let session_id = SessionId::parse(&identity(9)).unwrap();
+    let snapshot = std::sync::Arc::new(Snapshot {
+        protocol_version: ProtocolVersion,
+        session_id: session_id.clone(),
+        revision: WorkbenchRevision::new(1),
+        terminal_contexts: navigation
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.terminal_context_id.clone())
+            .map(|terminal_context_id| TerminalContext {
+                terminal_context_id,
+                groups: vec![],
+                tabs: vec![],
+            })
+            .collect(),
+        navigation: navigation.clone(),
+    });
     let mut view = ClientView::new(120);
     view.machines.available = true;
     view.machines.observe_agent_sidebar(true);
@@ -137,7 +153,32 @@ fn fixture_with(lines: u16) -> (PointerState, ClientView, Port, FrameHitMap) {
         })
         .collect();
     view.machines.observe_local(contexts.clone());
+    let current = view.machines.current.clone();
+    view.machines.observe_native_navigation(
+        current,
+        Some(SidebarNavigationProjection {
+            snapshot: snapshot.clone(),
+            pending: None,
+        }),
+    );
     view.machines.current_context = Some(contexts[0].target.clone());
+    let map = paint(&view, lines);
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    pointer.publish(map.clone());
+    (
+        pointer,
+        view,
+        Port {
+            snapshot,
+            writes: vec![],
+            refreshing: false,
+        },
+        map,
+    )
+}
+/// Paints the sidebar the picker shows now, as the shell does after the drag's order reaches it.
+fn paint(view: &ClientView, lines: u16) -> FrameHitMap {
     let source = view.machines.sidebar_source();
     let rows = view.machines.sidebar_navigation_rows();
     let window = SidebarWindow {
@@ -149,7 +190,7 @@ fn fixture_with(lines: u16) -> (PointerState, ClientView, Port, FrameHitMap) {
     };
     let mut hits = HitMapBuilder::new();
     hits.record_action_menu_source(Some(crate::action_menu::DrawnMenuSource {
-        session: session_id.clone(),
+        session: SessionId::parse(&identity(9)).unwrap(),
         revision: WorkbenchRevision::new(1),
     }));
     let mut y = 3;
@@ -186,44 +227,40 @@ fn fixture_with(lines: u16) -> (PointerState, ClientView, Port, FrameHitMap) {
             InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
         );
     }
-    let body = Rect::new(0, 2, 30, (y - 2).max(20));
+    let body = Rect::new(0, 2, 30, 24);
     hits.record_sidebar_reorder_paint(SidebarReorderPaint {
         viewport: Rect::new(0, 0, 120, 30),
         layer: HitLayer::Foreground,
         body,
-        footer: Rect::new(0, body.bottom(), 30, 1),
+        footer: Rect::new(
+            0,
+            y.min(body.bottom()),
+            30,
+            body.bottom().saturating_sub(y).max(1),
+        ),
         window,
         source,
     });
-    let map = hits.finish();
-    let mut pointer = PointerState::default();
-    pointer.set_capture(true);
+    hits.finish()
+}
+/// One shell frame: the drag's order reaches the sidebar, which paints and publishes.
+fn repaint(pointer: &mut PointerState, view: &mut ClientView, lines: u16) -> FrameHitMap {
+    view.machines
+        .preview_sidebar_reorder(pointer.sidebar_reorder_order());
+    let map = paint(view, lines);
     pointer.publish(map.clone());
-    (
-        pointer,
-        view,
-        Port {
-            snapshot: std::sync::Arc::new(Snapshot {
-                protocol_version: ProtocolVersion,
-                session_id,
-                revision: WorkbenchRevision::new(1),
-                terminal_contexts: navigation
-                    .workspaces
-                    .iter()
-                    .map(|workspace| workspace.terminal_context_id.clone())
-                    .map(|terminal_context_id| TerminalContext {
-                        terminal_context_id,
-                        groups: vec![],
-                        tabs: vec![],
-                    })
-                    .collect(),
-                navigation,
-            }),
-            writes: vec![],
-            refreshing: false,
-        },
-        map,
-    )
+    map
+}
+/// The entries the sidebar shows, in display order.
+fn shown(view: &ClientView) -> Vec<Item> {
+    view.machines
+        .sidebar_navigation_rows()
+        .iter()
+        .filter_map(|row| Item::from_target(&row.target()))
+        .collect()
+}
+fn fixture_workspace() -> WorkbenchWorkspaceId {
+    WorkbenchWorkspaceId::parse(&identity(10)).unwrap()
 }
 fn row(map: &FrameHitMap, item: Item) -> Rect {
     map.regions
@@ -367,8 +404,21 @@ fn a_click_survives_the_refresh_and_repaint_of_an_unrelated_commit() {
 #[test]
 fn workspace_drag_moves_into_between_and_out_of_projects_or_reorders_siblings() {
     for (source, target, expected_group, expected_before) in [
-        (0, Some(Item::Project(project(2))), Some(project(2)), None),
-        (3, Some(Item::Project(project(1))), Some(project(1)), None),
+        // A Project heading is the top edge of its Workspaces: from above the dragged Workspace
+        // becomes the first, and from below it ends the Project before, or leads the first one.
+        (
+            0,
+            Some(Item::Project(project(2))),
+            Some(project(2)),
+            Some(workspace(2)),
+        ),
+        (
+            3,
+            Some(Item::Project(project(1))),
+            Some(project(1)),
+            Some(workspace(0)),
+        ),
+        (3, Some(Item::Project(project(2))), Some(project(1)), None),
         (0, None, None, None),
         (
             0,
@@ -448,14 +498,14 @@ fn workspace_drag_moves_into_between_and_out_of_projects_or_reorders_siblings() 
 
 /// ORC-317: with no gap between two-line rows, the line under the pointer decides the side. A
 /// Workspace dragged up from Recents onto the lower line of a Project's first Workspace lands
-/// after it, where the insertion edge is drawn, instead of before it because the drag moved up.
+/// after it, where the sidebar shows it, instead of before it because the drag moved up.
 #[test]
 fn two_line_workspace_rows_place_a_drop_by_the_line_under_the_pointer() {
-    for (source, anchor, line, group, before, edge) in [
-        (3, 0, 1, project(1), Some(workspace(1)), 1),
-        (3, 0, 0, project(1), Some(workspace(0)), -1),
-        (0, 2, 0, project(2), Some(workspace(2)), -1),
-        (0, 2, 1, project(2), None, 1),
+    for (source, anchor, line, group, before) in [
+        (3, 0, 1, project(1), Some(workspace(1))),
+        (3, 0, 0, project(1), Some(workspace(0))),
+        (0, 2, 0, project(2), Some(workspace(2))),
+        (0, 2, 1, project(2), None),
     ] {
         let (mut pointer, mut view, mut port, map) = fixture_with(2);
         let origin = row(&map, Item::Workspace(workspace(source)));
@@ -479,20 +529,22 @@ fn two_line_workspace_rows_place_a_drop_by_the_line_under_the_pointer() {
             MouseAction::Motion,
             target,
         );
-        let draw = pointer
-            .sidebar_reorder_preview()
+        repaint(&mut pointer, &mut view, 2);
+        let expected = NavigationConfiguration::MoveWorkspace {
+            workspace_id: workspace(source),
+            project_id: Some(group),
+            before_workspace_id: before,
+        };
+        let moved = configure_navigation(&port.snapshot.navigation, &expected)
             .unwrap()
-            .resolve(pointer.map.as_ref().unwrap())
             .unwrap();
-        let (marked, _, _) = draw.destination.unwrap();
-        assert_eq!(
-            marked,
-            Rect {
-                y: anchor.y.saturating_add_signed(edge),
-                height: 1,
-                ..anchor
-            },
-            "the marked line lies on the gap the drop fills"
+        assert!(
+            view.machines.sidebar_source().matches_navigation(
+                &view.machines.current,
+                &port.snapshot.session_id,
+                &moved
+            ),
+            "the sidebar shows the drop the release submits"
         );
         send(
             &mut pointer,
@@ -501,14 +553,7 @@ fn two_line_workspace_rows_place_a_drop_by_the_line_under_the_pointer() {
             MouseAction::Release,
             target,
         );
-        assert_eq!(
-            port.writes,
-            [NavigationConfiguration::MoveWorkspace {
-                workspace_id: workspace(source),
-                project_id: Some(group),
-                before_workspace_id: before,
-            }]
-        );
+        assert_eq!(port.writes, [expected]);
     }
 }
 
@@ -671,8 +716,10 @@ fn disclosure_keeps_its_click_contract_and_scroll_repaint_keeps_a_drag() {
     assert_eq!(port.writes.len(), 1);
 }
 
+/// A scroll moves other rows under a pointer that stays put, so the shown destination follows it
+/// there and the frame that shows the new order is requested.
 #[test]
-fn preview_resolves_the_candidate_frame_instead_of_a_stale_scroll_destination() {
+fn a_scroll_repaint_moves_the_destination_to_the_row_now_under_the_pointer() {
     let (mut pointer, mut view, mut port, map) = fixture();
     let origin = row(&map, Item::Workspace(workspace(0)));
     let target = row(&map, Item::Project(project(2)));
@@ -690,17 +737,14 @@ fn preview_resolves_the_candidate_frame_instead_of_a_stale_scroll_destination() 
         MouseAction::Motion,
         target,
     );
-    let preview = pointer.sidebar_reorder_preview().unwrap();
-    assert!(preview.resolve(&map).unwrap().destination.is_some());
-    let mut candidate = map.clone();
-    for region in &mut candidate.regions {
-        if region.rect.y == target.y {
-            region.rect.y += 1;
-        }
+    let mut scrolled = map.clone();
+    scrolled.sidebar_reorder.as_mut().unwrap().window.top = 1;
+    for region in &mut scrolled.regions {
+        region.rect.y -= 2;
     }
-    assert!(preview.resolve(&candidate).unwrap().destination.is_none());
-    assert!(port.writes.is_empty());
-    pointer.publish(candidate);
+    assert!(!pointer.take_projection_redraw());
+    pointer.publish(scrolled);
+    assert!(pointer.take_projection_redraw());
     send(
         &mut pointer,
         &mut view,
@@ -708,7 +752,197 @@ fn preview_resolves_the_candidate_frame_instead_of_a_stale_scroll_destination() 
         MouseAction::Release,
         target,
     );
-    assert!(port.writes.is_empty());
+    assert_eq!(
+        port.writes,
+        [NavigationConfiguration::MoveWorkspace {
+            workspace_id: workspace(0),
+            project_id: Some(project(2)),
+            before_workspace_id: None,
+        }],
+        "the pointer now rests on the line of Workspace 2, so the Workspace lands after it"
+    );
+}
+
+/// Every motion moves the held row to its destination in the sidebar itself, across Projects too,
+/// and a pointer that stays where the move put the row keeps it there; the release submits exactly
+/// the order shown, which the admitted move's projection then shows without a step back.
+#[test]
+fn a_drag_moves_the_held_row_live_and_its_release_submits_the_order_shown() {
+    let (mut pointer, mut view, mut port, map) = fixture_with(2);
+    let canonical = shown(&view);
+    let (p1, p2) = (Item::Project(project(1)), Item::Project(project(2)));
+    let w = |index| Item::Workspace(workspace(index));
+    let origin = row(&map, w(0));
+    send(
+        &mut pointer,
+        &mut view,
+        &mut port,
+        MouseAction::Press,
+        origin,
+    );
+    // The lower line of the two-line Workspace below places the held row after it.
+    let lower = Rect {
+        y: row(&map, w(1)).y + 1,
+        height: 1,
+        ..origin
+    };
+    send(
+        &mut pointer,
+        &mut view,
+        &mut port,
+        MouseAction::Motion,
+        lower,
+    );
+    let map = repaint(&mut pointer, &mut view, 2);
+    let reordered = vec![
+        p1.clone(),
+        w(1),
+        w(0),
+        p2.clone(),
+        w(2),
+        Item::Workspace(fixture_workspace()),
+        w(3),
+    ];
+    assert_eq!(shown(&view), reordered);
+    // The moved row now lies under the pointer, so the same cell keeps it and repaints nothing.
+    assert!(contains(row(&map, w(0)), lower.x + 3, lower.y));
+    send(
+        &mut pointer,
+        &mut view,
+        &mut port,
+        MouseAction::Motion,
+        lower,
+    );
+    assert!(
+        !view
+            .machines
+            .preview_sidebar_reorder(pointer.sidebar_reorder_order())
+    );
+    let preview = pointer
+        .sidebar_reorder_preview()
+        .unwrap()
+        .resolve(&map)
+        .unwrap();
+    assert_eq!(preview.grabbed, Some(row(&map, w(0))));
+
+    // Onto the next Project's heading from above: the held row becomes its first Workspace.
+    let heading = row(&map, p2.clone());
+    send(
+        &mut pointer,
+        &mut view,
+        &mut port,
+        MouseAction::Motion,
+        heading,
+    );
+    let map = repaint(&mut pointer, &mut view, 2);
+    let across = vec![
+        p1,
+        w(1),
+        p2,
+        w(0),
+        w(2),
+        Item::Workspace(fixture_workspace()),
+        w(3),
+    ];
+    assert_eq!(shown(&view), across);
+    assert!(contains(row(&map, w(0)), heading.x + 3, heading.y));
+    send(
+        &mut pointer,
+        &mut view,
+        &mut port,
+        MouseAction::Motion,
+        heading,
+    );
+    assert!(
+        !view
+            .machines
+            .preview_sidebar_reorder(pointer.sidebar_reorder_order())
+    );
+
+    send(
+        &mut pointer,
+        &mut view,
+        &mut port,
+        MouseAction::Release,
+        heading,
+    );
+    let submitted = NavigationConfiguration::MoveWorkspace {
+        workspace_id: workspace(0),
+        project_id: Some(project(2)),
+        before_workspace_id: Some(workspace(2)),
+    };
+    assert_eq!(port.writes, std::slice::from_ref(&submitted));
+    // The shell observes the admitted move before the next frame drops the drag's order.
+    let current = view.machines.current.clone();
+    view.machines.observe_native_navigation(
+        current,
+        Some(SidebarNavigationProjection {
+            snapshot: port.snapshot.clone(),
+            pending: Some(submitted),
+        }),
+    );
+    assert_eq!(shown(&view), across);
+    repaint(&mut pointer, &mut view, 2);
+    assert_eq!(shown(&view), across);
+    assert_ne!(shown(&view), canonical);
+}
+
+/// Escape and a release outside the list end the drag and the sidebar returns to its canonical
+/// order, with nothing submitted.
+#[test]
+fn escape_or_a_release_outside_the_list_restores_the_canonical_order() {
+    for outside in [false, true] {
+        let (mut pointer, mut view, mut port, map) = fixture();
+        let canonical = shown(&view);
+        let origin = row(&map, Item::Workspace(workspace(0)));
+        let target = row(&map, Item::Project(project(2)));
+        send(
+            &mut pointer,
+            &mut view,
+            &mut port,
+            MouseAction::Press,
+            origin,
+        );
+        send(
+            &mut pointer,
+            &mut view,
+            &mut port,
+            MouseAction::Motion,
+            target,
+        );
+        repaint(&mut pointer, &mut view, 1);
+        assert_ne!(shown(&view), canonical);
+        if outside {
+            let beyond = Rect { x: 40, ..target };
+            send(
+                &mut pointer,
+                &mut view,
+                &mut port,
+                MouseAction::Motion,
+                beyond,
+            );
+            repaint(&mut pointer, &mut view, 1);
+            assert_eq!(
+                shown(&view),
+                canonical,
+                "outside the list shows the canonical order"
+            );
+            send(
+                &mut pointer,
+                &mut view,
+                &mut port,
+                MouseAction::Release,
+                beyond,
+            );
+        } else {
+            // The route Escape takes through the dispatcher.
+            assert!(pointer.cancel_sidebar_reorder());
+        }
+        repaint(&mut pointer, &mut view, 1);
+        assert_eq!(shown(&view), canonical);
+        assert!(port.writes.is_empty());
+        assert!(!pointer.sidebar_reorder_captured());
+    }
 }
 
 #[test]

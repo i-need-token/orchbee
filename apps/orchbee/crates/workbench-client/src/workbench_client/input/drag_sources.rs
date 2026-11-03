@@ -21,6 +21,9 @@ impl SidebarReorderSource {
     pub(crate) fn navigation(&self) -> &Navigation {
         &self.0.navigation
     }
+    pub(crate) fn snapshot(&self) -> Arc<Snapshot> {
+        Arc::clone(&self.0)
+    }
     pub(crate) fn session_id(&self) -> &SessionId {
         &self.0.session_id
     }

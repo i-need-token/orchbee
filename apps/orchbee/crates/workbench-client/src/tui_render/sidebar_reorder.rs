@@ -1,8 +1,9 @@
-//! Transient feedback for the pointer owner's already-validated sidebar destination.
+//! Transient feedback for a sidebar drag. The sidebar already paints the move in place; this marks
+//! the held entry, the bottom drop area and the localized result.
 use crate::{
     localization::Locale,
     terminal_text::{sanitize_terminal_text, truncate_display},
-    tui_hit_map::SidebarReorderDraw,
+    tui_hit_map::{SidebarReorderDraw, sidebar_reorder::Placement},
     tui_theme::{Role, Theme},
 };
 use ratatui::{
@@ -22,24 +23,19 @@ pub fn render_sidebar_reorder_preview(
     let emphasis = theme
         .style(Role::SurfaceSelection)
         .patch(theme.style(Role::TextPrimary));
+    // The held entry stays legible in its identity colors; dimming it reads as the placeholder of
+    // a lifted row and survives collapsed colors.
     if let Some(area) = preview.grabbed {
         frame.buffer_mut().set_style(
             area.intersection(viewport),
             Style::new().add_modifier(Modifier::DIM),
         );
     }
-    if let Some((area, _, _)) = &preview.destination {
-        // An underline differentiates the insertion destination when colors collapse.
-        frame.buffer_mut().set_style(
-            area.intersection(viewport),
-            Style::new().add_modifier(Modifier::UNDERLINED),
-        );
-    }
     let footer = preview.footer.intersection(frame.area());
     let footer_active = preview
         .destination
         .as_ref()
-        .is_some_and(|(area, _, _)| *area == preview.footer);
+        .is_some_and(|(placement, _)| matches!(placement, Placement::Ungrouped | Placement::End));
     frame.render_widget(Clear, footer);
     frame.render_widget(
         Paragraph::new(truncate_display(
@@ -63,7 +59,7 @@ pub fn render_sidebar_reorder_preview(
             preview
                 .destination
                 .as_ref()
-                .map(|(_, placement, label)| ((*placement).into(), label.as_str())),
+                .map(|(placement, label)| ((*placement).into(), label.as_str())),
         );
         // Paragraph paints text and styles, but does not erase an older notice's tail.
         frame.render_widget(Clear, status);

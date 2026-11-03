@@ -80,13 +80,46 @@ impl Picker {
         self.space_projection = self
             .native_navigation
             .as_ref()
-            .and_then(|(machine, source)| {
+            .and_then(|(machine, native)| {
+                // A drag's order shows only over the exact topology it moves, and never over an
+                // admitted move, which the native projection shows itself.
+                let source = self
+                    .reorder_preview
+                    .as_ref()
+                    .filter(|preview| {
+                        native.pending.is_none() && preview.snapshot == native.snapshot
+                    })
+                    .unwrap_or(native);
                 crate::machine_spaces::checkpoint::Checkpoint::project_navigation(
                     source,
                     self.observed_space_checkpoint(machine),
                 )
                 .map(|checkpoint| (machine.clone(), std::sync::Arc::new(checkpoint)))
             });
+    }
+
+    /// Shows a sidebar drag's order, its canonical baseline with the move it shows, in place of
+    /// the native one; `None` restores the native order. The window keeps its top row index while
+    /// rows move under the pointer.
+    pub(crate) fn preview_sidebar_reorder(
+        &mut self,
+        order: Option<crate::machine_spaces::navigation_projection::SidebarNavigationProjection>,
+    ) -> bool {
+        if self.reorder_preview == order {
+            return false;
+        }
+        if order.is_some() {
+            self.spaces.hold();
+        }
+        let selected = self.selection();
+        let scroll = self.spaces.scroll;
+        self.reorder_preview = order;
+        self.rebuild_workspaces(selected);
+        self.spaces.scroll = scroll;
+        if self.reorder_preview.is_none() {
+            self.spaces.release();
+        }
+        true
     }
 
     /// A new foreground Workspace intent returns the viewport to following its current target.
