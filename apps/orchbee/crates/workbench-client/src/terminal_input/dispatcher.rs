@@ -1934,6 +1934,17 @@ impl InputDispatcher {
                                             crate::tui_hit_map::GlobalChromeAction::RestoreSidebar => {
                                                 None
                                             }
+                                            crate::tui_hit_map::GlobalChromeAction::HideSidebar => {
+                                                (view.machines.available
+                                                    && view.sidebar_surface()
+                                                        != crate::client_view::SidebarSurface::Hidden)
+                                                    .then_some(ClientAction::ToggleBusinessSidebar)
+                                            }
+                                            crate::tui_hit_map::GlobalChromeAction::ShortcutHelp => {
+                                                (view.overlay()
+                                                    != Some(crate::client_view::Overlay::ShortcutHelp))
+                                                .then_some(ClientAction::OpenShortcutHelp)
+                                            }
                                         };
                                         if let Some(action) = action {
                                             let transition = view.decide_action(action);

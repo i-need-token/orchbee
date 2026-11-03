@@ -134,9 +134,10 @@ to authored guidance or terminal content; no PTY geometry is reserved.
 
 Fixed-action shortcut hints end at the sidebar divider, with at least two blank cells after the
 button. A hint that cannot fit in full is omitted; its cells are outside
-the button's pointer target. The Settings action sits alone on the sidebar's last row without a shortcut
-hint, and at every size the list runs directly down to it with no divider, hint or blank row between
-them. The prefix status teaches the sidebar-focus binding as `Tab` sidebar; while sidebar navigation
+the button's pointer target. The Settings action leads the sidebar's last row without a shortcut
+hint, followed only by the [Help control](#sidebar-toggle-and-help) at the row's end, and at every
+size the list runs directly down to it with no divider, hint or blank row between them. The
+prefix status teaches the sidebar-focus binding as `Tab` sidebar; while sidebar navigation
 owns the keyboard, the floating status shows its Back and Help bindings. The default focus switch
 is `Ctrl+B Tab`, with the previous
 `Ctrl+B Shift+B` alias retained. Repeating the focus switch returns to the terminal without activating
@@ -151,7 +152,8 @@ regions use the same final rectangles; tree disclosure never changes terminal co
 A blank row normally separates the fixed actions from the first group. When canonical rows
 are available, the list omits repeated application branding and ordinary session status.
 An empty navigation tree leaves the space below the actions blank until rows or a creation preview arrive.
-Both sidebar presentations keep one top padding row and one right padding cell, with no
+Both sidebar presentations keep one top padding row, which holds only the
+[sidebar toggle](#sidebar-toggle-and-help) at its end, and one right padding cell, with no
 outer left padding. Row surfaces, the footer
 divider and fixed-action shortcut hints continue through the right padding cell to the sidebar
 divider; pointer targets keep the list's own columns. Only an overflowing list reserves its last
@@ -320,8 +322,9 @@ and shares the same stable target proof as secondary click. These local bindings
 help from the binding registry; the gesture does not add a separate shortcut system.
 
 At Full and Compact tiers, the top strip contains Tabs, their close and creation controls,
-and a sidebar restore control when needed. It rests on `surface-strip`, one step lighter than the
-terminal in named themes and derived from the observed host colors under System, so a bare pane
+and the hidden sidebar's [toggle](#sidebar-toggle-and-help) when needed. It rests on
+`surface-strip`, one step lighter than the terminal in named themes and derived from the
+observed host colors under System, so a bare pane
 below it stays distinct. Each Tab leads with the state glyph
 of the Agent the current machine observation places in it and follows with an unread dot; a
 collapsed group carries its members' most urgent state. While the sidebar is hidden, the attached
@@ -604,7 +607,7 @@ the preference for later restoration.
 | Matching left release    | Revalidate the painted target and compare the original preferred width with the current preference. Commit the changed candidate once through Picker, retire old hit geometry and run the existing layout boundary. Equal effective rectangles cannot authorize a stale preferred value.                                                                                                   |
 | Cancel / stale source    | Escape, Shift, host resize, hidden sidebar, covering capture or loss of the painted target discards the preview. Zero displacement and clamped no-op releases preserve the original preference. The input owner retains release and packet retirement.                                                                                                                                     |
 | Width commit             | Clear queued sidebar wheel work and resume height-aware focus reveal. Preserve keyboard ownership, expansion, active Context and request. The accepted preference takes over the already projected width; subsequent frames keep labels, row heights, hits and terminal geometry consistent.                                                                                               |
-| Hidden restoration       | When Full or Compact can present the sidebar and no covering capture owns the surface, a localized top-strip entry invokes the existing `FocusBusinessSidebar` action. It shares the configured navigation entry route; the existing visibility toggle and global Menu remain available. Minimal and TooSmall keep their existing reduced hints and refusal behavior until the host grows. |
+| Hidden restoration       | When Full or Compact can present the sidebar and no covering capture owns the surface, the Tab strip starts with the [sidebar toggle](#sidebar-toggle-and-help). It invokes the existing `ToggleBusinessSidebar` action at the retained width; its keyboard binding and the Menu remain. Minimal and TooSmall keep their existing reduced hints and refusal behavior until the host grows. |
 
 The border hit uses the sidebar control layer, above only its own surface and below
 covering modals. Row, menu and border rectangles are disjoint. A read-only local
@@ -625,6 +628,43 @@ locales, tier degradation and exact border hits. Shared input evidence under the
 native mouse-input authority owns capture, stale draws, cancellation, matching release,
 two held moves across rendered frames, graphics cleanup and terminal-geometry agreement; pure geometry alone does not prove
 those effects. The existing bounded hierarchy traces remain the hierarchy authority.
+
+## Sidebar toggle and Help
+
+Two three-cell [icon actions](../../../docs/tui/components.md#action-controls) give pointer users
+the sidebar's visibility and shortcut help without knowing the prefix. Both invoke existing Client
+actions through global chrome, so no binding, action identity or surface is new:
+
+- The hide toggle `[«]` ends the visible sidebar's top padding row at the list's last column,
+  before the right padding cell. It invokes `ToggleBusinessSidebar` (`Ctrl+B b`), which closes a
+  docked sidebar or an overlay alike.
+- While an available sidebar is hidden at Full or Compact, the show toggle `[»]` leads the Tab
+  strip, one strip cell before the Tabs, and invokes the same action. The toggle therefore stays on
+  the first row in both states.
+- Help `[?]` ends the Settings row in the hide toggle's columns and invokes `OpenShortcutHelp`, the
+  same Help as `Ctrl+B ?`.
+
+`«` and `»` mean only this toggle. Their simplified-glyph fallbacks `[<]` and `[>]` share the
+Previous and Next characters because their tracks never coincide: the toggle holds the sidebar's
+top corner and the strip's leading edge, while Previous and Next flank a page or count. Both
+controls rest, hover and press as icon actions and sit on the sidebar's own hit layer, or the
+foreground on the strip. Their pointer tooltips name Hide sidebar, Show sidebar or Shortcuts with
+the key from the effective binding table. Release revalidates the painted state: hide needs an
+available visible sidebar, show an available hidden one, and Help a closed Help.
+
+Visibility is session state, like the width preference: hiding keeps the preferred width for the
+next show, and neither persists across Client restarts. An admitted sidebar is at least 24
+columns, so both controls fit at every presentable width. A narrower painted region first drops
+Help, once the Settings row cannot keep two blank cells after Settings; the hide toggle drops only
+when its row has fewer than three list columns. Neither overlaps New workspace, Search, Settings or
+row text. Minimal and TooSmall paint neither toggle; the keyboard toggle remains. The GUI does not
+present these controls yet.
+
+The [sidebar chrome renders](../crates/workbench-client/src/tui_render/sidebar_chrome/tests.rs)
+cover 120x40, 80x24 and 60x12 at widths 24, 30 and 60 in both locales with native, RGB and
+simplified glyphs, the hidden strip toggle and the drop order in 3- to 24-column regions. The
+[dispatcher trace](../crates/workbench-client/src/terminal_input/dispatcher/tests/sidebar_width.rs)
+clicks the painted controls: hide, show at the retained width, and Help.
 
 ## Status line
 
@@ -755,7 +795,7 @@ TestBackend renders at 120x40, 80x24, 60x12, 50x10, 15x4 and mixed-axis geometri
 display-width truncation.
 
 Whole-screen review follows `docs/tui/verification.md`: the current Workspace remains marked
-independently of keyboard focus, ordinary sidebars expose only Settings at the bottom, complete lists omit redundant
+independently of keyboard focus, ordinary sidebars expose only Settings and Help at the bottom, complete lists omit redundant
 ranges, a single pane fills its panel, and split/zoom views share their frame and border titles. Review the default theme together with
 both named RGB themes, empty and populated sidebars, navigation, hidden sidebar and split/zoom.
 `workbench_client/ui/tests/viewport/chrome.rs` checks last-row content, prefix coverage, pointer

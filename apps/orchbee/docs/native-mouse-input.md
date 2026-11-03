@@ -180,10 +180,10 @@ the preference. Preview shares the divider composer's graphics cover and clean
 repaint path. A no-op preserves the preferred width even when the viewport clamps
 its effective width. Focus, expansion and terminal selection remain unchanged.
 
-The status restore control appears only when a Full or Compact layout can show
+The Tab strip's sidebar toggle appears only when a Full or Compact layout can show
 the currently hidden sidebar and no covering input owner is active. It invokes
-the existing explicit sidebar-focus action. Minimal and TooSmall layouts do not
-paint an unusable restore control.
+the existing sidebar visibility toggle, as does the visible sidebar's own toggle.
+Minimal and TooSmall layouts do not paint an unusable toggle.
 
 The existing pointer/dispatcher traces cover exact painted-source admission,
 absolute preview and release, cancellation, stale preference, released mouse
@@ -306,8 +306,8 @@ entirely of button-free motion can skip repaint only when every decoded item lea
 unchanged and no decoder, timer, layout, or owner transition changed anything else.
 
 Settings, action menus, sidebars, Agent board, Help, Navigator, Machine Picker, Presentation
-selectors, Tab creation, and the global Menu and Sidebar Restore buttons use this central
-protocol. Generic controls activate on matching release. Sidebar Menu/Create retain their
+selectors, Tab creation, and the global Menu, sidebar toggle and sidebar Help buttons use this
+central protocol. Generic controls activate on matching release. Sidebar Menu/Create retain their
 specialized menu-opening owner, and Agent-board rows use `SelectOnPress` only for provisional
 navigation. Tab/group arrangement, dividers, scrollbars, Copy selection, and pane input
 retain their specialized gesture owners. Disabled targets stay visible and consuming without
@@ -319,7 +319,8 @@ paste. Navigator rows and close carry their opening and catalog source. Machine 
 exact opening, mode, ordered catalog, and actual filter/query basis; its renderer stages targets
 in the central map and owns no local rectangle cache. Async replacement, reopen, or source drift
 cannot activate an older candidate. Global chrome actions have stable action identity and recheck
-live admission on release; Sidebar Restore also requires an available, currently hidden sidebar.
+live admission on release; the sidebar toggle also requires an available sidebar still hidden or
+shown as painted, and Help a closed Help.
 
 Copy, Resize, and native forms publish explicit specialized modal-control fingerprints with
 availability and exact geometry. A raw modal-shaped region does not acquire implicit Enabled

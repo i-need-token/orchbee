@@ -66,15 +66,21 @@ fn icon_geometry_requires_the_complete_three_cell_action_before_paint() {
 
 #[test]
 fn icon_grammar_is_fixed_and_rest_uses_secondary_content() {
-    let theme = Theme::one_dark();
-    for (glyph, expected) in [
-        (IconActionGlyph::Close, "[x]"),
-        (IconActionGlyph::Previous, "[<]"),
-        (IconActionGlyph::Next, "[>]"),
-        (IconActionGlyph::Up, "[^]"),
-        (IconActionGlyph::Down, "[v]"),
-        (IconActionGlyph::Help, "[?]"),
-        (IconActionGlyph::Add, "[+]"),
+    let mut ascii = Theme::one_dark();
+    ascii.glyphs = crate::tui_theme::GlyphSet::ASCII;
+    for (theme, glyph, expected) in [
+        (Theme::one_dark(), IconActionGlyph::Close, "[x]"),
+        (Theme::one_dark(), IconActionGlyph::Previous, "[<]"),
+        (Theme::one_dark(), IconActionGlyph::Next, "[>]"),
+        (Theme::one_dark(), IconActionGlyph::Up, "[^]"),
+        (Theme::one_dark(), IconActionGlyph::Down, "[v]"),
+        (Theme::one_dark(), IconActionGlyph::Help, "[?]"),
+        (Theme::one_dark(), IconActionGlyph::Add, "[+]"),
+        (Theme::one_dark(), IconActionGlyph::HideSidebar, "[«]"),
+        (Theme::one_dark(), IconActionGlyph::ShowSidebar, "[»]"),
+        // Simplified glyphs keep the toggle three cells wide in its ASCII fallback.
+        (ascii, IconActionGlyph::HideSidebar, "[<]"),
+        (ascii, IconActionGlyph::ShowSidebar, "[>]"),
     ] {
         let mut terminal = Terminal::new(TestBackend::new(3, 1)).unwrap();
         let mut painted = None;

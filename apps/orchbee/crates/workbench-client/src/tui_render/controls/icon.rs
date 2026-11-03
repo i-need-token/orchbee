@@ -1,10 +1,11 @@
 //! Fixed three-cell icon actions for space-constrained, discoverable chrome.
 
-use crate::tui_theme::{Role, Theme};
+use crate::tui_theme::{GlyphSet, Role, Theme};
 use ratatui::{
     Frame,
     layout::Rect,
     style::{Modifier, Style},
+    text::Line,
     widgets::Paragraph,
 };
 
@@ -22,18 +23,26 @@ pub(crate) enum IconActionGlyph {
     Down,
     Help,
     Add,
+    /// The sidebar toggle while the sidebar is visible.
+    HideSidebar,
+    /// The sidebar toggle while the sidebar is hidden.
+    ShowSidebar,
 }
 
 impl IconActionGlyph {
-    fn label(self) -> &'static str {
+    /// The one cell between the brackets; only the sidebar toggle takes a non-ASCII glyph, so it
+    /// follows the host's glyph set.
+    fn glyph(self, glyphs: GlyphSet) -> &'static str {
         match self {
-            Self::Close => "[x]",
-            Self::Previous => "[<]",
-            Self::Next => "[>]",
-            Self::Up => "[^]",
-            Self::Down => "[v]",
-            Self::Help => "[?]",
-            Self::Add => "[+]",
+            Self::Close => "x",
+            Self::Previous => "<",
+            Self::Next => ">",
+            Self::Up => "^",
+            Self::Down => "v",
+            Self::Help => "?",
+            Self::Add => "+",
+            Self::HideSidebar => glyphs.sidebar_hide,
+            Self::ShowSidebar => glyphs.sidebar_show,
         }
     }
 }
@@ -159,7 +168,10 @@ pub(crate) fn render_icon_action(
 ) -> Option<Rect> {
     let rect = icon_action_rect(frame.area(), area)?;
     let style = icon_action_style(theme, spec.surface, spec.availability, spec.pointer);
-    frame.render_widget(Paragraph::new(spec.glyph.label()), rect);
+    frame.render_widget(
+        Paragraph::new(Line::from_iter(["[", spec.glyph.glyph(theme.glyphs), "]"])),
+        rect,
+    );
     for x in rect.x..rect.right() {
         frame.buffer_mut()[(x, rect.y)]
             .set_style(Style::reset())

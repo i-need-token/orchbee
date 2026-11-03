@@ -2001,6 +2001,8 @@ impl PointerState {
                 | HitTarget::Onboarding(_)
                 | HitTarget::OnboardingSurface
                 | HitTarget::SidebarRestoreButton
+                | HitTarget::SidebarHideButton
+                | HitTarget::ShortcutHelpButton
                 | HitTarget::ActionMenuRow { .. }
                 | HitTarget::Worktree { .. }
                 | HitTarget::NavigatorRow(_)

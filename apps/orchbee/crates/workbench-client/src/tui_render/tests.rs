@@ -514,7 +514,6 @@ fn without_cell_padding(value: &str) -> String {
 fn root_chrome_actions_use_canonical_geometry_roles_and_exact_targets() {
     use crate::{
         client_view::{ClientAction, SidebarSurface},
-        terminal_text::display_width,
         tui_hit_map::{HitMapBuilder, HitTarget},
         tui_layout::{ViewportTier, project_shell_areas},
         tui_theme::{Role, Theme},
@@ -556,45 +555,29 @@ fn root_chrome_actions_use_canonical_geometry_roles_and_exact_targets() {
                 assert_eq!(cells.len(), usize::from(right - left));
                 Some(Rect::new(left, y, right - left, 1))
             };
-            let assert_action = |rect: Rect, label: &str| {
-                assert_eq!(
-                    usize::from(rect.width),
-                    display_width(label) + 4,
-                    "canonical `[ Label ]` grammar without a focus cell"
-                );
-                let text = (rect.x..rect.right())
-                    .map(|x| buffer[(x, rect.y)].symbol())
-                    .collect::<String>();
-                assert_eq!(without_cell_padding(&text), format!("[{label}]"));
-                let expected = theme.content_on_surface(
-                    Role::SurfaceChrome,
-                    None,
-                    Some(Role::TextPrimary),
-                    theme.style(Role::TextPrimary),
-                );
-                let mut x = rect.x;
-                while x < rect.right() {
-                    let cell = &buffer[(x, rect.y)];
-                    assert_eq!(cell.style(), expected, "action cell at column {x}");
-                    assert!(!cell.modifier.contains(Modifier::BOLD));
-                    // A wide grapheme's lead cell owns the terminal style for its complete
-                    // display width; TestBackend represents continuation cells as padding.
-                    x = x.saturating_add(
-                        u16::try_from(display_width(cell.symbol()).max(1))
-                            .expect("one action glyph fits in the terminal width"),
-                    );
-                }
-                assert_eq!(x, rect.right(), "action styles cover the exact target");
-            };
-
             assert!(target_rect(&HitTarget::MenuButton).is_none());
             if projected.tier == ViewportTier::Minimal {
                 assert!(target_rect(&HitTarget::SidebarRestoreButton).is_none());
             } else {
+                // The hidden sidebar's toggle is a resting icon action at the strip's leading edge.
                 let restore = target_rect(&HitTarget::SidebarRestoreButton)
                     .expect("hidden available sidebar restore action");
-                assert_action(restore, locale.sidebar_restore_label());
-                assert_eq!(restore.x, projected.tabs.x);
+                assert_eq!(restore, Rect::new(projected.tabs.x, projected.tabs.y, 3, 1));
+                let text = (restore.x..restore.right())
+                    .map(|x| buffer[(x, restore.y)].symbol())
+                    .collect::<String>();
+                assert_eq!(text, "[»]");
+                let expected = theme.content_on_surface(
+                    Role::SurfaceStrip,
+                    None,
+                    Some(Role::TextSecondary),
+                    theme.style(Role::TextSecondary),
+                );
+                for x in restore.x..restore.right() {
+                    let cell = &buffer[(x, restore.y)];
+                    assert_eq!(cell.style(), expected, "toggle cell at column {x}");
+                    assert!(!cell.modifier.contains(Modifier::BOLD));
+                }
             }
         }
     }

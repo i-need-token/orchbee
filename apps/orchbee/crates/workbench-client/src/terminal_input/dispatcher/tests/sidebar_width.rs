@@ -273,6 +273,87 @@ fn sidebar_restore_release_revalidates_machine_availability() {
     assert!(port.bytes.is_empty());
 }
 
+/// The painted toggle hides the sidebar, its strip counterpart restores the same width, and the
+/// sidebar's Help control opens the same Help as the prefix chord, each on exact release.
+#[test]
+fn painted_sidebar_toggle_round_trips_the_width_and_help_opens_shortcut_help() {
+    use crate::{client_view::SidebarSurface, localization::Locale, tui_theme::Theme};
+    use ratatui::{Terminal, backend::TestBackend};
+    let (mut dispatcher, mut view, mut port) = fixture();
+    let width = SidebarWidth::new(40).unwrap();
+    assert!(
+        view.machines
+            .set_sidebar_width(SidebarWidth::DEFAULT, width)
+    );
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+    let theme = Theme::terminal_native();
+    let mut paint = |dispatcher: &mut InputDispatcher, view: &ClientView| {
+        let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
+        terminal
+            .draw(|frame| {
+                crate::tui_render::render_terminal_shell(
+                    frame,
+                    view,
+                    Locale::EnUs,
+                    None,
+                    &theme,
+                    &mut hits,
+                );
+            })
+            .unwrap();
+        let map = hits.finish();
+        let cell = |target: HitTarget| {
+            (0..40)
+                .flat_map(|y| (0..120).map(move |x| (x, y)))
+                .find(|&(x, y)| map.hit_target_at(x, y) == Some(&target))
+        };
+        let cells = (
+            cell(HitTarget::SidebarHideButton),
+            cell(HitTarget::SidebarRestoreButton),
+            cell(HitTarget::ShortcutHelpButton),
+        );
+        dispatcher.publish_hit_map(map);
+        cells
+    };
+    let click = |dispatcher: &mut InputDispatcher,
+                 view: &mut ClientView,
+                 port: &mut Port,
+                 (x, y): (u16, u16)| {
+        let (x, y) = (x + 1, y + 1);
+        dispatch_all(dispatcher, view, port, format!("[<0;{x};{y}M").as_bytes());
+        dispatch_all(dispatcher, view, port, format!("[<0;{x};{y}m").as_bytes());
+    };
+
+    let (hide, restore, help) = paint(&mut dispatcher, &view);
+    assert_eq!(
+        hide,
+        Some((35, 0)),
+        "the toggle ends the 40-column sidebar's list"
+    );
+    assert_eq!(restore, None);
+    assert_eq!(help.map(|(_, y)| y), Some(39));
+    click(&mut dispatcher, &mut view, &mut port, hide.unwrap());
+    assert_eq!(view.sidebar_surface(), SidebarSurface::Hidden);
+
+    let (hide, restore, help) = paint(&mut dispatcher, &view);
+    assert_eq!((hide, help), (None, None));
+    assert_eq!(restore, Some((0, 0)));
+    click(&mut dispatcher, &mut view, &mut port, restore.unwrap());
+    assert_eq!(view.sidebar_surface(), SidebarSurface::Docked(width));
+
+    let (_, _, help) = paint(&mut dispatcher, &view);
+    assert_eq!(view.overlay(), None);
+    click(&mut dispatcher, &mut view, &mut port, help.unwrap());
+    assert_eq!(
+        view.overlay(),
+        Some(crate::client_view::Overlay::ShortcutHelp)
+    );
+    assert_eq!(view.sidebar_surface(), SidebarSurface::Docked(width));
+    assert_eq!(port.settings, 0);
+    assert!(port.bytes.is_empty());
+}
+
 #[test]
 fn sidebar_width_end_keeps_packet_input_owned_until_canonical_paint() {
     use crate::{localization::Locale, tui_theme::Theme};

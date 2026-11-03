@@ -258,6 +258,21 @@ pub(super) fn render(
             HitTarget::OverlaySurface,
         );
     }
+    let controls = super::sidebar_chrome::Context {
+        view,
+        locale,
+        theme,
+        layer,
+    };
+    // The top padding row stays free of the fixed actions; only the toggle ends it.
+    if inner.y > sidebar.area.y {
+        super::sidebar_chrome::render_sidebar_toggle(
+            frame,
+            Rect::new(inner.x, sidebar.area.y, inner.width, 1),
+            &controls,
+            hits.as_deref_mut(),
+        );
+    }
     let source = view.machines.sidebar_source();
     render_actions(
         frame,
@@ -289,7 +304,7 @@ pub(super) fn render(
     // sidebar hint row, carries the shortcuts.
     let footer_rows = 1;
     let settings = Rect::new(area.x, area.bottom() - 1, area.width, 1);
-    let _ =
+    let settings_action =
         render_fixed_action(
             frame,
             settings,
@@ -308,6 +323,13 @@ pub(super) fn render(
             layer,
             hits.as_deref_mut(),
         );
+    super::sidebar_chrome::render_help(
+        frame,
+        settings,
+        settings_action,
+        &controls,
+        hits.as_deref_mut(),
+    );
     area.height = area.height.saturating_sub(footer_rows);
     if view.onboarding.visible
         && input == SidebarInput::Terminal

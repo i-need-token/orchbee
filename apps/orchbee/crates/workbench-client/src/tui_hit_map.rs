@@ -188,6 +188,8 @@ pub enum HitTarget {
     Divider(crate::tui_layout::DrawnDivider),
     SidebarResize(crate::tui_layout::DrawnSidebarWidth),
     SidebarRestoreButton,
+    SidebarHideButton,
+    ShortcutHelpButton,
     Popup {
         id: orchbee_workbench_protocol::WorkbenchRequestId,
         content: Rect,
@@ -263,7 +265,12 @@ pub enum HitTarget {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GlobalChromeAction {
     Onboarding(crate::onboarding::Action),
+    /// The Tab strip's toggle while the sidebar is hidden.
     RestoreSidebar,
+    /// The sidebar's own toggle while it is visible.
+    HideSidebar,
+    /// The sidebar's Help control beside Settings.
+    ShortcutHelp,
 }
 
 /// Finite controls shared by the two capturing pickers. A row index has meaning

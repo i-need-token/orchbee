@@ -9,6 +9,12 @@ pub(crate) enum TooltipLabel {
     EarlierTabs,
     /// The Tab strip's trailing overflow marker.
     LaterTabs,
+    /// The sidebar toggle while the sidebar is visible.
+    HideSidebar,
+    /// The sidebar toggle while the sidebar is hidden.
+    ShowSidebar,
+    /// The sidebar's control that opens shortcut help.
+    Shortcuts,
 }
 
 impl Locale {
@@ -22,6 +28,12 @@ impl Locale {
             (Self::ZhCn, TooltipLabel::EarlierTabs) => "显示前面的标签页",
             (Self::EnUs, TooltipLabel::LaterTabs) => "Show later Tabs",
             (Self::ZhCn, TooltipLabel::LaterTabs) => "显示后面的标签页",
+            (Self::EnUs, TooltipLabel::HideSidebar) => "Hide sidebar",
+            (Self::ZhCn, TooltipLabel::HideSidebar) => "隐藏侧栏",
+            (Self::EnUs, TooltipLabel::ShowSidebar) => "Show sidebar",
+            (Self::ZhCn, TooltipLabel::ShowSidebar) => "显示侧栏",
+            (Self::EnUs, TooltipLabel::Shortcuts) => "Shortcuts",
+            (Self::ZhCn, TooltipLabel::Shortcuts) => "快捷键",
         }
     }
 }

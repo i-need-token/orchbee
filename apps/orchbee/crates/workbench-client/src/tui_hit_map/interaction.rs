@@ -125,6 +125,8 @@ impl InteractionTarget {
             Self::GlobalChrome(action) => match action {
                 super::GlobalChromeAction::Onboarding(action) => HitTarget::Onboarding(*action),
                 super::GlobalChromeAction::RestoreSidebar => HitTarget::SidebarRestoreButton,
+                super::GlobalChromeAction::HideSidebar => HitTarget::SidebarHideButton,
+                super::GlobalChromeAction::ShortcutHelp => HitTarget::ShortcutHelpButton,
             },
             Self::SettingsRow { token, row } => HitTarget::SettingsRow {
                 token: *token,

@@ -62,8 +62,6 @@ use crate::tui_theme::{Role, Theme};
 use crate::workbench_client::{ClientTabView, DrawReceipt, WorkbenchClientView};
 use crate::workbench_state::CloseStatusToken;
 
-use crate::tui_hit_map::GlobalChromeAction;
-
 use crate::localization::TerminalStatus;
 
 mod agent_board;
@@ -107,6 +105,7 @@ mod selection;
 pub use agent_sidebar::render_width_preview;
 pub use divider_resize::render_divider_preview;
 pub use tabs::render_tab_drag_preview;
+mod sidebar_chrome;
 mod sidebar_reorder;
 pub use sidebar_reorder::render_sidebar_reorder_preview;
 mod scrollbar;
@@ -237,28 +236,9 @@ pub fn render_terminal_shell_with_resize<'a>(
         .buffer_mut()
         .set_style(areas.tabs, theme.style(tab_row));
     let mut areas = areas;
-    let chrome_action_state = controls::InteractionState::new(
-        controls::FocusState::Unfocused,
-        controls::PointerPresentation::Rest,
-        controls::NavigationState::None,
-        controls::CurrentState::NotCurrent,
-        controls::CheckedState::Unchecked,
-        controls::Availability::Enabled,
-        controls::OperationState::Idle,
-    );
-    let restore_label = locale.sidebar_restore_label();
     let restore_button =
         if view.machines.available && areas.sidebar.is_none() && !areas.tabs.is_empty() {
-            let action = controls::ActionSpec::new(
-                restore_label,
-                controls::ActionKind::Secondary,
-                controls::ControlSurface::Strip,
-                chrome_action_state,
-            );
-            controls::action_rect(area, areas.tabs, action, theme).inspect(|button| {
-                areas.tabs.x = button.right();
-                areas.tabs.width = areas.tabs.width.saturating_sub(button.width);
-            })
+            sidebar_chrome::take_strip_toggle(area, &mut areas.tabs)
         } else {
             None
         };
@@ -393,29 +373,17 @@ pub fn render_terminal_shell_with_resize<'a>(
     }
 
     if let Some(button) = restore_button {
-        let target = InteractionTarget::GlobalChrome(GlobalChromeAction::RestoreSidebar);
-        let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
-        let pointer =
-            match hits.projected_pointer(HitLayer::Foreground, button, button, &target, spec) {
-                ProjectedPointer::Rest => controls::PointerPresentation::Rest,
-                ProjectedPointer::Hovered => controls::PointerPresentation::Hovered,
-                ProjectedPointer::Pressed => controls::PointerPresentation::Pressed,
-            };
-        let painted = controls::render_action(
+        sidebar_chrome::render_strip_toggle(
             frame,
             button,
-            controls::ActionSpec::new(
-                restore_label,
-                controls::ActionKind::Secondary,
-                controls::ControlSurface::Strip,
-                chrome_action_state.with_pointer(pointer),
-            ),
-            theme,
+            &sidebar_chrome::Context {
+                view,
+                locale,
+                theme,
+                layer: HitLayer::Foreground,
+            },
+            hits,
         );
-        debug_assert_eq!(painted, Some(button));
-        if painted == Some(button) {
-            hits.record_interaction(HitLayer::Foreground, button, button, target, spec);
-        }
     }
 
     if tier != ViewportTier::TooSmall && capture_owner == Some(CaptureOwner::Resize) {

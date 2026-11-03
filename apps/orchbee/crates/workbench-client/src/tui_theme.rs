@@ -184,6 +184,10 @@ pub struct GlyphSet {
     pub(crate) disclosure_closed: &'static str,
     /// One-cell vertical guide connecting sibling Agents to their Workspace.
     pub(crate) tree_guide: &'static str,
+    /// The sidebar toggle's glyph while it hides the visible sidebar and while it shows the hidden
+    /// one. The ASCII forms appear only inside that bracketed toggle, never in a marker track.
+    pub(crate) sidebar_hide: &'static str,
+    pub(crate) sidebar_show: &'static str,
     /// One-cell Working frames; every frame has the same display width.
     pub(crate) working_frames: &'static [&'static str],
 }
@@ -205,6 +209,8 @@ impl GlyphSet {
         disclosure_open: "▾",
         disclosure_closed: "▸",
         tree_guide: "│",
+        sidebar_hide: "«",
+        sidebar_show: "»",
         working_frames: &["⬢"],
     };
 
@@ -225,6 +231,8 @@ impl GlyphSet {
         disclosure_open: "v",
         disclosure_closed: ">",
         tree_guide: "|",
+        sidebar_hide: "<",
+        sidebar_show: ">",
         working_frames: &["-", "\\", "|", "/"],
     };
 

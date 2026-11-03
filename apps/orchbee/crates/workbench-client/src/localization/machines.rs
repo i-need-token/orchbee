@@ -132,12 +132,6 @@ impl Locale {
             (Self::ZhCn, SidebarCommand::Exit) => "返回终端",
         }
     }
-    pub(crate) const fn sidebar_restore_label(self) -> &'static str {
-        match self {
-            Self::EnUs => "Sidebar",
-            Self::ZhCn => "侧栏",
-        }
-    }
     pub(crate) fn machine_picker_text(self, key: &str) -> &'static str {
         match (self, key) {
             (Self::EnUs, "copy-id") => "[Ctrl+y Copy ID]",

@@ -34,8 +34,17 @@ const LEGEND_GAP: &str = "  ";
 
 /// The first key the binding table shows now for a Client action, in the theme's key glyphs.
 pub(super) fn action_key(view: &ClientView, action: ClientAction, theme: &Theme) -> Option<String> {
+    binding_key(view, PrefixAction::Client(action), theme)
+}
+
+/// [`action_key`] for a binding whose member owns its effect, such as the sidebar toggle.
+pub(super) fn binding_key(
+    view: &ClientView,
+    action: PrefixAction,
+    theme: &Theme,
+) -> Option<String> {
     view.bindings()
-        .action_labels_with_glyphs(PrefixAction::Client(action), theme.glyphs.key_labels())
+        .action_labels_with_glyphs(action, theme.glyphs.key_labels())
         .into_iter()
         .next()
 }
