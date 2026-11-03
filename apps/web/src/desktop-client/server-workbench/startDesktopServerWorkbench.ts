@@ -281,6 +281,7 @@ async function run(
 		focusRecoveryStorage: storage.focusRecovery,
 		// Main names the person's home folder, and the Server it started runs beside it.
 		homeDirectory: bootstrap.defaultDirectory,
+		launchProfiles: terminalLaunchProfileClient,
 		// A publication this document cannot apply leaves nothing current to show, so it disconnects.
 		onPublicationFailure: () => session.dispose(),
 		preferredLocales,

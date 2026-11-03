@@ -9,6 +9,7 @@ import type {
 } from '@orchbee/workbench';
 import {
 	WORKBENCH_PROTOCOL_VERSION,
+	type UserLaunchProfileCatalog,
 	type WorkbenchSnapshot,
 } from '@orchbee/workbench-client-protocol';
 
@@ -23,7 +24,7 @@ import {
 	panelTerminalCreateAction,
 	panelTerminalCreated,
 } from './server-workbench-panels';
-import { tabCreateAction, tabsChangeAction } from './server-workbench-tabs';
+import { serverProfileLaunch, tabCreateAction, tabsChangeAction } from './server-workbench-tabs';
 import { serverResourceScopeId } from './serverResourceScopeId';
 import { serverWorkbenchResult } from './serverWorkbenchResult';
 import type { ServerWorkbenchAction } from './ServerWorkbenchSession';
@@ -32,11 +33,19 @@ import { workspaceLaunchAction, type ServerWorkspacePlacement } from './workspac
 /** The Server answers within its two-second sampling window; waiting longer only holds New Workspace back. */
 const CURRENT_DIRECTORY_MILLISECONDS = 5000;
 
+/** The Session's saved launch profiles as Settings keeps them current. */
+export interface ServerLaunchProfileSource {
+	getSnapshot(): { readonly catalog: UserLaunchProfileCatalog };
+	subscribe(listener: () => void): () => void;
+}
+
 interface ServerWorkbenchAuthorityOptions {
 	/** Where this Client works when nothing it shows names a directory. */
 	readonly defaultDirectory: string;
 	readonly defaultWorkspaceLabel: () => string;
 	readonly focusedWorkspaceId: () => string | null;
+	/** Without them, every Tab starts with the default launch profile. */
+	readonly launchProfiles?: ServerLaunchProfileSource;
 	readonly session: Parameters<typeof closeServerWorkbench>[0];
 }
 
@@ -219,9 +228,18 @@ export function createServerWorkbenchAuthority({
 	defaultDirectory,
 	defaultWorkspaceLabel,
 	focusedWorkspaceId,
+	launchProfiles,
 	session,
 }: ServerWorkbenchAuthorityOptions): WorkbenchAuthority {
 	return {
+		...(launchProfiles === undefined
+			? {}
+			: {
+					launchProfiles: {
+						getSnapshot: () => launchProfiles.getSnapshot().catalog,
+						subscribe: (listener) => launchProfiles.subscribe(listener),
+					},
+				}),
 		minimumSplitPercent: SERVER_MINIMUM_SPLIT_PERCENT,
 		change: async (context, change) => {
 			switch (change.type) {
@@ -289,11 +307,19 @@ export function createServerWorkbenchAuthority({
 				),
 				panelTerminalCreated,
 			),
-		createTab: async (context, creation) =>
-			serverWorkbenchResult<WorkbenchAuthorityTabReceipt>(
+		createTab: async (context, creation) => {
+			const profileLaunch =
+				creation.profile === undefined
+					? { launch: undefined }
+					: serverProfileLaunch(creation.profile, launchProfiles?.getSnapshot().catalog);
+			if (profileLaunch === null) return { code: 'launch-profile-unavailable', kind: 'blocked' };
+			return serverWorkbenchResult<WorkbenchAuthorityTabReceipt>(
 				context,
 				await session.submit((snapshot) =>
-					handOverServerWorkbenchAction(context, tabCreateAction(creation, snapshot)),
+					handOverServerWorkbenchAction(
+						context,
+						tabCreateAction(creation, snapshot, profileLaunch.launch),
+					),
 				),
 				(outcome) =>
 					outcome.kind === 'tab-create-pending' || outcome.kind === 'tab-created'
@@ -307,7 +333,8 @@ export function createServerWorkbenchAuthority({
 								},
 							}
 						: { kind: 'completed' },
-			),
+			);
+		},
 		watchClose: (closure, onChanged) => watchServerWorkbenchClose(session, closure, onChanged),
 		worktrees: createServerWorktrees(session),
 	};

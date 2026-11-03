@@ -179,10 +179,11 @@ observed, so a change another Client made in between is refused as `source-chang
 overwritten, and a draft begun on an older source is refused without being sent. A created profile
 follows its source and takes the first free `profile-{n}` identity, as in the TUI. The Server
 decides what this machine can launch and refuses a relative executable as an invalid profile. The
-Worker launches the default profile for each terminal created after the save. Profile resolution
-changes only executable and arguments; environment, secrets, presentation, CWD, project or workspace
-data, one-off profile selection, remote connections, and shell startup-file mutation remain outside
-this feature.
+Worker launches the default profile for each terminal created after the save. The Workbench's New
+Tab button offers each saved profile for one Tab, as the [Web README](../README.md) describes for
+`server-workbench-tabs.ts`, without changing the default. Profile resolution changes only executable
+and arguments; environment, secrets, presentation, CWD, project or workspace data, remote
+connections, and shell startup-file mutation remain outside this feature.
 
 ## Desktop terminal defaults
 

@@ -8,6 +8,7 @@ import type {
 	ActionRuntime,
 	ActionScope,
 } from '@orchbee/actions';
+import type { ProductIconName } from '@orchbee/ui/components';
 import type { ReactNode } from 'react';
 
 import type { TabSelectionInput } from '../actions/tab-strip-action-contracts';
@@ -128,12 +129,14 @@ export type TabStripChangeCallback = (
 	change: TabStripChange,
 ) => ActionResult<void> | Promise<ActionResult<void>>;
 
-/**
- * Object menus show only bindings that act on the menu's own target, and Close and Rename shortcuts
- * act on the active Tab instead.
- */
-export interface TabStripShortcutLabels {
-	readonly newTab?: string | undefined;
+/** One way the New Tab button's menu offers to start a Tab, such as a saved launch profile. */
+export interface TabStripNewTabChoice {
+	readonly icon: ProductIconName;
+	readonly id: string;
+	readonly label: string;
+	/** Trailing words, such as the mark on the choice the button's own click already makes. */
+	readonly note?: string | undefined;
+	readonly select: () => void;
 }
 
 /**
@@ -235,6 +238,9 @@ export interface TabStripOptions {
 	/** Absent, New group… and a group's Rename are not offered. */
 	onNameGroup?: ((request: TabStripGroupNameRequest) => void) | undefined;
 	onNewTabButtonPressed?: () => void;
-	/** Current platform-formatted bindings supplied by the composing application. */
-	shortcutLabels?: TabStripShortcutLabels | undefined;
+	/**
+	 * The New Tab button's menu, in order. The button's own click already starts a Tab, so fewer than
+	 * two choices open no menu.
+	 */
+	newTabChoices?: readonly TabStripNewTabChoice[] | undefined;
 }

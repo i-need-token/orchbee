@@ -33,7 +33,6 @@ export interface TabStripMessages {
 		group: Pick<TabGroupData, 'title'>,
 		tabs: readonly Pick<TabData, 'title'>[],
 	) => string;
-	readonly formatNewTabInGroup: (groupTitle: string, tabCount: number) => string;
 	readonly formatPinTabs: (count: number) => string;
 	readonly formatRemoveTabsFromGroup: (count: number) => string;
 	readonly formatTabAccessibleLabel: (
@@ -61,11 +60,9 @@ export interface TabStripMessages {
 	readonly moveTabsToNewWindow: string;
 	/** Asks for a name before creating the group. */
 	readonly newGroup: string;
-	readonly newGroupWithTab: string;
 	readonly moreOptions: string;
 	readonly newTab: string;
 	readonly newTabInGroup: string;
-	readonly newTabInNoGroups: string;
 	readonly newTabMenu: string;
 	/** Optional for older message providers; product hosts supply a localized loading title. */
 	readonly loadingTabTitle?: string;

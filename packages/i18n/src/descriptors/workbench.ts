@@ -433,6 +433,12 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.create.notCreated'],
 		description: 'Status notice when the Workbench authority did not create a Tab.',
 	},
+	tabCreateProfileUnavailable: {
+		id: 'workbench.tabs.create.profileUnavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.create.profileUnavailable'],
+		description:
+			'Status notice, worded as the terminal interface words it, when no Tab or terminal was created because the chosen launch profile changed, was removed, or cannot be started from this window.',
+	},
 	tabDuplicationChanged: {
 		id: 'workbench.tabs.duplicate.changed',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.duplicate.changed'],

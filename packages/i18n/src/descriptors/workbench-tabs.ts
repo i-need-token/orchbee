@@ -196,21 +196,33 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.actions.newInGroup',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.newInGroup'],
 	},
-	newTabInNamedGroup: {
-		id: 'workbench.tabs.actions.newInNamedGroup',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.newInNamedGroup'],
-	},
-	newTabInNoGroups: {
-		id: 'workbench.tabs.actions.newInNoGroups',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.newInNoGroups'],
-	},
-	newTabInUnnamedGroup: {
-		id: 'workbench.tabs.actions.newInUnnamedGroup',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.newInUnnamedGroup'],
+	newTabInRecentGroup: {
+		id: 'workbench.tabs.actions.newInRecentGroup',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.newInRecentGroup'],
+		description:
+			'Action that opens a Tab in the active Tab group, or else the group used most recently.',
 	},
 	newTabMenu: {
 		id: 'workbench.tabs.menus.new',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menus.new'],
+	},
+	newTabProfileCustomExecutable: {
+		id: 'workbench.tabs.profiles.customExecutable',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.profiles.customExecutable'],
+		description:
+			'New Tab menu row for a saved launch profile without a name that runs a chosen program; matches the name Settings lists.',
+	},
+	newTabProfileDefault: {
+		id: 'workbench.tabs.profiles.default',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.profiles.default'],
+		description:
+			'Trailing mark on the New Tab menu row for the launch profile a click on New Tab already uses.',
+	},
+	newTabProfileSystemShell: {
+		id: 'workbench.tabs.profiles.systemShell',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.profiles.systemShell'],
+		description:
+			"New Tab menu row for a saved launch profile without a name that runs the system's shell; matches the name Settings lists.",
 	},
 	loadingTabTitle: {
 		id: 'workbench.tabs.titles.loading',

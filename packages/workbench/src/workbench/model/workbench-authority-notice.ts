@@ -309,6 +309,10 @@ export function workbenchTabsFailureNotice(
 export function workbenchTabCreationFailureNotice(
 	result: ActionResult<unknown>,
 ): WorkbenchAuthorityNotice | null {
+	// A changed, removed or unsupported launch profile is fixed in Settings, never by another program.
+	if (result.kind === 'blocked' && result.code === 'launch-profile-unavailable') {
+		return { descriptor: workbenchMessages.tabCreateProfileUnavailable, lifetime: 'until-press' };
+	}
 	return failureNotice(
 		result,
 		workbenchMessages.tabCreateNotCreated,

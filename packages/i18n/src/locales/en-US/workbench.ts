@@ -292,6 +292,7 @@ export const enUSWorkbenchMessages = {
 		'{names}{more, plural, =0 {} =1 { … and 1 more Tab} other { … and # more Tabs}}. Ends {running, plural, =1 {# terminal} other {# terminals}}.',
 	'workbench.tabs.close.notApplied': 'Close request was not applied',
 	'workbench.tabs.create.notCreated': 'Tab not created · previous Tab unchanged',
+	'workbench.tabs.create.profileUnavailable': 'Terminal not created · check profile in Settings',
 	'workbench.tabs.duplicate.changed':
 		'Duplication stopped: selection or workspace changed · {created}/{total} tabs created',
 	'workbench.tabs.duplicate.deadline':
@@ -344,10 +345,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.actions.newGroup': 'New group',
 	'workbench.tabs.actions.newGroupWithTab': 'New group with Tab',
 	'workbench.tabs.actions.newInGroup': 'New Tab in group',
-	'workbench.tabs.actions.newInNoGroups': 'New tab in group (no groups)',
-	'workbench.tabs.actions.newInNamedGroup': 'New tab in {groupTitle}',
-	'workbench.tabs.actions.newInUnnamedGroup':
-		'New tab in {tabCount, plural, one {# tab} other {# tabs}}',
+	'workbench.tabs.actions.newInRecentGroup': 'New Tab in recent group',
 	'workbench.tabs.actions.moveGroupToWindow': 'Move group to new window',
 	'workbench.tabs.actions.moveTabToWindow': 'Move tab to new window',
 	'workbench.tabs.actions.moveTabsToWindow': 'Move tabs to new window',
@@ -375,6 +373,9 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.menus.tab': 'Tab options',
 	'workbench.tabs.menus.group': 'Group options',
 	'workbench.tabs.menus.new': 'New tab menu',
+	'workbench.tabs.profiles.customExecutable': 'Custom executable',
+	'workbench.tabs.profiles.default': 'Default',
+	'workbench.tabs.profiles.systemShell': 'System shell',
 	'workbench.tabs.menus.search': 'Search tabs menu',
 	'workbench.tabs.menus.strip': 'Tab strip menu',
 	'workbench.tabs.menus.vertical': 'Vertical tab strip menu',

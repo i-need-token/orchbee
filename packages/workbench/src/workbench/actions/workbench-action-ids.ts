@@ -3,8 +3,10 @@ import { z } from 'zod';
 import type { TabStripOrientation } from '@orchbee/tab-strip';
 import {
 	TerminalPresentationIdSchema,
+	UserLaunchProfileSchema,
 	WorkbenchLabelSchema,
 	type TerminalPresentationId,
+	type UserLaunchProfile,
 } from '@orchbee/workbench-client-protocol';
 
 import type { PanelFocusPosition } from '../components/workbench-panel-workspace/model/resolvePanelFocusByPosition';
@@ -58,6 +60,7 @@ export const WORKBENCH_ACTION_IDS = {
 	moveActiveTabForward: 'workbench.tab.active.move-forward',
 	closeTabsAfterActive: 'workbench.tab.active.close-after',
 	createTabAfterActive: 'workbench.tab.active.create-after',
+	createTabInRecentGroup: 'workbench.tab.recent-group.create',
 	duplicateActiveTabs: 'workbench.tab.active.duplicate',
 	moveActivePanelDown: 'workbench.panel.active.move-down',
 	moveActivePanelLeft: 'workbench.panel.active.move-left',
@@ -208,6 +211,8 @@ export interface WorkbenchTerminalCreateInput {
 	readonly directoryId?: string | undefined;
 	readonly groupId: string | null;
 	readonly index?: number | undefined;
+	/** A saved launch profile to start with once, as the authority's Tab creation describes. */
+	readonly profile?: UserLaunchProfile | undefined;
 }
 
 export interface WorkbenchSearchOpenInput {
@@ -262,6 +267,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.moveActiveTabForward]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.closeTabsAfterActive]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.createTabAfterActive]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.createTabInRecentGroup]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.duplicateActiveTabs]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.moveActivePanelDown]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.moveActivePanelLeft]: ActionSignature<void>;
@@ -343,12 +349,20 @@ export const workbenchTerminalCreateInput: ActionInputValidation<WorkbenchTermin
 		) {
 			return { success: false, code: 'expected-terminal-create-input' };
 		}
+		const profile =
+			input['profile'] === undefined
+				? undefined
+				: UserLaunchProfileSchema.safeParse(input['profile']);
+		if (profile?.success === false) {
+			return { success: false, code: 'expected-terminal-create-input' };
+		}
 		return {
 			success: true,
 			data: {
 				...(input['directoryId'] === undefined ? {} : { directoryId: input['directoryId'] }),
 				groupId: input['groupId'],
 				...(input['index'] === undefined ? {} : { index: input['index'] }),
+				...(profile === undefined ? {} : { profile: profile.data }),
 			},
 		};
 	},

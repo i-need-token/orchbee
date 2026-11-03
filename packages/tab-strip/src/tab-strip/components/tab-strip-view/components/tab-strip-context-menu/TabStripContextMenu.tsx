@@ -24,7 +24,7 @@ import {
 import { useTabStripMessages } from '../../../../hooks/useTabStripMessages';
 import type { TabStripActions } from '../../../../types/tab-strip-actions';
 import { TAB_STRIP_ACTION_IDS } from '../../../../actions/tab-strip-action-contracts';
-import type { TabStripOptions, TabStripShortcutLabels } from '../../../../types/tab-strip-options';
+import type { TabStripOptions } from '../../../../types/tab-strip-options';
 
 interface TabStripContextMenuProps {
 	actions: TabStripActions;
@@ -40,7 +40,7 @@ interface TabStripContextMenuProps {
 	moveTabsToNewWindowAvailable: boolean;
 	onNameGroup: TabStripOptions['onNameGroup'];
 	onSetTabTitle: ((tabId: string) => void) | undefined;
-	shortcutLabels: TabStripShortcutLabels | undefined;
+	newTabChoices: TabStripOptions['newTabChoices'];
 	onClose: () => void;
 }
 
@@ -78,7 +78,7 @@ export function TabStripContextMenu({
 	moveTabsToNewWindowAvailable,
 	onNameGroup,
 	onSetTabTitle,
-	shortcutLabels,
+	newTabChoices,
 	onClose,
 }: TabStripContextMenuProps): ReactNode {
 	const messages = useTabStripMessages();
@@ -145,63 +145,18 @@ export function TabStripContextMenu({
 	}
 
 	if (state.kind === 'new-tab') {
-		const recentGroup =
-			snapshot.mostRecentGroupId === null
-				? null
-				: (snapshot.groups.find((group) => group.id === snapshot.mostRecentGroupId) ?? null);
-		const recentGroupTabCount = recentGroup
-			? snapshot.tabs.filter((tab) => tab.group === recentGroup.id).length
-			: 0;
-		let recentGroupLabel = messages.newTabInNoGroups;
-		if (recentGroup) {
-			recentGroupLabel = messages.formatNewTabInGroup(recentGroup.title, recentGroupTabCount);
-		}
+		// Grouped and other new-Tab variants are Search Actions; this menu only picks how the Tab starts.
 		return (
 			<ContextMenuContent aria-label={messages.newTabMenu}>
-				<ContextMenuItem
-					disabled={
-						actions.getCreationAvailability({ groupId: null, kind: 'new-tab' }).kind !== 'enabled'
-					}
-					onClick={run(() =>
-						actions.createTab({ groupId: null, title: messages.newTabTitle }, 'context-menu'),
-					)}
-				>
-					{messages.newTab}
-					{shortcutLabels?.newTab === undefined ? null : (
-						<ContextMenuShortcut>{shortcutLabels.newTab}</ContextMenuShortcut>
-					)}
-				</ContextMenuItem>
-				<ContextMenuItem
-					disabled={
-						!recentGroup ||
-						actions.getCreationAvailability({
-							groupId: recentGroup.id,
-							kind: 'new-tab',
-						}).kind !== 'enabled'
-					}
-					onClick={run(() => {
-						if (recentGroup) {
-							actions.createTab(
-								{
-									groupId: recentGroup.id,
-									title: messages.newTabTitle,
-								},
-								'context-menu',
-							);
-						}
-					})}
-				>
-					{recentGroupLabel}
-				</ContextMenuItem>
-				<ContextMenuSeparator />
-				<ContextMenuItem
-					disabled={actions.getCreationAvailability({ kind: 'new-group' }).kind !== 'enabled'}
-					onClick={run(() =>
-						actions.execute(TAB_STRIP_ACTION_IDS.createGroupWithTab, undefined, 'context-menu'),
-					)}
-				>
-					{messages.newGroupWithTab}
-				</ContextMenuItem>
+				{newTabChoices?.map((choice) => (
+					<ContextMenuItem key={choice.id} onClick={run(choice.select)}>
+						<ProductIcon name={choice.icon} size='menu-leading' />
+						{choice.label}
+						{choice.note === undefined ? null : (
+							<ContextMenuShortcut>{choice.note}</ContextMenuShortcut>
+						)}
+					</ContextMenuItem>
+				))}
 			</ContextMenuContent>
 		);
 	}

@@ -12,10 +12,10 @@ import {
 	type TabStripCloseCallback,
 	type TabStripCloseConfirmation,
 	type TabStripMessages,
+	type TabStripNewTabChoice,
 	type TabStripNewTabRequest,
 	type TabStripOrientation,
 	type TabStripSelectCallback,
-	type TabStripShortcutLabels,
 	type TabStatusAdornment,
 	type TabStripTabCreationIntent,
 } from '@orchbee/tab-strip';
@@ -29,6 +29,7 @@ interface WorkbenchTabBarProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly parentActionScope: ActionScope;
 	readonly createCrossWindowDragRuntime: TabStripCrossWindowDragRuntimeFactory | undefined;
+	readonly newTabChoices?: readonly TabStripNewTabChoice[] | undefined;
 	readonly onNewTerminal: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onCloseTabs?: TabStripCloseCallback | undefined;
 	readonly getCloseTabsConfirmation: TabStripCloseConfirmation;
@@ -43,7 +44,6 @@ interface WorkbenchTabBarProps {
 	readonly onVerticalCollapsedChange: (collapsed: boolean) => void;
 	readonly orientation: TabStripOrientation;
 	readonly reserveSidebarToggleSpace: boolean;
-	readonly shortcutLabels: TabStripShortcutLabels;
 	readonly tabIdentityIcons?: ReadonlyMap<string, ReactNode> | undefined;
 	readonly tabModel: TabModel;
 	readonly statusAdornments?: ReadonlyMap<string, Readonly<TabStatusAdornment>> | undefined;
@@ -54,6 +54,7 @@ interface WorkbenchTabBarProps {
 export function WorkbenchTabBar({
 	actionRuntime,
 	createCrossWindowDragRuntime,
+	newTabChoices,
 	onNewTerminal,
 	onCloseTabs,
 	getCloseTabsConfirmation,
@@ -67,7 +68,6 @@ export function WorkbenchTabBar({
 	orientation,
 	parentActionScope,
 	reserveSidebarToggleSpace,
-	shortcutLabels,
 	tabIdentityIcons,
 	tabModel,
 	statusAdornments,
@@ -114,7 +114,7 @@ export function WorkbenchTabBar({
 					showGroupHoverCards={false}
 					showHoverCardMemoryUsage={false}
 					showHoverCardPreviews={false}
-					shortcutLabels={shortcutLabels}
+					newTabChoices={newTabChoices}
 					verticalCollapsed={verticalCollapsed}
 					onVerticalCollapsedChange={onVerticalCollapsedChange}
 				/>

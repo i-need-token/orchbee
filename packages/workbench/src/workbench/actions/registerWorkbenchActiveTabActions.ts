@@ -42,6 +42,7 @@ interface RegisterWorkbenchActiveTabActionsOptions {
 type ActiveTabActionId =
 	| typeof WORKBENCH_ACTION_IDS.closeTabsAfterActive
 	| typeof WORKBENCH_ACTION_IDS.createTabAfterActive
+	| typeof WORKBENCH_ACTION_IDS.createTabInRecentGroup
 	| typeof WORKBENCH_ACTION_IDS.duplicateActiveTabs
 	| typeof WORKBENCH_ACTION_IDS.moveActiveTabBackward
 	| typeof WORKBENCH_ACTION_IDS.moveActiveTabForward;
@@ -100,6 +101,14 @@ export function registerWorkbenchActiveTabActions({
 		typedRuntime.register(
 			scope,
 			definition(
+				WORKBENCH_ACTION_IDS.createTabInRecentGroup,
+				workbenchTabMessages.newTabInRecentGroup,
+				creationInRecentGroup,
+			),
+		),
+		typedRuntime.register(
+			scope,
+			definition(
 				WORKBENCH_ACTION_IDS.duplicateActiveTabs,
 				workbenchTabMessages.duplicateActiveTab,
 				duplication,
@@ -134,6 +143,18 @@ function creationAfterActive(snapshot: ActiveTabSnapshot): ActiveTabCommand | nu
 	const active = snapshot.tabs[index];
 	if (active === undefined) return null;
 	const input: WorkbenchTerminalCreateInput = { groupId: active.group, index: index + 1 };
+	return { actionId: WORKBENCH_ACTION_IDS.createTerminal, input };
+}
+
+/** The TUI's recent group: the active Tab's, else the one last used while it remains, else the last. */
+function creationInRecentGroup(snapshot: ActiveTabSnapshot): ActiveTabCommand | null {
+	const remembered = snapshot.groups.find((group) => group.id === snapshot.mostRecentGroupId);
+	const groupId =
+		snapshot.tabs.find((tab) => tab.id === snapshot.activeTabId)?.group ??
+		remembered?.id ??
+		snapshot.groups.at(-1)?.id;
+	if (groupId === undefined) return null;
+	const input: WorkbenchTerminalCreateInput = { groupId };
 	return { actionId: WORKBENCH_ACTION_IDS.createTerminal, input };
 }
 

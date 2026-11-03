@@ -17,7 +17,7 @@ import type {
 import { TabModel, type TabGroupData } from '../model/tab-model';
 import { TabStripComboButtonController } from '../model/TabStripComboButtonController';
 import { VerticalTabStripExpandOnHoverController } from '../model/vertical-tab-strip-expand-on-hover';
-import { TabStrip, type TabStripGroupNameRequest } from '../TabStrip';
+import { TabStrip, type TabStripGroupNameRequest, type TabStripNewTabChoice } from '../TabStrip';
 
 class FakeThumbnailSource implements HoverCardThumbnailSource<string> {
 	public callback: ((image: string) => void) | null = null;
@@ -1892,33 +1892,6 @@ describe('TabStrip', () => {
 		expect(screen.queryByRole('menuitem', { name: 'Move group to new window' })).toBeNull();
 	});
 
-	it('adds a new tab to the most recently activated group, not the last group in model order', () => {
-		const model = new TabModel({
-			tabs: [
-				{ id: 'work', title: 'Work tab', pinned: false, group: 'work-group' },
-				{ id: 'read', title: 'Read tab', pinned: false, group: 'read-group' },
-				{ id: 'outside', title: 'Outside', pinned: false, group: null },
-			],
-			groups: [
-				{ id: 'read-group', title: 'Read', color: 'green', collapsed: false },
-				{ id: 'work-group', title: 'Work', color: 'blue', collapsed: false },
-			],
-			activeTabId: 'work',
-		});
-		model.selectTab('read');
-		model.selectTab('outside');
-		render(<TabStrip model={model} />);
-
-		fireEvent.contextMenu(screen.getByRole('button', { name: 'New tab' }), {
-			clientX: 20,
-			clientY: 20,
-		});
-		fireEvent.click(screen.getByRole('menuitem', { name: 'New tab in Read' }));
-
-		expect(model.getSnapshot().tabs.filter((tab) => tab.group === 'read-group')).toHaveLength(2);
-		expect(model.getSnapshot().tabs.filter((tab) => tab.group === 'work-group')).toHaveLength(1);
-	});
-
 	it('wires the vertical top-container actions and expand-on-hover preference menu', () => {
 		const model = createModel();
 		const onCollapsedChange = vi.fn<() => void>();
@@ -2034,39 +2007,38 @@ describe('TabStrip', () => {
 		expect(order).toEqual(['pressed', 'action']);
 	});
 
-	it('runs the Chromium new-tab button context menu commands', () => {
+	it('lists the New Tab choices in order and opens no menu for a single choice', () => {
 		const model = createModel();
-		render(<TabStrip model={model} shortcutLabels={{ newTab: '⌘T' }} />);
+		const selected: string[] = [];
+		const choice = (id: string, label: string, note?: string): TabStripNewTabChoice => ({
+			icon: 'terminal',
+			id,
+			label,
+			...(note === undefined ? {} : { note }),
+			select: () => selected.push(id),
+		});
+		const { rerender } = render(
+			<TabStrip
+				model={model}
+				newTabChoices={[choice('zsh', 'Zsh', 'Default'), choice('fish', 'Fish')]}
+			/>,
+		);
 		const newTabButton = screen.getByRole('button', { name: 'New tab' });
 
 		fireEvent.contextMenu(newTabButton, { clientX: 1000, clientY: 30 });
-		expect(screen.getByRole('menu', { name: 'New tab menu' })).toBeTruthy();
+		const menu = screen.getByRole('menu', { name: 'New tab menu' });
 		expect(
-			screen
-				.getByRole('menuitem', { name: 'New tab⌘T' })
-				.querySelector('[data-slot="context-menu-shortcut"]')?.textContent,
-		).toBe('⌘T');
-		fireEvent.click(screen.getByRole('menuitem', { name: 'New tab in Research' }));
-		expect(model.getSnapshot().tabs.filter((tab) => tab.group === 'research')).toHaveLength(3);
+			within(menu)
+				.getAllByRole('menuitem')
+				.map((item) => item.textContent),
+		).toEqual(['ZshDefault', 'Fish']);
+		fireEvent.click(within(menu).getByRole('menuitem', { name: 'Fish' }));
+		expect(selected).toEqual(['fish']);
+		expect(screen.queryByRole('menu')).toBeNull();
 
-		fireEvent.contextMenu(newTabButton, { clientX: 400, clientY: 30 });
-		fireEvent.click(screen.getByRole('menuitem', { name: 'New group with Tab' }));
-		expect(model.getSnapshot().groups).toHaveLength(2);
-		expect(
-			model.getSnapshot().tabs.find((tab) => tab.id === model.getSnapshot().activeTabId)?.group,
-		).toBe('group-1');
-	});
-
-	it('labels an unnamed most-recent group by its tab count', () => {
-		const model = createModel();
-		model.updateGroup('research', { title: '' });
-		render(<TabStrip model={model} />);
-
-		fireEvent.contextMenu(screen.getByRole('button', { name: 'New tab' }), {
-			clientX: 400,
-			clientY: 30,
-		});
-		expect(screen.getByRole('menuitem', { name: 'New tab in 2 tabs' })).toBeTruthy();
+		rerender(<TabStrip model={model} newTabChoices={[choice('zsh', 'Zsh', 'Default')]} />);
+		fireEvent.contextMenu(newTabButton, { clientX: 1000, clientY: 30 });
+		expect(screen.queryByRole('menu')).toBeNull();
 	});
 
 	it("expands a collapsed vertical strip after Chromium's inside-edge velocity delay", () => {

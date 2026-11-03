@@ -1,10 +1,18 @@
 import type { TabStripArrangementChange } from '@orchbee/tab-strip';
 import type { WorkbenchAuthorityChange, WorkbenchAuthorityTabCreation } from '@orchbee/workbench';
-import type { WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
+import {
+	WorkbenchLaunchSelectionSchema,
+	type UserLaunchProfile,
+	type UserLaunchProfileCatalog,
+	type WorkbenchSnapshot,
+} from '@orchbee/workbench-client-protocol';
+import type { z } from 'zod';
 
 import { readServerWorkbenchAction } from './readServerWorkbenchAction';
 import type { ServerWorkbenchAction } from './ServerWorkbenchSession';
 import { DEFAULT_TERMINAL_GEOMETRY } from './workspace-launch';
+
+type ServerLaunchSelection = z.output<typeof WorkbenchLaunchSelectionSchema>;
 
 type ServerTerminalContext = WorkbenchSnapshot['terminalContexts'][number];
 
@@ -97,6 +105,46 @@ export function tabsChangeAction(
 		: readServerWorkbenchAction({ kind: 'tabs.configure', operation, terminalContextId });
 }
 
+function sameLaunchProfile(left: UserLaunchProfile, right: UserLaunchProfile): boolean {
+	if (left.id !== right.id || left.name !== right.name) return false;
+	const [leftCommand, rightCommand] = [left.command, right.command];
+	if (leftCommand.kind === 'system-shell') {
+		return rightCommand.kind === 'system-shell' && leftCommand.login === rightCommand.login;
+	}
+	return (
+		rightCommand.kind === 'custom-executable' &&
+		leftCommand.executable === rightCommand.executable &&
+		leftCommand.arguments.length === rightCommand.arguments.length &&
+		leftCommand.arguments.every((argument, index) => argument === rightCommand.arguments[index])
+	);
+}
+
+/**
+ * How a Tab starts with a saved launch profile from this window: a custom program as its literal
+ * executable and arguments. The window has no system-shell resolver of its own, so a system shell
+ * starts only as the default, which the Worker resolves where it runs; a default changed in the same
+ * moment is the one that starts. Null starts nothing in place of a profile that is no longer saved as
+ * shown, or that no command can carry.
+ */
+export function serverProfileLaunch(
+	profile: UserLaunchProfile,
+	catalog: Pick<UserLaunchProfileCatalog, 'defaultProfileId' | 'profiles'> | undefined,
+): { readonly launch: ServerLaunchSelection | undefined } | null {
+	const saved = catalog?.profiles.find((candidate) => candidate.id === profile.id);
+	if (catalog === undefined || saved === undefined || !sameLaunchProfile(saved, profile)) {
+		return null;
+	}
+	const { command } = profile;
+	if (command.kind === 'system-shell') {
+		return catalog.defaultProfileId === profile.id ? { launch: undefined } : null;
+	}
+	const launch = WorkbenchLaunchSelectionSchema.safeParse({
+		args: command.arguments,
+		exec: command.executable,
+	});
+	return launch.success ? { launch: launch.data } : null;
+}
+
 /**
  * A new Tab is named by its place until something better shows, as every Client names it. A copy takes
  * its source's name and whether that name follows the terminal.
@@ -104,6 +152,7 @@ export function tabsChangeAction(
 export function tabCreateAction(
 	{ cwd, placement, terminalContextId }: WorkbenchAuthorityTabCreation,
 	snapshot: WorkbenchSnapshot,
+	launch?: ServerLaunchSelection,
 ): ServerWorkbenchAction | null {
 	const context = terminalContextOf(snapshot, terminalContextId);
 	if (context === undefined) return null;
@@ -117,6 +166,7 @@ export function tabCreateAction(
 		geometry: DEFAULT_TERMINAL_GEOMETRY,
 		kind: 'tab.create',
 		label: source?.label ?? `${context.tabs.length + 1}`,
+		...(launch === undefined ? {} : { launch }),
 		...(cwd === undefined ? {} : { options: { cwd } }),
 		...(placement === null ? {} : { placement }),
 		terminalContextId,

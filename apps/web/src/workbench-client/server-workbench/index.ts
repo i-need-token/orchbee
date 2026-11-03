@@ -7,6 +7,7 @@ export { ServerUserPreferencesClient } from './ServerUserPreferencesClient';
 export { ServerWindowTitle } from './ServerWindowTitle';
 export { ServerWorkbenchSession } from './ServerWorkbenchSession';
 export { createServerWorkbenchAuthority } from './createServerWorkbenchAuthority';
+export type { ServerLaunchProfileSource } from './createServerWorkbenchAuthority';
 export { createServerWorkspaceLocations } from './createServerWorkspaceLocations';
 export { findServerPresentation } from './findServerPresentation';
 export { findServerTerminalBinding } from './findServerTerminalBinding';

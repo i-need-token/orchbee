@@ -50,7 +50,8 @@ export function TabStripView({
 		onMoveGroupToNewWindow,
 		onSetTabTitle,
 		onNameGroup,
-		shortcutLabels,
+		newTabChoices,
+		newTabMenuAvailable,
 		ariaLabel,
 		snapshot,
 		verticalTabCountTransitionSuppressed,
@@ -261,6 +262,7 @@ export function TabStripView({
 						newTabCreationEnabled={
 							actions.getCreationAvailability({ groupId: null, kind: 'new-tab' }).kind === 'enabled'
 						}
+						newTabMenuAvailable={newTabMenuAvailable}
 						touchUi={touchUi}
 						closeButtonAllowed
 						showTopControls={showVerticalTopControls}
@@ -350,7 +352,7 @@ export function TabStripView({
 					moveGroupToNewWindowAvailable={onMoveGroupToNewWindow !== undefined}
 					onSetTabTitle={onSetTabTitle}
 					onNameGroup={onNameGroup}
-					shortcutLabels={shortcutLabels}
+					newTabChoices={newTabChoices}
 					onClose={closeMenu}
 				/>
 			) : null}

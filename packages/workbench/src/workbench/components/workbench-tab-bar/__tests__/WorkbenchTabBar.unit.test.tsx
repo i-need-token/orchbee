@@ -62,7 +62,6 @@ function VerticalWorkbenchTabBar({
 			orientation={TabStripOrientation.Vertical}
 			parentActionScope={parentActionScope}
 			reserveSidebarToggleSpace={false}
-			shortcutLabels={{}}
 			tabModel={tabModel}
 			tabStripMessages={messages}
 			verticalCollapsed={verticalCollapsed}

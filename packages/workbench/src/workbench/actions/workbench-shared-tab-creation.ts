@@ -2,6 +2,7 @@ import type { ActionAvailability, ActionExecutionContext, ActionResult } from '@
 import { workbenchMessages } from '@orchbee/i18n';
 import type { TabStripTabCreationIntent } from '@orchbee/tab-strip';
 
+import type { WorkbenchTerminalCreateInput } from './workbench-action-ids';
 import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-location-activation';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type {
@@ -56,6 +57,21 @@ export function getSharedTabCreationAvailability(
 	return intent.index < tabs.filter((tab) => tab.pinned).length ? unavailable : { kind: 'enabled' };
 }
 
+/** A launch profile only chooses how a Tab starts, so it never stands in for the missing Workspace. */
+export function getSharedTerminalCreationAvailability(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	input: WorkbenchTerminalCreateInput,
+): ActionAvailability {
+	if (input.profile !== undefined && runtime.getSnapshot().activeLocation.kind !== 'workspace') {
+		return unavailable;
+	}
+	return getSharedTabCreationAvailability(runtime, {
+		groupId: input.groupId,
+		kind: 'new-tab',
+		...(input.index === undefined ? {} : { index: input.index }),
+	});
+}
+
 function withoutReceipt(result: ActionResult<WorkbenchAuthorityTabReceipt>): ActionResult<void> {
 	return result.kind === 'completed' || result.kind === 'unchanged'
 		? { kind: result.kind }
@@ -99,12 +115,13 @@ export function createSharedTerminal(
 	options: SharedTabCreationOptions,
 ): ActionResult<void> | Promise<ActionResult<void>> {
 	if (context.signal.aborted) return { kind: 'cancelled' };
+	const launch = input.profile === undefined ? {} : { profile: input.profile };
 	if (input.currentDirectoryTarget !== undefined) {
 		const directory = options.runtime.resolveTerminalCurrentDirectoryTarget(
 			input.currentDirectoryTarget,
 		);
 		return directory.kind === 'ready'
-			? createSharedTab(context, { cwd: directory.cwd, placement: null }, options)
+			? createSharedTab(context, { cwd: directory.cwd, placement: null, ...launch }, options)
 			: { code: directory.reason, kind: 'blocked' };
 	}
 	const { tabs } = options.runtime.getActiveTerminalContext().tabModel.getSnapshot();
@@ -112,13 +129,16 @@ export function createSharedTerminal(
 	if (previous !== undefined) {
 		return createSharedTab(
 			context,
-			{ placement: { kind: 'after-tab', tabId: previous.id } },
+			{ placement: { kind: 'after-tab', tabId: previous.id }, ...launch },
 			options,
 		);
 	}
 	return createSharedTab(
 		context,
-		{ placement: input.groupId === null ? null : { groupId: input.groupId, kind: 'in-group' } },
+		{
+			placement: input.groupId === null ? null : { groupId: input.groupId, kind: 'in-group' },
+			...launch,
+		},
 		options,
 	);
 }

@@ -15,7 +15,7 @@ import type {
 	TabStripTabCreationIntent,
 	TabStripOptions,
 	TabStripSelectCallback,
-	TabStripShortcutLabels,
+	TabStripNewTabChoice,
 	TabStatusAdornment,
 	TabStatusAdornmentKind,
 } from './types/tab-strip-options';
@@ -35,7 +35,7 @@ export type {
 	TabStripNewTabRequest,
 	TabStripTabCreationIntent,
 	TabStripSelectCallback,
-	TabStripShortcutLabels,
+	TabStripNewTabChoice,
 	TabStatusAdornment,
 	TabStatusAdornmentKind,
 	TabStripMessages,

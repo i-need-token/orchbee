@@ -14,7 +14,8 @@ import {
 export const WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES = 96 * 1024;
 
 const utf8 = new TextEncoder();
-const WorkbenchLaunchSelectionSchema = z
+/** A literal program and its arguments, as a command that starts a terminal carries them. */
+export const WorkbenchLaunchSelectionSchema = z
 	.strictObject({
 		exec: WorkbenchLaunchExecutableSchema,
 		args: z.array(literalLaunchStringSchema).max(128).readonly(),

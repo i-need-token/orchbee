@@ -5,7 +5,15 @@ import type {
 	WorkbenchAuthorityCreation,
 	WorkbenchAuthorityTabCreation,
 } from '@orchbee/workbench';
-import { parseWorkbenchResponse, type WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
+import {
+	UserLaunchProfileCatalogSchema,
+	UserLaunchProfileIdSchema,
+	UserLaunchProfileSchema,
+	parseWorkbenchResponse,
+	type UserLaunchProfile,
+	type UserLaunchProfileCatalog,
+	type WorkbenchSnapshot,
+} from '@orchbee/workbench-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createServerWorkbenchAuthority } from '../createServerWorkbenchAuthority';
@@ -165,10 +173,36 @@ function tabsConfigured(operation: Record<string, unknown>): Record<string, unkn
 	return { kind: 'tabs.configure', operation, terminalContextId: TABS_CONTEXT };
 }
 
+const SYSTEM_SHELL = UserLaunchProfileSchema.parse({
+	command: { kind: 'system-shell', login: false },
+	id: 'system-default',
+	name: null,
+});
+const POWERSHELL = UserLaunchProfileSchema.parse({
+	command: {
+		arguments: ['-NoLogo'],
+		executable: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+		kind: 'custom-executable',
+	},
+	id: 'profile-1',
+	name: 'PowerShell',
+});
+const LOGIN_SHELL = UserLaunchProfileSchema.parse({
+	command: { kind: 'system-shell', login: true },
+	id: 'profile-2',
+	name: 'Login shell',
+});
+const LAUNCH_PROFILES = UserLaunchProfileCatalogSchema.parse({
+	defaultProfileId: SYSTEM_SHELL.id,
+	profiles: [SYSTEM_SHELL, POWERSHELL, LOGIN_SHELL],
+	version: 1,
+});
+
 function harness(
 	answer: ServerWorkbenchSubmission,
 	focusedWorkspaceId: string | null = null,
 	currentDirectory: string | null = null,
+	launchProfiles: UserLaunchProfileCatalog | null = null,
 ) {
 	const actions: ServerWorkbenchAction[] = [];
 	const session: Parameters<typeof createServerWorkbenchAuthority>[0]['session'] = {
@@ -201,6 +235,14 @@ function harness(
 			defaultDirectory: 'C:\\Users\\person',
 			defaultWorkspaceLabel: () => 'Workspace',
 			focusedWorkspaceId: () => focusedWorkspaceId,
+			...(launchProfiles === null
+				? {}
+				: {
+						launchProfiles: {
+							getSnapshot: () => ({ catalog: launchProfiles }),
+							subscribe: () => () => undefined,
+						},
+					}),
 			session,
 		}),
 	};
@@ -479,6 +521,47 @@ describe('createServerWorkbenchAuthority', () => {
 		).resolves.toEqual({ code: 'not-submitted', kind: 'blocked' });
 
 		expect(actions).toEqual([]);
+	});
+
+	it('starts a custom launch profile as its literal program and the default shell as the default', async () => {
+		const { actions, authority } = harness(TAB_CREATED, null, null, LAUNCH_PROFILES);
+		const creation = { placement: null, terminalContextId: TABS_CONTEXT };
+
+		await authority.createTab(executionContext().context, { ...creation, profile: POWERSHELL });
+		await authority.createTab(executionContext().context, { ...creation, profile: SYSTEM_SHELL });
+
+		expect(actions).toEqual([
+			expect.objectContaining({
+				kind: 'tab.create',
+				launch: { args: ['-NoLogo'], exec: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' },
+			}),
+			expect.not.objectContaining({ launch: expect.anything() }),
+		]);
+	});
+
+	it.each<[string, UserLaunchProfile]>([
+		['a system shell that is not the default', LOGIN_SHELL],
+		[
+			'a profile changed since it was shown',
+			UserLaunchProfileSchema.parse({
+				...POWERSHELL,
+				command: { ...POWERSHELL.command, arguments: ['-NoProfile'] },
+			}),
+		],
+		[
+			'a profile no longer saved',
+			{ ...POWERSHELL, id: UserLaunchProfileIdSchema.parse('profile-9') },
+		],
+	])('starts nothing in place of %s', async (_name, profile) => {
+		const { actions, authority } = harness(TAB_CREATED, null, null, LAUNCH_PROFILES);
+		const { context, markCommitted } = executionContext();
+
+		await expect(
+			authority.createTab(context, { placement: null, profile, terminalContextId: TABS_CONTEXT }),
+		).resolves.toEqual({ code: 'launch-profile-unavailable', kind: 'blocked' });
+
+		expect(actions).toEqual([]);
+		expect(markCommitted).not.toHaveBeenCalled();
 	});
 
 	it('opens New Workspace where the Server finds the focused Workspace working now', async () => {

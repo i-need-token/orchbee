@@ -66,10 +66,13 @@ export function HorizontalContents({
 		onTabKeyUp,
 		rovingFocusKey,
 		addTab,
+		newTabMenuAvailable,
 		finishHorizontalDragSettle,
 		paintedHorizontalBounds,
 		settleTargetLeft,
 	} = view;
+	const newTabCreationEnabled =
+		actions.getCreationAvailability({ groupId: null, kind: 'new-tab' }).kind === 'enabled';
 
 	const idealTrailingBounds = horizontalLayout?.bounds.at(-1);
 	const paintedTrailingBounds = paintedHorizontalBounds(items.length - 1);
@@ -451,15 +454,15 @@ export function HorizontalContents({
 						variantClass='ct-new-tab'
 						type='button'
 						aria-label={messages.newTab}
-						disabled={
-							actions.getCreationAvailability({ groupId: null, kind: 'new-tab' }).kind !== 'enabled'
-						}
+						disabled={!newTabCreationEnabled}
 						icon={<ProductIcon name='add' />}
 						frameCondensed={horizontalFrameCondensed}
 						tabIndex={0}
 						onClick={addTab}
 						onContextMenu={(event) => {
-							setMenu({ kind: 'new-tab', x: event.clientX, y: event.clientY });
+							if (newTabCreationEnabled && newTabMenuAvailable) {
+								setMenu({ kind: 'new-tab', x: event.clientX, y: event.clientY });
+							}
 						}}
 						inlineStart={Math.min(newTabButtonTrailingEdge + 4, Math.max(0, size.width - 38))}
 					/>

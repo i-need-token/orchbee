@@ -13,12 +13,16 @@ import {
 	type TabStripChangeCallback,
 	type TabStripCloseCallback,
 	type TabStripCloseConfirmation,
+	type TabStripNewTabChoice,
 	type TabStripNewTabRequest,
 	type TabStripOrientation,
 	type TabStripTabCreationIntent,
 } from '@orchbee/tab-strip';
 import * as React from 'react';
-import { workbenchSharedDocumentRevision } from '@orchbee/workbench-client-protocol';
+import {
+	workbenchSharedDocumentRevision,
+	type UserLaunchProfile,
+} from '@orchbee/workbench-client-protocol';
 
 import {
 	readWorkbenchLeftPanelWidth,
@@ -83,6 +87,7 @@ import {
 	createSharedTerminal,
 	duplicateSharedTabs,
 	getSharedTabCreationAvailability,
+	getSharedTerminalCreationAvailability,
 } from '../actions/workbench-shared-tab-creation';
 import {
 	createSharedPanelTerminal,
@@ -95,6 +100,7 @@ import {
 	type WorkbenchAuthorityNoticeView,
 } from './useWorkbenchAuthorityNotice';
 import { useWorkbenchFocusRouting } from './useWorkbenchFocusRouting';
+import { useWorkbenchNewTabChoices } from './useWorkbenchNewTabChoices';
 import type { WorkbenchTerminalFocusRequest } from '../model/resolveWorkbenchFocusTarget';
 import { useWorkbenchShortcuts } from './useWorkbenchShortcuts';
 import { useWorkbenchAgentNavigation } from './useWorkbenchAgentNavigation';
@@ -150,6 +156,7 @@ interface WorkbenchView {
 	readonly isSidebarVisible: boolean;
 	readonly leftPanelSize: string;
 	readonly newTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
+	readonly newTabChoices: readonly TabStripNewTabChoice[] | undefined;
 	readonly onCloseTabs: TabStripCloseCallback;
 	/** Present when an authority decides the Tabs, which then show only as it answers. */
 	readonly onTabsChange: TabStripChangeCallback | undefined;
@@ -386,18 +393,20 @@ export function useWorkbench({
 	const worktreeLabel = useMemoizedFn((ordinal: number) =>
 		intl.formatMessage(workbenchMessages.worktreeDefaultLabel, { ordinal }),
 	);
-	const getNewTerminalAvailability = useMemoizedFn((input: WorkbenchTerminalCreateInput) =>
-		authorityNotice.authority === undefined
-			? getWorkbenchTerminalCreationAvailability(
-					projectWorkspaceRuntime,
-					remoteTerminalCreation,
-					input,
-				)
-			: getSharedTabCreationAvailability(projectWorkspaceRuntime, {
-					groupId: input.groupId,
-					kind: 'new-tab',
-					...(input.index === undefined ? {} : { index: input.index }),
-				}),
+	const getNewTerminalAvailability = useMemoizedFn(
+		(input: WorkbenchTerminalCreateInput): ActionAvailability => {
+			if (authorityNotice.authority !== undefined) {
+				return getSharedTerminalCreationAvailability(projectWorkspaceRuntime, input);
+			}
+			// Only an authority knows the saved launch profiles.
+			return input.profile === undefined
+				? getWorkbenchTerminalCreationAvailability(
+						projectWorkspaceRuntime,
+						remoteTerminalCreation,
+						input,
+					)
+				: { kind: 'disabled', reason: workbenchMessages.actionUnavailable };
+		},
 	);
 	const getTabCreationAvailability = useMemoizedFn((intent: TabStripTabCreationIntent) =>
 		authorityNotice.authority === undefined
@@ -408,25 +417,28 @@ export function useWorkbench({
 		void,
 		Parameters<WorkbenchTerminalCreateCallback>,
 		ReturnType<WorkbenchTerminalCreateCallback>
-	>((context, input) =>
-		authorityNotice.authority === undefined
-			? executeWorkbenchTerminalCreationAction(context, input, {
-					fallbackTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
-					onLocalTerminalCreated: () => {
-						focusRouting.requestTerminalFocus();
-					},
-					onRemoteTerminalCreated: () => {
-						focusRouting.requestTerminalFocus();
-					},
-					remoteTerminalCreation,
-					runtime: projectWorkspaceRuntime,
-				})
-			: createSharedTerminal(context, input, {
-					authority: authorityNotice.authority,
-					beginTerminalHandover: focusRouting.beginTerminalHandover,
-					runtime: projectWorkspaceRuntime,
-				}),
-	);
+	>((context, input) => {
+		if (authorityNotice.authority !== undefined) {
+			return createSharedTerminal(context, input, {
+				authority: authorityNotice.authority,
+				beginTerminalHandover: focusRouting.beginTerminalHandover,
+				runtime: projectWorkspaceRuntime,
+			});
+		}
+		// A chosen profile never falls back to the default program.
+		if (input.profile !== undefined) return { code: 'launch-profile-unavailable', kind: 'blocked' };
+		return executeWorkbenchTerminalCreationAction(context, input, {
+			fallbackTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
+			onLocalTerminalCreated: () => {
+				focusRouting.requestTerminalFocus();
+			},
+			onRemoteTerminalCreated: () => {
+				focusRouting.requestTerminalFocus();
+			},
+			remoteTerminalCreation,
+			runtime: projectWorkspaceRuntime,
+		});
+	});
 	const createPanelTerminal = useMemoizedFn<
 		void,
 		Parameters<WorkbenchSharedPanelTerminalCreate>,
@@ -582,6 +594,14 @@ export function useWorkbench({
 		worktreeLabel,
 	});
 	const worktrees = authorityNotice.authority?.worktrees;
+	const createTabWithProfile = useMemoizedFn((profile: UserLaunchProfile) => {
+		actions.invoke(WORKBENCH_ACTION_IDS.createTerminal, { groupId: null, profile }, 'context-menu');
+	});
+	const newTabChoices = useWorkbenchNewTabChoices(
+		authorityNotice.authority?.launchProfiles,
+		projectWorkspaceState.activeLocation.kind === 'workspace',
+		createTabWithProfile,
+	);
 	const invokeLocationActivation = useMemoizedFn(
 		(targetLocation: WorkbenchActiveLocation, source: 'button' | 'pointer') =>
 			targetLocation.kind === 'standalone'
@@ -754,6 +774,7 @@ export function useWorkbench({
 				},
 				request.source,
 			),
+		newTabChoices,
 		onCloseTabs: closeTabs,
 		createPanelTerminal: authorityNotice.authority === undefined ? undefined : createPanelTerminal,
 		onTabsChange: authorityNotice.authority === undefined ? undefined : changeSharedTabs,

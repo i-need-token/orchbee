@@ -54,6 +54,7 @@ import {
 	serverHostColors,
 	ServerTerminalAgentSource,
 	ServerTerminalProjectionClient,
+	type ServerLaunchProfileSource,
 	type ServerTerminalColorsSource,
 	type ServerWorkbenchSession,
 } from '../server-workbench';
@@ -93,6 +94,8 @@ export interface CreateServerWorkbenchRuntimeOptions {
 	 * absent where this Client cannot know it.
 	 */
 	readonly homeDirectory?: string | undefined;
+	/** The Session's saved launch profiles, which the New Tab button offers. */
+	readonly launchProfiles?: ServerLaunchProfileSource | undefined;
 	/** A publication this Client cannot read leaves it behind the Server, so it must stop. */
 	readonly onPublicationFailure: (error: unknown) => void;
 	readonly preferredLocales: readonly string[];
@@ -132,6 +135,7 @@ export function createServerWorkbenchRuntime({
 	documentElement,
 	focusRecoveryStorage,
 	homeDirectory,
+	launchProfiles,
 	onPublicationFailure,
 	preferredLocales,
 	session,
@@ -197,6 +201,7 @@ export function createServerWorkbenchRuntime({
 			const location = projectWorkspaceRuntime.getSnapshot().activeLocation;
 			return location.kind === 'workspace' ? location.workspaceId : null;
 		},
+		...(launchProfiles === undefined ? {} : { launchProfiles }),
 		session,
 	});
 

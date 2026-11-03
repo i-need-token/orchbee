@@ -1624,6 +1624,16 @@ choices stand unless review changes them:
   Tab beside it, Duplicate, and Close Tabs after it, move to Search's Actions. Under a Server
   authority Rename refuses a blank Tab name, which locally restores the terminal's title. Resume is
   absent, and Move to new window appears only for a host that offers it, which no product host does.
+- **The New Tab button lists the launch profiles.** Its right-click lists every saved profile, the
+  default first and marked Default, and opens nothing for a single profile or outside a Workspace; a
+  pick starts one Tab with that profile and leaves the default alone. An unnamed profile takes the
+  name the GUI's Settings gives it, where the TUI says System default. The window sends a custom
+  executable as its literal launch and the default system shell as no launch, which the Worker
+  resolves. It cannot resolve another system shell, so that pick, like a profile changed since the
+  menu opened, starts nothing and shows the TUI's Settings recovery notice. The menu's earlier rows
+  leave it: New Tab is the button's click, New group with Tab stays in Search's Actions, and New Tab
+  in the most recent group becomes Search's New Tab in recent group, which follows the TUI's recent
+  group.
 
 ### Evidence
 

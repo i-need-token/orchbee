@@ -317,6 +317,7 @@ export function Workbench({
 							<WorkbenchTabBar
 								actionRuntime={actionRuntime}
 								createCrossWindowDragRuntime={createCrossWindowDragRuntime}
+								newTabChoices={view.newTabChoices}
 								onNewTerminal={view.newTab}
 								onOrientationChange={view.onTabStripOrientationChange}
 								onVerticalCollapsedChange={view.onVerticalTabStripCollapsedChange}
@@ -330,9 +331,6 @@ export function Workbench({
 								onTabsChange={view.onTabsChange}
 								parentActionScope={view.actionScope}
 								reserveSidebarToggleSpace={!view.isSidebarVisible}
-								shortcutLabels={{
-									newTab: shortcutLabelForAction(WORKBENCH_ACTION_IDS.createTerminal),
-								}}
 								tabModel={view.tabModel}
 								statusAdornments={agentPresentation.tabStatusAdornments}
 								tabIdentityIcons={agentPresentation.tabIdentityIcons}

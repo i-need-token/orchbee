@@ -8,6 +8,7 @@ import { WORKBENCH_ACTION_IDS } from './workbench-action-ids';
 export const WORKBENCH_DESCENDANT_ACTION_DISCOVERY_INPUTS = Object.freeze({
 	[WORKBENCH_ACTION_IDS.closeTabsAfterActive]: null,
 	[WORKBENCH_ACTION_IDS.createTabAfterActive]: null,
+	[WORKBENCH_ACTION_IDS.createTabInRecentGroup]: null,
 	[WORKBENCH_ACTION_IDS.duplicateActiveTabs]: null,
 	[WORKBENCH_ACTION_IDS.moveActiveTabBackward]: null,
 	[WORKBENCH_ACTION_IDS.moveActiveTabForward]: null,

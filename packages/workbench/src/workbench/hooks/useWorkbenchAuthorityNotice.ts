@@ -182,6 +182,7 @@ export function useWorkbenchAuthorityNotice(
 							setNotice(workbenchTabCreationFailureNotice(result));
 							return result;
 						},
+						launchProfiles: authority.launchProfiles,
 						watchClose: (closure, onChanged) =>
 							authority.watchClose(closure, () => {
 								setNotice(workbenchCloseWithdrawnNotice(closure));

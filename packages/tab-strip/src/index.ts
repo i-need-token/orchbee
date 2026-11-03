@@ -17,7 +17,7 @@ export {
 	type TabStripNewTabRequest,
 	type TabStripTabCreationIntent,
 	type TabStripSelectCallback,
-	type TabStripShortcutLabels,
+	type TabStripNewTabChoice,
 	type TabStatusAdornment,
 	type TabStatusAdornmentKind,
 } from './tab-strip';

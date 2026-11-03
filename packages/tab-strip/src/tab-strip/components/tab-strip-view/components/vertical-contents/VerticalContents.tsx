@@ -70,6 +70,7 @@ export function VerticalContents({
 	showNewTabButton,
 	addTab,
 	newTabCreationEnabled,
+	newTabMenuAvailable,
 	touchUi,
 	closeButtonAllowed,
 	showTopControls,
@@ -116,6 +117,7 @@ export function VerticalContents({
 	showNewTabButton: boolean;
 	addTab: () => void;
 	newTabCreationEnabled: boolean;
+	newTabMenuAvailable: boolean;
 	touchUi: boolean;
 	closeButtonAllowed: boolean;
 	showTopControls: boolean;
@@ -604,7 +606,9 @@ export function VerticalContents({
 					onNewTab={addTab}
 					disabled={!newTabCreationEnabled}
 					onContextMenu={(event) => {
-						setMenu({ kind: 'new-tab', x: event.clientX, y: event.clientY });
+						if (newTabCreationEnabled && newTabMenuAvailable) {
+							setMenu({ kind: 'new-tab', x: event.clientX, y: event.clientY });
+						}
 					}}
 				/>
 			) : null}

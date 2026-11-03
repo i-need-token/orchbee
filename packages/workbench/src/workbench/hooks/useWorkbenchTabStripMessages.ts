@@ -108,10 +108,6 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 					groupTitle: group.title,
 					hasTitle: group.title ? 'true' : 'false',
 				}),
-			formatNewTabInGroup: (groupTitle, tabCount) =>
-				groupTitle
-					? format(workbenchTabMessages.newTabInNamedGroup, { groupTitle })
-					: format(workbenchTabMessages.newTabInUnnamedGroup, { tabCount }),
 			formatPinTabs: (count) => format(workbenchTabMessages.tabMenuPin, { count }),
 			formatRemoveTabsFromGroup: (count) =>
 				format(workbenchTabMessages.tabMenuRemoveFromGroup, { count }),
@@ -155,10 +151,8 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 			moveTabsToNewWindow: format(workbenchTabMessages.moveTabsToNewWindow),
 			moreOptions: format(workbenchTabMessages.moreOptions),
 			newGroup: format(workbenchTabMessages.tabMenuNewGroup),
-			newGroupWithTab: format(workbenchTabMessages.newGroupWithTab),
 			newTab: format(workbenchTabMessages.newTab),
 			newTabInGroup: format(workbenchTabMessages.newTabInGroup),
-			newTabInNoGroups: format(workbenchTabMessages.newTabInNoGroups),
 			newTabMenu: format(workbenchTabMessages.newTabMenu),
 			newTabTitle,
 			loadingTabTitle: format(workbenchTabMessages.loadingTabTitle),

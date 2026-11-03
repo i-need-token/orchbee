@@ -1,5 +1,9 @@
 import type { ActionExecutionContext, ActionResult } from '@orchbee/actions';
 import type { TabStripArrangementChange } from '@orchbee/tab-strip';
+import type {
+	UserLaunchProfile,
+	UserLaunchProfileCatalog,
+} from '@orchbee/workbench-client-protocol';
 
 import type { ProjectWorkspaceEvent } from '../../project-workspace';
 import type { WorkbenchProjectCreationReceipt } from './workbench-project-folder-acquisition';
@@ -105,7 +109,20 @@ export interface WorkbenchAuthorityTabCreation {
 		| { readonly groupId: string; readonly kind: 'in-group' }
 		| { readonly kind: 'new-group' }
 		| null;
+	/**
+	 * Starts the terminal with this saved launch profile instead of the default, once, without
+	 * changing the default. One no longer saved as shown, or that this Client cannot start, settles
+	 * `blocked` with `launch-profile-unavailable` and creates nothing.
+	 */
+	readonly profile?: UserLaunchProfile | undefined;
 	readonly terminalContextId: string;
+}
+
+/** The saved launch profiles a new Tab can start with, as every Client of the Session shares them. */
+export interface WorkbenchLaunchProfiles {
+	/** Holds its identity until the catalog changes. */
+	getSnapshot(): Pick<UserLaunchProfileCatalog, 'defaultProfileId' | 'profiles'>;
+	subscribe(listener: () => void): () => void;
 }
 
 export interface WorkbenchAuthorityTabReceipt {
@@ -193,6 +210,8 @@ export interface WorkbenchAuthority {
 		context: WorkbenchAuthorityContext,
 		creation: WorkbenchAuthorityTabCreation,
 	): Promise<ActionResult<WorkbenchAuthorityTabReceipt>>;
+	/** Absent where every new Tab starts with the default launch profile. */
+	readonly launchProfiles?: WorkbenchLaunchProfiles | undefined;
 	/** Reports when what a confirmation of `closure` describes has changed. Returns how to stop. */
 	watchClose(closure: WorkbenchAuthorityClosure, onChanged: () => void): () => void;
 	/** Absent where this authority cannot reach Git for its Workspaces. */

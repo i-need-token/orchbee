@@ -53,6 +53,7 @@ export {
 	WORKBENCH_MAXIMUM_LABEL_LENGTH,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchLabelSchema,
+	WorkbenchLaunchSelectionSchema,
 	WorkbenchRequestIdSchema,
 	parseWorkbenchAction,
 	parseWorkbenchRequest,

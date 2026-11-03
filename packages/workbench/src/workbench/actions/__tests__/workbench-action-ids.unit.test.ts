@@ -37,6 +37,7 @@ describe('workbench action contracts', () => {
 			closeTabsAfterActive: 'workbench.tab.active.close-after',
 			closeWorkspaceConfirmed: 'workbench.workspace.close-confirmed',
 			createTabAfterActive: 'workbench.tab.active.create-after',
+			createTabInRecentGroup: 'workbench.tab.recent-group.create',
 			decreaseTerminalFontSize: 'workbench.terminal.font-size.decrease',
 			deleteWorkspace: 'workbench.workspace.delete',
 			duplicateActiveTabs: 'workbench.tab.active.duplicate',
@@ -356,5 +357,17 @@ describe('workbench action contracts', () => {
 		expect(workbenchTerminalCreateInput.parse({ groupId: null, index: -1 })).toMatchObject({
 			success: false,
 		});
+		const profile = {
+			command: { arguments: ['-l'], executable: '/bin/zsh', kind: 'custom-executable' },
+			id: 'profile-1',
+			name: 'Zsh',
+		};
+		expect(workbenchTerminalCreateInput.parse({ groupId: null, profile })).toEqual({
+			data: { groupId: null, profile },
+			success: true,
+		});
+		expect(
+			workbenchTerminalCreateInput.parse({ groupId: null, profile: { ...profile, name: null } }),
+		).toMatchObject({ success: false });
 	});
 });

@@ -61,7 +61,8 @@ export interface TabStripViewModel {
 	readonly onMoveGroupToNewWindow: TabStripOptions['onMoveGroupToNewWindow'];
 	readonly onSetTabTitle: TabStripOptions['onSetTabTitle'];
 	readonly onNameGroup: TabStripOptions['onNameGroup'];
-	readonly shortcutLabels: TabStripOptions['shortcutLabels'];
+	readonly newTabChoices: TabStripOptions['newTabChoices'];
+	readonly newTabMenuAvailable: boolean;
 	readonly ariaLabel: string;
 	readonly snapshot: TabModelSnapshot;
 	readonly verticalTabCountTransitionSuppressed: boolean;

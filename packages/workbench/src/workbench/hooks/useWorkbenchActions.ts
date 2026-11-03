@@ -240,7 +240,8 @@ export function useWorkbenchActions({
 					category: categoryTerminal,
 					execution: {
 						concurrency: 'reject-duplicate',
-						concurrencyKey: (input) => `${input.groupId ?? 'ungrouped'}:${input.index ?? 'end'}`,
+						concurrencyKey: (input) =>
+							`${input.groupId ?? 'ungrouped'}:${input.index ?? 'end'}:${input.profile?.id ?? 'default'}`,
 						mode: 'foreground',
 					},
 					getAvailability: (_context, input) =>

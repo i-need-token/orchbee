@@ -25,10 +25,6 @@ export const DEFAULT_TAB_STRIP_MESSAGES = {
 	formatGroupAccessibleName: getGroupAccessibleName,
 	formatGroupMovedAnnouncement: (direction) => `Group moved ${direction}`,
 	formatGroupTooltip: getGroupTooltipText,
-	formatNewTabInGroup: (groupTitle, tabCount) =>
-		groupTitle
-			? `New tab in ${groupTitle}`
-			: `New tab in ${tabCount} ${tabCount === 1 ? 'tab' : 'tabs'}`,
 	formatPinTabs: (count) => (count === 1 ? 'Pin' : `Pin selected ${count} Tabs`),
 	formatRemoveTabsFromGroup: (count) =>
 		count === 1 ? 'Remove from group' : `Remove selected ${count} Tabs from groups`,
@@ -56,10 +52,8 @@ export const DEFAULT_TAB_STRIP_MESSAGES = {
 	moveTabToNewWindow: 'Move tab to new window',
 	moveTabsToNewWindow: 'Move tabs to new window',
 	newGroup: 'New group…',
-	newGroupWithTab: 'New group with Tab',
 	newTab: 'New tab',
 	newTabInGroup: 'New Tab in group',
-	newTabInNoGroups: 'New tab in group (no groups)',
 	newTabMenu: 'New tab menu',
 	newTabTitle: 'New Tab',
 	loadingTabTitle: 'Loading…',

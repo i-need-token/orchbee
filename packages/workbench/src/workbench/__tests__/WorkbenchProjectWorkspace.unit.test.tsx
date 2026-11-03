@@ -19,10 +19,6 @@ import type { WorkbenchNavigationPort } from '../types/workbench-host-actions';
 import type { WorkbenchNewProjectFolderCapability } from '../types/workbench-project-folder-acquisition';
 import type { WorkbenchAgentSnapshot } from '../types/workbench-agent-observation';
 import type { WorkbenchTerminalSurfaceProps } from '../types/workbench-terminal-surface';
-import {
-	defaultWorkbenchShortcutBindings,
-	type WorkbenchShortcutBindings,
-} from '../utils/workbench-shortcuts';
 import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
 
 function createTestTerminalPresentationComposition(scope: string) {
@@ -756,57 +752,6 @@ describe('Workbench Project and Workspace management', () => {
 
 			workspaceId: 'workspace-2',
 		});
-	});
-
-	it('projects the current new-Tab binding into the new-Tab menu and none into the Tab menu', async () => {
-		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/system',
-			standaloneTerminalTitle: 'Terminal 1',
-			terminalPresentation: createTestTerminalPresentationComposition('tab-menu-shortcuts'),
-		});
-		const shortcutBindings = {
-			...defaultWorkbenchShortcutBindings('apple'),
-			'workbench.terminal.active.close': {
-				code: 'KeyQ',
-				modifiers: ['mod'],
-			},
-			'workbench.terminal.create': {
-				code: 'KeyN',
-				modifiers: ['mod', 'shift'],
-			},
-		} as const satisfies WorkbenchShortcutBindings;
-		render(
-			<OrchbeeI18nProvider locale='en-US'>
-				<TooltipProvider>
-					<Workbench
-						actionRuntime={new ActionRuntime()}
-						projectWorkspaceRuntime={projectWorkspaceRuntime}
-						shortcutBindings={shortcutBindings}
-						shortcutPlatform='apple'
-					/>
-				</TooltipProvider>
-			</OrchbeeI18nProvider>,
-		);
-
-		fireEvent.contextMenu(screen.getByRole('button', { name: 'New tab' }), {
-			clientX: 400,
-			clientY: 20,
-		});
-		const newTabMenu = await screen.findByRole('menu');
-		expect(
-			Array.from(newTabMenu.querySelectorAll('[data-slot="context-menu-shortcut"]')).map(
-				(shortcut) => shortcut.textContent,
-			),
-		).toEqual(['⇧⌘N']);
-		fireEvent.keyDown(document, { key: 'Escape' });
-		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
-
-		fireEvent.contextMenu(screen.getByRole('tab', { name: 'system' }), {
-			clientX: 120,
-			clientY: 20,
-		});
-		const tabMenu = await screen.findByRole('menu', { name: 'Tab options' });
-		expect(tabMenu.querySelector('[data-slot="context-menu-shortcut"]')).toBeNull();
 	});
 
 	it('renames and restores the captured Tab title from the shortcut and context menu', async () => {
