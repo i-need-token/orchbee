@@ -31,7 +31,10 @@ impl SidebarDiscovery {
             .workspaces
             .iter()
             .any(|workspace| &workspace.workspace_id == workspace_id)
-            || super::removal::same_checkout(self.discovery.source.requested_path.as_str(), path)
+            || orchbee_workbench_protocol::same_directory_spelling(
+                self.discovery.source.requested_path.as_str(),
+                path,
+            )
     }
 
     pub(crate) fn valid(&self, snapshot: &Snapshot) -> bool {
@@ -205,7 +208,10 @@ impl AddressedWorktreeSource {
                 self.primary
                     .as_ref()
                     .is_none_or(|primary| directory.worker_id == *primary.worker_id())
-                    && super::removal::same_checkout(directory.path.as_str(), path.as_str())
+                    && orchbee_workbench_protocol::same_directory_spelling(
+                        directory.path.as_str(),
+                        path.as_str(),
+                    )
             })
         };
         let workspace_id = workspace_id.clone();

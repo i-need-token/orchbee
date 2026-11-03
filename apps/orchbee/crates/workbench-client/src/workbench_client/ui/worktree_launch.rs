@@ -421,6 +421,9 @@ impl WorkbenchClientUi {
         let Some(operation) = self.worktree_request() else {
             return;
         };
+        self.worktrees
+            .launcher
+            .set_client_directory(windows_client_directory());
         let Some(plan) = self.worktrees.launcher.confirm(token, operation, &origin) else {
             return;
         };
@@ -665,4 +668,17 @@ impl WorkbenchClientUi {
         }
         changed | self.drive_worktree_entry()
     }
+}
+
+/// Where this Client process stands while Windows keeps that folder in use; a POSIX directory can
+/// be removed under a process standing in it.
+fn windows_client_directory() -> Option<String> {
+    if !cfg!(windows) {
+        return None;
+    }
+    std::env::current_dir()
+        .ok()?
+        .into_os_string()
+        .into_string()
+        .ok()
 }

@@ -168,8 +168,10 @@ impl LocalTerminalService {
         let directory = observed
             .and_then(|capture| capture.directory)
             .or(canonical_directory)
+            // Without a Workspace directory the command starts where a new terminal would. The
+            // Server's own working directory is a neutral system directory, not a person's.
             .or_else(|| {
-                std::env::current_dir().ok().and_then(|path| {
+                std::env::home_dir().and_then(|path| {
                     path.to_str()
                         .and_then(|path| WorkbenchDirectoryPath::parse(path).ok())
                 })

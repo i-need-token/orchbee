@@ -294,6 +294,28 @@ fn directory_source_with_a_project_moves_a_reused_ungrouped_workspace_into_it() 
     );
 }
 
+/// On a case-sensitive volume `/trees/Foo` and `/trees/foo` are two directories, so a Workspace
+/// standing in one is neither reused for the other nor holds it against removal.
+#[test]
+fn a_posix_checkout_differing_only_in_case_is_another_directory() {
+    let fixture = Fixture::new();
+    let holder = ungrouped_holder(&fixture, "holder");
+    let worker = WorkerId::parse(&"09".repeat(16)).unwrap();
+    let path = |value| WorkbenchDirectoryPath::parse(value).unwrap();
+    let mut coordinator = fixture.service.coordinator.lock().unwrap();
+    let authority = coordinator.worktree_authority().unwrap();
+    authority.follow_workspace_directory(&holder, &path("/trees/foo"));
+    assert_eq!(
+        authority.checkout_workspaces(&path("/trees/foo"), &worker),
+        std::slice::from_ref(&holder)
+    );
+    assert_eq!(
+        authority.checkout_workspaces(&path("/trees/Foo"), &worker),
+        []
+    );
+    assert_eq!(authority.checkout_holders(&path("/trees/Foo"), &worker), []);
+}
+
 /// A Workspace created in the checkout has moved away: Open starts a new one there, while Remove
 /// still counts the checkout as that Workspace's own Directory.
 #[test]

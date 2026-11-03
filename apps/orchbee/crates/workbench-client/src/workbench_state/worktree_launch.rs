@@ -89,6 +89,9 @@ pub(crate) struct Launcher {
     presentation_notice: Option<WorktreeNotice>,
     /// The requested mode, kept for a preparation failure that has no draft.
     requested: WorktreeMode,
+    /// This Client process's working directory, supplied only where a process keeps its working
+    /// directory in use (Windows).
+    client_directory: Option<String>,
 }
 impl Default for Launcher {
     fn default() -> Self {
@@ -103,10 +106,14 @@ impl Default for Launcher {
             presentation: PresentationPhase::Pending,
             presentation_notice: None,
             requested: WorktreeMode::Create,
+            client_directory: None,
         }
     }
 }
 impl Launcher {
+    pub(crate) fn set_client_directory(&mut self, directory: Option<String>) {
+        self.client_directory = directory;
+    }
     pub(crate) fn open_sidebar(
         &mut self,
         origin: Origin,
@@ -462,6 +469,13 @@ impl Launcher {
             })
         {
             self.fail(WorktreeNotice::SourceChanged);
+            return None;
+        }
+        // Git would fail only after the Workspace closed, so nothing is submitted.
+        if let (Some(removal), Some(client)) = (&draft.removal, &self.client_directory)
+            && removal::inside_checkout(client, removal.path.as_str())
+        {
+            self.fail(WorktreeNotice::ClientInCheckout);
             return None;
         }
         let Some(plan) = draft.plan(operation_id) else {

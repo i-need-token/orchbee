@@ -16,8 +16,11 @@ impl RetainedChild {
         executable: &std::path::Path,
         arguments: &[&std::ffi::OsStr],
     ) -> io::Result<Self> {
+        // The child outlives the activating Client, so it keeps none of that Client's directories
+        // busy or reachable, such as a Worktree the person later removes or unmounts.
         let child = std::process::Command::new(executable)
             .args(arguments)
+            .current_dir("/")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())

@@ -77,16 +77,27 @@ field. Editable fields and their Open/Create button share the keyboard owner. Ch
 A Workspace's row menu appends **Remove Worktree…** after Close Workspace… when the
 read-only listing proves that Workspace's exact primary directory is an associated linked,
 non-bare checkout on the same Worker. Project and creation menus do not infer a removal target.
-That directory proof compares spellings without touching the filesystem: POSIX-rooted paths match
-byte for byte; Windows drive paths use `same_windows_path_spelling`, so only separators, trailing
-separators and ASCII case (including the drive letter) may differ. A `\\?\` verbatim prefix,
-dot component, doubled separator, non-ASCII case difference or parent/child path never matches,
-so an uncertain spelling hides the action rather than addressing another directory.
+That directory proof compares spellings without touching the filesystem under
+`same_directory_spelling`, the rule every Server checkout association also uses: POSIX-rooted paths
+match byte for byte, because a Linux or macOS volume may be case sensitive; on Windows drive paths
+only separators, trailing separators and ASCII case (including the drive letter) may differ. A
+`\\?\` verbatim prefix, dot component, doubled separator, non-ASCII case difference or parent/child
+path never matches, so an uncertain spelling hides the action rather than addressing another
+directory.
 The destructive action has no default shortcut and never falls back to the selected Client's cwd.
 The confirmation names the Workspace, full checkout path, affected terminal count and retained
 branch. It reuses the existing Worktree modal, action controls, draw authority and capture owner.
 It opens with focus on Remove. Unmodified Enter or the Remove button submits once; Esc, `[x]` or
 Cancel before submission changes nothing. If the complete confirmation cannot fit, no removal is submitted.
+
+Windows keeps a process's working directory in use, and Git deletes the checkout only after the
+Server has closed its Workspace. On Windows, confirming therefore first checks whether the TUI
+itself stands in the checkout or below it, under the same spelling rule. If it does, nothing is
+submitted, and the surface names the cause and the remedy: quit Orchbee, leave the folder in the
+shell that started it, then remove the Worktree from elsewhere. Server, Worker and Host start in a
+neutral directory rather than the activating Client's, so Orchbee's background processes never hold
+a checkout. A POSIX directory can be removed while a process stands in it, so the check is
+Windows-only.
 
 Remove submits `projectId: null`, `force: false` and `trustRepository: false` through the existing
 Server operation. Addressed Workspace, directory, terminal scope, Worker and checkout facts are
@@ -164,8 +175,7 @@ Server follows leads, because a shell that reports its directory, such as PowerS
 process cwd in the launch directory. An admitted root cwd sample comes next, then the canonical
 primary directory. A failed sample or an unbound first terminal costs nothing while one of these is
 known, and an empty Workspace has no sample at all. A directory that names the canonical primary
-directory on the same Worker (Windows spelling compared case-insensitively, without a trailing
-separator) is the `workspace` source; any other is `workspace-directory`, which runs Git there while
+directory on the same Worker (compared by `same_directory_spelling`) is the `workspace` source; any other is `workspace-directory`, which runs Git there while
 the Workspace stays the grouping owner. Both keep required-nullable `projectId: null`, and the
 existing Server Alongside owner resolves that Workspace's grouping, so an ungrouped Workspace and the
 Worktree it creates or opens land in one new Project, wherever its first terminal stands. A

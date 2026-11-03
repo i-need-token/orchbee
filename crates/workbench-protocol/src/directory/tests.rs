@@ -48,3 +48,20 @@ fn windows_checkout_spelling_matches_without_inventing_filesystem_identity() {
         "C:/repo/other"
     ));
 }
+
+#[test]
+fn posix_spellings_compare_byte_for_byte_and_never_equal_windows_ones() {
+    assert!(same_directory_spelling("/trees/a", "/trees/a"));
+    for other in [
+        "/Trees/a",
+        "/trees/A",
+        "/trees/a/",
+        "/trees//a",
+        r"\trees\a",
+        "C:/trees/a",
+    ] {
+        assert!(!same_directory_spelling("/trees/a", other), "{other}");
+        assert!(!same_directory_spelling(other, "/trees/a"), "{other}");
+    }
+    assert!(same_directory_spelling(r"C:\Trees\A\", "c:/trees/a"));
+}

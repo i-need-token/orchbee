@@ -594,6 +594,3 @@ fn initial_phase(intent: &WorktreeIntent) -> WorktreeOperationPhase {
         WorktreeIntent::Remove { .. } => WorktreeOperationPhase::InspectingRemove,
     }
 }
-pub(super) fn same_path(left: &str, right: &str) -> bool {
-    orchbee_workbench_protocol::same_windows_path_spelling(left, right)
-}

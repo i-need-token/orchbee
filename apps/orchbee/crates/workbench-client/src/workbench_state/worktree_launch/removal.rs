@@ -5,6 +5,7 @@ use orchbee_workbench_protocol::{
     MAXIMUM_WORKTREE_OPERATION_ATTEMPTS, WorkbenchDirectoryPath, WorkbenchRequestId,
     WorkbenchWorkspaceId, WorkbenchWorktreeOutcome, WorktreeEntryText, WorktreeOperationFailure,
     WorktreeOperationStatus, WorktreeProgress, WorktreeWorkspaceDisposition,
+    same_directory_spelling,
 };
 
 /// The Workspace directory and complete terminal scope shown before destructive submission.
@@ -31,7 +32,7 @@ impl Removal {
             entry.linked
                 && !entry.checkout.bare
                 && matches!(&entry.checkout.path, WorktreeEntryText::Utf8(path)
-                    if same_checkout(directory.path.as_str(), path))
+                    if same_directory_spelling(directory.path.as_str(), path))
                 && entry
                     .workspaces
                     .iter()
@@ -67,16 +68,7 @@ impl Removal {
     }
 }
 
-/// Destructive identity: POSIX-rooted spellings compare byte for byte; Windows drive spellings
-/// use the shared association rule, which leaves verbatim prefixes and dot components unequal.
-pub(super) fn same_checkout(directory: &str, checkout: &str) -> bool {
-    if directory.starts_with('/') || checkout.starts_with('/') {
-        return directory == checkout;
-    }
-    orchbee_workbench_protocol::same_windows_path_spelling(directory, checkout)
-}
-
-/// Whether `directory` is `checkout` or lies below it, under the same two spelling rules. A dot
+/// Whether `directory` is `checkout` or lies below it, under `same_directory_spelling`'s two rules. A dot
 /// component may climb out, so a path with one is not inside.
 pub(super) fn inside_checkout(directory: &str, checkout: &str) -> bool {
     let below = |directory: &str, checkout: &str| {

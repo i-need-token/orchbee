@@ -1,5 +1,5 @@
 //! Canonical source membership and the post-Git Workspace association join.
-use super::{WorkbenchAuthority, WorktreeSourceTarget, worktree_operation::same_path};
+use super::{WorkbenchAuthority, WorktreeSourceTarget};
 use orchbee_workbench_protocol::{
     WorkbenchDirectoryPath, WorkerId, WorktreeEntry, WorktreeEntryText,
     WorktreeListUnavailableReason, WorktreeQueryEntry, WorktreeQueryFailure as Failure,
@@ -92,7 +92,10 @@ impl WorkbenchAuthority {
                     .iter()
                     .filter_map(|workspace| {
                         let explicit_source = source_workspace == Some(&workspace.workspace_id)
-                            && same_path(path.as_str(), source_checkout.as_str());
+                            && orchbee_workbench_protocol::same_directory_spelling(
+                                path.as_str(),
+                                source_checkout.as_str(),
+                            );
                         (explicit_source || known.contains(&workspace.workspace_id)).then(|| {
                             WorktreeWorkspaceAssociation {
                                 project_id: workspace.project_id.clone(),

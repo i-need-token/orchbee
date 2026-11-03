@@ -69,6 +69,9 @@ impl RetainedChild {
         if command.encode_utf16().count() >= 32_767 {
             return Err(io::ErrorKind::InvalidInput.into());
         }
+        // A process keeps its working directory in use, so a child that outlives the activating
+        // Client must not inherit a directory the person may later remove, such as a Worktree.
+        let directory = winsafe::GetSystemDirectory().map_err(io::Error::other)?;
         // bInheritHandles=false is essential: even when stdio is redirected to
         // NUL, a generic inheriting spawn can retain a caller's capture pipe.
         winsafe::CreateProcess(
@@ -79,7 +82,7 @@ impl RetainedChild {
             false,
             co::CREATE::DETACHED_PROCESS | co::CREATE::NEW_PROCESS_GROUP | flags,
             &[],
-            None,
+            Some(&directory),
             &mut winsafe::STARTUPINFO::default(),
         )
         .map(Self)

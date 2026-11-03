@@ -326,10 +326,7 @@ fn target_context(
     let directory = snapshot.navigation.workspace_directory(workspace_id);
     // A reused Workspace may stand at the checkout only by following its first terminal there.
     let names_checkout = |path: &orchbee_workbench_protocol::WorkbenchDirectoryPath| {
-        orchbee_workbench_protocol::same_windows_path_spelling(
-            path.as_str(),
-            checkout.path.as_str(),
-        )
+        orchbee_workbench_protocol::same_directory_spelling(path.as_str(), checkout.path.as_str())
     };
     let at_checkout = directory.is_some_and(|directory| names_checkout(&directory.path))
         || workspace

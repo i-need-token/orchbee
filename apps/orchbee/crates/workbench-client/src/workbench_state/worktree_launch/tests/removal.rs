@@ -121,10 +121,23 @@ fn removal_matches_windows_checkout_spelling_but_never_another_directory() {
         checkout(&mut sidebar, value);
         assert_eq!(Removal::capture(&sidebar).is_some(), admitted, "{value}");
     }
-    use crate::workbench_state::worktree_launch::removal::same_checkout;
-    assert!(same_checkout("/trees/a", "/trees/a"));
-    for other in ["/Trees/a", "/trees/a/", r"\trees\a", "C:/trees/a"] {
-        assert!(!same_checkout("/trees/a", other), "{other}");
+}
+
+/// Git would refuse only after the Workspace closed, so the refusal must come before any plan.
+#[test]
+fn a_client_standing_in_the_checkout_is_refused_before_submission() {
+    for (client, refused) in [(r"c:\TREES\猫\src", true), ("C:/trees/猫x", false)] {
+        let (mut launcher, origin, _) = fixture();
+        launcher.set_client_directory(Some(client.into()));
+        assert_eq!(
+            confirm(&mut launcher, &origin).is_none(),
+            refused,
+            "{client}"
+        );
+        if refused {
+            assert_eq!(launcher.notice(), WorktreeNotice::ClientInCheckout);
+            assert!(launcher.operation().is_none());
+        }
     }
 }
 

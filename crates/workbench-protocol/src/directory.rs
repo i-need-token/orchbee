@@ -1,6 +1,6 @@
-//! Validates bounded absolute directory wire paths and compares admitted Windows spellings
-//! under the association rule. It does not probe the filesystem, resolve dot components, or
-//! establish that two spellings identify the same directory object.
+//! Validates bounded absolute directory wire paths and compares admitted spellings under the
+//! association rule. It does not probe the filesystem, resolve dot components, or establish that
+//! two spellings identify the same directory object.
 
 use std::fmt;
 
@@ -8,11 +8,22 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 pub const MAXIMUM_DIRECTORY_PATH_BYTES: usize = 4096;
 
-/// Compares admitted Windows path spellings using the existing Worktree association rule.
-/// Only separators, trailing separators and ASCII case are equivalent. This performs no
-/// filesystem identity check, canonicalization, verbatim-prefix or dot-component resolution.
+/// Compares admitted directory spellings under the Worktree association rule for their shape.
+/// POSIX-rooted spellings compare byte for byte, because a Linux or macOS volume may be case
+/// sensitive, so `/repo/Foo` and `/repo/foo` can be two directories. Windows drive spellings may
+/// differ only in separators, trailing separators and ASCII case, including the drive letter. A
+/// POSIX spelling never equals a Windows one. An uncertain spelling compares unequal, so a caller
+/// hides an action rather than addressing another directory. This performs no filesystem identity
+/// check, canonicalization, verbatim-prefix or dot-component resolution.
 #[must_use]
-pub fn same_windows_path_spelling(left: &str, right: &str) -> bool {
+pub fn same_directory_spelling(left: &str, right: &str) -> bool {
+    if left.starts_with('/') || right.starts_with('/') {
+        return left == right;
+    }
+    same_windows_path_spelling(left, right)
+}
+
+fn same_windows_path_spelling(left: &str, right: &str) -> bool {
     left.replace('\\', "/")
         .trim_end_matches('/')
         .eq_ignore_ascii_case(right.replace('\\', "/").trim_end_matches('/'))

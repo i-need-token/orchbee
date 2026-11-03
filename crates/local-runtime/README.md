@@ -225,6 +225,10 @@ Worker socket permissions. The Worker waits for its newly spawned Host socket to
 before the sole handshake attempt; a pre-existing endpoint still fails immediately.
 The Server starts a new session with `setsid`; Client exit does not signal or kill its children.
 Child owners reap exits without killing retained services; no reaper grants restart authority.
+Every runtime child starts in a neutral working directory, the system directory on Windows and `/`
+on Unix, never in the activating Client's. A Session outlives that Client, and Windows keeps a
+process's working directory in use, so an inherited one would block removing a Worktree the person
+started Orchbee in.
 
 The Worker registers without starting a Host. Its authorization kernel admits the first Launch
 and prepares launch facts before spawning one exact cohort Host in a private `host` directory.

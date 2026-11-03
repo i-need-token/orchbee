@@ -99,8 +99,9 @@ pub use rendezvous::{
 };
 pub use retained_child::RetainedChild;
 
-/// Spawns an exact cohort executable with inherited environment and no inherited
-/// stdio or handles. The returned owner observes exit without killing on drop.
+/// Spawns an exact cohort executable with inherited environment, no inherited
+/// stdio or handles, and a neutral working directory (the system directory on
+/// Windows, `/` on Unix). The returned owner observes exit without killing on drop.
 pub fn spawn_retained(
     executable: &std::path::Path,
     arguments: &[&std::ffi::OsStr],

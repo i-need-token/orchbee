@@ -1,9 +1,8 @@
 //! Canonical Workspace checkout observations, fenced by Directory and Worker identity.
-use super::worktree_operation::same_path;
 use super::{WorkbenchAuthority, WorktreeOperationPlan, WorktreeSourceTarget};
 use orchbee_workbench_protocol::{
     Navigation, WorkbenchDirectoryPath, WorkbenchWorkspaceId, WorkerId, Workspace,
-    WorktreeCheckoutFacts,
+    WorktreeCheckoutFacts, same_directory_spelling,
 };
 
 #[derive(Clone)]
@@ -28,7 +27,7 @@ fn stands_at(
             .terminal_directory
             .as_ref()
             .or(primary.map(|directory| &directory.path))
-            .is_some_and(|shown| same_path(shown.as_str(), path.as_str()))
+            .is_some_and(|shown| same_directory_spelling(shown.as_str(), path.as_str()))
 }
 
 impl WorkbenchAuthority {
@@ -64,7 +63,7 @@ impl WorkbenchAuthority {
                         .workspace_directory(&workspace.workspace_id)
                         .is_some_and(|directory| {
                             directory.worker_id == *worker
-                                && same_path(directory.path.as_str(), path.as_str())
+                                && same_directory_spelling(directory.path.as_str(), path.as_str())
                         })
             })
             .map(|workspace| workspace.workspace_id.clone())
@@ -150,7 +149,9 @@ impl WorkbenchAuthority {
         }
         let Some(directory) = self
             .workspace_directory_target(workspace_id)
-            .filter(|directory| same_path(directory.path.as_str(), checkout.path.as_str()))
+            .filter(|directory| {
+                same_directory_spelling(directory.path.as_str(), checkout.path.as_str())
+            })
         else {
             return true;
         };

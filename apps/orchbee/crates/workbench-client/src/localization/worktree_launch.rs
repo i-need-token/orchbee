@@ -33,6 +33,8 @@ pub(crate) enum WorktreeNotice {
     EntryPending,
     EntryFailed,
     SourceChanged,
+    /// This Client process stands in the removal target, which Windows keeps in use.
+    ClientInCheckout,
 }
 
 /// Why a Branch or Base value cannot be submitted.
@@ -194,6 +196,12 @@ impl Locale {
                 "Source changed. Confirmed operation facts are retained."
             }
             (Self::ZhCn, N::SourceChanged) => "来源已变化，已确认操作的信息已保留。",
+            (Self::EnUs, N::ClientInCheckout) => {
+                "Orchbee was started inside this worktree, so Windows keeps it in use. Quit Orchbee, leave the folder in that shell, then remove the worktree from elsewhere."
+            }
+            (Self::ZhCn, N::ClientInCheckout) => {
+                "Orchbee 是在这个工作树里启动的，Windows 会一直占用它。请退出 Orchbee，在那个 shell 里离开该目录，再从其他位置移除工作树。"
+            }
         }
     }
     pub(crate) fn worktree_status_line(

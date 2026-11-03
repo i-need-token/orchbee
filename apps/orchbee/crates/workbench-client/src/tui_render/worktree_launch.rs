@@ -70,7 +70,8 @@ fn notice_role(notice: WorktreeNotice) -> Role {
         | WorktreeNotice::NotRepository
         | WorktreeNotice::ConfigurationUnavailable
         | WorktreeNotice::NotSubmitted
-        | WorktreeNotice::Failed => Role::StatusError,
+        | WorktreeNotice::Failed
+        | WorktreeNotice::ClientInCheckout => Role::StatusError,
         WorktreeNotice::Unknown | WorktreeNotice::SourceChanged => Role::StatusWarning,
         WorktreeNotice::PresentationUnavailable
         | WorktreeNotice::EntryDeferred
