@@ -1,5 +1,4 @@
 import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
-import { AgentRuntime, AgentRuntimeSnapshotSchema } from '@orchbee/agent';
 import { describe, expect, it } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
@@ -10,6 +9,7 @@ import {
 } from '../../components/workbench-panel-workspace/model/panel-workspace-state';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import type { WorkbenchAgentSource } from '../../types/workbench-agent-observation';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../workbench-action-ids';
 import { registerWorkbenchAgentNavigationAction } from '../registerWorkbenchAgentNavigationAction';
 
@@ -46,28 +46,20 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 		context.tabModel.selectTab(firstTabId);
 		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
 
-		const source = new AgentRuntime(
-			AgentRuntimeSnapshotSchema.parse({
-				revision: 1,
-				sessions: [session('session-agent-navigation', targetPresentationId)],
-			}),
-		);
 		const actionRuntime = new ActionRuntime();
 		const scope = actionRuntime.createScope('workbench');
 		const registration = registerWorkbenchAgentNavigationAction({
 			projectWorkspaceRuntime,
 			scope,
-			source,
+			source: agentSource(targetPresentationId),
 			typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(actionRuntime),
 		});
-		const sessionId = source.getSnapshot().sessions[0]?.sessionId;
-		if (sessionId === undefined) return;
 
 		await expect(
 			actionRuntime.execute(
 				WORKBENCH_ACTION_IDS.navigateAgent,
 				{
-					sessionId,
+					presentationId: terminalPresentationId(targetPresentationId),
 					workspaceId: workspace.id,
 				},
 				{ scope, source: 'button' },
@@ -92,7 +84,7 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 		registration.dispose();
 	});
 
-	it('blocks a stale row after the Agent Session has ended', async () => {
+	it('blocks a stale row once its terminal no longer holds an Agent', async () => {
 		const projectWorkspaceRuntime = projectRuntime();
 		const project = projectWorkspaceRuntime.getSnapshot().projects[0];
 		const workspace = projectWorkspaceRuntime.getSnapshot().workspaces[0];
@@ -101,33 +93,20 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 		if (context === null) return;
 		const tab = context.panelWorkspaceStore.getSnapshot().tabs[0];
 		if (tab?.root.kind !== 'panel') return;
-		const source = new AgentRuntime(
-			AgentRuntimeSnapshotSchema.parse({
-				revision: 2,
-				sessions: [
-					{
-						...session('session-ended-navigation', tab.root.primaryPresentation.presentationId),
-						lifecycle: 'ended',
-					},
-				],
-			}),
-		);
 		const actionRuntime = new ActionRuntime();
 		const scope = actionRuntime.createScope('workbench');
 		const registration = registerWorkbenchAgentNavigationAction({
 			projectWorkspaceRuntime,
 			scope,
-			source,
+			source: agentSource(),
 			typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(actionRuntime),
 		});
-		const sessionId = source.getSnapshot().sessions[0]?.sessionId;
-		if (sessionId === undefined) return;
 
 		await expect(
 			actionRuntime.execute(
 				WORKBENCH_ACTION_IDS.navigateAgent,
 				{
-					sessionId,
+					presentationId: terminalPresentationId(tab.root.primaryPresentation.presentationId),
 					workspaceId: workspace.id,
 				},
 				{ scope, source: 'button' },
@@ -191,27 +170,19 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 		).toBe('applied');
 		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
 
-		const source = new AgentRuntime(
-			AgentRuntimeSnapshotSchema.parse({
-				revision: 3,
-				sessions: [session('session-child-navigation', childPresentationId)],
-			}),
-		);
 		const actionRuntime = new ActionRuntime();
 		const scope = actionRuntime.createScope('workbench');
 		const registration = registerWorkbenchAgentNavigationAction({
 			projectWorkspaceRuntime,
 			scope,
-			source,
+			source: agentSource(childPresentationId),
 			typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(actionRuntime),
 		});
-		const sessionId = source.getSnapshot().sessions[0]?.sessionId;
-		if (sessionId === undefined) return;
 
 		await expect(
 			actionRuntime.execute(
 				WORKBENCH_ACTION_IDS.navigateAgent,
-				{ sessionId, workspaceId: workspace.id },
+				{ presentationId: terminalPresentationId(childPresentationId), workspaceId: workspace.id },
 				{ scope, source: 'button' },
 			).completion,
 		).resolves.toEqual({ kind: 'completed' });
@@ -260,32 +231,21 @@ function projectRuntime(): WorkbenchProjectWorkspaceRuntime {
 	return runtime;
 }
 
-function session(sessionId: string, presentationId: string) {
-	return {
-		activityHint: null,
-		capabilities: ['turnLifecycle'],
-		executionLocation: { executionLocationId: `execution-${sessionId}` },
-		lastOutcome: null,
-		lifecycle: 'live',
-		observation: {
-			fidelity: 'rich',
-			freshness: 'fresh',
-			generation: 0,
-			sequence: 1,
-			source: 'hook',
-		},
-		parentSessionId: null,
-		pendingRequests: [],
-		presentationAttachments: [
-			{
-				generation: `generation-${sessionId}`,
-				navigable: true,
+/** The Server observing an Agent in each of these terminals. */
+function agentSource(...presentationIds: readonly string[]): WorkbenchAgentSource {
+	const snapshot = {
+		complete: true,
+		presentations: new Map(
+			presentationIds.map((presentationId) => [
 				presentationId,
-				visibility: 'visible',
-			},
-		],
-		providerId: 'codex',
-		sessionId,
-		turn: { kind: 'idle' },
+				{
+					agent: 'codex',
+					binding: `terminal:${presentationId}`,
+					sequence: 1n,
+					state: 'idle' as const,
+				},
+			]),
+		),
 	};
+	return { getSnapshot: () => snapshot, subscribe: () => () => undefined };
 }

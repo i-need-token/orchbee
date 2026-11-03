@@ -1,10 +1,9 @@
-import type { AgentRuntimeSnapshot } from '@orchbee/agent';
-
 import type { WorkbenchActiveLocation } from '../../project-workspace';
 import {
 	findPanel,
 	getDisplayedTerminal,
 } from '../components/workbench-panel-workspace/model/panel-workspace-state';
+import type { WorkbenchAgentSnapshot } from '../types/workbench-agent-observation';
 import {
 	resolveWorkbenchAgentNavigationTarget,
 	type WorkbenchAgentNavigationInput,
@@ -127,7 +126,7 @@ export function transitionWorkbenchAgentNavigation(
 
 export function resolveWorkbenchAgentNavigationProjection(
 	input: WorkbenchAgentNavigationInput,
-	snapshot: AgentRuntimeSnapshot,
+	snapshot: WorkbenchAgentSnapshot,
 	runtime: WorkbenchProjectWorkspaceRuntime,
 ): WorkbenchAgentNavigationProjection {
 	const target = resolveWorkbenchAgentNavigationTarget(input, snapshot, runtime);

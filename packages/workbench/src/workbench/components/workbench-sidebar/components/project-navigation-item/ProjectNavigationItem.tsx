@@ -374,7 +374,7 @@ export function ProjectNavigationItem({
 											aria-label={
 												agentOverview === undefined
 													? workspace.name
-													: `${workspace.name}. ${agentOverview.countLabel}. ${agentOverview.status.provider}: ${agentOverview.status.status}${agentOverview.unreadLabel === undefined ? '' : ` · ${agentOverview.unreadLabel}`}`
+													: `${workspace.name}. ${agentOverview.countLabel}. ${agentOverview.agentLabel}: ${agentOverview.status.status}${agentOverview.unreadLabel === undefined ? '' : ` · ${agentOverview.unreadLabel}`}`
 											}
 											aria-current={active ? 'page' : undefined}
 											className={styles['workspaceItem']}
@@ -392,8 +392,8 @@ export function ProjectNavigationItem({
 													<ProductIcon name='layout' />
 												) : (
 													<WorkbenchAgentIdentity
+														agents={agentOverview.agents}
 														gradientPrefix={`${agentGradientPrefix}-${workspace.id}`}
-														providerIds={agentOverview.providerIds}
 														status={agentOverview.status}
 													/>
 												)}
@@ -471,9 +471,9 @@ export function ProjectNavigationItem({
 									workspaceReorder.draggingItemId === null && (
 										<WorkspaceAgentList
 											gradientPrefix={`${agentGradientPrefix}-${workspace.id}-detail`}
-											navigateAgent={(sessionId) =>
+											navigateAgent={(presentationId) =>
 												navigateAgent({
-													sessionId,
+													presentationId,
 													workspaceId: workspace.id,
 												})
 											}

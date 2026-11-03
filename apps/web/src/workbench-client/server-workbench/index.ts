@@ -1,4 +1,5 @@
 export { ServerAgentIntegrationClient } from './ServerAgentIntegrationClient';
+export { ServerTerminalAgentSource } from './ServerTerminalAgentSource';
 export { ServerTerminalDefaultSettingsClient } from './ServerTerminalDefaultSettingsClient';
 export { ServerTerminalLaunchProfileClient } from './ServerTerminalLaunchProfileClient';
 export { ServerTerminalProjectionClient } from './ServerTerminalProjectionClient';

@@ -1,47 +1,21 @@
 // @vitest-environment jsdom
 
-import { AgentRuntimeSnapshotSchema } from '@orchbee/agent';
 import { TabModel } from '@orchbee/tab-strip';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { PanelWorkspaceStore } from '../../components/workbench-panel-workspace/model/PanelWorkspaceStore';
+import type { WorkbenchAgentSnapshot } from '../../types/workbench-agent-observation';
 import { useWorkbenchAgentAttention } from '../useWorkbenchAgentAttention';
 
-function observation(generation: number) {
-	return AgentRuntimeSnapshotSchema.parse({
-		revision: generation,
-		sessions: [
-			{
-				activityHint: null,
-				capabilities: ['sessionLifecycle', 'turnLifecycle'],
-				executionLocation: { executionLocationId: 'execution' },
-				lastOutcome: null,
-				lifecycle: 'live',
-				observation: {
-					fidelity: 'rich',
-					freshness: 'fresh',
-					generation,
-					sequence: 1,
-					source: 'hook',
-				},
-				parentSessionId: null,
-				pendingRequests: [],
-				presentationAttachments: [
-					{
-						generation: 'binding',
-						navigable: true,
-						presentationId: 'terminal',
-						visibility: 'visible',
-					},
-				],
-				providerId: 'codex',
-				sessionId: 'session',
-				turn: { kind: 'idle' },
-			},
-		],
-	});
+function observation(sequence: bigint): WorkbenchAgentSnapshot {
+	return {
+		complete: true,
+		presentations: new Map([
+			['terminal', { agent: 'codex', binding: 'binding', sequence, state: 'idle' }],
+		]),
+	};
 }
 
 afterEach(() => {
@@ -93,7 +67,7 @@ describe('Workbench Agent read visibility', () => {
 				kind: 'preview',
 			},
 		});
-		let snapshot = observation(0);
+		let snapshot = observation(1n);
 		const listeners = new Set<() => void>();
 		const source = {
 			getSnapshot: () => snapshot,
@@ -104,9 +78,12 @@ describe('Workbench Agent read visibility', () => {
 				};
 			},
 		};
-		const rendered = renderHook(() => useWorkbenchAgentAttention(source, panels, tabModel, root));
+		const painted = vi.fn<(shown: WorkbenchAgentSnapshot, ids: ReadonlySet<string>) => void>();
+		const rendered = renderHook(() =>
+			useWorkbenchAgentAttention(source, panels, tabModel, root, painted),
+		);
 		act(() => {
-			snapshot = observation(1);
+			snapshot = observation(2n);
 			for (const listener of listeners) listener();
 		});
 		await paint();
@@ -115,10 +92,11 @@ describe('Workbench Agent read visibility', () => {
 		viewport.dataset['terminalDisplayReady'] = 'true';
 		await paint();
 		expect(rendered.result.current.unread.size).toBe(1);
+		expect(painted).toHaveBeenLastCalledWith(snapshot, new Set());
 		layer.dataset['presentationMode'] = 'active';
 		await paint();
 		expect(rendered.result.current.unread.size).toBe(0);
+		expect(painted).toHaveBeenLastCalledWith(snapshot, new Set(['terminal']));
 		expect(rendered.result.current.observation).toBe(snapshot);
-		expect(snapshot.sessions[0]?.turn).toEqual({ kind: 'idle' });
 	});
 });

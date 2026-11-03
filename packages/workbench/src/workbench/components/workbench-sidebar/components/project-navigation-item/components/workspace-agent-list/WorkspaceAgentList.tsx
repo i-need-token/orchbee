@@ -1,4 +1,5 @@
 import { Button } from '@orchbee/ui/components';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 import type { ReactNode } from 'react';
 
 import { WorkbenchAgentIdentity } from '../../../../../workbench-agent-identity/WorkbenchAgentIdentity';
@@ -7,9 +8,7 @@ import styles from './WorkspaceAgentList.module.css';
 
 interface WorkspaceAgentListProps {
 	readonly gradientPrefix: string;
-	readonly navigateAgent: (
-		sessionId: WorkbenchWorkspaceAgentOverviewView['rows'][number]['sessionId'],
-	) => void;
+	readonly navigateAgent: (presentationId: TerminalPresentationId) => void;
 	readonly overview: WorkbenchWorkspaceAgentOverviewView;
 }
 
@@ -21,7 +20,7 @@ export function WorkspaceAgentList({
 	return (
 		<ul className={styles['list']} data-slot='workbench-sidebar-workspace-agents'>
 			{overview.rows.map((row, index) => (
-				<li key={row.sessionId}>
+				<li key={row.presentationId}>
 					<Button
 						aria-label={
 							row.unreadLabel === undefined
@@ -31,21 +30,20 @@ export function WorkspaceAgentList({
 						className={styles['item']}
 						data-navigation-reorder-excluded='true'
 						data-slot='workbench-sidebar-workspace-agent'
-						disabled={!row.navigable}
 						title={row.locationLabel}
 						variant='ghost'
-						onClick={() => navigateAgent(row.sessionId)}
+						onClick={() => navigateAgent(row.presentationId)}
 					>
 						<span className={styles['identity']}>
 							<WorkbenchAgentIdentity
+								agents={row.agents}
 								gradientPrefix={`${gradientPrefix}-${index}`}
-								providerIds={row.providerIds}
 								status={row.status}
 							/>
 						</span>
 						<span className={styles['content']}>
 							<span className={styles['primary']}>
-								<span className={styles['provider']}>{row.providerLabel}</span>
+								<span className={styles['provider']}>{row.agentLabel}</span>
 								<span aria-hidden='true' className={styles['separator']}>
 									·
 								</span>

@@ -1,11 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-	AgentEventIdSchema,
-	AgentRequestIdSchema,
-	type AgentSemanticEvent,
-	AgentSessionIdSchema,
-	AgentTurnIdSchema,
-} from '@orchbee/agent';
 
 import {
 	TerminalFeedbackSettingsController,
@@ -245,74 +238,59 @@ describe('TerminalFeedbackSettingsController', () => {
 		expect(controller.getSnapshot().notificationPermission).toBe('prompt');
 	});
 
-	it('notifies once for a trusted hidden Agent event without requesting permission', () => {
+	it('notifies once per exact Agent state without requesting permission', () => {
 		const notifications = notificationCapability('granted');
 		const controller = new TerminalFeedbackSettingsController({
 			notificationCapability: notifications,
 			storage: storage(),
 		});
-		controller.update({ agentNotificationMode: 'hidden' });
-		const event: AgentSemanticEvent = {
-			eventId: AgentEventIdSchema.parse('agent-event-1'),
-			request: {
-				actionPath: 'navigate-only',
-				kind: 'question',
-				requestId: AgentRequestIdSchema.parse('agent-request-1'),
-				turnId: null,
-			},
-			sessionId: AgentSessionIdSchema.parse('agent-session-1'),
-			type: 'attention-requested',
-		};
-		const onActivate = vi.fn<() => void>();
-		const observation = {
-			event,
+		const notification = {
+			key: 'presentation-1:binding-1:3',
 			notification: {
-				body: 'safe body',
-				onActivate,
-				tag: 'agent:event-1',
-				title: 'safe title',
+				body: 'Workspace · Tab',
+				onActivate: vi.fn<() => void>(),
+				tag: 'orchbee-agent:presentation-1',
+				title: 'Codex finished',
 			},
-			visible: false,
 		};
 
-		expect(controller.observeAgentEvent(observation)).toEqual({
+		expect(controller.observeAgentNotification(notification)).toEqual({
+			kind: 'ignored',
+			reason: 'turned-off',
+		});
+		controller.update({ agentNotificationMode: 'hidden' });
+		expect(controller.observeAgentNotification({ ...notification, key: 'next' })).toEqual({
 			kind: 'notify',
 			notification: 'shown',
 		});
-		expect(controller.observeAgentEvent(observation)).toEqual({
+		expect(controller.observeAgentNotification({ ...notification, key: 'next' })).toEqual({
 			kind: 'ignored',
 			reason: 'duplicate',
 		});
 		expect(notifications.show).toHaveBeenCalledOnce();
-		expect(notifications.show).toHaveBeenCalledWith({ ...observation.notification, silent: true });
+		expect(notifications.show).toHaveBeenCalledWith({ ...notification.notification, silent: true });
 		expect(notifications.requestPermission).not.toHaveBeenCalled();
 	});
 
-	it('suppresses visible Agent events and never implicitly asks for permission', () => {
+	it('never implicitly asks for Agent notification permission', () => {
 		const notifications = notificationCapability('prompt');
 		const controller = new TerminalFeedbackSettingsController({
 			notificationCapability: notifications,
 			storage: storage(),
 		});
 		controller.update({ agentNotificationMode: 'hidden' });
-		const event: AgentSemanticEvent = {
-			eventId: AgentEventIdSchema.parse('agent-event-visible'),
-			outcome: 'succeeded',
-			sessionId: AgentSessionIdSchema.parse('agent-session-visible'),
-			turnId: AgentTurnIdSchema.parse('agent-turn-visible'),
-			type: 'turn-outcome',
-		};
-		const notification = {
-			body: 'safe',
-			onActivate: () => undefined,
-			tag: 'agent:visible',
-			title: 'completed',
-		};
 
-		expect(controller.observeAgentEvent({ event, notification, visible: true })).toEqual({
-			kind: 'ignored',
-			reason: 'visible',
-		});
+		expect(
+			controller.observeAgentNotification({
+				key: 'presentation-1:binding-1:4',
+				notification: {
+					body: 'Workspace · Tab',
+					onActivate: () => undefined,
+					tag: 'orchbee-agent:presentation-1',
+					title: 'Codex needs attention',
+				},
+			}),
+		).toEqual({ kind: 'notify', notification: 'unavailable' });
 		expect(notifications.requestPermission).not.toHaveBeenCalled();
 		expect(notifications.show).not.toHaveBeenCalled();
 	});

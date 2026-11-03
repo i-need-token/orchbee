@@ -45,8 +45,13 @@ React root boundary.
 
 Browser Preview uses an in-memory composition. Desktop reaches its Session through the Server Client path above, and Main serves only native Project Folder acquisition beside that connection. The shared terminal surface retains measured cell geometry, complete background coverage, clipped direct graphics, bounded bell indication, connection notices, and terminal-outcome precedence. Workbench payloads come from `@orchbee/workbench-client-protocol`; Electron capability contracts come from `@orchbee/desktop-client-protocol`.
 
-No composition supplies Agent observation: the Server path does not carry it yet, so Workbench shows
-no Agent status and the terminal-feedback controller receives no Agent event.
+Desktop's Server runtime supplies Agent observation through `ServerTerminalAgentSource`, which reads
+the Server's per-terminal Agent reports with `panel-agent` `states` State streams of at most 64
+terminals each, in topology order. A membership change reopens only the streams whose terminals
+changed. A failed answer or a closed stream keeps its last Agents for 10 seconds, a capacity close
+reopens after 5 seconds, and a frame that breaks the protocol ends the observation. Workbench
+presentation, Agent notifications through the terminal-feedback controller, and the
+trailing-blank-row policy read that source. Browser Preview supplies none and shows no Agent status.
 
 For a Host-backed visual terminal, the shared surface does not open projection until it has loaded
 the current configured fonts and measured a positive mounted viewport. It sends the resulting exact
@@ -122,7 +127,7 @@ terminal is actually displayed. Retained surfaces cannot supply this read witnes
 The active terminal adapter reports `onTerminalEdit` only after typed editing input reaches its
 transport port successfully. Text, paste and content-editing keys retire the Client-local completed
 Agent display; focus, mouse, cursor movement, copy, rejected input and inactive layers cannot.
-Workbench owns this presentation override and leaves canonical Agent outcomes and notifications intact.
+Workbench owns this presentation override and leaves the Server's Agent observations and notifications intact.
 
 An attachment feature failure remains distinct from transport loss and terminal outcome. The shared
 surface retains its operation, code, retryability, Host correlation ID or client request sequence as
@@ -273,7 +278,8 @@ All compositions use one TanStack Browser Router. Canonical Workspace routes use
 
 Desktop Settings includes Agent Integrations. Startup, search, and category navigation perform no
 mutation; only an explicit switch action changes provider configuration, as one job on the Session's
-Worker. The launch reminder does not appear yet, because the window observes no Agent launch.
+Worker. The launch reminder does not appear yet, because the Server integration client reports no
+Agent launch.
 Reminder dismissal stores only the Agent ID, and remote setup remains manual-only.
 
 General offers System, English and Simplified Chinese. Desktop reads the same confirmed device

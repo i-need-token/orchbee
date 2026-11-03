@@ -1,5 +1,4 @@
 import type { ActionExecution } from '@orchbee/actions';
-import type { AgentSnapshotSource } from '@orchbee/agent';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 
@@ -14,6 +13,7 @@ import {
 } from '../model/workbench-agent-navigation';
 import type { WorkbenchAgentNavigationInput } from '../model/project-workbench-agent-overview';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
+import type { WorkbenchAgentSource } from '../types/workbench-agent-observation';
 import { useAgentSnapshot } from './useAgentSnapshot';
 
 interface UseWorkbenchAgentNavigationOptions {
@@ -22,7 +22,7 @@ interface UseWorkbenchAgentNavigationOptions {
 	readonly invokeAgentNavigation: (input: WorkbenchAgentNavigationInput) => ActionExecution;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly requestTerminalFocus: () => boolean;
-	readonly source: AgentSnapshotSource | undefined;
+	readonly source: WorkbenchAgentSource | undefined;
 }
 
 export function useWorkbenchAgentNavigation({

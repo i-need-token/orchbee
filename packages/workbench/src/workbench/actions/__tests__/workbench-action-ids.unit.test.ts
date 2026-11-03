@@ -97,22 +97,22 @@ describe('workbench action contracts', () => {
 	it('validates exact Agent navigation identity without accepting projected topology', () => {
 		expect(
 			workbenchAgentNavigateInput.parse({
-				sessionId: 'session-a',
+				presentationId: 'terminal-a',
 				workspaceId: 'workspace-a',
 			}),
 		).toEqual({
 			data: {
-				sessionId: 'session-a',
+				presentationId: 'terminal-a',
 				workspaceId: 'workspace-a',
 			},
 			success: true,
 		});
-		expect(
-			workbenchAgentNavigateInput.parse({
-				panelId: 'stale-panel',
-				workspaceId: 'workspace-a',
-			}),
-		).toEqual({ code: 'expected-workbench-agent-navigate-input', success: false });
+		for (const stale of [{ panelId: 'stale-panel' }, { sessionId: 'session-a' }]) {
+			expect(workbenchAgentNavigateInput.parse({ ...stale, workspaceId: 'workspace-a' })).toEqual({
+				code: 'expected-workbench-agent-navigate-input',
+				success: false,
+			});
+		}
 	});
 
 	it('accepts only the first ten one-based Panel positions', () => {

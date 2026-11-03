@@ -1,5 +1,3 @@
-import type { AgentSemanticEvent } from '@orchbee/agent';
-
 interface WorkbenchAgentNotificationRequest {
 	readonly body: string;
 	readonly onActivate: () => void;
@@ -7,12 +5,14 @@ interface WorkbenchAgentNotificationRequest {
 	readonly title: string;
 }
 
-export interface WorkbenchAgentEventObservation {
-	readonly event: AgentSemanticEvent;
+/** A terminal Agent state the person has not seen, after the Workbench's delay. */
+export interface WorkbenchAgentNotification {
+	/** One exact Agent state; a Client notifies about it at most once. */
+	readonly key: string;
 	readonly notification: WorkbenchAgentNotificationRequest;
-	readonly visible: boolean;
 }
 
+/** Owns notification preferences, permission and delivery. */
 export interface WorkbenchAgentNotificationObserver {
-	observeAgentEvent(observation: WorkbenchAgentEventObservation): unknown;
+	observeAgentNotification(notification: WorkbenchAgentNotification): unknown;
 }

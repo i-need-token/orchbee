@@ -1,4 +1,3 @@
-import type { AgentSnapshotSource } from '@orchbee/agent';
 import type { TabModel } from '@orchbee/tab-strip';
 import * as React from 'react';
 
@@ -8,13 +7,24 @@ import {
 } from '../model/WorkbenchAgentAttention';
 import type { PanelWorkspaceStore } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 import { collectPanelLeaves } from '../components/workbench-panel-workspace/model/panel-workspace-state';
+import type {
+	WorkbenchAgentSnapshot,
+	WorkbenchAgentSource,
+} from '../types/workbench-agent-observation';
 import { hasWorkbenchExclusiveFocusSurface } from '../utils/workbench-focus-dom';
 
+/** Receives the exact states a visible window painted, focused or not. */
+type WorkbenchAgentPaintWitness = (
+	observation: WorkbenchAgentSnapshot,
+	presentationIds: ReadonlySet<string>,
+) => void;
+
 export function useWorkbenchAgentAttention(
-	source: AgentSnapshotSource | undefined,
+	source: WorkbenchAgentSource | undefined,
 	panelWorkspaceStore: PanelWorkspaceStore,
 	tabModel: TabModel,
 	root: React.RefObject<HTMLElement | null>,
+	painted: WorkbenchAgentPaintWitness,
 ): WorkbenchAgentAttentionSnapshot & { readonly terminalEdited: (presentationId: string) => void } {
 	const attention = React.useMemo(() => new WorkbenchAgentAttention(source), [source]);
 	const snapshot = React.useSyncExternalStore(
@@ -54,8 +64,9 @@ export function useWorkbenchAgentAttention(
 				frame = requestAnimationFrame(() => {
 					if (panels !== panelWorkspaceStore.getSnapshot() || tabs !== tabModel.getSnapshot())
 						return;
+					if (document.visibilityState !== 'visible') return;
 					// Selection can lead the visual handoff. Only a ready, active terminal
-					// layer from this Workbench can witness a read.
+					// layer from this Workbench can witness a paint.
 					const displayed = new Set<string>();
 					for (const viewport of element.querySelectorAll(
 						'[data-presentation-mode="active"] [data-terminal-display-ready="true"]',
@@ -63,12 +74,11 @@ export function useWorkbenchAgentAttention(
 						const id = viewport.getAttribute('data-terminal-presentation-id');
 						if (id !== null && visiblePresentations.has(id)) displayed.add(id);
 					}
+					painted(snapshot.observation, displayed);
 					attention.acknowledge(
 						snapshot,
 						displayed,
-						document.visibilityState === 'visible' &&
-							document.hasFocus() &&
-							!hasWorkbenchExclusiveFocusSurface(document),
+						document.hasFocus() && !hasWorkbenchExclusiveFocusSurface(document),
 					);
 				});
 			});
@@ -90,6 +100,6 @@ export function useWorkbenchAgentAttention(
 			document.removeEventListener('focusin', schedule);
 			document.removeEventListener('visibilitychange', schedule);
 		};
-	}, [attention, snapshot, panels, tabs, panelWorkspaceStore, tabModel, root]);
+	}, [attention, snapshot, painted, panels, tabs, panelWorkspaceStore, tabModel, root]);
 	return { ...snapshot, terminalEdited: attention.terminalEdited };
 }

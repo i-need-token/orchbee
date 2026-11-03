@@ -300,6 +300,7 @@ async function run(
 			actionRuntime: runtime.actionRuntime,
 			agentIntegrationManagementControl: agentIntegrationManagementClient,
 			agentIntegrationReminderController,
+			agentObservationSource: runtime.agentObservationSource,
 			applicationLocaleController,
 			authority: runtime.authority,
 			keyboardShortcutSettingsController,

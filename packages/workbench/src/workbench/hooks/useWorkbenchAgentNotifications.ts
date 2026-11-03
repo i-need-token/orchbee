@@ -1,42 +1,55 @@
-import type { AgentSnapshotSource } from '@orchbee/agent';
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import type { IntlShape } from '@orchbee/i18n';
-import type { TabModel } from '@orchbee/tab-strip';
 import * as React from 'react';
 
-import type { PanelWorkspaceStore } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
+import {
+	WorkbenchAgentNotificationScheduler,
+	type WorkbenchAgentNotificationCandidate,
+} from '../model/WorkbenchAgentNotificationScheduler';
+import type { WorkbenchAgentNavigationInput } from '../model/project-workbench-agent-overview';
+import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchAgentNotificationObserver } from '../types/workbench-agent-notification';
+import type { WorkbenchAgentSource } from '../types/workbench-agent-observation';
 import { projectWorkbenchAgentNotification } from '../utils/projectWorkbenchAgentNotification';
 
 interface UseWorkbenchAgentNotificationsOptions {
 	readonly intl: IntlShape;
+	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly observer: WorkbenchAgentNotificationObserver | undefined;
-	readonly panelWorkspaceStore: PanelWorkspaceStore;
-	readonly source: AgentSnapshotSource | undefined;
-	readonly tabModel: TabModel;
+	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
+	readonly source: WorkbenchAgentSource | undefined;
 }
 
+/** Schedules this Client's Agent notifications and returns the paint witness that withholds them. */
 export function useWorkbenchAgentNotifications({
 	intl,
+	navigateAgent,
 	observer,
-	panelWorkspaceStore,
+	projectWorkspaceRuntime,
 	source,
-	tabModel,
-}: UseWorkbenchAgentNotificationsOptions): void {
-	React.useEffect(() => {
-		if (observer === undefined || source?.subscribeSemanticEvents === undefined) return;
-		return source.subscribeSemanticEvents((event) => {
-			const session = source
-				.getSnapshot()
-				.sessions.find((candidate) => candidate.sessionId === event.sessionId);
-			if (session === undefined) return;
-			const observation = projectWorkbenchAgentNotification({
-				event,
-				intl,
-				panelWorkspaceStore,
-				session,
-				tabModel,
-			});
-			if (observation !== null) observer.observeAgentEvent(observation);
+}: UseWorkbenchAgentNotificationsOptions): WorkbenchAgentNotificationScheduler['painted'] {
+	const deliver = useMemoizedFn((candidate: WorkbenchAgentNotificationCandidate): void => {
+		const notification = projectWorkbenchAgentNotification({
+			candidate,
+			intl,
+			navigateAgent,
+			runtime: projectWorkspaceRuntime,
 		});
-	}, [intl, observer, panelWorkspaceStore, source, tabModel]);
+		if (notification !== null) observer?.observeAgentNotification(notification);
+	});
+	const scheduler = React.useMemo(
+		() => new WorkbenchAgentNotificationScheduler(deliver),
+		[deliver],
+	);
+	React.useEffect(() => {
+		if (observer === undefined || source === undefined) return;
+		const observe = () => scheduler.observe(source.getSnapshot());
+		const unsubscribe = source.subscribe(observe);
+		observe();
+		return () => {
+			unsubscribe();
+			scheduler.reset();
+		};
+	}, [observer, scheduler, source]);
+	return scheduler.painted;
 }

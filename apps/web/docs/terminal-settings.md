@@ -93,10 +93,11 @@ default and updates existing terminal presentations without recreating their Hos
 Turning it off immediately restores the exact projected VT grid.
 
 The application derives one effective presentation policy from the stored preference and the
-canonical Agent observation for that presentation identifier. It is `true` only while the
-preference is enabled and `projectAgentLocation(...)` reports a location whose aggregate status is
-not `ended`. Missing Agent capability, missing location, observation failure, and ended status are
-all safe `false` results. The composition does not inspect terminal output or guess process names.
+Server's Agent observation for that presentation identifier. It is `true` only while the preference
+is enabled and the composition's Workbench Agent source holds an observation for that presentation.
+A composition without an Agent source, a source that cannot be observed, and a terminal without an
+observed Agent are all safe `false` results. Detection belongs to the Server; the composition does
+not inspect terminal output or guess process names.
 This provider-neutral decision is passed to `@orchbee/terminal`, which owns the bounded display
 window and its fallback behavior; neither layer changes PTY geometry or retained history.
 

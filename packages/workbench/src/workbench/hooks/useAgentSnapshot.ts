@@ -1,12 +1,15 @@
-import type { AgentRuntimeSnapshot, AgentSnapshotSource } from '@orchbee/agent';
 import * as React from 'react';
 
-import { EMPTY_AGENT_RUNTIME_SNAPSHOT } from '../constants/empty-agent-runtime-snapshot';
+import { EMPTY_WORKBENCH_AGENT_SNAPSHOT } from '../constants/empty-workbench-agent-snapshot';
+import type {
+	WorkbenchAgentSnapshot,
+	WorkbenchAgentSource,
+} from '../types/workbench-agent-observation';
 
-export function useAgentSnapshot(source: AgentSnapshotSource | undefined): AgentRuntimeSnapshot {
+export function useAgentSnapshot(source: WorkbenchAgentSource | undefined): WorkbenchAgentSnapshot {
 	return React.useSyncExternalStore(
 		(listener) => source?.subscribe(listener) ?? (() => undefined),
-		() => source?.getSnapshot() ?? EMPTY_AGENT_RUNTIME_SNAPSHOT,
-		() => source?.getSnapshot() ?? EMPTY_AGENT_RUNTIME_SNAPSHOT,
+		() => source?.getSnapshot() ?? EMPTY_WORKBENCH_AGENT_SNAPSHOT,
+		() => source?.getSnapshot() ?? EMPTY_WORKBENCH_AGENT_SNAPSHOT,
 	);
 }

@@ -13,7 +13,6 @@ import {
 	ResizablePanelGroup,
 } from '@orchbee/ui/components';
 import type { ActionRuntime } from '@orchbee/actions';
-import type { AgentSnapshotSource } from '@orchbee/agent';
 import type { TabStripCrossWindowDragRuntimeFactory } from '@orchbee/tab-strip';
 import * as React from 'react';
 
@@ -46,6 +45,7 @@ import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platf
 import type { WorkbenchSearchProvider } from './types/workbench-search-provider';
 import type { WorkbenchTerminalSurface } from './types/workbench-terminal-surface';
 import type { WorkbenchAgentNotificationObserver } from './types/workbench-agent-notification';
+import type { WorkbenchAgentSource } from './types/workbench-agent-observation';
 import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
 import type { WorkbenchEnvironmentProjectConnectionCapability } from './types/workbench-environment-project-connection';
 import type { WorkbenchProjectWorktreeCapability } from './types/workbench-project-worktree';
@@ -60,7 +60,7 @@ import styles from './Workbench.module.css';
 interface WorkbenchProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly agentNotificationObserver?: WorkbenchAgentNotificationObserver | undefined;
-	readonly agentObservationSource?: AgentSnapshotSource | undefined;
+	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	/** Decides shared Workbench structure for a Client that does not hold it. */
 	readonly authority?: WorkbenchAuthority | undefined;
 	readonly createCrossWindowDragRuntime?: TabStripCrossWindowDragRuntimeFactory | undefined;
@@ -135,6 +135,7 @@ export function Workbench({
 		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});
 	const agentPresentation = useWorkbenchAgentPresentation({
+		navigateAgent: view.navigateAgent,
 		notificationObserver: agentNotificationObserver,
 		panelWorkspaceStore: view.terminalContext.panelWorkspaceStore,
 		projectWorkspaceRuntime,

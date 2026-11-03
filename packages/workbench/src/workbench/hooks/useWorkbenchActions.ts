@@ -13,7 +13,6 @@ import {
 	type ActionScope,
 } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import type { AgentSnapshotSource } from '@orchbee/agent';
 import { workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
 import type { TabStripOrientation } from '@orchbee/tab-strip';
 import * as React from 'react';
@@ -39,6 +38,7 @@ import {
 	workbenchTerminalCreateInput,
 } from '../actions/workbench-action-ids';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
+import type { WorkbenchAgentSource } from '../types/workbench-agent-observation';
 import type {
 	WorkbenchHostActionCallback,
 	WorkbenchNavigationPort,
@@ -51,7 +51,7 @@ import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import { WORKBENCH_SHORTCUTS, type WorkbenchShortcutBinding } from '../utils/workbench-shortcuts';
 
 interface UseWorkbenchActionsOptions {
-	readonly agentObservationSource?: AgentSnapshotSource | undefined;
+	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly authority?: WorkbenchAuthority | undefined;
 	readonly focusRouting: Pick<
 		WorkbenchFocusRouting,

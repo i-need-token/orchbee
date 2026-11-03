@@ -1,7 +1,7 @@
 import type { ActionRuntime } from '@orchbee/actions';
-import type { AgentSnapshotSource } from '@orchbee/agent';
 import {
 	Workbench,
+	type WorkbenchAgentSource,
 	type WorkbenchAuthority,
 	type WorkbenchEnvironmentProjectConnectionCapability,
 	type WorkbenchLayoutStorage,
@@ -46,7 +46,7 @@ export interface WebApplicationProps {
 	readonly applicationLocaleController: ApplicationLocaleController;
 	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
 	readonly agentIntegrationReminderController?: AgentIntegrationReminderController | undefined;
-	readonly agentObservationSource?: AgentSnapshotSource | undefined;
+	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly authority?: WorkbenchAuthority | undefined;
 	readonly environmentProjectConnection?:
 		| WorkbenchEnvironmentProjectConnectionCapability

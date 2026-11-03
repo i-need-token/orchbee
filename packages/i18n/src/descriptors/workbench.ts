@@ -1090,7 +1090,7 @@ export const workbenchMessages = defineMessages({
 	workspaceAgentCount: {
 		id: 'workbench.workspaces.agents.count',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.count'],
-		description: 'Exact live Agent Session count represented by one Workspace summary.',
+		description: 'Number of terminals holding an Agent in one Workspace summary.',
 	},
 	workspaceAgentExpand: {
 		id: 'workbench.workspaces.agents.actions.expand',
@@ -1105,32 +1105,27 @@ export const workbenchMessages = defineMessages({
 	workspaceAgentLocationChildTerminal: {
 		id: 'workbench.workspaces.agents.location.childTerminal',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.location.childTerminal'],
-		description: 'Position label for a child terminal that owns a live Agent Session.',
+		description: 'Position label for a child terminal that holds an Agent.',
 	},
 	workspaceAgentLocationPrimaryTerminal: {
 		id: 'workbench.workspaces.agents.location.primaryTerminal',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.location.primaryTerminal'],
-		description: 'Position label for a primary terminal that owns a live Agent Session.',
+		description: 'Position label for a primary terminal that holds an Agent.',
 	},
 	workspaceAgentNavigate: {
 		id: 'workbench.workspaces.agents.actions.navigate',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.actions.navigate'],
-		description: 'Semantic action that opens the exact terminal attached to a live Agent.',
+		description: 'Semantic action that opens the exact terminal holding an Agent.',
 	},
 	workspaceAgentNavigationLabel: {
 		id: 'workbench.workspaces.agents.navigationLabel',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.navigationLabel'],
-		description: 'Accessible label for a navigable Workspace Agent row.',
+		description: 'Accessible label for a Workspace Agent row that opens its terminal.',
 	},
 	workspaceAgentNavigationUnavailable: {
 		id: 'workbench.workspaces.agents.navigationUnavailable',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.navigationUnavailable'],
-		description: 'Announcement when a live Agent disappears before navigation can commit.',
-	},
-	workspaceAgentNotNavigable: {
-		id: 'workbench.workspaces.agents.notNavigable',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.notNavigable'],
-		description: 'Accessible label for a represented Agent attachment that cannot be opened.',
+		description: 'Announcement when an Agent leaves its terminal before navigation can commit.',
 	},
 	workspaceDefaultName: {
 		id: 'workbench.workspaces.names.default',

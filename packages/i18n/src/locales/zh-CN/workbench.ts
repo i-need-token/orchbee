@@ -176,7 +176,6 @@ export const zhCNWorkbenchMessages = {
 	'workbench.workspaces.agents.location.primaryTerminal': '主终端',
 	'workbench.workspaces.agents.navigationLabel': '{provider}，{status}，{location}',
 	'workbench.workspaces.agents.navigationUnavailable': '这个 Agent 已不可用。',
-	'workbench.workspaces.agents.notNavigable': '{label}。当前无法打开这个 Agent。',
 	'workbench.workspaces.close.changed': '工作区已变化，请重试',
 	'workbench.workspaces.close.closed': '工作区已关闭 · {label}',
 	'workbench.workspaces.close.closing': '正在关闭工作区 · {label}',

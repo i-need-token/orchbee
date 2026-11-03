@@ -78,10 +78,10 @@
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--workspace-agent-overview",
 			"states": [
-				"Compare a single provider summary, a two-provider overlapped summary, a three-provider generic Agent summary, and a Workspace with the default layout icon because it has no live Agent.",
-				"Inspect exact live Session counts independently from the number of distinct provider marks and verify attention, failure, working, success, and idle states use both a glyph and semantic color.",
+				"Compare a single provider summary, a two-provider overlapped summary, a three-provider generic Agent summary, and a Workspace with the default layout icon because it has no observed Agent.",
+				"Inspect exact counts of terminals holding an Agent independently from the number of distinct provider marks and verify attention, failure, working, success, and idle states use both a glyph and semantic color.",
 				"Inspect the expanded two-provider Workspace as a flat Agent-only list with provider and localized status on the first line and Tab, Panel, and primary or child terminal location on the second line.",
-				"Activate an enabled Agent row and verify exact Workspace, Tab, Panel, and terminal navigation; disabled rows remain perceivable but do not navigate."
+				"Activate an Agent row and verify exact Workspace, Tab, Panel, and terminal navigation."
 			]
 		},
 		{

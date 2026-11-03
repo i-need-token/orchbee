@@ -1,16 +1,12 @@
-import {
-	AgentRuntimeSnapshotSchema,
-	type AgentRuntimeSnapshot,
-	type AgentSnapshotSource,
-} from '@orchbee/agent';
+import type { WorkbenchAgentSnapshot, WorkbenchAgentSource } from '@orchbee/workbench';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalTrailingBlankRowsPreferenceSource } from '../../../terminal-interaction-settings';
 import { createTerminalTrailingBlankRowsPresentationSource } from '../terminal-trailing-blank-rows-presentation-source';
 
 describe('terminal trailing blank rows presentation source', () => {
-	it('enables presentation only for a detected non-ended Agent with the preference on', () => {
-		const agent = createAgentSource(emptyAgentSnapshot());
+	it('enables presentation only for a terminal with an observed Agent and the preference on', () => {
+		const agent = createAgentSource(agentSnapshot());
 		const preference = createPreferenceSource(true);
 		const source = createTerminalTrailingBlankRowsPresentationSource({
 			agentObservationSource: agent,
@@ -21,13 +17,14 @@ describe('terminal trailing blank rows presentation source', () => {
 		const unsubscribe = source.subscribe(listener);
 
 		expect(source.current()).toBe(false);
-		agent.setSnapshot(agentSnapshot('presentation:target', 'live'));
+		agent.setSnapshot(agentSnapshot('presentation:target'));
 		preference.set(false);
 		expect(source.current()).toBe(false);
 		preference.set(true);
-		agent.setSnapshot(agentSnapshot('presentation:other', 'live'));
-		agent.setSnapshot(agentSnapshot('presentation:target', 'live'));
-		agent.setSnapshot(agentSnapshot('presentation:target', 'ended'));
+		agent.setSnapshot(agentSnapshot('presentation:other'));
+		agent.setSnapshot(agentSnapshot('presentation:target'));
+		// The Agent exited, so the Server no longer reports one in the terminal.
+		agent.setSnapshot(agentSnapshot());
 		expect(source.current()).toBe(false);
 		expect(listener.mock.calls).toEqual([[true], [false], [true], [false], [true], [false]]);
 
@@ -37,7 +34,7 @@ describe('terminal trailing blank rows presentation source', () => {
 	});
 
 	it('stays disabled for ordinary terminals and missing application capabilities', () => {
-		const agent = createAgentSource(agentSnapshot('presentation:other', 'live'));
+		const agent = createAgentSource(agentSnapshot('presentation:other'));
 		const preference = createPreferenceSource(true);
 
 		expect(
@@ -55,7 +52,7 @@ describe('terminal trailing blank rows presentation source', () => {
 	});
 
 	it('fails closed when an upstream source cannot be observed', () => {
-		const agent = createAgentSource(agentSnapshot('presentation:target', 'live'));
+		const agent = createAgentSource(agentSnapshot('presentation:target'));
 		agent.subscribe = () => {
 			throw new Error('injected observation failure');
 		};
@@ -74,12 +71,12 @@ describe('terminal trailing blank rows presentation source', () => {
 	});
 });
 
-interface MutableAgentSource extends AgentSnapshotSource {
-	setSnapshot(snapshot: AgentRuntimeSnapshot): void;
+interface MutableAgentSource extends WorkbenchAgentSource {
+	setSnapshot(snapshot: WorkbenchAgentSnapshot): void;
 	subscribe(listener: () => void): () => void;
 }
 
-function createAgentSource(initialSnapshot: AgentRuntimeSnapshot): MutableAgentSource {
+function createAgentSource(initialSnapshot: WorkbenchAgentSnapshot): MutableAgentSource {
 	let snapshot = initialSnapshot;
 	const listeners = new Set<() => void>();
 	return {
@@ -115,41 +112,14 @@ function createPreferenceSource(initial: boolean): MutablePreferenceSource {
 	};
 }
 
-function agentSnapshot(presentationId: string, lifecycle: 'ended' | 'live'): AgentRuntimeSnapshot {
-	return AgentRuntimeSnapshotSchema.parse({
-		revision: lifecycle === 'live' ? 1 : 2,
-		sessions: [
-			{
-				activityHint: null,
-				capabilities: ['sessionLifecycle'],
-				executionLocation: { executionLocationId: 'location:1' },
-				lastOutcome: null,
-				lifecycle,
-				observation: {
-					fidelity: 'rich',
-					freshness: 'fresh',
-					generation: 1,
-					sequence: 1,
-					source: 'native',
-				},
-				parentSessionId: null,
-				pendingRequests: [],
-				presentationAttachments: [
-					{
-						generation: 'generation:1',
-						navigable: true,
-						presentationId,
-						visibility: 'visible',
-					},
-				],
-				providerId: 'codex',
-				sessionId: 'session:1',
-				turn: { kind: 'idle' },
-			},
-		],
-	});
-}
-
-function emptyAgentSnapshot(): AgentRuntimeSnapshot {
-	return AgentRuntimeSnapshotSchema.parse({ revision: 0, sessions: [] });
+function agentSnapshot(...presentationIds: readonly string[]): WorkbenchAgentSnapshot {
+	return {
+		complete: true,
+		presentations: new Map(
+			presentationIds.map((presentationId) => [
+				presentationId,
+				{ agent: 'codex', binding: 'terminal:1', sequence: 1n, state: 'idle' },
+			]),
+		),
+	};
 }

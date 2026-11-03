@@ -1,7 +1,10 @@
 import type { ActionInputValidation, ActionSignature } from '@orchbee/actions';
 import { z } from 'zod';
-import { AgentSessionIdSchema, type AgentSessionId } from '@orchbee/agent';
 import type { TabStripOrientation } from '@orchbee/tab-strip';
+import {
+	TerminalPresentationIdSchema,
+	type TerminalPresentationId,
+} from '@orchbee/workbench-client-protocol';
 
 import type { PanelFocusPosition } from '../components/workbench-panel-workspace/model/resolvePanelFocusByPosition';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
@@ -71,7 +74,7 @@ export const WORKBENCH_ACTION_IDS = {
 } as const;
 
 export interface WorkbenchAgentNavigateInput {
-	readonly sessionId: AgentSessionId;
+	readonly presentationId: TerminalPresentationId;
 	readonly workspaceId: string;
 }
 
@@ -243,11 +246,11 @@ export const workbenchAgentNavigateInput: ActionInputValidation<WorkbenchAgentNa
 		if (!isRecord(input) || typeof input['workspaceId'] !== 'string') {
 			return { code: 'expected-workbench-agent-navigate-input', success: false };
 		}
-		const sessionId = AgentSessionIdSchema.safeParse(input['sessionId']);
-		return sessionId.success
+		const presentationId = TerminalPresentationIdSchema.safeParse(input['presentationId']);
+		return presentationId.success
 			? {
 					data: {
-						sessionId: sessionId.data,
+						presentationId: presentationId.data,
 						workspaceId: input['workspaceId'],
 					},
 					success: true,

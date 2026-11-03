@@ -1,5 +1,5 @@
-import { AgentSessionIdSchema } from '@orchbee/agent';
 import { describe, expect, it } from 'vitest';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
 	INITIAL_WORKBENCH_AGENT_NAVIGATION_STATE,
@@ -11,11 +11,11 @@ import {
 describe('transitionWorkbenchAgentNavigation', () => {
 	it('focuses exactly once when action settlement follows the ready projection', () => {
 		let state = mount();
-		const navigation = transitionWorkbenchAgentNavigation(state, navigate(1, 'session-a'));
+		const navigation = transitionWorkbenchAgentNavigation(state, navigate(1, 'terminal-a'));
 		state = navigation.state;
 		expect(navigation.commands).toEqual([
 			{
-				input: input('session-a'),
+				input: input('terminal-a'),
 				kind: 'invoke-agent-navigation',
 				requestId: 1,
 			},
@@ -36,7 +36,7 @@ describe('transitionWorkbenchAgentNavigation', () => {
 	});
 
 	it('waits for the exact projection when action settlement arrives first', () => {
-		let state = apply(mount(), navigate(1, 'session-a'));
+		let state = apply(mount(), navigate(1, 'terminal-a'));
 		state = apply(state, { kind: 'action-settled', outcome: 'accepted', requestId: 1 });
 		const ready = transitionWorkbenchAgentNavigation(state, projection('ready'));
 		expect(ready.commands).toEqual([{ kind: 'request-terminal-focus' }]);
@@ -44,8 +44,8 @@ describe('transitionWorkbenchAgentNavigation', () => {
 	});
 
 	it('lets the latest click replace an older request without late focus theft', () => {
-		let state = apply(mount(), navigate(1, 'session-a'));
-		state = apply(state, navigate(2, 'session-b'));
+		let state = apply(mount(), navigate(1, 'terminal-a'));
+		state = apply(state, navigate(2, 'terminal-b'));
 		state = apply(state, { kind: 'action-settled', outcome: 'accepted', requestId: 1 });
 		expect(state).toMatchObject({ kind: 'waiting', requestId: 2 });
 		state = apply(state, projection('ready'));
@@ -57,8 +57,8 @@ describe('transitionWorkbenchAgentNavigation', () => {
 		expect(latest.commands).toEqual([{ kind: 'request-terminal-focus' }]);
 	});
 
-	it('announces invalidation and cancels navigation when the Session disappears', () => {
-		const state = apply(mount(), navigate(1, 'session-a'));
+	it('announces invalidation and cancels navigation when the terminal loses its Agent', () => {
+		const state = apply(mount(), navigate(1, 'terminal-a'));
 		expect(transitionWorkbenchAgentNavigation(state, projection('unavailable'))).toEqual({
 			commands: [{ kind: 'announce-unavailable' }],
 			state: { kind: 'idle' },
@@ -66,7 +66,7 @@ describe('transitionWorkbenchAgentNavigation', () => {
 	});
 
 	it('cancels when unrelated navigation overtakes the pending route', () => {
-		const state = apply(mount(), navigate(1, 'session-a'));
+		const state = apply(mount(), navigate(1, 'terminal-a'));
 		const transition = transitionWorkbenchAgentNavigation(state, {
 			activeLocation: {
 				kind: 'workspace',
@@ -80,7 +80,7 @@ describe('transitionWorkbenchAgentNavigation', () => {
 	});
 
 	it('ignores late settlement and projection events after disposal', () => {
-		const disposed = transitionWorkbenchAgentNavigation(apply(mount(), navigate(1, 'session-a')), {
+		const disposed = transitionWorkbenchAgentNavigation(apply(mount(), navigate(1, 'terminal-a')), {
 			kind: 'dispose',
 		});
 		expect(disposed).toEqual({ commands: [], state: { kind: 'disposed' } });
@@ -102,19 +102,18 @@ function mount(): WorkbenchAgentNavigationState {
 	return apply(INITIAL_WORKBENCH_AGENT_NAVIGATION_STATE, { kind: 'mount' });
 }
 
-function navigate(requestId: number, sessionId: string): WorkbenchAgentNavigationEvent {
+function navigate(requestId: number, presentationId: string): WorkbenchAgentNavigationEvent {
 	return {
-		input: input(sessionId),
+		input: input(presentationId),
 		kind: 'navigate',
 		originLocation: { kind: 'standalone' },
 		requestId,
 	};
 }
 
-function input(sessionId: string) {
+function input(presentationId: string) {
 	return {
-		projectId: 'project-a',
-		sessionId: AgentSessionIdSchema.parse(sessionId),
+		presentationId: terminalPresentationId(presentationId),
 		workspaceId: 'workspace-a',
 	};
 }

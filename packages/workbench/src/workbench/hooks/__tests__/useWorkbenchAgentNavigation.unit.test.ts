@@ -1,12 +1,6 @@
 // @vitest-environment jsdom
 
 import type { ActionExecution } from '@orchbee/actions';
-import {
-	AgentEventIdSchema,
-	AgentRuntime,
-	AgentRuntimeSnapshotSchema,
-	AgentSessionIdSchema,
-} from '@orchbee/agent';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { createElement, startTransition, Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -15,6 +9,7 @@ import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 import type { WorkbenchActiveLocation } from '../../../project-workspace';
 import type { WorkbenchAgentNavigationInput } from '../../model/project-workbench-agent-overview';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import type { WorkbenchAgentSnapshot } from '../../types/workbench-agent-observation';
 import { useWorkbenchAgentNavigation } from '../useWorkbenchAgentNavigation';
 import { pendingActionExecution } from './pendingActionExecution';
 
@@ -88,16 +83,8 @@ describe('useWorkbenchAgentNavigation', () => {
 				});
 			}
 			rendered.rerender({ activeLocation: committed ? unrelated : origin, suspend: false });
-			act(() => {
-				const observed = fixture.source.dispatch({
-					eventId: AgentEventIdSchema.parse('navigation-observation-stale'),
-					generation: 0,
-					sequence: 2,
-					sessionId: fixture.input.sessionId,
-					type: 'observation-became-stale',
-				});
-				expect(observed.kind).toBe('applied');
-			});
+			// A newer state of the same Agent reevaluates the pending navigation.
+			act(() => fixture.source.publish(fixture.observed(2n)));
 			expect(invokeAgentNavigation).toHaveBeenCalledExactlyOnceWith(fixture.input);
 			expect(requestTerminalFocus).not.toHaveBeenCalled();
 			act(() => {
@@ -114,11 +101,10 @@ describe('useWorkbenchAgentNavigation', () => {
 			expect(announceUnavailable).not.toHaveBeenCalled();
 			expect(requestTerminalFocus).toHaveBeenCalledTimes(committed ? 0 : 1);
 			rendered.unmount();
-			fixture.source.dispose();
 		},
 	);
 
-	it('announces a Session that is unavailable in the latest projection', () => {
+	it('announces a terminal that holds no Agent in the latest projection', () => {
 		const runtime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal',
@@ -146,7 +132,7 @@ describe('useWorkbenchAgentNavigation', () => {
 
 		act(() =>
 			rendered.result.current({
-				sessionId: AgentSessionIdSchema.parse('session-a'),
+				presentationId: terminalPresentationId('terminal-a'),
 				workspaceId: 'workspace-a',
 			}),
 		);
@@ -208,43 +194,31 @@ function navigationFixture() {
 		.workspaces.find((workspace) => workspace.id !== target.id);
 	if (unrelated === undefined) throw new Error('Expected an unrelated Workspace.');
 	runtime.transition({ type: 'standalone-activated' });
-	const sessionId = AgentSessionIdSchema.parse('navigation-session');
-	const source = new AgentRuntime(
-		AgentRuntimeSnapshotSchema.parse({
-			revision: 1,
-			sessions: [
-				{
-					activityHint: null,
-					capabilities: [],
-					executionLocation: { executionLocationId: 'navigation-execution' },
-					lastOutcome: null,
-					lifecycle: 'live',
-					observation: {
-						fidelity: 'rich',
-						freshness: 'fresh',
-						generation: 0,
-						sequence: 1,
-						source: 'hook',
-					},
-					parentSessionId: null,
-					pendingRequests: [],
-					presentationAttachments: [
-						{
-							generation: 'navigation-generation',
-							navigable: true,
-							presentationId: panel.primaryPresentation.presentationId,
-							visibility: 'visible',
-						},
-					],
-					providerId: 'codex',
-					sessionId,
-					turn: { kind: 'idle' },
-				},
-			],
-		}),
-	);
+	const { presentationId } = panel.primaryPresentation;
+	const observed = (sequence: bigint): WorkbenchAgentSnapshot => ({
+		complete: true,
+		presentations: new Map([
+			[presentationId, { agent: 'codex', binding: 'navigation-terminal', sequence, state: 'idle' }],
+		]),
+	});
+	let snapshot = observed(1n);
+	const listeners = new Set<() => void>();
+	const source = {
+		getSnapshot: () => snapshot,
+		publish: (next: WorkbenchAgentSnapshot) => {
+			snapshot = next;
+			for (const listener of listeners) listener();
+		},
+		subscribe: (listener: () => void) => {
+			listeners.add(listener);
+			return () => {
+				listeners.delete(listener);
+			};
+		},
+	};
 	return {
-		input: { sessionId, workspaceId: target.id },
+		input: { presentationId, workspaceId: target.id },
+		observed,
 		runtime,
 		source,
 		unrelatedWorkspaceId: unrelated.id,

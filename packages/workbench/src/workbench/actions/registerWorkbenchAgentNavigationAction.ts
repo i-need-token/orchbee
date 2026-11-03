@@ -5,7 +5,6 @@ import {
 	type ActionScope,
 	type TypedActionRuntime,
 } from '@orchbee/actions';
-import type { AgentSnapshotSource } from '@orchbee/agent';
 import { workbenchMessages } from '@orchbee/i18n';
 
 import {
@@ -15,12 +14,13 @@ import {
 import type { PanelWorkspaceStore } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 import {
 	resolveWorkbenchAgentNavigationTarget,
-	type WorkbenchAgentNavigationTarget,
+	type WorkbenchAgentDestination,
 } from '../model/project-workbench-agent-overview';
 import type {
 	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalContext,
 } from '../model/WorkbenchProjectWorkspaceRuntime';
+import type { WorkbenchAgentSource } from '../types/workbench-agent-observation';
 import type {
 	WorkbenchNavigationPort,
 	WorkbenchHostActionResult,
@@ -35,14 +35,14 @@ import {
 interface RegisterWorkbenchAgentNavigationActionOptions {
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
-	readonly source: AgentSnapshotSource | undefined;
+	readonly source: WorkbenchAgentSource | undefined;
 	readonly scope: ActionScope;
 	readonly typedRuntime: TypedActionRuntime<WorkbenchActionCatalog>;
 }
 
 interface PreparedWorkbenchAgentNavigation {
 	readonly context: WorkbenchTerminalContext;
-	readonly target: WorkbenchAgentNavigationTarget;
+	readonly target: WorkbenchAgentDestination;
 }
 
 export function registerWorkbenchAgentNavigationAction({
@@ -162,7 +162,7 @@ function executeWorkbenchAgentNavigation(
 function prepareWorkbenchAgentNavigation(
 	input: WorkbenchAgentNavigateInput,
 	runtime: WorkbenchProjectWorkspaceRuntime,
-	source: AgentSnapshotSource | undefined,
+	source: WorkbenchAgentSource | undefined,
 ): PreparedWorkbenchAgentNavigation | null {
 	if (source === undefined) return null;
 	const target = resolveWorkbenchAgentNavigationTarget(input, source.getSnapshot(), runtime);

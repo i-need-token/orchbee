@@ -1,42 +1,36 @@
 // @vitest-environment jsdom
 
-import { AgentProviderIdSchema } from '@orchbee/agent';
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { WorkbenchAgentProviderIcon } from '../WorkbenchAgentProviderIcon';
 
-const curatedProviderIds = [
-	'claude-code',
+/** The labels the Server reports for these providers, not their canonical provider IDs. */
+const curatedAgents = [
+	'claude',
 	'cline',
 	'codex',
 	'gemini',
-	'github-copilot',
+	'copilot',
 	'grok',
 	'omp',
 	'opencode',
 	'pi',
-	'qwen-code',
+	'qwen',
 ] as const;
 
 describe('WorkbenchAgentProviderIcon', () => {
-	it.each(curatedProviderIds)('renders the curated %s product mark', (providerId) => {
+	it.each(curatedAgents)('renders the curated %s product mark', (agent) => {
 		const { container } = render(
-			<WorkbenchAgentProviderIcon
-				gradientPrefix={`test-${providerId}`}
-				providerIds={[AgentProviderIdSchema.parse(providerId)]}
-			/>,
+			<WorkbenchAgentProviderIcon agents={[agent]} gradientPrefix={`test-${agent}`} />,
 		);
 
-		expect(container.querySelector(`[data-agent-provider-icon="${providerId}"]`)).toBeTruthy();
+		expect(container.querySelector(`[data-agent-provider-icon="${agent}"]`)).toBeTruthy();
 	});
 
-	it('uses the provider-neutral Agent icon for an unknown provider', () => {
+	it('uses the provider-neutral Agent icon for a custom Agent', () => {
 		const unknown = render(
-			<WorkbenchAgentProviderIcon
-				gradientPrefix='test-unknown'
-				providerIds={[AgentProviderIdSchema.parse('private-adapter')]}
-			/>,
+			<WorkbenchAgentProviderIcon agents={['private-adapter']} gradientPrefix='test-unknown' />,
 		);
 
 		expect(unknown.container.querySelector('[data-icon="agent"]')).toBeTruthy();
@@ -44,13 +38,7 @@ describe('WorkbenchAgentProviderIcon', () => {
 
 	it('overlaps two complete provider marks in registry order', () => {
 		const mixed = render(
-			<WorkbenchAgentProviderIcon
-				gradientPrefix='test-mixed'
-				providerIds={[
-					AgentProviderIdSchema.parse('codex'),
-					AgentProviderIdSchema.parse('claude-code'),
-				]}
-			/>,
+			<WorkbenchAgentProviderIcon agents={['codex', 'claude']} gradientPrefix='test-mixed' />,
 		);
 
 		expect(mixed.container.querySelector('[data-icon="agent"]')).toBeNull();
@@ -58,18 +46,14 @@ describe('WorkbenchAgentProviderIcon', () => {
 			[...mixed.container.querySelectorAll('[data-agent-provider]')].map((item) =>
 				item.getAttribute('data-agent-provider'),
 			),
-		).toEqual(['claude-code', 'codex']);
+		).toEqual(['claude', 'codex']);
 	});
 
 	it('uses the provider-neutral multi-Agent mark for three providers', () => {
 		const rendered = render(
 			<WorkbenchAgentProviderIcon
+				agents={['codex', 'claude', 'gemini']}
 				gradientPrefix='test-multi'
-				providerIds={[
-					AgentProviderIdSchema.parse('codex'),
-					AgentProviderIdSchema.parse('claude-code'),
-					AgentProviderIdSchema.parse('gemini'),
-				]}
 			/>,
 		);
 

@@ -8,6 +8,7 @@ import {
 import {
 	resolveTerminalMetadataObservation,
 	WorkbenchProjectWorkspaceRuntime,
+	type WorkbenchAgentSource,
 	type WorkbenchAuthority,
 	type WorkbenchShortcutPlatform,
 } from '@orchbee/workbench';
@@ -48,6 +49,7 @@ import {
 	presentServerTerminalColors,
 	projectServerSnapshot,
 	serverHostColors,
+	ServerTerminalAgentSource,
 	ServerTerminalProjectionClient,
 	type ServerTerminalColorsSource,
 	type ServerWorkbenchSession,
@@ -66,6 +68,8 @@ type ServerTerminalMetadata = Parameters<
 
 export interface ServerWorkbenchRuntime {
 	readonly actionRuntime: ActionRuntime;
+	/** The Agents the Server observes in this session's terminals. */
+	readonly agentObservationSource: WorkbenchAgentSource;
 	readonly authority: WorkbenchAuthority;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly terminalSurfaceCapability: ProjectedTerminalSurfaceCapability;
@@ -203,6 +207,7 @@ export function createServerWorkbenchRuntime({
 		() => session.snapshot,
 		terminalColorsSource === undefined ? undefined : serverHostColors(terminalColorsSource),
 	);
+	const agentObservationSource = new ServerTerminalAgentSource(connection, session);
 	const presentationSnapshots =
 		new TerminalPresentationSnapshotCache<ProjectedTerminalPresentationSnapshot>();
 	// A revision only orders metadata of one terminal, and a Presentation can be bound to another.
@@ -239,6 +244,7 @@ export function createServerWorkbenchRuntime({
 		}
 	});
 	const terminalSurfaceCapability: ProjectedTerminalSurfaceCapability = {
+		agentObservationSource,
 		applicationLocaleSource,
 		documentElement,
 		inputConfigurationSource: terminalInputConfigurationSource,
@@ -280,6 +286,7 @@ export function createServerWorkbenchRuntime({
 
 	return {
 		actionRuntime,
+		agentObservationSource,
 		authority,
 		dispose: () => {
 			if (disposed) return;
@@ -293,6 +300,7 @@ export function createServerWorkbenchRuntime({
 					() => stopFocusRecoveryDocumentObservation?.(),
 					() => stopFocusRecoveryViewObservation?.(),
 					() => actionRuntime.dispose(),
+					() => agentObservationSource.dispose(),
 					() => projectionClient.dispose(),
 				],
 				'Server Workbench runtime cleanup failed',

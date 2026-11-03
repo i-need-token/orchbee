@@ -7,7 +7,6 @@ import type {
 	ActionRuntime,
 	ActionScope,
 } from '@orchbee/actions';
-import type { AgentSnapshotSource } from '@orchbee/agent';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import {
 	type TabModel,
@@ -32,6 +31,7 @@ import {
 } from '../../workbench-layout-storage';
 import type { ProjectWorkspaceState, WorkbenchActiveLocation } from '../../project-workspace';
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
+import type { WorkbenchAgentSource } from '../types/workbench-agent-observation';
 import type {
 	WorkbenchHostActionCallback,
 	WorkbenchNavigationPort,
@@ -235,7 +235,7 @@ interface WorkbenchView {
 
 interface UseWorkbenchOptions {
 	readonly actionRuntime: ActionRuntime;
-	readonly agentObservationSource?: AgentSnapshotSource | undefined;
+	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly authority?: WorkbenchAuthority | undefined;
 	readonly isShortcutScopeActive: boolean;
 	readonly navigation?: WorkbenchNavigationPort | undefined;

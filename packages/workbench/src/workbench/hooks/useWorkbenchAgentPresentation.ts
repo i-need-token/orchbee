@@ -1,4 +1,3 @@
-import { projectAgentPresentationGroup, type AgentSnapshotSource } from '@orchbee/agent';
 import { agentObservationMessages, useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import type { TabStatusAdornment, TabStatusAdornmentKind, TabModel } from '@orchbee/tab-strip';
 import * as React from 'react';
@@ -7,19 +6,33 @@ import { WorkbenchAgentProviderIcon } from '../components/workbench-agent-provid
 import type { PanelWorkspaceStore } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 import { collectPanelLeaves } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
-import { projectWorkbenchAgentOverview } from '../model/project-workbench-agent-overview';
+import {
+	mostUrgentWorkbenchAgentState,
+	projectWorkbenchAgentOverview,
+	type WorkbenchAgentNavigationInput,
+} from '../model/project-workbench-agent-overview';
 import type { WorkbenchAgentNotificationObserver } from '../types/workbench-agent-notification';
+import type {
+	WorkbenchAgentState,
+	WorkbenchAgentSource,
+} from '../types/workbench-agent-observation';
 import type { WorkbenchWorkspaceAgentOverviewView } from '../types/workbench-agent-overview';
+import { formatWorkbenchAgentLocation } from '../utils/formatWorkbenchAgentLocation';
+import {
+	formatWorkbenchAgentGroupName,
+	formatWorkbenchAgentName,
+} from '../utils/workbench-agent-names';
 import { formatWorkbenchAgentStatus } from '../utils/formatWorkbenchAgentStatus';
 import { useWorkbenchAgentAttention } from './useWorkbenchAgentAttention';
 import { useWorkbenchAgentNotifications } from './useWorkbenchAgentNotifications';
 
 interface UseWorkbenchAgentPresentationOptions {
+	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly notificationObserver: WorkbenchAgentNotificationObserver | undefined;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly root: React.RefObject<HTMLElement | null>;
-	readonly source: AgentSnapshotSource | undefined;
+	readonly source: WorkbenchAgentSource | undefined;
 	readonly tabModel: TabModel;
 }
 
@@ -30,7 +43,17 @@ interface WorkbenchAgentPresentationView {
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
 }
 
+const TAB_ADORNMENT_KINDS: Readonly<Record<WorkbenchAgentState, TabStatusAdornmentKind>> = {
+	blocked: 'attention',
+	done: 'success',
+	error: 'error',
+	idle: 'idle',
+	unknown: 'idle',
+	working: 'active',
+};
+
 export function useWorkbenchAgentPresentation({
+	navigateAgent,
 	notificationObserver,
 	panelWorkspaceStore,
 	projectWorkspaceRuntime,
@@ -40,11 +63,18 @@ export function useWorkbenchAgentPresentation({
 }: UseWorkbenchAgentPresentationOptions): WorkbenchAgentPresentationView {
 	const agentIconGradientPrefix = React.useId().replaceAll(':', '');
 	const intl = useOrchbeeIntl();
+	const painted = useWorkbenchAgentNotifications({
+		intl,
+		navigateAgent,
+		observer: notificationObserver,
+		projectWorkspaceRuntime,
+		source,
+	});
 	const {
 		presentation: snapshot,
 		unread,
 		terminalEdited,
-	} = useWorkbenchAgentAttention(source, panelWorkspaceStore, tabModel, root);
+	} = useWorkbenchAgentAttention(source, panelWorkspaceStore, tabModel, root, painted);
 	const panelWorkspaceState = React.useSyncExternalStore(
 		panelWorkspaceStore.subscribe,
 		panelWorkspaceStore.getSnapshot,
@@ -55,56 +85,37 @@ export function useWorkbenchAgentPresentation({
 		projectWorkspaceRuntime.getTerminalTopologyRevision,
 		projectWorkspaceRuntime.getTerminalTopologyRevision,
 	);
-	useWorkbenchAgentNotifications({
-		intl,
-		observer: notificationObserver,
-		panelWorkspaceStore,
-		source,
-		tabModel,
-	});
 	const tabPresentation = React.useMemo(() => {
 		const identityIcons = new Map<string, React.ReactNode>();
 		const statusAdornments = new Map<string, Readonly<TabStatusAdornment>>();
+		const unreadLabel = intl.formatMessage(agentObservationMessages.statusUnread);
 		for (const tab of panelWorkspaceState.tabs) {
 			const presentationIds = collectPanelLeaves(tab.root).flatMap((panel) => [
 				panel.primaryPresentation.presentationId,
 				...panel.childPresentations.map((presentation) => presentation.presentationId),
 			]);
-			const aggregate = projectAgentPresentationGroup(snapshot, presentationIds);
-			if (aggregate === null || aggregate.status.kind === 'ended') continue;
+			const observations = presentationIds.flatMap((id) => {
+				const observation = snapshot.presentations.get(id);
+				return observation === undefined ? [] : [observation];
+			});
+			const state = mostUrgentWorkbenchAgentState(
+				observations.map((observation) => observation.state),
+			);
+			if (state === null) continue;
+			const agents = [...new Set(observations.map((observation) => observation.agent))];
 			const identityIcon = React.createElement(WorkbenchAgentProviderIcon, {
+				agents,
 				gradientPrefix: `${agentIconGradientPrefix}-${identityIcons.size}`,
-				providerIds: aggregate.providerIds,
 			});
 			identityIcons.set(tab.tabId, identityIcon);
-			const formatted = formatWorkbenchAgentStatus(intl, aggregate);
-			let kind: TabStatusAdornmentKind = 'idle';
-			if (aggregate.status.kind === 'needs-attention') kind = 'attention';
-			else if (
-				aggregate.status.kind === 'failed' ||
-				aggregate.status.kind === 'canceled' ||
-				aggregate.status.kind === 'interrupted'
-			) {
-				kind = 'error';
-			} else if (aggregate.status.kind === 'succeeded') kind = 'success';
-			else if (aggregate.status.kind === 'working') kind = 'active';
-			const hasUnread = snapshot.sessions.some(
-				(session) =>
-					unread.has(session.sessionId) &&
-					session.lifecycle === 'live' &&
-					session.presentationAttachments.some((attachment) =>
-						presentationIds.some((id) => id === attachment.presentationId),
-					),
-			);
-			const unreadLabel = hasUnread
-				? intl.formatMessage(agentObservationMessages.statusUnread)
-				: undefined;
+			const status = formatWorkbenchAgentStatus(intl, state);
+			const hasUnread = presentationIds.some((id) => unread.has(id));
 			statusAdornments.set(tab.tabId, {
-				accessibleLabel: `${formatted.provider}: ${formatted.status}${unreadLabel === undefined ? '' : ` · ${unreadLabel}`}`,
-				glyph: formatted.glyph,
-				unreadLabel,
+				accessibleLabel: `${formatWorkbenchAgentGroupName(intl, agents)}: ${status.status}${hasUnread ? ` · ${unreadLabel}` : ''}`,
+				glyph: status.glyph,
 				icon: identityIcon,
-				kind,
+				kind: TAB_ADORNMENT_KINDS[state],
+				unreadLabel: hasUnread ? unreadLabel : undefined,
 			});
 		}
 		return { identityIcons, statusAdornments };
@@ -113,78 +124,46 @@ export function useWorkbenchAgentPresentation({
 		if (terminalTopologyRevision !== projectWorkspaceRuntime.getTerminalTopologyRevision()) {
 			return [];
 		}
-		const runtimeSnapshot = projectWorkspaceRuntime.getSnapshot();
-		const workspaceNames = new Map(
-			runtimeSnapshot.workspaces.map((workspace) => [workspace.id, workspace.name] as const),
-		);
-		return projectWorkbenchAgentOverview(snapshot, projectWorkspaceRuntime).workspaces.map(
+		const unreadLabel = intl.formatMessage(agentObservationMessages.statusUnread);
+		return projectWorkbenchAgentOverview(snapshot, projectWorkspaceRuntime).map(
 			(workspace): WorkbenchWorkspaceAgentOverviewView => {
-				const workspaceName = workspaceNames.get(workspace.workspaceId) ?? '';
-				const countLabel = intl.formatMessage(workbenchMessages.workspaceAgentCount, {
-					count: workspace.sessionCount,
-				});
+				const count = workspace.rows.length;
 				return {
-					unreadLabel: workspace.sessions.some((session) => unread.has(session.sessionId))
-						? intl.formatMessage(agentObservationMessages.statusUnread)
-						: undefined,
+					agentLabel: formatWorkbenchAgentGroupName(intl, workspace.agents),
+					agents: workspace.agents,
 					collapseLabel: intl.formatMessage(workbenchMessages.workspaceAgentCollapse, {
-						count: workspace.sessionCount,
-						workspace: workspaceName,
+						count,
+						workspace: workspace.workspaceName,
 					}),
-					countLabel,
+					countLabel: intl.formatMessage(workbenchMessages.workspaceAgentCount, { count }),
 					expandLabel: intl.formatMessage(workbenchMessages.workspaceAgentExpand, {
-						count: workspace.sessionCount,
-						workspace: workspaceName,
+						count,
+						workspace: workspace.workspaceName,
 					}),
 					projectId: workspace.projectId,
-					providerIds: workspace.providerIds,
-					rows: workspace.sessions.map((session) => {
-						const status = formatWorkbenchAgentStatus(intl, {
-							freshness: session.freshness,
-							providerIds: [session.providerId],
-							status: session.status,
-						});
-						const terminal = intl.formatMessage(
-							session.destination.terminalPosition.kind === 'primary'
-								? workbenchMessages.workspaceAgentLocationPrimaryTerminal
-								: workbenchMessages.workspaceAgentLocationChildTerminal,
-							session.destination.terminalPosition.kind === 'primary'
-								? undefined
-								: { position: session.destination.terminalPosition.position },
-						);
-						const locationLabel = intl.formatMessage(workbenchMessages.workspaceAgentLocation, {
-							panel: session.destination.panelPosition,
-							tab: session.destination.tabTitle,
-							terminal,
-						});
-						const navigationLabel = intl.formatMessage(
-							workbenchMessages.workspaceAgentNavigationLabel,
-							{
-								location: locationLabel,
-								provider: status.provider,
-								status: status.status,
-							},
-						);
+					rows: workspace.rows.map(({ destination, observation }) => {
+						const agentLabel = formatWorkbenchAgentName(intl, observation.agent);
+						const locationLabel = formatWorkbenchAgentLocation(intl, destination);
+						const status = formatWorkbenchAgentStatus(intl, observation.state);
 						return {
-							accessibleLabel: session.destination.navigable
-								? navigationLabel
-								: intl.formatMessage(workbenchMessages.workspaceAgentNotNavigable, {
-										label: navigationLabel,
-									}),
+							accessibleLabel: intl.formatMessage(workbenchMessages.workspaceAgentNavigationLabel, {
+								location: locationLabel,
+								provider: agentLabel,
+								status: status.status,
+							}),
+							agentLabel,
+							agents: [observation.agent],
 							locationLabel,
-							navigable: session.destination.navigable,
-							providerIds: [session.providerId],
-							providerLabel: status.provider,
-							sessionId: session.sessionId,
+							presentationId: destination.presentationId,
 							status,
-							unreadLabel: unread.has(session.sessionId)
-								? intl.formatMessage(agentObservationMessages.statusUnread)
-								: undefined,
+							unreadLabel: unread.has(destination.presentationId) ? unreadLabel : undefined,
 						};
 					}),
-					sessionCount: workspace.sessionCount,
-					status: formatWorkbenchAgentStatus(intl, workspace),
-					visibleCountLabel: workspace.sessionCount > 99 ? '99+' : String(workspace.sessionCount),
+					status: formatWorkbenchAgentStatus(intl, workspace.state),
+					unreadLabel: workspace.rows.some((row) => unread.has(row.destination.presentationId))
+						? unreadLabel
+						: undefined,
+					visibleCountLabel: count > 99 ? '99+' : String(count),
 					workspaceId: workspace.workspaceId,
 				};
 			},

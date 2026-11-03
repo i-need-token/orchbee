@@ -33,12 +33,6 @@
 	color: var(--ob-sys-color-text-primary);
 }
 
-.item:disabled {
-	color: var(--ob-sys-color-text-muted);
-	cursor: default;
-	opacity: var(--ob-sys-opacity-muted);
-}
-
 .identity {
 	display: inline-flex;
 	width: calc(var(--ob-ref-size-icon-sm) * 2 + var(--ob-ref-space-1));

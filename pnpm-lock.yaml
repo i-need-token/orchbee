@@ -234,9 +234,6 @@ importers:
       '@orchbee/actions':
         specifier: workspace:^
         version: link:../../packages/actions
-      '@orchbee/agent':
-        specifier: workspace:^
-        version: link:../../packages/agent
       '@orchbee/desktop-client-protocol':
         specifier: workspace:^
         version: link:../../packages/desktop-client-protocol
@@ -657,9 +654,6 @@ importers:
       '@orchbee/actions':
         specifier: workspace:^
         version: link:../actions
-      '@orchbee/agent':
-        specifier: workspace:^
-        version: link:../agent
       '@orchbee/foundation':
         specifier: workspace:^
         version: link:../foundation

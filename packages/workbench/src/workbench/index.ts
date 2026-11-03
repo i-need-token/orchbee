@@ -52,9 +52,14 @@ export type {
 } from './types/workbench-host-actions';
 export type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
 export type {
-	WorkbenchAgentEventObservation,
+	WorkbenchAgentNotification,
 	WorkbenchAgentNotificationObserver,
 } from './types/workbench-agent-notification';
+export type {
+	WorkbenchAgentObservation,
+	WorkbenchAgentSnapshot,
+	WorkbenchAgentSource,
+} from './types/workbench-agent-observation';
 export type { WorkbenchShortcutBindings, WorkbenchShortcutId } from './utils/workbench-shortcuts';
 export type {
 	WorkbenchTerminalActionContextProvider,

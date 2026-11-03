@@ -1,24 +1,20 @@
-import {
-	projectAgentSession,
-	projectAgentSessionGroup,
-	type AgentAggregatePresentation,
-	type AgentProviderId,
-	type AgentRuntimeSnapshot,
-	type AgentSemanticStatus,
-	type AgentSessionId,
-	type AgentSessionSnapshot,
-} from '@orchbee/agent';
 import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
+import type { WorkbenchWorkspace } from '../../project-workspace';
 import { collectPanelLeaves } from '../components/workbench-panel-workspace/model/panel-workspace-state';
+import type {
+	WorkbenchAgentObservation,
+	WorkbenchAgentSnapshot,
+	WorkbenchAgentState,
+} from '../types/workbench-agent-observation';
 import type { WorkbenchProjectWorkspaceRuntime } from './WorkbenchProjectWorkspaceRuntime';
 
 type WorkbenchAgentTerminalPosition =
 	| { readonly kind: 'primary' }
 	| { readonly kind: 'child'; readonly position: number };
 
-export interface WorkbenchAgentNavigationTarget {
-	readonly navigable: boolean;
+/** Where a terminal Presentation sits in its Workspace. */
+export interface WorkbenchAgentDestination {
 	readonly panelId: string;
 	readonly panelPosition: number;
 	readonly presentationId: TerminalPresentationId;
@@ -28,184 +24,143 @@ export interface WorkbenchAgentNavigationTarget {
 	readonly terminalContextId: string;
 	readonly terminalPosition: WorkbenchAgentTerminalPosition;
 	readonly workspaceId: string;
+	readonly workspaceName: string;
 }
 
-interface WorkbenchAgentSessionOverview {
-	readonly destination: WorkbenchAgentNavigationTarget;
-	readonly freshness: AgentSessionSnapshot['observation']['freshness'];
-	readonly providerId: AgentProviderId;
-	readonly sessionId: AgentSessionId;
-	readonly status: AgentSemanticStatus;
+interface WorkbenchAgentRowOverview {
+	readonly destination: WorkbenchAgentDestination;
+	readonly observation: WorkbenchAgentObservation;
 }
 
-interface WorkbenchWorkspaceAgentOverview extends AgentAggregatePresentation {
+interface WorkbenchWorkspaceAgentOverview {
+	/** Distinct Agent labels in row order. */
+	readonly agents: readonly string[];
 	readonly projectId: string | null;
-	readonly sessions: readonly WorkbenchAgentSessionOverview[];
+	readonly rows: readonly WorkbenchAgentRowOverview[];
+	readonly state: WorkbenchAgentState;
 	readonly workspaceId: string;
-}
-
-interface WorkbenchAgentOverview {
-	readonly workspaces: readonly WorkbenchWorkspaceAgentOverview[];
+	readonly workspaceName: string;
 }
 
 export interface WorkbenchAgentNavigationInput {
-	readonly sessionId: AgentSessionId;
+	readonly presentationId: TerminalPresentationId;
 	readonly workspaceId: string;
 }
 
-interface IndexedWorkbenchAgentNavigationTarget extends WorkbenchAgentNavigationTarget {
-	readonly topologyIndex: number;
+/** The TUI's order: what waits on the person first, then outcomes, then activity. */
+const STATE_URGENCY: Readonly<Record<WorkbenchAgentState, number>> = {
+	blocked: 5,
+	error: 4,
+	done: 3,
+	working: 2,
+	idle: 1,
+	unknown: 0,
+};
+
+export function mostUrgentWorkbenchAgentState(
+	states: Iterable<WorkbenchAgentState>,
+): WorkbenchAgentState | null {
+	let urgent: WorkbenchAgentState | null = null;
+	for (const state of states) {
+		if (urgent === null || STATE_URGENCY[state] > STATE_URGENCY[urgent]) urgent = state;
+	}
+	return urgent;
 }
 
-interface SessionCandidate {
-	readonly destination: IndexedWorkbenchAgentNavigationTarget;
-	readonly generation: string;
-}
-
+/** Each Workspace's Agents in Tab, Panel and terminal order, as the TUI sidebar lists them. */
 export function projectWorkbenchAgentOverview(
-	snapshot: AgentRuntimeSnapshot,
+	snapshot: WorkbenchAgentSnapshot,
 	runtime: WorkbenchProjectWorkspaceRuntime,
-): WorkbenchAgentOverview {
+): readonly WorkbenchWorkspaceAgentOverview[] {
 	const workspaces: WorkbenchWorkspaceAgentOverview[] = [];
 	for (const workspace of runtime.getSnapshot().workspaces) {
-		const context = runtime.getTerminalContext(workspace.terminalContextId);
-		if (context === null) continue;
-		const panelState = context.panelWorkspaceStore.getSnapshot();
-		const panelsByTabId = new Map(panelState.tabs.map((tab) => [tab.tabId, tab] as const));
-		const destinationsByPresentationId = new Map<string, IndexedWorkbenchAgentNavigationTarget>();
-		let topologyIndex = 0;
-		for (const tab of context.tabModel.getSnapshot().tabs) {
-			const panelTab = panelsByTabId.get(tab.id);
-			if (panelTab === undefined) continue;
-			for (const [panelIndex, panel] of collectPanelLeaves(panelTab.root).entries()) {
-				const terminalPresentations = [
-					{
-						presentationId: panel.primaryPresentation.presentationId,
-						terminalPosition: { kind: 'primary' as const },
-					},
-					...panel.childPresentations.map((presentation, childIndex) => ({
-						presentationId: presentation.presentationId,
-						terminalPosition: {
-							kind: 'child' as const,
-							position: childIndex + 1,
-						},
-					})),
-				];
-				for (const terminal of terminalPresentations) {
-					destinationsByPresentationId.set(terminal.presentationId, {
-						navigable: false,
-						panelId: panel.id,
-						panelPosition: panelIndex + 1,
-						presentationId: terminal.presentationId,
-						projectId: workspace.projectId,
-						tabId: tab.id,
-						tabTitle: tab.title,
-						terminalContextId: workspace.terminalContextId,
-						terminalPosition: terminal.terminalPosition,
-						topologyIndex,
-						workspaceId: workspace.id,
-					});
-					topologyIndex += 1;
-				}
-			}
-		}
-
-		const selectedSessions: AgentSessionSnapshot[] = [];
-		const sessionOverviews: Array<
-			WorkbenchAgentSessionOverview & { readonly topologyIndex: number }
-		> = [];
-		for (const session of snapshot.sessions) {
-			if (session.lifecycle !== 'live') continue;
-			const candidates: SessionCandidate[] = [];
-			for (const attachment of session.presentationAttachments) {
-				const destination = destinationsByPresentationId.get(attachment.presentationId);
-				if (destination === undefined) continue;
-				candidates.push({
-					destination: { ...destination, navigable: attachment.navigable },
-					generation: attachment.generation,
-				});
-			}
-			candidates.sort(compareSessionCandidate);
-			const candidate = candidates[0];
-			if (candidate === undefined) continue;
-			const presentation = projectAgentSession(session);
-			selectedSessions.push(session);
-			sessionOverviews.push({
-				destination: withoutTopologyIndex(candidate.destination),
-				freshness: presentation.observation.freshness,
-				providerId: presentation.providerId,
-				sessionId: presentation.sessionId,
-				status: presentation.status,
-				topologyIndex: candidate.destination.topologyIndex,
-			});
-		}
-		const aggregate = projectAgentSessionGroup(selectedSessions);
-		if (aggregate === null) continue;
-		sessionOverviews.sort(compareSessionOverview);
+		const rows = collectWorkspaceDestinations(runtime, workspace).flatMap((destination) => {
+			const observation = snapshot.presentations.get(destination.presentationId);
+			return observation === undefined ? [] : [{ destination, observation }];
+		});
+		const state = mostUrgentWorkbenchAgentState(rows.map((row) => row.observation.state));
+		if (state === null) continue;
 		workspaces.push({
-			...aggregate,
+			agents: [...new Set(rows.map((row) => row.observation.agent))],
 			projectId: workspace.projectId,
-			sessions: sessionOverviews.map(removeSessionTopologyIndex),
+			rows,
+			state,
 			workspaceId: workspace.id,
+			workspaceName: workspace.name,
 		});
 	}
-	return { workspaces };
+	return workspaces;
 }
 
+/** The terminal an Agent row opens, while it still holds that Agent. */
 export function resolveWorkbenchAgentNavigationTarget(
 	input: WorkbenchAgentNavigationInput,
-	snapshot: AgentRuntimeSnapshot,
+	snapshot: WorkbenchAgentSnapshot,
 	runtime: WorkbenchProjectWorkspaceRuntime,
-): WorkbenchAgentNavigationTarget | null {
-	const workspace = projectWorkbenchAgentOverview(snapshot, runtime).workspaces.find(
-		(candidate) => candidate.workspaceId === input.workspaceId,
+): WorkbenchAgentDestination | null {
+	if (!snapshot.presentations.has(input.presentationId)) return null;
+	const workspace = runtime
+		.getSnapshot()
+		.workspaces.find((candidate) => candidate.id === input.workspaceId);
+	if (workspace === undefined) return null;
+	return (
+		collectWorkspaceDestinations(runtime, workspace).find(
+			(destination) => destination.presentationId === input.presentationId,
+		) ?? null
 	);
-	const session = workspace?.sessions.find((candidate) => candidate.sessionId === input.sessionId);
-	return session?.destination.navigable === true ? session.destination : null;
 }
 
-function compareSessionCandidate(left: SessionCandidate, right: SessionCandidate): number {
-	const navigableOrder = Number(right.destination.navigable) - Number(left.destination.navigable);
-	if (navigableOrder !== 0) return navigableOrder;
-	const topologyOrder = left.destination.topologyIndex - right.destination.topologyIndex;
-	return topologyOrder === 0 ? right.generation.localeCompare(left.generation) : topologyOrder;
+/** Where a Presentation sits, in whichever Workspace holds it. */
+export function findWorkbenchAgentDestination(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	presentationId: string,
+): WorkbenchAgentDestination | null {
+	for (const workspace of runtime.getSnapshot().workspaces) {
+		const destination = collectWorkspaceDestinations(runtime, workspace).find(
+			(candidate) => candidate.presentationId === presentationId,
+		);
+		if (destination !== undefined) return destination;
+	}
+	return null;
 }
 
-function compareSessionOverview(
-	left: WorkbenchAgentSessionOverview & { readonly topologyIndex: number },
-	right: WorkbenchAgentSessionOverview & { readonly topologyIndex: number },
-): number {
-	const navigableOrder = Number(right.destination.navigable) - Number(left.destination.navigable);
-	if (navigableOrder !== 0) return navigableOrder;
-	const topologyOrder = left.topologyIndex - right.topologyIndex;
-	return topologyOrder === 0 ? left.sessionId.localeCompare(right.sessionId) : topologyOrder;
-}
-
-function withoutTopologyIndex(
-	destination: IndexedWorkbenchAgentNavigationTarget,
-): WorkbenchAgentNavigationTarget {
-	return {
-		navigable: destination.navigable,
-		panelId: destination.panelId,
-		panelPosition: destination.panelPosition,
-		presentationId: destination.presentationId,
-		projectId: destination.projectId,
-		tabId: destination.tabId,
-		tabTitle: destination.tabTitle,
-		terminalContextId: destination.terminalContextId,
-		terminalPosition: destination.terminalPosition,
-		workspaceId: destination.workspaceId,
-	};
-}
-
-function removeSessionTopologyIndex(
-	session: WorkbenchAgentSessionOverview & { readonly topologyIndex: number },
-): WorkbenchAgentSessionOverview {
-	return {
-		destination: session.destination,
-		freshness: session.freshness,
-		providerId: session.providerId,
-		sessionId: session.sessionId,
-		status: session.status,
-	};
+function collectWorkspaceDestinations(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	workspace: WorkbenchWorkspace,
+): WorkbenchAgentDestination[] {
+	const context = runtime.getTerminalContext(workspace.terminalContextId);
+	if (context === null) return [];
+	const panelTabs = new Map(
+		context.panelWorkspaceStore.getSnapshot().tabs.map((tab) => [tab.tabId, tab] as const),
+	);
+	const destinations: WorkbenchAgentDestination[] = [];
+	for (const tab of context.tabModel.getSnapshot().tabs) {
+		const panelTab = panelTabs.get(tab.id);
+		if (panelTab === undefined) continue;
+		for (const [panelIndex, panel] of collectPanelLeaves(panelTab.root).entries()) {
+			const location = {
+				panelId: panel.id,
+				panelPosition: panelIndex + 1,
+				projectId: workspace.projectId,
+				tabId: tab.id,
+				tabTitle: tab.title,
+				terminalContextId: workspace.terminalContextId,
+				workspaceId: workspace.id,
+				workspaceName: workspace.name,
+			};
+			destinations.push({
+				...location,
+				presentationId: panel.primaryPresentation.presentationId,
+				terminalPosition: { kind: 'primary' },
+			});
+			for (const [childIndex, child] of panel.childPresentations.entries()) {
+				destinations.push({
+					...location,
+					presentationId: child.presentationId,
+					terminalPosition: { kind: 'child', position: childIndex + 1 },
+				});
+			}
+		}
+	}
+	return destinations;
 }

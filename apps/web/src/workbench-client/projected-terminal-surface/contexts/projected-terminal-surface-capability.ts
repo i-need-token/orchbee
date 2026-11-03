@@ -1,5 +1,7 @@
-import type { AgentSnapshotSource } from '@orchbee/agent';
-import type { WorkbenchTerminalPresentationEventResult } from '@orchbee/workbench';
+import type {
+	WorkbenchAgentSource,
+	WorkbenchTerminalPresentationEventResult,
+} from '@orchbee/workbench';
 import type {
 	ProjectedTerminalMetadata,
 	ProjectedTerminalPresentationSnapshot,
@@ -28,7 +30,7 @@ interface ProjectedTerminalLaunchFailure {
 }
 
 export interface ProjectedTerminalSurfaceCapability {
-	readonly agentObservationSource?: AgentSnapshotSource | undefined;
+	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly applicationLocaleSource?: ApplicationLocaleSource | undefined;
 	readonly documentElement: Pick<HTMLElement, 'dir' | 'lang'>;
 	readonly preferredLocales: readonly string[];

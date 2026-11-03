@@ -194,7 +194,6 @@ export const enUSWorkbenchMessages = {
 	'workbench.workspaces.agents.location.primaryTerminal': 'Primary terminal',
 	'workbench.workspaces.agents.navigationLabel': '{provider}, {status}, {location}',
 	'workbench.workspaces.agents.navigationUnavailable': 'This Agent is no longer available.',
-	'workbench.workspaces.agents.notNavigable': '{label}. This Agent cannot be opened right now.',
 	'workbench.workspaces.close.changed': 'Workspace changed; try again',
 	'workbench.workspaces.close.closed': 'Workspace closed · {label}',
 	'workbench.workspaces.close.closing': 'Closing Workspace · {label}',

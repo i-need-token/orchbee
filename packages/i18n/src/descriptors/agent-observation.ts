@@ -8,45 +8,26 @@ export const agentObservationMessages = defineMessages({
 		defaultMessage: enUSAgentObservationMessages['agent.observation.status.unread'],
 		description: 'Client-local unread Agent activity, independent of the actual status.',
 	},
-	notificationAttentionBody: {
-		id: 'agent.observation.notification.attention.body',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.notification.attention.body'],
-		description: 'Safe body for an Agent attention system notification.',
+	notificationBody: {
+		id: 'agent.observation.notification.body',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.notification.body'],
+		description: 'Agent system notification body naming the Workspace and the terminal location.',
 	},
-	notificationAttentionTitle: {
-		id: 'agent.observation.notification.attention.title',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.notification.attention.title'],
-		description: 'Title for an Agent attention system notification.',
+	notificationDoneTitle: {
+		id: 'agent.observation.notification.done.title',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.notification.done.title'],
+		description:
+			'System notification title when a terminal Agent stops working; it does not claim success.',
 	},
-	notificationFailedBody: {
-		id: 'agent.observation.notification.failed.body',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.notification.failed.body'],
-		description: 'Safe body for a failed Agent Turn system notification.',
-	},
-	notificationFailedTitle: {
-		id: 'agent.observation.notification.failed.title',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.notification.failed.title'],
-		description: 'Title for a failed Agent Turn system notification.',
-	},
-	notificationSucceededBody: {
-		id: 'agent.observation.notification.succeeded.body',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.notification.succeeded.body'],
-		description: 'Safe body for a completed Agent Turn system notification.',
-	},
-	notificationSucceededTitle: {
-		id: 'agent.observation.notification.succeeded.title',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.notification.succeeded.title'],
-		description: 'Title for a completed Agent Turn system notification.',
-	},
-	providerAgent: {
-		id: 'agent.observation.provider.agent',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.agent'],
-		description: 'Safe generic provider name for one observed Agent.',
+	notificationRequestTitle: {
+		id: 'agent.observation.notification.request.title',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.notification.request.title'],
+		description: 'System notification title when a terminal Agent waits for the person.',
 	},
 	providerAgents: {
 		id: 'agent.observation.provider.agents',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.agents'],
-		description: 'Safe generic provider name for multiple observed Agent providers.',
+		description: 'Generic name for several different Agents shown together.',
 	},
 	providerClaudeCode: {
 		id: 'agent.observation.provider.claudeCode',
@@ -148,114 +129,54 @@ export const agentObservationMessages = defineMessages({
 		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.hermes'],
 		description: 'Curated product name for the Hermes Agent provider.',
 	},
-	statusCanceled: {
-		id: 'agent.observation.status.canceled',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.canceled'],
-		description: 'Observed Agent Turn canceled status.',
+	providerKiroCli: {
+		id: 'agent.observation.provider.kiroCli',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.kiroCli'],
+		description: 'Curated product name for the Kiro CLI Agent.',
 	},
-	statusCommand: {
-		id: 'agent.observation.status.command',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.command'],
-		description: 'Observed Agent command activity.',
+	providerAmp: {
+		id: 'agent.observation.provider.amp',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.amp'],
+		description: 'Curated product name for the Amp Agent provider.',
 	},
-	statusCompacting: {
-		id: 'agent.observation.status.compacting',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.compacting'],
-		description: 'Observed Agent context-compaction activity.',
+	providerMaki: {
+		id: 'agent.observation.provider.maki',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.maki'],
+		description: 'Curated product name for the Maki Agent provider.',
 	},
-	statusDisconnected: {
-		id: 'agent.observation.status.disconnected',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.disconnected'],
-		description: 'Observed Agent source disconnected health.',
-	},
-	statusEditing: {
-		id: 'agent.observation.status.editing',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.editing'],
-		description: 'Observed Agent editing activity.',
+	providerMuse: {
+		id: 'agent.observation.provider.muse',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.muse'],
+		description: 'Curated product name for the Muse Agent provider.',
 	},
 	statusFailed: {
 		id: 'agent.observation.status.failed',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.status.failed'],
-		description: 'Observed Agent Turn failed status.',
-	},
-	statusInterrupted: {
-		id: 'agent.observation.status.interrupted',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.interrupted'],
-		description: 'Observed Agent Turn interrupted status.',
-	},
-	statusLimitedActivity: {
-		id: 'agent.observation.status.limitedActivity',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.limitedActivity'],
-		description: 'Untrusted terminal-scoped activity hint with explicitly limited status.',
+		description: 'Terminal Agent state: the Agent reported that its work failed.',
 	},
 	statusNeedsAttention: {
 		id: 'agent.observation.status.needsAttention',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.status.needsAttention'],
-		description: 'Observed Agent status with an exact pending-attention count.',
-	},
-	statusOtherActivity: {
-		id: 'agent.observation.status.otherActivity',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.otherActivity'],
-		description: 'Observed Agent activity without a more specific product label.',
-	},
-	statusQueued: {
-		id: 'agent.observation.status.queued',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.queued'],
-		description: 'Observed Agent Turn queued status.',
+		description: 'Terminal Agent state: the Agent waits for the person.',
 	},
 	statusReady: {
 		id: 'agent.observation.status.ready',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.status.ready'],
-		description: 'Affirmatively observed idle Agent status.',
-	},
-	statusRetrying: {
-		id: 'agent.observation.status.retrying',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.retrying'],
-		description: 'Observed Agent retry activity.',
-	},
-	statusStale: {
-		id: 'agent.observation.status.stale',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.stale'],
-		description: 'Observed Agent source stale health.',
-	},
-	statusSubagent: {
-		id: 'agent.observation.status.subagent',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.subagent'],
-		description: 'Observed Agent subagent activity.',
+		description: 'Terminal Agent state: the Agent is idle and ready for input.',
 	},
 	statusSucceeded: {
 		id: 'agent.observation.status.succeeded',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.status.succeeded'],
-		description: 'Observed Agent Turn completed status.',
-	},
-	statusThinking: {
-		id: 'agent.observation.status.thinking',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.thinking'],
-		description: 'Observed Agent thinking activity.',
-	},
-	statusTool: {
-		id: 'agent.observation.status.tool',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.tool'],
-		description: 'Observed Agent tool activity.',
+		description: 'Terminal Agent state: the Agent finished its work.',
 	},
 	statusUnknown: {
 		id: 'agent.observation.status.unknown',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.status.unknown'],
-		description: 'Limited observed Agent status that does not guess idle or work.',
-	},
-	statusWaitingExternal: {
-		id: 'agent.observation.status.waitingExternal',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.waitingExternal'],
-		description: 'Observed Agent Turn waiting for external action status.',
-	},
-	statusWithHealth: {
-		id: 'agent.observation.status.withHealth',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.status.withHealth'],
-		description: 'Observed Agent semantic status combined with degraded source health.',
+		description: 'Terminal Agent state that is not known; it does not guess idle or work.',
 	},
 	statusWorking: {
 		id: 'agent.observation.status.working',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.status.working'],
-		description: 'Observed Agent Turn working status.',
+		description: 'Terminal Agent state: the Agent is working.',
 	},
 });

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import { ActionRuntime } from '@orchbee/actions';
-import { AgentEventIdSchema, AgentRuntime, AgentRuntimeSnapshotSchema } from '@orchbee/agent';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { TooltipProvider } from '@orchbee/ui/components';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -20,6 +19,7 @@ import { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorks
 import type { WorkbenchNavigationPort } from '../types/workbench-host-actions';
 import type { WorkbenchNewProjectFolderCapability } from '../types/workbench-project-folder-acquisition';
 import type { WorkbenchProjectWorktreeCapability } from '../types/workbench-project-worktree';
+import type { WorkbenchAgentSnapshot } from '../types/workbench-agent-observation';
 import type { WorkbenchTerminalSurfaceProps } from '../types/workbench-terminal-surface';
 import {
 	defaultWorkbenchShortcutBindings,
@@ -438,7 +438,7 @@ describe('Workbench Project and Workspace management', () => {
 		expect(screen.queryByRole('alertdialog')).toBeNull();
 	});
 
-	it('summarizes live Workspace Agents, expands only Agent rows, and opens the exact terminal', async () => {
+	it('summarizes observed Workspace Agents, expands only Agent rows, and opens the exact terminal', async () => {
 		const projectWorkspaceRuntime = createTerminalFocusProjectWorkspaceRuntime(
 			'workspace-agent-overview',
 		);
@@ -465,12 +465,22 @@ describe('Workbench Project and Workspace management', () => {
 			.getSnapshot()
 			.tabs.find((tab) => tab.id === creation.tabId)?.title;
 		if (targetTabTitle === undefined) throw new Error('Expected the Agent Tab title.');
-		const agentRuntime = new AgentRuntime(
-			AgentRuntimeSnapshotSchema.parse({
-				revision: 1,
-				sessions: [agentSession('workspace-agent-session', presentationId)],
-			}),
-		);
+		let agents: WorkbenchAgentSnapshot = {
+			complete: true,
+			presentations: new Map([
+				[presentationId, { agent: 'codex', binding: 'terminal', sequence: 1n, state: 'idle' }],
+			]),
+		};
+		const agentListeners = new Set<() => void>();
+		const agentSource = {
+			getSnapshot: () => agents,
+			subscribe: (listener: () => void) => {
+				agentListeners.add(listener);
+				return () => {
+					agentListeners.delete(listener);
+				};
+			},
+		};
 		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
 
 		render(
@@ -478,7 +488,7 @@ describe('Workbench Project and Workspace management', () => {
 				<TooltipProvider>
 					<Workbench
 						actionRuntime={new ActionRuntime()}
-						agentObservationSource={agentRuntime}
+						agentObservationSource={agentSource}
 						projectWorkspaceRuntime={projectWorkspaceRuntime}
 						shortcutPlatform='apple'
 						terminalSurface={FocusTestTerminalSurface}
@@ -519,17 +529,10 @@ describe('Workbench Project and Workspace management', () => {
 				document.querySelector(`[data-test-terminal-input="${presentationId}"]`),
 			);
 		});
-		const observedSessionId = agentRuntime.getSnapshot().sessions[0]?.sessionId;
-		if (observedSessionId === undefined) throw new Error('Expected the observed Agent Session.');
-
+		// The Agent exited, so the Server reports none in the terminal.
 		act(() => {
-			agentRuntime.dispatch({
-				eventId: AgentEventIdSchema.parse('workspace-agent-ended'),
-				generation: 0,
-				sequence: 2,
-				sessionId: observedSessionId,
-				type: 'session-ended',
-			});
+			agents = { complete: true, presentations: new Map() };
+			for (const listener of agentListeners) listener();
 		});
 		await waitFor(() => {
 			expect(screen.queryByRole('button', { name: /Codex, Ready/iu })).toBeNull();
@@ -2452,36 +2455,6 @@ describe('Workbench Project and Workspace management', () => {
 		).toBe('true');
 	});
 });
-
-function agentSession(sessionId: string, presentationId: string) {
-	return {
-		activityHint: null,
-		capabilities: ['sessionLifecycle'],
-		executionLocation: { executionLocationId: `execution-${sessionId}` },
-		lastOutcome: null,
-		lifecycle: 'live',
-		observation: {
-			fidelity: 'rich',
-			freshness: 'fresh',
-			generation: 0,
-			sequence: 1,
-			source: 'hook',
-		},
-		parentSessionId: null,
-		pendingRequests: [],
-		presentationAttachments: [
-			{
-				generation: `generation-${sessionId}`,
-				navigable: true,
-				presentationId,
-				visibility: 'visible',
-			},
-		],
-		providerId: 'codex',
-		sessionId,
-		turn: { kind: 'idle' },
-	};
-}
 
 function projectRowRectangle(top: number): DOMRect {
 	return {

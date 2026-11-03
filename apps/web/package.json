@@ -14,7 +14,6 @@
 	},
 	"dependencies": {
 		"@orchbee/actions": "workspace:^",
-		"@orchbee/agent": "workspace:^",
 		"@orchbee/desktop-client-protocol": "workspace:^",
 		"@orchbee/foundation": "workspace:^",
 		"@orchbee/i18n": "workspace:^",

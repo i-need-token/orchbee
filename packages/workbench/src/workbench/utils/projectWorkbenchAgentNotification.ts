@@ -1,126 +1,53 @@
-import type { AgentSemanticEvent, AgentSessionSnapshot } from '@orchbee/agent';
 import { agentObservationMessages, type IntlShape } from '@orchbee/i18n';
-import type { TabModel } from '@orchbee/tab-strip';
 
-import type { PanelWorkspaceStore } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
-import { collectPanelLeaves } from '../components/workbench-panel-workspace/model/panel-workspace-state';
-import type { WorkbenchAgentEventObservation } from '../types/workbench-agent-notification';
-import { formatWorkbenchAgentProvider } from './formatWorkbenchAgentProvider';
+import type { WorkbenchAgentNotificationCandidate } from '../model/WorkbenchAgentNotificationScheduler';
+import {
+	findWorkbenchAgentDestination,
+	type WorkbenchAgentNavigationInput,
+} from '../model/project-workbench-agent-overview';
+import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
+import type { WorkbenchAgentNotification } from '../types/workbench-agent-notification';
+import { formatWorkbenchAgentLocation } from './formatWorkbenchAgentLocation';
+import { formatWorkbenchAgentName } from './workbench-agent-names';
 
 interface ProjectWorkbenchAgentNotificationOptions {
-	readonly event: AgentSemanticEvent;
+	readonly candidate: WorkbenchAgentNotificationCandidate;
 	readonly intl: IntlShape;
-	readonly panelWorkspaceStore: PanelWorkspaceStore;
-	readonly session: AgentSessionSnapshot;
-	readonly tabModel: TabModel;
+	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
+	readonly runtime: WorkbenchProjectWorkspaceRuntime;
 }
 
+/** A notification about a terminal this Workbench still holds; activating it opens that terminal. */
 export function projectWorkbenchAgentNotification({
-	event,
+	candidate,
 	intl,
-	panelWorkspaceStore,
-	session,
-	tabModel,
-}: ProjectWorkbenchAgentNotificationOptions): WorkbenchAgentEventObservation | null {
-	if (
-		event.type !== 'attention-requested' &&
-		(event.type !== 'turn-outcome' || (event.outcome !== 'failed' && event.outcome !== 'succeeded'))
-	) {
-		return null;
-	}
-	const state = panelWorkspaceStore.getSnapshot();
-	const activeTabId = panelWorkspaceStore.getActiveTabId();
-	const attachments = new Map(
-		session.presentationAttachments
-			.filter((attachment) => attachment.navigable)
-			.map((attachment) => [attachment.presentationId, attachment]),
-	);
-	const destinations = state.tabs
-		.flatMap((tab) =>
-			collectPanelLeaves(tab.root).flatMap((panel) => {
-				const localPanelVisible =
-					tab.tabId === activeTabId &&
-					(tab.maximizedPanelId === null || tab.maximizedPanelId === panel.id);
-				const displayedPresentationId =
-					panel.activeChildPresentationId ?? panel.primaryPresentation.presentationId;
-				const presentations = [
-					{ child: false, presentationId: panel.primaryPresentation.presentationId },
-					...panel.childPresentations.map((presentation) => ({
-						child: true,
-						presentationId: presentation.presentationId,
-					})),
-				];
-				return presentations.flatMap(({ child, presentationId }) => {
-					const attachment = attachments.get(presentationId);
-					return attachment === undefined
-						? []
-						: [
-								{
-									attachment,
-									child,
-									panel,
-									presentationId,
-									tabId: tab.tabId,
-									visible:
-										localPanelVisible &&
-										displayedPresentationId === presentationId &&
-										attachment.visibility !== 'hidden',
-								},
-							];
-				});
-			}),
-		)
-		.sort((left, right) =>
-			`${left.tabId}\0${left.panel.id}\0${left.attachment.presentationId}`.localeCompare(
-				`${right.tabId}\0${right.panel.id}\0${right.attachment.presentationId}`,
-			),
-		);
-	const destination = destinations[0];
-	if (destination === undefined) return null;
-
-	const provider = formatWorkbenchAgentProvider(intl, [session.providerId]);
-	let body: string;
-	let title: string;
-	if (event.type === 'attention-requested') {
-		body = intl.formatMessage(agentObservationMessages.notificationAttentionBody, { provider });
-		title = intl.formatMessage(agentObservationMessages.notificationAttentionTitle);
-	} else if (event.outcome === 'failed') {
-		body = intl.formatMessage(agentObservationMessages.notificationFailedBody, { provider });
-		title = intl.formatMessage(agentObservationMessages.notificationFailedTitle);
-	} else {
-		body = intl.formatMessage(agentObservationMessages.notificationSucceededBody, { provider });
-		title = intl.formatMessage(agentObservationMessages.notificationSucceededTitle);
-	}
-
+	navigateAgent,
+	runtime,
+}: ProjectWorkbenchAgentNotificationOptions): WorkbenchAgentNotification | null {
+	const destination = findWorkbenchAgentDestination(runtime, candidate.presentationId);
+	if (destination === null) return null;
+	const { agent, binding, sequence } = candidate.observation;
+	const provider = formatWorkbenchAgentName(intl, agent);
 	return {
-		event,
+		key: `${destination.presentationId}\0${binding}\0${sequence}`,
 		notification: {
-			body,
-			onActivate: () => {
-				tabModel.selectTab(destination.tabId);
-				if (destination.child) {
-					panelWorkspaceStore.transition({
-						childPresentationId: destination.presentationId,
-						panelId: destination.panel.id,
-						tabId: destination.tabId,
-						type: 'child-terminal-activated',
-					});
-					return;
-				}
-				panelWorkspaceStore.transition({
-					panelId: destination.panel.id,
-					tabId: destination.tabId,
-					type: 'primary-terminal-shown',
-				});
-				panelWorkspaceStore.transition({
-					panelId: destination.panel.id,
-					tabId: destination.tabId,
-					type: 'panel-focused',
-				});
-			},
-			tag: `orchbee-agent:${event.eventId}`,
-			title,
+			body: intl.formatMessage(agentObservationMessages.notificationBody, {
+				location: formatWorkbenchAgentLocation(intl, destination),
+				workspace: destination.workspaceName,
+			}),
+			onActivate: () =>
+				navigateAgent({
+					presentationId: destination.presentationId,
+					workspaceId: destination.workspaceId,
+				}),
+			// A newer notification about the same terminal replaces the older one.
+			tag: `orchbee-agent:${destination.presentationId}`,
+			title: intl.formatMessage(
+				candidate.kind === 'done'
+					? agentObservationMessages.notificationDoneTitle
+					: agentObservationMessages.notificationRequestTitle,
+				{ provider },
+			),
 		},
-		visible: destinations.some((candidate) => candidate.visible),
 	};
 }

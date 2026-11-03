@@ -2,7 +2,7 @@ import type { TerminalCommandCompletion } from '@orchbee/terminal-protocol';
 import { DEFAULT_USER_PREFERENCES } from '@orchbee/workbench-client-protocol';
 import type { UserPreferencesControl } from '../../user-preferences';
 import type {
-	WorkbenchAgentEventObservation,
+	WorkbenchAgentNotification,
 	WorkbenchAgentNotificationObserver,
 } from '@orchbee/workbench';
 
@@ -66,10 +66,10 @@ export type TerminalCompletionObservationResult =
 			readonly notification: 'failed' | 'rate-limited' | 'shown' | 'unavailable';
 	  };
 
-type AgentEventObservationResult =
+type AgentNotificationResult =
 	| {
 			readonly kind: 'ignored';
-			readonly reason: 'duplicate' | 'turned-off' | 'unsupported' | 'visible';
+			readonly reason: 'duplicate' | 'turned-off';
 	  }
 	| {
 			readonly kind: 'notify';
@@ -292,20 +292,13 @@ export class TerminalFeedbackSettingsController
 		return { kind: 'remind', notification: shown ? 'shown' : 'failed' };
 	}
 
-	observeAgentEvent({
-		event,
+	/** The Workbench already withheld states the person saw; this owns preference and permission. */
+	observeAgentNotification({
+		key,
 		notification,
-		visible,
-	}: WorkbenchAgentEventObservation): AgentEventObservationResult {
+	}: WorkbenchAgentNotification): AgentNotificationResult {
 		if (this.#disposed) return { kind: 'ignored', reason: 'turned-off' };
-		if (
-			event.type !== 'attention-requested' &&
-			(event.type !== 'turn-outcome' ||
-				(event.outcome !== 'failed' && event.outcome !== 'succeeded'))
-		) {
-			return { kind: 'ignored', reason: 'unsupported' };
-		}
-		const key = `${event.sessionId}\0${event.eventId}`;
+		// Delivery stays idempotent per exact state, however many Workbench views observe it.
 		if (this.#agentEventKeySet.has(key)) return { kind: 'ignored', reason: 'duplicate' };
 		this.#agentEventKeySet.add(key);
 		this.#agentEventKeys.push(key);
@@ -316,7 +309,6 @@ export class TerminalFeedbackSettingsController
 		if (this.#snapshot.preferences.agentNotificationMode === 'never') {
 			return { kind: 'ignored', reason: 'turned-off' };
 		}
-		if (visible) return { kind: 'ignored', reason: 'visible' };
 		if (this.#snapshot.notificationPermission !== 'granted') {
 			return { kind: 'notify', notification: 'unavailable' };
 		}

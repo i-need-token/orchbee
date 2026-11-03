@@ -1,4 +1,4 @@
-import { projectAgentLocation, type AgentSnapshotSource } from '@orchbee/agent';
+import type { WorkbenchAgentSource } from '@orchbee/workbench';
 
 import type { TerminalTrailingBlankRowsPreferenceSource } from '../../terminal-interaction-settings';
 
@@ -8,7 +8,7 @@ export interface TerminalTrailingBlankRowsPresentationSource {
 }
 
 export interface CreateTerminalTrailingBlankRowsPresentationSourceOptions {
-	readonly agentObservationSource?: AgentSnapshotSource | undefined;
+	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly preferenceSource?: TerminalTrailingBlankRowsPreferenceSource | undefined;
 	readonly presentationId: string;
 }
@@ -32,9 +32,11 @@ export function createTerminalTrailingBlankRowsPresentationSource({
 	const read = (): boolean => {
 		if (!observable) return false;
 		try {
-			if (!preferenceSource.current()) return false;
-			const location = projectAgentLocation(agentObservationSource.getSnapshot(), presentationId);
-			return location !== null && location.status.kind !== 'ended';
+			// Only a terminal the Server reports an Agent in has its trailing blank rows trimmed.
+			return (
+				preferenceSource.current() &&
+				agentObservationSource.getSnapshot().presentations.has(presentationId)
+			);
 		} catch {
 			return false;
 		}

@@ -1,4 +1,3 @@
-import type { AgentAggregatePresentation } from '@orchbee/agent';
 import type { ReactNode } from 'react';
 
 import type { WorkbenchAgentStatusView } from '../../utils/formatWorkbenchAgentStatus';
@@ -6,14 +5,14 @@ import { WorkbenchAgentProviderIcon } from '../workbench-agent-provider-icon/Wor
 import styles from './WorkbenchAgentIdentity.module.css';
 
 interface WorkbenchAgentIdentityProps {
+	readonly agents: readonly string[];
 	readonly gradientPrefix: string;
-	readonly providerIds: AgentAggregatePresentation['providerIds'];
 	readonly status: Pick<WorkbenchAgentStatusView, 'glyph' | 'tone'>;
 }
 
 export function WorkbenchAgentIdentity({
+	agents,
 	gradientPrefix,
-	providerIds,
 	status,
 }: WorkbenchAgentIdentityProps): ReactNode {
 	return (
@@ -21,7 +20,7 @@ export function WorkbenchAgentIdentity({
 			<span className={styles['status']} data-agent-state-glyph=''>
 				{status.glyph}
 			</span>
-			<WorkbenchAgentProviderIcon gradientPrefix={gradientPrefix} providerIds={providerIds} />
+			<WorkbenchAgentProviderIcon agents={agents} gradientPrefix={gradientPrefix} />
 		</span>
 	);
 }
