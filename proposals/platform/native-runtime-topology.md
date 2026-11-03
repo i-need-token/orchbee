@@ -1091,8 +1091,8 @@ These choices stand unless review changes them:
   Tabs, not the whole snapshot.
 - **A close is followed to an end and never replayed.** Stale Workspace closes alone are sent again,
   within the TUI's limit and only on unchanged facts. An accepted close reads its operation for at
-  most 50 seconds. Resume and a status surface belong to step 5; until then an unknown outcome names
-  the status command.
+  most 50 seconds. Step 5 adds Resume for a Tab close that stopped where it may continue; an
+  unknown outcome is never resumed.
 - **Child terminals have no close.** The Server has no command that closes one child Presentation,
   so that entry stays disabled.
 - **A Tab strip says what was asked for.** With an authority, its Actions report a change and the next
