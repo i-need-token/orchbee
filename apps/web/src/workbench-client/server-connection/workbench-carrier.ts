@@ -1,7 +1,6 @@
 /**
  * The OBWP frame around one Workbench request or response. `crates/workbench-protocol` owns each
- * frame kind, and `@orchbee/workbench-client-protocol` owns the values they carry. A ClientView's
- * frame kind depends on its content, so it stays out until this Client synchronizes one.
+ * frame kind, and `@orchbee/workbench-client-protocol` owns the values they carry.
  */
 import {
 	parseWorkbenchResponse,
@@ -13,9 +12,15 @@ const MAGIC = [0x4f, 0x42, 0x57, 0x50] as const; // OBWP
 const VERSION = 1;
 const HEADER_BYTES = 12;
 
-type FramedRequest = Exclude<WorkbenchRequest, { readonly kind: 'workbench.client-view' }>;
+type ClientViewRequest = Extract<WorkbenchRequest, { readonly kind: 'workbench.client-view' }>;
+type ClientViewResponse = Extract<
+	WorkbenchResponse,
+	{ readonly kind: 'workbench.client-view.result' }
+>;
 
-const REQUEST_FRAME_KINDS: Readonly<Record<FramedRequest['kind'], number>> = {
+const REQUEST_FRAME_KINDS: Readonly<
+	Record<Exclude<WorkbenchRequest['kind'], ClientViewRequest['kind']>, number>
+> = {
 	'workbench.agent-integration': 63,
 	'workbench.agent-manifests': 37,
 	'workbench.close-operation.read': 61,
@@ -47,7 +52,7 @@ const REQUEST_FRAME_KINDS: Readonly<Record<FramedRequest['kind'], number>> = {
 };
 
 const RESPONSE_FRAME_KINDS: Readonly<
-	Record<Exclude<WorkbenchResponse['kind'], 'workbench.client-view.result'>, number>
+	Record<Exclude<WorkbenchResponse['kind'], ClientViewResponse['kind']>, number>
 > = {
 	'workbench.agent-integration.result': 64,
 	'workbench.agent-manifests.result': 38,
@@ -79,6 +84,37 @@ const RESPONSE_FRAME_KINDS: Readonly<
 	'workbench.worktree.query.result': 22,
 };
 
+/** A Client View's frame kind follows what it carries: attention, a layout read, or neither. */
+function clientViewRequestFrameKind({ action }: ClientViewRequest): number {
+	const completion = action.kind === 'synchronize' ? action.completion?.outcome.kind : undefined;
+	if (
+		(action.kind === 'submit' &&
+			(action.command.intent.kind === 'agent-attention' ||
+				action.command.intent.kind === 'terminal-agent-attention')) ||
+		completion === 'attention-read' ||
+		completion === 'terminal-attention-read'
+	) {
+		return 29;
+	}
+	return completion === 'layout-read' ? 27 : 25;
+}
+
+function clientViewResponseFrameKind({ outcome }: ClientViewResponse): number {
+	return outcome.kind === 'operation' && outcome.operation.status.kind === 'layout-read' ? 28 : 26;
+}
+
+function requestFrameKind(request: WorkbenchRequest): number {
+	return request.kind === 'workbench.client-view'
+		? clientViewRequestFrameKind(request)
+		: REQUEST_FRAME_KINDS[request.kind];
+}
+
+function responseFrameKind(response: WorkbenchResponse): number {
+	return response.kind === 'workbench.client-view.result'
+		? clientViewResponseFrameKind(response)
+		: RESPONSE_FRAME_KINDS[response.kind];
+}
+
 const utf8Encoder = new TextEncoder();
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 
@@ -90,13 +126,13 @@ class WorkbenchCarrierError extends Error {
 	}
 }
 
-export function encodeWorkbenchRequest(request: FramedRequest): Uint8Array {
+export function encodeWorkbenchRequest(request: WorkbenchRequest): Uint8Array {
 	const payload = utf8Encoder.encode(JSON.stringify(request));
 	const frame = new Uint8Array(HEADER_BYTES + payload.byteLength);
 	const view = new DataView(frame.buffer);
 	frame.set(MAGIC);
 	view.setUint16(4, VERSION);
-	view.setUint16(6, REQUEST_FRAME_KINDS[request.kind]);
+	view.setUint16(6, requestFrameKind(request));
 	view.setUint32(8, payload.byteLength);
 	frame.set(payload, HEADER_BYTES);
 	return frame;
@@ -114,10 +150,7 @@ export function decodeWorkbenchResponse(record: Uint8Array): WorkbenchResponse {
 		throw new WorkbenchCarrierError('Invalid OBWP response frame.');
 	}
 	const response = parseResponsePayload(record.subarray(HEADER_BYTES));
-	if (
-		response.kind === 'workbench.client-view.result' ||
-		RESPONSE_FRAME_KINDS[response.kind] !== view.getUint16(6)
-	) {
+	if (responseFrameKind(response) !== view.getUint16(6)) {
 		throw new WorkbenchCarrierError('OBWP frame kind does not match its response.');
 	}
 	return response;

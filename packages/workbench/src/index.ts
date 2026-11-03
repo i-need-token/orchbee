@@ -5,9 +5,12 @@ export {
 	WORKBENCH_SHORTCUTS,
 	createWorkbenchPreviewTerminalPresentationComposition,
 	defaultWorkbenchShortcutBindings,
+	readWorkbenchClientSelection,
 	resolveTerminalMetadataObservation,
+	showWorkbenchClientTarget,
 } from './workbench';
 export type {
+	WorkbenchClientTarget,
 	WorkbenchAuthority,
 	WorkbenchAuthorityChange,
 	WorkbenchAuthorityClosure,

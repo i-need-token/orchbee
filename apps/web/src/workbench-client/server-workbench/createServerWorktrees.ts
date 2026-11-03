@@ -96,8 +96,7 @@ function delay(milliseconds: number): Promise<void> {
 /** Values the Client relays can fall outside what the protocol admits, which is a refusal. */
 function readRequest(input: Readonly<Record<string, unknown>>): AskedRequest | null {
 	try {
-		const request = parseWorkbenchRequest(input);
-		return request.kind === 'workbench.client-view' ? null : request;
+		return parseWorkbenchRequest(input);
 	} catch {
 		return null;
 	}

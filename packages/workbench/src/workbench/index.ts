@@ -2,6 +2,11 @@ export { Workbench } from './Workbench';
 
 export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 export { matchesWorkbenchProjectCreation } from './model/matchesWorkbenchProjectCreation';
+export {
+	readWorkbenchClientSelection,
+	showWorkbenchClientTarget,
+} from './model/workbench-client-selection';
+export type { WorkbenchClientTarget } from './model/workbench-client-selection';
 
 export { createWorkbenchPreviewTerminalPresentationComposition } from './model/createWorkbenchPreviewTerminalPresentationComposition';
 export { resolveTerminalMetadataObservation } from './model/resolveTerminalMetadataObservation';

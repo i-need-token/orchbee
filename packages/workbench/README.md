@@ -62,6 +62,8 @@ and they do not make Workbench a terminal-state authority.
 
 Applications whose address is the authoritative Client View input may inject a `WorkbenchNavigationPort`. Workspace, standalone-context, and Tab-selection Actions then delegate navigation before Workbench mutates active Client View state; the application updates browser history and applies the resulting route back to the runtime. Without this port, Workbench retains its local in-memory navigation behavior. Workbench does not parse paths or own Router history.
 
+`readWorkbenchClientSelection` reads what a window shows in the terms every Client reports to the Server: the active Workspace's terminal context, its active Tab, the Panel drawn in front, whether that Panel fills its Tab, and how many Panels the Tab holds. `showWorkbenchClientTarget` shows a terminal context, Tab, or Panel by the TUI's rules: a Workspace returns to the Tab and Panel it showed last, a zoomed Tab stays zoomed onto the Panel that takes its focus, and only a Tab of several Panels zooms. It changes nothing when a part the target names is missing, and it activates the Workspace last, so a router that follows the runtime moves once, straight to the Tab left shown.
+
 Terminal-presentation identities, lifecycle contracts, and boundary schemas come from `@orchbee/workbench-client-protocol`. `@orchbee/workbench/terminal-presentation` exposes only runtime-theme revision coordination, without the React Workbench graph.
 
 ## Keyboard focus routing

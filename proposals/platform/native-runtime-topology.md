@@ -1679,6 +1679,38 @@ choices stand unless review changes them:
 
 Not done in this slice: Close for a child terminal under the Server.
 
+The window also publishes its Client View to the Server, as the TUI does, so `orchbee workspace
+focus`, `tab focus`, `panel focus`, and `panel zoom` reach it where they answered
+`client-not-found`. These choices stand unless review changes them:
+
+- **One lane owns the view.** The window opens a lane for its view and an invalidation stream on it
+  before the first Synchronize. Each Synchronize is its own exchange of at most two seconds and goes
+  when the view changes, when an answer is ready, or when a commit may have queued a control; there
+  is no timer. As the TUI's control owner ends, a failed or refused Synchronize closes the lane,
+  which retires the view and settles an unanswered control, and the window publishes again only
+  after it reconnects.
+- **The view is always ready.** The window reports `ready` with the Workspace, Tab, and Panel it
+  shows, or no selection while it shows no Workspace. A question, a rename, or structural work in
+  progress does not report `busy` yet, so a remote focus moves what lies behind an open question,
+  which keeps its own target.
+- **Navigation follows the TUI.** A Workspace returns to the Tab and Panel it showed last. Zoom
+  follows the focus: focusing another Panel of a zoomed Tab zooms that Panel, where the GUI's Agent
+  rows restore the Tab first. A Tab of one Panel never reports zoom, and zooming it answers that
+  nothing changed.
+- **An answer waits for the paint.** The window answers once React commits what the runtime holds,
+  in the task after the change; a hidden window draws it when shown. It does not wait for the
+  Panel's terminal viewer to attach, where the TUI does.
+- **A control waits five seconds for its publication.** A control naming a newer Workbench than the
+  window holds waits up to five seconds, then answers `projection-unavailable`, where the TUI waits
+  within its 50-second operation deadline. Input during that wait does not interrupt the control,
+  where the TUI stops on any input.
+- **Other intents answer `unsupported`.** Agent focus, direction focus, layout reads and changes,
+  resizing, split ratios, reads, popups, editors, and overlays wait for the features that need
+  them.
+
+Not done in this slice: the `busy` phase, the intents above, and whether a remote focus while
+Settings shows brings the Workbench forward.
+
 ### Evidence
 
 - Each step records the owning Web and Desktop builds and a Server-backed run of the path it

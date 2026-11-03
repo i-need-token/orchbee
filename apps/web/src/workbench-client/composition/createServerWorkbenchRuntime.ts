@@ -42,6 +42,7 @@ import {
 	type ProjectedTerminalSurfaceCapability,
 } from '../projected-terminal-surface';
 import type { ServerConnection } from '../server-connection';
+import { bindServerClientView } from './bindServerClientView';
 import { bindServerWindowTitle, type ServerTitleWindow } from './bindServerWindowTitle';
 import {
 	createServerWorkbenchAuthority,
@@ -216,6 +217,12 @@ export function createServerWorkbenchRuntime({
 		...(launchProfiles === undefined ? {} : { launchProfiles }),
 		session,
 	});
+	// Registered after the publication's own adoption, so each view it reports holds that publication.
+	const clientView = bindServerClientView({
+		connection,
+		runtime: projectWorkspaceRuntime,
+		session,
+	});
 
 	const persistFocusRecovery = (): void => {
 		if (focusRecoveryStorage === undefined) return;
@@ -361,6 +368,7 @@ export function createServerWorkbenchRuntime({
 			runApplicationCleanup(
 				[
 					() => stopPublication(),
+					() => clientView?.dispose(),
 					() => terminalEnds.dispose(),
 					() => stopLocaleObservation(),
 					() => windowTitle?.dispose(),

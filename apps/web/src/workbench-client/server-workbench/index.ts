@@ -1,4 +1,10 @@
 export { ServerAgentIntegrationClient } from './ServerAgentIntegrationClient';
+export { ServerClientView } from './ServerClientView';
+export type {
+	ServerClientViewControl,
+	ServerClientViewOutcome,
+	ServerClientViewSample,
+} from './ServerClientView';
 export { ServerTerminalAgentSource } from './ServerTerminalAgentSource';
 export { ServerTerminalDefaultSettingsClient } from './ServerTerminalDefaultSettingsClient';
 export { ServerTerminalLaunchProfileClient } from './ServerTerminalLaunchProfileClient';
