@@ -297,6 +297,7 @@ export function Workbench({
 										setResourcePrimaryDirectory={view.setResourcePrimaryDirectory}
 										toggleProjectExpansion={view.toggleProjectExpansion}
 										toggleRecentsExpansion={view.toggleRecentsExpansion}
+										toggleWorkspaceAgents={agentPresentation.toggleWorkspaceAgents}
 										updateWorkspace={view.updateWorkspace}
 										workspaceLocationSource={workspaceLocationSource}
 										workspaceResourcesEditable={authority === undefined}

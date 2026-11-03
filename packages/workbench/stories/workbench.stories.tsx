@@ -154,7 +154,8 @@ const createSidebarFocusRevealRuntime = (collapsed: boolean) => {
 	return runtime;
 };
 
-const createWorkspaceAgentOverviewStoryFixture = () => {
+/** `crowded` adds a Workspace holding more Agents than a folded status line shows. */
+const createWorkspaceAgentOverviewStoryFixture = ({ crowded = false } = {}) => {
 	const runtime = createPopulatedProjectWorkspaceRuntime();
 	runtime.transition({
 		directoryId: 'directory-orchbee',
@@ -184,6 +185,7 @@ const createWorkspaceAgentOverviewStoryFixture = () => {
 	const primaryPresentations = createStoryWorkspacePresentations(runtime, primary.id, 1);
 	const reviewPresentations = createStoryWorkspacePresentations(runtime, review.id, 2);
 	const batchPresentations = createStoryWorkspacePresentations(runtime, batch.id, 3);
+	const crowdedAgents = crowded ? createCrowdedStoryWorkspaceAgents(runtime) : [];
 	runtime.transition({
 		type: 'workspace-activated',
 		workspaceId: review.id,
@@ -196,10 +198,35 @@ const createWorkspaceAgentOverviewStoryFixture = () => {
 			{ agent: 'codex', presentationId: batchPresentations[0], state: 'working' },
 			{ agent: 'claude', presentationId: batchPresentations[1], state: 'error' },
 			{ agent: 'gemini', presentationId: batchPresentations[2], state: 'idle' },
+			...crowdedAgents,
 		]),
 		projectWorkspaceRuntime: runtime,
 	};
 };
+
+/** A Workspace of seven Agents, so its folded line shows four states and `+3`. */
+function createCrowdedStoryWorkspaceAgents(runtime: WorkbenchProjectWorkspaceRuntime) {
+	runtime.transition({
+		directoryId: 'directory-orchbee',
+		launchConfigurationId: null,
+		name: 'Nightly Agents',
+		resourceScopeId: 'resource-scope-1',
+		projectId: 'project-1',
+		terminalTitle: 'Nightly Agent 1',
+		type: 'workspace-created',
+	});
+	const nightly = runtime
+		.getSnapshot()
+		.workspaces.find((workspace) => workspace.name === 'Nightly Agents');
+	if (nightly === undefined) throw new Error('Expected the crowded Storybook Workspace.');
+	const presentations = createStoryWorkspacePresentations(runtime, nightly.id, 7);
+	const states = ['working', 'idle', 'blocked', 'working', 'unknown', 'done', 'error'] as const;
+	return states.map((state, index) => ({
+		agent: index % 2 === 0 ? 'codex' : 'claude',
+		presentationId: presentations[index],
+		state,
+	}));
+}
 
 function createStoryWorkspacePresentations(
 	runtime: WorkbenchProjectWorkspaceRuntime,
@@ -731,7 +758,7 @@ export const CollapsedProjectFocusReveal: Story = {
 	),
 };
 
-const workspaceAgentOverviewStory = createWorkspaceAgentOverviewStoryFixture();
+const workspaceAgentOverviewStory = createWorkspaceAgentOverviewStoryFixture({ crowded: true });
 
 export const WorkspaceAgentOverview: Story = {
 	args: {
@@ -743,10 +770,10 @@ export const WorkspaceAgentOverview: Story = {
 		terminalSurface: FocusStoryTerminalSurface,
 	},
 	play: ({ canvasElement }) => {
-		const disclosure = [...canvasElement.querySelectorAll('button')].find(
-			(button) => button.getAttribute('aria-label') === 'Show 2 Agents in Project Workspace',
-		);
-		disclosure?.click();
+		const folds = new Set(['Hide 3 Agents in Batch Tasks', 'Hide 7 Agents in Nightly Agents']);
+		for (const button of canvasElement.querySelectorAll('button')) {
+			if (folds.has(button.getAttribute('aria-label') ?? '')) button.click();
+		}
 	},
 	render: (arguments_) => (
 		<OrchbeeI18nProvider locale='en-US'>

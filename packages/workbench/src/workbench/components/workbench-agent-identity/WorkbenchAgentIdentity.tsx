@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import type { WorkbenchAgentStatusView } from '../../utils/formatWorkbenchAgentStatus';
 import { WorkbenchAgentProviderIcon } from '../workbench-agent-provider-icon/WorkbenchAgentProviderIcon';
+import { WorkbenchAgentStateGlyph } from '../workbench-agent-state-glyph/WorkbenchAgentStateGlyph';
 import styles from './WorkbenchAgentIdentity.module.css';
 
 interface WorkbenchAgentIdentityProps {
@@ -16,10 +17,8 @@ export function WorkbenchAgentIdentity({
 	status,
 }: WorkbenchAgentIdentityProps): ReactNode {
 	return (
-		<span aria-hidden='true' className={styles['root']} data-tone={status.tone}>
-			<span className={styles['status']} data-agent-state-glyph=''>
-				{status.glyph}
-			</span>
+		<span aria-hidden='true' className={styles['root']}>
+			<WorkbenchAgentStateGlyph status={status} />
 			<WorkbenchAgentProviderIcon agents={agents} gradientPrefix={gradientPrefix} />
 		</span>
 	);

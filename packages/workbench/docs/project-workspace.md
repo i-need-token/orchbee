@@ -181,8 +181,9 @@ A Workspace row shows them as the TUI does. Its identity line keeps a lone row's
 row options, and Agent disclosure stay centred on it. After the name, flush with the trailing
 markers, `↑N` counts commits to push in the success role and `↓N` commits to pull in the warning
 role, each only when positive; the arrows tell them apart without color. A second line names the
-branch, otherwise the folder. A row with neither stays one line, so pending facts reserve no blank
-row. A branch truncates at its end. A folder keeps its final folder whole and truncates its start,
+branch, otherwise the folder, unless the Workspace's Agents are folded, when it lists their states
+instead (see [Workspace Agent overview](#workspace-agent-overview)). A row with neither stays one
+line, so pending facts reserve no blank row. A branch truncates at its end. A folder keeps its final folder whole and truncates its start,
 where the TUI cuts symmetric halves. The line's title holds the whole text, the arrows are hidden
 from assistive technology, and the row's accessible name adds the location and the counts in words.
 While a source holds a moved row's earlier facts, their held name stands in for the Workspace name,
@@ -293,7 +294,9 @@ The sidebar renders zero or more Agent rows directly beneath each Workspace, gro
 
 A Workspace with no Agent has no Agent count or disclosure. One or two providers use their marks; more use the neutral multi-Agent mark. Counts cap visually at `99+` while accessible text retains the exact count. Status priority is blocked, error, done, working, idle, unknown, with no color-only or animated status.
 
-At most one Workspace Agent disclosure is open, initially collapsed and client-local. Regrouping, ungrouping, dissolution and temporarily collapsing a Project preserve that Workspace's disclosure; removal or loss of all represented Agents clears it. Dragging hides details temporarily. `workbench.agent.navigate` targets only Workspace and terminal Presentation identity, confirms that the terminal still holds an Agent in that Workspace, re-resolves current topology and then selects the exact Tab, Panel and child, removing conflicting zoom. Its existing Action/projection coordinator rejects stale or superseded focus. Agent listing and navigation never start an Agent.
+As in the TUI, every Workspace lists its Agent rows until this Client folds them, and each Workspace folds on its own. A fold is client-local and lasts while its Workspace exists: through regrouping, ungrouping, dissolution, a collapsed Project, a hidden sidebar, and Agents that end and start again. A folded Workspace replaces its location line with its Agents' state glyphs, most urgent first and otherwise in row order, one gap apart; more than five show four and a muted `+N`. The line's title names each distinct state in that order, and while the Agent rows are hidden the Workspace row carries their unread marker and its accessible name says those states and unread. A dragged Workspace hides its own Agent rows until the drag ends, as a dragged Project folds; its siblings keep theirs.
+
+`workbench.agent.navigate` targets only Workspace and terminal Presentation identity, confirms that the terminal still holds an Agent in that Workspace, re-resolves current topology and then selects the exact Tab, Panel and child, removing conflicting zoom. Its existing Action/projection coordinator rejects stale or superseded focus. Agent listing and navigation never start an Agent.
 
 Navigation origin and cancellation use the last committed React location; suspended or discarded renders cannot redirect that intent. Target readiness still comes from the latest Agent observation and runtime topology. Hook tests cover a newer Agent observation between navigation and completion, preserving focus after a discarded location render while canceling it after committed unrelated navigation.
 

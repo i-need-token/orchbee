@@ -1,0 +1,15 @@
+/* One glyph per Agent, one gap apart, as the TUI leaves one blank cell between them. */
+.line {
+	display: flex;
+	min-width: var(--ob-ref-space-0);
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	overflow: hidden;
+}
+
+.remainder {
+	flex: none;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-xs);
+	font-variant-numeric: tabular-nums;
+}

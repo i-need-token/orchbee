@@ -1,3 +1,4 @@
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import { agentObservationMessages, useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import type { TabStatusAdornment, TabStatusAdornmentKind, TabModel } from '@orchbee/tab-strip';
 import * as React from 'react';
@@ -40,8 +41,13 @@ interface WorkbenchAgentPresentationView {
 	readonly terminalEdited: (presentationId: string) => void;
 	readonly tabIdentityIcons: ReadonlyMap<string, React.ReactNode>;
 	readonly tabStatusAdornments: ReadonlyMap<string, Readonly<TabStatusAdornment>>;
+	/** Folds or unfolds one Workspace's Agent rows. */
+	readonly toggleWorkspaceAgents: (workspaceId: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
 }
+
+/** The TUI's `STATUS_GLYPHS`: a folded Workspace shows this many states, or one fewer and `+N`. */
+const FOLDED_STATUS_GLYPHS = 5;
 
 const TAB_ADORNMENT_KINDS: Readonly<Record<WorkbenchAgentState, TabStatusAdornmentKind>> = {
 	blocked: 'attention',
@@ -85,6 +91,19 @@ export function useWorkbenchAgentPresentation({
 		projectWorkspaceRuntime.getTerminalTopologyRevision,
 		projectWorkspaceRuntime.getTerminalTopologyRevision,
 	);
+	// As in the TUI, every Workspace shows its Agents until this Client folds them, and a fold lasts
+	// while its Workspace does, through a hidden sidebar and Agents that come and go.
+	const [foldedWorkspaceIds, setFoldedWorkspaceIds] = React.useState<ReadonlySet<string>>(
+		() => new Set(),
+	);
+	const toggleWorkspaceAgents = useMemoizedFn((workspaceId: string): void => {
+		const present = new Set(projectWorkspaceRuntime.getSnapshot().workspaces.map(({ id }) => id));
+		setFoldedWorkspaceIds((current) => {
+			const next = new Set([...current].filter((id) => present.has(id)));
+			if (!next.delete(workspaceId)) next.add(workspaceId);
+			return next;
+		});
+	});
 	const tabPresentation = React.useMemo(() => {
 		const identityIcons = new Map<string, React.ReactNode>();
 		const statusAdornments = new Map<string, Readonly<TabStatusAdornment>>();
@@ -128,6 +147,8 @@ export function useWorkbenchAgentPresentation({
 		return projectWorkbenchAgentOverview(snapshot, projectWorkspaceRuntime).map(
 			(workspace): WorkbenchWorkspaceAgentOverviewView => {
 				const count = workspace.rows.length;
+				const shown = count > FOLDED_STATUS_GLYPHS ? FOLDED_STATUS_GLYPHS - 1 : count;
+				const states = workspace.rowsByUrgency.map(({ observation }) => observation.state);
 				return {
 					agentLabel: formatWorkbenchAgentGroupName(intl, workspace.agents),
 					agents: workspace.agents,
@@ -140,6 +161,22 @@ export function useWorkbenchAgentPresentation({
 						count,
 						workspace: workspace.workspaceName,
 					}),
+					expanded: !foldedWorkspaceIds.has(workspace.workspaceId),
+					foldedStatus: {
+						glyphs: workspace.rowsByUrgency.slice(0, shown).map(({ destination, observation }) => {
+							const status = formatWorkbenchAgentStatus(intl, observation.state);
+							return {
+								glyph: status.glyph,
+								presentationId: destination.presentationId,
+								tone: status.tone,
+							};
+						}),
+						label: intl.formatList(
+							[...new Set(states)].map((state) => formatWorkbenchAgentStatus(intl, state).status),
+							{ style: 'narrow', type: 'conjunction' },
+						),
+						remainder: count - shown,
+					},
 					projectId: workspace.projectId,
 					rows: workspace.rows.map(({ destination, observation }) => {
 						const agentLabel = formatWorkbenchAgentName(intl, observation.agent);
@@ -168,14 +205,22 @@ export function useWorkbenchAgentPresentation({
 				};
 			},
 		);
-	}, [intl, projectWorkspaceRuntime, snapshot, terminalTopologyRevision, unread]);
+	}, [
+		foldedWorkspaceIds,
+		intl,
+		projectWorkspaceRuntime,
+		snapshot,
+		terminalTopologyRevision,
+		unread,
+	]);
 	return React.useMemo(
 		() => ({
 			terminalEdited,
 			tabIdentityIcons: tabPresentation.identityIcons,
 			tabStatusAdornments: tabPresentation.statusAdornments,
+			toggleWorkspaceAgents,
 			workspaceAgentOverviews,
 		}),
-		[tabPresentation, workspaceAgentOverviews, terminalEdited],
+		[tabPresentation, workspaceAgentOverviews, terminalEdited, toggleWorkspaceAgents],
 	);
 }

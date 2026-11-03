@@ -16,7 +16,7 @@ import {
 } from '../project-workbench-agent-overview';
 
 describe('Workbench Agent overview', () => {
-	it('lists each Workspace’s Agents in topology order under its most urgent state', () => {
+	it('lists each Workspace’s Agents in topology order, and by urgency for a fold, under its most urgent state', () => {
 		const fixture = createOverviewFixture();
 		const overview = projectWorkbenchAgentOverview(
 			agents([
@@ -32,6 +32,7 @@ describe('Workbench Agent overview', () => {
 		expect(
 			overview.map((workspace) => ({
 				agents: workspace.agents,
+				byUrgency: workspace.rowsByUrgency.map((row) => row.destination.presentationId),
 				presentations: workspace.rows.map((row) => row.destination.presentationId),
 				state: workspace.state,
 				workspaceId: workspace.workspaceId,
@@ -39,12 +40,14 @@ describe('Workbench Agent overview', () => {
 		).toEqual([
 			{
 				agents: ['claude', 'codex'],
+				byUrgency: [fixture.secondTabPresentation, fixture.firstTabPresentation],
 				presentations: [fixture.firstTabPresentation, fixture.secondTabPresentation],
 				state: 'working',
 				workspaceId: fixture.firstWorkspaceId,
 			},
 			{
 				agents: ['codex'],
+				byUrgency: [fixture.secondWorkspacePresentation],
 				presentations: [fixture.secondWorkspacePresentation],
 				state: 'blocked',
 				workspaceId: fixture.secondWorkspaceId,

@@ -412,7 +412,7 @@ describe('Workbench Project and Workspace management', () => {
 		expect(screen.queryByRole('alertdialog')).toBeNull();
 	});
 
-	it('summarizes observed Workspace Agents, expands only Agent rows, and opens the exact terminal', async () => {
+	it('lists observed Workspace Agents until folded, keeps the fold, and opens the exact terminal', async () => {
 		const projectWorkspaceRuntime = createTerminalFocusProjectWorkspaceRuntime(
 			'workspace-agent-overview',
 		);
@@ -471,26 +471,32 @@ describe('Workbench Project and Workspace management', () => {
 			</OrchbeeI18nProvider>,
 		);
 
+		// As in the TUI, a Workspace lists its Agents until this Client folds them away.
 		const workspaceButton = screen.getByRole('button', {
 			name: 'Primary. 1 live Agent. Codex: Ready',
 		});
 		expect(workspaceButton.querySelector('[data-agent-provider-icon="codex"]')).not.toBeNull();
-		expect(screen.queryByRole('button', { name: /Codex, Ready/iu })).toBeNull();
-
-		fireEvent.click(screen.getByRole('button', { name: 'Show 1 Agent in Primary' }));
-		const agentButton = screen.getByRole('button', {
-			name: `Codex, Ready, ${targetTabTitle} · Panel 1 · Primary terminal`,
-		});
+		const agentName = `Codex, Ready, ${targetTabTitle} · Panel 1 · Primary terminal`;
+		const agentButton = screen.getByRole('button', { name: agentName });
 		expect(agentButton.textContent).toContain('Codex');
 		expect(agentButton.textContent).toContain(`${targetTabTitle} · Panel 1 · Primary terminal`);
+
+		// Folded, the row's second line lists the states, and the fold outlasts a folded Project and a
+		// hidden sidebar.
+		fireEvent.click(screen.getByRole('button', { name: 'Hide 1 Agent in Primary' }));
+		expect(screen.queryByRole('button', { name: agentName })).toBeNull();
+		const states = workspaceButton.querySelector(
+			'[data-slot="workbench-sidebar-workspace-agent-states"]',
+		);
+		expect(states?.getAttribute('title')).toBe('Ready');
+		expect(states?.querySelectorAll('[data-agent-state-glyph]')).toHaveLength(1);
 		fireEvent.click(screen.getByRole('button', { name: 'Collapse project: orchbee' }));
 		fireEvent.click(screen.getByRole('button', { name: 'Expand project: orchbee' }));
-		expect(screen.getByRole('button', { name: /Codex, Ready/iu })).toBeDefined();
-		fireEvent.click(
-			screen.getByRole('button', {
-				name: `Codex, Ready, ${targetTabTitle} · Panel 1 · Primary terminal`,
-			}),
-		);
+		fireEvent.click(screen.getByRole('button', { name: 'Hide Sidebar' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Show Sidebar' }));
+		expect(screen.queryByRole('button', { name: agentName })).toBeNull();
+		fireEvent.click(screen.getByRole('button', { name: 'Show 1 Agent in Primary' }));
+		fireEvent.click(screen.getByRole('button', { name: agentName }));
 
 		await waitFor(() => {
 			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({

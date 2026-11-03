@@ -1,0 +1,50 @@
+.glyph {
+	display: inline-flex;
+	width: var(--ob-ref-size-icon-sm);
+	height: var(--ob-ref-size-icon-sm);
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	color: var(--ob-sys-color-icon-secondary);
+	font: var(--ob-sys-typography-label-lg);
+}
+
+.glyph[data-tone='attention'] {
+	color: var(--ob-sys-color-status-attention);
+	animation: agent-attention var(--ob-sys-motion-duration-agent-cycle)
+		var(--ob-sys-motion-easing-agent-frame) infinite;
+}
+.glyph[data-tone='danger'] {
+	color: var(--ob-sys-color-status-agent-error);
+}
+.glyph[data-tone='working'] {
+	color: var(--ob-sys-color-status-working);
+	animation: agent-working var(--ob-sys-motion-duration-agent-breath)
+		var(--ob-sys-motion-easing-agent-breath) infinite;
+}
+.glyph[data-tone='success'] {
+	color: var(--ob-sys-color-status-agent-done);
+}
+
+.glyph[data-tone='idle'] {
+	color: var(--ob-sys-color-status-agent-idle);
+}
+
+@keyframes agent-working {
+	50% {
+		opacity: var(--ob-ref-opacity-50);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.glyph[data-tone='attention'],
+	.glyph[data-tone='working'] {
+		animation: none;
+	}
+}
+
+@keyframes agent-attention {
+	50% {
+		opacity: var(--ob-ref-opacity-50);
+	}
+}

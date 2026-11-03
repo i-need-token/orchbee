@@ -1590,6 +1590,13 @@ choices stand unless review changes them:
   read. A round skips a Workspace with no directory. Withdrawn facts keep the folder, and re-reading
   waits for the next round. Every Workspace's folder is shortened against the home folder until
   Machines arrive.
+- **Each Workspace folds its Agent rows on its own, as in the TUI.** This replaces the GUI's one
+  open disclosure, closed by default: every Workspace lists its Agents until this Client folds it,
+  and the fold lasts while the Workspace does, through a hidden sidebar and Agents ending. A folded
+  row's second line lists the states in place of the location, most urgent first, with five glyphs
+  or four and `+N`; the line's title, not a tooltip, names the states in words, and the row repeats
+  the Agents' unread marker only while folded. A dragged Workspace hides its own Agent rows, where
+  the TUI hides none, and the Workspace's provider mark stays though it repeats the first glyph.
 
 ### Evidence
 

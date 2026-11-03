@@ -37,6 +37,8 @@ interface WorkbenchWorkspaceAgentOverview {
 	readonly agents: readonly string[];
 	readonly projectId: string | null;
 	readonly rows: readonly WorkbenchAgentRowOverview[];
+	/** The rows most urgent first and otherwise in row order, as a folded Workspace lists their states. */
+	readonly rowsByUrgency: readonly WorkbenchAgentRowOverview[];
 	readonly state: WorkbenchAgentState;
 	readonly workspaceId: string;
 	readonly workspaceName: string;
@@ -84,6 +86,11 @@ export function projectWorkbenchAgentOverview(
 			agents: [...new Set(rows.map((row) => row.observation.agent))],
 			projectId: workspace.projectId,
 			rows,
+			// `sort` is stable, so equally urgent rows keep their order.
+			rowsByUrgency: [...rows].sort(
+				(left, right) =>
+					STATE_URGENCY[right.observation.state] - STATE_URGENCY[left.observation.state],
+			),
 			state,
 			workspaceId: workspace.id,
 			workspaceName: workspace.name,

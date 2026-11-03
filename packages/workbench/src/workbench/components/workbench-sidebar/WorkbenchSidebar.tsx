@@ -10,7 +10,7 @@ import {
 	Kbd,
 	ProductIcon,
 } from '@orchbee/ui/components';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import type { ActionExecution } from '@orchbee/actions';
 
 import type { ProjectWorkspaceState } from '../../../project-workspace';
@@ -32,7 +32,6 @@ import { useWorkbenchSidebar } from './hooks/useWorkbenchSidebar';
 import { useNavigationReorderDrag } from './hooks/useNavigationReorderDrag';
 import { useProjectFolderAcquisition } from './hooks/useProjectFolderAcquisition';
 import { useWorkbenchSidebarFocusRequest } from './hooks/useWorkbenchSidebarFocusRequest';
-import { useWorkbenchSidebarAgentOverview } from './hooks/useWorkbenchSidebarAgentOverview';
 import { useWorkbenchSidebarWorkspaceLocations } from './hooks/useWorkbenchSidebarWorkspaceLocations';
 import { useWorkspaceCreationActivation } from './hooks/useWorkspaceCreationActivation';
 import { useWorkspaceWorktrees } from './hooks/useWorkspaceWorktrees';
@@ -102,6 +101,7 @@ interface WorkbenchSidebarProps {
 	readonly terminalLabel: string;
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly toggleRecentsExpansion: () => void;
+	readonly toggleWorkspaceAgents: (workspaceId: string) => void;
 	readonly updateWorkspace: (workspaceId: string, name: string, primaryDirectoryId: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
 	readonly workspaceLocationSource?: WorkbenchWorkspaceLocationSource | undefined;
@@ -154,16 +154,14 @@ export function WorkbenchSidebar({
 	terminalLabel,
 	toggleProjectExpansion,
 	toggleRecentsExpansion,
+	toggleWorkspaceAgents,
 	updateWorkspace,
 	workspaceAgentOverviews,
 	workspaceLocationSource,
 	workspaceResourcesEditable,
 	worktreeCommands,
 }: WorkbenchSidebarProps): ReactNode {
-	const agentOverview = useWorkbenchSidebarAgentOverview({
-		expandedProjectIds: projectWorkspaceState.expandedProjectIds,
-		workspaces: workspaceAgentOverviews,
-	});
+	const agentGradientPrefix = useId().replaceAll(':', '');
 	const workspaceLocations = useWorkbenchSidebarWorkspaceLocations(workspaceLocationSource);
 	const rootReference = useWorkbenchSidebarFocusRequest(focusRequest);
 	const view = useWorkbenchSidebar(projectWorkspaceState, environmentProjectConnection);
@@ -282,7 +280,7 @@ export function WorkbenchSidebar({
 							{navigationGroups.map((project) => (
 								<ProjectNavigationItem
 									key={project?.id ?? 'ungrouped'}
-									agentGradientPrefix={`${agentOverview.agentGradientPrefix}-${project?.id ?? 'ungrouped'}`}
+									agentGradientPrefix={`${agentGradientPrefix}-${project?.id ?? 'ungrouped'}`}
 									activateWorkspace={(workspaceId, origin) => {
 										workspaceActivation.cancel();
 										activateWorkspace(workspaceId, origin);
@@ -296,7 +294,6 @@ export function WorkbenchSidebar({
 											: null
 									}
 									duplicateWorkspace={workspaceResourcesEditable ? duplicateWorkspace : undefined}
-									expandedAgentWorkspaceId={agentOverview.expandedWorkspace?.workspaceId ?? null}
 									environmentConnection={
 										project === null
 											? null
@@ -326,7 +323,7 @@ export function WorkbenchSidebar({
 									showWorkspaceManager={view.showWorkspaceManager}
 									toggleProjectExpansion={toggleProjectExpansion}
 									toggleRecentsExpansion={toggleRecentsExpansion}
-									toggleWorkspaceAgentExpansion={agentOverview.toggleWorkspace}
+									toggleWorkspaceAgents={toggleWorkspaceAgents}
 									workspaceAgentOverviews={workspaceAgentOverviews}
 									workspaceLocations={workspaceLocations}
 									worktreeMenu={workspaceWorktrees.menu}

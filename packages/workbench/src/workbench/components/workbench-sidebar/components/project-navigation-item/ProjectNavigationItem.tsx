@@ -15,6 +15,7 @@ import type { WorkspaceWorktreeMenu } from '../../hooks/useWorkspaceWorktrees';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
 import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
 import { WorkspaceAgentList } from './components/workspace-agent-list/WorkspaceAgentList';
+import { WorkspaceAgentStatusLine } from './components/workspace-agent-status-line/WorkspaceAgentStatusLine';
 import { WorkspaceLocationLine } from './components/workspace-location-line/WorkspaceLocationLine';
 import { useProjectNavigationMenuFocus } from './hooks/useProjectNavigationMenuFocus';
 import { navigationMenuAriaKeyShortcuts } from './utils/navigation-menu-shortcuts';
@@ -24,6 +25,18 @@ import {
 } from './utils/navigation-row-menu';
 import { workspaceNavigationMenu } from './utils/workspaceNavigationMenu';
 import styles from './ProjectNavigationItem.module.css';
+
+/**
+ * A Workspace's Agents in words. Folded, the row speaks for its hidden Agent rows: every state its
+ * second line shows, and their unread marker.
+ */
+function workspaceAgentSummary(overview: WorkbenchWorkspaceAgentOverviewView): string {
+	if (overview.expanded) {
+		return `${overview.countLabel}. ${overview.agentLabel}: ${overview.status.status}`;
+	}
+	const unread = overview.unreadLabel === undefined ? '' : ` · ${overview.unreadLabel}`;
+	return `${overview.countLabel}. ${overview.agentLabel}: ${overview.foldedStatus.label}${unread}`;
+}
 
 interface ProjectNavigationItemProps {
 	readonly agentGradientPrefix: string;
@@ -46,7 +59,6 @@ interface ProjectNavigationItemProps {
 	readonly displacement: 'down' | 'up' | null;
 	readonly disconnectEnvironment?: ((projectId: string) => void) | undefined;
 	readonly duplicateWorkspace?: ((workspaceId: string) => void) | undefined;
-	readonly expandedAgentWorkspaceId: string | null;
 	readonly dragging: boolean;
 	readonly expanded: boolean;
 	readonly environmentConnection: WorkbenchEnvironmentProjectConnectionStatus | null;
@@ -66,7 +78,7 @@ interface ProjectNavigationItemProps {
 	readonly showWorkspaceManager: (workspaceId: string) => void;
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly toggleRecentsExpansion: () => void;
-	readonly toggleWorkspaceAgentExpansion: (workspaceId: string) => void;
+	readonly toggleWorkspaceAgents: (workspaceId: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
 	readonly workspaceLocations: ReadonlyMap<string, WorkbenchSidebarWorkspaceLocation>;
 	readonly worktreeMenu: (workspaceId: string) => WorkspaceWorktreeMenu;
@@ -86,7 +98,6 @@ export function ProjectNavigationItem({
 	displacement,
 	disconnectEnvironment,
 	duplicateWorkspace,
-	expandedAgentWorkspaceId,
 	dragging,
 	expanded,
 	environmentConnection,
@@ -102,7 +113,7 @@ export function ProjectNavigationItem({
 	showWorkspaceManager,
 	toggleProjectExpansion,
 	toggleRecentsExpansion,
-	toggleWorkspaceAgentExpansion,
+	toggleWorkspaceAgents,
 	workspaceAgentOverviews,
 	workspaceLocations,
 	worktreeMenu,
@@ -310,7 +321,10 @@ export function ProjectNavigationItem({
 						const agentOverview = workspaceAgentOverviews.find(
 							(overview) => overview.workspaceId === workspace.id,
 						);
-						const agentExpanded = expandedAgentWorkspaceId === workspace.id;
+						const agentExpanded = agentOverview?.expanded ?? false;
+						// A folded Workspace's second line lists its Agents' states in place of its location,
+						// and its row repeats their unread marker while the Agent rows are hidden.
+						const agentsFolded = agentOverview !== undefined && !agentExpanded;
 						const location = workspaceLocations.get(workspace.id);
 						// A row whose directory just moved keeps its old name until its new location settles.
 						const name = location?.heldName ?? workspace.name;
@@ -396,11 +410,9 @@ export function ProjectNavigationItem({
 											aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
 											aria-label={[
 												name,
-												location?.line?.text,
+												agentsFolded ? null : location?.line?.text,
 												location?.divergenceLabel,
-												agentOverview === undefined
-													? null
-													: `${agentOverview.countLabel}. ${agentOverview.agentLabel}: ${agentOverview.status.status}${agentOverview.unreadLabel === undefined ? '' : ` · ${agentOverview.unreadLabel}`}`,
+												agentOverview === undefined ? null : workspaceAgentSummary(agentOverview),
 											]
 												.filter((part) => typeof part === 'string')
 												.join('. ')}
@@ -444,9 +456,11 @@ export function ProjectNavigationItem({
 															aria-hidden='true'
 															className={styles['unread']}
 															data-agent-unread={
-																agentOverview.unreadLabel === undefined ? undefined : ''
+																agentsFolded && agentOverview.unreadLabel !== undefined
+																	? ''
+																	: undefined
 															}
-															title={agentOverview.unreadLabel}
+															title={agentsFolded ? agentOverview.unreadLabel : undefined}
 														>
 															●
 														</span>
@@ -461,11 +475,16 @@ export function ProjectNavigationItem({
 														</span>
 													)}
 												</span>
-												{location === undefined || location.line === null ? null : (
+												{agentsFolded ? (
+													<span className={styles['workspaceLocation']}>
+														<WorkspaceAgentStatusLine status={agentOverview.foldedStatus} />
+													</span>
+												) : null}
+												{!agentsFolded && location !== undefined && location.line !== null ? (
 													<span className={styles['workspaceLocation']}>
 														<WorkspaceLocationLine line={location.line} />
 													</span>
-												)}
+												) : null}
 											</span>
 										</Button>
 										{agentOverview === undefined ? null : (
@@ -478,7 +497,7 @@ export function ProjectNavigationItem({
 												data-navigation-reorder-excluded='true'
 												size='icon-xs'
 												variant='ghost'
-												onClick={() => toggleWorkspaceAgentExpansion(workspace.id)}
+												onClick={() => toggleWorkspaceAgents(workspace.id)}
 											>
 												<span
 													aria-hidden='true'
@@ -513,20 +532,19 @@ export function ProjectNavigationItem({
 										finalFocus={() => menuFocus.finalFocus(workspace.id)}
 									/>
 								</ContextMenu>
-								{agentOverview !== undefined &&
-									agentExpanded &&
-									workspaceReorder.draggingItemId === null && (
-										<WorkspaceAgentList
-											gradientPrefix={`${agentGradientPrefix}-${workspace.id}-detail`}
-											navigateAgent={(presentationId) =>
-												navigateAgent({
-													presentationId,
-													workspaceId: workspace.id,
-												})
-											}
-											overview={agentOverview}
-										/>
-									)}
+								{/* A dragged Workspace leaves with its row alone, as a dragged Project folds. */}
+								{agentOverview !== undefined && agentExpanded && !workspaceDragging && (
+									<WorkspaceAgentList
+										gradientPrefix={`${agentGradientPrefix}-${workspace.id}-detail`}
+										navigateAgent={(presentationId) =>
+											navigateAgent({
+												presentationId,
+												workspaceId: workspace.id,
+											})
+										}
+										overview={agentOverview}
+									/>
+								)}
 							</li>
 						);
 					})}
