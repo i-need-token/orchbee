@@ -1,4 +1,5 @@
 export {
+	getTabCloseTargets,
 	TabModel,
 	TabStrip,
 	TAB_STRIP_ACTION_IDS,

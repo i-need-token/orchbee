@@ -52,6 +52,10 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.actions.duplicate',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.duplicate'],
 	},
+	duplicateActiveTab: {
+		id: 'workbench.tabs.actions.duplicateActive',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.duplicateActive'],
+	},
 	selectTab: {
 		id: 'workbench.tabs.actions.select',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.select'],

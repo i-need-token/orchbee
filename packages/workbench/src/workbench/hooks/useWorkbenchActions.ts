@@ -21,7 +21,7 @@ import type { ProjectWorkspaceState } from '../../project-workspace';
 import { registerWorkbenchProjectWorkspaceActions } from '../actions/registerWorkbenchProjectWorkspaceActions';
 import { registerWorkbenchAgentNavigationAction } from '../actions/registerWorkbenchAgentNavigationAction';
 import { registerWorkbenchActiveTerminalActions } from '../actions/registerWorkbenchActiveTerminalActions';
-import { registerWorkbenchActiveTabMovementActions } from '../actions/registerWorkbenchActiveTabMovementActions';
+import { registerWorkbenchActiveTabActions } from '../actions/registerWorkbenchActiveTabActions';
 import {
 	registerWorkbenchTabTitleAction,
 	type WorkbenchTabTitleEditorRequest,
@@ -194,10 +194,11 @@ export function useWorkbenchActions({
 				scope,
 				typedRuntime,
 			}),
-			...registerWorkbenchActiveTabMovementActions({
+			...registerWorkbenchActiveTabActions({
 				projectWorkspaceRuntime,
 				runtime,
 				scope,
+				tabStripOrientation,
 				typedRuntime,
 			}),
 			...registerWorkbenchActiveTerminalActions({

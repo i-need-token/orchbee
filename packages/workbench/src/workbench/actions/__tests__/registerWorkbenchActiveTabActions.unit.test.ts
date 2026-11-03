@@ -7,18 +7,79 @@ import {
 	type ActionExecutionContext,
 	type ActionResult,
 } from '@orchbee/actions';
-import { TAB_STRIP_ACTION_IDS, type TabModel } from '@orchbee/tab-strip';
+import { TAB_STRIP_ACTION_IDS, TabStripOrientation, type TabModel } from '@orchbee/tab-strip';
 import { describe, expect, it, vi } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
-import { registerWorkbenchActiveTabMovementActions } from '../registerWorkbenchActiveTabMovementActions';
+import { registerWorkbenchActiveTabActions } from '../registerWorkbenchActiveTabActions';
 import { registerWorkbenchTabSelectionActions } from '../registerWorkbenchTabSelectionActions';
 import type { ActiveTabMovementDecision as TabMoveInput } from '../resolveActiveTabMovement';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../workbench-action-ids';
 
-describe('registerWorkbenchActiveTabMovementActions', () => {
+describe('registerWorkbenchActiveTabActions', () => {
+	it('gives the lower Actions the active Tab, its selection and what follows it', async () => {
+		const harness = createHarness();
+		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
+		model.addTab({ pinned: false, title: 'Second' }, { activate: false, id: 'second' });
+		model.addTab({ pinned: false, title: 'Third' }, { activate: false, id: 'third' });
+		model.addTab({ pinned: false, title: 'Fourth' }, { activate: false, id: 'fourth' });
+		// Adding a Tab to the selection also makes it the active Tab.
+		model.toggleSelected('second');
+		const lowerInputs = vi.fn<(actionId: string, input: unknown) => void>();
+		const tabScope = harness.runtime.createScope('tab-strip', harness.scope);
+		for (const [scope, actionId] of [
+			[harness.scope, WORKBENCH_ACTION_IDS.createTerminal],
+			[tabScope, TAB_STRIP_ACTION_IDS.closeTabs],
+			[tabScope, TAB_STRIP_ACTION_IDS.duplicateTabs],
+		] as const) {
+			harness.runtime.register(
+				scope,
+				defineAction({
+					category: { id: 'tabs', title: { defaultMessage: 'Tabs' } },
+					execution: {
+						concurrency: 'parallel',
+						concurrencyKey: () => actionId,
+						mode: 'foreground',
+					},
+					getAvailability: () => ({ kind: 'enabled' }),
+					handler: {
+						execute: (context, input) => {
+							lowerInputs(actionId, input);
+							context.markCommitted();
+							return { kind: 'completed' };
+						},
+					},
+					id: actionId,
+					input: anyObjectInput,
+					title: { defaultMessage: actionId },
+				}),
+			);
+		}
+
+		for (const actionId of [
+			WORKBENCH_ACTION_IDS.createTabAfterActive,
+			WORKBENCH_ACTION_IDS.duplicateActiveTabs,
+			WORKBENCH_ACTION_IDS.closeTabsAfterActive,
+		]) {
+			await expect(harness.execute(actionId)).resolves.toEqual({ kind: 'completed' });
+		}
+		expect(lowerInputs.mock.calls).toEqual([
+			[WORKBENCH_ACTION_IDS.createTerminal, { groupId: null, index: 2 }],
+			[TAB_STRIP_ACTION_IDS.duplicateTabs, { tabIds: ['terminal-context-1-tab-1', 'second'] }],
+			[TAB_STRIP_ACTION_IDS.closeTabs, { closeSource: 'non-ui', tabIds: ['third', 'fourth'] }],
+		]);
+
+		model.selectTab('fourth');
+		expect(
+			harness.runtime.resolveAction(WORKBENCH_ACTION_IDS.closeTabsAfterActive, undefined, {
+				scope: harness.scope,
+				source: 'command-surface',
+			}),
+		).toMatchObject({ availability: { kind: 'disabled' } });
+	});
+
 	it('moves the active Tab circularly through the prepared Tab Strip Action', async () => {
 		const harness = createHarness();
 		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
@@ -173,6 +234,9 @@ interface Harness {
 	readonly scope: ReturnType<ActionRuntime['createScope']>;
 	execute(
 		actionId:
+			| typeof WORKBENCH_ACTION_IDS.closeTabsAfterActive
+			| typeof WORKBENCH_ACTION_IDS.createTabAfterActive
+			| typeof WORKBENCH_ACTION_IDS.duplicateActiveTabs
 			| typeof WORKBENCH_ACTION_IDS.moveActiveTabBackward
 			| typeof WORKBENCH_ACTION_IDS.moveActiveTabForward,
 	): Promise<unknown>;
@@ -189,10 +253,11 @@ function createHarness(): Harness {
 			() => terminalPresentationId('terminal-next'),
 		),
 	});
-	registerWorkbenchActiveTabMovementActions({
+	registerWorkbenchActiveTabActions({
 		projectWorkspaceRuntime,
 		runtime,
 		scope,
+		tabStripOrientation: TabStripOrientation.Horizontal,
 		typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(runtime),
 	});
 	return {
@@ -246,6 +311,15 @@ function applyMove(input: TabMoveInput, model: TabModel): void {
 			break;
 	}
 }
+
+/** These lower stand-ins only record what they were asked to do. */
+const anyObjectInput: ActionInputValidation<object> = {
+	name: 'AnyObjectInput',
+	parse: (input) =>
+		typeof input === 'object' && input !== null
+			? { data: input, success: true }
+			: { code: 'expected-object-input', success: false },
+};
 
 const testTabMoveInput: ActionInputValidation<TabMoveInput> = {
 	name: 'TabMoveInput',

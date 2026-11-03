@@ -20,3 +20,4 @@ export type {
 } from './TabStrip';
 export { TabStripOrientation } from './types/tab-strip-types';
 export { TabModel, type TabData } from './model/tab-model';
+export { getTabCloseTargets } from './model/tab-close-targets';
