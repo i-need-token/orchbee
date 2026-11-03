@@ -21,6 +21,8 @@ import {
 } from '@orchbee/tab-strip';
 import type { ReactNode } from 'react';
 
+import { NameDialog } from '../name-dialog/NameDialog';
+import { useTabGroupNameDialog } from './hooks/useTabGroupNameDialog';
 import styles from './WorkbenchTabBar.module.css';
 
 interface WorkbenchTabBarProps {
@@ -72,47 +74,63 @@ export function WorkbenchTabBar({
 	tabStripMessages,
 	verticalCollapsed,
 }: WorkbenchTabBarProps): ReactNode {
+	const groupName = useTabGroupNameDialog(tabModel);
 	return (
-		<div
-			className={styles['root']}
-			data-slot='workbench-tab-bar'
-			data-workbench-focus-region='tab-strip'
-			data-orientation={orientation}
-			data-reserve-sidebar-toggle-space={reserveSidebarToggleSpace || undefined}
-		>
-			<TabStrip
-				actionRuntime={actionRuntime}
-				createCrossWindowDragRuntime={createCrossWindowDragRuntime}
-				focusRequest={focusRequest}
-				horizontalLeadingActions={
-					reserveSidebarToggleSpace ? (
-						<div
-							className={styles['leadingActions']}
-							data-slot='workbench-tab-bar-leading-actions'
-						/>
-					) : null
-				}
-				messages={tabStripMessages}
-				model={tabModel}
-				identityIcons={tabIdentityIcons}
-				statusAdornments={statusAdornments}
-				onNewTab={onNewTerminal}
-				onCloseTabs={onCloseTabs}
-				getCloseTabsConfirmation={getCloseTabsConfirmation}
-				getTabCreationAvailability={getTabCreationAvailability}
-				onOrientationChange={onOrientationChange}
-				onSelectTab={onSelectTab}
-				onSetTabTitle={onSetTabTitle}
-				onTabsChange={onTabsChange}
-				orientation={orientation}
-				parentActionScope={parentActionScope}
-				showGroupHoverCards={false}
-				showHoverCardMemoryUsage={false}
-				showHoverCardPreviews={false}
-				shortcutLabels={shortcutLabels}
-				verticalCollapsed={verticalCollapsed}
-				onVerticalCollapsedChange={onVerticalCollapsedChange}
-			/>
-		</div>
+		<>
+			<div
+				className={styles['root']}
+				data-slot='workbench-tab-bar'
+				data-workbench-focus-region='tab-strip'
+				data-orientation={orientation}
+				data-reserve-sidebar-toggle-space={reserveSidebarToggleSpace || undefined}
+			>
+				<TabStrip
+					actionRuntime={actionRuntime}
+					createCrossWindowDragRuntime={createCrossWindowDragRuntime}
+					focusRequest={focusRequest}
+					horizontalLeadingActions={
+						reserveSidebarToggleSpace ? (
+							<div
+								className={styles['leadingActions']}
+								data-slot='workbench-tab-bar-leading-actions'
+							/>
+						) : null
+					}
+					messages={tabStripMessages}
+					model={tabModel}
+					identityIcons={tabIdentityIcons}
+					statusAdornments={statusAdornments}
+					onNewTab={onNewTerminal}
+					onCloseTabs={onCloseTabs}
+					getCloseTabsConfirmation={getCloseTabsConfirmation}
+					getTabCreationAvailability={getTabCreationAvailability}
+					onOrientationChange={onOrientationChange}
+					onNameGroup={groupName.open}
+					onSelectTab={onSelectTab}
+					onSetTabTitle={onSetTabTitle}
+					onTabsChange={onTabsChange}
+					orientation={orientation}
+					parentActionScope={parentActionScope}
+					showGroupHoverCards={false}
+					showHoverCardMemoryUsage={false}
+					showHoverCardPreviews={false}
+					shortcutLabels={shortcutLabels}
+					verticalCollapsed={verticalCollapsed}
+					onVerticalCollapsedChange={onVerticalCollapsedChange}
+				/>
+			</div>
+			{groupName.dialog === null ? null : (
+				<NameDialog
+					blank={groupName.dialog.blank}
+					messages={groupName.dialog.messages}
+					name={groupName.dialog.name}
+					onClose={groupName.dialog.close}
+					onNameChange={groupName.dialog.setName}
+					onSubmit={groupName.dialog.submit}
+					submitLabel={groupName.dialog.submitLabel}
+					title={groupName.dialog.title}
+				/>
+			)}
+		</>
 	);
 }

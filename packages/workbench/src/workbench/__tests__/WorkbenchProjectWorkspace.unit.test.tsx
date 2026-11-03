@@ -758,7 +758,7 @@ describe('Workbench Project and Workspace management', () => {
 		});
 	});
 
-	it('projects current configured bindings into the tab context menu', async () => {
+	it('projects the current new-Tab binding into the new-Tab menu and none into the Tab menu', async () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal 1',
@@ -788,19 +788,28 @@ describe('Workbench Project and Workspace management', () => {
 			</OrchbeeI18nProvider>,
 		);
 
+		fireEvent.contextMenu(screen.getByRole('button', { name: 'New tab' }), {
+			clientX: 400,
+			clientY: 20,
+		});
+		const newTabMenu = await screen.findByRole('menu');
+		expect(
+			Array.from(newTabMenu.querySelectorAll('[data-slot="context-menu-shortcut"]')).map(
+				(shortcut) => shortcut.textContent,
+			),
+		).toEqual(['⇧⌘N']);
+		fireEvent.keyDown(document, { key: 'Escape' });
+		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+
 		fireEvent.contextMenu(screen.getByRole('tab', { name: 'system' }), {
 			clientX: 120,
 			clientY: 20,
 		});
-		const menu = await screen.findByRole('menu', { name: 'Tab options' });
-		expect(
-			Array.from(menu.querySelectorAll('[data-slot="context-menu-shortcut"]')).map(
-				(shortcut) => shortcut.textContent,
-			),
-		).toEqual(['⇧⌘N', '⇧⌘I', '⌘Q']);
+		const tabMenu = await screen.findByRole('menu', { name: 'Tab options' });
+		expect(tabMenu.querySelector('[data-slot="context-menu-shortcut"]')).toBeNull();
 	});
 
-	it('sets and restores the captured Tab title from the shortcut and context menu', async () => {
+	it('renames and restores the captured Tab title from the shortcut and context menu', async () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal 1',
@@ -844,10 +853,14 @@ describe('Workbench Project and Workspace management', () => {
 			}),
 		);
 
-		let dialog = await screen.findByRole('dialog', { name: 'Set Tab Title' });
-		let titleInput = within(dialog).getByLabelText<HTMLInputElement>('Tab title');
+		let dialog = await screen.findByRole('dialog', { name: 'Rename Tab' });
+		expect(dialog.getAttribute('data-slot')).toBe('workbench-name-dialog');
+		// The title names the only field; a local blank name returns to the terminal's title.
+		let titleInput = within(dialog).getByLabelText<HTMLInputElement>('Rename Tab');
+		expect(titleInput.getAttribute('aria-required')).toBeNull();
+		expect(titleInput.getAttribute('aria-describedby')).not.toBeNull();
 		const titleCancel = within(dialog).getByRole('button', { name: 'Cancel' });
-		const titleSave = within(dialog).getByRole('button', { name: 'Save' });
+		const titleSave = within(dialog).getByRole('button', { name: 'Rename' });
 		expect(titleInput.value).toBe('system');
 		await waitFor(() => expect(document.activeElement).toBe(titleInput));
 		expect(titleInput.selectionStart).toBe(0);
@@ -874,11 +887,11 @@ describe('Workbench Project and Workspace management', () => {
 		const firstTab = screen.getByRole('tab', { name: /^Focus work/ });
 		fireEvent.contextMenu(firstTab, { clientX: 120, clientY: 20 });
 		const menu = await screen.findByRole('menu', { name: 'Tab options' });
-		const titleMenuItem = within(menu).getByRole('menuitem', { name: /^Set Tab Title…/ });
-		expect(titleMenuItem.textContent).toBe('Set Tab Title…⇧⌘I');
+		const titleMenuItem = within(menu).getByRole('menuitem', { name: 'Rename' });
+		expect(titleMenuItem.textContent).toBe('Rename');
 		fireEvent.click(titleMenuItem);
-		dialog = await screen.findByRole('dialog', { name: 'Set Tab Title' });
-		titleInput = within(dialog).getByLabelText<HTMLInputElement>('Tab title');
+		dialog = await screen.findByRole('dialog', { name: 'Rename Tab' });
+		titleInput = within(dialog).getByLabelText<HTMLInputElement>('Rename Tab');
 		expect(titleInput.value).toBe('Focus work');
 		await waitFor(() => expect(document.activeElement).toBe(titleInput));
 		fireEvent.change(titleInput, { target: { value: '   ' } });
@@ -891,6 +904,60 @@ describe('Workbench Project and Workspace management', () => {
 			terminalContext.tabModel.getSnapshot().tabs.find((tab) => tab.id === firstTabId)?.title,
 		).toBe('system');
 		expect(document.activeElement).toBe(titleReturnFocus);
+	});
+
+	it('names new and existing Tab groups in the group name dialog', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('tab-group-name'),
+		});
+		const { tabModel } = projectWorkspaceRuntime.getActiveTerminalContext();
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		fireEvent.contextMenu(screen.getByRole('tab', { name: 'system' }), {
+			clientX: 120,
+			clientY: 20,
+		});
+		const tabMenu = await screen.findByRole('menu', { name: 'Tab options' });
+		fireEvent.click(within(tabMenu).getByRole('menuitem', { name: 'Add to group' }));
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'New group…' }));
+		let dialog = await screen.findByRole('dialog', { name: 'New Tab Group' });
+		// The new group is named after the Tab the menu opened on until another name is typed.
+		let nameInput = within(dialog).getByLabelText<HTMLInputElement>('New Tab Group');
+		expect(nameInput.value).toBe('system');
+		expect(within(dialog).getByText('Leave blank for an unnamed group.')).toBeDefined();
+		fireEvent.change(nameInput, { target: { value: 'Build' } });
+		fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }));
+		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+		const group = tabModel.getSnapshot().groups[0];
+		expect(group).toMatchObject({ color: 'blue', title: 'Build' });
+		expect(tabModel.getSnapshot().tabs[0]?.group).toBe(group?.id);
+
+		fireEvent.contextMenu(screen.getByRole('tablist', { name: /^Build,/ }), {
+			clientX: 60,
+			clientY: 20,
+		});
+		const groupMenu = await screen.findByRole('menu', { name: 'Group options' });
+		fireEvent.click(within(groupMenu).getByRole('menuitem', { name: 'Rename' }));
+		dialog = await screen.findByRole('dialog', { name: 'Rename Tab Group' });
+		nameInput = within(dialog).getByLabelText<HTMLInputElement>('Rename Tab Group');
+		expect(nameInput.value).toBe('Build');
+		// Blank leaves the group unnamed rather than being refused.
+		fireEvent.change(nameInput, { target: { value: '' } });
+		fireEvent.click(within(dialog).getByRole('button', { name: 'Rename' }));
+		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+		expect(tabModel.getSnapshot().groups[0]?.title).toBe('');
 	});
 
 	it('projects terminal context commands through the shared icon-bearing action menu', async () => {
@@ -1394,7 +1461,7 @@ describe('Workbench Project and Workspace management', () => {
 		expect(getActionableMenuPresentation(workspaceContextMenu)).toEqual(workspaceMenuPresentation);
 		fireEvent.click(within(workspaceContextMenu).getByRole('menuitem', { name: 'Rename' }));
 		const workspaceRename = await screen.findByRole('dialog', { name: 'Rename Workspace' });
-		expect(workspaceRename.getAttribute('data-slot')).toBe('workbench-location-name-dialog');
+		expect(workspaceRename.getAttribute('data-slot')).toBe('workbench-name-dialog');
 		expect(within(workspaceRename).getByRole('button', { name: 'Close' })).toBeDefined();
 		// The title names the only field, which has no label or description of its own.
 		expect(within(workspaceRename).getByLabelText('Rename Workspace')).toHaveProperty(

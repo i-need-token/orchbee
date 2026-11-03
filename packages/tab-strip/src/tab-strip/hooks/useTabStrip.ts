@@ -160,6 +160,7 @@ export function useTabStrip(
 		onSelectTab,
 		onTabsChange,
 		onSetTabTitle,
+		onNameGroup,
 		onNewTabButtonPressed,
 		parentActionScope,
 		shortcutLabels,
@@ -864,8 +865,10 @@ export function useTabStrip(
 		return () => window.clearTimeout(timer);
 	}, [tabClosingMode?.source, tabClosingMode?.width]);
 
+	// An open menu keeps closing mode, so the Tabs it was opened over hold still beneath it.
+	const menuOpen = menu !== null;
 	useEffect(() => {
-		if (tabClosingMode?.source !== 'mouse' || menu?.kind === 'group') return;
+		if (tabClosingMode?.source !== 'mouse' || menuOpen) return;
 		const handlePointerMove = (event: PointerEvent) => {
 			const element = stripRef.current;
 			if (!element) return;
@@ -885,7 +888,7 @@ export function useTabStrip(
 		};
 		window.addEventListener('pointermove', handlePointerMove);
 		return () => window.removeEventListener('pointermove', handlePointerMove);
-	}, [menu?.kind, stripRef, tabClosingMode?.source]);
+	}, [menuOpen, stripRef, tabClosingMode?.source]);
 
 	useEffect(() => {
 		expandOnHoverController.setEnvironment({
@@ -2615,6 +2618,7 @@ export function useTabStrip(
 		onMoveTabsToNewWindow,
 		onMoveGroupToNewWindow,
 		onSetTabTitle,
+		onNameGroup,
 		shortcutLabels,
 		ariaLabel: ariaLabel ?? messages.tabStripLabel,
 		snapshot,

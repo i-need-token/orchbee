@@ -17,7 +17,7 @@ import type {
 import { TabModel, type TabGroupData } from '../model/tab-model';
 import { TabStripComboButtonController } from '../model/TabStripComboButtonController';
 import { VerticalTabStripExpandOnHoverController } from '../model/vertical-tab-strip-expand-on-hover';
-import { TabStrip } from '../TabStrip';
+import { TabStrip, type TabStripGroupNameRequest } from '../TabStrip';
 
 class FakeThumbnailSource implements HoverCardThumbnailSource<string> {
 	public callback: ((image: string) => void) | null = null;
@@ -602,16 +602,13 @@ describe('TabStrip', () => {
 		loose.focus();
 
 		fireEvent.keyDown(loose, { key: 'F10', shiftKey: true });
-		expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeTruthy();
+		expect(screen.getByRole('menu', { name: 'Tab options' })).toBeTruthy();
 		fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
 
 		const group = screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ });
 		group.focus();
 		fireEvent.keyDown(group, { key: 'ContextMenu' });
 		expect(screen.getByRole('menu', { name: 'Group options' })).toBeTruthy();
-		expect((screen.getByRole('textbox', { name: 'Group name' }) as HTMLInputElement).value).toBe(
-			'Research',
-		);
 	});
 
 	it('fulfills each newer host focus request at the current roving entry', () => {
@@ -713,7 +710,7 @@ describe('TabStrip', () => {
 			clientY: 80,
 		});
 		fireEvent.click(group);
-		expect(screen.getByRole('textbox', { name: 'Group name' })).toBeTruthy();
+		expect(screen.getByRole('menu', { name: 'Group options' })).toBeTruthy();
 		expect(model.getGroup('research')?.collapsed).toBe(false);
 	});
 
@@ -977,50 +974,23 @@ describe('TabStrip', () => {
 			clientX: 50,
 			clientY: 30,
 		});
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Pin' }));
 
-		expect(model.getSnapshot().tabs.filter((tab) => tab.title === 'Loose')).toHaveLength(2);
+		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'loose')?.pinned).toBe(true);
 		expect(screen.queryByRole('menu')).toBeNull();
 	});
 
-	it('renders only host-supplied shortcuts in the tab context menu trailing slot', () => {
+	it('requests renaming for only the invoked Tab of a selected set', () => {
 		const model = createModel();
-		render(<TabStrip model={model} shortcutLabels={{ closeTab: '⌘W', newTab: '⌘T' }} />);
-
-		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Loose/ }), {
-			clientX: 50,
-			clientY: 30,
-		});
-
-		const shortcuts = Array.from(
-			document.querySelectorAll<HTMLElement>('[data-slot="context-menu-shortcut"]'),
-		);
-		expect(shortcuts.map((shortcut) => shortcut.textContent)).toEqual(['⌘T', '⌘W']);
-		expect(shortcuts.map((shortcut) => shortcut.closest('[role="menuitem"]')?.textContent)).toEqual(
-			['New tab to the right⌘T', 'Close⌘W'],
-		);
-		expect(screen.getByRole('menuitem', { name: 'Duplicate' }).textContent).toBe('Duplicate');
-		expect(screen.getByRole('menuitem', { name: 'Pin' }).textContent).toBe('Pin');
-	});
-
-	it('requests title editing for only the invoked Tab and renders its current shortcut', () => {
-		const model = createModel();
+		model.setSelection(['research-a', 'loose'], 'loose');
 		const onSetTabTitle = vi.fn<(tabId: string) => void>();
-		render(
-			<TabStrip
-				model={model}
-				onSetTabTitle={onSetTabTitle}
-				shortcutLabels={{ setTabTitle: '⇧⌘I' }}
-			/>,
-		);
+		render(<TabStrip model={model} onSetTabTitle={onSetTabTitle} />);
 
 		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Loose/ }), {
 			clientX: 50,
 			clientY: 30,
 		});
-		const menuItem = screen.getByRole('menuitem', { name: /^Set tab title…/ });
-		expect(menuItem.textContent).toBe('Set tab title…⇧⌘I');
-		fireEvent.click(menuItem);
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
 
 		expect(onSetTabTitle).toHaveBeenCalledExactlyOnceWith('loose');
 		expect(screen.queryByRole('menu')).toBeNull();
@@ -1058,7 +1028,8 @@ describe('TabStrip', () => {
 
 	it('runs group membership commands from the tab context menu', () => {
 		const model = createModel();
-		render(<TabStrip model={model} />);
+		const onNameGroup = vi.fn<(request: TabStripGroupNameRequest) => void>();
+		render(<TabStrip model={model} onNameGroup={onNameGroup} />);
 		fireEvent.click(screen.getByRole('tab', { name: /^Loose/ }));
 		const openLooseMenu = () =>
 			fireEvent.contextMenu(screen.getByRole('tab', { name: /^Loose/ }), {
@@ -1067,12 +1038,24 @@ describe('TabStrip', () => {
 			});
 
 		openLooseMenu();
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Add tab to group' }));
-		const newGroup = screen.getByRole('menuitem', { name: 'New group' });
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Add to group' }));
+		const newGroup = screen.getByRole('menuitem', { name: 'New group…' });
 		fireEvent.pointerDown(newGroup);
-		expect(screen.getByRole('menuitem', { name: 'New group' })).toBeTruthy();
+		expect(screen.getByRole('menuitem', { name: 'New group…' })).toBeTruthy();
 		fireEvent.click(newGroup);
-		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'loose')?.group).not.toBeNull();
+		expect(screen.queryByRole('menu')).toBeNull();
+		const request = requireDefined(onNameGroup.mock.calls[0]?.[0]);
+		expect(request).toMatchObject({
+			kind: 'create',
+			target: { kind: 'tabs', tabIds: ['loose'] },
+			title: 'Loose',
+		});
+		act(() => request.commit('Build'));
+		const created = requireDefined(
+			model.getSnapshot().groups.find((group) => group.title === 'Build'),
+		);
+		expect(created.color).toBe('blue');
+		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'loose')?.group).toBe(created.id);
 		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
 			'pinned',
 			'research-a',
@@ -1085,33 +1068,42 @@ describe('TabStrip', () => {
 		openLooseMenu();
 		fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from group' }));
 		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'loose')?.group).toBeNull();
-		expect(document.querySelector('[data-group-underline-id="group-1"]')).toBeNull();
+		expect(document.querySelector(`[data-group-underline-id="${created.id}"]`)).toBeNull();
 		expect(
 			screen
 				.getByRole('tab', { name: /^Loose/ })
 				.querySelector('[style*="--ob-comp-tab-strip-runtime-stroke"]'),
 		).toBeNull();
+
+		openLooseMenu();
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Add to group' }));
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Research' }));
+		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'loose')?.group).toBe('research');
 	});
 
-	it('keeps group-name editing isolated from menu navigation and clears group visuals on ungroup', () => {
+	it('names a group from its menu and clears group visuals on ungroup', () => {
 		const model = createModel();
-		render(<TabStrip model={model} />);
-		const groupHeader = screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ });
-		fireEvent.contextMenu(groupHeader, { clientX: 80, clientY: 20 });
-		const input = screen.getByRole('textbox', { name: 'Group name' });
-		const outerKeyDown = vi.fn<() => void>();
-		document.addEventListener('keydown', outerKeyDown);
-
-		fireEvent.keyDown(input, { key: 'Process', isComposing: true });
-		fireEvent.change(input, { target: { value: 'Working' } });
-		document.removeEventListener('keydown', outerKeyDown);
-
-		expect(outerKeyDown).not.toHaveBeenCalled();
-		expect(model.getGroup('research')?.title).toBe('Research');
-		fireEvent.blur(input);
+		const onNameGroup = vi.fn<(request: TabStripGroupNameRequest) => void>();
+		render(<TabStrip model={model} onNameGroup={onNameGroup} />);
+		fireEvent.contextMenu(screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ }), {
+			clientX: 80,
+			clientY: 20,
+		});
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
+		const request = requireDefined(onNameGroup.mock.calls[0]?.[0]);
+		expect(request).toMatchObject({
+			kind: 'rename',
+			target: { groupId: 'research', kind: 'group' },
+			title: 'Research',
+		});
+		act(() => request.commit('Working'));
 		expect(model.getGroup('research')?.title).toBe('Working');
-		fireEvent.click(screen.getByRole('radio', { name: /^blue$/i }));
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Ungroup' }));
+
+		fireEvent.contextMenu(screen.getByRole('tablist', { name: /^Working, 2 tabs.*expanded$/ }), {
+			clientX: 80,
+			clientY: 20,
+		});
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Ungroup, keep 2 Tabs' }));
 
 		expect(model.getGroup('research')).toBeNull();
 		expect(document.querySelector('[data-group-underline-id="research"]')).toBeNull();
@@ -1131,25 +1123,6 @@ describe('TabStrip', () => {
 		]);
 	});
 
-	it.each([
-		{ key: 'Enter', expected: 'Working' },
-		{ key: 'Escape', expected: 'Research' },
-	])('leaves a typed group name as $expected when $key closes the menu', ({ expected, key }) => {
-		const model = createModel();
-		render(<TabStrip model={model} />);
-		fireEvent.contextMenu(screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ }), {
-			clientX: 80,
-			clientY: 20,
-		});
-		const input = screen.getByRole('textbox', { name: 'Group name' });
-
-		fireEvent.change(input, { target: { value: 'Working' } });
-		fireEvent.keyDown(input, { key });
-
-		expect(screen.queryByRole('textbox', { name: 'Group name' })).toBeNull();
-		expect(model.getGroup('research')?.title).toBe(expected);
-	});
-
 	it('uses the shared context-menu keyboard navigation for the tab group submenu', () => {
 		const model = createModel();
 		render(<TabStrip model={model} />);
@@ -1161,42 +1134,19 @@ describe('TabStrip', () => {
 		const menu = screen.getByRole('menu');
 
 		fireEvent.keyDown(menu, { key: 'ArrowDown' });
-		expect(document.activeElement).toBe(
-			screen.getByRole('menuitem', { name: 'New tab to the right' }),
-		);
+		expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Pin' }));
 		fireEvent.keyDown(menu, { key: 'ArrowDown' });
-		const groupTrigger = screen.getByRole('menuitem', { name: 'Add tab to group' });
+		const groupTrigger = screen.getByRole('menuitem', { name: 'Add to group' });
 		expect(document.activeElement).toBe(groupTrigger);
 
 		fireEvent.keyDown(groupTrigger, { key: 'ArrowRight' });
-		const submenu = screen.getByRole('menu', { name: 'Add tab to group' });
-		expect(within(submenu).getByRole('menuitem', { name: 'New group' })).toBeTruthy();
+		const submenu = screen.getByRole('menu', { name: 'Add to group' });
+		expect(within(submenu).getByRole('menuitem', { name: 'Research' })).toBeTruthy();
 		fireEvent.keyDown(groupTrigger, { key: 'ArrowLeft' });
-		expect(screen.queryByRole('menu', { name: 'Add tab to group' })).toBeNull();
+		expect(screen.queryByRole('menu', { name: 'Add to group' })).toBeNull();
 	});
 
-	it('uses orientation-specific relative labels in the tab context menu', () => {
-		const horizontalModel = createModel();
-		const horizontal = render(<TabStrip model={horizontalModel} />);
-		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Loose/ }), {
-			clientX: 50,
-			clientY: 30,
-		});
-		expect(screen.getByRole('menuitem', { name: 'New tab to the right' })).toBeTruthy();
-		expect(screen.getByRole('menuitem', { name: 'Close tabs to the right' })).toBeTruthy();
-		horizontal.unmount();
-
-		const verticalModel = createModel();
-		render(<TabStrip model={verticalModel} orientation={TabStripOrientation.Vertical} />);
-		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Loose/ }), {
-			clientX: 50,
-			clientY: 30,
-		});
-		expect(screen.getByRole('menuitem', { name: 'New tab below' })).toBeTruthy();
-		expect(screen.getByRole('menuitem', { name: 'Close tabs below' })).toBeTruthy();
-	});
-
-	it('ports selected-tab close commands from TabStripModel', () => {
+	it('closes the selected set or the other unpinned Tabs from a selected Tab', () => {
 		const model = createModel();
 		model.setSelection(['research-a', 'research-b'], 'research-a');
 		render(<TabStrip model={model} />);
@@ -1208,22 +1158,21 @@ describe('TabStrip', () => {
 			});
 
 		openSelectedMenu();
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Close tabs to the right' }));
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Close 1 other Tab…' }));
 		expect(model.getIndexOfTab('loose')).toBeNull();
+		expect(model.getIndexOfTab('pinned')).not.toBeNull();
 		expect(model.getIndexOfTab('research-a')).not.toBeNull();
 		expect(model.getIndexOfTab('research-b')).not.toBeNull();
 
 		openSelectedMenu();
-		expect(
-			screen.getByRole('menuitem', { name: 'Close other tabs' }).getAttribute('aria-disabled'),
-		).toBe('true');
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Close' }));
+		expect(screen.queryByRole('menuitem', { name: /other/ })).toBeNull();
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Close selected 2 Tabs…' }));
 		expect(model.getIndexOfTab('research-a')).toBeNull();
 		expect(model.getIndexOfTab('research-b')).toBeNull();
 		expect(model.getIndexOfTab('pinned')).not.toBeNull();
 	});
 
-	it('uses native command labels, roles, and multi-tab pin direction', () => {
+	it('counts the selected set only when the menu opens on one of its Tabs', () => {
 		const model = createModel();
 		model.setSelection(['research-a', 'research-b'], 'research-a');
 		render(<TabStrip model={model} />);
@@ -1232,15 +1181,28 @@ describe('TabStrip', () => {
 			clientX: 50,
 			clientY: 30,
 		});
-		expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeTruthy();
-		expect(screen.queryByRole('menuitemcheckbox', { name: 'Pin' })).toBeNull();
+		expect(screen.getByRole('menuitem', { name: 'Pin selected 2 Tabs' })).toBeTruthy();
+		expect(screen.queryByRole('menuitemcheckbox', { name: /Pin/ })).toBeNull();
+		expect(
+			screen.getByRole('menuitem', { name: 'Remove selected 2 Tabs from groups' }),
+		).toBeTruthy();
+		expect(screen.getByRole('menuitem', { name: 'Close selected 2 Tabs…' })).toBeTruthy();
 		fireEvent.pointerDown(document.body);
-		model.setSelection(['pinned', 'research-a'], 'research-a');
+
+		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Loose/ }), {
+			clientX: 50,
+			clientY: 30,
+		});
+		expect(screen.getByRole('menuitem', { name: 'Pin' })).toBeTruthy();
+		expect(screen.getByRole('menuitem', { name: 'Close' })).toBeTruthy();
+		fireEvent.pointerDown(document.body);
+
+		act(() => model.setSelection(['pinned', 'research-a'], 'research-a'));
 		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Research A/ }), {
 			clientX: 50,
 			clientY: 30,
 		});
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Pin' }));
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Pin selected 2 Tabs' }));
 		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'pinned')?.pinned).toBe(true);
 		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'research-a')?.pinned).toBe(true);
 	});
@@ -1248,14 +1210,16 @@ describe('TabStrip', () => {
 	it('unpins pinned tabs selected for a new group like MoveTabsAndSetPropertiesImpl', () => {
 		const model = createModel();
 		model.setSelection(['pinned', 'loose'], 'loose');
-		render(<TabStrip model={model} />);
+		const onNameGroup = vi.fn<(request: TabStripGroupNameRequest) => void>();
+		render(<TabStrip model={model} onNameGroup={onNameGroup} />);
 
 		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Loose/ }), {
 			clientX: 50,
 			clientY: 30,
 		});
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Add tabs to group' }));
-		fireEvent.click(screen.getByRole('menuitem', { name: 'New group' }));
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Add selected 2 Tabs to group' }));
+		fireEvent.click(screen.getByRole('menuitem', { name: 'New group…' }));
+		act(() => requireDefined(onNameGroup.mock.calls[0]?.[0]).commit(''));
 		const pinned = model.getSnapshot().tabs.find((tab) => tab.id === 'pinned');
 		const loose = model.getSnapshot().tabs.find((tab) => tab.id === 'loose');
 		expect(pinned?.pinned).toBe(false);
@@ -1309,35 +1273,26 @@ describe('TabStrip', () => {
 		expect(c.style.getPropertyValue('--ob-comp-tab-strip-block-start')).toBe('32px');
 	});
 
-	it('keeps keyboard-only movement out of the native tab menu', () => {
+	it('keeps keyboard-only movement out of the tab menu and window moves to capable hosts', () => {
 		const model = createModel();
-		render(<TabStrip model={model} />);
+		const onMoveTabsToNewWindow = vi.fn<(tabIds: readonly string[]) => void>();
+		const { rerender } = render(<TabStrip model={model} />);
+		const openPinnedMenu = () =>
+			fireEvent.contextMenu(screen.getByRole('tab', { name: /^Pinned/ }), {
+				clientX: 20,
+				clientY: 20,
+			});
 
-		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Pinned/ }), {
-			clientX: 20,
-			clientY: 20,
-		});
+		openPinnedMenu();
 		expect(screen.queryByRole('menuitem', { name: 'Move tab to first' })).toBeNull();
 		expect(screen.queryByRole('menuitem', { name: 'Move tab to last' })).toBeNull();
-		expect(
-			screen
-				.getByRole('menuitem', { name: 'Move tab to new window' })
-				.getAttribute('aria-disabled'),
-		).toBe('true');
+		expect(screen.queryByRole('menuitem', { name: 'Move tab to new window' })).toBeNull();
 		fireEvent.pointerDown(document.body);
 
-		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Loose/ }), {
-			clientX: 20,
-			clientY: 20,
-		});
-		expect(
-			screen
-				.getByRole('menuitem', { name: 'Close tabs to the right' })
-				.getAttribute('aria-disabled'),
-		).toBe('true');
-		expect(
-			screen.getByRole('menuitem', { name: 'Close other tabs' }).hasAttribute('aria-disabled'),
-		).toBe(false);
+		rerender(<TabStrip model={model} onMoveTabsToNewWindow={onMoveTabsToNewWindow} />);
+		openPinnedMenu();
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Move tab to new window' }));
+		expect(onMoveTabsToNewWindow).toHaveBeenCalledExactlyOnceWith(['pinned']);
 	});
 
 	it('uses the Chromium hover-card timer, preview/footer data, and immediate re-show buffer', () => {
@@ -1660,7 +1615,7 @@ describe('TabStrip', () => {
 		expect(strip.hasAttribute('data-tab-closing-mode')).toBe(false);
 	});
 
-	it('suspends the mouse closing-mode watcher while the group editor bubble is open', () => {
+	it('suspends the mouse closing-mode watcher while a strip menu is open', () => {
 		const model = createModel();
 		render(<TabStrip model={model} />);
 		fireEvent(
@@ -1674,11 +1629,11 @@ describe('TabStrip', () => {
 			clientX: 80,
 			clientY: 20,
 		});
-		expect(screen.getByRole('textbox', { name: 'Group name' })).toBeTruthy();
+		expect(screen.getByRole('menu', { name: 'Group options' })).toBeTruthy();
 		fireEvent.pointerMove(window, { clientX: -100, clientY: -100 });
 		expect(strip.getAttribute('data-tab-closing-mode')).toBe('mouse');
 
-		fireEvent.keyDown(screen.getByRole('textbox', { name: 'Group name' }), { key: 'Escape' });
+		fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
 		expect(screen.queryByRole('menu')).toBeNull();
 		fireEvent.pointerMove(window, { clientX: -100, clientY: -100 });
 		expect(strip.hasAttribute('data-tab-closing-mode')).toBe(false);
@@ -1831,17 +1786,16 @@ describe('TabStrip', () => {
 		expect(model.getGroup('research')?.collapsed).toBe(true);
 	});
 
-	it('exposes the vertical group editor button separately from collapse', () => {
+	it('exposes the vertical group menu button separately from collapse', () => {
 		const model = createModel();
 		render(<TabStrip model={model} orientation={TabStripOrientation.Vertical} />);
 		const options = screen.getByRole('button', { name: 'More options', hidden: true });
 		fireEvent.click(options);
-		expect(screen.getByRole('menu')).toBeTruthy();
-		expect(screen.getByRole('textbox', { name: 'Group name' })).toBeTruthy();
+		expect(screen.getByRole('menu', { name: 'Group options' })).toBeTruthy();
 		expect(model.getSnapshot().groups[0]?.collapsed).toBe(false);
 	});
 
-	it('dismisses vertical hover cards and the group editor when tabs scroll', () => {
+	it('dismisses vertical hover cards and the group menu when tabs scroll', () => {
 		vi.useFakeTimers();
 		const model = createModel();
 		render(<TabStrip model={model} orientation={TabStripOrientation.Vertical} />);
@@ -1858,24 +1812,24 @@ describe('TabStrip', () => {
 		expect(document.querySelector('[data-tab-strip-hover-card]')).toBeNull();
 
 		fireEvent.click(screen.getByRole('button', { name: 'More options', hidden: true }));
-		expect(screen.getByRole('textbox', { name: 'Group name' })).toBeTruthy();
+		expect(screen.getByRole('menu', { name: 'Group options' })).toBeTruthy();
 		fireEvent.scroll(scroller);
-		expect(screen.getByRole('textbox', { name: 'Group name' })).toBeTruthy();
+		expect(screen.getByRole('menu', { name: 'Group options' })).toBeTruthy();
 		act(() => vi.advanceTimersByTime(250));
 		fireEvent.scroll(scroller);
-		expect(screen.queryByRole('textbox', { name: 'Group name' })).toBeNull();
+		expect(screen.queryByRole('menu', { name: 'Group options' })).toBeNull();
 	});
 
-	it('closes the group editor when the tab-strip orientation changes', () => {
+	it('closes the group menu when the tab-strip orientation changes', () => {
 		const model = createModel();
 		const { rerender } = render(
 			<TabStrip model={model} orientation={TabStripOrientation.Vertical} />,
 		);
 		fireEvent.click(screen.getByRole('button', { name: 'More options', hidden: true }));
-		expect(screen.getByRole('textbox', { name: 'Group name' })).toBeTruthy();
+		expect(screen.getByRole('menu', { name: 'Group options' })).toBeTruthy();
 
 		rerender(<TabStrip model={model} orientation={TabStripOrientation.Horizontal} />);
-		expect(screen.queryByRole('textbox', { name: 'Group name' })).toBeNull();
+		expect(screen.queryByRole('menu', { name: 'Group options' })).toBeNull();
 	});
 
 	it('renders collapsed group-attention visuals', () => {
@@ -1896,25 +1850,31 @@ describe('TabStrip', () => {
 		expect(header.querySelector('[data-group-attention]')).toBeNull();
 	});
 
-	it('runs group-editor color, new-tab, and move-window commands', () => {
+	it('runs group-menu color, new-tab, and move-window commands', () => {
 		const model = createModel();
 		const onMove = vi.fn<() => void>();
 		render(<TabStrip model={model} onMoveGroupToNewWindow={onMove} />);
-		const openEditor = () =>
+		const openMenu = () =>
 			fireEvent.contextMenu(screen.getByRole('tablist', { name: /^Research, \d+ tabs/ }), {
 				clientX: 20,
 				clientY: 20,
 			});
 
-		openEditor();
-		const blue = screen.getByRole('radio', { name: 'blue' });
-		fireEvent.keyDown(blue, { key: 'ArrowRight' });
+		openMenu();
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Group color' }));
+		const colors = screen.getByRole('menu', { name: 'Group color' });
+		expect(
+			within(colors).getByRole('menuitemradio', { name: 'Blue' }).getAttribute('aria-checked'),
+		).toBe('true');
+		fireEvent.click(within(colors).getByRole('menuitemradio', { name: 'Red' }));
 		expect(model.getGroup('research')?.color).toBe('red');
-		expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'red' }));
-		fireEvent.click(screen.getByRole('menuitem', { name: 'New tab in group' }));
+		expect(screen.queryByRole('menu')).toBeNull();
+
+		openMenu();
+		fireEvent.click(screen.getByRole('menuitem', { name: 'New Tab in group' }));
 		expect(model.getSnapshot().tabs.filter((tab) => tab.group === 'research')).toHaveLength(3);
 
-		openEditor();
+		openMenu();
 		fireEvent.click(screen.getByRole('menuitem', { name: 'Move group to new window' }));
 		expect(onMove).toHaveBeenCalledWith('research');
 	});
@@ -2076,16 +2036,21 @@ describe('TabStrip', () => {
 
 	it('runs the Chromium new-tab button context menu commands', () => {
 		const model = createModel();
-		render(<TabStrip model={model} />);
+		render(<TabStrip model={model} shortcutLabels={{ newTab: '⌘T' }} />);
 		const newTabButton = screen.getByRole('button', { name: 'New tab' });
 
 		fireEvent.contextMenu(newTabButton, { clientX: 1000, clientY: 30 });
 		expect(screen.getByRole('menu', { name: 'New tab menu' })).toBeTruthy();
+		expect(
+			screen
+				.getByRole('menuitem', { name: 'New tab⌘T' })
+				.querySelector('[data-slot="context-menu-shortcut"]')?.textContent,
+		).toBe('⌘T');
 		fireEvent.click(screen.getByRole('menuitem', { name: 'New tab in Research' }));
 		expect(model.getSnapshot().tabs.filter((tab) => tab.group === 'research')).toHaveLength(3);
 
 		fireEvent.contextMenu(newTabButton, { clientX: 400, clientY: 30 });
-		fireEvent.click(screen.getByRole('menuitem', { name: 'New group' }));
+		fireEvent.click(screen.getByRole('menuitem', { name: 'New group with Tab' }));
 		expect(model.getSnapshot().groups).toHaveLength(2);
 		expect(
 			model.getSnapshot().tabs.find((tab) => tab.id === model.getSnapshot().activeTabId)?.group,
@@ -2196,7 +2161,7 @@ describe('TabStrip', () => {
 		fireEvent.mouseLeave(strip);
 		expect(strip.hasAttribute('data-expanded-on-hover')).toBe(true);
 
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Pin' }));
 		expect(strip.hasAttribute('data-expanded-on-hover')).toBe(false);
 	});
 

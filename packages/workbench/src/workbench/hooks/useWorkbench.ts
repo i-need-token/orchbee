@@ -66,6 +66,7 @@ import {
 	type WorkbenchTerminalCreateInput,
 } from '../actions/workbench-action-ids';
 import type { WorkbenchTabTitleEditorRequest } from '../actions/registerWorkbenchTabTitleAction';
+import type { NameDialogBlankRule } from '../components/name-dialog/NameDialog';
 import type {
 	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalContext,
@@ -201,13 +202,13 @@ interface WorkbenchView {
 		| null;
 	readonly tabTitleEditorFinalFocus: () => HTMLElement | null;
 	readonly tabTitleEditorMessages: {
+		readonly blank: NameDialogBlankRule;
 		readonly cancel: string;
 		readonly close: string;
-		readonly description: string;
-		readonly field: string;
-		readonly placeholder: string;
-		readonly restoreDescription: string | null;
-		readonly save: string;
+		readonly nameTooLong: string;
+		/** The automatic name an unnamed shared Tab keeps until one is typed. */
+		readonly placeholder: string | undefined;
+		readonly submit: string;
 		readonly title: string;
 	};
 	readonly cancelTabTitleEditor: () => void;
@@ -834,9 +835,9 @@ export function useWorkbench({
 			newFolderOpening: intl.formatMessage(workbenchMessages.projectNewFolderOpening),
 			newFolderRetained: intl.formatMessage(workbenchMessages.projectNewFolderRetained),
 			newFolderUnknown: intl.formatMessage(workbenchMessages.projectNewFolderUnknown),
-			locationNameRequired: intl.formatMessage(workbenchMessages.locationNameRequired),
-			locationNameTooLong: intl.formatMessage(workbenchMessages.locationNameTooLong),
-			locationRenameSubmit: intl.formatMessage(workbenchMessages.locationRenameSubmit),
+			nameRequired: intl.formatMessage(workbenchMessages.nameRequired),
+			nameTooLong: intl.formatMessage(workbenchMessages.nameTooLong),
+			renameSubmit: intl.formatMessage(workbenchMessages.renameSubmit),
 			projectFolders: intl.formatMessage(workbenchMessages.projectFolders),
 			projectCreate: intl.formatMessage(workbenchMessages.projectCreate),
 			projectCreateDescription: intl.formatMessage(workbenchMessages.projectCreateDescription),
@@ -920,20 +921,20 @@ export function useWorkbench({
 		tabTitleEditor,
 		tabTitleEditorFinalFocus,
 		tabTitleEditorMessages: {
+			// A shared name has no way back to following the terminal, so a blank one is refused.
+			blank:
+				authorityNotice.authority === undefined
+					? {
+							help: intl.formatMessage(workbenchTabMessages.tabTitleRestoreDescription),
+							kind: 'accept',
+						}
+					: { kind: 'refuse', reason: intl.formatMessage(workbenchMessages.nameRequired) },
 			cancel: intl.formatMessage(workbenchMessages.resourceCancel),
 			close: intl.formatMessage(workbenchMessages.resourceClose),
-			description: intl.formatMessage(workbenchTabMessages.tabTitleDescription),
-			field: intl.formatMessage(workbenchTabMessages.tabTitleField),
-			placeholder:
-				tabTitleEditor?.unnamed === true
-					? tabTitleEditor.title
-					: intl.formatMessage(workbenchTabMessages.tabTitlePlaceholder),
-			restoreDescription:
-				authorityNotice.authority === undefined
-					? intl.formatMessage(workbenchTabMessages.tabTitleRestoreDescription)
-					: null,
-			save: intl.formatMessage(workbenchMessages.resourceSave),
-			title: intl.formatMessage(workbenchTabMessages.setTabTitle),
+			nameTooLong: intl.formatMessage(workbenchMessages.nameTooLong),
+			placeholder: tabTitleEditor?.unnamed === true ? tabTitleEditor.title : undefined,
+			submit: intl.formatMessage(workbenchMessages.renameSubmit),
+			title: intl.formatMessage(workbenchTabMessages.renameTab),
 		},
 		cancelTabTitleEditor: () => setTabTitleEditor(null),
 		submitTabTitleEditor: () => {

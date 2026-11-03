@@ -115,11 +115,7 @@
 			]
 		}
 	],
-	"uses": [
-		"workbench.action-menu",
-		"workbench.location-name-dialog",
-		"workbench.project-create-flow"
-	],
+	"uses": ["workbench.action-menu", "workbench.name-dialog", "workbench.project-create-flow"],
 	"useWhen": [
 		"Workbench needs independent Workspace destinations, optional grouping, semantic menus, and ordering together.",
 		"A host needs the reviewed sidebar projection of Workbench Project and Workspace runtime state.",

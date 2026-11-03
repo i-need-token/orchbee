@@ -67,9 +67,9 @@ function tabsOperation(
 			return { groupId: change.groupId, kind: 'set-tabs-group', tabIds: [...change.tabIds] };
 		case 'tabs-grouped':
 			return {
-				color: 'grey',
+				color: change.color,
 				kind: 'create-group-for-tabs',
-				label: '',
+				label: change.title,
 				tabIds: [...change.tabIds],
 			};
 		case 'tabs-pinned-set':

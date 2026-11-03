@@ -27,7 +27,7 @@ import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSideba
 import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
 import { WorkbenchSearchSurface } from './components/workbench-search-surface/WorkbenchSearchSurface';
 import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar';
-import { WorkbenchTabTitleDialog } from './components/workbench-tab-title-dialog/WorkbenchTabTitleDialog';
+import { NameDialog } from './components/name-dialog/NameDialog';
 import { WORKBENCH_ACTION_IDS } from './actions/workbench-action-ids';
 import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from './constants/search-providers';
 import { useWorkbench } from './hooks/useWorkbench';
@@ -190,13 +190,17 @@ export function Workbench({
 		);
 	const tabTitleEditorSurface =
 		view.tabTitleEditor === null ? null : (
-			<WorkbenchTabTitleDialog
+			<NameDialog
+				blank={view.tabTitleEditorMessages.blank}
 				finalFocus={view.tabTitleEditorFinalFocus}
 				messages={view.tabTitleEditorMessages}
-				onCancel={view.cancelTabTitleEditor}
+				name={view.tabTitleEditor.draftTitle}
+				onClose={view.cancelTabTitleEditor}
+				onNameChange={view.updateTabTitleEditor}
 				onSubmit={view.submitTabTitleEditor}
-				onTitleChange={view.updateTabTitleEditor}
-				title={view.tabTitleEditor.draftTitle}
+				placeholder={view.tabTitleEditorMessages.placeholder}
+				submitLabel={view.tabTitleEditorMessages.submit}
+				title={view.tabTitleEditorMessages.title}
 			/>
 		);
 
@@ -327,9 +331,7 @@ export function Workbench({
 								parentActionScope={view.actionScope}
 								reserveSidebarToggleSpace={!view.isSidebarVisible}
 								shortcutLabels={{
-									closeTab: shortcutLabelForAction(WORKBENCH_ACTION_IDS.closeActiveTerminal),
 									newTab: shortcutLabelForAction(WORKBENCH_ACTION_IDS.createTerminal),
-									setTabTitle: shortcutLabelForAction(WORKBENCH_ACTION_IDS.setTabTitle),
 								}}
 								tabModel={view.tabModel}
 								statusAdornments={agentPresentation.tabStatusAdornments}

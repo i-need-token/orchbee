@@ -39,6 +39,10 @@
 	composes: codicon-close from global;
 }
 
+.color {
+	composes: codicon-symbol-color from global;
+}
+
 .copy {
 	composes: codicon-copy from global;
 }
@@ -73,6 +77,10 @@
 
 .newFolder {
 	composes: codicon-new-folder from global;
+}
+
+.newWindow {
+	composes: codicon-empty-window from global;
 }
 
 .panels {
@@ -113,4 +121,8 @@
 
 .trash {
 	composes: codicon-trash from global;
+}
+
+.ungroup {
+	composes: codicon-ungroup-by-ref-type from global;
 }

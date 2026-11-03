@@ -76,7 +76,7 @@ Show Last Command Output and Show Scrollback use physical `Ctrl+Shift+G` and `Ct
 
 Active-Tab movement uses `Ctrl+Shift+,` and `Ctrl+Shift+.`. Cyclic Panel focus uses `Ctrl+Shift+]` and `Ctrl+Shift+[` in canonical depth-first leaf order within the current Tab, wrapping with at least two Panels. Positional focus uses `Ctrl+Shift+1` through `Ctrl+Shift+0`, where `0` means ten; missing positions never clamp. Apple `Command+digit` remains Tab selection.
 
-Visible Panel focus and swap use `Ctrl+Shift+F7` and `Ctrl+Shift+F8`. Two Panels select the other Panel immediately; larger layouts use a source-excluding alphanumeric selector. Workbench owns order, multi-character labels, stale cancellation and Action delegation. Set Tab Title uses Apple `Shift+Cmd+I` and Standard `Ctrl+Shift+Alt+T`, sharing one semantic Action with menus and Action search.
+Visible Panel focus and swap use `Ctrl+Shift+F7` and `Ctrl+Shift+F8`. Two Panels select the other Panel immediately; larger layouts use a source-excluding alphanumeric selector. Workbench owns order, multi-character labels, stale cancellation and Action delegation. Rename Tab uses Apple `Shift+Cmd+I` and Standard `Ctrl+Shift+Alt+T`, sharing one semantic Action with the Tab menu's Rename row and Action search.
 
 Resize Panel uses Apple `Cmd+R` and Standard `Ctrl+Shift+R`. The modal uses `W` wider, `N` narrower, `T` taller, `S` shorter, `R` reset and Escape exit. Steps are five percentage points, doubled by Control, retaining at least five percent per branch; reset gives every split equal child weights.
 

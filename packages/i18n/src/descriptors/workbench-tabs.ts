@@ -7,25 +7,9 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.actions.categories.tabs',
 		defaultMessage: enUSWorkbenchMessages['workbench.actions.categories.tabs'],
 	},
-	addTabToGroup: {
-		id: 'workbench.tabs.actions.addToGroup',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.addToGroup'],
-	},
-	addTabsToGroup: {
-		id: 'workbench.tabs.actions.addManyToGroup',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.addManyToGroup'],
-	},
 	close: {
 		id: 'workbench.tabs.actions.close',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.close'],
-	},
-	closeGroup: {
-		id: 'workbench.tabs.actions.closeGroup',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.closeGroup'],
-	},
-	closeOtherTabs: {
-		id: 'workbench.tabs.actions.closeOthers',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.closeOthers'],
 	},
 	closeTabsBelow: {
 		id: 'workbench.tabs.actions.closeBelow',
@@ -80,25 +64,9 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.actions.moveForward',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveForward'],
 	},
-	setTabTitle: {
-		id: 'workbench.tabs.actions.setTitle',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.setTitle'],
-	},
-	setTabTitleMenu: {
-		id: 'workbench.tabs.actions.setTitleMenu',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.setTitleMenu'],
-	},
-	tabTitleDescription: {
-		id: 'workbench.tabs.titleEditor.description',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.titleEditor.description'],
-	},
-	tabTitleField: {
-		id: 'workbench.tabs.titleEditor.field',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.titleEditor.field'],
-	},
-	tabTitlePlaceholder: {
-		id: 'workbench.tabs.titleEditor.placeholder',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.titleEditor.placeholder'],
+	renameTab: {
+		id: 'workbench.tabs.actions.rename',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.rename'],
 	},
 	tabTitleRestoreDescription: {
 		id: 'workbench.tabs.titleEditor.restoreDescription',
@@ -168,13 +136,17 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.announcements.groupMoved',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.announcements.groupMoved'],
 	},
-	groupName: {
-		id: 'workbench.tabs.groups.name',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.groups.name'],
+	groupNameCreateTitle: {
+		id: 'workbench.tabs.groupName.createTitle',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.groupName.createTitle'],
 	},
-	groupNamePlaceholder: {
-		id: 'workbench.tabs.groups.namePlaceholder',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.groups.namePlaceholder'],
+	groupNameHelp: {
+		id: 'workbench.tabs.groupName.help',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.groupName.help'],
+	},
+	groupNameRenameTitle: {
+		id: 'workbench.tabs.groupName.renameTitle',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.groupName.renameTitle'],
 	},
 	groupOptions: {
 		id: 'workbench.tabs.menus.group',
@@ -203,6 +175,10 @@ export const workbenchTabMessages = defineMessages({
 	newGroup: {
 		id: 'workbench.tabs.actions.newGroup',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.newGroup'],
+	},
+	newGroupWithTab: {
+		id: 'workbench.tabs.actions.newGroupWithTab',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.newGroupWithTab'],
 	},
 	newTab: {
 		id: 'workbench.tabs.actions.new',
@@ -270,10 +246,6 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.states.previewUnavailable',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.states.previewUnavailable'],
 	},
-	removeFromGroup: {
-		id: 'workbench.tabs.actions.removeFromGroup',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.removeFromGroup'],
-	},
 	searchTabs: {
 		id: 'workbench.tabs.actions.search',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.search'],
@@ -293,6 +265,49 @@ export const workbenchTabMessages = defineMessages({
 	tabMoveCanceled: {
 		id: 'workbench.tabs.announcements.tabMoveCanceled',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.announcements.tabMoveCanceled'],
+	},
+	tabMenuAddToGroup: {
+		id: 'workbench.tabs.menu.addToGroup',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menu.addToGroup'],
+		description: 'A count of 1 means the Tab the menu opened on; a larger one is its selected set.',
+	},
+	tabMenuClose: {
+		id: 'workbench.tabs.menu.close',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menu.close'],
+		description: 'A count of 1 means the Tab the menu opened on; a larger one is its selected set.',
+	},
+	tabMenuCloseOthers: {
+		id: 'workbench.tabs.menu.closeOthers',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menu.closeOthers'],
+	},
+	tabMenuNewGroup: {
+		id: 'workbench.tabs.menu.newGroup',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menu.newGroup'],
+		description: 'Asks for the new group’s name before creating it.',
+	},
+	tabMenuPin: {
+		id: 'workbench.tabs.menu.pin',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menu.pin'],
+		description: 'A count of 1 means the Tab the menu opened on; a larger one is its selected set.',
+	},
+	tabMenuRemoveFromGroup: {
+		id: 'workbench.tabs.menu.removeFromGroup',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menu.removeFromGroup'],
+		description: 'A count of 1 means the Tab the menu opened on; a larger one is its selected set.',
+	},
+	tabMenuRename: {
+		id: 'workbench.tabs.menu.rename',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menu.rename'],
+		description: 'Renames the Tab or group the menu opened on, which the menu does not repeat.',
+	},
+	tabMenuUngroup: {
+		id: 'workbench.tabs.menu.ungroup',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menu.ungroup'],
+	},
+	tabMenuUnpin: {
+		id: 'workbench.tabs.menu.unpin',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menu.unpin'],
+		description: 'A count of 1 means the Tab the menu opened on; a larger one is its selected set.',
 	},
 	tabOptions: {
 		id: 'workbench.tabs.menus.tab',
@@ -321,10 +336,6 @@ export const workbenchTabMessages = defineMessages({
 	updateGroup: {
 		id: 'workbench.tabs.actions.updateGroup',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.updateGroup'],
-	},
-	unpin: {
-		id: 'workbench.tabs.actions.unpin',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.unpin'],
 	},
 	unpinSearchTabs: {
 		id: 'workbench.tabs.actions.unpinSearch',

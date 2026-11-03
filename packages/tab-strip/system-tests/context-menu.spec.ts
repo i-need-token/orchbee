@@ -11,8 +11,8 @@ const tabOrder = (page: Page) =>
 
 async function openGroupSubmenu(page: Page, target: Locator): Promise<void> {
 	await target.click({ button: 'right' });
-	await page.getByRole('menuitem', { name: 'Add tab to group' }).hover();
-	await expect(page.getByRole('menuitem', { name: 'New group', exact: true })).toBeVisible();
+	await page.getByRole('menuitem', { name: 'Add to group', exact: true }).hover();
+	await expect(page.getByRole('menuitem', { name: 'New group…', exact: true })).toBeVisible();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -24,7 +24,7 @@ test('group submenu commands commit with primary-pointer clicks', async ({ page 
 	const originalOrder = await tabOrder(page);
 	await tab(page, 'issue').click();
 	await openGroupSubmenu(page, tab(page, 'issue'));
-	await page.getByRole('menuitem', { name: 'New group', exact: true }).click();
+	await page.getByRole('menuitem', { name: 'New group…', exact: true }).click();
 
 	await expect(group(page, 'group-1')).toHaveCount(1);
 	await expect(tab(page, 'issue')).toHaveAccessibleName(/unnamed group/i);
@@ -41,13 +41,20 @@ test('group submenu commands commit with primary-pointer clicks', async ({ page 
 	await expect.poll(() => tabOrder(page)).toEqual(originalOrder);
 
 	await group(page, 'group-1').click({ button: 'right' });
-	const groupName = page.getByRole('textbox', { name: 'Group name' });
-	await expect(groupName).toBeFocused();
-	await groupName.pressSequentially('Working');
-	await expect(groupName).toHaveValue('Working');
-	await expect(group(page, 'group-1')).toHaveAttribute('aria-label', /^Working/);
-	await page.getByRole('radio', { name: /^blue$/i }).click();
-	await page.getByRole('menuitem', { name: 'Ungroup', exact: true }).click();
+	await page.getByRole('menuitem', { name: 'Group color', exact: true }).hover();
+	await page.getByRole('menuitemradio', { name: 'Red', exact: true }).click();
+	await expect(page.getByRole('menu')).toHaveCount(0);
+	await group(page, 'group-1').click({ button: 'right' });
+	await page.getByRole('menuitem', { name: 'Group color', exact: true }).hover();
+	await expect(page.getByRole('menuitemradio', { name: 'Red', exact: true })).toHaveAttribute(
+		'aria-checked',
+		'true',
+	);
+	await page.keyboard.press('Escape');
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('menu')).toHaveCount(0);
+	await group(page, 'group-1').click({ button: 'right' });
+	await page.getByRole('menuitem', { name: 'Ungroup, keep 1 Tab', exact: true }).click();
 
 	await expect(group(page, 'group-1')).toHaveCount(0);
 	await expect(root(page).locator('[data-group-underline-id="group-1"]')).toHaveCount(0);
@@ -58,7 +65,7 @@ test('group submenu commands commit with primary-pointer clicks', async ({ page 
 	await expect.poll(() => tabOrder(page)).toEqual(originalOrder);
 
 	await openGroupSubmenu(page, tab(page, 'issue'));
-	await page.getByRole('menuitem', { name: 'New group', exact: true }).click();
+	await page.getByRole('menuitem', { name: 'New group…', exact: true }).click();
 	await expect(group(page, 'group-1')).toHaveCount(1);
 	await tab(page, 'issue').click({ button: 'right' });
 	await page.getByRole('menuitem', { name: 'Remove from group', exact: true }).click();

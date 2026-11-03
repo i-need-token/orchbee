@@ -1,15 +1,11 @@
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
-import {
-	TabModel,
-	TabStripOrientation,
-	TabStrip,
-	ThumbnailCaptureReadiness,
-	type TabData,
-	type TabGroupData,
-	type HoverCardThumbnailSource,
-	type HoverCardThumbnailSubscription,
-	type TabAlertState,
-} from '../../src';
+import { TabModel, TabStripOrientation, TabStrip, type TabData } from '../../src';
+import { ThumbnailCaptureReadiness } from '../../src/tab-strip/components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
+import type {
+	HoverCardThumbnailSource,
+	HoverCardThumbnailSubscription,
+} from '../../src/tab-strip/components/tab-strip-view/components/hover-card/model/TabHoverCardThumbnailObserver';
+import type { TabAlertState, TabGroupData } from '../../src/tab-strip/model/tab-model';
 
 const initialGroups: TabGroupData[] = [
 	{
@@ -222,6 +218,8 @@ export function SystemTestFixture(): ReactNode {
 						setTabSearchOpen((value) => !value);
 					}}
 					onVerticalExpandOnHoverChange={setExpandOnHover}
+					// A product host asks for the name; the fixture leaves every group it names unnamed.
+					onNameGroup={(request) => request.commit('')}
 					getHoverCardThumbnailSource={(tab) => thumbnailSources.get(tab.id) ?? null}
 				/>
 				<section className='fixture-page'>

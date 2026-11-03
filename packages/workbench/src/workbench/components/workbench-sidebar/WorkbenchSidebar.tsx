@@ -24,7 +24,7 @@ import type {
 import { CreateProjectDialog } from './components/create-project-dialog/CreateProjectDialog';
 import { CreateProjectFolderDialog } from './components/create-project-folder-dialog/CreateProjectFolderDialog';
 import { useNewProjectFolder } from './hooks/useNewProjectFolder';
-import { LocationNameDialog } from './components/location-name-dialog/LocationNameDialog';
+import { NameDialog } from '../name-dialog/NameDialog';
 import { ProjectCreateMenu } from './components/project-create-menu/ProjectCreateMenu';
 import { ProjectNavigationItem } from './components/project-navigation-item/ProjectNavigationItem';
 import { useWorkbenchSidebar } from './hooks/useWorkbenchSidebar';
@@ -153,9 +153,12 @@ export function WorkbenchSidebar({
 	const locationNameMessages = {
 		cancel: projectNavigationMessages.cancel,
 		close: projectNavigationMessages.close,
-		nameRequired: projectNavigationMessages.locationNameRequired,
-		nameTooLong: projectNavigationMessages.locationNameTooLong,
+		nameTooLong: projectNavigationMessages.nameTooLong,
 	};
+	const locationNameBlank = {
+		kind: 'refuse',
+		reason: projectNavigationMessages.nameRequired,
+	} as const;
 	const newFolder = useNewProjectFolder({
 		activateCreatedProject,
 		capability: projectFolderAcquisition?.newFolder,
@@ -381,7 +384,8 @@ export function WorkbenchSidebar({
 				/>
 			) : null}
 			{projectRename === null ? null : (
-				<LocationNameDialog
+				<NameDialog
+					blank={locationNameBlank}
 					messages={locationNameMessages}
 					name={projectRename.name}
 					onClose={projectRename.close}
@@ -390,12 +394,13 @@ export function WorkbenchSidebar({
 						renameProject(projectRename.project.id, name);
 						projectRename.close();
 					}}
-					submitLabel={projectNavigationMessages.locationRenameSubmit}
+					submitLabel={projectNavigationMessages.renameSubmit}
 					title={projectNavigationMessages.projectRenameTitle}
 				/>
 			)}
 			{workspaceProjectCreation === null ? null : (
-				<LocationNameDialog
+				<NameDialog
+					blank={locationNameBlank}
 					messages={locationNameMessages}
 					name={workspaceProjectCreation.name}
 					onClose={workspaceProjectCreation.close}
@@ -409,7 +414,8 @@ export function WorkbenchSidebar({
 				/>
 			)}
 			{workspaceRename === null ? null : (
-				<LocationNameDialog
+				<NameDialog
+					blank={locationNameBlank}
 					messages={locationNameMessages}
 					name={workspaceRename.name}
 					onClose={workspaceRename.close}
@@ -423,7 +429,7 @@ export function WorkbenchSidebar({
 						);
 						workspaceRename.close();
 					}}
-					submitLabel={projectNavigationMessages.locationRenameSubmit}
+					submitLabel={projectNavigationMessages.renameSubmit}
 					title={projectNavigationMessages.workspaceRenameTitle}
 				/>
 			)}

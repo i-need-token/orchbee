@@ -24,6 +24,7 @@ import {
 	tabCloseInput,
 	tabCreateInput,
 	tabGroupCollapsedInput,
+	tabGroupCreateInput,
 	tabGroupIdInput,
 	tabGroupMoveInput,
 	tabGroupShiftInput,
@@ -53,7 +54,11 @@ import type {
 	TabStripTabCreationIntent,
 } from '../types/tab-strip-options';
 import type { TabStripActions } from '../types/tab-strip-actions';
-import { createGroupForTabs, createNewTabGroup } from '../utils/tab-strip-internals';
+import {
+	createGroupForTabs,
+	createNewTabGroup,
+	NEW_TAB_GROUP_COLOR,
+} from '../utils/tab-strip-internals';
 
 function hasTargetGroup(model: TabModel, groupId: string | null): boolean {
 	return groupId === null || model.getGroup(groupId) !== null;
@@ -386,12 +391,19 @@ export function useTabStripActions({
 					getAvailability: (_context, input) => tabAvailability(input.tabIds),
 					handler: {
 						execute: (context, input) =>
-							apply(context, { kind: 'tabs-grouped', tabIds: existingTabIds(input.tabIds) }, () =>
-								createGroupForTabs(model, input.tabIds),
+							apply(
+								context,
+								{
+									color: NEW_TAB_GROUP_COLOR,
+									kind: 'tabs-grouped',
+									tabIds: existingTabIds(input.tabIds),
+									title: input.title,
+								},
+								() => createGroupForTabs(model, input.tabIds, input.title),
 							),
 					},
 					id: TAB_STRIP_ACTION_IDS.createGroup,
-					input: tabIdsInput,
+					input: tabGroupCreateInput,
 					title: workbenchTabMessages.newGroup,
 				}),
 			),
@@ -414,7 +426,7 @@ export function useTabStripActions({
 					},
 					id: TAB_STRIP_ACTION_IDS.createGroupWithTab,
 					input: noActionInput,
-					title: workbenchTabMessages.newGroup,
+					title: workbenchTabMessages.newGroupWithTab,
 				}),
 			),
 			typedRuntime.register(

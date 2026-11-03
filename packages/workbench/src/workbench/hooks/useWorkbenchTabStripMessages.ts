@@ -60,23 +60,19 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 		};
 
 		return {
-			addTabToGroup: format(workbenchTabMessages.addTabToGroup),
-			addTabsToGroup: format(workbenchTabMessages.addTabsToGroup),
 			close: format(workbenchTabMessages.close),
-			closeGroup: format(workbenchTabMessages.closeGroup),
-			closeOtherTabs: format(workbenchTabMessages.closeOtherTabs),
 			closeTab: format(workbenchTabMessages.close),
-			closeTabsBelow: format(workbenchTabMessages.closeTabsBelow),
-			closeTabsToRight: format(workbenchTabMessages.closeTabsToRight),
 			closeVerticalTabs: format(workbenchTabMessages.closeVerticalTabs),
 			collapseTabStrip: format(workbenchTabMessages.collapseTabStrip),
-			duplicate: format(workbenchTabMessages.duplicate),
 			expandTabStrip: format(workbenchTabMessages.expandTabStrip),
 			expandTabStripOnHover: format(workbenchTabMessages.expandTabStripOnHover),
+			formatAddTabsToGroup: (count) => format(workbenchTabMessages.tabMenuAddToGroup, { count }),
 			formatClosedTabAnnouncement: (title) =>
 				format(workbenchTabMessages.closedAnnouncement, { title }),
 			formatClosedTabsAnnouncement: (count) =>
 				format(workbenchTabMessages.closedTabsAnnouncement, { count }),
+			formatCloseOtherTabs: (count) => format(workbenchTabMessages.tabMenuCloseOthers, { count }),
+			formatCloseTabs: (count) => format(workbenchTabMessages.tabMenuClose, { count }),
 			formatDragCompleteAnnouncement: (label, position, count) =>
 				format(workbenchTabMessages.dragCompleteAnnouncement, { label, position, count }),
 			formatGroupAccessibleName: (group, tabs) => {
@@ -116,6 +112,9 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 				groupTitle
 					? format(workbenchTabMessages.newTabInNamedGroup, { groupTitle })
 					: format(workbenchTabMessages.newTabInUnnamedGroup, { tabCount }),
+			formatPinTabs: (count) => format(workbenchTabMessages.tabMenuPin, { count }),
+			formatRemoveTabsFromGroup: (count) =>
+				format(workbenchTabMessages.tabMenuRemoveFromGroup, { count }),
 			formatTabAccessibleLabel: (tab, group) => {
 				let groupKind = 'none';
 				if (tab.group !== null) groupKind = group?.title ? 'named' : 'unnamed';
@@ -135,6 +134,8 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 					groupTitle: group.title,
 				}),
 			formatTabMoveAnnouncement: formatMove,
+			formatUngroup: (tabCount) => format(workbenchTabMessages.tabMenuUngroup, { count: tabCount }),
+			formatUnpinTabs: (count) => format(workbenchTabMessages.tabMenuUnpin, { count }),
 			groupColor: format(workbenchTabMessages.groupColor),
 			groupColorNames: {
 				blue: format(workbenchTabMessages.groupColorBlue),
@@ -148,39 +149,32 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 				yellow: format(workbenchTabMessages.groupColorYellow),
 			},
 			groupMoveCanceled: format(workbenchTabMessages.groupMoveCanceled),
-			groupName: format(workbenchTabMessages.groupName),
-			groupNamePlaceholder: format(workbenchTabMessages.groupNamePlaceholder),
 			groupOptions: format(workbenchTabMessages.groupOptions),
 			moveGroupToNewWindow: format(workbenchTabMessages.moveGroupToNewWindow),
 			moveTabToNewWindow: format(workbenchTabMessages.moveTabToNewWindow),
 			moveTabsToNewWindow: format(workbenchTabMessages.moveTabsToNewWindow),
 			moreOptions: format(workbenchTabMessages.moreOptions),
-			newGroup: format(workbenchTabMessages.newGroup),
+			newGroup: format(workbenchTabMessages.tabMenuNewGroup),
+			newGroupWithTab: format(workbenchTabMessages.newGroupWithTab),
 			newTab: format(workbenchTabMessages.newTab),
-			newTabBelow: format(workbenchTabMessages.newTabBelow),
 			newTabInGroup: format(workbenchTabMessages.newTabInGroup),
 			newTabInNoGroups: format(workbenchTabMessages.newTabInNoGroups),
 			newTabMenu: format(workbenchTabMessages.newTabMenu),
 			newTabTitle,
 			loadingTabTitle: format(workbenchTabMessages.loadingTabTitle),
-			newTabToRight: format(workbenchTabMessages.newTabToRight),
 			openVerticalTabs: format(workbenchTabMessages.openVerticalTabs),
-			pin: format(workbenchTabMessages.pin),
 			pinSearchTabs: format(workbenchTabMessages.pinSearchTabs),
 			previewUnavailable: format(workbenchTabMessages.previewUnavailable),
-			removeFromGroup: format(workbenchTabMessages.removeFromGroup),
+			rename: format(workbenchTabMessages.tabMenuRename),
 			searchTabs: format(workbenchTabMessages.searchTabs),
 			searchTabsMenu: format(workbenchTabMessages.searchTabsMenu),
-			setTabTitle: format(workbenchTabMessages.setTabTitleMenu),
 			tabCrashed: format(workbenchTabMessages.tabCrashed),
 			tabGroups: format(workbenchTabMessages.tabGroups),
 			tabMoveCanceled: format(workbenchTabMessages.tabMoveCanceled),
 			tabOptions: format(workbenchTabMessages.tabOptions),
 			tabStripLabel: format(workbenchTabMessages.tabStripLabel),
 			tabStripMenu: format(workbenchTabMessages.tabStripMenu),
-			ungroup: format(workbenchTabMessages.ungroup),
 			unnamedGroup,
-			unpin: format(workbenchTabMessages.unpin),
 			unpinSearchTabs: format(workbenchTabMessages.unpinSearchTabs),
 			verticalTabStripMenu: format(workbenchTabMessages.verticalTabStripMenu),
 		};

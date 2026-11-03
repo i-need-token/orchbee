@@ -54,20 +54,21 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.projects.rename.title',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.rename.title'],
 	},
-	locationNameRequired: {
+	nameRequired: {
 		description: 'Field error when a Project or Workspace name has no visible character.',
-		id: 'workbench.locations.name.required',
-		defaultMessage: enUSWorkbenchMessages['workbench.locations.name.required'],
+		id: 'workbench.names.required',
+		defaultMessage: enUSWorkbenchMessages['workbench.names.required'],
 	},
-	locationNameTooLong: {
-		description: 'Field error when a Project or Workspace name is longer than the label limit.',
-		id: 'workbench.locations.name.tooLong',
-		defaultMessage: enUSWorkbenchMessages['workbench.locations.name.tooLong'],
+	nameTooLong: {
+		description:
+			'Field error when a Project, Workspace or Tab group name is longer than the label limit.',
+		id: 'workbench.names.tooLong',
+		defaultMessage: enUSWorkbenchMessages['workbench.names.tooLong'],
 	},
-	locationRenameSubmit: {
-		description: 'Submit button of the Project and Workspace rename dialogs.',
-		id: 'workbench.locations.rename.submit',
-		defaultMessage: enUSWorkbenchMessages['workbench.locations.rename.submit'],
+	renameSubmit: {
+		description: 'Submit button of the Project, Workspace, Tab and Tab group rename dialogs.',
+		id: 'workbench.names.renameSubmit',
+		defaultMessage: enUSWorkbenchMessages['workbench.names.renameSubmit'],
 	},
 	projectCloseAll: {
 		description: 'Explicitly close every Workspace currently in this Project.',
@@ -954,12 +955,7 @@ export const workbenchMessages = defineMessages({
 	resourceCreate: {
 		id: 'workbench.resource.actions.create',
 		defaultMessage: enUSWorkbenchMessages['workbench.resource.actions.create'],
-		description: 'Action that creates a new Project.',
-	},
-	resourceSave: {
-		id: 'workbench.resource.actions.save',
-		defaultMessage: enUSWorkbenchMessages['workbench.resource.actions.save'],
-		description: 'Action that saves a Project or Workspace edit.',
+		description: 'Action that creates a new Project or Tab group.',
 	},
 	search: {
 		id: 'workbench.sidebar.items.search',

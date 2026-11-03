@@ -29,7 +29,7 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.movePanelUp': '向上移动活动面板',
 	'keyboard.shortcuts.actions.moveTabBackward': '向后移动活动标签页',
 	'keyboard.shortcuts.actions.moveTabForward': '向前移动活动标签页',
-	'keyboard.shortcuts.actions.setTabTitle': '设置标签页标题',
+	'keyboard.shortcuts.actions.setTabTitle': '重命名标签页',
 	'keyboard.shortcuts.actions.newTerminal': '新建终端',
 	'keyboard.shortcuts.actions.newTerminalCurrentDirectory': '在当前目录新建终端',
 	'keyboard.shortcuts.actions.nextTab': '选择下一个标签页',

@@ -56,7 +56,10 @@ interface TabGroupIdInput {
 	readonly groupId: string;
 }
 
-type TabGroupCreateInput = TabIdsInput;
+interface TabGroupCreateInput extends TabIdsInput {
+	/** Blank leaves the group unnamed. */
+	readonly title: string;
+}
 
 interface TabGroupCollapsedInput extends TabGroupIdInput {
 	readonly collapsed: boolean;
@@ -197,6 +200,16 @@ export const tabIdsInput: ActionInputValidation<TabIdsInput> = {
 		return tabIds === null
 			? { success: false, code: 'expected-tab-ids' }
 			: { success: true, data: { tabIds } };
+	},
+};
+
+export const tabGroupCreateInput: ActionInputValidation<TabGroupCreateInput> = {
+	name: 'TabGroupCreateInput',
+	parse: (input) => {
+		const tabIds = parseTabIds(input);
+		return tabIds !== null && isRecord(input) && typeof input['title'] === 'string'
+			? { success: true, data: { tabIds, title: input['title'] } }
+			: { success: false, code: 'expected-tab-group-create-input' };
 	},
 };
 

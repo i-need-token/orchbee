@@ -195,7 +195,7 @@ Run from the repository root:
 ```sh
 pnpm experience:list
 pnpm experience:find --intent manage-resource
-pnpm experience:show workbench.location-name-dialog
+pnpm experience:show workbench.name-dialog
 pnpm lint:experience
 pnpm test:experience-contract
 pnpm storybook:build

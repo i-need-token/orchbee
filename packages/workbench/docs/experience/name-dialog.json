@@ -1,0 +1,60 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "workbench.name-dialog",
+	"kind": "experience",
+	"status": "canonical",
+	"name": "Name Dialog",
+	"description": "Asks for one name to rename a Project, Workspace, Tab, or Tab group, or to create a named Project or Tab group, under a title that also labels the field and a caller-declared rule for a blank name.",
+	"owner": "@orchbee/workbench",
+	"visibility": "private",
+	"intents": [
+		"create-project-and-move-workspace",
+		"create-tab-group",
+		"rename-project",
+		"rename-tab",
+		"rename-tab-group",
+		"rename-workspace",
+		"restore-tab-title"
+	],
+	"implementation": ["packages/workbench/src/workbench/components/name-dialog/NameDialog.tsx"],
+	"stories": [
+		{
+			"exportName": "ProjectWorkspaceNavigation",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--project-workspace-navigation",
+			"states": [
+				"Choose Rename from a Project or Workspace menu, inspect the prefilled and selected current name under a title that also labels the field, then submit or cancel.",
+				"Clear the name and submit to see the localized reason with the field focused, then type a name and see the reason go.",
+				"Choose New Project… from a Workspace's Move to Project submenu and commit the new Project and that Workspace's membership together."
+			]
+		},
+		{
+			"exportName": "TabTitleEditing",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--tab-title-editing",
+			"states": [
+				"Use the active Tab shortcut to inspect the prefilled and selected current name with the help that says a blank name restores the terminal's title.",
+				"Submit a name, then reopen from the Tab's Rename row, clear, and submit to restore the terminal title.",
+				"Choose Add to group, then New group… from a Tab's menu to see the Tab's name suggested for the group with the help that blank leaves it unnamed; rename the group from its own menu."
+			]
+		}
+	],
+	"uses": ["workbench.resource-dialog-form"],
+	"useWhen": [
+		"A person renames a Project, a Workspace, a terminal Tab, or a Tab group.",
+		"A person creates a Project while moving an existing Workspace into it, or creates a Tab group from Tabs."
+	],
+	"avoidWhen": [
+		"The person is creating an independent Workspace; use the one-click New Workspace action.",
+		"The value is not one display name, such as a directory, a command, or more than one field."
+	],
+	"invariants": [
+		"The title names the only field, which takes no second label; the current or suggested name opens prefilled and selected.",
+		"The dialog submits the exact text typed. A name longer than 512 characters is always refused, and the caller declares whether a blank name is refused with a reason or accepted with help that says what blank does.",
+		"A refused name shows its localized reason on submit or blur, and the reason then follows the field until the name is fixed.",
+		"Cancel, Escape, the close button and backdrop dismissal commit nothing, and a Dialog whose target leaves closes with it.",
+		"Submitting commits to the target captured when the Dialog opened and never redirects the name to a newly active Tab, group, Project, or Workspace.",
+		"A name never changes a directory, launch resources, terminal identity, or Git identity."
+	],
+	"references": ["packages/workbench/README.md", "packages/workbench/docs/project-workspace.md"]
+}

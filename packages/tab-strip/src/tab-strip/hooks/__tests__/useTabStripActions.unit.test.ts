@@ -762,7 +762,7 @@ describe('useTabStripActions', () => {
 							closeSource: 'non-ui',
 							tabIds: ['tab-1'],
 						},
-						[TAB_STRIP_ACTION_IDS.createGroup]: { tabIds: ['tab-1'] },
+						[TAB_STRIP_ACTION_IDS.createGroup]: { tabIds: ['tab-1'], title: '' },
 						[TAB_STRIP_ACTION_IDS.createTab]: {
 							groupId: null,
 							title: 'New Tab',

@@ -73,17 +73,21 @@ export function getMaxContrastForeground(background: string): '#202124' | '#fff'
 	return luminance < 0.211692036 ? '#fff' : '#202124';
 }
 
+/** The TUI's palette order. */
 export const GROUP_COLOR_NAMES: readonly TabGroupColor[] = [
-	'grey',
 	'blue',
-	'red',
-	'yellow',
+	'cyan',
 	'green',
+	'grey',
+	'orange',
 	'pink',
 	'purple',
-	'cyan',
-	'orange',
+	'red',
+	'yellow',
 ];
+
+/** The color the TUI gives a group that New group… creates. */
+export const NEW_TAB_GROUP_COLOR: TabGroupColor = 'blue';
 
 export type VisualItem =
 	| { type: 'tab'; id: string; tab: Readonly<TabData> }
@@ -712,12 +716,16 @@ export function createNewTabGroup(model: TabModel, newTabTitle = 'New Tab'): voi
 	model.createGroup({ id: groupId, title: '', color: 'grey', collapsed: false }, [tabId]);
 }
 
-export function createGroupForTabs(model: TabModel, tabIds: readonly string[]): string | null {
+export function createGroupForTabs(
+	model: TabModel,
+	tabIds: readonly string[],
+	title: string,
+): string | null {
 	const snapshot = model.getSnapshot();
 	const eligible = snapshot.tabs.filter((tab) => tabIds.includes(tab.id)).map((tab) => tab.id);
 	if (eligible.length === 0) return null;
 	const groupId = nextAvailableEntityId('group', new Set(snapshot.groups.map((group) => group.id)));
-	model.createGroup({ id: groupId, title: '', color: 'grey', collapsed: false }, eligible);
+	model.createGroup({ id: groupId, title, color: NEW_TAB_GROUP_COLOR, collapsed: false }, eligible);
 	return groupId;
 }
 

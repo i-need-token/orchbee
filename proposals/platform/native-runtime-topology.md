@@ -1615,6 +1615,15 @@ choices stand unless review changes them:
   do, so the GUI's Actions no longer trim a name. Set Directory… is absent because the Server offers
   Clients no command for it, and Dissolve still sends `project.dissolve` where the TUI asks
   `project.dissolve-if-idle` first and may explain what stays.
+- **Tab and group menus take the TUI's compositions.** A Tab holds Rename and Pin, Add to group ▸
+  and Remove from group, then red Close rows; a group holds New Tab in group, Rename, Group color ▸,
+  Ungroup, and a red Close. Rows count the selected set only when the menu opened on one of several
+  selected Tabs, and object menus show no shortcut hints. New group… and a group's Rename ask in the
+  TUI's group name dialog, where blank leaves the group unnamed, and New group… sends the name and
+  the TUI's blue with the Tabs. Rows the TUI's global menu offers for the current Tab, such as New
+  Tab beside it, Duplicate, and Close Tabs after it, move to Search's Actions. Under a Server
+  authority Rename refuses a blank Tab name, which locally restores the terminal's title. Resume is
+  absent, and Move to new window appears only for a host that offers it, which no product host does.
 
 ### Evidence
 

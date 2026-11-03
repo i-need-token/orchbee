@@ -276,12 +276,12 @@ describe('createServerWorkbenchAuthority', () => {
 			{ kind: 'tab.rename', label: 'Named', tabId: TAB, terminalContextId: TABS_CONTEXT },
 		],
 		[
-			'makes a group of Tabs',
-			tabsChanged({ kind: 'tabs-grouped', tabIds: [TAB] }),
+			'makes a named group of Tabs in its color',
+			tabsChanged({ color: 'blue', kind: 'tabs-grouped', tabIds: [TAB], title: 'Build' }),
 			tabsConfigured({
-				color: 'grey',
+				color: 'blue',
 				kind: 'create-group-for-tabs',
-				label: '',
+				label: 'Build',
 				tabIds: [TAB],
 			}),
 		],

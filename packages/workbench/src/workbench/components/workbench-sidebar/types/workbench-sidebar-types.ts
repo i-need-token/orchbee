@@ -69,9 +69,9 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly newFolderOpening: string;
 	readonly newFolderRetained: string;
 	readonly newFolderUnknown: string;
-	readonly locationNameRequired: string;
-	readonly locationNameTooLong: string;
-	readonly locationRenameSubmit: string;
+	readonly nameRequired: string;
+	readonly nameTooLong: string;
+	readonly renameSubmit: string;
 	readonly projectFolders: string;
 	readonly projectMenuDissolve: string;
 	readonly projectMenuRename: string;

@@ -3,22 +3,22 @@ import type { TabData, TabGroupColor, TabGroupData } from '../model/tab-model';
 
 export type TabStripMoveDirection = 'down' | 'left' | 'right' | 'up';
 
+/**
+ * Object-menu rows that take a count name the selected set when it is larger than one, and otherwise
+ * act on the Tab the menu opened on, which they do not repeat.
+ */
 export interface TabStripMessages {
-	readonly addTabToGroup: string;
-	readonly addTabsToGroup: string;
 	readonly close: string;
-	readonly closeGroup: string;
-	readonly closeOtherTabs: string;
 	readonly closeTab: string;
-	readonly closeTabsBelow: string;
-	readonly closeTabsToRight: string;
 	readonly closeVerticalTabs: string;
 	readonly collapseTabStrip: string;
-	readonly duplicate: string;
 	readonly expandTabStrip: string;
 	readonly expandTabStripOnHover: string;
+	readonly formatAddTabsToGroup: (count: number) => string;
 	readonly formatClosedTabAnnouncement: (title: string) => string;
 	readonly formatClosedTabsAnnouncement: (count: number) => string;
+	readonly formatCloseOtherTabs: (count: number) => string;
+	readonly formatCloseTabs: (count: number) => string;
 	readonly formatDragCompleteAnnouncement: (
 		label: string,
 		position: number,
@@ -34,6 +34,8 @@ export interface TabStripMessages {
 		tabs: readonly Pick<TabData, 'title'>[],
 	) => string;
 	readonly formatNewTabInGroup: (groupTitle: string, tabCount: number) => string;
+	readonly formatPinTabs: (count: number) => string;
+	readonly formatRemoveTabsFromGroup: (count: number) => string;
 	readonly formatTabAccessibleLabel: (
 		tab: Readonly<TabData>,
 		group: Readonly<TabGroupData> | null,
@@ -47,43 +49,40 @@ export interface TabStripMessages {
 		direction: TabMoveDirection,
 		orientation: 'horizontal' | 'vertical',
 	) => string;
+	/** Ungrouping keeps every Tab the group holds. */
+	readonly formatUngroup: (tabCount: number) => string;
+	readonly formatUnpinTabs: (count: number) => string;
 	readonly groupColor: string;
 	readonly groupColorNames: Readonly<Record<TabGroupColor, string>>;
 	readonly groupMoveCanceled: string;
-	readonly groupName: string;
-	readonly groupNamePlaceholder: string;
 	readonly groupOptions: string;
 	readonly moveGroupToNewWindow: string;
 	readonly moveTabToNewWindow: string;
 	readonly moveTabsToNewWindow: string;
+	/** Asks for a name before creating the group. */
 	readonly newGroup: string;
+	readonly newGroupWithTab: string;
 	readonly moreOptions: string;
 	readonly newTab: string;
-	readonly newTabBelow: string;
 	readonly newTabInGroup: string;
 	readonly newTabInNoGroups: string;
 	readonly newTabMenu: string;
 	/** Optional for older message providers; product hosts supply a localized loading title. */
 	readonly loadingTabTitle?: string;
 	readonly newTabTitle: string;
-	readonly newTabToRight: string;
 	readonly openVerticalTabs: string;
-	readonly pin: string;
 	readonly pinSearchTabs: string;
 	readonly previewUnavailable: string;
-	readonly removeFromGroup: string;
+	readonly rename: string;
 	readonly searchTabs: string;
 	readonly searchTabsMenu: string;
-	readonly setTabTitle: string;
 	readonly tabCrashed: string;
 	readonly tabGroups: string;
 	readonly tabMoveCanceled: string;
 	readonly tabOptions: string;
 	readonly tabStripLabel: string;
 	readonly tabStripMenu: string;
-	readonly ungroup: string;
 	readonly unnamedGroup: string;
-	readonly unpin: string;
 	readonly unpinSearchTabs: string;
 	readonly verticalTabStripMenu: string;
 }

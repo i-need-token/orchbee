@@ -105,7 +105,13 @@ export type TabStripArrangementChange =
 			readonly kind: 'tabs-group-set';
 			readonly tabIds: readonly string[];
 	  }
-	| { readonly kind: 'tabs-grouped'; readonly tabIds: readonly string[] }
+	| {
+			readonly color: TabGroupColor;
+			readonly kind: 'tabs-grouped';
+			readonly tabIds: readonly string[];
+			/** Blank leaves the group unnamed. */
+			readonly title: string;
+	  }
 	| {
 			readonly kind: 'tabs-pinned-set';
 			readonly pinned: boolean;
@@ -122,10 +128,27 @@ export type TabStripChangeCallback = (
 	change: TabStripChange,
 ) => ActionResult<void> | Promise<ActionResult<void>>;
 
+/**
+ * Object menus show only bindings that act on the menu's own target, and Close and Rename shortcuts
+ * act on the active Tab instead.
+ */
 export interface TabStripShortcutLabels {
-	readonly closeTab?: string | undefined;
 	readonly newTab?: string | undefined;
-	readonly setTabTitle?: string | undefined;
+}
+
+/**
+ * New group… and a group's Rename ask the composing application for a name, prefilled with `title`.
+ * `commit` runs the Tab Strip Action with the name as typed, blank included; a cancelled request
+ * never calls it.
+ */
+export interface TabStripGroupNameRequest {
+	readonly commit: (title: string) => void;
+	readonly kind: 'create' | 'rename';
+	/** The group being renamed, or the Tabs a new group would hold, so a request whose target leaves can end. */
+	readonly target:
+		| { readonly groupId: string; readonly kind: 'group' }
+		| { readonly kind: 'tabs'; readonly tabIds: readonly string[] };
+	readonly title: string;
 }
 
 export type TabStatusAdornmentKind =
@@ -209,6 +232,8 @@ export interface TabStripOptions {
 	 */
 	onTabsChange?: TabStripChangeCallback | undefined;
 	onSetTabTitle?: ((tabId: string) => void) | undefined;
+	/** Absent, New group… and a group's Rename are not offered. */
+	onNameGroup?: ((request: TabStripGroupNameRequest) => void) | undefined;
 	onNewTabButtonPressed?: () => void;
 	/** Current platform-formatted bindings supplied by the composing application. */
 	shortcutLabels?: TabStripShortcutLabels | undefined;

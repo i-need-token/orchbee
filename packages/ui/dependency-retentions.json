@@ -20,11 +20,11 @@
 				},
 				{
 					"file": "packages/ui/src/components/index.ts",
-					"sha256": "9f1abc9301ec97697a491323dcd7c6f48d1690d2ed0c88d53959d2d11ba07968"
+					"sha256": "c4e54a1d5212d89f89133de122517b96d80d353b3970e7574cedc237d6d848f7"
 				},
 				{
 					"file": "packages/ui/src/components/ui/index.ts",
-					"sha256": "001df596d3c5b90e4740bbdbf274d9b7d52aa4354f9beefd797c7b1e4e4a6118"
+					"sha256": "6ecb10b4c5c684c0daecce17a07dfde283507ae1d854fe86a9230ba54b64f3d2"
 				},
 				{
 					"file": "packages/ui/src/components/ui/tabs.tsx",

@@ -114,7 +114,7 @@ export function registerWorkbenchTabTitleAction({
 			},
 			id: WORKBENCH_ACTION_IDS.setTabTitle,
 			input: workbenchTabTitleInput,
-			title: workbenchTabMessages.setTabTitle,
+			title: workbenchTabMessages.renameTab,
 		}),
 	);
 }

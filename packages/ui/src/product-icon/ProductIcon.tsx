@@ -14,6 +14,7 @@ export type ProductIconName =
 	| 'chevron-right'
 	| 'check'
 	| 'close'
+	| 'color'
 	| 'copy'
 	| 'edit'
 	| 'ellipsis'
@@ -23,6 +24,7 @@ export type ProductIconName =
 	| 'layout'
 	| 'more-vertical'
 	| 'new-folder'
+	| 'new-window'
 	| 'panels'
 	| 'pin'
 	| 'search'
@@ -32,7 +34,8 @@ export type ProductIconName =
 	| 'sidebar-left'
 	| 'tabs'
 	| 'terminal'
-	| 'trash';
+	| 'trash'
+	| 'ungroup';
 
 interface ProductIconProps {
 	readonly name: ProductIconName;
@@ -54,6 +57,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'chevron-right' && styles['chevronRight'],
 				name === 'check' && styles['check'],
 				name === 'close' && styles['close'],
+				name === 'color' && styles['color'],
 				name === 'copy' && styles['copy'],
 				name === 'edit' && styles['edit'],
 				name === 'ellipsis' && styles['ellipsis'],
@@ -63,6 +67,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'layout' && styles['layout'],
 				name === 'more-vertical' && styles['moreVertical'],
 				name === 'new-folder' && styles['newFolder'],
+				name === 'new-window' && styles['newWindow'],
 				name === 'panels' && styles['panels'],
 				name === 'pin' && styles['pin'],
 				name === 'search' && styles['search'],
@@ -73,6 +78,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'tabs' && styles['tabs'],
 				name === 'terminal' && styles['terminal'],
 				name === 'trash' && styles['trash'],
+				name === 'ungroup' && styles['ungroup'],
 			)}
 			data-icon={name}
 			data-icon-size={size}
