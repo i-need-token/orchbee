@@ -1768,6 +1768,12 @@ does. These choices stand unless review changes them:
 - **Keys follow the TUI where the GUI allows.** Up, Down, j, k, Home, and End select, Enter jumps,
   and r reads again; a click selects and a double-click jumps.
 
+A Desktop window on a staged Windows cohort opened the board from Search with the keyboard on its
+list, read the Server's empty list twice without losing the connection, ignored `r` within the
+pause, and returned the keyboard to the terminal after Escape and after the close button; the
+Chinese window showed the same board. No jump ran there, because the Server holds Agent sessions
+only once a provider's integration reports them.
+
 Not done in this slice: Start Agent from the empty board, the unread dot, the attention overlay,
 and the sidebar's summary of the board.
 

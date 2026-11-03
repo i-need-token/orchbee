@@ -120,7 +120,7 @@ export function WorkbenchAgentBoardDialog({
 					>
 						{view.openLabel}
 						<Kbd aria-hidden='true' className={styles['shortcut']}>
-							↵
+							Enter
 						</Kbd>
 					</Button>
 				</DialogFooter>
