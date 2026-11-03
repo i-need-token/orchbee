@@ -856,6 +856,126 @@ fn folder_location_names_only_its_folder_and_gives_the_whole_directory_under_the
     }
 }
 
+#[test]
+fn cut_names_give_their_whole_text_only_when_cut_and_each_cut_line_its_own() {
+    use crate::tui_layout::SidebarWidth;
+    let project = "Payments platform service repository";
+    let workspace = "Checkout redesign experiment";
+    let branch = "feature/checkout-redesign-experiment";
+    let title = "Respond to greeting | Desktop";
+    let mut view = view(140, 40);
+    let rows = view
+        .machines
+        .space_rows()
+        .iter()
+        .map(|r| {
+            let mut observed = view.machines.space_checkpoint_row(r).unwrap().clone();
+            observed.label = Some(workspace.into());
+            observed.git.as_mut().unwrap().branch = Some(branch.into());
+            observed
+        })
+        .collect::<Vec<_>>();
+    view.machines.observe_local(
+        rows.iter()
+            .map(|r| NavigationContext {
+                target: r.target.clone(),
+                project_id: r.project_id.clone(),
+                project: Some(project.into()),
+                workspace: r.label.clone(),
+            })
+            .collect(),
+    );
+    let target = rows[0].target.clone();
+    view.machines.observe_spaces(vec![(
+        Choice::Local,
+        crate::machine_spaces::checkpoint::Observation::Ready(std::sync::Arc::new(
+            crate::machine_spaces::Checkpoint {
+                session_id: SessionId::parse(&id(1)).unwrap(),
+                revision: WorkbenchRevision::new(1),
+                metadata_revision: WorkbenchRevision::new(2),
+                git_requested: true,
+                known_git: Vec::new().into(),
+                projects: vec![crate::machine_spaces::ProjectSummary {
+                    project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
+                    label: project.into(),
+                }]
+                .into(),
+                rows: rows.into(),
+            },
+        )),
+    )]);
+    let mut agent = agent_for(target.clone(), 23);
+    agent.label = "1".into();
+    agent.terminal_title = TerminalTitleObservation::Observed {
+        revision: WorkbenchRevision::new(1),
+        title: Some(title.into()),
+    };
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        crate::machine_agents::Observation::Ready(crate::machine_agents::test_support::checkpoint(
+            vec![agent],
+        )),
+    )]);
+    expand_context_agents(&mut view, target);
+    let agent_row = format!("{title} · codex");
+    let mut width = SidebarWidth::DEFAULT;
+    for (columns, cut) in [(60, false), (30, true)] {
+        let next = SidebarWidth::new(columns).unwrap();
+        assert!(view.machines.set_sidebar_width(width, next));
+        width = next;
+        let mut terminal = Terminal::new(TestBackend::new(140, 40)).unwrap();
+        let mut hits = HitMapBuilder::new();
+        terminal
+            .draw(|frame| {
+                let theme = Theme::rgb_test_dark();
+                render_terminal_shell(frame, &view, Locale::EnUs, None, &theme, &mut hits);
+            })
+            .unwrap();
+        let named: Vec<_> = hits
+            .tooltip_contents()
+            .filter_map(|content| match content {
+                TooltipContent::Describe {
+                    text: Some(text), ..
+                } => Some(text.text.as_str()),
+                TooltipContent::Describe { text: None, .. } | TooltipContent::Action { .. } => None,
+            })
+            .collect();
+        let buffer = terminal.backend().buffer();
+        let painted = (0..40)
+            .map(|y| {
+                (0..columns)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>();
+        if !cut {
+            // Whole names paint whole and offer nothing to read.
+            for name in [project, workspace, branch, agent_row.as_str()] {
+                assert!(painted.iter().any(|row| row.contains(name)), "{painted:?}");
+            }
+            assert!(named.is_empty(), "{named:?}");
+            continue;
+        }
+        for name in [project, workspace, branch, agent_row.as_str()] {
+            assert!(!painted.iter().any(|row| row.contains(name)), "{painted:?}");
+            assert!(named.contains(&name), "{name}: {named:?}");
+        }
+        // The Workspace's first line gives its name and its second line the branch it cuts.
+        let y = painted
+            .iter()
+            .position(|row| row.trim_start().starts_with("Checkout"))
+            .unwrap() as u16;
+        let read = |y| match hits.tooltip_content_at(4, y) {
+            Some(TooltipContent::Describe {
+                text: Some(text), ..
+            }) => Some(text.text.clone()),
+            _ => None,
+        };
+        assert_eq!(read(y).as_deref(), Some(workspace));
+        assert_eq!(read(y + 1).as_deref(), Some(branch));
+    }
+}
+
 fn paint_navigation_buffers(
     view: &ClientView,
     locale: Locale,
@@ -1603,7 +1723,9 @@ fn duplicate_agent_titles_paint_alone_and_stay_separate_rows() {
             })
             .collect::<Vec<_>>()
             .join("\n");
-        assert_eq!(text.matches("same Agent").count(), 2, "{width}: {text}");
+        // The title gives way to keep the provider whole, and no ID tag tells the rows apart.
+        assert_eq!(text.matches("same Ag").count(), 2, "{width}: {text}");
+        assert_eq!(text.matches(" · codex").count(), 2, "{width}: {text}");
         assert!(!text.contains('['), "{width}: {text}");
         let mut selected = Vec::new();
         for y in 0..20 {

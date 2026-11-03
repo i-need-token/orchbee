@@ -12,7 +12,7 @@ creating a Panel or synthesizing a session. Maintain this reference with the pri
 `agent_board/` module, its narrow access points into `client_view`, `ui`,
 `tui_render`, `tui_pointer` and the dispatcher, the OBAP read lane, and their correctness evidence.
 
-Each row uses the shared six-state presentation: a stationary white-to-gray breathing `●` for working (two seconds), a pulsing yellow `●` for attention, green `●` for succeeded, red `●` for failed/canceled/interrupted, gray `○` for idle and gray `•` for unknown. The Board shares the Sidebar animation phase; it also requests animation when only its own rows need it. ASCII and monochrome keep distinct outcome glyphs. A separate trailing blue dot reflects this Client’s unread observation. Reading clears only that dot; selected-row backgrounds preserve semantic foregrounds. Freshness remains a separate label.
+Each row uses the shared six-state presentation: a stationary white-to-gray breathing `⬢` for working (two seconds), a pulsing yellow `⬢` for attention, green `⬢` for succeeded, red `⬢` for failed/canceled/interrupted, gray `⬡` for idle and gray `•` for unknown. The Board shares the Sidebar animation phase; it also requests animation when only its own rows need it. ASCII and monochrome keep distinct outcome glyphs. A separate trailing blue dot reflects this Client’s unread observation. Reading clears only that dot; selected-row backgrounds preserve semantic foregrounds. Freshness remains a separate label.
 
 `Ctrl+B g` toggles the board. Opening creates a stable episode and claims the top input slot before
 the first paint, so no keystroke falls through to the terminal shell. The first evaluated draw

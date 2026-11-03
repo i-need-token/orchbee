@@ -126,6 +126,7 @@ pub fn row(n: u64) -> Row {
         order: PlacementOrder::default(),
         target,
         label: "build".into(),
+        label_custom: false,
         workspace: "space".into(),
         tab_label: Some("Task".into()),
         terminal_title: orchbee_workbench_protocol::TerminalTitleObservation::Unavailable {},

@@ -74,21 +74,35 @@ impl ProjectedSidebarLines {
         self
     }
 
+    #[cfg(test)]
+    pub(in crate::tui_render) fn names(&self) -> &[(usize, TooltipText)] {
+        &self.names
+    }
+
     pub(in crate::tui_render) fn into_parts(self) -> (Vec<Line<'static>>, Vec<Line<'static>>) {
         (self.lines, self.trailing)
     }
 
-    /// The first name its painted line no longer shows whole.
-    fn cut_name(names: Vec<(usize, TooltipText)>, painted: &[Line<'_>]) -> Option<TooltipText> {
-        names.into_iter().find_map(|(line, name)| {
+    /// Each line's first name that its painted line no longer shows whole, by line index.
+    fn cut_names(
+        names: Vec<(usize, TooltipText)>,
+        painted: &[Line<'_>],
+    ) -> Vec<(usize, TooltipText)> {
+        let mut cut: Vec<(usize, TooltipText)> = Vec::new();
+        for (line, name) in names {
+            let Some(painted) = painted.get(line) else {
+                continue;
+            };
             let text: String = painted
-                .get(line)?
                 .spans
                 .iter()
                 .map(|span| span.content.as_ref())
                 .collect();
-            (!text.contains(&name.text)).then_some(name)
-        })
+            if !text.contains(&name.text) && cut.iter().all(|(other, _)| *other != line) {
+                cut.push((line, name));
+            }
+        }
+        cut
     }
 }
 
@@ -1379,7 +1393,13 @@ pub(super) fn render(
                     folded: folded(view, row),
                 },
             ),
-            SidebarRow::Agent { row, .. } => agent_tokens::projection(view, row, locale, theme),
+            SidebarRow::Agent { row, .. } => agent_tokens::projection(
+                view,
+                row,
+                locale,
+                theme,
+                text_width.saturating_sub(markers),
+            ),
         };
         let names = std::mem::take(&mut projected_lines.names);
         let folder = projected_lines.folder.take();
@@ -1403,7 +1423,21 @@ pub(super) fn render(
             };
             *line = fit(std::mem::take(line), width, theme.glyphs.ellipsis);
         }
-        let cut_name = ProjectedSidebarLines::cut_name(names, &row_lines);
+        // The row gives its first cut name; a later line that cuts its own gives that from its
+        // own cells.
+        let mut cut_names = ProjectedSidebarLines::cut_names(names, &row_lines).into_iter();
+        let cut_name = cut_names.next().map(|(_, name)| name);
+        let line_names: Vec<_> = cut_names
+            .filter_map(|(line, name)| {
+                let line = u16::try_from(line)
+                    .ok()
+                    .filter(|line| *line < content_height)?;
+                Some((
+                    Rect::new(band.x, tracks.content_y + line, band.width, 1),
+                    name,
+                ))
+            })
+            .collect();
         // A folder's name gives its whole directory from the cells its line still shows.
         let folder = folder.and_then(|part| {
             let line = u16::try_from(part.line)
@@ -1893,6 +1927,11 @@ pub(super) fn render(
                 && let Some(content) = tooltip::describe(Some(directory), Vec::new())
             {
                 hits.record_part_tooltip(layer, rect, band, &target, content);
+            }
+            for (rect, name) in line_names {
+                if let Some(content) = tooltip::describe(Some(name), Vec::new()) {
+                    hits.record_part_tooltip(layer, rect, band, &target, content);
+                }
             }
             if let Some(content) = tooltip::describe(cut_name, Vec::new()) {
                 hits.record_interaction_tooltip(layer, band, &target, content);

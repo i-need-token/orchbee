@@ -1,7 +1,7 @@
 //! Pure token projection from the already-fenced Agent row. No I/O or Agent authority.
 use super::{
-    ClientView, Line, Locale, ProjectedSidebarLines, Role, Span, Theme, display_label, full_name,
-    machine_label,
+    ClientView, Line, Locale, ProjectedSidebarLines, Role, Span, Theme, display_label,
+    display_width, full_name, machine_label, truncate_display,
 };
 use crate::machine_picker::Row;
 use orchbee_local_runtime::{AgentSidebarToken, AgentSidebarTokenKind as Kind, SidebarTokenStyle};
@@ -96,11 +96,54 @@ pub(in crate::tui_render) fn height(view: &ClientView, row: &Row, locale: Locale
         .count()
         .max(1) as u16
 }
+/// A cut default title keeps at least this many cells before its ellipsis beside the provider.
+const MINIMUM_TITLE_CELLS: usize = 3;
+
+/// The default row: what names the Agent, then its provider in quieter text, or the provider
+/// alone; its leading glyph and pointer tooltip carry state. Within `width` the title gives way
+/// first, so the provider stays whole while the title keeps its first few cells; narrower still,
+/// the title alone tells sibling Agents apart.
+fn default_row(
+    agent: &crate::machine_agents::Row,
+    width: usize,
+    theme: &Theme,
+) -> ProjectedSidebarLines {
+    let style = |role| theme.sidebar_token_style(role, Default::default(), false, false);
+    let provider = display_label(agent.provider());
+    let Some(title) = agent.identity_title() else {
+        return ProjectedSidebarLines::new(vec![Line::from(Span::styled(
+            provider.clone(),
+            style(Role::TextPrimary),
+        ))])
+        .with_names(vec![(0, full_name(provider))]);
+    };
+    let separator = format!(" {} ", theme.glyphs.middle_dot);
+    let whole = format!("{title}{separator}{provider}");
+    let ellipsis = theme.glyphs.ellipsis;
+    let trailing = display_width(&separator) + display_width(&provider);
+    let kept = display_width(&title).min(MINIMUM_TITLE_CELLS + display_width(ellipsis));
+    let spans = if width >= trailing + kept {
+        vec![
+            Span::styled(
+                truncate_display(&title, width - trailing, ellipsis),
+                style(Role::TextPrimary),
+            ),
+            Span::styled(separator, style(Role::TextSecondary)),
+            Span::styled(provider, style(Role::TextSecondary)),
+        ]
+    } else {
+        vec![Span::styled(title, style(Role::TextPrimary))]
+    };
+    ProjectedSidebarLines::new(vec![Line::from(spans)]).with_names(vec![(0, full_name(whole))])
+}
+
+/// `width` is the cells the first line may take; configured rows are cut to it later.
 pub(in crate::tui_render) fn projection(
     view: &ClientView,
     row: &Row,
     locale: Locale,
     theme: &Theme,
+    width: usize,
 ) -> ProjectedSidebarLines {
     let Some(context) = Context::new(view, row, locale) else {
         let mut lines = Vec::new();
@@ -127,32 +170,7 @@ pub(in crate::tui_render) fn projection(
     let text_style =
         |role, _first_line| theme.sidebar_token_style(role, Default::default(), false, false);
     let Some(rows) = configured(view, context.agent) else {
-        // The default row shows identity once; its leading glyph and hover hint carry state.
-        let title = display_label(
-            context
-                .agent
-                .name
-                .as_deref()
-                .filter(|name| !name.trim().is_empty())
-                .unwrap_or_else(|| {
-                    let title = context.agent.title().trim();
-                    if title.is_empty() || title.chars().all(|ch| ch.is_ascii_digit()) {
-                        context.agent.provider()
-                    } else {
-                        title
-                    }
-                }),
-        );
-        let title = if title.trim().is_empty() {
-            display_label(context.agent.provider())
-        } else {
-            title
-        };
-        return ProjectedSidebarLines::new(vec![Line::from(Span::styled(
-            title.clone(),
-            text_style(Role::TextPrimary, true),
-        ))])
-        .with_names(vec![(0, full_name(title))]);
+        return default_row(context.agent, width, theme);
     };
     let mut lines = Vec::new();
     let mut names = Vec::new();
@@ -218,5 +236,7 @@ pub(in crate::tui_render) fn lines(
     locale: Locale,
     theme: &Theme,
 ) -> Vec<Line<'static>> {
-    projection(view, row, locale, theme).into_parts().0
+    projection(view, row, locale, theme, usize::MAX)
+        .into_parts()
+        .0
 }

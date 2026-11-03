@@ -15,38 +15,170 @@ use crate::{
 use ratatui::{Terminal, backend::TestBackend, style::Modifier};
 mod empty;
 
+/// The default first line of one Agent row and the whole text a cut line gives in its tooltip.
+fn default_line(
+    agent: crate::machine_agents::Row,
+    theme: &Theme,
+    width: usize,
+) -> (Vec<ratatui::text::Span<'static>>, String) {
+    let mut view = view(120, 40, 0);
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        Agents::Ready(checkpoint(vec![agent])),
+    )]);
+    let navigation = view.machines.sidebar_navigation_rows();
+    let row = navigation
+        .iter()
+        .find_map(|entry| match entry {
+            crate::machine_picker::SidebarRow::Agent { row, .. } => Some(row),
+            _ => None,
+        })
+        .unwrap();
+    let projected = agent_tokens::projection(&view, row, Locale::EnUs, theme, width);
+    let names = projected.names().to_vec();
+    assert_eq!(names.len(), 1);
+    let (mut lines, _) = projected.into_parts();
+    (lines.remove(0).spans, names[0].1.text.clone())
+}
+
 #[test]
-fn default_agent_title_prefers_explicit_name_then_task_and_never_an_automatic_number() {
-    for (name, title, expected) in [
-        (Some("alpha"), "Fix input", "alpha"),
-        (None, "Fix input", "Fix input"),
-        (Some("  "), "1", "codex"),
-        (None, "", "codex"),
+fn default_agent_row_names_the_agent_then_its_provider_and_never_an_automatic_number() {
+    use orchbee_workbench_protocol::{MetadataTokenValue, TerminalTitleObservation};
+    let observed = |title: Option<&str>| TerminalTitleObservation::Observed {
+        revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
+        title: title.map(str::to_owned),
+    };
+    let unavailable = TerminalTitleObservation::Unavailable {};
+    // (person's name, explicit title, Panel label, custom label, terminal title, row)
+    for (name, explicit, label, custom, title, expected) in [
+        // A person's name, then an explicit title or Panel name, outrank the program's title.
+        (
+            Some("alpha"),
+            Some("Fix input"),
+            "frontend",
+            true,
+            observed(Some("Respond to greeting")),
+            "alpha · codex",
+        ),
+        (
+            None,
+            Some("Fix input"),
+            "frontend",
+            true,
+            observed(Some("Respond to greeting")),
+            "Fix input · codex",
+        ),
+        (
+            None,
+            None,
+            "frontend",
+            true,
+            observed(Some("Respond to greeting")),
+            "frontend · codex",
+        ),
+        // The program's title, without its activity prefix, outranks a creation label.
+        (
+            None,
+            None,
+            "build",
+            false,
+            observed(Some("⠋ Respond to greeting | Desktop")),
+            "Respond to greeting | Desktop · codex",
+        ),
+        (
+            None,
+            None,
+            "build",
+            false,
+            unavailable.clone(),
+            "build · codex",
+        ),
+        (None, None, "build", false, observed(None), "build · codex"),
+        // A title naming only the provider or its program, a console launch path, an automatic
+        // number and blank text name nothing, so the provider shows alone.
+        (None, None, "1", false, observed(Some("Codex")), "codex"),
+        (None, None, "1", false, observed(Some("✳ codex")), "codex"),
+        (
+            None,
+            None,
+            "1",
+            false,
+            observed(Some(r"C:\Tools\codex.exe")),
+            "codex",
+        ),
+        (Some("  "), None, "1", false, unavailable.clone(), "codex"),
+        (None, None, " \t", false, observed(Some("  ")), "codex"),
+        (Some("codex"), None, "", false, unavailable.clone(), "codex"),
     ] {
-        let mut view = view(120, 40, 1);
         let mut agent = row(23);
         agent.name = name.map(str::to_owned);
-        agent.label = title.into();
-        agent.metadata.title = None;
-        view.machines.observe_agents(vec![(
-            Choice::Local,
-            Agents::Ready(checkpoint(vec![agent])),
-        )]);
-        let navigation = view.machines.sidebar_navigation_rows();
-        let agent = navigation
-            .iter()
-            .find_map(|entry| match entry {
-                crate::machine_picker::SidebarRow::Agent { row, .. } => Some(row),
-                _ => None,
-            })
-            .unwrap();
-        let lines = agent_tokens::lines(&view, agent, Locale::EnUs, &Theme::terminal_native());
-        let actual: String = lines[0]
-            .spans
-            .iter()
-            .map(|span| span.content.as_ref())
-            .collect();
-        assert_eq!(actual, expected);
+        agent.metadata.title = explicit.map(|title| MetadataTokenValue::parse(title).unwrap());
+        agent.label = label.into();
+        agent.label_custom = custom;
+        agent.terminal_title = title.clone();
+        let (spans, whole) = default_line(agent, &Theme::terminal_native(), usize::MAX);
+        let actual: String = spans.iter().map(|span| span.content.as_ref()).collect();
+        assert_eq!(actual, expected, "{title:?}");
+        assert_eq!(whole, expected);
+    }
+    // A Claude idle title names its provider even when spelled as the product.
+    let mut agent = row(23);
+    agent.target.agent = "claude".into();
+    agent.label = "1".into();
+    agent.terminal_title = observed(Some("✳ Claude Code"));
+    let (spans, _) = default_line(agent, &Theme::terminal_native(), usize::MAX);
+    assert_eq!(spans.len(), 1);
+    assert_eq!(spans[0].content, "claude");
+}
+
+#[test]
+fn default_agent_row_cuts_its_title_before_its_provider_and_keeps_the_title_when_narrow() {
+    use orchbee_workbench_protocol::TerminalTitleObservation;
+    let theme = Theme::rgb_test_dark();
+    let mut ascii = Theme::rgb_test_dark();
+    ascii.glyphs = crate::tui_theme::GlyphSet::ASCII;
+    // (glyphs, title, width, first line, painted as)
+    for (theme, title, width, expected) in [
+        (
+            theme,
+            "Respond to greeting",
+            27,
+            "Respond to greeting · codex",
+        ),
+        (theme, "Respond to greeting", 20, "Respond to … · codex"),
+        // The title keeps three cells before its ellipsis beside the provider ...
+        (theme, "Respond to greeting", 12, "Res… · codex"),
+        // ... and narrower still tells siblings apart by its title alone, cut by the row later.
+        (theme, "Respond to greeting", 11, "Respond to greeting"),
+        // Wide characters are never split and the provider stays whole.
+        (theme, "修复标题问题", 15, "修复标… · codex"),
+        (theme, "修复标题问题", 14, "修复… · codex"),
+        (ascii, "Respond to greeting", 13, "Res.. - codex"),
+    ] {
+        let mut agent = row(23);
+        agent.label = "1".into();
+        agent.terminal_title = TerminalTitleObservation::Observed {
+            revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
+            title: Some(title.into()),
+        };
+        let (spans, whole) = default_line(agent, &theme, width);
+        let actual: String = spans.iter().map(|span| span.content.as_ref()).collect();
+        assert_eq!(actual, expected, "{title} in {width}");
+        assert_eq!(
+            whole,
+            format!("{title} {} codex", theme.glyphs.middle_dot),
+            "the tooltip gives the whole row"
+        );
+        // The title uses primary text and the separator and provider quieter secondary text.
+        let role = |span: &ratatui::text::Span<'_>| span.style.fg;
+        assert_eq!(role(&spans[0]), theme.style(Role::TextPrimary).fg);
+        if spans.len() > 1 {
+            assert_eq!(spans.len(), 3);
+            assert!(display_width(&actual) <= width, "{actual}");
+            for span in &spans[1..] {
+                assert_eq!(role(span), theme.style(Role::TextSecondary).fg);
+            }
+        }
     }
 }
 
@@ -712,7 +844,10 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
                 .iter()
                 .map(|span| span.content.as_ref())
                 .collect::<String>();
-            assert_eq!(projected_title, "Input handling");
+            assert_eq!(
+                projected_title,
+                format!("Input handling {} codex", theme.glyphs.middle_dot)
+            );
             assert_eq!(projected.len(), 1, "state text lives in the hover hint");
             let y = (0..40)
                 .find(|y| {

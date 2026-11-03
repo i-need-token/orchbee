@@ -3,7 +3,10 @@ use super::checkpoint::Row;
 use crate::client_context::{ClientContextLocation, ClientContextTarget};
 use crate::machine_discovery::overview::display_label;
 use crate::machines::Choice;
-use orchbee_workbench_protocol::{AgentViewSpec, MetadataState, PanelAgentState};
+use crate::terminal_title::ChromeName;
+use orchbee_workbench_protocol::{
+    AgentViewSpec, MetadataState, PanelAgentState, TerminalTitleObservation,
+};
 mod source;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -162,6 +165,70 @@ impl Row {
             .display_agent
             .as_ref()
             .map_or(&self.target.agent, |v| v.as_str())
+    }
+
+    /// What names this Agent ahead of its provider, sanitized: a person's name for it, then an
+    /// explicit title or Panel name, then the title its terminal program set, then the Panel's
+    /// creation label. Blank text, an automatic number, a console's launch path, and text that
+    /// only names the provider or its program, as an Agent's idle title does, name nothing.
+    pub(crate) fn identity_title(&self) -> Option<String> {
+        let explicit = self
+            .metadata
+            .title
+            .as_ref()
+            .map(|title| title.as_str())
+            .or_else(|| self.label_custom.then_some(self.label.as_str()));
+        let observed = match &self.terminal_title {
+            TerminalTitleObservation::Observed {
+                title: Some(title), ..
+            } => match ChromeName::of_title(title) {
+                Some(ChromeName::Text(title)) => Some(title),
+                Some(ChromeName::Program { .. }) | None => None,
+            },
+            TerminalTitleObservation::Observed { title: None, .. }
+            | TerminalTitleObservation::Unavailable {} => None,
+        };
+        let creation = (!self.label_custom).then_some(self.label.as_str());
+        [
+            (self.name.as_deref(), false),
+            (explicit, true),
+            (observed, false),
+            (creation, true),
+        ]
+        .into_iter()
+        .find_map(|(text, numbered)| {
+            let text = display_label(text?);
+            let text = text.trim();
+            let automatic = numbered && text.chars().all(|ch| ch.is_ascii_digit());
+            (!text.is_empty() && !automatic && !self.names_provider(text)).then(|| text.to_owned())
+        })
+    }
+
+    /// Whether `text` only names this Agent's provider: its shown or reported label, canonical
+    /// ID, or command, ignoring case, spacing and punctuation, so `Claude Code` names
+    /// `claude-code`.
+    fn names_provider(&self, text: &str) -> bool {
+        let key = |name: &str| -> String {
+            name.chars()
+                .filter(|ch| ch.is_alphanumeric())
+                .flat_map(char::to_lowercase)
+                .collect()
+        };
+        let text = key(text);
+        let known =
+            orchbee_agent_observation_protocol::AgentReportProvider::lookup(&self.target.agent);
+        [self.provider(), self.target.agent.as_str()]
+            .into_iter()
+            .chain(known.into_iter().flat_map(|provider| {
+                [
+                    Some(provider.report_label()),
+                    Some(provider.native_provider_id()),
+                    crate::agent_provider::executable(provider.native_provider_id()),
+                ]
+                .into_iter()
+                .flatten()
+            }))
+            .any(|name| key(name) == text)
     }
     pub(crate) fn display_state(&self) -> MetadataState {
         match self.status() {

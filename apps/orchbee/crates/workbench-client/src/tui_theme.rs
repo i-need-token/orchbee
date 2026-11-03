@@ -205,7 +205,7 @@ impl GlyphSet {
         disclosure_open: "▾",
         disclosure_closed: "▸",
         tree_guide: "│",
-        working_frames: &["●"],
+        working_frames: &["⬢"],
     };
 
     #[cfg(any(test, feature = "test-support"))]
@@ -458,6 +458,8 @@ pub struct Theme {
 }
 
 impl Theme {
+    /// The filled `⬢` U+2B22 and hollow `⬡` U+2B21 hexagons echo the honeycomb mark. Both are East
+    /// Asian Neutral, so they keep one cell even on hosts that widen ambiguous-width text.
     pub(crate) fn agent_glyph(
         &self,
         state: orchbee_workbench_protocol::MetadataState,
@@ -472,28 +474,28 @@ impl Theme {
                 if distinguish_outcomes {
                     "#"
                 } else {
-                    "●"
+                    "⬢"
                 }
             }
             Done => {
                 if distinguish_outcomes {
                     "+"
                 } else {
-                    "●"
+                    "⬢"
                 }
             }
             Error => {
                 if distinguish_outcomes {
                     "x"
                 } else {
-                    "●"
+                    "⬢"
                 }
             }
             Idle => {
                 if ascii {
                     "o"
                 } else {
-                    "○"
+                    "⬡"
                 }
             }
             Unknown => {
@@ -517,7 +519,7 @@ impl Theme {
         }
     }
 
-    /// A stationary Working circle breathes over two seconds; attention keeps its 500 ms pulse.
+    /// A stationary Working hexagon breathes over two seconds; attention keeps its 500 ms pulse.
     pub(crate) fn agent_style(
         &self,
         state: orchbee_workbench_protocol::MetadataState,

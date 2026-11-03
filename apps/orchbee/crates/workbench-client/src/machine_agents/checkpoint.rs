@@ -34,6 +34,8 @@ pub struct Row {
     pub(crate) order: PlacementOrder,
     pub(crate) target: Target,
     pub(crate) label: String,
+    /// Whether `label` is the Presentation's custom label rather than its creation label.
+    pub(crate) label_custom: bool,
     pub(crate) workspace: String,
     pub(crate) tab_label: Option<String>,
     pub(crate) terminal_title: TerminalTitleObservation,

@@ -581,12 +581,12 @@ the original value; only painting sanitizes controls and truncates graphemes.
 observation below; pane title and `$terminal_title` never substitute for those
 builtins.
 
-Default rows show one line with the effective presentation title beside the vertical guide and
-status glyph. A blank sanitized title falls back to the provider.
+Default rows show one line beside the vertical guide and status glyph: what names the Agent,
+then its provider in secondary text, or the provider alone, as
+[Sidebar display identity](native-agent-navigation.md#sidebar-display-identity) defines.
 Parent Machine/Workspace text stays in the tree rather than each Agent. Status color stays on the
-glyph; the title uses the primary text role. Hovering the row
-shows the glyph and localized state on the list's last row when that row is free or holds the
-overflow range; configured `state_text` and `agent`
+glyph; the name uses the primary text role. A pointer resting on the glyph names its state in a
+tooltip; configured `state_text` and `agent`
 tokens restore inline state and provider text.
 
 | Input or event                                 | Decision and observable result                                                                                          |

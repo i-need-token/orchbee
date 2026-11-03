@@ -1129,6 +1129,15 @@ impl HitMapBuilder {
         self.tooltip_contents.iter().map(|(_, content)| content)
     }
 
+    /// What a pointer resting on this cell of the candidate frame would read.
+    #[cfg(test)]
+    pub(crate) fn tooltip_content_at(&self, column: u16, row: u16) -> Option<&TooltipContent> {
+        let key = self.map.tooltip_at(column, row)?;
+        self.tooltip_contents
+            .iter()
+            .find_map(|(offered, content)| (*offered == key).then_some(content))
+    }
+
     /// The open tooltip when this frame painted its target again, with this frame's content.
     pub(crate) fn open_tooltip(&self) -> Option<OpenTooltip<'_>> {
         let shown = self.projection.tooltip()?;

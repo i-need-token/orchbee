@@ -29,7 +29,7 @@ fn current_agent_view() -> (ClientView, SidebarTarget, SidebarTarget) {
         unreachable!()
     };
     let mut first = agent_for(target.clone(), 23);
-    first.metadata.title = Some(MetadataTokenValue::parse("Codex task 编码").unwrap());
+    first.metadata.title = Some(MetadataTokenValue::parse("Task 编码").unwrap());
     let second = agent_for(target.clone(), 24);
     let member = first.target.clone();
     view.machines.observe_agents(vec![(

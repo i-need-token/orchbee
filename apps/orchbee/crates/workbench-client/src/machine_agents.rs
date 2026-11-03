@@ -117,6 +117,7 @@ pub struct Placement {
     pub member: TerminalPresentationId,
     pub terminal: PresentationBinding,
     label: String,
+    label_custom: bool,
     workspace: String,
     tab_label: Option<String>,
 }
@@ -218,6 +219,7 @@ fn collect(
                                 .as_ref()
                                 .map_or(member.label.as_str(), |l| l.as_str()),
                         ),
+                        label_custom: member.custom_label.is_some(),
                         workspace: workspace.into(),
                         tab_label: None,
                     });
@@ -309,6 +311,7 @@ pub(crate) fn read_at(
                     agent,
                 },
                 label: placement.label,
+                label_custom: placement.label_custom,
                 workspace: placement.workspace,
                 tab_label: placement.tab_label,
                 terminal_title,

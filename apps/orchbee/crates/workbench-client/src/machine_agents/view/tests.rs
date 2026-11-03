@@ -11,6 +11,7 @@ fn row() -> Row {
         order: crate::machine_agents::PlacementOrder::default(),
         target: crate::machine_agents::test_support::target(),
         label: "terminal".into(),
+        label_custom: false,
         workspace: "project / workspace".into(),
         tab_label: None,
         terminal_title: orchbee_workbench_protocol::TerminalTitleObservation::Unavailable {},

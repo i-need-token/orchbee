@@ -44,6 +44,7 @@ fn row() -> Row {
         order: PlacementOrder::default(),
         target: super::super::test_support::target(),
         label: "terminal".into(),
+        label_custom: false,
         workspace: String::new(),
         tab_label: None,
         terminal_title: orchbee_workbench_protocol::TerminalTitleObservation::Unavailable {},

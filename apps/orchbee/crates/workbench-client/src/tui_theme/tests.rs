@@ -1328,6 +1328,33 @@ fn agent_state_glyphs_use_one_traffic_light_in_every_theme() {
 }
 
 #[test]
+fn every_agent_state_glyph_keeps_one_cell_in_every_glyph_set_and_color_level() {
+    use orchbee_workbench_protocol::MetadataState::{Blocked, Done, Error, Idle, Unknown, Working};
+    // State glyphs sit in a fixed one-cell column beside names; a wider glyph would shift them.
+    for glyphs in [GlyphSet::UTF8, GlyphSet::ASCII] {
+        for theme in [
+            Theme::one_dark(),
+            Theme::terminal_native().quantize(ColorLevel::Monochrome),
+            Theme::terminal_native().with_no_color(true),
+        ] {
+            let theme = theme.with_glyphs(glyphs);
+            for state in [Working, Blocked, Done, Error, Idle, Unknown] {
+                let glyph = theme.agent_glyph(state);
+                assert_eq!(crate::terminal_text::display_width(glyph), 1, "{glyph}");
+            }
+            for frame in glyphs.working_frames {
+                assert_eq!(crate::terminal_text::display_width(frame), 1, "{frame}");
+            }
+        }
+    }
+    // Filled and hollow hexagons keep the filled and hollow meanings where color shows.
+    let theme = Theme::one_dark();
+    assert_eq!(theme.agent_glyph(Working), "⬢");
+    assert_eq!(theme.agent_glyph(Done), "⬢");
+    assert_eq!(theme.agent_glyph(Idle), "⬡");
+}
+
+#[test]
 fn terminal_native_working_follows_the_host_foreground_and_pairs_on_current() {
     use orchbee_workbench_protocol::MetadataState::{Idle, Working};
     let theme = Theme::terminal_native();

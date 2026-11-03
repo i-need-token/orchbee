@@ -216,10 +216,14 @@ existing Close Workspace confirmation. Remote-machine, other-site and Agent rows
 reveal it, and the context menu and keyboard close routes remain available.
 Hover or press on a disclosure, Create or close control also keeps its complete parent row hovered; the
 control retains its own local pressed feedback. Internal row padding and external group separators
-keep their existing owners. Agent rows carry no ordinal. The default Agent row is one primary
-title line, falling back to its provider when no meaningful title is available; its state glyph
-carries state, which a pointer resting on that glyph names. Explicitly configured Agent rows retain their selected tokens
-and line count.
+keep their existing owners. Agent rows carry no ordinal. The default Agent row is one line: what
+names the Agent in primary text, then the theme separator (`·`; ASCII `-`) and its provider in
+secondary text, or the provider alone in primary text;
+[Agent navigation](native-agent-navigation.md#sidebar-display-identity) owns what names it. The
+name gives way first: it truncates at its end so the provider stays whole while the name keeps at
+least three cells before its ellipsis, and a row too narrow for that shows the name alone, cut at
+its end. Its state glyph carries state, which a pointer resting on that glyph names. Explicitly
+configured Agent rows retain their selected tokens and line count.
 Project and Recents groups reserve at least one blank row
 after preceding items; configured gaps can widen it. A Project's first Workspace sits directly
 under its heading. The default Workspace gap is zero rows. These external separators retain the chrome
@@ -435,19 +439,23 @@ scrolling, cursor movement, copy and rejected input do not. The observation, out
 inputs remain canonical; a newer state or terminal incarnation cannot inherit the edited version.
 The Agent Board applies the same presentation override to its matching observed session version.
 
-Sidebar, Tab, pane-title and Agent Board Working glyphs use a stationary solid circle `●`, breathing from
+Sidebar, Tab, pane-title and Agent Board Working glyphs use a stationary filled hexagon `⬢`
+(U+2B22), echoing the honeycomb mark, breathing from
 white to gray over two seconds on the shared 100 ms clock; terminal-native Working uses the host
-foreground and adopts the current Tab's paired foreground. Idle uses gray `○`; attention, done and
+foreground and adopts the current Tab's paired foreground. Idle uses a gray hollow hexagon `⬡`
+(U+2B21); attention, done and
 error use the fixed traffic-light `agent-attention` `#FEBC2E`, `agent-done` `#28C840` and
-`agent-error` `#FF5F57` `●` in every theme and host, which 16-color hosts show as Yellow, Green
+`agent-error` `#FF5F57` `⬢` in every theme and host, which 16-color hosts show as Yellow, Green
 and Red; their state words keep the status text roles. Unknown and the default Workspace identity
 use secondary-gray `•`. Attention alternates full and half intensity every 500 ms. The Picker owns
 the phase and only advances while observed Agents or the visible Board need animation. Rendering stays pure. ASCII
 uses `-\|/` Working frames and distinct `#`, `+`, `x`, `o`, `.` status fallbacks; monochrome
-keeps distinguishable outcomes without color breathing. The shared palette is owned by
+keeps distinguishable outcomes without color breathing. Both hexagons are East Asian Neutral, so
+they measure one cell even on hosts that widen ambiguous-width text, as circles such as `●` are
+not. The shared palette is owned by
 [`@orchbee/design-tokens`](../../../packages/design-tokens/README.md): Working is neutral and idle
 retains its GrokNight color, while the TUI's attention, done and error glyphs use the fixed values
-above. Light themes use a dark breathing circle for
+above. Light themes use a dark breathing hexagon for
 contrast, and reduced-color hosts use bright/dim intensity. Truecolor System themes retain smooth
 interpolation while their canvas stays host-relative: observed outer-host colors or neutral endpoints
 for the theme polarity drive the fade, independently of child-terminal color preferences.
@@ -794,7 +802,7 @@ Pending and canonical Workspace rows reserve the same nonempty configured token 
 
 ## Sidebar symbol discovery
 
-F1 includes a symbol legend for unread activity, disclosure and all Agent states. A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. A row whose painted line cuts its Workspace name, branch, Agent title or group heading gives the first such name in full. A folder's name gives its full directory, cut in the middle if it is still too long, only while the pointer rests on the cells that name it. Glyphs name themselves only under the pointer: an Agent's state glyph names its state, a folded Workspace's status line each distinct state it shows, most urgent first, and an unread dot unread activity. The rest of the row names no glyph. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. A Project's disclosure offers none, group headings and other rows offer only a cut name, and the list's last row keeps the overflow range. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
+F1 includes a symbol legend for unread activity, disclosure and all Agent states. A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. A row whose painted line cuts its Workspace name, branch, Agent row or group heading gives the first such name in full, and a default Agent row its whole name and provider; a later line that cuts a name of its own gives that name from its own cells instead. Text that fits offers nothing. A folder's name gives its full directory, cut in the middle if it is still too long, only while the pointer rests on the cells that name it. Glyphs name themselves only under the pointer: an Agent's state glyph names its state, a folded Workspace's status line each distinct state it shows, most urgent first, and an unread dot unread activity. The rest of the row names no glyph. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. A Project's disclosure offers none, group headings and other rows offer only a cut name, and the list's last row keeps the overflow range. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
 
 ## Shortcut discovery scope
 
