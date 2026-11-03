@@ -1680,6 +1680,15 @@ choices stand unless review changes them:
   key asks Resume whatever its Panels hold, and Search's Actions offer Resume only then. Third, the
   TUI's Resume question repeats a halted set's counts, which the GUI's leaves out.
 
+A Desktop window on a staged Windows cohort asked Close Tab? for a lone running Panel, Close Panel?
+for a split one with the name its header showed after `panel rename` and the Tab as the strip named
+it, and Close 4 Tabs? for a selected set, naming three and warning of three running terminals and
+one ended. Escape kept everything and returned the keyboard to the terminal, and an ended Tab closed
+unasked. A Shell's `exit` removed its Panel in about 150 ms with no Terminal exited, and a program
+ending with code 0 showed Terminal exited beside New Tab about a second later than one ending with
+code 3. The run found Esc missing from Close Panel?'s Cancel, which Close Tab? shows; both show it
+now, and neither puts Enter on Close. No Resume ran there, because no close stopped.
+
 Not done in this slice: Close for a child terminal under the Server.
 
 The window also publishes its Client View to the Server, as the TUI does, so `orchbee workspace

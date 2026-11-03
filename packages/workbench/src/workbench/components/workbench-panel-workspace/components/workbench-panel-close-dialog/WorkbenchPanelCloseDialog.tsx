@@ -7,6 +7,7 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
+	Kbd,
 } from '@orchbee/ui/components';
 import * as React from 'react';
 
@@ -53,7 +54,13 @@ export function WorkbenchPanelCloseDialog({
 					)}
 				</AlertDialogHeader>
 				<AlertDialogFooter className={styles['footer']}>
-					<AlertDialogCancel>{view.messages.cancel}</AlertDialogCancel>
+					{/* Escape always cancels; Close carries no Enter hint, as Close Tab? has none. */}
+					<AlertDialogCancel>
+						{view.messages.cancel}
+						<Kbd aria-hidden='true' className={styles['shortcut']}>
+							Esc
+						</Kbd>
+					</AlertDialogCancel>
 					<AlertDialogAction onClick={view.confirmClose} variant='destructive'>
 						{view.messages.close}
 					</AlertDialogAction>
