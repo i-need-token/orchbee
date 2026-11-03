@@ -7,6 +7,7 @@ use super::{
 };
 use crate::client_view::{ClientView, Modifiers};
 use crate::machine_picker::{DrawnSidebarTarget, SidebarPart, SidebarTarget};
+use crate::tui_hit_map::sidebar_reorder::Placement;
 use crate::workbench_client::input::{
     LayoutAction, SidebarReorderSource, SurfaceAction, TerminalInputPort,
 };
@@ -173,26 +174,23 @@ impl SidebarReorder {
         }
         // Child controls remain their own buttons on press. During an established
         // drag their row is a destination, without invoking disclosure or Create.
-        let HitRegionResolution::Region(region) = map.hit_region(x, y) else {
-            return None;
-        };
-        let target = region.target.sidebar_target()?;
-        if target.session_id() != self.source.session_id()
-            || target.machine() != self.target.target().machine()
-        {
-            return None;
-        }
-        let item = Item::from_target(&target)?;
-        let area = map.regions.iter().find_map(|region| {
-            let interaction = region.interaction.as_ref()?;
-            let InteractionTarget::Sidebar(drawn) = interaction.target() else {
-                return None;
-            };
-            (drawn.part() == SidebarPart::Primary && drawn.target() == &target)
-                .then_some(region.rect)
-        })?;
+        let entry = self
+            .entries(map)
+            .into_iter()
+            .find(|entry| contains(entry.rows, x, y))?;
+        let after = after(entry.rows, y, entry.rows.y > self.origin.1);
         self.source
-            .destination(&self.item, Some(&item), y > self.origin.1, area)
+            .destination(&self.item, Some(&entry.item), after, entry.block)
+    }
+
+    /// The painted entries of this gesture's machine and Session in display order.
+    fn entries(&self, map: &FrameHitMap) -> Vec<Entry> {
+        entries(
+            map,
+            self.target.target().machine(),
+            self.source.session_id(),
+            matches!(self.item, Item::Project(_)),
+        )
     }
 
     fn preview(&self, map: &FrameHitMap) -> Option<SidebarReorderDraw> {
@@ -208,12 +206,123 @@ impl SidebarReorder {
                 (target.part() == SidebarPart::Primary && target.target() == self.target.target())
                     .then_some(region.rect)
             }),
-            destination: self
-                .destination(map)
-                .map(|drop| (drop.area, drop.placement, drop.label)),
+            destination: self.destination(map).map(|drop| {
+                (
+                    insertion_edge(drop.area, drop.placement, self.paint.body),
+                    drop.placement,
+                    drop.label,
+                )
+            }),
             footer: self.paint.footer,
             workspace: matches!(self.item, Item::Workspace(_)),
         })
+    }
+}
+
+/// One painted entry a drag can land on. `rows` is where the pointer selects it: a Workspace row
+/// with its Agent rows, or a Project heading. `block` is every line it moves as: a Project heading
+/// with the rows it groups.
+struct Entry {
+    item: Item,
+    rows: Rect,
+    block: Rect,
+}
+
+fn entries(
+    map: &FrameHitMap,
+    machine: &crate::machine_picker::Choice,
+    session: &orchbee_workbench_protocol::SessionId,
+    projects: bool,
+) -> Vec<Entry> {
+    let mut rows = map
+        .regions
+        .iter()
+        .filter_map(|region| {
+            let InteractionTarget::Sidebar(drawn) = region.interaction.as_ref()?.target() else {
+                return None;
+            };
+            (drawn.part() == SidebarPart::Primary
+                && drawn.target().machine() == machine
+                && drawn.target().session_id() == session)
+                .then_some((region.rect, drawn.target()))
+        })
+        .collect::<Vec<_>>();
+    rows.sort_by_key(|(rect, _)| rect.y);
+    let mut entries: Vec<Entry> = Vec::new();
+    #[derive(PartialEq)]
+    enum Open {
+        Workspace,
+        Project,
+    }
+    // Which kind of entry the following Agent or grouped rows still belong to.
+    let mut open = None;
+    for (rect, target) in rows {
+        match (target, Item::from_target(target)) {
+            (SidebarTarget::Project { .. }, Some(item)) => {
+                entries.push(Entry {
+                    item,
+                    rows: rect,
+                    block: rect,
+                });
+                open = Some(Open::Project);
+            }
+            (SidebarTarget::Context { .. }, Some(item)) if !projects => {
+                entries.push(Entry {
+                    item,
+                    rows: rect,
+                    block: rect,
+                });
+                open = Some(Open::Workspace);
+            }
+            (SidebarTarget::Agent { .. }, _) if open == Some(Open::Workspace) => {
+                if let Some(entry) = entries.last_mut() {
+                    entry.rows = entry.rows.union(rect);
+                    entry.block = entry.block.union(rect);
+                }
+            }
+            (SidebarTarget::Context { .. } | SidebarTarget::Agent { .. }, _)
+                if projects && open == Some(Open::Project) =>
+            {
+                if let Some(entry) = entries.last_mut() {
+                    entry.block = entry.block.union(rect);
+                }
+            }
+            _ => open = None,
+        }
+    }
+    entries
+}
+
+/// Whether a pointer on `rows` places the dragged entry after it: from the lower half of a taller
+/// entry, and from the far side of a one-line entry, the side away from the dragged one.
+fn after(rows: Rect, y: u16, below_dragged: bool) -> bool {
+    let half = if below_dragged {
+        rows.height / 2
+    } else {
+        rows.height.div_ceil(2)
+    };
+    y >= rows.y.saturating_add(half)
+}
+
+/// The one line whose underline lies on the gap a drop fills: the entry's last line for After, the
+/// line above it for Before. Into and the footer keep their whole area.
+fn insertion_edge(area: Rect, placement: Placement, body: Rect) -> Rect {
+    match placement {
+        Placement::After => Rect {
+            y: area.bottom().saturating_sub(1),
+            height: area.height.min(1),
+            ..area
+        },
+        Placement::Before if area.y > body.y => Rect {
+            y: area.y - 1,
+            height: 1,
+            ..area
+        },
+        Placement::Before => Rect {
+            height: area.height.min(1),
+            ..area
+        },
+        Placement::Into | Placement::Ungrouped | Placement::End => area,
     }
 }
 

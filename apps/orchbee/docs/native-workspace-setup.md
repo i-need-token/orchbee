@@ -170,6 +170,18 @@ created. An automatic name follows path edits until the user edits the name. A P
 menu retains its exact Project target. The edited directory and name belong only to this launch.
 One-click creation and its existing shortcuts continue to submit immediately.
 
+The review lists these choices under the Directory field's help row, below a `Recent` heading, at
+most three rows at a time. A row shows the folder name and, right-aligned in `text-secondary`, the
+folder that holds it, spelled from `~` inside the home folder that the field itself expands. The row
+matching the field's text carries the shared picker cursor and selection fill; no help sentence
+names Up/Down. A row shows hover and fills the field on click without submitting; the heading has
+no target. A longer list keeps the selected row in view and shows its visible range, such as
+`2-4/6`, at the heading's end. A parent cut in the middle keeps at least eight cells, or all of a
+shorter one; otherwise it goes before the name truncates. Under height pressure the review gives
+up blank rows, then help rows, then the heading and the Project line, then list rows down to one.
+Candidate hit regions never share the footer. A host unable to paint the complete review cannot
+submit it.
+
 The draft explains that the default is the terminal process directory. PowerShell's logical `$PWD`
 can differ after ordinary `cd`; this path is not claimed to be that logical location. Users can
 review the actual sampled path and supply an existing folder, including Unicode and spaces,
@@ -212,12 +224,11 @@ implementation traces do not provide exhaustive TLC assurance.
 metadata identity. `machine_picker/tests/spaces/anchoring` covers mutation, resize and provisional-slot
 scroll anchors. These deterministic cases do not establish physical paint latency.
 Those sidebar traces include append-position and scroll-window stability with multiple Workspaces;
-`ui/tests/quick_workspace` covers formless quick submission plus the explicit directory review,
-cancellation and exact edited-path submission.
+`ui/tests/quick_workspace` covers formless quick submission plus the explicit directory review, its
+folder rows and selection fill, cancellation and exact edited-path submission;
+`state/tests/quick_workspace` covers the `~` spelling of listed folders.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features` and the applicable root gate.
 This workflow has no separate TLA model. Implementation traces and process tests do not replace
 real-terminal mouse/keyboard, viewport, first-frame and interaction review. Shared commit and
 ownership protocols retain their separately registered models.
-
-The explicit directory review paints up to two candidate paths in content rows, followed by separate hint and action rows. Candidate hit regions never share the footer. A host unable to paint the complete review cannot submit it.

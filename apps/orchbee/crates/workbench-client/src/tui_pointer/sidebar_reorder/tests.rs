@@ -64,6 +64,10 @@ impl TerminalInputPort for Port {
     }
 }
 fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
+    fixture_with(1)
+}
+/// Workspace rows take `lines` painted lines; headings take one. A blank line follows each row.
+fn fixture_with(lines: u16) -> (PointerState, ClientView, Port, FrameHitMap) {
     let navigation = {
         let fixture_context_id = WorkbenchTerminalContextId::parse(&identity(10)).unwrap();
         let fixture_workspace_id =
@@ -148,8 +152,15 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
         session: session_id.clone(),
         revision: WorkbenchRevision::new(1),
     }));
-    for (index, row) in rows.iter().enumerate() {
-        let area = Rect::new(0, 3 + u16::try_from(index).unwrap() * 2, 30, 1);
+    let mut y = 3;
+    for row in &rows {
+        let height = if matches!(row, SidebarRow::Context { .. }) {
+            lines
+        } else {
+            1
+        };
+        let area = Rect::new(0, y, 30, height);
+        y += height + 1;
         if matches!(row, SidebarRow::Project { .. }) {
             hits.record_interaction(
                 HitLayer::Foreground,
@@ -175,11 +186,12 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
             InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
         );
     }
+    let body = Rect::new(0, 2, 30, (y - 2).max(20));
     hits.record_sidebar_reorder_paint(SidebarReorderPaint {
         viewport: Rect::new(0, 0, 120, 30),
         layer: HitLayer::Foreground,
-        body: Rect::new(0, 2, 30, 20),
-        footer: Rect::new(0, 22, 30, 1),
+        body,
+        footer: Rect::new(0, body.bottom(), 30, 1),
         window,
         source,
     });
@@ -431,6 +443,72 @@ fn workspace_drag_moves_into_between_and_out_of_projects_or_reorders_siblings() 
             target,
         );
         assert_eq!(port.writes.len(), 1);
+    }
+}
+
+/// ORC-317: with no gap between two-line rows, the line under the pointer decides the side. A
+/// Workspace dragged up from Recents onto the lower line of a Project's first Workspace lands
+/// after it, where the insertion edge is drawn, instead of before it because the drag moved up.
+#[test]
+fn two_line_workspace_rows_place_a_drop_by_the_line_under_the_pointer() {
+    for (source, anchor, line, group, before, edge) in [
+        (3, 0, 1, project(1), Some(workspace(1)), 1),
+        (3, 0, 0, project(1), Some(workspace(0)), -1),
+        (0, 2, 0, project(2), Some(workspace(2)), -1),
+        (0, 2, 1, project(2), None, 1),
+    ] {
+        let (mut pointer, mut view, mut port, map) = fixture_with(2);
+        let origin = row(&map, Item::Workspace(workspace(source)));
+        let anchor = row(&map, Item::Workspace(workspace(anchor)));
+        let target = Rect {
+            y: anchor.y + line,
+            height: 1,
+            ..anchor
+        };
+        send(
+            &mut pointer,
+            &mut view,
+            &mut port,
+            MouseAction::Press,
+            origin,
+        );
+        send(
+            &mut pointer,
+            &mut view,
+            &mut port,
+            MouseAction::Motion,
+            target,
+        );
+        let draw = pointer
+            .sidebar_reorder_preview()
+            .unwrap()
+            .resolve(pointer.map.as_ref().unwrap())
+            .unwrap();
+        let (marked, _, _) = draw.destination.unwrap();
+        assert_eq!(
+            marked,
+            Rect {
+                y: anchor.y.saturating_add_signed(edge),
+                height: 1,
+                ..anchor
+            },
+            "the marked line lies on the gap the drop fills"
+        );
+        send(
+            &mut pointer,
+            &mut view,
+            &mut port,
+            MouseAction::Release,
+            target,
+        );
+        assert_eq!(
+            port.writes,
+            [NavigationConfiguration::MoveWorkspace {
+                workspace_id: workspace(source),
+                project_id: Some(group),
+                before_workspace_id: before,
+            }]
+        );
     }
 }
 

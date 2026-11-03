@@ -560,6 +560,11 @@ fn title(measured: &Measured<'_>, area: Rect, locale: Locale, theme: &Theme) -> 
             locale
                 .menu_action(crate::localization::MenuLabel::NewTab)
                 .to_owned()
+        } else if matches!(menu.source, MenuTarget::Create(_)) {
+            // Every row of a `+` menu creates a Workspace; a Project's name would read as adding one.
+            locale
+                .menu_action(crate::localization::MenuLabel::NewWorkspace)
+                .to_owned()
         } else if menu.context_menu && !menu.title.is_empty() {
             sanitize_terminal_text(menu.title).into_owned()
         } else if menu.title.is_empty() && legacy {

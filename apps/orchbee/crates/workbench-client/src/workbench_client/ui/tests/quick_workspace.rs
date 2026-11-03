@@ -738,13 +738,28 @@ fn quick_workspace_missing_prepared_directory_refuses_without_creating_or_leavin
 
 #[test]
 fn workspace_at_directory_launches_only_from_a_drawn_review_in_either_locale() {
-    use crate::{client_view::ClientView, localization::Locale, tui_hit_map::HitMapBuilder};
+    use crate::{
+        client_view::ClientView, localization::Locale, tui_hit_map::HitMapBuilder, tui_theme::Role,
+    };
+    use orchbee_workbench_protocol::{
+        Directory, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkerId,
+    };
     use ratatui::{Terminal, backend::TestBackend};
+    // A second known Workspace directory lists below the prepared one.
+    let mut known = super::super::tests::membership::snapshot(1, 1);
+    let directory_id = WorkbenchDirectoryId::parse(&format!("{:032x}", 7200)).unwrap();
+    known.navigation.workspaces[0].primary_directory_id = Some(directory_id.clone());
+    known.navigation.directories.push(Directory {
+        directory_id,
+        worker_id: WorkerId::parse(&format!("{:032x}", 7201)).unwrap(),
+        path: WorkbenchDirectoryPath::parse("C:/Desktop").unwrap(),
+    });
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
     for locale in [Locale::EnUs, Locale::ZhCn] {
         // A host too small for the review creates nothing; Enter cannot accept unseen defaults.
         for (width, height, drawn) in [(120, 40, true), (80, 24, true), (22, 8, false)] {
             let (mut ui, mailbox, clock, snapshot) =
-                super::super::tests::workspace_setup::ready(false);
+                super::super::tests::workspace_setup::ready_snapshot(known.clone());
             ui.apply_client_action(ClientAction::RequestWorkspaceAtDirectory);
             finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
             assert!(
@@ -770,7 +785,7 @@ fn workspace_at_directory_launches_only_from_a_drawn_review_in_either_locale() {
                         &ClientView::new(width),
                         locale,
                         Some(ui.view()),
-                        &crate::tui_theme::Theme::rgb_test_dark(),
+                        &theme,
                         &mut hits,
                     );
                 })
@@ -797,26 +812,44 @@ fn workspace_at_directory_launches_only_from_a_drawn_review_in_either_locale() {
                         })
                     })
                     .unwrap();
-                assert!(!choices.is_empty());
-                for (index, path) in choices.iter().take(2).enumerate() {
-                    let y = (0..height).find(|y| (0..width).any(|x| matches!(
-                        map.hit_target_at(x, *y), Some(HitTarget::Setup { control: ModalControl::Choice(choice), .. }) if *choice == index
-                    ))).expect("every displayed candidate retains its own hit row");
+                assert_eq!(choices, ["C:/项目 space", "C:/Desktop"]);
+                let buffer = terminal.backend().buffer();
+                for (index, path) in choices.iter().enumerate() {
+                    let (x, y) = (0..height)
+                        .flat_map(|y| (0..width).map(move |x| (x, y)))
+                        .find(|(x, y)| matches!(
+                            map.hit_target_at(*x, *y), Some(HitTarget::Setup { control: ModalControl::Choice(choice), .. }) if *choice == index
+                        ))
+                        .expect("every displayed candidate retains its own hit row");
                     assert!(
                         y + 1 < submit_y,
-                        "candidate, hint and action rows must be disjoint"
+                        "candidate and action rows must be disjoint"
                     );
                     let mut line = String::new();
-                    let mut x = 0;
-                    while x < width {
-                        let symbol = terminal.backend().buffer()[(x, y)].symbol();
+                    let mut column = 0;
+                    while column < width {
+                        let symbol = buffer[(column, y)].symbol();
                         line.push_str(symbol);
-                        x += u16::try_from(crate::terminal_text::display_width(symbol).max(1))
+                        column += u16::try_from(crate::terminal_text::display_width(symbol).max(1))
                             .unwrap();
                     }
+                    // The row names its folder and leaves the whole path to the field.
+                    let folder = path.rsplit('/').next().unwrap();
                     assert!(
-                        line.contains(path),
-                        "candidate must not be overwritten by footer: {line}"
+                        line.contains(folder) && !line.contains(path.as_str()),
+                        "{line}"
+                    );
+                    // Only the folder the field holds carries the cursor and selection fill.
+                    let selected = index == 0;
+                    assert_eq!(
+                        buffer[(x, y)].symbol() == theme.glyphs.navigation_marker,
+                        selected,
+                        "{line}"
+                    );
+                    assert_eq!(
+                        buffer[(x, y)].bg == theme.style(Role::SurfaceSelection).bg.unwrap(),
+                        selected,
+                        "{line}"
                     );
                 }
             }

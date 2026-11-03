@@ -186,8 +186,9 @@ A dialog that does not fit gives up space in a fixed order, only along the axis 
 2. Width: the dialog narrows below its class minimum while its complete action row fits, and the
    title, target, and fields truncate. Then buttons drop their key text, as in
    `[ Cancel ]  [ Rename ]`; the keys keep working.
-3. Height: blank rows go, then help lines, then a form's context line; errors and a confirmation's
-   target line stay. Then prose truncates to one line with `…`.
+3. Height: blank rows go, then help lines, then a form's context line and suggestion-list
+   headings; errors and a confirmation's target line stay. Then prose truncates to one line with
+   `…`.
 
 The minimum is the frame, the target line or the focused field, the error row of an invalid field,
 and the complete action row. Below it, a new dialog is refused with a status notice and an open

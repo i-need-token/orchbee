@@ -99,6 +99,20 @@ fn quick_workspace_fields_normalize_relative_and_home_paths_without_mutating_raw
             .starts_with(std::env::var("USERPROFILE").unwrap().as_str())
     );
     assert_eq!(fields.directory(), "~");
+    // A listed folder's `~` spelling is one this expansion resolves back to the same folder.
+    fields.set_environment(vec![("USERPROFILE".to_owned(), r"C:\Users\luna".into())]);
+    for (path, spelled) in [
+        (r"C:\Users\luna", Some("~")),
+        (r"C:\Users\luna\code\", Some(r"~\code")),
+        ("c:/users/LUNA/code", Some("~/code")),
+        (r"C:\Users\lunatic", None),
+        (r"D:\Users\luna", None),
+    ] {
+        assert_eq!(fields.home_spelling(path).as_deref(), spelled, "{path}");
+    }
+    fields.directory_editor().clear();
+    fields.directory_editor().insert(r"~\code").unwrap();
+    assert_eq!(fields.plan().unwrap().cwd.as_str(), r"C:\Users\luna\code");
     fields.directory_editor().clear();
     fields.directory_editor().insert("C:relative").unwrap();
     assert!(fields.plan().is_none());

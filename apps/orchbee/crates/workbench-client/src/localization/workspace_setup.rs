@@ -198,11 +198,11 @@ impl Locale {
             Self::ZhCn => "关闭",
         }
     }
-    /// Help for the one key only the directory field uses.
-    pub(crate) const fn quick_workspace_directory_hint(self) -> &'static str {
+    /// The heading of the recent folders listed under the directory field.
+    pub(crate) const fn quick_workspace_recent(self) -> &'static str {
         match self {
-            Self::EnUs => "Up and Down pick a recent folder.",
-            Self::ZhCn => "用上下键选择最近的文件夹。",
+            Self::EnUs => "Recent",
+            Self::ZhCn => "最近",
         }
     }
     pub(crate) const fn setup_directory_help(self) -> &'static str {

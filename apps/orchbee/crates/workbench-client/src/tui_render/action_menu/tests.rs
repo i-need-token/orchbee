@@ -487,7 +487,10 @@ fn context_menus_omit_chrome_and_hidden_controls_without_changing_global_discove
                     assert!(menu.presented(draw.clone()));
                     let buffer = terminal.backend().buffer();
                     let text = visible_buffer_text(buffer);
-                    assert!(text.contains("QZX"));
+                    // A `+` menu is titled by what its rows create, never by the title it was given.
+                    let new_workspace = locale.menu_action(&MenuAction::NewWorkspace);
+                    assert_eq!(text.contains("QZX"), !context);
+                    assert_eq!(text.contains(new_workspace), context);
                     assert_eq!(text.contains("Esc"), !context);
                     assert_eq!(text.contains("1/2"), !context);
                     assert_eq!(text.contains(locale.menu_search_label()), !context);

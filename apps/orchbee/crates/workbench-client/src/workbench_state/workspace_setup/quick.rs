@@ -307,20 +307,39 @@ impl QuickWorkspaceFields {
             _ => true,
         }
     }
+    /// The `~` spelling that this draft's own expansion resolves back to `path`, for a path inside
+    /// the captured home folder: ASCII case and either separator match, and trailing separators
+    /// are dropped.
+    pub(crate) fn home_spelling(&self, path: &str) -> Option<String> {
+        const SEPARATORS: [char; 2] = ['\\', '/'];
+        let home = self.expand("~")?;
+        let home = home.trim_end_matches(SEPARATORS);
+        let separator = |byte: u8| matches!(byte, b'\\' | b'/');
+        let rest = path.get(home.len()..).filter(|_| {
+            !home.is_empty()
+                && path.as_bytes()[..home.len()]
+                    .iter()
+                    .zip(home.as_bytes())
+                    .all(|(&a, &b)| a.eq_ignore_ascii_case(&b) || separator(a) && separator(b))
+        })?;
+        (rest.is_empty() || rest.starts_with(SEPARATORS))
+            .then(|| format!("~{}", rest.trim_end_matches(SEPARATORS)))
+    }
     fn normalized_path(&self) -> Option<String> {
-        {
-            orchbee_local_runtime::normalize_user_path(
-                self.directory(),
-                |name| {
-                    self.environment
-                        .iter()
-                        .find(|(key, _)| key == name)
-                        .map(|(_, value)| value.clone())
-                },
-                || Ok(std::path::PathBuf::from(self.base.as_str())),
-            )
-            .ok()
-        }
+        self.expand(self.directory())
+    }
+    fn expand(&self, value: &str) -> Option<String> {
+        orchbee_local_runtime::normalize_user_path(
+            value,
+            |name| {
+                self.environment
+                    .iter()
+                    .find(|(key, _)| key == name)
+                    .map(|(_, value)| value.clone())
+            },
+            || Ok(std::path::PathBuf::from(self.base.as_str())),
+        )
+        .ok()
     }
 }
 

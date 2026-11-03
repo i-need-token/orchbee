@@ -270,11 +270,13 @@ existing keyboard route remains available.
 Project and Workspace primary rows support primary-button dragging; disclosure and Create remain
 independent controls. The Recents heading is neither a drag source nor a drop destination. Movement of two columns or one row latches a drag, even if the pointer returns
 to its origin. Dropping a Workspace on a Project appends it to that Project. Dropping on a Workspace
-places it before that row when moving upward, or after it when moving downward; grouping follows
-the destination Workspace. Projects reorder on other Project headers as complete groups. A bottom
-footer drop area appears only during dragging: No Project moves a Workspace out of its group;
-End of Projects appends a Project. The highlighted destination and localized status describe the
-actual before/after/into result. Invalid and unchanged destinations publish no move. Holding at the
+entry, its Agent rows included, places it before that entry from the entry's upper half and after it
+from the lower half; on a one-line entry the side away from the dragged row decides. Grouping follows
+the destination Workspace. Projects reorder on other Project headers as complete groups, by the same
+one-line rule. A bottom footer drop area appears only during dragging: No Project moves a Workspace
+out of its group; End of Projects appends a Project. One underlined line on the gap the drop fills,
+the destination's last line for after or the line above it for before, and the localized status
+describe the actual before/after/into result. Invalid and unchanged destinations publish no move. Holding at the
 list edge scrolls at most once every 120 ms through the existing bounded list-scroll owner; wheel remains local.
 
 Until movement latches a drag, the press is a click on its row: only that row's painted target, the

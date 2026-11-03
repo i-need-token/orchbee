@@ -117,6 +117,10 @@ impl<'a> SetupDraftView<'a> {
             .as_ref()
             .and_then(|fields| fields.selected_directory())
     }
+    /// The `~` spelling of a path inside the home folder that the directory field expands.
+    pub(crate) fn home_spelling(&self, path: &str) -> Option<String> {
+        self.draft.quick.as_ref()?.home_spelling(path)
+    }
     /// Whether the Tab group form renames an existing group rather than creating one.
     pub(crate) fn renames_tab_group(&self) -> bool {
         matches!(

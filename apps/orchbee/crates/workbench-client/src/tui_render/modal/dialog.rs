@@ -68,6 +68,9 @@ pub(in crate::tui_render) enum DialogRow<'a> {
     Field { minimum: u16 },
     /// A field's reserved help row; it keeps its place without text so an error never moves rows.
     Help(Option<Cow<'a, str>>),
+    /// The short heading of a field's suggestion list in `text-secondary`, truncated at the end;
+    /// it goes with the context line under height pressure.
+    Heading(Cow<'a, str>),
     /// A field error in the help row: the `status-error` glyph and one sentence.
     Error(Cow<'a, str>),
     /// The pending, failure or recovery state of the whole task.
@@ -133,7 +136,7 @@ impl DialogRow<'_> {
         match self {
             Self::Blank => Some(Drop::Blank),
             Self::Help(_) => Some(Drop::Help),
-            Self::Context(_) => Some(Drop::Context),
+            Self::Context(_) | Self::Heading(_) => Some(Drop::Context),
             _ => None,
         }
     }
@@ -166,7 +169,7 @@ impl DialogRow<'_> {
                 truncate_display_middle(&sanitize_terminal_text(text), cells, ellipsis),
                 Role::TextPrimary,
             ),
-            Self::Context(text) => plain(
+            Self::Context(text) | Self::Heading(text) => plain(
                 truncate_display(&sanitize_terminal_text(text), cells, ellipsis),
                 Role::TextSecondary,
             ),

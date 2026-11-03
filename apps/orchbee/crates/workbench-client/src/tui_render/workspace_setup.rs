@@ -514,22 +514,14 @@ fn render_quick(
 ) -> (Rect, ModalPresentation<SetupToken>) {
     const NAME: usize = 3;
     const DIRECTORY: usize = 7;
-    const CHOICES: usize = 9;
+    const HEADING: usize = 9;
+    const CHOICES: usize = 10;
     let class = DialogClass::Medium;
     let project = draft.project_label().unwrap_or(locale.setup_ungrouped());
     let directory_active = draft.stage() == SetupStage::QuickDirectory;
     let errors = draft.field_errors();
-    let selected = draft.selected_directory().unwrap_or(0);
-    let first = selected
-        .saturating_sub(1)
-        .min(draft.directory_choices().len().saturating_sub(2));
-    let choices: Vec<_> = draft
-        .directory_choices()
-        .iter()
-        .enumerate()
-        .skip(first)
-        .take(2)
-        .collect();
+    let count = draft.directory_choices().len();
+    // The directory's empty help row separates the field from its list; an error takes its place.
     let mut rows = vec![
         DialogRow::Context(locale.setup_project_context(project).into()),
         DialogRow::Blank,
@@ -543,15 +535,13 @@ fn render_quick(
         DialogRow::Field {
             minimum: class.path_width(),
         },
-        help_row(
-            locale,
-            errors[1],
-            draft.touched(true),
-            (!choices.is_empty()).then(|| locale.quick_workspace_directory_hint()),
-        ),
+        help_row(locale, errors[1], draft.touched(true), None),
     ];
-    if !choices.is_empty() {
-        rows.push(DialogRow::List { len: choices.len() });
+    if count > 0 {
+        rows.push(DialogRow::Heading(locale.quick_workspace_recent().into()));
+        rows.push(DialogRow::List {
+            len: count.min(RECENT_ROWS),
+        });
     }
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
     let enter = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
@@ -579,6 +569,28 @@ fn render_quick(
         draft.quick_window(false, width),
         draft.quick_window(true, width),
     ) else {
+        return (Rect::default(), ModalPresentation::NotPresented);
+    };
+    // The list keeps the selected folder in view; rows that do not fit scroll with it.
+    let list = layout.row(CHOICES);
+    let capacity = list.map_or(0, |list| usize::from(list.height));
+    let start = draft
+        .selected_directory()
+        .unwrap_or(0)
+        .saturating_sub(capacity / 2)
+        .min(count.saturating_sub(capacity));
+    let folders = list.map_or(Some(Vec::new()), |list| {
+        (start..count.min(start + capacity))
+            .map(|index| {
+                let y = list.y.checked_add(u16::try_from(index - start).ok()?)?;
+                let geometry =
+                    PickerRowGeometry::resolve(Rect::new(list.x, y, list.width, 1), theme)?;
+                let path = draft.directory_choices().get(index)?.as_str();
+                Some((index, FolderRow::resolve(geometry, path, draft, theme)))
+            })
+            .collect::<Option<Vec<_>>>()
+    });
+    let Some(folders) = folders else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
     let target = |control| HitTarget::Setup {
@@ -632,41 +644,59 @@ fn render_quick(
         target(ModalControl::NextField),
         InteractionAvailability::Enabled,
     );
-    if let Some(list) = layout.row(CHOICES) {
-        for (offset, (index, path)) in choices.iter().enumerate() {
-            let Some(y) = u16::try_from(offset)
-                .ok()
-                .and_then(|offset| list.y.checked_add(offset))
-                .filter(|y| *y < list.bottom())
-            else {
-                break;
-            };
-            let rect = Rect::new(list.x, y, list.width, 1);
-            let marker = if draft.selected_directory() == Some(*index) {
-                theme.glyphs.active_marker
-            } else {
-                " "
-            };
-            let prefix = format!("{marker} {} ", index + 1);
-            let text = format!(
-                "{prefix}{}",
-                truncate_display_middle(
-                    &sanitize_terminal_text(path.as_str()),
-                    usize::from(list.width).saturating_sub(display_width(&prefix)),
-                    ellipsis,
-                )
-            );
+    // A clipped list shows which folders are in view, as `2-4/8`, at the heading's end.
+    if let Some(heading) = layout.row(HEADING)
+        && capacity < count
+    {
+        let range = format!("{}-{}/{count}", start + 1, start + folders.len());
+        let range_width = display_width(&range);
+        let used = display_width(locale.quick_workspace_recent()) + 1;
+        if let Ok(cells) = u16::try_from(range_width)
+            && used + range_width <= usize::from(heading.width)
+        {
             frame.render_widget(
-                Paragraph::new(text).style(theme.style(Role::TextSecondary)),
-                rect,
-            );
-            hits.record_modal_control(
-                HitLayer::Overlay,
-                rect,
-                target(ModalControl::Choice(*index)),
-                InteractionAvailability::Enabled,
+                Paragraph::new(range).style(theme.style(Role::TextSecondary)),
+                Rect::new(heading.right() - cells, heading.y, cells, 1),
             );
         }
+    }
+    for (index, folder) in folders {
+        folder.paint(frame, theme);
+        let control = target(ModalControl::Choice(index));
+        let availability = InteractionAvailability::Enabled;
+        let row = folder.geometry.row;
+        let pointer = hits.projected_modal_pointer(HitLayer::Overlay, row, &control, availability);
+        let provisional = draft.selected_directory() == Some(index);
+        let state = controls::InteractionState::new(
+            controls::FocusState::Unfocused,
+            pointer_presentation(pointer),
+            if provisional {
+                controls::NavigationState::Provisional
+            } else {
+                controls::NavigationState::None
+            },
+            controls::CurrentState::NotCurrent,
+            controls::CheckedState::Unchecked,
+            controls::Availability::Enabled,
+            controls::OperationState::Idle,
+        );
+        let bands = folder
+            .parent
+            .as_ref()
+            .map(|(rect, _)| controls::RowContentBand::semantic(*rect, Role::TextSecondary));
+        let painted = controls::paint_row_interaction(
+            frame,
+            row,
+            controls::RowTracks::new(controls::RowFocusCue::EnclosingFrame, folder.name.0)
+                .with_provisional(folder.geometry.navigation),
+            bands.as_slice(),
+            controls::ControlSurface::Overlay,
+            state,
+            theme,
+        )
+        .expect("admitted recent folder row must paint");
+        assert_eq!(painted, row);
+        hits.record_modal_control(HitLayer::Overlay, row, control, availability);
     }
     let (row, window) = if directory_active {
         (directory_row, &directory)
@@ -675,6 +705,90 @@ fn render_quick(
     };
     place_caret(frame, row, window.cursor_column(), theme);
     (layout.area, ModalPresentation::Presented(draft.token()))
+}
+
+/// The recent folders the New Workspace form lists at most; more scroll with the selection.
+const RECENT_ROWS: usize = 3;
+/// Cells between a folder's name and its parent.
+const FOLDER_GAP: usize = 2;
+/// The fewest cells a cut parent keeps; with less room the parent goes and the name stays whole.
+const PARENT_MINIMUM: usize = 8;
+
+/// One recent folder: its name in the primary track and, as right-aligned metadata, the folder
+/// that holds it, spelled from `~` inside the home folder.
+struct FolderRow {
+    geometry: PickerRowGeometry,
+    name: (Rect, String),
+    parent: Option<(Rect, String)>,
+}
+
+impl FolderRow {
+    fn resolve(
+        geometry: PickerRowGeometry,
+        path: &str,
+        draft: &SetupDraftView<'_>,
+        theme: &Theme,
+    ) -> Self {
+        let ellipsis = theme.glyphs.ellipsis;
+        let primary = geometry.primary;
+        let cells = usize::from(primary.width);
+        let (name, parent) = folder_parts(path);
+        let name = sanitize_terminal_text(name);
+        let name_width = display_width(&name);
+        let parent = parent.and_then(|parent| {
+            let parent = draft
+                .home_spelling(parent)
+                .unwrap_or_else(|| parent.to_owned());
+            let parent = sanitize_terminal_text(&parent).into_owned();
+            let room = cells.checked_sub(name_width + FOLDER_GAP)?;
+            if room < display_width(&parent).min(PARENT_MINIMUM) {
+                return None;
+            }
+            let parent = truncate_display_middle(&parent, room, ellipsis);
+            let width = u16::try_from(display_width(&parent)).ok()?;
+            let rect = Rect::new(primary.right() - width, primary.y, width, 1);
+            Some((rect, parent))
+        });
+        let name_rect = parent.as_ref().map_or(primary, |(rect, _)| {
+            Rect::new(primary.x, primary.y, rect.x - primary.x, 1)
+        });
+        Self {
+            geometry,
+            name: (name_rect, truncate_display(&name, cells, ellipsis)),
+            parent,
+        }
+    }
+
+    fn paint(&self, frame: &mut Frame<'_>, theme: &Theme) {
+        frame.render_widget(
+            Paragraph::new(self.name.1.as_str()).style(theme.style(Role::TextPrimary)),
+            self.name.0,
+        );
+        if let Some((rect, parent)) = &self.parent {
+            frame.render_widget(
+                Paragraph::new(parent.as_str()).style(theme.style(Role::TextSecondary)),
+                *rect,
+            );
+        }
+    }
+}
+
+/// A folder path's last component and the folder that holds it; a drive root keeps its
+/// separator, and a root has no parent.
+fn folder_parts(path: &str) -> (&str, Option<&str>) {
+    let trimmed = path.trim_end_matches(['\\', '/']);
+    match trimmed.rfind(['\\', '/']) {
+        Some(at) if at + 1 < trimmed.len() => {
+            let parent = &trimmed[..at];
+            let parent = if parent.is_empty() || parent.ends_with(':') {
+                &trimmed[..=at]
+            } else {
+                parent
+            };
+            (&trimmed[at + 1..], Some(parent))
+        }
+        _ => (path, None),
+    }
 }
 
 #[cfg(test)]

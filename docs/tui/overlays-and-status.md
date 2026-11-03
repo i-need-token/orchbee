@@ -243,6 +243,9 @@ Every dialog uses the same rows from top to bottom. An omitted row closes up wit
 - Content starts at the left content edge, two cells inside the frame. The action row ends at the
   right content edge.
 - Multi-field forms separate field groups with one blank row.
+- A field may attach a short suggestion list after its help row: a one-word `text-secondary`
+  heading, then picker rows that fill the field when chosen. The list needs no key help; its picker
+  cursor on the row that matches the field shows that `Up` and `Down` move it.
 
 ### Titles, targets, and labels
 
