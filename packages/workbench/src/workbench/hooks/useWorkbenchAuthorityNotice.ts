@@ -115,6 +115,8 @@ export function useWorkbenchAuthorityNotice(
 				? undefined
 				: {
 						minimumSplitPercent: authority.minimumSplitPercent,
+						// The board reports its own outcomes, so nothing it does reaches the status line.
+						agentBoard: authority.agentBoard,
 						change: async (context, change) => {
 							const dissolvedWorkspaces =
 								change.type === 'project-dissolved' &&

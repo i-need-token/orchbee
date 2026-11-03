@@ -6,6 +6,7 @@ import type {
 } from '@orchbee/workbench-client-protocol';
 
 import type { ProjectWorkspaceEvent } from '../../project-workspace';
+import type { WorkbenchAgentBoard } from './workbench-agent-board';
 import type { WorkbenchConfiguredCommands } from './workbench-configured-commands';
 import type { WorkbenchProjectCreationReceipt } from './workbench-project-folder-acquisition';
 import type { WorkbenchWorktrees } from './workbench-worktrees';
@@ -195,6 +196,8 @@ export type WorkbenchAuthorityContext = Pick<ActionExecutionContext, 'markCommit
 export interface WorkbenchAuthority {
 	/** The smallest share either side of a split can hold, out of 100. */
 	readonly minimumSplitPercent: number;
+	/** Absent where this authority cannot read the Server's Agent sessions. */
+	readonly agentBoard?: WorkbenchAgentBoard | undefined;
 	/** Absent where this authority runs no configured commands. */
 	readonly configuredCommands?: WorkbenchConfiguredCommands | undefined;
 	change(

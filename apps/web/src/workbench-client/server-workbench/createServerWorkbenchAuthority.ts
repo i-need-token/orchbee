@@ -1,4 +1,5 @@
 import type {
+	WorkbenchAgentBoard,
 	WorkbenchAuthority,
 	WorkbenchAuthorityChange,
 	WorkbenchAuthorityCreation,
@@ -41,6 +42,8 @@ export interface ServerLaunchProfileSource {
 }
 
 interface ServerWorkbenchAuthorityOptions {
+	/** The Server's Agent sessions, which the Agent board reads over this window's connection. */
+	readonly agentBoard?: WorkbenchAgentBoard | undefined;
 	/** Absent where this window publishes no view for a command to start from. */
 	readonly configuredCommands?: WorkbenchConfiguredCommands | undefined;
 	/** Where this Client works when nothing it shows names a directory. */
@@ -228,6 +231,7 @@ function launchPlan(
  * a ratio goes again, when a commit elsewhere moved the revision and left the split as it was.
  */
 export function createServerWorkbenchAuthority({
+	agentBoard,
 	configuredCommands,
 	defaultDirectory,
 	defaultWorkspaceLabel,
@@ -237,6 +241,7 @@ export function createServerWorkbenchAuthority({
 }: ServerWorkbenchAuthorityOptions): WorkbenchAuthority {
 	return {
 		...createServerWorkbenchClose(session),
+		...(agentBoard === undefined ? {} : { agentBoard }),
 		...(configuredCommands === undefined ? {} : { configuredCommands }),
 		...(launchProfiles === undefined
 			? {}

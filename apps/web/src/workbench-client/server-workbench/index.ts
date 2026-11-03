@@ -23,6 +23,7 @@ export type { ServerLaunchProfileSource } from './createServerWorkbenchAuthority
 export { createServerWorkspaceLocations } from './createServerWorkspaceLocations';
 export { findServerPresentation } from './findServerPresentation';
 export { projectServerSnapshot } from './projectServerSnapshot';
+export { getServerAgentSession, listServerAgentSessions } from './server-agent-sessions';
 export { findServerTerminalBinding, serverTerminalBindingKey } from './server-terminal-binding';
 export {
 	createServerTerminalColorsSource,

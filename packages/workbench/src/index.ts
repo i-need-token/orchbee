@@ -9,8 +9,14 @@ export {
 	readWorkbenchShownPresentationId,
 	resolveTerminalMetadataObservation,
 	showWorkbenchClientTarget,
+	showWorkbenchPresentation,
 } from './workbench';
 export type {
+	WorkbenchAgentBoard,
+	WorkbenchAgentBoardJump,
+	WorkbenchAgentBoardJumpFailure,
+	WorkbenchAgentBoardRow,
+	WorkbenchAgentBoardSnapshot,
 	WorkbenchClientTarget,
 	WorkbenchConfiguredCommandOutcome,
 	WorkbenchConfiguredCommands,

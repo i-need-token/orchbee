@@ -43,6 +43,7 @@ import {
 } from '../projected-terminal-surface';
 import type { ServerConnection } from '../server-connection';
 import { bindServerClientView } from './bindServerClientView';
+import { bindServerAgentBoard } from './bindServerAgentBoard';
 import { bindServerConfiguredCommands } from './bindServerConfiguredCommands';
 import { bindServerWindowTitle, type ServerTitleWindow } from './bindServerWindowTitle';
 import {
@@ -217,7 +218,9 @@ export function createServerWorkbenchRuntime({
 		runtime: projectWorkspaceRuntime,
 		session,
 	});
+	const agentBoard = bindServerAgentBoard({ connection, runtime: projectWorkspaceRuntime });
 	const authority = createServerWorkbenchAuthority({
+		agentBoard: agentBoard.board,
 		configuredCommands: configuredCommands.commands,
 		defaultDirectory,
 		defaultWorkspaceLabel: () =>
@@ -376,6 +379,7 @@ export function createServerWorkbenchRuntime({
 			runApplicationCleanup(
 				[
 					() => stopPublication(),
+					() => agentBoard.dispose(),
 					() => configuredCommands.dispose(),
 					() => clientView?.dispose(),
 					() => terminalEnds.dispose(),

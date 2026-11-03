@@ -1,0 +1,120 @@
+.surface {
+	display: flex;
+	flex-direction: column;
+	max-height: calc(100% - var(--ob-ref-space-8));
+}
+
+.header {
+	padding-inline-end: var(--ob-ref-space-6);
+}
+
+.title {
+	font: var(--ob-sys-typography-heading-xs);
+}
+
+/* One column set for every row, so statuses and details line up down the board. */
+.list {
+	display: grid;
+	min-height: var(--ob-ref-space-0);
+	flex: 1;
+	grid-template-columns:
+		var(--ob-ref-size-icon-sm) max-content
+		minmax(var(--ob-ref-space-0), 1fr);
+	align-content: start;
+	column-gap: var(--ob-ref-space-2);
+	overflow-x: hidden;
+	overflow-y: auto;
+	border-radius: var(--ob-ref-radius-ui-lg);
+	outline: none;
+}
+
+.list:focus-visible {
+	box-shadow: 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+.row {
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: subgrid;
+	align-items: center;
+	min-height: var(--ob-ref-size-control-md);
+	padding-inline: var(--ob-ref-space-2);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	color: var(--ob-sys-color-text-primary);
+	cursor: default;
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.row:hover {
+	background: var(--ob-sys-color-surface-hovered);
+}
+
+.row[data-highlighted='true'] {
+	background: var(--ob-sys-color-surface-selected);
+}
+
+.row[data-highlighted='true']:hover {
+	background: var(--ob-sys-color-surface-selected-hover);
+}
+
+.status {
+	white-space: nowrap;
+}
+
+.row[data-ended='true'] .status {
+	color: var(--ob-sys-color-text-secondary);
+}
+
+.detail {
+	overflow: hidden;
+	color: var(--ob-sys-color-text-muted);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.empty {
+	grid-column: 1 / -1;
+	margin: 0;
+	padding: var(--ob-ref-space-6) var(--ob-ref-space-2);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-body-sm);
+	text-align: center;
+}
+
+.statusLine {
+	margin: 0;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.statusLine[data-warning='true'] {
+	color: var(--ob-sys-color-status-warning-text);
+}
+
+.footer {
+	align-items: center;
+}
+
+.hint,
+.keyGroup {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+}
+
+.hint {
+	margin-inline-end: auto;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.action {
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.shortcut {
+	color: currentColor;
+	background: transparent;
+	font: var(--ob-sys-typography-label-xs);
+	opacity: var(--ob-sys-opacity-muted);
+}

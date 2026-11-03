@@ -6,8 +6,16 @@ export {
 	readWorkbenchClientSelection,
 	readWorkbenchShownPresentationId,
 	showWorkbenchClientTarget,
+	showWorkbenchPresentation,
 } from './model/workbench-client-selection';
 export type { WorkbenchClientTarget } from './model/workbench-client-selection';
+export type {
+	WorkbenchAgentBoard,
+	WorkbenchAgentBoardJump,
+	WorkbenchAgentBoardJumpFailure,
+	WorkbenchAgentBoardRow,
+	WorkbenchAgentBoardSnapshot,
+} from './types/workbench-agent-board';
 export type {
 	WorkbenchConfiguredCommandOutcome,
 	WorkbenchConfiguredCommands,

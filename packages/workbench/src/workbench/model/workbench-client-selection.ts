@@ -5,6 +5,7 @@ import {
 	type PanelWorkspaceEvent,
 	type TabPanelWorkspace,
 } from '../components/workbench-panel-workspace/model/panel-workspace-state';
+import { findWorkbenchAgentDestination } from './project-workbench-agent-overview';
 import type {
 	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalContext,
@@ -38,6 +39,12 @@ export type WorkbenchClientTarget =
 type WorkbenchClientNavigation =
 	/** Nothing changed: the Workspace, Tab or Panel the target names is not there. */
 	{ readonly kind: 'unavailable' } | { readonly changed: boolean; readonly kind: 'shown' };
+
+/** A terminal that a jump may show, as the Server reports where a session is attached. */
+interface WorkbenchPresentationCandidate {
+	readonly presentationId: string;
+	readonly visible: boolean;
+}
 
 const UNAVAILABLE: WorkbenchClientNavigation = { kind: 'unavailable' };
 
@@ -128,6 +135,57 @@ export function showWorkbenchClientTarget(
 				'applied' || changed;
 	}
 	return { changed, kind: 'shown' };
+}
+
+/**
+ * Shows the first candidate this window holds, with its terminal in front of its Panel, in the order
+ * the TUI's Agent board tries them: one in the shown Tab first, then a visible one, then by
+ * identity. Nothing changes when the window holds none of them.
+ */
+export function showWorkbenchPresentation(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	candidates: readonly WorkbenchPresentationCandidate[],
+): WorkbenchClientNavigation {
+	const shown = readWorkbenchClientSelection(runtime);
+	const placed = candidates.flatMap(({ presentationId, visible }) => {
+		const destination = findWorkbenchAgentDestination(runtime, presentationId);
+		if (destination === null) return [];
+		const inShownTab =
+			shown?.terminalContextId === destination.terminalContextId &&
+			shown.tabId === destination.tabId;
+		return [{ destination, rank: (inShownTab ? 2 : 0) + (visible ? 1 : 0) }];
+	});
+	placed.sort(
+		(left, right) =>
+			right.rank - left.rank ||
+			compareIdentities(left.destination.presentationId, right.destination.presentationId),
+	);
+	for (const { destination } of placed) {
+		const context = runtime.getTerminalContext(destination.terminalContextId);
+		if (context === null) continue;
+		const { panelId, presentationId, tabId, terminalContextId } = destination;
+		const fronted = context.panelWorkspaceStore.transition(
+			destination.terminalPosition.kind === 'primary'
+				? { panelId, tabId, type: 'primary-terminal-shown' }
+				: { childPresentationId: presentationId, panelId, tabId, type: 'child-terminal-activated' },
+		);
+		if (fronted.outcome === 'rejected') continue;
+		const navigation = showWorkbenchClientTarget(runtime, {
+			kind: 'panel',
+			panelId,
+			tabId,
+			terminalContextId,
+		});
+		if (navigation.kind === 'shown') {
+			return { changed: navigation.changed || fronted.outcome === 'applied', kind: 'shown' };
+		}
+	}
+	return UNAVAILABLE;
+}
+
+function compareIdentities(left: string, right: string): number {
+	if (left === right) return 0;
+	return left < right ? -1 : 1;
 }
 
 /** The one change that focuses the Panel and leaves its Tab zoomed as the target asks, if any. */

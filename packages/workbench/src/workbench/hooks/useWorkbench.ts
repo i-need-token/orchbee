@@ -95,6 +95,7 @@ import {
 	type WorkbenchSharedPanelTerminalCreate,
 } from '../actions/createSharedPanelTerminal';
 import type { WorkbenchAuthority } from '../types/workbench-authority';
+import type { WorkbenchAgentBoard } from '../types/workbench-agent-board';
 import { useWorkbenchActions } from './useWorkbenchActions';
 import {
 	useWorkbenchAuthorityNotice,
@@ -128,6 +129,12 @@ interface ResizablePanelSize {
 }
 
 interface WorkbenchView {
+	/** Present while the Agent board is open. */
+	readonly agentBoard: WorkbenchAgentBoard | undefined;
+	readonly agentBoardFinalFocus: () => HTMLElement | false | null;
+	readonly closeAgentBoard: () => void;
+	/** Closes the board after a jump and hands the shown terminal the keyboard. */
+	readonly showAgentBoardSession: () => void;
 	readonly agentNavigationAnnouncement: {
 		readonly message: string;
 		readonly sequence: number;
@@ -386,6 +393,32 @@ export function useWorkbench({
 			? capturedTarget
 			: findActiveTerminalFocusTarget(projectWorkspaceRuntime);
 	});
+	const agentBoardReturnFocus = React.useRef<HTMLElement | null>(null);
+	const agentBoardLanded = React.useRef(false);
+	const [agentBoardOpen, setAgentBoardOpen] = React.useState(false);
+	const openAgentBoard = useMemoizedFn(() => {
+		const focused = typeof document === 'undefined' ? null : document.activeElement;
+		agentBoardReturnFocus.current =
+			focused instanceof HTMLElement && focused !== document.body ? focused : null;
+		agentBoardLanded.current = false;
+		setAgentBoardOpen(true);
+	});
+	const closeAgentBoard = useMemoizedFn(() => setAgentBoardOpen(false));
+	const showAgentBoardSession = useMemoizedFn(() => {
+		// The terminal the jump showed takes the keyboard once the board has gone.
+		const handover = focusRouting.beginTerminalHandover();
+		agentBoardLanded.current = true;
+		setAgentBoardOpen(false);
+		handover.complete();
+	});
+	const agentBoardFinalFocus = useMemoizedFn((): HTMLElement | false | null => {
+		const capturedTarget = agentBoardReturnFocus.current;
+		agentBoardReturnFocus.current = null;
+		if (agentBoardLanded.current) return false;
+		return capturedTarget?.isConnected === true
+			? capturedTarget
+			: findActiveTerminalFocusTarget(projectWorkspaceRuntime);
+	});
 	const toggleSidebar = useMemoizedFn(() => {
 		setIsSidebarVisible((currentVisibility) => {
 			const nextVisibility = !currentVisibility;
@@ -579,6 +612,7 @@ export function useWorkbench({
 		onNewTerminal: createTerminal,
 		onSettings,
 		onTerminalFontSizeChange,
+		openAgentBoard,
 		openSearch,
 		openTabTitleEditor,
 		primaryWorkspaceName: intl.formatMessage(workbenchMessages.workspacePrimaryName),
@@ -729,6 +763,10 @@ export function useWorkbench({
 	);
 
 	return {
+		agentBoard: agentBoardOpen ? authorityNotice.authority?.agentBoard : undefined,
+		agentBoardFinalFocus,
+		closeAgentBoard,
+		showAgentBoardSession,
 		agentNavigationAnnouncement:
 			agentNavigationAnnouncementSequence === 0
 				? null

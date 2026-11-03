@@ -46,6 +46,7 @@ export const WORKBENCH_ACTION_IDS = {
 	focusSidebar: 'workbench.focus.sidebar',
 	focusTabStrip: 'workbench.focus.tab-strip',
 	increaseTerminalFontSize: 'workbench.terminal.font-size.increase',
+	openAgentBoard: 'workbench.agent-board.open',
 	openSearch: 'workbench.search.open',
 	openPanelBroadcastInput: 'workbench.panel.active.broadcast-input.open',
 	openSettings: 'workbench.settings.open',
@@ -261,6 +262,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.focusSidebar]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusTabStrip]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.increaseTerminalFontSize]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.openAgentBoard]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openSearch]: ActionSignature<WorkbenchSearchOpenInput>;
 	readonly [WORKBENCH_ACTION_IDS.openPanelBroadcastInput]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openSettings]: ActionSignature<void>;

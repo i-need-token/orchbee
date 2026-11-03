@@ -57,6 +57,7 @@ describe('workbench action contracts', () => {
 			focusSidebar: 'workbench.focus.sidebar',
 			focusTabStrip: 'workbench.focus.tab-strip',
 			increaseTerminalFontSize: 'workbench.terminal.font-size.increase',
+			openAgentBoard: 'workbench.agent-board.open',
 			openSearch: 'workbench.search.open',
 			openSettings: 'workbench.settings.open',
 			removeProject: 'workbench.project.dissolve',

@@ -1628,4 +1628,120 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.refused.unavailable'],
 		description: 'Status notice when the Server could not run a configured command.',
 	},
+	agentBoardTitle: {
+		id: 'workbench.agentBoard.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.title'],
+		description:
+			'Title of the board that lists the Server’s Agent sessions, and the Action that opens it.',
+	},
+	agentBoardList: {
+		id: 'workbench.agentBoard.list',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.list'],
+		description: 'Accessible name of the Agent board’s list of sessions.',
+	},
+	agentBoardOpen: {
+		id: 'workbench.agentBoard.open',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.open'],
+		description: 'Agent board button that shows the selected session’s terminal.',
+	},
+	agentBoardRefresh: {
+		id: 'workbench.agentBoard.refresh',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.refresh'],
+		description: 'Agent board button that reads the sessions again.',
+	},
+	agentBoardSelect: {
+		id: 'workbench.agentBoard.select',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.select'],
+		description: 'Agent board key hint for moving the selection with the arrow keys.',
+	},
+	agentBoardJumping: {
+		id: 'workbench.agentBoard.jumping',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.jumping'],
+		description: 'Agent board status while it checks a session before showing its terminal.',
+	},
+	agentBoardReadUnread: {
+		id: 'workbench.agentBoard.read.unread',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.read.unread'],
+		description: 'Agent board status before any read finished; it never claims there are none.',
+	},
+	agentBoardReadReading: {
+		id: 'workbench.agentBoard.read.reading',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.read.reading'],
+		description: 'Agent board status while it reads the sessions.',
+	},
+	agentBoardReadIncomplete: {
+		id: 'workbench.agentBoard.read.incomplete',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.read.incomplete'],
+		description: 'Agent board status when the last read stopped before the end of the list.',
+	},
+	agentBoardReadDenied: {
+		id: 'workbench.agentBoard.read.denied',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.read.denied'],
+		description: 'Agent board status when the Server refused to list the sessions.',
+	},
+	agentBoardReadUnavailable: {
+		id: 'workbench.agentBoard.read.unavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.read.unavailable'],
+		description: 'Agent board status when the Server’s Agent runtime could not answer.',
+	},
+	agentBoardReadTransport: {
+		id: 'workbench.agentBoard.read.transport',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.read.transport'],
+		description: 'Agent board status when no usable answer to a read came back.',
+	},
+	agentBoardEmpty: {
+		id: 'workbench.agentBoard.empty',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.empty'],
+		description: 'Agent board body when a whole read found no sessions.',
+	},
+	agentBoardEmptyPartial: {
+		id: 'workbench.agentBoard.emptyPartial',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.emptyPartial'],
+		description: 'Agent board body when a cut-short read found no sessions; there may be some.',
+	},
+	agentBoardStale: {
+		id: 'workbench.agentBoard.freshness.stale',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.freshness.stale'],
+		description: 'Agent board row mark: the session’s last observation is old.',
+	},
+	agentBoardDisconnected: {
+		id: 'workbench.agentBoard.freshness.disconnected',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.freshness.disconnected'],
+		description: 'Agent board row mark: the session’s observer lost its connection.',
+	},
+	agentBoardNoPanel: {
+		id: 'workbench.agentBoard.noPanel',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.noPanel'],
+		description: 'Agent board row location when no terminal of this window holds the session.',
+	},
+	agentBoardJumpGone: {
+		id: 'workbench.agentBoard.jump.gone',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.jump.gone'],
+		description: 'Agent board notice when the session or every terminal it was in has gone.',
+	},
+	agentBoardJumpUnavailable: {
+		id: 'workbench.agentBoard.jump.unavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.jump.unavailable'],
+		description: 'Agent board notice when the session could not be read again before moving.',
+	},
+	agentBoardJumpDenied: {
+		id: 'workbench.agentBoard.jump.denied',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.jump.denied'],
+		description: 'Agent board notice when the Server refused to read the session again.',
+	},
+	agentBoardJumpEnded: {
+		id: 'workbench.agentBoard.jump.ended',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.jump.ended'],
+		description: 'Agent board notice when the session ended before its terminal could be shown.',
+	},
+	agentBoardJumpNoPlacement: {
+		id: 'workbench.agentBoard.jump.noPlacement',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.jump.noPlacement'],
+		description: 'Agent board notice when the session is in no terminal that can be shown.',
+	},
+	agentBoardJumpExpired: {
+		id: 'workbench.agentBoard.jump.expired',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.jump.expired'],
+		description: 'Agent board notice when showing the session took longer than allowed.',
+	},
 });

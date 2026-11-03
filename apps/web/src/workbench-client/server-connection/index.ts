@@ -1,3 +1,10 @@
+export {
+	type AgentReadRequest,
+	type AgentReadResult,
+	type AgentSessionSummary,
+	decodeAgentReadResult,
+	encodeAgentReadRequest,
+} from './agent-read-carrier';
 export { createClientServerRequestId } from './client-server-carrier';
 export {
 	type ServerCarrier,

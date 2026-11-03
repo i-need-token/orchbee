@@ -1742,6 +1742,35 @@ ran under the Server. These choices stand unless review changes them:
 Not done in this slice: popup commands, keys for commands, and naming a command without a
 description by what it runs.
 
+The window also shows the Server's Agent sessions on an Agent board and jumps to one, as the TUI
+does. These choices stand unless review changes them:
+
+- **Search opens the board.** Agent board is an Action in Search, `workbench.agent-board.open`,
+  which corresponds to the TUI's `orchbee.native.agent-board.toggle`. It has no key: the GUI has no
+  prefix like `Ctrl+B g`, and `Mod+G` would take Ctrl+G from the terminal. Unified Search's unused
+  Agents filter stays unused rather than holding the sessions.
+- **A dialog over the Workbench.** The board is a candidate experience component in the Workbench
+  package, and the authority gives it a port that decides every read and jump, so the dialog only
+  shows the port's snapshot.
+- **Reads follow the TUI.** The window reads over its connection's root lane, only while the board
+  is open, at most once per two seconds after the last read ends, three seconds per read, one
+  request at a time, and drops what a closed board's reads still owe. A cut-short walk replaces only
+  rows no whole walk gave, and at most 600 rows show, the ones needing attention first.
+- **Rows use the GUI's words.** A row gives the status in the sidebar's words, its terminal's Tab
+  title, the provider by product name where the TUI shows the Server's label, the freshness when not
+  fresh, and its Workspace and Tab, or that no Panel can reach it. The Agent state glyph is the
+  sidebar's.
+- **A jump checks first.** A jump reads its session again, then shows the first of its terminals
+  the window holds, one in the shown Tab first, then a visible one, then by identity, with that
+  terminal in front of its Panel. Landing closes the board and gives the terminal the keyboard; a
+  jump that cannot land leaves the TUI's notice for it. The window shows a terminal at once, so it
+  does not stage navigation or try the next candidate after a failed one.
+- **Keys follow the TUI where the GUI allows.** Up, Down, j, k, Home, and End select, Enter jumps,
+  and r reads again; a click selects and a double-click jumps.
+
+Not done in this slice: Start Agent from the empty board, the unread dot, the attention overlay,
+and the sidebar's summary of the board.
+
 ### Evidence
 
 - Each step records the owning Web and Desktop builds and a Server-backed run of the path it

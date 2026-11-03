@@ -77,6 +77,7 @@ function WorkbenchActionsHarness({
 		onNewTerminal,
 		onSettings: undefined,
 		onTerminalFontSizeChange,
+		openAgentBoard: () => undefined,
 		openSearch: () => undefined,
 		openTabTitleEditor: () => undefined,
 		defaultWorkspaceName: 'Workspace',
@@ -298,6 +299,8 @@ describe('useWorkbenchActions', () => {
 						actionId !== WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed &&
 						// Only an authority's close can stop where Resume continues it.
 						actionId !== WORKBENCH_ACTION_IDS.resumeTabClose &&
+						// Only an authority that reads the Server's Agent sessions has a board.
+						actionId !== WORKBENCH_ACTION_IDS.openAgentBoard &&
 						// Worktree Actions exist only where an authority reaches Git.
 						!actionId.startsWith('workbench.worktree.'),
 				),
@@ -378,6 +381,7 @@ describe('useWorkbenchActions', () => {
 				isSidebarVisible: true,
 				onNewTerminal: undefined,
 				onSettings: undefined,
+				openAgentBoard: () => undefined,
 				openSearch: () => undefined,
 				openTabTitleEditor: () => undefined,
 				defaultWorkspaceName: 'Workspace',
