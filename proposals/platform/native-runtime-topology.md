@@ -1268,8 +1268,8 @@ CLI uses, so Main writes nothing. These choices stand unless review changes them
   holds no provider facts and only the Worker's report marks a row for manual setup. On Windows,
   where Main managed nothing and every row read Manual setup, the window now changes what the
   Worker's writer manages there, as the CLI does.
-- **No reminder yet.** This path observes no Agent launch until step 5, so the reminder controller
-  only records the dismissals a Settings change makes.
+- **No reminder.** This path reports no Agent launch, and step 5 keeps it that way, so the reminder
+  controller only records the dismissals a Settings change makes.
 - **One operation contract for every language.**
   [`schemas/agent-integration`](../../schemas/agent-integration/README.md) is its language-neutral
   authority, and the Workbench job direction gained a schema and a corpus that Rust, TypeScript, and
@@ -1503,14 +1503,39 @@ The Server-path window shows the Agents the Server observes in its terminals, as
 - **Names and rows.** A known Agent label shows its product name and a custom report keeps its
   own. `unknown` uses the idle Tab mark, and every Agent row navigates.
 - **No POSIX Agent Bridge.** Server hook ingress serves POSIX providers, delivered with step 7.
+- **The launch reminder stays dormant.** The TUI offers no integration reminder, and judging one
+  would cost a read-only inventory job on the Worker for each first launch, so the window still
+  reports no Agent launch to its integration client. Review decides whether both Clients gain the
+  reminder or the dormant one goes.
 - **The reference model is deleted.** Nothing consumed `@orchbee/agent` once the window read the
   Server. The corpus in `schemas/agent` is frozen as the expectation for the Rust model, and the
   Client View binding validates Agent Session identity itself, as
   `crates/agent-observation-protocol` does.
 
 Not done in this slice: display names from `displayAgent` metadata and custom Agent names, a Host
-binding comparison in the trailing-blank-rows check, a per-Agent notification sound, and the Agent
-integration launch reminder, whose Server integration client still reports no Agent launch.
+binding comparison in the trailing-blank-rows check, and a per-Agent notification sound.
+
+The run below used a staged release cohort on Windows on 2026-11-02, a hidden window shown
+off-screen, a scratch `APPDATA` and configuration file, and a Session deleted afterwards. A
+sleeping stand-in named `claude.exe` played the Agent, so process detection recognized it, and
+`orchbee panel report-agent` supplied its states. An init script replaced `Notification` with a
+recorder that reported permission as granted, DevTools focus emulation counted the inactive window
+as focused, and Settings set Agent notifications to `hidden`. Times run from the start of the CLI
+command.
+
+| Question                | Result                                                                                                                                                                                                               |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recognition             | The Tab showed Claude Code at Limited status 850 ms after the launch command. The Workspace row showed the Claude icon and one live Agent, and the other Tab had no mark.                                            |
+| A reported state        | Working reached the Tab after 78 ms. The expanded Workspace listed one row, Claude Code · Working at PowerShell · Panel 1 · Primary terminal, with nothing unread and no notification.                               |
+| A finished turn, hidden | With the other Tab active, Completed raised one notification, Claude Code finished, after 1,104 ms. Its body named the Workspace and terminal, the Tab and the row were unread, and no second notification followed. |
+| The Agent row           | A click activated the Agent's Tab, and its unread marks cleared 72 ms later.                                                                                                                                         |
+| A turn finished in view | Working, then Completed, in the shown Tab raised no notification and left nothing unread.                                                                                                                            |
+| A new request, hidden   | Blocked raised Claude Code needs attention under the same tag after 1,072 ms, and the Tab read Needs attention.                                                                                                      |
+| The Agent exits         | Ctrl+C ended the stand-in, and the Tab mark, the sidebar icon and summary, and the row left after 73 ms.                                                                                                             |
+
+In the shown Tab, each new version carried the unread mark until the following paint acknowledged
+it. The window did that before the migration too, though a repeated state then kept its version.
+The run raised no system notification, checked no withdrawal, and used no provider's own hooks.
 
 ### Evidence
 

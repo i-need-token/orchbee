@@ -417,11 +417,11 @@ report reads as unverified, marks its row unknown, and is never repeated. Remote
 as manual-only and the renderer never writes terminal input or attempts remote setup. The
 [writer](../../../crates/agent-integration-writer/README.md) is authoritative for these effects.
 
-The window does not yet observe Agent launches, so no launch reminder appears. Its dismissal record,
-the strict, bounded `orchbee:web:agent-integration-reminders:v1`, still follows Settings: a disable
-records that Agent's dismissal before it asks the Worker, and a verified enable removes it. Missing
-or invalid storage falls back to no dismissals, and write failure retains the current-session
-behavior.
+The window reports no Agent launch to its integration client, so no launch reminder appears. Its
+dismissal record, the strict, bounded `orchbee:web:agent-integration-reminders:v1`, still follows
+Settings: a disable records that Agent's dismissal before it asks the Worker, and a verified enable
+removes it. Missing or invalid storage falls back to no dismissals, and write failure retains the
+current-session behavior.
 
 ## Remote-development diagnostic
 
