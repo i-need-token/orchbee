@@ -1,6 +1,7 @@
 import {
 	collectPanelLeaves,
 	findPanel,
+	getDisplayedTerminal,
 	type PanelWorkspaceEvent,
 	type TabPanelWorkspace,
 } from '../components/workbench-panel-workspace/model/panel-workspace-state';
@@ -69,6 +70,17 @@ export function readWorkbenchClientSelection(
 		terminalContextId,
 		zoomed: zoomedPanelId !== null,
 	};
+}
+
+/** The terminal a Panel shows: its active child terminal, else its own; null once the Panel is gone. */
+export function readWorkbenchShownPresentationId(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	{ panelId, tabId, terminalContextId }: Extract<WorkbenchClientTarget, { readonly kind: 'panel' }>,
+): string | null {
+	const context = runtime.getTerminalContext(terminalContextId);
+	const tab = context === null ? null : panelTab(context, tabId);
+	const panel = tab === null ? null : findPanel(tab.root, panelId);
+	return panel === null ? null : getDisplayedTerminal(panel).presentationId;
 }
 
 /**

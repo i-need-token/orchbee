@@ -8,6 +8,7 @@ import {
 import type { ServerConnection } from '../server-connection';
 import {
 	ServerClientView,
+	type ServerClientViewBinding,
 	type ServerClientViewControl,
 	type ServerClientViewOutcome,
 	type ServerClientViewSample,
@@ -25,8 +26,13 @@ interface Answer {
 	readonly view: ServerClientViewSample | null;
 }
 
-interface ServerClientViewBinding {
+/** The view this window publishes, which a configured command names as its source. */
+export interface BoundServerClientView {
+	/** Binds a view the window showed to the Server's record of it, as the TUI binds a command. */
+	bind(sample: ServerClientViewSample): Promise<ServerClientViewBinding>;
 	dispose(): void;
+	/** What the window shows now, or null while that is not settled enough to report. */
+	sample(): ServerClientViewSample | null;
 }
 
 /**
@@ -43,7 +49,7 @@ export function bindServerClientView({
 	readonly connection: Pick<ServerConnection, 'closeLane' | 'exchange' | 'openLane' | 'subscribe'>;
 	readonly runtime: WorkbenchProjectWorkspaceRuntime;
 	readonly session: Pick<ServerWorkbenchSession, 'published' | 'snapshot' | 'subscribe'>;
-}): ServerClientViewBinding | null {
+}): BoundServerClientView | null {
 	let disposed = false;
 	const timers = new Set<ReturnType<typeof setTimeout>>();
 	const wait = (milliseconds: number): Promise<void> =>
@@ -130,6 +136,7 @@ export function bindServerClientView({
 	const stopView = runtime.subscribeClientView(changed);
 	const stopPublication = session.subscribe(changed);
 	return {
+		bind: (shown) => clientView.bind(shown),
 		dispose: () => {
 			if (disposed) return;
 			disposed = true;
@@ -139,6 +146,7 @@ export function bindServerClientView({
 			timers.clear();
 			clientView.dispose();
 		},
+		sample,
 	};
 }
 

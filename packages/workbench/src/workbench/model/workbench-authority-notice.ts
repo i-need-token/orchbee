@@ -8,6 +8,10 @@ import type {
 	WorkbenchTabCloseStop,
 } from '../types/workbench-authority';
 import type {
+	WorkbenchConfiguredCommandOutcome,
+	WorkbenchConfiguredCommandRefusal,
+} from '../types/workbench-configured-commands';
+import type {
 	WorkbenchWorktreeCommand,
 	WorkbenchWorktreeOutcome,
 } from '../types/workbench-worktrees';
@@ -22,6 +26,43 @@ export interface WorkbenchAuthorityNotice {
 	 */
 	readonly lifetime: 'timed' | 'until-press' | 'until-replaced';
 	readonly values?: Readonly<Record<string, number | string>>;
+}
+
+const CONFIGURED_COMMAND_REFUSALS = {
+	busy: workbenchMessages.configuredCommandBusy,
+	conflict: workbenchMessages.configuredCommandConflict,
+	denied: workbenchMessages.configuredCommandDenied,
+	'invalid-intent': workbenchMessages.configuredCommandInvalidIntent,
+	'not-found': workbenchMessages.configuredCommandNotFound,
+	'session-mismatch': workbenchMessages.configuredCommandSessionMismatch,
+	'stale-source': workbenchMessages.configuredCommandStaleSource,
+	unavailable: workbenchMessages.configuredCommandUnavailable,
+} as const satisfies Record<
+	WorkbenchConfiguredCommandRefusal,
+	WorkbenchAuthorityNotice['descriptor']
+>;
+
+/**
+ * How a configured command ended, naming it, for as long as the TUI's status line says so. A command
+ * that started says so too, since a shell command shows nowhere in the Workbench.
+ */
+export function workbenchConfiguredCommandNotice(
+	command: string,
+	outcome: WorkbenchConfiguredCommandOutcome,
+): WorkbenchAuthorityNotice {
+	const descriptors = {
+		accepted: workbenchMessages.configuredCommandAccepted,
+		failed: workbenchMessages.configuredCommandFailed,
+		unknown: workbenchMessages.configuredCommandUnknown,
+	} as const;
+	return {
+		descriptor:
+			outcome.kind === 'refused'
+				? CONFIGURED_COMMAND_REFUSALS[outcome.reason]
+				: descriptors[outcome.kind],
+		lifetime: 'timed',
+		values: { command },
+	};
 }
 
 /** What is closing, read before it closes, since the words outlive the thing they name. */

@@ -11,7 +11,9 @@ const SESSION_ID = '1'.padStart(32, '0');
 const CLIENT_ID = 'c'.padStart(32, '0');
 const CONTEXT_ID = '2'.padStart(32, '0');
 const TAB_ID = '3'.padStart(32, '0');
-const [PANEL_A, PANEL_B, PANEL_C, PANEL_D] = ['4', '5', '6', '7'].map((id) => id.padStart(32, '0'));
+const [PANEL_A, PANEL_B, PANEL_C, PANEL_D, PANEL_E, PANEL_F] = ['4', '5', '6', '7', '8', '9'].map(
+	(id) => id.padStart(32, '0'),
+);
 const OPERATION_ONE = 'a'.padStart(32, '0');
 const OPERATION_TWO = 'b'.padStart(32, '0');
 const LANE_ID = 7n;
@@ -229,6 +231,44 @@ describe('ServerClientView', () => {
 				PANEL_D,
 				{ operationId: OPERATION_TWO, outcome: { kind: 'rejected', reason: 'stale-view' } },
 			],
+		]);
+	});
+
+	it('binds a view to the first record that reports it, and refuses one the window left', async () => {
+		const { clientView, connection, show } = start(shows(PANEL_A));
+		invalidate(connection);
+		answer(connection, 0);
+		await settle();
+		// The Server already holds the view shown, so nothing more is sent.
+		const acknowledged = await clientView.bind(shows(PANEL_A));
+		show(shows(PANEL_B));
+		show(shows(PANEL_C));
+		// The view in flight is older than the one bound, so its answer decides nothing.
+		const reported = clientView.bind(shows(PANEL_C));
+		answer(connection, 1);
+		await settle();
+		answer(connection, 2);
+		await settle();
+		show(shows(PANEL_D));
+		show(shows(PANEL_E));
+		const left = clientView.bind(shows(PANEL_E));
+		// The window moves on before reporting the view bound, as a person acting twice would.
+		show(shows(PANEL_F));
+		answer(connection, 3);
+		await settle();
+		answer(connection, 4);
+
+		expect([acknowledged, await reported, await left]).toEqual([
+			{ clientId: CLIENT_ID, kind: 'bound', viewRevision: '1' },
+			{ clientId: CLIENT_ID, kind: 'bound', viewRevision: '3' },
+			{ kind: 'stale' },
+		]);
+		expect(sent(connection).map(([, viewRevision, panelId]) => [viewRevision, panelId])).toEqual([
+			['1', PANEL_A],
+			['2', PANEL_B],
+			['3', PANEL_C],
+			['4', PANEL_D],
+			['5', PANEL_F],
 		]);
 	});
 });

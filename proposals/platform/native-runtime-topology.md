@@ -1711,6 +1711,37 @@ focus`, `tab focus`, `panel focus`, and `panel zoom` reach it where they answere
 Not done in this slice: the `busy` phase, the intents above, and whether a remote focus while
 Settings shows brings the Workbench forward.
 
+The window also runs the commands the Session's configuration installs, as the TUI does, where none
+ran under the Server. These choices stand unless review changes them:
+
+- **Search offers the commands.** Each installed command is an Action in Search under Configured
+  commands, named by its description, else Configured command and its place in the list, where the
+  TUI names it by what it runs, which the Server's list does not carry. No key runs a command yet,
+  and a popup command is not offered, since the window opens no popup terminal.
+- **The list follows the configuration.** The window reads it again whenever the configuration's
+  key profile changes, which every command's identity binds, and after the Server answers
+  `not-found` or `conflict`. An unanswered read keeps the list the window had.
+- **A command starts from the shown Panel.** As the TUI binds a queued command, the window binds
+  the view it showed when the person chose the command to the Server's record of that view, waiting
+  for that record while the view is on its way, and a view the window left before reporting it
+  answers Source changed. The source names the terminal the Panel shows, its active child terminal
+  first, and none while the Server holds no binding for it. The window reports no frame and no
+  attachment, so a new Pane starts at the Server's 80×24 default where the TUI sends its viewport,
+  and the invocation names `gui` as its origin.
+- **One command at a time, never repeated.** A second command while one runs answers busy. An
+  invocation waits ten seconds for its answer, as in the TUI, and a lost answer reports an unknown
+  outcome.
+- **A new Pane takes the focus.** Once the publication holding the new Panel arrives, within five
+  seconds, the window shows that Panel, as the TUI focuses it, and a focus that fails reports the
+  command as failed.
+- **Each outcome is a notice.** It names the command as Search does, where the TUI's status line
+  names its installed identity, and says how the command ended for four seconds, where the TUI
+  keeps five. Where the TUI's advice names a key or a reload the window lacks, the window's advice
+  names what to do in the window.
+
+Not done in this slice: popup commands, keys for commands, and naming a command without a
+description by what it runs.
+
 ### Evidence
 
 - Each step records the owning Web and Desktop builds and a Server-backed run of the path it

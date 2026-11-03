@@ -1558,4 +1558,74 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.workerUnavailable'],
 		description: 'Worktree operation stopped because the Worker is unavailable or busy.',
 	},
+	configuredCommandsCategory: {
+		id: 'workbench.configuredCommands.category',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.category'],
+		description: 'Action category for the commands the configuration installs.',
+	},
+	configuredCommandTitle: {
+		id: 'workbench.configuredCommands.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.title'],
+		description: 'A configured command, named by the description its configuration gives.',
+	},
+	configuredCommandUnnamed: {
+		id: 'workbench.configuredCommands.unnamed',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.unnamed'],
+		description: 'A configured command without a description, named by its place in the list.',
+	},
+	configuredCommandAccepted: {
+		id: 'workbench.configuredCommands.accepted',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.accepted'],
+		description: 'Status notice when a configured command started.',
+	},
+	configuredCommandFailed: {
+		id: 'workbench.configuredCommands.failed',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.failed'],
+		description: 'Status notice when a configured command, or the focus on its new Pane, failed.',
+	},
+	configuredCommandUnknown: {
+		id: 'workbench.configuredCommands.unknown',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.unknown'],
+		description: 'Status notice when a configured command may or may not have run.',
+	},
+	configuredCommandBusy: {
+		id: 'workbench.configuredCommands.refused.busy',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.refused.busy'],
+		description: 'Status notice when a configured command was refused while another runs.',
+	},
+	configuredCommandConflict: {
+		id: 'workbench.configuredCommands.refused.conflict',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.refused.conflict'],
+		description: 'Status notice when the configuration changed while a command was starting.',
+	},
+	configuredCommandDenied: {
+		id: 'workbench.configuredCommands.refused.denied',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.refused.denied'],
+		description: 'Status notice when the Session does not permit a configured command.',
+	},
+	configuredCommandInvalidIntent: {
+		id: 'workbench.configuredCommands.refused.invalidIntent',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.refused.invalidIntent'],
+		description: 'Status notice when the Server refused a configured command as invalid.',
+	},
+	configuredCommandNotFound: {
+		id: 'workbench.configuredCommands.refused.notFound',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.refused.notFound'],
+		description: 'Status notice when the configuration no longer holds the chosen command.',
+	},
+	configuredCommandSessionMismatch: {
+		id: 'workbench.configuredCommands.refused.sessionMismatch',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.refused.sessionMismatch'],
+		description: 'Status notice when the Session changed under a configured command.',
+	},
+	configuredCommandStaleSource: {
+		id: 'workbench.configuredCommands.refused.staleSource',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.refused.staleSource'],
+		description: 'Status notice when the Panel a command starts from changed before it ran.',
+	},
+	configuredCommandUnavailable: {
+		id: 'workbench.configuredCommands.refused.unavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.refused.unavailable'],
+		description: 'Status notice when the Server could not run a configured command.',
+	},
 });

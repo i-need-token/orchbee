@@ -40,6 +40,14 @@ export interface ServerClientViewSample {
 	readonly workbenchRevision: string;
 }
 
+/**
+ * The Server's record of a view the window showed, which an invocation names as its source: `stale`
+ * when the window moved before reporting it, `unavailable` when the window no longer publishes.
+ */
+export type ServerClientViewBinding =
+	| { readonly clientId: string; readonly kind: 'bound'; readonly viewRevision: string }
+	| { readonly kind: 'stale' | 'unavailable' };
+
 interface ServerClientViewOptions {
 	readonly connection: Pick<ServerConnection, 'closeLane' | 'exchange' | 'openLane' | 'subscribe'>;
 	/** Runs a control delivered while the window still shows the view it was admitted against. */
@@ -56,8 +64,27 @@ interface Answer {
 	readonly view: ServerClientViewSample | null;
 }
 
+interface Bind {
+	/** The last Synchronize sent before the bind, which may still carry an older view. */
+	readonly after: bigint;
+	readonly key: string;
+	readonly settle: (binding: ServerClientViewBinding) => void;
+}
+
+/** What one Synchronize carried, so its answer can settle the binds waiting for it. */
+interface Sent {
+	readonly heartbeat: bigint;
+	readonly key: string;
+	/** An answer's own view rather than what the window shows now. */
+	readonly pinned: boolean;
+	readonly requestId: string;
+	readonly view: ServerClientViewSample;
+}
+
 /** As the TUI bounds each Synchronize. */
 const SYNCHRONIZE_DEADLINE_MILLISECONDS = 2_000;
+/** One Synchronize already in flight, then the one that reports the view being bound. */
+const BIND_DEADLINE_MILLISECONDS = 2 * SYNCHRONIZE_DEADLINE_MILLISECONDS;
 const MAXIMUM_SEQUENCE = 2n ** 64n - 1n;
 
 /**
@@ -74,7 +101,14 @@ export class ServerClientView {
 	readonly #onControl: ServerClientViewOptions['onControl'];
 	readonly #sample: ServerClientViewOptions['sample'];
 	readonly #sessionId: string;
+	/** The view the Server last acknowledged, and the record it holds of it. */
+	#acknowledged: {
+		readonly clientId: string;
+		readonly key: string;
+		readonly viewRevision: string;
+	} | null = null;
 	#answer: Answer | null = null;
+	readonly #binds = new Set<Bind>();
 	/** The control being run; the Server delivers no other until it is answered. */
 	#delivered: string | null = null;
 	#heartbeat = 0n;
@@ -106,6 +140,42 @@ export class ServerClientView {
 		const view = new ServerClientView(options, laneId);
 		view.#watch();
 		return view;
+	}
+
+	/**
+	 * Binds a view the window shows to the Server's record of it, as the TUI binds a configured command:
+	 * the view is reported first if it is new, and the first Synchronize carrying what the window shows
+	 * afterwards decides. A view the window left before reporting it is `stale`.
+	 */
+	bind(sample: ServerClientViewSample): Promise<ServerClientViewBinding> {
+		if (this.#stopped) return Promise.resolve({ kind: 'unavailable' });
+		const key = sampleKey(sample);
+		this.#synchronize();
+		const acknowledged = this.#acknowledged;
+		if (!this.#inFlight && acknowledged?.key === key) {
+			return Promise.resolve({
+				clientId: acknowledged.clientId,
+				kind: 'bound',
+				viewRevision: acknowledged.viewRevision,
+			});
+		}
+		if (this.#stopped) return Promise.resolve({ kind: 'unavailable' });
+		return new Promise((resolve) => {
+			const bind: Bind = {
+				after: this.#heartbeat,
+				key,
+				settle: (binding) => {
+					clearTimeout(deadline);
+					this.#binds.delete(bind);
+					resolve(binding);
+				},
+			};
+			const deadline = setTimeout(
+				() => bind.settle({ kind: 'unavailable' }),
+				BIND_DEADLINE_MILLISECONDS,
+			);
+			this.#binds.add(bind);
+		});
 	}
 
 	/** Reports the window's view again if it changed. */
@@ -174,13 +244,20 @@ export class ServerClientView {
 		this.#invalidated = false;
 		this.#published = key;
 		this.#viewRevision = viewRevision;
+		const sent: Sent = {
+			heartbeat,
+			key,
+			pinned: answer !== null && answer.view !== null,
+			requestId: request.requestId,
+			view,
+		};
 		void this.#connection
 			.exchange(encodeWorkbenchRequest(request), {
 				laneId: this.#laneId,
 				timeoutMilliseconds: SYNCHRONIZE_DEADLINE_MILLISECONDS,
 			})
 			.then(
-				(record) => this.#synchronized(record, request.requestId, view),
+				(record) => this.#synchronized(record, sent),
 				// A lost answer may have delivered a control, so nothing is sent again.
 				() => this.#stop(),
 			);
@@ -214,7 +291,7 @@ export class ServerClientView {
 		}
 	}
 
-	#synchronized(record: Uint8Array, requestId: string, sent: ServerClientViewSample): void {
+	#synchronized(record: Uint8Array, sent: Sent): void {
 		this.#inFlight = false;
 		if (this.#stopped) return;
 		let outcome: ClientViewOutcome | null = null;
@@ -222,7 +299,7 @@ export class ServerClientView {
 			const response = decodeWorkbenchResponse(record);
 			if (
 				response.kind === 'workbench.client-view.result' &&
-				response.requestId === requestId &&
+				response.requestId === sent.requestId &&
 				response.sessionId === this.#sessionId
 			) {
 				outcome = response.outcome;
@@ -235,6 +312,14 @@ export class ServerClientView {
 			this.#stop();
 			return;
 		}
+		// Only a current record can name an invocation's source, as the Server checks again.
+		const { availability, clientId, viewRevision } = outcome.client;
+		const current = availability === 'current';
+		this.#acknowledged = current ? { clientId, key: sent.key, viewRevision } : null;
+		for (const bind of this.#binds) {
+			if (current && bind.key === sent.key) bind.settle({ clientId, kind: 'bound', viewRevision });
+			else if (sent.heartbeat > bind.after && !sent.pinned) bind.settle({ kind: 'stale' });
+		}
 		const { control } = outcome;
 		if (control !== null) {
 			if (this.#delivered !== null) {
@@ -242,8 +327,8 @@ export class ServerClientView {
 				return;
 			}
 			this.#delivered = control.operationId;
-			const current = this.#sample();
-			if (current === null || sampleKey(current) !== sampleKey(sent)) {
+			const shown = this.#sample();
+			if (shown === null || sampleKey(shown) !== sent.key) {
 				// As in the TUI, the window moved after reporting the view the control was admitted against.
 				this.complete(control.operationId, { kind: 'rejected', reason: 'stale-view' });
 			} else {
@@ -256,8 +341,10 @@ export class ServerClientView {
 	#stop(): void {
 		if (this.#stopped) return;
 		this.#stopped = true;
+		this.#acknowledged = null;
 		this.#answer = null;
 		this.#delivered = null;
+		for (const bind of this.#binds) bind.settle({ kind: 'unavailable' });
 		// Closing the lane retires this window's view and settles a control it never answered.
 		this.#connection.closeLane(this.#laneId);
 	}

@@ -43,6 +43,7 @@ import {
 } from '../projected-terminal-surface';
 import type { ServerConnection } from '../server-connection';
 import { bindServerClientView } from './bindServerClientView';
+import { bindServerConfiguredCommands } from './bindServerConfiguredCommands';
 import { bindServerWindowTitle, type ServerTitleWindow } from './bindServerWindowTitle';
 import {
 	createServerWorkbenchAuthority,
@@ -204,7 +205,20 @@ export function createServerWorkbenchRuntime({
 		}
 	};
 	const stopPublication = session.subscribe(adoptPublication);
+	// Registered after the publication's own adoption, so each view it reports holds that publication.
+	const clientView = bindServerClientView({
+		connection,
+		runtime: projectWorkspaceRuntime,
+		session,
+	});
+	const configuredCommands = bindServerConfiguredCommands({
+		clientView,
+		connection,
+		runtime: projectWorkspaceRuntime,
+		session,
+	});
 	const authority = createServerWorkbenchAuthority({
+		configuredCommands: configuredCommands.commands,
 		defaultDirectory,
 		defaultWorkspaceLabel: () =>
 			createOrchbeeIntl(applicationLocaleSource.current()).formatMessage(
@@ -215,12 +229,6 @@ export function createServerWorkbenchRuntime({
 			return location.kind === 'workspace' ? location.workspaceId : null;
 		},
 		...(launchProfiles === undefined ? {} : { launchProfiles }),
-		session,
-	});
-	// Registered after the publication's own adoption, so each view it reports holds that publication.
-	const clientView = bindServerClientView({
-		connection,
-		runtime: projectWorkspaceRuntime,
 		session,
 	});
 
@@ -368,6 +376,7 @@ export function createServerWorkbenchRuntime({
 			runApplicationCleanup(
 				[
 					() => stopPublication(),
+					() => configuredCommands.dispose(),
 					() => clientView?.dispose(),
 					() => terminalEnds.dispose(),
 					() => stopLocaleObservation(),

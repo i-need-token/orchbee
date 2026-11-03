@@ -4,9 +4,14 @@ export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorksp
 export { matchesWorkbenchProjectCreation } from './model/matchesWorkbenchProjectCreation';
 export {
 	readWorkbenchClientSelection,
+	readWorkbenchShownPresentationId,
 	showWorkbenchClientTarget,
 } from './model/workbench-client-selection';
 export type { WorkbenchClientTarget } from './model/workbench-client-selection';
+export type {
+	WorkbenchConfiguredCommandOutcome,
+	WorkbenchConfiguredCommands,
+} from './types/workbench-configured-commands';
 
 export { createWorkbenchPreviewTerminalPresentationComposition } from './model/createWorkbenchPreviewTerminalPresentationComposition';
 export { resolveTerminalMetadataObservation } from './model/resolveTerminalMetadataObservation';

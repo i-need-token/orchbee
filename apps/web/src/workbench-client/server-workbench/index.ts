@@ -1,10 +1,16 @@
 export { ServerAgentIntegrationClient } from './ServerAgentIntegrationClient';
 export { ServerClientView } from './ServerClientView';
 export type {
+	ServerClientViewBinding,
 	ServerClientViewControl,
 	ServerClientViewOutcome,
 	ServerClientViewSample,
 } from './ServerClientView';
+export { ServerConfiguredCommands } from './ServerConfiguredCommands';
+export type {
+	ServerConfiguredCommandReply,
+	ServerConfiguredCommandSource,
+} from './ServerConfiguredCommands';
 export { ServerTerminalAgentSource } from './ServerTerminalAgentSource';
 export { ServerTerminalDefaultSettingsClient } from './ServerTerminalDefaultSettingsClient';
 export { ServerTerminalLaunchProfileClient } from './ServerTerminalLaunchProfileClient';

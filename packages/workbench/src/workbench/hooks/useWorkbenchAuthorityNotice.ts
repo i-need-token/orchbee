@@ -1,5 +1,5 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
+import { useOrchbeeIntl, workbenchMessages, type IntlShape } from '@orchbee/i18n';
 import * as React from 'react';
 
 import type { WorkbenchTabDuplicationStop } from '../actions/workbench-shared-tab-creation';
@@ -8,6 +8,7 @@ import {
 	workbenchCloseProgressNotice,
 	workbenchCloseResultNotice,
 	workbenchCloseWithdrawnNotice,
+	workbenchConfiguredCommandNotice,
 	workbenchFailureNotice,
 	workbenchPanelsFailureNotice,
 	workbenchSplitRatioFailureNotice,
@@ -18,9 +19,11 @@ import {
 	workbenchWorktreeProgressNotice,
 	type WorkbenchAuthorityNotice,
 } from '../model/workbench-authority-notice';
+import { formatWorkbenchConfiguredCommandName } from '../model/workbench-configured-command-name';
 import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-location-activation';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchAuthority, WorkbenchAuthorityClosure } from '../types/workbench-authority';
+import type { WorkbenchConfiguredCommands } from '../types/workbench-configured-commands';
 import type { WorkbenchWorktrees } from '../types/workbench-worktrees';
 
 export interface WorkbenchAuthorityNoticeView {
@@ -52,6 +55,27 @@ function closesActiveLocation(
 		state.workspaces.find((workspace) => workspace.id === location.workspaceId)?.projectId ===
 			closure.projectId
 	);
+}
+
+/**
+ * A configured command says how it ended, naming it, as the TUI's status line does. The name is read
+ * before the command runs, since the configuration may take the command away meanwhile.
+ */
+function reportingConfiguredCommands(
+	commands: WorkbenchConfiguredCommands,
+	intl: IntlShape,
+	setNotice: React.Dispatch<React.SetStateAction<WorkbenchAuthorityNotice | null>>,
+): WorkbenchConfiguredCommands {
+	return {
+		getSnapshot: () => commands.getSnapshot(),
+		run: async (commandId) => {
+			const name = formatWorkbenchConfiguredCommandName(intl, commands.getSnapshot(), commandId);
+			const outcome = await commands.run(commandId);
+			setNotice(workbenchConfiguredCommandNotice(name, outcome));
+			return outcome;
+		},
+		subscribe: (listener) => commands.subscribe(listener),
+	};
 }
 
 /** A Worktree command says what runs and how it ended, since Git's work shows nowhere else. */
@@ -195,8 +219,12 @@ export function useWorkbenchAuthorityNotice(
 							authority.worktrees === undefined
 								? undefined
 								: reportingWorktrees(authority.worktrees, setNotice),
+						configuredCommands:
+							authority.configuredCommands === undefined
+								? undefined
+								: reportingConfiguredCommands(authority.configuredCommands, intl, setNotice),
 					},
-		[authority, projectWorkspaceRuntime],
+		[authority, intl, projectWorkspaceRuntime],
 	);
 	const reportDuplicationStopped = useMemoizedFn(
 		(

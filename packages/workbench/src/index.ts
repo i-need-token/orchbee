@@ -6,11 +6,14 @@ export {
 	createWorkbenchPreviewTerminalPresentationComposition,
 	defaultWorkbenchShortcutBindings,
 	readWorkbenchClientSelection,
+	readWorkbenchShownPresentationId,
 	resolveTerminalMetadataObservation,
 	showWorkbenchClientTarget,
 } from './workbench';
 export type {
 	WorkbenchClientTarget,
+	WorkbenchConfiguredCommandOutcome,
+	WorkbenchConfiguredCommands,
 	WorkbenchAuthority,
 	WorkbenchAuthorityChange,
 	WorkbenchAuthorityClosure,

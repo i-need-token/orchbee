@@ -20,6 +20,7 @@ import * as React from 'react';
 import type { ProjectWorkspaceState } from '../../project-workspace';
 import { registerWorkbenchProjectWorkspaceActions } from '../actions/registerWorkbenchProjectWorkspaceActions';
 import { registerWorkbenchAgentNavigationAction } from '../actions/registerWorkbenchAgentNavigationAction';
+import { registerWorkbenchConfiguredCommandActions } from '../actions/registerWorkbenchConfiguredCommandActions';
 import { registerWorkbenchActiveTerminalActions } from '../actions/registerWorkbenchActiveTerminalActions';
 import { registerWorkbenchActiveTabActions } from '../actions/registerWorkbenchActiveTabActions';
 import { registerWorkbenchTabCloseResumeAction } from '../actions/registerWorkbenchTabCloseResumeAction';
@@ -246,6 +247,11 @@ export function useWorkbenchActions({
 						worktreeLabel,
 						worktrees: authority.worktrees,
 					})),
+			registerWorkbenchConfiguredCommandActions({
+				commands: authority?.configuredCommands,
+				runtime,
+				scope,
+			}),
 			...registerWorkbenchTabSelectionActions({
 				projectWorkspaceRuntime,
 				runtime,

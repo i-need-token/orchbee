@@ -484,6 +484,23 @@ export const enUSWorkbenchMessages = {
 	'workbench.worktrees.failure.unsupported': 'This Worker does not support worktrees.',
 	'workbench.worktrees.failure.workerUnavailable':
 		'The Worker is unavailable or busy. Try again shortly.',
+	'workbench.configuredCommands.category': 'Configured commands',
+	'workbench.configuredCommands.title': '{command}',
+	'workbench.configuredCommands.unnamed': 'Configured command {number}',
+	'workbench.configuredCommands.accepted': '{command} · Command accepted',
+	'workbench.configuredCommands.failed': '{command} · Command or focus failed; inspect result',
+	'workbench.configuredCommands.unknown': '{command} · Outcome unknown; inspect before retry',
+	'workbench.configuredCommands.refused.busy': '{command} · Busy; wait and retry',
+	'workbench.configuredCommands.refused.conflict':
+		'{command} · Configuration changed; choose the command again',
+	'workbench.configuredCommands.refused.denied': '{command} · Denied by Session permissions',
+	'workbench.configuredCommands.refused.invalidIntent':
+		'{command} · Invalid request; check configuration',
+	'workbench.configuredCommands.refused.notFound': '{command} · Command changed; choose it again',
+	'workbench.configuredCommands.refused.sessionMismatch': '{command} · Session changed; reconnect',
+	'workbench.configuredCommands.refused.staleSource': '{command} · Source changed; retry',
+	'workbench.configuredCommands.refused.unavailable':
+		'{command} · Unavailable; check Session and retry',
 } as const;
 
 export type WorkbenchMessageId = keyof typeof enUSWorkbenchMessages;

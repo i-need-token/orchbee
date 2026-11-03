@@ -5,6 +5,7 @@ import type {
 	WorkbenchAuthorityPanelTerminalReceipt,
 	WorkbenchAuthoritySplitRatioChange,
 	WorkbenchAuthorityTabReceipt,
+	WorkbenchConfiguredCommands,
 	WorkbenchProjectCreationReceipt,
 } from '@orchbee/workbench';
 import {
@@ -40,6 +41,8 @@ export interface ServerLaunchProfileSource {
 }
 
 interface ServerWorkbenchAuthorityOptions {
+	/** Absent where this window publishes no view for a command to start from. */
+	readonly configuredCommands?: WorkbenchConfiguredCommands | undefined;
 	/** Where this Client works when nothing it shows names a directory. */
 	readonly defaultDirectory: string;
 	readonly defaultWorkspaceLabel: () => string;
@@ -225,6 +228,7 @@ function launchPlan(
  * a ratio goes again, when a commit elsewhere moved the revision and left the split as it was.
  */
 export function createServerWorkbenchAuthority({
+	configuredCommands,
 	defaultDirectory,
 	defaultWorkspaceLabel,
 	focusedWorkspaceId,
@@ -233,6 +237,7 @@ export function createServerWorkbenchAuthority({
 }: ServerWorkbenchAuthorityOptions): WorkbenchAuthority {
 	return {
 		...createServerWorkbenchClose(session),
+		...(configuredCommands === undefined ? {} : { configuredCommands }),
 		...(launchProfiles === undefined
 			? {}
 			: {
