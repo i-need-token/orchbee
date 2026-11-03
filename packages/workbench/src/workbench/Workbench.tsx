@@ -48,7 +48,6 @@ import type { WorkbenchAgentNotificationObserver } from './types/workbench-agent
 import type { WorkbenchAgentSource } from './types/workbench-agent-observation';
 import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
 import type { WorkbenchEnvironmentProjectConnectionCapability } from './types/workbench-environment-project-connection';
-import type { WorkbenchProjectWorktreeCapability } from './types/workbench-project-worktree';
 import type { WorkbenchRemoteTerminalCreationCapability } from './types/workbench-remote-terminal-creation';
 import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 import {
@@ -76,7 +75,6 @@ interface WorkbenchProps {
 	readonly onAddResourceFolderViaSsh?: ((resourceScopeId: string) => void) | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
-	readonly projectWorktree?: WorkbenchProjectWorktreeCapability | undefined;
 	readonly remoteTerminalCreation?: WorkbenchRemoteTerminalCreationCapability | undefined;
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly shortcutBindings?: WorkbenchShortcutBindings | undefined;
@@ -102,7 +100,6 @@ export function Workbench({
 	onAddResourceFolderViaSsh,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
-	projectWorktree,
 	remoteTerminalCreation,
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	shortcutBindings,
@@ -278,7 +275,6 @@ export function Workbench({
 										newWorkspaceLabel={view.newWorkspaceLabel}
 										projectNavigationMessages={view.projectNavigationMessages}
 										projectFolderAcquisition={projectFolderAcquisition}
-										projectWorktree={projectWorktree}
 										projectWorkspaceState={view.projectWorkspaceState}
 										workspaceAgentOverviews={agentPresentation.workspaceAgentOverviews}
 										removeProject={view.removeProject}
@@ -298,6 +294,7 @@ export function Workbench({
 										toggleProjectExpansion={view.toggleProjectExpansion}
 										updateWorkspace={view.updateWorkspace}
 										workspaceResourcesEditable={authority === undefined}
+										worktreeCommands={view.worktreeCommands}
 									/>
 									<div
 										aria-hidden='true'

@@ -1,6 +1,4 @@
 export const enUSWorkbenchMessages = {
-	'workbench.projects.worktree.failure.retained':
-		'The worktree was created and kept, but its Workspace could not be opened. Choose the existing worktree to open it; do not repeat creation.',
 	'workbench.workspaces.moveToProject': 'Move to Project',
 	'workbench.workspaces.createProject': 'New Project and Move',
 	'workbench.workspaces.ungroup': 'Remove from Project',
@@ -90,7 +88,6 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.actions.expand': 'Expand project',
 	'workbench.projects.actions.manage': 'Manage Project…',
 	'workbench.projects.actions.newFolder': 'New Folder…',
-	'workbench.projects.actions.newWorktree': 'New Worktree…',
 	'workbench.projects.actions.options': 'Project options',
 	'workbench.projects.actions.remove': 'Dissolve Project',
 	'workbench.projects.actions.retryConnection': 'Retry Connection',
@@ -134,32 +131,6 @@ export const enUSWorkbenchMessages = {
 		'The selected folder could not be validated.',
 	'workbench.projects.groups.folders': 'Folders',
 	'workbench.projects.groups.worktrees': 'Git Worktrees',
-	'workbench.projects.worktree.base': 'Base branch or commit',
-	'workbench.projects.worktree.baseNoMatches':
-		'No matching local branch. The entered branch or commit will be used.',
-	'workbench.projects.worktree.branch': 'New branch',
-	'workbench.projects.worktree.createWorkspace': 'Create a Workspace for this Worktree',
-	'workbench.projects.worktree.description':
-		'Create an isolated Git Worktree in Orchbee-managed storage. The defaults are ready to submit.',
-	'workbench.projects.worktree.failure.baseNotFound':
-		'The selected base branch or commit is no longer available.',
-	'workbench.projects.worktree.failure.branchAlreadyExists': 'That branch already exists.',
-	'workbench.projects.worktree.failure.compensationFailed':
-		'Orchbee could not fully roll back the failed operation. Restart Orchbee before trying this repository again.',
-	'workbench.projects.worktree.failure.generic':
-		'The Worktree is no longer available or could not be used. Check the repository and try again.',
-	'workbench.projects.worktree.failure.invalidBranch': 'Enter a valid new Git branch name.',
-	'workbench.projects.worktree.failure.recoveryRequired':
-		'This repository has an unfinished Worktree recovery. Restart Orchbee and try again.',
-	'workbench.projects.worktree.failure.title': 'Worktree Could Not Be Used',
-	'workbench.projects.worktree.inventoryUnavailable': 'Worktrees unavailable',
-	'workbench.projects.worktree.loading': 'Reading local Git repositories…',
-	'workbench.projects.worktree.location': 'Managed location',
-	'workbench.projects.worktree.locationAutomatic': '{root}/managed-worktree-…',
-	'workbench.projects.worktree.noRepositories':
-		'This Workspace has no available local Git repository.',
-	'workbench.projects.worktree.repository': 'Repository',
-	'workbench.projects.worktree.title': 'New Worktree',
 	'workbench.projects.manage.description': 'Name this optional group of Workspaces.',
 	'workbench.projects.manage.addLocalFolder': 'Add Local Folder…',
 	'workbench.projects.manage.addSshFolder': 'Add SSH Folder…',
@@ -449,6 +420,61 @@ export const enUSWorkbenchMessages = {
 		'{title}{groupKind, select, named {, in group {groupTitle}} unnamed {, in unnamed group} other {}}{pinned, select, true {, pinned} other {}}{state, select, crashed {, crashed} networkError {, network error} permission {, permission requested} discarded {, inactive tab} other {}}',
 	'workbench.tabs.announcements.groupMembership':
 		'Tab {action, select, added {added to} other {removed from}} {groupKind, select, named {group {groupTitle}} other {unnamed group}}, {contents}',
+	'workbench.worktrees.defaultLabel': 'Worktree {ordinal}',
+	'workbench.worktrees.new': 'New Worktree',
+	'workbench.worktrees.open': 'Open Worktree',
+	'workbench.worktrees.remove': 'Remove Worktree…',
+	'workbench.worktrees.reading': 'Reading repository…',
+	'workbench.worktrees.noOtherCheckouts': 'No other checkouts',
+	'workbench.worktrees.notRepository': 'Not in a Git repository',
+	'workbench.worktrees.listingUnavailable': 'Checkouts unavailable',
+	'workbench.worktrees.removeTitle': 'Remove Worktree?',
+	'workbench.worktrees.removeDescription':
+		'Orchbee closes “{workspace}”{terminals, plural, =0 {} one { and its terminal} other { and its # terminals}}, then deletes the checkout at {path}.{kept, select, true { The branch {branch} is kept.} other {}}',
+	'workbench.worktrees.removeConfirm': 'Remove',
+	'workbench.worktrees.stoppedTitle': 'Worktree Removal Stopped',
+	'workbench.worktrees.resume': 'Resume Removal',
+	'workbench.worktrees.resumeRemoval': 'Resume Worktree Removal…',
+	'workbench.worktrees.creating': 'Creating worktree…',
+	'workbench.worktrees.opening': 'Opening worktree…',
+	'workbench.worktrees.removing': 'Removing worktree…',
+	'workbench.worktrees.removed': 'Worktree removed and Workspace closed. Branch kept.',
+	'workbench.worktrees.outcomeUnknown':
+		'Worktree result unknown. Do not repeat it; check it with orchbee worktree status {operationId}.',
+	'workbench.worktrees.createFailed':
+		'The worktree could not be created. Check the repository, then try again.',
+	'workbench.worktrees.openFailed':
+		'The worktree could not be opened. Check the checkout, then try again.',
+	'workbench.worktrees.failure.checkoutInUse':
+		'Another Workspace uses this checkout. Close that Workspace first.',
+	'workbench.worktrees.failure.checkoutNotFound':
+		'Git no longer lists this checkout as a worktree. Inspect the directory and git worktree list.',
+	'workbench.worktrees.failure.closeIncomplete':
+		'Terminals could not all close. Check child terminals, pinned Tabs and Tab groups.',
+	'workbench.worktrees.failure.configurationUnavailable':
+		'Could not read worktree configuration. Run orchbee config check.',
+	'workbench.worktrees.failure.denied': 'This Client may not change worktrees.',
+	'workbench.worktrees.failure.directoryInUse':
+		'The checkout directory is in use or cannot be deleted. Close programs using it, then resume.',
+	'workbench.worktrees.failure.dirty':
+		'The checkout has changes or untracked files. Commit, stash or clean them, then resume.',
+	'workbench.worktrees.failure.git':
+		'Git could not complete the removal. Known checkout and Workspace facts are retained.',
+	'workbench.worktrees.failure.gitFailed':
+		'Git could not remove the checkout. If a program is using its directory, close it, then resume.',
+	'workbench.worktrees.failure.internal':
+		'The worktree operation could not finish. Check it with orchbee worktree status.',
+	'workbench.worktrees.failure.mainCheckout':
+		'The main checkout is protected and cannot be removed.',
+	'workbench.worktrees.failure.notSubmitted':
+		'Orchbee could not reach the Server. Nothing changed.',
+	'workbench.worktrees.failure.sessionStopping':
+		'The Session is stopping. Try again after it restarts.',
+	'workbench.worktrees.failure.sourceChanged':
+		'The checkout or Workspace changed. Check it before you continue.',
+	'workbench.worktrees.failure.unsupported': 'This Worker does not support worktrees.',
+	'workbench.worktrees.failure.workerUnavailable':
+		'The Worker is unavailable or busy. Try again shortly.',
 } as const;
 
 export type WorkbenchMessageId = keyof typeof enUSWorkbenchMessages;

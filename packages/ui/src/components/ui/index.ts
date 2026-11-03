@@ -16,15 +16,6 @@ export { Button } from './button';
 export { Checkbox } from './checkbox';
 
 export {
-	Combobox,
-	ComboboxContent,
-	ComboboxEmpty,
-	ComboboxInput,
-	ComboboxItem,
-	ComboboxList,
-} from './combobox';
-
-export {
 	ContextMenu,
 	ContextMenuCheckboxItem,
 	ContextMenuContent,
@@ -77,8 +68,6 @@ export {
 	ResizablePanelGroup,
 	type ResizablePanelGroupHandle,
 } from './resizable';
-
-export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
 
 export { Slider } from './slider';
 

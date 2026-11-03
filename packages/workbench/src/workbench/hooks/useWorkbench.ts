@@ -39,7 +39,10 @@ import type {
 	WorkbenchTerminalFontSizeChangeCallback,
 } from '../types/workbench-host-actions';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
-import type { WorkbenchProjectNavigationMessages } from '../components/workbench-sidebar/types/workbench-sidebar-types';
+import type {
+	WorkbenchProjectNavigationMessages,
+	WorkbenchWorktreeCommands,
+} from '../components/workbench-sidebar/types/workbench-sidebar-types';
 import type { WorkbenchRemoteTerminalCreationCapability } from '../types/workbench-remote-terminal-creation';
 import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
 import { matchesWorkbenchProjectCreation } from '../model/matchesWorkbenchProjectCreation';
@@ -231,6 +234,8 @@ interface WorkbenchView {
 	) => void;
 	readonly setResourcePrimaryDirectory: (resourceScopeId: string, directoryId: string) => void;
 	readonly updateWorkspace: (workspaceId: string, name: string, primaryDirectoryId: string) => void;
+	/** Present when the authority reaches Git for its Workspaces. */
+	readonly worktreeCommands: WorkbenchWorktreeCommands | undefined;
 }
 
 interface UseWorkbenchOptions {
@@ -377,6 +382,9 @@ export function useWorkbench({
 		setTabStripOrientationState(orientation);
 		writeWorkbenchTabStripOrientation(storage, orientation);
 	});
+	const worktreeLabel = useMemoizedFn((ordinal: number) =>
+		intl.formatMessage(workbenchMessages.worktreeDefaultLabel, { ordinal }),
+	);
 	const getNewTerminalAvailability = useMemoizedFn((input: WorkbenchTerminalCreateInput) =>
 		authorityNotice.authority === undefined
 			? getWorkbenchTerminalCreationAvailability(
@@ -570,7 +578,9 @@ export function useWorkbench({
 		toggleSidebar,
 		workspaceCopySuffix: intl.formatMessage(workbenchMessages.workspaceCopySuffix),
 		workspaceTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
+		worktreeLabel,
 	});
+	const worktrees = authorityNotice.authority?.worktrees;
 	const invokeLocationActivation = useMemoizedFn(
 		(targetLocation: WorkbenchActiveLocation, source: 'button' | 'pointer') =>
 			targetLocation.kind === 'standalone'
@@ -839,7 +849,6 @@ export function useWorkbench({
 			newFolderOpening: intl.formatMessage(workbenchMessages.projectNewFolderOpening),
 			newFolderRetained: intl.formatMessage(workbenchMessages.projectNewFolderRetained),
 			newFolderUnknown: intl.formatMessage(workbenchMessages.projectNewFolderUnknown),
-			newWorktree: intl.formatMessage(workbenchMessages.projectNewWorktree),
 			projectFolders: intl.formatMessage(workbenchMessages.projectFolders),
 			projectCreate: intl.formatMessage(workbenchMessages.projectCreate),
 			projectCreateDescription: intl.formatMessage(workbenchMessages.projectCreateDescription),
@@ -887,55 +896,6 @@ export function useWorkbench({
 			projectManageTitle: intl.formatMessage(workbenchMessages.projectManageTitle),
 			projectOptions: intl.formatMessage(workbenchMessages.projectOptions),
 			projectWorktrees: intl.formatMessage(workbenchMessages.projectWorktrees),
-			projectWorktreeBase: intl.formatMessage(workbenchMessages.projectWorktreeBase),
-			projectWorktreeBaseNoMatches: intl.formatMessage(
-				workbenchMessages.projectWorktreeBaseNoMatches,
-			),
-			projectWorktreeBranch: intl.formatMessage(workbenchMessages.projectWorktreeBranch),
-			projectWorktreeCreateWorkspace: intl.formatMessage(
-				workbenchMessages.projectWorktreeCreateWorkspace,
-			),
-			projectWorktreeDescription: intl.formatMessage(workbenchMessages.projectWorktreeDescription),
-			projectWorktreeFailureMessages: {
-				'base-not-found': intl.formatMessage(workbenchMessages.projectWorktreeFailureBaseNotFound),
-				'branch-already-exists': intl.formatMessage(
-					workbenchMessages.projectWorktreeFailureBranchAlreadyExists,
-				),
-				busy: intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
-				'compensation-failed': intl.formatMessage(
-					workbenchMessages.projectWorktreeFailureCompensationFailed,
-				),
-				'control-unavailable': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
-				'creation-failed': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
-				'discovery-failed': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
-				'document-conflict': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
-				'git-unavailable': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
-				'invalid-branch': intl.formatMessage(workbenchMessages.projectWorktreeFailureInvalidBranch),
-				'project-not-found': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
-				'recovery-required': intl.formatMessage(
-					workbenchMessages.projectWorktreeFailureRecoveryRequired,
-				),
-				'repository-not-found': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
-				'source-unavailable': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
-				'target-conflict': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
-				'worktree-retained': intl.formatMessage(workbenchMessages.projectWorktreeFailureRetained),
-				'worktree-not-found': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
-			},
-			projectWorktreeFailureTitle: intl.formatMessage(
-				workbenchMessages.projectWorktreeFailureTitle,
-			),
-			projectWorktreeInventoryUnavailable: intl.formatMessage(
-				workbenchMessages.projectWorktreeInventoryUnavailable,
-			),
-			projectWorktreeLoading: intl.formatMessage(workbenchMessages.projectWorktreeLoading),
-			projectWorktreeLocation: intl.formatMessage(workbenchMessages.projectWorktreeLocation),
-			projectWorktreeLocationAutomatic: (root) =>
-				intl.formatMessage(workbenchMessages.projectWorktreeLocationAutomatic, { root }),
-			projectWorktreeNoRepositories: intl.formatMessage(
-				workbenchMessages.projectWorktreeNoRepositories,
-			),
-			projectWorktreeRepository: intl.formatMessage(workbenchMessages.projectWorktreeRepository),
-			projectWorktreeTitle: intl.formatMessage(workbenchMessages.projectWorktreeTitle),
 			removeProject: intl.formatMessage(workbenchMessages.projectRemove),
 			retryProjectConnection: intl.formatMessage(workbenchMessages.projectRetryConnection),
 			removeProjectFolder: intl.formatMessage(workbenchMessages.projectRemoveFolder),
@@ -1082,5 +1042,17 @@ export function useWorkbench({
 			);
 		},
 		updateSearch,
+		worktreeCommands:
+			worktrees === undefined
+				? undefined
+				: {
+						create: (workspaceId) =>
+							actions.invoke(WORKBENCH_ACTION_IDS.createWorktree, { workspaceId }, 'menu'),
+						discover: (workspaceId) => worktrees.discover(workspaceId),
+						open: (input) => actions.invoke(WORKBENCH_ACTION_IDS.openWorktree, input, 'menu'),
+						remove: (input) => actions.invoke(WORKBENCH_ACTION_IDS.removeWorktree, input, 'menu'),
+						resume: (input) =>
+							actions.invoke(WORKBENCH_ACTION_IDS.resumeWorktreeRemoval, input, 'menu'),
+					},
 	};
 }

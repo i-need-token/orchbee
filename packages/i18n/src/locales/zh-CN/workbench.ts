@@ -1,8 +1,6 @@
 import type { WorkbenchMessageId } from '../en-US';
 
 export const zhCNWorkbenchMessages = {
-	'workbench.projects.worktree.failure.retained':
-		'worktree 已创建并保留，但未能打开其工作区。请选择现有 worktree 打开，请勿重复创建。',
 	'workbench.workspaces.moveToProject': '移动到项目',
 	'workbench.workspaces.createProject': '新建项目并移入',
 	'workbench.workspaces.ungroup': '移出项目',
@@ -86,7 +84,6 @@ export const zhCNWorkbenchMessages = {
 	'workbench.projects.actions.expand': '展开项目',
 	'workbench.projects.actions.manage': '管理项目…',
 	'workbench.projects.actions.newFolder': '新建文件夹…',
-	'workbench.projects.actions.newWorktree': '新建 Worktree…',
 	'workbench.projects.actions.options': '项目选项',
 	'workbench.projects.actions.remove': '解散项目',
 	'workbench.projects.actions.retryConnection': '重试连接',
@@ -123,28 +120,6 @@ export const zhCNWorkbenchMessages = {
 	'workbench.projects.folderAcquisition.failure.validationFailed': '无法验证所选文件夹。',
 	'workbench.projects.groups.folders': '文件夹',
 	'workbench.projects.groups.worktrees': 'Git Worktree',
-	'workbench.projects.worktree.base': '原分支或提交',
-	'workbench.projects.worktree.baseNoMatches': '没有匹配的本地分支，将使用你输入的分支或提交。',
-	'workbench.projects.worktree.branch': '新分支',
-	'workbench.projects.worktree.createWorkspace': '同时为此 Worktree 创建工作区',
-	'workbench.projects.worktree.description':
-		'在 Orchbee 管理的目录中创建隔离的 Git Worktree。默认值已可直接提交。',
-	'workbench.projects.worktree.failure.baseNotFound': '所选原分支或提交已不可用。',
-	'workbench.projects.worktree.failure.branchAlreadyExists': '该分支已存在。',
-	'workbench.projects.worktree.failure.compensationFailed':
-		'Orchbee 未能完整回滚失败的操作。请重启 Orchbee 后再操作此仓库。',
-	'workbench.projects.worktree.failure.generic': 'Worktree 已不可用或无法使用。请检查仓库后重试。',
-	'workbench.projects.worktree.failure.invalidBranch': '请输入有效的新 Git 分支名。',
-	'workbench.projects.worktree.failure.recoveryRequired':
-		'此仓库存在未完成的 Worktree 恢复。请重启 Orchbee 后重试。',
-	'workbench.projects.worktree.failure.title': '无法使用 Worktree',
-	'workbench.projects.worktree.inventoryUnavailable': '无法读取 Worktree',
-	'workbench.projects.worktree.loading': '正在读取本地 Git 仓库…',
-	'workbench.projects.worktree.location': '托管位置',
-	'workbench.projects.worktree.locationAutomatic': '{root}/managed-worktree-…',
-	'workbench.projects.worktree.noRepositories': '此工作区没有可用的本地 Git 仓库。',
-	'workbench.projects.worktree.repository': '仓库',
-	'workbench.projects.worktree.title': '新建 Worktree',
 	'workbench.projects.manage.description': '为这个可选的工作区分组命名。',
 	'workbench.projects.manage.addLocalFolder': '添加本地文件夹…',
 	'workbench.projects.manage.addSshFolder': '添加 SSH 文件夹…',
@@ -420,4 +395,49 @@ export const zhCNWorkbenchMessages = {
 		'{title}{groupKind, select, named {，位于“{groupTitle}”组} unnamed {，位于未命名组} other {}}{pinned, select, true {，已固定} other {}}{state, select, crashed {，已崩溃} networkError {，网络错误} permission {，请求权限} discarded {，非活动标签页} other {}}',
 	'workbench.tabs.announcements.groupMembership':
 		'标签页已{action, select, added {加入} other {移出}}{groupKind, select, named {“{groupTitle}”组} other {未命名组}}，{contents}',
+	'workbench.worktrees.defaultLabel': '工作树 {ordinal}',
+	'workbench.worktrees.new': '新建工作树',
+	'workbench.worktrees.open': '打开工作树',
+	'workbench.worktrees.remove': '移除工作树…',
+	'workbench.worktrees.reading': '正在读取仓库…',
+	'workbench.worktrees.noOtherCheckouts': '没有其他检出目录',
+	'workbench.worktrees.notRepository': '不在 Git 仓库中',
+	'workbench.worktrees.listingUnavailable': '无法列出检出目录',
+	'workbench.worktrees.removeTitle': '移除工作树？',
+	'workbench.worktrees.removeDescription':
+		'Orchbee 会关闭“{workspace}”{terminals, plural, =0 {} other {及其 # 个终端}}，然后删除位于 {path} 的检出目录。{kept, select, true {分支 {branch} 会保留。} other {}}',
+	'workbench.worktrees.removeConfirm': '移除',
+	'workbench.worktrees.stoppedTitle': '工作树移除已停止',
+	'workbench.worktrees.resume': '继续移除',
+	'workbench.worktrees.resumeRemoval': '继续移除工作树…',
+	'workbench.worktrees.creating': '正在创建工作树…',
+	'workbench.worktrees.opening': '正在打开工作树…',
+	'workbench.worktrees.removing': '正在移除工作树…',
+	'workbench.worktrees.removed': '工作树已移除，工作区已关闭，分支已保留。',
+	'workbench.worktrees.outcomeUnknown':
+		'工作树操作结果未知。请勿重复操作，可用 orchbee worktree status {operationId} 查询。',
+	'workbench.worktrees.createFailed': '无法创建工作树。请检查仓库后重试。',
+	'workbench.worktrees.openFailed': '无法打开工作树。请检查检出目录后重试。',
+	'workbench.worktrees.failure.checkoutInUse': '其他工作区仍在使用此检出目录。请先关闭对应工作区。',
+	'workbench.worktrees.failure.checkoutNotFound':
+		'Git 已不再将此检出登记为工作树。请检查该目录和 git worktree list。',
+	'workbench.worktrees.failure.closeIncomplete':
+		'终端未能全部关闭。请检查子终端、固定标签页和标签组。',
+	'workbench.worktrees.failure.configurationUnavailable':
+		'无法读取工作树配置。请运行 orchbee config check。',
+	'workbench.worktrees.failure.denied': '此客户端无权更改工作树。',
+	'workbench.worktrees.failure.directoryInUse':
+		'检出目录正被占用或无法删除。请关闭占用它的程序，再继续移除。',
+	'workbench.worktrees.failure.dirty':
+		'检出目录含修改或未跟踪文件。请先提交、贮藏或清理，再继续移除。',
+	'workbench.worktrees.failure.git': 'Git 未能完成移除。已知检出目录和工作区信息已保留。',
+	'workbench.worktrees.failure.gitFailed':
+		'Git 未能移除检出目录。如有程序正在使用该目录，请先关闭，再继续移除。',
+	'workbench.worktrees.failure.internal': '工作树操作未能完成。请用 orchbee worktree status 查询。',
+	'workbench.worktrees.failure.mainCheckout': '主检出受保护，无法移除。',
+	'workbench.worktrees.failure.notSubmitted': 'Orchbee 无法连接服务器，未做任何更改。',
+	'workbench.worktrees.failure.sessionStopping': '会话正在停止。请在它重新启动后重试。',
+	'workbench.worktrees.failure.sourceChanged': '检出目录或工作区已变化。请检查后再继续。',
+	'workbench.worktrees.failure.unsupported': '此 Worker 不支持工作树。',
+	'workbench.worktrees.failure.workerUnavailable': 'Worker 不可用或忙碌，请稍后重试。',
 } as const satisfies Readonly<Record<WorkbenchMessageId, string>>;

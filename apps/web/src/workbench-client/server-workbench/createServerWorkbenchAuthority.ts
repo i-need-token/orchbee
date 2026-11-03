@@ -16,6 +16,7 @@ import { createWorkbenchRequestId } from './createWorkbenchRequestId';
 import { handOverServerWorkbenchAction } from './handOverServerWorkbenchAction';
 import { readServerWorkbenchAction } from './readServerWorkbenchAction';
 import { closeServerWorkbench, watchServerWorkbenchClose } from './server-workbench-close';
+import { createServerWorktrees } from './createServerWorktrees';
 import {
 	SERVER_MINIMUM_SPLIT_PERCENT,
 	changeServerSplitRatios,
@@ -302,5 +303,6 @@ export function createServerWorkbenchAuthority({
 						: { kind: 'completed' },
 			),
 		watchClose: (closure, onChanged) => watchServerWorkbenchClose(session, closure, onChanged),
+		worktrees: createServerWorktrees(session),
 	};
 }

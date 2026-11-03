@@ -27,7 +27,6 @@ export type {
 	WorkbenchNewProjectFolderParent,
 	WorkbenchNewProjectFolderParentResult,
 	WorkbenchNewProjectFolderResult,
-	WorkbenchProjectWorktreeCapability,
 	WorkbenchPublication,
 	WorkbenchRemoteTerminalCreationCapability,
 	WorkbenchPanelPosition,
@@ -58,6 +57,14 @@ export type {
 	WorkbenchTerminalPresentation,
 	WorkbenchTerminalSurface,
 	WorkbenchTerminalSurfaceProps,
+	WorkbenchWorktreeCommand,
+	WorkbenchWorktreeDiscovery,
+	WorkbenchWorktreeDiscoveryResult,
+	WorkbenchWorktreeFailureCause,
+	WorkbenchWorktreeOutcome,
+	WorkbenchWorktreeRemoval,
+	WorkbenchWorktreeStoppedRemoval,
+	WorkbenchWorktrees,
 } from './workbench';
 export { TERMINAL_ACTION_IDS, WorkbenchTerminalBellEffectCoordinator } from './workbench';
 export type { WorkbenchLayoutStorage } from './workbench-layout-storage';

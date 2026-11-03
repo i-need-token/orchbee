@@ -10,7 +10,6 @@ import type {
 	WorkbenchAgentObservation,
 	WorkbenchAgentSnapshot,
 	WorkbenchEnvironmentProjectConnectionCapability,
-	WorkbenchProjectWorktreeCapability,
 	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalPresentationCommand,
 	WorkbenchTerminalSurfaceProps,
@@ -151,34 +150,6 @@ const createSidebarFocusRevealRuntime = (collapsed: boolean) => {
 		runtime.transition({ projectId: project.id, type: 'project-expansion-toggled' });
 	}
 	return runtime;
-};
-
-const storyProjectWorktreeCapability: WorkbenchProjectWorktreeCapability = {
-	adopt: () => Promise.resolve({ code: 'worktree-not-found', kind: 'failed' }),
-	create: () =>
-		Promise.resolve({
-			directoryId: 'story-created-worktree',
-			kind: 'created',
-			workspaceId: null,
-		}),
-	discover: () =>
-		Promise.resolve({
-			discovery: {
-				managedRoot: '/Users/demo/.orchbee/worktrees',
-				repositories: [
-					{
-						defaultBaseRef: 'main',
-						label: 'orchbee',
-						localBaseRefs: ['main', 'release', 'feature/dialogs'],
-						repositoryId: 'orchbee',
-						sourceDirectoryId: 'directory-orchbee',
-						suggestedBranchName: 'feature/new-worktree',
-						worktreeInventory: { kind: 'available', worktrees: [] },
-					},
-				],
-			},
-			kind: 'discovered',
-		}),
 };
 
 const createWorkspaceAgentOverviewStoryFixture = () => {
@@ -669,7 +640,6 @@ export const ProjectWorkspaceNavigation: Story = {
 		actionRuntime: new ActionRuntime({ confirm: () => true }),
 		onSettings: () => ({ kind: 'unchanged' }),
 		projectWorkspaceRuntime: createPopulatedProjectWorkspaceRuntime(),
-		projectWorktree: storyProjectWorktreeCapability,
 		shortcutPlatform: 'apple',
 		terminalSurface: FocusStoryTerminalSurface,
 	},
@@ -685,7 +655,6 @@ export const ProjectWorkspaceKeyboardMenu: Story = {
 		actionRuntime: new ActionRuntime(),
 		onSettings: () => ({ kind: 'unchanged' }),
 		projectWorkspaceRuntime: createPopulatedProjectWorkspaceRuntime(),
-		projectWorktree: storyProjectWorktreeCapability,
 		shortcutPlatform: 'standard',
 		terminalSurface: FocusStoryTerminalSurface,
 	},

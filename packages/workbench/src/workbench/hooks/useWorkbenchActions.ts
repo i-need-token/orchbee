@@ -28,6 +28,7 @@ import {
 } from '../actions/registerWorkbenchTabTitleAction';
 import { registerWorkbenchTabSelectionActions } from '../actions/registerWorkbenchTabSelectionActions';
 import { registerWorkbenchFocusActions } from '../actions/registerWorkbenchFocusActions';
+import { registerWorkbenchWorktreeActions } from '../actions/registerWorkbenchWorktreeActions';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
@@ -77,6 +78,8 @@ interface UseWorkbenchActionsOptions {
 	readonly toggleSidebar: () => void;
 	readonly workspaceCopySuffix: string;
 	readonly workspaceTerminalTitle: string;
+	/** The localized default Worktree Workspace label with this ordinal; keep it stable across renders. */
+	readonly worktreeLabel: (ordinal: number) => string;
 }
 
 interface WorkbenchActions {
@@ -115,6 +118,7 @@ export function useWorkbenchActions({
 	toggleSidebar,
 	workspaceCopySuffix,
 	workspaceTerminalTitle,
+	worktreeLabel,
 }: UseWorkbenchActionsOptions): WorkbenchActions {
 	const scope = React.useMemo(() => runtime.createScope('workbench'), [runtime]);
 	const typedRuntime = React.useMemo(
@@ -214,6 +218,15 @@ export function useWorkbenchActions({
 				workspaceCopySuffix,
 				workspaceTerminalTitle,
 			}),
+			...(authority?.worktrees === undefined
+				? []
+				: registerWorkbenchWorktreeActions({
+						projectWorkspaceRuntime,
+						scope,
+						typedRuntime,
+						worktreeLabel,
+						worktrees: authority.worktrees,
+					})),
 			...registerWorkbenchTabSelectionActions({
 				projectWorkspaceRuntime,
 				runtime,
@@ -436,6 +449,7 @@ export function useWorkbenchActions({
 		typedRuntime,
 		workspaceCopySuffix,
 		workspaceTerminalTitle,
+		worktreeLabel,
 	]);
 
 	const invoke = useMemoizedFn(

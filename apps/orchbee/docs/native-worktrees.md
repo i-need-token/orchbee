@@ -105,7 +105,9 @@ revalidated before Start. The Server retains dirty/untracked-file, main/bare-che
 Workspace-association guards, terminal disposal, publication hold, Git deletion and shell recovery.
 Successful removal closes the Workspace and preserves the branch. Ordinary Workspace Close keeps
 its existing independent meaning and never deletes a checkout. This native Windows TUI addition
-uses the same domain operation as the CLI; Desktop removal remains outside this delivery scope.
+uses the same domain operation as the CLI, and so does the Web and Desktop window's Remove
+Worktree…, under the same offer proof but without the Windows check for a Client standing in the
+checkout.
 
 The surface shows readable failure reasons and retained Workspace/shell-restoration facts.
 Each reason names its cause, such as a checkout Git no longer lists, a directory still in use or a

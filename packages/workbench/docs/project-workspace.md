@@ -1,6 +1,6 @@
 # Project and Workspace Model
 
-The legacy Browser ingress and POSIX SSH Environment chain are retired. Current Desktop supplies local Folder and Worktree capabilities; Browser Preview uses in-memory state. Optional SSH interfaces below are retained library contracts without a current provider.
+The legacy Browser ingress and POSIX SSH Environment chain are retired. Current Desktop supplies the local Folder picker and the Server authority supplies Worktree commands; Browser Preview uses in-memory state. Optional SSH interfaces below are retained library contracts without a current provider.
 
 ## Status and scope
 
@@ -138,15 +138,26 @@ New Folder selects a parent then explicitly submits one child name. Filesystem s
 
 Optional SSH enrollment and group-status interfaces have no current application provider. They neither start SSH on mount nor define execution authority. Environment placement remains a Directory property in its resource namespace. Any future connection provider must resolve that stable placement; a movable Project cannot stand in for Environment, repository or terminal identity.
 
-## Managed Worktree product commit
+## Server Worktree commands
 
-`project-worktree-created` takes an exact source Workspace and Directory. The host revalidates its immutable scope, context and path after asynchronous preparation. A moved source uses its current group. An ungrouped source and the new Workspace gain one newly created Project in the same transition as the Directory and first shell. If no Workspace is requested, only the resource catalog changes. A closed source is never recreated.
+Where the authority reaches Git through `WorkbenchAuthority.worktrees`, each Workspace menu carries the TUI's Worktree commands. Opening the menu discovers the Workspace's repository again. Until Git answers, New Worktree is disabled and Open Worktree holds one disabled row saying what is known: reading, not a Git repository, checkouts unavailable, or no other checkouts. No earlier answer stands in.
 
-Publication preserves local navigation. Git effects and known partial-result retention belong to the host that creates the checkout; Desktop offers no Worktree creation. A known created checkout is retained if the product commit fails; regrouping never authorizes compensation or deletion.
+| Entry                    | Action                              | Result                                                                                       |
+| ------------------------ | ----------------------------------- | -------------------------------------------------------------------------------------------- |
+| New Worktree             | `workbench.worktree.create`         | A checkout with the TUI's defaults opens as a Workspace named with the first unused ordinal  |
+| Open Worktree            | `workbench.worktree.open`           | The Workspace standing in the chosen checkout activates; with none, a new one opens there    |
+| Remove Worktree…         | `workbench.worktree.remove`         | After one confirmation, the Workspace closes and its checkout is deleted; the branch stays   |
+| Resume Worktree Removal… | `workbench.worktree.resume-removal` | After its own confirmation, a removal of this Workspace that stopped continues the operation |
 
-## Existing Worktree adoption
+Remove Worktree… follows Delete Workspace and appears only for a checkout the Workspace may remove, which the authority decides. Its confirmation is the shared Action confirmation, naming the Workspace, its terminals, the path, and the kept branch. A removal that stops where it may continue asks at once whether to resume; declining leaves the failure notice, and while the authority keeps that removal, Resume Worktree Removal… takes Remove Worktree…'s place whatever Git reports. Rows wait while a command runs. Progress and outcomes are authority notices: an opened Worktree shows as its activated Workspace, a removal reports for four seconds, and a failure or unknown outcome stays until pressed. A created or opened Workspace activates by the created-Workspace rule below.
 
-`project-worktree-adopted` accepts host-revalidated `source: discovered` metadata, including detached `branch: null` and exact `HEAD`. It shares creation's current-membership and first-shell rules. Physical Git identity is checked across all groups and resource scopes. An already-associated Worktree returns its existing Workspace; an equivalent unassociated Folder descriptor may be upgraded in place without changing its ID. The host performs no Git mutation; Desktop offers no Worktree adoption.
+## In-memory Worktree transitions
+
+No current surface dispatches `project-worktree-created` or `project-worktree-adopted`; the Server Worktree commands replaced the Desktop capability that did. Their contracts hold while the in-memory runtime keeps them.
+
+`project-worktree-created` takes an exact source Workspace and Directory. The host revalidates its immutable scope, context and path after asynchronous preparation. A moved source uses its current group. An ungrouped source and the new Workspace gain one newly created Project in the same transition as the Directory and first shell. If no Workspace is requested, only the resource catalog changes. A closed source is never recreated. Publication preserves local navigation. A known created checkout is retained if the product commit fails; regrouping never authorizes compensation or deletion.
+
+`project-worktree-adopted` accepts host-revalidated `source: discovered` metadata, including detached `branch: null` and exact `HEAD`. It shares creation's current-membership and first-shell rules. Physical Git identity is checked across all groups and resource scopes. An already-associated Worktree returns its existing Workspace; an equivalent unassociated Folder descriptor may be upgraded in place without changing its ID.
 
 ## Project navigation action menus
 
@@ -190,11 +201,11 @@ tests do not establish CSS reachability. Capability-dependent entries and locali
 the existing action model's responsibility. This synchronous adapter introduces no async owner or
 additional TLA+ model.
 
-The Workspace menu offers New Workspace from its resource Folders and per-repository Worktree choices. Reopening the menu refreshes discovery. Repository labels describe source Folders, never the Project group. Move to Project offers existing groups, New Project and Move, and Remove from Project. The Project menu separates Manage Project, Dissolve Project and Close All Workspaces.
+The Workspace menu offers New Workspace from its resource Folders, then the Server Worktree commands where the authority provides them. Move to Project offers existing groups, New Project and Move, and Remove from Project. The Project menu separates Manage Project, Dissolve Project and Close All Workspaces.
 
 ### Created Workspace activation
 
-The initiating client captures an activation intent before async create/adopt begins. Completion names an exact Workspace and waits for its publication, in either response/publication order. Only the newest live intent may activate it once. Workspace, Tab or Panel navigation, explicit same-row navigation, a newer creation or unmount retires the old intent. Grouping changes and publication of another context do not count as navigation. No Project identity participates in readiness, and a closed source cannot be resurrected by completion. Readiness and focus use committed React projections; a suspended or discarded render cannot publish membership or redirect an operation. A late completion still observes the latest committed projection.
+The initiating client captures an activation intent before an async Folder creation or a Worktree creation or opening begins. Completion names an exact Workspace and waits for its publication, in either response/publication order. Only the newest live intent may activate it once. Workspace, Tab or Panel navigation, explicit same-row navigation, a newer creation or unmount retires the old intent. Grouping changes and publication of another context do not count as navigation. No Project identity participates in readiness, and a closed source cannot be resurrected by completion. Readiness and focus use committed React projections; a suspended or discarded render cannot publish membership or redirect an operation. A late completion still observes the latest committed projection.
 
 ## Project and Workspace reorder gestures
 
@@ -264,7 +275,7 @@ Workbench owns the pure organization model, action adapters, resource dialogs an
 
 Deterministic and fixed-seed generated tests cover independent creation, scoped ID collisions, move/new-group/ungroup/dissolve, peer ordering, close versus close-all, resource and selection retention, unavailable fallbacks, physical Worktree deduplication and rejected transitions. Current-shape tests cover graph validation and malformed Client Views. Two-client runtime tests preserve context object identity, focus, child selection and zoom; first-shell allocation failure leaves no published structure.
 
-Hook and component tests cover immediate creation, menus, stable management targets, Agent rows and late activation suppression. The host that creates a checkout owns async Git races and retained partial results; Web owns stable routes and unavailable identities. DOM tests do not establish native-window focus or actual shell process behavior. The repository integration gate remains the integration owner's responsibility.
+Hook and component tests cover immediate creation, menus, stable management targets, Agent rows and late activation suppression. The Server owns Worktree Git effects, races and retained partial results; Web owns stable routes and unavailable identities. DOM tests do not establish native-window focus or actual shell process behavior. The repository integration gate remains the integration owner's responsibility.
 
 ## Delivery and recovery
 

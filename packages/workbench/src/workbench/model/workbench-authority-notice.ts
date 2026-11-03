@@ -3,7 +3,12 @@ import { workbenchMessages } from '@orchbee/i18n';
 
 import type { WorkbenchTabDuplicationStop } from '../actions/workbench-shared-tab-creation';
 import type { WorkbenchAuthorityClosure } from '../types/workbench-authority';
+import type {
+	WorkbenchWorktreeCommand,
+	WorkbenchWorktreeOutcome,
+} from '../types/workbench-worktrees';
 import type { WorkbenchProjectWorkspaceRuntime } from './WorkbenchProjectWorkspaceRuntime';
+import { workbenchWorktreeFailureDescriptor } from './workbench-worktree-failure';
 
 export interface WorkbenchAuthorityNotice {
 	readonly descriptor: (typeof workbenchMessages)[keyof typeof workbenchMessages];
@@ -363,4 +368,45 @@ export function workbenchTabDuplicationStoppedNotice(
 	counts: { readonly created: number; readonly total: number },
 ): WorkbenchAuthorityNotice {
 	return { descriptor: DUPLICATION_STOP_DESCRIPTORS[stop], lifetime: 'timed', values: counts };
+}
+
+/** What a Worktree command says while it runs, until its outcome replaces it. */
+export function workbenchWorktreeProgressNotice(
+	command: WorkbenchWorktreeCommand,
+): WorkbenchAuthorityNotice {
+	const descriptors = {
+		create: workbenchMessages.worktreeCreating,
+		open: workbenchMessages.worktreeOpening,
+		remove: workbenchMessages.worktreeRemoving,
+		resume: workbenchMessages.worktreeRemoving,
+	} as const;
+	return { descriptor: descriptors[command.kind], lifetime: 'until-replaced' };
+}
+
+/**
+ * What a settled Worktree command says. An opened Worktree shows as its Workspace. A failure stays
+ * until a press, so a removal whose Resume question is declined keeps its receipt. A removal says
+ * that the branch stays, which nothing shows.
+ */
+export function workbenchWorktreeOutcomeNotice(
+	command: WorkbenchWorktreeCommand,
+	outcome: WorkbenchWorktreeOutcome,
+): WorkbenchAuthorityNotice | null {
+	switch (outcome.kind) {
+		case 'opened':
+			return null;
+		case 'removed':
+			return { descriptor: workbenchMessages.worktreeRemoved, lifetime: 'timed' };
+		case 'unknown':
+			return {
+				descriptor: workbenchMessages.worktreeOutcomeUnknown,
+				lifetime: 'until-press',
+				values: { operationId: outcome.operationId },
+			};
+		case 'failed':
+			return {
+				descriptor: workbenchWorktreeFailureDescriptor(command.kind, outcome.cause),
+				lifetime: 'until-press',
+			};
+	}
 }

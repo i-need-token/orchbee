@@ -21,7 +21,6 @@
 			"states": [
 				"Open Manage Project from a Project menu and inspect the lightweight compact title, dense description, normal-weight field labels, and footer actions.",
 				"Open Manage Workspace from a Workspace menu and confirm that its shared compact hierarchy omits key hints because Enter and Escape also operate its nested controls.",
-				"Open New Workspace, choose New Worktree, and inspect code-like branch fields, read-only managed-location metadata, and the omission of ambiguous key hints.",
 				"Open the simple Project path or Tab title form and compare the same structure with Esc and Enter hints on the actions whose keys remain unambiguous throughout the task."
 			]
 		}

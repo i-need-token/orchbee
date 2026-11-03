@@ -7,13 +7,10 @@ import type { WorkbenchTerminalLocationActivationOrigin } from '../../../../mode
 import { WorkbenchAgentIdentity } from '../../../workbench-agent-identity/WorkbenchAgentIdentity';
 import { WorkbenchActionContextMenuContent } from '../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
 import type { WorkbenchActionMenuEntry } from '../../../../types/workbench-action-menu';
-import type {
-	WorkbenchProjectWorktreeCapability,
-	WorkbenchProjectWorktreeDiscovery,
-} from '../../../../types/workbench-project-worktree';
 import type { WorkbenchEnvironmentProjectConnectionStatus } from '../../../../types/workbench-environment-project-connection';
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../../../types/workbench-agent-overview';
 import { useNavigationReorderDrag } from '../../hooks/useNavigationReorderDrag';
+import type { WorkspaceWorktreeMenu } from '../../hooks/useWorkspaceWorktrees';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
 import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
 import { WorkspaceAgentList } from './components/workspace-agent-list/WorkspaceAgentList';
@@ -33,9 +30,6 @@ interface ProjectNavigationItemProps {
 		origin: WorkbenchTerminalLocationActivationOrigin,
 	) => void;
 	readonly activeLocation: ProjectWorkspaceState['activeLocation'];
-	readonly adoptWorktree?:
-		| ((input: Parameters<WorkbenchProjectWorktreeCapability['adopt']>[0]) => void)
-		| undefined;
 	readonly createWorkspace: (input: {
 		resourceScopeId: string;
 		directoryId: string;
@@ -46,7 +40,6 @@ interface ProjectNavigationItemProps {
 	readonly showWorkspaceProjectCreation: (workspaceId: string) => void;
 	readonly closeProjectWorkspaces: (projectId: string) => void;
 	readonly connectEnvironment?: ((projectId: string) => void) | undefined;
-	readonly createWorktree?: ((projectId: string) => void) | undefined;
 	readonly deleteWorkspace: (workspaceId: string) => void;
 	readonly displacement: 'down' | 'up' | null;
 	readonly disconnectEnvironment?: ((projectId: string) => void) | undefined;
@@ -58,7 +51,8 @@ interface ProjectNavigationItemProps {
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly project: WorkbenchProject | null;
-	readonly refreshWorktrees?: ((workspaceId: string) => void) | undefined;
+	/** Reads a Workspace's repository again; every Workspace menu calls it when it opens. */
+	readonly refreshWorktrees: (workspaceId: string) => void;
 	readonly onPointerDown: (projectId: string, event: PointerEvent<HTMLDivElement>) => void;
 	readonly reorderActive: boolean;
 	readonly reorderWorkspace: (
@@ -71,23 +65,19 @@ interface ProjectNavigationItemProps {
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly toggleWorkspaceAgentExpansion: (workspaceId: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
-	readonly worktreeDiscoveryByWorkspace: ReadonlyMap<string, WorkbenchProjectWorktreeDiscovery>;
-	readonly worktreeDiscoveryFailures: ReadonlySet<string>;
-	readonly worktreeOperationPending: boolean;
+	readonly worktreeMenu: (workspaceId: string) => WorkspaceWorktreeMenu;
 }
 
 export function ProjectNavigationItem({
 	agentGradientPrefix,
 	activateWorkspace,
 	activeLocation,
-	adoptWorktree,
 	createWorkspace,
 	state,
 	setWorkspaceProject,
 	showWorkspaceProjectCreation,
 	closeProjectWorkspaces,
 	connectEnvironment,
-	createWorktree,
 	deleteWorkspace,
 	displacement,
 	disconnectEnvironment,
@@ -109,9 +99,7 @@ export function ProjectNavigationItem({
 	toggleProjectExpansion,
 	toggleWorkspaceAgentExpansion,
 	workspaceAgentOverviews,
-	worktreeDiscoveryByWorkspace,
-	worktreeDiscoveryFailures,
-	worktreeOperationPending,
+	worktreeMenu,
 }: ProjectNavigationItemProps): ReactNode {
 	const menuFocus = useProjectNavigationMenuFocus();
 	const workspaces = state.workspaces.filter(
@@ -294,18 +282,13 @@ export function ProjectNavigationItem({
 						const agentExpanded = expandedAgentWorkspaceId === workspace.id;
 						const active =
 							activeLocation.kind === 'workspace' && activeLocation.workspaceId === workspace.id;
+						const worktrees = worktreeMenu(workspace.id);
 						const workspaceMenuEntries: readonly WorkbenchActionMenuEntry[] = [
 							...workspaceNavigationMenu({
 								state,
 								workspace,
 								messages,
 								createWorkspace,
-								createWorktree,
-								adoptWorktree,
-								refreshWorktrees,
-								worktreeDiscovery: worktreeDiscoveryByWorkspace.get(workspace.id) ?? null,
-								worktreeDiscoveryFailed: worktreeDiscoveryFailures.has(workspace.id),
-								worktreeOperationPending,
 								setWorkspaceProject,
 								showWorkspaceProjectCreation,
 							}),
@@ -327,6 +310,7 @@ export function ProjectNavigationItem({
 								label: messages.workspaceManage,
 								onSelect: () => showWorkspaceManager(workspace.id),
 							},
+							...worktrees.section,
 							{ id: 'delete-workspace-separator', kind: 'separator' },
 							{
 								destructive: true,
@@ -336,6 +320,8 @@ export function ProjectNavigationItem({
 								label: messages.deleteWorkspace,
 								onSelect: () => deleteWorkspace(workspace.id),
 							},
+							// Discovery only ever appends this row, so no row above it moves.
+							...worktrees.removal,
 						];
 						const workspaceDragging = workspaceReorder.draggingItemId === workspace.id;
 						const workspaceDisplacement = workspaceReorder.displacedItemIds.includes(workspace.id)
@@ -352,9 +338,10 @@ export function ProjectNavigationItem({
 								data-workspace-reorder-displacement={workspaceDisplacement ?? undefined}
 							>
 								<ContextMenu
-									onOpenChange={(open, details) =>
-										menuFocus.onOpenChange(workspace.id, open, details)
-									}
+									onOpenChange={(open, details) => {
+										if (open) refreshWorktrees(workspace.id);
+										menuFocus.onOpenChange(workspace.id, open, details);
+									}}
 								>
 									<ContextMenuTrigger
 										render={
@@ -444,7 +431,7 @@ export function ProjectNavigationItem({
 										)}
 										<WorkbenchSidebarDropdownMenu
 											onOpenChange={(open) => {
-												if (open) refreshWorktrees?.(workspace.id);
+												if (open) refreshWorktrees(workspace.id);
 											}}
 											entries={workspaceMenuEntries}
 											trigger={

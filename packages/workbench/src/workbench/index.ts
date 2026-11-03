@@ -17,7 +17,16 @@ export type {
 	WorkbenchNewProjectFolderParentResult,
 	WorkbenchNewProjectFolderResult,
 } from './types/workbench-project-folder-acquisition';
-export type { WorkbenchProjectWorktreeCapability } from './types/workbench-project-worktree';
+export type {
+	WorkbenchWorktreeCommand,
+	WorkbenchWorktreeDiscovery,
+	WorkbenchWorktreeDiscoveryResult,
+	WorkbenchWorktreeFailureCause,
+	WorkbenchWorktreeOutcome,
+	WorkbenchWorktreeRemoval,
+	WorkbenchWorktreeStoppedRemoval,
+	WorkbenchWorktrees,
+} from './types/workbench-worktrees';
 export type { WorkbenchRemoteTerminalCreationCapability } from './types/workbench-remote-terminal-creation';
 export type {
 	WorkbenchAuthority,

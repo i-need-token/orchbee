@@ -3,6 +3,7 @@ import type { TabStripArrangementChange } from '@orchbee/tab-strip';
 
 import type { ProjectWorkspaceEvent } from '../../project-workspace';
 import type { WorkbenchProjectCreationReceipt } from './workbench-project-folder-acquisition';
+import type { WorkbenchWorktrees } from './workbench-worktrees';
 
 /** A change the navigation states without an authority too, as one event of its own. */
 export type WorkbenchAuthorityNavigationChange = Extract<
@@ -191,4 +192,6 @@ export interface WorkbenchAuthority {
 	): Promise<ActionResult<WorkbenchAuthorityTabReceipt>>;
 	/** Reports when what a confirmation of `closure` describes has changed. Returns how to stop. */
 	watchClose(closure: WorkbenchAuthorityClosure, onChanged: () => void): () => void;
+	/** Absent where this authority cannot reach Git for its Workspaces. */
+	readonly worktrees?: WorkbenchWorktrees | undefined;
 }

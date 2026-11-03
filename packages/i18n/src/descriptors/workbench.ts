@@ -3,11 +3,6 @@ import { defineMessages } from 'react-intl';
 import { enUSWorkbenchMessages } from '../locales';
 
 export const workbenchMessages = defineMessages({
-	projectWorktreeFailureRetained: {
-		description: 'Known Git success retained after Workspace publication failed.',
-		id: 'workbench.projects.worktree.failure.retained',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.retained'],
-	},
 	workspaceMoveToProject: {
 		description: 'Workspace grouping submenu.',
 		id: 'workbench.workspaces.moveToProject',
@@ -840,11 +835,6 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.newFolder'],
 		description: 'Action that creates a new Folder for a Project.',
 	},
-	projectNewWorktree: {
-		id: 'workbench.projects.actions.newWorktree',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.newWorktree'],
-		description: 'Action that creates a managed Git Worktree for a Project.',
-	},
 	projectOptions: {
 		id: 'workbench.projects.actions.options',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.options'],
@@ -889,103 +879,6 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.projects.groups.worktrees',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.groups.worktrees'],
 		description: 'Menu group for Git worktree folders.',
-	},
-	projectWorktreeBase: {
-		id: 'workbench.projects.worktree.base',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.base'],
-		description: 'Label for the local base ref used to create a Worktree.',
-	},
-	projectWorktreeBaseNoMatches: {
-		id: 'workbench.projects.worktree.baseNoMatches',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.baseNoMatches'],
-		description:
-			'Empty filter state explaining that a custom Worktree base branch or commit remains valid.',
-	},
-	projectWorktreeBranch: {
-		id: 'workbench.projects.worktree.branch',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.branch'],
-		description: 'Label for the new Worktree branch.',
-	},
-	projectWorktreeCreateWorkspace: {
-		id: 'workbench.projects.worktree.createWorkspace',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.createWorkspace'],
-		description: 'Option that creates a Workspace for a new Worktree.',
-	},
-	projectWorktreeDescription: {
-		id: 'workbench.projects.worktree.description',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.description'],
-		description: 'Description of managed Worktree creation.',
-	},
-	projectWorktreeFailureBaseNotFound: {
-		id: 'workbench.projects.worktree.failure.baseNotFound',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.baseNotFound'],
-		description: 'Failure shown when a Worktree base ref is unavailable.',
-	},
-	projectWorktreeFailureBranchAlreadyExists: {
-		id: 'workbench.projects.worktree.failure.branchAlreadyExists',
-		defaultMessage:
-			enUSWorkbenchMessages['workbench.projects.worktree.failure.branchAlreadyExists'],
-		description: 'Failure shown when a Worktree branch already exists.',
-	},
-	projectWorktreeFailureCompensationFailed: {
-		id: 'workbench.projects.worktree.failure.compensationFailed',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.compensationFailed'],
-		description: 'Failure shown when Worktree compensation needs recovery.',
-	},
-	projectWorktreeFailureGeneric: {
-		id: 'workbench.projects.worktree.failure.generic',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.generic'],
-		description: 'Generic safe Worktree creation failure.',
-	},
-	projectWorktreeFailureInvalidBranch: {
-		id: 'workbench.projects.worktree.failure.invalidBranch',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.invalidBranch'],
-		description: 'Failure shown for an invalid new Worktree branch.',
-	},
-	projectWorktreeFailureRecoveryRequired: {
-		id: 'workbench.projects.worktree.failure.recoveryRequired',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.recoveryRequired'],
-		description: 'Failure shown when prior Worktree recovery blocks creation.',
-	},
-	projectWorktreeFailureTitle: {
-		id: 'workbench.projects.worktree.failure.title',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.title'],
-		description: 'Title for a managed Worktree failure.',
-	},
-	projectWorktreeInventoryUnavailable: {
-		id: 'workbench.projects.worktree.inventoryUnavailable',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.inventoryUnavailable'],
-		description: 'Menu status shown when existing Worktrees cannot be read for a repository.',
-	},
-	projectWorktreeLoading: {
-		id: 'workbench.projects.worktree.loading',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.loading'],
-		description: 'Progress text while local Git repositories are discovered.',
-	},
-	projectWorktreeLocation: {
-		id: 'workbench.projects.worktree.location',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.location'],
-		description: 'Label for the managed Worktree location.',
-	},
-	projectWorktreeLocationAutomatic: {
-		id: 'workbench.projects.worktree.locationAutomatic',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.locationAutomatic'],
-		description: 'Read-only managed Worktree path with an automatic identity.',
-	},
-	projectWorktreeNoRepositories: {
-		id: 'workbench.projects.worktree.noRepositories',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.noRepositories'],
-		description: 'Empty state when a Project has no local Git repository.',
-	},
-	projectWorktreeRepository: {
-		id: 'workbench.projects.worktree.repository',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.repository'],
-		description: 'Label for the repository used to create a Worktree.',
-	},
-	projectWorktreeTitle: {
-		id: 'workbench.projects.worktree.title',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.title'],
-		description: 'Title for managed Worktree creation.',
 	},
 	projectManageDescription: {
 		id: 'workbench.projects.manage.description',
@@ -1453,5 +1346,194 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.sidebar.label',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.label'],
 		description: 'Accessible label for the Workbench navigation sidebar.',
+	},
+	worktreeDefaultLabel: {
+		id: 'workbench.worktrees.defaultLabel',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.defaultLabel'],
+		description: 'Label of the Workspace a new Worktree opens in; the first unused ordinal.',
+	},
+	worktreeNew: {
+		id: 'workbench.worktrees.new',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.new'],
+		description: 'Workspace menu command that creates a Git Worktree with defaults and opens it.',
+	},
+	worktreeOpen: {
+		id: 'workbench.worktrees.open',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.open'],
+		description: "Workspace submenu listing the repository's other Git checkouts to open.",
+	},
+	worktreeRemove: {
+		id: 'workbench.worktrees.remove',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.remove'],
+		description: "Destructive Workspace menu command that removes the Workspace's own checkout.",
+	},
+	worktreeReading: {
+		id: 'workbench.worktrees.reading',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.reading'],
+		description: 'Disabled menu row while Git lists the checkouts of a Workspace repository.',
+	},
+	worktreeNoOtherCheckouts: {
+		id: 'workbench.worktrees.noOtherCheckouts',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.noOtherCheckouts'],
+		description: 'Disabled menu row when the repository has no other checkout to open.',
+	},
+	worktreeNotRepository: {
+		id: 'workbench.worktrees.notRepository',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.notRepository'],
+		description: 'Disabled menu row when the Workspace is not in a Git repository Git trusts.',
+	},
+	worktreeListingUnavailable: {
+		id: 'workbench.worktrees.listingUnavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.listingUnavailable'],
+		description: 'Disabled menu row when the Git checkouts could not be listed.',
+	},
+	worktreeRemoveTitle: {
+		id: 'workbench.worktrees.removeTitle',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.removeTitle'],
+		description: 'Title of the confirmation before a Worktree is removed.',
+	},
+	worktreeRemoveDescription: {
+		id: 'workbench.worktrees.removeDescription',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.removeDescription'],
+		description:
+			'What removing a Worktree closes and deletes: the Workspace label, its terminal count, the checkout path and the branch Git keeps.',
+	},
+	worktreeRemoveConfirm: {
+		id: 'workbench.worktrees.removeConfirm',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.removeConfirm'],
+		description: 'Destructive confirmation button that removes the Worktree.',
+	},
+	worktreeStoppedTitle: {
+		id: 'workbench.worktrees.stoppedTitle',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.stoppedTitle'],
+		description: 'Title of the dialog offering to resume a Worktree removal that stopped.',
+	},
+	worktreeResume: {
+		id: 'workbench.worktrees.resume',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.resume'],
+		description: 'Button that resumes a stopped Worktree removal.',
+	},
+	worktreeResumeRemoval: {
+		id: 'workbench.worktrees.resumeRemoval',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.resumeRemoval'],
+		description:
+			'Workspace menu command, in place of Remove Worktree, that asks to resume a removal of this Workspace that stopped.',
+	},
+	worktreeCreating: {
+		id: 'workbench.worktrees.creating',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.creating'],
+		description: 'Status line while a Worktree is created.',
+	},
+	worktreeOpening: {
+		id: 'workbench.worktrees.opening',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.opening'],
+		description: 'Status line while a Worktree is opened.',
+	},
+	worktreeRemoving: {
+		id: 'workbench.worktrees.removing',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.removing'],
+		description: 'Status line while a Worktree is removed.',
+	},
+	worktreeRemoved: {
+		id: 'workbench.worktrees.removed',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.removed'],
+		description: 'Status line after a Worktree was removed and its Workspace closed.',
+	},
+	worktreeOutcomeUnknown: {
+		id: 'workbench.worktrees.outcomeUnknown',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.outcomeUnknown'],
+		description:
+			'Status line when a Worktree operation may have taken effect; names its operation ID.',
+	},
+	worktreeCreateFailed: {
+		id: 'workbench.worktrees.createFailed',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.createFailed'],
+		description: 'Status line when Git or the Worker stopped a Worktree creation.',
+	},
+	worktreeOpenFailed: {
+		id: 'workbench.worktrees.openFailed',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.openFailed'],
+		description: 'Status line when Git or the Worker stopped opening a Worktree.',
+	},
+	worktreeFailureCheckoutInUse: {
+		id: 'workbench.worktrees.failure.checkoutInUse',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.checkoutInUse'],
+		description: 'Worktree removal stopped because another Workspace uses the checkout.',
+	},
+	worktreeFailureCheckoutNotFound: {
+		id: 'workbench.worktrees.failure.checkoutNotFound',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.checkoutNotFound'],
+		description: 'Worktree operation stopped because Git no longer lists the checkout.',
+	},
+	worktreeFailureCloseIncomplete: {
+		id: 'workbench.worktrees.failure.closeIncomplete',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.closeIncomplete'],
+		description: 'Worktree removal stopped because not every terminal closed.',
+	},
+	worktreeFailureConfigurationUnavailable: {
+		id: 'workbench.worktrees.failure.configurationUnavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.configurationUnavailable'],
+		description:
+			'Worktree creation stopped because the configured Worktrees directory was unreadable.',
+	},
+	worktreeFailureDenied: {
+		id: 'workbench.worktrees.failure.denied',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.denied'],
+		description: 'Worktree operation refused for this Client.',
+	},
+	worktreeFailureDirectoryInUse: {
+		id: 'workbench.worktrees.failure.directoryInUse',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.directoryInUse'],
+		description: 'Worktree removal stopped because the checkout directory could not be deleted.',
+	},
+	worktreeFailureDirty: {
+		id: 'workbench.worktrees.failure.dirty',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.dirty'],
+		description: 'Worktree removal stopped because the checkout has changes.',
+	},
+	worktreeFailureGit: {
+		id: 'workbench.worktrees.failure.git',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.git'],
+		description: 'Worktree removal stopped by another Git failure.',
+	},
+	worktreeFailureGitFailed: {
+		id: 'workbench.worktrees.failure.gitFailed',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.gitFailed'],
+		description: 'Worktree removal stopped because the Git command failed.',
+	},
+	worktreeFailureInternal: {
+		id: 'workbench.worktrees.failure.internal',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.internal'],
+		description: 'Worktree operation stopped for a reason the person cannot act on directly.',
+	},
+	worktreeFailureMainCheckout: {
+		id: 'workbench.worktrees.failure.mainCheckout',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.mainCheckout'],
+		description: "Worktree removal refused for the repository's main checkout.",
+	},
+	worktreeFailureNotSubmitted: {
+		id: 'workbench.worktrees.failure.notSubmitted',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.notSubmitted'],
+		description: 'Worktree operation that never reached the Server.',
+	},
+	worktreeFailureSessionStopping: {
+		id: 'workbench.worktrees.failure.sessionStopping',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.sessionStopping'],
+		description: 'Worktree operation stopped because the Session is stopping.',
+	},
+	worktreeFailureSourceChanged: {
+		id: 'workbench.worktrees.failure.sourceChanged',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.sourceChanged'],
+		description: 'Worktree operation stopped because the checkout or Workspace changed.',
+	},
+	worktreeFailureUnsupported: {
+		id: 'workbench.worktrees.failure.unsupported',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.unsupported'],
+		description: 'Worktree operation the Worker does not support.',
+	},
+	worktreeFailureWorkerUnavailable: {
+		id: 'workbench.worktrees.failure.workerUnavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.workerUnavailable'],
+		description: 'Worktree operation stopped because the Worker is unavailable or busy.',
 	},
 });

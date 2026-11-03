@@ -8,7 +8,6 @@ import {
 	type WorkbenchNavigationPort,
 	type WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchProjectFolderAcquisition,
-	type WorkbenchProjectWorktreeCapability,
 	type WorkbenchRemoteTerminalCreationCapability,
 	type WorkbenchShortcutPlatform,
 	type WorkbenchTerminalActionShortcutLabels,
@@ -59,7 +58,6 @@ export interface WebApplicationProps {
 	readonly onAddResourceFolderViaSsh?: ((projectId: string) => void) | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
-	readonly projectWorktree?: WorkbenchProjectWorktreeCapability | undefined;
 	readonly remoteTerminalCreation?: WorkbenchRemoteTerminalCreationCapability | undefined;
 
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
@@ -91,7 +89,6 @@ export function WebApplication({
 	onAddResourceFolderViaSsh,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
-	projectWorktree,
 	remoteTerminalCreation,
 
 	shortcutPlatform,
@@ -155,7 +152,6 @@ export function WebApplication({
 					onTerminalFontSizeChange={view.onTerminalFontSizeChange}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
 					projectFolderAcquisition={projectFolderAcquisition}
-					projectWorktree={projectWorktree}
 					remoteTerminalCreation={remoteTerminalCreation}
 					shortcutBindings={keyboardShortcuts.bindings}
 					shortcutPlatform={shortcutPlatform}

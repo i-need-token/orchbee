@@ -1537,6 +1537,35 @@ In the shown Tab, each new version carried the unread mark until the following p
 it. The window did that before the migration too, though a repeated state then kept its version.
 The run raised no system notification, checked no withdrawal, and used no provider's own hooks.
 
+The Workspace menu also carries the TUI's Worktree commands through the Server's Worktree
+operation, and the legacy Worktree capability, its dialogs, and its messages are deleted. These
+choices stand unless review changes them:
+
+- **The menu reads Git when it opens.** Discovery has ten seconds. Until Git answers, New Worktree
+  is disabled and Open Worktree holds one disabled row saying why: reading, not a Git repository,
+  checkouts unavailable, or no other checkouts.
+- **New Worktree and Open Worktree act at once.** A creation takes the TUI's defaults: no branch or
+  base, a location named for the operation under the configured Worktrees directory or beside the
+  repository without one, an untrusted repository, and the first unused Worktree label. Opening names the checkout's path as Git spells
+  it.
+- **Removal follows the TUI's offer proof and asks once.** Remove Worktree… shows only for a
+  linked, non-bare checkout that is the Workspace's directory and that Git associates with this
+  Workspace on its Worker. The shared Action confirmation names the Workspace, its terminals, the
+  path, and the kept branch. A removal that stops where it may continue keeps its failure notice
+  and asks whether to resume. As the TUI reopens a retained removal, the Workspace menu then offers
+  Resume Worktree Removal… in place of Remove Worktree… until that removal ends.
+- **Commands are Actions that follow the operation.** `workbench.worktree.create`, `open`,
+  `remove`, and `resume-removal` read their operation from 250 ms, doubling up to 2 seconds, for at
+  most 120 seconds, and compare paths by the native spelling rule. A command acts on the menu's
+  latest discovery, so a stale one fails as a changed source. An outcome the window cannot learn
+  names `orchbee worktree status`.
+- **Success is quiet.** An opened Worktree shows as its activated Workspace and a removal reports
+  for four seconds; a failure or unknown outcome stays until pressed.
+
+Not done in this slice: branch, base, and location entry, repository trust, forced removal, and the
+TUI's Windows refusal while the Client stands in the checkout. The model's Worktree leftovers, the
+`worktree` Directory kind and the creation and adoption transitions, wait for the step 6 audit.
+
 ### Evidence
 
 - Each step records the owning Web and Desktop builds and a Server-backed run of the path it

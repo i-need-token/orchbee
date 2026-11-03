@@ -1,5 +1,24 @@
+import type { ActionExecution } from '@orchbee/actions';
+
+import type {
+	WorkbenchWorktreeCheckoutInput,
+	WorkbenchWorktreeOpening,
+	WorkbenchWorktreeRemovalInput,
+	WorkbenchWorktreeResumeInput,
+} from '../../../actions/workbench-action-ids';
 import type { WorkbenchProjectFolderAcquisitionFailureCode } from '../../../types/workbench-project-folder-acquisition';
-import type { WorkbenchProjectWorktreeFailureCode } from '../../../types/workbench-project-worktree';
+import type { WorkbenchWorktreeDiscoveryResult } from '../../../types/workbench-worktrees';
+
+/** What a Workspace menu reads about Worktrees and the Actions it invokes on them. */
+export interface WorkbenchWorktreeCommands {
+	readonly create: (workspaceId: string) => ActionExecution<WorkbenchWorktreeOpening>;
+	readonly discover: (workspaceId: string) => Promise<WorkbenchWorktreeDiscoveryResult>;
+	readonly open: (
+		input: WorkbenchWorktreeCheckoutInput,
+	) => ActionExecution<WorkbenchWorktreeOpening>;
+	readonly remove: (input: WorkbenchWorktreeRemovalInput) => ActionExecution<void>;
+	readonly resume: (input: WorkbenchWorktreeResumeInput) => ActionExecution<void>;
+}
 
 export interface WorkbenchProjectNavigationMessages {
 	readonly workspaceMoveToProject: string;
@@ -52,7 +71,6 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly newFolderOpening: string;
 	readonly newFolderRetained: string;
 	readonly newFolderUnknown: string;
-	readonly newWorktree: string;
 	readonly projectFolders: string;
 	readonly projectManage: string;
 	readonly projectManageAddFolder: string;
@@ -69,22 +87,6 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly projectManageTitle: string;
 	readonly projectOptions: string;
 	readonly projectWorktrees: string;
-	readonly projectWorktreeBase: string;
-	readonly projectWorktreeBaseNoMatches: string;
-	readonly projectWorktreeBranch: string;
-	readonly projectWorktreeCreateWorkspace: string;
-	readonly projectWorktreeDescription: string;
-	readonly projectWorktreeFailureMessages: Readonly<
-		Record<WorkbenchProjectWorktreeFailureCode, string>
-	>;
-	readonly projectWorktreeFailureTitle: string;
-	readonly projectWorktreeInventoryUnavailable: string;
-	readonly projectWorktreeLoading: string;
-	readonly projectWorktreeLocation: string;
-	readonly projectWorktreeLocationAutomatic: (root: string) => string;
-	readonly projectWorktreeNoRepositories: string;
-	readonly projectWorktreeRepository: string;
-	readonly projectWorktreeTitle: string;
 	readonly removeProject: string;
 	readonly retryProjectConnection: string;
 	readonly removeProjectFolder: string;

@@ -7,8 +7,10 @@ import {
 } from '@orchbee/workbench-client-protocol';
 
 import type { PanelFocusPosition } from '../components/workbench-panel-workspace/model/resolvePanelFocusByPosition';
+import { isWorkbenchWorktreeFailureCause } from '../model/workbench-worktree-failure';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
 import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
+import type { WorkbenchWorktreeFailureCause } from '../types/workbench-worktrees';
 
 export const WORKBENCH_ACTION_IDS = {
 	navigateAgent: 'workbench.agent.navigate',
@@ -71,6 +73,10 @@ export const WORKBENCH_ACTION_IDS = {
 	toggleProjectExpansion: 'workbench.project.expansion.toggle',
 	toggleSidebar: 'workbench.sidebar.toggle',
 	updateWorkspace: 'workbench.workspace.update',
+	createWorktree: 'workbench.worktree.create',
+	openWorktree: 'workbench.worktree.open',
+	removeWorktree: 'workbench.worktree.remove',
+	resumeWorktreeRemoval: 'workbench.worktree.resume-removal',
 } as const;
 
 export interface WorkbenchAgentNavigateInput {
@@ -89,6 +95,31 @@ interface WorkbenchProjectCreateInput {
 interface WorkbenchResourceFolderAddInput {
 	readonly resourceScopeId: string;
 	readonly path: string;
+}
+
+/** A checkout the Workspace's menu offered to open. */
+export interface WorkbenchWorktreeCheckoutInput {
+	readonly path: string;
+	readonly workspaceId: string;
+}
+
+/** The Workspace's own checkout as its menu showed it, which the confirmation repeats. */
+export interface WorkbenchWorktreeRemovalInput {
+	readonly branch: string | null;
+	readonly path: string;
+	readonly terminalCount: number;
+	readonly workspaceId: string;
+}
+
+/** A removal the authority reported as stopped where it may continue. */
+export interface WorkbenchWorktreeResumeInput {
+	readonly cause: WorkbenchWorktreeFailureCause;
+	readonly operationId: string;
+}
+
+/** The Workspace a Worktree command opened. */
+export interface WorkbenchWorktreeOpening {
+	readonly workspaceId: string;
 }
 
 export interface WorkbenchWorkspaceInput {
@@ -238,6 +269,16 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.toggleProjectExpansion]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleSidebar]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.updateWorkspace]: ActionSignature<WorkbenchWorkspaceUpdateInput>;
+	readonly [WORKBENCH_ACTION_IDS.createWorktree]: ActionSignature<
+		WorkbenchWorkspaceInput,
+		WorkbenchWorktreeOpening
+	>;
+	readonly [WORKBENCH_ACTION_IDS.openWorktree]: ActionSignature<
+		WorkbenchWorktreeCheckoutInput,
+		WorkbenchWorktreeOpening
+	>;
+	readonly [WORKBENCH_ACTION_IDS.removeWorktree]: ActionSignature<WorkbenchWorktreeRemovalInput>;
+	readonly [WORKBENCH_ACTION_IDS.resumeWorktreeRemoval]: ActionSignature<WorkbenchWorktreeResumeInput>;
 }
 
 export const workbenchAgentNavigateInput: ActionInputValidation<WorkbenchAgentNavigateInput> = {
@@ -512,6 +553,49 @@ export const workbenchProjectReorderInput: ActionInputValidation<WorkbenchProjec
 					},
 				}
 			: { success: false, code: 'expected-workbench-project-reorder-input' },
+};
+
+export const workbenchWorktreeCheckoutInput: ActionInputValidation<WorkbenchWorktreeCheckoutInput> =
+	{
+		name: 'WorkbenchWorktreeCheckoutInput',
+		parse: (input) =>
+			isRecord(input) &&
+			typeof input['path'] === 'string' &&
+			typeof input['workspaceId'] === 'string'
+				? { success: true, data: { path: input['path'], workspaceId: input['workspaceId'] } }
+				: { success: false, code: 'expected-workbench-worktree-checkout-input' },
+	};
+
+export const workbenchWorktreeRemovalInput: ActionInputValidation<WorkbenchWorktreeRemovalInput> = {
+	name: 'WorkbenchWorktreeRemovalInput',
+	parse: (input) =>
+		isRecord(input) &&
+		(input['branch'] === null || typeof input['branch'] === 'string') &&
+		typeof input['path'] === 'string' &&
+		typeof input['terminalCount'] === 'number' &&
+		Number.isSafeInteger(input['terminalCount']) &&
+		input['terminalCount'] >= 0 &&
+		typeof input['workspaceId'] === 'string'
+			? {
+					success: true,
+					data: {
+						branch: input['branch'],
+						path: input['path'],
+						terminalCount: input['terminalCount'],
+						workspaceId: input['workspaceId'],
+					},
+				}
+			: { success: false, code: 'expected-workbench-worktree-removal-input' },
+};
+
+export const workbenchWorktreeResumeInput: ActionInputValidation<WorkbenchWorktreeResumeInput> = {
+	name: 'WorkbenchWorktreeResumeInput',
+	parse: (input) =>
+		isRecord(input) &&
+		isWorkbenchWorktreeFailureCause(input['cause']) &&
+		typeof input['operationId'] === 'string'
+			? { success: true, data: { cause: input['cause'], operationId: input['operationId'] } }
+			: { success: false, code: 'expected-workbench-worktree-resume-input' },
 };
 
 export const workbenchWorkspaceInput: ActionInputValidation<WorkbenchWorkspaceInput> = {

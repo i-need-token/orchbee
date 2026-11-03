@@ -22,6 +22,7 @@ const unavailableFocusRouting = {
 	focus: () => ({ kind: 'unavailable', reason: 'no-available-region' }) as const,
 	getResolution: () => ({ kind: 'unavailable', reason: 'no-available-region' }) as const,
 };
+const worktreeTestLabel = (ordinal: number) => `Worktree ${ordinal}`;
 
 function createTestTerminalPresentationComposition(scope: string) {
 	let sequence = 0;
@@ -86,6 +87,7 @@ function WorkbenchActionsHarness({
 		toggleSidebar: () => setIsSidebarVisible((visible) => !visible),
 		workspaceCopySuffix: 'Copy',
 		workspaceTerminalTitle: 'Terminal 1',
+		worktreeLabel: worktreeTestLabel,
 	});
 	captureActions?.(actions);
 	captureScope?.(actions.scope);
@@ -291,7 +293,9 @@ describe('useWorkbenchActions', () => {
 				Object.values(WORKBENCH_ACTION_IDS).filter(
 					(actionId) =>
 						actionId !== WORKBENCH_ACTION_IDS.navigateAgent &&
-						actionId !== WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed,
+						actionId !== WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed &&
+						// Worktree Actions exist only where an authority reaches Git.
+						!actionId.startsWith('workbench.worktree.'),
 				),
 			),
 		);
@@ -381,6 +385,7 @@ describe('useWorkbenchActions', () => {
 				toggleSidebar: () => undefined,
 				workspaceCopySuffix: 'Copy',
 				workspaceTerminalTitle: 'Terminal 1',
+				worktreeLabel: worktreeTestLabel,
 			});
 			capturedScope = actions.scope;
 			return null;

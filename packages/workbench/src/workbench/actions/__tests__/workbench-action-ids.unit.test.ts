@@ -85,6 +85,10 @@ describe('workbench action contracts', () => {
 			toggleProjectExpansion: 'workbench.project.expansion.toggle',
 			toggleSidebar: 'workbench.sidebar.toggle',
 			updateWorkspace: 'workbench.workspace.update',
+			createWorktree: 'workbench.worktree.create',
+			openWorktree: 'workbench.worktree.open',
+			removeWorktree: 'workbench.worktree.remove',
+			resumeWorktreeRemoval: 'workbench.worktree.resume-removal',
 		});
 	});
 

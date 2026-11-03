@@ -8,7 +8,9 @@
 	"owner": "@orchbee/workbench",
 	"visibility": "private",
 	"intents": [
-		"create-workspace-from-worktree",
+		"create-worktree",
+		"open-worktree",
+		"remove-worktree",
 		"connect-environment-project",
 		"disconnect-environment-project",
 		"inspect-workspace-agents",
@@ -24,6 +26,8 @@
 	"implementation": [
 		"packages/workbench/src/workbench/components/workbench-sidebar/WorkbenchSidebar.tsx",
 		"packages/workbench/src/workbench/components/workbench-sidebar/hooks/useWorkbenchSidebarFocusRequest.ts",
+		"packages/workbench/src/workbench/components/workbench-sidebar/hooks/useWorkspaceWorktrees.ts",
+		"packages/workbench/src/workbench/actions/registerWorkbenchWorktreeActions.ts",
 		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/ProjectNavigationItem.tsx",
 		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/components/workspace-agent-list/WorkspaceAgentList.tsx"
 	],
@@ -38,7 +42,6 @@
 				"Inspect expanded and collapsed Projects, active and default Workspace rows, and the nested hierarchy guide line.",
 				"Tab forward and backward through the trailing Project create control and row options: each focused control appears immediately even when hidden at rest; inspect pointer hover and open-menu disclosure at wide and compact sizes.",
 				"Hover Project and Workspace rows, open their menus, right-click them, and inspect retained owner-row interaction states.",
-				"Open a Workspace New Workspace submenu and inspect existing Worktrees grouped by repository within its launch resources; already-associated Worktrees focus their existing Workspace.",
 				"Drag a Project between siblings and verify the pointer-following row, midpoint-driven sibling squeeze motion, edge scrolling, temporary collapse, and restoration after the drop.",
 				"Drag a Workspace between siblings inside one expanded Project and verify the same pointer-following, midpoint squeeze, release settlement, and cancellation behavior without changing Workspace activation or Project disclosure."
 			]
@@ -123,7 +126,8 @@
 		"Pointer-clicking a Workspace row transfers focus to the exact destination terminal after activation and projection are ready, while keyboard and programmatic activation remain focus-neutral.",
 		"Active and hovered rows share the strong foreground role while default rows use the quieter foreground role.",
 		"An open row menu keeps the entire owner row highlighted without introducing a second trigger background.",
-		"Existing Worktree choices remain grouped by their represented repository, and selecting one creates no Workspace until host revalidation and canonical commit succeed.",
+		"Worktree rows appear only where the authority reaches Git. Each menu opening discovers again, and until Git answers, New Worktree stays disabled and Open Worktree holds one disabled status row; an earlier answer never stands in.",
+		"Remove Worktree… appears only for a checkout the authority proves the Workspace may remove, asks once through the shared destructive Action confirmation, and keeps the branch; a stopped removal asks again before it resumes, and Resume Worktree Removal… takes Remove Worktree…'s place while the authority keeps it.",
 		"Project and Workspace drag order is persisted only on release; the source row follows the pointer while crossed siblings squeeze into its vacated slot, and completion does not replay the previous displacement.",
 		"Workspace reordering stays within the source nullable group and preserves stable Workspace selection, terminal ownership, identity, and Project disclosure.",
 		"A Workspace with no live Agent keeps the default layout icon and no Agent disclosure; retained ended Sessions never leave an Agent icon, count, status, or detail row.",
@@ -135,7 +139,7 @@
 		"New Workspace immediately commits an ungrouped Workspace, stable launch resources, and first shell without a form or automatic Agent startup; generated names choose the first available numeric suffix.",
 		"Moving, ungrouping, or dissolving a Project changes only grouping and preserves Workspace identity, launch resources, terminal contexts, attachments, focus, and zoom.",
 		"Dissolve Project retains Workspaces; Close All Workspaces is a separate explicit destructive action.",
-		"Late worktree completion activates only the latest live creation intent; newer Workspace, Tab, or Panel navigation retires it."
+		"A late Worktree creation or opening activates only the latest live initiating intent; newer Workspace, Tab, or Panel navigation retires it."
 	],
 	"references": ["packages/workbench/docs/project-workspace.md", "packages/workbench/README.md"]
 }

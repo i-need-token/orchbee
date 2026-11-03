@@ -21,7 +21,6 @@ export function WorkbenchRoute(): ReactNode {
 			onConnectViaSsh={application.onConnectViaSsh}
 			onAddResourceFolderViaSsh={application.onAddResourceFolderViaSsh}
 			projectFolderAcquisition={application.projectFolderAcquisition}
-			projectWorktree={application.projectWorktree}
 			projectWorkspaceRuntime={application.projectWorkspaceRuntime}
 			remoteTerminalCreation={application.remoteTerminalCreation}
 			shortcutPlatform={application.shortcutPlatform}

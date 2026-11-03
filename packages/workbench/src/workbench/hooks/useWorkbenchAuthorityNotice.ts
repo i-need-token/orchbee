@@ -14,11 +14,14 @@ import {
 	workbenchTabCreationFailureNotice,
 	workbenchTabDuplicationStoppedNotice,
 	workbenchTabsFailureNotice,
+	workbenchWorktreeOutcomeNotice,
+	workbenchWorktreeProgressNotice,
 	type WorkbenchAuthorityNotice,
 } from '../model/workbench-authority-notice';
 import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-location-activation';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchAuthority, WorkbenchAuthorityClosure } from '../types/workbench-authority';
+import type { WorkbenchWorktrees } from '../types/workbench-worktrees';
 
 export interface WorkbenchAuthorityNoticeView {
 	readonly authority: WorkbenchAuthority | undefined;
@@ -49,6 +52,25 @@ function closesActiveLocation(
 		state.workspaces.find((workspace) => workspace.id === location.workspaceId)?.projectId ===
 			closure.projectId
 	);
+}
+
+/** A Worktree command says what runs and how it ended, since Git's work shows nowhere else. */
+function reportingWorktrees(
+	worktrees: WorkbenchWorktrees,
+	setNotice: React.Dispatch<React.SetStateAction<WorkbenchAuthorityNotice | null>>,
+): WorkbenchWorktrees {
+	return {
+		discover: (workspaceId) => worktrees.discover(workspaceId),
+		run: async (command) => {
+			const progress = workbenchWorktreeProgressNotice(command);
+			setNotice(progress);
+			const outcome = await worktrees.run(command);
+			const next = workbenchWorktreeOutcomeNotice(command, outcome);
+			// Saying nothing removes only what this command said, not what later work says.
+			setNotice((current) => (next === null ? (current === progress ? null : current) : next));
+			return outcome;
+		},
+	};
 }
 
 /**
@@ -165,6 +187,10 @@ export function useWorkbenchAuthorityNotice(
 								setNotice(workbenchCloseWithdrawnNotice(closure));
 								onChanged();
 							}),
+						worktrees:
+							authority.worktrees === undefined
+								? undefined
+								: reportingWorktrees(authority.worktrees, setNotice),
 					},
 		[authority, projectWorkspaceRuntime],
 	);

@@ -21,8 +21,6 @@ import type {
 	WorkbenchProjectFolderAcquisition,
 	WorkbenchProjectCreationReceipt,
 } from '../../types/workbench-project-folder-acquisition';
-import type { WorkbenchProjectWorktreeCapability } from '../../types/workbench-project-worktree';
-import { CreateWorktreeDialog } from './components/create-worktree-dialog/CreateWorktreeDialog';
 import { CreateProjectDialog } from './components/create-project-dialog/CreateProjectDialog';
 import { CreateProjectFolderDialog } from './components/create-project-folder-dialog/CreateProjectFolderDialog';
 import { useNewProjectFolder } from './hooks/useNewProjectFolder';
@@ -33,12 +31,14 @@ import { WorkspaceManagerDialog } from './components/workspace-manager-dialog/Wo
 import { useWorkbenchSidebar } from './hooks/useWorkbenchSidebar';
 import { useNavigationReorderDrag } from './hooks/useNavigationReorderDrag';
 import { useProjectFolderAcquisition } from './hooks/useProjectFolderAcquisition';
-import { useProjectWorktreeCreation } from './hooks/useProjectWorktreeCreation';
-import { useProjectWorktreeMenu } from './hooks/useProjectWorktreeMenu';
 import { useWorkbenchSidebarFocusRequest } from './hooks/useWorkbenchSidebarFocusRequest';
 import { useWorkbenchSidebarAgentOverview } from './hooks/useWorkbenchSidebarAgentOverview';
 import { useWorkspaceCreationActivation } from './hooks/useWorkspaceCreationActivation';
-import type { WorkbenchProjectNavigationMessages } from './types/workbench-sidebar-types';
+import { useWorkspaceWorktrees } from './hooks/useWorkspaceWorktrees';
+import type {
+	WorkbenchProjectNavigationMessages,
+	WorkbenchWorktreeCommands,
+} from './types/workbench-sidebar-types';
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../types/workbench-agent-overview';
 import styles from './WorkbenchSidebar.module.css';
 
@@ -80,7 +80,6 @@ interface WorkbenchSidebarProps {
 	readonly projectLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
-	readonly projectWorktree?: WorkbenchProjectWorktreeCapability | undefined;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
 	readonly subscribeNavigation: (listener: () => void) => () => void;
 	readonly removeProject: (projectId: string) => void;
@@ -104,6 +103,8 @@ interface WorkbenchSidebarProps {
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
 	/** A Workspace whose resources are decided elsewhere can only be renamed here. */
 	readonly workspaceResourcesEditable: boolean;
+	/** Absent where the authority cannot reach Git for its Workspaces. */
+	readonly worktreeCommands?: WorkbenchWorktreeCommands | undefined;
 }
 
 export function WorkbenchSidebar({
@@ -132,7 +133,6 @@ export function WorkbenchSidebar({
 	projectLabel,
 	projectNavigationMessages,
 	projectFolderAcquisition,
-	projectWorktree,
 	projectWorkspaceState,
 	subscribeNavigation,
 	removeProject,
@@ -152,6 +152,7 @@ export function WorkbenchSidebar({
 	updateWorkspace,
 	workspaceAgentOverviews,
 	workspaceResourcesEditable,
+	worktreeCommands,
 }: WorkbenchSidebarProps): ReactNode {
 	const agentOverview = useWorkbenchSidebarAgentOverview({
 		expandedProjectIds: projectWorkspaceState.expandedProjectIds,
@@ -188,15 +189,9 @@ export function WorkbenchSidebar({
 		activateWorkspace: (workspaceId) => activateWorkspace(workspaceId, 'other'),
 		projectWorkspaceState,
 	});
-	const worktreeCreation = useProjectWorktreeCreation({
-		capability: projectWorktree,
-		projectWorkspaceState,
+	const workspaceWorktrees = useWorkspaceWorktrees({
 		beginWorkspaceActivation: workspaceActivation.begin,
-	});
-	const worktreeMenu = useProjectWorktreeMenu({
-		capability: projectWorktree,
-		projectWorkspaceState,
-		beginWorkspaceActivation: workspaceActivation.begin,
+		commands: worktreeCommands,
 	});
 	return (
 		<>
@@ -286,9 +281,7 @@ export function WorkbenchSidebar({
 										activateWorkspace(workspaceId, origin);
 									}}
 									activeLocation={projectWorkspaceState.activeLocation}
-									adoptWorktree={projectWorktree === undefined ? undefined : worktreeMenu.adopt}
 									createWorkspace={createWorkspace}
-									createWorktree={projectWorktree === undefined ? undefined : worktreeCreation.open}
 									deleteWorkspace={deleteWorkspace}
 									displacement={
 										project !== null && projectReorder.displacedItemIds.includes(project.id)
@@ -316,9 +309,7 @@ export function WorkbenchSidebar({
 										navigateAgent(input);
 									}}
 									project={project}
-									refreshWorktrees={
-										projectWorktree === undefined ? undefined : worktreeMenu.refresh
-									}
+									refreshWorktrees={workspaceWorktrees.refresh}
 									onPointerDown={projectReorder.onItemPointerDown}
 									reorderActive={projectReorder.displacementAnimated}
 									reorderWorkspace={reorderWorkspace}
@@ -328,13 +319,11 @@ export function WorkbenchSidebar({
 									toggleProjectExpansion={toggleProjectExpansion}
 									toggleWorkspaceAgentExpansion={agentOverview.toggleWorkspace}
 									workspaceAgentOverviews={workspaceAgentOverviews}
-									worktreeDiscoveryByWorkspace={worktreeMenu.discoveryByWorkspace}
-									worktreeDiscoveryFailures={worktreeMenu.discoveryFailureWorkspaceIds}
+									worktreeMenu={workspaceWorktrees.menu}
 									state={projectWorkspaceState}
 									setWorkspaceProject={setWorkspaceProject}
 									showWorkspaceProjectCreation={view.showWorkspaceProjectCreation}
 									closeProjectWorkspaces={closeProjectWorkspaces}
-									worktreeOperationPending={worktreeMenu.busy}
 								/>
 							))}
 						</ul>
@@ -461,25 +450,6 @@ export function WorkbenchSidebar({
 					workspace={workspaceManagement.workspace}
 				/>
 			)}
-			{worktreeCreation.dialog === null ? null : (
-				<CreateWorktreeDialog
-					baseRef={worktreeCreation.dialog.baseRef}
-					branchName={worktreeCreation.dialog.branchName}
-					createWorkspace={worktreeCreation.dialog.createWorkspace}
-					discovery={worktreeCreation.dialog.discovery}
-					failure={worktreeCreation.dialog.failure}
-					loading={worktreeCreation.dialog.phase === 'discovering'}
-					messages={projectNavigationMessages}
-					repositoryId={worktreeCreation.dialog.repositoryId}
-					submitting={worktreeCreation.dialog.phase === 'submitting'}
-					onBaseRefChange={worktreeCreation.setBaseRef}
-					onBranchNameChange={worktreeCreation.setBranchName}
-					onClose={worktreeCreation.close}
-					onCreateWorkspaceChange={worktreeCreation.setCreateWorkspace}
-					onRepositoryChange={worktreeCreation.setRepository}
-					onSubmit={worktreeCreation.submit}
-				/>
-			)}
 			{folderFailure === null ? null : (
 				<AlertDialog
 					onOpenChange={(open) => {
@@ -502,33 +472,6 @@ export function WorkbenchSidebar({
 						<AlertDialogFooter className={styles['alertFooter']}>
 							<AlertDialogAction onClick={dismissFolderFailure}>
 								{projectNavigationMessages.folderAcquisitionFailureDismiss}
-							</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
-			)}
-			{worktreeMenu.failure === null ? null : (
-				<AlertDialog
-					onOpenChange={(open) => {
-						if (!open) worktreeMenu.dismissFailure();
-					}}
-					open
-				>
-					<AlertDialogContent
-						className={styles['alertContent']}
-						data-slot='workbench-project-worktree-adoption-failure'
-					>
-						<AlertDialogHeader className={styles['alertHeader']}>
-							<AlertDialogTitle className={styles['alertTitle']}>
-								{projectNavigationMessages.projectWorktreeFailureTitle}
-							</AlertDialogTitle>
-							<AlertDialogDescription className={styles['alertDescription']}>
-								{projectNavigationMessages.projectWorktreeFailureMessages[worktreeMenu.failure]}
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter className={styles['alertFooter']}>
-							<AlertDialogAction onClick={worktreeMenu.dismissFailure}>
-								{projectNavigationMessages.close}
 							</AlertDialogAction>
 						</AlertDialogFooter>
 					</AlertDialogContent>
