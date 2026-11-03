@@ -122,15 +122,15 @@ and rejection classes. Projected metadata supplies no trusted command-execution 
 | Duplicate preview Workspace | Local source and preview composition                | Fresh context identities, same resource namespace and membership          | Fresh shell projections      |
 | Remote registration         | Authoritative Environment descriptor                | Scope / inactive Workspace with an empty context                          | No shell or Host effect      |
 
-Close Workspace and Close All Workspaces are separate destructive Actions with the shared confirmation dialog. Dissolve Project is a grouping operation without a destructive confirmation. None of these operations deletes or relocates a checkout. Resource edits use scope identity; group removal cannot invalidate a pending resource operation by itself.
+Close Workspace is a destructive Action with the shared confirmation dialog. Dissolve Project is a grouping operation without a destructive confirmation. Neither deletes or relocates a checkout. Resource edits use scope identity; group removal cannot invalidate a pending resource operation by itself.
 
 ## Project Folder acquisition
 
 The sidebar's New Workspace control is immediate. The optional Create Project menu retains Select Folder and New Folder onboarding. Browser Select Folder asks for one absolute path and creates a synthetic local descriptor; native Desktop selection validates one directory without changing disk state. Folder-derived group names use the final path segment, falling back to the trimmed path for a root.
 
-Manage Project edits only the group name. Manage Workspace owns the name, default Folder and launch-resource Folder list. Add Folder replaces its last row with a path and local Cancel/Add controls in preview, or invokes the host picker. Folder addition, fallback selection and removal commit independently of the Workspace-name Save action. Duplicate paths in that namespace are rejected; removal never alters existing terminal CWD. A sole Folder omits redundant selection controls. Names expose complete paths through Tooltips; unavailable remote Folders carry the localized SSH marker.
+Rename asks for a Project's or Workspace's name in one field that the Dialog's title labels, prefilled with the current name. The name is kept exactly as typed, as the protocol and the TUI keep it: a name that is blank by Unicode White_Space or longer than 512 characters is refused on submit or blur with a localized reason. Renaming a Workspace keeps the directory it records. New Project… in a Workspace's Move to Project submenu asks the same way for the new Project's name, prefilled with the Workspace's, and commits the Project and that Workspace's membership together. A Dialog whose Project or Workspace leaves closes with it. A Project gains a folder only through a Workspace that records it; the sidebar no longer edits a Workspace's launch-resource Folders.
 
-One mounted Workbench permits one native selection. Before adding the selected Folder it rechecks the same resource namespace and duplicate path, independent of any grouping change. Cancellation, unmount, port retirement and replacement revoke the request. The optional SSH Folder callback carries `resourceScopeId`, never a mutable Project identity or credential.
+One mounted Workbench permits one native selection, which only creates a Project. Cancellation, unmount, port retirement and replacement revoke the request.
 
 New Folder selects a parent then explicitly submits one child name. Filesystem success and product success remain separate. The retained creation receipt identifies Workspace, resource scope, Directory, context and first presentation; its nullable Project is informational and regrouping does not invalidate it. The workflow awaits canonical publication and exact route acceptance before acknowledgement. A created Folder survives failed or uncertain opening, with path-based Select Folder recovery; unknown effects never trigger another mkdir. Main's lifecycle and filesystem rules are owned by [project-folder-acquisition.md](../../../apps/desktop/docs/project-folder-acquisition.md).
 
@@ -231,7 +231,9 @@ tests do not establish CSS reachability. Capability-dependent entries and locali
 the existing action model's responsibility. This synchronous adapter introduces no async owner or
 additional TLA+ model.
 
-The Workspace menu offers New Workspace from its resource Folders, then the Server Worktree commands where the authority provides them. Move to Project offers existing groups, New Project and Move, and Remove from Project. The Project menu separates Manage Project, Dissolve Project and Close All Workspaces.
+Row menus take the TUI's compositions, which [native-action-menus.md](../../../apps/orchbee/docs/native-action-menus.md) owns. The Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. New Workspace ▸ holds New Worktree… from the repository of the Project's first Workspace, a Folders group with each available directory the Project's Workspaces record, and a Git Worktrees group once Git answers. Folders follow navigation order, compare ignoring ASCII case, and show their folder name, or their full path where folder names repeat; each creates a Workspace in that directory inside the Project. While the Project records no folder, New Workspace leads and creates a Workspace in the Project at the default directory. Opening the Project menu starts Worktree discovery.
+
+The Workspace menu holds Move to Project ▸ and Rename, then New Worktree… and Open Worktree ▸ where the authority provides them, then a separated destructive Close and, once discovery allows it, Remove Worktree…. Move to Project ▸ lists the other Projects, then New Project… and, for a grouped Workspace, Remove from Project. Set Directory… is absent because the Server offers Clients no command to set a Workspace's directory.
 
 ### Created Workspace activation
 

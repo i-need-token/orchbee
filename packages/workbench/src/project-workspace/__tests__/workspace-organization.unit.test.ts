@@ -46,6 +46,7 @@ describe('Workspace organization', () => {
 			type: 'workspace-created-default',
 			directory: directory('/home'),
 			name: 'Workspace',
+			projectId: null,
 			terminalTitle: 'Shell',
 		});
 		expect(result.state.projects).toEqual([]);
@@ -119,6 +120,7 @@ describe('Workspace organization', () => {
 			type: 'workspace-created-default',
 			directory: directory('/a'),
 			name: 'Source',
+			projectId: null,
 			terminalTitle: 'Shell',
 		}).state;
 		const event = {

@@ -125,7 +125,6 @@ interface WorkbenchView {
 	readonly activateStandalone: (origin: WorkbenchTerminalLocationActivationOrigin) => void;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly actionScope: ActionScope;
-	readonly addResourceDirectory: (resourceScopeId: string, path: string) => void;
 	readonly cancelProjectWorkspaceConfirmation: () => void;
 	readonly confirmProjectWorkspaceAction: () => void;
 	/** Present when an authority decides the Panels, whose new terminals then show as it answers. */
@@ -135,16 +134,18 @@ interface WorkbenchView {
 		receipt: WorkbenchProjectCreationReceipt,
 	) => ActionExecution<void>;
 	readonly isCreatedProjectActive: (receipt: WorkbenchProjectCreationReceipt) => boolean;
-	readonly createWorkspace: (input?: {
-		readonly resourceScopeId: string;
-		readonly projectId: string | null;
-		readonly directoryId: string;
-	}) => void;
+	readonly createWorkspace: (
+		input?:
+			| { readonly projectId: string }
+			| {
+					readonly resourceScopeId: string;
+					readonly projectId: string | null;
+					readonly directoryId: string;
+			  },
+	) => void;
 	readonly setWorkspaceProject: (workspaceId: string, projectId: string | null) => void;
 	readonly createWorkspaceProject: (workspaceId: string, name: string) => void;
-	readonly closeProjectWorkspaces: (projectId: string) => void;
 	readonly deleteWorkspace: (workspaceId: string) => void;
-	readonly duplicateWorkspace: (workspaceId: string) => void;
 	readonly isSidebarVisible: boolean;
 	readonly leftPanelSize: string;
 	readonly newTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
@@ -177,7 +178,6 @@ interface WorkbenchView {
 	} | null;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
 	readonly removeProject: (projectId: string) => void;
-	readonly removeResourceDirectory: (resourceScopeId: string, directoryId: string) => void;
 	readonly reorderProject: (projectId: string, beforeProjectId: string | null) => Promise<unknown>;
 	readonly reorderWorkspace: (
 		workspaceId: string,
@@ -233,7 +233,6 @@ interface WorkbenchView {
 		workspaceId: string,
 		origin: WorkbenchTerminalLocationActivationOrigin,
 	) => void;
-	readonly setResourcePrimaryDirectory: (resourceScopeId: string, directoryId: string) => void;
 	readonly updateWorkspace: (workspaceId: string, name: string, primaryDirectoryId: string) => void;
 	/** Present when the authority reaches Git for its Workspaces. */
 	readonly worktreeCommands: WorkbenchWorktreeCommands | undefined;
@@ -705,9 +704,6 @@ export function useWorkbench({
 		activateStandalone,
 		navigateAgent,
 		actionScope: actions.scope,
-		addResourceDirectory: (resourceScopeId, path) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.addResourceFolder, { path, resourceScopeId }, 'button');
-		},
 		activateWorkspace,
 		cancelProjectWorkspaceConfirmation: () => pendingProjectWorkspaceConfirmation.current?.(false),
 		confirmProjectWorkspaceAction: () => pendingProjectWorkspaceConfirmation.current?.(true),
@@ -740,17 +736,11 @@ export function useWorkbench({
 		createWorkspaceProject: (workspaceId, name) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspaceProject, { workspaceId, name }, 'button');
 		},
-		closeProjectWorkspaces: (projectId) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.closeProjectWorkspaces, { projectId }, 'menu');
-		},
 		createWorkspace: (input) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspace, input, 'menu');
 		},
 		deleteWorkspace: (workspaceId) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.deleteWorkspace, { workspaceId }, 'menu');
-		},
-		duplicateWorkspace: (workspaceId) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.duplicateWorkspace, { workspaceId }, 'menu');
 		},
 		isSidebarVisible,
 		leftPanelSize: `${leftPanelWidth.current}px`,
@@ -795,10 +785,8 @@ export function useWorkbench({
 			workspaceMoveToProject: intl.formatMessage(workbenchMessages.workspaceMoveToProject),
 			workspaceCreateProject: intl.formatMessage(workbenchMessages.workspaceCreateProject),
 			workspaceUngroup: intl.formatMessage(workbenchMessages.workspaceUngroup),
-			projectCloseAll: intl.formatMessage(workbenchMessages.projectCloseAll),
 			workspaceNew: intl.formatMessage(workbenchMessages.workspaceNew),
 
-			add: intl.formatMessage(workbenchMessages.resourceAdd),
 			cancel: intl.formatMessage(workbenchMessages.resourceCancel),
 			close: intl.formatMessage(workbenchMessages.resourceClose),
 			collapseProject: intl.formatMessage(workbenchMessages.projectCollapse),
@@ -807,9 +795,7 @@ export function useWorkbench({
 			connectViaSsh: intl.formatMessage(workbenchMessages.projectConnectViaSsh),
 			create: intl.formatMessage(workbenchMessages.resourceCreate),
 			createWorkspace: intl.formatMessage(workbenchMessages.projectCreateWorkspace),
-			deleteWorkspace: intl.formatMessage(workbenchMessages.workspaceDelete),
 			disconnectProject: intl.formatMessage(workbenchMessages.projectDisconnect),
-			duplicateWorkspace: intl.formatMessage(workbenchMessages.workspaceDuplicate),
 			expandProject: intl.formatMessage(workbenchMessages.projectExpand),
 			expandRecents: intl.formatMessage(workbenchMessages.recentsExpand),
 			folderAcquisitionFailureDismiss: intl.formatMessage(
@@ -821,7 +807,6 @@ export function useWorkbench({
 				),
 				'invalid-name': intl.formatMessage(workbenchMessages.projectFolderAcquisitionInvalidName),
 				'stale-parent': intl.formatMessage(workbenchMessages.projectFolderAcquisitionStaleParent),
-				'already-added': intl.formatMessage(workbenchMessages.projectFolderAcquisitionAlreadyAdded),
 				busy: intl.formatMessage(workbenchMessages.projectFolderAcquisitionBusy),
 				'control-unavailable': intl.formatMessage(
 					workbenchMessages.projectFolderAcquisitionControlUnavailable,
@@ -831,9 +816,6 @@ export function useWorkbench({
 				'not-found': intl.formatMessage(workbenchMessages.projectFolderAcquisitionNotFound),
 				'permission-denied': intl.formatMessage(
 					workbenchMessages.projectFolderAcquisitionPermissionDenied,
-				),
-				'project-unavailable': intl.formatMessage(
-					workbenchMessages.projectFolderAcquisitionProjectUnavailable,
 				),
 				'validation-failed': intl.formatMessage(
 					workbenchMessages.projectFolderAcquisitionValidationFailed,
@@ -852,6 +834,9 @@ export function useWorkbench({
 			newFolderOpening: intl.formatMessage(workbenchMessages.projectNewFolderOpening),
 			newFolderRetained: intl.formatMessage(workbenchMessages.projectNewFolderRetained),
 			newFolderUnknown: intl.formatMessage(workbenchMessages.projectNewFolderUnknown),
+			locationNameRequired: intl.formatMessage(workbenchMessages.locationNameRequired),
+			locationNameTooLong: intl.formatMessage(workbenchMessages.locationNameTooLong),
+			locationRenameSubmit: intl.formatMessage(workbenchMessages.locationRenameSubmit),
 			projectFolders: intl.formatMessage(workbenchMessages.projectFolders),
 			projectCreate: intl.formatMessage(workbenchMessages.projectCreate),
 			projectCreateDescription: intl.formatMessage(workbenchMessages.projectCreateDescription),
@@ -874,65 +859,25 @@ export function useWorkbench({
 				retrying: intl.formatMessage(workbenchMessages.projectConnectionRetrying),
 				unavailable: intl.formatMessage(workbenchMessages.projectConnectionUnavailable),
 			},
-			projectManage: intl.formatMessage(workbenchMessages.projectManage),
-			projectManageAddFolder: intl.formatMessage(workbenchMessages.projectAddFolder),
-			projectManageAddLocalFolder: intl.formatMessage(
-				workbenchMessages.projectManageAddLocalFolder,
-			),
-			projectManageAddSshFolder: intl.formatMessage(workbenchMessages.projectManageAddSshFolder),
-			projectManageDescription: intl.formatMessage(workbenchMessages.projectManageDescription),
-			projectManageFolderAlreadyAdded: intl.formatMessage(
-				workbenchMessages.projectManageFolderAlreadyAdded,
-			),
-			projectManageFolders: intl.formatMessage(workbenchMessages.projectManageFolders),
-			projectManageName: intl.formatMessage(workbenchMessages.projectManageName),
-			projectManageNamePlaceholder: intl.formatMessage(
-				workbenchMessages.projectManageNamePlaceholder,
-			),
-			projectManagePrimaryFolder: intl.formatMessage(workbenchMessages.projectManagePrimaryFolder),
-			projectManageSshFolderBadge: intl.formatMessage(
-				workbenchMessages.projectManageSshFolderBadge,
-			),
-			projectManageSshFolderDescription: intl.formatMessage(
-				workbenchMessages.projectManageSshFolderDescription,
-			),
-			projectManageTitle: intl.formatMessage(workbenchMessages.projectManageTitle),
+			projectMenuDissolve: intl.formatMessage(workbenchMessages.projectMenuDissolve),
+			projectMenuRename: intl.formatMessage(workbenchMessages.projectMenuRename),
 			projectOptions: intl.formatMessage(workbenchMessages.projectOptions),
+			projectRenameTitle: intl.formatMessage(workbenchMessages.projectRenameTitle),
 			projectWorktrees: intl.formatMessage(workbenchMessages.projectWorktrees),
 			recents: intl.formatMessage(workbenchMessages.recents),
-			removeProject: intl.formatMessage(workbenchMessages.projectRemove),
 			retryProjectConnection: intl.formatMessage(workbenchMessages.projectRetryConnection),
-			removeProjectFolder: intl.formatMessage(workbenchMessages.projectRemoveFolder),
-			save: intl.formatMessage(workbenchMessages.resourceSave),
 			selectFolder: intl.formatMessage(workbenchMessages.projectSelectFolder),
-			setProjectPrimaryFolder: intl.formatMessage(workbenchMessages.projectSetPrimaryFolder),
-			workspaceManage: intl.formatMessage(workbenchMessages.workspaceManage),
-			workspaceManageDescription: intl.formatMessage(workbenchMessages.workspaceManageDescription),
-			workspaceManageNameOnlyDescription: intl.formatMessage(
-				workbenchMessages.workspaceManageNameOnlyDescription,
-			),
-			workspaceManageName: intl.formatMessage(workbenchMessages.workspaceManageName),
-			workspaceManageNamePlaceholder: intl.formatMessage(
-				workbenchMessages.workspaceManageNamePlaceholder,
-			),
-			workspaceManagePrimaryFolder: intl.formatMessage(
-				workbenchMessages.workspaceManagePrimaryFolder,
-			),
-			workspaceManageTitle: intl.formatMessage(workbenchMessages.workspaceManageTitle),
+			workspaceMenuClose: intl.formatMessage(workbenchMessages.workspaceMenuClose),
+			workspaceMenuNewProject: intl.formatMessage(workbenchMessages.workspaceMenuNewProject),
+			workspaceMenuRename: intl.formatMessage(workbenchMessages.workspaceMenuRename),
 			workspaceOptions: intl.formatMessage(workbenchMessages.workspaceOptions),
+			workspaceRenameTitle: intl.formatMessage(workbenchMessages.workspaceRenameTitle),
 		},
 		projectWorkspaceConfirmationCancelButtonRef,
 		projectWorkspaceConfirmation,
 		projectWorkspaceState,
 		removeProject: (projectId) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.removeProject, { projectId }, 'menu');
-		},
-		removeResourceDirectory: (resourceScopeId, directoryId) => {
-			actions.invoke(
-				WORKBENCH_ACTION_IDS.removeResourceDirectory,
-				{ directoryId, resourceScopeId },
-				'button',
-			);
 		},
 		reorderProject: (projectId, beforeProjectId) =>
 			actions.invoke(WORKBENCH_ACTION_IDS.reorderProject, { beforeProjectId, projectId }, 'pointer')
@@ -1033,13 +978,6 @@ export function useWorkbench({
 		},
 		toggleRecentsExpansion: () => {
 			actions.invoke(WORKBENCH_ACTION_IDS.toggleRecentsExpansion, undefined, 'button');
-		},
-		setResourcePrimaryDirectory: (resourceScopeId, directoryId) => {
-			actions.invoke(
-				WORKBENCH_ACTION_IDS.setResourcePrimaryDirectory,
-				{ directoryId, resourceScopeId },
-				'button',
-			);
 		},
 		updateWorkspace: (workspaceId, name, primaryDirectoryId) => {
 			actions.invoke(

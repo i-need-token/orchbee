@@ -484,7 +484,10 @@ describe('createServerWorkbenchAuthority', () => {
 	it('opens New Workspace where the Server finds the focused Workspace working now', async () => {
 		const { actions, authority } = harness(LAUNCHED, SECOND_WORKSPACE, 'D:\\now');
 
-		await authority.create(executionContext().context, { type: 'workspace-created-default' });
+		await authority.create(executionContext().context, {
+			projectId: null,
+			type: 'workspace-created-default',
+		});
 
 		expect(actions).toEqual([
 			expect.objectContaining({
@@ -498,7 +501,7 @@ describe('createServerWorkbenchAuthority', () => {
 	it.each<[string, WorkbenchAuthorityCreation, string | null, Record<string, unknown>]>([
 		[
 			'opens New Workspace in the directory the focused Workspace last reported when the Server cannot read it',
-			{ type: 'workspace-created-default' },
+			{ projectId: null, type: 'workspace-created-default' },
 			SECOND_WORKSPACE,
 			{
 				label: 'elsewhere',
@@ -508,7 +511,7 @@ describe('createServerWorkbenchAuthority', () => {
 		],
 		[
 			'avoids every label the snapshot holds when no terminal reported a directory',
-			{ type: 'workspace-created-default' },
+			{ projectId: null, type: 'workspace-created-default' },
 			FIRST_WORKSPACE,
 			{
 				label: 'repo (3)',
@@ -518,7 +521,7 @@ describe('createServerWorkbenchAuthority', () => {
 		],
 		[
 			'opens New Workspace where this Client works when nothing is focused',
-			{ type: 'workspace-created-default' },
+			{ projectId: null, type: 'workspace-created-default' },
 			null,
 			{
 				label: 'person',
@@ -559,7 +562,10 @@ describe('createServerWorkbenchAuthority', () => {
 		const { authority } = harness(LAUNCHED);
 
 		await expect(
-			authority.create(executionContext().context, { type: 'workspace-created-default' }),
+			authority.create(executionContext().context, {
+				projectId: null,
+				type: 'workspace-created-default',
+			}),
 		).resolves.toEqual({
 			kind: 'completed',
 			value: {

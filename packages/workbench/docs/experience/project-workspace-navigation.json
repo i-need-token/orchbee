@@ -47,6 +47,7 @@
 				"Inspect expanded and collapsed Projects and the trailing Recents group, active and default Workspace rows, and the nested hierarchy guide line; a heading folded around the active Workspace takes no current fill.",
 				"Tab forward and backward through the trailing Project create control and row options: each focused control appears immediately even when hidden at rest; inspect pointer hover and open-menu disclosure at wide and compact sizes.",
 				"Hover Project and Workspace rows, open their menus, right-click them, and inspect retained owner-row interaction states.",
+				"Open a Project's New Workspace submenu and inspect New Worktree, the Folders group of the directories its Workspaces record, and the Git Worktrees group once Git answers; a Project that records no folder leads with New Workspace.",
 				"Drag a Project between siblings and verify the pointer-following row, midpoint-driven sibling squeeze motion, edge scrolling, temporary collapse, and restoration after the drop.",
 				"Drag a Workspace between siblings inside one expanded Project and verify the same pointer-following, midpoint squeeze, release settlement, and cancellation behavior without changing Workspace activation or Project disclosure."
 			]
@@ -59,7 +60,7 @@
 				"Inspect the Chinese Workspace menu opened by Shift+F10 without changing the active Workspace or Project disclosure.",
 				"Escape returns to that row's visible options trigger; repeat with the ContextMenu key and right-click, and verify that only one menu opens.",
 				"Use a real ContextMenu key down and up on a Project or Workspace: the browser's synthesized contextmenu event must not open a second surface, and one Escape dismisses the menu.",
-				"Open a management dialog or move focus outside the menu and verify that dismissal does not steal the new focus."
+				"Open a rename dialog or move focus outside the menu and verify that dismissal does not steal the new focus."
 			]
 		},
 		{
@@ -116,9 +117,8 @@
 	],
 	"uses": [
 		"workbench.action-menu",
-		"workbench.project-create-flow",
-		"workbench.project-manager-dialog",
-		"workbench.workspace-manager-dialog"
+		"workbench.location-name-dialog",
+		"workbench.project-create-flow"
 	],
 	"useWhen": [
 		"Workbench needs independent Workspace destinations, optional grouping, semantic menus, and ordering together.",
@@ -146,7 +146,9 @@
 		"Pointer-clicking a Workspace row transfers focus to the exact destination terminal after activation and projection are ready, while keyboard and programmatic activation remain focus-neutral.",
 		"Active and hovered rows share the strong foreground role while default rows use the quieter foreground role.",
 		"An open row menu keeps the entire owner row highlighted without introducing a second trigger background.",
-		"Worktree rows appear only where the authority reaches Git. Each menu opening discovers again, and until Git answers, New Worktree stays disabled and Open Worktree holds one disabled status row; an earlier answer never stands in.",
+		"Row menus take the TUI's composition. A Project offers New Workspace ▸ and Rename, then a separated Dissolve that keeps its Workspaces and is not destructive. A Workspace offers Move to Project ▸ and Rename, then the Worktree commands where the authority provides them, then a separated destructive Close; rows acting on their own object show only the verb.",
+		"A Project's New Workspace ▸ lists each directory its Workspaces record once, in navigation order, by folder name or by full path where folder names repeat, and creates a Workspace in that directory inside the Project. While the Project records none, New Workspace leads and creates one in the Project at the default directory.",
+		"Worktree rows appear only where the authority reaches Git. Each menu opening discovers again, and until Git answers, New Worktree stays disabled, Open Worktree holds one disabled status row, and a Project's Git Worktrees group is absent; an earlier answer never stands in. A Project's Worktree rows use its first Workspace's repository.",
 		"Remove Worktree… appears only for a checkout the authority proves the Workspace may remove, asks once through the shared destructive Action confirmation, and keeps the branch; a stopped removal asks again before it resumes, and Resume Worktree Removal… takes Remove Worktree…'s place while the authority keeps it.",
 		"A Workspace row's identity line keeps a lone row's height. Commits to push and pull show as ↑N and ↓N only when positive, beside the trailing markers; a second line names the branch, otherwise the folder, and is absent rather than blank while neither is known.",
 		"A held name, folder, and Git facts from the location source stand together, so a moved row changes all three at once; Workbench never decides location facts and observes a source only while the sidebar is mounted.",
@@ -161,7 +163,6 @@
 		"Environment connection state is a host observation only; Workbench renders status and invokes explicit commands without owning SSH configuration, prompts, credentials, or runtime lifecycle.",
 		"New Workspace immediately commits an ungrouped Workspace, stable launch resources, and first shell without a form or automatic Agent startup; generated names choose the first available numeric suffix.",
 		"Moving, ungrouping, or dissolving a Project changes only grouping and preserves Workspace identity, launch resources, terminal contexts, attachments, focus, and zoom.",
-		"Dissolve Project retains Workspaces; Close All Workspaces is a separate explicit destructive action.",
 		"A late Worktree creation or opening activates only the latest live initiating intent; newer Workspace, Tab, or Panel navigation retires it."
 	],
 	"references": ["packages/workbench/docs/project-workspace.md", "packages/workbench/README.md"]

@@ -24,9 +24,7 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly workspaceMoveToProject: string;
 	readonly workspaceCreateProject: string;
 	readonly workspaceUngroup: string;
-	readonly projectCloseAll: string;
 	readonly workspaceNew: string;
-	readonly add: string;
 	readonly cancel: string;
 	readonly close: string;
 	readonly collapseProject: string;
@@ -54,8 +52,6 @@ export interface WorkbenchProjectNavigationMessages {
 		>
 	>;
 	readonly createWorkspace: string;
-	readonly deleteWorkspace: string;
-	readonly duplicateWorkspace: string;
 	readonly expandProject: string;
 	readonly expandRecents: string;
 	readonly folderAcquisitionFailureDismiss: string;
@@ -73,39 +69,33 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly newFolderOpening: string;
 	readonly newFolderRetained: string;
 	readonly newFolderUnknown: string;
+	readonly locationNameRequired: string;
+	readonly locationNameTooLong: string;
+	readonly locationRenameSubmit: string;
 	readonly projectFolders: string;
-	readonly projectManage: string;
-	readonly projectManageAddFolder: string;
-	readonly projectManageAddLocalFolder: string;
-	readonly projectManageAddSshFolder: string;
-	readonly projectManageDescription: string;
-	readonly projectManageFolderAlreadyAdded: string;
-	readonly projectManageFolders: string;
-	readonly projectManageName: string;
-	readonly projectManageNamePlaceholder: string;
-	readonly projectManagePrimaryFolder: string;
-	readonly projectManageSshFolderBadge: string;
-	readonly projectManageSshFolderDescription: string;
-	readonly projectManageTitle: string;
+	readonly projectMenuDissolve: string;
+	readonly projectMenuRename: string;
 	readonly projectOptions: string;
+	readonly projectRenameTitle: string;
 	readonly projectWorktrees: string;
 	readonly recents: string;
-	readonly removeProject: string;
 	readonly retryProjectConnection: string;
-	readonly removeProjectFolder: string;
-	readonly save: string;
 	readonly selectFolder: string;
-	readonly setProjectPrimaryFolder: string;
-	readonly workspaceManage: string;
-	readonly workspaceManageDescription: string;
-	readonly workspaceManageNameOnlyDescription: string;
-	readonly workspaceManageName: string;
-	readonly workspaceManageNamePlaceholder: string;
-	readonly workspaceManagePrimaryFolder: string;
-	readonly workspaceManageTitle: string;
+	readonly workspaceMenuClose: string;
+	readonly workspaceMenuNewProject: string;
+	readonly workspaceMenuRename: string;
 	readonly workspaceOptions: string;
+	readonly workspaceRenameTitle: string;
 }
 
-export interface WorkbenchWorkspaceManagementTarget {
-	readonly workspaceId: string;
-}
+/**
+ * A Workspace a sidebar menu creates: a default one in a Project, or one in a directory a Workspace
+ * recorded.
+ */
+export type WorkbenchSidebarWorkspaceCreation =
+	| { readonly projectId: string }
+	| {
+			readonly directoryId: string;
+			readonly projectId: string | null;
+			readonly resourceScopeId: string;
+	  };

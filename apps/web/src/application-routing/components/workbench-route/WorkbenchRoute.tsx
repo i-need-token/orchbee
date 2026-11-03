@@ -19,7 +19,6 @@ export function WorkbenchRoute(): ReactNode {
 			macosTerminalInputSettingsController={application.macosTerminalInputSettingsController}
 			navigation={coordinator.navigation}
 			onConnectViaSsh={application.onConnectViaSsh}
-			onAddResourceFolderViaSsh={application.onAddResourceFolderViaSsh}
 			projectFolderAcquisition={application.projectFolderAcquisition}
 			projectWorkspaceRuntime={application.projectWorkspaceRuntime}
 			remoteTerminalCreation={application.remoteTerminalCreation}

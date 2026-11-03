@@ -245,12 +245,16 @@ describe('workbench action contracts', () => {
 				resourceScopeId: 'project-1',
 			}),
 		).toMatchObject({ success: true });
+		// Names keep their exact text, as the protocol and the TUI keep them; only blank ones fail.
 		expect(
 			workbenchProjectRenameInput.parse({ name: '  Orchbee ', projectId: 'project-1' }),
 		).toEqual({
-			data: { name: 'Orchbee', projectId: 'project-1' },
+			data: { name: '  Orchbee ', projectId: 'project-1' },
 			success: true,
 		});
+		expect(
+			workbenchProjectRenameInput.parse({ name: '  　', projectId: 'project-1' }),
+		).toMatchObject({ success: false });
 		expect(
 			workbenchProjectReorderInput.parse({
 				beforeProjectId: 'project-2',
@@ -292,7 +296,7 @@ describe('workbench action contracts', () => {
 			}),
 		).toEqual({
 			data: {
-				name: 'Feature',
+				name: ' Feature ',
 				primaryDirectoryId: 'directory-1',
 				workspaceId: 'workspace-1',
 			},

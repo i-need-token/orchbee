@@ -199,7 +199,13 @@ function launchPlan(
 			};
 		}
 		case 'workspace-created-default':
-			return { directory: workingDirectory, placement: { kind: 'ungrouped' } };
+			return {
+				directory: workingDirectory,
+				placement:
+					creation.projectId === null
+						? { kind: 'ungrouped' }
+						: { kind: 'project', projectId: creation.projectId },
+			};
 	}
 }
 

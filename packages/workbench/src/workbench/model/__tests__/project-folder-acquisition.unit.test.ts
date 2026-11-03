@@ -69,7 +69,7 @@ describe('transitionWorkbenchProjectFolderAcquisition', () => {
 	it('commits only the matching selected create request', () => {
 		const selecting = transitionWorkbenchProjectFolderAcquisition(
 			INITIAL_WORKBENCH_PROJECT_FOLDER_ACQUISITION_STATE,
-			{ kind: 'selection-requested', target: { kind: 'create-project' } },
+			{ kind: 'selection-requested' },
 		);
 		expect(selecting.commands).toEqual([{ kind: 'select-existing-folder' }]);
 
@@ -84,32 +84,10 @@ describe('transitionWorkbenchProjectFolderAcquisition', () => {
 		});
 	});
 
-	it('rejects stale and duplicate add targets without mutation', () => {
-		const selecting = transitionWorkbenchProjectFolderAcquisition(
-			INITIAL_WORKBENCH_PROJECT_FOLDER_ACQUISITION_STATE,
-			{
-				kind: 'selection-requested',
-				target: { kind: 'add-project-folder', resourceScopeId: 'project-1' },
-			},
-		).state;
-		for (const [addTargetStatus, code] of [
-			['missing', 'project-unavailable'],
-			['duplicate', 'already-added'],
-		] as const) {
-			expect(
-				transitionWorkbenchProjectFolderAcquisition(selecting, {
-					addTargetStatus,
-					kind: 'selection-settled',
-					result: { kind: 'selected', path: '/workspace/project' },
-				}),
-			).toEqual({ commands: [], state: { code, kind: 'failed' } });
-		}
-	});
-
 	it('makes cancellation, failure, disposal, and late settlement mutation-free', () => {
 		const selecting = transitionWorkbenchProjectFolderAcquisition(
 			INITIAL_WORKBENCH_PROJECT_FOLDER_ACQUISITION_STATE,
-			{ kind: 'selection-requested', target: { kind: 'create-project' } },
+			{ kind: 'selection-requested' },
 		).state;
 		expect(
 			transitionWorkbenchProjectFolderAcquisition(selecting, {

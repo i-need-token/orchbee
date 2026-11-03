@@ -24,10 +24,9 @@ import type {
 import { CreateProjectDialog } from './components/create-project-dialog/CreateProjectDialog';
 import { CreateProjectFolderDialog } from './components/create-project-folder-dialog/CreateProjectFolderDialog';
 import { useNewProjectFolder } from './hooks/useNewProjectFolder';
+import { LocationNameDialog } from './components/location-name-dialog/LocationNameDialog';
 import { ProjectCreateMenu } from './components/project-create-menu/ProjectCreateMenu';
-import { ProjectManagerDialog } from './components/project-manager-dialog/ProjectManagerDialog';
 import { ProjectNavigationItem } from './components/project-navigation-item/ProjectNavigationItem';
-import { WorkspaceManagerDialog } from './components/workspace-manager-dialog/WorkspaceManagerDialog';
 import { useWorkbenchSidebar } from './hooks/useWorkbenchSidebar';
 import { useNavigationReorderDrag } from './hooks/useNavigationReorderDrag';
 import { useProjectFolderAcquisition } from './hooks/useProjectFolderAcquisition';
@@ -37,6 +36,7 @@ import { useWorkspaceCreationActivation } from './hooks/useWorkspaceCreationActi
 import { useWorkspaceWorktrees } from './hooks/useWorkspaceWorktrees';
 import type {
 	WorkbenchProjectNavigationMessages,
+	WorkbenchSidebarWorkspaceCreation,
 	WorkbenchWorktreeCommands,
 } from './types/workbench-sidebar-types';
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../types/workbench-agent-overview';
@@ -51,22 +51,15 @@ interface WorkbenchSidebarProps {
 		workspaceId: string,
 		origin: WorkbenchTerminalLocationActivationOrigin,
 	) => void;
-	readonly addResourceDirectory: (resourceScopeId: string, path: string) => void;
-	readonly createWorkspace: (input?: {
-		readonly resourceScopeId: string;
-		readonly projectId: string | null;
-		readonly directoryId: string;
-	}) => void;
+	readonly createWorkspace: (input?: WorkbenchSidebarWorkspaceCreation) => void;
 	readonly setWorkspaceProject: (workspaceId: string, projectId: string | null) => void;
 	readonly createWorkspaceProject: (workspaceId: string, name: string) => void;
-	readonly closeProjectWorkspaces: (projectId: string) => void;
 	readonly createProject: (path: string) => ActionExecution<WorkbenchProjectCreationReceipt>;
 	readonly activateCreatedProject: (
 		receipt: WorkbenchProjectCreationReceipt,
 	) => ActionExecution<void>;
 	readonly isCreatedProjectActive: (receipt: WorkbenchProjectCreationReceipt) => boolean;
 	readonly deleteWorkspace: (workspaceId: string) => void;
-	readonly duplicateWorkspace: (workspaceId: string) => void;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly focusRequest: number;
 	readonly environmentProjectConnection?:
@@ -77,14 +70,12 @@ interface WorkbenchSidebarProps {
 	readonly onSearch: (returnFocus: HTMLElement) => void;
 	readonly onSettings?: (() => void) | undefined;
 	readonly onConnectViaSsh?: (() => void) | undefined;
-	readonly onAddResourceFolderViaSsh?: ((resourceScopeId: string) => void) | undefined;
 	readonly projectLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
 	readonly subscribeNavigation: (listener: () => void) => () => void;
 	readonly removeProject: (projectId: string) => void;
-	readonly removeResourceDirectory: (resourceScopeId: string, directoryId: string) => void;
 	readonly reorderProject: (projectId: string, beforeProjectId: string | null) => Promise<unknown>;
 	readonly reorderWorkspace: (
 		workspaceId: string,
@@ -94,7 +85,6 @@ interface WorkbenchSidebarProps {
 	readonly searchLabel: string;
 	readonly searchShortcutId: string;
 	readonly searchShortcutLabel: string;
-	readonly setResourcePrimaryDirectory: (resourceScopeId: string, directoryId: string) => void;
 	readonly settingsLabel: string;
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string;
@@ -105,8 +95,6 @@ interface WorkbenchSidebarProps {
 	readonly updateWorkspace: (workspaceId: string, name: string, primaryDirectoryId: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
 	readonly workspaceLocationSource?: WorkbenchWorkspaceLocationSource | undefined;
-	/** A Workspace whose resources are decided elsewhere can only be renamed here. */
-	readonly workspaceResourcesEditable: boolean;
 	/** Absent where the authority cannot reach Git for its Workspaces. */
 	readonly worktreeCommands?: WorkbenchWorktreeCommands | undefined;
 }
@@ -115,16 +103,13 @@ export function WorkbenchSidebar({
 	activateStandalone,
 	standaloneTerminalAvailable,
 	activateWorkspace,
-	addResourceDirectory,
 	createWorkspace,
 	setWorkspaceProject,
 	createWorkspaceProject,
-	closeProjectWorkspaces,
 	createProject,
 	activateCreatedProject,
 	isCreatedProjectActive,
 	deleteWorkspace,
-	duplicateWorkspace,
 	navigateAgent,
 	focusRequest,
 	environmentProjectConnection,
@@ -133,21 +118,18 @@ export function WorkbenchSidebar({
 	onSearch,
 	onSettings,
 	onConnectViaSsh,
-	onAddResourceFolderViaSsh,
 	projectLabel,
 	projectNavigationMessages,
 	projectFolderAcquisition,
 	projectWorkspaceState,
 	subscribeNavigation,
 	removeProject,
-	removeResourceDirectory,
 	reorderProject,
 	reorderWorkspace,
 	renameProject,
 	searchLabel,
 	searchShortcutId,
 	searchShortcutLabel,
-	setResourcePrimaryDirectory,
 	settingsLabel,
 	settingsShortcutId,
 	settingsShortcutLabel,
@@ -158,7 +140,6 @@ export function WorkbenchSidebar({
 	updateWorkspace,
 	workspaceAgentOverviews,
 	workspaceLocationSource,
-	workspaceResourcesEditable,
 	worktreeCommands,
 }: WorkbenchSidebarProps): ReactNode {
 	const agentGradientPrefix = useId().replaceAll(':', '');
@@ -167,10 +148,14 @@ export function WorkbenchSidebar({
 	const view = useWorkbenchSidebar(projectWorkspaceState, environmentProjectConnection);
 	const folderAcquisition = useProjectFolderAcquisition({
 		acquisition: projectFolderAcquisition,
-		addResourceDirectory,
 		createProject,
-		projectWorkspaceState,
 	});
+	const locationNameMessages = {
+		cancel: projectNavigationMessages.cancel,
+		close: projectNavigationMessages.close,
+		nameRequired: projectNavigationMessages.locationNameRequired,
+		nameTooLong: projectNavigationMessages.locationNameTooLong,
+	};
 	const newFolder = useNewProjectFolder({
 		activateCreatedProject,
 		capability: projectFolderAcquisition?.newFolder,
@@ -193,8 +178,9 @@ export function WorkbenchSidebar({
 		: projectWorkspaceState.projects;
 	const standaloneActive = projectWorkspaceState.activeLocation.kind === 'standalone';
 	const projectCreation = view.projectCreation;
-	const projectManagement = view.projectManagement;
-	const workspaceManagement = view.workspaceManagement;
+	const projectRename = view.projectRename;
+	const workspaceProjectCreation = view.workspaceProjectCreation;
+	const workspaceRename = view.workspaceRename;
 	const workspaceActivation = useWorkspaceCreationActivation({
 		subscribeNavigation,
 		activateWorkspace: (workspaceId) => activateWorkspace(workspaceId, 'other'),
@@ -293,7 +279,6 @@ export function WorkbenchSidebar({
 											? projectReorder.displacementDirection
 											: null
 									}
-									duplicateWorkspace={workspaceResourcesEditable ? duplicateWorkspace : undefined}
 									environmentConnection={
 										project === null
 											? null
@@ -314,13 +299,14 @@ export function WorkbenchSidebar({
 										navigateAgent(input);
 									}}
 									project={project}
+									projectWorktreeRows={workspaceWorktrees.projectRows}
 									refreshWorktrees={workspaceWorktrees.refresh}
 									onPointerDown={projectReorder.onItemPointerDown}
 									reorderActive={projectReorder.displacementAnimated}
 									reorderWorkspace={reorderWorkspace}
 									removeProject={removeProject}
-									showProjectManager={view.showProjectManager}
-									showWorkspaceManager={view.showWorkspaceManager}
+									showProjectRename={view.showProjectRename}
+									showWorkspaceRename={view.showWorkspaceRename}
 									toggleProjectExpansion={toggleProjectExpansion}
 									toggleRecentsExpansion={toggleRecentsExpansion}
 									toggleWorkspaceAgents={toggleWorkspaceAgents}
@@ -330,7 +316,6 @@ export function WorkbenchSidebar({
 									state={projectWorkspaceState}
 									setWorkspaceProject={setWorkspaceProject}
 									showWorkspaceProjectCreation={view.showWorkspaceProjectCreation}
-									closeProjectWorkspaces={closeProjectWorkspaces}
 								/>
 							))}
 						</ul>
@@ -395,66 +380,51 @@ export function WorkbenchSidebar({
 					state={newFolder.state}
 				/>
 			) : null}
-			{projectManagement === null ? null : (
-				<ProjectManagerDialog
-					messages={projectNavigationMessages}
-					name={projectManagement.name}
-					onClose={projectManagement.close}
-					onNameChange={projectManagement.setName}
-					onSave={(name) => {
-						renameProject(projectManagement.project.id, name);
-						projectManagement.close();
+			{projectRename === null ? null : (
+				<LocationNameDialog
+					messages={locationNameMessages}
+					name={projectRename.name}
+					onClose={projectRename.close}
+					onNameChange={projectRename.setName}
+					onSubmit={(name) => {
+						renameProject(projectRename.project.id, name);
+						projectRename.close();
 					}}
+					submitLabel={projectNavigationMessages.locationRenameSubmit}
+					title={projectNavigationMessages.projectRenameTitle}
 				/>
 			)}
-			{view.workspaceProjectCreation === null ? null : (
-				<ProjectManagerDialog
-					messages={projectNavigationMessages}
+			{workspaceProjectCreation === null ? null : (
+				<LocationNameDialog
+					messages={locationNameMessages}
+					name={workspaceProjectCreation.name}
+					onClose={workspaceProjectCreation.close}
+					onNameChange={workspaceProjectCreation.setName}
+					onSubmit={(name) => {
+						createWorkspaceProject(workspaceProjectCreation.workspaceId, name);
+						workspaceProjectCreation.close();
+					}}
 					submitLabel={projectNavigationMessages.create}
 					title={projectNavigationMessages.workspaceCreateProject}
-					name={view.workspaceProjectCreation.name}
-					onClose={view.workspaceProjectCreation.close}
-					onNameChange={view.workspaceProjectCreation.setName}
-					onSave={(name) => {
-						if (view.workspaceProjectCreation === null) return;
-						createWorkspaceProject(view.workspaceProjectCreation.workspaceId, name);
-						view.workspaceProjectCreation.close();
-					}}
 				/>
 			)}
-			{workspaceManagement === null ? null : (
-				<WorkspaceManagerDialog
-					messages={projectNavigationMessages}
-					name={workspaceManagement.name}
-					onClose={workspaceManagement.close}
-					onNameChange={workspaceManagement.setName}
-					onPrimaryDirectoryChange={workspaceManagement.setPrimaryDirectoryId}
-					onSave={(name, primaryDirectoryId) => {
-						updateWorkspace(workspaceManagement.workspace.id, name, primaryDirectoryId);
-						workspaceManagement.close();
+			{workspaceRename === null ? null : (
+				<LocationNameDialog
+					messages={locationNameMessages}
+					name={workspaceRename.name}
+					onClose={workspaceRename.close}
+					onNameChange={workspaceRename.setName}
+					onSubmit={(name) => {
+						// Only the name changes; the Workspace keeps the directory it records.
+						updateWorkspace(
+							workspaceRename.workspace.id,
+							name,
+							workspaceRename.workspace.primaryDirectoryId,
+						);
+						workspaceRename.close();
 					}}
-					primaryDirectoryId={workspaceManagement.primaryDirectoryId}
-					resources={workspaceManagement.resources}
-					directoriesEditable={workspaceResourcesEditable}
-					directorySelectionPending={folderAcquisition.selecting}
-					onAddDirectory={(path) => addResourceDirectory(workspaceManagement.resources.id, path)}
-					onRemoveDirectory={(directoryId) =>
-						removeResourceDirectory(workspaceManagement.resources.id, directoryId)
-					}
-					onSetPrimaryDirectory={(directoryId) =>
-						setResourcePrimaryDirectory(workspaceManagement.resources.id, directoryId)
-					}
-					onSelectDirectory={
-						projectFolderAcquisition === undefined
-							? undefined
-							: () => folderAcquisition.requestAddResourceFolder(workspaceManagement.resources.id)
-					}
-					onSelectSshDirectory={
-						onAddResourceFolderViaSsh === undefined
-							? undefined
-							: () => onAddResourceFolderViaSsh(workspaceManagement.resources.id)
-					}
-					workspace={workspaceManagement.workspace}
+					submitLabel={projectNavigationMessages.locationRenameSubmit}
+					title={projectNavigationMessages.workspaceRenameTitle}
 				/>
 			)}
 			{folderFailure === null ? null : (

@@ -834,6 +834,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 		name: string,
 		terminalTitle: string,
 		beforeCommit?: () => void,
+		projectId: string | null = null,
 	): ProjectWorkspaceTransition {
 		const names = new Set(this.state.workspaces.map((workspace) => workspace.name));
 		let availableName = name;
@@ -843,6 +844,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 			{
 				type: 'workspace-created-default',
 				name: availableName,
+				projectId,
 				terminalTitle,
 				directory: {
 					id: 'default-directory',

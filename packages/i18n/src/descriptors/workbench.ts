@@ -18,6 +18,57 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.workspaces.ungroup',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.ungroup'],
 	},
+	workspaceMenuClose: {
+		description: 'Workspace menu row that closes that Workspace; the menu title names it.',
+		id: 'workbench.workspaces.menu.close',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.menu.close'],
+	},
+	workspaceMenuNewProject: {
+		description:
+			'Move to Project row that asks for a name, creates the Project and moves the Workspace.',
+		id: 'workbench.workspaces.menu.newProject',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.menu.newProject'],
+	},
+	workspaceMenuRename: {
+		description: 'Workspace menu row that renames that Workspace; the menu title names it.',
+		id: 'workbench.workspaces.menu.rename',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.menu.rename'],
+	},
+	workspaceRenameTitle: {
+		description: 'Title of the dialog that renames a Workspace; it also names its only field.',
+		id: 'workbench.workspaces.rename.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.rename.title'],
+	},
+	projectMenuDissolve: {
+		description: 'Project menu row that ungroups its Workspaces and removes only the Project.',
+		id: 'workbench.projects.menu.dissolve',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.menu.dissolve'],
+	},
+	projectMenuRename: {
+		description: 'Project menu row that renames that Project; the menu title names it.',
+		id: 'workbench.projects.menu.rename',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.menu.rename'],
+	},
+	projectRenameTitle: {
+		description: 'Title of the dialog that renames a Project; it also names its only field.',
+		id: 'workbench.projects.rename.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.rename.title'],
+	},
+	locationNameRequired: {
+		description: 'Field error when a Project or Workspace name has no visible character.',
+		id: 'workbench.locations.name.required',
+		defaultMessage: enUSWorkbenchMessages['workbench.locations.name.required'],
+	},
+	locationNameTooLong: {
+		description: 'Field error when a Project or Workspace name is longer than the label limit.',
+		id: 'workbench.locations.name.tooLong',
+		defaultMessage: enUSWorkbenchMessages['workbench.locations.name.tooLong'],
+	},
+	locationRenameSubmit: {
+		description: 'Submit button of the Project and Workspace rename dialogs.',
+		id: 'workbench.locations.rename.submit',
+		defaultMessage: enUSWorkbenchMessages['workbench.locations.rename.submit'],
+	},
 	projectCloseAll: {
 		description: 'Explicitly close every Workspace currently in this Project.',
 		id: 'workbench.projects.closeAll',
@@ -754,12 +805,6 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.create.title'],
 		description: 'Title for selecting the first Folder used to create a Project.',
 	},
-	projectFolderAcquisitionAlreadyAdded: {
-		id: 'workbench.projects.folderAcquisition.failure.alreadyAdded',
-		defaultMessage:
-			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.alreadyAdded'],
-		description: 'Failure shown when a selected Folder already belongs to the target Project.',
-	},
 	projectFolderAcquisitionBusy: {
 		id: 'workbench.projects.folderAcquisition.failure.busy',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.busy'],
@@ -798,12 +843,6 @@ export const workbenchMessages = defineMessages({
 		defaultMessage:
 			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.permissionDenied'],
 		description: 'Failure shown when the selected Folder cannot be read and traversed.',
-	},
-	projectFolderAcquisitionProjectUnavailable: {
-		id: 'workbench.projects.folderAcquisition.failure.projectUnavailable',
-		defaultMessage:
-			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.projectUnavailable'],
-		description: 'Failure shown when the target Project disappears during native selection.',
 	},
 	projectFolderAcquisitionTitle: {
 		id: 'workbench.projects.folderAcquisition.failure.title',
@@ -881,61 +920,6 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.groups.worktrees'],
 		description: 'Menu group for Git worktree folders.',
 	},
-	projectManageDescription: {
-		id: 'workbench.projects.manage.description',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.description'],
-		description: 'Accessible description for the Project management interface.',
-	},
-	projectManageAddLocalFolder: {
-		id: 'workbench.projects.manage.addLocalFolder',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.addLocalFolder'],
-		description: 'Action that adds a local Folder to an existing Project.',
-	},
-	projectManageAddSshFolder: {
-		id: 'workbench.projects.manage.addSshFolder',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.addSshFolder'],
-		description: 'Action that connects over SSH and adds a remote Folder to an existing Project.',
-	},
-	projectManageFolders: {
-		id: 'workbench.projects.manage.folders',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.folders'],
-		description: 'Heading for Project folders in the Project management interface.',
-	},
-	projectManageName: {
-		id: 'workbench.projects.manage.name',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.name'],
-		description: 'Label for the Project name field.',
-	},
-	projectManageNamePlaceholder: {
-		id: 'workbench.projects.manage.namePlaceholder',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.namePlaceholder'],
-		description: 'Placeholder for the Project name field.',
-	},
-	projectManageFolderAlreadyAdded: {
-		id: 'workbench.projects.manage.folderAlreadyAdded',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.folderAlreadyAdded'],
-		description: 'Explanation shown when a Folder path already belongs to the Project.',
-	},
-	projectManagePrimaryFolder: {
-		id: 'workbench.projects.manage.primaryFolder',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.primaryFolder'],
-		description: 'Label identifying a Project primary Folder.',
-	},
-	projectManageSshFolderBadge: {
-		id: 'workbench.projects.manage.sshFolderBadge',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.sshFolderBadge'],
-		description: 'Short visible marker for an SSH remote Folder.',
-	},
-	projectManageSshFolderDescription: {
-		id: 'workbench.projects.manage.sshFolderDescription',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.sshFolderDescription'],
-		description: 'Accessible description for an SSH remote Folder marker.',
-	},
-	projectManageTitle: {
-		id: 'workbench.projects.manage.title',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.title'],
-		description: 'Title for the Project management interface.',
-	},
 	recents: {
 		id: 'workbench.sidebar.sections.recents',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.sections.recents'],
@@ -961,11 +945,6 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.resource.actions.cancel',
 		defaultMessage: enUSWorkbenchMessages['workbench.resource.actions.cancel'],
 		description: 'Action that cancels a Project or Workspace edit.',
-	},
-	resourceAdd: {
-		id: 'workbench.resource.actions.add',
-		defaultMessage: enUSWorkbenchMessages['workbench.resource.actions.add'],
-		description: 'Action that adds an entered Folder to a Project.',
 	},
 	resourceClose: {
 		id: 'workbench.resource.actions.close',
@@ -1154,36 +1133,6 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.workspaces.actions.manage',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.actions.manage'],
 		description: 'Action that opens the Workspace management interface.',
-	},
-	workspaceManageDescription: {
-		id: 'workbench.workspaces.manage.description',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.manage.description'],
-		description: 'Accessible description for the Workspace management interface.',
-	},
-	workspaceManageNameOnlyDescription: {
-		id: 'workbench.workspaces.manage.nameOnlyDescription',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.manage.nameOnlyDescription'],
-		description: 'Description of the Workspace management interface when only its name can change.',
-	},
-	workspaceManageName: {
-		id: 'workbench.workspaces.manage.name',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.manage.name'],
-		description: 'Label for the Workspace name field.',
-	},
-	workspaceManageNamePlaceholder: {
-		id: 'workbench.workspaces.manage.namePlaceholder',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.manage.namePlaceholder'],
-		description: 'Placeholder for the Workspace name field.',
-	},
-	workspaceManagePrimaryFolder: {
-		id: 'workbench.workspaces.manage.primaryFolder',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.manage.primaryFolder'],
-		description: 'Label for the Workspace primary Folder field.',
-	},
-	workspaceManageTitle: {
-		id: 'workbench.workspaces.manage.title',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.manage.title'],
-		description: 'Title for the Workspace management interface.',
 	},
 	workspaceOptions: {
 		id: 'workbench.workspaces.actions.options',

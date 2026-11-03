@@ -77,8 +77,11 @@ export type WorkbenchAuthorityChange =
 
 /** A Workspace with its first terminal. The authority names it and commits it as one change. */
 export type WorkbenchAuthorityCreation =
-	/** What New Workspace asks for: the authority chooses from this Client's current location. */
-	| { readonly type: 'workspace-created-default' }
+	/**
+	 * What New Workspace asks for: the authority chooses the directory from this Client's current
+	 * location, and the Workspace joins the Project named, or none.
+	 */
+	| { readonly projectId: string | null; readonly type: 'workspace-created-default' }
 	| {
 			readonly type: 'workspace-created';
 			readonly directoryId: string;

@@ -1602,6 +1602,19 @@ choices stand unless review changes them:
   in the taskbar and window switcher; nothing is drawn in the window. Before the first title, and
   for a cleared one with no template, the page is titled `Orchbee` instead of `Orchbee Workbench`.
   The CLI's help for `terminal title` still names only the outer terminal window.
+- **Sidebar row menus take the TUI's compositions.** A Project holds New Workspace ▸, Rename, and a
+  separated Dissolve; a Workspace holds Move to Project ▸, Rename, the Worktree commands, and a
+  separated destructive Close. Duplicate, Manage Project, Manage Workspace, and Close All Workspaces
+  leave the menus, and with the Workspace manager go its folder list, its SSH folder entry, and
+  adding a folder to a Workspace; their Actions stay until step 6. New Workspace ▸ lists each
+  available directory the Project's Workspaces record, one per Workspace, and while there is none it
+  leads with New Workspace, which the Server places in the Project at its default directory. Its Git
+  Worktrees come from the first Workspace's discovery, which leaves that Workspace's own checkout
+  out where the TUI lists it, and New Worktree is absent where the authority cannot reach Git.
+  Rename asks in one field the title labels and keeps the text exactly, as the Server and the TUI
+  do, so the GUI's Actions no longer trim a name. Set Directory… is absent because the Server offers
+  Clients no command for it, and Dissolve still sends `project.dissolve` where the TUI asks
+  `project.dissolve-if-idle` first and may explain what stays.
 
 ### Evidence
 

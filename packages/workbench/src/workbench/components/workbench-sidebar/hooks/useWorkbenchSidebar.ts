@@ -5,17 +5,15 @@ import type {
 	ProjectWorkspaceState,
 	WorkbenchProject,
 	WorkbenchWorkspace,
-	WorkbenchResourceScope,
 } from '../../../../project-workspace';
 import type {
 	WorkbenchEnvironmentProjectConnectionCapability,
 	WorkbenchEnvironmentProjectConnectionStatus,
 } from '../../../types/workbench-environment-project-connection';
-import type { WorkbenchWorkspaceManagementTarget } from '../types/workbench-sidebar-types';
 
 const EMPTY_CONNECTION_STATUSES: readonly WorkbenchEnvironmentProjectConnectionStatus[] = [];
 
-interface ProjectManagementView {
+interface ProjectRenameView {
 	readonly close: () => void;
 	readonly name: string;
 	readonly project: WorkbenchProject;
@@ -28,13 +26,10 @@ interface ProjectCreationView {
 	readonly setPath: (path: string) => void;
 }
 
-interface WorkspaceManagementView {
+interface WorkspaceRenameView {
 	readonly close: () => void;
 	readonly name: string;
-	readonly primaryDirectoryId: string;
-	readonly resources: WorkbenchResourceScope;
 	readonly setName: (name: string) => void;
-	readonly setPrimaryDirectoryId: (directoryId: string) => void;
 	readonly workspace: WorkbenchWorkspace;
 }
 
@@ -51,11 +46,11 @@ interface WorkbenchSidebarView {
 	} | null;
 	readonly showWorkspaceProjectCreation: (workspaceId: string) => void;
 	readonly projectCreation: ProjectCreationView | null;
-	readonly projectManagement: ProjectManagementView | null;
+	readonly projectRename: ProjectRenameView | null;
 	readonly showProjectCreation: () => void;
-	readonly showProjectManager: (projectId: string) => void;
-	readonly showWorkspaceManager: (workspaceId: string) => void;
-	readonly workspaceManagement: WorkspaceManagementView | null;
+	readonly showProjectRename: (projectId: string) => void;
+	readonly showWorkspaceRename: (workspaceId: string) => void;
+	readonly workspaceRename: WorkspaceRenameView | null;
 }
 
 export function useWorkbenchSidebar(
@@ -77,40 +72,35 @@ export function useWorkbenchSidebar(
 	);
 	const [creatingProject, setCreatingProject] = React.useState(false);
 	const [projectPath, setProjectPath] = React.useState('');
-	const [managedProjectId, setManagedProjectId] = React.useState<string | null>(null);
+	const [renamedProjectId, setRenamedProjectId] = React.useState<string | null>(null);
 	const [projectName, setProjectName] = React.useState('');
 	const [groupingWorkspaceId, setGroupingWorkspaceId] = React.useState<string | null>(null);
 	const [groupName, setGroupName] = React.useState('');
-	const [managedWorkspace, setManagedWorkspace] =
-		React.useState<WorkbenchWorkspaceManagementTarget | null>(null);
+	const [renamedWorkspaceId, setRenamedWorkspaceId] = React.useState<string | null>(null);
 	const [workspaceName, setWorkspaceName] = React.useState('');
-	const [workspacePrimaryDirectoryId, setWorkspacePrimaryDirectoryId] = React.useState('');
-	const showProjectManager = useMemoizedFn((projectId: string) => {
+	const showProjectRename = useMemoizedFn((projectId: string) => {
 		const project = state.projects.find((candidate) => candidate.id === projectId);
 		if (project === undefined) return;
 		setProjectName(project.name);
-		setManagedProjectId(projectId);
+		setRenamedProjectId(projectId);
 	});
 	const showProjectCreation = useMemoizedFn(() => {
 		setProjectPath('');
 		setCreatingProject(true);
 	});
-	const showWorkspaceManager = useMemoizedFn((workspaceId: string) => {
+	const showWorkspaceRename = useMemoizedFn((workspaceId: string) => {
 		const workspace = state.workspaces.find((candidate) => candidate.id === workspaceId);
 		if (workspace === undefined) return;
 		setWorkspaceName(workspace.name);
-		setWorkspacePrimaryDirectoryId(workspace.primaryDirectoryId);
-		setManagedWorkspace({ workspaceId });
+		setRenamedWorkspaceId(workspaceId);
 	});
-	const closeProjectManager = useMemoizedFn(() => setManagedProjectId(null));
+	const closeProjectRename = useMemoizedFn(() => setRenamedProjectId(null));
 	const closeProjectCreation = useMemoizedFn(() => setCreatingProject(false));
-	const closeWorkspaceManager = useMemoizedFn(() => setManagedWorkspace(null));
-	const managedProject = state.projects.find((project) => project.id === managedProjectId) ?? null;
-	const managedWorkspaceValue =
-		state.workspaces.find((workspace) => workspace.id === managedWorkspace?.workspaceId) ?? null;
-	const managedWorkspaceResources =
-		state.resourceScopes.find((scope) => scope.id === managedWorkspaceValue?.resourceScopeId) ??
-		null;
+	const closeWorkspaceRename = useMemoizedFn(() => setRenamedWorkspaceId(null));
+	// A rename whose target left closes with it.
+	const renamedProject = state.projects.find((project) => project.id === renamedProjectId) ?? null;
+	const renamedWorkspace =
+		state.workspaces.find((workspace) => workspace.id === renamedWorkspaceId) ?? null;
 
 	return {
 		workspaceProjectCreation:
@@ -135,33 +125,26 @@ export function useWorkbenchSidebar(
 		projectCreation: creatingProject
 			? { close: closeProjectCreation, path: projectPath, setPath: setProjectPath }
 			: null,
-		projectManagement:
-			managedProject === null
+		projectRename:
+			renamedProject === null
 				? null
 				: {
-						close: closeProjectManager,
+						close: closeProjectRename,
 						name: projectName,
-						project: managedProject,
+						project: renamedProject,
 						setName: setProjectName,
 					},
-		showProjectManager,
+		showProjectRename,
 		showProjectCreation,
-		showWorkspaceManager,
-		workspaceManagement:
-			managedWorkspaceResources === null || managedWorkspaceValue === null
+		showWorkspaceRename,
+		workspaceRename:
+			renamedWorkspace === null
 				? null
 				: {
-						close: closeWorkspaceManager,
+						close: closeWorkspaceRename,
 						name: workspaceName,
-						primaryDirectoryId: managedWorkspaceResources.directories.some(
-							(directory) => directory.id === workspacePrimaryDirectoryId,
-						)
-							? workspacePrimaryDirectoryId
-							: managedWorkspaceValue.primaryDirectoryId,
-						resources: managedWorkspaceResources,
 						setName: setWorkspaceName,
-						setPrimaryDirectoryId: setWorkspacePrimaryDirectoryId,
-						workspace: managedWorkspaceValue,
+						workspace: renamedWorkspace,
 					},
 	};
 }

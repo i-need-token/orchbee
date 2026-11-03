@@ -479,6 +479,11 @@ export function registerWorkbenchProjectWorkspaceActions({
 				},
 				getAvailability: (_context, input) => {
 					if (input === undefined) return { kind: 'enabled' };
+					if (!('directoryId' in input)) {
+						return projectFor(input.projectId) === undefined
+							? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
+							: { kind: 'enabled' };
+					}
 					const directory = resourcesFor(input.resourceScopeId)?.directories.find(
 						(candidate) => candidate.id === input.directoryId,
 					);
@@ -492,8 +497,8 @@ export function registerWorkbenchProjectWorkspaceActions({
 							return createAndEnter(
 								context,
 								authority,
-								input === undefined
-									? { type: 'workspace-created-default' }
+								input === undefined || !('directoryId' in input)
+									? { projectId: input?.projectId ?? null, type: 'workspace-created-default' }
 									: {
 											directoryId: input.directoryId,
 											projectId: input.projectId,
@@ -501,12 +506,13 @@ export function registerWorkbenchProjectWorkspaceActions({
 										},
 							).then(withoutReceipt);
 						}
-						if (input === undefined)
+						if (input === undefined || !('directoryId' in input))
 							return resultFor(
 								projectWorkspaceRuntime.createDefaultWorkspace(
 									defaultWorkspaceName,
 									workspaceTerminalTitle,
 									context.markCommitted,
+									input?.projectId ?? null,
 								),
 							);
 						const directory = resourcesFor(input.resourceScopeId)?.directories.find(

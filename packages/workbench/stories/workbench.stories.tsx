@@ -317,28 +317,6 @@ function createStoryWorkspaceLocationSource(
 	return { getSnapshot: () => snapshot, subscribe: () => () => undefined };
 }
 
-const createSshFolderManagementRuntime = () => {
-	const runtime = createPopulatedProjectWorkspaceRuntime();
-	runtime.transition({
-		directory: {
-			available: false,
-			git: null,
-			id: 'environment-directory:44444444444444444444444444444444',
-			kind: 'folder',
-			name: 'remote-services',
-			path: '/srv/orchbee/services',
-			placement: {
-				environmentId: 'environment:00000000000000000000000000000001',
-				kind: 'environment',
-			},
-			source: 'selected',
-		},
-		resourceScopeId: 'resource-scope-1',
-		type: 'environment-directory-registered',
-	});
-	return runtime;
-};
-
 const createVisualPanelSelectionRuntime = () => {
 	const runtime = createProjectWorkspaceRuntime(['Terminal 1']);
 	const store = runtime.getActiveTerminalContext().panelWorkspaceStore;
@@ -900,25 +878,6 @@ export const SshProjectConnection: Story = {
 		onConnectViaSsh: () => undefined,
 		onSettings: () => ({ kind: 'unchanged' }),
 		projectWorkspaceRuntime: createRemoteProjectWorkspaceRuntime(),
-		shortcutPlatform: 'apple',
-	},
-	render: (arguments_) => (
-		<OrchbeeI18nProvider locale='en-US'>
-			<Workbench {...arguments_} />
-		</OrchbeeI18nProvider>
-	),
-};
-
-export const NativeProjectFolderManagement: Story = {
-	args: {
-		actionRuntime: new ActionRuntime({ confirm: () => true }),
-		onAddResourceFolderViaSsh: () => undefined,
-		onSettings: () => ({ kind: 'unchanged' }),
-		projectFolderAcquisition: {
-			selectExistingFolder: () =>
-				Promise.resolve({ kind: 'selected', path: '/workspace/native-added' }),
-		},
-		projectWorkspaceRuntime: createSshFolderManagementRuntime(),
 		shortcutPlatform: 'apple',
 	},
 	render: (arguments_) => (

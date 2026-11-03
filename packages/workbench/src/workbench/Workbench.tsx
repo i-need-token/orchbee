@@ -73,7 +73,6 @@ interface WorkbenchProps {
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly onConnectViaSsh?: (() => void) | undefined;
-	readonly onAddResourceFolderViaSsh?: ((resourceScopeId: string) => void) | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly remoteTerminalCreation?: WorkbenchRemoteTerminalCreationCapability | undefined;
@@ -100,7 +99,6 @@ export function Workbench({
 	onSettings,
 	onTerminalFontSizeChange,
 	onConnectViaSsh,
-	onAddResourceFolderViaSsh,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
 	remoteTerminalCreation,
@@ -258,23 +256,19 @@ export function Workbench({
 										activateStandalone={view.activateStandalone}
 										standaloneTerminalAvailable={standaloneTerminalAvailable}
 										activateWorkspace={view.activateWorkspace}
-										addResourceDirectory={view.addResourceDirectory}
 										createProject={view.createProject}
 										activateCreatedProject={view.activateCreatedProject}
 										isCreatedProjectActive={view.isCreatedProjectActive}
 										createWorkspace={view.createWorkspace}
 										setWorkspaceProject={view.setWorkspaceProject}
 										createWorkspaceProject={view.createWorkspaceProject}
-										closeProjectWorkspaces={view.closeProjectWorkspaces}
 										deleteWorkspace={view.deleteWorkspace}
-										duplicateWorkspace={view.duplicateWorkspace}
 										navigateAgent={view.navigateAgent}
 										environmentProjectConnection={environmentProjectConnection}
 										label={view.sidebarLabel}
 										onSearch={view.search}
 										onSettings={view.settings}
 										onConnectViaSsh={onConnectViaSsh}
-										onAddResourceFolderViaSsh={onAddResourceFolderViaSsh}
 										projectLabel={view.projectLabel}
 										newWorkspaceLabel={view.newWorkspaceLabel}
 										projectNavigationMessages={view.projectNavigationMessages}
@@ -282,7 +276,6 @@ export function Workbench({
 										projectWorkspaceState={view.projectWorkspaceState}
 										workspaceAgentOverviews={agentPresentation.workspaceAgentOverviews}
 										removeProject={view.removeProject}
-										removeResourceDirectory={view.removeResourceDirectory}
 										reorderProject={view.reorderProject}
 										reorderWorkspace={view.reorderWorkspace}
 										renameProject={view.renameProject}
@@ -294,13 +287,11 @@ export function Workbench({
 										settingsShortcutId={view.settingsShortcutId}
 										settingsShortcutLabel={view.settingsShortcutLabel}
 										terminalLabel={view.terminalLabel}
-										setResourcePrimaryDirectory={view.setResourcePrimaryDirectory}
 										toggleProjectExpansion={view.toggleProjectExpansion}
 										toggleRecentsExpansion={view.toggleRecentsExpansion}
 										toggleWorkspaceAgents={agentPresentation.toggleWorkspaceAgents}
 										updateWorkspace={view.updateWorkspace}
 										workspaceLocationSource={workspaceLocationSource}
-										workspaceResourcesEditable={authority === undefined}
 										worktreeCommands={view.worktreeCommands}
 									/>
 									<div

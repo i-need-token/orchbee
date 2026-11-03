@@ -3,33 +3,21 @@ import type {
 	WorkbenchProjectFolderAcquisitionResult,
 } from '../types/workbench-project-folder-acquisition';
 
-type WorkbenchProjectFolderAcquisitionTarget =
-	| { readonly kind: 'create-project' }
-	| { readonly kind: 'add-project-folder'; readonly resourceScopeId: string };
-
 export type WorkbenchProjectFolderAcquisitionState =
 	| { readonly kind: 'disposed' }
 	| { readonly kind: 'failed'; readonly code: WorkbenchProjectFolderAcquisitionFailureCode }
 	| { readonly kind: 'idle' }
-	| { readonly kind: 'selecting'; readonly target: WorkbenchProjectFolderAcquisitionTarget };
+	| { readonly kind: 'selecting' };
 
 export type WorkbenchProjectFolderAcquisitionCommand =
-	| { readonly kind: 'add-project-folder'; readonly path: string; readonly resourceScopeId: string }
 	| { readonly kind: 'create-project'; readonly path: string }
 	| { readonly kind: 'select-existing-folder' };
 
 export type WorkbenchProjectFolderAcquisitionEvent =
 	| { readonly kind: 'dismiss-failure' }
 	| { readonly kind: 'dispose' }
-	| {
-			readonly addTargetStatus?: 'available' | 'duplicate' | 'missing' | undefined;
-			readonly kind: 'selection-settled';
-			readonly result: WorkbenchProjectFolderAcquisitionResult;
-	  }
-	| {
-			readonly kind: 'selection-requested';
-			readonly target: WorkbenchProjectFolderAcquisitionTarget;
-	  };
+	| { readonly kind: 'selection-settled'; readonly result: WorkbenchProjectFolderAcquisitionResult }
+	| { readonly kind: 'selection-requested' };
 
 interface WorkbenchProjectFolderAcquisitionTransition {
 	readonly commands: readonly WorkbenchProjectFolderAcquisitionCommand[];
@@ -53,10 +41,7 @@ export function transitionWorkbenchProjectFolderAcquisition(
 	}
 	if (event.kind === 'selection-requested') {
 		return state.kind === 'idle'
-			? {
-					commands: [{ kind: 'select-existing-folder' }],
-					state: { kind: 'selecting', target: event.target },
-				}
+			? { commands: [{ kind: 'select-existing-folder' }], state: { kind: 'selecting' } }
 			: { commands: [], state };
 	}
 	if (state.kind !== 'selecting') return { commands: [], state };
@@ -66,29 +51,8 @@ export function transitionWorkbenchProjectFolderAcquisition(
 	if (event.result.kind === 'failed') {
 		return { commands: [], state: { code: event.result.code, kind: 'failed' } };
 	}
-	if (state.target.kind === 'create-project') {
-		return {
-			commands: [{ kind: 'create-project', path: event.result.path }],
-			state: INITIAL_WORKBENCH_PROJECT_FOLDER_ACQUISITION_STATE,
-		};
-	}
-	if (event.addTargetStatus !== 'available') {
-		return {
-			commands: [],
-			state: {
-				code: event.addTargetStatus === 'duplicate' ? 'already-added' : 'project-unavailable',
-				kind: 'failed',
-			},
-		};
-	}
 	return {
-		commands: [
-			{
-				kind: 'add-project-folder',
-				path: event.result.path,
-				resourceScopeId: state.target.resourceScopeId,
-			},
-		],
+		commands: [{ kind: 'create-project', path: event.result.path }],
 		state: INITIAL_WORKBENCH_PROJECT_FOLDER_ACQUISITION_STATE,
 	};
 }

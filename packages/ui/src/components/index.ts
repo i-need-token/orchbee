@@ -45,7 +45,6 @@ export {
 	Field,
 	FieldDescription,
 	FieldLabel,
-	FieldTitle,
 	Input,
 	InputGroup,
 	InputGroupAddon,

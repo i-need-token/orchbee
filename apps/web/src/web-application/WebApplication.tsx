@@ -56,7 +56,6 @@ export interface WebApplicationProps {
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onConnectViaSsh?: (() => void) | undefined;
-	readonly onAddResourceFolderViaSsh?: ((projectId: string) => void) | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly remoteTerminalCreation?: WorkbenchRemoteTerminalCreationCapability | undefined;
@@ -88,7 +87,6 @@ export function WebApplication({
 	macosTerminalInputSettingsController,
 	navigation,
 	onConnectViaSsh,
-	onAddResourceFolderViaSsh,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
 	remoteTerminalCreation,
@@ -150,7 +148,6 @@ export function WebApplication({
 					layoutStorage={layoutStorage}
 					navigation={navigation}
 					onConnectViaSsh={onConnectViaSsh}
-					onAddResourceFolderViaSsh={onAddResourceFolderViaSsh}
 					onSettings={view.onSettings}
 					onTerminalFontSizeChange={view.onTerminalFontSizeChange}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}

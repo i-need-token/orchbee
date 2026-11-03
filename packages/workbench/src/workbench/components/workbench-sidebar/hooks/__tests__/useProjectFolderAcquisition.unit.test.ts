@@ -9,14 +9,8 @@ import {
 	type ActionResult,
 	type ActionSignature,
 } from '@orchbee/actions';
-import { createElement, startTransition, Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-	createProjectWorkspaceState,
-	transitionProjectWorkspace,
-	type ProjectWorkspaceState,
-} from '../../../../../project-workspace';
 import type {
 	WorkbenchProjectFolderAcquisition,
 	WorkbenchProjectFolderAcquisitionResult,
@@ -266,50 +260,6 @@ function testAction<Output>(result: ActionResult<Output> | Promise<ActionResult<
 }
 
 describe('useProjectFolderAcquisition', () => {
-	it('settles folder selection against the committed Project while a replacement render suspends', async () => {
-		let settleSelection: (result: WorkbenchProjectFolderAcquisitionResult) => void = () => {
-			throw new Error('Expected selection resolver to be installed');
-		};
-		const selection = new Promise<WorkbenchProjectFolderAcquisitionResult>((resolve) => {
-			settleSelection = resolve;
-		});
-		const acquisition: WorkbenchProjectFolderAcquisition = {
-			selectExistingFolder: () => selection,
-		};
-		const addResourceDirectory = vi.fn<(projectId: string, path: string) => void>();
-		const pending = new Promise<void>(() => undefined);
-		const rendered = renderHook(
-			({ snapshot, suspend }) => {
-				const view = useProjectFolderAcquisition({
-					acquisition,
-					addResourceDirectory,
-					createProject: () => undefined,
-					projectWorkspaceState: snapshot,
-				});
-				if (suspend) throw pending;
-				return view;
-			},
-			{
-				initialProps: { snapshot: projectState(), suspend: false },
-				wrapper: ({ children }) => createElement(Suspense, { fallback: null }, children),
-			},
-		);
-		act(() => rendered.result.current.requestAddResourceFolder('resource-scope-1'));
-		act(() => {
-			startTransition(() =>
-				rendered.rerender({ snapshot: createProjectWorkspaceState(), suspend: true }),
-			);
-		});
-		await act(async () => {
-			settleSelection({ kind: 'selected', path: '/workspace/new' });
-			await selection;
-		});
-		expect(addResourceDirectory).toHaveBeenCalledExactlyOnceWith(
-			'resource-scope-1',
-			'/workspace/new',
-		);
-	});
-
 	it('commits a selected Folder once and suppresses overlapping requests', async () => {
 		let settle: ((result: WorkbenchProjectFolderAcquisitionResult) => void) | undefined;
 		const acquisition: WorkbenchProjectFolderAcquisition = {
@@ -321,14 +271,7 @@ describe('useProjectFolderAcquisition', () => {
 			),
 		};
 		const createProject = vi.fn<(path: string) => void>();
-		const rendered = renderHook(() =>
-			useProjectFolderAcquisition({
-				acquisition,
-				addResourceDirectory: vi.fn<(projectId: string, path: string) => void>(),
-				createProject,
-				projectWorkspaceState: createProjectWorkspaceState(),
-			}),
-		);
+		const rendered = renderHook(() => useProjectFolderAcquisition({ acquisition, createProject }));
 
 		act(() => {
 			rendered.result.current.requestCreateProject();
@@ -345,7 +288,7 @@ describe('useProjectFolderAcquisition', () => {
 		expect(rendered.result.current.selecting).toBe(false);
 	});
 
-	it('rechecks the latest Project before adding and ignores settlement after unmount', async () => {
+	it('ignores a selection that settles after unmount', async () => {
 		let settle: ((result: WorkbenchProjectFolderAcquisitionResult) => void) | undefined;
 		const acquisition: WorkbenchProjectFolderAcquisition = {
 			selectExistingFolder: () =>
@@ -353,53 +296,13 @@ describe('useProjectFolderAcquisition', () => {
 					settle = resolve;
 				}),
 		};
-		const addResourceDirectory = vi.fn<(projectId: string, path: string) => void>();
-		const rendered = renderHook(
-			({ snapshot }: { readonly snapshot: ProjectWorkspaceState }) =>
-				useProjectFolderAcquisition({
-					acquisition,
-					addResourceDirectory,
-					createProject: vi.fn<(path: string) => void>(),
-					projectWorkspaceState: snapshot,
-				}),
-			{ initialProps: { snapshot: projectState() } },
-		);
+		const createProject = vi.fn<(path: string) => void>();
+		const rendered = renderHook(() => useProjectFolderAcquisition({ acquisition, createProject }));
 
-		act(() => rendered.result.current.requestAddResourceFolder('resource-scope-1'));
-		rendered.rerender({ snapshot: createProjectWorkspaceState() });
-		await act(async () => {
-			settle?.({ kind: 'selected', path: '/workspace/new' });
-			await Promise.resolve();
-		});
-		expect(addResourceDirectory).not.toHaveBeenCalled();
-		expect(rendered.result.current.failure).toBe('project-unavailable');
-
-		act(() => rendered.result.current.dismissFailure());
 		act(() => rendered.result.current.requestCreateProject());
 		rendered.unmount();
 		settle?.({ kind: 'selected', path: '/workspace/late' });
 		await Promise.resolve();
-		expect(addResourceDirectory).not.toHaveBeenCalled();
+		expect(createProject).not.toHaveBeenCalled();
 	});
 });
-
-function projectState(): ProjectWorkspaceState {
-	return transitionProjectWorkspace(createProjectWorkspaceState(), {
-		directory: {
-			available: true,
-			git: null,
-			id: 'directory-1',
-			kind: 'folder',
-			name: 'orchbee',
-			path: '/workspace/orchbee',
-			placement: { kind: 'local' },
-			source: 'selected',
-		},
-		launchConfigurations: [],
-		primaryWorkspaceLaunchConfigurationId: null,
-		primaryWorkspaceName: 'Primary',
-		projectName: 'orchbee',
-		terminalTitle: 'Terminal 1',
-		type: 'project-created',
-	}).state;
-}

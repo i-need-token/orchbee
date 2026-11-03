@@ -169,8 +169,8 @@ describe('Workbench Project and Workspace management', () => {
 		const projectOptions = screen.getByRole('button', { name: 'Project options: orchbee' });
 		const snapshot = projectWorkspaceRuntime.getSnapshot();
 		for (const [button, options, command] of [
-			[projectButton, projectOptions, 'Manage Project…'],
-			[workspaceButton, workspaceOptions, 'Manage Workspace…'],
+			[projectButton, projectOptions, 'Dissolve'],
+			[workspaceButton, workspaceOptions, 'Move to Project'],
 		] as const) {
 			for (const [chord, nativeContextTarget] of [
 				[{ code: 'F10', key: 'F10', shiftKey: true }, null],
@@ -211,12 +211,12 @@ describe('Workbench Project and Workspace management', () => {
 		}
 		act(() => workspaceButton.focus());
 		fireEvent.keyDown(workspaceButton, { code: 'ContextMenu', key: 'ContextMenu' });
-		fireEvent.click(await screen.findByRole('menuitem', { name: 'Manage Workspace…' }));
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
 		const dialog = await screen.findByRole('dialog');
-		const nameInput = within(dialog).getByLabelText('Name');
+		const nameInput = within(dialog).getByLabelText('Rename Workspace');
 		await waitFor(() => expect(document.activeElement).toBe(nameInput));
 		fireEvent.change(nameInput, { target: { value: 'First only' } });
-		fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+		fireEvent.click(within(dialog).getByRole('button', { name: 'Rename' }));
 		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 		expect(
 			projectWorkspaceRuntime.getSnapshot().workspaces.map(({ id, name }) => ({ id, name })),
@@ -306,16 +306,18 @@ describe('Workbench Project and Workspace management', () => {
 		expect(projectWorkspaceRuntime.getSnapshot()).toBe(snapshot);
 
 		fireEvent.contextMenu(workspaceButton, { clientX: 120, clientY: 180 });
-		fireEvent.click(await screen.findByRole('menuitem', { name: 'Manage Workspace…' }));
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
 		const dialog = await screen.findByRole('dialog');
-		await waitFor(() => expect(document.activeElement).toBe(within(dialog).getByLabelText('Name')));
+		await waitFor(() =>
+			expect(document.activeElement).toBe(within(dialog).getByLabelText('Rename Workspace')),
+		);
 		fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 		expect(projectWorkspaceRuntime.getSnapshot()).toBe(snapshot);
 
 		fireEvent.contextMenu(workspaceButton, { clientX: 120, clientY: 180 });
 		const menu = await screen.findByRole('menu');
-		const staleCommand = within(menu).getByRole('menuitem', { name: 'Duplicate Workspace' });
+		const staleCommand = within(menu).getByRole('menuitem', { name: 'Close' });
 		act(() => {
 			projectWorkspaceRuntime.transition({
 				type: 'workspace-deleted',
@@ -387,9 +389,9 @@ describe('Workbench Project and Workspace management', () => {
 			fireEvent.click(await screen.findByRole('menuitem', { name: 'Move to Project' }));
 		};
 		await openMove();
-		fireEvent.click(await screen.findByRole('menuitem', { name: 'New Project and Move' }));
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'New Project…' }));
 		const dialog = await screen.findByRole('dialog');
-		fireEvent.change(within(dialog).getByLabelText('Project name'), {
+		fireEvent.change(within(dialog).getByLabelText('New Project and Move'), {
 			target: { value: 'Review' },
 		});
 		fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }));
@@ -404,7 +406,7 @@ describe('Workbench Project and Workspace management', () => {
 		fireEvent.click(await screen.findByRole('menuitem', { name: 'Review' }));
 		await waitFor(() => expect(runtime.getSnapshot().workspaces[0]?.projectId).toBe('project-1'));
 		fireEvent.click(screen.getByRole('button', { name: 'Project options: Review' }));
-		fireEvent.click(await screen.findByRole('menuitem', { name: 'Dissolve Project' }));
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'Dissolve' }));
 		await waitFor(() => expect(runtime.getSnapshot().projects).toEqual([]));
 		expect(runtime.getSnapshot().workspaces).toEqual([workspace]);
 		expect(runtime.getActiveTerminalContext()).toBe(context);
@@ -1173,7 +1175,7 @@ describe('Workbench Project and Workspace management', () => {
 		},
 	);
 
-	it('uses a native Folder capability for atomic Project creation and Folder addition', async () => {
+	it('uses a native Folder capability for atomic Project creation', async () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal 1',
@@ -1181,8 +1183,7 @@ describe('Workbench Project and Workspace management', () => {
 		});
 		const selectExistingFolder = vi
 			.fn<() => Promise<{ readonly kind: 'selected'; readonly path: string }>>()
-			.mockResolvedValueOnce({ kind: 'selected', path: '/workspace/orchbee' })
-			.mockResolvedValueOnce({ kind: 'selected', path: '/workspace/ghostty' });
+			.mockResolvedValueOnce({ kind: 'selected', path: '/workspace/orchbee' });
 		render(
 			<OrchbeeI18nProvider locale='en-US'>
 				<TooltipProvider>
@@ -1207,107 +1208,7 @@ describe('Workbench Project and Workspace management', () => {
 			});
 		});
 		expect(screen.queryByRole('dialog')).toBeNull();
-
-		fireEvent.click(screen.getByRole('button', { name: 'Workspace options: Primary' }));
-		fireEvent.click(
-			within(await screen.findByRole('menu')).getByRole('menuitem', {
-				name: 'Manage Workspace…',
-			}),
-		);
-		const manager = await screen.findByRole('dialog');
-		const addFolder = within(manager).getByRole('button', { name: 'Add Folder' });
-		expect(addFolder.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('folder-opened');
-		fireEvent.click(addFolder);
-		await waitFor(() =>
-			expect(projectWorkspaceRuntime.getSnapshot().resourceScopes[0]?.directories).toEqual(
-				expect.arrayContaining([expect.objectContaining({ path: '/workspace/ghostty' })]),
-			),
-		);
-		expect(within(manager).queryByLabelText('Folder path')).toBeNull();
-		expect(selectExistingFolder).toHaveBeenCalledTimes(2);
-	});
-
-	it('offers Local and SSH Folder attachment and marks published remote Folders', async () => {
-		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/system',
-			standaloneTerminalTitle: 'Terminal 1',
-			terminalPresentation: createTestTerminalPresentationComposition('ssh-folder-attachment'),
-		});
-		projectWorkspaceRuntime.transition({
-			directory: {
-				available: true,
-				git: null,
-				id: 'directory-local',
-				kind: 'folder',
-				name: 'orchbee',
-				path: '/workspace/orchbee',
-				placement: { kind: 'local' },
-				source: 'selected',
-			},
-			launchConfigurations: [],
-			primaryWorkspaceLaunchConfigurationId: null,
-			primaryWorkspaceName: 'Primary',
-			projectName: 'orchbee',
-			terminalTitle: 'Terminal 1',
-			type: 'project-created',
-		});
-		const onAddResourceFolderViaSsh = vi.fn<(projectId: string) => void>();
-		render(
-			<OrchbeeI18nProvider locale='en-US'>
-				<TooltipProvider>
-					<Workbench
-						actionRuntime={new ActionRuntime()}
-						onAddResourceFolderViaSsh={onAddResourceFolderViaSsh}
-						projectFolderAcquisition={{
-							selectExistingFolder: async () => ({ kind: 'cancelled' }),
-						}}
-						projectWorkspaceRuntime={projectWorkspaceRuntime}
-						shortcutPlatform='apple'
-					/>
-				</TooltipProvider>
-			</OrchbeeI18nProvider>,
-		);
-
-		fireEvent.click(screen.getByRole('button', { name: 'Workspace options: Primary' }));
-		fireEvent.click(
-			within(await screen.findByRole('menu')).getByRole('menuitem', {
-				name: 'Manage Workspace…',
-			}),
-		);
-		const manager = await screen.findByRole('dialog');
-		fireEvent.click(within(manager).getByRole('button', { name: 'Add Folder' }));
-		const addMenu = await screen.findByRole('menu');
-		expect(within(addMenu).getByRole('menuitem', { name: 'Add Local Folder…' })).toBeDefined();
-		fireEvent.click(within(addMenu).getByRole('menuitem', { name: 'Add SSH Folder…' }));
-		expect(onAddResourceFolderViaSsh).toHaveBeenCalledWith('resource-scope-1');
-		expect(screen.getByRole('dialog')).toBe(manager);
-
-		projectWorkspaceRuntime.transition({
-			directory: {
-				available: false,
-				git: null,
-				id: 'environment-directory:00000000000000000000000000000001',
-				kind: 'folder',
-				name: 'remote-src',
-				path: '/srv/orchbee/src',
-				placement: {
-					environmentId: 'environment:00000000000000000000000000000001',
-					kind: 'environment',
-				},
-				source: 'selected',
-			},
-			resourceScopeId: 'resource-scope-1',
-			type: 'environment-directory-registered',
-		});
-
-		await waitFor(() =>
-			expect(within(manager).getByLabelText('SSH remote folder').textContent).toBe('SSH'),
-		);
-		expect(
-			within(manager)
-				.getAllByText('remote-src')
-				.find((element) => element.getAttribute('data-slot') === 'tooltip-trigger'),
-		).toBeDefined();
+		expect(selectExistingFolder).toHaveBeenCalledOnce();
 	});
 
 	it('shows a localized bounded native Folder failure without Project mutation', async () => {
@@ -1380,7 +1281,7 @@ describe('Workbench Project and Workspace management', () => {
 			</OrchbeeI18nProvider>,
 		);
 
-		fireEvent.click(screen.getByRole('button', { name: 'Workspace options: Primary' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Project options: orchbee' }));
 		const projectMenu = await screen.findByRole('menu');
 		fireEvent.click(within(projectMenu).getByRole('menuitem', { name: 'New Workspace' }));
 		fireEvent.click(await screen.findByRole('menuitem', { name: 'orchbee' }));
@@ -1400,58 +1301,7 @@ describe('Workbench Project and Workspace management', () => {
 		).toBe('page');
 	});
 
-	it('omits redundant primary controls when a Project has one Folder', async () => {
-		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/system',
-			standaloneTerminalTitle: 'Terminal 1',
-			terminalPresentation: createTestTerminalPresentationComposition('workspace-primary'),
-		});
-		projectWorkspaceRuntime.transition({
-			directory: {
-				available: true,
-				git: null,
-				id: 'directory-orchbee',
-				kind: 'folder',
-				name: 'orchbee',
-				path: '/workspace/orchbee',
-				placement: { kind: 'local' },
-				source: 'selected',
-			},
-			launchConfigurations: [],
-			primaryWorkspaceLaunchConfigurationId: null,
-			primaryWorkspaceName: 'Primary',
-			projectName: 'orchbee',
-			terminalTitle: 'Terminal 1',
-			type: 'project-created',
-		});
-		render(
-			<OrchbeeI18nProvider locale='en-US'>
-				<TooltipProvider>
-					<Workbench
-						actionRuntime={new ActionRuntime()}
-						projectWorkspaceRuntime={projectWorkspaceRuntime}
-						shortcutPlatform='apple'
-					/>
-				</TooltipProvider>
-			</OrchbeeI18nProvider>,
-		);
-
-		fireEvent.click(screen.getByRole('button', { name: 'Workspace options: Primary' }));
-		fireEvent.click(
-			within(await screen.findByRole('menu')).getByRole('menuitem', {
-				name: 'Manage Workspace…',
-			}),
-		);
-		const dialog = await screen.findByRole('dialog');
-		expect(within(dialog).queryByText('Primary folder')).toBeNull();
-		expect(within(dialog).queryByRole('button', { name: 'Set as primary' })).toBeNull();
-		const folderName = within(dialog).getByText('orchbee');
-		expect(folderName.getAttribute('data-slot')).toBe('tooltip-trigger');
-		const addFolder = within(dialog).getByRole('button', { name: 'Add Folder' });
-		expect(addFolder.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('new-folder');
-	});
-
-	it('removes an active primary Folder without asking for a replacement', async () => {
+	it('composes Project and Workspace row menus as the TUI does and renames through one field', async () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal 1',
@@ -1475,20 +1325,6 @@ describe('Workbench Project and Workspace management', () => {
 			terminalTitle: 'Terminal 1',
 			type: 'project-created',
 		});
-		projectWorkspaceRuntime.transition({
-			directory: {
-				available: true,
-				git: null,
-				id: 'directory-xterm',
-				kind: 'folder',
-				name: 'xterm.js',
-				path: '/workspace/xterm.js',
-				placement: { kind: 'local' },
-				source: 'selected',
-			},
-			resourceScopeId: 'resource-scope-1',
-			type: 'directory-added',
-		});
 		render(
 			<OrchbeeI18nProvider locale='en-US'>
 				<TooltipProvider>
@@ -1511,14 +1347,12 @@ describe('Workbench Project and Workspace management', () => {
 		const workspaceMenu = await screen.findByRole('menu');
 		expectActionableMenuItemsToHaveIcons(workspaceMenu);
 		const workspaceMenuPresentation = getActionableMenuPresentation(workspaceMenu);
-		expect(workspaceMenuPresentation.map(({ label }) => label)).toEqual([
-			'New Workspace',
-			'Move to Project',
-			'Duplicate Workspace',
-			'Manage Workspace…',
-			'Close Workspace',
+		expect(workspaceMenuPresentation).toEqual([
+			{ icon: 'folder', label: 'Move to Project' },
+			{ icon: 'edit', label: 'Rename' },
+			{ icon: 'close', label: 'Close' },
 		]);
-		fireEvent.click(within(workspaceMenu).getByRole('menuitem', { name: 'Close Workspace' }));
+		fireEvent.click(within(workspaceMenu).getByRole('menuitem', { name: 'Close' }));
 		const deleteWorkspaceTitle = await screen.findByText('Close Workspace?');
 		const confirmationDialog = deleteWorkspaceTitle.closest<HTMLElement>(
 			'[data-slot="alert-dialog-content"]',
@@ -1558,19 +1392,21 @@ describe('Workbench Project and Workspace management', () => {
 		expect(workspaceRow.hasAttribute('data-popup-open')).toBe(true);
 		expect(workspaceContextMenu.getAttribute('data-slot')).toBe('context-menu-content');
 		expect(getActionableMenuPresentation(workspaceContextMenu)).toEqual(workspaceMenuPresentation);
-		fireEvent.click(
-			within(workspaceContextMenu).getByRole('menuitem', { name: 'Manage Workspace…' }),
+		fireEvent.click(within(workspaceContextMenu).getByRole('menuitem', { name: 'Rename' }));
+		const workspaceRename = await screen.findByRole('dialog', { name: 'Rename Workspace' });
+		expect(workspaceRename.getAttribute('data-slot')).toBe('workbench-location-name-dialog');
+		expect(within(workspaceRename).getByRole('button', { name: 'Close' })).toBeDefined();
+		// The title names the only field, which has no label or description of its own.
+		expect(within(workspaceRename).getByLabelText('Rename Workspace')).toHaveProperty(
+			'value',
+			'Primary',
 		);
-		const workspaceManager = await screen.findByRole('dialog');
-		expect(workspaceManager.getAttribute('data-slot')).toBe('workbench-workspace-manager');
-		expect(within(workspaceManager).getByRole('button', { name: 'Close' })).toBeDefined();
-		const workspaceNameInput = within(workspaceManager).getByLabelText('Name');
-		expect(workspaceNameInput.getAttribute('placeholder')).toBe('Enter a workspace name');
-		const workspaceCancel = within(workspaceManager).getByRole('button', { name: 'Cancel' });
-		const workspaceSave = within(workspaceManager).getByRole('button', { name: 'Save' });
-		expect(within(workspaceCancel).queryByText('Esc')).toBeNull();
-		expect(within(workspaceSave).queryByText('Enter')).toBeNull();
-		expect(workspaceSave.getAttribute('type')).toBe('submit');
+		expect(workspaceRename.querySelector('label')).toBeNull();
+		const workspaceCancel = within(workspaceRename).getByRole('button', { name: 'Cancel' });
+		const workspaceSubmit = within(workspaceRename).getByRole('button', { name: 'Rename' });
+		expect(within(workspaceCancel).getByText('Esc')).toBeDefined();
+		expect(within(workspaceSubmit).getByText('Enter')).toBeDefined();
+		expect(workspaceSubmit.getAttribute('type')).toBe('submit');
 		fireEvent.click(workspaceCancel);
 		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 		expect(workspaceRow.hasAttribute('data-popup-open')).toBe(false);
@@ -1590,6 +1426,11 @@ describe('Workbench Project and Workspace management', () => {
 		expect(projectRow.hasAttribute('data-popup-open')).toBe(true);
 		expect(projectContextMenu.getAttribute('data-slot')).toBe('context-menu-content');
 		const projectContextMenuPresentation = getActionableMenuPresentation(projectContextMenu);
+		expect(projectContextMenuPresentation).toEqual([
+			{ icon: 'add', label: 'New Workspace' },
+			{ icon: 'edit', label: 'Rename' },
+			{ icon: 'close', label: 'Dissolve' },
+		]);
 		fireEvent.keyDown(document, { key: 'Escape' });
 		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
 		expect(projectRow.hasAttribute('data-popup-open')).toBe(false);
@@ -1602,122 +1443,35 @@ describe('Workbench Project and Workspace management', () => {
 		const projectMenu = await screen.findByRole('menu');
 		expectActionableMenuItemsToHaveIcons(projectMenu);
 		expect(getActionableMenuPresentation(projectMenu)).toEqual(projectContextMenuPresentation);
-		fireEvent.click(within(projectMenu).getByRole('menuitem', { name: 'Manage Project…' }));
-		let dialog = await screen.findByRole('dialog');
-		expect(within(dialog).queryByRole('combobox')).toBeNull();
-		expect(within(dialog).getByRole('button', { name: 'Close' })).toBeDefined();
-		const projectNameInput = within(dialog).getByLabelText('Project name');
-		expect(projectNameInput.getAttribute('placeholder')).toBe('Enter a project name');
-		const projectCancel = within(dialog).getByRole('button', { name: 'Cancel' });
-		const projectSave = within(dialog).getByRole('button', { name: 'Save' });
-		expect(within(projectCancel).queryByText('Esc')).toBeNull();
-		expect(within(projectSave).queryByText('Enter')).toBeNull();
-		expect(projectSave.getAttribute('type')).toBe('submit');
-		fireEvent.change(projectNameInput, { target: { value: '  Orchbee renamed  ' } });
-		fireEvent.click(projectSave);
-		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-		expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.name).toBe('Orchbee renamed');
-		fireEvent.click(workspaceOptions);
-		fireEvent.click(await screen.findByRole('menuitem', { name: 'Manage Workspace…' }));
-		dialog = await screen.findByRole('dialog');
-		const resourceSave = within(dialog).getByRole('button', { name: 'Save' });
-		expect(within(dialog).getAllByText('Primary folder')[0]).toBeDefined();
-		expect(within(dialog).getByRole('button', { name: 'Set as primary' })).toBeDefined();
-		expect(
-			within(dialog)
-				.getAllByText('xterm.js')
-				.find((element) => element.getAttribute('data-slot') === 'tooltip-trigger')
-				?.getAttribute('data-slot'),
-		).toBe('tooltip-trigger');
-
-		fireEvent.click(within(dialog).getByRole('button', { name: 'Add Folder' }));
-		let folderPathInput = within(dialog).getByLabelText('Folder path');
-		expect(folderPathInput.getAttribute('placeholder')).toBe('/path/to/project');
-		expect(folderPathInput.getAttribute('data-resource-dialog-value')).toBe('code');
-		expect(document.activeElement).toBe(folderPathInput);
-		expect(within(dialog).getByRole('button', { name: 'Save' })).toBe(resourceSave);
-		expect(within(dialog).getAllByRole('button', { name: 'Cancel' })).toHaveLength(2);
-		let folderAddRow = folderPathInput.closest<HTMLElement>('li');
-		expect(folderAddRow).not.toBeNull();
-		if (folderAddRow === null) throw new Error('Expected the inline Folder add row.');
-		expect(within(folderAddRow).getByRole('button', { name: 'Add' })).toHaveProperty(
-			'disabled',
-			true,
+		fireEvent.click(within(projectMenu).getByRole('menuitem', { name: 'Rename' }));
+		const projectRename = await screen.findByRole('dialog', { name: 'Rename Project' });
+		const projectNameInput = within(projectRename).getByLabelText('Rename Project');
+		const projectSubmit = within(projectRename).getByRole('button', { name: 'Rename' });
+		// A blank or over-long name is refused when submitted, saying why, and the reason then follows
+		// the field until the name is fixed.
+		fireEvent.change(projectNameInput, { target: { value: '   ' } });
+		expect(within(projectRename).queryByRole('alert')).toBeNull();
+		fireEvent.click(projectSubmit);
+		expect(within(projectRename).getByRole('alert').textContent).toBe('Enter a name.');
+		expect(projectNameInput.getAttribute('aria-invalid')).toBe('true');
+		expect(document.activeElement).toBe(projectNameInput);
+		fireEvent.change(projectNameInput, { target: { value: 'x'.repeat(513) } });
+		expect(within(projectRename).getByRole('alert').textContent).toBe(
+			'Use at most 512 characters.',
 		);
-		fireEvent.change(folderPathInput, { target: { value: ' /workspace/orchbee ' } });
-		expect(
-			within(dialog).getByText('This folder is already available to this Workspace.'),
-		).toBeDefined();
-		expect(within(folderAddRow).getByRole('button', { name: 'Add' })).toHaveProperty(
-			'disabled',
-			true,
-		);
-		fireEvent.keyDown(folderPathInput, { key: 'Escape' });
-		expect(screen.getByRole('dialog')).toBe(dialog);
-		expect(within(dialog).queryByLabelText('Folder path')).toBeNull();
-		expect(within(dialog).getByRole('button', { name: 'Save' })).toBe(resourceSave);
-
-		fireEvent.click(within(dialog).getByRole('button', { name: 'Add Folder' }));
-		folderPathInput = within(dialog).getByLabelText('Folder path');
-		folderAddRow = folderPathInput.closest<HTMLElement>('li');
-		expect(folderAddRow).not.toBeNull();
-		if (folderAddRow === null) throw new Error('Expected the inline Folder add row.');
-		const folderAddCancel = within(folderAddRow).getByRole('button', { name: 'Cancel' });
-		const folderAddSubmit = within(folderAddRow).getByRole('button', { name: 'Add' });
-		expect(folderAddCancel.getAttribute('data-slot')).toBe('tooltip-trigger');
-		expect(folderAddCancel.querySelector('[data-icon="close"]')).not.toBeNull();
-		expect(folderAddSubmit.getAttribute('data-slot')).toBe('tooltip-trigger');
-		expect(folderAddSubmit.querySelector('[data-icon="check"]')).not.toBeNull();
-		fireEvent.change(folderPathInput, { target: { value: ' /workspace/ghostty/ ' } });
-		fireEvent.keyDown(folderPathInput, { key: 'Enter' });
-		await waitFor(() => {
-			expect(projectWorkspaceRuntime.getSnapshot().resourceScopes[0]).toMatchObject({
-				directories: [
-					{ id: 'directory-orchbee' },
-					{ id: 'directory-xterm' },
-					{ name: 'ghostty', path: '/workspace/ghostty/' },
-				],
-				primaryDirectoryId: 'directory-orchbee',
-			});
-			expect(
-				projectWorkspaceRuntime
-					.getSnapshot()
-					.workspaces.filter(
-						(workspace) =>
-							workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
-					),
-			).toMatchObject([{ primaryDirectoryId: 'directory-orchbee' }]);
-		});
-		expect(screen.getByRole('dialog')).toBe(dialog);
-		expect(within(dialog).getAllByText('ghostty')[0]).toBeDefined();
-		expect(within(dialog).queryByLabelText('Folder path')).toBeNull();
-
-		fireEvent.click(within(dialog).getByRole('button', { name: 'Remove folder: orchbee' }));
-		await waitFor(() => {
-			expect(projectWorkspaceRuntime.getSnapshot().resourceScopes[0]).toMatchObject({
-				primaryDirectoryId: 'directory-xterm',
-			});
-			expect(
-				projectWorkspaceRuntime
-					.getSnapshot()
-					.workspaces.filter(
-						(workspace) =>
-							workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
-					),
-			).toMatchObject([{ primaryDirectoryId: 'directory-xterm' }]);
-		});
-		expect(within(dialog).getAllByText('xterm.js')[0]).toBeDefined();
-		expect(within(dialog).getAllByText('Primary folder')[0]).toBeDefined();
-		const projectForm = dialog.querySelector('form');
-		expect(projectForm).not.toBeNull();
-		if (projectForm === null) throw new Error('Expected the Project management form to exist.');
-		fireEvent.submit(projectForm);
+		fireEvent.click(projectSubmit);
+		expect(screen.getByRole('dialog')).toBe(projectRename);
+		expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.name).toBe('orchbee');
+		// The name is kept exactly as typed.
+		fireEvent.change(projectNameInput, { target: { value: ' Orchbee renamed' } });
+		expect(within(projectRename).queryByRole('alert')).toBeNull();
+		fireEvent.click(projectSubmit);
 		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-		expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.name).toBe('Orchbee renamed');
+		expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.name).toBe(' Orchbee renamed');
 
 		const beforeDissolve = projectWorkspaceRuntime.getSnapshot();
 		fireEvent.click(screen.getByRole('button', { name: 'Project options: Orchbee renamed' }));
-		fireEvent.click(await screen.findByRole('menuitem', { name: 'Dissolve Project' }));
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'Dissolve' }));
 		await waitFor(() => expect(projectWorkspaceRuntime.getSnapshot().projects).toEqual([]));
 		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toBe(
 			beforeDissolve.activeLocation,

@@ -52,7 +52,7 @@ export {
 	DropdownMenuTrigger,
 } from './dropdown-menu';
 
-export { Field, FieldDescription, FieldLabel, FieldTitle } from './field';
+export { Field, FieldDescription, FieldLabel } from './field';
 
 export { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from './input-group';
 

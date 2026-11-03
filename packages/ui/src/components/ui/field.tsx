@@ -50,19 +50,6 @@ function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>)
 	);
 }
 
-function FieldTitle({ className, ...props }: React.ComponentProps<'div'>) {
-	return (
-		<div
-			data-slot='field-label'
-			className={cn(
-				'flex w-fit items-center gap-2 text-sm font-medium group-data-[disabled=true]/field:opacity-50',
-				className,
-			)}
-			{...props}
-		/>
-	);
-}
-
 function FieldDescription({ className, ...props }: React.ComponentProps<'p'>) {
 	return (
 		<p
@@ -78,4 +65,4 @@ function FieldDescription({ className, ...props }: React.ComponentProps<'p'>) {
 	);
 }
 
-export { Field, FieldLabel, FieldDescription, FieldTitle };
+export { Field, FieldLabel, FieldDescription };

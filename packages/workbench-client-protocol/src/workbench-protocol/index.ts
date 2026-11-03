@@ -1,6 +1,8 @@
 export { AGENT_INTEGRATION_PROVIDERS } from './workbench-agent-integration-contract';
 export {
+	WORKBENCH_MAXIMUM_LABEL_LENGTH,
 	WORKBENCH_PROTOCOL_VERSION,
+	WorkbenchLabelSchema,
 	WorkbenchRequestIdSchema,
 } from './workbench-semantic-contract';
 export type {

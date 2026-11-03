@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { TabStripOrientation } from '@orchbee/tab-strip';
 import {
 	TerminalPresentationIdSchema,
+	WorkbenchLabelSchema,
 	type TerminalPresentationId,
 } from '@orchbee/workbench-client-protocol';
 
@@ -131,11 +132,15 @@ interface WorkbenchWorkspaceActivationInput extends WorkbenchWorkspaceInput {
 	readonly creationReceipt?: WorkbenchProjectCreationReceipt | undefined;
 }
 
-type WorkbenchWorkspaceCreateInput = void | {
-	readonly resourceScopeId: string;
-	readonly projectId: string | null;
-	readonly directoryId: string;
-};
+/** Nothing for a default Workspace, a Project for a default one in it, or a recorded directory. */
+type WorkbenchWorkspaceCreateInput =
+	| void
+	| { readonly projectId: string }
+	| {
+			readonly resourceScopeId: string;
+			readonly projectId: string | null;
+			readonly directoryId: string;
+	  };
 
 interface WorkbenchWorkspaceProjectInput extends WorkbenchWorkspaceInput {
 	readonly projectId: string | null;
@@ -529,12 +534,12 @@ export const workbenchProjectRenameInput: ActionInputValidation<WorkbenchProject
 	parse: (input) =>
 		isRecord(input) &&
 		typeof input['name'] === 'string' &&
-		input['name'].trim().length > 0 &&
+		WorkbenchLabelSchema.safeParse(input['name']).success &&
 		typeof input['projectId'] === 'string'
 			? {
 					success: true,
 					data: {
-						name: input['name'].trim(),
+						name: input['name'],
 						projectId: input['projectId'],
 					},
 				}
@@ -631,11 +636,14 @@ export const workbenchWorkspaceReorderInput: ActionInputValidation<WorkbenchWork
 				: { success: false, code: 'expected-workbench-workspace-reorder-input' },
 	};
 
-const workspaceCreateSchema = z.strictObject({
-	resourceScopeId: z.string().min(1),
-	projectId: z.string().min(1).nullable(),
-	directoryId: z.string().min(1),
-});
+const workspaceCreateSchema = z.union([
+	z.strictObject({
+		resourceScopeId: z.string().min(1),
+		projectId: z.string().min(1).nullable(),
+		directoryId: z.string().min(1),
+	}),
+	z.strictObject({ projectId: z.string().min(1) }),
+]);
 export const workbenchWorkspaceCreateInput: ActionInputValidation<WorkbenchWorkspaceCreateInput> = {
 	name: 'WorkbenchWorkspaceCreateInput',
 	parse: (input) => {
@@ -662,7 +670,7 @@ export const workbenchWorkspaceProjectInput: ActionInputValidation<WorkbenchWork
 	};
 const workspaceProjectCreateSchema = z.strictObject({
 	workspaceId: z.string().min(1),
-	name: z.string().trim().min(1),
+	name: WorkbenchLabelSchema,
 });
 export const workbenchWorkspaceProjectCreateInput: ActionInputValidation<WorkbenchWorkspaceProjectCreateInput> =
 	{
@@ -680,15 +688,14 @@ export const workbenchWorkspaceUpdateInput: ActionInputValidation<WorkbenchWorks
 	parse: (input) =>
 		isRecord(input) &&
 		typeof input['name'] === 'string' &&
-		input['name'].trim().length > 0 &&
+		WorkbenchLabelSchema.safeParse(input['name']).success &&
 		typeof input['primaryDirectoryId'] === 'string' &&
 		typeof input['workspaceId'] === 'string'
 			? {
 					success: true,
 					data: {
-						name: input['name'].trim(),
+						name: input['name'],
 						primaryDirectoryId: input['primaryDirectoryId'],
-
 						workspaceId: input['workspaceId'],
 					},
 				}

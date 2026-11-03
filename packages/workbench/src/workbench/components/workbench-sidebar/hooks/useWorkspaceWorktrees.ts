@@ -8,20 +8,33 @@ import type {
 	WorkbenchActionMenuCommand,
 	WorkbenchActionMenuEntry,
 } from '../../../types/workbench-action-menu';
-import type { WorkbenchWorktreeDiscoveryResult } from '../../../types/workbench-worktrees';
+import type {
+	WorkbenchWorktreeDiscovery,
+	WorkbenchWorktreeDiscoveryResult,
+} from '../../../types/workbench-worktrees';
 import type { WorkbenchWorktreeCommands } from '../types/workbench-sidebar-types';
 
 type WorkspaceDiscovery = { readonly kind: 'reading' } | WorkbenchWorktreeDiscoveryResult;
 
 export interface WorkspaceWorktreeMenu {
-	/** The destructive command that follows Delete Workspace, when the Workspace may remove its checkout. */
+	/** The destructive command that follows Close, when the Workspace may remove its checkout. */
 	readonly removal: readonly WorkbenchActionMenuEntry[];
 	/** The separated Worktree section. */
 	readonly section: readonly WorkbenchActionMenuEntry[];
 }
 
+/** What a Project's New Workspace submenu offers from the repository of its first Workspace. */
+export interface ProjectWorktreeRows {
+	/** The Git Worktrees group: the repository's other checkouts, once Git answers. */
+	readonly checkouts: readonly WorkbenchActionMenuCommand[];
+	/** New Worktree, or null where the authority cannot reach Git. */
+	readonly create: WorkbenchActionMenuCommand | null;
+}
+
 export interface WorkspaceWorktreesView {
 	readonly menu: (workspaceId: string) => WorkspaceWorktreeMenu;
+	/** For a Project whose first Workspace is the one named, or for a Project with none. */
+	readonly projectRows: (sourceWorkspaceId: string | null) => ProjectWorktreeRows;
 	/** Reads the Workspace's repository again; a menu calls it each time it opens. */
 	readonly refresh: (workspaceId: string) => void;
 }
@@ -32,11 +45,13 @@ interface UseWorkspaceWorktreesOptions {
 }
 
 const NO_MENU: WorkspaceWorktreeMenu = { removal: [], section: [] };
+const NO_PROJECT_ROWS: ProjectWorktreeRows = { checkouts: [], create: null };
 
 /**
- * The Worktree rows of a Workspace menu, as the TUI offers them: discovery starts when the menu opens
- * and the rows stay disabled until Git answers. The rows invoke Workbench Actions, which own the
- * decisions; while one runs, the rows wait for it.
+ * The Worktree rows of Project and Workspace menus, as the TUI offers them: discovery starts when the
+ * menu opens and the rows stay disabled until Git answers. A Project reads the repository of its
+ * first Workspace. The rows invoke Workbench Actions, which own the decisions; while one runs, the
+ * rows wait for it.
  */
 export function useWorkspaceWorktrees({
 	beginWorkspaceActivation,
@@ -102,9 +117,54 @@ export function useWorkspaceWorktrees({
 		});
 	};
 
+	const discoveryOf = (workspaceId: string): WorkspaceDiscovery =>
+		discoveries.get(workspaceId) ?? { kind: 'reading' };
+
+	const newWorktreeRow = (
+		available: WorkbenchWorktreeCommands,
+		workspaceId: string | null,
+		discovery: WorkbenchWorktreeDiscovery | null,
+	): WorkbenchActionMenuCommand => ({
+		disabled: workspaceId === null || discovery === null || pending,
+		icon: 'git-branch',
+		id: 'new-worktree',
+		kind: 'command',
+		label: intl.formatMessage(workbenchMessages.worktreeNew),
+		onSelect: () => {
+			if (workspaceId !== null) openInto(() => available.create(workspaceId));
+		},
+	});
+
+	const checkoutRows = (
+		available: WorkbenchWorktreeCommands,
+		workspaceId: string,
+		discovery: WorkbenchWorktreeDiscovery,
+	): readonly WorkbenchActionMenuCommand[] =>
+		discovery.checkouts.map((checkout, index) => ({
+			disabled: pending,
+			icon: 'git-branch',
+			id: `worktree-checkout-${index}`,
+			kind: 'command',
+			label: checkout.branch ?? checkout.path,
+			onSelect: () => openInto(() => available.open({ path: checkout.path, workspaceId })),
+		}));
+
+	const projectRows = (sourceWorkspaceId: string | null): ProjectWorktreeRows => {
+		if (commands === undefined) return NO_PROJECT_ROWS;
+		const state = sourceWorkspaceId === null ? null : discoveryOf(sourceWorkspaceId);
+		const discovery = state?.kind === 'discovered' ? state.discovery : null;
+		return {
+			checkouts:
+				sourceWorkspaceId === null || discovery === null
+					? []
+					: checkoutRows(commands, sourceWorkspaceId, discovery),
+			create: newWorktreeRow(commands, sourceWorkspaceId, discovery),
+		};
+	};
+
 	const menu = (workspaceId: string): WorkspaceWorktreeMenu => {
 		if (commands === undefined) return NO_MENU;
-		const state = discoveries.get(workspaceId) ?? { kind: 'reading' };
+		const state = discoveryOf(workspaceId);
 		const discovery = state.kind === 'discovered' ? state.discovery : null;
 		const status = (() => {
 			if (state.kind === 'reading') return workbenchMessages.worktreeReading;
@@ -127,14 +187,7 @@ export function useWorkspaceWorktrees({
 							onSelect: () => undefined,
 						},
 					]
-				: discovery.checkouts.map((checkout, index) => ({
-						disabled: pending,
-						icon: 'git-branch',
-						id: `worktree-checkout-${index}`,
-						kind: 'command',
-						label: checkout.branch ?? checkout.path,
-						onSelect: () => openInto(() => commands.open({ path: checkout.path, workspaceId })),
-					}));
+				: checkoutRows(commands, workspaceId, discovery);
 		/** A removal of this Workspace that stopped is offered again in place of a new one. */
 		const removalEntries = (): readonly WorkbenchActionMenuEntry[] => {
 			const stopped = state.kind === 'reading' ? null : state.stoppedRemoval;
@@ -183,14 +236,7 @@ export function useWorkspaceWorktrees({
 			removal: removalEntries(),
 			section: [
 				{ id: 'worktree-separator', kind: 'separator' },
-				{
-					disabled: discovery === null || pending,
-					icon: 'git-branch',
-					id: 'new-worktree',
-					kind: 'command',
-					label: intl.formatMessage(workbenchMessages.worktreeNew),
-					onSelect: () => openInto(() => commands.create(workspaceId)),
-				},
+				newWorktreeRow(commands, workspaceId, discovery),
 				{
 					groups: [{ commands: checkouts, id: 'worktree-checkouts' }],
 					icon: 'git-branch',
@@ -202,5 +248,5 @@ export function useWorkspaceWorktrees({
 		};
 	};
 
-	return { menu, refresh };
+	return { menu, projectRows, refresh };
 }

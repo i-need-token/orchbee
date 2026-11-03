@@ -116,6 +116,8 @@ export type ProjectWorkspaceEvent =
 			readonly type: 'workspace-created-default';
 			readonly directory: WorkbenchDirectory;
 			readonly name: string;
+			/** The Project the Workspace joins, or null to leave it ungrouped. */
+			readonly projectId: string | null;
 			readonly terminalTitle: string;
 	  }
 	| {
@@ -430,9 +432,16 @@ function createInitialWorkspace(
 		return rejected(state, 'launch-configuration-invalid');
 	if (!hasWorkbenchSharedLaunchConfiguration(launchConfigurations, launchConfigurationId))
 		return rejected(state, 'launch-configuration-not-found');
+	if (
+		event.type === 'workspace-created-default' &&
+		event.projectId !== null &&
+		!hasProject(state, event.projectId)
+	)
+		return rejected(state, 'project-not-found');
 	const resourceScopeId = `resource-scope-${availableResourceScopeSequence(state)}`;
-	const projectId =
+	const createdProjectId =
 		event.type === 'project-created' ? `project-${availableProjectSequence(state)}` : null;
+	const projectId = event.type === 'project-created' ? createdProjectId : event.projectId;
 	const scope: WorkbenchResourceScope = {
 		id: resourceScopeId,
 		name: event.directory.name,
@@ -445,10 +454,10 @@ function createInitialWorkspace(
 		resourceScopes: [...state.resourceScopes, scope],
 		nextResourceScopeSequence: availableResourceScopeSequence(state) + 1,
 		projects:
-			projectId !== null && event.type === 'project-created'
-				? [...state.projects, { id: projectId, name: event.projectName }]
+			createdProjectId !== null && event.type === 'project-created'
+				? [...state.projects, { id: createdProjectId, name: event.projectName }]
 				: state.projects,
-		nextProjectSequence: availableProjectSequence(state) + (projectId === null ? 0 : 1),
+		nextProjectSequence: availableProjectSequence(state) + (createdProjectId === null ? 0 : 1),
 	};
 	return createWorkspace(prepared, {
 		resourceScopeId,

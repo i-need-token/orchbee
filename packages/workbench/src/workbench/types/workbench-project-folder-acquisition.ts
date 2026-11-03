@@ -1,5 +1,4 @@
 export type WorkbenchProjectFolderAcquisitionFailureCode =
-	| 'already-added'
 	| 'already-exists'
 	| 'busy'
 	| 'control-unavailable'
@@ -8,7 +7,6 @@ export type WorkbenchProjectFolderAcquisitionFailureCode =
 	| 'not-directory'
 	| 'not-found'
 	| 'permission-denied'
-	| 'project-unavailable'
 	| 'stale-parent'
 	| 'validation-failed';
 

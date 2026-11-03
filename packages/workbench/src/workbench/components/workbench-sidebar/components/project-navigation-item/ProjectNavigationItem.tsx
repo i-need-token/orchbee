@@ -11,8 +11,11 @@ import type { WorkbenchEnvironmentProjectConnectionStatus } from '../../../../ty
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../../../types/workbench-agent-overview';
 import { useNavigationReorderDrag } from '../../hooks/useNavigationReorderDrag';
 import type { WorkbenchSidebarWorkspaceLocation } from '../../hooks/useWorkbenchSidebarWorkspaceLocations';
-import type { WorkspaceWorktreeMenu } from '../../hooks/useWorkspaceWorktrees';
-import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
+import type { ProjectWorktreeRows, WorkspaceWorktreeMenu } from '../../hooks/useWorkspaceWorktrees';
+import type {
+	WorkbenchProjectNavigationMessages,
+	WorkbenchSidebarWorkspaceCreation,
+} from '../../types/workbench-sidebar-types';
 import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
 import { WorkspaceAgentList } from './components/workspace-agent-list/WorkspaceAgentList';
 import { WorkspaceAgentStatusLine } from './components/workspace-agent-status-line/WorkspaceAgentStatusLine';
@@ -23,7 +26,8 @@ import {
 	openNavigationRowMenuFromKeyboard,
 	suppressDuplicateNavigationContextMenu,
 } from './utils/navigation-row-menu';
-import { workspaceNavigationMenu } from './utils/workspaceNavigationMenu';
+import { projectNewWorkspaceMenu } from './utils/projectNewWorkspaceMenu';
+import { workspaceMoveToProjectMenu } from './utils/workspaceMoveToProjectMenu';
 import styles from './ProjectNavigationItem.module.css';
 
 /**
@@ -45,27 +49,25 @@ interface ProjectNavigationItemProps {
 		origin: WorkbenchTerminalLocationActivationOrigin,
 	) => void;
 	readonly activeLocation: ProjectWorkspaceState['activeLocation'];
-	readonly createWorkspace: (input: {
-		resourceScopeId: string;
-		directoryId: string;
-		projectId: string | null;
-	}) => void;
+	readonly createWorkspace: (input: WorkbenchSidebarWorkspaceCreation) => void;
 	readonly state: ProjectWorkspaceState;
 	readonly setWorkspaceProject: (workspaceId: string, projectId: string | null) => void;
 	readonly showWorkspaceProjectCreation: (workspaceId: string) => void;
-	readonly closeProjectWorkspaces: (projectId: string) => void;
 	readonly connectEnvironment?: ((projectId: string) => void) | undefined;
 	readonly deleteWorkspace: (workspaceId: string) => void;
 	readonly displacement: 'down' | 'up' | null;
 	readonly disconnectEnvironment?: ((projectId: string) => void) | undefined;
-	readonly duplicateWorkspace?: ((workspaceId: string) => void) | undefined;
 	readonly dragging: boolean;
 	readonly expanded: boolean;
 	readonly environmentConnection: WorkbenchEnvironmentProjectConnectionStatus | null;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly project: WorkbenchProject | null;
-	/** Reads a Workspace's repository again; every Workspace menu calls it when it opens. */
+	readonly projectWorktreeRows: (sourceWorkspaceId: string | null) => ProjectWorktreeRows;
+	/**
+	 * Reads a Workspace's repository again. A Workspace menu calls it for its Workspace when it opens,
+	 * and a Project menu for the Project's first Workspace.
+	 */
 	readonly refreshWorktrees: (workspaceId: string) => void;
 	readonly onPointerDown: (projectId: string, event: PointerEvent<HTMLDivElement>) => void;
 	readonly reorderActive: boolean;
@@ -74,8 +76,8 @@ interface ProjectNavigationItemProps {
 		beforeWorkspaceId: string | null,
 	) => Promise<unknown>;
 	readonly removeProject: (projectId: string) => void;
-	readonly showProjectManager: (projectId: string) => void;
-	readonly showWorkspaceManager: (workspaceId: string) => void;
+	readonly showProjectRename: (projectId: string) => void;
+	readonly showWorkspaceRename: (workspaceId: string) => void;
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly toggleRecentsExpansion: () => void;
 	readonly toggleWorkspaceAgents: (workspaceId: string) => void;
@@ -92,25 +94,24 @@ export function ProjectNavigationItem({
 	state,
 	setWorkspaceProject,
 	showWorkspaceProjectCreation,
-	closeProjectWorkspaces,
 	connectEnvironment,
 	deleteWorkspace,
 	displacement,
 	disconnectEnvironment,
-	duplicateWorkspace,
 	dragging,
 	expanded,
 	environmentConnection,
 	messages,
 	navigateAgent,
 	project,
+	projectWorktreeRows,
 	refreshWorktrees,
 	onPointerDown,
 	reorderActive,
 	reorderWorkspace,
 	removeProject,
-	showProjectManager,
-	showWorkspaceManager,
+	showProjectRename,
+	showWorkspaceRename,
 	toggleProjectExpansion,
 	toggleRecentsExpansion,
 	toggleWorkspaceAgents,
@@ -176,34 +177,38 @@ export function ProjectNavigationItem({
 			{ id: 'environment-connection-separator', kind: 'separator' },
 		];
 	})();
+	// A Project's Worktree rows read the repository of its first Workspace, as the TUI's do.
+	const worktreeSourceId = workspaces[0]?.id ?? null;
+	const refreshProjectWorktrees = (open: boolean) => {
+		if (open && worktreeSourceId !== null) refreshWorktrees(worktreeSourceId);
+	};
 	const projectMenuEntries: readonly WorkbenchActionMenuEntry[] =
 		project === null
 			? []
 			: [
 					...environmentConnectionEntries,
+					projectNewWorkspaceMenu({
+						createWorkspace,
+						messages,
+						project,
+						state,
+						worktrees: projectWorktreeRows(worktreeSourceId),
+					}),
 					{
-						icon: 'settings',
-						id: 'manage-project',
+						icon: 'edit',
+						id: 'rename-project',
 						kind: 'command',
-						label: messages.projectManage,
-						onSelect: () => showProjectManager(project.id),
+						label: messages.projectMenuRename,
+						onSelect: () => showProjectRename(project.id),
 					},
+					{ id: 'dissolve-project-separator', kind: 'separator' },
+					// Dissolving keeps every Workspace, so it is not destructive.
 					{
 						icon: 'close',
-						id: 'remove-project',
+						id: 'dissolve-project',
 						kind: 'command',
-						label: messages.removeProject,
+						label: messages.projectMenuDissolve,
 						onSelect: () => removeProject(project.id),
-					},
-					{ id: 'close-project-separator', kind: 'separator' },
-					{
-						destructive: true,
-						icon: 'trash',
-						id: 'close-project-workspaces',
-						kind: 'command',
-						label: messages.projectCloseAll,
-						disabled: workspaces.length === 0,
-						onSelect: () => closeProjectWorkspaces(project.id),
 					},
 				];
 	return (
@@ -243,6 +248,7 @@ export function ProjectNavigationItem({
 			{project !== null && (
 				<ContextMenu
 					onOpenChange={(open, details) => {
+						refreshProjectWorktrees(open);
 						menuFocus.onOpenChange(null, open, details);
 					}}
 				>
@@ -290,6 +296,7 @@ export function ProjectNavigationItem({
 							</span>
 						</Button>
 						<WorkbenchSidebarDropdownMenu
+							onOpenChange={refreshProjectWorktrees}
 							entries={projectMenuEntries}
 							trigger={
 								<Button
@@ -334,40 +341,28 @@ export function ProjectNavigationItem({
 							activeLocation.kind === 'workspace' && activeLocation.workspaceId === workspace.id;
 						const worktrees = worktreeMenu(workspace.id);
 						const workspaceMenuEntries: readonly WorkbenchActionMenuEntry[] = [
-							...workspaceNavigationMenu({
-								state,
-								workspace,
+							workspaceMoveToProjectMenu({
 								messages,
-								createWorkspace,
 								setWorkspaceProject,
 								showWorkspaceProjectCreation,
+								state,
+								workspace,
 							}),
-							...(duplicateWorkspace === undefined
-								? []
-								: [
-										{
-											icon: 'copy' as const,
-											id: 'duplicate-workspace',
-											kind: 'command' as const,
-											label: messages.duplicateWorkspace,
-											onSelect: () => duplicateWorkspace(workspace.id),
-										},
-									]),
 							{
-								icon: 'settings',
-								id: 'manage-workspace',
+								icon: 'edit',
+								id: 'rename-workspace',
 								kind: 'command',
-								label: messages.workspaceManage,
-								onSelect: () => showWorkspaceManager(workspace.id),
+								label: messages.workspaceMenuRename,
+								onSelect: () => showWorkspaceRename(workspace.id),
 							},
 							...worktrees.section,
-							{ id: 'delete-workspace-separator', kind: 'separator' },
+							{ id: 'close-workspace-separator', kind: 'separator' },
 							{
 								destructive: true,
-								icon: 'trash',
-								id: 'delete-workspace',
+								icon: 'close',
+								id: 'close-workspace',
 								kind: 'command',
-								label: messages.deleteWorkspace,
+								label: messages.workspaceMenuClose,
 								onSelect: () => deleteWorkspace(workspace.id),
 							},
 							// Discovery only ever appends this row, so no row above it moves.

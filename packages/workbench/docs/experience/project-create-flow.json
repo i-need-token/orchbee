@@ -54,7 +54,7 @@
 		"A host exposes a separately owned remote Project enrollment flow without giving Workbench transport or credential authority."
 	],
 	"avoidWhen": [
-		"An existing Project is gaining another Folder; use the Project manager flow instead.",
+		"An existing Project needs a Workspace in a directory it already records; use that Project's New Workspace submenu instead.",
 		"The caller already owns a Project descriptor and does not need user-facing Folder acquisition.",
 		"The person needs an ordinary independent Workspace; use the immediate New Workspace action without Folder acquisition."
 	],

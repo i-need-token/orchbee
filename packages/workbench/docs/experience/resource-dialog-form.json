@@ -19,9 +19,8 @@
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--project-workspace-navigation",
 			"states": [
-				"Open Manage Project from a Project menu and inspect the lightweight compact title, dense description, normal-weight field labels, and footer actions.",
-				"Open Manage Workspace from a Workspace menu and confirm that its shared compact hierarchy omits key hints because Enter and Escape also operate its nested controls.",
-				"Open the simple Project path or Tab title form and compare the same structure with Esc and Enter hints on the actions whose keys remain unambiguous throughout the task."
+				"Open Rename from a Project menu and inspect the lightweight compact title that also labels the only field, without a description, and the footer actions.",
+				"Open the simple Project path or Tab title form and compare the same structure with a dense description, a normal-weight field label, and Esc and Enter hints on the actions whose keys remain unambiguous throughout the task."
 			]
 		}
 	],
@@ -38,7 +37,7 @@
 		"The Dialog header and footer own shell hierarchy and actions independently from the form body; the form never encloses or restyles the shell header.",
 		"The title and any decision-relevant description explain the resource and outcome before the first editable field.",
 		"Every consumer uses the compact Desktop form-Dialog typography hierarchy: a lightweight compact heading, dense normal-weight supporting copy, normal-weight control text, code typography only for exact paths, commands, or other code-like values, and subordinate key hints.",
-		"Every editable field has a persistent visible compact label; supporting and error text uses the body role, contextual descriptions appear only when validation or platform limits matter, and placeholders never replace guidance.",
+		"Every editable field has a persistent visible compact label, which for a Dialog's only field may be a title that names its value; supporting and error text uses the body role, contextual descriptions appear only when validation or platform limits matter, and placeholders never replace guidance.",
 		"Cancel and submit preserve native form semantics; their buttons expose aria-hidden Kbd hints only while Escape and Enter retain those exact unambiguous meanings throughout the editable task."
 	],
 	"references": ["packages/workbench/docs/project-workspace.md"]

@@ -1,0 +1,43 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "workbench.location-name-dialog",
+	"kind": "business",
+	"status": "candidate",
+	"name": "Location Name Dialog",
+	"description": "Asks for one Project or Workspace name to rename it, or to create a Project that the exact Workspace moves into, keeping the name exactly as typed.",
+	"owner": "@orchbee/workbench",
+	"visibility": "private",
+	"intents": ["rename-project", "rename-workspace", "create-project-and-move-workspace"],
+	"implementation": [
+		"packages/workbench/src/workbench/components/workbench-sidebar/components/location-name-dialog/LocationNameDialog.tsx"
+	],
+	"stories": [
+		{
+			"exportName": "ProjectWorkspaceNavigation",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--project-workspace-navigation",
+			"states": [
+				"Choose Rename from a Project or Workspace menu, inspect the prefilled and selected current name under a title that also labels the field, then submit or cancel.",
+				"Clear the name and submit to see the localized reason with the field focused, then type a name and see the reason go.",
+				"Choose New Project… from a Workspace's Move to Project submenu and commit the new Project and that Workspace's membership together."
+			]
+		}
+	],
+	"uses": ["workbench.resource-dialog-form"],
+	"useWhen": [
+		"A person renames a Project or a Workspace.",
+		"A person creates a Project while moving an existing Workspace into it."
+	],
+	"avoidWhen": [
+		"The person is creating an independent Workspace; use the one-click New Workspace action.",
+		"The name belongs to a terminal Tab; use the Tab title dialog."
+	],
+	"invariants": [
+		"The title names the only field, which takes no second label; the current name opens prefilled and selected.",
+		"The submitted name is the exact text typed. Only a name that is blank by Unicode White_Space or longer than 512 characters is refused, with a localized reason shown on submit or blur that follows the field until the name is fixed.",
+		"Cancel, Escape, the close button and backdrop dismissal commit nothing, and a Dialog whose Project or Workspace leaves closes with it.",
+		"Creating a Project from a Workspace menu commits the new Project and that Workspace's membership together.",
+		"A name never changes the Workspace's directory, launch resources, terminal identity or Git identity."
+	],
+	"references": ["packages/workbench/docs/project-workspace.md"]
+}

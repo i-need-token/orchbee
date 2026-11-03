@@ -28,33 +28,32 @@ describe('useWorkbenchSidebar', () => {
 		expect(rendered.result.current.projectCreation).toBeNull();
 	});
 
-	it('prepares and clears Project and Workspace management drafts', () => {
+	it('prepares and clears Project and Workspace rename drafts', () => {
 		const state = projectState();
 		const rendered = renderHook(
 			({ snapshot }: { readonly snapshot: ProjectWorkspaceState }) => useWorkbenchSidebar(snapshot),
 			{ initialProps: { snapshot: state } },
 		);
 
-		act(() => rendered.result.current.showProjectManager('project-1'));
-		expect(rendered.result.current.projectManagement).toMatchObject({
+		act(() => rendered.result.current.showProjectRename('project-1'));
+		expect(rendered.result.current.projectRename).toMatchObject({
 			name: 'orchbee',
 			project: { id: 'project-1' },
 		});
-		act(() => rendered.result.current.projectManagement?.setName('Orchbee'));
-		expect(rendered.result.current.projectManagement?.name).toBe('Orchbee');
-		act(() => rendered.result.current.projectManagement?.close());
-		expect(rendered.result.current.projectManagement).toBeNull();
+		act(() => rendered.result.current.projectRename?.setName('Orchbee'));
+		expect(rendered.result.current.projectRename?.name).toBe('Orchbee');
+		act(() => rendered.result.current.projectRename?.close());
+		expect(rendered.result.current.projectRename).toBeNull();
 
-		act(() => rendered.result.current.showWorkspaceManager('workspace-1'));
-		expect(rendered.result.current.workspaceManagement).toMatchObject({
+		act(() => rendered.result.current.showWorkspaceRename('workspace-1'));
+		expect(rendered.result.current.workspaceRename).toMatchObject({
 			name: 'Primary',
-			primaryDirectoryId: 'directory-1',
 			workspace: { id: 'workspace-1' },
 		});
-		act(() => rendered.result.current.workspaceManagement?.setName('Feature'));
-		expect(rendered.result.current.workspaceManagement?.name).toBe('Feature');
-		act(() => rendered.result.current.workspaceManagement?.close());
-		expect(rendered.result.current.workspaceManagement).toBeNull();
+		act(() => rendered.result.current.workspaceRename?.setName('Feature'));
+		expect(rendered.result.current.workspaceRename?.name).toBe('Feature');
+		act(() => rendered.result.current.workspaceRename?.close());
+		expect(rendered.result.current.workspaceRename).toBeNull();
 	});
 
 	it('subscribes to the optional Environment Project connection source', () => {
