@@ -87,8 +87,9 @@ fn a_new_workspace_starts_in_the_selected_workspace_first_terminal_directory() {
         fixture.screen(&tui.terminal)
     );
     assert!(
-        until(OBSERVATION, || sidebar_folder_ends_with(
+        until(OBSERVATION, || sidebar_folder_is(
             &fixture.screen(&tui.terminal),
+            "beta",
             "beta"
         )),
         "the sidebar's folder line never followed the first terminal:\n{}",
@@ -378,15 +379,18 @@ fn sidebar_shows(screen: &str, label: &str) -> bool {
     })
 }
 
-/// Whether a sidebar row shows a folder whose last component is `name`; a folder truncates in
-/// the middle, so its end stays visible.
-fn sidebar_folder_ends_with(screen: &str, name: &str) -> bool {
-    screen.lines().any(|line| {
-        line.split('│').next().is_some_and(|cell| {
-            cell.trim()
-                .strip_suffix(name)
-                .is_some_and(|rest| rest.ends_with(['\\', '/']))
-        })
+/// Whether the Workspace row named `label` has a folder line reading `folder`: outside Git the
+/// second line names only the folder's last component.
+fn sidebar_folder_is(screen: &str, label: &str, folder: &str) -> bool {
+    let cells: Vec<&str> = screen
+        .lines()
+        .map(|line| line.split('│').next().unwrap_or_default().trim())
+        .collect();
+    cells.windows(2).any(|pair| {
+        pair[0]
+            .strip_prefix(label)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with(' '))
+            && pair[1] == folder
     })
 }
 
