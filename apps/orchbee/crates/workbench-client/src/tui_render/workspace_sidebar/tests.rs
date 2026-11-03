@@ -752,9 +752,11 @@ fn long_branch_and_custom_text_shrink_before_fixed_divergence_counts() {
 }
 
 #[test]
-fn folder_location_uses_the_whole_row_and_keeps_both_ends_beside_agents() {
+fn folder_location_names_only_its_folder_and_gives_the_whole_directory_under_the_pointer() {
+    use crate::tui_hit_map::tooltip::Key;
     let mut view = view(120, 40);
-    // Longer than the 80-scalar label cap, so the end survives only if the whole path is kept.
+    // Longer than the 80-scalar label cap and the tooltip's two lines, so the tooltip keeps both
+    // ends of the very directory the row stands for.
     let path = "C:/Users/someone/AppData/Local/Temp/orchbee-review-long-directory-0123456789/nested-checkout-folder/checkout";
     let rows = view
         .machines
@@ -794,19 +796,18 @@ fn folder_location_uses_the_whole_row_and_keeps_both_ends_beside_agents() {
         )),
     )]);
     let (rows, _) = paint(&view, Locale::EnUs, &Theme::rgb_test_dark(), 120, 40);
-    // The Workspace with an Agent and its sibling without one show the same location line.
+    // The Workspace with an Agent and its sibling without one name the same folder, and no line
+    // shows any other part of its directory.
     let locations = rows
         .iter()
         .filter(|row| row.contains("checkout"))
         .collect::<Vec<_>>();
     assert_eq!(locations.len(), 2, "{rows:?}");
-    assert_eq!(locations[0], locations[1], "{rows:?}");
-    assert!(
-        locations[0].trim_start().starts_with("C:/Users/"),
-        "{rows:?}"
-    );
-    assert!(locations[0].contains('…'), "{rows:?}");
-    // Each row's pointer tooltip gives the cut path whole, to be cut in the middle if still long.
+    for location in &locations {
+        assert_eq!(location.split('│').next().unwrap().trim(), "checkout");
+    }
+    assert!(!rows.iter().any(|row| row.contains("C:/")), "{rows:?}");
+    // Only the folder's own cells give the whole directory, to be cut in the middle if long.
     let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
     let mut hits = HitMapBuilder::new();
     terminal
@@ -818,11 +819,41 @@ fn folder_location_uses_the_whole_row_and_keeps_both_ends_beside_agents() {
     let paths = hits
         .tooltip_contents()
         .filter(|content| {
-            matches!(content, TooltipContent::Describe { text: Some(text), .. }
-                if text.text == path && text.middle)
+            matches!(content, TooltipContent::Describe { text: Some(text), legend }
+                if text.text == path && text.middle && legend.is_empty())
         })
         .count();
     assert_eq!(paths, 2);
+    let map = hits.finish();
+    let buffer = terminal.backend().buffer();
+    let y = (0..40)
+        .find(|&y| {
+            (0..30)
+                .map(|x| buffer[(x, y)].symbol())
+                .collect::<String>()
+                .contains("checkout")
+        })
+        .unwrap();
+    let offered: Vec<_> = (0..30)
+        .filter(|&x| matches!(map.tooltip_at(x, y), Some(Key::Part { .. })))
+        .map(|x| buffer[(x, y)].symbol())
+        .collect();
+    assert_eq!(offered.concat(), "checkout");
+
+    // A home folder reads `~` under Windows spelling; a root keeps its own spelling.
+    for (directory, home, name) in [
+        ("C:\\Users\\Someone", Some("c:/users/someone/"), "~"),
+        (
+            "C:\\Users\\Someone\\Desktop\\",
+            Some("C:\\Users\\Someone"),
+            "Desktop",
+        ),
+        ("/home/someone/code/orchbee", None, "orchbee"),
+        ("C:\\", Some("C:\\Users\\Someone"), "C:\\"),
+        ("/", None, "/"),
+    ] {
+        assert_eq!(folder_name(directory, home), name, "{directory}");
+    }
 }
 
 fn paint_navigation_buffers(

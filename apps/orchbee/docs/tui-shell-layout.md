@@ -179,12 +179,17 @@ their `↑`/`↓` arrows keep them apart where no color shows, as in Monochrome.
 On the identity line they end at the row's trailing edge, where the close control appears, or
 before the unread marker's two cells; on other lines they right-align at the end of the primary
 track. The default layout places them on the identity line and shows the Workspace location on the
-second line: its Git branch, or without one its folder, with a local home folder shortened to `~`.
-The folder is the first terminal's current directory, otherwise the Workspace's own directory; see
-[automatic Workspace names](native-location-labels.md#automatic-workspace-names).
+second line: its Git branch, or without one its folder's name. A location never shows a whole
+directory: the folder reads as its last name, such as `Desktop`, a local home folder itself as `~`,
+and only a drive or file-system root keeps its own spelling. The name repeats even when it equals
+the Workspace name, so every row keeps its height when Git settles. The folder is the first
+terminal's current directory, otherwise the Workspace's own directory; see
+[automatic Workspace names](native-location-labels.md#automatic-workspace-names). The branch is
+that directory's, so a Workspace whose first terminal stands in a folder outside any repository,
+such as the folder holding its Worktree checkouts, names that folder even when its own checkout is
+a repository; a Git read that fails or has not answered also leaves the folder.
 Continuation lines, the location included, use the whole primary track whether or not the identity
-line reserves a disclosure. A folder is a path and truncates in the middle, keeping its first and
-last folders; a branch truncates at the end.
+line reserves a disclosure. A branch and a folder's name truncate at the end.
 A configured continuation line appears only once one of its values is visible, so a context with
 neither branch nor folder shows one line and pending metadata never reserves a blank row. Branch
 and custom continuation rows align with the Workspace name. A configured `state_icon` paints nothing
@@ -774,7 +779,7 @@ Pending and canonical Workspace rows reserve the same nonempty configured token 
 
 ## Sidebar symbol discovery
 
-F1 includes a symbol legend for unread activity, disclosure and all Agent states. A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. A row whose painted line cuts its Workspace name, branch, folder, Agent title or group heading gives the first such name in full, a folder cut in the middle if it is still too long. Glyphs name themselves only under the pointer: an Agent's state glyph names its state, a folded Workspace's status line each distinct state it shows, most urgent first, and an unread dot unread activity. The rest of the row names no glyph. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. A Project's disclosure offers none, group headings and other rows offer only a cut name, and the list's last row keeps the overflow range. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
+F1 includes a symbol legend for unread activity, disclosure and all Agent states. A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. A row whose painted line cuts its Workspace name, branch, Agent title or group heading gives the first such name in full. A folder's name gives its full directory, cut in the middle if it is still too long, only while the pointer rests on the cells that name it. Glyphs name themselves only under the pointer: an Agent's state glyph names its state, a folded Workspace's status line each distinct state it shows, most urgent first, and an unread dot unread activity. The rest of the row names no glyph. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. A Project's disclosure offers none, group headings and other rows offer only a cut name, and the list's last row keeps the overflow range. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
 
 ## Shortcut discovery scope
 

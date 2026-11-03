@@ -187,7 +187,7 @@ fn a_directory_change_moves_the_location_line_once_and_never_paints_a_question_m
     trace.read(true, [on_main(), on_main()]);
     assert_eq!(
         trace.moved,
-        ["moved / main", "moved / C:/code", "moved / main"]
+        ["moved / main", "moved / code", "moved / main"]
     );
     assert_eq!(trace.other, ["other / main"]);
 }
@@ -205,7 +205,7 @@ fn a_first_visit_changes_the_name_and_the_line_together_to_their_final_value() {
         trace.moved,
         [
             "moved / main",
-            "moved-plain / C:/plain",
+            "moved-plain / plain",
             "moved-orchbee ↑18 / main",
             "moved-fixture / main",
         ]
@@ -217,7 +217,7 @@ fn a_first_visit_changes_the_name_and_the_line_together_to_their_final_value() {
 fn a_row_without_an_earlier_git_answer_also_waits_for_its_first_one() {
     let mut trace = Trace::after_first_read([None, on_main()]);
     trace.visit("moved-sub", "C:/repo/sub", on_main());
-    assert_eq!(trace.moved, ["moved / C:/repo", "moved-sub / main"]);
+    assert_eq!(trace.moved, ["moved / repo", "moved-sub / main"]);
 }
 
 #[test]
@@ -230,11 +230,11 @@ fn a_hung_git_read_releases_the_row_at_the_bound_and_a_late_answer_corrects_it()
     assert!(!trace.tick(SPACE_HOLD_BOUND / 2 - Duration::from_millis(1)));
     assert_eq!(trace.moved, ["moved / main"]);
     assert!(trace.tick(Duration::from_millis(1)), "the UI must repaint");
-    assert_eq!(trace.moved, ["moved / main", "moved-b / C:/b"]);
+    assert_eq!(trace.moved, ["moved / main", "moved-b / b"]);
     trace.read(false, [on_main(), None]);
     assert_eq!(
         trace.moved,
-        ["moved / main", "moved-b / C:/b", "moved-b / main"]
+        ["moved / main", "moved-b / b", "moved-b / main"]
     );
 }
 
@@ -244,7 +244,7 @@ fn a_rename_during_the_wait_shows_at_once() {
     trace.commit_named("moved-a", Some("C:/a"));
     trace.read(false, [None, None]);
     trace.commit_named("moved-renamed", Some("C:/a"));
-    assert_eq!(trace.moved, ["moved / main", "moved-renamed / C:/a"]);
+    assert_eq!(trace.moved, ["moved / main", "moved-renamed / a"]);
 }
 
 #[test]
@@ -266,7 +266,7 @@ fn a_directory_without_a_coming_answer_ends_the_hold_on_the_real_folder() {
     let mut trace = Trace::new();
     trace.commit(Some(OUTSIDE));
     trace.read(true, [None, on_main()]);
-    assert_eq!(trace.moved, ["moved / main", "moved / C:/code"]);
+    assert_eq!(trace.moved, ["moved / main", "moved / code"]);
     assert_eq!(trace.other, ["other / main"]);
 
     // Reads that keep failing as a whole: the checkpoint is withdrawn as stale.
@@ -278,7 +278,7 @@ fn a_directory_without_a_coming_answer_ends_the_hold_on_the_real_folder() {
         .machines
         .observe_spaces(vec![(Choice::Local, Observation::Unavailable)]);
     trace.record();
-    assert_eq!(trace.moved, ["moved / main", "moved / C:/code"]);
+    assert_eq!(trace.moved, ["moved / main", "moved / code"]);
 }
 
 #[test]

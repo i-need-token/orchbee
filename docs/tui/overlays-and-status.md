@@ -405,7 +405,9 @@ pointer through help, menus, or the binding table.
   to the same target now, taken from the effective binding table and never hard-coded. A target
   already explained in words gets none; a tooltip never names the current marker, the row kind, or
   help. A glyph inside a larger target, such as a row's state glyph, names itself only while the
-  pointer rests on that glyph; the rest of the target gives only its cut name.
+  pointer rests on that glyph; so does a short name that stands for a longer one, such as a folder
+  named in place of its directory, which gives the longer one in full. The rest of the target
+  gives only its cut name.
 - The box is the context-menu frame without a heading, marker, or arrow: `surface-overlay` inside a
   `frame-unfocused` border with one padding cell each side, so it is its text width plus four cells
   by its line count plus two rows. Text is `text-primary`, keys use `hint-key`, and the box looks

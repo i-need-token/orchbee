@@ -693,8 +693,9 @@ Each Workspace reads separately because equal canonical directories may diverge.
 dirty-file count nor a zero invented for an unavailable repository. Detached
 and unborn branches, absent upstream, and nonrepositories remain explicit; a
 nonrepository is an observation without branch facts, so earlier facts are not retained.
-`location` shows the observed branch, otherwise the first terminal's recorded directory, else the
-canonical Workspace folder; a local folder under the Client's home is shortened to `~`.
+`location` shows the observed branch, otherwise the name of the first terminal's recorded
+directory, else of the canonical Workspace folder; the Client's home folder itself reads `~`, and
+the full directory is a pointer tooltip on that name.
 Reads never fetch, change configuration, start a terminal or execute a plugin.
 
 The Git read reuses the owned Windows discovery slot: checked start, poll,

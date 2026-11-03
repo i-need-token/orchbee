@@ -9,7 +9,7 @@ use super::{
     Block, ClientView, Frame, HitLayer, HitMapBuilder, Line, Locale, Paragraph, Rect, Role, Span,
     Theme, display_width, sidebar_text, tooltip, truncate_display,
 };
-use crate::terminal_text::{line_display_width, sanitize_terminal_text, truncate_display_middle};
+use crate::terminal_text::{line_display_width, sanitize_terminal_text};
 use crate::{
     client_view::ClientAction,
     localization::TooltipLabel,
@@ -46,6 +46,16 @@ pub(in crate::tui_render) struct ProjectedSidebarLines {
     /// Each name a line shows, whole, by line index: what its pointer tooltip gives in full once
     /// the painted line cuts it.
     names: Vec<(usize, TooltipText)>,
+    /// The folder a Workspace's location names, which gives its full directory under the pointer.
+    folder: Option<FolderPart>,
+}
+
+/// Where a line names a folder, in cells from the line's start, and the directory it stands for.
+struct FolderPart {
+    line: usize,
+    start: usize,
+    width: usize,
+    directory: TooltipText,
 }
 
 impl ProjectedSidebarLines {
@@ -54,6 +64,7 @@ impl ProjectedSidebarLines {
             lines,
             trailing: Vec::new(),
             names: Vec::new(),
+            folder: None,
         }
     }
 
@@ -112,8 +123,10 @@ struct Context<'a> {
     unnamed: &'static str,
     /// What this row keeps until the Git facts of its new directory are known.
     held: Option<&'a crate::machine_spaces::HeldRow>,
-    /// The Workspace folder shown by `location` when no branch is observed: the first terminal's
+    /// The directory `location` stands for when no branch is observed: the first terminal's
     /// current directory, else the Workspace's own directory.
+    directory: Option<&'a str>,
+    /// That directory by its folder's name, never the whole path.
     folder: Option<String>,
 }
 impl<'a> Context<'a> {
@@ -123,19 +136,16 @@ impl<'a> Context<'a> {
             state_role(glyph_state.unwrap_or(orchbee_workbench_protocol::MetadataState::Unknown));
         let observed = view.machines.space_checkpoint_row(row);
         let held = view.machines.space_held_row(row);
-        let folder = held
+        let directory = held
             .map_or_else(
                 || observed.and_then(crate::machine_spaces::Row::source_path),
                 |held| held.folder.as_ref(),
             )
-            .map(|path| {
-                let path = path.as_str();
-                (row.choice == crate::machine_picker::Choice::Local)
-                    .then(local_home)
-                    .flatten()
-                    .and_then(|home| home_relative(path, home))
-                    .unwrap_or_else(|| path.to_owned())
-            });
+            .map(orchbee_workbench_protocol::WorkbenchDirectoryPath::as_str);
+        let home = (row.choice == crate::machine_picker::Choice::Local)
+            .then(local_home)
+            .flatten();
+        let folder = directory.map(|path| folder_name(path, home));
         Self {
             row,
             observed,
@@ -144,6 +154,7 @@ impl<'a> Context<'a> {
             no_workspace: locale.shell().no_workspace,
             unnamed: locale.unnamed_workspace(),
             held,
+            directory,
             folder,
         }
     }
@@ -218,7 +229,7 @@ impl<'a> Context<'a> {
         }
     }
 }
-/// The Client's home folder, read once; it abbreviates only local Workspace folders.
+/// The Client's home folder, read once; only a local Workspace can stand in it.
 fn local_home() -> Option<&'static str> {
     static HOME: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
     HOME.get_or_init(|| {
@@ -226,21 +237,28 @@ fn local_home() -> Option<&'static str> {
     })
     .as_deref()
 }
-/// `~` replaces a leading home folder under Windows spelling equivalence: either separator,
-/// ASCII case and trailing separators. Any other path stays verbatim.
-fn home_relative(path: &str, home: &str) -> Option<String> {
+/// A directory by its last folder's name, so a location line never shows a whole path. The home
+/// folder itself reads `~`, compared under Windows spelling equivalence: either separator, ASCII
+/// case and trailing separators. A root has no folder name and keeps its own spelling.
+fn folder_name(path: &str, home: Option<&str>) -> String {
     const SEPARATORS: [char; 2] = ['\\', '/'];
-    let home = home.trim_end_matches(SEPARATORS);
+    let trimmed = path.trim_end_matches(SEPARATORS);
     let separator = |byte: u8| matches!(byte, b'\\' | b'/');
-    let same = path.len() >= home.len()
+    if let Some(home) = home.map(|home| home.trim_end_matches(SEPARATORS))
         && !home.is_empty()
-        && path.as_bytes()[..home.len()]
-            .iter()
-            .zip(home.as_bytes())
-            .all(|(&a, &b)| a.eq_ignore_ascii_case(&b) || separator(a) && separator(b));
-    let rest = path.get(home.len()..).filter(|_| same)?;
-    (rest.is_empty() || rest.starts_with(SEPARATORS))
-        .then(|| format!("~{}", rest.trim_end_matches(SEPARATORS)))
+        && trimmed.len() == home.len()
+        && trimmed
+            .bytes()
+            .zip(home.bytes())
+            .all(|(a, b)| a.eq_ignore_ascii_case(&b) || separator(a) && separator(b))
+    {
+        return "~".to_owned();
+    }
+    trimmed
+        .rsplit(SEPARATORS)
+        .next()
+        .filter(|name| !name.is_empty() && !name.ends_with(':'))
+        .map_or_else(|| path.to_owned(), str::to_owned)
 }
 /// Ahead/behind counts painted as right-aligned metadata on their configured line. Like common
 /// Git tools, commits to push read green and commits to pull read as a caution; the arrows still
@@ -268,8 +286,8 @@ fn git_spans(context: &Context<'_>, theme: &Theme, style: SidebarTokenStyle) -> 
     spans
 }
 /// The identity line keeps `shape.reserve` cells free even without metadata, so it truncates
-/// identically at rest and while a close control is revealed. A folder location is a path and
-/// truncates in the middle; branch and other text truncates at the end.
+/// identically at rest and while a close control is revealed. Every token, a folder's name
+/// included, truncates at its end; a folder's full directory belongs to its pointer tooltip.
 fn lines(
     view: &ClientView,
     row: &Row,
@@ -300,6 +318,7 @@ fn lines(
     let mut trailing = Vec::new();
     let mut slots = Vec::new();
     let mut names = Vec::new();
+    let mut folder = None;
     let identity = machine.clone();
     for tokens in view.machines.space_settings().rows() {
         // A Workspace row has no state column, so a configured state icon paints nothing; Git
@@ -317,12 +336,6 @@ fn lines(
                 }
                 let text = match kind {
                     Kind::StateIcon | Kind::GitStatus => String::new(),
-                    // A folder keeps its whole path: the label cap would cut away the end that
-                    // middle truncation keeps.
-                    Kind::Location if !context.shows_branch(kind) => {
-                        sanitize_terminal_text(context.value(kind).expect("visible folder"))
-                            .into_owned()
-                    }
                     _ => display_label(context.value(kind).expect("visible value")),
                 };
                 Some((kind, style.expect("visible style"), text))
@@ -370,22 +383,14 @@ fn lines(
         }
         let mut spans = Vec::new();
         let mut line_names = Vec::new();
+        let mut line_folder = None;
         for (i, (kind, style, text)) in resolved.into_iter().enumerate() {
-            // A Workspace name, branch or folder is a name; a folder is a path, cut in the middle.
-            match kind {
-                Kind::Workspace => line_names.push(full_name(text.clone())),
-                _ if context.shows_branch(kind) => line_names.push(full_name(text.clone())),
-                Kind::Location => line_names.push(TooltipText {
-                    text: text.clone(),
-                    middle: true,
-                }),
-                _ => {}
+            // A Workspace name and a branch give themselves in full once cut; a folder's name
+            // gives its whole directory instead, wherever the pointer rests on it.
+            if kind == Kind::Workspace || context.shows_branch(kind) {
+                line_names.push(full_name(text.clone()));
             }
-            let text = if kind == Kind::Location && !context.shows_branch(kind) {
-                truncate_display_middle(&text, budgets[i], theme.glyphs.ellipsis)
-            } else {
-                truncate_display(&text, budgets[i], theme.glyphs.ellipsis)
-            };
+            let text = truncate_display(&text, budgets[i], theme.glyphs.ellipsis);
             if text.is_empty() {
                 continue;
             }
@@ -393,6 +398,19 @@ fn lines(
                 spans.push(Span::styled(
                     format!(" {} ", theme.glyphs.middle_dot),
                     text_style(Role::TextSecondary),
+                ));
+            }
+            if kind == Kind::Location
+                && !context.shows_branch(kind)
+                && let Some(directory) = context.directory
+            {
+                line_folder.get_or_insert((
+                    spans
+                        .iter()
+                        .map(|span: &Span<'_>| display_width(&span.content))
+                        .sum::<usize>(),
+                    display_width(&text),
+                    directory,
                 ));
             }
             let role = match kind {
@@ -409,6 +427,19 @@ fn lines(
         // Configured tracks keep their height while asynchronous metadata arrives.
         if context.keeps(tokens, lines.is_empty()) {
             names.extend(line_names.into_iter().map(|name| (lines.len(), name)));
+            if let Some((start, width, directory)) = line_folder
+                && folder.is_none()
+            {
+                folder = Some(FolderPart {
+                    line: lines.len(),
+                    start,
+                    width,
+                    directory: TooltipText {
+                        text: sanitize_terminal_text(directory).into_owned(),
+                        middle: true,
+                    },
+                });
+            }
             lines.push(Line::from(spans));
             trailing.push(right);
             slots.push(line_slot);
@@ -422,6 +453,7 @@ fn lines(
     if shape.folded {
         // The renderer paints the Agent status line over this reserved second line.
         names.retain(|(line, _)| *line != 1);
+        folder = folder.filter(|part| part.line != 1);
         if lines.len() > 1 {
             lines[1] = Line::default();
             trailing[1] = Line::default();
@@ -431,6 +463,9 @@ fn lines(
             trailing.push(Line::default());
             slots.push(0);
         }
+    }
+    if let Some(part) = folder.as_mut().filter(|part| part.line == 0) {
+        part.start += display_width(&identity);
     }
     lines[0]
         .spans
@@ -455,6 +490,7 @@ fn lines(
         lines,
         trailing,
         names,
+        folder,
     }
 }
 
@@ -1516,6 +1552,7 @@ pub(super) fn render(
             SidebarRow::Agent { row, .. } => agent_tokens::projection(view, row, locale, theme),
         };
         let names = std::mem::take(&mut projected_lines.names);
+        let folder = projected_lines.folder.take();
         let (mut row_lines, mut trailing) = projected_lines.into_parts();
         // An Agent title leaves the trailing unread cells only while that marker shows.
         if matches!(row, SidebarRow::Agent { .. }) && (markers > 0 || !inline.is_empty()) {
@@ -1549,6 +1586,23 @@ pub(super) fn render(
             *line = fit(std::mem::take(line), width, theme.glyphs.ellipsis);
         }
         let cut_name = ProjectedSidebarLines::cut_name(names, &row_lines);
+        // A folder's name gives its whole directory from the cells its line still shows.
+        let folder = folder.and_then(|part| {
+            let line = u16::try_from(part.line)
+                .ok()
+                .filter(|line| *line < content_height)?;
+            let end = (part.start + part.width).min(row_lines.get(part.line)?.width());
+            let start = part.start.min(end);
+            Some((
+                Rect::new(
+                    tracks.primary.x + u16::try_from(start).ok()?,
+                    tracks.content_y + line,
+                    u16::try_from(end - start).ok()?,
+                    1,
+                ),
+                part.directory,
+            ))
+        });
         let tracks = if has_disclosure {
             tracks.with_disclosure_after(row_lines.first().map_or(0, Line::width))
         } else {
@@ -2016,6 +2070,11 @@ pub(super) fn render(
                 if let Some(content) = tooltip::describe(None, legend) {
                     hits.record_part_tooltip(layer, rect, band, &target, content);
                 }
+            }
+            if let Some((rect, directory)) = folder
+                && let Some(content) = tooltip::describe(Some(directory), Vec::new())
+            {
+                hits.record_part_tooltip(layer, rect, band, &target, content);
             }
             if let Some(content) = tooltip::describe(cut_name, Vec::new()) {
                 hits.record_interaction_tooltip(layer, band, &target, content);
