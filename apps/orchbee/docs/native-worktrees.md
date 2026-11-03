@@ -152,8 +152,10 @@ A borrowed primary Viewer is never detached; a temporary Viewer is released befo
 Configured destinations use one pure policy shared with CLI; unconfigured destinations remain
 Worker-owned. The generated branch is also used when deriving a configured default destination.
 The TUI reads admitted settings at preparation. Create validates the Worker-observed canonical
-receipt rather than comparing its literal operand spelling. Open matches the exact path selected
-from the listing.
+receipt rather than comparing its literal operand spelling. Open and Remove receipts name the
+checkout in Git's spelling, which may differ from a Workspace directory taken from a launch
+directory, so they match the path selected from the listing or the confirmed Workspace directory
+under `same_directory_spelling`.
 
 Project labels and grouping are metadata, not physical repository identity. Source revalidation
 uses stable Workspace/context/directory/Worker identity and the exact terminal binding.

@@ -274,32 +274,23 @@ fn uncertain_resume_keeps_original_identity_and_fences_old_attempts_until_a_corr
 
 #[test]
 fn removed_receipt_must_match_confirmed_path_and_workspace_and_attempt_limit_is_not_resumable() {
-    for fault in 0..3 {
+    for (receipt, workspace, notice) in [
+        ("C:/trees/猫", 80, WorktreeNotice::Removed),
+        // Git's spelling of a Workspace started from a Windows launch directory.
+        (r"c:\TREES\猫\", 80, WorktreeNotice::Removed),
+        ("C:/other", 80, WorktreeNotice::SourceChanged),
+        ("C:/trees/猫", 81, WorktreeNotice::SourceChanged),
+    ] {
         let (mut launcher, origin, _) = fixture();
         let plan = confirm(&mut launcher, &origin).unwrap();
-        let mut outcome = removed(
-            1,
-            if fault == 1 {
-                "C:/other"
-            } else {
-                "C:/trees/猫"
-            },
-        );
-        if fault == 2
-            && let WorkbenchWorktreeOutcome::Available { status, .. } = &mut outcome
+        let mut outcome = removed(1, receipt);
+        if let WorkbenchWorktreeOutcome::Available { status, .. } = &mut outcome
             && let WorktreeOperationStatus::Removed { workspace_id, .. } = status.as_mut()
         {
-            *workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 81)).unwrap();
+            *workspace_id = WorkbenchWorkspaceId::parse(&format!("{workspace:032x}")).unwrap();
         }
         assert!(launcher.start_settled(&plan.operation_id, Ok(outcome)));
-        assert_eq!(
-            launcher.notice(),
-            if fault == 0 {
-                WorktreeNotice::Removed
-            } else {
-                WorktreeNotice::SourceChanged
-            }
-        );
+        assert_eq!(launcher.notice(), notice, "{receipt} {workspace}");
     }
     let (mut launcher, origin, _) = fixture();
     let plan = confirm(&mut launcher, &origin).unwrap();

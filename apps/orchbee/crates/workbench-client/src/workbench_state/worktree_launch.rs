@@ -10,7 +10,7 @@ pub(crate) use draft::{WorktreeEdit, WorktreeStage};
 use orchbee_workbench_protocol::{
     WorkbenchDirectoryPath, WorkbenchProjectId, WorkbenchRequestId, WorkbenchWorktreeOutcome,
     WorkerId, WorktreeIntent, WorktreeOperationStatus, WorktreeQueryEntry, WorktreeQuerySource,
-    WorktreeSource,
+    WorktreeSource, same_directory_spelling,
 };
 pub(crate) use origin::{Origin, Preparation};
 use removal::Recovery;
@@ -631,7 +631,7 @@ impl Launcher {
                                     selector:
                                         orchbee_workbench_protocol::WorktreeSelector::Path { path },
                                     ..
-                                } => path == &checkout.path,
+                                } => same_directory_spelling(path.as_str(), checkout.path.as_str()),
                                 // The Server/Worker owns Create destination identity. Its correlated
                                 // receipt is canonical; the configured operand preserves spelling.
                                 _ => true,
@@ -655,8 +655,11 @@ impl Launcher {
                         WorktreeOperationStatus::Removed { path, workspace_id } => {
                             terminal = true;
                             op.focus_allowed = false;
+                            // Git reports the checkout in its own spelling, which can differ from
+                            // the Workspace directory's, such as a Client's launch directory.
                             self.notice = if op.plan.removal.as_ref().is_some_and(|target| {
-                                &target.path == path && &target.workspace_id == workspace_id
+                                same_directory_spelling(target.path.as_str(), path.as_str())
+                                    && &target.workspace_id == workspace_id
                             }) {
                                 WorktreeNotice::Removed
                             } else {
