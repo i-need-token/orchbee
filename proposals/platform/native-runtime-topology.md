@@ -1602,7 +1602,10 @@ choices stand unless review changes them:
   policy with the page's focus and the TUI's display context, and shows the title the Server sends
   in the taskbar and window switcher; nothing is drawn in the window. Before the first title, and
   for a cleared one with no template, the page is titled `Orchbee` instead of `Orchbee Workbench`.
-  The CLI's help for `terminal title` still names only the outer terminal window.
+  The CLI's help for `terminal title` still names only the outer terminal window. A Desktop window
+  on a staged Windows cohort showed the default template, took `terminal title set` and `clear` by
+  the time the CLI returned, kept a set title across a remote focus, followed a reloaded template,
+  and showed `Orchbee` after a clear with automatic titles off; no TUI shared the Session.
 - **Sidebar row menus take the TUI's compositions.** A Project holds New Workspace ▸, Rename, and a
   separated Dissolve; a Workspace holds Move to Project ▸, Rename, the Worktree commands, and a
   separated destructive Close. Duplicate, Manage Project, Manage Workspace, and Close All Workspaces
@@ -1744,6 +1747,14 @@ ran under the Server. These choices stand unless review changes them:
   names its installed identity, and says how the command ended for four seconds, where the TUI
   keeps five. Where the TUI's advice names a key or a reload the window lacks, the window's advice
   names what to do in the window.
+
+A Desktop window on a staged Windows cohort listed the configuration's commands in Search without
+the popup and named the one without a description Configured command 3. A shell command wrote its
+file about 130 ms after Enter, and a Pane command opened its Panel 76 ms after Enter, focused it, and
+ran there; each said Command accepted, in Chinese in a Chinese window. A changed configuration
+reached Search within a second, and a command chosen afterwards ran under its new identity. The run
+found that the Server sent a Pane command's split through Tab creation, which denied every Pane
+command, the TUI's too; the Server now creates it as a Panel.
 
 Not done in this slice: popup commands, keys for commands, and naming a command without a
 description by what it runs.
