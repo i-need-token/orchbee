@@ -161,17 +161,15 @@ test('real workspace selection retains foreign fixture, resource, process and di
 	const designTokens = selectVerificationScope(actual, ['packages/design-tokens/src/tokens.css']);
 	assert.equal(designTokens.all, false, designTokens.reasons.join('\n'));
 	assert.ok(designTokens.pnpm.includes('@orchbee/design-tokens'));
-	assert.deepEqual(designTokens.cargo, ['orchbee', 'orchbee-workbench-client']);
-	assert.equal(
-		selectVerificationScope(actual, ['packages/design-tokens/src/tokens.css.bak']).cargo.length,
-		0,
-	);
+	// The native theme reads the shared theme colors, not the CSS registry.
+	assert.equal(designTokens.cargo.length, 0);
 	for (const [contract, packages] of [
 		[
 			'schemas/workbench/v1/workbench-action-identities-v1.json',
 			['@orchbee/tab-strip', '@orchbee/workbench'],
 		],
 		['schemas/workbench/v1/tab-close-targets-conformance-v1.json', ['@orchbee/tab-strip']],
+		['schemas/workbench/v1/shared-theme-colors-v1.json', ['@orchbee/design-tokens']],
 	]) {
 		const parity = selectVerificationScope(actual, [contract]);
 		assert.equal(parity.all, false, parity.reasons.join('\n'));

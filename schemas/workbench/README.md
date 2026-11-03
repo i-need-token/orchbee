@@ -802,7 +802,7 @@ Canonical split `ratio` is optional with an equal default and finite 0.1–0.9 b
 
 ## Cross-Client parity sources
 
-Two version-1 files hold parity data that native tests previously read from GUI package sources.
+Three version-1 files hold parity data that native tests previously read from GUI package sources.
 Each carries `contractVersion: 1`; TypeScript and Rust tests read the same file, and neither reads
 the other's source.
 
@@ -817,8 +817,16 @@ the other's source.
   Close sets. `getTabCloseTargets` in `@orchbee/tab-strip` and the native Close-set owner must
   produce the same sets. It compares target policy only; lifecycle sequencing and empty-group
   cleanup stay with each host owner.
+- The [shared theme colors](v1/shared-theme-colors-v1.json) are the one authority for the colors
+  the GUI's Light and Dark themes share with the native One Light and One Dark: the primary action,
+  hover and press, and the Agent state colors, with `everyTheme` holding the traffic light that
+  every theme uses. Each color is an exact `#rrggbb` sRGB value; `opacity` marks a translucent
+  color that lies over the surface beneath it. The `@orchbee/design-tokens` registry must resolve
+  the matching system color to that value, and the native theme's matching role must carry it,
+  composited over its chrome when translucent; a name either consumer cannot map fails its test.
+  Every other color, host-relative System appearance, terminal-native colors and reduced-color
+  fallbacks stay with each theme's owner.
 
-Reusing another identity or changing Close target policy updates the file and both consumers in
-one change. `scripts/verification-scope.mjs` records the exact consumers of both files. The
-palette in `@orchbee/design-tokens` stays a separate source until the theme-authority change is
-accepted.
+Reusing another identity, changing Close target policy or changing a shared color updates the file
+and both consumers in one change. `scripts/verification-scope.mjs` records the exact consumers of
+all three files.

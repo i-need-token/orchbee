@@ -18,7 +18,6 @@ const foreignDependencies = [
 	['apps/desktop', 'apps/web'],
 ];
 const foreignPaths = [
-	['packages/design-tokens/src/tokens.css', 'apps/orchbee/crates/workbench-client'],
 	['crates/local-runtime/src/directory/windows/initialization.ps1', 'apps/terminal-host'],
 	['crates/local-runtime/src/directory/windows/reader.ps1', 'apps/terminal-host'],
 ];
@@ -32,6 +31,10 @@ const sharedContractInputs = [
 	[
 		'schemas/workbench/v1/tab-close-targets-conformance-v1.json',
 		['packages/tab-strip', 'apps/orchbee/crates/workbench-client'],
+	],
+	[
+		'schemas/workbench/v1/shared-theme-colors-v1.json',
+		['packages/design-tokens', 'apps/orchbee/crates/workbench-client'],
 	],
 ];
 

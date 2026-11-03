@@ -1,15 +1,79 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
+import sharedThemeColors from '../../../../schemas/workbench/v1/shared-theme-colors-v1.json';
 import { designTokenNames, responsiveBreakpoints } from '../design-token-names.generated';
 
-function ruleTokenNames(css: string, selector: "[data-theme='light']" | "[data-theme='dark']") {
+type ThemeSelector = "[data-theme='light']" | "[data-theme='dark']";
+
+interface ResolvedColor {
+	readonly opacity?: number;
+	readonly rgb: string;
+}
+
+/** The registry color that carries each color the native theme shares. */
+const SHARED_COLOR_TOKENS = new Map<string, string>([
+	['action', '--ob-sys-color-action-primary'],
+	['agentAttention', '--ob-sys-color-status-attention'],
+	['agentDone', '--ob-sys-color-status-agent-done'],
+	['agentError', '--ob-sys-color-status-agent-error'],
+	['agentIdle', '--ob-sys-color-status-agent-idle'],
+	['agentWorking', '--ob-sys-color-status-working'],
+	['hover', '--ob-sys-color-surface-hovered'],
+	['press', '--ob-sys-color-surface-pressed'],
+]);
+
+function ruleBody(css: string, selector: ThemeSelector): string {
 	const escapedSelector = selector.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 	const rule = new RegExp(`${escapedSelector} \\{(?<body>[\\s\\S]*?)\\n\\}`, 'u').exec(css);
 	const body = rule?.groups?.['body'];
 	if (body === undefined) throw new Error(`Missing ${selector} token rule.`);
+	return body;
+}
+
+function ruleTokenNames(css: string, selector: ThemeSelector) {
 	return new Set(
-		Array.from(body.matchAll(/^\s*(--ob-[a-z0-9-]+)\s*:/gmu), (match) => String(match[1])),
+		Array.from(ruleBody(css, selector).matchAll(/^\s*(--ob-[a-z0-9-]+)\s*:/gmu), (match) =>
+			String(match[1]),
+		),
 	);
+}
+
+function declaredValues(css: string): Map<string, string> {
+	return new Map(
+		Array.from(css.matchAll(/^\s*(--ob-[a-z0-9-]+)\s*:\s*([^;]+);/gmu), (match) => [
+			String(match[1]),
+			String(match[2]).replaceAll(/\s+/gu, ' ').trim(),
+		]),
+	);
+}
+
+/** The 8-bit sRGB channel of an achromatic OKLCH lightness. */
+function achromaticChannel(lightnessPercent: number): number {
+	const linear = (lightnessPercent / 100) ** 3;
+	const encoded = linear <= 0.003_130_8 ? 12.92 * linear : 1.055 * linear ** (1 / 2.4) - 0.055;
+	return Math.round(encoded * 255);
+}
+
+function resolveColor(value: string, references: ReadonlyMap<string, string>): ResolvedColor {
+	const mix = /^color-mix\( ?in srgb, (?<color>\S+) (?<percent>\d+)%, transparent ?\)$/u.exec(
+		value,
+	)?.groups;
+	if (mix !== undefined) {
+		const color = resolveColor(String(mix['color']), references);
+		return { opacity: Number(mix['percent']), rgb: color.rgb };
+	}
+	const reference = /^var\((?<name>--ob-ref-[a-z0-9-]+)\)$/u.exec(value)?.groups?.['name'];
+	if (reference !== undefined) {
+		const referenced = references.get(reference);
+		if (referenced === undefined) throw new Error(`Missing ${reference}.`);
+		return resolveColor(referenced, references);
+	}
+	if (/^#[0-9a-f]{6}$/u.test(value)) return { rgb: value };
+	const lightness = /^oklch\((?<lightness>[\d.]+)% 0 none\)$/u.exec(value)?.groups?.['lightness'];
+	if (lightness === undefined) throw new Error(`Unsupported shared color ${value}.`);
+	return {
+		rgb: `#${achromaticChannel(Number(lightness)).toString(16).padStart(2, '0').repeat(3)}`,
+	};
 }
 
 describe('design tokens', () => {
@@ -44,6 +108,31 @@ describe('design tokens', () => {
 		expect([...lightSystemColors].every((name) => name.startsWith('--ob-sys-color-'))).toBe(true);
 		expect(css).toContain(":root,\n[data-theme='light'] {\n\tcolor-scheme: light;");
 		expect(css).toContain("[data-theme='dark'] {\n\tcolor-scheme: dark;");
+	});
+
+	it('resolves the colors the native theme shares to the language-neutral palette', async () => {
+		const css = await readFile(new URL('../tokens.css', import.meta.url), 'utf8');
+		const references = new Map(
+			[...declaredValues(css)].filter(([name]) => name.startsWith('--ob-ref-')),
+		);
+		expect(sharedThemeColors.contractVersion).toBe(1);
+		const themes: readonly {
+			readonly colors: Readonly<Record<string, ResolvedColor>>;
+			readonly selector: ThemeSelector;
+		}[] = [
+			{ colors: sharedThemeColors.light, selector: "[data-theme='light']" },
+			{ colors: sharedThemeColors.dark, selector: "[data-theme='dark']" },
+		];
+		for (const { colors, selector } of themes) {
+			const system = declaredValues(ruleBody(css, selector));
+			for (const [name, color] of Object.entries({ ...sharedThemeColors.everyTheme, ...colors })) {
+				const token = SHARED_COLOR_TOKENS.get(name);
+				if (token === undefined) throw new Error(`${name} has no registry color.`);
+				const value = system.get(token);
+				if (value === undefined) throw new Error(`${selector} lacks ${token}.`);
+				expect(resolveColor(value, references), `${selector} ${name}`).toEqual(color);
+			}
+		}
 	});
 
 	it('collapses semantic motion durations for reduced-motion preferences', async () => {

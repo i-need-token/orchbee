@@ -981,7 +981,8 @@ These defaults also apply until the product owner overrules them:
   explicit action.
 - The first Managed Worktree migration includes removal of Worktrees the Client created.
 - macOS evidence stays a recorded manual run; no macOS Rust CI job is added.
-- The language-neutral palette waits for the GUI design follow-up and does not block the migration.
+- The language-neutral palette waited for the GUI design follow-up and did not block the migration.
+  It now holds the shared theme colors in `schemas/workbench`.
 - A small Rust process owns Server activation, peer verification, and OBLC admission, then relays
   the admitted byte stream to Desktop Main over stdio. TypeScript starts at OBWP. Step 2 proved this
   on Windows; POSIX runs it at step 7.
@@ -1678,11 +1679,11 @@ choices stand unless review changes them:
 
 ### Cross-language parity sources
 
-| Current source                                                                                        | Target authority                                                                   | Consumers                                           |
-| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `tokens.css` in `@orchbee/design-tokens`                                                              | One language-neutral palette, at the GUI design follow-up                          | CSS registry and native theme                       |
-| Agent canonical corpus, frozen since `@orchbee/agent` was deleted, and the join corpus citing Desktop | Contract-authored corpora in [`schemas/agent`](../../schemas/agent/README.md)      | Server and Worker                                   |
-| Integration vocabulary in `@orchbee/workbench-client-protocol` and Web Settings                       | [`schemas/agent-integration`](../../schemas/agent-integration/README.md), in place | Worker, Server, native Client, and Desktop Settings |
+| Current source                                                                                        | Target authority                                                                                                          | Consumers                                           |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `tokens.css` in `@orchbee/design-tokens`                                                              | The shared theme colors in [`schemas/workbench`](../../schemas/workbench/README.md#cross-client-parity-sources), in place | CSS registry and native theme                       |
+| Agent canonical corpus, frozen since `@orchbee/agent` was deleted, and the join corpus citing Desktop | Contract-authored corpora in [`schemas/agent`](../../schemas/agent/README.md)                                             | Server and Worker                                   |
+| Integration vocabulary in `@orchbee/workbench-client-protocol` and Web Settings                       | [`schemas/agent-integration`](../../schemas/agent-integration/README.md), in place                                        | Worker, Server, native Client, and Desktop Settings |
 
 ## Correctness claims and evidence plan
 

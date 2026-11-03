@@ -125,31 +125,40 @@ fn paired_pointer_projection_preserves_other_roles_and_explicit_colors_outside_t
     }
 }
 
-const DESIGN_TOKENS_CSS: &str =
-    include_str!("../../../../../../packages/design-tokens/src/tokens.css");
+/// The colors both Clients' Light and Dark themes share. The CSS registry is checked against the
+/// same file, and neither Client reads the other's source.
+const SHARED_THEME_COLORS: &str =
+    include_str!("../../../../../../schemas/workbench/v1/shared-theme-colors-v1.json");
 
-fn css_block<'a>(source: &'a str, selector: &str) -> &'a str {
-    let marker = format!("{selector} {{");
-    let (_, body) = source
-        .split_once(&marker)
-        .unwrap_or_else(|| panic!("missing CSS selector {selector}"));
-    body.split_once('}')
-        .unwrap_or_else(|| panic!("unterminated CSS selector {selector}"))
-        .0
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SharedThemeColors {
+    contract_version: u8,
+    every_theme: std::collections::BTreeMap<String, SharedColor>,
+    light: std::collections::BTreeMap<String, SharedColor>,
+    dark: std::collections::BTreeMap<String, SharedColor>,
 }
 
-fn css_value(block: &str, property: &str) -> String {
-    let marker = format!("{property}:");
-    let (_, value) = block
-        .split_once(&marker)
-        .unwrap_or_else(|| panic!("missing CSS property {property}"));
-    value
-        .split_once(';')
-        .unwrap_or_else(|| panic!("unterminated CSS property {property}"))
-        .0
-        .split_ascii_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SharedColor {
+    rgb: String,
+    /// A translucent color lies over the surface beneath it.
+    opacity: Option<u16>,
+}
+
+fn shared_color_role(name: &str) -> Role {
+    match name {
+        "action" => Role::AccentAction,
+        "hover" => Role::SurfaceHover,
+        "press" => Role::SurfacePressed,
+        "agentAttention" => Role::AgentAttention,
+        "agentDone" => Role::AgentDone,
+        "agentError" => Role::AgentError,
+        "agentIdle" => Role::StatusIdle,
+        "agentWorking" => Role::StatusWorking,
+        _ => panic!("shared color {name} has no native role"),
+    }
 }
 
 fn parse_hex_rgb(value: &str) -> [u8; 3] {
@@ -162,29 +171,6 @@ fn parse_hex_rgb(value: &str) -> [u8; 3] {
         u8::from_str_radix(&value[2..4], 16).expect("green hex channel"),
         u8::from_str_radix(&value[4..6], 16).expect("blue hex channel"),
     ]
-}
-
-fn parse_neutral_oklch(value: &str) -> u8 {
-    let mut parts = value
-        .strip_prefix("oklch(")
-        .and_then(|value| value.strip_suffix(')'))
-        .unwrap_or_else(|| panic!("expected oklch color, got {value}"))
-        .split_ascii_whitespace();
-    let lightness = parts
-        .next()
-        .and_then(|value| value.strip_suffix('%'))
-        .and_then(|value| value.parse::<f64>().ok())
-        .unwrap_or_else(|| panic!("missing OKLCH lightness in {value}"));
-    assert_eq!(parts.next(), Some("0"), "expected an achromatic token");
-    assert_eq!(parts.next(), Some("none"), "expected an achromatic hue");
-    assert_eq!(parts.next(), None, "unexpected OKLCH component");
-    let linear = (lightness / 100.0).powi(3);
-    let srgb = if linear <= 0.003_130_8 {
-        12.92 * linear
-    } else {
-        1.055 * linear.powf(1.0 / 2.4) - 0.055
-    };
-    (srgb * 255.0).round() as u8
 }
 
 fn rgb_channels(color: Color) -> [u8; 3] {
@@ -354,112 +340,28 @@ fn windows_terminal_color_capability_respects_explicit_descriptors_and_multiplex
 }
 
 #[test]
-fn named_roles_conform_to_the_public_design_token_contract() {
-    let references = css_block(DESIGN_TOKENS_CSS, ":root");
-    let light = css_block(DESIGN_TOKENS_CSS, "[data-theme='light']");
-    let dark = css_block(DESIGN_TOKENS_CSS, "[data-theme='dark']");
-
-    let accent = css_value(references, "--ob-ref-color-orchbee-accent");
-    let light_text = css_value(references, "--ob-ref-color-orchbee-light-text");
-    let neutral_100 = css_value(references, "--ob-ref-color-neutral-100");
-    let neutral_700 = css_value(references, "--ob-ref-color-neutral-700");
-    let neutral_800 = css_value(references, "--ob-ref-color-neutral-800");
-    assert_eq!(accent, "#2778c1");
-    assert_eq!(light_text, "#141414");
-    assert_eq!(neutral_100, "oklch(97% 0 none)");
-    assert_eq!(neutral_700, "oklch(37.1% 0 none)");
-    assert_eq!(neutral_800, "oklch(26.9% 0 none)");
-
-    assert_eq!(
-        css_value(light, "--ob-sys-color-action-primary"),
-        "var(--ob-ref-color-orchbee-accent)"
-    );
-    assert_eq!(
-        css_value(light, "--ob-sys-color-surface-hovered"),
-        "color-mix( in srgb, var(--ob-ref-color-orchbee-light-text) 8%, transparent )"
-    );
-    assert_eq!(
-        css_value(light, "--ob-sys-color-surface-pressed"),
-        "color-mix( in srgb, var(--ob-ref-color-orchbee-light-text) 12%, transparent )"
-    );
-    assert_eq!(
-        css_value(dark, "--ob-sys-color-action-primary"),
-        "var(--ob-ref-color-neutral-100)"
-    );
-    assert_eq!(
-        css_value(dark, "--ob-sys-color-surface-hovered"),
-        "var(--ob-ref-color-neutral-800)"
-    );
-    assert_eq!(
-        css_value(dark, "--ob-sys-color-surface-pressed"),
-        "var(--ob-ref-color-neutral-700)"
-    );
-
-    let theme = Theme::one_light();
-    assert_eq!(
-        rgb_channels(theme.color(Role::AccentAction)),
-        parse_hex_rgb(&accent)
-    );
-    let chrome = rgb_channels(theme.color(Role::SurfaceChrome));
-    let interaction_foreground = parse_hex_rgb(&light_text);
-    assert_eq!(
-        rgb_channels(theme.color(Role::SurfaceHover)),
-        composite_rgb(interaction_foreground, chrome, 8)
-    );
-    assert_eq!(
-        rgb_channels(theme.color(Role::SurfacePressed)),
-        composite_rgb(interaction_foreground, chrome, 12)
-    );
-
-    // The GUI's Agent glyph colors are the TUI's fixed traffic light, in both registry themes.
-    for (role, system, reference) in [
-        (Role::AgentAttention, "status-attention", "yellow"),
-        (Role::AgentDone, "status-agent-done", "green"),
-        (Role::AgentError, "status-agent-error", "red"),
+fn named_roles_conform_to_the_shared_theme_colors() {
+    let shared: SharedThemeColors = serde_json::from_str(SHARED_THEME_COLORS).unwrap();
+    assert_eq!(shared.contract_version, 1);
+    for (theme, colors) in [
+        (Theme::one_light(), &shared.light),
+        (Theme::one_dark(), &shared.dark),
     ] {
-        let reference = format!("--ob-ref-color-traffic-light-{reference}");
-        for block in [light, dark] {
+        // The cell grid has no translucency, so a translucent color is composited over chrome.
+        let chrome = rgb_channels(theme.color(Role::SurfaceChrome));
+        for (name, color) in shared.every_theme.iter().chain(colors) {
+            let rgb = parse_hex_rgb(&color.rgb);
+            let expected = color
+                .opacity
+                .map_or(rgb, |opacity| composite_rgb(rgb, chrome, opacity));
             assert_eq!(
-                css_value(block, &format!("--ob-sys-color-{system}")),
-                format!("var({reference})")
+                rgb_channels(theme.color(shared_color_role(name))),
+                expected,
+                "{} {name}",
+                theme.name
             );
         }
-        assert_eq!(
-            rgb_channels(Theme::one_dark().color(role)),
-            parse_hex_rgb(&css_value(references, &reference))
-        );
     }
-
-    let theme = Theme::one_dark();
-    assert_eq!(
-        css_value(dark, "--ob-sys-color-status-agent-idle"),
-        "var(--ob-ref-color-groknight-gray)"
-    );
-    assert_eq!(
-        rgb_channels(theme.color(Role::StatusIdle)),
-        parse_hex_rgb(&css_value(references, "--ob-ref-color-groknight-gray"))
-    );
-    assert_eq!(
-        css_value(dark, "--ob-sys-color-status-working"),
-        "var(--ob-ref-color-agent-working-dark)"
-    );
-    assert_eq!(
-        rgb_channels(theme.color(Role::StatusWorking)),
-        parse_hex_rgb(&css_value(references, "--ob-ref-color-agent-working-dark"))
-    );
-    let neutral = |value| [parse_neutral_oklch(value); 3];
-    assert_eq!(
-        rgb_channels(theme.color(Role::AccentAction)),
-        neutral(&neutral_100)
-    );
-    assert_eq!(
-        rgb_channels(theme.color(Role::SurfaceHover)),
-        neutral(&neutral_800)
-    );
-    assert_eq!(
-        rgb_channels(theme.color(Role::SurfacePressed)),
-        neutral(&neutral_700)
-    );
 }
 
 #[test]

@@ -51,6 +51,8 @@ System colors enumerate surface, content, border, action, status, and interactio
 }
 ```
 
+The colors the native terminal themes share, the Light and Dark primary action, hover, press and Agent state colors, follow the language-neutral [shared theme colors](../../schemas/workbench/README.md#cross-client-parity-sources). A package test resolves the matching system colors and checks them against that file, so changing one of them updates the file and the native theme in the same change.
+
 The sans and code stacks include explicit Chinese system-font fallbacks, avoiding serif browser defaults for Chinese glyphs. Display roles use semibold type with a compact 1.125 line-height at 48, 60 and 72 CSS pixels; application heading roles retain their existing scale.
 
 Authored motion uses the semantic duration and easing tokens. The registry maps non-instant semantic durations to instant when the user requests reduced motion.
