@@ -30,7 +30,7 @@ A Directory has `placement: local` or `placement: environment(EnvironmentId)`. I
 ```text
 ProjectWorkspaceState
 ├── activeLocation: standalone | workspace(WorkspaceId)
-├── standaloneTerminalContextId, expandedProjectIds, allocation sequences
+├── standaloneTerminalContextId, expandedProjectIds, recentsExpanded, allocation sequences
 ├── projects[]: { id, name } (ordered optional groups)
 ├── resourceScopes[]: { id, name, directories[], primaryDirectoryId, launchConfigurations[] }
 └── workspaces[] (ordered)
@@ -117,7 +117,7 @@ and rejection classes. Projected metadata supplies no trusted command-execution 
 | Worktree create / adopt     | Exact source and validated Git descriptor           | Directory, optional Workspace, first shell and current grouping together  | Create one context if needed |
 | Reopen associated Worktree  | Same physical Worktree already has a Workspace      | Return that stable Workspace; no duplicate                                | None                         |
 | Resource catalog edit       | Valid source namespace and resolving references     | Update only that namespace and affected defaults                          | None                         |
-| Activate Workspace          | Stable Workspace exists                             | Select it and disclose current group if any                               | None                         |
+| Activate Workspace          | Stable Workspace exists                             | Select it and disclose its Project or Recents                             | None                         |
 | Reorder                     | Source and target share current nullable membership | Reorder peers without changing membership                                 | None                         |
 | Duplicate preview Workspace | Local source and preview composition                | Fresh context identities, same resource namespace and membership          | Fresh shell projections      |
 | Remote registration         | Authoritative Environment descriptor                | Scope / inactive Workspace with an empty context                          | No shell or Host effect      |
@@ -158,6 +158,17 @@ No current surface dispatches `project-worktree-created` or `project-worktree-ad
 `project-worktree-created` takes an exact source Workspace and Directory. The host revalidates its immutable scope, context and path after asynchronous preparation. A moved source uses its current group. An ungrouped source and the new Workspace gain one newly created Project in the same transition as the Directory and first shell. If no Workspace is requested, only the resource catalog changes. A closed source is never recreated. Publication preserves local navigation. A known created checkout is retained if the product commit fails; regrouping never authorizes compensation or deletion.
 
 `project-worktree-adopted` accepts host-revalidated `source: discovered` metadata, including detached `branch: null` and exact `HEAD`. It shares creation's current-membership and first-shell rules. Physical Git identity is checked across all groups and resource scopes. An already-associated Worktree returns its existing Workspace; an equivalent unassociated Folder descriptor may be upgraded in place without changing its ID.
+
+## Sidebar groups
+
+The sidebar groups Workspaces as the TUI does. Projects come first in their order, each heading its
+Workspaces; the Workspaces outside any Project follow under a Recents heading, always last and absent
+while it would be empty. The list has no heading of its own, and no group heading shows a member
+count. A heading is never current, even folded around the active Workspace, although a sidebar focus
+request lands on that heading while the active Workspace is hidden. Recents folds like a Project
+through `recentsExpanded`, which this client's view keeps beside `expandedProjectIds` and opens by
+default; it has no menu and neither starts nor receives a drag. Activating a Workspace, or creating one
+here, opens its Project or Recents.
 
 ## Project navigation action menus
 

@@ -1566,6 +1566,18 @@ Not done in this slice: branch, base, and location entry, repository trust, forc
 TUI's Windows refusal while the Client stands in the checkout. The model's Worktree leftovers, the
 `worktree` Directory kind and the creation and adoption transitions, wait for the step 6 audit.
 
+The GUI design follow-up has begun with the TUI's settled sidebar and status decisions. These
+choices stand unless review changes them:
+
+- **Agent outcomes use the fixed traffic light.** Needs attention, Completed, and Failed glyphs take
+  the TUI's `#FEBC2E`, `#28C840`, and `#FF5F57` in both themes; state words keep the status text
+  roles.
+- **The sidebar groups Workspaces as the TUI does.** Projects come first, then the Workspaces
+  outside any Project under a Recents heading, always last. The list has no heading, no group
+  heading counts its members, and no heading is current, even folded around the active Workspace.
+  Recents folds like a Project but has no menu and takes no part in dragging; it has no icon, since
+  the product icons have none that fits.
+
 ### Evidence
 
 - Each step records the owning Web and Desktop builds and a Server-backed run of the path it

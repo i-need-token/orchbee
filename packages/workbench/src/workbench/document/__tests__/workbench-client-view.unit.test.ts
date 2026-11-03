@@ -160,6 +160,7 @@ describe('Workbench Client View', () => {
 		expect(view).toEqual({
 			activeLocation: { kind: 'standalone' },
 			expandedProjectIds: [],
+			recentsExpanded: true,
 			terminalContexts: [
 				{
 					panelWorkspace: { tabs: [] },
@@ -182,6 +183,7 @@ describe('Workbench Client View', () => {
 		const stale = createWorkbenchClientView({
 			activeLocation: { kind: 'standalone' },
 			expandedProjectIds: ['missing-project'],
+			recentsExpanded: true,
 			terminalContexts: [
 				{
 					panelWorkspace: { tabs: [] },

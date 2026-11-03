@@ -228,6 +228,7 @@ interface WorkbenchView {
 	readonly onVerticalTabStripCollapsedChange: (collapsed: boolean) => void;
 	readonly toggleSidebar: () => void;
 	readonly toggleProjectExpansion: (projectId: string) => void;
+	readonly toggleRecentsExpansion: () => void;
 	readonly activateWorkspace: (
 		workspaceId: string,
 		origin: WorkbenchTerminalLocationActivationOrigin,
@@ -801,6 +802,7 @@ export function useWorkbench({
 			cancel: intl.formatMessage(workbenchMessages.resourceCancel),
 			close: intl.formatMessage(workbenchMessages.resourceClose),
 			collapseProject: intl.formatMessage(workbenchMessages.projectCollapse),
+			collapseRecents: intl.formatMessage(workbenchMessages.recentsCollapse),
 			connectProject: intl.formatMessage(workbenchMessages.projectConnect),
 			connectViaSsh: intl.formatMessage(workbenchMessages.projectConnectViaSsh),
 			create: intl.formatMessage(workbenchMessages.resourceCreate),
@@ -809,6 +811,7 @@ export function useWorkbench({
 			disconnectProject: intl.formatMessage(workbenchMessages.projectDisconnect),
 			duplicateWorkspace: intl.formatMessage(workbenchMessages.workspaceDuplicate),
 			expandProject: intl.formatMessage(workbenchMessages.projectExpand),
+			expandRecents: intl.formatMessage(workbenchMessages.recentsExpand),
 			folderAcquisitionFailureDismiss: intl.formatMessage(
 				workbenchMessages.projectFolderAcquisitionDismiss,
 			),
@@ -896,6 +899,7 @@ export function useWorkbench({
 			projectManageTitle: intl.formatMessage(workbenchMessages.projectManageTitle),
 			projectOptions: intl.formatMessage(workbenchMessages.projectOptions),
 			projectWorktrees: intl.formatMessage(workbenchMessages.projectWorktrees),
+			recents: intl.formatMessage(workbenchMessages.recents),
 			removeProject: intl.formatMessage(workbenchMessages.projectRemove),
 			retryProjectConnection: intl.formatMessage(workbenchMessages.projectRetryConnection),
 			removeProjectFolder: intl.formatMessage(workbenchMessages.projectRemoveFolder),
@@ -1026,6 +1030,9 @@ export function useWorkbench({
 		},
 		toggleProjectExpansion: (projectId) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.toggleProjectExpansion, { projectId }, 'button');
+		},
+		toggleRecentsExpansion: () => {
+			actions.invoke(WORKBENCH_ACTION_IDS.toggleRecentsExpansion, undefined, 'button');
 		},
 		setResourcePrimaryDirectory: (resourceScopeId, directoryId) => {
 			actions.invoke(

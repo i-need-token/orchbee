@@ -30,6 +30,7 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly cancel: string;
 	readonly close: string;
 	readonly collapseProject: string;
+	readonly collapseRecents: string;
 	readonly connectProject: string;
 	readonly connectViaSsh: string;
 	readonly disconnectProject: string;
@@ -56,6 +57,7 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly deleteWorkspace: string;
 	readonly duplicateWorkspace: string;
 	readonly expandProject: string;
+	readonly expandRecents: string;
 	readonly folderAcquisitionFailureDismiss: string;
 	readonly folderAcquisitionFailureMessages: Readonly<
 		Record<WorkbenchProjectFolderAcquisitionFailureCode, string>
@@ -87,6 +89,7 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly projectManageTitle: string;
 	readonly projectOptions: string;
 	readonly projectWorktrees: string;
+	readonly recents: string;
 	readonly removeProject: string;
 	readonly retryProjectConnection: string;
 	readonly removeProjectFolder: string;

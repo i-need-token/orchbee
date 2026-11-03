@@ -60,6 +60,10 @@
 	cursor: grab;
 }
 
+.projectRow[data-recents-row] {
+	cursor: default;
+}
+
 .project[data-dragging] .projectRow,
 .workspace[data-dragging] .workspaceRow {
 	position: fixed;
@@ -113,7 +117,6 @@
 	color: var(--ob-sys-color-text-primary);
 }
 
-.projectItem[data-active],
 .workspaceItem[data-active] {
 	background: var(--ob-sys-color-surface-selected);
 	color: var(--ob-sys-color-text-primary);
@@ -127,10 +130,6 @@
 	color: var(--ob-sys-color-text-primary);
 }
 
-.projectRow:hover .projectItem[data-active],
-.projectRow:focus-within .projectItem[data-active],
-.projectRow[data-popup-open] .projectItem[data-active],
-.projectRow:has(.rowMenu[aria-expanded='true']) .projectItem[data-active],
 .workspaceRow:hover .workspaceItem[data-active],
 .workspaceRow:focus-within .workspaceItem[data-active],
 .workspaceRow[data-popup-open] .workspaceItem[data-active],
@@ -147,8 +146,6 @@
 .workspaceRow:hover .icon,
 .workspaceRow:focus-within .icon,
 .workspaceRow[data-popup-open] .icon,
-.projectItem[data-active] .icon,
-.projectItem[data-active] .disclosure,
 .workspaceItem[data-active] .icon,
 .projectRow:has(.rowMenu[aria-expanded='true']) .icon,
 .projectRow:has(.rowMenu[aria-expanded='true']) .disclosure,
@@ -336,10 +333,4 @@
 	.agentDisclosureIcon {
 		transition: none;
 	}
-}
-
-.project[data-ungrouped] > .workspaceList {
-	margin-inline-start: 0;
-	padding-inline-start: 0;
-	border-inline-start: none;
 }

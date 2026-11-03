@@ -83,6 +83,7 @@ describe('workbench action contracts', () => {
 			setResourcePrimaryDirectory: 'workbench.resource.primary-directory.set',
 			toggleActivePanelMaximization: 'workbench.panel.active.maximization.toggle',
 			toggleProjectExpansion: 'workbench.project.expansion.toggle',
+			toggleRecentsExpansion: 'workbench.recents.expansion.toggle',
 			toggleSidebar: 'workbench.sidebar.toggle',
 			updateWorkspace: 'workbench.workspace.update',
 			createWorktree: 'workbench.worktree.create',

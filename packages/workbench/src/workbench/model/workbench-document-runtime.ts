@@ -80,6 +80,7 @@ export function projectWorkbenchClientView(
 	return createWorkbenchClientView({
 		activeLocation: { ...snapshot.projectWorkspace.activeLocation },
 		expandedProjectIds: [...snapshot.projectWorkspace.expandedProjectIds],
+		recentsExpanded: snapshot.projectWorkspace.recentsExpanded,
 		terminalContexts: snapshot.terminalContexts
 			.map((terminalContext) => ({
 				panelWorkspace: projectPanelWorkspaceView(terminalContext.panelWorkspace),
@@ -106,6 +107,7 @@ export function hydrateWorkbenchDocuments(
 			...document.projectWorkspace,
 			activeLocation: { ...clientView.activeLocation },
 			expandedProjectIds: [...clientView.expandedProjectIds],
+			recentsExpanded: clientView.recentsExpanded,
 		},
 		revision: document.revision,
 		terminalContexts: document.terminalContexts.map((terminalContext) => {

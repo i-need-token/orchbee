@@ -63,6 +63,7 @@ interface ProjectNavigationItemProps {
 	readonly showProjectManager: (projectId: string) => void;
 	readonly showWorkspaceManager: (workspaceId: string) => void;
 	readonly toggleProjectExpansion: (projectId: string) => void;
+	readonly toggleRecentsExpansion: () => void;
 	readonly toggleWorkspaceAgentExpansion: (workspaceId: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
 	readonly worktreeMenu: (workspaceId: string) => WorkspaceWorktreeMenu;
@@ -97,6 +98,7 @@ export function ProjectNavigationItem({
 	showProjectManager,
 	showWorkspaceManager,
 	toggleProjectExpansion,
+	toggleRecentsExpansion,
 	toggleWorkspaceAgentExpansion,
 	workspaceAgentOverviews,
 	worktreeMenu,
@@ -105,7 +107,8 @@ export function ProjectNavigationItem({
 	const workspaces = state.workspaces.filter(
 		(workspace) => workspace.projectId === (project?.id ?? null),
 	);
-	const representsActiveWorkspace =
+	// A folded heading is never current, but sidebar focus lands on the one hiding the active Workspace.
+	const holdsHiddenActiveWorkspace =
 		!expanded &&
 		activeLocation.kind === 'workspace' &&
 		workspaces.some((workspace) => workspace.id === activeLocation.workspaceId);
@@ -191,13 +194,37 @@ export function ProjectNavigationItem({
 	return (
 		<li
 			className={styles['project']}
-			data-ungrouped={project === null || undefined}
 			data-dragging={dragging || undefined}
 			data-navigation-reorder-id={project?.id}
 			data-project-id={project?.id}
 			data-project-reorder-active={reorderActive || undefined}
 			data-project-reorder-displacement={displacement ?? undefined}
 		>
+			{project === null && (
+				// Recents only folds: it has no menu and neither starts nor receives a drag.
+				<div className={styles['projectRow']} data-recents-row='true'>
+					<Button
+						aria-expanded={expanded}
+						aria-label={expanded ? messages.collapseRecents : messages.expandRecents}
+						className={styles['projectItem']}
+						data-holds-active-workspace={holdsHiddenActiveWorkspace || undefined}
+						data-slot='workbench-sidebar-recents'
+						size='sm'
+						variant='ghost'
+						onClick={toggleRecentsExpansion}
+					>
+						<span aria-hidden='true' className={styles['icon']} />
+						<span className={styles['projectName']}>{messages.recents}</span>
+						<span
+							aria-hidden='true'
+							className={styles['disclosure']}
+							data-expanded={expanded || undefined}
+						>
+							<ProductIcon name='chevron-right' />
+						</span>
+					</Button>
+				</div>
+			)}
 			{project !== null && (
 				<ContextMenu
 					onOpenChange={(open, details) => {
@@ -221,7 +248,7 @@ export function ProjectNavigationItem({
 							aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
 							aria-label={`${expanded ? messages.collapseProject : messages.expandProject}: ${project.name}${environmentConnection === null ? '' : `. ${messages.projectConnectionStatus[environmentConnection.state]}`}`}
 							className={styles['projectItem']}
-							data-active={representsActiveWorkspace || undefined}
+							data-holds-active-workspace={holdsHiddenActiveWorkspace || undefined}
 							data-slot='workbench-sidebar-project'
 							size='sm'
 							variant='ghost'
@@ -269,7 +296,7 @@ export function ProjectNavigationItem({
 					/>
 				</ContextMenu>
 			)}
-			{(project === null || expanded) && (
+			{expanded && (
 				<ul
 					ref={workspaceReorder.listRef}
 					className={styles['workspaceList']}

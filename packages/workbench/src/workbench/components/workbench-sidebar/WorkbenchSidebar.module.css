@@ -141,25 +141,6 @@
 	margin-block-start: auto;
 }
 
-.sectionHeader {
-	flex: none;
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	margin-block-end: var(--ob-ref-space-1);
-	padding-inline-start: var(--ob-ref-space-1-5);
-}
-
-.sectionHeading {
-	margin: var(--ob-ref-space-0);
-	color: var(--ob-sys-color-text-label);
-	font: var(--ob-sys-typography-label-sm);
-}
-
-.sectionCount {
-	color: var(--ob-sys-color-text-secondary);
-}
-
 .projectList {
 	position: relative;
 	margin: var(--ob-ref-space-0);

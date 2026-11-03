@@ -99,6 +99,7 @@ interface WorkbenchSidebarProps {
 	readonly settingsShortcutLabel: string;
 	readonly terminalLabel: string;
 	readonly toggleProjectExpansion: (projectId: string) => void;
+	readonly toggleRecentsExpansion: () => void;
 	readonly updateWorkspace: (workspaceId: string, name: string, primaryDirectoryId: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
 	/** A Workspace whose resources are decided elsewhere can only be renamed here. */
@@ -149,6 +150,7 @@ export function WorkbenchSidebar({
 	settingsShortcutLabel,
 	terminalLabel,
 	toggleProjectExpansion,
+	toggleRecentsExpansion,
 	updateWorkspace,
 	workspaceAgentOverviews,
 	workspaceResourcesEditable,
@@ -180,6 +182,12 @@ export function WorkbenchSidebar({
 		newFolder.close();
 	};
 	const projectReorder = useNavigationReorderDrag(projectWorkspaceState.projects, reorderProject);
+	// Recents, the Workspaces outside any Project, is the last group, listed only while it has one.
+	const navigationGroups = projectWorkspaceState.workspaces.some(
+		(workspace) => workspace.projectId === null,
+	)
+		? [...projectWorkspaceState.projects, null]
+		: projectWorkspaceState.projects;
 	const standaloneActive = projectWorkspaceState.activeLocation.kind === 'standalone';
 	const projectCreation = view.projectCreation;
 	const projectManagement = view.projectManagement;
@@ -236,15 +244,7 @@ export function WorkbenchSidebar({
 						</Button>
 					</li>
 				</ul>
-				<section className={styles['projectSection']}>
-					<div className={styles['sectionHeader']}>
-						<h2 className={styles['sectionHeading']}>
-							{projectLabel}{' '}
-							<span className={styles['sectionCount']}>
-								{projectWorkspaceState.workspaces.length}
-							</span>
-						</h2>
-					</div>
+				<div className={styles['projectSection']}>
 					<div className={styles['projectRegion']} data-navigation-reorder-scroll='true'>
 						{standaloneTerminalAvailable ? (
 							<div>
@@ -267,12 +267,14 @@ export function WorkbenchSidebar({
 								</Button>
 							</div>
 						) : null}
+						{/* Project and Recents headings name the groups; the list shows no heading of its own. */}
 						<ul
 							ref={projectReorder.listRef}
+							aria-label={projectLabel}
 							className={styles['projectList']}
 							data-project-reorder-dragging={projectReorder.draggingItemId ?? undefined}
 						>
-							{[null, ...projectWorkspaceState.projects].map((project) => (
+							{navigationGroups.map((project) => (
 								<ProjectNavigationItem
 									key={project?.id ?? 'ungrouped'}
 									agentGradientPrefix={`${agentOverview.agentGradientPrefix}-${project?.id ?? 'ungrouped'}`}
@@ -298,9 +300,10 @@ export function WorkbenchSidebar({
 									connectEnvironment={environmentProjectConnection?.connect}
 									disconnectEnvironment={environmentProjectConnection?.disconnect}
 									expanded={
-										project !== null &&
-										projectWorkspaceState.expandedProjectIds.includes(project.id) &&
-										projectReorder.draggingItemId !== project.id
+										project === null
+											? projectWorkspaceState.recentsExpanded
+											: projectWorkspaceState.expandedProjectIds.includes(project.id) &&
+												projectReorder.draggingItemId !== project.id
 									}
 									dragging={projectReorder.draggingItemId === project?.id}
 									messages={projectNavigationMessages}
@@ -317,6 +320,7 @@ export function WorkbenchSidebar({
 									showProjectManager={view.showProjectManager}
 									showWorkspaceManager={view.showWorkspaceManager}
 									toggleProjectExpansion={toggleProjectExpansion}
+									toggleRecentsExpansion={toggleRecentsExpansion}
 									toggleWorkspaceAgentExpansion={agentOverview.toggleWorkspace}
 									workspaceAgentOverviews={workspaceAgentOverviews}
 									worktreeMenu={workspaceWorktrees.menu}
@@ -347,7 +351,7 @@ export function WorkbenchSidebar({
 							/>
 						</div>
 					</div>
-				</section>
+				</div>
 				<div className={styles['footer']}>
 					<Button
 						aria-disabled={onSettings === undefined}

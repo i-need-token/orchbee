@@ -75,6 +75,7 @@ export function createFocusRecoveredWorkbenchClientView(
 			workspace?.projectId === null || workspace === undefined
 				? defaultView.expandedProjectIds
 				: [...new Set([...defaultView.expandedProjectIds, workspace.projectId])],
+		recentsExpanded: defaultView.recentsExpanded,
 		terminalContexts: defaultView.terminalContexts.map((terminalContext) => {
 			if (terminalContext.terminalContextId !== location.terminalContextId) {
 				return terminalContext;

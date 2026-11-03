@@ -1759,7 +1759,7 @@ function publishedProjectWorkspaceState(
 ): ProjectWorkspaceState {
 	const knownProjectIds = new Set(previous.projects.map((project) => project.id));
 	const viewExpandedProjectIds = new Set(hydrated.expandedProjectIds);
-	const firstWorkspace = hydrated.workspaces[0];
+	const firstWorkspace = firstWorkspaceInDisplayOrder(hydrated);
 	return {
 		...hydrated,
 		activeLocation: retainActiveLocation(
@@ -1774,6 +1774,17 @@ function publishedProjectWorkspaceState(
 				(projectId) => viewExpandedProjectIds.has(projectId) || !knownProjectIds.has(projectId),
 			),
 	};
+}
+
+/** The sidebar lists each Project's Workspaces in Project order, then Recents. */
+function firstWorkspaceInDisplayOrder(
+	state: ProjectWorkspaceState,
+): WorkbenchWorkspace | undefined {
+	for (const project of state.projects) {
+		const workspace = state.workspaces.find((candidate) => candidate.projectId === project.id);
+		if (workspace !== undefined) return workspace;
+	}
+	return state.workspaces.find((workspace) => workspace.projectId === null);
 }
 
 function publishedPanelWorkspaceState(

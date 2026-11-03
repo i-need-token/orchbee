@@ -391,6 +391,32 @@ export function registerWorkbenchProjectWorkspaceActions({
 				category: categoryProjects,
 				execution: {
 					concurrency: 'serialize',
+					concurrencyKey: () => 'recents',
+					mode: 'foreground',
+				},
+				getAvailability: () => ({
+					checked: projectWorkspaceRuntime.getSnapshot().recentsExpanded,
+					kind: 'enabled',
+				}),
+				handler: {
+					execute: (context) =>
+						resultFor(
+							transitionWithCommit(context, projectWorkspaceRuntime, {
+								type: 'recents-expansion-toggled',
+							}),
+						),
+				},
+				id: WORKBENCH_ACTION_IDS.toggleRecentsExpansion,
+				input: noActionInput,
+				title: workbenchMessages.recentsToggleExpansion,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: categoryProjects,
+				execution: {
+					concurrency: 'serialize',
 					concurrencyKey: (input) => input.workspaceId,
 					mode: 'foreground',
 				},

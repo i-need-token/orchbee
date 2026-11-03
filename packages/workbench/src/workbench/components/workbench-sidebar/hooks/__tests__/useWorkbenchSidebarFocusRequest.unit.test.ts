@@ -43,7 +43,7 @@ function FocusHarness({
 					'button',
 					{
 						'aria-expanded': showCurrent,
-						'data-active': activeProject ? '' : undefined,
+						'data-holds-active-workspace': activeProject ? '' : undefined,
 						'data-slot': 'workbench-sidebar-project',
 						onClick: onToggleProject,
 						type: 'button',
@@ -106,7 +106,7 @@ describe('useWorkbenchSidebarFocusRequest', () => {
 		);
 		expect(document.activeElement).toBe(project);
 		expect(project.getAttribute('aria-expanded')).toBe('false');
-		expect(project.hasAttribute('data-active')).toBe(true);
+		expect(project.hasAttribute('data-holds-active-workspace')).toBe(true);
 		expect(screen.queryByRole('button', { name: 'Current workspace' })).toBeNull();
 
 		rendered.rerender(

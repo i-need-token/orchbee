@@ -37,9 +37,9 @@
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--project-workspace-navigation",
 			"states": [
-				"Inspect fixed New workspace and Search full-row actions above the plain Workspaces count heading. Activate with keyboard and pointer, scroll a long list, and verify that both entries remain visible at 200px sidebar width in both locales.",
+				"Inspect fixed New workspace and Search full-row actions above the Workspace list, which has no heading of its own. Activate with keyboard and pointer, scroll a long list, and verify that both entries remain visible at 200px sidebar width in both locales.",
 				"Create multiple Workspaces with one click and inspect distinct localized default names, then move, ungroup, or dissolve a group while retaining terminal state.",
-				"Inspect expanded and collapsed Projects, active and default Workspace rows, and the nested hierarchy guide line.",
+				"Inspect expanded and collapsed Projects and the trailing Recents group, active and default Workspace rows, and the nested hierarchy guide line; a heading folded around the active Workspace takes no current fill.",
 				"Tab forward and backward through the trailing Project create control and row options: each focused control appears immediately even when hidden at rest; inspect pointer hover and open-menu disclosure at wide and compact sizes.",
 				"Hover Project and Workspace rows, open their menus, right-click them, and inspect retained owner-row interaction states.",
 				"Drag a Project between siblings and verify the pointer-following row, midpoint-driven sibling squeeze motion, edge scrolling, temporary collapse, and restoration after the drop.",
@@ -72,8 +72,8 @@
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--collapsed-project-focus-reveal",
 			"states": [
-				"From the active terminal, press Ctrl+Shift+F6 to focus and reveal the last Project representing its hidden active Workspace, preserving the collapsed state and active terminal.",
-				"Inspect Chinese focus and menu affordances at wide and compact sizes; the visible active Project takes precedence over the standalone Terminal fallback."
+				"From the active terminal, press Ctrl+Shift+F6 to focus and reveal the last Project, folded around its hidden active Workspace, preserving the collapsed state and active terminal; the heading takes focus but no current fill.",
+				"Inspect Chinese focus and menu affordances at wide and compact sizes; the folded Project holding the active Workspace takes precedence over the standalone Terminal fallback."
 			]
 		},
 		{
@@ -114,12 +114,14 @@
 		"The caller only needs a generic tree primitive or a flat destination list without Workbench actions."
 	],
 	"invariants": [
-		"New workspace and Search occupy separate full-width fixed rows in that order. The Workspaces heading contains the complete count and no actions; the independently scrolling list retains the standalone destination and trailing Project creation menu.",
+		"New workspace and Search occupy separate full-width fixed rows in that order. The independently scrolling list has no heading of its own and retains the standalone destination and trailing Project creation menu.",
+		"Projects come first in their order, then the Workspaces outside any Project under a Recents heading, always last and absent while it would be empty; no group heading shows a member count.",
+		"Project and Recents headings are never current, even folded around the active Workspace. Recents folds like a Project but has no menu and neither starts nor receives a drag; activating or creating one of its Workspaces opens it, as it opens a Project.",
 		"Row options and Project creation remain reachable in both Tab directions, with immediate focus-within disclosure and no pointer hit target while hidden.",
 		"Exact row-local Shift+F10 and unmodified ContextMenu open the existing options dropdown for that row; composing, repeated, extra-modifier, and portaled-menu input never opens another menu or reaches a different object's actions.",
 		"Context-menu dismissal returns to the row's valid explicit options trigger through the shared primitive, while outside interaction, dialog handoff, and row removal cannot cause late focus theft.",
 		"A native keyboard contextmenu event from a row or the open dropdown identified by that row's exact trigger aria-controls cannot open a second menu; pointer context gestures and unrelated portal targets retain their existing behavior.",
-		"A new sidebar focus request resolves the current visible location, then the visible active Project representing a collapsed Workspace, then Terminal, without activating a location or expanding a Project.",
+		"A new sidebar focus request resolves the current visible location, then the folded Project or Recents heading holding the active Workspace, then Terminal, without activating a location or expanding a group.",
 		"Sidebar focus uses preventScroll and adjusts only the contained Project scroll owner's scrollTop to the nearer edge of its client viewport, clamped to the owner's scroll range; fully visible rows, oversized rows spanning the viewport, and zero-height geometry cause no scroll; standalone Terminal uses the same contained reveal rule.",
 		"Repeated sidebar request tokens and data changes alone do not move focus or scroll; a new request reveals its target even when it already has focus.",
 		"Selecting a Workspace changes the active terminal context while Project disclosure alone never changes it.",

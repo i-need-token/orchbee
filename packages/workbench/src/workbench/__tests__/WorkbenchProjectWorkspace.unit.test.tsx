@@ -357,11 +357,16 @@ describe('Workbench Project and Workspace management', () => {
 				.map((button) => button.textContent),
 		).toEqual(['New workspace', expect.stringContaining('Search')]);
 		expect(fixedActions.closest('[data-navigation-reorder-scroll]')).toBeNull();
-		const heading = screen.getByRole('heading', { name: 'Workspaces 0' });
-		expect(heading.parentElement?.querySelector('button')).toBeNull();
+		// The list has no heading; only a group with Workspaces shows its own.
+		expect(screen.getByRole('list', { name: 'Workspaces' })).toBeTruthy();
+		expect(screen.queryByRole('heading', { name: /Workspaces/u })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Collapse Recents' })).toBeNull();
 		fireEvent.click(create);
 		await waitFor(() => expect(runtime.getSnapshot().workspaces).toHaveLength(1));
-		expect(screen.getByRole('heading', { name: 'Workspaces 1' })).toBeTruthy();
+		fireEvent.click(screen.getByRole('button', { name: 'Collapse Recents' }));
+		await waitFor(() => expect(screen.queryByRole('button', { name: 'Workspace' })).toBeNull());
+		fireEvent.click(screen.getByRole('button', { name: 'Expand Recents' }));
+		await screen.findByRole('button', { name: 'Workspace' });
 		expect(screen.queryByRole('dialog')).toBeNull();
 		expect(runtime.getSnapshot().projects).toEqual([]);
 		const workspace = runtime.getSnapshot().workspaces[0];

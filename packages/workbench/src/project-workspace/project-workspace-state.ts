@@ -92,6 +92,11 @@ export interface ProjectWorkspaceState {
 	readonly nextTerminalContextSequence: number;
 	readonly nextWorkspaceSequence: number;
 	readonly projects: readonly WorkbenchProject[];
+	/**
+	 * Whether Recents, the group of Workspaces outside any Project, shows them. Like a Project, it
+	 * opens when one of its Workspaces is activated or created here.
+	 */
+	readonly recentsExpanded: boolean;
 	readonly resourceScopes: readonly WorkbenchResourceScope[];
 	readonly standaloneTerminalContextId: string;
 	readonly workspaces: readonly WorkbenchWorkspace[];
@@ -131,6 +136,7 @@ export type ProjectWorkspaceEvent =
 			readonly workspaceName: string;
 	  }
 	| { readonly type: 'project-expansion-toggled'; readonly projectId: string }
+	| { readonly type: 'recents-expansion-toggled' }
 	| {
 			readonly type: 'project-reordered';
 			readonly projectId: string;
@@ -265,6 +271,7 @@ export function createProjectWorkspaceState(): ProjectWorkspaceState {
 		nextTerminalContextSequence: 2,
 		nextWorkspaceSequence: 1,
 		projects: [],
+		recentsExpanded: true,
 		resourceScopes: [],
 		standaloneTerminalContextId: 'terminal-context-1',
 		workspaces: [],
@@ -335,6 +342,8 @@ function transition(
 					? state.expandedProjectIds.filter((id) => id !== event.projectId)
 					: [...state.expandedProjectIds, event.projectId],
 			});
+		case 'recents-expansion-toggled':
+			return applied({ ...state, recentsExpanded: !state.recentsExpanded });
 		case 'project-reordered': {
 			const projects = reorderItems(state.projects, event.projectId, event.beforeProjectId);
 			if (projects === null) return rejected(state, 'project-not-found');
@@ -734,16 +743,19 @@ function activateWorkspace(
 		workspace.projectId === null
 			? state.expandedProjectIds
 			: includeExpandedProject(state, workspace.projectId);
+	const recentsExpanded = state.recentsExpanded || workspace.projectId === null;
 	if (
 		state.activeLocation.kind === 'workspace' &&
 		state.activeLocation.workspaceId === workspaceId &&
-		expandedProjectIds === state.expandedProjectIds
+		expandedProjectIds === state.expandedProjectIds &&
+		recentsExpanded === state.recentsExpanded
 	)
 		return unchanged(state);
 	return applied({
 		...state,
 		activeLocation: { kind: 'workspace', workspaceId },
 		expandedProjectIds,
+		recentsExpanded,
 	});
 }
 
@@ -825,6 +837,7 @@ function createWorkspace(
 				remote || input.projectId === null
 					? state.expandedProjectIds
 					: includeExpandedProject(state, input.projectId),
+			recentsExpanded: state.recentsExpanded || (!remote && input.projectId === null),
 			nextTerminalContextSequence: availableTerminalContextSequence(state) + 1,
 			nextWorkspaceSequence: availableWorkspaceSequence(state) + 1,
 		},
@@ -1022,6 +1035,7 @@ function registerWorktree(
 			...created.state,
 			activeLocation: state.activeLocation,
 			expandedProjectIds: state.expandedProjectIds,
+			recentsExpanded: state.recentsExpanded,
 		},
 	};
 }

@@ -13,7 +13,7 @@ export function useWorkbenchSidebarFocusRequest(
 		if (root === null) return;
 		const target =
 			root.querySelector<HTMLElement>('[aria-current="page"]') ??
-			root.querySelector<HTMLElement>('[data-slot="workbench-sidebar-project"][data-active]') ??
+			root.querySelector<HTMLElement>('[data-holds-active-workspace]') ??
 			root.querySelector<HTMLElement>('[data-slot="workbench-sidebar-terminal"]');
 		if (target === null) return;
 		target.focus({ preventScroll: true });

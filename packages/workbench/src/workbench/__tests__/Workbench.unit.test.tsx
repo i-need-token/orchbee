@@ -191,18 +191,16 @@ describe('Workbench', () => {
 		expect(markup).not.toContain('data-empty="true"');
 	});
 
-	it('projects active Workspace selection onto only its collapsed Project row', () => {
+	it('marks the folded Project hiding the active Workspace for sidebar focus, never as current', () => {
 		const activeMarkup = renderWorkbench(() => null, 'en-US', true, true);
 		const standaloneMarkup = renderWorkbench(() => null, 'en-US', true, true, true);
 
 		expect(activeMarkup).toContain('aria-label="Expand project: orchbee"');
 		expect(activeMarkup).toMatch(
-			/<button(?=[^>]*data-slot="workbench-sidebar-project")(?=[^>]*data-active="true")[^>]*>/,
+			/<button(?=[^>]*data-slot="workbench-sidebar-project")(?=[^>]*data-holds-active-workspace="true")(?![^>]*data-active=)[^>]*>/,
 		);
 		expect(activeMarkup).not.toContain('data-slot="workbench-sidebar-workspace"');
-		expect(standaloneMarkup).not.toMatch(
-			/<button(?=[^>]*data-slot="workbench-sidebar-project")(?=[^>]*data-active="true")[^>]*>/,
-		);
+		expect(standaloneMarkup).not.toContain('data-holds-active-workspace');
 		expect(standaloneMarkup).toMatch(
 			/<button(?=[^>]*data-slot="workbench-sidebar-terminal")(?=[^>]*data-active="true")[^>]*>/,
 		);

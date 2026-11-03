@@ -79,9 +79,9 @@ sequential focus order. Closing, grouping, collapsing, or moving the focused ite
 on the same visible identity when possible and otherwise chooses the nearest visible item, then the
 active Tab or its collapsed-group representative, then the new-Tab button.
 
-On a new positive sidebar focus request, focus the visible current location, then the visible
-active Project representing a collapsed Workspace, then the standalone Terminal fallback. Focusing
-never activates a location or expands a Project. Only the existing Project scroll region may move:
+On a new positive sidebar focus request, focus the visible current location, then the folded
+Project or Recents heading holding the active Workspace, then the standalone Terminal fallback.
+Focusing never activates a location or expands a group. Only the existing Project scroll region may move:
 measure its content viewport using `clientTop` and `clientHeight`, and clamp the nearest-edge
 vertical adjustment to its scroll range. Fully visible rows and oversized rows already spanning
 the viewport do not move; other oversized rows align their nearer edge. Zero-height geometry does not scroll. The standalone Terminal is a list destination and follows

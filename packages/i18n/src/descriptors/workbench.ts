@@ -656,7 +656,8 @@ export const workbenchMessages = defineMessages({
 	project: {
 		id: 'workbench.sidebar.sections.project',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.sections.project'],
-		description: 'Heading for the project section in the Workbench sidebar.',
+		description:
+			'Accessible name of the Workspace list in the Workbench sidebar, which shows no heading of its own.',
 	},
 	projectCollapse: {
 		id: 'workbench.projects.actions.collapse',
@@ -934,6 +935,27 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.projects.manage.title',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.title'],
 		description: 'Title for the Project management interface.',
+	},
+	recents: {
+		id: 'workbench.sidebar.sections.recents',
+		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.sections.recents'],
+		description:
+			'Heading over the Workspaces outside any Project, always the last group in the Workbench sidebar.',
+	},
+	recentsCollapse: {
+		id: 'workbench.recents.actions.collapse',
+		defaultMessage: enUSWorkbenchMessages['workbench.recents.actions.collapse'],
+		description: 'Action that collapses the Recents group in the Workbench sidebar.',
+	},
+	recentsExpand: {
+		id: 'workbench.recents.actions.expand',
+		defaultMessage: enUSWorkbenchMessages['workbench.recents.actions.expand'],
+		description: 'Action that expands the Recents group in the Workbench sidebar.',
+	},
+	recentsToggleExpansion: {
+		id: 'workbench.recents.actions.toggleExpansion',
+		defaultMessage: enUSWorkbenchMessages['workbench.recents.actions.toggleExpansion'],
+		description: 'Action that toggles disclosure of the Recents group in the Workbench sidebar.',
 	},
 	resourceCancel: {
 		id: 'workbench.resource.actions.cancel',

@@ -71,6 +71,7 @@ export const WORKBENCH_ACTION_IDS = {
 	setResourcePrimaryDirectory: 'workbench.resource.primary-directory.set',
 	toggleActivePanelMaximization: 'workbench.panel.active.maximization.toggle',
 	toggleProjectExpansion: 'workbench.project.expansion.toggle',
+	toggleRecentsExpansion: 'workbench.recents.expansion.toggle',
 	toggleSidebar: 'workbench.sidebar.toggle',
 	updateWorkspace: 'workbench.workspace.update',
 	createWorktree: 'workbench.worktree.create',
@@ -267,6 +268,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.setResourcePrimaryDirectory]: ActionSignature<WorkbenchResourceDirectoryInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleActivePanelMaximization]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleProjectExpansion]: ActionSignature<WorkbenchProjectInput>;
+	readonly [WORKBENCH_ACTION_IDS.toggleRecentsExpansion]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleSidebar]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.updateWorkspace]: ActionSignature<WorkbenchWorkspaceUpdateInput>;
 	readonly [WORKBENCH_ACTION_IDS.createWorktree]: ActionSignature<

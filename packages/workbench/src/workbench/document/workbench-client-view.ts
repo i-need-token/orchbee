@@ -61,6 +61,7 @@ const terminalContextViewSchema = z.strictObject({
 const workbenchClientViewBaseSchema = z.strictObject({
 	activeLocation: activeLocationSchema,
 	expandedProjectIds: z.array(identifierSchema),
+	recentsExpanded: z.boolean(),
 	terminalContexts: z.array(terminalContextViewSchema),
 	version: z.literal(1),
 });
@@ -105,6 +106,7 @@ export function reconcileWorkbenchClientView(
 		expandedProjectIds: document.projectWorkspace.projects
 			.filter((project) => expandedCandidates.has(project.id))
 			.map((project) => project.id),
+		recentsExpanded: candidate?.recentsExpanded ?? true,
 		terminalContexts: document.terminalContexts.map((terminalContext) =>
 			reconcileTerminalContextView(
 				terminalContext,

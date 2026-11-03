@@ -292,6 +292,7 @@ export function Workbench({
 										terminalLabel={view.terminalLabel}
 										setResourcePrimaryDirectory={view.setResourcePrimaryDirectory}
 										toggleProjectExpansion={view.toggleProjectExpansion}
+										toggleRecentsExpansion={view.toggleRecentsExpansion}
 										updateWorkspace={view.updateWorkspace}
 										workspaceResourcesEditable={authority === undefined}
 										worktreeCommands={view.worktreeCommands}
