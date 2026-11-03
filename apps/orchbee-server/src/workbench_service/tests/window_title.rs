@@ -118,7 +118,13 @@ fn window_title_admission_checks_grants_session_and_disconnect() {
                 run(&subscriber, snapshot.session_id.clone(), 5, listen),
                 WindowTitleOutcome::Listening { snapshot: Some(_) }
             ));
+            // The foreground leaving wakes the Clients still listening, so the one now in front
+            // shows the title without waiting for another change.
+            let signal = Arc::new(orchbee_server::SessionChangeSignal::default());
+            caller.watch_changes(&signal);
+            let observed = signal.revision();
             drop(subscriber);
+            assert_ne!(signal.revision(), observed);
             assert_eq!(
                 run(&caller, snapshot.session_id, 6, action),
                 published(2, false)

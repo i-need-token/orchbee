@@ -1625,7 +1625,13 @@ choices stand unless review changes them:
   The CLI's help for `terminal title` still names only the outer terminal window. A Desktop window
   on a staged Windows cohort showed the default template, took `terminal title set` and `clear` by
   the time the CLI returned, kept a set title across a remote focus, followed a reloaded template,
-  and showed `Orchbee` after a clear with automatic titles off; no TUI shared the Session.
+  and showed `Orchbee` after a clear with automatic titles off. With a real TUI attached to the
+  same Session, a set title reached only the Client in front: the TUI came forward when it
+  attached, the window when its page regained focus under Chromium's focus emulation, and the
+  Client behind kept its last title. When the window in front closed, the TUI kept its old
+  title, because the Server forgot a departed listener without waking the others; it now wakes
+  them when the Client in front leaves, and the TUI showed the current title within about 0.1
+  seconds.
 - **Sidebar row menus take the TUI's compositions.** A Project holds New Workspace ▸, Rename, and a
   separated Dissolve; a Workspace holds Move to Project ▸, Rename, the Worktree commands, and a
   separated destructive Close. Duplicate, Manage Project, Manage Workspace, and Close All Workspaces

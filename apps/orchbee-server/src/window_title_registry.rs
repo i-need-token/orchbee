@@ -95,8 +95,11 @@ impl Registry {
         }
     }
 
-    pub(crate) fn disconnect(&mut self, generation: NonZeroU64) {
+    /// Forgets a connection's listening and says whether it was in front.
+    pub(crate) fn disconnect(&mut self, generation: NonZeroU64) -> bool {
+        let foreground = self.foreground() == Some(generation);
         self.listeners.remove(&generation);
+        foreground
     }
     fn foreground(&self) -> Option<NonZeroU64> {
         self.listeners

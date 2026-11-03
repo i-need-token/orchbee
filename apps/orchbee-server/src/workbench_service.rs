@@ -924,14 +924,23 @@ pub(crate) struct WorkbenchClientConnection<'a> {
     >,
 }
 impl WorkbenchClientConnection<'_> {
+    /// Forgets this connection's title listening. When it was in front, the Clients still listening
+    /// are asked again, so the one now in front shows the current title without waiting for
+    /// another change.
+    fn stop_title_listening(&self) {
+        let foreground = self
+            .service
+            .window_titles
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .disconnect(self.generation);
+        if foreground {
+            self.service.changes.notify();
+        }
+    }
     pub(crate) fn cancel_subscription(&self, request: &WorkbenchRequest) {
         match request {
-            WorkbenchRequest::WindowTitle(_) => self
-                .service
-                .window_titles
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .disconnect(self.generation),
+            WorkbenchRequest::WindowTitle(_) => self.stop_title_listening(),
             WorkbenchRequest::Notification(_) => self
                 .service
                 .notifications
@@ -1283,10 +1292,6 @@ impl Drop for WorkbenchClientConnection<'_> {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .disconnect(self.generation);
-        self.service
-            .window_titles
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .disconnect(self.generation);
+        self.stop_title_listening();
     }
 }
