@@ -49,6 +49,20 @@ impl WorkbenchDirectoryPath {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// The spelling Windows itself gives a drive path: every `/` becomes `\`, so a path Git
+    /// reports with `/` reads like one the system reports. POSIX-rooted paths and `\\?\` verbatim
+    /// paths, where `/` is an ordinary name character, keep their spelling. Like
+    /// [`same_windows_path_spelling`], this is lexical and never touches the filesystem.
+    #[must_use]
+    pub fn with_native_separators(&self) -> Self {
+        let path = self.0.as_bytes();
+        if matches!(path, [letter, b':', b'\\' | b'/', ..] if letter.is_ascii_alphabetic()) {
+            Self(self.0.replace('/', "\\"))
+        } else {
+            self.clone()
+        }
+    }
 }
 
 impl Serialize for WorkbenchDirectoryPath {

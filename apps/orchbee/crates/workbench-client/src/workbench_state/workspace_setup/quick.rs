@@ -3,7 +3,7 @@ use super::super::line_editor::{LengthLimit, LineEditor};
 use super::ClientContextTabs;
 use crate::localization::Locale;
 use orchbee_workbench_protocol::{
-    Project, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchProjectId,
+    Project, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchProjectId, same_windows_path_spelling,
 };
 use std::time::Instant;
 
@@ -255,7 +255,7 @@ impl QuickWorkspaceFields {
     pub(super) fn selected_directory(&self) -> Option<usize> {
         self.directories
             .iter()
-            .position(|path| path.as_str().eq_ignore_ascii_case(self.directory()))
+            .position(|path| same_windows_path_spelling(path.as_str(), self.directory()))
     }
     pub(super) fn select_directory(&mut self, index: usize, cache: &ClientContextTabs) -> bool {
         let Some(path) = self.directories.get(index) else {
@@ -551,7 +551,7 @@ impl WorkbenchClientState {
             if !fields
                 .directories
                 .iter()
-                .any(|prior| prior.as_str().eq_ignore_ascii_case(path.as_str()))
+                .any(|prior| same_windows_path_spelling(prior.as_str(), path.as_str()))
             {
                 fields.directories.push(path);
             }

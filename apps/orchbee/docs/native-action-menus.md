@@ -209,7 +209,8 @@ outcome from read-only machine observations.
 
 Project menus expose New Workspace ▸ and Rename Project, then a separated Dissolve Project, shown as Rename and Dissolve. New
 Workspace ▸ lists New Worktree…; a Folders group with the directories recorded by the Project's
-Workspaces (navigation order, deduplicated case-insensitively, labelled by directory name, or by the
+Workspaces (navigation order, deduplicated by `same_windows_path_spelling`, so ASCII case, either
+separator and a trailing separator never split one directory, labelled by directory name, or by the
 full path when names repeat); and a Git Worktrees group with the discovered non-bare checkouts
 (labelled by branch without `refs/heads/`, else by path). Group headings use `text-secondary` and
 are never selectable. A folder row creates a Workspace in that directory through the existing

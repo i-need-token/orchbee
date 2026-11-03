@@ -386,6 +386,16 @@ fn directory_source_without_a_project_opens_an_ungrouped_workspace() {
         after.navigation.projects, before.navigation.projects,
         "no Project is inferred from the repository"
     );
+    assert_eq!(
+        after
+            .navigation
+            .workspace_directory(&created)
+            .unwrap()
+            .path
+            .as_str(),
+        r"C:\new-checkout",
+        "the Git-reported `C:/new-checkout` is recorded as Windows spells it"
+    );
 }
 
 #[test]

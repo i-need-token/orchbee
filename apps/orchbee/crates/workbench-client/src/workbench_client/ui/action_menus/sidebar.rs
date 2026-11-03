@@ -79,11 +79,12 @@ pub(super) fn project_folders(
         let Some(directory) = navigation.workspace_directory(&workspace.workspace_id) else {
             continue;
         };
-        // Recorded paths differ only in case on case-insensitive hosts; one row serves both.
+        // Spellings of one Windows directory, such as by case or separator, share one row.
         if !folders.iter().any(|folder| {
-            folder
-                .as_str()
-                .eq_ignore_ascii_case(directory.path.as_str())
+            orchbee_workbench_protocol::same_windows_path_spelling(
+                folder.as_str(),
+                directory.path.as_str(),
+            )
         }) {
             folders.push(directory.path.clone());
         }

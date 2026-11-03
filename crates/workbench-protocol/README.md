@@ -196,7 +196,9 @@ This crate owns the typed requests, responses, validation, and framed transport 
 `WorkbenchDirectoryPath` preserves admitted operand spelling. `same_windows_path_spelling`
 shares the existing Worktree association comparison between Server and Client: separators,
 trailing separators and ASCII case may differ. It performs no filesystem identity check,
-canonicalization, verbatim-prefix or dot-component resolution. Wire syntax and runtime
+canonicalization, verbatim-prefix or dot-component resolution. `with_native_separators` gives a
+drive path the `\` spelling Windows reports, for a writer recording a Git-reported path; POSIX-rooted
+and `\\?\` verbatim spellings stay unchanged, and it is equally lexical. Wire syntax and runtime
 execution ownership remain unchanged.
 
 ## Configured command invocation
