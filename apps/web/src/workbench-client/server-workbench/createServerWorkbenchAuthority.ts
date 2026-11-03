@@ -16,7 +16,7 @@ import {
 import { createWorkbenchRequestId } from './createWorkbenchRequestId';
 import { handOverServerWorkbenchAction } from './handOverServerWorkbenchAction';
 import { readServerWorkbenchAction } from './readServerWorkbenchAction';
-import { closeServerWorkbench, watchServerWorkbenchClose } from './server-workbench-close';
+import { createServerWorkbenchClose } from './createServerWorkbenchClose';
 import { createServerWorktrees } from './createServerWorktrees';
 import {
 	SERVER_MINIMUM_SPLIT_PERCENT,
@@ -46,7 +46,7 @@ interface ServerWorkbenchAuthorityOptions {
 	readonly focusedWorkspaceId: () => string | null;
 	/** Without them, every Tab starts with the default launch profile. */
 	readonly launchProfiles?: ServerLaunchProfileSource;
-	readonly session: Parameters<typeof closeServerWorkbench>[0];
+	readonly session: Parameters<typeof createServerWorkbenchClose>[0];
 }
 
 interface WorkspaceLaunchPlan {
@@ -232,6 +232,7 @@ export function createServerWorkbenchAuthority({
 	session,
 }: ServerWorkbenchAuthorityOptions): WorkbenchAuthority {
 	return {
+		...createServerWorkbenchClose(session),
 		...(launchProfiles === undefined
 			? {}
 			: {
@@ -257,7 +258,6 @@ export function createServerWorkbenchAuthority({
 					);
 			}
 		},
-		close: (context, closure) => closeServerWorkbench(session, context, closure),
 		create: async (context, creation) => {
 			// A read names no revision, so it is asked before the command's turn instead of in it.
 			const workingDirectory =
@@ -335,7 +335,6 @@ export function createServerWorkbenchAuthority({
 						: { kind: 'completed' },
 			);
 		},
-		watchClose: (closure, onChanged) => watchServerWorkbenchClose(session, closure, onChanged),
 		worktrees: createServerWorktrees(session),
 	};
 }

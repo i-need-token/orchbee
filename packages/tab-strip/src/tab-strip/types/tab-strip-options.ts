@@ -70,6 +70,13 @@ export type TabStripCloseConfirmation = (
 	request: TabStripCloseRequest,
 ) => ActionConfirmation | null;
 
+/** A Tab's close that stopped where the composing application may continue it. */
+export interface TabStripCloseResume {
+	/** Read as the Tab's menu opens. */
+	readonly available: (tabId: string) => boolean;
+	readonly resume: (tabId: string) => void;
+}
+
 export type TabStripSelectCallback = (
 	context: ActionExecutionContext,
 	input: TabSelectionInput,
@@ -227,6 +234,8 @@ export interface TabStripOptions {
 		| undefined;
 	onCloseTabs?: TabStripCloseCallback | undefined;
 	getCloseTabsConfirmation?: TabStripCloseConfirmation | undefined;
+	/** Absent, no Tab menu offers to continue a stopped close. */
+	closeResume?: TabStripCloseResume | undefined;
 	onSelectTab?: TabStripSelectCallback | undefined;
 	/**
 	 * Present when another authority decides this collection. The strip then says what the person

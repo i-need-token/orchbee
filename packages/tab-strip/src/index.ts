@@ -10,6 +10,7 @@ export {
 	type TabStripCrossWindowDragRuntimeFactory,
 	type TabStripCloseCallback,
 	type TabStripCloseConfirmation,
+	type TabStripCloseResume,
 	type TabStripGroupNameRequest,
 	type TabCloseInput,
 	type TabSelectionInput,

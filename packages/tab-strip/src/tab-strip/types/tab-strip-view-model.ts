@@ -59,6 +59,7 @@ export interface TabStripViewModel {
 	readonly rovingFocusKey: TabStripRovingItem['key'] | null;
 	readonly onMoveTabsToNewWindow: TabStripOptions['onMoveTabsToNewWindow'];
 	readonly onMoveGroupToNewWindow: TabStripOptions['onMoveGroupToNewWindow'];
+	readonly closeResume: TabStripOptions['closeResume'];
 	readonly onSetTabTitle: TabStripOptions['onSetTabTitle'];
 	readonly onNameGroup: TabStripOptions['onNameGroup'];
 	readonly newTabChoices: TabStripOptions['newTabChoices'];

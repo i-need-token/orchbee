@@ -22,6 +22,7 @@ import { registerWorkbenchProjectWorkspaceActions } from '../actions/registerWor
 import { registerWorkbenchAgentNavigationAction } from '../actions/registerWorkbenchAgentNavigationAction';
 import { registerWorkbenchActiveTerminalActions } from '../actions/registerWorkbenchActiveTerminalActions';
 import { registerWorkbenchActiveTabActions } from '../actions/registerWorkbenchActiveTabActions';
+import { registerWorkbenchTabCloseResumeAction } from '../actions/registerWorkbenchTabCloseResumeAction';
 import {
 	registerWorkbenchTabTitleAction,
 	type WorkbenchTabTitleEditorRequest,
@@ -38,6 +39,7 @@ import {
 	type WorkbenchTerminalCreateInput,
 	workbenchTerminalCreateInput,
 } from '../actions/workbench-action-ids';
+import type { TerminalCloseImpact } from '../model/terminal-close-impact';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchAgentSource } from '../types/workbench-agent-observation';
 import type {
@@ -58,6 +60,8 @@ interface UseWorkbenchActionsOptions {
 		WorkbenchFocusRouting,
 		'beginTerminalHandover' | 'focus' | 'getResolution'
 	>;
+	/** The localized sentence naming what a close ends; keep it stable across renders. */
+	readonly formatCloseWarning: (impact: TerminalCloseImpact) => string;
 	readonly isSidebarVisible: boolean;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onNewTerminal: WorkbenchTerminalCreateCallback | undefined;
@@ -100,6 +104,7 @@ export function useWorkbenchActions({
 	agentObservationSource,
 	authority,
 	focusRouting,
+	formatCloseWarning,
 	isSidebarVisible,
 	navigation,
 	onNewTerminal,
@@ -205,8 +210,21 @@ export function useWorkbenchActions({
 				projectWorkspaceRuntime,
 				runtime,
 				scope,
+				stoppedTabClose: authority?.stoppedTabClose,
 				typedRuntime,
 			}),
+			...(authority === undefined
+				? []
+				: [
+						registerWorkbenchTabCloseResumeAction({
+							authority,
+							beginTerminalHandover: focusRouting.beginTerminalHandover,
+							formatCloseWarning,
+							projectWorkspaceRuntime,
+							scope,
+							typedRuntime,
+						}),
+					]),
 			...registerWorkbenchProjectWorkspaceActions({
 				authority,
 				beginTerminalHandover: focusRouting.beginTerminalHandover,
@@ -431,6 +449,7 @@ export function useWorkbenchActions({
 		agentObservationSource,
 		authority,
 		focusRouting,
+		formatCloseWarning,
 		isSidebarVisible,
 		navigation,
 		getNewTerminalAvailability,

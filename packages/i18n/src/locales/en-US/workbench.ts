@@ -284,8 +284,12 @@ export const enUSWorkbenchMessages = {
 		'Resize outcome unknown; inspect layout before trying again',
 	'workbench.panels.childTerminals.label': 'Child terminals',
 	'workbench.tabs.close.awaitingRemoval': '{label} · Execution ended; awaiting Tab removal',
+	'workbench.tabs.close.awaitingRemovalResumable':
+		'{label} · Execution ended; awaiting Tab removal · Close can be retried',
 	'workbench.tabs.close.cancelled': 'Close confirmation cancelled',
 	'workbench.tabs.close.cleanupBlocked': '{label} · Close cleanup blocked',
+	'workbench.tabs.close.cleanupBlockedResumable':
+		'{label} · Close cleanup blocked · Close can be retried',
 	'workbench.tabs.close.closed': '{label} · Closed',
 	'workbench.tabs.close.closing': '{label} · Closing',
 	'workbench.close.warning':
@@ -305,6 +309,10 @@ export const enUSWorkbenchMessages = {
 		'Duplication stopped: check pending, failed or unknown result; no replay · {created}/{total} tabs created',
 	'workbench.tabs.update.notApplied': 'Tabs not updated · check the target before trying again',
 	'workbench.tabs.close.outcomeUnknown': '{label} · Close outcome unknown',
+	'workbench.tabs.close.resume': 'Resume closing this Tab…',
+	'workbench.tabs.close.resumeDescription':
+		'{label} · {stop, select, awaiting-removal {Execution ended; awaiting Tab removal} other {Close cleanup blocked}}. {warning}',
+	'workbench.tabs.close.resumeTitle': 'Resume closing this Tab?',
 	'workbench.tabs.close.setProgress': 'Closing Tabs: {completed} closed, {remaining} remaining',
 	'workbench.tabs.close.setStopped':
 		'Closing stopped: {completed} closed, {remaining} not confirmed closed. Submitted closes may continue.',

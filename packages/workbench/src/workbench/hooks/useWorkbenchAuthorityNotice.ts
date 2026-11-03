@@ -144,6 +144,7 @@ export function useWorkbenchAuthorityNotice(
 									subject,
 									result,
 									projectWorkspaceRuntime,
+									authority,
 									landsAutomatically ||
 										workbenchActiveLocationsEqual(
 											origin,
@@ -183,6 +184,8 @@ export function useWorkbenchAuthorityNotice(
 							return result;
 						},
 						launchProfiles: authority.launchProfiles,
+						stoppedTabClose: (terminalContextId, tabId) =>
+							authority.stoppedTabClose(terminalContextId, tabId),
 						watchClose: (closure, onChanged) =>
 							authority.watchClose(closure, () => {
 								setNotice(workbenchCloseWithdrawnNotice(closure));

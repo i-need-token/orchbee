@@ -408,6 +408,12 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.awaitingRemoval'],
 		description: 'Status notice when a closing Tab has ended but has not been removed yet.',
 	},
+	tabCloseAwaitingRemovalResumable: {
+		id: 'workbench.tabs.close.awaitingRemovalResumable',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.awaitingRemovalResumable'],
+		description:
+			'Status notice when a closing Tab has ended but has not been removed yet, and Resume closing this Tab may continue its close.',
+	},
 	tabCloseCancelled: {
 		id: 'workbench.tabs.close.cancelled',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.cancelled'],
@@ -418,6 +424,12 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.tabs.close.cleanupBlocked',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.cleanupBlocked'],
 		description: 'Status notice when cleanup stopped a Tab from closing.',
+	},
+	tabCloseCleanupBlockedResumable: {
+		id: 'workbench.tabs.close.cleanupBlockedResumable',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.cleanupBlockedResumable'],
+		description:
+			'Status notice when cleanup stopped a Tab from closing, and Resume closing this Tab may continue its close.',
 	},
 	tabCloseClosed: {
 		id: 'workbench.tabs.close.closed',
@@ -481,6 +493,23 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.tabs.close.outcomeUnknown',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.outcomeUnknown'],
 		description: 'Status notice when closing a Tab may have taken effect.',
+	},
+	tabCloseResume: {
+		id: 'workbench.tabs.close.resume',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.resume'],
+		description:
+			'Action that continues a Tab close that stopped where it may continue, shown in the Tab menu and Search.',
+	},
+	tabCloseResumeDescription: {
+		id: 'workbench.tabs.close.resumeDescription',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.resumeDescription'],
+		description:
+			'Confirmation text before continuing a stopped Tab close: the Tab, where its close stopped, then what closing it does.',
+	},
+	tabCloseResumeTitle: {
+		id: 'workbench.tabs.close.resumeTitle',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.resumeTitle'],
+		description: 'Title of the confirmation before continuing a stopped Tab close.',
 	},
 	tabCloseSetProgress: {
 		id: 'workbench.tabs.close.setProgress',

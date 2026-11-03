@@ -18,6 +18,7 @@ export type {
 	WorkbenchAuthoritySplitRatioChange,
 	WorkbenchAuthorityTabCreation,
 	WorkbenchAuthorityTabReceipt,
+	WorkbenchTabCloseStop,
 	WorkbenchEnvironmentProjectConnectionCapability,
 	WorkbenchProjectFolderAcquisition,
 	WorkbenchProjectFolderAcquisitionFailureCode,

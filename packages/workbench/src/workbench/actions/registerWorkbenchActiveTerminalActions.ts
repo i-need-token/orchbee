@@ -23,6 +23,7 @@ import {
 	type ActiveTerminalCommandResolution,
 } from '../model/resolveActiveTerminalCommand';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
+import type { WorkbenchAuthority } from '../types/workbench-authority';
 import { executePreparedDescendantAction } from './executePreparedDescendantAction';
 import { WORKBENCH_DESCENDANT_ACTION_DISCOVERY_INPUTS } from './workbench-descendant-action-discovery';
 import {
@@ -36,6 +37,8 @@ interface RegisterWorkbenchActiveTerminalActionsOptions {
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
+	/** Absent where no close stops where it may continue. */
+	readonly stoppedTabClose?: WorkbenchAuthority['stoppedTabClose'] | undefined;
 	readonly typedRuntime: TypedActionRuntime<WorkbenchActionCatalog>;
 }
 
@@ -43,8 +46,17 @@ export function registerWorkbenchActiveTerminalActions({
 	projectWorkspaceRuntime,
 	runtime,
 	scope,
+	stoppedTabClose,
 	typedRuntime,
 }: RegisterWorkbenchActiveTerminalActionsOptions): readonly ActionDisposable[] {
+	/** The TUI's Close key retries a close that stopped on the active Tab before it closes anything. */
+	const activeTabCloseStopped = (): boolean => {
+		if (stoppedTabClose === undefined) return false;
+		const { panelWorkspaceStore, terminalContextId } =
+			projectWorkspaceRuntime.getActiveTerminalContext();
+		const activeTabId = panelWorkspaceStore.getActiveTabId();
+		return activeTabId !== null && stoppedTabClose(terminalContextId, activeTabId) !== null;
+	};
 	const terminalCategory = {
 		id: 'terminal',
 		title: workbenchMessages.actionCategoryTerminal,
@@ -162,8 +174,19 @@ export function registerWorkbenchActiveTerminalActions({
 					concurrencyKey: () => 'active-terminal-close',
 					mode: 'foreground',
 				},
-				getAvailability: availabilityFor('close'),
-				handler: { execute: execute('close') },
+				getAvailability: (context) =>
+					activeTabCloseStopped() ? { kind: 'enabled' } : availabilityFor('close')(context),
+				handler: {
+					execute: async (context) => {
+						if (!activeTabCloseStopped()) return await execute('close')(context);
+						// Continuing a stopped close is its own question, so it runs as its own Action.
+						typedRuntime.execute(WORKBENCH_ACTION_IDS.resumeTabClose, undefined, {
+							scope,
+							source: context.source,
+						});
+						return { kind: 'unchanged' };
+					},
+				},
 				id: WORKBENCH_ACTION_IDS.closeActiveTerminal,
 				input: noActionInput,
 				title: workbenchMessages.terminalCloseActive,

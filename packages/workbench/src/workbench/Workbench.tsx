@@ -316,6 +316,7 @@ export function Workbench({
 						>
 							<WorkbenchTabBar
 								actionRuntime={actionRuntime}
+								closeResume={view.closeResume}
 								createCrossWindowDragRuntime={createCrossWindowDragRuntime}
 								newTabChoices={view.newTabChoices}
 								onNewTerminal={view.newTab}

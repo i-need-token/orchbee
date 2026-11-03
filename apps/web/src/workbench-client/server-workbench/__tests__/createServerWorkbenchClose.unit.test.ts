@@ -2,14 +2,39 @@ import type { WorkbenchAuthorityClosure, WorkbenchAuthorityContext } from '@orch
 import { parseWorkbenchResponse, type WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { closeServerWorkbench, watchServerWorkbenchClose } from '../server-workbench-close';
+import { createServerWorkbenchClose } from '../createServerWorkbenchClose';
 import type {
 	ServerWorkbenchAction,
 	ServerWorkbenchAnswer,
 	ServerWorkbenchSubmission,
 } from '../ServerWorkbenchSession';
 
-type CloseSession = Parameters<typeof closeServerWorkbench>[0];
+type CloseSession = Parameters<typeof createServerWorkbenchClose>[0];
+
+function closeWith(
+	session: CloseSession,
+	context: WorkbenchAuthorityContext,
+	closure: WorkbenchAuthorityClosure,
+) {
+	return createServerWorkbenchClose(session).close(context, closure);
+}
+
+function watchWith(
+	{ snapshot, subscribe }: Pick<CloseSession, 'snapshot' | 'subscribe'>,
+	closure: WorkbenchAuthorityClosure,
+	onChanged: () => void,
+) {
+	const unused = () => {
+		throw new Error('A watch only reads the snapshot.');
+	};
+	return createServerWorkbenchClose({
+		ask: unused,
+		published: unused,
+		snapshot,
+		submit: unused,
+		subscribe,
+	}).watchClose(closure, onChanged);
+}
 
 const SESSION = '11111111111111111111111111111111';
 const WORKSPACE = '22222222222222222222222222222222';
@@ -138,21 +163,35 @@ const FIRST_TAB_ACCEPTED = settled({
 	terminalContextId: CONTEXT,
 });
 
-function closeStatus(status: unknown): ServerWorkbenchAnswer {
+function closeStatus(
+	status: unknown,
+	target: unknown = { kind: 'workspace', workspaceId: WORKSPACE },
+): ServerWorkbenchAnswer {
 	return {
 		kind: 'answered',
 		response: parseWorkbenchResponse({
 			kind: 'workbench.close-operation.result',
 			operationId: CLOSE_REQUEST,
-			outcome: {
-				generation: '1',
-				kind: 'available',
-				status,
-				target: { kind: 'workspace', workspaceId: WORKSPACE },
-			},
+			outcome: { generation: '1', kind: 'available', status, target },
 			protocolVersion: 1,
 			requestId: REQUEST,
 			sessionId: SESSION,
+		}),
+	};
+}
+
+function resumeAnswer(outcome: unknown): ServerWorkbenchAnswer {
+	return {
+		kind: 'answered',
+		response: parseWorkbenchResponse({
+			closeRequestId: CLOSE_REQUEST,
+			kind: 'workbench.tab-close.resume.result',
+			outcome,
+			protocolVersion: 1,
+			requestId: REQUEST,
+			sessionId: SESSION,
+			tabId: FIRST_TAB,
+			terminalContextId: CONTEXT,
 		}),
 	};
 }
@@ -249,12 +288,12 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
-describe('closeServerWorkbench', () => {
+describe('close', () => {
 	it('waits for the removal of an accepted Workspace to reach this Client', async () => {
 		const { actions, published, session } = fakeSession([WORKSPACE_ACCEPTED], [CLOSING, CLOSED]);
 		const { context, markCommitted } = executionContext();
 
-		await expect(closeServerWorkbench(session, context, CLOSE_WORKSPACE)).resolves.toEqual({
+		await expect(closeWith(session, context, CLOSE_WORKSPACE)).resolves.toEqual({
 			kind: 'completed',
 		});
 
@@ -266,9 +305,10 @@ describe('closeServerWorkbench', () => {
 	it('repeats a close the Server turned away for an unrelated change, but not forever', async () => {
 		const { actions, session } = fakeSession([STALE, STALE, STALE, STALE, STALE]);
 
-		await expect(
-			closeServerWorkbench(session, executionContext().context, CLOSE_WORKSPACE),
-		).resolves.toEqual({ code: 'scope-changed', kind: 'blocked' });
+		await expect(closeWith(session, executionContext().context, CLOSE_WORKSPACE)).resolves.toEqual({
+			code: 'scope-changed',
+			kind: 'blocked',
+		});
 
 		expect(actions).toHaveLength(5);
 	});
@@ -278,9 +318,10 @@ describe('closeServerWorkbench', () => {
 			{ answer: STALE, delivered: readSnapshot({ workspaceLabel: 'renamed' }) },
 		]);
 
-		await expect(
-			closeServerWorkbench(session, executionContext().context, CLOSE_WORKSPACE),
-		).resolves.toEqual({ code: 'scope-changed', kind: 'blocked' });
+		await expect(closeWith(session, executionContext().context, CLOSE_WORKSPACE)).resolves.toEqual({
+			code: 'scope-changed',
+			kind: 'blocked',
+		});
 
 		expect(actions).toHaveLength(1);
 	});
@@ -290,9 +331,10 @@ describe('closeServerWorkbench', () => {
 			{ answer: NEEDS_CONFIRMATION, delivered: readSnapshot({ revision: '6' }) },
 		]);
 
-		await expect(
-			closeServerWorkbench(session, executionContext().context, CLOSE_WORKSPACE),
-		).resolves.toEqual({ code: 'confirmation-required', kind: 'blocked' });
+		await expect(closeWith(session, executionContext().context, CLOSE_WORKSPACE)).resolves.toEqual({
+			code: 'confirmation-required',
+			kind: 'blocked',
+		});
 
 		expect(actions).toHaveLength(1);
 	});
@@ -304,9 +346,10 @@ describe('closeServerWorkbench', () => {
 			{ answer: NEEDS_CONFIRMATION, delivered: moved },
 		]);
 
-		await expect(
-			closeServerWorkbench(session, executionContext().context, CLOSE_WORKSPACE),
-		).resolves.toEqual({ code: 'confirmation-required', kind: 'blocked' });
+		await expect(closeWith(session, executionContext().context, CLOSE_WORKSPACE)).resolves.toEqual({
+			code: 'confirmation-required',
+			kind: 'blocked',
+		});
 		expect(actions).toHaveLength(2);
 
 		const again = fakeSession([
@@ -314,7 +357,7 @@ describe('closeServerWorkbench', () => {
 			{ answer: NEEDS_CONFIRMATION, delivered: readSnapshot({ workspaceLabel: 'renamed again' }) },
 		]);
 		await expect(
-			closeServerWorkbench(again.session, executionContext().context, CLOSE_WORKSPACE),
+			closeWith(again.session, executionContext().context, CLOSE_WORKSPACE),
 		).resolves.toEqual({ code: 'scope-changed', kind: 'blocked' });
 		expect(again.actions).toHaveLength(2);
 	});
@@ -322,9 +365,10 @@ describe('closeServerWorkbench', () => {
 	it('never repeats a close that may have run', async () => {
 		const { actions, session } = fakeSession([{ kind: 'outcome-unknown' }]);
 
-		await expect(
-			closeServerWorkbench(session, executionContext().context, CLOSE_WORKSPACE),
-		).resolves.toEqual({ failure: { code: 'outcome-unknown' }, kind: 'failed' });
+		await expect(closeWith(session, executionContext().context, CLOSE_WORKSPACE)).resolves.toEqual({
+			failure: { code: 'outcome-unknown' },
+			kind: 'failed',
+		});
 
 		expect(actions).toHaveLength(1);
 	});
@@ -348,9 +392,10 @@ describe('closeServerWorkbench', () => {
 	])('stops at %s without claiming the close', async (_name, status, code) => {
 		const { session } = fakeSession([WORKSPACE_ACCEPTED], [closeStatus(status)]);
 
-		await expect(
-			closeServerWorkbench(session, executionContext().context, CLOSE_WORKSPACE),
-		).resolves.toEqual({ failure: { code }, kind: 'failed' });
+		await expect(closeWith(session, executionContext().context, CLOSE_WORKSPACE)).resolves.toEqual({
+			failure: { code },
+			kind: 'failed',
+		});
 	});
 
 	it('stops watching at its budget, with the Server still at work', async () => {
@@ -358,7 +403,7 @@ describe('closeServerWorkbench', () => {
 		const { session } = fakeSession([WORKSPACE_ACCEPTED]);
 		session.ask = () => Promise.resolve(CLOSING);
 
-		const closing = closeServerWorkbench(session, executionContext().context, CLOSE_WORKSPACE);
+		const closing = closeWith(session, executionContext().context, CLOSE_WORKSPACE);
 		await vi.advanceTimersByTimeAsync(50_001);
 
 		await expect(closing).resolves.toEqual({
@@ -373,9 +418,10 @@ describe('closeServerWorkbench', () => {
 			[closeStatus({ kind: 'cleanup-blocked', reason: 'host-refused', resumable: true })],
 		);
 
-		await expect(
-			closeServerWorkbench(session, executionContext().context, CLOSE_TABS),
-		).resolves.toEqual({ failure: { code: 'cleanup-blocked' }, kind: 'failed' });
+		await expect(closeWith(session, executionContext().context, CLOSE_TABS)).resolves.toEqual({
+			failure: { code: 'cleanup-blocked' },
+			kind: 'failed',
+		});
 
 		expect(actions).toEqual([{ kind: 'tab.close', tabId: FIRST_TAB, terminalContextId: CONTEXT }]);
 	});
@@ -386,9 +432,10 @@ describe('closeServerWorkbench', () => {
 			[CLOSED],
 		);
 
-		await expect(
-			closeServerWorkbench(session, executionContext().context, CLOSE_TABS),
-		).resolves.toEqual({ code: 'scope-changed', kind: 'blocked' });
+		await expect(closeWith(session, executionContext().context, CLOSE_TABS)).resolves.toEqual({
+			code: 'scope-changed',
+			kind: 'blocked',
+		});
 
 		expect(actions).toHaveLength(1);
 	});
@@ -406,7 +453,7 @@ describe('closeServerWorkbench', () => {
 		]);
 
 		await expect(
-			closeServerWorkbench(session, executionContext().context, {
+			closeWith(session, executionContext().context, {
 				panelId: PANEL,
 				tabId: FIRST_TAB,
 				terminalContextId: CONTEXT,
@@ -423,7 +470,7 @@ describe('closeServerWorkbench', () => {
 		const untouched = fakeSession([]);
 		const { context, markCommitted } = executionContext(before.signal);
 
-		await expect(closeServerWorkbench(untouched.session, context, CLOSE_TABS)).resolves.toEqual({
+		await expect(closeWith(untouched.session, context, CLOSE_TABS)).resolves.toEqual({
 			kind: 'cancelled',
 		});
 		expect(markCommitted).not.toHaveBeenCalled();
@@ -435,7 +482,7 @@ describe('closeServerWorkbench', () => {
 			return Promise.resolve(CLOSED);
 		};
 		await expect(
-			closeServerWorkbench(started.session, executionContext(during.signal).context, CLOSE_TABS),
+			closeWith(started.session, executionContext(during.signal).context, CLOSE_TABS),
 		).resolves.toEqual({ code: 'not-submitted', kind: 'blocked' });
 	});
 
@@ -454,9 +501,9 @@ describe('closeServerWorkbench', () => {
 			],
 		);
 
-		await expect(
-			closeServerWorkbench(session, executionContext().context, CLOSE_PROJECT),
-		).resolves.toEqual({ kind: 'completed' });
+		await expect(closeWith(session, executionContext().context, CLOSE_PROJECT)).resolves.toEqual({
+			kind: 'completed',
+		});
 
 		const [start, read] = asked;
 		if (start?.kind !== 'workbench.workspace-group-close') throw new Error('Expected the start.');
@@ -474,7 +521,7 @@ describe('closeServerWorkbench', () => {
 	it('keeps the operation a Project close can be looked up by when its outcome is unknown', async () => {
 		const { asked, session } = fakeSession([], [{ kind: 'outcome-unknown' }]);
 
-		const result = await closeServerWorkbench(session, executionContext().context, CLOSE_PROJECT);
+		const result = await closeWith(session, executionContext().context, CLOSE_PROJECT);
 
 		const [start] = asked;
 		expect(result).toEqual({
@@ -485,12 +532,58 @@ describe('closeServerWorkbench', () => {
 	});
 });
 
-describe('watchServerWorkbenchClose', () => {
+describe('stoppedTabClose', () => {
+	it('continues exactly the Tab close that stopped, and starts no other close', async () => {
+		const tab = { kind: 'tab', tabId: FIRST_TAB, terminalContextId: CONTEXT };
+		const { actions, asked, session } = fakeSession(
+			[FIRST_TAB_ACCEPTED],
+			[
+				closeStatus({ kind: 'cleanup-blocked', reason: 'host-refused', resumable: true }, tab),
+				resumeAnswer({ attemptGeneration: '2', kind: 'resumed' }),
+				CLOSED,
+			],
+		);
+		const closes = createServerWorkbenchClose(session);
+		const resume: WorkbenchAuthorityClosure = {
+			tabId: FIRST_TAB,
+			terminalContextId: CONTEXT,
+			type: 'tab-close-resume',
+		};
+
+		await expect(closes.close(executionContext().context, resume)).resolves.toEqual({
+			code: 'scope-changed',
+			kind: 'blocked',
+		});
+		expect(asked).toHaveLength(0);
+
+		await closes.close(executionContext().context, {
+			tabIds: [FIRST_TAB],
+			terminalContextId: CONTEXT,
+			type: 'tabs-close',
+		});
+		expect(closes.stoppedTabClose(CONTEXT, FIRST_TAB)).toBe('cleanup-blocked');
+
+		await expect(closes.close(executionContext().context, resume)).resolves.toEqual({
+			kind: 'completed',
+		});
+		expect(actions).toHaveLength(1);
+		expect(asked[1]).toMatchObject({
+			closeRequestId: CLOSE_REQUEST,
+			expectedAttemptGeneration: '1',
+			kind: 'workbench.tab-close.resume',
+			tabId: FIRST_TAB,
+			terminalContextId: CONTEXT,
+		});
+		expect(closes.stoppedTabClose(CONTEXT, FIRST_TAB)).toBeNull();
+	});
+});
+
+describe('watchClose', () => {
 	it('withdraws a question only when what it describes changes', () => {
 		const listeners: ((snapshot: WorkbenchSnapshot) => void)[] = [];
 		const onChanged = vi.fn<() => void>();
 
-		const stop = watchServerWorkbenchClose(
+		const stop = watchWith(
 			{
 				snapshot: readSnapshot(),
 				subscribe: (listener) => {
@@ -507,7 +600,7 @@ describe('watchServerWorkbenchClose', () => {
 		}
 		expect(onChanged).not.toHaveBeenCalled();
 
-		const renamedWorkspace = watchServerWorkbenchClose(
+		const renamedWorkspace = watchWith(
 			{
 				snapshot: readSnapshot(),
 				subscribe: (listener) => {

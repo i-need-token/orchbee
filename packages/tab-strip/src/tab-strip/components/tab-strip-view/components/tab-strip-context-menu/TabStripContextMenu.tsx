@@ -38,6 +38,7 @@ interface TabStripContextMenuProps {
 	tabSearchPinned: boolean;
 	moveGroupToNewWindowAvailable: boolean;
 	moveTabsToNewWindowAvailable: boolean;
+	closeResume: TabStripOptions['closeResume'];
 	onNameGroup: TabStripOptions['onNameGroup'];
 	onSetTabTitle: ((tabId: string) => void) | undefined;
 	newTabChoices: TabStripOptions['newTabChoices'];
@@ -76,6 +77,7 @@ export function TabStripContextMenu({
 	tabSearchPinned,
 	moveGroupToNewWindowAvailable,
 	moveTabsToNewWindowAvailable,
+	closeResume,
 	onNameGroup,
 	onSetTabTitle,
 	newTabChoices,
@@ -294,6 +296,8 @@ export function TabStripContextMenu({
 						title: tab.title,
 					});
 	const groupChoices = otherGroups.length > 0 || nameNewGroup !== null;
+	// Continuing a stopped close concerns the Tab the menu opened on alone, as in the TUI.
+	const resumeClose = closeResume?.available(tab.id) === true ? closeResume : null;
 
 	return (
 		<ContextMenuContent aria-label={messages.tabOptions}>
@@ -377,6 +381,12 @@ export function TabStripContextMenu({
 				</ContextMenuItem>
 			) : null}
 			<ContextMenuSeparator />
+			{resumeClose === null ? null : (
+				<ContextMenuItem variant='destructive' onClick={run(() => resumeClose.resume(tab.id))}>
+					<ProductIcon name='close' size='menu-leading' />
+					{messages.resumeTabClose}
+				</ContextMenuItem>
+			)}
 			<ContextMenuItem
 				variant='destructive'
 				disabled={!closeAllowed}

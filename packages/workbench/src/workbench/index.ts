@@ -39,6 +39,7 @@ export type {
 	WorkbenchAuthoritySplitRatioChange,
 	WorkbenchAuthorityTabCreation,
 	WorkbenchAuthorityTabReceipt,
+	WorkbenchTabCloseStop,
 } from './types/workbench-authority';
 export type { WorkbenchEnvironmentProjectConnectionCapability } from './types/workbench-environment-project-connection';
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';

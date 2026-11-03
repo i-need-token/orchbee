@@ -13,6 +13,7 @@ import {
 	type TabStripChangeCallback,
 	type TabStripCloseCallback,
 	type TabStripCloseConfirmation,
+	type TabStripCloseResume,
 	type TabStripNewTabChoice,
 	type TabStripNewTabRequest,
 	type TabStripOrientation,
@@ -106,7 +107,10 @@ import { useWorkbenchShortcuts } from './useWorkbenchShortcuts';
 import { useWorkbenchAgentNavigation } from './useWorkbenchAgentNavigation';
 import { useWorkbenchTerminalLocationActivation } from './useWorkbenchTerminalLocationActivation';
 import type { WorkbenchAgentNavigationInput } from '../model/project-workbench-agent-overview';
-import { terminalCloseWarningValues } from '../model/terminal-close-impact';
+import {
+	terminalCloseWarningValues,
+	type TerminalCloseImpact,
+} from '../model/terminal-close-impact';
 import {
 	workbenchActiveLocationsEqual,
 	type WorkbenchTerminalLocationActivationOrigin,
@@ -134,6 +138,8 @@ interface WorkbenchView {
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly actionScope: ActionScope;
 	readonly cancelProjectWorkspaceConfirmation: () => void;
+	/** Present when an authority may stop a Tab's close where Resume continues it. */
+	readonly closeResume: TabStripCloseResume | undefined;
 	readonly confirmProjectWorkspaceAction: () => void;
 	/** Present when an authority decides the Panels, whose new terminals then show as it answers. */
 	readonly createPanelTerminal: WorkbenchSharedPanelTerminalCreate | undefined;
@@ -394,6 +400,9 @@ export function useWorkbench({
 	const worktreeLabel = useMemoizedFn((ordinal: number) =>
 		intl.formatMessage(workbenchMessages.worktreeDefaultLabel, { ordinal }),
 	);
+	const formatCloseWarning = useMemoizedFn((impact: TerminalCloseImpact) =>
+		intl.formatMessage(workbenchMessages.terminalCloseWarning, terminalCloseWarningValues(impact)),
+	);
 	const getNewTerminalAvailability = useMemoizedFn(
 		(input: WorkbenchTerminalCreateInput): ActionAvailability => {
 			if (authorityNotice.authority !== undefined) {
@@ -548,11 +557,8 @@ export function useWorkbench({
 				values: {
 					more: closure.tabIds.length - shown.length,
 					names: shown.map((tabId) => titles.get(tabId) ?? '').join(', '),
-					warning: intl.formatMessage(
-						workbenchMessages.terminalCloseWarning,
-						terminalCloseWarningValues(
-							projectWorkspaceRuntime.getActiveTerminalTabsCloseImpact(closure.tabIds),
-						),
+					warning: formatCloseWarning(
+						projectWorkspaceRuntime.getActiveTerminalTabsCloseImpact(closure.tabIds),
 					),
 				},
 			},
@@ -566,6 +572,7 @@ export function useWorkbench({
 		agentObservationSource,
 		authority: authorityNotice.authority,
 		focusRouting: focusRouter,
+		formatCloseWarning,
 		getNewTerminalAvailability,
 		isSidebarVisible,
 		navigation,
@@ -587,6 +594,22 @@ export function useWorkbench({
 		worktreeLabel,
 	});
 	const worktrees = authorityNotice.authority?.worktrees;
+	const invokeAction = actions.invoke;
+	const closeResume = React.useMemo<TabStripCloseResume | undefined>(() => {
+		const decider = authorityNotice.authority;
+		if (decider === undefined) return undefined;
+		const shownContext = () => projectWorkspaceRuntime.getActiveTerminalContext().terminalContextId;
+		return {
+			available: (tabId) => decider.stoppedTabClose(shownContext(), tabId) !== null,
+			resume: (tabId) => {
+				invokeAction(
+					WORKBENCH_ACTION_IDS.resumeTabClose,
+					{ tabId, terminalContextId: shownContext() },
+					'context-menu',
+				);
+			},
+		};
+	}, [authorityNotice.authority, invokeAction, projectWorkspaceRuntime]);
 	const createTabWithProfile = useMemoizedFn((profile: UserLaunchProfile) => {
 		actions.invoke(WORKBENCH_ACTION_IDS.createTerminal, { groupId: null, profile }, 'context-menu');
 	});
@@ -720,6 +743,7 @@ export function useWorkbench({
 		actionScope: actions.scope,
 		activateWorkspace,
 		cancelProjectWorkspaceConfirmation: () => pendingProjectWorkspaceConfirmation.current?.(false),
+		closeResume,
 		confirmProjectWorkspaceAction: () => pendingProjectWorkspaceConfirmation.current?.(true),
 		createProject: (path) => actions.invoke(WORKBENCH_ACTION_IDS.createProject, { path }, 'button'),
 		activateCreatedProject: (receipt) =>

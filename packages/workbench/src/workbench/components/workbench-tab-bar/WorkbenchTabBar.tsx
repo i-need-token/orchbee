@@ -11,6 +11,7 @@ import {
 	type TabStripCrossWindowDragRuntimeFactory,
 	type TabStripCloseCallback,
 	type TabStripCloseConfirmation,
+	type TabStripCloseResume,
 	type TabStripMessages,
 	type TabStripNewTabChoice,
 	type TabStripNewTabRequest,
@@ -28,6 +29,7 @@ import styles from './WorkbenchTabBar.module.css';
 interface WorkbenchTabBarProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly parentActionScope: ActionScope;
+	readonly closeResume?: TabStripCloseResume | undefined;
 	readonly createCrossWindowDragRuntime: TabStripCrossWindowDragRuntimeFactory | undefined;
 	readonly newTabChoices?: readonly TabStripNewTabChoice[] | undefined;
 	readonly onNewTerminal: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
@@ -53,6 +55,7 @@ interface WorkbenchTabBarProps {
 
 export function WorkbenchTabBar({
 	actionRuntime,
+	closeResume,
 	createCrossWindowDragRuntime,
 	newTabChoices,
 	onNewTerminal,
@@ -103,6 +106,7 @@ export function WorkbenchTabBar({
 					onNewTab={onNewTerminal}
 					onCloseTabs={onCloseTabs}
 					getCloseTabsConfirmation={getCloseTabsConfirmation}
+					closeResume={closeResume}
 					getTabCreationAvailability={getTabCreationAvailability}
 					onOrientationChange={onOrientationChange}
 					onNameGroup={groupName.open}

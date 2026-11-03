@@ -1623,8 +1623,9 @@ choices stand unless review changes them:
   TUI's group name dialog, where blank leaves the group unnamed, and New group… sends the name and
   the TUI's blue with the Tabs. Rows the TUI's global menu offers for the current Tab, such as New
   Tab beside it, Duplicate, and Close Tabs after it, move to Search's Actions. Under a Server
-  authority Rename refuses a blank Tab name, which locally restores the terminal's title. Resume is
-  absent, and Move to new window appears only for a host that offers it, which no product host does.
+  authority Rename refuses a blank Tab name, which locally restores the terminal's title. Resume
+  closing this Tab… joins a Tab's menu only while its close stopped where it may continue, as below,
+  and Move to new window appears only for a host that offers it, which no product host does.
 - **The New Tab button lists the launch profiles.** Its right-click lists every saved profile, the
   default first and marked Default, and opens nothing for a single profile or outside a Workspace; a
   pick starts one Tab with that profile and leaves the default alone. An unnamed profile takes the
@@ -1663,8 +1664,20 @@ choices stand unless review changes them:
   code 0, the window sees that end only a second later, so the Server's Close of a shell's Panel
   arrives first and no Terminal exited flashes. A program the Server keeps then shows its end. The
   window counts that terminal as running for the second, where the TUI already counts it as ended.
+- **A stopped Tab close resumes, as in the TUI.** A Tab close that stopped cleanup blocked or
+  awaiting removal, where the Server may continue it, adds Close can be retried to its notice. Resume
+  closing this Tab… then continues exactly that operation under the attempt its status named, and
+  never starts another close. It asks Resume closing this Tab? with the Tab, where its close stopped,
+  and what closing ends, counting every terminal of a Tab awaiting removal as ended. The row sits
+  right before Close in that Tab's menu, background Tabs and selected sets included, and acts on
+  that Tab alone. Three choices differ from the TUI and may be vetoed. First, the TUI offers Resume
+  only while the resumable status is drawn, but the GUI's notice clears at the next press, so the
+  window keeps each stop, at most 16, until a later close of that Tab settles or the Tab leaves.
+  Second, the GUI has one Close key where the TUI retries from its Close Tab key, so on that Tab the
+  key asks Resume whatever its Panels hold, and Search's Actions offer Resume only then. Third, the
+  TUI's Resume question repeats a halted set's counts, which the GUI's leaves out.
 
-Not done in this slice: Close for a child terminal under the Server, and Resume.
+Not done in this slice: Close for a child terminal under the Server.
 
 ### Evidence
 

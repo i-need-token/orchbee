@@ -169,7 +169,19 @@ export type WorkbenchAuthorityClosure =
 			readonly terminalContextId: string;
 			readonly tabId: string;
 			readonly panelId: string;
+	  }
+	/**
+	 * Continues the Tab's close that {@link WorkbenchAuthority.stoppedTabClose} reports, and never
+	 * starts another one: `blocked` with `scope-changed` when there is none to continue.
+	 */
+	| {
+			readonly type: 'tab-close-resume';
+			readonly terminalContextId: string;
+			readonly tabId: string;
 	  };
+
+/** Where a Tab's close stopped when the authority may continue it, as its status said. */
+export type WorkbenchTabCloseStop = 'awaiting-removal' | 'cleanup-blocked';
 
 /** What an authority takes from the Action asking it: cancellation, and the commit point to mark. */
 export type WorkbenchAuthorityContext = Pick<ActionExecutionContext, 'markCommitted' | 'signal'>;
@@ -212,6 +224,11 @@ export interface WorkbenchAuthority {
 	): Promise<ActionResult<WorkbenchAuthorityTabReceipt>>;
 	/** Absent where every new Tab starts with the default launch profile. */
 	readonly launchProfiles?: WorkbenchLaunchProfiles | undefined;
+	/**
+	 * Where the last close of this Tab that this Client followed stopped, while a `tab-close-resume`
+	 * may continue it; null otherwise.
+	 */
+	stoppedTabClose(terminalContextId: string, tabId: string): WorkbenchTabCloseStop | null;
 	/** Reports when what a confirmation of `closure` describes has changed. Returns how to stop. */
 	watchClose(closure: WorkbenchAuthorityClosure, onChanged: () => void): () => void;
 	/** Absent where this authority cannot reach Git for its Workspaces. */

@@ -2,7 +2,11 @@ import type { ActionResult } from '@orchbee/actions';
 import { workbenchMessages } from '@orchbee/i18n';
 
 import type { WorkbenchTabDuplicationStop } from '../actions/workbench-shared-tab-creation';
-import type { WorkbenchAuthorityClosure } from '../types/workbench-authority';
+import type {
+	WorkbenchAuthority,
+	WorkbenchAuthorityClosure,
+	WorkbenchTabCloseStop,
+} from '../types/workbench-authority';
 import type {
 	WorkbenchWorktreeCommand,
 	WorkbenchWorktreeOutcome,
@@ -24,13 +28,35 @@ export interface WorkbenchAuthorityNotice {
 type WorkbenchCloseSubject =
 	| { readonly kind: 'panel' }
 	| { readonly kind: 'project'; readonly label: string }
-	| { readonly kind: 'tab'; readonly label: string }
+	| {
+			readonly kind: 'tab';
+			readonly label: string;
+			readonly tabId: string;
+			readonly terminalContextId: string;
+	  }
 	| {
 			readonly kind: 'tabs';
 			readonly tabIds: readonly string[];
 			readonly terminalContextId: string;
 	  }
 	| { readonly kind: 'workspace'; readonly label: string; readonly workspaceId: string };
+
+function tabSubject(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	terminalContextId: string,
+	tabId: string,
+): WorkbenchCloseSubject {
+	return {
+		kind: 'tab',
+		label:
+			runtime
+				.getTerminalContext(terminalContextId)
+				?.tabModel.getSnapshot()
+				.tabs.find((tab) => tab.id === tabId)?.title ?? '',
+		tabId,
+		terminalContextId,
+	};
+}
 
 export function readWorkbenchCloseSubject(
 	closure: WorkbenchAuthorityClosure,
@@ -39,6 +65,8 @@ export function readWorkbenchCloseSubject(
 	switch (closure.type) {
 		case 'panel-close':
 			return { kind: 'panel' };
+		case 'tab-close-resume':
+			return tabSubject(runtime, closure.terminalContextId, closure.tabId);
 		case 'project-workspaces-close':
 			return {
 				kind: 'project',
@@ -55,14 +83,7 @@ export function readWorkbenchCloseSubject(
 					terminalContextId: closure.terminalContextId,
 				};
 			}
-			return {
-				kind: 'tab',
-				label:
-					runtime
-						.getTerminalContext(closure.terminalContextId)
-						?.tabModel.getSnapshot()
-						.tabs.find((tab) => tab.id === only)?.title ?? '',
-			};
+			return tabSubject(runtime, closure.terminalContextId, only);
 		}
 		case 'workspace-close':
 		case 'workspace-close-if-idle':
@@ -132,14 +153,28 @@ export function workbenchCloseWithdrawnNotice(
 ): WorkbenchAuthorityNotice {
 	return {
 		descriptor:
-			closure.type === 'panel-close' || closure.type === 'tabs-close'
+			closure.type === 'panel-close' ||
+			closure.type === 'tab-close-resume' ||
+			closure.type === 'tabs-close'
 				? workbenchMessages.tabCloseCancelled
 				: workbenchMessages.workspaceCloseChanged,
 		lifetime: 'timed',
 	};
 }
 
-function tabCloseFailureDescriptor(code: string): WorkbenchAuthorityNotice['descriptor'] {
+/** A close that may continue says so, so the person knows Resume is there. */
+function tabCloseFailureDescriptor(
+	code: string,
+	stop: WorkbenchTabCloseStop | null,
+): WorkbenchAuthorityNotice['descriptor'] {
+	switch (stop) {
+		case 'awaiting-removal':
+			return workbenchMessages.tabCloseAwaitingRemovalResumable;
+		case 'cleanup-blocked':
+			return workbenchMessages.tabCloseCleanupBlockedResumable;
+		case null:
+			break;
+	}
 	switch (code) {
 		case 'awaiting-removal':
 			return workbenchMessages.tabCloseAwaitingRemoval;
@@ -169,6 +204,7 @@ export function workbenchCloseResultNotice(
 	subject: WorkbenchCloseSubject,
 	result: ActionResult<void>,
 	runtime: WorkbenchProjectWorkspaceRuntime,
+	authority: Pick<WorkbenchAuthority, 'stoppedTabClose'>,
 	sawClosed: boolean,
 ): WorkbenchAuthorityNotice | null {
 	if (
@@ -218,7 +254,10 @@ export function workbenchCloseResultNotice(
 			return result.kind === 'blocked'
 				? { descriptor: workbenchMessages.tabCloseNotApplied, lifetime: 'timed' }
 				: {
-						descriptor: tabCloseFailureDescriptor(result.failure.code),
+						descriptor: tabCloseFailureDescriptor(
+							result.failure.code,
+							authority.stoppedTabClose(subject.terminalContextId, subject.tabId),
+						),
 						lifetime: 'until-press',
 						values,
 					};

@@ -1,5 +1,10 @@
 import type { ActionResult } from '@orchbee/actions';
-import type { WorkbenchAuthorityClosure, WorkbenchAuthorityContext } from '@orchbee/workbench';
+import type {
+	WorkbenchAuthority,
+	WorkbenchAuthorityClosure,
+	WorkbenchAuthorityContext,
+	WorkbenchTabCloseStop,
+} from '@orchbee/workbench';
 import {
 	WORKBENCH_PROTOCOL_VERSION,
 	type WorkbenchResponse,
@@ -24,10 +29,12 @@ type CloseOperationResult = Extract<
 	WorkbenchResponse,
 	{ readonly kind: 'workbench.close-operation.result' }
 >;
-type CloseStatus = Extract<
-	CloseOperationResult['outcome'],
-	{ readonly kind: 'available' }
->['status'];
+type CloseObservation = Extract<CloseOperationResult['outcome'], { readonly kind: 'available' }>;
+type CloseStatus = CloseObservation['status'];
+type ResumeOutcome = Extract<
+	WorkbenchResponse,
+	{ readonly kind: 'workbench.tab-close.resume.result' }
+>['outcome'];
 type GroupCloseResult = Extract<
 	WorkbenchResponse,
 	{ readonly kind: 'workbench.workspace-group-close.result' }
@@ -45,12 +52,35 @@ interface CloseContext extends WorkbenchAuthorityContext {
 	readonly handedOver: () => boolean;
 }
 
+/** A Tab close that stopped where an explicit Resume may continue it, with what Resume names. */
+interface StoppedTabClose {
+	readonly closeRequestId: CloseOperationResult['operationId'];
+	readonly generation: CloseObservation['generation'];
+	readonly stop: WorkbenchTabCloseStop;
+	readonly target: Extract<CloseObservation['target'], { readonly kind: 'tab' }>;
+}
+
+/** How a followed close settled, and the stop a Resume may continue, if it stopped at one. */
+interface ObservedClose {
+	readonly result: ActionResult<void>;
+	readonly stopped: StoppedTabClose | null;
+}
+
+/** Keeps or forgets the stopped close of one Tab, as the close it followed last settled. */
+type KeepStoppedTabClose = (
+	terminalContextId: string,
+	tabId: string,
+	stopped: StoppedTabClose | null,
+) => void;
+
 /** How long this Client watches a close it started. The Server's work continues past it. */
 const OBSERVATION_BUDGET_MILLISECONDS = 50_000;
 /** Physical settlement has no progress notification, so only a pending close is sampled. */
 const OBSERVATION_INTERVAL_MILLISECONDS = 50;
 /** A newer revision that left the target untouched is not a refusal of the target. */
 const STALE_RETRY_LIMIT = 4;
+/** Stopped Tab closes kept for Resume; one person rarely leaves more than one behind. */
+const MAXIMUM_STOPPED_TAB_CLOSES = 16;
 
 const NOT_SUBMITTED = { code: 'not-submitted', kind: 'blocked' } as const;
 const SCOPE_CHANGED = { code: 'scope-changed', kind: 'blocked' } as const;
@@ -101,6 +131,7 @@ function closureFacts(closure: WorkbenchAuthorityClosure, snapshot: WorkbenchSna
 				closure.tabIds.map((tabId) => tabFacts(snapshot, closure.terminalContextId, tabId)),
 			);
 		case 'panel-close':
+		case 'tab-close-resume':
 			return tabFacts(snapshot, closure.terminalContextId, closure.tabId);
 	}
 }
@@ -180,15 +211,40 @@ function settledStatus(status: CloseStatus): ActionResult<void> | null {
 	}
 }
 
+/** Where only an explicit Resume continues a close, as the status says. */
+function resumableStop(status: CloseStatus): WorkbenchTabCloseStop | null {
+	switch (status.kind) {
+		case 'cleanup-blocked':
+			return status.resumable ? 'cleanup-blocked' : null;
+		case 'disposed-awaiting-publication':
+			return status.resumable ? 'awaiting-removal' : null;
+		case 'closed':
+		case 'closing':
+		case 'outcome-unknown':
+			return null;
+	}
+}
+
+function stoppedTabClose(
+	operationId: CloseOperationResult['operationId'],
+	{ generation, status, target }: CloseObservation,
+): StoppedTabClose | null {
+	const stop = resumableStop(status);
+	return stop === null || target.kind !== 'tab'
+		? null
+		: { closeRequestId: operationId, generation, stop, target };
+}
+
 /** Reads an accepted close by its original identity, which outlives the target it closed. */
 async function observeClose(
 	session: CloseSession,
 	operationId: CloseOperationResult['operationId'],
 	deadline: number,
-): Promise<ActionResult<void>> {
+): Promise<ObservedClose> {
+	const unobserved = { result: failed('status-unavailable'), stopped: null };
 	for (;;) {
 		const remaining = deadline - performance.now();
-		if (remaining <= 0) return failed('status-unavailable');
+		if (remaining <= 0) return unobserved;
 		const answer = await session.ask(
 			{
 				kind: 'workbench.close-operation.read',
@@ -204,12 +260,14 @@ async function observeClose(
 			answer.response.kind !== 'workbench.close-operation.result' ||
 			answer.response.outcome.kind !== 'available'
 		) {
-			return failed('status-unavailable');
+			return unobserved;
 		}
-		const { status } = answer.response.outcome;
-		if (status.kind === 'closed') await session.published(status.revision);
-		const settled = settledStatus(status);
-		if (settled !== null) return settled;
+		const observation = answer.response.outcome;
+		if (observation.status.kind === 'closed') await session.published(observation.status.revision);
+		const settled = settledStatus(observation.status);
+		if (settled !== null) {
+			return { result: settled, stopped: stoppedTabClose(operationId, observation) };
+		}
 		await delay(Math.min(OBSERVATION_INTERVAL_MILLISECONDS, remaining));
 	}
 }
@@ -235,11 +293,12 @@ async function closeWorkspace(
 		if (submission.kind === 'ended') return submission.result;
 		const { outcome } = submission;
 		if (outcome.kind === 'workspace-close-accepted') {
-			return observeClose(
+			const observed = await observeClose(
 				session,
 				outcome.closeRequestId,
 				performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
 			);
+			return observed.result;
 		}
 		if (outcome.kind !== 'rejected') return refused(outcome);
 		const current = factsOf(session.snapshot);
@@ -261,6 +320,7 @@ async function closeTabs(
 	session: CloseSession,
 	context: CloseContext,
 	closure: Extract<WorkbenchAuthorityClosure, { readonly type: 'tabs-close' }>,
+	keep: KeepStoppedTabClose,
 ): Promise<ActionResult<void>> {
 	const deadline = performance.now() + OBSERVATION_BUDGET_MILLISECONDS;
 	const { terminalContextId } = closure;
@@ -279,10 +339,67 @@ async function closeTabs(
 		if (submission.kind === 'ended') return submission.result;
 		const { outcome } = submission;
 		if (outcome.kind !== 'tab-close-accepted') return refused(outcome);
-		const settled = await observeClose(session, outcome.closeRequestId, deadline);
-		if (settled.kind !== 'completed') return settled;
+		// A Close of a Tab whose close stopped joins that close, so it reports the same stop again.
+		const observed = await observeClose(session, outcome.closeRequestId, deadline);
+		keep(terminalContextId, tabId, observed.stopped);
+		if (observed.result.kind !== 'completed') return observed.result;
 	}
 	return { kind: 'completed' };
+}
+
+/** What a Resume the Server did not run says; nothing it names has changed. */
+function resumeRefused(
+	outcome: Exclude<ResumeOutcome, { readonly kind: 'resumed' | 'stale' }>,
+): ActionResult<void> {
+	return {
+		code: outcome.kind === 'denied' ? outcome.kind : outcome.reason,
+		kind: 'blocked',
+	};
+}
+
+/**
+ * Continues exactly the close that stopped, under the attempt its status named, and never starts
+ * another close in its place. A Stale answer means another attempt replaced that one, so this
+ * window follows the close as it is now.
+ */
+async function resumeTabClose(
+	session: CloseSession,
+	context: WorkbenchAuthorityContext,
+	stopped: StoppedTabClose | null,
+	keep: KeepStoppedTabClose,
+): Promise<ActionResult<void>> {
+	if (stopped === null) return SCOPE_CHANGED;
+	if (context.signal.aborted) return { kind: 'cancelled' };
+	const { closeRequestId, generation, target } = stopped;
+	const deadline = performance.now() + OBSERVATION_BUDGET_MILLISECONDS;
+	context.markCommitted();
+	const answer = await session.ask(
+		{
+			closeRequestId,
+			expectedAttemptGeneration: generation,
+			kind: 'workbench.tab-close.resume',
+			protocolVersion: WORKBENCH_PROTOCOL_VERSION,
+			requestId: createWorkbenchRequestId(),
+			sessionId: session.snapshot.sessionId,
+			tabId: target.tabId,
+			terminalContextId: target.terminalContextId,
+		},
+		OBSERVATION_BUDGET_MILLISECONDS,
+	);
+	if (answer.kind === 'not-submitted') return NOT_SUBMITTED;
+	if (answer.kind !== 'answered' || answer.response.kind !== 'workbench.tab-close.resume.result') {
+		// It may have continued the close; a later Resume of the same attempt answers Stale then.
+		return failed('outcome-unknown');
+	}
+	const { outcome } = answer.response;
+	if (outcome.kind !== 'resumed' && outcome.kind !== 'stale') {
+		// Whatever the Server refused here, a new Close finds the close as it is now.
+		if (outcome.kind === 'rejected') keep(target.terminalContextId, target.tabId, null);
+		return resumeRefused(outcome);
+	}
+	const observed = await observeClose(session, closeRequestId, deadline);
+	keep(target.terminalContextId, target.tabId, observed.stopped);
+	return observed.result;
 }
 
 async function closePanel(
@@ -405,32 +522,70 @@ async function closeProject(
 	}
 }
 
-/** Runs one close until its result is known, and never repeats one that may have run. */
-export function closeServerWorkbench(
-	session: CloseSession,
-	context: WorkbenchAuthorityContext,
-	closure: WorkbenchAuthorityClosure,
-): Promise<ActionResult<void>> {
-	switch (closure.type) {
-		case 'workspace-close':
-		case 'workspace-close-if-idle':
-			return closeWorkspace(session, closeContext(context), closure);
-		case 'project-workspaces-close':
-			return closeProject(session, context, closure);
-		case 'tabs-close':
-			return closeTabs(session, closeContext(context), closure);
-		case 'panel-close':
-			return closePanel(session, closeContext(context), closure);
-	}
+function tabKey(terminalContextId: string, tabId: string): string {
+	return `${terminalContextId}:${tabId}`;
 }
 
-export function watchServerWorkbenchClose(
-	session: Pick<CloseSession, 'snapshot' | 'subscribe'>,
-	closure: WorkbenchAuthorityClosure,
-	onChanged: () => void,
-): () => void {
-	const expected = closureFacts(closure, session.snapshot);
-	return session.subscribe((snapshot) => {
-		if (closureFacts(closure, snapshot) !== expected) onChanged();
-	});
+/**
+ * Runs each close until its result is known and never repeats one that may have run. It keeps each
+ * Tab close that stopped where an explicit Resume may continue it, while that Tab is still there.
+ */
+export function createServerWorkbenchClose(
+	session: CloseSession,
+): Pick<WorkbenchAuthority, 'close' | 'stoppedTabClose' | 'watchClose'> {
+	const stoppedTabCloses = new Map<string, StoppedTabClose>();
+	const keep: KeepStoppedTabClose = (terminalContextId, tabId, stopped) => {
+		const key = tabKey(terminalContextId, tabId);
+		stoppedTabCloses.delete(key);
+		if (stopped === null) return;
+		stoppedTabCloses.set(key, stopped);
+		for (const oldest of stoppedTabCloses.keys()) {
+			if (stoppedTabCloses.size <= MAXIMUM_STOPPED_TAB_CLOSES) break;
+			stoppedTabCloses.delete(oldest);
+		}
+	};
+	const stoppedClose = (terminalContextId: string, tabId: string): StoppedTabClose | null => {
+		const key = tabKey(terminalContextId, tabId);
+		const stopped = stoppedTabCloses.get(key);
+		if (stopped === undefined) return null;
+		const present = session.snapshot.terminalContexts
+			.find((candidate) => candidate.terminalContextId === terminalContextId)
+			?.tabs.some((candidate) => candidate.tabId === tabId);
+		// Tab IDs never return, so a Tab that has gone takes its stopped close with it.
+		if (present !== true) {
+			stoppedTabCloses.delete(key);
+			return null;
+		}
+		return stopped;
+	};
+	return {
+		close: (context, closure) => {
+			switch (closure.type) {
+				case 'workspace-close':
+				case 'workspace-close-if-idle':
+					return closeWorkspace(session, closeContext(context), closure);
+				case 'project-workspaces-close':
+					return closeProject(session, context, closure);
+				case 'tabs-close':
+					return closeTabs(session, closeContext(context), closure, keep);
+				case 'panel-close':
+					return closePanel(session, closeContext(context), closure);
+				case 'tab-close-resume':
+					return resumeTabClose(
+						session,
+						context,
+						stoppedClose(closure.terminalContextId, closure.tabId),
+						keep,
+					);
+			}
+		},
+		stoppedTabClose: (terminalContextId, tabId) =>
+			stoppedClose(terminalContextId, tabId)?.stop ?? null,
+		watchClose: (closure, onChanged) => {
+			const expected = closureFacts(closure, session.snapshot);
+			return session.subscribe((snapshot) => {
+				if (closureFacts(closure, snapshot) !== expected) onChanged();
+			});
+		},
+	};
 }

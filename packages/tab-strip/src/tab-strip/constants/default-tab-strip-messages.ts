@@ -61,6 +61,7 @@ export const DEFAULT_TAB_STRIP_MESSAGES = {
 	pinSearchTabs: 'Pin Search tabs',
 	previewUnavailable: 'Preview unavailable',
 	rename: 'Rename',
+	resumeTabClose: 'Resume closing this Tab…',
 	searchTabs: 'Search tabs',
 	searchTabsMenu: 'Search tabs menu',
 	tabCrashed: 'This tab has crashed',

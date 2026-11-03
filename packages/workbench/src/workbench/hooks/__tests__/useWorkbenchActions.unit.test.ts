@@ -23,6 +23,7 @@ const unavailableFocusRouting = {
 	getResolution: () => ({ kind: 'unavailable', reason: 'no-available-region' }) as const,
 };
 const worktreeTestLabel = (ordinal: number) => `Worktree ${ordinal}`;
+const closeWarningTestText = () => 'Ends its terminals.';
 
 function createTestTerminalPresentationComposition(scope: string) {
 	let sequence = 0;
@@ -70,6 +71,7 @@ function WorkbenchActionsHarness({
 	);
 	const actions = useWorkbenchActions({
 		focusRouting,
+		formatCloseWarning: closeWarningTestText,
 		isSidebarVisible,
 		navigation,
 		onNewTerminal,
@@ -294,6 +296,8 @@ describe('useWorkbenchActions', () => {
 					(actionId) =>
 						actionId !== WORKBENCH_ACTION_IDS.navigateAgent &&
 						actionId !== WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed &&
+						// Only an authority's close can stop where Resume continues it.
+						actionId !== WORKBENCH_ACTION_IDS.resumeTabClose &&
 						// Worktree Actions exist only where an authority reaches Git.
 						!actionId.startsWith('workbench.worktree.'),
 				),
@@ -370,6 +374,7 @@ describe('useWorkbenchActions', () => {
 			);
 			const actions = useWorkbenchActions({
 				focusRouting: unavailableFocusRouting,
+				formatCloseWarning: closeWarningTestText,
 				isSidebarVisible: true,
 				onNewTerminal: undefined,
 				onSettings: undefined,

@@ -71,6 +71,8 @@ export interface TabStripMessages {
 	readonly pinSearchTabs: string;
 	readonly previewUnavailable: string;
 	readonly rename: string;
+	/** Continues the Tab's close that stopped; it acts on the Tab the menu opened on alone. */
+	readonly resumeTabClose: string;
 	readonly searchTabs: string;
 	readonly searchTabsMenu: string;
 	readonly tabCrashed: string;

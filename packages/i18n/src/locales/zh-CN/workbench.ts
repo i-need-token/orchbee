@@ -262,8 +262,11 @@ export const zhCNWorkbenchMessages = {
 	'workbench.panels.resize.outcomeUnknown': '大小调整结果不确定；请先检查布局再操作',
 	'workbench.panels.childTerminals.label': '子终端',
 	'workbench.tabs.close.awaitingRemoval': '{label} · 执行已终止；等待移除标签页',
+	'workbench.tabs.close.awaitingRemovalResumable':
+		'{label} · 执行已终止；等待移除标签页 · 可以重试关闭',
 	'workbench.tabs.close.cancelled': '关闭确认已取消',
 	'workbench.tabs.close.cleanupBlocked': '{label} · 关闭清理受阻',
+	'workbench.tabs.close.cleanupBlockedResumable': '{label} · 关闭清理受阻 · 可以重试关闭',
 	'workbench.tabs.close.closed': '{label} · 已关闭',
 	'workbench.tabs.close.closing': '{label} · 正在关闭',
 	'workbench.close.warning':
@@ -282,6 +285,10 @@ export const zhCNWorkbenchMessages = {
 		'复制已停止：请检查待定、失败或未知结果；不会重放 · 已创建 {created}/{total} 个标签页',
 	'workbench.tabs.update.notApplied': '标签页未更新 · 请检查目标后再试',
 	'workbench.tabs.close.outcomeUnknown': '{label} · 关闭结果未知',
+	'workbench.tabs.close.resume': '继续关闭此标签页…',
+	'workbench.tabs.close.resumeDescription':
+		'{label} · {stop, select, awaiting-removal {执行已终止；等待移除标签页} other {关闭清理受阻}}。{warning}',
+	'workbench.tabs.close.resumeTitle': '继续关闭此标签页？',
 	'workbench.tabs.close.setProgress': '正在关闭标签页：{completed} 个已关闭，剩余 {remaining} 个',
 	'workbench.tabs.close.setStopped':
 		'关闭已停止：{completed} 个已关闭，{remaining} 个未确认关闭。已提交的关闭操作可能继续。',

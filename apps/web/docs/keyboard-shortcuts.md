@@ -299,6 +299,7 @@ does not consume the keyboard event.
 
 | Active target state                                                             | Prepared operation                             |
 | ------------------------------------------------------------------------------- | ---------------------------------------------- |
+| The authority reports that the active Tab's close stopped where it may continue | Resume closing that Tab                        |
 | The displayed terminal is a child terminal                                      | Close that child terminal                      |
 | The displayed terminal is the primary and the active Tab has two or more panels | Close that panel                               |
 | The displayed terminal is the primary and the active Tab has one panel          | Close the active Tab                           |
@@ -311,6 +312,8 @@ result and never mutates panel or Tab state directly. Confirmation cancellation 
 terminal sessions unchanged. Cancelling the context execution cancels its prepared lower execution;
 if the lower operation has already committed, its completed result remains authoritative. A
 missing or stale lower registration blocks the context Action without a direct fallback mutation.
+Resume asks its own question, so the context Action starts it as a separate execution and reports
+no change of its own.
 
 Maximization resolves only when the active Tab has at least two panels. Right and below split
 Actions resolve whenever a valid target panel exists. Each command prepares and executes the
