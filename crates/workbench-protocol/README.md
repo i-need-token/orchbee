@@ -193,9 +193,10 @@ canonical Workbench revision of the projected cache; legacy omission supplies no
 
 This crate owns the typed requests, responses, validation, and framed transport shared by native Workbench clients and the Server. It defines contracts without opening sockets or executing operations; runtime owners interpret admitted requests.
 
-`WorkbenchDirectoryPath` preserves admitted operand spelling. `same_windows_path_spelling`
-shares the existing Worktree association comparison between Server and Client: separators,
-trailing separators and ASCII case may differ. It performs no filesystem identity check,
+`WorkbenchDirectoryPath` preserves admitted operand spelling. `same_directory_spelling`
+shares the existing Worktree association comparison between Server and Client: POSIX-rooted
+spellings compare byte for byte, and Windows drive spellings may differ only in separators,
+trailing separators and ASCII case. It performs no filesystem identity check,
 canonicalization, verbatim-prefix or dot-component resolution. `with_native_separators` gives a
 drive path the `\` spelling Windows reports, for a writer recording a Git-reported path; POSIX-rooted
 and `\\?\` verbatim spellings stay unchanged, and it is equally lexical. Wire syntax and runtime

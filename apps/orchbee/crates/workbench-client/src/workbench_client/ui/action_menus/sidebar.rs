@@ -81,7 +81,7 @@ pub(super) fn project_folders(
         };
         // Spellings of one Windows directory, such as by case or separator, share one row.
         if !folders.iter().any(|folder| {
-            orchbee_workbench_protocol::same_windows_path_spelling(
+            orchbee_workbench_protocol::same_directory_spelling(
                 folder.as_str(),
                 directory.path.as_str(),
             )

@@ -165,8 +165,8 @@ This uses the same read-only preparation, then displays the prepared path and ge
 the existing two-field draft with directory focus. It submits nothing until an explicit, drawn
 Submit/Enter; Esc cancels without creating resources and displays no pending item before then.
 Up/Down or a drawn directory row selects the prepared directory, recent workspace directories, then
-other known workspace directories, deduplicated by `same_windows_path_spelling` (ASCII case, either
-separator and a trailing separator) and limited to eight choices. Recency belongs to
+other known workspace directories, deduplicated by `same_directory_spelling` (on Windows ASCII
+case, either separator and a trailing separator) and limited to eight choices. Recency belongs to
 the Client's existing volatile navigation memory; no filesystem scan or new history file is
 created. An automatic name follows path edits until the user edits the name. A Project creation
 menu retains its exact Project target. The edited directory and name belong only to this launch.
