@@ -1563,9 +1563,11 @@ choices stand unless review changes them:
 - **Success is quiet.** An opened Worktree shows as its activated Workspace and a removal reports
   for four seconds; a failure or unknown outcome stays until pressed.
 
-A Desktop window on a staged Windows cohort ran these commands against a scratch repository. New
-Worktree was enabled about 0.8 seconds after the menu opened and added a Workspace in about 2.5
-seconds, on a generated `worktree/` branch in a checkout beside the repository. With that Workspace
+A Desktop window on a staged Windows cohort ran these commands against a scratch repository. Open
+Worktree listed the repository's other checkouts by branch about 0.6 seconds after the menu opened
+and opened one as a Workspace in about 1.7 seconds. New Worktree was enabled within about 0.8
+seconds and added a Workspace in about 2.5 seconds, on a generated `worktree/` branch in a checkout
+beside the repository. With that Workspace
 the only one, Remove Worktree… asked once, naming the Workspace, its terminal, the checkout's path,
 and the kept branch. The Workspace left about 2 seconds after Remove, the notice said the Worktree
 was removed and the Workspace closed with the branch kept, not that the source changed, and Git
