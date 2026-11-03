@@ -14,6 +14,7 @@ import type {
 	MobileTerminalInputState,
 	MobileTerminalKey,
 	MobileTerminalModifier,
+	ProjectedTerminalOutcome,
 	ProjectedTerminalRendererSession,
 } from '../../projected-terminal-renderer';
 import type { TerminalProjection, TerminalProjectionRequest } from '../../terminal-projection';
@@ -170,6 +171,10 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 
 	isLiveCropped(): boolean {
 		return !this.#disposed && this.#active?.session.isLiveCropped?.() === true;
+	}
+
+	getTerminalOutcome(): ProjectedTerminalOutcome | undefined {
+		return this.#disposed ? undefined : this.#active?.session.getTerminalOutcome?.();
 	}
 
 	subscribeControlPresentation(listener: () => void): { dispose(): void } {

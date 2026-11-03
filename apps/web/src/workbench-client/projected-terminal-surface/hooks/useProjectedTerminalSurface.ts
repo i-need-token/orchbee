@@ -21,6 +21,7 @@ import {
 	type MobileTerminalInputState,
 	type MobileTerminalKey,
 	type MobileTerminalModifier,
+	type ProjectedTerminalOutcome,
 } from '../../projected-terminal-renderer';
 import {
 	ProjectedTerminalSurfaceCapabilityContext,
@@ -55,6 +56,7 @@ interface PresentationMobileInputState {
 
 interface PresentationControl {
 	readonly liveCropped: boolean;
+	readonly outcome: ProjectedTerminalOutcome | undefined;
 	readonly presentation: ProjectedTerminalControlPresentation;
 	readonly presentationId: string;
 }
@@ -417,6 +419,7 @@ export function useProjectedTerminalSurface(
 			if (cancelled) return;
 			setPresentationControl({
 				liveCropped: controller.isLiveCropped(),
+				outcome: controller.getTerminalOutcome(),
 				presentation: controller.getControlPresentation(),
 				presentationId: presentation.presentationId,
 			});
@@ -504,7 +507,7 @@ export function useProjectedTerminalSurface(
 	if (!stopped && currentRecovery?.kind === 'recovering') {
 		failureMessage = intl.formatMessage(projectedTerminalMessages.connectionRecovering);
 	} else if (!stopped && currentRecovery?.kind === 'failed') {
-		failureMessage = intl.formatMessage(projectedTerminalMessages.connectionRecoveryFailed);
+		failureMessage = intl.formatMessage(projectedTerminalMessages.disconnected);
 	} else if (startFailurePresentationId === presentation.presentationId) {
 		failureMessage = intl.formatMessage(projectedTerminalMessages.sessionStartFailed);
 	}
@@ -577,6 +580,7 @@ export function useProjectedTerminalSurface(
 		stopped,
 		startNewSession,
 		takeControl,
+		terminalOutcome: stopped ? null : (currentControl?.outcome ?? null),
 		toggleMobileKeyboard,
 		toggleMobileModifier,
 	};

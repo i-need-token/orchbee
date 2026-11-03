@@ -1,5 +1,8 @@
 export { startProjectedTerminalRenderer } from './startProjectedTerminalRenderer';
-export type { ProjectedTerminalRendererSession } from './startProjectedTerminalRenderer';
+export type {
+	ProjectedTerminalOutcome,
+	ProjectedTerminalRendererSession,
+} from './startProjectedTerminalRenderer';
 export type { MobileTerminalKey } from './MobileTerminalInputController';
 export type {
 	MobileTerminalInputState,

@@ -54,7 +54,7 @@ export function ProjectedTerminalLaunchFailure({
 				) : null}
 				<div className={styles['actions']}>
 					<Button data-slot='projected-terminal-launch-new-tab' onClick={onCreateTab}>
-						{intl.formatMessage(projectedTerminalMessages.launchNewTab)}
+						{intl.formatMessage(projectedTerminalMessages.newTab)}
 					</Button>
 					<Button data-slot='projected-terminal-launch-close' onClick={onClose} variant='outline'>
 						{intl.formatMessage(projectedTerminalMessages.launchClose)}

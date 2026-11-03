@@ -30,8 +30,9 @@ export const enUSProjectedTerminalMessages = {
 		'Terminal screen, cursor at row {row}, column {column}',
 	'terminal.projected.accessibility.selection': 'Selected text: {text}',
 	'terminal.projected.connectionFailure': 'The terminal connection failed.',
-	'terminal.projected.connectionRecovering': 'Restoring the terminal connection…',
-	'terminal.projected.connectionRecoveryFailed': 'The terminal connection could not be restored.',
+	'terminal.projected.connectionRecovering': 'Reconnecting…',
+	'terminal.projected.disconnected': 'Disconnected',
+	'terminal.projected.exited': 'Terminal exited',
 	'terminal.projected.connectionRetry': 'Retry',
 	'terminal.projected.control.outcomeUnknown':
 		'Control outcome unknown. Take control again to be sure.',
@@ -50,7 +51,7 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.failure.resize': 'The terminal size could not be synchronized.',
 	'terminal.projected.failure.retryable': '{consequence} Try the action again.',
 	'terminal.projected.failure.selection': 'The terminal selection could not be updated.',
-	'terminal.projected.runtimeFailure': 'The terminal session stopped after a runtime failure.',
+	'terminal.projected.runtimeFailure': 'Terminal failed',
 	'terminal.projected.copy.completed': 'Copied {byteLength, number} bytes.',
 	'terminal.projected.copy.failed': 'The terminal selection could not be copied.',
 	'terminal.projected.clear.completed': 'Terminal output cleared.',
@@ -179,7 +180,7 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.launch.executableFailed':
 		'The executable path could not be started. Check that the file exists and is accessible.',
 	'terminal.projected.launch.failed': 'Terminal creation failed',
-	'terminal.projected.launch.newTab': 'New Tab',
+	'terminal.projected.newTab': 'New Tab',
 	'terminal.projected.launch.shellFailed':
 		'The configured shell could not be started. Check its launch profile and working directory.',
 	'terminal.projected.launch.unavailable': 'Terminal unavailable',

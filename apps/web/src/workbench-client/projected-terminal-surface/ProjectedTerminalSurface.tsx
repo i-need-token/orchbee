@@ -8,7 +8,7 @@ import { ProjectedTerminalImagePreviewCard } from './components/projected-termin
 import { ProjectedTerminalLaunchFailure } from './components/projected-terminal-launch-failure/ProjectedTerminalLaunchFailure';
 import { ProjectedTerminalMobileInputBar } from './components/projected-terminal-mobile-input-bar/ProjectedTerminalMobileInputBar';
 import { ProjectedTerminalPasteReviewDialog } from './components/projected-terminal-paste-review-dialog/ProjectedTerminalPasteReviewDialog';
-import { ProjectedTerminalViewOnly } from './components/projected-terminal-view-only/ProjectedTerminalViewOnly';
+import { ProjectedTerminalPersistentStatus } from './components/projected-terminal-persistent-status/ProjectedTerminalPersistentStatus';
 import { useProjectedTerminalSurface } from './hooks/useProjectedTerminalSurface';
 
 export function ProjectedTerminalSurface({
@@ -41,7 +41,9 @@ export function ProjectedTerminalSurface({
 		presentationMode,
 	});
 	const intl = useOrchbeeIntl();
-	const terminalShown = !view.stopped && view.launchFailure === null;
+	// An ended terminal keeps its last frame but takes no input and has no control to take.
+	const terminalShown =
+		!view.stopped && view.launchFailure === null && view.terminalOutcome === null;
 	return (
 		<>
 			<div
@@ -88,11 +90,19 @@ export function ProjectedTerminalSurface({
 				{view.imagePreview === null ? null : (
 					<ProjectedTerminalImagePreviewCard preview={view.imagePreview} />
 				)}
+				{view.terminalOutcome === null ? null : (
+					<ProjectedTerminalPersistentStatus
+						state={{ kind: 'ended', onCreateTab: view.createTab, outcome: view.terminalOutcome }}
+					/>
+				)}
 				{terminalShown && view.controlPresentation !== 'none' ? (
-					<ProjectedTerminalViewOnly
-						cropped={view.liveCropped}
-						onTakeControl={view.takeControl}
-						taking={view.controlPresentation === 'taking-control'}
+					<ProjectedTerminalPersistentStatus
+						state={{
+							cropped: view.liveCropped,
+							kind: 'view-only',
+							onTakeControl: view.takeControl,
+							taking: view.controlPresentation === 'taking-control',
+						}}
 					/>
 				) : null}
 				{terminalShown ? (

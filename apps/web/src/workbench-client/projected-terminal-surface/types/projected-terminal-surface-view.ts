@@ -5,6 +5,7 @@ import type {
 	MobileTerminalInputState,
 	MobileTerminalKey,
 	MobileTerminalModifier,
+	ProjectedTerminalOutcome,
 } from '../../projected-terminal-renderer';
 
 /** A terminal shown without one: its creation failed, or nothing launched it. */
@@ -29,6 +30,8 @@ export interface ProjectedTerminalSurfaceView {
 	readonly recoveryAvailable: boolean;
 	readonly root: RefObject<HTMLDivElement | null>;
 	readonly stopped: boolean;
+	/** How the shown terminal ended, absent while it runs or once its session stopped. */
+	readonly terminalOutcome: ProjectedTerminalOutcome | null;
 	approvePaste(): void;
 	cancelPaste(): void;
 	closeTerminal(): void;

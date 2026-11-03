@@ -783,7 +783,7 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(dataset['projectedTerminalState']).toBe('failed');
 			expect(status).toMatchObject({
 				hidden: false,
-				textContent: '终端连接失败。',
+				textContent: '已断开',
 			});
 			emitTransportMessage({ frame: new Uint8Array([4, 5, 6]).buffer, kind: 'frame' });
 			expect(dataset['projectedTerminalState']).toBe('open');
@@ -1149,7 +1149,7 @@ describe('startProjectedTerminalRenderer', () => {
 			);
 			expect(terminalConnectionElements.additionalStatus).toMatchObject({
 				hidden: false,
-				textContent: 'The terminal connection failed.',
+				textContent: 'Disconnected',
 			});
 			expect(terminalConnectionTransport.close).toHaveBeenCalledOnce();
 			terminalConnectionSession.dispose();
@@ -1489,10 +1489,9 @@ describe('startProjectedTerminalRenderer', () => {
 			liveTransport.emitMessage({ event: runtimeFailure, kind: 'terminal-failed' });
 			expect(notifyFailed).toHaveBeenCalledWith(runtimeFailure);
 			expect(liveElements.additionalRoot.dataset['projectedTerminalState']).toBe('failed');
-			expect(liveElements.additionalStatus).toMatchObject({
-				hidden: false,
-				textContent: 'The terminal session stopped after a runtime failure.',
-			});
+			// The surface names the failure; the renderer's own status no longer shows it.
+			expect(liveSession.getTerminalOutcome?.()).toBe('failed');
+			expect(liveElements.additionalStatus).toMatchObject({ hidden: true, textContent: null });
 			liveSession.dispose();
 			resolvePendingClipboardWrite?.({ kind: 'completed' });
 			await Promise.resolve();

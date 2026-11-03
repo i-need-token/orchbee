@@ -942,9 +942,7 @@ describe('useProjectedTerminalSurface', () => {
 
 		expect(open).toHaveBeenCalledTimes(4);
 		expect(container.firstElementChild?.getAttribute('data-recovery-available')).toBe('true');
-		expect(container.firstElementChild?.getAttribute('data-failure-message')).toBe(
-			'The terminal connection could not be restored.',
-		);
+		expect(container.firstElementChild?.getAttribute('data-failure-message')).toBe('Disconnected');
 		await act(async () => {
 			(container.querySelector('[data-retry-projection]') as HTMLButtonElement).click();
 			await Promise.resolve();

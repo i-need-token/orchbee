@@ -24,7 +24,7 @@ Desktop runs this application as a Server Client; [Native runtime topology](../.
 
 `desktop-client/server-workbench/` composes these for every Desktop window. The one command this path sends on its own is the first Workspace of a Session holding no Workspace and no terminal, by the startup rule in [native directory startup](../orchbee/docs/native-directory-startup.md), and only from the first document of a window whose restore lost nothing: a later document follows a person's own actions, and an empty Session may be what they chose. A window has no start directory, so that Workspace opens in the home directory. Select Folder and New Folder use Main's native folder picker through the document's second port, and a new Project still comes from the Server's Workspace launch. The Server settles that launch only once its publication carries the Project, so a new folder's Project counts as opened when this document shows it, with no flush to wait for.
 
-A window whose connection ends, including one that receives a publication it cannot apply, keeps its last view and shows Disconnected with a Reconnect button. As in the TUI, nothing reconnects on its own. Reconnect reloads the document, so Main starts the Session again when it stopped and then connects. The status sits at the bottom center, clear of the Workbench notices and a terminal's View only status at the bottom end. A window that never reaches its Session shows Session Unavailable in place of the Workbench, in the system's language and appearance because the Session holds the preferences, with a strip to move the window by. Try Again is its only effect. When Main reports that the start was refused until the Session is recovered, the page names `orchbee server diagnose`, and recovery stays an explicit command.
+A window whose connection ends, including one that receives a publication it cannot apply, keeps its last view and shows Disconnected with a Reconnect button. As in the TUI, nothing reconnects on its own. Reconnect reloads the document, so Main starts the Session again when it stopped and then connects. The status sits at the bottom center, clear of the Workbench notices and a terminal's View only or ended status at the bottom end. A window that never reaches its Session shows Session Unavailable in place of the Workbench, in the system's language and appearance because the Session holds the preferences, with a strip to move the window by. Try Again is its only effect. When Main reports that the start was refused until the Session is recovered, the page names `orchbee server diagnose`, and recovery stays an explicit command.
 
 ## Composition boundary
 
@@ -71,10 +71,12 @@ releases the projection request, attachment, transport, input, and resize owners
 or retrying another attachment. The frozen renderer is disposed only when Workbench removes the
 surface after a surviving Tab crosses its display barrier, or clears the final Tab normally.
 
-A natural exit keeps its final frame readable only while Workbench's managed natural-exit removal
-awaits disposal; the projected attachment rejects further PTY input, resize, clear, and reset
-control, and the exited presentation is not retained as a Tab after disposal. Stopped presentations
-remain a separate Workbench state. Its
+A terminal that exits or fails at run time keeps its Tab and final frame, as the Server keeps it
+for every Client; the projected attachment rejects further PTY input, resize, clear, and reset
+control. The surface names the end in the TUI's words, Terminal exited or Terminal failed, beside
+a New Tab button at its bottom end, where View only otherwise sits, and drops its input controls.
+A connection that stays lost reads Disconnected, and an automatic recovery reads Reconnecting….
+Stopped presentations remain a separate Workbench state. Its
 Start New Session control returns the Workbench transition result through the shared composition;
 an accepted result replaces the presentation through the normal durable workflow, while a rejected
 or thrown start remains on the stopped presentation and displays localized failure feedback.

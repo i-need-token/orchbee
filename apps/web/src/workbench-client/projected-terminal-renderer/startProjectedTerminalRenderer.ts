@@ -273,12 +273,16 @@ export interface ProjectedTerminalRendererDependencies {
 	readonly mountTextViewer: (options: MountTerminalTextViewerOptions) => TerminalTextViewerMount;
 }
 
+/** How a terminal ended, which the surface names beside New Tab as the TUI's status line does. */
+export type ProjectedTerminalOutcome = 'exited' | 'failed';
+
 export interface ProjectedTerminalRendererSession {
 	capturePresentationSnapshot?(): ProjectedTerminalPresentationSnapshot | null;
 	dispose(): void;
 	readonly displayReady?: Promise<void> | undefined;
 	focus(): void;
 	getControlPresentation?(): ProjectedTerminalControlPresentation;
+	getTerminalOutcome?(): ProjectedTerminalOutcome | undefined;
 	/** Whether the surface shows only the part of a larger terminal around its cursor. */
 	isLiveCropped?(): boolean;
 	getMobileInputState?(): MobileTerminalInputState;
@@ -295,7 +299,7 @@ export interface ProjectedTerminalRendererSession {
 	): Promise<WorkbenchTerminalBroadcastInputResult>;
 	sendMobileKey?(key: MobileTerminalKey): boolean;
 	subscribeBroadcastInputReadiness?(listener: () => void): ActionDisposable;
-	/** Notifies when the control presentation or the live crop changes. */
+	/** Notifies when the control presentation, the live crop, or the terminal's outcome changes. */
 	subscribeControlPresentation?(listener: () => void): ActionDisposable;
 	subscribeMobileInputState?(listener: () => void): MobileTerminalInputSubscription;
 	/** Runs Take control as a button does, settling with whether this surface now holds the terminal. */
@@ -430,7 +434,6 @@ export async function startProjectedTerminalRenderer(
 		| 'connection-failure'
 		| 'copy'
 		| 'feature-failure'
-		| 'runtime-failure'
 		| undefined;
 	let renderStatus: (() => string) | undefined;
 	let terminalOpened = false;
@@ -439,7 +442,7 @@ export async function startProjectedTerminalRenderer(
 	let actionStatusTimer: ReturnType<typeof setTimeout> | undefined;
 	let completionStatusTimer: ReturnType<typeof setTimeout> | undefined;
 	let clipboardWriteController: AbortController | undefined;
-	let terminalOutcomeKind: 'exited' | 'failed' | undefined;
+	let terminalOutcomeKind: ProjectedTerminalOutcome | undefined;
 	let pendingPresentationConfiguration: TerminalPresentationConfiguration | undefined;
 	let transportAvailable = true;
 	const broadcastInputReadinessListeners = new Set<() => void>();
@@ -669,7 +672,7 @@ export async function startProjectedTerminalRenderer(
 		rootElement.dataset['projectedTerminalState'] = 'failed';
 		statusKind = 'connection-failure';
 		status.setAttribute('role', 'alert');
-		renderStatus = () => intl.formatMessage(projectedTerminalMessages.connectionFailure);
+		renderStatus = () => intl.formatMessage(projectedTerminalMessages.disconnected);
 		status.textContent = renderStatus();
 		status.hidden = false;
 	};
@@ -706,18 +709,20 @@ export async function startProjectedTerminalRenderer(
 		) {
 			return;
 		}
+		const lasting =
+			!failure.retryable &&
+			(failure.operation === undefined ||
+				failure.operation === 'connection' ||
+				failure.operation === 'protocol');
 		const renderFeatureFailure = (): string => {
+			// A connection that stays lost is named in a word, as the TUI's status line names it.
+			if (lasting) return intl.formatMessage(projectedTerminalMessages.disconnected);
 			const consequence = intl.formatMessage(projectedTerminalFailureMessage(failure));
 			return failure.retryable
 				? intl.formatMessage(projectedTerminalMessages.retryableFailure, { consequence })
 				: consequence;
 		};
-		if (
-			!failure.retryable &&
-			(failure.operation === undefined ||
-				failure.operation === 'connection' ||
-				failure.operation === 'protocol')
-		) {
+		if (lasting) {
 			rootElement.dataset['projectedTerminalState'] = 'failed';
 			statusKind = 'connection-failure';
 		} else {
@@ -949,16 +954,11 @@ export async function startProjectedTerminalRenderer(
 		rootElement.dataset['projectedTerminalFailureStage'] = event.failure.stage;
 		rootElement.dataset['projectedTerminalFinalRevision'] = event.finalRevision;
 		finalRevision = BigInt(event.finalRevision);
-		const renderRuntimeFailure = () => intl.formatMessage(projectedTerminalMessages.runtimeFailure);
-		const message = renderRuntimeFailure();
-		statusKind = 'runtime-failure';
-		status.setAttribute('role', 'alert');
-		renderStatus = renderRuntimeFailure;
-		status.textContent = renderStatus();
-		status.hidden = false;
+		// The surface names the failure beside New Tab, so no earlier status outlives it.
+		clearStatus();
 		terminal.notifyBrokerFailure({
 			code: `terminal-${event.failure.kind}`,
-			message,
+			message: intl.formatMessage(projectedTerminalMessages.runtimeFailure),
 			operation: 'connection',
 			retryable: false,
 		});
@@ -1645,6 +1645,7 @@ export async function startProjectedTerminalRenderer(
 			terminal.focus();
 		},
 		getControlPresentation: readControlPresentation,
+		getTerminalOutcome: () => terminalOutcomeKind,
 		isLiveCropped: () => !disposed && !frozen && terminal.liveCropped === true,
 		getMobileInputState: () =>
 			mobileInputController?.state ?? {

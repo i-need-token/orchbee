@@ -1643,6 +1643,11 @@ choices stand unless review changes them:
   shows, as for a lone panel showing a child terminal. New Tab, New Tab in Current Directory,
   Resize, Equalize, and the Split submenu leave the menus; Split left and Split above become Search
   Actions without default shortcuts, beside the others' existing Actions and shortcuts.
+- **Terminal states take the TUI's short words.** A terminal that exits or fails keeps its Tab and
+  frame, as the Server keeps it, and its bottom end says Terminal exited or Terminal failed beside
+  New Tab, where View only sits beside Take control; an exit used to show nothing and a failure a
+  sentence across the top. A lost connection says Disconnected and its recovery Reconnecting… in
+  place of sentences. The exit code the TUI's pane title adds has no GUI place yet.
 
 ### Evidence
 
