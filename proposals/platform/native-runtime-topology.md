@@ -1563,6 +1563,23 @@ choices stand unless review changes them:
 - **Success is quiet.** An opened Worktree shows as its activated Workspace and a removal reports
   for four seconds; a failure or unknown outcome stays until pressed.
 
+A Desktop window on a staged Windows cohort ran these commands against a scratch repository. New
+Worktree was enabled about 0.8 seconds after the menu opened and added a Workspace in about 2.5
+seconds, on a generated `worktree/` branch in a checkout beside the repository. With that Workspace
+the only one, Remove Worktree… asked once, naming the Workspace, its terminal, the checkout's path,
+and the kept branch. The Workspace left about 2 seconds after Remove, the notice said the Worktree
+was removed and the Workspace closed with the branch kept, not that the source changed, and Git
+listed only the main checkout and still had the branch.
+
+A real TUI of the same build, driven by keys sent from another Session's terminal, checked the TUI
+side in English and Chinese. Standing in the checkout, it refused the removal with the cause and the
+remedy and submitted nothing; standing elsewhere, removing the only Workspace's Worktree reported
+removal. Its first run found three faults, now fixed. A removal refused before submission was
+titled New Worktree, because a removal opened from the sidebar never recorded its mode. The dialog
+gives each sentence two lines, which cut the remedy before "elsewhere" and cut "is kept" after a
+generated branch name; the remedy is now two sentences, and the branch line says Keeps branch
+before the name.
+
 Not done in this slice: branch, base, and location entry, repository trust, forced removal, and the
 TUI's Windows refusal while the Client stands in the checkout. The model's Worktree leftovers, the
 `worktree` Directory kind and the creation and adoption transitions, wait for the step 6 audit.

@@ -28,13 +28,14 @@ impl Locale {
             }
         }
     }
+    /// What is kept, said before the branch name, so a dialog that cuts a long name keeps it.
     pub(crate) fn worktree_remove_branch(self, branch: Option<&str>) -> String {
         let branch = branch.map(|branch| branch.strip_prefix("refs/heads/").unwrap_or(branch));
         match (self, branch) {
-            (Self::EnUs, Some(branch)) => format!("Branch {branch} is kept."),
-            (Self::ZhCn, Some(branch)) => format!("分支 {branch} 会保留。"),
-            (Self::EnUs, None) => "Existing branches are kept.".to_owned(),
-            (Self::ZhCn, None) => "已有分支会保留。".to_owned(),
+            (Self::EnUs, Some(branch)) => format!("Keeps branch {branch}."),
+            (Self::ZhCn, Some(branch)) => format!("保留分支 {branch}。"),
+            (Self::EnUs, None) => "Keeps existing branches.".to_owned(),
+            (Self::ZhCn, None) => "保留已有分支。".to_owned(),
         }
     }
     /// The primary of a removal decision; a retained failure first offers its resume step.

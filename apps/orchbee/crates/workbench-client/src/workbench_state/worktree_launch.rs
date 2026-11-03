@@ -87,7 +87,8 @@ pub(crate) struct Launcher {
     focus_revoked: bool,
     presentation: PresentationPhase,
     presentation_notice: Option<WorktreeNotice>,
-    /// The requested mode, kept for a preparation failure that has no draft.
+    /// The requested mode, kept for a failure that leaves no draft, such as a failed preparation
+    /// or a removal refused before submission.
     requested: WorktreeMode,
     /// This Client process's working directory, supplied only where a process keeps its working
     /// directory in use (Windows).
@@ -153,6 +154,7 @@ impl Launcher {
         };
         draft.token = token;
         self.phase = Phase::Draft(Box::new(draft));
+        self.requested = mode;
         self.visible = true;
         self.focus_revoked = false;
         self.notice = WorktreeNotice::Preparing;

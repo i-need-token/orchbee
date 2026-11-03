@@ -623,14 +623,14 @@ fn removal_confirmation_shows_full_target_scope_and_retained_branch_without_auto
         (
             crate::localization::Locale::EnUs,
             "Remove Worktree?",
-            "Branch same is kept.",
+            "Keeps branch same.",
             "Cancel",
             "Remove",
         ),
         (
             crate::localization::Locale::ZhCn,
             "移除工作树？",
-            "分支 same 会保留。",
+            "保留分支 same。",
             "取消",
             "移除",
         ),
