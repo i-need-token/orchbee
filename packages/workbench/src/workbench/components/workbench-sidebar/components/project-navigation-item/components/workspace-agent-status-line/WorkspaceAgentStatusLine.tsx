@@ -8,7 +8,10 @@ interface WorkspaceAgentStatusLineProps {
 	readonly status: WorkbenchWorkspaceAgentOverviewView['foldedStatus'];
 }
 
-/** A folded Workspace's Agent states, most urgent first, with any states past them counted. */
+/**
+ * A folded Workspace's Agent states, most urgent first, with any states past them counted. Each
+ * glyph starts its box, so the line begins where the name and the location line it replaces begin.
+ */
 export function WorkspaceAgentStatusLine({ status }: WorkspaceAgentStatusLineProps): ReactNode {
 	return (
 		<span
@@ -18,7 +21,7 @@ export function WorkspaceAgentStatusLine({ status }: WorkspaceAgentStatusLinePro
 			title={status.label}
 		>
 			{status.glyphs.map((glyph) => (
-				<WorkbenchAgentStateGlyph key={glyph.presentationId} status={glyph} />
+				<WorkbenchAgentStateGlyph alignment='start' key={glyph.presentationId} status={glyph} />
 			))}
 			{status.remainder > 0 ? (
 				<span className={styles['remainder']}>+{status.remainder}</span>

@@ -131,7 +131,7 @@ describe('Workbench browser behavior', () => {
 			</OrchbeeI18nProvider>,
 		);
 
-		expect(screen.getByRole('button', { name: 'New tab' }).hasAttribute('disabled')).toBe(true);
+		expect(screen.getByRole('button', { name: 'New Tab' }).hasAttribute('disabled')).toBe(true);
 	});
 
 	it('owns and updates the vertical tab-strip collapsed state', () => {

@@ -1595,7 +1595,8 @@ choices stand unless review changes them:
   open disclosure, closed by default: every Workspace lists its Agents until this Client folds it,
   and the fold lasts while the Workspace does, through a hidden sidebar and Agents ending. A folded
   row's second line lists the states in place of the location, most urgent first, with five glyphs
-  or four and `+N`; the line's title, not a tooltip, names the states in words, and the row repeats
+  or four and `+N`, beginning where the name begins and as tall as the line it replaces; the line's
+  title, not a tooltip, names the states in words, and the row repeats
   the Agents' unread marker only while folded. A dragged Workspace hides its own Agent rows, where
   the TUI hides none, and the Workspace's provider mark stays though it repeats the first glyph.
 - **The window takes the TUI's outer title.** The Desktop window listens to the Session's title
@@ -1679,6 +1680,29 @@ choices stand unless review changes them:
   Second, the GUI has one Close key where the TUI retries from its Close Tab key, so on that Tab the
   key asks Resume whatever its Panels hold, and Search's Actions offer Resume only then. Third, the
   TUI's Resume question repeats a halted set's counts, which the GUI's leaves out.
+
+A Desktop window on a staged Windows cohort listed a Project and its Workspace before Recents and
+its Workspace, with no counts in the headings. The home Workspace's second line said `~`, a Git
+Workspace's named its branch with `↑31` after the name and 31 commits to push in its accessible
+name, and every two-line row was 46 px tall. Recents had no menu. Two Agents reported with `panel
+report-agent` listed under their Workspace, the one in a background Tab unread; folding hid them and
+showed their states most urgent first, titled Needs attention, Working, with the unread marker, and
+unfolding brought back the rows and the folder. A dragged Workspace hid its Agent rows, and Escape
+kept the order. Pressing the background Agent's row showed its Tab and gave its terminal the
+keyboard in about 80 ms. The run found a folded row 2 px shorter than an unfolded one, which moved
+every row below, and its first glyph 3 px after the name; both now match the unfolded row.
+
+A Desktop window on a staged Windows cohort showed these menus: a Tab's Rename, Pin, Add to group ▸,
+and red Close, with Remove from group once grouped; New group… made a blue group named in the group
+name dialog, whose menu held New Tab in group, Rename, Group color ▸, Ungroup, keep 1 Tab, and red
+Close; the terminal's menu and the Panel header's button and right-click held the same Panel rows,
+with Maximize only beside another Panel; a Workspace's Move to Project ▸, Rename, the Worktree
+commands, and a separated red Close; and a Project's New Workspace ▸, Rename, and a separated
+Dissolve, whose New Workspace ▸ led with New Workspace until a Workspace joined and then listed its
+folder. Object menus showed no shortcut hints, the Panel menus kept theirs, and the New Tab button's
+right-click opened nothing for one profile. The run found the button and two other strings saying
+New tab where the TUI and the rest of the window say New Tab; they say New Tab now. No list of
+several profiles ran there, because profiles are saved from Settings.
 
 A Desktop window on a staged Windows cohort asked Close Tab? for a lone running Panel, Close Panel?
 for a split one with the name its header showed after `panel rename` and the Tab as the strip named
@@ -1797,8 +1821,12 @@ does. These choices stand unless review changes them:
 A Desktop window on a staged Windows cohort opened the board from Search with the keyboard on its
 list, read the Server's empty list twice without losing the connection, ignored `r` within the
 pause, and returned the keyboard to the terminal after Escape and after the close button; the
-Chinese window showed the same board. No jump ran there, because the Server holds Agent sessions
-only once a provider's integration reports them.
+Chinese window showed the same board. A later run sent Claude Code hook events through the
+integration's hook script from a background Tab's terminal. The board listed that session as Working
+with its terminal, Claude Code, its Workspace, and its Tab, and Enter showed the Tab and gave the
+terminal the keyboard in about 70 ms. The run found the board showing `claude-code`: the GUI's
+product names follow the Server's report labels, which differ from the registry IDs for four
+providers, and the board now maps those IDs first.
 
 Not done in this slice: Start Agent from the empty board, the unread dot, the attention overlay,
 and the sidebar's summary of the board.

@@ -28,10 +28,23 @@ const AGENT_NAMES: ReadonlyMap<string, MessageDescriptor> = new Map<string, Mess
 	['qwen', agentObservationMessages.providerQwenCode],
 ]);
 
+/** The provider-registry IDs whose report label differs, as the Server's `report_label` maps them. */
+const PROVIDER_LABELS: ReadonlyMap<string, string> = new Map<string, string>([
+	['antigravity', 'agy'],
+	['claude-code', 'claude'],
+	['github-copilot', 'copilot'],
+	['qwen-code', 'qwen'],
+]);
+
 /** A custom report's Agent keeps the name it reported. */
 export function formatWorkbenchAgentName(intl: IntlShape, agent: string): string {
 	const name = AGENT_NAMES.get(agent);
 	return name === undefined ? agent : intl.formatMessage(name);
+}
+
+/** The product name for a provider-registry ID, such as an Agent session's provider. */
+export function formatWorkbenchAgentProvider(intl: IntlShape, providerId: string): string {
+	return formatWorkbenchAgentName(intl, PROVIDER_LABELS.get(providerId) ?? providerId);
 }
 
 /** One name for one Agent; a generic name once different Agents share a summary. */

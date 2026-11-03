@@ -15,7 +15,7 @@ import {
 	formatWorkbenchAgentStatus,
 	type WorkbenchAgentStatusView,
 } from '../../../utils/formatWorkbenchAgentStatus';
-import { formatWorkbenchAgentName } from '../../../utils/workbench-agent-names';
+import { formatWorkbenchAgentProvider } from '../../../utils/workbench-agent-names';
 import {
 	collectPanelLeaves,
 	getTerminalDisplayTitle,
@@ -88,7 +88,7 @@ export function projectWorkbenchAgentBoardRows(
 		return {
 			detail: [
 				place?.title.trim() ?? '',
-				formatWorkbenchAgentName(intl, row.providerId),
+				formatWorkbenchAgentProvider(intl, row.providerId),
 				row.freshness === 'fresh' ? '' : intl.formatMessage(FRESHNESS_MESSAGES[row.freshness]),
 				place === undefined
 					? intl.formatMessage(workbenchMessages.agentBoardNoPanel)

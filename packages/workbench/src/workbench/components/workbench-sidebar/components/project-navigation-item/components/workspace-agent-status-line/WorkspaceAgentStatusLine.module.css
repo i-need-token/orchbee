@@ -1,10 +1,15 @@
-/* One glyph per Agent, one gap apart, as the TUI leaves one blank cell between them. */
+/*
+ * One glyph per Agent, one gap apart, as the TUI leaves one blank cell between them. The line takes
+ * the location line's type and is one line of it tall, so folding never moves the rows below.
+ */
 .line {
 	display: flex;
 	min-width: var(--ob-ref-space-0);
+	height: 1lh;
 	align-items: center;
 	gap: var(--ob-ref-space-1);
 	overflow: hidden;
+	font: var(--ob-sys-typography-label-xs);
 }
 
 .remainder {

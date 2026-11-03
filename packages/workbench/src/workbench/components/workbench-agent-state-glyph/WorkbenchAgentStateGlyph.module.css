@@ -9,6 +9,10 @@
 	font: var(--ob-sys-typography-label-lg);
 }
 
+.glyph[data-alignment='start'] {
+	justify-content: flex-start;
+}
+
 .glyph[data-tone='attention'] {
 	color: var(--ob-sys-color-status-attention);
 	animation: agent-attention var(--ob-sys-motion-duration-agent-cycle)
