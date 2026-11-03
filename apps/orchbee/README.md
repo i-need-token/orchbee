@@ -1045,7 +1045,7 @@ Windows `panel report-agent`, `clear-agent-authority` and `release-agent` submit
 
 ## Windows outer terminal title
 
-`orchbee terminal title set "Build workspace"` publishes an override for the foreground main TUI; `orchbee terminal title clear` returns to the live `ui.window_title` template (fallback `Orchbee`). Both accept `--format json` and retain publication when no Client is connected. See [title ownership and restoration](docs/windows-terminal-title.md) for configured templates and physical-host limits.
+`orchbee terminal title set "Build workspace"` publishes an override for the foreground Client, a main TUI or a Desktop window, which shows it as its window title; `orchbee terminal title clear` returns to the live `ui.window_title` template (fallback `Orchbee`). Both accept `--format json` and retain publication when no Client is connected. See [title ownership and restoration](docs/windows-terminal-title.md) for configured templates and physical-host limits.
 
 Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action list` manage the shared user catalog offline. `plugin action invoke` submits owned commands to an existing Session; `plugin log list` reads retained results. See [Windows plugins](docs/windows-plugins.md) for context, process ownership, bounded output, managed install/uninstall and remaining hook/Pane integration. A start receipt confirms admission; logs report execution results.
 

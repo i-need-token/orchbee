@@ -29,7 +29,8 @@ export default defineConfig(({ command }) => ({
 			viewport:
 				'width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content',
 		},
-		title: 'Orchbee Workbench',
+		// What the TUI shows when no title policy names it; a Server-backed window is renamed once listening.
+		title: 'Orchbee',
 	},
 	server: {
 		host: '127.0.0.1',

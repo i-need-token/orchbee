@@ -42,6 +42,7 @@ import {
 	type ProjectedTerminalSurfaceCapability,
 } from '../projected-terminal-surface';
 import type { ServerConnection } from '../server-connection';
+import { bindServerWindowTitle, type ServerTitleWindow } from './bindServerWindowTitle';
 import {
 	createServerWorkbenchAuthority,
 	createServerWorkspaceLocations,
@@ -113,6 +114,11 @@ export interface CreateServerWorkbenchRuntimeOptions {
 	readonly terminalTrailingBlankRowsPreferenceSource?:
 		| TerminalTrailingBlankRowsPreferenceSource
 		| undefined;
+	/**
+	 * The window named after the Session's title policy, as the TUI names its outer terminal; absent
+	 * where this Client names no window.
+	 */
+	readonly titleWindow?: ServerTitleWindow | undefined;
 }
 
 /**
@@ -139,6 +145,7 @@ export function createServerWorkbenchRuntime({
 	terminalPlatformEffects = {},
 	terminalPresentationConfigurationSource = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 	terminalTrailingBlankRowsPreferenceSource,
+	titleWindow,
 }: CreateServerWorkbenchRuntimeOptions): ServerWorkbenchRuntime {
 	let disposed = false;
 	let locale = applicationLocaleSource.current();
@@ -234,6 +241,10 @@ export function createServerWorkbenchRuntime({
 			readonly terminal: string | null;
 		}
 	>();
+	const boundTerminal = (presentationId: TerminalPresentationId): string | null => {
+		const binding = findServerTerminalBinding(session.snapshot, presentationId);
+		return binding === null ? null : `${binding.workerId}:${binding.terminalId}`;
+	};
 	const applyTerminalMetadata = (
 		presentationId: TerminalPresentationId,
 		metadata: ServerTerminalMetadata,
@@ -247,6 +258,29 @@ export function createServerWorkbenchRuntime({
 					: nameServerTerminalTitle(observation.naturalTitle, intl),
 		});
 	};
+	const windowTitle =
+		titleWindow === undefined
+			? null
+			: bindServerWindowTitle({
+					connection,
+					runtime: projectWorkspaceRuntime,
+					session,
+					// As the TUI reads only the live frame, a terminal the Presentation no longer shows names
+					// nothing.
+					terminalTitle: (presentationId) => {
+						const cursor = metadataCursors.get(presentationId);
+						const terminal = boundTerminal(presentationId);
+						if (cursor === undefined || terminal === null || cursor.terminal !== terminal) {
+							return null;
+						}
+						const { naturalTitle } = resolveTerminalMetadataObservation(
+							cursor.metadata,
+							terminalHostName,
+						);
+						return naturalTitle === null ? null : nameServerTerminalTitle(naturalTitle, intl);
+					},
+					titleWindow,
+				});
 	const stopLocaleObservation = applicationLocaleSource.subscribe(() => {
 		const next = applicationLocaleSource.current();
 		if (disposed || next === locale) return;
@@ -256,6 +290,7 @@ export function createServerWorkbenchRuntime({
 		for (const [presentationId, { metadata }] of metadataCursors) {
 			applyTerminalMetadata(presentationId, metadata);
 		}
+		windowTitle?.refresh();
 	});
 	const terminalSurfaceCapability: ProjectedTerminalSurfaceCapability = {
 		agentObservationSource,
@@ -265,12 +300,12 @@ export function createServerWorkbenchRuntime({
 		interactionConfigurationSource: terminalInteractionConfigurationSource,
 		observeTerminalMetadata: (presentationId, metadata) => {
 			if (disposed) return;
-			const binding = findServerTerminalBinding(session.snapshot, presentationId);
-			const terminal = binding === null ? null : `${binding.workerId}:${binding.terminalId}`;
+			const terminal = boundTerminal(presentationId);
 			const previous = metadataCursors.get(presentationId);
 			if (previous?.terminal === terminal && previous.revision > metadata.revision) return;
 			metadataCursors.set(presentationId, { metadata, revision: metadata.revision, terminal });
 			applyTerminalMetadata(presentationId, metadata);
+			windowTitle?.terminalTitleChanged(presentationId);
 		},
 		platformEffects: terminalPlatformEffects,
 		preferredLocales,
@@ -311,6 +346,7 @@ export function createServerWorkbenchRuntime({
 				[
 					() => stopPublication(),
 					() => stopLocaleObservation(),
+					() => windowTitle?.dispose(),
 					() => stopFocusRecoveryDocumentObservation?.(),
 					() => stopFocusRecoveryViewObservation?.(),
 					() => actionRuntime.dispose(),

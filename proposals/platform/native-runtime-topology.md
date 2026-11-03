@@ -1597,6 +1597,11 @@ choices stand unless review changes them:
   or four and `+N`; the line's title, not a tooltip, names the states in words, and the row repeats
   the Agents' unread marker only while folded. A dragged Workspace hides its own Agent rows, where
   the TUI hides none, and the Workspace's provider mark stays though it repeats the first glyph.
+- **The window takes the TUI's outer title.** The Desktop window listens to the Session's title
+  policy with the page's focus and the TUI's display context, and shows the title the Server sends
+  in the taskbar and window switcher; nothing is drawn in the window. Before the first title, and
+  for a cleared one with no template, the page is titled `Orchbee` instead of `Orchbee Workbench`.
+  The CLI's help for `terminal title` still names only the outer terminal window.
 
 ### Evidence
 

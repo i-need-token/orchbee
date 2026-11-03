@@ -4,6 +4,7 @@ export { ServerTerminalDefaultSettingsClient } from './ServerTerminalDefaultSett
 export { ServerTerminalLaunchProfileClient } from './ServerTerminalLaunchProfileClient';
 export { ServerTerminalProjectionClient } from './ServerTerminalProjectionClient';
 export { ServerUserPreferencesClient } from './ServerUserPreferencesClient';
+export { ServerWindowTitle } from './ServerWindowTitle';
 export { ServerWorkbenchSession } from './ServerWorkbenchSession';
 export { createServerWorkbenchAuthority } from './createServerWorkbenchAuthority';
 export { createServerWorkspaceLocations } from './createServerWorkspaceLocations';
