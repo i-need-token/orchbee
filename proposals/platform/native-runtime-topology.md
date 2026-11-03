@@ -1708,8 +1708,14 @@ focus`, `tab focus`, `panel focus`, and `panel zoom` reach it where they answere
   resizing, split ratios, reads, popups, editors, and overlays wait for the features that need
   them.
 
+A Desktop window on a staged Windows cohort followed the CLI's `workspace focus`, `tab focus`,
+`panel focus` both ways, and `panel zoom` on and off, each command returning in about 130 ms with
+the window already showing its result. A remote focus while Settings shows moves the Workbench
+behind Settings and leaves Settings in front, and `workspace create --focus` now reaches the window
+where it answered `client-not-found`.
+
 Not done in this slice: the `busy` phase, the intents above, and whether a remote focus while
-Settings shows brings the Workbench forward.
+Settings shows should bring the Workbench forward.
 
 The window also runs the commands the Session's configuration installs, as the TUI does, where none
 ran under the Server. These choices stand unless review changes them:
