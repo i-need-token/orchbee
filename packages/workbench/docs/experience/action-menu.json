@@ -38,7 +38,7 @@
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--panel-workspace",
 			"states": [
-				"Right-click a terminal viewport and inspect the curated terminal commands, structural commands, and four-direction Split submenu.",
+				"Right-click a terminal viewport and inspect the curated terminal commands above the panel menu: New child terminal and Broadcast Input, Split right and Split below, Maximize once another Panel exists, then the red Close; the Panel header's ellipsis and right-click show the same panel menu.",
 				"Confirm that only commands with an effective binding render a trailing shortcut and that custom labels match Action search."
 			]
 		}

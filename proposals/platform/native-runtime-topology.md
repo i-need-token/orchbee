@@ -1634,6 +1634,15 @@ choices stand unless review changes them:
   leave it: New Tab is the button's click, New group with Tab stays in Search's Actions, and New Tab
   in the most recent group becomes Search's New Tab in recent group, which follows the TUI's recent
   group.
+- **Panel menus take the TUI's pane composition.** The terminal's right-click, below its own
+  commands such as Copy and Paste, and the panel header's options button and right-click hold Split
+  right and Split below, Maximize or Restore only beside another panel, then a red Close; Take
+  control joins the terminal's menu only while another Client holds that terminal. The GUI's New
+  child terminal and Broadcast Input lead in a section of their own, and the rows keep their
+  shortcuts, because opening the menu focuses its panel. A header now offers the menu whenever it
+  shows, as for a lone panel showing a child terminal. New Tab, New Tab in Current Directory,
+  Resize, Equalize, and the Split submenu leave the menus; Split left and Split above become Search
+  Actions without default shortcuts, beside the others' existing Actions and shortcuts.
 
 ### Evidence
 

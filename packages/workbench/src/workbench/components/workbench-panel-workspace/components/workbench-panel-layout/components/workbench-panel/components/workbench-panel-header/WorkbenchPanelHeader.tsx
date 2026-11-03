@@ -14,13 +14,13 @@ import * as React from 'react';
 import { WorkbenchActionContextMenuContent } from '../../../../../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
 import { WorkbenchActionDropdownMenuContent } from '../../../../../../../workbench-action-dropdown-menu-content/WorkbenchActionDropdownMenuContent';
 import { WORKBENCH_ACTION_IDS } from '../../../../../../../../actions/workbench-action-ids';
-import type { WorkbenchActionMenuEntry } from '../../../../../../../../types/workbench-action-menu';
 import {
 	getDisplayedTerminal,
 	getTerminalDisplayTitle,
 	type PanelLeaf,
 } from '../../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../../types/panel-workspace-view';
+import { buildWorkbenchPanelMenuEntries } from '../../utils/buildWorkbenchPanelMenuEntries';
 import styles from './WorkbenchPanelHeader.module.css';
 
 interface WorkbenchPanelHeaderProps {
@@ -31,43 +31,22 @@ interface WorkbenchPanelHeaderProps {
 export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps): React.ReactNode {
 	const displayedTerminal = getDisplayedTerminal(panel);
 	const isChildTerminalActive = panel.activeChildPresentationId !== null;
-	const isMaximized = view.maximizedPanelId === panel.id;
 	const closeShortcut = view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.closeActiveTerminal);
-	const panelMenuEntries: readonly WorkbenchActionMenuEntry[] = [
-		{
-			disabled: !view.canStartBroadcastInput(panel.id),
-			icon: 'terminal',
-			id: 'broadcast-panel-input',
-			kind: 'command',
-			label: view.messages.broadcastStart,
-			onSelect: () => view.startBroadcastInput(panel.id, 'menu'),
+	const splitTookFocus = React.useRef(false);
+	const panelMenuEntries = buildWorkbenchPanelMenuEntries({
+		panelId: panel.id,
+		source: 'menu',
+		split: (direction) => {
+			splitTookFocus.current = view.splitPanel(panel.id, direction, 'menu') !== null;
 		},
-		{
-			disabled: view.maximizedPanelId !== null,
-			icon: 'panels',
-			id: 'equalize-panels',
-			kind: 'command',
-			label: view.messages.equalize,
-			onSelect: () => view.equalizePanels(panel.id, 'menu'),
-			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.equalizeActivePanels),
-		},
-		{
-			icon: 'panels',
-			id: 'resize-panel',
-			kind: 'command',
-			label: view.messages.resize,
-			onSelect: () => view.startPanelResize(panel.id, 'menu'),
-			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.resizeActivePanel),
-		},
-		{
-			icon: isMaximized ? 'screen-normal' : 'screen-full',
-			id: 'toggle-panel-maximization',
-			kind: 'command',
-			label: isMaximized ? view.messages.minimize : view.messages.maximize,
-			onSelect: () => view.togglePanelMaximization(panel.id, 'menu'),
-			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.toggleActivePanelMaximization),
-		},
-	];
+		view,
+	});
+	// The new panel's terminal takes focus after a split; returning it to this header would undo that.
+	const menuFinalFocus = (): boolean => {
+		const tookFocus = splitTookFocus.current;
+		splitTookFocus.current = false;
+		return !tookFocus;
+	};
 
 	const header = (
 		<header
@@ -115,30 +94,31 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 				{getTerminalDisplayTitle(displayedTerminal)}
 			</div>
 			<div className={styles['actions']} data-slot='workbench-panel-header-actions'>
-				{view.panelCount > 1 && (
-					<Tooltip>
-						<DropdownMenu>
-							<DropdownMenuTrigger
-								render={
-									<TooltipTrigger
-										render={
-											<Button
-												aria-label={view.messages.more}
-												className={styles['mutedAction']}
-												size='icon-xs'
-												variant='ghost'
-											/>
-										}
-									/>
-								}
-							>
-								<ProductIcon name='ellipsis' />
-							</DropdownMenuTrigger>
-							<WorkbenchActionDropdownMenuContent entries={panelMenuEntries} />
-						</DropdownMenu>
-						<TooltipContent side='bottom'>{view.messages.more}</TooltipContent>
-					</Tooltip>
-				)}
+				<Tooltip>
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							render={
+								<TooltipTrigger
+									render={
+										<Button
+											aria-label={view.messages.more}
+											className={styles['mutedAction']}
+											size='icon-xs'
+											variant='ghost'
+										/>
+									}
+								/>
+							}
+						>
+							<ProductIcon name='ellipsis' />
+						</DropdownMenuTrigger>
+						<WorkbenchActionDropdownMenuContent
+							entries={panelMenuEntries}
+							finalFocus={menuFinalFocus}
+						/>
+					</DropdownMenu>
+					<TooltipContent side='bottom'>{view.messages.more}</TooltipContent>
+				</Tooltip>
 				<Tooltip>
 					<TooltipTrigger
 						render={
@@ -163,14 +143,12 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 		</header>
 	);
 
-	if (view.panelCount <= 1) return header;
-
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger render={<div className={styles['contextTrigger']} />}>
 				{header}
 			</ContextMenuTrigger>
-			<WorkbenchActionContextMenuContent entries={panelMenuEntries} />
+			<WorkbenchActionContextMenuContent entries={panelMenuEntries} finalFocus={menuFinalFocus} />
 		</ContextMenu>
 	);
 }

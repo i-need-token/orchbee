@@ -110,16 +110,13 @@ function renderPanel(
 		cancelPanelVisualSelection: () => undefined,
 		cancelPanelResize: () => undefined,
 		canStartBroadcastInput: () => false,
-		canCreateTerminalTabInCurrentDirectory: () => true,
 		canResizePanel: () => false,
 		cancelClose: () => undefined,
 		closeActiveTerminal: () => undefined,
 		confirmClose: () => undefined,
 		createChildTerminal: () => undefined,
 		createTerminalTab: () => undefined,
-		createTerminalTabInCurrentDirectory: () => undefined,
 		displayedRoot: panel,
-		equalizePanels: () => undefined,
 		enqueueBroadcastInput: () => undefined,
 		endBroadcastInput: () => undefined,
 		focusPanel: () => undefined,
@@ -144,15 +141,11 @@ function renderPanel(
 			closeAnyway: 'Close anyway',
 			closeRunningDescription: () => 'Running',
 			closeRunningTitle: 'Close running terminal?',
-			equalize: 'Equalize Panels',
-			maximize: 'Maximize Panel',
-			minimize: 'Minimize Panel',
+			maximize: 'Maximize',
 			more: 'Panel options',
 			newChildTerminal: 'New child terminal',
-			newTab: 'New tab',
-			newTabCurrentDirectory: 'New tab in current directory',
+			restore: 'Restore',
 			returnToPrimary: 'Return to primary terminal',
-			resize: 'Resize Panel…',
 			resizeDescription: 'Use W, N, T, or S to resize.',
 			resizeDone: 'Done',
 			resizeNarrower: 'Narrower',
@@ -162,10 +155,7 @@ function renderPanel(
 			resizeTitle: 'Resize Panel',
 			resizeUnavailable: 'Unavailable',
 			resizeWider: 'Wider',
-			split: 'Split panel',
-			splitAbove: 'Split above',
 			splitBelow: 'Split below',
-			splitLeft: 'Split left',
 			splitRight: 'Split right',
 			visualSelectionFocusLabel: 'Choose a panel to focus.',
 			visualSelectionFocusTarget: (label) => `Focus panel ${label}`,
@@ -194,7 +184,6 @@ function renderPanel(
 		splitPanel: () => null,
 		startPanelDrag: () => undefined,
 		startBroadcastInput: () => undefined,
-		startPanelResize: () => undefined,
 		state: {
 			nextPanelSequence: 2,
 			nextPanelSlotSequence: 1,
@@ -239,17 +228,17 @@ describe('WorkbenchPanel', () => {
 		expect(markup).not.toContain('data-slot="workbench-panel-focus-scrim"');
 	});
 
-	it('shows return and close actions but no panel menu for a singleton child terminal', () => {
+	it('gives a singleton child terminal return, panel options and close', () => {
 		const markup = renderPanel(createPanel(terminalPresentationId('terminal-2')), 1);
 
 		expect(markup).toContain('data-terminal-role="child"');
 		expect(markup).toContain('data-slot="workbench-panel-header"');
 		expect(markup).toContain('data-slot="workbench-child-terminal-strip"');
-		expect(markup).not.toContain('data-slot="context-menu-trigger"');
+		expect(markup).toContain('data-slot="context-menu-trigger"');
 		expect(markup).toContain('data-icon="arrow-left"');
 		expect(markup).toContain('data-icon="close"');
 		expect(markup).not.toContain('data-drag-enabled');
-		expect(markup).not.toContain('data-icon="ellipsis"');
+		expect(markup).toContain('data-icon="ellipsis"');
 	});
 
 	it('shows panel options for a primary terminal in a split layout', () => {

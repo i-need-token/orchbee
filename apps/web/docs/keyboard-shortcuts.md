@@ -177,7 +177,7 @@ stale source, invalid order, or missing lower Action is unavailable and leaves t
 
 - **Problem and input:** A person needs a new Tab rooted in the directory of the terminal they are
   actually viewing. An invocation carries either no target, which resolves the active Tab's focused
-  Panel, or one exact Panel target captured by the terminal context menu.
+  Panel, or one exact Panel target.
 - **Data and ownership:** Workbench captures the displayed primary or child Presentation identity
   and reads its latest trusted non-empty `currentCwd`, falling back to that same Presentation's
   `launchCwd`. Workbench remains the only Tab and Presentation writer; the Host remains authoritative
@@ -353,8 +353,8 @@ Resize mode captures the exact active Tab and Panel when it opens. Every resize 
 identity, delegates one mutation through the lower Panel Action, and adjusts the nearest ancestor
 whose split axis matches the requested direction. A missing axis or reached boundary is unchanged;
 maximized Panels reject mutations; switching or removing the captured Tab or Panel closes the mode.
-The menu, terminal context menu, Action search, and current configurable shortcut all open the same
-mode. Electron keeps native Reload and Force Reload menu commands clickable but does not register
+Action search and the current configurable shortcut open the same mode; the panel menus leave
+resizing to them and to dragging a divider, as the TUI's pane menu does. Electron keeps native Reload and Force Reload menu commands clickable but does not register
 their accelerators, allowing the renderer-owned current binding to resolve first.
 
 ## Shortcut settings discovery model

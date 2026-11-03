@@ -8,7 +8,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { TERMINAL_ACTION_IDS } from '../../../../../../../../../actions/terminal-action-contracts';
-import { WORKBENCH_ACTION_IDS } from '../../../../../../../../../actions/workbench-action-ids';
 import type { WorkbenchTerminalSurfaceProps } from '../../../../../../../../../types/workbench-terminal-surface';
 import type { TerminalPresentation } from '../../../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../../../types/panel-workspace-view';
@@ -16,7 +15,6 @@ import type { TerminalTabPresentationLayer } from '../../../../../../../types/te
 import { WorkbenchTerminalViewport } from '../WorkbenchTerminalViewport';
 
 const clearTerminal = vi.fn<() => void>();
-const createCurrentDirectoryTab = vi.fn<() => void>();
 const terminal: TerminalPresentation = {
 	closeActivity: 'unknown',
 	currentCwd: null,
@@ -88,35 +86,23 @@ function createView(actionRuntime: ActionRuntime): WorkbenchPanelWorkspaceView {
 		activeTab: { focusedPanelId: 'panel-1' },
 		bindBroadcastInputSink: () => ({ dispose: () => undefined }),
 		broadcastInput: { kind: 'idle' },
-		canCreateTerminalTabInCurrentDirectory: () => true,
 		canStartBroadcastInput: () => false,
 		closeActiveTerminal: () => undefined,
 		createChildTerminal: () => undefined,
 		createTerminalTab: () => undefined,
-		createTerminalTabInCurrentDirectory: createCurrentDirectoryTab,
-		equalizePanels: () => undefined,
 		maximizedPanelId: null,
 		messages: {
 			broadcastStart: 'Broadcast Input',
 			close: 'Close',
-			equalize: 'Equalize Panels',
-			maximize: 'Maximize Panel',
-			minimize: 'Minimize Panel',
+			maximize: 'Maximize',
 			newChildTerminal: 'New child terminal',
-			newTab: 'New tab',
-			newTabCurrentDirectory: 'New tab in current directory',
-			split: 'Split panel',
-			splitAbove: 'Split above',
+			restore: 'Restore',
 			splitBelow: 'Split below',
-			splitLeft: 'Split left',
 			splitRight: 'Split right',
 		},
 		panelCount: 1,
-		shortcutLabelForAction: (actionId: string) => {
-			if (actionId === TERMINAL_ACTION_IDS.clear) return '⌘K';
-			if (actionId === WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory) return '⌥⌘Enter';
-			return undefined;
-		},
+		shortcutLabelForAction: (actionId: string) =>
+			actionId === TERMINAL_ACTION_IDS.clear ? '⌘K' : undefined,
 		splitPanel: () => null,
 		startBroadcastInput: () => undefined,
 		togglePanelMaximization: () => undefined,
@@ -126,7 +112,6 @@ function createView(actionRuntime: ActionRuntime): WorkbenchPanelWorkspaceView {
 afterEach(() => {
 	cleanup();
 	clearTerminal.mockReset();
-	createCurrentDirectoryTab.mockReset();
 });
 
 describe('WorkbenchTerminalViewport', () => {
@@ -193,36 +178,6 @@ describe('WorkbenchTerminalViewport', () => {
 
 		await waitFor(() => expect(input.ownerDocument.activeElement).toBe(input));
 		expect(clearTerminal).toHaveBeenCalledOnce();
-		rendered.unmount();
-		actionRuntime.dispose();
-	});
-
-	it('creates a Tab from the clicked Panel current directory through the structural menu', async () => {
-		const actionRuntime = new ActionRuntime();
-		const rendered = render(
-			<OrchbeeI18nProvider locale='en-US'>
-				<WorkbenchTerminalViewport
-					layer={layer}
-					layoutSettled
-					panelId='panel-1'
-					terminal={terminal}
-					terminalAutoFocusAllowed
-					terminalFocusRequest={null}
-					terminalRole='primary'
-					terminalSurface={TestTerminalSurface}
-					view={createView(actionRuntime)}
-				/>
-			</OrchbeeI18nProvider>,
-		);
-
-		fireEvent.contextMenu(screen.getByRole('textbox', { name: 'Terminal input' }));
-		const item = await screen.findByRole('menuitem', {
-			name: /New tab in current directory/u,
-		});
-		expect(item.textContent).toContain('⌥⌘Enter');
-		fireEvent.click(item);
-
-		expect(createCurrentDirectoryTab).toHaveBeenCalledWith('panel-1', 'context-menu');
 		rendered.unmount();
 		actionRuntime.dispose();
 	});

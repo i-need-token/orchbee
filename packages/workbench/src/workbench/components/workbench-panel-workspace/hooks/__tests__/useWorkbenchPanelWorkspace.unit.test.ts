@@ -9,6 +9,7 @@ import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
+import { PANEL_ACTION_IDS } from '../../actions/panel-action-contracts';
 import { collectPanelLeaves, findPanel } from '../../model/panel-workspace-state';
 import { PanelWorkspaceStore } from '../../model/PanelWorkspaceStore';
 import type { WorkbenchPanelWorkspaceView } from '../../types/panel-workspace-view';
@@ -283,7 +284,14 @@ describe('useWorkbenchPanelWorkspace', () => {
 		});
 		if (panelId === null) throw new Error('Expected a split panel');
 		const resizePanelId = panelId;
-		act(() => view?.startPanelResize(resizePanelId));
+		const panelScope = view.actionScope;
+		act(() => {
+			runtime.execute(
+				PANEL_ACTION_IDS.startResize,
+				{ panelId: resizePanelId },
+				{ scope: panelScope, source: 'programmatic', target: { id: resizePanelId, type: 'panel' } },
+			);
+		});
 		expect(view.pendingResize).toEqual({ panelId: resizePanelId, tabId: 'tab-a' });
 		expect(view.canResizePanel(resizePanelId, 'wider')).toBe(true);
 

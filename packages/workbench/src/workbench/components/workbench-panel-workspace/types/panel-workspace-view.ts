@@ -55,15 +55,11 @@ export interface PanelWorkspaceMessages {
 	readonly closeAnyway: string;
 	readonly closeRunningDescription: (count: number) => string;
 	readonly closeRunningTitle: string;
-	readonly equalize: string;
 	readonly maximize: string;
-	readonly minimize: string;
 	readonly more: string;
 	readonly newChildTerminal: string;
-	readonly newTab: string;
-	readonly newTabCurrentDirectory: string;
+	readonly restore: string;
 	readonly returnToPrimary: string;
-	readonly resize: string;
 	readonly resizeDescription: string;
 	readonly resizeDone: string;
 	readonly resizeNarrower: string;
@@ -73,10 +69,7 @@ export interface PanelWorkspaceMessages {
 	readonly resizeTitle: string;
 	readonly resizeUnavailable: string;
 	readonly resizeWider: string;
-	readonly split: string;
-	readonly splitAbove: string;
 	readonly splitBelow: string;
-	readonly splitLeft: string;
 	readonly splitRight: string;
 	readonly visualSelectionFocusLabel: string;
 	readonly visualSelectionFocusTarget: (label: string) => string;
@@ -126,18 +119,12 @@ export interface WorkbenchPanelWorkspaceView {
 		adjustment: PanelResizeAdjustment,
 		multiplier?: PanelResizeMultiplier,
 	) => boolean;
-	readonly canCreateTerminalTabInCurrentDirectory: (panelId: string) => boolean;
 	readonly cancelClose: () => void;
 	readonly closeActiveTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly confirmClose: () => void;
 	readonly createChildTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly createTerminalTab: (source?: ActionInvocationSource) => void;
-	readonly createTerminalTabInCurrentDirectory: (
-		panelId: string,
-		source?: ActionInvocationSource,
-	) => void;
 	readonly displayedRoot: PanelLayoutNode | null;
-	readonly equalizePanels: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly enqueueBroadcastInput: (input: WorkbenchTerminalBroadcastInput) => void;
 	readonly endBroadcastInput: () => void;
 	readonly focusPanel: (panelId: string, source?: ActionInvocationSource) => void;
@@ -187,7 +174,6 @@ export interface WorkbenchPanelWorkspaceView {
 	) => string | null;
 	readonly startPanelDrag: (panelId: string, event: ReactPointerEvent<HTMLElement>) => void;
 	readonly startBroadcastInput: (panelId: string, source?: ActionInvocationSource) => void;
-	readonly startPanelResize: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly state: PanelWorkspaceState;
 	readonly togglePanelMaximization: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly toggleBroadcastInputVisibility: () => void;

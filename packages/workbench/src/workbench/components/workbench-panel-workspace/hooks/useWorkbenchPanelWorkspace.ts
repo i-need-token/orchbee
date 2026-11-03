@@ -219,15 +219,11 @@ export function useWorkbenchPanelWorkspace({
 			closeRunningDescription: (count) =>
 				intl.formatMessage(workbenchMessages.panelCloseRunningDescription, { count }),
 			closeRunningTitle: intl.formatMessage(workbenchMessages.panelCloseRunningTitle),
-			equalize: intl.formatMessage(workbenchMessages.panelEqualize),
-			maximize: intl.formatMessage(workbenchMessages.panelMaximize),
-			minimize: intl.formatMessage(workbenchMessages.panelMinimize),
+			maximize: intl.formatMessage(workbenchMessages.panelMenuMaximize),
 			more: intl.formatMessage(workbenchMessages.panelMore),
 			newChildTerminal: intl.formatMessage(workbenchMessages.panelNewChildTerminal),
-			newTab: intl.formatMessage(workbenchTabMessages.newTab),
-			newTabCurrentDirectory: intl.formatMessage(workbenchTabMessages.newTabCurrentDirectory),
+			restore: intl.formatMessage(workbenchMessages.panelMenuRestore),
 			returnToPrimary: intl.formatMessage(workbenchMessages.panelReturnToPrimary),
-			resize: intl.formatMessage(workbenchMessages.panelResize),
 			resizeDescription: intl.formatMessage(workbenchMessages.panelResizeDescription),
 			resizeDone: intl.formatMessage(workbenchMessages.panelResizeDone),
 			resizeNarrower: intl.formatMessage(workbenchMessages.panelResizeNarrower),
@@ -237,10 +233,7 @@ export function useWorkbenchPanelWorkspace({
 			resizeTitle: intl.formatMessage(workbenchMessages.panelResizeTitle),
 			resizeUnavailable: intl.formatMessage(workbenchMessages.panelResizeUnavailable),
 			resizeWider: intl.formatMessage(workbenchMessages.panelResizeWider),
-			split: intl.formatMessage(workbenchMessages.panelSplit),
-			splitAbove: intl.formatMessage(workbenchMessages.panelSplitAbove),
 			splitBelow: intl.formatMessage(workbenchMessages.panelSplitBelow),
-			splitLeft: intl.formatMessage(workbenchMessages.panelSplitLeft),
 			splitRight: intl.formatMessage(workbenchMessages.panelSplitRight),
 			visualSelectionFocusLabel: intl.formatMessage(
 				workbenchMessages.panelVisualSelectionFocusLabel,
@@ -961,16 +954,6 @@ export function useWorkbenchPanelWorkspace({
 					'applied'
 			);
 		},
-		canCreateTerminalTabInCurrentDirectory: (panelId) =>
-			actionRuntime.resolveAction(
-				WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory,
-				undefined,
-				{
-					scope: panelActions.scope,
-					source: 'programmatic',
-					target: { id: panelId, type: 'panel' },
-				},
-			)?.availability.kind === 'enabled',
 		cancelClose: () => pendingConfirmationRef.current?.(false),
 		closeActiveTerminal: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			actionRuntime.execute(WORKBENCH_ACTION_IDS.closeActiveTerminal, undefined, {
@@ -996,21 +979,8 @@ export function useWorkbenchPanelWorkspace({
 				{ scope: panelActions.scope, source },
 			);
 		},
-		createTerminalTabInCurrentDirectory: (
-			panelId,
-			source: ActionInvocationSource = 'programmatic',
-		) => {
-			actionRuntime.execute(WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory, undefined, {
-				scope: panelActions.scope,
-				source,
-				target: { id: panelId, type: 'panel' },
-			});
-		},
 		displayedRoot,
 		dismissBroadcastInput: panelBroadcastInput.dismiss,
-		equalizePanels: (panelId, source: ActionInvocationSource = 'programmatic') => {
-			executePanelAction(PANEL_ACTION_IDS.equalize, { panelId } satisfies PanelTargetInput, source);
-		},
 		endBroadcastInput: panelBroadcastInput.end,
 		enqueueBroadcastInput: panelBroadcastInput.enqueue,
 		focusPanel: (panelId, source: ActionInvocationSource = 'programmatic') => {
@@ -1089,13 +1059,6 @@ export function useWorkbenchPanelWorkspace({
 		startBroadcastInput: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			executePanelAction(
 				PANEL_ACTION_IDS.startBroadcastInput,
-				{ panelId } satisfies PanelTargetInput,
-				source,
-			);
-		},
-		startPanelResize: (panelId, source: ActionInvocationSource = 'programmatic') => {
-			executePanelAction(
-				PANEL_ACTION_IDS.startResize,
 				{ panelId } satisfies PanelTargetInput,
 				source,
 			);

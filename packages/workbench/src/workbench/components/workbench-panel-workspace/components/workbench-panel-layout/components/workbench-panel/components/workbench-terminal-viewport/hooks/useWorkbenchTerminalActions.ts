@@ -35,10 +35,11 @@ interface WorkbenchTerminalActions {
 	readonly captureContext: (event: React.MouseEvent<HTMLElement>) => boolean;
 	readonly entries: readonly WorkbenchActionMenuCommand[];
 	readonly scope: ActionScope;
+	/** Offered only while another Client holds the terminal; the panel section places it. */
+	readonly takeControl: WorkbenchActionMenuCommand | undefined;
 }
 
 const terminalActionOrder = [
-	TERMINAL_ACTION_IDS.takeControl,
 	TERMINAL_ACTION_IDS.openLink,
 	TERMINAL_ACTION_IDS.copySelection,
 	TERMINAL_ACTION_IDS.paste,
@@ -50,19 +51,22 @@ const terminalActionOrder = [
 	TERMINAL_ACTION_IDS.clear,
 ] as const;
 
-const terminalActionIcons: Readonly<Record<(typeof terminalActionOrder)[number], ProductIconName>> =
-	{
-		[TERMINAL_ACTION_IDS.clear]: 'trash',
-		[TERMINAL_ACTION_IDS.takeControl]: 'terminal',
-		[TERMINAL_ACTION_IDS.copySelection]: 'copy',
-		[TERMINAL_ACTION_IDS.findOpen]: 'search',
-		[TERMINAL_ACTION_IDS.hintsOpen]: 'action',
-		[TERMINAL_ACTION_IDS.historyShow]: 'action',
-		[TERMINAL_ACTION_IDS.openLink]: 'action',
-		[TERMINAL_ACTION_IDS.outputShowLast]: 'action',
-		[TERMINAL_ACTION_IDS.paste]: 'clipboard',
-		[TERMINAL_ACTION_IDS.selectAll]: 'check',
-	};
+type TerminalMenuActionId =
+	| (typeof terminalActionOrder)[number]
+	| typeof TERMINAL_ACTION_IDS.takeControl;
+
+const terminalActionIcons: Readonly<Record<TerminalMenuActionId, ProductIconName>> = {
+	[TERMINAL_ACTION_IDS.clear]: 'trash',
+	[TERMINAL_ACTION_IDS.takeControl]: 'terminal',
+	[TERMINAL_ACTION_IDS.copySelection]: 'copy',
+	[TERMINAL_ACTION_IDS.findOpen]: 'search',
+	[TERMINAL_ACTION_IDS.hintsOpen]: 'action',
+	[TERMINAL_ACTION_IDS.historyShow]: 'action',
+	[TERMINAL_ACTION_IDS.openLink]: 'action',
+	[TERMINAL_ACTION_IDS.outputShowLast]: 'action',
+	[TERMINAL_ACTION_IDS.paste]: 'clipboard',
+	[TERMINAL_ACTION_IDS.selectAll]: 'check',
+};
 
 export function useWorkbenchTerminalActions({
 	parentScope,
@@ -120,9 +124,9 @@ export function useWorkbenchTerminalActions({
 		return true;
 	});
 
-	const entries = React.useMemo<readonly WorkbenchActionMenuCommand[]>(() => {
+	const commands = React.useMemo<Pick<WorkbenchTerminalActions, 'entries' | 'takeControl'>>(() => {
 		void runtimeRevision;
-		if (provider.current === null) return [];
+		if (provider.current === null) return { entries: [], takeControl: undefined };
 		const capture = pinnedContext?.capture;
 		const discovered = runtime.discover(
 			{
@@ -138,22 +142,25 @@ export function useWorkbenchTerminalActions({
 				.filter((result) => result.kind === 'ready')
 				.map((result) => [result.descriptor.id, result] as const),
 		);
-		return terminalActionOrder.flatMap((actionId) => {
+		return {
+			entries: terminalActionOrder.flatMap((actionId) => commandFor(actionId) ?? []),
+			takeControl: commandFor(TERMINAL_ACTION_IDS.takeControl),
+		};
+
+		function commandFor(actionId: TerminalMenuActionId): WorkbenchActionMenuCommand | undefined {
 			const result = readyById.get(actionId);
-			if (result === undefined) return [];
+			if (result === undefined) return undefined;
 			const shortcut = shortcutLabelForAction(actionId);
-			return [
-				{
-					disabled: result.availability.kind !== 'enabled',
-					icon: terminalActionIcons[actionId],
-					id: `terminal-action:${actionId}`,
-					kind: 'command' as const,
-					label: formatActionMessage(result.descriptor.title),
-					onSelect: () => executePrepared(result.invocation),
-					...(shortcut === undefined ? {} : { shortcut }),
-				},
-			];
-		});
+			return {
+				disabled: result.availability.kind !== 'enabled',
+				icon: terminalActionIcons[actionId],
+				id: `terminal-action:${actionId}`,
+				kind: 'command',
+				label: formatActionMessage(result.descriptor.title),
+				onSelect: () => executePrepared(result.invocation),
+				...(shortcut === undefined ? {} : { shortcut }),
+			};
+		}
 
 		function executePrepared(invocation: PreparedActionInvocation): void {
 			const activeProvider = provider.current;
@@ -174,5 +181,11 @@ export function useWorkbenchTerminalActions({
 		}
 	}, [intl, pinnedContext, runtime, runtimeRevision, scope, shortcutLabelForAction]);
 
-	return { bindActionContextProvider, captureContext, entries, scope };
+	return {
+		bindActionContextProvider,
+		captureContext,
+		entries: commands.entries,
+		scope,
+		takeControl: commands.takeControl,
+	};
 }

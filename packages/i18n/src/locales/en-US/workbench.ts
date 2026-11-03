@@ -229,7 +229,6 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.actions.closeAnyway': 'Close anyway',
 	'workbench.panels.actions.equalize': 'Equalize Panels',
 	'workbench.panels.actions.maximize': 'Maximize Panel',
-	'workbench.panels.actions.minimize': 'Minimize Panel',
 	'workbench.panels.actions.activateChild': 'Activate child terminal',
 	'workbench.panels.actions.focus': 'Focus panel',
 	'workbench.panels.actions.focusDown': 'Focus Panel Below',
@@ -256,6 +255,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.actions.splitRight': 'Split right',
 	'workbench.panels.actions.swapVisible': 'Visually Swap Panel',
 	'workbench.panels.actions.toggleMaximization': 'Toggle Panel Maximization',
+	'workbench.panels.menu.maximize': 'Maximize',
+	'workbench.panels.menu.restore': 'Restore',
 	'workbench.panels.visualSelection.focusLabel':
 		'Choose a panel to focus. Type its label or press Escape to cancel.',
 	'workbench.panels.visualSelection.focusTarget': 'Focus panel {label}',

@@ -441,6 +441,39 @@ export function registerWorkbenchActiveTerminalActions({
 				title: workbenchMessages.panelSplitRight,
 			}),
 		),
+		// Search holds the directions the panel menu leaves out, as the TUI's global menu does.
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-split-above',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('split-above'),
+				handler: { execute: execute('split-above') },
+				id: WORKBENCH_ACTION_IDS.splitActivePanelAbove,
+				input: noActionInput,
+				title: workbenchMessages.panelSplitAbove,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-split-left',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('split-left'),
+				handler: { execute: execute('split-left') },
+				id: WORKBENCH_ACTION_IDS.splitActivePanelLeft,
+				input: noActionInput,
+				title: workbenchMessages.panelSplitLeft,
+			}),
+		),
 	];
 }
 

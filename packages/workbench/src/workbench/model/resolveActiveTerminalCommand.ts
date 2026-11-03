@@ -11,6 +11,7 @@ import {
 import {
 	collectPanelLeaves,
 	findPanel,
+	type PanelSplitDirection,
 	type PanelWorkspaceState,
 } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import {
@@ -43,10 +44,21 @@ export type ActiveTerminalCommand =
 	| 'move-up'
 	| 'open-broadcast-input'
 	| 'start-resize'
+	| 'split-above'
 	| 'split-below'
+	| 'split-left'
 	| 'split-right'
 	| 'swap-visible'
 	| 'toggle-maximization';
+
+const PANEL_SPLIT_DIRECTION_BY_COMMAND = {
+	'split-above': 'above',
+	'split-below': 'below',
+	'split-left': 'left',
+	'split-right': 'right',
+} as const satisfies Readonly<
+	Record<'split-above' | 'split-below' | 'split-left' | 'split-right', PanelSplitDirection>
+>;
 
 const PANEL_FOCUS_DIRECTION_BY_COMMAND = {
 	'focus-down': 'down',
@@ -215,17 +227,13 @@ export function resolveActiveTerminalCommand({
 				kind: 'ready',
 				panelId,
 			};
+		case 'split-above':
 		case 'split-below':
-			return {
-				actionId: PANEL_ACTION_IDS.split,
-				input: { direction: 'below', panelId },
-				kind: 'ready',
-				panelId,
-			};
+		case 'split-left':
 		case 'split-right':
 			return {
 				actionId: PANEL_ACTION_IDS.split,
-				input: { direction: 'right', panelId },
+				input: { direction: PANEL_SPLIT_DIRECTION_BY_COMMAND[command], panelId },
 				kind: 'ready',
 				panelId,
 			};

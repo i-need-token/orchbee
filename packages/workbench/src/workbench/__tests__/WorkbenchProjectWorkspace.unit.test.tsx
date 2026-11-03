@@ -905,7 +905,7 @@ describe('Workbench Project and Workspace management', () => {
 		expect(tabModel.getSnapshot().groups[0]?.title).toBe('');
 	});
 
-	it('projects terminal context commands through the shared icon-bearing action menu', async () => {
+	it('gives the terminal context menu the panel menu composition, Maximize beside another panel', async () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal 1',
@@ -923,31 +923,50 @@ describe('Workbench Project and Workspace management', () => {
 			</OrchbeeI18nProvider>,
 		);
 
-		const terminalViewport = document.querySelector<HTMLElement>(
-			'[data-slot="workbench-terminal-viewport"]',
-		);
-		expect(terminalViewport).not.toBeNull();
-		if (terminalViewport === null) throw new Error('Expected a terminal Context Menu trigger.');
-		const contextMenuEvent = new MouseEvent('contextmenu', {
-			bubbles: true,
-			cancelable: true,
-			clientX: 400,
-			clientY: 300,
-		});
-		fireEvent(terminalViewport, contextMenuEvent);
+		const openTerminalMenu = async (): Promise<HTMLElement> => {
+			const terminalViewport = document.querySelector<HTMLElement>(
+				'[data-slot="workbench-terminal-viewport"]',
+			);
+			if (terminalViewport === null) throw new Error('Expected a terminal Context Menu trigger.');
+			const contextMenuEvent = new MouseEvent('contextmenu', {
+				bubbles: true,
+				cancelable: true,
+				clientX: 400,
+				clientY: 300,
+			});
+			fireEvent(terminalViewport, contextMenuEvent);
+			expect(contextMenuEvent.defaultPrevented).toBe(true);
+			return screen.findByRole('menu');
+		};
 
-		expect(contextMenuEvent.defaultPrevented).toBe(true);
-		const menu = await screen.findByRole('menu');
+		const menu = await openTerminalMenu();
 		expectActionableMenuItemsToHaveIcons(menu);
 		expect(getActionableMenuPresentation(menu)).toEqual([
-			{ icon: 'tabs', label: 'New tab⌘T' },
-			{ icon: 'tabs', label: 'New tab in current directory⌥⌘Enter' },
 			{ icon: 'terminal', label: 'New child terminal' },
-			{ icon: 'panels', label: 'Resize Panel…⌘R' },
 			{ icon: 'terminal', label: 'Broadcast Input' },
-			{ icon: 'panels', label: 'Equalize Panels⌃⌘=' },
-			{ icon: 'screen-full', label: 'Maximize Panel⇧⌘Enter' },
-			{ icon: 'panels', label: 'Split panel' },
+			{ icon: 'panels', label: 'Split right⌘D' },
+			{ icon: 'panels', label: 'Split below⇧⌘D' },
+			{ icon: 'close', label: 'Close⌘W' },
+		]);
+		expect(
+			within(menu)
+				.getByRole('menuitem', { name: /^Close/u })
+				.getAttribute('data-variant'),
+		).toBe('destructive');
+		fireEvent.click(within(menu).getByRole('menuitem', { name: /^Split right/u }));
+		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+		await waitFor(() =>
+			expect(document.querySelectorAll('[data-slot="workbench-terminal-viewport"]')).toHaveLength(
+				2,
+			),
+		);
+
+		expect(getActionableMenuPresentation(await openTerminalMenu())).toEqual([
+			{ icon: 'terminal', label: 'New child terminal' },
+			{ icon: 'terminal', label: 'Broadcast Input' },
+			{ icon: 'panels', label: 'Split right⌘D' },
+			{ icon: 'panels', label: 'Split below⇧⌘D' },
+			{ icon: 'screen-full', label: 'Maximize⇧⌘Enter' },
 			{ icon: 'close', label: 'Close⌘W' },
 		]);
 		fireEvent.keyDown(document, { key: 'Escape' });

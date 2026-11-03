@@ -209,7 +209,6 @@ export const zhCNWorkbenchMessages = {
 	'workbench.panels.actions.closeAnyway': '仍然关闭',
 	'workbench.panels.actions.equalize': '均分面板',
 	'workbench.panels.actions.maximize': '最大化面板',
-	'workbench.panels.actions.minimize': '最小化面板',
 	'workbench.panels.actions.activateChild': '激活子终端',
 	'workbench.panels.actions.focus': '聚焦面板',
 	'workbench.panels.actions.focusDown': '聚焦下方面板',
@@ -236,6 +235,8 @@ export const zhCNWorkbenchMessages = {
 	'workbench.panels.actions.splitRight': '向右分割',
 	'workbench.panels.actions.swapVisible': '可视交换面板',
 	'workbench.panels.actions.toggleMaximization': '切换面板最大化',
+	'workbench.panels.menu.maximize': '最大化',
+	'workbench.panels.menu.restore': '还原',
 	'workbench.panels.visualSelection.focusLabel':
 		'选择要聚焦的面板。输入面板标签，或按 Escape 取消。',
 	'workbench.panels.visualSelection.focusTarget': '聚焦面板 {label}',

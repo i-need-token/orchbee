@@ -556,10 +556,17 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focusVisible'],
 		description: 'Action that visibly labels and focuses another Workbench panel.',
 	},
-	panelMinimize: {
-		id: 'workbench.panels.actions.minimize',
-		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.minimize'],
-		description: 'Action that restores a maximized Workbench panel to the split layout.',
+	panelMenuMaximize: {
+		id: 'workbench.panels.menu.maximize',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.menu.maximize'],
+		description:
+			"Panel menu row, the verb alone, that expands the menu's panel to the tab content area.",
+	},
+	panelMenuRestore: {
+		id: 'workbench.panels.menu.restore',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.menu.restore'],
+		description:
+			"Panel menu row, the verb alone, that returns the menu's maximized panel to the split layout.",
 	},
 	panelMove: {
 		id: 'workbench.panels.actions.move',
