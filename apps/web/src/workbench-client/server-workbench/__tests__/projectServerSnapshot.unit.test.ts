@@ -11,10 +11,10 @@ import {
 	terminalPresentationRemovalId,
 	type WorkbenchSnapshot,
 } from '@orchbee/workbench-client-protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { serverTerminalBindingKey } from '../server-terminal-binding';
 import { projectServerSnapshot } from '../projectServerSnapshot';
+import { ServerTerminalEndObserver } from '../server-terminal-ends';
 
 const DEFAULT_DIRECTORY = 'C:\\Users\\someone';
 const INTL = createOrchbeeIntl('en-US');
@@ -141,6 +141,18 @@ function createRuntime(
 
 function publish(runtime: WorkbenchProjectWorkspaceRuntime, next: WorkbenchSnapshot): void {
 	runtime.applyPublishedWorkbench(projectServerSnapshot(next, DEFAULT_DIRECTORY, INTL));
+}
+
+/** Adopts `next` as the composition does, with what the window saw end. */
+function publishWithEnds(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	next: WorkbenchSnapshot,
+	terminalEnds: ServerTerminalEndObserver,
+): void {
+	terminalEnds.prune(next);
+	runtime.applyPublishedWorkbench(
+		projectServerSnapshot(next, DEFAULT_DIRECTORY, INTL, terminalEnds.ends),
+	);
 }
 
 function activeLeaf(runtime: WorkbenchProjectWorkspaceRuntime, tabIndex = 0) {
@@ -331,37 +343,57 @@ describe('applyPublishedWorkbench', () => {
 	});
 
 	it('ends a terminal once this window sees its Host settle it, and not the one bound after it', () => {
-		const runtime = createRuntime(oneWorkspaceSnapshot(1, [tab(1)]));
-		const settled = presentation(1);
-		const exited = { exitCode: 0, kind: 'exited', signal: null } as const;
-		const observedEnds = new Map([
-			[
-				settled.presentationId,
-				{ binding: serverTerminalBindingKey(settled.binding), lifecycle: exited },
-			],
-		]);
-
-		// The Server publishes nothing new when a terminal ends, so only the window's own sight changes.
-		runtime.applyPublishedWorkbench(
-			projectServerSnapshot(
-				oneWorkspaceSnapshot(1, [tab(1)]),
-				DEFAULT_DIRECTORY,
-				INTL,
-				observedEnds,
-			),
+		let published = oneWorkspaceSnapshot(1, [tab(1)]);
+		const runtime = createRuntime(published);
+		const terminalEnds = new ServerTerminalEndObserver(
+			() => published,
+			() => undefined,
 		);
-		expect(activeLeaf(runtime).primaryPresentation.lifecycle).toEqual(exited);
+		const settled = presentation(1);
+		const failed = { failure: { code: 'host-lost', retryable: false }, kind: 'failed' } as const;
+
+		terminalEnds.observe(settled.presentationId, settled.binding, failed);
+		// The Server publishes nothing new when a terminal ends, so only the window's own sight changes.
+		publishWithEnds(runtime, published, terminalEnds);
+		expect(activeLeaf(runtime).primaryPresentation.lifecycle).toEqual(failed);
 
 		const rebound = presentation(1, { binding: { terminalId: hex(0x9ff), workerId: WORKER_ID } });
-		runtime.applyPublishedWorkbench(
-			projectServerSnapshot(
-				oneWorkspaceSnapshot(2, [tab(1, panel(1, rebound))]),
-				DEFAULT_DIRECTORY,
-				INTL,
-				observedEnds,
-			),
-		);
+		published = oneWorkspaceSnapshot(2, [tab(1, panel(1, rebound))]);
+		publishWithEnds(runtime, published, terminalEnds);
 		expect(activeLeaf(runtime).primaryPresentation.lifecycle.kind).toBe('running');
+	});
+
+	it('sees a clean exit of all a Panel holds after a second, unless the Server closed it', () => {
+		vi.useFakeTimers();
+		try {
+			let published = oneWorkspaceSnapshot(1, [tab(1), tab(2)]);
+			const runtime = createRuntime(published);
+			let changes = 0;
+			const terminalEnds = new ServerTerminalEndObserver(
+				() => published,
+				() => {
+					changes += 1;
+				},
+			);
+			const exited = { exitCode: 0, kind: 'exited', signal: null } as const;
+			const [closing, kept] = [presentation(1), presentation(2)];
+
+			terminalEnds.observe(closing.presentationId, closing.binding, exited);
+			terminalEnds.observe(kept.presentationId, kept.binding, exited);
+			vi.advanceTimersByTime(999);
+			publishWithEnds(runtime, published, terminalEnds);
+			expect(activeLeaf(runtime, 1).primaryPresentation.lifecycle.kind).toBe('running');
+
+			// The Server's Close removes the first Tab within the hold, and the second one stays.
+			published = oneWorkspaceSnapshot(2, [tab(2)]);
+			publishWithEnds(runtime, published, terminalEnds);
+			vi.advanceTimersByTime(1);
+			expect(changes).toBe(1);
+			publishWithEnds(runtime, published, terminalEnds);
+			expect(activeLeaf(runtime).primaryPresentation.lifecycle).toEqual(exited);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('moves to the first Workspace when its Workspace is gone, and to none when all are', () => {

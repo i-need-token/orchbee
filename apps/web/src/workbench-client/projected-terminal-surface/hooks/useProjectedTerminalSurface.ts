@@ -154,6 +154,11 @@ export function useProjectedTerminalSurface(
 	const sessionPolicyReference = React.useRef(sessionPolicy);
 	sessionPolicyReference.current = sessionPolicy;
 	const stopped = presentation.lifecycle.kind === 'stopped';
+	// The renderer hears an end first, but the surface names it only once the Presentation has
+	// ended too, so a composition decides when the person sees it, as the Server path holds a pane
+	// whose shell exited cleanly while the Server closes it.
+	const ended =
+		presentation.lifecycle.kind === 'exited' || presentation.lifecycle.kind === 'failed';
 	const creationFailed = presentation.lifecycle.kind === 'provision-failed';
 	// Read on every render: the record changes only with a new lifecycle, which renders again.
 	const launchFailure = creationFailed
@@ -580,7 +585,7 @@ export function useProjectedTerminalSurface(
 		stopped,
 		startNewSession,
 		takeControl,
-		terminalOutcome: stopped ? null : (currentControl?.outcome ?? null),
+		terminalOutcome: ended ? (currentControl?.outcome ?? null) : null,
 		toggleMobileKeyboard,
 		toggleMobileModifier,
 	};

@@ -78,6 +78,10 @@ a New Tab button at its bottom end, where View only otherwise sits, and drops it
 The Server publishes nothing when a terminal ends, so only the window whose projection saw the
 Host settle that exact terminal learns of it, and only while the Presentation stays bound to it;
 its close questions then count that terminal among the ended ones whose output closing discards.
+The Server closes a Panel whose only terminal is a shell that exits with code 0, so for up to a
+second after such an exit the window keeps the final frame without naming the end, as the TUI
+does, and a program the Server keeps names its end after that second. The surface names an end
+only once its Presentation has ended too, which leaves that timing to the composition.
 A connection that stays lost reads Disconnected, and an automatic recovery reads Reconnecting….
 Stopped presentations remain a separate Workbench state. Its
 Start New Session control returns the Workbench transition result through the shared composition;

@@ -1659,9 +1659,12 @@ choices stand unless review changes them:
   Tab or Panel whose terminals have all ended closes unasked, and a set of several Tabs always asks.
   A lone Panel's Close is its Tab's question, so the TUI's last-Panel line has no GUI place, and a
   child terminal's Close keeps its own title, Close running terminal?, on the local path only.
+- **A clean exit keeps its frame for a second, as in the TUI.** When all a Panel holds exits with
+  code 0, the window sees that end only a second later, so the Server's Close of a shell's Panel
+  arrives first and no Terminal exited flashes. A program the Server keeps then shows its end. The
+  window counts that terminal as running for the second, where the TUI already counts it as ended.
 
-Not done in this slice: Close for a child terminal under the Server, Resume, and the TUI's hold of
-a pane whose shell exits cleanly, so the GUI shows Terminal exited until the Server's close arrives.
+Not done in this slice: Close for a child terminal under the Server, and Resume.
 
 ### Evidence
 

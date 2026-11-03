@@ -18,7 +18,6 @@ export {
 	serverHostColors,
 } from './server-terminal-colors';
 export type { ServerTerminalColorsSource } from './server-terminal-colors';
-export { settledServerTerminalLifecycle } from './server-terminal-ends';
-export type { ObservedServerTerminalEnd } from './server-terminal-ends';
+export { ServerTerminalEndObserver, settledServerTerminalLifecycle } from './server-terminal-ends';
 export { nameServerTerminalTitle } from './server-terminal-names';
 export { admitsAutomaticWorkspace, workspaceLaunchAction } from './workspace-launch';

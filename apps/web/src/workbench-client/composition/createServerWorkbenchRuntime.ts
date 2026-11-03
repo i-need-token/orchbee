@@ -55,8 +55,8 @@ import {
 	serverTerminalBindingKey,
 	settledServerTerminalLifecycle,
 	ServerTerminalAgentSource,
+	ServerTerminalEndObserver,
 	ServerTerminalProjectionClient,
-	type ObservedServerTerminalEnd,
 	type ServerLaunchProfileSource,
 	type ServerTerminalColorsSource,
 	type ServerWorkbenchSession,
@@ -184,23 +184,19 @@ export function createServerWorkbenchRuntime({
 			kind: 'managed',
 		},
 	});
-	// The Server keeps an ended terminal bound until a person closes it, so only this window knows it
-	// ended, and only while the Presentation stays bound to that same terminal.
-	const observedEnds = new Map<TerminalPresentationId, ObservedServerTerminalEnd>();
 	const boundTerminal = (presentationId: TerminalPresentationId): string | null => {
 		const binding = findServerTerminalBinding(session.snapshot, presentationId);
 		return binding === null ? null : serverTerminalBindingKey(binding);
 	};
+	const terminalEnds = new ServerTerminalEndObserver(
+		() => session.snapshot,
+		() => adoptPublication(session.snapshot),
+	);
 	const adoptPublication = (snapshot: WorkbenchSnapshot): void => {
-		for (const [presentationId, end] of observedEnds) {
-			const binding = findServerTerminalBinding(snapshot, presentationId);
-			if (binding === null || serverTerminalBindingKey(binding) !== end.binding) {
-				observedEnds.delete(presentationId);
-			}
-		}
+		terminalEnds.prune(snapshot);
 		try {
 			projectWorkspaceRuntime.applyPublishedWorkbench(
-				projectServerSnapshot(snapshot, defaultDirectory, intl, observedEnds),
+				projectServerSnapshot(snapshot, defaultDirectory, intl, terminalEnds.ends),
 			);
 		} catch (error) {
 			onPublicationFailure(error);
@@ -245,19 +241,7 @@ export function createServerWorkbenchRuntime({
 		() => session.snapshot,
 		terminalColorsSource === undefined ? undefined : serverHostColors(terminalColorsSource),
 		(presentationId, binding, settlement) => {
-			const ended = serverTerminalBindingKey(binding);
-			if (
-				disposed ||
-				boundTerminal(presentationId) !== ended ||
-				observedEnds.get(presentationId)?.binding === ended
-			) {
-				return;
-			}
-			observedEnds.set(presentationId, {
-				binding: ended,
-				lifecycle: settledServerTerminalLifecycle(settlement),
-			});
-			adoptPublication(session.snapshot);
+			terminalEnds.observe(presentationId, binding, settledServerTerminalLifecycle(settlement));
 		},
 	);
 	const agentObservationSource = new ServerTerminalAgentSource(connection, session);
@@ -377,6 +361,7 @@ export function createServerWorkbenchRuntime({
 			runApplicationCleanup(
 				[
 					() => stopPublication(),
+					() => terminalEnds.dispose(),
 					() => stopLocaleObservation(),
 					() => windowTitle?.dispose(),
 					() => stopFocusRecoveryDocumentObservation?.(),
