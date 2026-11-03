@@ -456,9 +456,10 @@ uses `-\|/` Working frames and distinct `#`, `+`, `x`, `o`, `.` status fallbacks
 keeps distinguishable outcomes without color breathing. Both hexagons are East Asian Neutral, so
 they measure one cell even on hosts that widen ambiguous-width text, as circles such as `●` are
 not. The shared palette is owned by
-[`@orchbee/design-tokens`](../../../packages/design-tokens/README.md): Working is neutral and idle
-retains its GrokNight color, while the TUI's attention, done and error glyphs use the fixed values
-above. Light themes use a dark breathing hexagon for
+[`@orchbee/design-tokens`](../../../packages/design-tokens/README.md): Working is neutral, idle
+retains its GrokNight color, and the TUI's attention, done and error glyphs, like the Web and
+Desktop windows' colors for them, use the fixed values above. Light themes use a dark breathing
+hexagon for
 contrast, and reduced-color hosts use bright/dim intensity. Truecolor System themes retain smooth
 interpolation while their canvas stays host-relative: observed outer-host colors or neutral endpoints
 for the theme polarity drive the fade, independently of child-terminal color preferences.

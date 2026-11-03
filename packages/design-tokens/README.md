@@ -74,12 +74,12 @@ pnpm generate:tailwind-token-compat
 
 Agent attention, working, idle, completed, failed and unread are separate roles. Attention and working use `--ob-sys-color-status-attention` and `--ob-sys-color-status-working`; idle, completed and failed use `--ob-sys-color-status-agent-idle`, `--ob-sys-color-status-agent-done` and `--ob-sys-color-status-agent-error`. Unread keeps `--ob-sys-color-status-unread` blue independently of status. Unknown retains the secondary icon color. Consumers preserve these foregrounds on selected surfaces.
 
-The registry owns the shared dark Agent palette below: neutral Working plus GrokNight outcome colors. Native One Dark status roles project the same values; light and terminal-native themes retain their contrast-aware adaptations. Working uses `--ob-sys-motion-duration-agent-breath` and `--ob-sys-motion-easing-agent-breath` for a two-second white-to-gray breathing solid circle; light themes use dark foreground for contrast. Attention alternates full and half intensity over `--ob-sys-motion-duration-agent-cycle` (one second). Reduced-motion consumers keep a static frame.
+The registry owns the Agent palette below, which the TUI shares. Attention, completed and failed are a fixed traffic light, the macOS window-control colors, with one value in both themes; the TUI's `agent-attention`, `agent-done` and `agent-error` glyph roles use the same values in every theme and host. They color status glyphs only, never words, because yellow and green fall below text contrast on light surfaces; a state's word keeps the status text roles. Working is neutral and Idle gray, each adapted per theme, and native One Dark projects the dark column. Working uses `--ob-sys-motion-duration-agent-breath` and `--ob-sys-motion-easing-agent-breath` for a two-second white-to-gray breathing solid circle; light themes use dark foreground for contrast. Attention alternates full and half intensity over `--ob-sys-motion-duration-agent-cycle` (one second). Reduced-motion consumers keep a static frame.
 
-| State     | Dark color |
-| --------- | ---------- |
-| Working   | `#E5E5E5`  |
-| Attention | `#E0AF68`  |
-| Completed | `#9ECE6A`  |
-| Failed    | `#F7768E`  |
-| Idle      | `#585858`  |
+| State     | Light                     | Dark      |
+| --------- | ------------------------- | --------- |
+| Working   | `#383A42`                 | `#E5E5E5` |
+| Attention | `#FEBC2E`                 | `#FEBC2E` |
+| Completed | `#28C840`                 | `#28C840` |
+| Failed    | `#FF5F57`                 | `#FF5F57` |
+| Idle      | `--ob-ref-color-gray-600` | `#585858` |

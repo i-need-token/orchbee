@@ -1,10 +1,10 @@
 :root {
 	--ob-ref-color-agent-working-dark: #e5e5e5;
 	--ob-ref-color-agent-working-light: #383a42;
-	--ob-ref-color-groknight-yellow: #e0af68;
-	--ob-ref-color-groknight-green: #9ece6a;
-	--ob-ref-color-groknight-red: #f7768e;
 	--ob-ref-color-groknight-gray: #585858;
+	--ob-ref-color-traffic-light-green: #28c840;
+	--ob-ref-color-traffic-light-red: #ff5f57;
+	--ob-ref-color-traffic-light-yellow: #febc2e;
 	--ob-ref-font-family-sans:
 		-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial,
 		'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif, 'Apple Color Emoji',
@@ -659,11 +659,11 @@
 	--ob-sys-color-action-disabled: var(--ob-ref-color-neutral-100);
 	--ob-sys-color-action-disabled-text: var(--ob-ref-color-neutral-400);
 	--ob-sys-color-action-disabled-border: var(--ob-ref-color-neutral-200);
-	--ob-sys-color-status-attention: var(--ob-ref-color-amber-700);
+	--ob-sys-color-status-attention: var(--ob-ref-color-traffic-light-yellow);
 	--ob-sys-color-status-working: var(--ob-ref-color-agent-working-light);
 	--ob-sys-color-status-agent-idle: var(--ob-ref-color-gray-600);
-	--ob-sys-color-status-agent-done: var(--ob-ref-color-green-700);
-	--ob-sys-color-status-agent-error: var(--ob-ref-color-red-700);
+	--ob-sys-color-status-agent-done: var(--ob-ref-color-traffic-light-green);
+	--ob-sys-color-status-agent-error: var(--ob-ref-color-traffic-light-red);
 	--ob-sys-color-status-unread: var(--ob-ref-color-blue-700);
 	--ob-sys-color-status-info: var(--ob-ref-color-blue-600);
 	--ob-sys-color-status-info-hover: var(--ob-ref-color-blue-500);
@@ -1015,11 +1015,11 @@
 	--ob-sys-color-action-disabled: var(--ob-ref-color-neutral-800);
 	--ob-sys-color-action-disabled-text: var(--ob-ref-color-neutral-600);
 	--ob-sys-color-action-disabled-border: var(--ob-ref-color-neutral-700);
-	--ob-sys-color-status-attention: var(--ob-ref-color-groknight-yellow);
+	--ob-sys-color-status-attention: var(--ob-ref-color-traffic-light-yellow);
 	--ob-sys-color-status-working: var(--ob-ref-color-agent-working-dark);
 	--ob-sys-color-status-agent-idle: var(--ob-ref-color-groknight-gray);
-	--ob-sys-color-status-agent-done: var(--ob-ref-color-groknight-green);
-	--ob-sys-color-status-agent-error: var(--ob-ref-color-groknight-red);
+	--ob-sys-color-status-agent-done: var(--ob-ref-color-traffic-light-green);
+	--ob-sys-color-status-agent-error: var(--ob-ref-color-traffic-light-red);
 	--ob-sys-color-status-unread: var(--ob-ref-color-blue-400);
 	--ob-sys-color-status-info: var(--ob-ref-color-blue-400);
 	--ob-sys-color-status-info-hover: var(--ob-ref-color-blue-300);

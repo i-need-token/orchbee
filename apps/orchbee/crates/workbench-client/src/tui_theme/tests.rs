@@ -411,23 +411,34 @@ fn named_roles_conform_to_the_public_design_token_contract() {
         composite_rgb(interaction_foreground, chrome, 12)
     );
 
-    let theme = Theme::one_dark();
+    // The GUI's Agent glyph colors are the TUI's fixed traffic light, in both registry themes.
     for (role, system, reference) in [
-        (Role::StatusWarning, "status-attention", "yellow"),
-        (Role::StatusSuccess, "status-agent-done", "green"),
-        (Role::StatusError, "status-agent-error", "red"),
-        (Role::StatusIdle, "status-agent-idle", "gray"),
+        (Role::AgentAttention, "status-attention", "yellow"),
+        (Role::AgentDone, "status-agent-done", "green"),
+        (Role::AgentError, "status-agent-error", "red"),
     ] {
-        let reference = format!("--ob-ref-color-groknight-{reference}");
+        let reference = format!("--ob-ref-color-traffic-light-{reference}");
+        for block in [light, dark] {
+            assert_eq!(
+                css_value(block, &format!("--ob-sys-color-{system}")),
+                format!("var({reference})")
+            );
+        }
         assert_eq!(
-            css_value(dark, &format!("--ob-sys-color-{system}")),
-            format!("var({reference})")
-        );
-        assert_eq!(
-            rgb_channels(theme.color(role)),
+            rgb_channels(Theme::one_dark().color(role)),
             parse_hex_rgb(&css_value(references, &reference))
         );
     }
+
+    let theme = Theme::one_dark();
+    assert_eq!(
+        css_value(dark, "--ob-sys-color-status-agent-idle"),
+        "var(--ob-ref-color-groknight-gray)"
+    );
+    assert_eq!(
+        rgb_channels(theme.color(Role::StatusIdle)),
+        parse_hex_rgb(&css_value(references, "--ob-ref-color-groknight-gray"))
+    );
     assert_eq!(
         css_value(dark, "--ob-sys-color-status-working"),
         "var(--ob-ref-color-agent-working-dark)"
