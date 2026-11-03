@@ -6,6 +6,7 @@ import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol'
 
 import type { WorkbenchSharedPanelTerminalCreate } from '../../../actions/createSharedPanelTerminal';
 import { WORKBENCH_ACTION_IDS } from '../../../actions/workbench-action-ids';
+import { terminalCloseWarningValues } from '../../../model/terminal-close-impact';
 import {
 	WorkbenchTerminalBellEffectCoordinator,
 	type WorkbenchTerminalBellEffect,
@@ -29,6 +30,8 @@ import {
 import {
 	collectPanelLeaves,
 	findPanel,
+	getDisplayedTerminal,
+	getTerminalDisplayTitle,
 	type PanelLayoutNode,
 	type PanelSplitDirection,
 	type PanelWorkspaceEvent,
@@ -215,10 +218,14 @@ export function useWorkbenchPanelWorkspace({
 			cancel: intl.formatMessage(workbenchMessages.panelCancel),
 			childPresentationsLabel: intl.formatMessage(workbenchMessages.panelChildTerminalsLabel),
 			close: intl.formatMessage(workbenchMessages.panelClose),
-			closeAnyway: intl.formatMessage(workbenchMessages.panelCloseAnyway),
-			closeRunningDescription: (count) =>
-				intl.formatMessage(workbenchMessages.panelCloseRunningDescription, { count }),
-			closeRunningTitle: intl.formatMessage(workbenchMessages.panelCloseRunningTitle),
+			closeChildTitle: intl.formatMessage(workbenchMessages.panelCloseRunningTitle),
+			closeTab: (tab) => intl.formatMessage(workbenchMessages.panelCloseTab, { tab }),
+			closeTitle: intl.formatMessage(workbenchMessages.panelCloseTitle),
+			closeWarning: (impact) =>
+				intl.formatMessage(
+					workbenchMessages.terminalCloseWarning,
+					terminalCloseWarningValues(impact),
+				),
 			maximize: intl.formatMessage(workbenchMessages.panelMenuMaximize),
 			more: intl.formatMessage(workbenchMessages.panelMore),
 			newChildTerminal: intl.formatMessage(workbenchMessages.panelNewChildTerminal),
@@ -637,11 +644,31 @@ export function useWorkbenchPanelWorkspace({
 		const registration = actionRuntime.registerConfirmationPresenter(
 			panelActions.scope,
 			(confirmation, invocation, signal) => {
-				const panelId = invocation.target?.type === 'panel' ? invocation.target.id : null;
-				const runningCount = confirmation.description.values?.['count'];
-				if (panelId === null || typeof runningCount !== 'number') {
+				const tab = store
+					.getSnapshot()
+					.tabs.find((candidate) => candidate.tabId === store.getActiveTabId());
+				const panel =
+					tab === undefined || invocation.target?.type !== 'panel'
+						? null
+						: findPanel(tab.root, invocation.target.id);
+				const tabTitle = tab === undefined ? null : store.getTabTitle(tab.tabId);
+				const ended = confirmation.description.values?.['ended'];
+				const running = confirmation.description.values?.['running'];
+				if (
+					panel === null ||
+					tabTitle === null ||
+					typeof ended !== 'number' ||
+					typeof running !== 'number'
+				) {
 					return false;
 				}
+				const close: PendingPanelClose = {
+					childTerminal: panel.activeChildPresentationId !== null,
+					impact: { ended, running },
+					panelId: panel.id,
+					tabTitle,
+					target: getTerminalDisplayTitle(getDisplayedTerminal(panel)),
+				};
 				return new Promise<boolean>((resolve) => {
 					pendingConfirmationRef.current?.(false);
 					let settled = false;
@@ -659,7 +686,7 @@ export function useWorkbenchPanelWorkspace({
 					};
 					const onAbort = () => finish(false);
 					pendingConfirmationRef.current = finish;
-					setPendingClose({ panelId, runningCount });
+					setPendingClose(close);
 					signal.addEventListener('abort', onAbort, { once: true });
 				});
 			},

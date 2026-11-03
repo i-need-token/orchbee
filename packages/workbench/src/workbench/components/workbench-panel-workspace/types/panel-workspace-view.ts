@@ -1,5 +1,6 @@
 import type { ActionInvocationSource, ActionRuntime, ActionScope } from '@orchbee/actions';
 
+import type { TerminalCloseImpact } from '../../../model/terminal-close-impact';
 import type { WorkbenchTerminalBellEffect } from '../../../model/WorkbenchTerminalBellEffectCoordinator';
 import type {
 	WorkbenchTerminalBroadcastInput,
@@ -52,9 +53,10 @@ export interface PanelWorkspaceMessages {
 	readonly cancel: string;
 	readonly childPresentationsLabel: string;
 	readonly close: string;
-	readonly closeAnyway: string;
-	readonly closeRunningDescription: (count: number) => string;
-	readonly closeRunningTitle: string;
+	readonly closeChildTitle: string;
+	readonly closeTab: (tab: string) => string;
+	readonly closeTitle: string;
+	readonly closeWarning: (impact: TerminalCloseImpact) => string;
 	readonly maximize: string;
 	readonly more: string;
 	readonly newChildTerminal: string;
@@ -77,9 +79,15 @@ export interface PanelWorkspaceMessages {
 	readonly visualSelectionSwapTarget: (label: string) => string;
 }
 
+/** A close question as the TUI composes it: the terminal it closes, its Tab, and what it ends. */
 export interface PendingPanelClose {
+	/** Closes the child terminal the Panel shows, not the Panel. */
+	readonly childTerminal: boolean;
+	readonly impact: TerminalCloseImpact;
 	readonly panelId: string;
-	readonly runningCount: number;
+	readonly tabTitle: string;
+	/** The name the Panel's header shows. */
+	readonly target: string;
 }
 
 export interface PendingPanelResize {

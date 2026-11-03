@@ -11,3 +11,11 @@ export function findServerTerminalBinding(
 	const binding = findServerPresentation(snapshot, presentationId)?.binding ?? null;
 	return binding === null ? null : { sessionId: snapshot.sessionId, ...binding };
 }
+
+/** Names one terminal of a session, so a Presentation bound to another one names another. */
+export function serverTerminalBindingKey(binding: {
+	readonly terminalId: string;
+	readonly workerId: string;
+}): string {
+	return `${binding.workerId}:${binding.terminalId}`;
+}

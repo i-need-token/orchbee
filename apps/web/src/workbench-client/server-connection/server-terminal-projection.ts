@@ -77,6 +77,12 @@ export interface ServerTerminalProjection extends TerminalProjection {
 	close(): Promise<void>;
 }
 
+/** How the Host settled the exact terminal a projection attached, as its renderer receives it. */
+export type ServerTerminalSettlement = Extract<
+	ProjectedTerminalEvent,
+	{ readonly kind: 'terminal-exited' | 'terminal-failed' }
+>;
+
 /** Pacing of an empty Poll for a viewer that cannot yet rely on a Server hint. */
 const UNHINTED_POLL_DELAY_MILLISECONDS = 8;
 /** How long a lost hint can hide a record; it also bounds how long a Poll-carried notice waits. */
@@ -204,6 +210,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	readonly #effects: ServerTerminalEffects;
 	readonly #hostColors: ServerHostColorsReport | null;
 	readonly #laneId: bigint;
+	readonly #onSettled: ((settlement: ServerTerminalSettlement) => void) | undefined;
 	readonly #selectionCopy: ServerSelectionCopy;
 	readonly #viewerSteps = new SerialSteps();
 	readonly #unsubscribeEnded: () => void;
@@ -228,6 +235,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		bootstrap: ProjectedAttachmentBootstrap,
 		controllerId: string | null,
 		hostColors: ServerHostColorsSource | undefined,
+		onSettled: ((settlement: ServerTerminalSettlement) => void) | undefined,
 	) {
 		this.#bootstrap = bootstrap;
 		this.#connection = connection;
@@ -242,6 +250,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 						submit: (colors) => this.#submitHostColors(colors),
 					});
 		this.#laneId = laneId;
+		this.#onSettled = onSettled;
 		this.#selectionCopy = new ServerSelectionCopy({
 			attachmentId: bootstrap.attachmentId,
 			exchange: (action) => this.#viewerResponseWithRetry(action),
@@ -428,6 +437,12 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 
 	#post(event: ProjectedTerminalEvent): void {
 		if (!this.#closed) this.#listener?.(event);
+	}
+
+	/** The renderer learns the end first, so an observer that fails cannot hide it from the person. */
+	#settle(settlement: ServerTerminalSettlement): void {
+		this.#post(settlement);
+		this.#onSettled?.(settlement);
 	}
 
 	#fail(
@@ -943,7 +958,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 				const event = decodeControlJson(envelope.payload, TerminalExitedSchema);
 				if (!event.ok) this.#protocolFailure('invalid-terminal-exit', event.detail);
 				else if (this.#admitOutcome(event.value)) {
-					this.#post({ event: event.value, kind: 'terminal-exited' });
+					this.#settle({ event: event.value, kind: 'terminal-exited' });
 				}
 				return;
 			}
@@ -951,7 +966,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 				const event = decodeControlJson(envelope.payload, TerminalFailedSchema);
 				if (!event.ok) this.#protocolFailure('invalid-terminal-failure', event.detail);
 				else if (this.#admitOutcome(event.value)) {
-					this.#post({ event: event.value, kind: 'terminal-failed' });
+					this.#settle({ event: event.value, kind: 'terminal-failed' });
 				}
 				return;
 			}
@@ -1030,13 +1045,15 @@ function acquireMeansReadOnly(outcome: ClientServerControlOutcome): boolean {
 /**
  * Attaches a viewer, tries to take input and resize, and resizes to the caller's geometry. A
  * terminal another Client controls opens read-only. A controlling projection reports the window's
- * colors first when it has any.
+ * colors first when it has any. `onSettled` hears each end of this exact terminal the renderer is
+ * told of.
  */
 export async function openServerTerminalProjection(
 	connection: ServerConnection,
 	binding: ServerTerminalBinding,
 	geometry: TerminalGeometry,
 	hostColors?: ServerHostColorsSource,
+	onSettled?: (settlement: ServerTerminalSettlement) => void,
 ): Promise<ServerTerminalProjection> {
 	const laneId = connection.openLane();
 	try {
@@ -1088,6 +1105,7 @@ export async function openServerTerminalProjection(
 			bootstrap,
 			controllerId,
 			hostColors,
+			onSettled,
 		);
 		if (controllerId !== null) {
 			transport.send({

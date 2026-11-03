@@ -9,6 +9,7 @@ export {
 	type ServerTerminalBinding,
 	type ServerTerminalProjection,
 	ServerTerminalProjectionError,
+	type ServerTerminalSettlement,
 	openServerTerminalProjection,
 } from './server-terminal-projection';
 export type { ServerHostColors, ServerHostColorsSource } from './ServerHostColorsReport';

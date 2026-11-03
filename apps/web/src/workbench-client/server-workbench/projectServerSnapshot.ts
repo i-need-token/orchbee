@@ -14,6 +14,7 @@ import {
 	type WorkbenchTerminalContext,
 } from '@orchbee/workbench-client-protocol';
 
+import { observedServerTerminalEnd, type ObservedServerTerminalEnds } from './server-terminal-ends';
 import { nameServerTerminalProgram } from './server-terminal-names';
 import { serverResourceScopeId } from './serverResourceScopeId';
 
@@ -22,13 +23,17 @@ type Directory = Navigation['directories'][number];
 type Workspace = Navigation['workspaces'][number];
 type Tab = WorkbenchTerminalContext['tabs'][number];
 
-interface WritablePublishedFacts {
+/** What projecting the tree reads besides the snapshot, and what it writes besides the document. */
+interface PublicationFacts {
+	readonly observedEnds: ObservedServerTerminalEnds;
 	readonly presentations: Map<
 		string,
 		{ readonly customTitle: string | null; readonly lifecycle: TerminalPresentationLifecycle }
 	>;
 	readonly splitWeights: Map<string, readonly [first: number, second: number]>;
 }
+
+const NO_OBSERVED_ENDS: ObservedServerTerminalEnds = new Map();
 
 /** How a terminal of one Tab is named when it shows no title. */
 interface TerminalFallbackNaming {
@@ -53,12 +58,14 @@ const UNBOUND_TERMINAL_FAILURE_CODE = 'terminal-unbound';
  * without a directory still needs one here. `defaultDirectory` only names that placeholder, which is
  * unavailable, so the Workbench opens no Workspace in it and says the Workspace has no directory.
  * Names follow the TUI's: a terminal that shows no title takes the program the Server launched for
- * it, else its Tab's place, both in `intl`'s language.
+ * it, else its Tab's place, both in `intl`'s language. `observedEnds` holds, by Presentation, what
+ * this window saw end.
  */
 export function projectServerSnapshot(
 	snapshot: WorkbenchSnapshot,
 	defaultDirectory: string,
 	intl: IntlShape,
+	observedEnds = NO_OBSERVED_ENDS,
 ): WorkbenchPublication {
 	const { navigation } = snapshot;
 	const directories = new Map(
@@ -73,13 +80,26 @@ export function projectServerSnapshot(
 		scopeId: serverResourceScopeId(workspace.workspaceId),
 		workspace,
 	}));
-	const facts: WritablePublishedFacts = { presentations: new Map(), splitWeights: new Map() };
+	const facts: PublicationFacts = {
+		observedEnds,
+		presentations: new Map(),
+		splitWeights: new Map(),
+	};
 	return {
-		// A projected context holds names in one language, so another language replaces it.
+		// A projected context holds names in one language and the ends this window saw, so another
+		// language or another end replaces it.
 		contextFingerprints: new Map(
 			snapshot.terminalContexts.map((context) => [
 				context.terminalContextId,
-				JSON.stringify([intl.locale, context]),
+				JSON.stringify([
+					intl.locale,
+					context,
+					context.tabs.flatMap((tab) =>
+						presentationsOf(tab.root).map((presentation) =>
+							observedServerTerminalEnd(presentation, observedEnds),
+						),
+					),
+				]),
 			]),
 		),
 		document: createWorkbenchSharedDocument({
@@ -180,7 +200,7 @@ function projectDirectory(id: string, path: string, available: boolean) {
 
 function projectTerminalContext(
 	context: WorkbenchTerminalContext,
-	facts: WritablePublishedFacts,
+	facts: PublicationFacts,
 	intl: IntlShape,
 ) {
 	return {
@@ -231,7 +251,7 @@ function customTabTitle(tab: Tab): string | null {
 
 function projectPanelNode(
 	node: WorkbenchPanelNode,
-	facts: WritablePublishedFacts,
+	facts: PublicationFacts,
 	naming: TerminalFallbackNaming,
 ): WorkbenchSharedPanelNode {
 	if (node.kind === 'panel') {
@@ -263,10 +283,10 @@ function projectPanelNode(
  */
 function projectPresentation(
 	presentation: WorkbenchPresentation,
-	facts: WritablePublishedFacts,
+	facts: PublicationFacts,
 	naming: TerminalFallbackNaming,
 ): WorkbenchSharedPresentation {
-	const { intent, lifecycle } = projectTerminalState(presentation);
+	const { intent, lifecycle } = projectTerminalState(presentation, facts.observedEnds);
 	facts.presentations.set(presentation.presentationId, {
 		customTitle: presentation.customLabel,
 		lifecycle,
@@ -283,19 +303,26 @@ function projectPresentation(
 }
 
 /**
- * A surface attaches only to a `running` terminal's binding, and reports for itself once that
- * terminal ends. A failed launch keeps its binding, yet every Client leaves it unattached, and a
- * member with no binding never launches by itself, since the Server binds one only when a command or
- * a restore starts its terminal. Neither is `running`, nor `failed`, which a surface would try to
- * attach to, nor `provisioning`, which would claim a launch is under way. Nothing retries either: a
- * person creates another terminal or closes this one.
+ * A launched terminal runs until this window sees the Host settle that same binding, and then keeps
+ * its end and its output, as the Server keeps the Presentation until a person closes it. A failed
+ * launch keeps its binding, yet every Client leaves it unattached, and a member with no binding
+ * never launches by itself, since the Server binds one only when a command or a restore starts its
+ * terminal. Neither is `running`, nor `failed`, which a surface would try to attach to, nor
+ * `provisioning`, which would claim a launch is under way. Nothing retries either: a person creates
+ * another terminal or closes this one.
  */
-function projectTerminalState(presentation: WorkbenchPresentation): {
+function projectTerminalState(
+	presentation: WorkbenchPresentation,
+	observedEnds: ObservedServerTerminalEnds,
+): {
 	readonly intent: WorkbenchSharedPresentation['intent'];
 	readonly lifecycle: TerminalPresentationLifecycle;
 } {
 	if (presentation.binding !== null && presentation.launchFailure === undefined) {
-		return { intent: { kind: 'retain' }, lifecycle: { kind: 'running' } };
+		return {
+			intent: { kind: 'retain' },
+			lifecycle: observedServerTerminalEnd(presentation, observedEnds) ?? { kind: 'running' },
+		};
 	}
 	const operationId = terminalPresentationOperationId(
 		`server-launch:${presentation.presentationId}`,
@@ -311,4 +338,10 @@ function projectTerminalState(presentation: WorkbenchPresentation): {
 			operationId,
 		},
 	};
+}
+
+function presentationsOf(node: WorkbenchPanelNode): readonly WorkbenchPresentation[] {
+	return node.kind === 'panel'
+		? [node.primaryPresentation, ...node.childPresentations]
+		: node.children.flatMap((slot) => presentationsOf(slot.node));
 }

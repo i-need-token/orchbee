@@ -391,7 +391,13 @@ describe('useWorkbenchPanelWorkspace', () => {
 		await act(async () => {
 			view?.requestClose('panel-1');
 		});
-		expect(view.pendingClose).toEqual({ panelId: 'panel-1', runningCount: 1 });
+		expect(view.pendingClose).toEqual(
+			expect.objectContaining({
+				childTerminal: true,
+				impact: { ended: 0, running: 1 },
+				panelId: 'panel-1',
+			}),
+		);
 
 		await act(async () => {
 			view?.activateChildTerminal('panel-1', secondChildId);

@@ -95,6 +95,10 @@ export class PanelWorkspaceStore {
 
 	public readonly getSnapshot = (): PanelWorkspaceState => this.state;
 	public readonly getActiveTabId = (): string | null => this.tabModel.getSnapshot().activeTabId;
+	/** The title the Tab strip shows, while the Tab is there. */
+	public getTabTitle(tabId: string): string | null {
+		return this.tabModel.getSnapshot().tabs.find((tab) => tab.id === tabId)?.title ?? null;
+	}
 	public getTabTitlePolicies(): readonly WorkbenchTabTitlePolicy[] {
 		const snapshot = this.tabModel.getSnapshot();
 		this.captureExternalTabTitleChanges(snapshot);

@@ -206,7 +206,6 @@ export const zhCNWorkbenchMessages = {
 	'workbench.tabs.actions.setOrientation': '设置标签栏方向',
 	'workbench.panels.actions.cancel': '取消',
 	'workbench.panels.actions.close': '关闭',
-	'workbench.panels.actions.closeAnyway': '仍然关闭',
 	'workbench.panels.actions.equalize': '均分面板',
 	'workbench.panels.actions.maximize': '最大化面板',
 	'workbench.panels.actions.activateChild': '激活子终端',
@@ -253,10 +252,10 @@ export const zhCNWorkbenchMessages = {
 	'workbench.panels.resize.title': '调整面板大小',
 	'workbench.panels.resize.unavailable': '此面板无法继续向该方向调整。',
 	'workbench.panels.resize.wider': '变宽',
-	'workbench.panels.closeRunning.description':
-		'{count, plural, one {这个终端仍在运行。关闭后将终止正在运行的进程。} other {# 个终端仍在运行。关闭此面板后将终止其中正在运行的进程。}}',
 	'workbench.panels.closeRunning.title': '关闭正在运行的终端？',
 	'workbench.panels.close.notApplied': '面板操作未执行',
+	'workbench.panels.close.tab': '标签页：{tab}',
+	'workbench.panels.close.title': '关闭面板？',
 	'workbench.panels.update.notApplied': '面板操作未执行',
 	'workbench.panels.resize.contended': '大小调整未生效；Workbench 一直在变化',
 	'workbench.panels.resize.failed': '大小调整失败；请检查当前布局',
@@ -267,8 +266,10 @@ export const zhCNWorkbenchMessages = {
 	'workbench.tabs.close.cleanupBlocked': '{label} · 关闭清理受阻',
 	'workbench.tabs.close.closed': '{label} · 已关闭',
 	'workbench.tabs.close.closing': '{label} · 正在关闭',
+	'workbench.close.warning':
+		'{impact, select, running {将结束 {running} 个终端。} ended {将丢弃 {ended} 个已结束终端的输出。} mixed {将结束 {running} 个终端，并丢弃 {ended} 个已结束终端的输出。} other {将结束其中的终端。}}',
 	'workbench.tabs.close.description':
-		'{names}{more, plural, =0 {} other {……以及另外 # 个标签页}}。将结束 {running} 个终端。',
+		'{names}{more, plural, =0 {} other {……以及另外 # 个标签页}}。{warning}',
 	'workbench.tabs.close.notApplied': '关闭请求未执行',
 	'workbench.tabs.create.notCreated': '未创建标签页 · 原标签页未更改',
 	'workbench.tabs.create.profileUnavailable': '终端未创建 · 请在设置中检查启动配置',
@@ -298,8 +299,6 @@ export const zhCNWorkbenchMessages = {
 	'workbench.tabs.actions.newToRight': '在此标签页右侧新建',
 	'workbench.tabs.actions.openVertical': '打开垂直标签页',
 	'workbench.tabs.actions.close': '关闭',
-	'workbench.tabs.closeRunning.description':
-		'{count, plural, one {这个终端仍在运行。关闭所选标签页后将终止正在运行的进程。} other {# 个终端仍在运行。关闭所选标签页后将终止其中正在运行的进程。}}',
 	'workbench.tabs.actions.closeBelow': '关闭下方标签页…',
 	'workbench.tabs.actions.closeToRight': '关闭右侧标签页…',
 	'workbench.tabs.actions.closeVertical': '关闭垂直标签页',

@@ -4,12 +4,21 @@ import type { TerminalPresentationId, WorkbenchSnapshot } from '@orchbee/workben
 import {
 	type ServerConnection,
 	type ServerHostColorsSource,
+	type ServerTerminalBinding,
 	type ServerTerminalProjection,
 	ServerTerminalProjectionError,
+	type ServerTerminalSettlement,
 	openServerTerminalProjection,
 } from '../server-connection';
 import type { TerminalProjectionClient, TerminalProjectionRequest } from '../terminal-projection';
-import { findServerTerminalBinding } from './findServerTerminalBinding';
+import { findServerTerminalBinding, serverTerminalBindingKey } from './server-terminal-binding';
+
+/** Hears how the Host settled the terminal a Presentation was bound to when its projection opened. */
+export type ServerTerminalSettlementObserver = (
+	presentationId: TerminalPresentationId,
+	binding: ServerTerminalBinding,
+	settlement: ServerTerminalSettlement,
+) => void;
 
 function refusedRequest(code: string, retryable: boolean): TerminalProjectionRequest {
 	return {
@@ -23,12 +32,14 @@ function refusedRequest(code: string, retryable: boolean): TerminalProjectionReq
  * replaced releases its projection before its successor opens, and closing a lane releases control
  * before the Server reads the next request, so a layout change here never meets its own control.
  * A projection holds its lane past release in two cases, while it delivers what was typed into it
- * and while it finishes opening, so the opens of one terminal wait for both.
+ * and while it finishes opening, so the opens of one terminal wait for both. Each end a projection
+ * sees reaches `onSettled` with the binding it opened, which the Presentation may have left since.
  */
 export class ServerTerminalProjectionClient implements TerminalProjectionClient {
 	readonly #closing = new Map<string, Promise<void>>();
 	readonly #connection: ServerConnection;
 	readonly #hostColors: ServerHostColorsSource | undefined;
+	readonly #onSettled: ServerTerminalSettlementObserver | undefined;
 	readonly #readSnapshot: () => WorkbenchSnapshot;
 	readonly #releases = new Set<() => void>();
 	readonly #tails = new Map<string, Promise<void>>();
@@ -38,9 +49,11 @@ export class ServerTerminalProjectionClient implements TerminalProjectionClient 
 		connection: ServerConnection,
 		readSnapshot: () => WorkbenchSnapshot,
 		hostColors?: ServerHostColorsSource,
+		onSettled?: ServerTerminalSettlementObserver,
 	) {
 		this.#connection = connection;
 		this.#hostColors = hostColors;
+		this.#onSettled = onSettled;
 		this.#readSnapshot = readSnapshot;
 	}
 
@@ -52,7 +65,7 @@ export class ServerTerminalProjectionClient implements TerminalProjectionClient 
 		const binding = findServerTerminalBinding(this.#readSnapshot(), presentationId);
 		if (binding === null) return refusedRequest('terminal-presentation-not-ready', true);
 
-		const key = `${binding.workerId}:${binding.terminalId}`;
+		const key = serverTerminalBindingKey(binding);
 		let projection: ServerTerminalProjection | null = null;
 		let released = false;
 		const release = (): void => {
@@ -76,6 +89,7 @@ export class ServerTerminalProjectionClient implements TerminalProjectionClient 
 				binding,
 				geometry,
 				this.#hostColors,
+				(settlement) => this.#onSettled?.(presentationId, binding, settlement),
 			);
 			if (released) {
 				await opened.close();

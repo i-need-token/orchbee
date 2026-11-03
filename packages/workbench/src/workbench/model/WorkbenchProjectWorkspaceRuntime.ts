@@ -49,6 +49,7 @@ import {
 	projectWorkbenchSharedDocument,
 	type HydratedWorkbenchDocumentTerminalContext,
 } from './workbench-document-runtime';
+import { terminalCloseImpact, type TerminalCloseImpact } from './terminal-close-impact';
 import type { WorkbenchPublication } from './workbench-publication';
 import { workbenchActiveLocationsEqual } from './workbench-terminal-location-activation';
 import type { WorkbenchTerminalMetadataObservation } from './resolveTerminalMetadataObservation';
@@ -911,21 +912,16 @@ export class WorkbenchProjectWorkspaceRuntime {
 			);
 	}
 
-	/** How many terminals these Tabs hold, whatever each one is doing. */
-	public getActiveTerminalTabsTerminalCount(tabIds: readonly string[]): number {
+	/** What closing these Tabs does to every terminal they hold. */
+	public getActiveTerminalTabsCloseImpact(tabIds: readonly string[]): TerminalCloseImpact {
 		const requestedTabIds = new Set(tabIds);
-		return this.getActiveMutableContext()
-			.panelWorkspaceStore.getSnapshot()
-			.tabs.reduce(
-				(count, tab) =>
-					requestedTabIds.has(tab.tabId)
-						? collectPanelLeaves(tab.root).reduce(
-								(terminals, panel) => terminals + 1 + panel.childPresentations.length,
-								count,
-							)
-						: count,
-				0,
-			);
+		return terminalCloseImpact(
+			this.getActiveMutableContext()
+				.panelWorkspaceStore.getSnapshot()
+				.tabs.filter((tab) => requestedTabIds.has(tab.tabId))
+				.flatMap((tab) => collectPanelLeaves(tab.root))
+				.flatMap((panel) => [panel.primaryPresentation, ...panel.childPresentations]),
+		);
 	}
 
 	public applyTerminalPresentationEvent(

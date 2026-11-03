@@ -13,6 +13,7 @@ import {
 } from '@orchbee/workbench-client-protocol';
 import { describe, expect, it } from 'vitest';
 
+import { serverTerminalBindingKey } from '../server-terminal-binding';
 import { projectServerSnapshot } from '../projectServerSnapshot';
 
 const DEFAULT_DIRECTORY = 'C:\\Users\\someone';
@@ -327,6 +328,40 @@ describe('applyPublishedWorkbench', () => {
 		expect(tabs.activeTabId).toBe(secondTabId);
 		expect(tabs.tabs).toHaveLength(3);
 		expect(activeLeaf(runtime, 1).primaryPresentation.naturalTitle).toBe('vim');
+	});
+
+	it('ends a terminal once this window sees its Host settle it, and not the one bound after it', () => {
+		const runtime = createRuntime(oneWorkspaceSnapshot(1, [tab(1)]));
+		const settled = presentation(1);
+		const exited = { exitCode: 0, kind: 'exited', signal: null } as const;
+		const observedEnds = new Map([
+			[
+				settled.presentationId,
+				{ binding: serverTerminalBindingKey(settled.binding), lifecycle: exited },
+			],
+		]);
+
+		// The Server publishes nothing new when a terminal ends, so only the window's own sight changes.
+		runtime.applyPublishedWorkbench(
+			projectServerSnapshot(
+				oneWorkspaceSnapshot(1, [tab(1)]),
+				DEFAULT_DIRECTORY,
+				INTL,
+				observedEnds,
+			),
+		);
+		expect(activeLeaf(runtime).primaryPresentation.lifecycle).toEqual(exited);
+
+		const rebound = presentation(1, { binding: { terminalId: hex(0x9ff), workerId: WORKER_ID } });
+		runtime.applyPublishedWorkbench(
+			projectServerSnapshot(
+				oneWorkspaceSnapshot(2, [tab(1, panel(1, rebound))]),
+				DEFAULT_DIRECTORY,
+				INTL,
+				observedEnds,
+			),
+		);
+		expect(activeLeaf(runtime).primaryPresentation.lifecycle.kind).toBe('running');
 	});
 
 	it('moves to the first Workspace when its Workspace is gone, and to none when all are', () => {

@@ -10,13 +10,15 @@ export { createServerWorkbenchAuthority } from './createServerWorkbenchAuthority
 export type { ServerLaunchProfileSource } from './createServerWorkbenchAuthority';
 export { createServerWorkspaceLocations } from './createServerWorkspaceLocations';
 export { findServerPresentation } from './findServerPresentation';
-export { findServerTerminalBinding } from './findServerTerminalBinding';
 export { projectServerSnapshot } from './projectServerSnapshot';
+export { findServerTerminalBinding, serverTerminalBindingKey } from './server-terminal-binding';
 export {
 	createServerTerminalColorsSource,
 	presentServerTerminalColors,
 	serverHostColors,
 } from './server-terminal-colors';
 export type { ServerTerminalColorsSource } from './server-terminal-colors';
+export { settledServerTerminalLifecycle } from './server-terminal-ends';
+export type { ObservedServerTerminalEnd } from './server-terminal-ends';
 export { nameServerTerminalTitle } from './server-terminal-names';
 export { admitsAutomaticWorkspace, workspaceLaunchAction } from './workspace-launch';

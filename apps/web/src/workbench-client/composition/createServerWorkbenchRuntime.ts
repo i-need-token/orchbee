@@ -52,8 +52,11 @@ import {
 	presentServerTerminalColors,
 	projectServerSnapshot,
 	serverHostColors,
+	serverTerminalBindingKey,
+	settledServerTerminalLifecycle,
 	ServerTerminalAgentSource,
 	ServerTerminalProjectionClient,
+	type ObservedServerTerminalEnd,
 	type ServerLaunchProfileSource,
 	type ServerTerminalColorsSource,
 	type ServerWorkbenchSession,
@@ -181,10 +184,23 @@ export function createServerWorkbenchRuntime({
 			kind: 'managed',
 		},
 	});
+	// The Server keeps an ended terminal bound until a person closes it, so only this window knows it
+	// ended, and only while the Presentation stays bound to that same terminal.
+	const observedEnds = new Map<TerminalPresentationId, ObservedServerTerminalEnd>();
+	const boundTerminal = (presentationId: TerminalPresentationId): string | null => {
+		const binding = findServerTerminalBinding(session.snapshot, presentationId);
+		return binding === null ? null : serverTerminalBindingKey(binding);
+	};
 	const adoptPublication = (snapshot: WorkbenchSnapshot): void => {
+		for (const [presentationId, end] of observedEnds) {
+			const binding = findServerTerminalBinding(snapshot, presentationId);
+			if (binding === null || serverTerminalBindingKey(binding) !== end.binding) {
+				observedEnds.delete(presentationId);
+			}
+		}
 		try {
 			projectWorkspaceRuntime.applyPublishedWorkbench(
-				projectServerSnapshot(snapshot, defaultDirectory, intl),
+				projectServerSnapshot(snapshot, defaultDirectory, intl, observedEnds),
 			);
 		} catch (error) {
 			onPublicationFailure(error);
@@ -228,6 +244,21 @@ export function createServerWorkbenchRuntime({
 		connection,
 		() => session.snapshot,
 		terminalColorsSource === undefined ? undefined : serverHostColors(terminalColorsSource),
+		(presentationId, binding, settlement) => {
+			const ended = serverTerminalBindingKey(binding);
+			if (
+				disposed ||
+				boundTerminal(presentationId) !== ended ||
+				observedEnds.get(presentationId)?.binding === ended
+			) {
+				return;
+			}
+			observedEnds.set(presentationId, {
+				binding: ended,
+				lifecycle: settledServerTerminalLifecycle(settlement),
+			});
+			adoptPublication(session.snapshot);
+		},
 	);
 	const agentObservationSource = new ServerTerminalAgentSource(connection, session);
 	const workspaceLocationSource = createServerWorkspaceLocations({
@@ -246,10 +277,6 @@ export function createServerWorkbenchRuntime({
 			readonly terminal: string | null;
 		}
 	>();
-	const boundTerminal = (presentationId: TerminalPresentationId): string | null => {
-		const binding = findServerTerminalBinding(session.snapshot, presentationId);
-		return binding === null ? null : `${binding.workerId}:${binding.terminalId}`;
-	};
 	const applyTerminalMetadata = (
 		presentationId: TerminalPresentationId,
 		metadata: ServerTerminalMetadata,

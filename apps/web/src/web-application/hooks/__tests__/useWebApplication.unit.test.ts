@@ -122,7 +122,7 @@ describe('useWebApplication', () => {
 		const closePanel = appleCommand('KeyW');
 		await act(async () => document.body.dispatchEvent(closePanel));
 		expect(closePanel.defaultPrevented).toBe(true);
-		await confirmCloseAnyway();
+		await confirmClose();
 		await vi.waitFor(() =>
 			expect(container.querySelectorAll('[data-slot="workbench-panel"]')).toHaveLength(1),
 		);
@@ -139,7 +139,7 @@ describe('useWebApplication', () => {
 		const closeActiveTab = appleCommand('KeyW');
 		await act(async () => document.body.dispatchEvent(closeActiveTab));
 		expect(closeActiveTab.defaultPrevented).toBe(true);
-		await confirmCloseAnyway();
+		await confirmClose();
 		await vi.waitFor(() =>
 			expect(
 				projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
@@ -153,7 +153,7 @@ describe('useWebApplication', () => {
 		const closeFinalTab = appleCommand('KeyW');
 		await act(async () => document.body.dispatchEvent(closeFinalTab));
 		expect(closeFinalTab.defaultPrevented).toBe(true);
-		await confirmCloseAnyway();
+		await confirmClose();
 		await vi.waitFor(() =>
 			expect(
 				projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
@@ -369,9 +369,9 @@ describe('useWebApplication', () => {
 		);
 
 		await act(async () => {
-			keyboardShortcutSettingsController.setShortcut('workbench.terminal.create', {
-				code: 'KeyT',
-				modifiers: ['mod', 'shift'],
+			keyboardShortcutSettingsController.setShortcut('workbench.panel.active.split-right', {
+				code: 'KeyD',
+				modifiers: ['mod', 'alt'],
 			});
 			keyboardShortcutSettingsController.setShortcut('terminal.clipboard.paste', {
 				code: 'KeyV',
@@ -395,7 +395,7 @@ describe('useWebApplication', () => {
 		});
 		await vi.waitFor(() => expect(document.querySelector('[role="menu"]')).not.toBeNull());
 
-		expect(menuShortcut('New tab')).toBe('⇧⌘T');
+		expect(menuShortcut('Split right')).toBe('⌥⌘D');
 		expect(menuShortcut('Paste')).toBe('⇧⌘V');
 		expect(menuShortcut('Close')).toBe('⌘W');
 		expect(menuShortcut('New child terminal')).toBeNull();
@@ -533,13 +533,13 @@ function appleCommand(code: string): KeyboardEvent {
 	});
 }
 
-async function confirmCloseAnyway(): Promise<void> {
-	const closeAnyway = await vi.waitFor(() =>
+async function confirmClose(): Promise<void> {
+	const close = await vi.waitFor(() =>
 		requiredElement<HTMLButtonElement>(
-			[...document.querySelectorAll<HTMLButtonElement>('button')].find(
-				(button) => button.textContent?.trim().startsWith('Close anyway') === true,
+			[...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(
+				(button) => button.textContent?.trim() === 'Close',
 			) ?? null,
 		),
 	);
-	await act(async () => closeAnyway.click());
+	await act(async () => close.click());
 }

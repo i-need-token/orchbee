@@ -16,6 +16,10 @@ import * as React from 'react';
 import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { WorkbenchSharedPanelTerminalCreate } from '../../../actions/createSharedPanelTerminal';
+import {
+	terminalCloseImpact,
+	terminalCloseWarningValues,
+} from '../../../model/terminal-close-impact';
 import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityClosure,
@@ -40,6 +44,7 @@ import {
 	terminalRequiresCloseConfirmation,
 	type PanelWorkspaceTransition,
 	type TabPanelWorkspace,
+	type TerminalPresentation,
 } from '../model/panel-workspace-state';
 
 interface PanelActionOperations {
@@ -142,18 +147,17 @@ export function useWorkbenchPanelActions({
 			const panel = findTarget(input.panelId);
 			return panel?.activeChildPresentationId === input.childPresentationId ? panel : null;
 		};
-		const runningTerminalCount = (input: PanelCloseInput) => {
+		/** A child close ends that terminal alone, and a Panel close ends every one it holds. */
+		const closedTerminals = (input: PanelCloseInput): readonly TerminalPresentation[] => {
 			const panel = findCloseTarget(input);
 			if (panel === null) {
-				return 0;
+				return [];
 			}
-			const affectedTerminals =
-				input.childPresentationId === null
-					? [panel.primaryPresentation, ...panel.childPresentations]
-					: panel.childPresentations.filter(
-							(terminal) => terminal.presentationId === input.childPresentationId,
-						);
-			return affectedTerminals.filter(terminalRequiresCloseConfirmation).length;
+			return input.childPresentationId === null
+				? [panel.primaryPresentation, ...panel.childPresentations]
+				: panel.childPresentations.filter(
+						(terminal) => terminal.presentationId === input.childPresentationId,
+					);
 		};
 		const closureFor = (input: PanelCloseInput): WorkbenchAuthorityClosure => ({
 			panelId: input.panelId,
@@ -373,23 +377,26 @@ export function useWorkbenchPanelActions({
 				defineAction({
 					category,
 					confirmation: (input) => {
-						const runningCount = runningTerminalCount(input);
-						return runningCount === 0
-							? null
-							: {
+						const terminals = closedTerminals(input);
+						return terminals.some(terminalRequiresCloseConfirmation)
+							? {
 									cancelLabel: workbenchMessages.panelCancel,
-									confirmLabel: workbenchMessages.panelCloseAnyway,
+									confirmLabel: workbenchMessages.panelClose,
 									description: {
-										...workbenchMessages.panelCloseRunningDescription,
-										values: { count: runningCount },
+										...workbenchMessages.terminalCloseWarning,
+										values: terminalCloseWarningValues(terminalCloseImpact(terminals)),
 									},
 									risk: 'destructive',
-									title: workbenchMessages.panelCloseRunningTitle,
+									title:
+										input.childPresentationId === null
+											? workbenchMessages.panelCloseTitle
+											: workbenchMessages.panelCloseRunningTitle,
 									watch:
 										authority === undefined
 											? undefined
 											: (withdraw) => authority.watchClose(closureFor(input), withdraw),
-								};
+								}
+							: null;
 					},
 					execution: {
 						concurrency: 'serialize',

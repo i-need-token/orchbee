@@ -14,6 +14,21 @@
 	font: var(--ob-sys-typography-body-sm);
 }
 
+.target,
+.line,
+.consequence {
+	display: block;
+	overflow-wrap: anywhere;
+}
+
+.target {
+	color: var(--ob-sys-color-text-primary);
+}
+
+.consequence {
+	margin-block-start: var(--ob-ref-space-2);
+}
+
 .footer :global([data-slot='alert-dialog-action']),
 .footer :global([data-slot='alert-dialog-cancel']) {
 	font: var(--ob-sys-typography-control-sm);

@@ -226,7 +226,6 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.actions.setOrientation': 'Set tab strip orientation',
 	'workbench.panels.actions.cancel': 'Cancel',
 	'workbench.panels.actions.close': 'Close',
-	'workbench.panels.actions.closeAnyway': 'Close anyway',
 	'workbench.panels.actions.equalize': 'Equalize Panels',
 	'workbench.panels.actions.maximize': 'Maximize Panel',
 	'workbench.panels.actions.activateChild': 'Activate child terminal',
@@ -274,10 +273,10 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.resize.title': 'Resize Panel',
 	'workbench.panels.resize.unavailable': 'This panel cannot move farther in that direction.',
 	'workbench.panels.resize.wider': 'Wider',
-	'workbench.panels.closeRunning.description':
-		'{count, plural, one {This terminal is still running. Closing it will end the running process.} other {# terminals are still running. Closing this panel will end their running processes.}}',
 	'workbench.panels.closeRunning.title': 'Close running terminal?',
 	'workbench.panels.close.notApplied': 'Panel operation was not applied',
+	'workbench.panels.close.tab': 'Tab: {tab}',
+	'workbench.panels.close.title': 'Close Panel?',
 	'workbench.panels.update.notApplied': 'Panel operation was not applied',
 	'workbench.panels.resize.contended': 'Resize not applied; the Workbench kept changing',
 	'workbench.panels.resize.failed': 'Resize failed; inspect the current layout',
@@ -289,8 +288,10 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.close.cleanupBlocked': '{label} · Close cleanup blocked',
 	'workbench.tabs.close.closed': '{label} · Closed',
 	'workbench.tabs.close.closing': '{label} · Closing',
+	'workbench.close.warning':
+		'{impact, select, running {Ends {running, plural, one {# terminal} other {# terminals}}.} ended {Discards the output of {ended, plural, one {# ended terminal} other {# ended terminals}}.} mixed {Ends {running, plural, one {# terminal} other {# terminals}} and discards the output of {ended, plural, one {# ended one} other {# ended ones}}.} other {Ends its terminals.}}',
 	'workbench.tabs.close.description':
-		'{names}{more, plural, =0 {} =1 { … and 1 more Tab} other { … and # more Tabs}}. Ends {running, plural, =1 {# terminal} other {# terminals}}.',
+		'{names}{more, plural, =0 {} =1 { … and 1 more Tab} other { … and # more Tabs}}. {warning}',
 	'workbench.tabs.close.notApplied': 'Close request was not applied',
 	'workbench.tabs.create.notCreated': 'Tab not created · previous Tab unchanged',
 	'workbench.tabs.create.profileUnavailable': 'Terminal not created · check profile in Settings',
@@ -322,8 +323,6 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.actions.newToRight': 'New Tab to right',
 	'workbench.tabs.actions.openVertical': 'Open vertical tabs',
 	'workbench.tabs.actions.close': 'Close',
-	'workbench.tabs.closeRunning.description':
-		'{count, plural, one {This terminal is still running. Closing the selected tab will end its running process.} other {# terminals are still running. Closing the selected tabs will end their running processes.}}',
 	'workbench.tabs.actions.closeBelow': 'Close Tabs below…',
 	'workbench.tabs.actions.closeToRight': 'Close Tabs to the right…',
 	'workbench.tabs.actions.closeVertical': 'Close vertical tabs',

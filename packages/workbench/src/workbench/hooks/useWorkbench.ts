@@ -106,6 +106,7 @@ import { useWorkbenchShortcuts } from './useWorkbenchShortcuts';
 import { useWorkbenchAgentNavigation } from './useWorkbenchAgentNavigation';
 import { useWorkbenchTerminalLocationActivation } from './useWorkbenchTerminalLocationActivation';
 import type { WorkbenchAgentNavigationInput } from '../model/project-workbench-agent-overview';
+import { terminalCloseWarningValues } from '../model/terminal-close-impact';
 import {
 	workbenchActiveLocationsEqual,
 	type WorkbenchTerminalLocationActivationOrigin,
@@ -529,45 +530,37 @@ export function useWorkbench({
 		Parameters<TabStripCloseConfirmation>,
 		ReturnType<TabStripCloseConfirmation>
 	>((request) => {
-		const count = projectWorkspaceRuntime.getActiveTerminalTabsCloseConfirmationCount(
-			request.tabIds,
-		);
 		const decider = authorityNotice.authority;
-		if (decider !== undefined) {
-			// A set always asks, because one press ends more than the Tab under the pointer.
-			if (count === 0 && request.tabIds.length < 2) return null;
-			const closure = sharedTabsClosure(request.tabIds);
-			const { tabModel: activeTabModel } = projectWorkspaceRuntime.getActiveTerminalContext();
-			const shown = closure.tabIds.slice(0, SHARED_TAB_CLOSE_NAMED_TABS);
-			const titles = new Map(activeTabModel.getSnapshot().tabs.map((tab) => [tab.id, tab.title]));
-			return {
-				cancelLabel: workbenchMessages.panelCancel,
-				confirmLabel: workbenchMessages.panelClose,
-				description: {
-					...workbenchMessages.tabCloseDescription,
-					values: {
-						more: closure.tabIds.length - shown.length,
-						names: shown.map((tabId) => titles.get(tabId) ?? '').join(', '),
-						running: projectWorkspaceRuntime.getActiveTerminalTabsTerminalCount(closure.tabIds),
-					},
+		const asks =
+			projectWorkspaceRuntime.getActiveTerminalTabsCloseConfirmationCount(request.tabIds) > 0 ||
+			// A shared set always asks, because one press ends more than the Tab under the pointer.
+			(decider !== undefined && request.tabIds.length > 1);
+		if (!asks) return null;
+		const closure = sharedTabsClosure(request.tabIds);
+		const { tabModel: activeTabModel } = projectWorkspaceRuntime.getActiveTerminalContext();
+		const shown = closure.tabIds.slice(0, SHARED_TAB_CLOSE_NAMED_TABS);
+		const titles = new Map(activeTabModel.getSnapshot().tabs.map((tab) => [tab.id, tab.title]));
+		return {
+			cancelLabel: workbenchMessages.panelCancel,
+			confirmLabel: workbenchMessages.panelClose,
+			description: {
+				...workbenchMessages.tabCloseDescription,
+				values: {
+					more: closure.tabIds.length - shown.length,
+					names: shown.map((tabId) => titles.get(tabId) ?? '').join(', '),
+					warning: intl.formatMessage(
+						workbenchMessages.terminalCloseWarning,
+						terminalCloseWarningValues(
+							projectWorkspaceRuntime.getActiveTerminalTabsCloseImpact(closure.tabIds),
+						),
+					),
 				},
-				risk: 'destructive',
-				title: { ...workbenchMessages.tabCloseTitle, values: { count: closure.tabIds.length } },
-				watch: (withdraw) => decider.watchClose(closure, withdraw),
-			};
-		}
-		return count === 0
-			? null
-			: {
-					cancelLabel: workbenchMessages.panelCancel,
-					confirmLabel: workbenchMessages.panelCloseAnyway,
-					description: {
-						...workbenchMessages.tabCloseRunningDescription,
-						values: { count },
-					},
-					risk: 'destructive',
-					title: workbenchMessages.panelCloseRunningTitle,
-				};
+			},
+			risk: 'destructive',
+			title: { ...workbenchMessages.tabCloseTitle, values: { count: closure.tabIds.length } },
+			watch:
+				decider === undefined ? undefined : (withdraw) => decider.watchClose(closure, withdraw),
+		};
 	});
 	const actions = useWorkbenchActions({
 		agentObservationSource,

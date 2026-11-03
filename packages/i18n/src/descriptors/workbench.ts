@@ -355,20 +355,26 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.close'],
 		description: 'Action that closes the displayed terminal or its Workbench panel.',
 	},
-	panelCloseAnyway: {
-		id: 'workbench.panels.actions.closeAnyway',
-		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.closeAnyway'],
-		description: 'Action that confirms closing running terminals.',
-	},
-	panelCloseRunningDescription: {
-		id: 'workbench.panels.closeRunning.description',
-		defaultMessage: enUSWorkbenchMessages['workbench.panels.closeRunning.description'],
-		description: 'Warning shown before closing one or more running terminals.',
-	},
 	panelCloseRunningTitle: {
 		id: 'workbench.panels.closeRunning.title',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.closeRunning.title'],
-		description: 'Title for the running-terminal close confirmation.',
+		description: 'Title for the confirmation before closing one child terminal of a Panel.',
+	},
+	panelCloseTab: {
+		id: 'workbench.panels.close.tab',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.close.tab'],
+		description: 'Close confirmation line naming the Tab that holds the Panel.',
+	},
+	panelCloseTitle: {
+		id: 'workbench.panels.close.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.close.title'],
+		description: 'Title for the confirmation before closing a Panel.',
+	},
+	terminalCloseWarning: {
+		id: 'workbench.close.warning',
+		defaultMessage: enUSWorkbenchMessages['workbench.close.warning'],
+		description:
+			'What a close does: ends the terminals still running, and discards the output of the ended ones.',
 	},
 	panelCloseNotApplied: {
 		id: 'workbench.panels.close.notApplied',
@@ -426,7 +432,7 @@ export const workbenchMessages = defineMessages({
 	tabCloseDescription: {
 		id: 'workbench.tabs.close.description',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.description'],
-		description: 'Confirmation text naming the Tabs that close and how many terminals end.',
+		description: 'Confirmation text naming the Tabs that close, then what closing them does.',
 	},
 	tabCreateNotCreated: {
 		id: 'workbench.tabs.create.notCreated',
@@ -475,11 +481,6 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.tabs.close.outcomeUnknown',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.outcomeUnknown'],
 		description: 'Status notice when closing a Tab may have taken effect.',
-	},
-	tabCloseRunningDescription: {
-		id: 'workbench.tabs.closeRunning.description',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.closeRunning.description'],
-		description: 'Warning shown before closing tabs that contain running terminals.',
 	},
 	tabCloseSetProgress: {
 		id: 'workbench.tabs.close.setProgress',
