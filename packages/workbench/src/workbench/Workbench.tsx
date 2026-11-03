@@ -46,6 +46,7 @@ import type { WorkbenchSearchProvider } from './types/workbench-search-provider'
 import type { WorkbenchTerminalSurface } from './types/workbench-terminal-surface';
 import type { WorkbenchAgentNotificationObserver } from './types/workbench-agent-notification';
 import type { WorkbenchAgentSource } from './types/workbench-agent-observation';
+import type { WorkbenchWorkspaceLocationSource } from './types/workbench-workspace-location';
 import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
 import type { WorkbenchEnvironmentProjectConnectionCapability } from './types/workbench-environment-project-connection';
 import type { WorkbenchRemoteTerminalCreationCapability } from './types/workbench-remote-terminal-creation';
@@ -82,6 +83,8 @@ interface WorkbenchProps {
 	readonly standaloneTerminalAvailable?: boolean | undefined;
 	readonly terminalActionShortcutLabels?: WorkbenchTerminalActionShortcutLabels | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
+	/** Where each Workspace stands; without it the sidebar names Workspaces alone. */
+	readonly workspaceLocationSource?: WorkbenchWorkspaceLocationSource | undefined;
 }
 
 export function Workbench({
@@ -107,6 +110,7 @@ export function Workbench({
 	standaloneTerminalAvailable = true,
 	terminalActionShortcutLabels,
 	terminalSurface,
+	workspaceLocationSource,
 }: WorkbenchProps): React.ReactNode {
 	const tabStripMessages = useWorkbenchTabStripMessages();
 	const effectiveShortcutBindings =
@@ -294,6 +298,7 @@ export function Workbench({
 										toggleProjectExpansion={view.toggleProjectExpansion}
 										toggleRecentsExpansion={view.toggleRecentsExpansion}
 										updateWorkspace={view.updateWorkspace}
+										workspaceLocationSource={workspaceLocationSource}
 										workspaceResourcesEditable={authority === undefined}
 										worktreeCommands={view.worktreeCommands}
 									/>

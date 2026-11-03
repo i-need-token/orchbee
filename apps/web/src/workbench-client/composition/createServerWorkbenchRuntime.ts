@@ -11,6 +11,7 @@ import {
 	type WorkbenchAgentSource,
 	type WorkbenchAuthority,
 	type WorkbenchShortcutPlatform,
+	type WorkbenchWorkspaceLocationSource,
 } from '@orchbee/workbench';
 import {
 	terminalPresentationId,
@@ -43,6 +44,7 @@ import {
 import type { ServerConnection } from '../server-connection';
 import {
 	createServerWorkbenchAuthority,
+	createServerWorkspaceLocations,
 	findServerPresentation,
 	findServerTerminalBinding,
 	nameServerTerminalTitle,
@@ -73,6 +75,8 @@ export interface ServerWorkbenchRuntime {
 	readonly authority: WorkbenchAuthority;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly terminalSurfaceCapability: ProjectedTerminalSurfaceCapability;
+	/** Each Workspace's branch or folder and divergence, read from the Server while shown. */
+	readonly workspaceLocationSource: WorkbenchWorkspaceLocationSource;
 	dispose(): void;
 }
 
@@ -83,6 +87,11 @@ export interface CreateServerWorkbenchRuntimeOptions {
 	readonly defaultDirectory: string;
 	readonly documentElement: Pick<HTMLElement, 'dir' | 'lang'>;
 	readonly focusRecoveryStorage?: WorkbenchFocusRecoveryStorage | undefined;
+	/**
+	 * The person's home folder where the Server runs, which a Workspace folder under it shows as `~`;
+	 * absent where this Client cannot know it.
+	 */
+	readonly homeDirectory?: string | undefined;
 	/** A publication this Client cannot read leaves it behind the Server, so it must stop. */
 	readonly onPublicationFailure: (error: unknown) => void;
 	readonly preferredLocales: readonly string[];
@@ -116,6 +125,7 @@ export function createServerWorkbenchRuntime({
 	defaultDirectory,
 	documentElement,
 	focusRecoveryStorage,
+	homeDirectory,
 	onPublicationFailure,
 	preferredLocales,
 	session,
@@ -208,6 +218,10 @@ export function createServerWorkbenchRuntime({
 		terminalColorsSource === undefined ? undefined : serverHostColors(terminalColorsSource),
 	);
 	const agentObservationSource = new ServerTerminalAgentSource(connection, session);
+	const workspaceLocationSource = createServerWorkspaceLocations({
+		homeDirectory: homeDirectory ?? null,
+		session,
+	});
 	const presentationSnapshots =
 		new TerminalPresentationSnapshotCache<ProjectedTerminalPresentationSnapshot>();
 	// A revision only orders metadata of one terminal, and a Presentation can be bound to another.
@@ -301,6 +315,7 @@ export function createServerWorkbenchRuntime({
 					() => stopFocusRecoveryViewObservation?.(),
 					() => actionRuntime.dispose(),
 					() => agentObservationSource.dispose(),
+					() => workspaceLocationSource.dispose(),
 					() => projectionClient.dispose(),
 				],
 				'Server Workbench runtime cleanup failed',
@@ -308,5 +323,6 @@ export function createServerWorkbenchRuntime({
 		},
 		projectWorkspaceRuntime,
 		terminalSurfaceCapability,
+		workspaceLocationSource,
 	};
 }

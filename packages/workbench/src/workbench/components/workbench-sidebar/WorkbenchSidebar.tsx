@@ -33,6 +33,7 @@ import { useNavigationReorderDrag } from './hooks/useNavigationReorderDrag';
 import { useProjectFolderAcquisition } from './hooks/useProjectFolderAcquisition';
 import { useWorkbenchSidebarFocusRequest } from './hooks/useWorkbenchSidebarFocusRequest';
 import { useWorkbenchSidebarAgentOverview } from './hooks/useWorkbenchSidebarAgentOverview';
+import { useWorkbenchSidebarWorkspaceLocations } from './hooks/useWorkbenchSidebarWorkspaceLocations';
 import { useWorkspaceCreationActivation } from './hooks/useWorkspaceCreationActivation';
 import { useWorkspaceWorktrees } from './hooks/useWorkspaceWorktrees';
 import type {
@@ -40,6 +41,7 @@ import type {
 	WorkbenchWorktreeCommands,
 } from './types/workbench-sidebar-types';
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../types/workbench-agent-overview';
+import type { WorkbenchWorkspaceLocationSource } from '../../types/workbench-workspace-location';
 import styles from './WorkbenchSidebar.module.css';
 
 interface WorkbenchSidebarProps {
@@ -102,6 +104,7 @@ interface WorkbenchSidebarProps {
 	readonly toggleRecentsExpansion: () => void;
 	readonly updateWorkspace: (workspaceId: string, name: string, primaryDirectoryId: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
+	readonly workspaceLocationSource?: WorkbenchWorkspaceLocationSource | undefined;
 	/** A Workspace whose resources are decided elsewhere can only be renamed here. */
 	readonly workspaceResourcesEditable: boolean;
 	/** Absent where the authority cannot reach Git for its Workspaces. */
@@ -153,6 +156,7 @@ export function WorkbenchSidebar({
 	toggleRecentsExpansion,
 	updateWorkspace,
 	workspaceAgentOverviews,
+	workspaceLocationSource,
 	workspaceResourcesEditable,
 	worktreeCommands,
 }: WorkbenchSidebarProps): ReactNode {
@@ -160,6 +164,7 @@ export function WorkbenchSidebar({
 		expandedProjectIds: projectWorkspaceState.expandedProjectIds,
 		workspaces: workspaceAgentOverviews,
 	});
+	const workspaceLocations = useWorkbenchSidebarWorkspaceLocations(workspaceLocationSource);
 	const rootReference = useWorkbenchSidebarFocusRequest(focusRequest);
 	const view = useWorkbenchSidebar(projectWorkspaceState, environmentProjectConnection);
 	const folderAcquisition = useProjectFolderAcquisition({
@@ -323,6 +328,7 @@ export function WorkbenchSidebar({
 									toggleRecentsExpansion={toggleRecentsExpansion}
 									toggleWorkspaceAgentExpansion={agentOverview.toggleWorkspace}
 									workspaceAgentOverviews={workspaceAgentOverviews}
+									workspaceLocations={workspaceLocations}
 									worktreeMenu={workspaceWorktrees.menu}
 									state={projectWorkspaceState}
 									setWorkspaceProject={setWorkspaceProject}

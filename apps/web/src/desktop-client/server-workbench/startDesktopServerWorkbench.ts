@@ -279,6 +279,8 @@ async function run(
 		defaultDirectory: bootstrap.defaultDirectory,
 		documentElement,
 		focusRecoveryStorage: storage.focusRecovery,
+		// Main names the person's home folder, and the Server it started runs beside it.
+		homeDirectory: bootstrap.defaultDirectory,
 		// A publication this document cannot apply leaves nothing current to show, so it disconnects.
 		onPublicationFailure: () => session.dispose(),
 		preferredLocales,
@@ -316,6 +318,7 @@ async function run(
 			terminalLaunchProfileClient,
 			terminalSettingsController,
 			terminalSurface: ProjectedTerminalSurface,
+			workspaceLocationSource: runtime.workspaceLocationSource,
 		},
 		// A window has no address bar, and a reload needs the URL Main loaded it with. Focus recovery
 		// returns it to where it was.

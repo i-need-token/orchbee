@@ -33,6 +33,27 @@ interface NavigationReorderDragView {
 	readonly listRef: React.RefObject<HTMLUListElement | null>;
 }
 
+/**
+ * The slot a dragged row leaves, and how far crossed siblings squeeze into it: the row's own height,
+ * since rows differ, plus the spacing to a neighbour. A Project folds while it is dragged, so its
+ * row, not its whole item, is what leaves.
+ */
+function measureReorderSlot(row: HTMLElement): {
+	readonly blockSize: number;
+	readonly shift: number;
+} {
+	const blockSize = row.getBoundingClientRect().height;
+	const item = row.closest('[data-navigation-reorder-id]');
+	if (item === null) return { blockSize, shift: blockSize };
+	const bounds = item.getBoundingClientRect();
+	const next = item.nextElementSibling;
+	const previous = item.previousElementSibling;
+	let spacing = 0;
+	if (next !== null) spacing = next.getBoundingClientRect().top - bounds.bottom;
+	else if (previous !== null) spacing = bounds.top - previous.getBoundingClientRect().bottom;
+	return { blockSize, shift: blockSize + Math.max(0, spacing) };
+}
+
 /** A released row holds the place it was dropped until `reorderItem` settles, so the list never shows the old order in between. */
 export function useNavigationReorderDrag(
 	items: readonly NavigationReorderItem[],
@@ -102,8 +123,13 @@ export function useNavigationReorderDrag(
 		let latestClientX = session.clientX;
 		let latestClientY = session.clientY;
 		let refreshAfterActivation = false;
+		/** The list holding the measured slot, cleared with the rest of the drag visual. */
+		let slotList: HTMLUListElement | null = null;
 		const initialDocumentCursor = ownerDocument.documentElement.style.cursor;
 		const clearDragVisual = () => {
+			slotList?.style.removeProperty('--ob-comp-workbench-navigation-reorder-block-size');
+			slotList?.style.removeProperty('--ob-comp-workbench-navigation-reorder-shift');
+			slotList = null;
 			session.captureElement.style.removeProperty(
 				'--ob-comp-workbench-navigation-reorder-block-start',
 			);
@@ -229,6 +255,16 @@ export function useNavigationReorderDrag(
 					'--ob-comp-workbench-navigation-reorder-inline-start',
 					`${sourceBounds.left}px`,
 				);
+				const slot = measureReorderSlot(session.captureElement);
+				listElement.style.setProperty(
+					'--ob-comp-workbench-navigation-reorder-block-size',
+					`${slot.blockSize}px`,
+				);
+				listElement.style.setProperty(
+					'--ob-comp-workbench-navigation-reorder-shift',
+					`${slot.shift}px`,
+				);
+				slotList = listElement;
 				ownerDocument.documentElement.style.cursor = 'grabbing';
 				refreshAfterActivation = true;
 			}

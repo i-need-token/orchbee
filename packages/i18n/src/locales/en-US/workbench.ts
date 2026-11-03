@@ -183,6 +183,10 @@ export const enUSWorkbenchMessages = {
 	'workbench.workspaces.confirmDelete.title': 'Close Workspace?',
 	'workbench.workspaces.empty.directory': 'Directory: {path}',
 	'workbench.workspaces.empty.noDirectory': 'No directory configured.',
+	'workbench.workspaces.git.ahead':
+		'{count, plural, one {# commit to push} other {# commits to push}}',
+	'workbench.workspaces.git.behind':
+		'{count, plural, one {# commit to pull} other {# commits to pull}}',
 	'workbench.workspaces.manage.description': 'Change the Workspace name and default folder.',
 	'workbench.workspaces.manage.nameOnlyDescription': 'Change the Workspace name.',
 	'workbench.workspaces.manage.name': 'Name',

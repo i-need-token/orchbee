@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Project and Workspace Navigation",
-	"description": "Presents independently creatable Workspaces, optional Project groups, stable selection, semantic menus, and live Agents directly under each Workspace.",
+	"description": "Presents independently creatable Workspaces, optional Project groups, stable selection, semantic menus, where each Workspace stands, and live Agents directly under each Workspace.",
 	"owner": "@orchbee/workbench",
 	"visibility": "private",
 	"intents": [
@@ -14,6 +14,7 @@
 		"connect-environment-project",
 		"disconnect-environment-project",
 		"inspect-workspace-agents",
+		"inspect-workspace-location",
 		"navigate-to-agent",
 		"navigate-workspace",
 		"reorder-project",
@@ -28,7 +29,10 @@
 		"packages/workbench/src/workbench/components/workbench-sidebar/hooks/useWorkbenchSidebarFocusRequest.ts",
 		"packages/workbench/src/workbench/components/workbench-sidebar/hooks/useWorkspaceWorktrees.ts",
 		"packages/workbench/src/workbench/actions/registerWorkbenchWorktreeActions.ts",
+		"packages/workbench/src/workbench/components/workbench-sidebar/hooks/useWorkbenchSidebarWorkspaceLocations.ts",
+		"packages/workbench/src/workbench/components/workbench-sidebar/hooks/useNavigationReorderDrag.ts",
 		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/ProjectNavigationItem.tsx",
+		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/components/workspace-location-line/WorkspaceLocationLine.tsx",
 		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/components/workspace-agent-list/WorkspaceAgentList.tsx"
 	],
 	"stories": [
@@ -88,6 +92,17 @@
 			]
 		},
 		{
+			"exportName": "WorkspaceLocations",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--workspace-locations",
+			"states": [
+				"Compare a Workspace on a branch with commits to push and pull, one with only commits to pull, one with no divergence, and one outside Git that names its folder; verify ↑ counts take the success color and ↓ counts the warning color beside the trailing markers.",
+				"Narrow the sidebar to 200px and verify the long branch truncates at its end while the long folder keeps its final folder and truncates its start; hover each second line for its full text.",
+				"Verify the icon, row options, and Agent disclosure stay centred on the identity line of two-line rows, and that a Workspace without a location stays one line.",
+				"Drag a two-line Workspace across one-line and two-line siblings and verify each squeeze moves by the dragged row's height without overlap or gaps."
+			]
+		},
+		{
 			"exportName": "SshProjectConnection",
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--ssh-project-connection",
@@ -107,7 +122,8 @@
 		"Workbench needs independent Workspace destinations, optional grouping, semantic menus, and ordering together.",
 		"A host needs the reviewed sidebar projection of Workbench Project and Workspace runtime state.",
 		"A person needs to notice live Agents in inactive Workspaces and navigate to an exact attached terminal without duplicating the Tab Strip.",
-		"A host supplies process-local Environment connection observations and explicit connect or disconnect commands for remote Projects."
+		"A host supplies process-local Environment connection observations and explicit connect or disconnect commands for remote Projects.",
+		"A host can say where each Workspace stands, as its folder, Git branch, and divergence, and a person needs to see it without opening the Workspace."
 	],
 	"avoidWhen": [
 		"The hierarchy represents unrelated navigation entities that do not follow the Project and Workspace model.",
@@ -130,7 +146,9 @@
 		"An open row menu keeps the entire owner row highlighted without introducing a second trigger background.",
 		"Worktree rows appear only where the authority reaches Git. Each menu opening discovers again, and until Git answers, New Worktree stays disabled and Open Worktree holds one disabled status row; an earlier answer never stands in.",
 		"Remove Worktree… appears only for a checkout the authority proves the Workspace may remove, asks once through the shared destructive Action confirmation, and keeps the branch; a stopped removal asks again before it resumes, and Resume Worktree Removal… takes Remove Worktree…'s place while the authority keeps it.",
-		"Project and Workspace drag order is persisted only on release; the source row follows the pointer while crossed siblings squeeze into its vacated slot, and completion does not replay the previous displacement.",
+		"A Workspace row's identity line keeps a lone row's height. Commits to push and pull show as ↑N and ↓N only when positive, beside the trailing markers; a second line names the branch, otherwise the folder, and is absent rather than blank while neither is known.",
+		"A held name, folder, and Git facts from the location source stand together, so a moved row changes all three at once; Workbench never decides location facts and observes a source only while the sidebar is mounted.",
+		"Project and Workspace drag order is persisted only on release; the source row follows the pointer while crossed siblings squeeze by its measured footprint into its vacated slot, and completion does not replay the previous displacement.",
 		"Workspace reordering stays within the source nullable group and preserves stable Workspace selection, terminal ownership, identity, and Project disclosure.",
 		"A Workspace with no live Agent keeps the default layout icon and no Agent disclosure; retained ended Sessions never leave an Agent icon, count, status, or detail row.",
 		"A Workspace Agent summary counts deduplicated live Sessions, composes one or two curated provider identities, uses the generic Agent identity for three or more providers, and exposes its resolved status through text or an accessible label as well as color.",

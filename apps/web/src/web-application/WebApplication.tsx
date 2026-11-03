@@ -12,6 +12,7 @@ import {
 	type WorkbenchShortcutPlatform,
 	type WorkbenchTerminalActionShortcutLabels,
 	type WorkbenchTerminalSurface,
+	type WorkbenchWorkspaceLocationSource,
 } from '@orchbee/workbench';
 import type { ReactNode } from 'react';
 
@@ -71,6 +72,7 @@ export interface WebApplicationProps {
 	readonly terminalLaunchProfileClient?: TerminalLaunchProfileControl | undefined;
 	readonly terminalDefaultSettingsControl?: TerminalDefaultSettingsControl | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
+	readonly workspaceLocationSource?: WorkbenchWorkspaceLocationSource | undefined;
 }
 
 export function WebApplication({
@@ -100,6 +102,7 @@ export function WebApplication({
 	terminalLaunchProfileClient,
 	terminalDefaultSettingsControl,
 	terminalSurface,
+	workspaceLocationSource,
 }: WebApplicationProps): ReactNode {
 	const view = useWebApplication({ terminalSettingsController });
 	const keyboardShortcuts = useKeyboardShortcutSettings(keyboardShortcutSettingsController);
@@ -158,6 +161,7 @@ export function WebApplication({
 					standaloneTerminalAvailable={standaloneTerminalAvailable}
 					terminalActionShortcutLabels={terminalActionShortcutLabels}
 					terminalSurface={terminalSurface}
+					workspaceLocationSource={workspaceLocationSource}
 				/>
 			</div>
 			{agentIntegrationManagementControl === undefined ||

@@ -167,6 +167,8 @@ export const zhCNWorkbenchMessages = {
 	'workbench.workspaces.confirmDelete.title': '关闭工作区？',
 	'workbench.workspaces.empty.directory': '目录：{path}',
 	'workbench.workspaces.empty.noDirectory': '尚未配置目录。',
+	'workbench.workspaces.git.ahead': '{count} 个提交待推送',
+	'workbench.workspaces.git.behind': '{count} 个提交待拉取',
 	'workbench.workspaces.manage.description': '修改工作区名称和默认文件夹。',
 	'workbench.workspaces.manage.nameOnlyDescription': '修改工作区名称。',
 	'workbench.workspaces.manage.name': '名称',

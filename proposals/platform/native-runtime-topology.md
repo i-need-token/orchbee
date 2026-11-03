@@ -1577,6 +1577,19 @@ choices stand unless review changes them:
   heading counts its members, and no heading is current, even folded around the active Workspace.
   Recents folds like a Project but has no menu and takes no part in dragging; it has no icon, since
   the product icons have none that fits.
+- **Each Workspace row says where it stands, as in the TUI.** `↑N` commits to push in the success
+  role and `↓N` to pull in the warning role follow the name, and a second line names the branch,
+  otherwise the folder, with the home folder as `~`. The identity line keeps its 30 px, so the icon
+  and row controls stay on it, and the second line adds 16 px. A folder keeps its final folder whole
+  and truncates its start, where the TUI cuts symmetric halves. The arrows have no tooltip: the line
+  carries the full text as its title, and the row's accessible name says the counts in words.
+  Dragging now measures the dragged row instead of a fixed row height.
+- **Git facts follow the TUI's cadence and carrying rules, but only while the sidebar shows.**
+  Facts persist across a hidden sidebar, and the ten-second freshness restarts when it shows again.
+  An answer at another revision is dropped and the round goes on, where the TUI fails the whole
+  read. A round skips a Workspace with no directory. Withdrawn facts keep the folder, and re-reading
+  waits for the next round. Every Workspace's folder is shortened against the home folder until
+  Machines arrive.
 
 ### Evidence
 

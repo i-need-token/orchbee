@@ -69,6 +69,11 @@ export type {
 	WorkbenchAgentSnapshot,
 	WorkbenchAgentSource,
 } from './types/workbench-agent-observation';
+export type {
+	WorkbenchWorkspaceGit,
+	WorkbenchWorkspaceLocation,
+	WorkbenchWorkspaceLocationSource,
+} from './types/workbench-workspace-location';
 export type { WorkbenchShortcutBindings, WorkbenchShortcutId } from './utils/workbench-shortcuts';
 export type {
 	WorkbenchTerminalActionContextProvider,

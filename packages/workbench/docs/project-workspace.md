@@ -170,6 +170,24 @@ through `recentsExpanded`, which this client's view keeps beside `expandedProjec
 default; it has no menu and neither starts nor receives a drag. Activating a Workspace, or creating one
 here, opens its Project or Recents.
 
+## Workspace locations
+
+A host may supply a `WorkbenchWorkspaceLocationSource`: where each Workspace stands, keyed by
+Workspace ID, as its folder, its Git branch and divergence, and the name a moved row still holds.
+The sidebar subscribes once per source while it is mounted, so a source that reads only while
+watched stops when the sidebar goes. Workbench words these facts and decides nothing about them.
+
+A Workspace row shows them as the TUI does. Its identity line keeps a lone row's height, so the icon,
+row options, and Agent disclosure stay centred on it. After the name, flush with the trailing
+markers, `↑N` counts commits to push in the success role and `↓N` commits to pull in the warning
+role, each only when positive; the arrows tell them apart without color. A second line names the
+branch, otherwise the folder. A row with neither stays one line, so pending facts reserve no blank
+row. A branch truncates at its end. A folder keeps its final folder whole and truncates its start,
+where the TUI cuts symmetric halves. The line's title holds the whole text, the arrows are hidden
+from assistive technology, and the row's accessible name adds the location and the counts in words.
+While a source holds a moved row's earlier facts, their held name stands in for the Workspace name,
+so the name, folder, and facts change together; the row menu keeps naming the Workspace itself.
+
 ## Project navigation action menus
 
 Each Project row and Workspace row owns one ordered action-menu model. The row's ellipsis button
@@ -242,8 +260,9 @@ list geometry stable. Each time the dragged row's midpoint crosses a sibling row
 the siblings between the source and target animate into the vacated slot, including the final sibling
 when moving to the end. This squeeze motion is the same ordering language used by horizontal and
 vertical Tabs; neither Project nor Workspace reorder uses a separate insertion marker. Sibling
-displacement uses the tokenized compact navigation-row footprint rather than a live transformed
-rectangle. If the source Project was expanded, only its dragged presentation is compact: authoritative
+displacement uses the source row's own footprint, its height plus the gap to its neighbor, measured
+once when the drag activates, rather than a live transformed rectangle, so one-line and two-line
+Workspace rows squeeze by what they occupy. If the source Project was expanded, only its dragged presentation is compact: authoritative
 `expandedProjectIds` is never changed. Workspace dragging never changes Project disclosure. Near the
 top or bottom of the shared Project viewport, proportional automatic scrolling recomputes the scoped
 target without detaching the source row from the pointer.

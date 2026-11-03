@@ -10,12 +10,12 @@
 }
 
 .project[data-project-reorder-displacement='down'] {
-	transform: translateY(var(--ob-comp-workbench-project-reorder-shift));
+	transform: translateY(var(--ob-comp-workbench-navigation-reorder-shift));
 	will-change: transform;
 }
 
 .project[data-project-reorder-displacement='up'] {
-	transform: translateY(calc(var(--ob-comp-workbench-project-reorder-shift) * -1));
+	transform: translateY(calc(var(--ob-comp-workbench-navigation-reorder-shift) * -1));
 	will-change: transform;
 }
 
@@ -29,18 +29,18 @@
 }
 
 .workspace[data-workspace-reorder-displacement='down'] {
-	transform: translateY(var(--ob-comp-workbench-workspace-reorder-shift));
+	transform: translateY(var(--ob-comp-workbench-navigation-reorder-shift));
 	will-change: transform;
 }
 
 .workspace[data-workspace-reorder-displacement='up'] {
-	transform: translateY(calc(var(--ob-comp-workbench-workspace-reorder-shift) * -1));
+	transform: translateY(calc(var(--ob-comp-workbench-navigation-reorder-shift) * -1));
 	will-change: transform;
 }
 
 .project[data-dragging],
 .workspace[data-dragging] {
-	min-height: var(--ob-ref-size-control-navigation);
+	min-height: var(--ob-comp-workbench-navigation-reorder-block-size);
 }
 
 .project + .project {
@@ -190,6 +190,46 @@
 	text-align: start;
 }
 
+.workspaceText {
+	display: flex;
+	min-width: var(--ob-ref-space-0);
+	flex: 1;
+	flex-direction: column;
+}
+
+/* The identity line keeps a lone row's height, so the icon and the row's controls stay centred on it. */
+.workspaceIdentity {
+	display: flex;
+	min-width: var(--ob-ref-space-0);
+	min-height: var(--ob-ref-size-control-navigation);
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+}
+
+/* The location line rises into the identity line's lower padding and repeats that padding below. */
+.workspaceLocation {
+	display: flex;
+	min-width: var(--ob-ref-space-0);
+	margin-block-start: calc(var(--ob-ref-space-1-5) * -1);
+	padding-block-end: var(--ob-ref-space-1-5);
+}
+
+.divergence {
+	display: inline-flex;
+	flex: none;
+	gap: var(--ob-ref-space-0-5);
+	font: var(--ob-sys-typography-label-xs);
+	font-variant-numeric: tabular-nums;
+}
+
+.ahead {
+	color: var(--ob-sys-color-status-success-text);
+}
+
+.behind {
+	color: var(--ob-sys-color-status-warning-text);
+}
+
 .connectionStatus {
 	width: var(--ob-ref-space-1-5);
 	height: var(--ob-ref-space-1-5);
@@ -200,6 +240,7 @@
 
 .workspaceItem .icon {
 	width: calc(2 * var(--ob-ref-size-icon-sm) + var(--ob-ref-space-1));
+	height: var(--ob-ref-size-control-navigation);
 	justify-content: flex-end;
 }
 
@@ -230,9 +271,10 @@
 	background: var(--ob-sys-color-status-warning-border);
 }
 
+/* Centred on the identity line, which is the whole row unless a Workspace shows its location. */
 .rowMenu {
 	position: absolute;
-	inset-block-start: 50%;
+	inset-block-start: calc(var(--ob-ref-size-control-navigation) / 2);
 	inset-inline-end: var(--ob-ref-space-1);
 	flex: none;
 	border: none;
@@ -282,6 +324,9 @@
 }
 
 .workspaceItem {
+	align-items: flex-start;
+	height: auto;
+	min-height: var(--ob-ref-size-control-navigation);
 	padding-inline-start: var(--ob-ref-space-2);
 }
 
@@ -302,7 +347,7 @@
 
 .agentDisclosure {
 	position: absolute;
-	inset-block-start: 50%;
+	inset-block-start: calc(var(--ob-ref-size-control-navigation) / 2);
 	inset-inline-end: calc(var(--ob-ref-space-1) + var(--ob-ref-size-control-xs));
 	flex: none;
 	border: none;

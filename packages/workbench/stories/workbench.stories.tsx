@@ -13,6 +13,8 @@ import type {
 	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalPresentationCommand,
 	WorkbenchTerminalSurfaceProps,
+	WorkbenchWorkspaceLocation,
+	WorkbenchWorkspaceLocationSource,
 } from '@orchbee/workbench';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
@@ -272,6 +274,20 @@ function createStoryAgentSource(
 			};
 		},
 	};
+}
+
+/** A Server that reports where the named Workspaces stand. */
+function createStoryWorkspaceLocationSource(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	locations: Readonly<Record<string, WorkbenchWorkspaceLocation>>,
+): WorkbenchWorkspaceLocationSource {
+	const snapshot = new Map(
+		runtime.getSnapshot().workspaces.flatMap((workspace) => {
+			const location = locations[workspace.name];
+			return location === undefined ? [] : [[workspace.id, location] as const];
+		}),
+	);
+	return { getSnapshot: () => snapshot, subscribe: () => () => undefined };
 }
 
 const createSshFolderManagementRuntime = () => {
@@ -731,6 +747,55 @@ export const WorkspaceAgentOverview: Story = {
 			(button) => button.getAttribute('aria-label') === 'Show 2 Agents in Project Workspace',
 		);
 		disclosure?.click();
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+const workspaceLocationsStory = (() => {
+	const fixture = createWorkspaceAgentOverviewStoryFixture();
+	return {
+		...fixture,
+		workspaceLocationSource: createStoryWorkspaceLocationSource(fixture.projectWorkspaceRuntime, {
+			'Batch Tasks': {
+				folder: '~/work/clients/northwind/batch-processing/nightly-reports',
+				git: null,
+				heldName: null,
+			},
+			Docs: {
+				folder: '~/work/orchbee/docs',
+				git: {
+					branch: 'docs/sidebar-locations-and-divergence-walkthrough',
+					divergence: { ahead: 0, behind: 3 },
+				},
+				heldName: null,
+			},
+			Primary: {
+				folder: '~/work/orchbee',
+				git: { branch: 'main', divergence: { ahead: 2, behind: 1 } },
+				heldName: null,
+			},
+			'Project Workspace': {
+				folder: '~/work/orchbee-feature',
+				git: { branch: 'feature/project-workspace', divergence: null },
+				heldName: null,
+			},
+		}),
+	};
+})();
+
+export const WorkspaceLocations: Story = {
+	args: {
+		actionRuntime: new ActionRuntime({ confirm: () => true }),
+		agentObservationSource: workspaceLocationsStory.agentObservationSource,
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: workspaceLocationsStory.projectWorkspaceRuntime,
+		shortcutPlatform: 'apple',
+		terminalSurface: FocusStoryTerminalSurface,
+		workspaceLocationSource: workspaceLocationsStory.workspaceLocationSource,
 	},
 	render: (arguments_) => (
 		<OrchbeeI18nProvider locale='en-US'>

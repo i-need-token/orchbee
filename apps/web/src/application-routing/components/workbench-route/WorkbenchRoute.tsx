@@ -31,6 +31,7 @@ export function WorkbenchRoute(): ReactNode {
 			terminalLaunchProfileClient={application.terminalLaunchProfileClient}
 			terminalDefaultSettingsControl={application.terminalDefaultSettingsControl}
 			terminalSurface={application.terminalSurface}
+			workspaceLocationSource={application.workspaceLocationSource}
 		/>
 	);
 }

@@ -21,6 +21,10 @@ export const DesktopServerConnectionDocumentSchema = z.uuid();
 const DesktopServerConnectionBootstrapSchema = z.strictObject({
 	/** The first document of a window on a Session with no sign of damage may open a Workspace. */
 	automaticWorkspaceAllowed: z.boolean(),
+	/**
+	 * The person's home folder on this machine, where the Session's Server also runs: where a terminal
+	 * without a directory starts, and what a Workspace folder under it shows as `~`.
+	 */
 	defaultDirectory: z.string().min(1),
 	/** Whether this machine's Host can start the system shell as a login shell; Windows cannot. */
 	loginShellAvailable: z.boolean(),

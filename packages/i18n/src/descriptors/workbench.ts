@@ -1057,6 +1057,18 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.empty.noDirectory'],
 		description: 'Shown in place of terminals when a Workspace without Tabs has no directory.',
 	},
+	workspaceGitAhead: {
+		id: 'workbench.workspaces.git.ahead',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.git.ahead'],
+		description:
+			'Accessible words for the up-arrow count on a sidebar Workspace row: local commits its Git branch has not pushed to its upstream.',
+	},
+	workspaceGitBehind: {
+		id: 'workbench.workspaces.git.behind',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.git.behind'],
+		description:
+			'Accessible words for the down-arrow count on a sidebar Workspace row: upstream commits its Git branch has not pulled.',
+	},
 	workspacePrimaryName: {
 		id: 'workbench.workspaces.names.primary',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.names.primary'],

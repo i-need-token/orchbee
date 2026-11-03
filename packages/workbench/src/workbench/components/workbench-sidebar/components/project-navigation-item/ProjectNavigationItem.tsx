@@ -10,10 +10,12 @@ import type { WorkbenchActionMenuEntry } from '../../../../types/workbench-actio
 import type { WorkbenchEnvironmentProjectConnectionStatus } from '../../../../types/workbench-environment-project-connection';
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../../../types/workbench-agent-overview';
 import { useNavigationReorderDrag } from '../../hooks/useNavigationReorderDrag';
+import type { WorkbenchSidebarWorkspaceLocation } from '../../hooks/useWorkbenchSidebarWorkspaceLocations';
 import type { WorkspaceWorktreeMenu } from '../../hooks/useWorkspaceWorktrees';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
 import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
 import { WorkspaceAgentList } from './components/workspace-agent-list/WorkspaceAgentList';
+import { WorkspaceLocationLine } from './components/workspace-location-line/WorkspaceLocationLine';
 import { useProjectNavigationMenuFocus } from './hooks/useProjectNavigationMenuFocus';
 import { navigationMenuAriaKeyShortcuts } from './utils/navigation-menu-shortcuts';
 import {
@@ -66,6 +68,7 @@ interface ProjectNavigationItemProps {
 	readonly toggleRecentsExpansion: () => void;
 	readonly toggleWorkspaceAgentExpansion: (workspaceId: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
+	readonly workspaceLocations: ReadonlyMap<string, WorkbenchSidebarWorkspaceLocation>;
 	readonly worktreeMenu: (workspaceId: string) => WorkspaceWorktreeMenu;
 }
 
@@ -101,6 +104,7 @@ export function ProjectNavigationItem({
 	toggleRecentsExpansion,
 	toggleWorkspaceAgentExpansion,
 	workspaceAgentOverviews,
+	workspaceLocations,
 	worktreeMenu,
 }: ProjectNavigationItemProps): ReactNode {
 	const menuFocus = useProjectNavigationMenuFocus();
@@ -307,6 +311,11 @@ export function ProjectNavigationItem({
 							(overview) => overview.workspaceId === workspace.id,
 						);
 						const agentExpanded = expandedAgentWorkspaceId === workspace.id;
+						const location = workspaceLocations.get(workspace.id);
+						// A row whose directory just moved keeps its old name until its new location settles.
+						const name = location?.heldName ?? workspace.name;
+						const ahead = location?.ahead ?? 0;
+						const behind = location?.behind ?? 0;
 						const active =
 							activeLocation.kind === 'workspace' && activeLocation.workspaceId === workspace.id;
 						const worktrees = worktreeMenu(workspace.id);
@@ -385,11 +394,16 @@ export function ProjectNavigationItem({
 									>
 										<Button
 											aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
-											aria-label={
+											aria-label={[
+												name,
+												location?.line?.text,
+												location?.divergenceLabel,
 												agentOverview === undefined
-													? workspace.name
-													: `${workspace.name}. ${agentOverview.countLabel}. ${agentOverview.agentLabel}: ${agentOverview.status.status}${agentOverview.unreadLabel === undefined ? '' : ` · ${agentOverview.unreadLabel}`}`
-											}
+													? null
+													: `${agentOverview.countLabel}. ${agentOverview.agentLabel}: ${agentOverview.status.status}${agentOverview.unreadLabel === undefined ? '' : ` · ${agentOverview.unreadLabel}`}`,
+											]
+												.filter((part) => typeof part === 'string')
+												.join('. ')}
 											aria-current={active ? 'page' : undefined}
 											className={styles['workspaceItem']}
 											data-active={active || undefined}
@@ -412,28 +426,47 @@ export function ProjectNavigationItem({
 													/>
 												)}
 											</span>
-											<span className={styles['workspaceName']}>{workspace.name}</span>
-											{agentOverview === undefined ? null : (
-												<span
-													aria-hidden='true'
-													className={styles['unread']}
-													data-agent-unread={
-														agentOverview.unreadLabel === undefined ? undefined : ''
-													}
-													title={agentOverview.unreadLabel}
-												>
-													●
+											<span className={styles['workspaceText']}>
+												<span className={styles['workspaceIdentity']}>
+													<span className={styles['workspaceName']}>{name}</span>
+													{ahead > 0 || behind > 0 ? (
+														// Commits to push read as success and commits to pull as a caution, as in
+														// common Git tools; the arrows tell them apart without color.
+														<span aria-hidden='true' className={styles['divergence']}>
+															{ahead > 0 ? <span className={styles['ahead']}>↑{ahead}</span> : null}
+															{behind > 0 ? (
+																<span className={styles['behind']}>↓{behind}</span>
+															) : null}
+														</span>
+													) : null}
+													{agentOverview === undefined ? null : (
+														<span
+															aria-hidden='true'
+															className={styles['unread']}
+															data-agent-unread={
+																agentOverview.unreadLabel === undefined ? undefined : ''
+															}
+															title={agentOverview.unreadLabel}
+														>
+															●
+														</span>
+													)}
+													{agentOverview === undefined ? null : (
+														<span
+															aria-hidden='true'
+															className={styles['agentCount']}
+															title={agentOverview.countLabel}
+														>
+															{agentOverview.visibleCountLabel}
+														</span>
+													)}
 												</span>
-											)}
-											{agentOverview === undefined ? null : (
-												<span
-													aria-hidden='true'
-													className={styles['agentCount']}
-													title={agentOverview.countLabel}
-												>
-													{agentOverview.visibleCountLabel}
-												</span>
-											)}
+												{location === undefined || location.line === null ? null : (
+													<span className={styles['workspaceLocation']}>
+														<WorkspaceLocationLine line={location.line} />
+													</span>
+												)}
+											</span>
 										</Button>
 										{agentOverview === undefined ? null : (
 											<Button
