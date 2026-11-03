@@ -28,21 +28,6 @@ export default function createKnipConfiguration({ production, strict }) {
 				entry: ['src/**/*.unit.test.{ts,tsx}'],
 				project: ['src/**/*.{ts,tsx}', '*.ts'],
 			},
-			'packages/agent': {
-				paths: {
-					'../dist/__tests__/conformance/agent-reference.js': [
-						'./src/__tests__/conformance/agent-reference.ts',
-					],
-				},
-				entry: ['src/**/*.unit.test.{ts,tsx}!'],
-				project: [
-					'src/**/*.{ts,tsx}!',
-					'*.ts',
-					'!src/__tests__/conformance/agent-reference.ts!',
-					'!src/__tests__/conformance/agent-reference-contracts.ts!',
-				],
-				includeEntryExports: true,
-			},
 			'packages/foundation': {
 				entry: ['src/**/*.unit.test.{ts,tsx}!'],
 				project: ['src/**/*.{ts,tsx}!', '*.ts'],

@@ -10,7 +10,7 @@ const knipVersion = '6.26.0';
 const analysisInputs = [
 	{
 		file: 'knip.config.mjs',
-		sha256: 'a526882c18fefdbd06e31e69709facdaff9687423904ddc084df344074e729ba',
+		sha256: '475bfb87736314b70d217a77e838cd4ddcc407e4993876618570e21cfe70c9e3',
 	},
 	{
 		file: 'pnpm-workspace.yaml',

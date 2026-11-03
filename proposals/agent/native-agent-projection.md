@@ -28,8 +28,8 @@ These statements are verified facts at the base commit, not proposals.
 
 - `packages/agent` owns the canonical observed-session model (`AgentSessionSnapshot`, `AgentRuntimeSnapshot`, `AgentTurnState`, `AgentAttentionRequest`, `AgentTurnOutcome`, `AgentObservation`), the semantic projection (`needs-attention`, `failed`, `succeeded`, `canceled`, `interrupted`, `working`, `idle`, `unknown`, `ended`), and the volatile change journal (`AGENT_RUNTIME_CHANGE_RETENTION` is 512 applied transitions, `MAX_AGENT_RUNTIME_CHANGE_PAGE_SIZE` is 100 ordered records per read) inside `AgentRuntime`.
 - The journal is content-free by contract: no prompts, transcripts, commands, question text, tool content, filesystem paths, environment values, provider-private payloads, or screen evidence. Retention overflow returns an explicit reset-required result and directs the consumer to a fresh canonical snapshot.
-- Desktop's Main-owned ingress and broker, the `ORCHBEE_AGENT_OBSERVATION_SOCKET` listener that joined the private APC correlation half and published snapshots to the renderer, ended when Desktop became a Server Client. A Desktop window observes no Agent yet.
-- The Web Workbench retains `AgentSnapshotSource` consumption through `useAgentSnapshot`, agent navigation, and notification hooks. The old Desktop semantic endpoint and TypeScript CLI consumers have retired; native Agent behavior is maintained by its native owners.
+- Desktop's Main-owned ingress and broker, the `ORCHBEE_AGENT_OBSERVATION_SOCKET` listener that joined the private APC correlation half and published snapshots to the renderer, ended when Desktop became a Server Client. A Desktop window now shows the Agents the Server observes in its terminals.
+- The Web Workbench reads terminal Agent observations through `WorkbenchAgentSource`, which the Server-path window feeds from `panel-agent` `states` State streams; `AgentSnapshotSource` left with `@orchbee/agent`. The old Desktop semantic endpoint and TypeScript CLI consumers have retired; native Agent behavior is maintained by its native owners.
 
 ### Native path (Rust)
 
@@ -98,7 +98,7 @@ The TUI consumes the projection as a peer renderer; it owns presentation only.
 
 - Presentation attachment identity must be reconciled when the canonical model moves to Rust: the TypeScript model admits opaque strings up to 256 characters while the native `TerminalPresentationId` is 32 lowercase hexadecimal characters. The Server-owned projection should emit native presentation identities so every Client maps attachments without a per-renderer correlation rule.
 - The `orchbee.agent.v1` channel name on the terminal-effect wire and the `orchbee.agent.v1;` APC prefix are ingress transport details, not Client-facing observation contracts; naming the Client family must not inherit either.
-- Current TypeScript packages (`@orchbee/agent` contracts) remain current authority for their existing consumers until the accepted migration switches each consumer; they do not silently become the Rust wire contract. A language-neutral schema with cross-language conformance evidence is required before the first Rust producer and consumer.
+- `@orchbee/agent` was deleted once its last consumer switched to the Server; it never became the Rust wire contract. A language-neutral schema with cross-language conformance evidence is required before the first Rust producer and consumer.
 - Server restart fencing, remote-Client reachability, and the Server-side journal are owned by the Server migration slice; this proposal consumes their outcome without deciding it.
 
 ## Reserved decisions

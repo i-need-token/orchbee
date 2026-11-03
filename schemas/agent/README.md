@@ -2,12 +2,12 @@
 
 ## Status
 
-[`v1/agent-canonical-conformance-v1.json`](v1/agent-canonical-conformance-v1.json) is an
-**executed parity corpus**, not a contract schema and not public ingress authority. Its
-expectations were produced by running the authoritative `packages/agent` TypeScript
-implementation at the recorded base commit; it exists so the staged Rust port in
-`apps/orchbee-server` can prove behavioral equivalence. The fixture format is private —
-nothing here admits wire, CLI, or provider-facing semantics.
+[`v1/agent-canonical-conformance-v1.json`](v1/agent-canonical-conformance-v1.json) is a
+**frozen executed parity corpus**, not a contract schema and not public ingress authority.
+Its expectations were produced by running the TypeScript reference implementation that
+`packages/agent` held at the recorded base commit; it pins the behavior of the Rust
+implementation in `apps/orchbee-server`. The fixture format is private — nothing here
+admits wire, CLI, or provider-facing semantics.
 
 ## What the corpus pins
 
@@ -31,26 +31,17 @@ nothing here admits wire, CLI, or provider-facing semantics.
 - A `null` `aggregate` or `location` means "not computed for this vector" — consumers
   skip the assertion rather than expecting a computed null.
 
-## Provenance and regeneration
+## Provenance and changes
 
 `provenance` inside the fixture records the base commit and `sourceFingerprints`: the
-SHA-256 of every `packages/agent/src` file the corpus was generated from. Regeneration
-is owned by `packages/agent` and imports the owning package build output — never a
-vendored copy of the TypeScript sources:
-
-```sh
-pnpm -F @orchbee/agent build
-pnpm -F @orchbee/agent conformance:generate   # rewrites the fixture
-pnpm -F @orchbee/agent test:conformance       # regenerates in memory and byte-compares (drift check)
-```
-
-If the TypeScript authority or the base changes, the check run reports drift; regenerate
-deliberately and review the fixture diff. Do not edit the JSON by hand — expectations
-must always be executed output.
+SHA-256 of every `packages/agent/src` file the corpus was generated from. Each vector's
+`sourceRefs` cite lines of those files at that commit. The TypeScript reference was
+removed once no Client consumed it, so the corpus can no longer be regenerated. A
+deliberate change to canonical behavior edits the affected vectors together with the Rust
+implementation and the tests that replay them, and is reviewed as a contract change; never
+edit an expectation only to make a failing replay pass.
 
 ## Consumers
 
-- `apps/orchbee-server` `src/agent` tests replay the corpus through the staged Rust
-  port (`include_str!`, decoded with the existing `serde_json` dev-dependency).
-- `packages/agent` owns the generator and may re-run it as evidence when the TypeScript
-  model changes.
+- `apps/orchbee-server` `src/agent` tests replay the corpus through the Rust
+  implementation (`include_str!`, decoded with the existing `serde_json` dev-dependency).

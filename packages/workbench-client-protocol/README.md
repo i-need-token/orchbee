@@ -2,8 +2,6 @@
 
 Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
 
-`@orchbee/agent` is a runtime dependency because the Client-view binding reuses its Agent session identity.
-
 The Workbench bindings live under `src/workbench-protocol/`, are production code consumed by the Server Client path, and stay verified against the shared schemas and corpora by the suites beside them. Product projection, preference and launch schemas remain in `src/`. The package entry exports only what a consumer imports; the rest stays reachable from the suites.
 
 ## Project and Workspace organization
@@ -286,7 +284,7 @@ normalizes to omission, matching Rust serialization. `Workspace` also carries op
 [location label contract](../../apps/orchbee/docs/native-location-labels.md#automatic-workspace-names)
 owns their runtime meaning.
 
-Client attention snapshots reuse `@orchbee/agent` session identity validation. Their strict shapes and semantics preserve nullable focus/missing state, ordered unique batches, bounded revisions and exact intent correspondence. These wire DTOs describe Client observations; they do not move acknowledgement into canonical Workbench or Agent state.
+Client attention snapshots validate Agent Session identity exactly as `AgentSessionId` in `crates/agent-observation-protocol` does. Their strict shapes and semantics preserve nullable focus/missing state, ordered unique batches, bounded revisions and exact intent correspondence. These wire DTOs describe Client observations; they do not move acknowledgement into canonical Workbench or Agent state.
 
 Physical `terminal-agent-attention` reads instead name 1–100 unique full presentation/creation/Host
 bindings; `terminal-attention-read` preserves ordered nullable sequence/seen entries, report revision

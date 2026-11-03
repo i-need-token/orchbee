@@ -450,11 +450,10 @@ None may broaden the terminal-only Worker or introduce another canonical Workben
 | Launch Profiles   | Server owns the canonical product catalog; each profile is Worker/platform scoped and revisioned. A profile contains a name plus either system shell with an explicit login choice or one absolute executable with literal arguments. It contains no cwd, appearance, environment, or secrets. Worker validates and executes the exact resolved revision. Creation records that revision and resolved launch so later edits cannot change an existing terminal or replay. Missing, stale, unauthorized, or failed profiles report explicit failure and never fall back. Use and management permissions are distinct.                                                                                                                                                                                                                                                                        |
 | Connect via SSH   | The enrolled-Worker path and an SSH-attached temporary Worker remain distinct. Product copy says “Connect via SSH”; internal contracts use `SshTarget` and `SshConnection`, not generic Environment. Server owns connection intent and state; one selected local Worker uses system OpenSSH, local config/agent/known-hosts, and ephemeral AskPass to start the same `orchbee-worker` in temporary connection mode on the remote account, followed by its Host. Private keys never reach Server. The identity lasts only for that connection and is never promoted to enrollment implicitly. Initial interactive creation is from local TUI or Desktop; Web/mobile may use an established connection. Disconnect is distinct from terminal exit and reconciles only exact retained identity/generation. Ordinary manual `ssh` remains supported but is not the product connection contract. |
 
-The current mixed `@orchbee/agent` TypeScript package remains current authority during migration,
-but it is not the target canonical runtime. Move its deterministic state machine to Rust Server,
-publish one cross-language schema, move Web presentation into `apps/web`, and delete the mixed
-package only after behavioral and consumer evidence proves the replacement. Worker, under Server
-authorization, owns node-local Agent integration inspection and mutation. No separate Agent service,
+The mixed `@orchbee/agent` TypeScript package is deleted. Its deterministic state machine runs in
+Rust Server, pinned by the frozen corpus in [`schemas/agent`](../../schemas/agent/README.md), and
+Web presents the Server's terminal Agent observations. Worker, under Server authorization, owns
+node-local Agent integration inspection and mutation. No separate Agent service,
 Worktree service, Archive service, Profile service, or SSH executable is added.
 
 ## Accepted production lifecycle direction
@@ -844,7 +843,7 @@ product-sunset evidence, and deletion of stale documentation and tests in one ac
 | `@orchbee/workbench-client-protocol`                                               | **Accepted bounded retention:** keep only as the TypeScript binding for a transport-neutral Client session, semantic-intent, snapshot, and delta boundary while real TS consumers remain; the canonical cross-language schema is framework-neutral, and Rust/mobile bindings do not depend on this package                                     |
 | `@orchbee/terminal-protocol`                                                       | **Accepted retention:** keep the TypeScript binding; `schemas/terminal` is the common Host wire authority for Rust, Zig and TypeScript conformance                                                                                                                                                                                             |
 | `@orchbee/ssh-environment-protocol` and `apps/ssh-environment-runtime`             | **Retired:** explicitly sunset with its consumers; no replacement package is required for source deletion.                                                                                                                                                                                                                                     |
-| `@orchbee/agent`                                                                   | **Accepted decomposition and deletion:** move its deterministic canonical state machine to Rust Server, define one cross-language schema, move node-local integration effects to Worker and provider ingress to Agent Bridge, move Web presentation to `apps/web`, then delete the mixed TypeScript package after migration evidence           |
+| `@orchbee/agent`                                                                   | **Deleted in step 5:** its deterministic canonical state machine runs in Rust Server, pinned by the frozen corpus in `schemas/agent`; node-local integration effects run in Worker, provider hooks reach Server hook ingress, and Web presents the Server's terminal Agent observations                                                        |
 | `@orchbee/workbench`                                                               | **Accepted decomposition and deletion:** move its React shell, browser-local interaction state, layout persistence, styles, and stories into `apps/web`; extract shared vocabulary and snapshot/delta contracts to the framework-neutral cross-language authority; move canonical transitions to Server; then delete the mixed browser package |
 | `@orchbee/actions`                                                                 | **Accepted retention:** keep framework-independent action discovery and Client-side execution lifecycle while the Web renderer consumes it; do not turn it into a second Server command authority                                                                                                                                              |
 | `@orchbee/foundation`                                                              | **Accepted retention with pruning:** keep dependency-light domain-neutral primitives with surviving cross-workspace consumers; audit orphan exports after each owner migration rather than moving backend behavior into it                                                                                                                     |
@@ -989,16 +988,16 @@ These defaults also apply until the product owner overrules them:
 
 ### Re-checked starting point
 
-| Area                       | Current fact                                                                                                                                                                                                                                                                                                                      | Consequence                                                                                           |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Native Workbench           | The TUI uses the Server Workbench authority, OBWP, OBCS, and the relay on Windows, Linux, and the macOS development package. Restart checkpoints, stop, handoff, and eleven request classes are withheld off Windows.                                                                                                             | Desktop's Workbench switch cannot reach macOS or Linux before those POSIX capabilities exist.         |
-| TypeScript Client bindings | Workbench bindings exist only as development conformance code. No TypeScript binding exists for OBWP multiplexing or OBCS. `@orchbee/terminal-protocol` binds only the Host wire.                                                                                                                                                 | Step 2 adds the first production bindings.                                                            |
-| Terminal relay             | OBCS viewers already move complete Host records, so OBTF frames and row windows reach a Client without decoding. Control carries raw input, resize, host colors, clear, and paste. The GUI renderer sends semantic key, text, mouse, and focus input and complete theme and reset operations that Host encodes per terminal mode. | The relay gains these control operations before the renderer can use it.                              |
-| Client workflows           | Workspace setup, Tab close, Worktree launch, and other multi-step workflows run inside the Rust Client `workbench_state`.                                                                                                                                                                                                         | Decision 2 moves them before Desktop needs them.                                                      |
-| Agent integration          | Worker is the native writer. Desktop Main is a second, frozen writer. The Capsule source still lives in `apps/desktop/resources` and is read by native code and packaging.                                                                                                                                                        | The Capsule moves with Desktop's writer in step 4, so its identity changes once.                      |
-| Agent semantics            | Windows manages its providers without an Agent Bridge: Server hook ingress receives the hooks. The canonical corpus is still generated from `@orchbee/agent`.                                                                                                                                                                     | Step 5 no longer assumes Agent Bridge, and contract-authored corpora precede the TypeScript deletion. |
-| Parity sources             | Action identities and Tab close targets are language-neutral in `schemas/workbench`. Native theme tests still read `tokens.css`.                                                                                                                                                                                                  | Only the palette remains, under its default above.                                                    |
-| Shared preferences         | Launch Profiles are part of the shared preference store that Server settings requests already serve. Desktop reaches that store through `apps/orchbee-settings` and still composes separate launch-profile and terminal-default file stores.                                                                                      | No new contract is needed; step 4 removes the Desktop owners.                                         |
+| Area                       | Current fact                                                                                                                                                                                                                                                                                                                      | Consequence                                                                                    |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Native Workbench           | The TUI uses the Server Workbench authority, OBWP, OBCS, and the relay on Windows, Linux, and the macOS development package. Restart checkpoints, stop, handoff, and eleven request classes are withheld off Windows.                                                                                                             | Desktop's Workbench switch cannot reach macOS or Linux before those POSIX capabilities exist.  |
+| TypeScript Client bindings | Workbench bindings exist only as development conformance code. No TypeScript binding exists for OBWP multiplexing or OBCS. `@orchbee/terminal-protocol` binds only the Host wire.                                                                                                                                                 | Step 2 adds the first production bindings.                                                     |
+| Terminal relay             | OBCS viewers already move complete Host records, so OBTF frames and row windows reach a Client without decoding. Control carries raw input, resize, host colors, clear, and paste. The GUI renderer sends semantic key, text, mouse, and focus input and complete theme and reset operations that Host encodes per terminal mode. | The relay gains these control operations before the renderer can use it.                       |
+| Client workflows           | Workspace setup, Tab close, Worktree launch, and other multi-step workflows run inside the Rust Client `workbench_state`.                                                                                                                                                                                                         | Decision 2 moves them before Desktop needs them.                                               |
+| Agent integration          | Worker is the native writer. Desktop Main is a second, frozen writer. The Capsule source still lives in `apps/desktop/resources` and is read by native code and packaging.                                                                                                                                                        | The Capsule moves with Desktop's writer in step 4, so its identity changes once.               |
+| Agent semantics            | Windows manages its providers without an Agent Bridge: Server hook ingress receives the hooks. The canonical corpus is frozen in `schemas/agent`, and `@orchbee/agent` is deleted.                                                                                                                                                | Step 5 no longer assumes Agent Bridge, and the frozen corpus preceded the TypeScript deletion. |
+| Parity sources             | Action identities and Tab close targets are language-neutral in `schemas/workbench`. Native theme tests still read `tokens.css`.                                                                                                                                                                                                  | Only the palette remains, under its default above.                                             |
+| Shared preferences         | Launch Profiles are part of the shared preference store that Server settings requests already serve. Desktop reaches that store through `apps/orchbee-settings` and still composes separate launch-profile and terminal-default file stores.                                                                                      | No new contract is needed; step 4 removes the Desktop owners.                                  |
 
 ### Order
 
@@ -1480,6 +1479,39 @@ off-screen against the same staged cohort.
 A development Session that an earlier cohort started was not exercised; staging stops it before
 the window joins.
 
+### Step 5 progress
+
+The Server-path window shows the Agents the Server observes in its terminals, as the TUI does, and
+`@orchbee/agent` is deleted. These choices stand unless review changes them:
+
+- **The window reads what the TUI reads.** Tabs, the sidebar, unread marks, and notifications come
+  from process and screen detection and Agent reports per exact terminal incarnation, through
+  `panel-agent` `states` State streams of at most 64 terminals each. Canonical hook-ingress
+  Sessions are not shown. A membership change reopens only the streams whose terminals changed.
+  Every frame holds the complete value, so a gap loses nothing and the window never asks for a
+  resnapshot.
+- **A failure keeps the last Agents for 10 seconds.** A failed answer or a closed stream keeps what
+  it last reported for that long, which covers a removed terminal until its stream reopens and a
+  Worker restart. A stream closed for capacity opens again after 5 seconds; any other close waits
+  for the terminals to change. A frame that breaks the protocol ends the observation.
+- **Attention stays in the window.** The first complete observation is the baseline. A newer
+  sequence, a replacement terminal, or a returning Agent is unread until a focused, visible paint
+  of that exact version. Notifications follow the TUI: a finished turn or a new request, after a
+  fixed one-second delay, withdrawn when the state changes, the terminal leaves, or a visible
+  window paints it. Each terminal has one notification tag, and the body names the Workspace and
+  terminal location.
+- **Names and rows.** A known Agent label shows its product name and a custom report keeps its
+  own. `unknown` uses the idle Tab mark, and every Agent row navigates.
+- **No POSIX Agent Bridge.** Server hook ingress serves POSIX providers, delivered with step 7.
+- **The reference model is deleted.** Nothing consumed `@orchbee/agent` once the window read the
+  Server. The corpus in `schemas/agent` is frozen as the expectation for the Rust model, and the
+  Client View binding validates Agent Session identity itself, as
+  `crates/agent-observation-protocol` does.
+
+Not done in this slice: display names from `displayAgent` metadata and custom Agent names, a Host
+binding comparison in the trailing-blank-rows check, a per-Agent notification sound, and the Agent
+integration launch reminder, whose Server integration client still reports no Agent launch.
+
 ### Evidence
 
 - Each step records the owning Web and Desktop builds and a Server-backed run of the path it
@@ -1509,11 +1541,11 @@ the window joins.
 
 ### Cross-language parity sources
 
-| Current source                                                                             | Target authority                                                                   | Consumers                                              |
-| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `tokens.css` in `@orchbee/design-tokens`                                                   | One language-neutral palette, at the GUI design follow-up                          | CSS registry and native theme                          |
-| Agent canonical corpus generated from `@orchbee/agent`, and the join corpus citing Desktop | Contract-authored corpora in [`schemas/agent`](../../schemas/agent/README.md)      | Server, Worker, and TypeScript bindings until deletion |
-| Integration vocabulary in `@orchbee/workbench-client-protocol` and Web Settings            | [`schemas/agent-integration`](../../schemas/agent-integration/README.md), in place | Worker, Server, native Client, and Desktop Settings    |
+| Current source                                                                                        | Target authority                                                                   | Consumers                                           |
+| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `tokens.css` in `@orchbee/design-tokens`                                                              | One language-neutral palette, at the GUI design follow-up                          | CSS registry and native theme                       |
+| Agent canonical corpus, frozen since `@orchbee/agent` was deleted, and the join corpus citing Desktop | Contract-authored corpora in [`schemas/agent`](../../schemas/agent/README.md)      | Server and Worker                                   |
+| Integration vocabulary in `@orchbee/workbench-client-protocol` and Web Settings                       | [`schemas/agent-integration`](../../schemas/agent-integration/README.md), in place | Worker, Server, native Client, and Desktop Settings |
 
 ## Correctness claims and evidence plan
 

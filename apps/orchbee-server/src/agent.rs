@@ -1,5 +1,5 @@
-//! Canonical Agent observation model — bounded Rust mirror of the current
-//! TypeScript `packages/agent` contract, checked by the shared conformance corpus.
+//! Canonical Agent observation model — bounded Rust port of the removed
+//! TypeScript `packages/agent` reference, pinned by the frozen conformance corpus.
 //!
 //! The production surface includes canonical state, admitted observation
 //! transitions, projections and bounded change reads. Test-only seeding and

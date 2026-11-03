@@ -1,13 +1,14 @@
 # Canonical Agent observation model
 
 This document owns the Server-side canonical Agent observation model under `src/agent/`.
-It records the accepted scope, the semantic claims the port must hold, and the boundary
-mapping between the authoritative TypeScript model and its Rust mirror.
+It records the accepted scope, the semantic claims the model holds, and the boundary
+mapping it kept from the TypeScript reference it was ported from.
 
 ## Status and activation boundary
 
-`apps/orchbee-server` owns a faithful Rust implementation of the deterministic semantics
-currently defined by `packages/agent`; the executed corpus records source fingerprints. The module is registered from `main.rs` under
+`apps/orchbee-server` owns the deterministic semantics, ported faithfully from the TypeScript
+reference that `packages/agent` held until its removal; the executed corpus records that reference's
+source fingerprints. The module is registered from `main.rs` under
 `#[cfg(any(unix, windows))]`: the canonical runtime lives inside the **Server binary crate**, never in
 the library. Its conformance suites run once in that same binary target; `lib.rs`
 neither declares nor exports the Agent module. No public API, new crate, or second
@@ -346,8 +347,9 @@ by these reservation claims.
 
 ## Authoritative semantics (claims)
 
-The claims below mirror `packages/agent` source; the TypeScript source remains the
-authority. Each claim is exercised by the durable corpus and/or the named boundary tests.
+The claims below were ported from the removed TypeScript reference; this module and the frozen
+corpus are now their authority. Each claim is exercised by the durable corpus and/or the named
+boundary tests.
 
 - Applied transitions advance `revision` by one; `unchanged` and `rejected` results retain
   the input snapshot and emit no semantic events. Applied transitions are the only journal
@@ -477,15 +479,14 @@ behavior change edits them together with the Rust tests that read them.
 ## Conformance evidence and provenance
 
 `schemas/agent/v1/agent-canonical-conformance-v1.json` is the durable executed corpus:
-29 vectors / 665 recorded transitions produced by running the authoritative TypeScript
-sources, plus per-vector journal reads, projections, and named quirks. It is parity
-**evidence**, not public schema authority, and remains a private fixture format. The
-fixture's `provenance.sourceFingerprints` records the SHA-256 of every
-`packages/agent/src` file it was generated from; regeneration is owned by
-`packages/agent` (`conformance:generate`, `--check` for drift detection) and imports the
-owning TypeScript build — never a vendored source copy. See
-[`schemas/agent/README.md`](../../../schemas/agent/README.md) for the regeneration
-contract.
+29 vectors / 665 recorded transitions produced by running the TypeScript reference sources,
+plus per-vector journal reads, projections, and named quirks. It is parity **evidence**, not
+public schema authority, and remains a private fixture format. The fixture's
+`provenance.sourceFingerprints` records the SHA-256 of every `packages/agent/src` file it was
+generated from. That reference was removed once no Client consumed it, so the corpus cannot be
+regenerated: it is the frozen expectation for this module, and a deliberate behavior change
+edits the affected vectors together with the Rust code and tests that read them. See
+[`schemas/agent/README.md`](../../../schemas/agent/README.md) for the change contract.
 
 Additional named boundary cases are asserted in `src/agent/tests/targeted.rs` against outcomes
 recorded by executing the same TypeScript sources: guard precedence, post-end visibility,

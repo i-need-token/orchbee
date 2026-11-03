@@ -1,5 +1,5 @@
 //! Named regression tests for the eleven second-half boundary observations
-//! recorded by executing the frozen TypeScript `packages/agent` sources
+//! recorded by executing the since-removed TypeScript `packages/agent` sources
 //! (provider conformance extra-12). Each case asserts the full recorded fact
 //! set of its `Q*` oracle entry: the aggregate attention-subset freshness fold,
 //! provider dedup/ordering, equal-status freshness and activity-hint ties,

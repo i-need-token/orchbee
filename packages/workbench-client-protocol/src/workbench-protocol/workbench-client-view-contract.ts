@@ -16,7 +16,6 @@ import {
 	ClientViewportPanelsSchema,
 	ClientViewportSnapshotSchema,
 } from './workbench-client-viewport-contract';
-import { AgentSessionIdSchema } from '@orchbee/agent';
 import {
 	SessionIdSchema,
 	TerminalPresentationIdSchema,
@@ -33,6 +32,13 @@ import {
 
 const WORKBENCH_MAXIMUM_CLIENT_VIEWS = 32;
 export const WORKBENCH_MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES = 64 * 1024;
+/** A canonical Agent Session, as `AgentSessionId` in `crates/agent-observation-protocol` accepts it. */
+const AgentSessionIdSchema = z
+	.string()
+	.min(1)
+	.max(128)
+	.regex(/^[A-Za-z0-9._:-]+$/u)
+	.brand<'AgentSessionId'>();
 export const WorkbenchClientIdSchema = z
 	.string()
 	.regex(/^[0-9a-f]{32}$/u)
