@@ -159,7 +159,7 @@ row for the range; a list that fits reaches the row directly above Settings.
 
 The tree shape comes from shared columns. Project, Recents and Workspace rows keep a one-cell
 navigation marker at the list's left edge, followed at the next column by their identity: headings
-use a regular-weight secondary label and Workspaces a primary-text name. Workspace rows have no
+use a regular-weight muted label and Workspaces a primary-text name. Workspace rows have no
 leading state column, so their names align with the group headings, and their surface starts at
 the list's left edge. Agent rows place a one-cell vertical guide (`│`; ASCII `|`) under the first
 cell of the Workspace name, then a one-cell chrome gap, one cell of leading row padding, their
@@ -193,8 +193,9 @@ line reserves a disclosure. A branch and a folder's name truncate at the end.
 A configured continuation line appears only once one of its values is visible, so a context with
 neither branch nor folder shows one line and pending metadata never reserves a blank row. Branch
 and custom continuation rows align with the Workspace name. A configured `state_icon` paints nothing
-on a Workspace row. Project and Recents labels use regular-weight secondary text; Workspace names
-use primary text and descriptive metadata uses secondary text.
+on a Workspace row. Project and Recents labels use regular-weight muted text, quieter than the metadata under them,
+and secondary text on a hover, press, current or related fill; Workspace names use primary text
+and descriptive metadata uses secondary text.
 Each Workspace with Agents folds them away on its own, independent of its siblings, and starts
 expanded. While folded, its second line becomes a status line in place of the configured second
 line: the states of its Agents from the complete physical Agent checkpoint, most urgent first
@@ -496,7 +497,8 @@ and the full `ClientContextTarget`; `SidebarTarget::Agent` also retains exact
 member and physical binding identity. Optional Project membership is Context metadata,
 resolved by `Picker::sidebar_parent` from the current projection. Moving a Workspace or
 dissolving its Project never changes its terminal identity, Tab or Panel target. Agent
-joining never uses labels or row positions. Equal sibling labels retain ID annotations.
+joining never uses labels or row positions. Duplicate names are allowed: equal sibling labels
+paint alone, with no ID annotation or extra line, and stay separate rows by identity.
 Canonical Project order, Workspace order within each group or root list, and global
 eligible Agent order remain intact.
 

@@ -40,6 +40,7 @@ fn sidebar_pointer_fallbacks_keep_one_background_and_readable_navigation() {
                 for role in [
                     Role::TextPrimary,
                     Role::TextSecondary,
+                    Role::TextMuted,
                     Role::TextDisabled,
                     Role::HintLabel,
                     Role::AccentAction,
@@ -508,6 +509,62 @@ fn named_secondary_adjustments_are_the_minimum_readable_steps() {
             );
         }
     }
+}
+
+/// Muted text is the quietest step from secondary toward chrome that still reads there; on any
+/// fill, or on a host background it cannot read on, it is secondary text.
+#[test]
+fn named_muted_text_is_the_quietest_readable_step_and_rises_to_secondary_elsewhere() {
+    use crate::host_appearance::HostColors;
+    use orchbee_workbench_protocol::ApplicationAppearance as App;
+    for (theme, muted) in [
+        (Theme::one_light(), [108, 110, 121]),
+        (Theme::one_dark(), [131, 138, 148]),
+    ] {
+        let chrome = theme.color(Role::SurfaceChrome);
+        let resting = theme.color(Role::TextMuted);
+        assert_eq!(rgb_channels(resting), muted);
+        let contrast = contrast_ratio(resting, chrome);
+        assert!((4.5..4.6).contains(&contrast), "{} {contrast}", theme.name);
+        assert!(contrast < contrast_ratio(theme.color(Role::TextSecondary), chrome));
+        for fill in [
+            Role::SurfaceHover,
+            Role::SurfacePressed,
+            Role::SurfaceSelection,
+            Role::SurfaceCurrent,
+            Role::SurfaceRelated,
+        ] {
+            let content = theme.content_on_surface(
+                Role::SurfaceChrome,
+                Some(fill),
+                Some(Role::TextMuted),
+                theme.style(Role::TextMuted),
+            );
+            assert_eq!(
+                content.fg,
+                theme.style(Role::TextSecondary).fg,
+                "{} {fill:?}",
+                theme.name
+            );
+        }
+    }
+    let host = |background| {
+        Theme::one_dark().with_outer_host_colors(
+            App::System,
+            HostColors {
+                foreground: Some(0xcccccc),
+                background: Some(background),
+            },
+        )
+    };
+    assert_eq!(
+        rgb_channels(host(0x0c0c0c).color(Role::TextMuted)),
+        [131, 138, 148]
+    );
+    assert_eq!(
+        host(0x3a3a3a).style(Role::TextMuted),
+        host(0x3a3a3a).style(Role::TextSecondary)
+    );
 }
 
 #[test]

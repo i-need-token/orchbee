@@ -508,9 +508,10 @@ fn workspace_mode_scrolls_and_refuses_stale_hits_after_small_resize() {
     picker.observe_local(Vec::new());
     assert!(paint(&picker, Locale::EnUs, 80, 24).contains("No available workspaces"));
 }
-/// Same-named Workspaces stay distinguishable in search rows and details before opening.
+/// Same-named Workspaces show their names alone, with no ID, and the selected one's details name
+/// its grouping before opening.
 #[test]
-fn workspace_search_names_same_labelled_workspaces_by_identity_and_grouping() {
+fn workspace_search_names_same_labelled_workspaces_alone_with_their_grouping() {
     let workspace = |n: u8, label: &str| Context {
         target: ClientContextTarget {
             session_id: orchbee_workbench_protocol::SessionId::parse(&format!("{:032x}", 9))
@@ -548,9 +549,12 @@ fn workspace_search_names_same_labelled_workspaces_by_identity_and_grouping() {
     picker.key(KeyEvent::press(KeyCode::Tab, Modifiers::NONE));
     assert_eq!(picker.mode, Mode::Workspaces);
     let painted = paint(&picker, Locale::EnUs, 80, 24);
-    assert!(painted.contains("cli-alpha [00000008]"));
-    assert!(painted.contains("cli-alpha [0000001b]"));
-    assert!(painted.contains("other") && !painted.contains("other ["));
+    assert_eq!(
+        painted.matches("cli-alpha").count(),
+        3,
+        "two results and the details"
+    );
+    assert!(!painted.contains("00000008") && !painted.contains("0000001b"));
     assert!(
         painted.contains("Ungrouped"),
         "the selected result names its grouping"

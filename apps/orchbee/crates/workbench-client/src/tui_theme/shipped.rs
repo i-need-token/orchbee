@@ -12,6 +12,8 @@ struct Palette {
     polarity: Polarity,
     primary: [u8; 3],
     secondary: [u8; 3],
+    /// The quietest step from secondary toward chrome that still clears 4.5:1 on chrome.
+    muted: [u8; 3],
     inverse: [u8; 3],
     action_accent: [u8; 3],
     destructive_accent: [u8; 3],
@@ -61,6 +63,7 @@ fn named(palette: Palette) -> Theme {
         styles: RoleStyles {
             text_primary: primary,
             text_secondary: secondary,
+            text_muted: Style::new().fg(rgb(palette.muted)),
             text_disabled: secondary,
             text_inverse: Style::new().fg(rgb(palette.inverse)),
             accent_action: Style::new().fg(rgb(palette.action_accent)),
@@ -129,6 +132,7 @@ impl Theme {
             polarity: Polarity::Light,
             primary: [56, 58, 66],
             secondary: [90, 93, 105],
+            muted: [108, 110, 121],
             inverse: [250, 250, 250],
             action_accent: [39, 120, 193],
             destructive_accent: [178, 52, 47],
@@ -172,6 +176,7 @@ impl Theme {
             polarity: Polarity::Dark,
             primary: [204, 211, 224],
             secondary: [170, 177, 189],
+            muted: [131, 138, 148],
             inverse: [40, 44, 52],
             action_accent: [245, 245, 245],
             destructive_accent: [224, 108, 117],

@@ -25,6 +25,8 @@ pub(crate) use tab_groups::TabGroupPalette;
 pub enum Role {
     TextPrimary,
     TextSecondary,
+    /// Quieter than secondary, for labels that only group what follows them.
+    TextMuted,
     TextDisabled,
     TextInverse,
     AccentAction,
@@ -67,9 +69,10 @@ impl Role {
     /// Test/validator helper for totality checks; production consumes roles
     /// individually.
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 37] = [
+    pub(crate) const ALL: [Self; 38] = [
         Self::TextPrimary,
         Self::TextSecondary,
+        Self::TextMuted,
         Self::TextDisabled,
         Self::TextInverse,
         Self::AccentAction,
@@ -251,6 +254,7 @@ impl GlyphSet {
 pub(crate) struct RoleStyles {
     pub(crate) text_primary: Style,
     pub(crate) text_secondary: Style,
+    pub(crate) text_muted: Style,
     pub(crate) text_disabled: Style,
     pub(crate) text_inverse: Style,
     pub(crate) accent_action: Style,
@@ -294,6 +298,7 @@ impl RoleStyles {
         match role {
             Role::TextPrimary => self.text_primary,
             Role::TextSecondary => self.text_secondary,
+            Role::TextMuted => self.text_muted,
             Role::TextDisabled => self.text_disabled,
             Role::TextInverse => self.text_inverse,
             Role::AccentAction => self.accent_action,
@@ -336,6 +341,7 @@ impl RoleStyles {
         Self {
             text_primary: apply(self.text_primary),
             text_secondary: apply(self.text_secondary),
+            text_muted: apply(self.text_muted),
             text_disabled: apply(self.text_disabled),
             text_inverse: apply(self.text_inverse),
             accent_action: apply(self.accent_action),
@@ -411,6 +417,9 @@ const LIGHT_HOST_STEPS: HostSurfaceSteps = HostSurfaceSteps {
 const AGENT_ATTENTION: Color = Color::Rgb(254, 188, 46);
 const AGENT_DONE: Color = Color::Rgb(40, 200, 64);
 const AGENT_ERROR: Color = Color::Rgb(255, 95, 87);
+
+/// The contrast muted text keeps on the surface it rests on, the same 4.5:1 secondary text clears.
+const MUTED_CONTRAST: f64 = 4.5;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum TerminalColorSource {
@@ -603,6 +612,8 @@ impl Theme {
             styles: RoleStyles {
                 text_primary: reset,
                 text_secondary: dim,
+                // DIM is the quietest host-relative text that stays readable on any host palette.
+                text_muted: dim,
                 text_disabled: dim,
                 text_inverse: reset,
                 accent_action: Style::new().fg(Color::Cyan),
@@ -674,6 +685,7 @@ impl Theme {
             styles: RoleStyles {
                 text_primary: Style::new().fg(Color::Rgb(211, 218, 232)),
                 text_secondary: Style::new().fg(Color::Rgb(133, 146, 171)),
+                text_muted: Style::new().fg(Color::Rgb(111, 123, 144)),
                 text_disabled: Style::new().fg(Color::Rgb(91, 101, 119)),
                 text_inverse: Style::new().fg(Color::Rgb(11, 14, 20)),
                 accent_action: Style::new().fg(Color::Rgb(245, 245, 245)),
@@ -805,6 +817,19 @@ impl Theme {
                 | Role::SurfaceCurrent
                 | Role::SurfaceRelated
         )));
+        // Muted text keeps its contrast only on a resting surface; on any fill it reads as
+        // secondary text.
+        let content_role = if content_role == Some(Role::TextMuted)
+            && interaction.is_some()
+            && content.fg == self.styles.text_muted.fg
+        {
+            content = content
+                .remove_modifier(self.styles.text_muted.add_modifier)
+                .patch(self.styles.text_secondary);
+            Some(Role::TextSecondary)
+        } else {
+            content_role
+        };
         let base_style = self.style(base);
         let interaction_style = interaction.map(|role| self.style(role));
         let content_foreground = content.fg;
@@ -883,6 +908,7 @@ impl Theme {
             Some(
                 Role::TextPrimary
                     | Role::TextSecondary
+                    | Role::TextMuted
                     | Role::TextDisabled
                     | Role::HintKey
                     | Role::HintLabel
@@ -901,7 +927,7 @@ impl Theme {
             content = content.fg(foreground);
             if matches!(
                 role,
-                Role::TextSecondary | Role::HintLabel | Role::StatusIdle
+                Role::TextSecondary | Role::TextMuted | Role::HintLabel | Role::StatusIdle
             ) {
                 content = content.remove_modifier(Modifier::DIM);
             }
@@ -970,6 +996,7 @@ impl Theme {
                 role,
                 Role::TextPrimary
                     | Role::TextSecondary
+                    | Role::TextMuted
                     | Role::TextDisabled
                     | Role::HintKey
                     | Role::HintLabel
@@ -1158,6 +1185,17 @@ impl Theme {
             && self.color_level != ColorLevel::Monochrome
         {
             self.derive_host_surfaces(polarity, colors.foreground, background);
+            // Muted text was measured on the palette's chrome; the host background replaces it.
+            let [r, g, b] = unpack_rgb(background);
+            if self
+                .styles
+                .text_muted
+                .fg
+                .and_then(sampled_color)
+                .is_some_and(|muted| color_contrast(muted, (r, g, b)) < MUTED_CONTRAST)
+            {
+                self.styles.text_muted = self.styles.text_secondary;
+            }
         }
         if matches!(self.color_level, ColorLevel::Ansi16 | ColorLevel::Ansi256)
             && interaction_surfaces_collapse(&self.styles)
@@ -1282,6 +1320,7 @@ impl Theme {
             for (target, source) in [
                 (&mut styles.text_primary, self.styles.text_primary),
                 (&mut styles.text_secondary, self.styles.text_secondary),
+                (&mut styles.text_muted, self.styles.text_muted),
                 (&mut styles.text_disabled, self.styles.text_disabled),
                 (&mut styles.text_inverse, self.styles.text_inverse),
                 (&mut styles.accent_action, self.styles.accent_action),
@@ -1363,6 +1402,7 @@ impl Theme {
             let primary = styles.text_primary.fg;
             for secondary in [
                 &mut styles.text_secondary,
+                &mut styles.text_muted,
                 &mut styles.text_disabled,
                 &mut styles.status_idle,
                 &mut styles.hint_label,

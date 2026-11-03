@@ -11,6 +11,7 @@ fn semantic_role(style: Style, theme: &Theme) -> Option<Role> {
     [
         Role::TextPrimary,
         Role::TextSecondary,
+        Role::TextMuted,
         Role::TextDisabled,
         Role::HintKey,
         Role::HintLabel,

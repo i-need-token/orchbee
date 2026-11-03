@@ -274,19 +274,6 @@ fn grapheme_width(grapheme: &str) -> usize {
     }
 }
 
-/// The shortest unique trailing hexadecimal identity, shared by sidebar and menu choices.
-/// Callers supply validated 32-character IDs from the same visible-label collision group.
-pub(crate) fn unique_identity_suffix(id: &str, peers: &[&str]) -> String {
-    let length = (8..=32)
-        .step_by(4)
-        .find(|length| {
-            let suffix = &id[id.len() - length..];
-            peers.iter().filter(|peer| peer.ends_with(suffix)).count() == 1
-        })
-        .unwrap_or(32);
-    format!(" [{}]", &id[id.len() - length..])
-}
-
 /// Truncates `text` to fit `budget` cells and appends `marker`, which is
 /// budgeted before the text. Returns `text` unchanged when it already fits and
 /// an empty string when even the marker exceeds the budget. Splits only on

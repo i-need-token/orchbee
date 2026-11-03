@@ -31,7 +31,7 @@ const LINKED_BRANCH: &str = "feature-linked";
 const NEW_WORKTREE: &str = "New Worktree…";
 const OPEN_WORKTREE: &str = "Open Worktree ▸";
 /// The short reason on the frame's edge for a directory outside Git.
-const GIT_UNAVAILABLE: &str = "Git unavailable";
+const NOT_IN_GIT: &str = "Not in Git";
 
 #[test]
 fn worktree_rows_of_an_ungrouped_workspace_group_it_with_every_worktree_they_add() {
@@ -207,7 +207,7 @@ fn open_worktree_starts_from_the_last_list_for_the_same_checkout() {
 
 /// A Workspace that left its repository for a folder outside Git shows nothing Git said about the
 /// repository: its menu's Worktree rows are disabled from the first paint and say why, and choosing
-/// them does nothing.
+/// them does nothing. The next menu there has no Worktree rows at all.
 #[test]
 fn a_workspace_that_left_its_repository_offers_no_worktree_rows() {
     let fixture = Fixture::new("orchbee-worktree-left-", &["repo", "plain"]);
@@ -251,7 +251,7 @@ fn a_workspace_that_left_its_repository_offers_no_worktree_rows() {
         let screen = fixture.screen(&tui.terminal);
         if screen
             .lines()
-            .any(|line| line.contains('└') && line.contains(GIT_UNAVAILABLE))
+            .any(|line| line.contains('└') && line.contains(NOT_IN_GIT))
         {
             break;
         }
@@ -277,6 +277,23 @@ fn a_workspace_that_left_its_repository_offers_no_worktree_rows() {
     assert!(!read.text().contains(LINKED_BRANCH), "{}", read.text());
     assert_eq!(workspace_ids(&fixture), workspaces);
     assert_eq!(self::checkouts(&fixture), checkouts);
+
+    // Without the two rows and their separator from its first paint, through Git's answer.
+    close_menu(&fixture, &tui, &mut control);
+    open_menu(&fixture, &tui, &mut control, "source");
+    let watch = Instant::now() + Duration::from_secs(3);
+    while Instant::now() < watch {
+        let read = MenuRead::first(&fixture, &tui);
+        for text in [NEW_WORKTREE, OPEN_WORKTREE] {
+            assert!(
+                read.row(text).is_none(),
+                "{text}:
+{}",
+                read.text()
+            );
+        }
+        assert_eq!(read.height(), height - 3, "{}", read.text());
+    }
     control.release();
 }
 

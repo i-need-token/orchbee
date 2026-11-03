@@ -128,6 +128,11 @@ triplet feeds `text-disabled`, `hint-label` and `status-pending`; the pending mo
 availability remain independent. Secondary text is not dimmed to create priority at the expense
 of its surface readability.
 
+Named-theme muted text uses `[108, 110, 121]` in One Light and `[131, 138, 148]` in One Dark: the
+quietest step from secondary toward chrome that still clears 4.5:1 on chrome. It is secondary text
+on every fill, and under System on an observed host background where it would fall below 4.5:1,
+such as a gray host lighter than about `#232323`. On a near-black host it keeps about 5.6:1.
+
 One Dark primary text uses `[204, 211, 224]` with those secondary values and fills unchanged. Its
 nominal sRGB primary/secondary contrast is approximately 1.434:1. Headings, primary values, key
 glyphs and the existing primary surface foregrounds inherit this theme-owned value; renderers add

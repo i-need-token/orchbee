@@ -328,10 +328,13 @@ fn creation_menu_has_no_orphan_worktree_separator_when_the_checkout_list_is_empt
     discovery.discovery.entries.clear();
     ui.menus.mark_discovery_querying();
     let id = ui.menus.discovery().unwrap().id();
-    assert!(
-        ui.menus
-            .settle_discovery(id, Some(Box::new(discovery)), || ui.clock.now(), |_| true)
-    );
+    assert!(ui.menus.settle_discovery(
+        id,
+        super::super::episode::Answer::Found(Box::new(discovery)),
+        || ui.clock.now(),
+        |_| true,
+        |_| true,
+    ));
     let SidebarWorktreeTarget::Project(project) =
         ui.menus.discovery().unwrap().source().target.clone()
     else {
@@ -714,6 +717,57 @@ fn open_worktree_starts_from_the_last_list_for_the_same_checkout() {
     close(&mut ui);
     open(&mut ui);
     assert_eq!(worktrees(&ui), Some(MenuUnavailable::WorktreeChecking));
+}
+
+/// Outside Git a menu has no Worktree rows, yet an answer under an open menu never changes its
+/// height: only the next menu follows it, in either direction.
+#[test]
+fn a_menu_outside_git_omits_the_worktree_rows_and_an_answer_changes_only_the_next_menu() {
+    use crate::action_menu::MenuUnavailable;
+    let rows = [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees];
+    let (mut ui, _, _, target) = closed_ungrouped_git_workspace();
+    let reopen = |ui: &mut WorkbenchClientUi| {
+        for _ in 0..3 {
+            if ui.action_menu_active() {
+                press(ui, KeyCode::Esc);
+            }
+        }
+        assert!(ui.open_action_menu(target.clone(), None, false));
+    };
+    let listed = |ui: &WorkbenchClientUi| ui.view().action_menu().unwrap().actions.to_vec();
+    assert!(ui.open_action_menu(target.clone(), None, false));
+    let full = listed(&ui);
+
+    // The first refusal greys the rows where they stand.
+    settle(&mut ui, Err(WorktreeNotice::NotRepository));
+    assert_eq!(listed(&ui), full);
+    for action in &rows {
+        assert_eq!(
+            unavailable(&ui, action),
+            Some(MenuUnavailable::NotGitRepository)
+        );
+    }
+
+    // The next menu leaves them and their separator out, and keeps that while Git is asked again.
+    reopen(&mut ui);
+    let outside: Vec<_> = full.iter().filter(|a| !rows.contains(a)).cloned().collect();
+    assert_eq!(listed(&ui), outside);
+    let view = ui.view();
+    let menu = view.action_menu().unwrap();
+    let separators = (0..menu.result_actions.len())
+        .filter(|&i| menu.result_separator_before(menu.result_actions, i))
+        .count();
+    assert_eq!(separators, 1, "only the close section stays separated");
+    let answer = workspace_discovery(&ui);
+    settle(&mut ui, Ok(Box::new(answer)));
+    assert_eq!(listed(&ui), outside);
+
+    // That answer brings them back from the next menu on.
+    reopen(&mut ui);
+    assert_eq!(listed(&ui), full);
+    for action in &rows {
+        assert_eq!(unavailable(&ui, action), None);
+    }
 }
 
 /// A row chosen on an answer the Workspace then left, or that Git no longer repeats, closes the menu

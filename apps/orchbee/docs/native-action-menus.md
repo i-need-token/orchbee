@@ -19,7 +19,7 @@ The Workspace sidebar admits right-click only for an exact, still-present row on
 current machine and painted Session. It uses the existing Workspace menu and never
 requests a machine or context switch on opening or cancellation.
 
-A context menu's frame title names its target; a Tab menu uses the Tab's shared displayed name, and a Workspace menu follows the Workspace's name as it changes under the open menu. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Zoom; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles, tooltips and shortcut help keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, then a separated Close. Which rows are available never changes a context menu's height: the candidate's reason takes the frame's bottom edge.
+A context menu's frame title names its target; a Tab menu uses the Tab's shared displayed name, and a Workspace menu follows the Workspace's name as it changes under the open menu. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Zoom; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles, tooltips and shortcut help keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, unless the menu opens knowing its first terminal is outside Git, then a separated Close. Which rows are available never changes a context menu's height: the candidate's reason takes the frame's bottom edge.
 
 A pointer-opened menu follows the press: its frame starts at the pressed column on the row below the complete painted trigger (a sidebar row, Tab or group header, otherwise the pressed cell), else ends on the row above it, and shifts left to stay inside the viewport. Height yields to scrolling before covering the trigger row; fewer than three rows on both sides keeps the existing recovery surface. A keyboard-opened sidebar row menu opens beside its row, top edge level with it, moving up only to fit; other keyboard menus stay centered. While a pointer-opened row menu is open, its row keeps the hover fill; a keyboard-opened one keeps the sidebar focus on its row. Placement changes no target or focus. `docs/tui/layout.md` owns the general geometry.
 
@@ -239,10 +239,8 @@ Worktree ▸, whose submenu lists the discovered non-bare checkouts other than t
 Both act on the addressed Workspace without selecting it; their source and grouping follow
 [native-worktrees.md](native-worktrees.md), so an ungrouped Workspace and the Worktree it adds land in
 one new Project. Move to Project ▸ lists the other Projects in canonical order, then a
-separated New Project… and, for a grouped Workspace, Remove from Project. Choices retain exact IDs, including duplicate labels. Names that collide
-after sanitization or display-width truncation receive the sidebar's shortest unique trailing ID
-suffix: at least eight hexadecimal characters, extended by four up to the full ID. The complete suffix
-is budgeted before truncating the name; geometry that cannot show it refuses the surface. New Project asks
+separated New Project… and, for a grouped Workspace, Remove from Project. Choices retain exact IDs, including duplicate labels, and a same-named Project shows its name
+alone, as in the Sidebar. New Project asks
 for one name and atomically creates the Project and moves the Workspace. Organization never selects
 a noncurrent Workspace. Empty conditional creation sections publish no orphan separator.
 
@@ -251,7 +249,14 @@ and Open Worktree ▸ stay disabled with a localized reason until discovery succ
 failed source keeps them disabled, and Open Worktree ▸ also stays disabled while the Workspace's own
 checkout is the only one. Until the first answer, a menu shows the last success the Client keeps for
 the same source, the newest for each of up to 16 recent sources, while the source stands in the
-checkout it describes; a failed answer drops it. Otherwise a Workspace menu opened from a sidebar row that already shows a
+checkout it describes; a failed answer drops it. Git refusing the directory, as not in a repository
+or not trusted, is kept the same way for that exact directory only, since a folder outside Git may
+hold a repository below it: a later menu there omits New Worktree…, Open Worktree ▸ and their
+separator, and a Project's New Workspace ▸ omits New Worktree…. Whether a menu has those rows is
+decided once as it opens and holds until it closes, so an answer under the open menu, in either
+direction, changes only the next menu: the first menu in a folder outside Git shows the rows
+disabled with a not-in-Git reason, and a folder that became a repository regains them from the next
+menu. A sidebar row that shows a branch there outweighs a kept refusal. Otherwise a Workspace menu opened from a sidebar row that already shows a
 branch for the directory it stands in starts New Worktree… enabled; Open Worktree ▸ depends on the
 checkout list, so it waits for Git, and a repository with linked checkouts may enable it once on its
 first menu. A row chosen before the first answer

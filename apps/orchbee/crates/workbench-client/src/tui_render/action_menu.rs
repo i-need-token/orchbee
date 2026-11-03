@@ -69,7 +69,6 @@ struct Placed {
     first: usize,
     visible_rows: usize,
     rows_y: u16,
-    project_suffixes: Vec<String>,
 }
 
 /// How a frame's rows take input: the open menu, or a cascade parent kept painted beside it.
@@ -261,7 +260,6 @@ fn measure<'v>(
     if marker_width == 0 {
         return None;
     }
-    let full_project_suffixes = project_suffixes(&menu, usize::MAX, theme.glyphs.ellipsis);
     let desired =
         menu.actions
             .iter()
@@ -279,7 +277,6 @@ fn measure<'v>(
                 marker_width
                     .saturating_add(color_track_width(action, theme))
                     .saturating_add(display_width(&label))
-                    .saturating_add(display_width(&full_project_suffixes[index]))
                     .saturating_add(
                         trailing(binding_labels[index].as_deref(), menu.notes[index], locale)
                             .map_or(0, |(text, _)| {
@@ -465,18 +462,6 @@ fn place_child(
 fn layout(measured: &Measured<'_>, area: Rect, theme: &Theme) -> Option<Placed> {
     let menu = &measured.menu;
     let inner = super::overlay_surface(theme, Padding::horizontal(1)).inner(area);
-    let marker_width = display_width(theme.glyphs.navigation_marker);
-    // A row's content spans the inner width and its left padding cell, which holds the marker.
-    let project_budget = usize::from(inner.width)
-        .saturating_add(1)
-        .saturating_sub(marker_width);
-    let project_suffixes = project_suffixes(menu, project_budget, theme.glyphs.ellipsis);
-    if project_suffixes
-        .iter()
-        .any(|suffix| display_width(suffix) > project_budget)
-    {
-        return None;
-    }
     let rows = usize::from(inner.height)
         .saturating_sub(measured.footer_rows + measured.reason_rows + measured.search_rows);
     if rows == 0 {
@@ -494,7 +479,6 @@ fn layout(measured: &Measured<'_>, area: Rect, theme: &Theme) -> Option<Placed> 
         first,
         visible_rows,
         rows_y: inner.y + u16::try_from(measured.search_rows).unwrap_or(0),
-        project_suffixes,
     })
 }
 
@@ -879,7 +863,6 @@ fn paint_frame(
                 menu.notes[action_index],
                 locale,
             ),
-            &layout.project_suffixes[action_index],
             locale,
             theme,
             hits,
@@ -1171,7 +1154,6 @@ fn render_row(
     }: Row,
     action: &MenuAction,
     trailing: Option<(&str, Role)>,
-    project_suffix: &str,
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -1231,12 +1213,11 @@ fn render_row(
             theme.glyphs.middle_dot,
             theme.glyphs.disclosure_closed,
         ),
-        usize::from(primary_right.min(content_right).saturating_sub(label_left))
-            .saturating_sub(display_width(project_suffix)),
+        usize::from(primary_right.min(content_right).saturating_sub(label_left)),
         theme.glyphs.ellipsis,
     );
     frame.render_widget(
-        Paragraph::new(format!("{label}{project_suffix}")).style(theme.style(primary_role)),
+        Paragraph::new(label).style(theme.style(primary_role)),
         primary,
     );
     let mut bands = Vec::new();
@@ -1477,29 +1458,6 @@ fn action_label(
     } else {
         text
     }
-}
-
-fn project_suffixes(menu: &MenuView<'_>, width: usize, ellipsis: &str) -> Vec<String> {
-    let mut groups = std::collections::BTreeMap::<String, Vec<(usize, &str)>>::new();
-    for (index, action) in menu.actions.iter().enumerate() {
-        if let MenuAction::JoinWorkspaceProject(id) = action {
-            let label = crate::machine_discovery::display_label(
-                menu.labels[index].as_deref().unwrap_or(""),
-            );
-            groups
-                .entry(truncate_display(&label, width, ellipsis))
-                .or_default()
-                .push((index, id.as_str()));
-        }
-    }
-    let mut suffixes = vec![String::new(); menu.actions.len()];
-    for peers in groups.values().filter(|peers| peers.len() > 1) {
-        let ids = peers.iter().map(|(_, id)| *id).collect::<Vec<_>>();
-        for (index, id) in peers {
-            suffixes[*index] = crate::terminal_text::unique_identity_suffix(id, &ids);
-        }
-    }
-    suffixes
 }
 
 fn color_track_width(action: &MenuAction, theme: &Theme) -> usize {

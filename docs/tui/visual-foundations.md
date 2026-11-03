@@ -48,7 +48,7 @@ change values.
 
 | Role family | Roles                                                                                                              | Use when                                                                                                                                                                                                                                        |
 | ----------- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `text`      | `primary`, `secondary`, `disabled`, `inverse`                                                                      | Content and chrome text by information priority; `inverse` only on a filled surface                                                                                                                                                             |
+| `text`      | `primary`, `secondary`, `muted`, `disabled`, `inverse`                                                             | Content and chrome text by information priority; `inverse` only on a filled surface                                                                                                                                                             |
 | `accent`    | `action`, `destructive`, `focus`, `selection`, `link`                                                              | The primary action at rest, explicit destructive intent, the focused frame or control, provisional or checked indicators, selected-range boundaries, and activatable references                                                                 |
 | `status`    | `success`, `warning`, `error`, `info`, `pending`, `working`, `idle`, `unread`                                      | Outcome and state meaning only; never decoration or hierarchy                                                                                                                                                                                   |
 | `agent`     | `attention`, `done`, `error`                                                                                       | Agent state glyphs for Needs attention, Completed, and Failed only; never text, status words, or emphasis                                                                                                                                       |
@@ -71,7 +71,8 @@ Theme rules:
   remaining status roles to named ANSI-16 colors. `status-working` uses the terminal default
   foreground, and `status-idle` that foreground with `DIM`, so both read on either polarity. It uses
   the `DIM` modifier, not a gray color, for `text-secondary`, so de-emphasis follows the host palette
-  on both light and dark backgrounds.
+  on both light and dark backgrounds. `text-muted` is that same `DIM` text: no quieter host-relative
+  step stays readable on every host palette.
 - `surface-current` uses a neutral fill to distinguish persistent context from an accented selection.
   In `terminal-native`, this is a paired ANSI foreground/background: host-relative body and metadata
   text, and the host-relative `status-working` and `status-idle` glyphs, adopt the paired foreground
@@ -168,10 +169,16 @@ Hierarchy describes information priority, not interaction state.
 | Heading   | `text-primary` + `BOLD` | Overlay titles and section labels                           |
 | Primary   | `text-primary`          | Values, labels, and content the person must read to decide  |
 | Secondary | `text-secondary`        | Supporting copy, metadata, timestamps, and key hint labels  |
+| Muted     | `text-muted`            | Labels that only group the rows under them                  |
 | Disabled  | `text-disabled`         | Unavailable actions that remain visible for discoverability |
 
-- Use at most the heading, primary, and secondary hierarchy levels in one region. Disabled is an
-  availability treatment applied to affected content, not a fourth hierarchy level. Additional
+- Use at most three hierarchy levels in one region. Disabled is an availability treatment applied
+  to affected content, not a hierarchy level.
+- A theme derives `text-muted` as the quietest step from `text-secondary` toward its chrome that
+  still clears 4.5:1 on chrome. Muted text keeps that contrast only at rest: on any interaction,
+  current or related fill, and on a host background where it falls below 4.5:1, it is
+  `text-secondary`. Where a theme has no measurable step, as in `terminal-native` and Monochrome,
+  it equals `text-secondary`. Additional
   structure comes from spacing, grouping, or a frame, not from more colors or `ITALIC`.
 - `BOLD` marks a heading, a current item whose owner documents bold identity, such as the active
   Tab, or the label or glyph of a pressed enabled action; it never marks pointer hover or a warning.

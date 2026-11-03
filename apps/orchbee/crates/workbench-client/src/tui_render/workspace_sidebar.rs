@@ -23,7 +23,7 @@ use crate::{
     },
 };
 use orchbee_local_runtime::{SidebarTokenStyle, SpaceSidebarToken, SpaceSidebarTokenKind as Kind};
-use ratatui::style::{Modifier, Style};
+use ratatui::style::Modifier;
 use sidebar_text::{fit, machine_label, state_role};
 pub(super) mod agent_tokens;
 mod layout;
@@ -294,7 +294,6 @@ fn lines(
     locale: Locale,
     theme: &Theme,
     width: usize,
-    suffix: &str,
     shape: LineShape,
 ) -> ProjectedSidebarLines {
     let context = Context::new(view, row, locale);
@@ -361,7 +360,7 @@ fn lines(
             .collect();
         let separators = resolved.len().saturating_sub(1) * 3;
         let mut remaining = if lines.is_empty() {
-            identity_width.saturating_sub(display_width(&identity) + display_width(suffix))
+            identity_width.saturating_sub(display_width(&identity))
         } else {
             width
         }
@@ -472,13 +471,9 @@ fn lines(
         .insert(0, Span::styled(identity, text_style(Role::TextSecondary)));
     lines[0] = fit(
         std::mem::take(&mut lines[0]),
-        identity_width.saturating_sub(display_width(suffix) + slots[0]),
+        identity_width.saturating_sub(slots[0]),
         theme.glyphs.ellipsis,
     );
-    lines[0].spans.push(Span::styled(
-        suffix.to_owned(),
-        text_style(Role::TextSecondary),
-    ));
     for (line, slot) in lines.iter_mut().zip(&slots).skip(1) {
         *line = fit(
             std::mem::take(line),
@@ -582,20 +577,6 @@ fn configured_height(view: &ClientView) -> u16 {
         .max(1) as u16
 }
 
-fn identity(target: &SidebarTarget) -> Option<&str> {
-    match target {
-        SidebarTarget::Project { project_id, .. } => Some(project_id.as_str()),
-        SidebarTarget::Recents { .. } => None,
-        SidebarTarget::Context { target, .. } => match &target.location {
-            crate::workbench_projection::ClientContextLocation::NoWorkspace => None,
-            crate::workbench_projection::ClientContextLocation::Workspace {
-                workspace_id, ..
-            } => Some(workspace_id.as_str()),
-        },
-        SidebarTarget::Agent { target, .. } => Some(target.member.as_str()),
-    }
-}
-
 fn label(row: &SidebarRow<'_>, locale: Locale) -> String {
     display_label(match row {
         SidebarRow::Project { label, .. } => {
@@ -615,148 +596,18 @@ fn label(row: &SidebarRow<'_>, locale: Locale) -> String {
     })
 }
 
-fn annotations(
-    context: EntryMeasureContext<'_>,
-    rows: &[SidebarRow<'_>],
-    width: u16,
-) -> Vec<String> {
-    let EntryMeasureContext {
-        view,
-        source,
-        locale,
-        sidebar_width,
-        theme,
-    } = context;
-    let mut groups = std::collections::BTreeMap::new();
-    for (index, row) in rows.iter().enumerate() {
-        let target = row.target();
-        let machine = match target.machine() {
-            crate::machine_picker::Choice::Local => None,
-            crate::machine_picker::Choice::Remote(id) => Some(id.as_str().to_owned()),
-        };
-        let parent = view
-            .machines
-            .sidebar_parent(&target)
-            .and_then(|parent| identity(&parent).map(str::to_owned));
-        let Some(identity) = identity(&target) else {
-            continue;
-        };
-        groups
-            .entry((
-                machine,
-                target.session_id().as_str().to_owned(),
-                parent,
-                match row {
-                    SidebarRow::Project { .. } | SidebarRow::Recents { .. } => 0,
-                    SidebarRow::Context { .. } => 1,
-                    SidebarRow::Agent { .. } => 2,
-                },
-                if matches!(row, SidebarRow::Project { .. }) {
-                    truncate_display(
-                        &label(row, locale),
-                        entry_width(source, row, width, sidebar_width),
-                        theme.glyphs.ellipsis,
-                    )
-                } else {
-                    label(row, locale)
-                },
-            ))
-            .or_insert_with(Vec::new)
-            .push((index, identity.to_owned()));
-    }
-    let mut annotations = vec![String::new(); rows.len()];
-    for peers in groups.values().filter(|peers| peers.len() > 1) {
-        let identities = peers.iter().map(|(_, id)| id.as_str()).collect::<Vec<_>>();
-        for (index, id) in peers {
-            annotations[*index] = crate::terminal_text::unique_identity_suffix(id, &identities);
-        }
-    }
-    annotations
-}
-
 fn auxiliary_actions(source: &SidebarSource, target: &SidebarTarget) -> layout::AuxiliaryActions {
     layout::AuxiliaryActions::new(source.has_part(target, SidebarPart::Create))
 }
 
-fn entry_width(
-    source: &SidebarSource,
-    row: &SidebarRow<'_>,
-    width: u16,
-    sidebar_width: u16,
-) -> usize {
-    let target = row.target();
-    layout::Tracks::resolve_for_width(
-        Rect::new(0, 0, width, 1),
-        0,
-        sidebar_width,
-        auxiliary_actions(source, &target),
-        layout::RowKind::for_target(&target),
-    )
-    .map_or(1, |tracks| {
-        usize::from(tracks.text_width(source.has_part(&target, SidebarPart::Disclosure)))
-    })
-}
-
-fn suffix_rows(suffix: &str, width: usize) -> usize {
-    if display_width(suffix) <= width.saturating_sub(4) {
-        0
-    } else {
-        suffix.trim_start().len().div_ceil(width.max(1))
-    }
-}
-
-#[derive(Clone, Copy)]
-struct EntryMeasureContext<'a> {
-    view: &'a ClientView,
-    source: &'a SidebarSource,
-    locale: Locale,
-    sidebar_width: u16,
-    theme: &'a Theme,
-}
-
-fn entry_height(
-    context: EntryMeasureContext<'_>,
-    row: &SidebarRow<'_>,
-    suffix: &str,
-    width: u16,
-) -> u16 {
-    let EntryMeasureContext {
-        view,
-        source,
-        locale,
-        sidebar_width,
-        theme: _,
-    } = context;
-    let base = match row {
+/// Names repeat as they are: no row grows a line, or an ID, to tell same-named peers apart.
+fn entry_height(view: &ClientView, row: &SidebarRow<'_>, locale: Locale) -> u16 {
+    match row {
         SidebarRow::Project { .. } | SidebarRow::Recents { .. } => 1,
         SidebarRow::Context { row: context, .. } => {
             context_height(view, context, locale, folded(view, row))
         }
         SidebarRow::Agent { row, .. } => agent_tokens::height(view, row, locale),
-    };
-    let text_width = entry_width(source, row, width, sidebar_width);
-    base + u16::try_from(suffix_rows(suffix, text_width)).unwrap_or(u16::MAX - base)
-}
-
-fn continuation_style(_view: &ClientView, row: &SidebarRow<'_>, theme: &Theme) -> Style {
-    if let SidebarRow::Context { .. } = row {
-        theme.workspace_token_style(Role::TextSecondary, Default::default(), false, false)
-    } else {
-        theme.style(Role::TextSecondary)
-    }
-}
-
-fn append_identity(lines: &mut Vec<Line<'static>>, suffix: &str, width: usize, style: Style) {
-    if suffix_rows(suffix, width) > 0 {
-        // IDs and their brackets are validated ASCII; retain every byte across bounded rows.
-        for part in suffix.trim_start().as_bytes().chunks(width.max(1)) {
-            lines.push(Line::styled(
-                std::str::from_utf8(part)
-                    .expect("ASCII identity")
-                    .to_owned(),
-                style,
-            ));
-        }
     }
 }
 
@@ -1206,17 +1057,12 @@ fn paint_tree_guide(
     }
 }
 
-/// A group heading uses secondary text for its name and complete identity suffix, with no member
-/// count. Only the name truncates.
-fn group_heading(name: &str, suffix: &str, width: usize, theme: &Theme) -> Line<'static> {
-    let name = truncate_display(
-        name,
-        width.saturating_sub(display_width(suffix)),
-        theme.glyphs.ellipsis,
-    );
+/// A group heading uses muted text for its name, with no member count: it only groups the rows
+/// under it, so it stays quieter than their supporting lines.
+fn group_heading(name: &str, width: usize, theme: &Theme) -> Line<'static> {
     Line::from(Span::styled(
-        format!("{name}{suffix}"),
-        theme.style(Role::TextSecondary),
+        truncate_display(name, width, theme.glyphs.ellipsis),
+        theme.style(Role::TextMuted),
     ))
 }
 
@@ -1298,18 +1144,9 @@ pub(super) fn render(
     }
     // The list opens directly under the fixed actions; Project and Recents headings name groups.
     let insertion = extra_creation.map(|preview| creation_insertion(view, rows, preview));
-    let measure = EntryMeasureContext {
-        view,
-        source,
-        locale,
-        sidebar_width,
-        theme,
-    };
-    let annotations = annotations(measure, rows, area.width);
     let mut heights: Vec<_> = rows
         .iter()
-        .zip(&annotations)
-        .map(|(row, suffix)| entry_height(measure, row, suffix, area.width))
+        .map(|row| entry_height(view, row, locale))
         .collect();
     let space_gap = view.machines.space_settings().row_gap();
     let agent_gap = view.machines.sidebar_settings().row_gap();
@@ -1518,21 +1355,15 @@ pub(super) fn render(
             _ => Vec::new(),
         };
 
-        let suffix = &annotations[row_index];
         let closeable = source.has_part(&target, SidebarPart::Close);
         let has_disclosure = source.has_part(&target, SidebarPart::Disclosure);
         // Only the identity line leaves room for the disclosure after the name.
         let text_width = usize::from(tracks.text_width(has_disclosure));
         let continuation_width = usize::from(tracks.text_width(false));
-        let inline = if suffix_rows(suffix, text_width) == 0 {
-            suffix.as_str()
-        } else {
-            ""
-        };
         let mut projected_lines = match row {
             SidebarRow::Project { .. } | SidebarRow::Recents { .. } => {
                 let label = group_label(view, row, locale);
-                ProjectedSidebarLines::new(vec![group_heading(&label, inline, text_width, theme)])
+                ProjectedSidebarLines::new(vec![group_heading(&label, text_width, theme)])
                     .with_names(vec![(0, full_name(sanitize_terminal_text(&label)))])
             }
             SidebarRow::Context { row: context, .. } => lines(
@@ -1541,7 +1372,6 @@ pub(super) fn render(
                 locale,
                 theme,
                 continuation_width,
-                inline,
                 LineShape {
                     disclosure: continuation_width - text_width,
                     markers,
@@ -1555,28 +1385,16 @@ pub(super) fn render(
         let folder = projected_lines.folder.take();
         let (mut row_lines, mut trailing) = projected_lines.into_parts();
         // An Agent title leaves the trailing unread cells only while that marker shows.
-        if matches!(row, SidebarRow::Agent { .. }) && (markers > 0 || !inline.is_empty()) {
+        if matches!(row, SidebarRow::Agent { .. }) && markers > 0 {
             if row_lines.is_empty() {
                 row_lines.push(Line::default());
             }
             row_lines[0] = fit(
                 std::mem::take(&mut row_lines[0]),
-                text_width.saturating_sub(display_width(inline) + markers),
+                text_width.saturating_sub(markers),
                 theme.glyphs.ellipsis,
             );
-            if !inline.is_empty() {
-                row_lines[0].spans.push(Span::styled(
-                    inline.to_owned(),
-                    theme.style(Role::TextSecondary),
-                ));
-            }
         }
-        append_identity(
-            &mut row_lines,
-            suffix,
-            text_width,
-            continuation_style(view, row, theme),
-        );
         for (index, line) in row_lines.iter_mut().enumerate() {
             let width = if index == 0 {
                 text_width

@@ -87,6 +87,7 @@ fn is_content_role(role: Role) -> bool {
     match role {
         Role::TextPrimary
         | Role::TextSecondary
+        | Role::TextMuted
         | Role::TextDisabled
         | Role::TextInverse
         | Role::AccentAction

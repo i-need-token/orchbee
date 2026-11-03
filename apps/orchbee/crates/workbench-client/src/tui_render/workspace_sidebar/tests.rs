@@ -262,7 +262,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     hits.hit_target_at(0, 1),
                     Some(&HitTarget::NewWorkspaceButton)
                 );
-                // An expanded Project at rest keeps its secondary label and shows its disclosure.
+                // An expanded Project at rest keeps its muted label and shows its disclosure.
                 let project_y = (0..height).find(|y| {
                     matches!(
                         hits.hit_target_at(0, *y),
@@ -286,7 +286,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     assert_eq!(buffer[(project_tracks.primary.x, project_y)].symbol(), "R");
                     assert_eq!(
                         buffer[(project_tracks.primary.x, project_y)].fg,
-                        theme.color(Role::TextSecondary)
+                        theme.color(Role::TextMuted)
                     );
                     assert!(
                         !buffer[(project_tracks.primary.x, project_y)]
@@ -369,7 +369,7 @@ fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits
             );
             for row in view.machines.space_rows() {
                 let (text_lines, _) =
-                    lines(&view, row, locale, &theme, 80, "", LineShape::default()).into_parts();
+                    lines(&view, row, locale, &theme, 80, LineShape::default()).into_parts();
                 let projected = text_lines
                     .into_iter()
                     .map(|line| {
@@ -1506,7 +1506,7 @@ fn shortest_sidebar_keeps_complete_current_context_and_agent_when_both_fit() {
 }
 
 #[test]
-fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_narrow() {
+fn duplicate_project_and_workspace_labels_paint_alone_and_stay_separate_rows_when_narrow() {
     let mut view = view(120, 40);
     let mut rows: Vec<_> = view
         .machines
@@ -1545,31 +1545,11 @@ fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_
     configure(&mut view, serde_json::json!([[token("workspace")]]), 0);
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let theme = Theme::terminal_native();
-        let navigation = view.machines.sidebar_navigation_rows();
-        let source = view.machines.sidebar_source();
-        let annotations = annotations(
-            EntryMeasureContext {
-                view: &view,
-                source: &source,
-                locale,
-                sidebar_width: 24,
-                theme: &theme,
-            },
-            &navigation,
-            24,
-        );
-        assert_eq!(annotations[0], " [00000046]");
-        assert_eq!(annotations[3], " [00000047]");
-        for (index, row) in view.machines.space_rows().iter().enumerate() {
-            assert_eq!(
-                annotations[index + 1],
-                format!(" [{}]", identity(&row.sidebar_target().unwrap()).unwrap())
-            );
-        }
+        // Duplicate names are allowed: no row adds an ID or a line to tell its peers apart.
         let (buffer, hits) = paint_navigation(&view, locale, &theme, 24, 30);
         for row in view.machines.space_rows() {
             let selection = row.selection();
-            let mut displayed: String = (0..30)
+            let painted: Vec<String> = (0..30)
                 .filter(|y| matches!(
                     hits.hit_target_at(0, *y),
                     Some(HitTarget::MachineWorkspaceRow { selected, .. }) if selected == &selection
@@ -1580,11 +1560,9 @@ fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_
                         .collect::<String>()
                 })
                 .collect();
-            displayed.retain(|character| !character.is_whitespace());
-            assert!(
-                displayed.contains(identity(&row.sidebar_target().unwrap()).unwrap()),
-                "{displayed}"
-            );
+            assert_eq!(painted.len(), 1, "{painted:?}");
+            assert!(painted[0].trim_start().starts_with("same"), "{painted:?}");
+            assert!(!painted[0].contains('['), "{painted:?}");
         }
         assert!((0..30).any(|y| matches!(
             hits.hit_target_at(4, y),
@@ -1595,7 +1573,7 @@ fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_
 }
 
 #[test]
-fn duplicate_agent_titles_keep_member_identity_inline_and_on_narrow_continuations() {
+fn duplicate_agent_titles_paint_alone_and_stay_separate_rows() {
     let mut view = view(120, 40);
     let SidebarTarget::Context { target, .. } =
         view.machines.space_rows()[0].sidebar_target().unwrap()
@@ -1625,9 +1603,8 @@ fn duplicate_agent_titles_keep_member_identity_inline_and_on_narrow_continuation
             })
             .collect::<Vec<_>>()
             .join("\n");
-        let identity_text = text.lines().map(str::trim).collect::<String>();
-        assert!(identity_text.contains("[00000017]"), "{width}: {text}");
-        assert!(identity_text.contains("[00000018]"), "{width}: {text}");
+        assert_eq!(text.matches("same Agent").count(), 2, "{width}: {text}");
+        assert!(!text.contains('['), "{width}: {text}");
         let mut selected = Vec::new();
         for y in 0..20 {
             if let Some(HitTarget::MachineAgentRow { selected: row, .. }) = hits.hit_target_at(2, y)

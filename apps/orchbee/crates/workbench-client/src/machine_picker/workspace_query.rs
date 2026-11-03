@@ -1,8 +1,6 @@
 //! Workspace-name filtering and its local editor; typing never becomes list shortcuts or effects.
-use super::{KeyCode, Mode, Modifiers, Picker, Row, Selection};
-use crate::terminal_text::{sanitize_terminal_text, unique_identity_suffix};
-use crate::workbench_projection::ClientContextLocation;
-use orchbee_workbench_protocol::SessionId;
+use super::{KeyCode, Mode, Modifiers, Picker, Selection};
+use crate::terminal_text::sanitize_terminal_text;
 
 impl Picker {
     pub(super) fn filter_workspaces(&mut self, selected: Option<Selection>) {
@@ -32,29 +30,6 @@ impl Picker {
                         .min(self.workspace_matches.len().saturating_sub(1))
                 });
             self.top = self.top.min(self.workspace_matches.len().saturating_sub(1));
-        }
-    }
-
-    /// Same-named Workspaces on one session carry the shortest unique ID suffix, as in
-    /// the Sidebar, so a search result names its exact target before it opens.
-    pub(crate) fn workspace_identity_suffix(&self, row: &Row) -> String {
-        let Some((session, label, id)) = workspace_identity(row) else {
-            return String::new();
-        };
-        let peers = self
-            .workspace_rows
-            .iter()
-            .filter(|peer| peer.choice == row.choice)
-            .filter_map(workspace_identity)
-            .filter(|(peer_session, peer_label, _)| {
-                *peer_session == session && *peer_label == label
-            })
-            .map(|(_, _, peer_id)| peer_id)
-            .collect::<Vec<_>>();
-        if peers.len() > 1 {
-            unique_identity_suffix(id, &peers)
-        } else {
-            String::new()
         }
     }
 
@@ -124,16 +99,4 @@ impl Picker {
         self.filter_workspaces(selected);
         true
     }
-}
-
-fn workspace_identity(row: &Row) -> Option<(&SessionId, &str, &str)> {
-    let context = row.context.as_ref()?;
-    let ClientContextLocation::Workspace { workspace_id, .. } = &context.target.location else {
-        return None;
-    };
-    Some((
-        &context.target.session_id,
-        context.workspace.as_deref()?,
-        workspace_id.as_str(),
-    ))
 }

@@ -269,12 +269,17 @@ pub(super) struct Discovery {
     /// The menu's row showed a branch for this directory or one above it, so New Worktree… stays
     /// enabled until the first answer.
     known_git: bool,
+    /// The menu opened on an answer that the first terminal is outside Git, so it omits the
+    /// Worktree rows. Decided once per menu: an answer under the open menu changes no height.
+    outside_git: bool,
 }
 
 pub(super) enum DiscoveryState {
     Waiting,
     Querying,
     Ready(Box<SidebarDiscovery>),
+    /// Git's probe refused the directory: it is not in a repository, or Git does not trust it.
+    NotGit,
     Absent,
 }
 
@@ -298,6 +303,11 @@ impl Discovery {
     /// Whether New Worktree… stays enabled until the first answer.
     pub(super) const fn known_git(&self) -> bool {
         self.known_git
+    }
+
+    /// Whether the menu omits its Worktree rows, as it opened knowing the source is outside Git.
+    pub(super) const fn outside_git(&self) -> bool {
+        self.outside_git
     }
 
     /// The answer about where the first terminal stands now, which an action runs against.
@@ -342,10 +352,44 @@ impl Discovery {
 /// Recent sources whose last success a later menu may show, across menus and moves.
 const REMEMBERED_ANSWERS: usize = 16;
 
-/// Whether `answer` still speaks for `next`: the same source, standing in the checkout it describes.
-/// A failed answer speaks only for its own directory, so it is never kept.
-fn speaks_for(answer: &SidebarDiscovery, next: &AddressedWorktreeSource) -> bool {
-    answer.addressed.moved_to(next) && next.stands_under(&answer.discovery.source.checkout_path)
+/// A settled answer a later menu may start from.
+enum Remembered {
+    Found(Box<SidebarDiscovery>),
+    /// Git refused the directory the source stood in.
+    NotGit(Box<AddressedWorktreeSource>),
+}
+
+impl Remembered {
+    const fn source(&self) -> &AddressedWorktreeSource {
+        match self {
+            Self::Found(answer) => &answer.addressed,
+            Self::NotGit(source) => source,
+        }
+    }
+
+    /// What `next` shows until Git answers: a success while `next` stands in the checkout it
+    /// describes, and a refusal only in the very directory it was read for, since a folder outside
+    /// Git may hold a repository below it. Another failure speaks for nothing, so it is never kept.
+    fn speaks_for(&self, next: &AddressedWorktreeSource) -> Option<DiscoveryState> {
+        if !self.source().moved_to(next) {
+            return None;
+        }
+        match self {
+            Self::Found(answer) => next
+                .stands_under(&answer.discovery.source.checkout_path)
+                .then(|| DiscoveryState::Ready(answer.clone())),
+            Self::NotGit(source) => (next.stands_in().is_some()
+                && source.stands_in() == next.stands_in())
+            .then_some(DiscoveryState::NotGit),
+        }
+    }
+}
+
+/// How the lane's discovery ended.
+pub(super) enum Answer {
+    Found(Box<SidebarDiscovery>),
+    NotGit,
+    Failed,
 }
 
 #[derive(Default)]
@@ -357,8 +401,8 @@ pub(in crate::workbench_client::ui) struct MenuEpisode {
     resume_handoff: Option<ResumeHandoff>,
     discovery: Option<Discovery>,
     next_discovery: u64,
-    /// The newest success for each of the most recent sources, newest first.
-    remembered: Vec<SidebarDiscovery>,
+    /// The newest success or refusal for each of the most recent sources, newest first.
+    remembered: Vec<Remembered>,
     /// Where the sidebar row of the menu about to open stands, while it shows a branch for it.
     sidebar_git: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
 }
@@ -587,11 +631,17 @@ impl MenuEpisode {
             || moved
                 .as_ref()
                 .is_some_and(|moved| moved.known_git_for(&source));
+        // A branch the sidebar shows now outweighs an older refusal.
         let earlier = self
             .remembered
             .iter()
-            .find(|answer| speaks_for(answer, &source))
-            .map(|answer| DiscoveryState::Ready(Box::new(answer.clone())));
+            .find_map(|answer| answer.speaks_for(&source))
+            .filter(|earlier| !(known_git && matches!(earlier, DiscoveryState::NotGit)));
+        // A move under the open menu keeps the rows it opened with.
+        let outside_git = moved.as_ref().map_or_else(
+            || matches!(earlier, Some(DiscoveryState::NotGit)),
+            |moved| moved.outside_git,
+        );
         self.discovery = Some(Discovery {
             id,
             source,
@@ -599,6 +649,7 @@ impl MenuEpisode {
             state: DiscoveryState::Waiting,
             earlier,
             known_git,
+            outside_git,
         });
         true
     }
@@ -626,35 +677,45 @@ impl MenuEpisode {
     }
 
     /// Settles the querying discovery `id`: a result for its source, before its deadline, that
-    /// `valid` admits becomes ready, and anything else absent. The outcome replaces what is
+    /// `valid` admits becomes ready; a refusal before the deadline, while `unchanged` still admits
+    /// the source, means outside Git; anything else absent. The outcome replaces what is
     /// remembered for the source. Reports whether `id` was current.
     pub(super) fn settle_discovery(
         &mut self,
         id: u64,
-        result: Option<Box<SidebarDiscovery>>,
+        answer: Answer,
         now: impl Fn() -> Instant,
         valid: impl Fn(&SidebarDiscovery) -> bool,
+        unchanged: impl Fn(&AddressedWorktreeSource) -> bool,
     ) -> bool {
         let Some(discovery) = self.discovery.as_mut().filter(|discovery| {
             discovery.id == id && matches!(discovery.state, DiscoveryState::Querying)
         }) else {
             return false;
         };
-        let settled = match result {
-            Some(found)
+        let settled = match answer {
+            Answer::Found(found)
                 if now() < discovery.deadline
                     && found.addressed == discovery.source
                     && valid(&found) =>
             {
                 DiscoveryState::Ready(found)
             }
+            Answer::NotGit if now() < discovery.deadline && unchanged(&discovery.source) => {
+                DiscoveryState::NotGit
+            }
             _ => DiscoveryState::Absent,
         };
         let target = &discovery.source.target;
         self.remembered
-            .retain(|answer| &answer.addressed.target != target);
-        if let DiscoveryState::Ready(found) = &settled {
-            self.remembered.insert(0, found.as_ref().clone());
+            .retain(|answer| &answer.source().target != target);
+        let kept = match &settled {
+            DiscoveryState::Ready(found) => Some(Remembered::Found(found.clone())),
+            DiscoveryState::NotGit => Some(Remembered::NotGit(Box::new(discovery.source.clone()))),
+            _ => None,
+        };
+        if let Some(kept) = kept {
+            self.remembered.insert(0, kept);
             self.remembered.truncate(REMEMBERED_ANSWERS);
         }
         discovery.settle(settled);

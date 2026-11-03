@@ -375,7 +375,6 @@ impl Picker {
             } else {
                 String::new()
             };
-            let mut identity_suffix = String::new();
             let name = if let Some(agent) = row.agent() {
                 // The name identifies the Agent; a distinct task title says what it is doing.
                 let identity = display_label(agent.display_name());
@@ -394,7 +393,6 @@ impl Picker {
                     },
                 )
             } else if let Some(context) = row.context() {
-                identity_suffix = self.workspace_identity_suffix(row);
                 format!(
                     "{prefix}{}",
                     context
@@ -447,17 +445,6 @@ impl Picker {
                 .saturating_sub(status_width)
                 .saturating_sub(1);
             let primary_rect = Rect::new(rect.x + 2, rect.y, primary_width, 1);
-            // As in the Sidebar, the identity suffix is budgeted first and only the name truncates.
-            let name = if identity_suffix.is_empty() {
-                name
-            } else {
-                let budget =
-                    usize::from(primary_width).saturating_sub(display_width(&identity_suffix));
-                format!(
-                    "{}{identity_suffix}",
-                    truncate_display(&name, budget, theme.glyphs.ellipsis)
-                )
-            };
             let status_rect = Rect::new(primary_rect.right(), rect.y, status_width, 1);
             let current = row
                 .agent()
@@ -496,7 +483,12 @@ impl Picker {
                 current_rect,
             );
             frame.render_widget(
-                Paragraph::new(name).style(theme.style(primary_role)),
+                Paragraph::new(truncate_display(
+                    &name,
+                    usize::from(primary_width),
+                    theme.glyphs.ellipsis,
+                ))
+                .style(theme.style(primary_role)),
                 primary_rect,
             );
             let status_role = if !enabled {
@@ -660,14 +652,7 @@ impl Picker {
                 }
                 let width = usize::from(inner.width);
                 lines.push(match &context.workspace {
-                    Some(workspace) => {
-                        let suffix = self.workspace_identity_suffix(row);
-                        let budget = width.saturating_sub(display_width(&suffix));
-                        format!(
-                            "{}{suffix}",
-                            truncate_display(workspace, budget, theme.glyphs.ellipsis)
-                        )
-                    }
+                    Some(workspace) => truncate_display(workspace, width, theme.glyphs.ellipsis),
                     None => locale.machine_picker_text("no-workspace").to_owned(),
                 });
                 // The directory explains which checkout a same-named result opens; its

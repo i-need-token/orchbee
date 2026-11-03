@@ -825,7 +825,6 @@ fn creation_and_canonical_workspace_share_configured_metadata_tracks() {
             Locale::EnUs,
             &Theme::terminal_native(),
             48,
-            "",
             LineShape::default(),
         );
         assert_eq!(projected.lines.len(), usize::from(configured_height(&view)));

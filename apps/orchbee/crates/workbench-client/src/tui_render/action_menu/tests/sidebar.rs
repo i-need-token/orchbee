@@ -1,4 +1,4 @@
-//! Sidebar project-choice identity at the rendered input boundary.
+//! Sidebar project choices at the rendered input boundary.
 use super::*;
 use crate::action_menu::MenuTarget;
 use orchbee_workbench_protocol::{
@@ -44,7 +44,7 @@ fn workspace() -> crate::workbench_projection::ClientContextLocation {
 }
 
 #[test]
-fn duplicate_and_truncated_project_names_keep_complete_sidebar_identity_suffixes() {
+fn duplicate_and_truncated_project_names_paint_alone_and_keep_their_targets() {
     for labels in [
         ["project", "project"],
         [
@@ -81,15 +81,9 @@ fn duplicate_and_truncated_project_names_keep_complete_sidebar_identity_suffixes
                     .iter()
                     .map(|cell| cell.symbol())
                     .collect::<String>();
-                if labels[0] == labels[1] || width <= 40 {
-                    assert!(text.contains("[00000019]"), "{width}: {text}");
-                    assert!(text.contains("[0000001a]"), "{width}: {text}");
-                }
-                assert_eq!(
-                    menu.view().unwrap().actions,
-                    actions,
-                    "display suffixes never change target IDs"
-                );
+                // Duplicate names are allowed: a choice never adds an ID to tell its peers apart.
+                assert!(!text.contains('['), "{width}: {text}");
+                assert_eq!(menu.view().unwrap().actions, actions);
             }
         }
     }

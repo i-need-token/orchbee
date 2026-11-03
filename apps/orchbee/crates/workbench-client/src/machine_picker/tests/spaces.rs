@@ -566,10 +566,10 @@ fn workspace_state_priority_uses_explicit_facts_without_acknowledgement() {
     }
 }
 
-/// R-002: same-named long Workspaces keep their identity suffix in result rows and details by
-/// truncating only the name, and details show the distinguishing tail of each directory.
+/// R-002: same-named long Workspaces paint their names alone, with no ID, and details show the
+/// distinguishing tail of the selected one's directory.
 #[test]
-fn long_duplicate_workspace_results_keep_identity_suffix_and_directory_tail() {
+fn long_duplicate_workspace_results_paint_names_alone_and_keep_directory_tail() {
     use crate::machine_spaces::checkpoint::{Checkpoint, Observation as Spaces, Row};
     let long = "shared-long-workspace-name-used-for-reviewing-search-disambiguation-with-a-full-width-terminal-result";
     let mut contexts = contexts(2);
@@ -620,11 +620,13 @@ fn long_duplicate_workspace_results_keep_identity_suffix_and_directory_tail() {
     assert_eq!(picker.mode, Mode::Workspaces);
     for (selected, other) in [(0, 1), (1, 0)] {
         let painted = paint(&picker, Locale::EnUs, 80, 24);
-        let suffix = |n: u8| format!("[{:08x}]", 100 + n);
-        // The selected result repeats its suffix in details; the other result shows it once.
+        // Both results cut only the name, and no line adds either Workspace's ID.
         let rows = painted.rows.join("\n");
-        assert_eq!(painted.matches(&suffix(selected)).count(), 2, "{rows}");
-        assert_eq!(painted.matches(&suffix(other)).count(), 1, "{rows}");
+        assert_eq!(painted.matches("shared-long").count(), 3, "{rows}");
+        assert_eq!(painted.matches("…").count(), 4, "{rows}");
+        for n in [100_u8, 101] {
+            assert!(!rows.contains(&format!("{n:08x}")), "{rows}");
+        }
         assert!(painted.contains(&format!("review-{selected}")));
         assert!(!painted.contains(&format!("review-{other}")));
         assert!(painted.contains("Ungrouped"));

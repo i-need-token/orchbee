@@ -1,5 +1,5 @@
 //! Sidebar composition projects exact typed organization choices, never labels as identity.
-use super::episode::DiscoveryState;
+use super::episode::{Answer, DiscoveryState};
 use super::{
     ClientContextLocation, Discovery, MenuAction, MenuContextSource, MenuTarget, Stage, Target,
     WorkbenchClientState, WorkbenchClientUi, intent_availability, visible_unavailable,
@@ -205,15 +205,19 @@ pub(super) fn actions(
     actions: Vec<MenuAction>,
     episode: Option<&Discovery>,
 ) -> Vec<MenuAction> {
-    let ready = episode
-        .filter(|episode| belongs(entry, episode))
-        .and_then(Discovery::recognized);
+    let episode = episode.filter(|episode| belongs(entry, episode));
+    let ready = episode.and_then(Discovery::recognized);
+    // A menu that opened knowing its source is outside Git has no Worktree rows to offer.
+    let outside_git = episode.is_some_and(Discovery::outside_git);
     match entry {
         // Checkouts join the submenu when discovery proves them; New Worktree… waits disabled.
         MenuTarget::WorkspaceCreation(_) => {
             let mut actions: Vec<_> = actions
                 .into_iter()
-                .filter(|action| !matches!(action, MenuAction::OpenWorktreeAt(_)))
+                .filter(|action| {
+                    !matches!(action, MenuAction::OpenWorktreeAt(_))
+                        && !(outside_git && *action == MenuAction::NewWorktree)
+                })
                 .collect();
             if let Some(ready) = ready {
                 actions.extend(checkout_actions(ready));
@@ -225,7 +229,14 @@ pub(super) fn actions(
         MenuTarget::Workspace(_) => {
             let mut actions: Vec<_> = actions
                 .into_iter()
-                .filter(|action| *action != MenuAction::RemoveWorktree)
+                .filter(|action| {
+                    *action != MenuAction::RemoveWorktree
+                        && !(outside_git
+                            && matches!(
+                                action,
+                                MenuAction::NewWorktree | MenuAction::WorkspaceWorktrees
+                            ))
+                })
                 .collect();
             if ready.is_some_and(|ready| Removal::capture(ready).is_some()) {
                 actions.push(MenuAction::RemoveWorktree);
@@ -292,6 +303,7 @@ pub(super) fn unavailable(
         DiscoveryState::Waiting | DiscoveryState::Querying => (action != &MenuAction::NewWorktree
             || !episode.known_git())
         .then_some(MenuUnavailable::WorktreeChecking),
+        DiscoveryState::NotGit => Some(MenuUnavailable::NotGitRepository),
         DiscoveryState::Absent => Some(MenuUnavailable::WorktreeUnavailable),
     }
 }
@@ -356,7 +368,7 @@ impl WorkbenchClientUi {
                     .unchanged(state.cache().canonical_snapshot())
                 && (matches!(
                     episode.state(),
-                    DiscoveryState::Ready(_) | DiscoveryState::Absent
+                    DiscoveryState::Ready(_) | DiscoveryState::NotGit | DiscoveryState::Absent
                 ) || self.clock.now() < episode.deadline())
         }) {
             return;
@@ -431,12 +443,20 @@ impl WorkbenchClientUi {
         result: Result<Box<SidebarDiscovery>, WorktreeNotice>,
     ) {
         let state = self.state.as_ref();
+        let answer = match result {
+            Ok(found) => Answer::Found(found),
+            Err(WorktreeNotice::NotRepository) => Answer::NotGit,
+            Err(_) => Answer::Failed,
+        };
         if self.menus.settle_discovery(
             id,
-            result.ok(),
+            answer,
             || self.clock.now(),
             |discovery| {
                 state.is_some_and(|state| discovery.valid(state.cache().canonical_snapshot()))
+            },
+            |source| {
+                state.is_some_and(|state| source.unchanged(state.cache().canonical_snapshot()))
             },
         ) {
             self.recompose_sidebar_menu();

@@ -125,6 +125,7 @@ pub(crate) enum MenuUnavailable {
     NoRecentGroup,
     WorktreeChecking,
     WorktreeUnavailable,
+    NotGitRepository,
     NoOtherWorktrees,
 }
 
@@ -268,6 +269,10 @@ impl Locale {
             (Self::ZhCn, MenuUnavailable::WorktreeUnavailable, false) => "暂无可用的 Git 来源",
             (Self::EnUs, MenuUnavailable::WorktreeUnavailable, true) => "Git unavailable",
             (Self::ZhCn, MenuUnavailable::WorktreeUnavailable, true) => "Git 不可用",
+            (Self::EnUs, MenuUnavailable::NotGitRepository, false) => "Not in a Git repository",
+            (Self::ZhCn, MenuUnavailable::NotGitRepository, false) => "不在 Git 仓库中",
+            (Self::EnUs, MenuUnavailable::NotGitRepository, true) => "Not in Git",
+            (Self::ZhCn, MenuUnavailable::NotGitRepository, true) => "非 Git",
             (Self::EnUs, MenuUnavailable::NoOtherWorktrees, false) => "No other worktrees",
             (Self::ZhCn, MenuUnavailable::NoOtherWorktrees, false) => "没有其他工作树",
             (Self::EnUs, MenuUnavailable::NoOtherWorktrees, true) => "No others",
