@@ -28,11 +28,6 @@ export const zhCNTerminalSettingsMessages = {
 		'在你于此处选择之前，Orchbee 会使用系统或浏览器语言。你的选择会保存在此设备上。',
 	'terminal.settings.language.english': 'English',
 	'terminal.settings.language.simplifiedChinese': '简体中文',
-	'terminal.settings.localePersistence.invalidWarning':
-		'保存的显示语言无效，目前使用系统或浏览器语言；请选择一种语言以替换该记录。',
-	'terminal.settings.localePersistence.readWarning':
-		'无法读取保存的显示语言，目前使用系统或浏览器语言；请选择一种语言以重试保存。',
-	'terminal.settings.localePersistence.writeWarning': '显示语言已在本次会话中生效，但无法保存。',
 	'terminal.settings.appearance.terminalPadding.description':
 		'在终端文本四周添加相同的 CSS 像素间距；现有终端会立即更新。',
 	'terminal.settings.appearance.terminalPadding.invalid':
@@ -246,25 +241,15 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.sections.terminalLayout': '终端布局',
 	'terminal.settings.sections.terminalTextShaping': '文本塑形',
 	'terminal.settings.sections.terminalTypography': '终端字体',
-	'terminal.settings.terminal.scrollbackBytes.busyWarning':
-		'另一项回滚缓冲区更新仍在进行，请在完成后重试。',
 	'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning':
 		'Desktop 控制连接恢复前，无法更改回滚缓冲区设置。',
 	'terminal.settings.terminal.scrollbackBytes.description':
 		'终端历史记录最多保留的字节数；新建终端会采用此值。',
 	'terminal.settings.terminal.scrollbackBytes.futureNotice':
 		'正在运行的终端会保留其当前历史记录上限。',
-	'terminal.settings.terminal.scrollbackBytes.hostRejectedWarning':
-		'终端主机拒绝了此更改，之前的值仍然有效。',
 	'terminal.settings.terminal.scrollbackBytes.invalid':
 		'请输入 {minimum, number} 到 {maximum, number} 之间的整数。',
 	'terminal.settings.terminal.scrollbackBytes.label': '回滚缓冲区上限',
-	'terminal.settings.terminal.scrollbackBytes.persistenceInvalidWarning':
-		'保存的回滚缓冲区设置无效，本次会话已采用运行时默认值。',
-	'terminal.settings.terminal.scrollbackBytes.persistenceReadWarning':
-		'无法读取保存的回滚缓冲区设置，本次会话已采用运行时默认值。',
-	'terminal.settings.terminal.scrollbackBytes.persistenceWriteWarning':
-		'此回滚缓冲区值已在本次会话生效，但无法保存；再次提交此值即可重试保存。',
 	'terminal.settings.terminal.trimTrailingBlankRowsForAgents.description':
 		'隐藏已识别 CLI Agent 普通屏幕末尾未使用的空白行，让内容贴近底部显示；已打开的终端会立即更新。',
 	'terminal.settings.terminal.trimTrailingBlankRowsForAgents.label': '裁剪 CLI Agent 尾部空白行',

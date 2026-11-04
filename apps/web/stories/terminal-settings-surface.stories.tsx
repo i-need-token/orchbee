@@ -19,11 +19,7 @@ import {
 	type TerminalLaunchProfileControl,
 } from '../src/terminal-launch-profile-control';
 import { TerminalInteractionSettingsController } from '../src/terminal-interaction-settings';
-import {
-	TerminalDefaultSettingsSnapshotSchema,
-	type TerminalDefaultSettingsClientSnapshot,
-	type TerminalDefaultSettingsControl,
-} from '../src/terminal-default-settings-control';
+import type { TerminalDefaultSettingsControl } from '../src/terminal-default-settings-control';
 import {
 	AGENT_INTEGRATION_IDS,
 	type AgentIntegrationId,
@@ -33,32 +29,51 @@ import {
 } from '../src/agent-integration-management';
 import { ApplicationLocaleController } from '../src/application-locale';
 import { ApplicationLocaleProvider } from '../src/application-locale-provider';
+import type { UserPreferencesControl } from '../src/user-preferences';
+import { memoryUserPreferences } from '../src/__tests__/memoryUserPreferences';
 
-const englishApplicationLocaleController = createStoryApplicationLocaleController('en-US');
-const englishController = createStoryController();
+const englishPreferences = memoryUserPreferences({ locale: 'en-US' });
+const englishApplicationLocaleController = createStoryApplicationLocaleController(
+	'en-US',
+	englishPreferences,
+);
+const englishController = createStoryController(englishPreferences);
 const englishKeyboardController = createKeyboardStoryController('apple');
 const englishMacosInputController = createMacosInputStoryController();
-const englishFeedbackController = createFeedbackStoryController();
+const englishFeedbackController = createFeedbackStoryController(englishPreferences);
 const englishTerminalLaunchProfiles = createTerminalLaunchProfileStoryControl(true);
-const englishInteractionController = createInteractionStoryController();
+const englishInteractionController = new TerminalInteractionSettingsController(englishPreferences);
 const englishTerminalDefaults = createTerminalDefaultSettingsStoryControl();
 const englishAgentIntegrations = createAgentIntegrationStoryControl();
 
-const chineseApplicationLocaleController = createStoryApplicationLocaleController('zh-CN');
-
-const chineseController = createStoryController({
-	...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+const chinesePreferences = memoryUserPreferences({
 	applicationTheme: 'dark',
-	backgroundOpacityPercent: 72,
 	customBackground: '#14161b',
 	customForeground: '#e6e8ef',
-	fontSize: 15,
+	locale: 'zh-CN',
 	terminalDisplayTheme: 'custom',
 });
+const chineseApplicationLocaleController = createStoryApplicationLocaleController(
+	'zh-CN',
+	chinesePreferences,
+);
+
+const chineseController = createStoryController(
+	chinesePreferences,
+	JSON.stringify({
+		backgroundOpacityPercent: 72,
+		fontFamily: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontFamily,
+		fontLigatures: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontLigatures,
+		fontSize: 15,
+		fontWeight: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontWeight,
+		fontWeightBold: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontWeightBold,
+		terminalPadding: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.terminalPadding,
+	}),
+);
 const chineseKeyboardController = createKeyboardStoryController('standard');
-const chineseFeedbackController = createFeedbackStoryController();
+const chineseFeedbackController = createFeedbackStoryController(chinesePreferences);
 const chineseTerminalLaunchProfiles = createTerminalLaunchProfileStoryControl(false);
-const chineseInteractionController = createInteractionStoryController();
+const chineseInteractionController = new TerminalInteractionSettingsController(chinesePreferences);
 const chineseTerminalDefaults = createTerminalDefaultSettingsStoryControl(24_000_000);
 const chineseAgentIntegrations = createAgentIntegrationStoryControl();
 
@@ -133,26 +148,27 @@ export const ChineseDarkCustom: Story = {
 
 function createStoryApplicationLocaleController(
 	locale: 'en-US' | 'zh-CN',
+	userPreferences: UserPreferencesControl,
 ): ApplicationLocaleController {
 	return new ApplicationLocaleController({
 		documentElement: { dir: '', lang: '' },
 		preferredLocales: [locale],
-		storage: {
-			getItem: () => JSON.stringify({ locale }),
-			setItem: () => undefined,
-		},
+		userPreferences,
 	});
 }
 
+/** The host record holds the appearance this device keeps; the shared preferences hold the rest. */
 function createStoryController(
-	preferences = DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+	userPreferences: UserPreferencesControl,
+	hostRecord: string | null = null,
 ): TerminalSettingsController {
 	const controller = new TerminalSettingsController({
 		storage: {
-			getItem: () => JSON.stringify(preferences),
+			getItem: () => hostRecord,
 			setItem: () => undefined,
 		},
 		themeTarget: { dataset: {} },
+		userPreferences,
 	});
 	controller.open();
 	return controller;
@@ -167,7 +183,9 @@ function createKeyboardStoryController(
 	});
 }
 
-function createFeedbackStoryController(): TerminalFeedbackSettingsController {
+function createFeedbackStoryController(
+	userPreferences: UserPreferencesControl,
+): TerminalFeedbackSettingsController {
 	return new TerminalFeedbackSettingsController({
 		// Stories ask for no notification permission.
 		notificationCapability: {
@@ -176,7 +194,7 @@ function createFeedbackStoryController(): TerminalFeedbackSettingsController {
 				Promise.resolve('unsupported'),
 			show: () => false,
 		},
-		storage: { getItem: () => null, setItem: () => undefined },
+		userPreferences,
 	});
 }
 
@@ -187,38 +205,11 @@ function createMacosInputStoryController(): MacosTerminalInputSettingsController
 	});
 }
 
-function createInteractionStoryController(): TerminalInteractionSettingsController {
-	return new TerminalInteractionSettingsController({
-		getItem: () => null,
-		setItem: () => undefined,
-	});
-}
-
 function createTerminalDefaultSettingsStoryControl(
 	scrollbackBytes = 10_000_000,
 ): TerminalDefaultSettingsControl {
-	let snapshot: TerminalDefaultSettingsClientSnapshot = {
-		...TerminalDefaultSettingsSnapshotSchema.parse({
-			configuration: { scrollbackBytes },
-			persistenceIssue: null,
-			source: 'stored',
-		}),
-		failureCode: null,
-		pending: false,
-	};
-	const listeners = new Set<() => void>();
-	return {
-		getSnapshot: () => snapshot,
-		subscribe: (listener) => {
-			listeners.add(listener);
-			return () => listeners.delete(listener);
-		},
-		update: (configuration) => {
-			snapshot = { ...snapshot, configuration, persistenceIssue: null, source: 'stored' };
-			for (const listener of listeners) listener();
-			return Promise.resolve({ kind: 'completed', snapshot });
-		},
-	};
+	const snapshot = { configuration: { scrollbackBytes }, failureCode: null };
+	return { getSnapshot: () => snapshot, subscribe: () => () => undefined };
 }
 
 function createTerminalLaunchProfileStoryControl(
@@ -327,7 +318,6 @@ function createAgentIntegrationStoryControl(): AgentIntegrationManagementControl
 			kind: 'completed' as const,
 			snapshot: {
 				integrations: snapshot.integrations,
-				launchedIntegrationIds: snapshot.launchedIntegrationIds,
 				revision: snapshot.revision,
 			},
 		});
@@ -341,7 +331,6 @@ function createAgentIntegrationStoryControl(): AgentIntegrationManagementControl
 				kind: 'completed' as const,
 				snapshot: {
 					integrations: snapshot.integrations,
-					launchedIntegrationIds: snapshot.launchedIntegrationIds,
 					revision: snapshot.revision,
 				},
 			}),
@@ -372,7 +361,6 @@ function createAgentIntegrationStorySnapshot(): AgentIntegrationManagementClient
 			state: 'unknown',
 			...examples[integrationId],
 		})),
-		launchedIntegrationIds: [],
 		pending: false,
 		pendingIntegrationId: null,
 		revision: 1,

@@ -20,7 +20,6 @@ const protocolSnapshot: AgentIntegrationManagementSnapshot = {
 		managementMode: 'managed-local',
 		state: integrationId === 'codex' ? 'not-installed' : 'unknown',
 	})),
-	launchedIntegrationIds: [],
 	revision: 1,
 };
 

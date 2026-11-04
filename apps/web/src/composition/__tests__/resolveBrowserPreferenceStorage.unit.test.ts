@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
+import { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
 import { resolveBrowserPreferenceStorage } from '../resolveBrowserPreferenceStorage';
 
 describe('resolveBrowserPreferenceStorage', () => {
@@ -17,10 +17,10 @@ describe('resolveBrowserPreferenceStorage', () => {
 		const storage = resolveBrowserPreferenceStorage(() => {
 			throw new Error('Browser storage is unavailable.');
 		});
-		const controller = new TerminalInteractionSettingsController(storage);
+		const controller = new MacosTerminalInputSettingsController(storage);
 
 		expect(controller.getSnapshot().persistenceIssue).toBe('read-failed');
-		expect(controller.update({ copyOnSelect: false })).toEqual({
+		expect(controller.update({ optionAsAlt: 'left' })).toEqual({
 			kind: 'applied-session-only',
 		});
 		expect(controller.getSnapshot().persistenceIssue).toBe('write-failed');

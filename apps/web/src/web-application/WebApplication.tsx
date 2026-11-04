@@ -14,11 +14,7 @@ import {
 import type { WorkbenchLayoutStorage } from '../workbench-layout-storage';
 import type { ReactNode } from 'react';
 
-import type {
-	AgentIntegrationManagementControl,
-	AgentIntegrationReminderController,
-} from '../agent-integration-management';
-import { AgentIntegrationReminder } from '../agent-integration-reminder';
+import type { AgentIntegrationManagementControl } from '../agent-integration-management';
 import type { ApplicationLocaleController } from '../application-locale';
 import {
 	type KeyboardShortcutSettingsController,
@@ -43,7 +39,6 @@ export interface WebApplicationProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly applicationLocaleController: ApplicationLocaleController;
 	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
-	readonly agentIntegrationReminderController?: AgentIntegrationReminderController | undefined;
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly authority: WorkbenchAuthority;
 	readonly keyboardShortcutSettingsController: KeyboardShortcutSettingsController;
@@ -70,7 +65,6 @@ export function WebApplication({
 	actionRuntime,
 	applicationLocaleController,
 	agentIntegrationManagementControl,
-	agentIntegrationReminderController,
 	agentObservationSource,
 	authority,
 	keyboardShortcutSettingsController,
@@ -143,17 +137,8 @@ export function WebApplication({
 					workspaceLocationSource={workspaceLocationSource}
 				/>
 			</div>
-			{agentIntegrationManagementControl === undefined ||
-			agentIntegrationReminderController === undefined ? null : (
-				<AgentIntegrationReminder
-					control={agentIntegrationManagementControl}
-					controller={agentIntegrationReminderController}
-					onOpenSettings={view.onOpenAgentIntegrationSettings}
-				/>
-			)}
 			<TerminalSettingsSurface
 				agentIntegrationManagementControl={agentIntegrationManagementControl}
-				agentIntegrationReminderController={agentIntegrationReminderController}
 				applicationLocaleController={applicationLocaleController}
 				controller={terminalSettingsController}
 				terminalInteractionSettingsController={terminalInteractionSettingsController}
@@ -161,7 +146,6 @@ export function WebApplication({
 				keyboardShortcutPlatform={shortcutPlatform}
 				macosTerminalInputSettingsController={macosTerminalInputSettingsController}
 				onRequestClose={view.closeSettings}
-				requestedCategory={view.requestedSettingsCategory}
 				terminalFeedbackSettingsController={terminalFeedbackSettingsController}
 				terminalLaunchProfileClient={terminalLaunchProfileClient}
 				terminalDefaultSettingsControl={terminalDefaultSettingsControl}

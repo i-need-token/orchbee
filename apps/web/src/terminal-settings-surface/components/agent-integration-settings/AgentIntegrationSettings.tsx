@@ -1,10 +1,7 @@
 import { Button, Switch } from '@orchbee/ui/components';
 import type * as React from 'react';
 
-import type {
-	AgentIntegrationManagementControl,
-	AgentIntegrationReminderController,
-} from '../../../agent-integration-management';
+import type { AgentIntegrationManagementControl } from '../../../agent-integration-management';
 import { SettingsSection } from '../settings-section/SettingsSection';
 import { TerminalSettingsRow } from '../terminal-settings-row/TerminalSettingsRow';
 import { useAgentIntegrationSettings } from './hooks/useAgentIntegrationSettings';
@@ -12,14 +9,12 @@ import styles from './AgentIntegrationSettings.module.css';
 
 export interface AgentIntegrationSettingsProps {
 	readonly control: AgentIntegrationManagementControl;
-	readonly reminderController?: AgentIntegrationReminderController | undefined;
 }
 
 export function AgentIntegrationSettings({
 	control,
-	reminderController,
 }: AgentIntegrationSettingsProps): React.ReactNode {
-	const view = useAgentIntegrationSettings(control, reminderController);
+	const view = useAgentIntegrationSettings(control);
 	return (
 		<div className={styles['root']} data-slot='agent-integration-settings'>
 			<div className={styles['toolbar']}>

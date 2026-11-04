@@ -8,7 +8,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
 	AGENT_INTEGRATION_IDS,
-	AgentIntegrationReminderController,
 	type AgentIntegrationId,
 	type AgentIntegrationManagementClientOperationResult,
 	type AgentIntegrationManagementClientSnapshot,
@@ -32,16 +31,9 @@ afterAll(() => {
 });
 
 describe('AgentIntegrationSettings', () => {
-	it('uses authoritative switches and keeps reminder preference in sync', async () => {
+	it('uses authoritative switches', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
-		let serialized = JSON.stringify({ dismissedIntegrationIds: [] });
-		const reminderController = new AgentIntegrationReminderController({
-			getItem: () => serialized,
-			setItem: (_key, value) => {
-				serialized = value;
-			},
-		});
 		const control = createTestControl({
 			codex: { availability: 'available', state: 'enabled' },
 		});
@@ -51,10 +43,7 @@ describe('AgentIntegrationSettings', () => {
 				createElement(
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
-					createElement(AgentIntegrationSettings, {
-						control,
-						reminderController,
-					}),
+					createElement(AgentIntegrationSettings, { control }),
 				),
 			);
 		});
@@ -69,18 +58,15 @@ describe('AgentIntegrationSettings', () => {
 
 		await act(async () => integrationSwitch.click());
 		expect(control.disableCalls).toEqual(['codex']);
-		expect(JSON.parse(serialized)).toEqual({ dismissedIntegrationIds: ['codex'] });
 		expect(integrationSwitch.getAttribute('aria-checked')).toBe('false');
 
 		await act(async () => integrationSwitch.click());
 		await vi.waitFor(() => {
 			expect(control.enableCalls).toEqual(['codex']);
-			expect(JSON.parse(serialized)).toEqual({ dismissedIntegrationIds: [] });
 			expect(integrationSwitch.getAttribute('aria-checked')).toBe('true');
 		});
 
 		await act(async () => root.unmount());
-		reminderController.dispose();
 		container.remove();
 	});
 
@@ -158,7 +144,6 @@ function createTestControl(
 			state: 'not-installed',
 			...initial[integrationId],
 		})),
-		launchedIntegrationIds: [],
 		pending: false,
 		pendingIntegrationId: null,
 		revision: 0,

@@ -22,10 +22,8 @@ import {
 } from './terminal-appearance-preferences';
 import {
 	normalizeTerminalAppearancePreferences,
-	readTerminalAppearancePreferences,
 	readHostAppearancePreferences,
 	writeHostAppearancePreferences,
-	writeTerminalAppearancePreferences,
 	type TerminalAppearancePersistenceIssue,
 	type TerminalAppearanceStorage,
 } from './terminal-appearance-preferences-storage';
@@ -57,7 +55,7 @@ export type TerminalSettingsVisibilityResult =
 export interface TerminalSettingsControllerOptions {
 	readonly storage: TerminalAppearanceStorage;
 	readonly themeTarget: Pick<HTMLElement, 'dataset'>;
-	readonly userPreferences?: UserPreferencesControl;
+	readonly userPreferences: UserPreferencesControl;
 	readonly systemTheme?: Pick<
 		MediaQueryList,
 		'matches' | 'addEventListener' | 'removeEventListener'
@@ -67,6 +65,10 @@ export interface TerminalSettingsControllerOptions {
 type SnapshotListener = () => void;
 type PresentationListener = (configuration: TerminalPresentationConfiguration) => void;
 
+/**
+ * Four common appearance leaves follow the Session's shared preferences; the seven host leaves stay in
+ * this renderer's browser storage.
+ */
 export class TerminalSettingsController
 	implements TerminalAppearancePresentationSource, TerminalThemePresentationSource
 {
@@ -74,8 +76,8 @@ export class TerminalSettingsController
 	readonly #persistence = new PreferenceWriteQueue();
 	readonly #snapshotListeners = new Set<SnapshotListener>();
 	readonly #storage: TerminalAppearanceStorage;
-	readonly userPreferences: UserPreferencesControl | undefined;
-	readonly #removeUserPreferences: (() => void) | undefined;
+	readonly userPreferences: UserPreferencesControl;
+	readonly #removeUserPreferences: () => void;
 	readonly #systemTheme: TerminalSettingsControllerOptions['systemTheme'];
 	readonly #themeTarget: Pick<HTMLElement, 'dataset'>;
 	readonly #themeParticipants = new Set<TerminalThemePresentationParticipant>();
@@ -97,18 +99,12 @@ export class TerminalSettingsController
 		this.userPreferences = userPreferences;
 		this.#systemTheme = systemTheme;
 		this.#themeTarget = themeTarget;
-		const restored =
-			userPreferences === undefined
-				? readTerminalAppearancePreferences(storage)
-				: readHostAppearancePreferences(storage);
-		const preferences =
-			userPreferences === undefined
-				? restored.preferences
-				: commonAppearance(restored.preferences, userPreferences);
+		const restored = readHostAppearancePreferences(storage);
+		const preferences = commonAppearance(restored.preferences, userPreferences);
 		this.#presentationConfiguration = terminalPresentationConfigurationFromPreferences(preferences);
 		this.#snapshot = snapshot(false, restored.issue, preferences);
 		this.#applyApplicationTheme(preferences.applicationTheme);
-		this.#removeUserPreferences = userPreferences?.subscribe(() => this.#syncUserPreferences());
+		this.#removeUserPreferences = userPreferences.subscribe(() => this.#syncUserPreferences());
 		systemTheme?.addEventListener('change', this.#handleSystemTheme);
 	}
 
@@ -159,32 +155,29 @@ export class TerminalSettingsController
 		const currentPreferences = this.#snapshot.preferences;
 		let candidate = normalizeTerminalAppearancePreferences({ ...currentPreferences, ...patch });
 		if (candidate === null) return { kind: 'invalid' };
-		let commonPending = false;
-		if (this.userPreferences !== undefined) {
-			const changes: UserPreferencesPatch = {
-				...(patch.applicationTheme === undefined
-					? {}
-					: { applicationTheme: candidate.applicationTheme }),
-				...(patch.terminalDisplayTheme === undefined
-					? {}
-					: { terminalDisplayTheme: candidate.terminalDisplayTheme }),
-				...(patch.customForeground === undefined
-					? {}
-					: { customForeground: candidate.customForeground }),
-				...(patch.customBackground === undefined
-					? {}
-					: { customBackground: candidate.customBackground }),
-			};
-			commonPending = Object.keys(changes).length !== 0;
-			if (commonPending) {
-				const revision = this.#revision;
-				void this.userPreferences.update(changes);
-				// Shared admission publishes synchronously and can retire or replace this host edit.
-				if (this.#disposed) return { kind: 'disposed' };
-				if (this.#revision !== revision) return { kind: 'pending' };
-			}
-			candidate = commonAppearance(candidate, this.userPreferences);
+		const changes: UserPreferencesPatch = {
+			...(patch.applicationTheme === undefined
+				? {}
+				: { applicationTheme: candidate.applicationTheme }),
+			...(patch.terminalDisplayTheme === undefined
+				? {}
+				: { terminalDisplayTheme: candidate.terminalDisplayTheme }),
+			...(patch.customForeground === undefined
+				? {}
+				: { customForeground: candidate.customForeground }),
+			...(patch.customBackground === undefined
+				? {}
+				: { customBackground: candidate.customBackground }),
+		};
+		const commonPending = Object.keys(changes).length !== 0;
+		if (commonPending) {
+			const revision = this.#revision;
+			void this.userPreferences.update(changes);
+			// Shared admission publishes synchronously and can retire or replace this host edit.
+			if (this.#disposed) return { kind: 'disposed' };
+			if (this.#revision !== revision) return { kind: 'pending' };
 		}
+		candidate = commonAppearance(candidate, this.userPreferences);
 
 		const preferencesChanged = !terminalAppearancePreferencesEqual(currentPreferences, candidate);
 		if (!preferencesChanged && this.#snapshot.persistenceIssue === null) {
@@ -204,22 +197,7 @@ export class TerminalSettingsController
 		return commonPending ? { kind: 'pending' } : this.#currentUpdateResult();
 	}
 
-	reset(): TerminalSettingsUpdateResult {
-		if (this.#disposed) return { kind: 'disposed' };
-		if (this.userPreferences !== undefined) {
-			this.resetHostAppearance();
-			if (this.#disposed) return { kind: 'disposed' };
-			void this.userPreferences.reset([
-				'applicationTheme',
-				'terminalDisplayTheme',
-				'customForeground',
-				'customBackground',
-			]);
-			return { kind: 'pending' };
-		}
-		return this.update(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES);
-	}
-
+	/** Settings resets the shared appearance keys itself, together with the interaction keys. */
 	resetHostAppearance(): TerminalSettingsUpdateResult {
 		const {
 			applicationTheme: _applicationTheme,
@@ -240,7 +218,7 @@ export class TerminalSettingsController
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
-		this.#removeUserPreferences?.();
+		this.#removeUserPreferences();
 		this.#systemTheme?.removeEventListener('change', this.#handleSystemTheme);
 		this.#revision += 1;
 		this.#themePresentationEpoch += 1;
@@ -262,7 +240,7 @@ export class TerminalSettingsController
 	};
 
 	#syncUserPreferences(): void {
-		if (this.userPreferences === undefined || this.#disposed) return;
+		if (this.#disposed) return;
 		const preferences = commonAppearance(this.#snapshot.preferences, this.userPreferences);
 		if (terminalAppearancePreferencesEqual(preferences, this.#snapshot.preferences)) return;
 		this.#commitCandidate(preferences, false);
@@ -352,10 +330,7 @@ export class TerminalSettingsController
 
 	#persist(preferences: TerminalAppearancePreferences, revision: number): void {
 		this.#persistence.write(() => {
-			const saved =
-				this.userPreferences === undefined
-					? writeTerminalAppearancePreferences(this.#storage, preferences)
-					: writeHostAppearancePreferences(this.#storage, preferences);
+			const saved = writeHostAppearancePreferences(this.#storage, preferences);
 			if (this.#disposed || this.#revision !== revision) return;
 			this.#snapshot = snapshot(this.#snapshot.open, saved ? null : 'write-failed', preferences);
 			this.#emitSnapshot();

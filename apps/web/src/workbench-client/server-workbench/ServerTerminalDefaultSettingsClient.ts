@@ -1,34 +1,27 @@
-import type { TerminalConfiguration } from '@orchbee/terminal-protocol';
 import {
 	DEFAULT_USER_PREFERENCES,
 	type UserPreferencesSnapshot,
 } from '@orchbee/workbench-client-protocol';
 
 import type {
-	TerminalDefaultSettingsClientOperationResult,
 	TerminalDefaultSettingsClientSnapshot,
 	TerminalDefaultSettingsControl,
-	TerminalDefaultSettingsFailureCode,
-	TerminalDefaultSettingsSnapshot,
 } from '../../terminal-default-settings-control';
 import type { UserPreferencesControl } from '../../user-preferences';
 
 /**
- * Scrollback is one of the Session's shared preferences. The Worker gives it to each terminal it
- * launches after the save, so nothing here reconfigures a running terminal.
+ * Scrollback is one of the Session's shared preferences. Settings saves it through those preferences,
+ * and the Worker gives it to each terminal it launches after the save, so nothing here writes or
+ * reconfigures a running terminal.
  */
 export class ServerTerminalDefaultSettingsClient implements TerminalDefaultSettingsControl {
 	readonly #listeners = new Set<() => void>();
-	readonly #preferences: UserPreferencesControl;
 	readonly #stopObserving: () => void;
 	#disposed = false;
-	#failureCode: TerminalDefaultSettingsFailureCode | null = null;
 	#observed: UserPreferencesSnapshot | null;
-	#pending = false;
 	#snapshot: TerminalDefaultSettingsClientSnapshot;
 
 	constructor(preferences: UserPreferencesControl) {
-		this.#preferences = preferences;
 		this.#observed = preferences.getSnapshot().snapshot;
 		this.#snapshot = this.#project();
 		this.#stopObserving = preferences.subscribe(() => {
@@ -48,40 +41,6 @@ export class ServerTerminalDefaultSettingsClient implements TerminalDefaultSetti
 		return () => this.#listeners.delete(listener);
 	};
 
-	async update(
-		configuration: TerminalConfiguration,
-		preferencesSource?: string,
-	): Promise<TerminalDefaultSettingsClientOperationResult> {
-		const observed = this.#observed;
-		if (this.#disposed || observed === null) return { kind: 'unavailable' };
-		if (this.#pending) {
-			return { code: 'busy', kind: 'failed', snapshot: settingsSnapshot(this.#snapshot) };
-		}
-		this.#pending = true;
-		this.#failureCode = null;
-		this.#present();
-		const response = await this.#preferences.update(
-			{ scrollbackBytes: configuration.scrollbackBytes },
-			preferencesSource ?? observed.source,
-		);
-		this.#pending = false;
-		if (response.kind === 'snapshot') {
-			this.#observed = response.snapshot;
-		} else if (response.kind === 'outcome-unknown') {
-			this.#failureCode = 'outcome-unknown';
-		} else if (response.reason === 'busy' || response.reason === 'source-changed') {
-			this.#failureCode = response.reason;
-		} else {
-			this.#failureCode =
-				response.reason === 'unavailable' ? 'control-unavailable' : 'write-failed';
-		}
-		this.#present();
-		const snapshot = settingsSnapshot(this.#snapshot);
-		return this.#failureCode === null
-			? { kind: 'completed', snapshot }
-			: { code: this.#failureCode, kind: 'failed', snapshot };
-	}
-
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
@@ -96,11 +55,7 @@ export class ServerTerminalDefaultSettingsClient implements TerminalDefaultSetti
 				scrollbackBytes:
 					observed?.values.scrollbackBytes ?? DEFAULT_USER_PREFERENCES.scrollbackBytes,
 			},
-			failureCode: this.#failureCode ?? (observed === null ? 'control-unavailable' : null),
-			pending: this.#pending,
-			persistenceIssue: null,
-			...(observed === null ? {} : { preferencesSource: observed.source }),
-			source: 'session',
+			failureCode: observed === null ? 'control-unavailable' : null,
 		};
 	}
 
@@ -112,21 +67,8 @@ export class ServerTerminalDefaultSettingsClient implements TerminalDefaultSetti
 			try {
 				listener();
 			} catch {
-				// A presentation observer cannot strand a save or its answer.
+				// A presentation observer cannot strand another observer.
 			}
 		}
 	}
-}
-
-function settingsSnapshot(
-	snapshot: TerminalDefaultSettingsClientSnapshot,
-): TerminalDefaultSettingsSnapshot {
-	return {
-		configuration: snapshot.configuration,
-		persistenceIssue: snapshot.persistenceIssue,
-		...(snapshot.preferencesSource === undefined
-			? {}
-			: { preferencesSource: snapshot.preferencesSource }),
-		source: snapshot.source,
-	};
 }

@@ -286,9 +286,7 @@ The Desktop composition uses one TanStack Router over memory history, because a 
 
 Desktop Settings includes Agent Integrations. Startup, search, and category navigation perform no
 mutation; only an explicit switch action changes provider configuration, as one job on the Session's
-Worker. The launch reminder does not appear, because the window reports no Agent launch to its
-integration client. Reminder dismissal stores only the Agent ID, and remote setup remains
-manual-only.
+Worker. Remote setup remains manual-only.
 
 General offers System, English and Simplified Chinese. Desktop reads the same confirmed device
 preference as TUI. System follows declared locale

@@ -32,7 +32,6 @@ import {
 	SetTerminalDefaultsSchema,
 	StartTerminalSchema,
 	SetProjectionDemandSchema,
-	TerminalConfigurationSchema,
 	TerminalControlAcceptedSchema,
 	TerminalApplicationSignalSchema,
 	TerminalBellSchema,
@@ -1093,10 +1092,11 @@ describe('control schemas', () => {
 				terminalId: '22222222222222222222222222222222',
 			}).success,
 		).toBe(true);
-		expect(TerminalConfigurationSchema.safeParse({ scrollbackBytes: -1 }).success).toBe(false);
-		expect(TerminalConfigurationSchema.safeParse({ scrollbackBytes: 1_000_000_001 }).success).toBe(
-			false,
-		);
+		for (const scrollbackBytes of [-1, 1_000_000_001]) {
+			expect(
+				SetTerminalDefaultsSchema.safeParse({ configuration: { scrollbackBytes } }).success,
+			).toBe(false);
+		}
 	});
 
 	it('makes normal, containing, and failed terminal states mutually exclusive', () => {

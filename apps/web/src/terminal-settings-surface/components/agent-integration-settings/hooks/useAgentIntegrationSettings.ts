@@ -5,10 +5,8 @@ import * as React from 'react';
 import {
 	AGENT_INTEGRATION_NAME_MESSAGES,
 	type AgentIntegrationManagementControl,
-	type AgentIntegrationReminderController,
 } from '../../../../agent-integration-management';
 import {
-	enableAgentIntegration,
 	resolveAgentIntegrationFailureMessage,
 	resolveAgentIntegrationStatusView,
 	type AgentIntegrationSettingsRowView,
@@ -17,7 +15,6 @@ import {
 
 export function useAgentIntegrationSettings(
 	control: AgentIntegrationManagementControl,
-	reminderController?: AgentIntegrationReminderController | undefined,
 ): AgentIntegrationSettingsView {
 	const intl = useOrchbeeIntl();
 	const snapshot = React.useSyncExternalStore(
@@ -58,12 +55,9 @@ export function useAgentIntegrationSettings(
 			integrationId: integration.integrationId,
 			onCheckedChange: (checked): void => {
 				if (disabled || checked === enabled) return;
-				if (!checked) {
-					reminderController?.dismiss(integration.integrationId);
-					void control.disable(integration.integrationId);
-					return;
-				}
-				void enableAgentIntegration(control, reminderController, integration.integrationId);
+				void (checked
+					? control.enable(integration.integrationId)
+					: control.disable(integration.integrationId));
 			},
 			pending,
 			settingId: `agent-integrations.${integration.integrationId}`,

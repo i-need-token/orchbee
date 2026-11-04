@@ -31,12 +31,6 @@ export const enUSTerminalSettingsMessages = {
 		'Orchbee uses your system or browser language until you choose here. Your choice is saved on this device.',
 	'terminal.settings.language.english': 'English',
 	'terminal.settings.language.simplifiedChinese': '简体中文',
-	'terminal.settings.localePersistence.invalidWarning':
-		'The saved display language is invalid. Your system or browser language is in use; choose a language to replace it.',
-	'terminal.settings.localePersistence.readWarning':
-		'The saved display language could not be read. Your system or browser language is in use; choose a language to try saving it.',
-	'terminal.settings.localePersistence.writeWarning':
-		'Your display language is applied for this session but could not be saved.',
 	'terminal.settings.appearance.terminalPadding.description':
 		'Add the same amount of space, in CSS pixels, around terminal text. Existing terminals update immediately.',
 	'terminal.settings.appearance.terminalPadding.invalid':
@@ -267,25 +261,15 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.sections.terminalLayout': 'Terminal layout',
 	'terminal.settings.sections.terminalTextShaping': 'Text shaping',
 	'terminal.settings.sections.terminalTypography': 'Terminal typography',
-	'terminal.settings.terminal.scrollbackBytes.busyWarning':
-		'Another scrollback update is still in progress. Try again after it finishes.',
 	'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning':
 		'Scrollback settings are unavailable until the Desktop control connection is restored.',
 	'terminal.settings.terminal.scrollbackBytes.description':
 		'Maximum retained terminal history, in bytes. New terminals capture this value.',
 	'terminal.settings.terminal.scrollbackBytes.futureNotice':
 		'Running terminals keep their current history limit.',
-	'terminal.settings.terminal.scrollbackBytes.hostRejectedWarning':
-		'The Terminal Host rejected this change. The previous value remains active.',
 	'terminal.settings.terminal.scrollbackBytes.invalid':
 		'Enter a whole number from {minimum, number} to {maximum, number}.',
 	'terminal.settings.terminal.scrollbackBytes.label': 'Scrollback limit',
-	'terminal.settings.terminal.scrollbackBytes.persistenceInvalidWarning':
-		'The saved scrollback setting is invalid. The runtime default is active for this session.',
-	'terminal.settings.terminal.scrollbackBytes.persistenceReadWarning':
-		'The saved scrollback setting could not be read. The runtime default is active for this session.',
-	'terminal.settings.terminal.scrollbackBytes.persistenceWriteWarning':
-		'This scrollback value is active for this session, but could not be saved. Retry the value to save it.',
 	'terminal.settings.terminal.trimTrailingBlankRowsForAgents.description':
 		'Hide unused blank rows at the end of the primary screen for detected CLI agents so their content stays aligned with the bottom. Existing terminals update immediately.',
 	'terminal.settings.terminal.trimTrailingBlankRowsForAgents.label':

@@ -49,6 +49,7 @@ import {
 	type TerminalThemePresentationParticipant,
 } from '../../../terminal-settings';
 import type { ProjectedTerminalCommand as ClientProjectedTerminalCommand } from '@orchbee/workbench-client-protocol';
+import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
 
 const attachmentId = AttachmentIdSchema.parse('22'.repeat(16));
 const creationId = CreationIdSchema.parse('33'.repeat(16));
@@ -165,6 +166,7 @@ document.body.style.margin = '0';
 const settings = new TerminalSettingsController({
 	storage: { getItem: () => null, setItem: () => undefined },
 	themeTarget: document.documentElement,
+	userPreferences: memoryUserPreferences(),
 });
 const source = new MutablePresentationConfigurationSource(settings);
 let terminal: WitnessProjectedTerminal | undefined;

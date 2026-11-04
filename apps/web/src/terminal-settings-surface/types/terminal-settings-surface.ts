@@ -2,10 +2,7 @@ import type * as React from 'react';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import type { ProductIconName } from '@orchbee/ui/components';
 import type { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
-import type {
-	AgentIntegrationManagementControl,
-	AgentIntegrationReminderController,
-} from '../../agent-integration-management';
+import type { AgentIntegrationManagementControl } from '../../agent-integration-management';
 import type {
 	TerminalAppearancePreferences,
 	TerminalSettingsController,
@@ -107,9 +104,6 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly keyboardShortcutsCategory: string;
 	readonly keyboardShortcutsDescription: string;
 	readonly keyboardShortcutsTitle: string;
-	readonly localePersistenceInvalidWarning: string;
-	readonly localePersistenceReadWarning: string;
-	readonly localePersistenceWriteWarning: string;
 	readonly macosInputCategory: string;
 	readonly macosInputDescription: string;
 	readonly macosInputTitle: string;
@@ -132,16 +126,11 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly remoteDevelopmentResultDescription: string;
 	readonly remoteDevelopmentTitle: string;
 	readonly searchPlaceholder: string;
-	readonly scrollbackBytesBusyWarning: string;
 	readonly scrollbackBytesControlUnavailableWarning: string;
 	readonly scrollbackBytesDescription: string;
 	readonly scrollbackBytesFutureNotice: string;
-	readonly scrollbackBytesHostRejectedWarning: string;
 	readonly scrollbackBytesInvalid: string;
 	readonly scrollbackBytesLabel: string;
-	readonly scrollbackBytesPersistenceInvalidWarning: string;
-	readonly scrollbackBytesPersistenceReadWarning: string;
-	readonly scrollbackBytesPersistenceWriteWarning: string;
 	readonly trimTrailingBlankRowsForAgentsDescription: string;
 	readonly trimTrailingBlankRowsForAgentsLabel: string;
 	readonly shellIntegrationCategory: string;
@@ -168,15 +157,12 @@ export interface TerminalSettingsSurfaceMessages {
 
 export interface UseTerminalSettingsSurfaceOptions {
 	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
-	readonly agentIntegrationReminderController?: AgentIntegrationReminderController | undefined;
 	readonly applicationLocaleController: ApplicationLocaleController;
 	readonly controller: TerminalSettingsController;
 	readonly keyboardShortcutController: KeyboardShortcutSettingsController;
 	readonly keyboardShortcutPlatform: KeyboardShortcutPlatform;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly onRequestClose: () => void;
-
-	readonly requestedCategory?: TerminalSettingsCategory | undefined;
 
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 	readonly terminalLaunchProfileClient?: TerminalLaunchProfileControl | undefined;
@@ -212,7 +198,6 @@ export interface TerminalSettingsSurfaceView {
 	readonly foregroundVisible: boolean;
 	readonly inputReference: React.RefObject<HTMLInputElement | null>;
 	readonly macosInputVisible: boolean;
-	readonly localePersistenceWarning: string | null;
 	readonly messages: TerminalSettingsSurfaceMessages;
 	readonly navigationOpen: boolean;
 	readonly navigationGroups: readonly TerminalSettingsNavigationGroupView[];
@@ -265,7 +250,6 @@ export interface TerminalSettingsSurfaceView {
 	readonly searchResultsId: string;
 	readonly scrollbackBytesDraft: string;
 	readonly scrollbackBytesInvalid: boolean;
-	readonly scrollbackBytesPending: boolean;
 	readonly scrollbackBytesVisible: boolean;
 	readonly terminalDefaultSettingsWarning: string | null;
 	readonly terminalPaddingDraft: string;

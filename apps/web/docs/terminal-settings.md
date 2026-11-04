@@ -6,8 +6,8 @@ Web owns Settings, drafts and client presentation sources. Desktop common values
 [device preference authority](../../../crates/workbench-protocol/docs/user-preferences.md) shared
 with TUI through the Session's Server. Common values never write back to browser storage.
 Seven host appearance leaves (fonts, weights, ligatures, pixel padding and opacity) and macOS
-Option-as-Alt remain renderer-local. A controller constructed without the Session's preferences keeps
-independent origin records instead; the Desktop composition always supplies them.
+Option-as-Alt remain renderer-local. Every locale, appearance, interaction and feedback controller
+requires the Session's preferences; none keeps a browser record of a common value.
 
 The Session's Server and Worker own launch adaptation, terminal defaults and Agent integration effects.
 Preferences are not Workbench content and never synchronize to remote devices.
@@ -26,48 +26,40 @@ General offers System, English and 简体中文. System is a persisted choice fo
 declared locale inputs. Confirmed Desktop snapshots update document lang/dir and product surfaces
 without reload. User data, paths, commands and shared content are never translated.
 
-Without the Session's preferences, the locale controller reads only strict `orchbee:web:locale-preference:v1` with `{ locale: null | 'en-US' | 'zh-CN' }`, where null preserves System. The new name isolates shape-compatible old v1 data. Missing data uses defaults and invalid data reports an issue; old keys are not read. Browser write failures retain the session choice with a visible issue. Desktop reads shared preferences directly without importing old browser records.
+The locale is the shared `locale` preference. A selection is sent to the Session and applies when
+its confirmed snapshot arrives; save failures appear in the shared status. No browser record holds
+the locale, and no earlier browser record is read or deleted.
 
-## Appearance and interaction preference records
+## Appearance and interaction preferences
 
-Without the Session's preferences, the appearance controller writes `orchbee:web:terminal-appearance:v1`. Desktop writes only seven host leaves to
-`orchbee:web:terminal-host-appearance:v1`; four common appearance leaves come from shared storage. Its value is one complete JSON
-object with no unknown fields:
+Application theme, terminal display theme and the two custom colors are shared preferences. The
+appearance controller writes only the seven host leaves to
+`orchbee:web:terminal-host-appearance:v1`, because fonts, weights, ligatures, padding and opacity
+fit this device's display. Its value is one complete JSON object with no unknown fields:
 
 ```ts
-interface StoredTerminalAppearancePreferencesV1 {
-	readonly applicationTheme: 'light' | 'dark' | 'system';
+interface StoredTerminalHostAppearanceV1 {
 	readonly backgroundOpacityPercent: number;
-	readonly customBackground: `#${string}`;
-	readonly customForeground: `#${string}`;
 	readonly fontFamily: string;
 	readonly fontLigatures: boolean;
 	readonly fontSize: number;
 	readonly fontWeight: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
 	readonly fontWeightBold: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
-	readonly terminalDisplayTheme: 'host' | 'light' | 'dark' | 'custom';
 	readonly terminalPadding: number;
 }
 ```
 
-Appearance accepts only the complete current v1 shape. Old v1 records lack required font, weight and padding fields and fail validation. No other key is read and no historical fields are synthesized. Missing Desktop host appearance uses defaults directly.
+The record accepts only that complete shape. Missing data uses defaults; malformed or invalid data
+uses defaults and reports an issue. No other key is read and no historical fields are synthesized.
 
 The font family is trimmed and contains 1–256 characters. Font size is an integer from 8 through 48.
 Both weights are integer hundreds from 100 through 900. Terminal padding is an integer from 0
 through 32 CSS pixels. Custom colors are exactly `#RRGGBB` and are normalized to lowercase.
 Background opacity is an integer percentage from 10 through 100.
 
-Without the Session's preferences, the separate strict key `orchbee:web:terminal-interaction:v1` contains one complete object with no
-unknown fields:
-
-```ts
-interface StoredTerminalInteractionPreferencesV1 {
-	readonly copyOnSelect: boolean;
-	readonly trimTrailingBlankRowsForAgents: boolean;
-}
-```
-
-Interaction reads only the complete current v1 record; old shapes missing either boolean field are rejected. Missing data uses defaults; invalid or unreadable data reports an issue without migration or another key read. The record has independent controller, persistence issue and subscriptions.
+Copy on select and trimming Agent tail blanks are the shared `copyOnSelect` and
+`trimTrailingBlankRowsForAgents` preferences. Their controller keeps its own subscriptions and
+publishes interaction configuration when a confirmed snapshot changes either value.
 
 The complete product default is:
 
@@ -102,11 +94,9 @@ not inspect terminal output or guess process names.
 This provider-neutral decision is passed to `@orchbee/terminal`, which owns the bounded display
 window and its fallback behavior; neither layer changes PTY geometry or retained history.
 
-Preference writes are complete-record transactions: validate, commit the session snapshot, publish
-to installed presentations, then attempt Browser persistence. A failed write keeps the requested
-session value and reports the existing recoverable persistence issue; a later change retries it.
-Reset restores both interaction defaults. Deterministic controller tests cover old-shape rejection,
-strict current-version isolation, default-on reset, immediate publication, and write failure. Derived-source
+A change is sent to the Session and reaches installed presentations when its confirmed snapshot
+arrives. Reset restores both interaction defaults. Deterministic controller tests cover default-on
+reset and publication of confirmed changes. Derived-source
 tests cover Agent start, end, replacement, missing capability, preference disablement, and disposal;
 projected-terminal evidence owns the row-classification and Host-window boundaries.
 
@@ -193,8 +183,9 @@ Session's shared `scrollbackBytes` preference. The Terminal page exposes `termin
 decimal byte count from `0` through `1_000_000_000` and states that running terminals keep their
 current limit. The row commits through the shared draft, and the TUI shows the same value in
 megabytes. The Worker gives the value to each terminal it launches after the save, so no Host
-application step can fail, and existing terminal history is unchanged. A composition without the
-control omits this row. The Terminal category remains visible only when that
+application step can fail, and existing terminal history is unchanged. The control only reads:
+save failures show in the shared status, and the row warns that scrollback is unavailable until the
+first preference snapshot arrives. A composition without the control omits this row. The Terminal category remains visible only when that
 composition supplies another current Terminal setting.
 
 ## Read, commit, and recovery model
@@ -208,8 +199,8 @@ Enter followed by blur commits at most once.
 System appearance follows a live prefers-color-scheme subscription. Custom colors are enabled only
 for Custom terminal theme. Sound defaults off and selects silent system notification delivery.
 
-The local record algorithm below applies only to controllers without the Session's preferences and to
-Desktop host-specific leaves.
+The local record algorithm below applies only to the host appearance leaves, keyboard shortcuts and
+macOS input.
 Strict codecs reject unknown fields and accept only the current shape at one v1 key.
 Missing uses defaults; invalid or unreadable sources expose a recoverable issue.
 
@@ -223,8 +214,7 @@ One semantic update follows this order:
 4. Attempt one write of the complete preference record.
 
 Font family, size, regular and bold weight, ligatures, padding, and opacity update mounted terminal
-renderers live without replacing an attachment. The independent interaction controller follows the
-same validate, session-commit, publish, and write ordering for `copyOnSelect`.
+renderers live without replacing an attachment.
 
 For a runtime-theme barrier, every mounted projected terminal first preflights its renderer
 overlays. A failed preflight sends no Host mutation. A ready participant then completes the Host
@@ -251,9 +241,9 @@ the host-only part of a mixed update, the appearance controller rechecks its lif
 and local revision. A newer host edit wins. Disposing the local controller does not
 cancel a common write already admitted by the shared client.
 
-Local-storage writes for locale, keyboard shortcuts, terminal appearance, interaction, feedback,
-and macOS input share the application-private `PreferenceWriteQueue`. Desktop uses this queue only
-for its renderer-local leaves; common device values retain their confirmed shared persistence path.
+Local-storage writes for keyboard shortcuts, host appearance and macOS input share the
+application-private `PreferenceWriteQueue`. Common device values use their confirmed shared
+persistence path instead.
 Each local-storage owner commits its complete session value before storage, serializes synchronous
 writes, and coalesces pending reentrant writes to the latest value.
 Only the current live revision may publish a write result. A nested update whose write has not
@@ -268,13 +258,14 @@ update retries a complete write and clears that issue after success. One termina
 failure retains every mounted terminal and the application surface at their previously committed
 complete presentation without rolling back the preference.
 
-Reset behaves as follows:
+Reset restores the host leaves through this algorithm and sends null for the four common
+appearance keys and the two interaction keys in one shared reset:
 
-- Different preferences become the complete product default, write once, and publish at most one
-  terminal presentation snapshot when terminal-derived values changed.
-- Default preferences with a persistence issue rewrite the default record once without publishing
+- Different host leaves become the product default, write once, and publish at most one terminal
+  presentation snapshot when terminal-derived values changed.
+- Default host leaves with a persistence issue rewrite the default record once without publishing
   a terminal presentation snapshot.
-- Default preferences with healthy persistence are unchanged and perform no write or publication.
+- Default host leaves with healthy persistence are unchanged and perform no write or publication.
 
 Disposal clears subscribers and rejects later semantic updates, including Reset, as disposed.
 No late update can change theme, storage, or a presentation source after disposal. If host-reset
@@ -318,8 +309,8 @@ their task states without turning every setting into a card. Behavior and archit
 
 At narrow widths, Settings shows one pane at a time. It opens to the searchable category list;
 selecting a category or search result shows content, and the content-level Back affordance restores
-the list. Controls stack below their copy when the trailing column no longer fits. Browser-backed
-appearance, input, shortcut, and feedback changes apply immediately; shell-profile drafts require
+the list. Controls stack below their copy when the trailing column no longer fits. Host appearance,
+input and shortcut changes apply immediately, and shared values apply on confirmation; shell-profile drafts require
 explicit Save because the Session's durable catalog mutation is a separate transaction. Reference
 branding, copy, categories, and pixel geometry are not compatibility targets.
 
@@ -400,8 +391,8 @@ ranking ties are explicitly excluded.
 ## Desktop Agent integrations
 
 Only the Desktop composition injects `AgentIntegrationManagementControl`, as
-`ServerAgentIntegrationClient`, and `AgentIntegrationReminderController`. A composition without them
-omits the Agent Integrations category, its search entries, and the reminder. The renderer consumes one
+`ServerAgentIntegrationClient`. A composition without it omits the Agent Integrations category and
+its search entries. The renderer consumes one
 canonical snapshot with a row for every wire provider in registry order, taken from
 `AGENT_INTEGRATION_PROVIDERS` in `@orchbee/workbench-client-protocol`, and displays curated Agent
 names, bounded states and failures, and the shared privacy explanation. It receives no Agent command output, executable path, adapter resource
@@ -420,11 +411,8 @@ report reads as unverified, marks its row unknown, and is never repeated. Remote
 as manual-only and the renderer never writes terminal input or attempts remote setup. The
 [writer](../../../crates/agent-integration-writer/README.md) is authoritative for these effects.
 
-The window reports no Agent launch to its integration client, so no launch reminder appears. Its
-dismissal record, the strict, bounded `orchbee:web:agent-integration-reminders:v1`, still follows
-Settings: a disable records that Agent's dismissal before it asks the Worker, and a verified enable
-removes it. Missing or invalid storage falls back to no dismissals, and write failure retains the
-current-session behavior.
+Neither Client offers an integration reminder when an Agent launches. A future reminder would be
+designed for both Clients together.
 
 ## Remote-development diagnostic
 
@@ -459,7 +447,10 @@ Orchbee's PowerShell integration itself; Orchbee ships no Zsh, Bash, or Fish int
 terminals, so those shells emit boundaries only through the user's own configuration. The surface
 never reads, creates, edits, or backs up a shell startup file.
 
-Without the Session's preferences, feedback reads only the complete `orchbee:web:terminal-feedback:v1` shape: Agent mode (never/hidden), completion mode (never/unfocused/always), minimum integer seconds (1–3600), and sound boolean. Defaults are never, never, 5 and false. Old v1 lacks required fields and is rejected; old v2/v3 keys are not read. Browser write failures retain session values with an issue. Desktop uses confirmed shared snapshots.
+Feedback uses the shared preferences: Agent mode (never/hidden), completion mode
+(never/unfocused/always), minimum integer seconds (1–3600), and sound boolean. Defaults are never,
+never, 5 and false. Changes and Reset apply when the confirmed snapshot arrives; no browser record
+holds them.
 
 Each client deduplicates by terminal identity and positive completion sequence, ignores facts more
 than 60 seconds old or over 5 seconds in the future, and limits system notifications for one
@@ -540,12 +531,11 @@ not claims about Ghostty's byte limits.
 
 ## Required evidence
 
-- Storage tests cover missing, malformed, unknown, old-shape rejection, current-key isolation, out-of-range, read-throw, write-fail then success, Reset repair, and healthy no-op behavior.
-- Application-locale storage and controller tests cover missing and explicit preference precedence,
-  strict rejection, same-as-detected explicit selection, live document metadata and subscriptions,
-  session-only write failure, retry, and disposal. Component and composition tests cover both
-  choices, immediate product-copy updates, search discovery, reload restoration, and automatic
-  resolution only when no valid preference exists.
+- Host appearance and macOS input storage tests cover missing, malformed, unknown, out-of-range,
+  read-throw, write-fail then success, Reset repair, and healthy no-op behavior.
+- Application-locale controller tests cover System resolution, an explicit shared preference
+  winning, a confirmed selection applying live, invalid input, and disposal. Component tests cover
+  both choices, product-copy updates, and search discovery.
 - Source tests prove complete single presentation publication, independent interaction publication,
   live attachment updates, application-theme isolation, terminal-setting isolation, stable
   subscription, and disposal.
@@ -573,16 +563,16 @@ not claims about Ghostty's byte limits.
   component tests cover
   literal custom executable arguments, the future-terminal boundary, create and default selection,
   delete constraints, reset confirmation, platform capabilities, and localized failures.
-- Terminal-default-settings protocol and component tests cover strict bounds, capability gating,
-  localized validation, and visible failures. The Server-path clients that fill the launch-profile,
+- Terminal-default-settings component tests cover bounds, capability gating, localized
+  validation, and the save to the shared preferences. The Server-path clients that fill the launch-profile,
   terminal-default and Agent-integration controls have no tests of their own.
-- Terminal-feedback model tests cover default-off behavior, strict persistence recovery, duration
+- Terminal-feedback model tests cover default-off behavior, shared updates and Reset, duration
   and focus policy, stale and future facts, sequence deduplication, notification rate limiting,
   explicit permission requests, and disposal. Component tests cover both locales, reminder controls,
   permission state, and Reset.
-- Agent-integration protocol, storage, Settings, and reminder tests cover canonical ordering,
-  read-only startup, one pending mutation, explicit user actions, per-Agent dismissal, session offer
-  limits, remote exclusion, localization, and no automatic mutation.
+- Agent-integration protocol and Settings tests cover canonical ordering, read-only startup, one
+  pending mutation, explicit user actions, remote exclusion, localization, and no automatic
+  mutation.
 - Migration analyzer tests cover accepted syntax, exact target boundaries, scalar supersession,
   font resets and fallback lists, opacity-cell interaction, malformed lines, resource limits, and
   one-finding-per-assignment ordering without depending on React or storage.

@@ -4,6 +4,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
 import { TerminalInteractionSettingsController } from '../../model';
 import { useTerminalInteractionSettings } from '../useTerminalInteractionSettings';
 
@@ -28,22 +29,18 @@ describe('useTerminalInteractionSettings', () => {
 		const root = createRoot(container);
 
 		await act(async () => root.render(createElement(SnapshotProbe)));
-		expect(container.textContent).toBe('enabled:healthy');
+		expect(container.textContent).toBe('enabled');
 
-		const controller = new TerminalInteractionSettingsController({
-			getItem: (key) =>
-				key === 'orchbee:web:terminal-interaction:v1'
-					? JSON.stringify({ copyOnSelect: false, trimTrailingBlankRowsForAgents: true })
-					: null,
-			setItem: () => undefined,
-		});
+		const controller = new TerminalInteractionSettingsController(
+			memoryUserPreferences({ copyOnSelect: false }),
+		);
 		await act(async () => root.render(createElement(SnapshotProbe, { controller })));
-		expect(container.textContent).toBe('disabled:healthy');
+		expect(container.textContent).toBe('disabled');
 
 		await act(async () => {
 			controller.update({ copyOnSelect: true });
 		});
-		expect(container.textContent).toBe('enabled:healthy');
+		expect(container.textContent).toBe('enabled');
 
 		await act(async () => root.unmount());
 		container.remove();
@@ -57,5 +54,5 @@ function SnapshotProbe({
 	readonly controller?: TerminalInteractionSettingsController | undefined;
 }): ReactNode {
 	const snapshot = useTerminalInteractionSettings(controller);
-	return `${snapshot.preferences.copyOnSelect ? 'enabled' : 'disabled'}:${snapshot.persistenceIssue ?? 'healthy'}`;
+	return snapshot.preferences.copyOnSelect ? 'enabled' : 'disabled';
 }

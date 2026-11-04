@@ -35,6 +35,7 @@ import {
 } from '../startProjectedTerminalRenderer';
 import type { TerminalPresentationConfigurationSource } from '../../../terminal-presentation';
 import type { TerminalTrailingBlankRowsPresentationSource } from '../terminal-trailing-blank-rows-presentation-source';
+import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
 
 const theme = TerminalThemeStateSchema.parse({
 	operationId: null,
@@ -122,7 +123,7 @@ describe('startProjectedTerminalRenderer', () => {
 		const applicationLocaleSource = new ApplicationLocaleController({
 			documentElement,
 			preferredLocales: ['zh-CN'],
-			storage: { getItem: () => null, setItem: () => undefined },
+			userPreferences: memoryUserPreferences(),
 		});
 		const applyFrame = vi.fn<ProjectedTerminal['applyFrame']>(() => 'committed');
 		const applyImagePreviewContent = vi.fn<ProjectedTerminal['applyImagePreviewContent']>();
@@ -602,9 +603,9 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(clearTerminal).toHaveBeenCalledOnce();
 			await vi.waitFor(() => expect(status.textContent).toBe('已清除终端输出。'));
 			applicationLocaleSource.select('en-US');
-			expect(status.textContent).toBe('Terminal output cleared.');
+			await vi.waitFor(() => expect(status.textContent).toBe('Terminal output cleared.'));
 			applicationLocaleSource.select('zh-CN');
-			expect(status.textContent).toBe('已清除终端输出。');
+			await vi.waitFor(() => expect(status.textContent).toBe('已清除终端输出。'));
 			emitTransportMessage({ frame: new Uint8Array([1, 2, 3]).buffer, kind: 'frame' });
 			emitTransportMessage({
 				event: { attachmentId: bootstrap.attachmentId, sequence: '5' },

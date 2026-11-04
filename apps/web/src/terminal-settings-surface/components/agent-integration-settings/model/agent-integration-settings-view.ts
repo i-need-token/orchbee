@@ -2,9 +2,7 @@ import { agentIntegrationMessages, type MessageDescriptor } from '@orchbee/i18n'
 
 import type {
 	AgentIntegrationId,
-	AgentIntegrationManagementControl,
 	AgentIntegrationManagementFailureCode,
-	AgentIntegrationReminderController,
 	AgentIntegrationSnapshotItem,
 } from '../../../../agent-integration-management';
 
@@ -32,15 +30,6 @@ export interface AgentIntegrationSettingsView {
 	readonly remoteDescription: string;
 	readonly remoteTitle: string;
 	readonly rows: readonly AgentIntegrationSettingsRowView[];
-}
-
-export async function enableAgentIntegration(
-	control: AgentIntegrationManagementControl,
-	reminderController: AgentIntegrationReminderController | undefined,
-	integrationId: AgentIntegrationId,
-): Promise<void> {
-	const result = await control.enable(integrationId);
-	if (result.kind === 'completed') reminderController?.restore(integrationId);
 }
 
 export function resolveAgentIntegrationStatusView(

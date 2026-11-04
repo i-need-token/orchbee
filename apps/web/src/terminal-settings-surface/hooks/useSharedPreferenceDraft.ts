@@ -7,11 +7,11 @@ import type { UserPreferencesControl } from '../../user-preferences';
 export function useSharedPreferenceDraft(
 	value: string,
 	key: UserPreferenceKey,
-	control: UserPreferencesControl | undefined,
+	control: UserPreferencesControl,
 ): {
 	readonly draft: string;
 	change(next: string): void;
-	submit(changes: UserPreferencesPatch, local: () => void): void;
+	submit(changes: UserPreferencesPatch): void;
 } {
 	const [draft, setDraft] = React.useState(value);
 	const edit = React.useRef<{
@@ -24,17 +24,12 @@ export function useSharedPreferenceDraft(
 		if (!edit.current.dirty) setDraft(value);
 	}, [value]);
 	const change = (next: string): void => {
-		if (!edit.current.dirty) edit.current.source = control?.getSnapshot().snapshot?.source;
+		if (!edit.current.dirty) edit.current.source = control.getSnapshot().snapshot?.source;
 		edit.current.dirty = true;
 		edit.current.revision += 1;
 		setDraft(next);
 	};
-	const submit = (changes: UserPreferencesPatch, local: () => void): void => {
-		if (control === undefined) {
-			local();
-			edit.current.dirty = false;
-			return;
-		}
+	const submit = (changes: UserPreferencesPatch): void => {
 		if (!edit.current.dirty || edit.current.pending) return;
 		const revision = edit.current.revision;
 		const source = edit.current.source;

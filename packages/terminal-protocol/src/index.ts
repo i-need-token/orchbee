@@ -43,7 +43,6 @@ export {
 	TerminalFailedSchema,
 	TerminalGeometrySchema,
 	TerminalIdentitySchema,
-	TerminalConfigurationSchema,
 	TerminalConfigurationAcceptedSchema,
 	TerminalControlAcceptedSchema,
 	TerminalDefaultsAcceptedSchema,

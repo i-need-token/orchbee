@@ -5,17 +5,14 @@ import { describe, expect, it } from 'vitest';
 
 import { KeyboardShortcutSettingsController } from '../../../keyboard-shortcuts';
 import { ApplicationLocaleController } from '../../../application-locale';
-import {
-	TerminalSettingsController,
-	type TerminalAppearancePreferences,
-} from '../../../terminal-settings';
+import { TerminalSettingsController } from '../../../terminal-settings';
+import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
 
 import { useTerminalSettingsSurface } from '../useTerminalSettingsSurface';
 
 describe('useTerminalSettingsSurface', () => {
 	it('prepares localized display data and Custom-mode control availability from the controller snapshot', () => {
 		const controller = createController();
-		controller.update({ ...controller.getSnapshot().preferences, terminalDisplayTheme: 'custom' });
 		controller.open();
 
 		expect(renderView(controller, 'en-US')).toBe('Settings|7|custom-enabled');
@@ -46,13 +43,11 @@ function SurfaceProbe({
 	return `${view.messages.title}|${categoryCount}|${view.customColorsEnabled ? 'custom-enabled' : 'custom-disabled'}`;
 }
 
-function createController(preferences?: TerminalAppearancePreferences): TerminalSettingsController {
+function createController(): TerminalSettingsController {
 	return new TerminalSettingsController({
-		storage: {
-			getItem: () => (preferences === undefined ? null : JSON.stringify(preferences)),
-			setItem: () => undefined,
-		},
+		storage: { getItem: () => null, setItem: () => undefined },
 		themeTarget: { dataset: {} },
+		userPreferences: memoryUserPreferences({ terminalDisplayTheme: 'custom' }),
 	});
 }
 
@@ -64,7 +59,7 @@ function renderView(controller: TerminalSettingsController, locale: 'en-US' | 'z
 	const applicationLocaleController = new ApplicationLocaleController({
 		documentElement: { dir: '', lang: '' },
 		preferredLocales: [locale],
-		storage: { getItem: () => null, setItem: () => undefined },
+		userPreferences: memoryUserPreferences(),
 	});
 	return renderToStaticMarkup(
 		createElement(

@@ -16,11 +16,6 @@ export function ShellIntegrationSettings({
 
 	return (
 		<div className={styles['root']} data-slot='shell-integration-settings'>
-			{view.persistenceWarning === null ? null : (
-				<p className={styles['warning']} role='alert'>
-					{view.persistenceWarning}
-				</p>
-			)}
 			<section className={styles['card']} id='shell-integration.completion-reminders'>
 				<h2 className={styles['title']}>{view.reminder.title}</h2>
 				<p className={styles['description']}>{view.reminder.description}</p>

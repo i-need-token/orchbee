@@ -14,7 +14,6 @@
 	padding: var(--ob-ref-space-4);
 }
 
-.warning,
 .empty {
 	margin: var(--ob-ref-space-0);
 	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
@@ -23,12 +22,6 @@
 	background: var(--ob-sys-color-status-info-surface);
 	color: var(--ob-sys-color-status-info-text);
 	font: var(--ob-sys-typography-body-sm);
-}
-
-.warning {
-	border-color: var(--ob-sys-color-status-warning-border);
-	background: var(--ob-sys-color-status-warning-surface);
-	color: var(--ob-sys-color-status-warning-text);
 }
 
 .empty {

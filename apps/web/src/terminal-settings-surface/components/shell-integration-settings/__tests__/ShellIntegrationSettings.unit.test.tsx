@@ -5,6 +5,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { memoryUserPreferences } from '../../../../__tests__/memoryUserPreferences';
 import { TerminalFeedbackSettingsController } from '../../../../terminal-feedback-settings';
 import { ShellIntegrationSettings } from '../ShellIntegrationSettings';
 
@@ -36,7 +37,7 @@ describe('ShellIntegrationSettings', () => {
 				requestPermission,
 				show: () => true,
 			},
-			storage: memoryStorage(),
+			userPreferences: memoryUserPreferences(),
 		});
 		const root = createRoot(container);
 
@@ -100,14 +101,6 @@ function localized(
 		{ locale },
 		createElement(ShellIntegrationSettings, { controller }),
 	);
-}
-
-function memoryStorage(): Pick<Storage, 'getItem' | 'setItem'> {
-	const values = new Map<string, string>();
-	return {
-		getItem: (key) => values.get(key) ?? null,
-		setItem: (key, value) => values.set(key, value),
-	};
 }
 
 function requiredElement<T extends Element>(element: T | null): T {

@@ -29,9 +29,6 @@ export const terminalSettingsMessages = defineMessages({
 	languageEnglish: message('terminal.settings.language.english'),
 	languageSection: message('terminal.settings.sections.language'),
 	languageSimplifiedChinese: message('terminal.settings.language.simplifiedChinese'),
-	localePersistenceInvalidWarning: message('terminal.settings.localePersistence.invalidWarning'),
-	localePersistenceReadWarning: message('terminal.settings.localePersistence.readWarning'),
-	localePersistenceWriteWarning: message('terminal.settings.localePersistence.writeWarning'),
 	terminalPaddingDescription: message('terminal.settings.appearance.terminalPadding.description'),
 	terminalPaddingInvalid: message(
 		'terminal.settings.appearance.terminalPadding.invalid',
@@ -309,29 +306,16 @@ export const terminalSettingsMessages = defineMessages({
 	shellIntegrationResetDescription: message('terminal.settings.shellIntegration.reset.description'),
 	shellIntegrationTitle: message('terminal.settings.shellIntegration.title'),
 	searchPlaceholder: message('terminal.settings.search.placeholder'),
-	scrollbackBytesBusyWarning: message('terminal.settings.terminal.scrollbackBytes.busyWarning'),
 	scrollbackBytesControlUnavailableWarning: message(
 		'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning',
 	),
 	scrollbackBytesDescription: message('terminal.settings.terminal.scrollbackBytes.description'),
 	scrollbackBytesFutureNotice: message('terminal.settings.terminal.scrollbackBytes.futureNotice'),
-	scrollbackBytesHostRejectedWarning: message(
-		'terminal.settings.terminal.scrollbackBytes.hostRejectedWarning',
-	),
 	scrollbackBytesInvalid: message(
 		'terminal.settings.terminal.scrollbackBytes.invalid',
 		'Validation shown when scrollback bytes are outside the supported inclusive range. minimum and maximum are numeric bounds.',
 	),
 	scrollbackBytesLabel: message('terminal.settings.terminal.scrollbackBytes.label'),
-	scrollbackBytesPersistenceInvalidWarning: message(
-		'terminal.settings.terminal.scrollbackBytes.persistenceInvalidWarning',
-	),
-	scrollbackBytesPersistenceReadWarning: message(
-		'terminal.settings.terminal.scrollbackBytes.persistenceReadWarning',
-	),
-	scrollbackBytesPersistenceWriteWarning: message(
-		'terminal.settings.terminal.scrollbackBytes.persistenceWriteWarning',
-	),
 	trimTrailingBlankRowsForAgentsDescription: message(
 		'terminal.settings.terminal.trimTrailingBlankRowsForAgents.description',
 	),

@@ -18,6 +18,7 @@ import {
 } from '../../../__tests__/server-workbench-snapshot';
 import { WebApplication } from '../../WebApplication';
 import { inertWorkbenchAuthority } from '../../../__tests__/inertWorkbenchAuthority';
+import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
 
 class TestResizeObserver {
 	public disconnect(): void {}
@@ -52,6 +53,7 @@ describe('useWebApplication', () => {
 		const terminalSettingsController = new TerminalSettingsController({
 			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: document.documentElement,
+			userPreferences: memoryUserPreferences(),
 		});
 		const initialFontSize = terminalSettingsController.getSnapshot().preferences.fontSize;
 		const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
@@ -142,6 +144,7 @@ describe('useWebApplication', () => {
 		const terminalSettingsController = new TerminalSettingsController({
 			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: document.documentElement,
+			userPreferences: memoryUserPreferences(),
 		});
 		const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 			platform: 'apple',
@@ -223,6 +226,7 @@ describe('useWebApplication', () => {
 		const terminalSettingsController = new TerminalSettingsController({
 			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: document.documentElement,
+			userPreferences: memoryUserPreferences(),
 		});
 		const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 			platform: 'apple',
@@ -394,7 +398,7 @@ function createApplicationLocaleController(): ApplicationLocaleController {
 	return new ApplicationLocaleController({
 		documentElement: document.documentElement,
 		preferredLocales: ['en-US'],
-		storage: { getItem: () => null, setItem: () => undefined },
+		userPreferences: memoryUserPreferences(),
 	});
 }
 

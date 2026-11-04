@@ -70,15 +70,6 @@ export function buildTerminalSettingsSurfaceMessages(
 		keyboardShortcutsCategory: formatMessage(keyboardShortcutMessages.category),
 		keyboardShortcutsDescription: formatMessage(keyboardShortcutMessages.description),
 		keyboardShortcutsTitle: formatMessage(keyboardShortcutMessages.title),
-		localePersistenceInvalidWarning: formatMessage(
-			terminalSettingsMessages.localePersistenceInvalidWarning,
-		),
-		localePersistenceReadWarning: formatMessage(
-			terminalSettingsMessages.localePersistenceReadWarning,
-		),
-		localePersistenceWriteWarning: formatMessage(
-			terminalSettingsMessages.localePersistenceWriteWarning,
-		),
 		macosInputCategory: formatMessage(terminalSettingsMessages.macosInputCategory),
 		macosInputDescription: formatMessage(terminalSettingsMessages.macosInputDescription),
 		macosInputTitle: formatMessage(terminalSettingsMessages.macosInputTitle),
@@ -119,7 +110,6 @@ export function buildTerminalSettingsSurfaceMessages(
 		reset: formatMessage(terminalSettingsMessages.reset),
 		resetDescription: formatMessage(terminalSettingsMessages.resetDescription),
 		searchPlaceholder: formatMessage(terminalSettingsMessages.searchPlaceholder),
-		scrollbackBytesBusyWarning: formatMessage(terminalSettingsMessages.scrollbackBytesBusyWarning),
 		scrollbackBytesControlUnavailableWarning: formatMessage(
 			terminalSettingsMessages.scrollbackBytesControlUnavailableWarning,
 		),
@@ -127,23 +117,11 @@ export function buildTerminalSettingsSurfaceMessages(
 		scrollbackBytesFutureNotice: formatMessage(
 			terminalSettingsMessages.scrollbackBytesFutureNotice,
 		),
-		scrollbackBytesHostRejectedWarning: formatMessage(
-			terminalSettingsMessages.scrollbackBytesHostRejectedWarning,
-		),
 		scrollbackBytesInvalid: formatMessage(terminalSettingsMessages.scrollbackBytesInvalid, {
 			maximum: 1_000_000_000,
 			minimum: 0,
 		}),
 		scrollbackBytesLabel: formatMessage(terminalSettingsMessages.scrollbackBytesLabel),
-		scrollbackBytesPersistenceInvalidWarning: formatMessage(
-			terminalSettingsMessages.scrollbackBytesPersistenceInvalidWarning,
-		),
-		scrollbackBytesPersistenceReadWarning: formatMessage(
-			terminalSettingsMessages.scrollbackBytesPersistenceReadWarning,
-		),
-		scrollbackBytesPersistenceWriteWarning: formatMessage(
-			terminalSettingsMessages.scrollbackBytesPersistenceWriteWarning,
-		),
 		trimTrailingBlankRowsForAgentsDescription: formatMessage(
 			terminalSettingsMessages.trimTrailingBlankRowsForAgentsDescription,
 		),

@@ -4,7 +4,7 @@ import { z } from 'zod';
 /** The Agents Settings lists every wire provider, in registry order. */
 export const AGENT_INTEGRATION_IDS = AGENT_INTEGRATION_PROVIDERS;
 
-export const AgentIntegrationIdSchema = z.enum(AGENT_INTEGRATION_IDS);
+const AgentIntegrationIdSchema = z.enum(AGENT_INTEGRATION_IDS);
 
 const AgentIntegrationAvailabilitySchema = z.enum(['available', 'not-found', 'unknown']);
 
@@ -44,13 +44,6 @@ const AgentIntegrationManagementSnapshotSchema = z.strictObject({
 					(integrationId, index) => integrations[index]?.integrationId === integrationId,
 				),
 			'Agent integrations must use canonical order',
-		),
-	launchedIntegrationIds: z
-		.array(AgentIntegrationIdSchema)
-		.max(AGENT_INTEGRATION_IDS.length)
-		.refine(
-			(integrationIds) => new Set(integrationIds).size === integrationIds.length,
-			'Agent integration launch observations must be unique',
 		),
 	revision: z.number().int().nonnegative(),
 });

@@ -9,4 +9,3 @@ export type {
 	AgentIntegrationSnapshotItem,
 } from './agent-integration-management-control';
 export { AGENT_INTEGRATION_NAME_MESSAGES } from './agent-integration-names';
-export { AgentIntegrationReminderController } from './AgentIntegrationReminderController';

@@ -2,10 +2,7 @@ import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import { Input, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import type {
-	AgentIntegrationManagementControl,
-	AgentIntegrationReminderController,
-} from '../agent-integration-management';
+import type { AgentIntegrationManagementControl } from '../agent-integration-management';
 import type { ApplicationLocaleController } from '../application-locale';
 import type { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
 import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
@@ -26,21 +23,17 @@ import { ShellIntegrationSettings } from './components/shell-integration-setting
 import { TerminalSettingsSections } from './components/terminal-settings-sections/TerminalSettingsSections';
 import { TerminalLaunchProfileSettings } from './components/terminal-launch-profile-settings/TerminalLaunchProfileSettings';
 import { useTerminalSettingsSurface } from './hooks/useTerminalSettingsSurface';
-import type { TerminalSettingsCategory } from './types/terminal-settings-surface';
 import styles from './TerminalSettingsSurface.module.css';
 import { SharedPreferenceStatus } from './components/shared-preference-status/SharedPreferenceStatus';
 
 export interface TerminalSettingsSurfaceProps {
 	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
-	readonly agentIntegrationReminderController?: AgentIntegrationReminderController | undefined;
 	readonly applicationLocaleController: ApplicationLocaleController;
 	readonly controller: TerminalSettingsController;
 	readonly keyboardShortcutController: KeyboardShortcutSettingsController;
 	readonly keyboardShortcutPlatform: KeyboardShortcutPlatform;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly onRequestClose: () => void;
-
-	readonly requestedCategory?: TerminalSettingsCategory | undefined;
 
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 	readonly terminalLaunchProfileClient?: TerminalLaunchProfileControl | undefined;
@@ -53,32 +46,26 @@ export interface TerminalSettingsSurfaceProps {
 export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): React.ReactNode {
 	const control = props.controller.userPreferences;
 	const resetRevision = React.useSyncExternalStore(
-		control?.subscribe ?? subscribeNoPreferences,
-		() => control?.getSnapshot().draftResetRevision ?? 0,
-		() => control?.getSnapshot().draftResetRevision ?? 0,
+		control.subscribe,
+		() => control.getSnapshot().draftResetRevision,
+		() => control.getSnapshot().draftResetRevision,
 	);
 	return (
 		<TerminalSettingsSurfaceContent
 			key={resetRevision}
 			agentIntegrationManagementControl={props.agentIntegrationManagementControl}
-			agentIntegrationReminderController={props.agentIntegrationReminderController}
 			applicationLocaleController={props.applicationLocaleController}
 			controller={props.controller}
 			keyboardShortcutController={props.keyboardShortcutController}
 			keyboardShortcutPlatform={props.keyboardShortcutPlatform}
 			macosTerminalInputSettingsController={props.macosTerminalInputSettingsController}
 			onRequestClose={props.onRequestClose}
-			requestedCategory={props.requestedCategory}
 			terminalFeedbackSettingsController={props.terminalFeedbackSettingsController}
 			terminalLaunchProfileClient={props.terminalLaunchProfileClient}
 			terminalDefaultSettingsControl={props.terminalDefaultSettingsControl}
 			terminalInteractionSettingsController={props.terminalInteractionSettingsController}
 		/>
 	);
-}
-
-function subscribeNoPreferences(): () => void {
-	return () => undefined;
 }
 
 function TerminalSettingsSurfaceContent(props: TerminalSettingsSurfaceProps): React.ReactNode {
@@ -98,12 +85,7 @@ function TerminalSettingsSurfaceContent(props: TerminalSettingsSurfaceProps): Re
 		view.category === 'agent-integrations' &&
 		props.agentIntegrationManagementControl !== undefined
 	) {
-		mainContent = (
-			<AgentIntegrationSettings
-				control={props.agentIntegrationManagementControl}
-				reminderController={props.agentIntegrationReminderController}
-			/>
-		);
+		mainContent = <AgentIntegrationSettings control={props.agentIntegrationManagementControl} />;
 	} else if (view.category === 'keyboard-shortcuts') {
 		mainContent = (
 			<KeyboardShortcutSettings
@@ -307,19 +289,12 @@ function TerminalSettingsSurfaceContent(props: TerminalSettingsSurfaceProps): Re
 								{view.pageTitle}
 							</h1>
 							<p className={styles['description']}>{view.pageDescription}</p>
-							{props.controller.userPreferences === undefined ? null : (
-								<SharedPreferenceStatus control={props.controller.userPreferences} />
-							)}
+							<SharedPreferenceStatus control={props.controller.userPreferences} />
 						</header>
 
 						{!appearancePreferenceCategory || view.persistenceWarning === null ? null : (
 							<div className={styles['warning']} role='alert'>
 								{view.persistenceWarning}
-							</div>
-						)}
-						{view.category !== 'general' || view.localePersistenceWarning === null ? null : (
-							<div className={styles['warning']} role='alert'>
-								{view.localePersistenceWarning}
 							</div>
 						)}
 						{view.category !== 'terminal' || view.terminalDefaultSettingsWarning === null ? null : (

@@ -134,7 +134,7 @@ const positiveCanonicalUint64TextSchema = CanonicalUint64TextSchema.refine(
 	'Value must be greater than zero',
 );
 
-export const TerminalConfigurationSchema = z.strictObject({
+const TerminalConfigurationSchema = z.strictObject({
 	scrollbackBytes: z.number().int().min(0).max(PROTOCOL_LIMITS.maxScrollbackBytes),
 });
 

@@ -14,6 +14,7 @@ import {
 } from '../../__tests__/server-workbench-snapshot';
 import { WebApplication } from '../WebApplication';
 import { inertWorkbenchAuthority } from '../../__tests__/inertWorkbenchAuthority';
+import { memoryUserPreferences } from '../../__tests__/memoryUserPreferences';
 
 describe('WebApplication', () => {
 	it('renders the Workbench before the Server holds any Workspace', () => {
@@ -24,6 +25,7 @@ describe('WebApplication', () => {
 		const terminalSettingsController = new TerminalSettingsController({
 			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: { dataset: {} },
+			userPreferences: memoryUserPreferences(),
 		});
 		const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 			platform: 'apple',
@@ -72,6 +74,6 @@ function createApplicationLocaleController(): ApplicationLocaleController {
 	return new ApplicationLocaleController({
 		documentElement: { dir: '', lang: '' },
 		preferredLocales: ['en-US'],
-		storage: { getItem: () => null, setItem: () => undefined },
+		userPreferences: memoryUserPreferences(),
 	});
 }

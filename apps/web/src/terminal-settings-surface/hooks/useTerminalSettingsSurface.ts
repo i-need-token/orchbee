@@ -1,5 +1,5 @@
 import { formatKeyboardShortcutChord } from '@orchbee/keyboard-shortcuts';
-import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
+import { useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
 import {
@@ -7,7 +7,6 @@ import {
 	useKeyboardShortcutSettings,
 	type KeyboardShortcutId,
 } from '../../keyboard-shortcuts';
-import { useApplicationLocale } from '../../application-locale';
 import { useTerminalInteractionSettings } from '../../terminal-interaction-settings';
 import type { TerminalDefaultSettingsClientSnapshot } from '../../terminal-default-settings-control';
 import { normalizeTerminalHexColor, useTerminalSettings } from '../../terminal-settings';
@@ -34,21 +33,15 @@ import {
 const UNAVAILABLE_TERMINAL_DEFAULT_SETTINGS_SNAPSHOT: TerminalDefaultSettingsClientSnapshot = {
 	configuration: { scrollbackBytes: 10_000_000 },
 	failureCode: 'control-unavailable',
-	pending: false,
-	persistenceIssue: null,
-	source: 'runtime',
 };
 
 export function useTerminalSettingsSurface({
 	agentIntegrationManagementControl,
-	applicationLocaleController,
 	controller,
 	keyboardShortcutController,
 	keyboardShortcutPlatform,
 	macosTerminalInputSettingsController,
 	onRequestClose,
-
-	requestedCategory,
 
 	terminalFeedbackSettingsController,
 	terminalDefaultSettingsControl,
@@ -56,7 +49,6 @@ export function useTerminalSettingsSurface({
 	terminalLaunchProfileClient,
 }: UseTerminalSettingsSurfaceOptions): TerminalSettingsSurfaceView {
 	const intl = useOrchbeeIntl();
-	const applicationLocaleSnapshot = useApplicationLocale(applicationLocaleController);
 	const snapshot = useTerminalSettings(controller);
 	const interactionSnapshot = useTerminalInteractionSettings(terminalInteractionSettingsController);
 	const unavailableTerminalDefaultSettingsSource = React.useMemo(
@@ -101,8 +93,6 @@ export function useTerminalSettingsSurface({
 	if (terminalFeedbackSettingsController !== undefined) {
 		availableCategories.add('shell-integration');
 	}
-	const requestedCategoryAvailable =
-		requestedCategory !== undefined && availableCategories.has(requestedCategory);
 	const inputReference = React.useRef<HTMLInputElement>(null);
 	const contentReference = React.useRef<HTMLElement>(null);
 	const [category, setCategory] = React.useState<TerminalSettingsCategory>('general');
@@ -162,22 +152,13 @@ export function useTerminalSettingsSurface({
 		setQuery('');
 		setActiveSearchResultIndex(0);
 		setPendingSearchTargetId(undefined);
-		setNavigationOpen(requestedCategory === undefined);
+		setNavigationOpen(true);
 		inputReference.current?.focus();
-	}, [requestedCategory, snapshot.open]);
+	}, [snapshot.open]);
 	React.useLayoutEffect(() => {
 		if (!snapshot.open || !navigationOpen) return;
 		inputReference.current?.focus();
 	}, [navigationOpen, snapshot.open]);
-
-	React.useLayoutEffect(() => {
-		if (!snapshot.open || requestedCategory === undefined) return;
-		setCategory(requestedCategoryAvailable ? requestedCategory : 'general');
-		setNavigationOpen(false);
-		setQuery('');
-		setActiveSearchResultIndex(0);
-		setPendingSearchTargetId(null);
-	}, [requestedCategory, requestedCategoryAvailable, snapshot.open]);
 
 	React.useEffect(() => {
 		if (pendingSearchTargetId === undefined) return;
@@ -317,9 +298,7 @@ export function useTerminalSettingsSurface({
 			return;
 		}
 		setScrollbackBytesInvalid(false);
-		scrollback.submit({ scrollbackBytes }, () => {
-			void terminalDefaultSettingsControl?.update({ scrollbackBytes });
-		});
+		scrollback.submit({ scrollbackBytes });
 	};
 	const commitForeground = (): void => {
 		const normalized = normalizeTerminalHexColor(foregroundDraft);
@@ -328,9 +307,7 @@ export function useTerminalSettingsSurface({
 			return;
 		}
 		setForegroundInvalid(false);
-		foreground.submit({ customForeground: normalized }, () => {
-			controller.update({ customForeground: normalized });
-		});
+		foreground.submit({ customForeground: normalized });
 	};
 	const commitBackground = (): void => {
 		const normalized = normalizeTerminalHexColor(backgroundDraft);
@@ -339,13 +316,10 @@ export function useTerminalSettingsSurface({
 			return;
 		}
 		setBackgroundInvalid(false);
-		background.submit({ customBackground: normalized }, () => {
-			controller.update({ customBackground: normalized });
-		});
+		background.submit({ customBackground: normalized });
 	};
 	let persistenceWarning: string | null = null;
-	const persistenceIssue = snapshot.persistenceIssue ?? interactionSnapshot.persistenceIssue;
-	switch (persistenceIssue) {
+	switch (snapshot.persistenceIssue) {
 		case 'invalid-record':
 			persistenceWarning = messages.persistenceInvalidWarning;
 			break;
@@ -356,59 +330,12 @@ export function useTerminalSettingsSurface({
 			persistenceWarning = messages.persistenceWriteWarning;
 			break;
 	}
-	let localePersistenceWarning: string | null = null;
-	switch (applicationLocaleSnapshot.persistenceIssue) {
-		case 'invalid-record':
-			localePersistenceWarning = messages.localePersistenceInvalidWarning;
-			break;
-		case 'read-failed':
-			localePersistenceWarning = messages.localePersistenceReadWarning;
-			break;
-		case 'write-failed':
-			localePersistenceWarning = messages.localePersistenceWriteWarning;
-			break;
-		case null:
-			break;
-	}
-	let terminalDefaultSettingsWarning: string | null = null;
-	if (terminalDefaultSettingsControl !== undefined) {
-		switch (terminalDefaultSettingsSnapshot.failureCode) {
-			case 'source-changed':
-				terminalDefaultSettingsWarning = intl.formatMessage(
-					terminalSettingsMessages.sharedConflict,
-				);
-				break;
-			case 'outcome-unknown':
-				terminalDefaultSettingsWarning = intl.formatMessage(terminalSettingsMessages.sharedUnknown);
-				break;
-			case 'write-failed':
-				terminalDefaultSettingsWarning = intl.formatMessage(terminalSettingsMessages.sharedFailed);
-				break;
-			case 'busy':
-				terminalDefaultSettingsWarning = messages.scrollbackBytesBusyWarning;
-				break;
-			case 'control-unavailable':
-				terminalDefaultSettingsWarning = messages.scrollbackBytesControlUnavailableWarning;
-				break;
-			case 'host-rejected':
-				terminalDefaultSettingsWarning = messages.scrollbackBytesHostRejectedWarning;
-				break;
-			case null:
-				switch (terminalDefaultSettingsSnapshot.persistenceIssue) {
-					case 'invalid-record':
-						terminalDefaultSettingsWarning = messages.scrollbackBytesPersistenceInvalidWarning;
-						break;
-					case 'read-failed':
-						terminalDefaultSettingsWarning = messages.scrollbackBytesPersistenceReadWarning;
-						break;
-					case 'write-failed':
-						terminalDefaultSettingsWarning = messages.scrollbackBytesPersistenceWriteWarning;
-						break;
-					case null:
-						break;
-				}
-		}
-	}
+	// Save failures show in the shared status; only a missing preference snapshot is reported here.
+	const terminalDefaultSettingsWarning =
+		terminalDefaultSettingsControl !== undefined &&
+		terminalDefaultSettingsSnapshot.failureCode === 'control-unavailable'
+			? messages.scrollbackBytesControlUnavailableWarning
+			: null;
 
 	return {
 		activeSearchResultId,
@@ -435,7 +362,6 @@ export function useTerminalSettingsSurface({
 		foregroundInvalid,
 		foregroundVisible,
 		inputReference,
-		localePersistenceWarning,
 		macosInputVisible,
 		messages,
 		navigationOpen,
@@ -458,9 +384,7 @@ export function useTerminalSettingsSurface({
 				return;
 			}
 			setBackgroundInvalid(false);
-			background.submit({ customBackground: normalized }, () => {
-				controller.update({ customBackground: normalized });
-			});
+			background.submit({ customBackground: normalized });
 		},
 		onBackgroundDraftChange: (event): void => background.change(event.currentTarget.value),
 		onBackgroundDraftKeyDown: (event): void => {
@@ -517,9 +441,7 @@ export function useTerminalSettingsSurface({
 				return;
 			}
 			setForegroundInvalid(false);
-			foreground.submit({ customForeground: normalized }, () => {
-				controller.update({ customForeground: normalized });
-			});
+			foreground.submit({ customForeground: normalized });
 		},
 		onForegroundDraftChange: (event): void => foreground.change(event.currentTarget.value),
 		onForegroundDraftKeyDown: (event): void => {
@@ -537,20 +459,15 @@ export function useTerminalSettingsSurface({
 		},
 		onRequestClose: (): void => onRequestClose(),
 		onReset: (): void => {
-			if (controller.userPreferences !== undefined) {
-				controller.resetHostAppearance();
-				void controller.userPreferences.reset([
-					'applicationTheme',
-					'terminalDisplayTheme',
-					'customForeground',
-					'customBackground',
-					'copyOnSelect',
-					'trimTrailingBlankRowsForAgents',
-				]);
-				return;
-			}
-			controller.reset();
-			terminalInteractionSettingsController?.reset();
+			controller.resetHostAppearance();
+			void controller.userPreferences.reset([
+				'applicationTheme',
+				'terminalDisplayTheme',
+				'customForeground',
+				'customBackground',
+				'copyOnSelect',
+				'trimTrailingBlankRowsForAgents',
+			]);
 		},
 		onSearchChange: (event): void => {
 			setQuery(event.currentTarget.value);
@@ -629,7 +546,6 @@ export function useTerminalSettingsSurface({
 		searchResultsId: TERMINAL_SETTINGS_SEARCH_RESULTS_ID,
 		scrollbackBytesDraft,
 		scrollbackBytesInvalid,
-		scrollbackBytesPending: terminalDefaultSettingsSnapshot.pending,
 		scrollbackBytesVisible,
 		terminalDefaultSettingsWarning,
 		terminalPaddingDraft,

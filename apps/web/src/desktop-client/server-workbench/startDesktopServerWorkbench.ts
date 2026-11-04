@@ -23,7 +23,6 @@ import { createMemoryHistory } from '@tanstack/react-router';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
-import { AgentIntegrationReminderController } from '../../agent-integration-management';
 import { ApplicationLocaleController } from '../../application-locale';
 import { createWebApplicationRouting, type WebApplicationRouting } from '../../application-routing';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
@@ -189,9 +188,9 @@ async function run(
 	const applicationLocaleController = new ApplicationLocaleController({
 		documentElement,
 		preferredLocales,
-		storage: storage.preferences,
 		userPreferences,
 	});
+	// Shortcut overrides and Option-as-Alt are this device's own, so browser storage keeps them.
 	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 		platform: shortcutPlatform,
 		storage: storage.preferences,
@@ -201,6 +200,7 @@ async function run(
 			? new MacosTerminalInputSettingsController(storage.preferences)
 			: undefined;
 	const systemTheme = targetWindow.matchMedia('(prefers-color-scheme: dark)');
+	// Browser storage holds only the seven host appearance leaves; the Session holds the rest.
 	const terminalSettingsController = new TerminalSettingsController({
 		storage: storage.preferences,
 		systemTheme,
@@ -208,21 +208,15 @@ async function run(
 		userPreferences,
 	});
 	const terminalInteractionSettingsController = new TerminalInteractionSettingsController(
-		storage.preferences,
 		userPreferences,
 	);
 	const terminalFeedbackSettingsController = new TerminalFeedbackSettingsController({
 		notificationCapability: createBrowserTerminalNotificationCapability(targetWindow),
-		storage: storage.preferences,
 		userPreferences,
 	});
 	const agentIntegrationManagementClient = new ServerAgentIntegrationClient(
 		connection,
 		session.snapshot.sessionId,
-	);
-	// Settings still records dismissals; a reminder waits until this path observes Agent launches.
-	const agentIntegrationReminderController = new AgentIntegrationReminderController(
-		storage.preferences,
 	);
 
 	let routing: WebApplicationRouting | undefined;
@@ -256,7 +250,6 @@ async function run(
 					() => terminalFeedbackSettingsController.dispose(),
 					() => macosTerminalInputSettingsController?.dispose(),
 					() => applicationLocaleController.dispose(),
-					() => agentIntegrationReminderController.dispose(),
 					() => agentIntegrationManagementClient.dispose(),
 					() => terminalLaunchProfileClient.dispose(),
 					() => terminalDefaultSettingsClient.dispose(),
@@ -301,7 +294,6 @@ async function run(
 		{
 			actionRuntime: runtime.actionRuntime,
 			agentIntegrationManagementControl: agentIntegrationManagementClient,
-			agentIntegrationReminderController,
 			agentObservationSource: runtime.agentObservationSource,
 			applicationLocaleController,
 			authority: runtime.authority,

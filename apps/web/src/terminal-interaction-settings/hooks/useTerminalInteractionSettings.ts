@@ -7,7 +7,6 @@ import {
 } from '../model';
 
 const DEFAULT_SNAPSHOT: TerminalInteractionSettingsSnapshot = Object.freeze({
-	persistenceIssue: null,
 	preferences: DEFAULT_TERMINAL_INTERACTION_PREFERENCES,
 });
 export function useTerminalInteractionSettings(

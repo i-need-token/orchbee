@@ -77,8 +77,7 @@ const POLL_CEILING_MILLISECONDS = 250;
 /**
  * Agent integrations through the Session's Server, which runs each operation as a job on the
  * Worker, the node-local writer the CLI also uses. As the Desktop process did, rows stay uninspected
- * until Refresh, and the Worker alone decides whether a change may proceed. Agent launches are not
- * observed on this path yet, so no launch reminder is offered.
+ * until Refresh, and the Worker alone decides whether a change may proceed.
  */
 export class ServerAgentIntegrationClient implements AgentIntegrationManagementControl {
 	readonly #connection: Pick<ServerConnection, 'ended' | 'exchange'>;
@@ -96,7 +95,6 @@ export class ServerAgentIntegrationClient implements AgentIntegrationManagementC
 			managementMode: 'managed-local',
 			state: 'unknown',
 		})),
-		launchedIntegrationIds: [],
 		pending: false,
 		pendingIntegrationId: null,
 		revision: 0,
@@ -276,7 +274,6 @@ export class ServerAgentIntegrationClient implements AgentIntegrationManagementC
 	#protocolSnapshot(): AgentIntegrationManagementSnapshot {
 		return {
 			integrations: this.#snapshot.integrations,
-			launchedIntegrationIds: [...this.#snapshot.launchedIntegrationIds],
 			revision: this.#snapshot.revision,
 		};
 	}

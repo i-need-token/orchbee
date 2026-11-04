@@ -3,12 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_TERMINAL_APPEARANCE_PREFERENCES } from '../terminal-appearance-preferences';
 import {
 	normalizeTerminalAppearancePreferences,
-	readTerminalAppearancePreferences,
-	writeTerminalAppearancePreferences,
+	readHostAppearancePreferences,
+	writeHostAppearancePreferences,
 	type TerminalAppearanceStorage,
 } from '../terminal-appearance-preferences-storage';
 
-const EXPECTED_STORAGE_KEY = 'orchbee:web:terminal-appearance:v1';
+const EXPECTED_STORAGE_KEY = 'orchbee:web:terminal-host-appearance:v1';
 
 interface StorageFixture extends TerminalAppearanceStorage {
 	readonly getItem: ReturnType<typeof vi.fn<TerminalAppearanceStorage['getItem']>>;
@@ -49,27 +49,6 @@ describe('terminal appearance preference storage', () => {
 		).toBeNull();
 	});
 
-	it('rejects the old incomplete appearance record without rewriting it', () => {
-		const storage = createStorage(
-			JSON.stringify({
-				applicationTheme: 'dark',
-				backgroundOpacityPercent: 80,
-				customBackground: '#abcdef',
-				customForeground: '#123456',
-				fontFamily: 'Example Mono',
-				fontSize: 16,
-				terminalDisplayTheme: 'custom',
-			}),
-		);
-		expect(readTerminalAppearancePreferences(storage)).toEqual({
-			issue: 'invalid-record',
-			preferences: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
-		});
-		expect(storage.getItem).toHaveBeenCalledOnce();
-		expect(storage.getItem).toHaveBeenCalledWith(EXPECTED_STORAGE_KEY);
-		expect(storage.setItem).not.toHaveBeenCalled();
-	});
-
 	it('uses the complete default when a record is malformed or storage cannot be read', () => {
 		const malformed = createStorage('{');
 		const throwing = createStorage(null);
@@ -77,36 +56,36 @@ describe('terminal appearance preference storage', () => {
 			throw new Error('injected read failure');
 		});
 
-		expect(readTerminalAppearancePreferences(malformed)).toEqual({
+		expect(readHostAppearancePreferences(malformed)).toEqual({
 			issue: 'invalid-record',
 			preferences: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 		});
-		expect(readTerminalAppearancePreferences(throwing)).toEqual({
+		expect(readHostAppearancePreferences(throwing)).toEqual({
 			issue: 'read-failed',
 			preferences: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 		});
 	});
 
-	it('reads a valid persisted record and writes its full current replacement once', () => {
-		const storage = createStorage(
-			JSON.stringify({
-				...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
-				applicationTheme: 'dark',
-			}),
-		);
+	it('reads a valid host record and writes only the host leaves once', () => {
+		const {
+			applicationTheme: _applicationTheme,
+			terminalDisplayTheme: _terminalDisplayTheme,
+			customForeground: _customForeground,
+			customBackground: _customBackground,
+			...host
+		} = DEFAULT_TERMINAL_APPEARANCE_PREFERENCES;
+		const storage = createStorage(JSON.stringify({ ...host, fontSize: 16 }));
 
-		expect(readTerminalAppearancePreferences(storage)).toMatchObject({
+		expect(readHostAppearancePreferences(storage)).toMatchObject({
 			issue: null,
-			preferences: { applicationTheme: 'dark' },
+			preferences: { fontSize: 16 },
 		});
-		expect(
-			writeTerminalAppearancePreferences(storage, DEFAULT_TERMINAL_APPEARANCE_PREFERENCES),
-		).toBe(true);
-		expect(storage.setItem).toHaveBeenCalledOnce();
-		expect(storage.setItem).toHaveBeenCalledWith(
-			EXPECTED_STORAGE_KEY,
-			JSON.stringify(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES),
+		expect(writeHostAppearancePreferences(storage, DEFAULT_TERMINAL_APPEARANCE_PREFERENCES)).toBe(
+			true,
 		);
+		expect(storage.setItem).toHaveBeenCalledOnce();
+		expect(storage.setItem).toHaveBeenCalledWith(EXPECTED_STORAGE_KEY, expect.any(String));
+		expect(JSON.parse(storage.setItem.mock.calls[0]?.[1] ?? '')).toEqual(host);
 	});
 
 	it('reports a failed write without throwing the user-visible preference transition away', () => {
@@ -115,18 +94,15 @@ describe('terminal appearance preference storage', () => {
 			throw new Error('injected write failure');
 		});
 
-		expect(
-			writeTerminalAppearancePreferences(storage, DEFAULT_TERMINAL_APPEARANCE_PREFERENCES),
-		).toBe(false);
+		expect(writeHostAppearancePreferences(storage, DEFAULT_TERMINAL_APPEARANCE_PREFERENCES)).toBe(
+			false,
+		);
 	});
 });
 
-function createStorage(
-	serialized: string | null,
-	overrides: Readonly<Record<string, string | null>> = {},
-): StorageFixture {
+function createStorage(serialized: string | null): StorageFixture {
 	return {
-		getItem: vi.fn<TerminalAppearanceStorage['getItem']>((key) => overrides[key] ?? serialized),
+		getItem: vi.fn<TerminalAppearanceStorage['getItem']>(() => serialized),
 		setItem: vi.fn<TerminalAppearanceStorage['setItem']>(() => undefined),
 	};
 }

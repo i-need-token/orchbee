@@ -8,7 +8,6 @@ import {
 	type TerminalAppearancePreferences,
 } from './terminal-appearance-preferences';
 
-const TERMINAL_APPEARANCE_STORAGE_KEY = 'orchbee:web:terminal-appearance:v1';
 const HOST_APPEARANCE_STORAGE_KEY = 'orchbee:web:terminal-host-appearance:v1';
 
 export type TerminalAppearancePersistenceIssue = 'invalid-record' | 'read-failed' | 'write-failed';
@@ -55,15 +54,20 @@ const hostAppearanceSchema = terminalAppearancePreferencesSchema.omit({
 export function readHostAppearancePreferences(
 	storage: TerminalAppearanceStorage,
 ): TerminalAppearanceStorageReadResult {
+	let serialized: string | null;
 	try {
-		const serialized = storage.getItem(HOST_APPEARANCE_STORAGE_KEY);
-		if (serialized === null) return defaultReadResult(null);
+		serialized = storage.getItem(HOST_APPEARANCE_STORAGE_KEY);
+	} catch {
+		return defaultReadResult('read-failed');
+	}
+	if (serialized === null) return defaultReadResult(null);
+	try {
 		const parsed = hostAppearanceSchema.safeParse(JSON.parse(serialized));
 		return parsed.success
 			? { issue: null, preferences: { ...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES, ...parsed.data } }
 			: defaultReadResult('invalid-record');
 	} catch {
-		return defaultReadResult('read-failed');
+		return defaultReadResult('invalid-record');
 	}
 }
 
@@ -91,38 +95,6 @@ export function normalizeTerminalAppearancePreferences(
 ): TerminalAppearancePreferences | null {
 	const result = terminalAppearancePreferencesSchema.safeParse(input);
 	return result.success ? Object.freeze(result.data) : null;
-}
-
-export function readTerminalAppearancePreferences(
-	storage: TerminalAppearanceStorage,
-): TerminalAppearanceStorageReadResult {
-	let serialized: string | null;
-	try {
-		serialized = storage.getItem(TERMINAL_APPEARANCE_STORAGE_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (serialized === null) return defaultReadResult(null);
-	try {
-		const result = terminalAppearancePreferencesSchema.safeParse(JSON.parse(serialized));
-		return result.success
-			? { issue: null, preferences: Object.freeze(result.data) }
-			: defaultReadResult('invalid-record');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-export function writeTerminalAppearancePreferences(
-	storage: TerminalAppearanceStorage,
-	preferences: TerminalAppearancePreferences,
-): boolean {
-	try {
-		storage.setItem(TERMINAL_APPEARANCE_STORAGE_KEY, JSON.stringify(preferences));
-		return true;
-	} catch {
-		return false;
-	}
 }
 
 function defaultReadResult(

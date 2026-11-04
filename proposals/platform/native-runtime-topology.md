@@ -1897,6 +1897,15 @@ beside the Server path. These choices stand unless review changes them:
 - **Tests and stories start from Server snapshots.** One shared fixture builds snapshots that the
   protocol parser accepts and projects them with the production projection, so client tests do not
   depend on a model the window no longer has.
+- **The Agent integration reminder is deleted.** Its trigger, the old Desktop Main's observation of
+  Agent launches, is gone, and the TUI offers no reminder, so keeping one in the window alone would
+  split the Clients. Its dismissal record, storage key, copy, and Settings hooks went with it. A
+  future launch reminder would be designed for both Clients together.
+- **Settings stores common values only through the Session.** The locale, appearance,
+  interaction, and feedback controllers require the Session's preferences, and their browser
+  records and storage keys are retired without reading or deleting old data. Browser storage keeps
+  only this device's values: the seven host appearance leaves, macOS Option-as-Alt, keyboard
+  shortcut overrides, layout widths, and focus recovery.
 
 Not done yet: dropping the shared-document intermediate so snapshots project straight into the view
 model, and settling the standalone terminal context, whose routes and location kind remain.

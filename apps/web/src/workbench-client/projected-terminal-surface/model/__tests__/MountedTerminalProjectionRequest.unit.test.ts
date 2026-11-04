@@ -15,6 +15,7 @@ import {
 } from '../../../../terminal-settings';
 import type { TerminalProjection, TerminalProjectionClient } from '../../../terminal-projection';
 import { MountedTerminalProjectionRequest } from '../MountedTerminalProjectionRequest';
+import { memoryUserPreferences } from '../../../../__tests__/memoryUserPreferences';
 
 const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
 
@@ -27,6 +28,7 @@ describe('MountedTerminalProjectionRequest', () => {
 		const settings = new TerminalSettingsController({
 			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: document.documentElement,
+			userPreferences: memoryUserPreferences(),
 		});
 		const request = new MountedTerminalProjectionRequest(
 			document.createElement('div'),
@@ -50,12 +52,14 @@ describe('MountedTerminalProjectionRequest', () => {
 		const unregister = pinned.registerThemeParticipant({ prepareThemePresentation: prepare });
 		prepare.mockClear();
 		settings.update({ terminalDisplayTheme: 'custom', customBackground: '#223344' });
+		await Promise.resolve();
 		expect(prepare).toHaveBeenCalledWith(
 			expect.objectContaining({ terminalDisplayTheme: 'custom', customBackground: '#223344' }),
 		);
 		unregister();
 		prepare.mockClear();
 		settings.update({ terminalDisplayTheme: 'dark' });
+		await Promise.resolve();
 		expect(prepare).not.toHaveBeenCalled();
 		request.release();
 		settings.dispose();

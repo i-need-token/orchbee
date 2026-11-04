@@ -66,7 +66,6 @@ interface ResetSettingsView {
 
 interface ShellIntegrationSettingsView {
 	readonly notification: NotificationSettingsView;
-	readonly persistenceWarning: string | null;
 	readonly reminder: ReminderSettingsView;
 	readonly reset: ResetSettingsView;
 }
@@ -152,18 +151,6 @@ export function useShellIntegrationSettings(
 				);
 		}
 	})();
-	const persistenceWarning = (() => {
-		switch (snapshot.persistenceIssue) {
-			case 'invalid-record':
-				return intl.formatMessage(terminalSettingsMessages.persistenceInvalidWarning);
-			case 'read-failed':
-				return intl.formatMessage(terminalSettingsMessages.persistenceReadWarning);
-			case 'write-failed':
-				return intl.formatMessage(terminalSettingsMessages.persistenceWriteWarning);
-			case null:
-				return null;
-		}
-	})();
 	const commitMinimum = (): void => {
 		const seconds = Number(minimumDraft);
 		if (
@@ -175,9 +162,7 @@ export function useShellIntegrationSettings(
 			return;
 		}
 		setMinimumInvalid(false);
-		minimum.submit({ completionReminderMinimumSeconds: seconds }, () => {
-			controller.update({ completionReminderMinimumSeconds: seconds });
-		});
+		minimum.submit({ completionReminderMinimumSeconds: seconds });
 	};
 	const onMinimumChange: ChangeEventHandler<HTMLInputElement> = (event) =>
 		minimum.change(event.currentTarget.value);
@@ -259,7 +244,6 @@ export function useShellIntegrationSettings(
 
 	return {
 		notification,
-		persistenceWarning,
 		reminder,
 		reset,
 	};

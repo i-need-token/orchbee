@@ -21,6 +21,7 @@ import type {
 	TerminalDefaultSettingsClientSnapshot,
 	TerminalDefaultSettingsControl,
 } from '../../terminal-default-settings-control';
+import { memoryUserPreferences } from '../../__tests__/memoryUserPreferences';
 
 type TerminalAppearanceStorage = ConstructorParameters<
 	typeof TerminalSettingsController
@@ -101,6 +102,7 @@ describe('TerminalSettingsSurface', () => {
 			new TerminalSettingsController({
 				storage,
 				themeTarget: document.documentElement,
+				userPreferences: memoryUserPreferences(),
 			}),
 		);
 		const keyboardShortcutController = trackDisposable(
@@ -221,7 +223,11 @@ describe('TerminalSettingsSurface', () => {
 		expect(presentationListener).not.toHaveBeenCalled();
 		expect(controller.current().defaultColorOverride).toBeNull();
 		expect(document.documentElement.dataset['theme']).toBe('dark');
-		expect(storage.setItem).toHaveBeenCalledTimes(2);
+		expect(controller.userPreferences.getSnapshot().snapshot?.values).toMatchObject({
+			applicationTheme: 'dark',
+			terminalDisplayTheme: 'dark',
+		});
+		expect(storage.setItem).not.toHaveBeenCalled();
 
 		await act(async () =>
 			requiredElement<HTMLButtonElement>(
@@ -261,17 +267,19 @@ describe('TerminalSettingsSurface', () => {
 		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
 		const storage = memoryStorage();
+		const userPreferences = memoryUserPreferences();
 		const applicationLocaleController = trackDisposable(
 			new ApplicationLocaleController({
 				documentElement: document.documentElement,
 				preferredLocales: ['zh-CN'],
-				storage,
+				userPreferences,
 			}),
 		);
 		const controller = trackDisposable(
 			new TerminalSettingsController({
 				storage,
 				themeTarget: document.documentElement,
+				userPreferences: memoryUserPreferences(),
 			}),
 		);
 		const keyboardShortcutController = trackDisposable(
@@ -315,10 +323,7 @@ describe('TerminalSettingsSurface', () => {
 		expect(document.documentElement.lang).toBe('en-US');
 		expect(container.querySelector("select[aria-label='Display language']")).not.toBeNull();
 		expect(container.textContent).toContain('Settings');
-		expect(storage.setItem).toHaveBeenCalledWith(
-			'orchbee:web:locale-preference:v1',
-			'{"locale":"en-US"}',
-		);
+		expect(userPreferences.getSnapshot().snapshot?.values.locale).toBe('en-US');
 	});
 
 	it('supports deterministic result selection, destination focus, and layered Escape', async () => {
@@ -329,6 +334,7 @@ describe('TerminalSettingsSurface', () => {
 			new TerminalSettingsController({
 				storage,
 				themeTarget: document.documentElement,
+				userPreferences: memoryUserPreferences(),
 			}),
 		);
 		const keyboardShortcutController = trackDisposable(
@@ -419,10 +425,11 @@ describe('TerminalSettingsSurface', () => {
 			new TerminalSettingsController({
 				storage,
 				themeTarget: document.documentElement,
+				userPreferences: memoryUserPreferences(),
 			}),
 		);
 		const interactionController = trackDisposable(
-			new TerminalInteractionSettingsController(storage),
+			new TerminalInteractionSettingsController(controller.userPreferences),
 		);
 		const interactionListener = vi.fn<(configuration: TerminalInteractionConfiguration) => void>();
 		interactionController.subscribe(interactionListener);
@@ -523,7 +530,7 @@ describe('TerminalSettingsSurface', () => {
 		expect(interactionListener).toHaveBeenCalledWith({ copyOnSelect: false });
 	});
 
-	it('commits Desktop scrollback defaults for future terminals and keeps failures visible', async () => {
+	it('saves the scrollback default for future terminals to the shared preferences', async () => {
 		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
 		const storage = memoryStorage();
@@ -531,6 +538,7 @@ describe('TerminalSettingsSurface', () => {
 			new TerminalSettingsController({
 				storage,
 				themeTarget: document.documentElement,
+				userPreferences: memoryUserPreferences(),
 			}),
 		);
 		const keyboardShortcutController = trackDisposable(
@@ -539,7 +547,6 @@ describe('TerminalSettingsSurface', () => {
 				storage,
 			}),
 		);
-		const terminalDefaults = createTerminalDefaultSettingsControl();
 		controller.open();
 		const root = trackRoot(createRoot(container));
 		await act(async () => {
@@ -553,7 +560,7 @@ describe('TerminalSettingsSurface', () => {
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
 						onRequestClose: () => undefined,
-						terminalDefaultSettingsControl: terminalDefaults.control,
+						terminalDefaultSettingsControl: createTerminalDefaultSettingsControl(),
 					}),
 				),
 			);
@@ -577,7 +584,9 @@ describe('TerminalSettingsSurface', () => {
 			scrollback.blur();
 		});
 		expect(scrollback.getAttribute('aria-invalid')).toBe('true');
-		expect(terminalDefaults.update).not.toHaveBeenCalled();
+		expect(controller.userPreferences.getSnapshot().snapshot?.values.scrollbackBytes).toBe(
+			10_000_000,
+		);
 
 		await act(async () => {
 			scrollback.focus();
@@ -585,9 +594,8 @@ describe('TerminalSettingsSurface', () => {
 			scrollback.dispatchEvent(new Event('input', { bubbles: true }));
 			scrollback.blur();
 		});
-		expect(terminalDefaults.update).toHaveBeenCalledWith({ scrollbackBytes: 25_000_000 });
-		expect(container.textContent).toContain(
-			'This scrollback value is active for this session, but could not be saved.',
+		expect(controller.userPreferences.getSnapshot().snapshot?.values.scrollbackBytes).toBe(
+			25_000_000,
 		);
 
 		const search = requiredElement<HTMLInputElement>(
@@ -611,6 +619,7 @@ describe('TerminalSettingsSurface', () => {
 			new TerminalSettingsController({
 				storage,
 				themeTarget: document.documentElement,
+				userPreferences: memoryUserPreferences(),
 			}),
 		);
 		const keyboardShortcutController = trackDisposable(
@@ -668,6 +677,7 @@ describe('TerminalSettingsSurface', () => {
 			new TerminalSettingsController({
 				storage,
 				themeTarget: document.documentElement,
+				userPreferences: memoryUserPreferences(),
 			}),
 		);
 		const keyboardShortcutController = trackDisposable(
@@ -723,6 +733,7 @@ describe('TerminalSettingsSurface', () => {
 			new TerminalSettingsController({
 				storage,
 				themeTarget: document.documentElement,
+				userPreferences: memoryUserPreferences(),
 			}),
 		);
 		const keyboardShortcutController = trackDisposable(
@@ -892,6 +903,7 @@ describe('TerminalSettingsSurface', () => {
 			new TerminalSettingsController({
 				storage,
 				themeTarget: document.documentElement,
+				userPreferences: memoryUserPreferences(),
 			}),
 		);
 		const keyboardShortcutController = trackDisposable(
@@ -989,6 +1001,7 @@ describe('TerminalSettingsSurface', () => {
 			new TerminalSettingsController({
 				storage,
 				themeTarget: document.documentElement,
+				userPreferences: memoryUserPreferences(),
 			}),
 		);
 		const keyboardShortcutController = trackDisposable(
@@ -1054,6 +1067,7 @@ describe('TerminalSettingsSurface', () => {
 			new TerminalSettingsController({
 				storage,
 				themeTarget: document.createElement('div'),
+				userPreferences: memoryUserPreferences(),
 			}),
 		);
 		const keyboardShortcutController = trackDisposable(
@@ -1136,7 +1150,7 @@ function createApplicationLocaleController(): ApplicationLocaleController {
 	return new ApplicationLocaleController({
 		documentElement: document.documentElement,
 		preferredLocales: ['en-US'],
-		storage: memoryStorage(),
+		userPreferences: memoryUserPreferences(),
 	});
 }
 
@@ -1150,40 +1164,12 @@ function memoryStorage(): {
 	};
 }
 
-function createTerminalDefaultSettingsControl(): {
-	readonly control: TerminalDefaultSettingsControl;
-	readonly update: ReturnType<typeof vi.fn<TerminalDefaultSettingsControl['update']>>;
-} {
-	let snapshot: TerminalDefaultSettingsClientSnapshot = {
+function createTerminalDefaultSettingsControl(): TerminalDefaultSettingsControl {
+	const snapshot: TerminalDefaultSettingsClientSnapshot = {
 		configuration: { scrollbackBytes: 10_000_000 },
 		failureCode: null,
-		pending: false,
-		persistenceIssue: null,
-		source: 'stored',
 	};
-	const listeners = new Set<() => void>();
-	const update = vi.fn<TerminalDefaultSettingsControl['update']>(async (configuration) => {
-		snapshot = {
-			configuration,
-			failureCode: null,
-			pending: false,
-			persistenceIssue: 'write-failed',
-			source: 'session',
-		};
-		for (const listener of listeners) listener();
-		return { kind: 'completed', snapshot };
-	});
-	return {
-		control: {
-			getSnapshot: () => snapshot,
-			subscribe: (listener) => {
-				listeners.add(listener);
-				return () => listeners.delete(listener);
-			},
-			update,
-		},
-		update,
-	};
+	return { getSnapshot: () => snapshot, subscribe: () => () => undefined };
 }
 
 function requiredElement<ElementType extends Element>(

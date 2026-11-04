@@ -49,7 +49,6 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 								}
 								aria-label={view.messages.scrollbackBytesLabel}
 								aria-invalid={view.scrollbackBytesInvalid}
-								disabled={view.scrollbackBytesPending}
 								max={1_000_000_000}
 								min={0}
 								type='number'

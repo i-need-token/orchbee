@@ -25,16 +25,6 @@ export const agentIntegrationMessages = defineMessages({
 	),
 	remoteDescription: message('agent.integrations.remoteDescription'),
 	remoteTitle: message('agent.integrations.remoteTitle'),
-	reminderBody: message(
-		'agent.integrations.reminder.body',
-		'In-product integration reminder. agent is a curated product name.',
-	),
-	reminderDismiss: message(
-		'agent.integrations.reminder.dismiss',
-		'Accessible dismissal label. agent is a curated product name.',
-	),
-	reminderOpenSettings: message('agent.integrations.reminder.openSettings'),
-	reminderTitle: message('agent.integrations.reminder.title'),
 	statusConflict: message('agent.integrations.status.conflict'),
 	statusDisabled: message('agent.integrations.status.disabled'),
 	statusEnabled: message('agent.integrations.status.enabled'),

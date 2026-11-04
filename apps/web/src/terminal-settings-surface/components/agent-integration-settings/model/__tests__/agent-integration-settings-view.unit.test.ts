@@ -1,14 +1,9 @@
 import { agentIntegrationMessages, type MessageDescriptor } from '@orchbee/i18n';
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
+import type { AgentIntegrationSnapshotItem } from '../../../../../agent-integration-management';
 import {
-	AgentIntegrationReminderController,
-	type AgentIntegrationManagementControl,
-	type AgentIntegrationSnapshotItem,
-} from '../../../../../agent-integration-management';
-import {
-	enableAgentIntegration,
 	resolveAgentIntegrationFailureMessage,
 	resolveAgentIntegrationStatusView,
 } from '../agent-integration-settings-view';
@@ -47,30 +42,5 @@ describe('Agent integration Settings view model', () => {
 		expect(resolveAgentIntegrationFailureMessage('verification-failed')).toBe(
 			agentIntegrationMessages.failureVerificationFailed,
 		);
-	});
-
-	it('restores a dismissed reminder only after Desktop verifies enablement', async () => {
-		const controller = new AgentIntegrationReminderController({
-			getItem: () => null,
-			setItem: () => undefined,
-		});
-		controller.dismiss('codex');
-		const enable = vi.fn<AgentIntegrationManagementControl['enable']>(async () => ({
-			kind: 'completed',
-			snapshot: { integrations: [], launchedIntegrationIds: [], revision: 1 },
-		}));
-		const control = {
-			disable: vi.fn<AgentIntegrationManagementControl['disable']>(),
-			enable,
-			getSnapshot: vi.fn<AgentIntegrationManagementControl['getSnapshot']>(),
-			refresh: vi.fn<AgentIntegrationManagementControl['refresh']>(),
-			subscribe: vi.fn<AgentIntegrationManagementControl['subscribe']>(),
-		} satisfies AgentIntegrationManagementControl;
-
-		await enableAgentIntegration(control, controller, 'codex');
-
-		expect(enable).toHaveBeenCalledWith('codex');
-		expect(controller.getSnapshot().dismissedIntegrationIds).toEqual([]);
-		controller.dispose();
 	});
 });

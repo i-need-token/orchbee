@@ -9,7 +9,6 @@ export function WorkbenchRoute(): ReactNode {
 		<WebApplication
 			actionRuntime={application.actionRuntime}
 			agentIntegrationManagementControl={application.agentIntegrationManagementControl}
-			agentIntegrationReminderController={application.agentIntegrationReminderController}
 			agentObservationSource={application.agentObservationSource}
 			applicationLocaleController={application.applicationLocaleController}
 			authority={application.authority}

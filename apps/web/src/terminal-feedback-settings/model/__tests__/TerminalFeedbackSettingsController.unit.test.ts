@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
 import {
 	TerminalFeedbackSettingsController,
 	type TerminalNotificationCapability,
@@ -13,20 +14,6 @@ function completion(
 	completedAtMilliseconds = BigInt(NOW),
 ) {
 	return { completedAtMilliseconds, durationMilliseconds, exitCode: 0, sequence };
-}
-
-function storage(initial: string | null = null): {
-	readonly values: Map<string, string>;
-	getItem(key: string): string | null;
-	setItem(key: string, value: string): void;
-} {
-	const values = new Map<string, string>();
-	if (initial !== null) values.set('orchbee:web:terminal-feedback:v1', initial);
-	return {
-		values,
-		getItem: (key) => values.get(key) ?? null,
-		setItem: (key, value) => values.set(key, value),
-	};
 }
 
 function notificationCapability(
@@ -47,75 +34,16 @@ function notificationCapability(
 }
 
 describe('TerminalFeedbackSettingsController', () => {
-	it('coalesces storage-reentrant updates without losing complete session preferences', () => {
-		let stored = '';
-		let writes = 0;
-		let nestedResult: unknown;
-		const controller = new TerminalFeedbackSettingsController({
-			notificationCapability: notificationCapability(),
-			storage: {
-				getItem: () => null,
-				setItem: (_key, value) => {
-					writes += 1;
-					if (writes === 1) {
-						nestedResult = controller.update({ completionReminderMinimumSeconds: 15 });
-						controller.update({ agentNotificationMode: 'hidden' });
-					}
-					stored = value;
-				},
-			},
-		});
-
-		expect(controller.update({ completionReminderMode: 'always' })).toEqual({
-			kind: 'applied-and-saved',
-		});
-		expect(controller.getSnapshot().preferences).toEqual({
-			agentNotificationMode: 'hidden',
-			completionReminderMinimumSeconds: 15,
-			completionReminderMode: 'always',
-			soundEnabled: false,
-		});
-		expect(nestedResult).toEqual({ kind: 'applied-session-only' });
-		expect(JSON.parse(stored)).toMatchObject(controller.getSnapshot().preferences);
-		expect(writes).toBe(2);
-	});
-
-	it('drops a queued preference write when storage retires the controller', () => {
-		let writes = 0;
-		let retiredSnapshot: unknown;
-		const controller = new TerminalFeedbackSettingsController({
-			notificationCapability: notificationCapability(),
-			storage: {
-				getItem: () => null,
-				setItem: () => {
-					writes += 1;
-					if (writes > 1) return;
-					controller.update({ completionReminderMinimumSeconds: 15 });
-					controller.dispose();
-					retiredSnapshot = controller.getSnapshot();
-				},
-			},
-		});
-		const listener = vi.fn<() => void>();
-		controller.subscribe(listener);
-
-		expect(controller.update({ completionReminderMode: 'always' })).toEqual({ kind: 'disposed' });
-		expect(writes).toBe(1);
-		expect(controller.getSnapshot()).toBe(retiredSnapshot);
-		expect(listener).not.toHaveBeenCalled();
-	});
-
 	it('starts off and never asks for notification permission from terminal output', () => {
 		const notifications = notificationCapability('prompt');
 		const controller = new TerminalFeedbackSettingsController({
 			clock: () => NOW,
 			notificationCapability: notifications,
-			storage: storage(),
+			userPreferences: memoryUserPreferences(),
 		});
 
 		expect(controller.getSnapshot()).toEqual({
 			notificationPermission: 'prompt',
-			persistenceIssue: null,
 			preferences: {
 				soundEnabled: false,
 				agentNotificationMode: 'never',
@@ -135,16 +63,15 @@ describe('TerminalFeedbackSettingsController', () => {
 		expect(notifications.show).not.toHaveBeenCalled();
 	});
 
-	it('deduplicates completion sequences and rate limits only the system effect', () => {
+	it('deduplicates completion sequences and rate limits only the system effect', async () => {
 		const notifications = notificationCapability();
 		const controller = new TerminalFeedbackSettingsController({
 			clock: () => NOW,
 			notificationCapability: notifications,
-			storage: storage(),
+			userPreferences: memoryUserPreferences(),
 		});
-		expect(controller.update({ completionReminderMode: 'always' })).toEqual({
-			kind: 'applied-and-saved',
-		});
+		expect(controller.update({ completionReminderMode: 'always' })).toEqual({ kind: 'pending' });
+		await Promise.resolve();
 		const observation = {
 			completion: completion(1n),
 			focused: true,
@@ -178,9 +105,8 @@ describe('TerminalFeedbackSettingsController', () => {
 		const controller = new TerminalFeedbackSettingsController({
 			clock: () => NOW,
 			notificationCapability: notifications,
-			storage: storage(),
+			userPreferences: memoryUserPreferences({ completionReminderMode: 'unfocused' }),
 		});
-		controller.update({ completionReminderMode: 'unfocused' });
 		const base = {
 			focused: false,
 			notification: { body: 'safe', tag: 'terminal', title: 'completed' },
@@ -228,7 +154,7 @@ describe('TerminalFeedbackSettingsController', () => {
 		);
 		const controller = new TerminalFeedbackSettingsController({
 			notificationCapability: notifications,
-			storage: storage(),
+			userPreferences: memoryUserPreferences(),
 		});
 		const request = controller.requestNotificationPermission();
 		expect(notifications.requestPermission).toHaveBeenCalledOnce();
@@ -238,11 +164,11 @@ describe('TerminalFeedbackSettingsController', () => {
 		expect(controller.getSnapshot().notificationPermission).toBe('prompt');
 	});
 
-	it('notifies once per exact Agent state without requesting permission', () => {
+	it('notifies once per exact Agent state without requesting permission', async () => {
 		const notifications = notificationCapability('granted');
 		const controller = new TerminalFeedbackSettingsController({
 			notificationCapability: notifications,
-			storage: storage(),
+			userPreferences: memoryUserPreferences(),
 		});
 		const notification = {
 			key: 'presentation-1:binding-1:3',
@@ -259,6 +185,7 @@ describe('TerminalFeedbackSettingsController', () => {
 			reason: 'turned-off',
 		});
 		controller.update({ agentNotificationMode: 'hidden' });
+		await Promise.resolve();
 		expect(controller.observeAgentNotification({ ...notification, key: 'next' })).toEqual({
 			kind: 'notify',
 			notification: 'shown',
@@ -276,9 +203,8 @@ describe('TerminalFeedbackSettingsController', () => {
 		const notifications = notificationCapability('prompt');
 		const controller = new TerminalFeedbackSettingsController({
 			notificationCapability: notifications,
-			storage: storage(),
+			userPreferences: memoryUserPreferences({ agentNotificationMode: 'hidden' }),
 		});
-		controller.update({ agentNotificationMode: 'hidden' });
 
 		expect(
 			controller.observeAgentNotification({
@@ -293,24 +219,5 @@ describe('TerminalFeedbackSettingsController', () => {
 		).toEqual({ kind: 'notify', notification: 'unavailable' });
 		expect(notifications.requestPermission).not.toHaveBeenCalled();
 		expect(notifications.show).not.toHaveBeenCalled();
-	});
-
-	it('rejects invalid saved data and keeps valid updates session-only after a write failure', () => {
-		const brokenStorage = storage('{"completionReminderMode":"always","extra":true}');
-		brokenStorage.setItem = () => {
-			throw new Error('unavailable');
-		};
-		const controller = new TerminalFeedbackSettingsController({
-			notificationCapability: notificationCapability('unsupported'),
-			storage: brokenStorage,
-		});
-		expect(controller.getSnapshot().persistenceIssue).toBe('invalid-record');
-		expect(controller.update({ completionReminderMode: 'always' })).toEqual({
-			kind: 'applied-session-only',
-		});
-		expect(controller.getSnapshot().persistenceIssue).toBe('write-failed');
-		expect(controller.update({ completionReminderMinimumSeconds: 0 })).toEqual({
-			kind: 'invalid',
-		});
 	});
 });
