@@ -1087,8 +1087,14 @@ struct CreateMarker {
 struct RefreshMarker { refresh_generation: u64 }
 ```
 
-Input admission remains byte-bounded inside the same eight-record FIFO. After the ordinary
-closed, bootstrap, close-flight and focused-pane gates pass, a new Input may append under the
+Input admission remains byte-bounded inside the same eight-record FIFO. An admitted Tab close
+refuses Input and viewport steps only for panes of the Tab it names, from the queued exchange
+through its status reads to the membership reconciliation that follows; Input and viewport steps
+for any other Tab queue behind the close records and reach the worker in order once those leases
+finish, so typing into the focused pane survives a background close. The UI refuses the close
+target's own focused pane before the mailbox while the close holds an operation. Polls, Resizes
+and selection records still wait until no close step is outstanding. After the ordinary closed,
+bootstrap, close-target and focused-pane gates pass, a new Input may append under the
 mailbox mutex only to the queued tail Input for the exact same `PaneRef` (including incarnation),
 with no retry deferral and a combined payload of at most 4096 bytes. It never mutates the active
 worker lease. The append preserves the tail record serial, so `try_enqueue` returns a queue-record

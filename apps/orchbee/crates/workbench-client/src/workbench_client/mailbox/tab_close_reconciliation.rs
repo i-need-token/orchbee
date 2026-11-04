@@ -3,11 +3,11 @@
 //! membership or infer attachment cleanup from the close record alone.
 
 use super::{
-    COMMAND_CAPACITY, CloseAdmissionError, CloseLeaseAcknowledgement, CloseReconciliationMarker,
-    CommandMailbox, EventDeadline, EventError, Instant, MailboxClock, MailboxClosed, MailboxState,
-    MutationResult, PaneKey, PendingRefreshStage, QueuedCommand, QueuedRecord, RefreshDecision,
-    RefreshSettlement, UiCorrelation, UiWaitKey, WorkbenchSnapshotOutcome, WorkerEvent,
-    workbench_identity_candidate,
+    AttachmentKey, COMMAND_CAPACITY, CloseAdmissionError, CloseLeaseAcknowledgement,
+    CloseReconciliationMarker, CommandMailbox, EventDeadline, EventError, Instant, MailboxClock,
+    MailboxClosed, MailboxState, MutationResult, PaneKey, PendingRefreshStage, QueuedCommand,
+    QueuedRecord, RefreshDecision, RefreshSettlement, UiCorrelation, UiWaitKey,
+    WorkbenchSnapshotOutcome, WorkerEvent, workbench_identity_candidate,
 };
 
 pub(super) struct CloseReconciliationFlight {
@@ -38,6 +38,12 @@ impl CloseReconciliationSettlement {
     }
     pub(in crate::workbench_client) const fn settlement(&self) -> &RefreshSettlement {
         &self.settlement
+    }
+}
+
+impl CloseReconciliationFlight {
+    pub(super) fn targets(&self, anchor: &AttachmentKey) -> bool {
+        self.marker.origin().key().target().tab_id() == anchor.tab_id()
     }
 }
 

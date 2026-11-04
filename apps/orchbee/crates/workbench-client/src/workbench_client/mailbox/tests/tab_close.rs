@@ -306,3 +306,100 @@ fn retired_recovery_seed_never_resets_any_exhausted_allocator() {
         }
     }
 }
+
+fn typed(pane: &PaneRef, bytes: &[u8]) -> QueuedCommand {
+    QueuedCommand::Input(Tagged::new(
+        pane.clone(),
+        ControlInput::new(bytes.to_vec()).unwrap(),
+    ))
+}
+
+#[test]
+fn a_close_of_another_tab_delivers_typed_input_after_it_and_refuses_only_its_own_tab() {
+    let base = Instant::now();
+    let clock = FakeClock::new(base);
+    // The confirmation closes the first Tab while the focused pane belongs to the second.
+    let focus = PaneRef::new(pane_key(&key(1, 11)), 1);
+    let mailbox = mailbox_for_desired(focus.pane().clone(), 900);
+    let mut state = ready_state(2);
+    let operation = admit(&mailbox, &mut state, &clock, base + Duration::from_secs(50));
+    let target = pane_ref(&key(1, 1));
+    assert_eq!(operation.key().target().tab_id(), target.anchor().tab_id());
+
+    let queued = mailbox.try_enqueue(typed(&focus, b"a")).unwrap();
+    assert_eq!(mailbox.try_enqueue(typed(&focus, b"b")).unwrap(), queued);
+    assert!(matches!(
+        mailbox.try_enqueue(typed(&target, b"x")),
+        Err(AdmissionError::Full)
+    ));
+    assert!(matches!(
+        mailbox.try_enqueue(QueuedCommand::Viewport(Tagged::new(
+            target.clone(),
+            ViewportStep::Enter
+        ))),
+        Err(AdmissionError::Full)
+    ));
+    assert!(matches!(
+        mailbox.try_enqueue(QueuedCommand::Poll(Tagged::new(focus.clone(), ()))),
+        Err(AdmissionError::Full)
+    ));
+
+    let close = mailbox.try_recv().unwrap().unwrap();
+    assert!(matches!(close.record(), QueuedCommand::Close(_)));
+    assert_eq!(
+        mailbox.mark_close_in_flight(&operation).unwrap(),
+        MutationResult::Applied
+    );
+    let recover = mailbox
+        .try_enqueue(QueuedCommand::Viewport(Tagged::new(
+            focus.clone(),
+            ViewportStep::Enter,
+        )))
+        .unwrap();
+    let after = mailbox.try_enqueue(typed(&focus, b"c")).unwrap();
+    assert!(matches!(
+        mailbox.try_enqueue(typed(&target, b"y")),
+        Err(AdmissionError::Full)
+    ));
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "the close holds the lease"
+    );
+
+    let wait = mailbox
+        .publish_event_before_using(
+            WorkerEvent::CloseResult {
+                operation: operation.clone(),
+                outcome: CloseResult::NotSubmitted,
+            },
+            EventDeadline::PlacementOnly(operation.deadline()),
+            &clock,
+        )
+        .unwrap();
+    let _taken = mailbox.take_event_before_using(&clock).unwrap().unwrap();
+    mailbox
+        .deposit_ui_reply_before_using(&wait, &clock, |_| {
+            state
+                .settle_close_exchange(&operation, &CloseResult::NotSubmitted)
+                .map_err(|_| CarrierFailure::Protocol)?;
+            Ok(UiReply::Close(operation.key().clone()))
+        })
+        .unwrap();
+    mailbox.await_ui_reply(&wait).unwrap().unwrap();
+    mailbox.finish_lease(close).unwrap();
+
+    let first = mailbox.try_recv().unwrap().unwrap();
+    assert_eq!(first.serial(), queued);
+    assert!(matches!(first.record(), QueuedCommand::Input(tagged)
+        if tagged.key() == &focus && tagged.value().as_bytes() == b"ab"));
+    mailbox.finish_lease(first).unwrap();
+    let step = mailbox.try_recv().unwrap().unwrap();
+    assert_eq!(step.serial(), recover);
+    assert!(matches!(step.record(), QueuedCommand::Viewport(tagged) if tagged.key() == &focus));
+    mailbox.finish_lease(step).unwrap();
+    let last = mailbox.try_recv().unwrap().unwrap();
+    assert_eq!(last.serial(), after);
+    assert!(matches!(last.record(), QueuedCommand::Input(tagged)
+        if tagged.key() == &focus && tagged.value().as_bytes() == b"c"));
+    mailbox.finish_lease(last).unwrap();
+}

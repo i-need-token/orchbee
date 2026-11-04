@@ -445,3 +445,38 @@ fn fabricated_current_serial_with_a_stale_reconciliation_correlation_closes_as_p
     assert!(mailbox.take_close_acknowledgement().is_none());
     state.close_reconciliation_failed(&retry).unwrap();
 }
+
+#[test]
+fn reconciling_a_closed_tab_still_admits_input_for_another_tab_but_not_its_own() {
+    let now = Instant::now();
+    let clock = FakeClock::new(now);
+    let mut state = closed_state(now);
+    let focus = PaneRef::new(pane_key(&key(1, 11)), 1);
+    let mailbox = mailbox_for_desired(focus.pane().clone(), 900);
+    let marker = mailbox
+        .try_enqueue_close_reconciliation_using(&mut state, now + Duration::from_secs(50), &clock)
+        .unwrap();
+    let closed = pane_ref(&key(1, 1));
+    assert_eq!(
+        marker.origin().key().target().tab_id(),
+        closed.anchor().tab_id()
+    );
+    let input = |pane: &PaneRef| {
+        QueuedCommand::Input(Tagged::new(
+            pane.clone(),
+            ControlInput::new(vec![b'a']).unwrap(),
+        ))
+    };
+    let typed = mailbox.try_enqueue(input(&focus)).unwrap();
+    assert!(matches!(
+        mailbox.try_enqueue(input(&closed)),
+        Err(AdmissionError::Full)
+    ));
+    let reconcile = mailbox.try_recv().unwrap().unwrap();
+    assert!(matches!(
+        reconcile.record(),
+        QueuedCommand::ReconcileClose(_)
+    ));
+    let queued = mailbox.lock().queue.front().map(|record| record.serial);
+    assert_eq!(queued, Some(typed));
+}

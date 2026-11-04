@@ -88,7 +88,7 @@ impl CommandMailbox {
         Self::ensure_open(&state).map_err(MoveAdmissionError::Closed)?;
         if state.desired.key().is_none()
             || state.structural_mutation_pending.is_some()
-            || (state.close_flight.is_some() || state.close_reconciliation.is_some())
+            || state.close_pending()
             || state.refresh_flight.is_some()
             || state
                 .queue

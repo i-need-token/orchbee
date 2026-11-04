@@ -5,7 +5,7 @@
 use super::{
     BarrierFence, BarrierKind, COMMAND_CAPACITY, CloseFlightKey, CloseOperation, CloseResult,
     CommandMailbox, EventDeadline, EventError, Geometry, Instant, MailboxClock, MailboxClosed,
-    MailboxMembership, MailboxState, MutationResult, PendingRefreshStage, QueuedCommand,
+    MailboxMembership, MailboxState, MutationResult, PaneRef, PendingRefreshStage, QueuedCommand,
     QueuedRecord, UiCorrelation, UiWaitKey, WorkbenchRequestId, WorkerEvent,
     workbench_identity_candidate,
 };
@@ -55,6 +55,26 @@ pub(super) struct CloseFlight {
 }
 
 impl MailboxState {
+    /// Whether any admitted close step is outstanding: the exchange or status read, or the
+    /// membership reconciliation that follows a closed Tab.
+    pub(super) fn close_pending(&self) -> bool {
+        self.close_flight.is_some() || self.close_reconciliation.is_some()
+    }
+
+    /// Whether an outstanding close step names `pane`'s own Tab. Input and viewport steps for
+    /// a pane of any other Tab queue behind the close records in FIFO order instead of being
+    /// refused while that close runs.
+    pub(super) fn close_targets(&self, pane: &PaneRef) -> bool {
+        let anchor = pane.anchor();
+        self.close_flight
+            .as_ref()
+            .is_some_and(|flight| flight.operation.key().target().tab_id() == anchor.tab_id())
+            || self
+                .close_reconciliation
+                .as_ref()
+                .is_some_and(|flight| flight.targets(anchor))
+    }
+
     pub(super) fn place_close_result(
         &mut self,
         operation: &CloseOperation,
@@ -165,7 +185,7 @@ impl CommandMailbox {
             .ok_or(CloseAdmissionError::Deadline)?;
         Self::ensure_open(&state).map_err(CloseAdmissionError::Closed)?;
         if state.desired.awaiting_bootstrap()
-            || (state.close_flight.is_some() || state.close_reconciliation.is_some())
+            || state.close_pending()
             || state.structural_mutation_pending.is_some()
             || state.refresh_flight.is_some()
             || state

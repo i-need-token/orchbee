@@ -82,8 +82,14 @@ refusal drops the confirmation and reports as the ordinary close does. An unknow
 followed by status reads and never sent again, and no confirmation follows it, since confirming
 could close the Tab twice.
 
-The hidden confirmation still owns input, so `Esc` cancels it: a later `confirmation-required` then
-presents nothing, but an accepted close goes on. A close the Client cannot send at once, because
+The hidden confirmation captures no input while the Server decides, so no key typed before the
+prompt draws can decide it: only `Enter` after a complete draw confirms, and `Esc` cannot stop the
+close before the answer. Keys typed meanwhile go where they would without a close. A close of
+another Tab queues them in order behind its exchange, its status reads and its reconciliation, so
+typing into the focused pane loses nothing; a close of the focused pane's own Tab refuses them with
+the input-unavailable notice, as it does through the rest of that close. A Panel close queues them
+behind its exchange: an accepted close ends the pane before they arrive, and `confirmation-required`
+delivers them to the terminal before the prompt draws. A close the Client cannot send at once, because
 another close exchange is in flight or the mailbox refuses it, presents the confirmation instead.
 Harnesses that script every Server exchange build the UI with `confirming_every_close`. The [real
 process witness](../tests/cli_windows_idle_close.rs) drives a real PowerShell through each route,

@@ -1541,6 +1541,12 @@ impl CommandMailbox {
     ) -> Result<u64, AdmissionError<std::convert::Infallible>> {
         match command {
             QueuedCommand::Input(input) => self.try_enqueue_input(input),
+            // Typing into a scrolled-back pane first admits `Recover`, so viewport steps share
+            // the Input close scope: only a close of the pane's own Tab refuses them.
+            QueuedCommand::Viewport(step) => {
+                let pane = step.key().clone();
+                self.try_enqueue_scoped(Some(&pane), || Ok(QueuedCommand::Viewport(step)))
+            }
             command => self.try_enqueue_with(|| Ok(command)),
         }
     }
@@ -1550,7 +1556,8 @@ impl CommandMailbox {
     /// Host round trip consumes them; retaining one bounded tail prevents
     /// transport latency from turning the eight-record mailbox into dropped
     /// keystrokes. The active lease and every non-input record remain hard
-    /// ordering boundaries.
+    /// ordering boundaries. A close of another Tab queues ahead of the input
+    /// instead of refusing it; only a close of the pane's own Tab refuses.
     fn try_enqueue_input(
         &self,
         input: Tagged<ControlInput>,
@@ -1558,7 +1565,7 @@ impl CommandMailbox {
         let mut state = self.lock();
         Self::ensure_open_for_admission(&state)?;
         Self::ensure_bootstrapped_for_admission(&state)?;
-        if state.close_flight.is_some() || state.close_reconciliation.is_some() {
+        if state.close_targets(input.key()) {
             return Err(AdmissionError::Full);
         }
         if state.desired.key() != Some(input.key().pane()) {
@@ -1620,10 +1627,23 @@ impl CommandMailbox {
         &self,
         build: impl FnOnce() -> Result<QueuedCommand, BuildError>,
     ) -> Result<u64, AdmissionError<BuildError>> {
+        self.try_enqueue_scoped(None, build)
+    }
+
+    /// `close_scope` names the pane a record serves when it may queue behind a
+    /// close of another Tab; without one, any outstanding close step refuses
+    /// the record before `build` runs.
+    fn try_enqueue_scoped<BuildError>(
+        &self,
+        close_scope: Option<&PaneRef>,
+        build: impl FnOnce() -> Result<QueuedCommand, BuildError>,
+    ) -> Result<u64, AdmissionError<BuildError>> {
         let mut state = self.lock();
         Self::ensure_open_for_admission(&state)?;
         Self::ensure_bootstrapped_for_admission(&state)?;
-        if state.close_flight.is_some() || state.close_reconciliation.is_some() {
+        let close_refuses =
+            close_scope.map_or_else(|| state.close_pending(), |pane| state.close_targets(pane));
+        if close_refuses {
             return Err(AdmissionError::Full);
         }
         if state.queue.len() == COMMAND_CAPACITY {
@@ -1878,9 +1898,7 @@ impl CommandMailbox {
         let result = (|| {
             Self::ensure_open_for_admission(&state)?;
             Self::ensure_bootstrapped_for_admission(&state)?;
-            if state.structural_mutation_pending.is_some()
-                || (state.close_flight.is_some() || state.close_reconciliation.is_some())
-            {
+            if state.structural_mutation_pending.is_some() || state.close_pending() {
                 return Err(AdmissionError::Full);
             }
             if state.queue.len() == COMMAND_CAPACITY {
@@ -1997,9 +2015,7 @@ impl CommandMailbox {
             {
                 return Err(AdmissionError::Busy);
             }
-            if state.structural_mutation_pending.is_some()
-                || (state.close_flight.is_some() || state.close_reconciliation.is_some())
-            {
+            if state.structural_mutation_pending.is_some() || state.close_pending() {
                 return Err(AdmissionError::Full);
             }
             if state.queue.len() == COMMAND_CAPACITY {
@@ -2133,7 +2149,7 @@ impl CommandMailbox {
             if state.queue.len() == COMMAND_CAPACITY
                 || state.refresh_flight.is_some()
                 || state.structural_mutation_pending.is_some()
-                || (state.close_flight.is_some() || state.close_reconciliation.is_some())
+                || state.close_pending()
             {
                 return Err(AdmissionError::Full);
             }
@@ -2194,7 +2210,7 @@ impl CommandMailbox {
         Self::ensure_open(&state).map_err(MoveAdmissionError::Closed)?;
         if state.desired.key().is_none()
             || state.structural_mutation_pending.is_some()
-            || (state.close_flight.is_some() || state.close_reconciliation.is_some())
+            || state.close_pending()
             || state.refresh_flight.is_some()
             || state
                 .queue
