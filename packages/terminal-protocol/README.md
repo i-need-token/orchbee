@@ -240,7 +240,8 @@ only that the replacement reflects the Host cache after invalidation, not that t
 the input or that the terminal process consumed it. In protocol `0.1.0`, Host-accepted non-focus
 input invalidates the cached observation immediately. A later bounded current-state sample may
 publish `active`, `idle`, or `unknown`, so a causal replacement may legitimately restore fresh
-`idle` in the same terminal lifecycle. This changes no wire value or codec.
+`idle` in the same terminal lifecycle. This changes no wire value or codec. This codec passes the
+extension through undecoded and exports no code for it, because no TypeScript consumer reads it.
 
 Optional extension kind `2` is one strictly decoded OBKG format-`0.1.0` record for the bounded
 Kitty graphics projection. A resource snapshot carries Host-owned decoded gray, gray-alpha, RGB,

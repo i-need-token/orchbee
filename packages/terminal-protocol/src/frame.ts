@@ -124,17 +124,11 @@ export const TerminalRowFlag = {
 	wrapContinuation: 1 << 1,
 } as const;
 
-export const TerminalFrameExtensionKind = {
+/** The live-frame extensions this codec decodes; every other kind passes through undecoded. */
+const TerminalFrameExtensionKind = {
 	commandCompletion: 4,
-	closeActivity: 1,
 	kittyGraphics: 2,
 	progress: 3,
-} as const;
-
-export const TerminalCloseActivityCode = {
-	active: 2,
-	idle: 1,
-	unknown: 0,
 } as const;
 
 const TerminalProgressState = {

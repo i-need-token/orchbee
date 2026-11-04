@@ -10,12 +10,18 @@ import {
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
-	TerminalFrameExtensionKind,
 	TerminalFrameKind,
 	TerminalFrameSchema,
 	UnderlineKind,
 } from '../frame';
 import { encodeTerminalGraphics, TerminalGraphicsUpdateKind } from '../terminal-graphics';
+
+/** The wire kinds of the frame extensions these cases build, as `schemas/terminal` assigns them. */
+const TerminalFrameExtensionKind = {
+	commandCompletion: 4,
+	kittyGraphics: 2,
+	progress: 3,
+} as const;
 
 function commandCompletionExtension(
 	sequence = 7n,

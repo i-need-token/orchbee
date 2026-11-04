@@ -15,7 +15,6 @@ import {
 	SemanticContent,
 	TerminalColorKind,
 	TerminalCellWidthCode,
-	TerminalFrameExtensionKind,
 	TerminalFrameKind,
 	TerminalGraphicsUpdateKind,
 	UnderlineKind,
@@ -27,6 +26,13 @@ import * as fc from 'fast-check';
 import { describe, expect, it, vi } from 'vitest';
 
 import { PackedTerminalStore, ProjectedStorePhase } from '../packed-terminal-store';
+
+/** The wire kinds of the frame extensions these cases build, as `schemas/terminal` assigns them. */
+const TerminalFrameExtensionKind = {
+	commandCompletion: 4,
+	kittyGraphics: 2,
+	progress: 3,
+} as const;
 
 const hostEpoch = HostEpochSchema.parse('11111111111111111111111111111111');
 const attachmentId = AttachmentIdSchema.parse('22222222222222222222222222222222');

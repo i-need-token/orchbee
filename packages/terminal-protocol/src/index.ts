@@ -105,8 +105,6 @@ export {
 	TerminalColorKind,
 	TerminalColorEncoding,
 	TerminalCellWidthCode,
-	TerminalCloseActivityCode,
-	TerminalFrameExtensionKind,
 	TerminalFrameKind,
 	TerminalRowFlag,
 	TerminalRowPromptClassCode,
