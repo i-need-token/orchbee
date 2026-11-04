@@ -42,6 +42,30 @@ fn settle_switch(
     mailbox: &CommandMailbox,
     clock: &crate::local_client::LocalOperationClock,
 ) {
+    let (target, installed) = land_switch(
+        ui,
+        mailbox,
+        clock,
+        crate::machine_agents::test_support::fixture(),
+    );
+    assert_eq!(
+        installed.expected_host, target.expected_host,
+        "the Host fence survives cleanup"
+    );
+    assert_eq!(installed.binding(), target.binding());
+}
+
+/// Answers the queued Switch with `snapshot`, runs the old viewer's cleanup, and returns the
+/// Switch target with the target the install attaches.
+fn land_switch(
+    ui: &mut WorkbenchClientUi,
+    mailbox: &CommandMailbox,
+    clock: &crate::local_client::LocalOperationClock,
+    snapshot: orchbee_workbench_protocol::Snapshot,
+) -> (
+    crate::workbench_state::AttachTarget,
+    crate::workbench_state::AttachTarget,
+) {
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::Switch(marker) = lease.record() else {
         panic!("one exact member switch");
@@ -56,15 +80,18 @@ fn settle_switch(
         .publish_event_before(
             WorkerEvent::SwitchSnapshotResult {
                 marker: target.selected().key().clone(),
-                outcome: WorkbenchSnapshotOutcome::Available {
-                    snapshot: crate::machine_agents::test_support::fixture(),
-                },
+                outcome: WorkbenchSnapshotOutcome::Available { snapshot },
             },
             EventDeadline::PlacementOnly(target.deadlines().forward_cutoff()),
             clock,
         )
         .unwrap();
     ui.tick();
+    assert_eq!(
+        mailbox.is_closed(),
+        None,
+        "a Server change to the target never costs the Client"
+    );
     let UiReply::Switch(settlement) = mailbox.take_deposited_reply(&wait).unwrap().unwrap() else {
         panic!("switch settlement");
     };
@@ -93,14 +120,50 @@ fn settle_switch(
     let RefreshDecision::AttachRecovered(installed) = settlement.decision() else {
         panic!("exact attachment");
     };
-    assert_eq!(
-        installed.expected_host, target.expected_host,
-        "the Host fence survives cleanup"
-    );
-    assert_eq!(installed.binding(), target.binding());
+    let installed = installed.clone();
     mailbox.finish_lease(lease).unwrap();
     assert!(mailbox.is_closed().is_none());
     assert!(!ui.retirement_requested());
+    (target, installed)
+}
+
+/// The Server replaced the selected Agent's terminal after the Client admitted its fenced Switch.
+/// The Switch adopts the snapshot: it lands on the Agent's Panel and attaches what that Panel now
+/// holds, never under the stale Host fence.
+#[test]
+fn a_fenced_agent_switch_whose_terminal_was_replaced_lands_on_its_panel() {
+    use orchbee_workbench_protocol::{PanelNode, WorkbenchRevision};
+    let (mut ui, mailbox, clock, _) =
+        ready_ui_with_snapshot(crate::machine_agents::test_support::fixture());
+    let original = first();
+    let destination = crate::machine_agents::test_support::target();
+    install_matching_projection(&mut ui, &original);
+    assert_eq!(ui.navigate_agent(&destination), Admission::Admitted);
+    let mut snapshot = crate::machine_agents::test_support::fixture();
+    snapshot.revision = WorkbenchRevision::new(2);
+    let PanelNode::Panel {
+        primary_presentation,
+        child_presentations,
+        ..
+    } = &mut snapshot.terminal_contexts[0].tabs[1].root
+    else {
+        panic!("panel");
+    };
+    // A replacement terminal arrives as a new member in the same Panel.
+    child_presentations[0] = crate::machine_agents::test_support::presentation(523);
+    let current: Vec<_> = [&*primary_presentation, &child_presentations[0]]
+        .into_iter()
+        .map(|member| member.binding.clone().unwrap())
+        .collect();
+    let (target, installed) = land_switch(&mut ui, &mailbox, &clock, snapshot);
+    assert_eq!(target.expected_host.as_deref(), Some(&destination.physical));
+    let attached = installed.binding().unwrap();
+    assert!(current.iter().any(|binding| {
+        binding.worker_id == *attached.worker_id() && binding.terminal_id == *attached.terminal_id()
+    }));
+    assert_eq!(installed.expected_host, None);
+    let view = ui.view();
+    assert_eq!(view.focus_panel_id(), Some(&destination.panel));
 }
 
 #[test]

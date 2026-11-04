@@ -112,12 +112,15 @@ shared HostViewers capacity of 8 applies across all visible panes, and read-only
 acquire control or resize.
 
 A typed viewer `TerminalRuntimeUnavailable` response for an exact live pane disposes that viewer
-locally. For the focused pane this is allowed in `Ready` with no refresh or an existing
-publication refresh, when close work is the only structural owner, if any. Close work is a Tab,
-Panel or Workspace close confirmation, a retained Tab close, or unresolved Workspace close
-evidence; it keeps its own premises and completes against the parked focus. A setup, a submitted
-mutation or Workspace close, an explicit refresh, a rename draft or a recovery keeps the existing
-retirement boundary. The existing `ViewerLost` fault parks the exact selection. Pane reconcile never attaches the focused pane, so a reconcile planned before the loss
+locally. So does a viewport exit leg the Host refuses, once `Detach` proves its Server slot
+released ([native-terminal-viewport.md](native-terminal-viewport.md#commands-and-demand-legs)).
+For the focused pane this is allowed in `Ready` beside every owner that can itself begin
+from a parked focus and keeps its premises when one parks: close work (a Tab, Panel or Workspace
+close confirmation, a retained Tab close, or unresolved Workspace close evidence), a rename or
+Workspace setup draft, a publication or explicit refresh, and a submitted Move, Panel or Rename
+with its projection recovery. A takeover, whose completion needs `Ready`, a setup or Workspace
+close in flight, a recovery refresh or an uncertain Rename keeps the existing retirement boundary.
+The existing `ViewerLost` fault parks the exact selection. Pane reconcile never attaches the focused pane, so a reconcile planned before the loss
 settled cannot replace that fault. A parked focus, whether its viewer was lost, its attach failed
 or it never attaches, leaves its siblings working as under `Ready`: reconcile attaches them, and
 they keep polling and resizing.

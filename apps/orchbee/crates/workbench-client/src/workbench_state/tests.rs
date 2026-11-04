@@ -336,11 +336,20 @@ fn focused_viewer_loss_preserves_sibling_geometry_frames_and_selection() {
     );
 }
 
-/// Close work keeps its own premises and completes against a parked focus, so a focused viewer
-/// loss parks beside it; any other structural owner keeps its retirement contract.
+/// Close work, local drafts, an explicit refresh and a submitted Tab or Panel mutation keep their
+/// own premises and complete against a parked focus, so a focused viewer loss parks beside them;
+/// an exchange whose completion needs `Ready` keeps its retirement contract.
 #[test]
-fn focused_viewer_loss_parks_beside_close_work_but_not_another_structural_owner() {
-    for owner in ["tab close", "panel close"] {
+fn focused_viewer_loss_parks_beside_owners_that_accept_a_parked_focus() {
+    for owner in [
+        "tab close",
+        "panel close",
+        "explicit refresh",
+        "rename",
+        "setup draft",
+        "move",
+        "panel split",
+    ] {
         let mut state = ready(2);
         let focus = state.focus_pane_ref().unwrap();
         match owner {
@@ -349,6 +358,34 @@ fn focused_viewer_loss_parks_beside_close_work_but_not_another_structural_owner(
             }
             "panel close" => {
                 state.open_panel_close_confirmation().unwrap();
+            }
+            "explicit refresh" => assert!(state.start_pending_refresh(7)),
+            "rename" => assert!(state.open_rename_draft().is_some()),
+            "setup draft" => {
+                let intent = workspace_setup::group_intent(&state, "Group");
+                assert!(state.open_setup_draft(intent).is_some());
+            }
+            "move" => {
+                let operation = state
+                    .plan_move(
+                        WorkbenchRequestId::parse(&id(800)).unwrap(),
+                        orchbee_workbench_protocol::WorkbenchTabMoveDirection::Next,
+                        Instant::now() + OPERATION_TOTAL,
+                    )
+                    .unwrap();
+                assert!(state.begin_move(operation));
+            }
+            "panel split" => {
+                let operation = state
+                    .plan_panel(
+                        WorkbenchRequestId::parse(&id(801)).unwrap(),
+                        crate::workbench_state::panel::PanelRequestKind::Split {
+                            direction: crate::client_view::PanelDirection::Right,
+                        },
+                        Instant::now() + OPERATION_TOTAL,
+                    )
+                    .unwrap();
+                assert!(state.begin_panel(operation));
             }
             _ => unreachable!(),
         }
@@ -360,17 +397,30 @@ fn focused_viewer_loss_parks_beside_close_work_but_not_another_structural_owner(
         assert_eq!(state.focus_pane_ref(), Some(focus), "{owner}");
         let kept = match owner {
             "tab close" => state.view().close_confirmation().is_some(),
-            _ => state.view().panel_close_confirmation().is_some(),
+            "panel close" => state.view().panel_close_confirmation().is_some(),
+            "explicit refresh" => state.pending_refresh_generation() == Some(7),
+            "rename" => state.rename_draft().is_some(),
+            "setup draft" => state.setup_draft().is_some(),
+            "move" => state.pending_move().is_some(),
+            _ => state.pending_panel().is_some(),
         };
-        assert!(kept, "the close keeps its confirmation: {owner}");
+        assert!(kept, "the owner stays: {owner}");
         assert!(state.invariant_holds());
     }
-    for owner in ["explicit refresh", "rename", "create"] {
+    for owner in ["takeover", "create"] {
         let mut state = ready(2);
         let focus = state.focus_pane_ref().unwrap();
         match owner {
-            "explicit refresh" => assert!(state.start_pending_refresh(7)),
-            "rename" => assert!(state.open_rename_draft().is_some()),
+            "takeover" => {
+                let operation = state
+                    .plan_takeover(
+                        orchbee_client_server_protocol::RequestId::parse(&id(802)).unwrap(),
+                        2,
+                        OperationDeadlines::from_sample(Instant::now()).unwrap(),
+                    )
+                    .unwrap();
+                assert!(state.begin_takeover(operation));
+            }
             "create" => {
                 let operation = create_operation(&state, 2, 20, "3");
                 assert!(state.begin_create(operation));

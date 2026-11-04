@@ -23,7 +23,6 @@ use orchbee_client_server_protocol::{
     TerminalControlResult, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerResult,
     read_client_message, write_server_message,
 };
-use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
     PanelNode, ProtocolVersion, TerminalId, TerminalPresentationId, WorkbenchAction,
     WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchPanelId, WorkbenchPublicationOutcome,
@@ -35,7 +34,6 @@ use ratatui::{Terminal, backend::TestBackend};
 use std::io::{Read, Write};
 use std::thread;
 use std::{
-    num::NonZeroU64,
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU8, Ordering},

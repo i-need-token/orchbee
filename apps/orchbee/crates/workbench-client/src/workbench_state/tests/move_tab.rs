@@ -206,6 +206,76 @@ fn move_reorders_both_unattached_phases_and_preserves_nonfirst_identity_and_prov
     }
 }
 
+/// A focused viewer lost while a Move is in flight, or while its committed projection is
+/// unavailable, parks beside it. The Move then completes against the parked focus, which keeps
+/// its selection and its fault for the re-attach.
+#[test]
+fn a_focused_viewer_lost_during_a_move_parks_and_the_move_completes() {
+    let mut state = ready(2);
+    let focus = state.focus_pane_ref().unwrap();
+    let key = state.desired().unwrap().clone();
+    let submitted = operation(&state, 802);
+    assert!(state.begin_move(submitted.clone()));
+    assert!(
+        state.settle_pane_fault(&focus, PaneFault::ViewerLost),
+        "a submitted Move never costs the Client"
+    );
+    let mut candidate = snapshot(2, 2, None);
+    candidate.terminal_contexts[0].tabs.swap(0, 1);
+    let prepared = state.prepare_move(
+        &submitted,
+        MoveResult::Committed {
+            commit: commit(&submitted),
+            outcome: WorkbenchSnapshotOutcome::Available {
+                snapshot: candidate,
+            },
+        },
+    );
+    assert_eq!(state.apply_prepared_move(prepared), MoveDecision::Continue);
+    assert!(state.focused_viewer_lost());
+    assert_eq!(state.desired(), Some(&key));
+    assert_eq!(state.active().unwrap().index(), 1);
+    assert!(state.invariant_holds());
+
+    let mut state = ready(3);
+    let focus = state.focus_pane_ref().unwrap();
+    let recovered = operation(&state, 803);
+    assert!(state.begin_move(recovered.clone()));
+    let prepared = state.prepare_move(
+        &recovered,
+        MoveResult::Committed {
+            commit: commit(&recovered),
+            outcome: WorkbenchSnapshotOutcome::Denied {},
+        },
+    );
+    assert_eq!(state.apply_prepared_move(prepared), MoveDecision::Continue);
+    assert_eq!(
+        state.phase_kind(),
+        ClientPhaseKind::MoveProjectionUnavailable
+    );
+    assert!(
+        state.settle_pane_fault(&focus, PaneFault::ViewerLost),
+        "a Move projection recovery never costs the Client"
+    );
+    assert!(state.start_pending_refresh(1));
+    let mut candidate = snapshot(3, 2, None);
+    candidate.terminal_contexts[0].tabs.swap(0, 1);
+    assert_eq!(
+        finish_refresh(
+            &mut state,
+            1,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: candidate
+            },
+            None
+        ),
+        RefreshDecision::Continue
+    );
+    assert!(state.focused_viewer_lost());
+    assert_eq!(state.active().unwrap().index(), 1);
+    assert!(state.invariant_holds());
+}
+
 #[test]
 fn move_noop_and_definite_precommit_release_without_cache_or_viewer_change() {
     for result in [

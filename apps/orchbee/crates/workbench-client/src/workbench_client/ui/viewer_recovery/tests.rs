@@ -391,3 +391,54 @@ fn a_focused_viewer_lost_beside_a_background_close_parks() {
     assert_eq!(mailbox.is_closed(), None);
     assert!(ui.state.as_ref().unwrap().invariant_holds());
 }
+
+/// A rename draft can stay open for a long time. A focused viewer lost meanwhile parks beside the
+/// draft instead of costing the Client, and its automatic re-attach waits for the draft.
+#[test]
+fn a_focused_viewer_lost_under_a_rename_draft_parks() {
+    use crate::workbench_client::ui::test_support::{controlling_ui, install_projection};
+    let (mut ui, mailbox, clock, elapsed) = controlling_ui();
+    let focus = install_projection(&mut ui, Some((0, false, 24)), 0);
+    assert!(ui.request_rename_draft().is_some());
+
+    mailbox
+        .publish_notice_before(
+            WorkerEvent::PaneFailed {
+                key: focus.clone(),
+                fault: PaneFault::ViewerLost,
+            },
+            clock.now() + OPERATION_TOTAL,
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert_eq!(
+        mailbox.is_closed(),
+        None,
+        "a rename draft never costs the Client"
+    );
+    let state = ui.state.as_ref().unwrap();
+    assert!(state.focused_viewer_lost());
+    assert_eq!(state.focus_pane_ref(), Some(focus));
+    assert!(state.rename_draft().is_some(), "the draft stays open");
+
+    elapsed.fetch_add(300, Ordering::SeqCst);
+    ui.tick();
+    assert!(
+        ui.state.as_ref().unwrap().focused_viewer_lost(),
+        "the re-attach waits for the draft"
+    );
+
+    ui.state.as_mut().unwrap().cancel_rename_draft();
+    elapsed.fetch_add(100, Ordering::SeqCst);
+    ui.tick();
+    let mut switched = false;
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        if matches!(lease.record(), QueuedCommand::Switch(_)) {
+            switched = true;
+            break;
+        }
+        mailbox.finish_lease(lease).unwrap();
+    }
+    assert!(switched, "the re-attach follows the cancelled draft");
+}

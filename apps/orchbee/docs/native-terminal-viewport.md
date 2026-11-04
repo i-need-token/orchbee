@@ -125,8 +125,8 @@ and recovery on reaching the live tail. Entry refusal leaves the pane Live witho
 
 - `Enter` — `SetHistoryDemand(ViewingHistory)` then `SetProjectionDemand(Paused)`. A rejected or
   unavailable first leg publishes `ViewportOutcome::Enter{applied:false}` without a second leg. A
-  failed or unknown second leg runs one reset leg (`SetHistoryDemand(FollowingBottom)`); reset
-  failure or an unavailable outcome faults the pane. A fully applied entry publishes
+  failed or unknown second leg runs one reset leg (`SetHistoryDemand(FollowingBottom)`); a failed
+  reset is a refused exit leg. A fully applied entry publishes
   `ViewportOutcome::Enter{applied:true}`.
 - `EnterTail` — the same entry and failure/reset contract, with `SetProjectionDemand(Active)`
   instead of `Paused`, so automatic cropping cannot freeze the live Agent screen.
@@ -149,8 +149,14 @@ and recovery on reaching the live tail. Entry refusal leaves the pane Live witho
   host-shaped variant of the same outcome; `Unavailable` faults the pane.
 - `Ack{request_sequence,generation,revision}` — `RowsApplied`. An accepted outcome publishes
   `ViewportOutcome::Ack{request_sequence,accepted:true}`; a rejection publishes `accepted:false`.
-- `Recover` — `SetHistoryDemand(FollowingBottom)` then `SetProjectionDemand(Active)`. Any leg
-  failure faults the pane. Success publishes `ViewportOutcome::Recovered`.
+- `Recover` — `SetHistoryDemand(FollowingBottom)` then `SetProjectionDemand(Active)`. A failed
+  leg is a refused exit leg. Success publishes `ViewportOutcome::Recovered`.
+
+A refused exit leg leaves the viewer outside live following. `Rejected{HostRejected}` keeps the
+Server slot under a demand the Client can no longer name, so the worker sends `Detach` first. A
+`Detached` answer, or a typed runtime loss, disposes the viewer and publishes the typed
+`ViewerLost` fault, which parks a focused pane like any other typed runtime loss. Any other
+refusal, or a release the Server does not prove, faults the pane.
 
 Every outcome travels back as a fire-and-forget `WorkerEvent::ViewportOutcome` notice:
 `publish_notice_before` deposits it with no wait key and no expected reply, the UI's
@@ -308,14 +314,14 @@ and sidebar `Enter`. It keeps the Machines/Workspaces/Agents picker closed. A se
 generation owns verification and waiting; opening Search explicitly retains its capturing picker
 contract and invalidates any unadmitted direct selection.
 
-| Transition                 | Owner and result                                                                                                                                                                                                                                                                                                  |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Accept a visible Agent     | `machine_picker/sidebar.rs` revalidates the exact machine and physical target and creates a Sidebar selection generation; the input dispatcher captures the packet.                                                                                                                                               |
-| Verify and wait            | `tui_shell/machines.rs` uses a cancellable read-only connection to verify current membership and physical Agent identity within the original 60-second selection budget. On the current machine it reuses the active Session. A busy Session retains only the latest waiting target; Busy precedes exact-current. |
-| Select an exact member     | `ui/direct_navigation.rs` resolves Session, context, Tab, Panel, Presentation and binding again. Same-context selection reuses the switch transaction; cross-context selection carries an exact member through snapshot validation and cleanup, without visiting a default member.                                |
-| Keep current or move focus | Both fast paths require a live exact pane incarnation whose attached Host epoch and terminal match the verified target. A missing or different physical identity takes the fenced switch path.                                                                                                                    |
-| Attach and paint           | The selected member and physical Host fence survive membership cleanup. An unexpected attached Host is detached before polling, control acquisition or frame intake. Input and feedback remain unavailable until the existing first-frame contract admits them.                                                   |
-| Cancel or fail             | Escape, a newer selection or explicit Search retires unadmitted work; stale verification cannot install or reopen a surface. Accepted Session work retains its own settlement. A direct failure reports a localized retry notice without opening a picker.                                                        |
+| Transition                 | Owner and result                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Accept a visible Agent     | `machine_picker/sidebar.rs` revalidates the exact machine and physical target and creates a Sidebar selection generation; the input dispatcher captures the packet.                                                                                                                                                                                                                                                                                    |
+| Verify and wait            | `tui_shell/machines.rs` uses a cancellable read-only connection to verify current membership and physical Agent identity within the original 60-second selection budget. On the current machine it reuses the active Session. A busy Session retains only the latest waiting target; Busy precedes exact-current.                                                                                                                                      |
+| Select an exact member     | `ui/direct_navigation.rs` resolves Session, context, Tab, Panel, Presentation and binding again. Same-context selection reuses the switch transaction; cross-context selection carries an exact member through snapshot validation and cleanup, without visiting a default member.                                                                                                                                                                     |
+| Keep current or move focus | Both fast paths require a live exact pane incarnation whose attached Host epoch and terminal match the verified target. A missing or different physical identity takes the fenced switch path.                                                                                                                                                                                                                                                         |
+| Attach and paint           | The selected member and physical Host fence survive membership cleanup. An unexpected attached Host is detached before polling, control acquisition or frame intake. Input and feedback remain unavailable until the existing first-frame contract admits them. A same-context switch whose snapshot no longer binds the member to the fenced terminal lands on what the Server now holds there, without the fence; a cross-context selection refuses. |
+| Cancel or fail             | Escape, a newer selection or explicit Search retires unadmitted work; stale verification cannot install or reopen a surface. Accepted Session work retains its own settlement. A direct failure reports a localized retry notice without opening a picker.                                                                                                                                                                                             |
 
 `ui/retained_frames.rs` owns the render-only image bank: at most eight panes and 16 MiB. Reuse requires
 exact Session/context/Tab/Panel/Presentation/binding and geometry. Agent selection additionally evicts

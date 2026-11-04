@@ -309,6 +309,16 @@ enum InitialAttachResult {
     EntryExpired,
 }
 
+/// What the Server settled for one viewport demand leg.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum DemandLeg {
+    Applied,
+    /// The Host refused the demand; the Server keeps the viewer slot.
+    HostRefused,
+    /// Any other refusal or unavailability.
+    Refused,
+}
+
 impl ClientExecutor {
     fn new(client: LocalClient, mailbox: Arc<CommandMailbox>) -> Self {
         let clock = client.operation_clock();
@@ -1255,29 +1265,32 @@ impl ClientExecutor {
         Ok(())
     }
 
-    /// One demand-setting leg: `Some(true)` applied, `Some(false)` refused
-    /// or unavailable, `None` when the pane left the admitted set mid-flight
-    /// or its runtime was lost and the caller must drop the whole step.
+    /// One demand-setting leg: what the Server settled, or `None` when the
+    /// pane left the admitted set mid-flight or its runtime was lost and the
+    /// caller must drop the whole step.
     fn viewport_leg(
         &mut self,
         lease: &CommandLease,
         key: &PaneRef,
         action: TerminalViewerAction,
         deadline: Instant,
-    ) -> ReadyResult<Option<bool>> {
+    ) -> ReadyResult<Option<DemandLeg>> {
         let Some((_, outcome)) = self.viewer_for_ready_lease(lease, key, action, deadline)? else {
             return Ok(None);
         };
         match outcome {
-            TerminalViewerOutcome::FeedbackAccepted {} => Ok(Some(true)),
+            TerminalViewerOutcome::FeedbackAccepted {} => Ok(Some(DemandLeg::Applied)),
             TerminalViewerOutcome::Unavailable {
                 reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
             } => {
                 self.dispose_lost_viewer(lease, key, deadline)?;
                 Ok(None)
             }
+            TerminalViewerOutcome::Rejected {
+                reason: ViewerRejectedReason::HostRejected,
+            } => Ok(Some(DemandLeg::HostRefused)),
             TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
-                Ok(Some(false))
+                Ok(Some(DemandLeg::Refused))
             }
             TerminalViewerOutcome::Attached { .. }
             | TerminalViewerOutcome::Detached {}
@@ -1293,7 +1306,7 @@ impl ClientExecutor {
     /// Manual history pauses frames; automatic tail must keep them active. A refused first
     /// leg settles `applied:false` without the second; a failed second leg
     /// runs the single reset leg (`FollowingBottom`), and a reset that fails
-    /// or comes back unavailable faults the pane instead of guessing.
+    /// settles as a refused exit leg instead of guessing.
     fn viewport_enter(
         &mut self,
         lease: &CommandLease,
@@ -1313,8 +1326,10 @@ impl ClientExecutor {
         )?;
         let outcome = match applied {
             None => return Ok(None),
-            Some(false) => ViewportOutcome::Enter { applied: false },
-            Some(true) => match self.viewport_leg(
+            Some(DemandLeg::HostRefused | DemandLeg::Refused) => {
+                ViewportOutcome::Enter { applied: false }
+            }
+            Some(DemandLeg::Applied) => match self.viewport_leg(
                 lease,
                 key,
                 TerminalViewerAction::SetProjectionDemand {
@@ -1324,8 +1339,8 @@ impl ClientExecutor {
                 deadline,
             )? {
                 None => return Ok(None),
-                Some(true) => ViewportOutcome::Enter { applied: true },
-                Some(false) => match self.viewport_leg(
+                Some(DemandLeg::Applied) => ViewportOutcome::Enter { applied: true },
+                Some(DemandLeg::HostRefused | DemandLeg::Refused) => match self.viewport_leg(
                     lease,
                     key,
                     TerminalViewerAction::SetHistoryDemand {
@@ -1334,9 +1349,9 @@ impl ClientExecutor {
                     },
                     deadline,
                 )? {
-                    Some(true) => ViewportOutcome::Enter { applied: false },
-                    Some(false) => {
-                        self.settle_pane_viewer_lost(lease, key, deadline)?;
+                    Some(DemandLeg::Applied) => ViewportOutcome::Enter { applied: false },
+                    Some(refusal) => {
+                        self.settle_refused_exit_leg(lease, key, refusal, deadline)?;
                         return Ok(None);
                     }
                     None => return Ok(None),
@@ -1347,8 +1362,8 @@ impl ClientExecutor {
     }
 
     /// `Recover`'s demand pair: `FollowingBottom` then `Active`. Any leg
-    /// failure faults the pane — recovery is the exit ramp itself and has
-    /// nothing left to fall back to.
+    /// failure settles as a refused exit leg — recovery is the exit ramp
+    /// itself and has nothing left to fall back to.
     fn viewport_recover(
         &mut self,
         lease: &CommandLease,
@@ -1367,15 +1382,59 @@ impl ClientExecutor {
             },
         ] {
             match self.viewport_leg(lease, key, demand, deadline)? {
-                Some(true) => {}
-                Some(false) => {
-                    self.settle_pane_viewer_lost(lease, key, deadline)?;
+                Some(DemandLeg::Applied) => {}
+                Some(refusal) => {
+                    self.settle_refused_exit_leg(lease, key, refusal, deadline)?;
                     return Ok(None);
                 }
                 None => return Ok(None),
             }
         }
         Ok(Some(ViewportOutcome::Recovered))
+    }
+
+    /// A refused exit leg leaves the viewer outside live following. A Host
+    /// refusal keeps the Server slot under a demand the Client can no longer
+    /// name, so the viewer is released first; once the Server proves the
+    /// slot gone, the pane takes the typed loss path that parks a focus. Any
+    /// other refusal, or a release the Server does not prove, keeps the
+    /// non-typed loss boundary.
+    fn settle_refused_exit_leg(
+        &mut self,
+        lease: &CommandLease,
+        key: &PaneRef,
+        refusal: DemandLeg,
+        deadline: Instant,
+    ) -> ReadyResult<()> {
+        if refusal == DemandLeg::HostRefused {
+            let Some((_, outcome)) = self.viewer_for_ready_lease(
+                lease,
+                key,
+                TerminalViewerAction::Detach {
+                    attachment_id: self.viewer_id_for(key)?,
+                },
+                deadline,
+            )?
+            else {
+                return Ok(());
+            };
+            match outcome {
+                TerminalViewerOutcome::Detached {}
+                | TerminalViewerOutcome::Unavailable {
+                    reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+                } => return self.dispose_lost_viewer(lease, key, deadline),
+                TerminalViewerOutcome::Rejected { .. }
+                | TerminalViewerOutcome::Unavailable { .. } => {}
+                TerminalViewerOutcome::Attached { .. }
+                | TerminalViewerOutcome::Empty {}
+                | TerminalViewerOutcome::FeedbackAccepted {}
+                | TerminalViewerOutcome::Record(_)
+                | TerminalViewerOutcome::RowsRejected { .. } => {
+                    return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
+                }
+            }
+        }
+        self.settle_pane_viewer_lost(lease, key, deadline)
     }
 
     /// Polls run per pane incarnation: any exact member of the reconciled set

@@ -1405,7 +1405,10 @@ membership model owns candidate validation and ordinal choice; the Switch model 
 validated choice and checks the concrete key transition, cleanup and setup continuation. A Switch
 whose target Tab survives keeps its exact Panel. When the Server removed that Panel before the
 snapshot, the Tab's surviving leaf stands in, chosen as a refresh repairs a vanished selection, and
-the new desired key names that leaf; a removed Tab keeps the fallback to another Tab or `Empty`.
+the new desired key names that leaf; a removed Tab keeps the fallback to another Tab or `Empty`. A
+Switch fenced to an Agent's Host keeps the fence only while the snapshot still binds the exact
+member to the fenced terminal; when the Server replaced or removed it first, the Switch lands as an
+ordinary one on what the Server now holds there, without the fence.
 An intent cannot install a projection, accept target setup configuration, publish Ready, or settle
 as an unattached setup. Those paths require the installed candidate. The former direct
 Switch-old-Detached event and its intent-to-Attach continuation have been removed.
@@ -2050,17 +2053,15 @@ missing return evidence cannot establish eligibility. Any retained Close/Read re
 unresolved structural mutation, commit, setup or cleanup handoff excludes this entry. Existing
 Close status recovery retains priority and all its facts.
 
-The same correlated `TerminalRuntimeUnavailable` on a Ready focus is pane-local when the focus is
-structurally quiescent or its only structural owner is close work: a Tab, Panel or Workspace
-close confirmation, a retained Tab close, or unresolved Workspace close evidence. The lost viewer
-is disposed and the exact selection is precisely parked for the existing publication
-reconciliation, while the close work keeps its premises and completes against the parked focus,
-so the loss does not establish this retired origin on its own. The whole-Client proof still
-applies while another structural owner is armed — an open rename draft makes local settlement
-inadmissible; retirement cancels that draft, and the origin then retains its original facts (same
-Poll serial, unreplaced Ready, exact selected+desired and still-attached canonical PaneRef, no
-submitted mutation or refresh). A submitted Panel operation and every other structural owner keep
-their existing exclusion.
+The same correlated `TerminalRuntimeUnavailable` on a Ready focus is pane-local beside every
+owner that can itself begin from a parked focus: close work (a Tab, Panel or Workspace close
+confirmation, a retained Tab close, or unresolved Workspace close evidence), a rename or Workspace
+setup draft, a publication or explicit refresh, and a submitted Move, Panel or Rename with its
+projection recovery keep their premises and complete against the parked focus. The lost viewer is
+disposed and the exact selection is precisely parked for the existing publication reconciliation,
+so the loss does not establish this retired origin. Every owner that still keeps the whole-Client
+retirement (a takeover, a setup or Workspace close in flight, a recovery refresh, an uncertain
+Rename) also excludes this entry, so a focused typed loss does not establish it either.
 
 An explicit `Ctrl+B w` after finalized retirement may start one Snapshot-only connection through the
 retained local origin. There is no automatic reconnect. The same task owner and race-safe shutdown

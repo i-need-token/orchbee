@@ -412,9 +412,10 @@ impl WorkbenchClientState {
                 },
                 expected_host: Some(expected_host.as_ref().clone()),
             };
-            if !prepared.retarget_selected_bound_member(self.cache.location(), &selection) {
-                return Err(CarrierFailure::AuthorityDivergence);
-            }
+            // The Host fence holds only while the Server still binds this exact member to the
+            // fenced terminal. An Agent the Server replaced or removed after admission lands as
+            // an ordinary Switch on what the Server now holds there, without the fence.
+            prepared.retarget_selected_bound_member(self.cache.location(), &selection);
         }
         Ok(prepared)
     }
