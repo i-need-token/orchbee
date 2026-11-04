@@ -1,7 +1,6 @@
 import {
 	createWorkbenchSharedDocument,
 	terminalPresentationId,
-	terminalPresentationOperationId,
 	workbenchSharedDocumentRevision,
 	type WorkbenchSharedPanelNode,
 } from '@orchbee/workbench-client-protocol';
@@ -37,7 +36,6 @@ function emptySharedDocument() {
 					nextPanelSlotSequence: 1,
 					nextSplitSequence: 1,
 					nextTerminalSequence: 1,
-					pendingRemovals: [],
 					tabs: [],
 				},
 				tabCollection: { groups: [], tabs: [] },
@@ -81,7 +79,6 @@ function inputWithTabs(
 					),
 					nextSplitSequence: panelCounts.filter((count) => count > 1).length + 1,
 					nextTerminalSequence: tabs.length + 1,
-					pendingRemovals: [],
 					tabs: panelCounts.map((count, index) => ({
 						root: panelRoot(panelCounts, index, count),
 						tabId: tabs[index]?.id ?? 'missing-tab',
@@ -137,11 +134,7 @@ function panel(sequence: number): WorkbenchSharedPanelNode {
 		id: `panel-${sequence}`,
 		kind: 'panel',
 		primaryPresentation: {
-			intent: {
-				kind: 'provision',
-				operationId: terminalPresentationOperationId(`operation-${sequence}`),
-			},
-			launchCwd: `/workspace/${sequence}`,
+			intent: { kind: 'provision' },
 			presentationId: terminalPresentationId(`presentation-${sequence}`),
 			title: `Terminal ${sequence}`,
 		},

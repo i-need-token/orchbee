@@ -204,7 +204,6 @@ function createRunningTerminalFixture(presentationReady: Promise<void> = Promise
 	const presentation: WorkbenchTerminalPresentation = {
 		closeActivity: 'unknown',
 		currentCwd: '/workspace',
-		launchCwd: '/workspace',
 		lifecycle: { kind: 'running' },
 		naturalTitle: null,
 		presentationId: terminalPresentationId('presentation-auto-focus'),
@@ -356,7 +355,6 @@ describe('useProjectedTerminalSurface', () => {
 			const presentation: WorkbenchTerminalPresentation = {
 				closeActivity: 'unknown',
 				currentCwd: '/workspace',
-				launchCwd: '/workspace',
 				lifecycle,
 				naturalTitle: null,
 				presentationId: terminalPresentationId('presentation-1'),
@@ -420,7 +418,6 @@ describe('useProjectedTerminalSurface', () => {
 		const presentation: WorkbenchTerminalPresentation = {
 			closeActivity: 'unknown',
 			currentCwd: '/workspace',
-			launchCwd: '/workspace',
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,
 			presentationId: terminalPresentationId('presentation-awaiting-geometry'),
@@ -490,7 +487,6 @@ describe('useProjectedTerminalSurface', () => {
 		const presentation: WorkbenchTerminalPresentation = {
 			closeActivity: 'unknown',
 			currentCwd: '/workspace',
-			launchCwd: '/workspace',
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,
 			presentationId: terminalPresentationId('presentation-candidate'),
@@ -614,7 +610,6 @@ describe('useProjectedTerminalSurface', () => {
 		const presentation: WorkbenchTerminalPresentation = {
 			closeActivity: 'unknown',
 			currentCwd: '/workspace',
-			launchCwd: '/workspace',
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,
 			presentationId: terminalPresentationId('presentation-1'),
@@ -705,7 +700,6 @@ describe('useProjectedTerminalSurface', () => {
 		const presentation: WorkbenchTerminalPresentation = {
 			closeActivity: 'unknown',
 			currentCwd: '/workspace',
-			launchCwd: '/workspace',
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,
 			presentationId: terminalPresentationId('presentation-recovery-budget'),
@@ -811,7 +805,6 @@ describe('useProjectedTerminalSurface', () => {
 		const presentation: WorkbenchTerminalPresentation = {
 			closeActivity: 'unknown',
 			currentCwd: '/workspace',
-			launchCwd: '/workspace',
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,
 			presentationId: terminalPresentationId('presentation-review'),
@@ -896,8 +889,7 @@ describe('useProjectedTerminalSurface', () => {
 		const presentation: WorkbenchTerminalPresentation = {
 			closeActivity: 'unknown',
 			currentCwd: '/workspace',
-			launchCwd: '/workspace',
-			lifecycle: { kind: 'stopped' },
+			lifecycle: { kind: 'unbound' },
 			naturalTitle: null,
 			presentationId: terminalPresentationId('presentation-file-drop-unavailable'),
 			title: 'Terminal File Drop Unavailable',
@@ -1026,7 +1018,6 @@ describe('useProjectedTerminalSurface', () => {
 		const presentation: WorkbenchTerminalPresentation = {
 			closeActivity: 'unknown',
 			currentCwd: '/workspace',
-			launchCwd: '/workspace',
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,
 			presentationId: terminalPresentationId('presentation-file-drop'),

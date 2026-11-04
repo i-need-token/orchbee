@@ -61,10 +61,7 @@ export function resolveCurrentDirectoryTerminalTarget({
 		return { kind: 'unavailable', reason: 'panel-unavailable' };
 	}
 	const terminal = getDisplayedTerminal(panel);
-	const cwd =
-		terminal.currentCwd === null || terminal.currentCwd.length === 0
-			? terminal.launchCwd
-			: terminal.currentCwd;
+	const cwd = terminal.currentCwd;
 	if (cwd === null || cwd.length === 0) {
 		return { kind: 'unavailable', reason: 'terminal-current-directory-unavailable' };
 	}

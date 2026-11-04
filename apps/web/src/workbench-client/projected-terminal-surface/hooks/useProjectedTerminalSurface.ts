@@ -140,13 +140,8 @@ export function useProjectedTerminalSurface(
 		presentation.lifecycle.kind === 'running' ||
 		presentation.lifecycle.kind === 'exited' ||
 		presentation.lifecycle.kind === 'failed';
-	const closingPresentation =
-		presentation.lifecycle.kind === 'closing' ||
-		presentation.lifecycle.kind === 'close-failed' ||
-		presentation.lifecycle.kind === 'closed';
-	const sessionEligible = projectable || closingPresentation;
 	const sessionPolicy: ProjectedTerminalSessionPolicy =
-		closingPresentation || presentationMode === 'retained' ? 'retain' : 'project';
+		presentationMode === 'retained' ? 'retain' : 'project';
 	const sessionPolicyReference = React.useRef(sessionPolicy);
 	sessionPolicyReference.current = sessionPolicy;
 	// The renderer hears an end first, but the surface names it only once the Presentation has
@@ -154,7 +149,8 @@ export function useProjectedTerminalSurface(
 	// whose shell exited cleanly while the Server closes it.
 	const ended =
 		presentation.lifecycle.kind === 'exited' || presentation.lifecycle.kind === 'failed';
-	const creationFailed = presentation.lifecycle.kind === 'provision-failed';
+	const creationFailed =
+		presentation.lifecycle.kind === 'launch-failed' || presentation.lifecycle.kind === 'unbound';
 	// Read on every render: the record changes only with a new lifecycle, which renders again.
 	const launchFailure = creationFailed
 		? describeLaunchFailure(capability?.readTerminalLaunchFailure, presentation.presentationId)
@@ -308,7 +304,7 @@ export function useProjectedTerminalSurface(
 	}
 
 	React.useEffect(() => {
-		if (!sessionEligible) return;
+		if (!projectable) return;
 		let cancelled = false;
 		let preparedProjectionRequest: MountedTerminalProjectionRequest | undefined;
 		const controller = new ProjectedTerminalRecoveryController({
@@ -449,10 +445,10 @@ export function useProjectedTerminalSurface(
 		bindBroadcastInputSink,
 		capability,
 		presentation.presentationId,
+		projectable,
 		reviewPaste,
 		reportPresentationReady,
 		reportTerminalEdit,
-		sessionEligible,
 		settlePasteReview,
 	]);
 	React.useLayoutEffect(() => {

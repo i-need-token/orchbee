@@ -17,7 +17,6 @@ vi.mock('../hooks/useProjectedTerminalSurface', () => ({
 const presentation: WorkbenchTerminalPresentation = {
 	closeActivity: 'unknown',
 	currentCwd: '/workspace',
-	launchCwd: '/workspace',
 	lifecycle: { kind: 'running' },
 	naturalTitle: null,
 	presentationId: terminalPresentationId('presentation-failed'),

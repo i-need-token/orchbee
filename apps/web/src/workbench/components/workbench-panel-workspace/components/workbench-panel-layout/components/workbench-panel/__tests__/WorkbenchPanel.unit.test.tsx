@@ -18,8 +18,7 @@ import { WorkbenchPanel } from '../WorkbenchPanel';
 const primaryPresentation = {
 	closeActivity: 'unknown',
 	currentCwd: null,
-	launchCwd: null,
-	lifecycle: { kind: 'preview' },
+	lifecycle: { kind: 'running' },
 	naturalTitle: null,
 	presentationId: terminalPresentationId('terminal-1'),
 	title: 'Terminal 1',
@@ -27,8 +26,7 @@ const primaryPresentation = {
 const childTerminal = {
 	closeActivity: 'unknown',
 	currentCwd: null,
-	launchCwd: null,
-	lifecycle: { kind: 'preview' },
+	lifecycle: { kind: 'running' },
 	naturalTitle: null,
 	presentationId: terminalPresentationId('terminal-2'),
 	title: 'Terminal 2',
@@ -41,8 +39,7 @@ const otherPanel = {
 	primaryPresentation: {
 		closeActivity: 'unknown',
 		currentCwd: null,
-		launchCwd: null,
-		lifecycle: { kind: 'preview' },
+		lifecycle: { kind: 'running' },
 		naturalTitle: null,
 		presentationId: terminalPresentationId('terminal-3'),
 		title: 'Terminal 3',
@@ -190,7 +187,6 @@ function renderPanel(
 			nextPanelSlotSequence: 1,
 			nextSplitSequence: 1,
 			nextTerminalSequence: 3,
-			pendingRemovals: [],
 			tabs: [tab],
 		},
 		togglePanelMaximization: () => undefined,

@@ -3,7 +3,6 @@ import type { WorkbenchPublication } from '../../workbench';
 import { deriveProjectNameFromPath } from '../../project-workspace';
 import {
 	createWorkbenchSharedDocument,
-	terminalPresentationOperationId,
 	workbenchSharedDocumentRevision,
 	type TerminalPresentationLifecycle,
 	type WorkbenchPanelNode,
@@ -48,9 +47,6 @@ const NO_WORKSPACE_TERMINAL_CONTEXT_ID = 'no-workspace';
 const UNUSED_SEQUENCE = 1;
 
 const EVEN_SPLIT_RATIO = 0.5;
-
-/** This Client's name for a member with no terminal, beside the Server's launch failure reasons. */
-const UNBOUND_TERMINAL_FAILURE_CODE = 'terminal-unbound';
 
 /**
  * Projects what the Server published onto the model the React Workbench reads. Every Workspace gets
@@ -140,7 +136,6 @@ export function projectServerSnapshot(
 						nextPanelSlotSequence: UNUSED_SEQUENCE,
 						nextSplitSequence: UNUSED_SEQUENCE,
 						nextTerminalSequence: UNUSED_SEQUENCE,
-						pendingRemovals: [],
 						tabs: [],
 					},
 					tabCollection: { groups: [], tabs: [] },
@@ -210,7 +205,6 @@ function projectTerminalContext(
 			nextPanelSlotSequence: UNUSED_SEQUENCE,
 			nextSplitSequence: UNUSED_SEQUENCE,
 			nextTerminalSequence: UNUSED_SEQUENCE,
-			pendingRemovals: [],
 			tabs: context.tabs.map((tab, position) => ({
 				root: projectPanelNode(tab.root, facts, {
 					intl,
@@ -294,7 +288,6 @@ function projectPresentation(
 	const launched = presentation.launchProgram ?? presentation.launchFailure?.executable ?? null;
 	return {
 		intent,
-		launchCwd: null,
 		presentationId: presentation.presentationId,
 		title:
 			(launched === null ? null : nameServerTerminalProgram(launched, naming.intl)) ??
@@ -307,9 +300,8 @@ function projectPresentation(
  * its end and its output, as the Server keeps the Presentation until a person closes it. A failed
  * launch keeps its binding, yet every Client leaves it unattached, and a member with no binding
  * never launches by itself, since the Server binds one only when a command or a restore starts its
- * terminal. Neither is `running`, nor `failed`, which a surface would try to attach to, nor
- * `provisioning`, which would claim a launch is under way. Nothing retries either: a person creates
- * another terminal or closes this one.
+ * terminal. Neither is `running` or `failed`, which a surface would try to attach to. Nothing
+ * retries either: a person creates another terminal or closes this one.
  */
 function projectTerminalState(
 	presentation: WorkbenchPresentation,
@@ -318,25 +310,18 @@ function projectTerminalState(
 	readonly intent: WorkbenchSharedPresentation['intent'];
 	readonly lifecycle: TerminalPresentationLifecycle;
 } {
-	if (presentation.binding !== null && presentation.launchFailure === undefined) {
+	if (presentation.launchFailure !== undefined) {
 		return {
-			intent: { kind: 'retain' },
-			lifecycle: observedServerTerminalEnd(presentation, observedEnds) ?? { kind: 'running' },
+			intent: { kind: 'provision' },
+			lifecycle: { failure: { code: presentation.launchFailure.reason }, kind: 'launch-failed' },
 		};
 	}
-	const operationId = terminalPresentationOperationId(
-		`server-launch:${presentation.presentationId}`,
-	);
+	if (presentation.binding === null) {
+		return { intent: { kind: 'provision' }, lifecycle: { kind: 'unbound' } };
+	}
 	return {
-		intent: { kind: 'provision', operationId },
-		lifecycle: {
-			failure: {
-				code: presentation.launchFailure?.reason ?? UNBOUND_TERMINAL_FAILURE_CODE,
-				retryable: false,
-			},
-			kind: 'provision-failed',
-			operationId,
-		},
+		intent: { kind: 'retain' },
+		lifecycle: observedServerTerminalEnd(presentation, observedEnds) ?? { kind: 'running' },
 	};
 }
 

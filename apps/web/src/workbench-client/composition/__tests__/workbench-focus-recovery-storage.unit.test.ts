@@ -40,7 +40,6 @@ const document = createWorkbenchSharedDocument({
 				nextPanelSlotSequence: 3,
 				nextSplitSequence: 2,
 				nextTerminalSequence: 5,
-				pendingRemovals: [],
 				tabs: [
 					{
 						root: {
@@ -237,7 +236,6 @@ describe('Workbench focus recovery storage', () => {
 function presentation(presentationId: ReturnType<typeof terminalPresentationId>, title: string) {
 	return {
 		intent: { kind: 'retain' as const },
-		launchCwd: '/workspace',
 		presentationId,
 		title,
 	};

@@ -71,7 +71,7 @@ describe('panel broadcast input', () => {
 		});
 
 		const notRunning = environmentFor(
-			split('split-root', 'horizontal', panel('panel-1'), panel('panel-2', 'stopped')),
+			split('split-root', 'horizontal', panel('panel-1'), panel('panel-2', 'exited')),
 		);
 		expect(resolvePanelBroadcastStart(notRunning, 'panel-1')).toEqual({
 			kind: 'unavailable',
@@ -251,7 +251,6 @@ function environmentFor(
 			nextPanelSlotSequence: panels.length * 2,
 			nextSplitSequence: panels.length,
 			nextTerminalSequence: panels.length + 1,
-			pendingRemovals: [],
 			tabs: [
 				{
 					focusedPanelId: overrides.focusedPanelId ?? panels[0]?.id ?? 'missing',
@@ -283,7 +282,7 @@ function terminalId(panelId: string): TerminalPresentationId {
 	return `terminal-${panelId}` as TerminalPresentationId;
 }
 
-function panel(id: string, lifecycle: 'running' | 'stopped' = 'running'): PanelLeaf {
+function panel(id: string, ended: 'exited' | 'running' = 'running'): PanelLeaf {
 	return {
 		activeChildPresentationId: null,
 		childPresentations: [],
@@ -292,8 +291,8 @@ function panel(id: string, lifecycle: 'running' | 'stopped' = 'running'): PanelL
 		primaryPresentation: {
 			closeActivity: 'unknown',
 			currentCwd: null,
-			launchCwd: null,
-			lifecycle: { kind: lifecycle },
+			lifecycle:
+				ended === 'exited' ? { exitCode: 0, kind: 'exited', signal: null } : { kind: 'running' },
 			naturalTitle: null,
 			presentationId: terminalId(id),
 			title: id,

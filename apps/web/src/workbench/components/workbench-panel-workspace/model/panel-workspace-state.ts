@@ -1,7 +1,6 @@
 import type {
 	TerminalPresentationCloseActivity,
 	TerminalPresentationId,
-	TerminalPresentationRemovalId,
 } from '@orchbee/workbench-client-protocol';
 
 import type {
@@ -34,39 +33,8 @@ export interface PanelWorkspaceState {
 	readonly nextPanelSlotSequence: number;
 	readonly nextSplitSequence: number;
 	readonly nextTerminalSequence: number;
-	readonly pendingRemovals: readonly TerminalPresentationRemoval[];
 	readonly tabs: readonly TabPanelWorkspace[];
 }
-
-type TerminalPresentationRemoval =
-	| {
-			readonly childPresentationId: TerminalPresentationId;
-			readonly kind: 'child';
-			readonly panelId: string;
-			readonly presentationIds: readonly TerminalPresentationId[];
-			readonly removalId: TerminalPresentationRemovalId;
-			readonly tabId: string;
-	  }
-	| {
-			readonly kind: 'panel';
-			readonly panelId: string;
-			readonly presentationIds: readonly TerminalPresentationId[];
-			readonly removalId: TerminalPresentationRemovalId;
-			readonly tabId: string;
-	  }
-	| {
-			readonly kind: 'primary';
-			readonly panelId: string;
-			readonly presentationIds: readonly TerminalPresentationId[];
-			readonly removalId: TerminalPresentationRemovalId;
-			readonly tabId: string;
-	  }
-	| {
-			readonly kind: 'tab';
-			readonly presentationIds: readonly TerminalPresentationId[];
-			readonly removalId: TerminalPresentationRemovalId;
-			readonly tabId: string;
-	  };
 
 interface PanelMoveTarget {
 	readonly direction: PanelSplitDirection;
@@ -109,7 +77,7 @@ export type PanelWorkspaceEvent =
 			readonly tabId: string;
 			readonly type: 'terminal-metadata-changed';
 	  }
-	/** Follows the Tab strip's order; a Tab leaves only once its terminals have closed. */
+	/** Follows the Tab strip; a Tab arrives only with the Panels a publication gave it. */
 	| {
 			readonly tabIds: readonly string[];
 			readonly type: 'tabs-reconciled';
@@ -117,19 +85,9 @@ export type PanelWorkspaceEvent =
 
 type PanelWorkspaceRejection =
 	| 'child-terminal-not-found'
-	| 'invalid-close-operations'
-	| 'invalid-resize'
-	| 'last-panel'
-	| 'panel-maximized'
 	| 'panel-not-found'
-	| 'requires-multiple-panels'
-	| 'stale-operation'
-	| 'split-not-found'
 	| 'tab-not-found'
-	| 'terminal-removal-conflict'
-	| 'terminal-removal-required'
 	| 'terminal-presentation-required'
-	| 'terminal-session-not-stopped'
 	| 'terminal-not-found';
 
 export interface PanelWorkspaceTransition {
@@ -276,13 +234,6 @@ function findTerminalInNode(
 		if (terminal !== null) return terminal;
 	}
 	return null;
-}
-
-function collectPresentationIds(node: PanelLayoutNode): readonly TerminalPresentationId[] {
-	return collectPanelLeaves(node).flatMap((panel) => [
-		panel.primaryPresentation.presentationId,
-		...panel.childPresentations.map((terminal) => terminal.presentationId),
-	]);
 }
 
 function orientationForDirection(direction: PanelSplitDirection): PanelSplitOrientation {
@@ -449,15 +400,22 @@ export function collectPanelLeaves(root: PanelLayoutNode): readonly PanelLeaf[] 
 	return panels;
 }
 
+/**
+ * Asks as the TUI does: before ending a terminal that may still run a program, and before closing a
+ * Presentation with no terminal to read. A terminal that ended, or whose launch failed, closes
+ * unasked.
+ */
 export function terminalRequiresCloseConfirmation(terminal: TerminalPresentation): boolean {
-	if (terminal.lifecycle.kind === 'provisioning' || terminal.lifecycle.kind === 'running') {
-		return terminal.closeActivity !== 'idle';
+	switch (terminal.lifecycle.kind) {
+		case 'running':
+			return terminal.closeActivity !== 'idle';
+		case 'unbound':
+			return true;
+		case 'exited':
+		case 'failed':
+		case 'launch-failed':
+			return false;
 	}
-	return (
-		terminal.lifecycle.kind === 'preview' ||
-		terminal.lifecycle.kind === 'restoring' ||
-		terminal.lifecycle.kind === 'reconciling'
-	);
 }
 
 export function countTerminalsRequiringCloseConfirmation(root: PanelLayoutNode): number {
@@ -488,7 +446,6 @@ export function getTerminalDisplayTitle(terminal: TerminalPresentation): string 
 		terminal.customTitle ??
 		terminal.naturalTitle ??
 		deriveTerminalDirectoryTitle(terminal.currentCwd) ??
-		deriveTerminalDirectoryTitle(terminal.launchCwd) ??
 		terminal.title
 	);
 }
@@ -552,22 +509,6 @@ export function transitionPanelWorkspace(
 ): PanelWorkspaceTransition {
 	if (event.type === 'tabs-reconciled') {
 		const existingByTabId = new Map(state.tabs.map((tab) => [tab.tabId, tab]));
-		const requestedTabIds = new Set(event.tabIds);
-		for (const existing of state.tabs) {
-			if (requestedTabIds.has(existing.tabId)) continue;
-			const removal = state.pendingRemovals.find(
-				(candidate) => candidate.kind === 'tab' && candidate.tabId === existing.tabId,
-			);
-			if (
-				removal === undefined ||
-				!removal.presentationIds.every(
-					(presentationId) =>
-						findTerminalInNode(existing.root, presentationId)?.lifecycle.kind === 'closed',
-				)
-			) {
-				return rejected(state, 'terminal-removal-required');
-			}
-		}
 		const tabs: TabPanelWorkspace[] = [];
 		for (const tabId of event.tabIds) {
 			const existing = existingByTabId.get(tabId);
@@ -577,12 +518,7 @@ export function transitionPanelWorkspace(
 		}
 		const isUnchanged =
 			tabs.length === state.tabs.length && tabs.every((tab, index) => tab === state.tabs[index]);
-		const pendingRemovals = state.pendingRemovals.filter((removal) =>
-			requestedTabIds.has(removal.tabId),
-		);
-		return isUnchanged && pendingRemovals.length === state.pendingRemovals.length
-			? unchanged(state)
-			: applied({ ...state, pendingRemovals, tabs });
+		return isUnchanged ? unchanged(state) : applied({ ...state, tabs });
 	}
 
 	const tabIndex = state.tabs.findIndex((tab) => tab.tabId === event.tabId);
@@ -758,70 +694,6 @@ export function validatePanelWorkspaceState(state: PanelWorkspaceState): readonl
 			for (const child of node.children) visit(child.node);
 		};
 		visit(tab.root);
-	}
-	const removalPresentationIds = new Set<TerminalPresentationId>();
-	const removalIds = new Set<TerminalPresentationRemovalId>();
-	for (const removal of state.pendingRemovals) {
-		if (removalIds.has(removal.removalId)) {
-			errors.push(`Duplicate terminal removal id: ${removal.removalId}`);
-		}
-		removalIds.add(removal.removalId);
-		const tab = state.tabs.find((candidate) => candidate.tabId === removal.tabId);
-		if (tab === undefined) {
-			errors.push(`Removal references missing tab: ${removal.removalId}`);
-			continue;
-		}
-		if (removal.presentationIds.length === 0) {
-			errors.push(`Removal has no terminal presentations: ${removal.removalId}`);
-		}
-		const expectedPresentationIds = (() => {
-			if (removal.kind === 'tab') return new Set(collectPresentationIds(tab.root));
-			const panel = findPanelInNode(tab.root, removal.panelId);
-			if (panel === null) return null;
-			if (removal.kind === 'child') {
-				return panel.childPresentations.some(
-					(terminal) => terminal.presentationId === removal.childPresentationId,
-				)
-					? new Set([removal.childPresentationId])
-					: null;
-			}
-			if (removal.kind === 'primary') {
-				return new Set([panel.primaryPresentation.presentationId]);
-			}
-			return new Set([
-				panel.primaryPresentation.presentationId,
-				...panel.childPresentations.map((terminal) => terminal.presentationId),
-			]);
-		})();
-		const actualPresentationIds = new Set(removal.presentationIds);
-		if (
-			expectedPresentationIds === null ||
-			expectedPresentationIds.size !== actualPresentationIds.size ||
-			![...expectedPresentationIds].every((presentationId) =>
-				actualPresentationIds.has(presentationId),
-			)
-		) {
-			errors.push(`Removal target mismatch: ${removal.removalId}`);
-		}
-		for (const presentationId of removal.presentationIds) {
-			if (removalPresentationIds.has(presentationId)) {
-				errors.push(`Terminal presentation belongs to overlapping removals: ${presentationId}`);
-			}
-			removalPresentationIds.add(presentationId);
-			const terminal = findTerminalInNode(tab.root, presentationId);
-			if (terminal === null) {
-				errors.push(`Removal references missing terminal presentation: ${presentationId}`);
-				continue;
-			}
-			if (
-				(terminal.lifecycle.kind !== 'closing' &&
-					terminal.lifecycle.kind !== 'close-failed' &&
-					terminal.lifecycle.kind !== 'closed') ||
-				terminal.lifecycle.removalId !== removal.removalId
-			) {
-				errors.push(`Removal lifecycle mismatch: ${presentationId}`);
-			}
-		}
 	}
 	return errors;
 }

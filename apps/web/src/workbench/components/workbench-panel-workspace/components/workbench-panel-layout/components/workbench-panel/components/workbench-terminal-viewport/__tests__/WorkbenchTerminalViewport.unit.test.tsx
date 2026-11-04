@@ -18,8 +18,7 @@ const clearTerminal = vi.fn<() => void>();
 const terminal: TerminalPresentation = {
 	closeActivity: 'unknown',
 	currentCwd: null,
-	launchCwd: null,
-	lifecycle: { kind: 'preview' },
+	lifecycle: { kind: 'running' },
 	naturalTitle: null,
 	presentationId: terminalPresentationId('terminal-1'),
 	title: 'Terminal 1',

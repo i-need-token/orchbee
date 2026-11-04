@@ -177,7 +177,8 @@ Host-originated clipboard-write commit is a separate, request-bound flow. The tr
 
 `workbench-shared-document-contract.ts` owns the current strict `WorkbenchSharedDocument`: its
 version-1 schema, canonical revision, creation, and parsing. `terminal-presentation-contract.ts`
-owns the TerminalPresentation identities and lifecycle states. Project and Workspace structural
+owns the TerminalPresentation identity and the five lifecycle states a Server Client can know:
+`running`, `exited`, `failed`, `launch-failed`, and `unbound`. Project and Workspace structural
 invariants live in `assertWorkbenchSharedProjectWorkspaceInvariants.ts`; shared-document
 parsing and Workbench transitions apply the same checks, so neither accepts a structure that the
 other rejects.

@@ -28,38 +28,36 @@ WorkbenchSharedDocument
     ├── Tab and Group identity, metadata, membership, and order
     └── Panel workspace
         ├── per-Tab Panel/Split hierarchy, orientation, slot identity, and order
-        ├── terminal presentations: identity, title, launch CWD, and durable intent
-        └── pending removals and allocation sequences
+        ├── terminal presentations: identity, title, and binding intent
+        └── allocation sequences
 ```
 
-Presentation intent has exactly five forms:
+Presentation intent has exactly two forms:
 
-| Intent      | Shared durable meaning                                                          |
-| ----------- | ------------------------------------------------------------------------------- |
-| `provision` | The named presentation operation still requires reconciliation.                 |
-| `retain`    | An existing technical binding is expected; absence cannot create a replacement. |
-| `close`     | The named close operation and structural removal remain pending.                |
-| `stop`      | Application exit is stopping the binding while retaining product placement.     |
-| `stopped`   | Product placement remains, but no binding or process is expected.               |
+| Intent      | Shared durable meaning                                                                |
+| ----------- | ------------------------------------------------------------------------------------- |
+| `retain`    | The Server bound a terminal to the presentation; absence cannot create a replacement. |
+| `provision` | The Server holds no terminal for it: none is bound, or its launch failed.             |
 
-Projection maps provisioning failures to `provision`; running, restoring, reconciling,
-restore-failed, or exited observations to `retain`; close states to `close`; stop states to `stop`;
-and a completed application stop to `stopped`. Hydration reconstructs pending lifecycle state but
-dispatches no process command.
+Projection maps running, exited, and failed lifecycles to `retain`, and launch-failed or unbound
+ones to `provision`. A document holds no lifecycle: hydration gives `retain` a running placeholder
+and `provision` an unbound one, and the publication's own lifecycle replaces both. Hydration
+dispatches no process command, and nothing retries a launch or binds a terminal by itself.
+
+The Server removes what it closes, so the document has no pending removal and no close or stop
+intent.
 
 A Terminal Context may be structurally empty: allocation sequences start at `1`, while its Tab,
-Group, Panel, presentation, and pending-removal collections are empty. This is a document shape,
+Group, Panel, and presentation collections are empty. This is a document shape,
 not evidence that a consuming application provides remote Workspace admission or provisioning.
 
 The schema retains Environment placement for compatible documents. Placement identifies a resource
 namespace but grants no transport or process capability. The Server owns effect admission.
 
 Each shared Tab stores a durable fallback `title` and nullable durable `customTitle`. The fallback is
-the name `projectServerSnapshot` gives the Tab; a custom title is the explicit user override.
-Host-derived natural terminal titles and current CWD are transient runtime observations and never
-enter the shared document. Display may derive a compact directory label from the durable launch CWD,
-so hydration can restore directory context before a new projection while preserving the stored
-fallback and custom title unchanged.
+the name `projectServerSnapshot` gives the Tab; a custom title is the name a person chose, which
+only the Server changes. Host-derived natural terminal titles and current CWD are transient runtime
+observations and never enter the shared document.
 
 ## Client View
 
@@ -114,7 +112,7 @@ recovery requires a separate accepted owner and contract.
 
 ## Invariants
 
-- Project, Workspace, Terminal Context, Tab, Group, Panel, Split, Panel-slot, removal, and
+- Project, Workspace, Terminal Context, Tab, Group, Panel, Split, Panel-slot, and
   `TerminalPresentationId` identities are unique in their declared scope.
 - Terminal Contexts use canonical identity order and equal the exact set referenced by standalone
   and Workspace contexts.
@@ -129,10 +127,7 @@ recovery requires a separate accepted owner and contract.
   Group is contiguous.
 - Every Split has exactly two children and unique slots. A child Split may repeat its parent's
   orientation because that ancestry owns close and resize behavior.
-- Every presentation appears exactly once. Pending removals resolve to an exact non-empty target,
-  never overlap, and match only `close` intent with the same removal identity.
-- A `stop` intent never belongs to a pending removal. `stopped` never provisions or restores
-  implicitly.
+- Every presentation appears exactly once.
 - A reconciled Client View has exactly one entry per shared Terminal Context and Tab, contains only
   resolving references, and gives every Split exactly one non-negative weight per slot totaling
   `100`.
@@ -156,15 +151,14 @@ ordering, and publications.
 
 ## Correctness evidence
 
-| Claim                                                        | Evidence                                                                                                                           | Limits                                          |
-| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Strict shared documents preserve every binary relationship   | Valid/malformed examples, JSON round trips, and generated same-axis hierarchies                                                    | Generated bounds: eight Tabs, four Panels each  |
-| Only the complete current shape is accepted                  | Strict parsing and invalid-graph rejection tests                                                                                   | No historical-record migration                  |
-| Client Views are isolated and reconciliation is idempotent   | Two-view examples, stale-reference regression, and fixed-seed properties                                                           | In-memory view contract only                    |
-| Hydration preserves durable terminal intent                  | Provision/retain/close/stop/stopped runtime round trips                                                                            | Host binding existence remains application work |
-| Custom title survives while natural metadata stays transient | Title override/reset and shared-document hydration scenarios                                                                       | Rename presentation is adapter-owned            |
-| Applying a publication emits no terminal effect              | Runtime publication tests                                                                                                          | One renderer runtime                            |
-| An empty Terminal Context carries no presentation intent     | [Document schema tests](../../../packages/workbench-client-protocol/src/__tests__/workbench-shared-document-contract.unit.test.ts) | Pure structure; no remote runtime admission     |
-| View-only changes never require a shared write               | Projection-specific observer tests                                                                                                 | Shared ordering is Server authority             |
+| Claim                                                      | Evidence                                                                                                                           | Limits                                         |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Strict shared documents preserve every binary relationship | Valid/malformed examples, JSON round trips, and generated same-axis hierarchies                                                    | Generated bounds: eight Tabs, four Panels each |
+| Only the complete current shape is accepted                | Strict parsing and invalid-graph rejection tests                                                                                   | No historical-record migration                 |
+| Client Views are isolated and reconciliation is idempotent | Two-view examples, stale-reference regression, and fixed-seed properties                                                           | In-memory view contract only                   |
+| A Tab without a chosen name follows its terminal           | Runtime title scenario across natural title, current CWD, and fallback                                                             | The Server owns chosen names                   |
+| Applying a publication emits no terminal effect            | Runtime publication tests                                                                                                          | One renderer runtime                           |
+| An empty Terminal Context carries no presentation intent   | [Document schema tests](../../../packages/workbench-client-protocol/src/__tests__/workbench-shared-document-contract.unit.test.ts) | Pure structure; no remote runtime admission    |
+| View-only changes never require a shared write             | Projection-specific observer tests                                                                                                 | Shared ordering is Server authority            |
 
 Pure document/view projection and strict current-shape admission use deterministic/property tests.

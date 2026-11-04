@@ -144,7 +144,7 @@ export function settledServerTerminalLifecycle(
 	settlement: ServerTerminalSettlement,
 ): EndedTerminalLifecycle {
 	if (settlement.kind === 'terminal-failed') {
-		return { failure: { code: settlement.event.failure.kind, retryable: false }, kind: 'failed' };
+		return { failure: { code: settlement.event.failure.kind }, kind: 'failed' };
 	}
 	const { exit } = settlement.event;
 	return {

@@ -492,30 +492,19 @@ describe('panel workspace state', () => {
 		expect(added.state).toBe(state);
 	});
 
-	it('exhausts every ordered subset when reconciling a bounded tab collection', () => {
+	it('follows every ordered subset of a bounded tab collection', () => {
 		const initial = publishedState([snapshotTab(1), snapshotTab(2), snapshotTab(3)]);
 		const tabIds = initial.tabs.map((tab) => tab.tabId);
 		const initialTabs = new Map(initial.tabs.map((tab) => [tab.tabId, tab]));
 		const orders = enumerateOrderedSubsets(tabIds);
-		const permutations = orders.filter((order) => order.length === tabIds.length);
-		const removals = orders.filter((order) => order.length < tabIds.length);
 
-		for (const order of permutations) {
+		for (const order of orders) {
 			const result = transitionPanelWorkspace(initial, { tabIds: order, type: 'tabs-reconciled' });
 
 			expect(result.state.tabs.map((tab) => tab.tabId)).toEqual(order);
 			expect(result.state.tabs.every((tab) => tab === initialTabs.get(tab.tabId))).toBe(true);
 		}
-		for (const order of removals) {
-			const result = transitionPanelWorkspace(initial, { tabIds: order, type: 'tabs-reconciled' });
 
-			expect(result).toMatchObject({
-				outcome: 'rejected',
-				rejection: 'terminal-removal-required',
-			});
-			expect(result.state).toBe(initial);
-		}
-
-		expect([permutations.length, removals.length]).toEqual([6, 10]);
+		expect(orders).toHaveLength(16);
 	});
 });

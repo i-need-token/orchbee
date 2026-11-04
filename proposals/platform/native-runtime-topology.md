@@ -1882,6 +1882,11 @@ beside the Server path. These choices stand unless review changes them:
   Workspace shows that Workspace without starting one.
 - **A stopped terminal has no surface.** The Server publishes running, ended, and failed-to-start
   terminals only, so the "Start new session" overlay and the local restart are deleted.
+- **The Workbench holds only what the Server publishes.** A Presentation is `running`, `exited`,
+  `failed`, `launch-failed`, or `unbound`; local removal tracking, launch directories, close and
+  stop intents, and Panel rejections nothing produces are deleted. A Tab a person named shows that
+  name and any other Tab follows its focused terminal. A close asks as the TUI's does, including for
+  a Presentation with no terminal.
 - **The split divider commits only through the Server.** Nothing resizes the layout locally;
   equalize, swap, move, and split resolvers went with the local transitions.
 - **Copy for deleted surfaces is deleted.** SSH and Project connection states, local folder

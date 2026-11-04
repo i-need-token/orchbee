@@ -2,10 +2,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { ZodError } from 'zod';
 
-import {
-	terminalPresentationId,
-	terminalPresentationOperationId,
-} from '../terminal-presentation-contract';
+import { terminalPresentationId } from '../terminal-presentation-contract';
 import {
 	createWorkbenchSharedDocument,
 	parseWorkbenchSharedDocument,
@@ -48,7 +45,6 @@ function inputWithTabs(
 					),
 					nextSplitSequence: panelCounts.filter((count) => count > 1).length + 1,
 					nextTerminalSequence: tabs.length + 1,
-					pendingRemovals: [],
 					tabs: panelCounts.map((count, index) => ({
 						root: panelRoot(panelCounts, index, count),
 						tabId: tabs[index]?.id ?? 'missing-tab',
@@ -104,11 +100,7 @@ function panel(sequence: number): WorkbenchSharedPanelNode {
 		id: `panel-${sequence}`,
 		kind: 'panel',
 		primaryPresentation: {
-			intent: {
-				kind: 'provision',
-				operationId: terminalPresentationOperationId(`operation-${sequence}`),
-			},
-			launchCwd: `/workspace/${sequence}`,
+			intent: { kind: 'provision' },
 			presentationId: terminalPresentationId(`presentation-${sequence}`),
 			title: `Terminal ${sequence}`,
 		},

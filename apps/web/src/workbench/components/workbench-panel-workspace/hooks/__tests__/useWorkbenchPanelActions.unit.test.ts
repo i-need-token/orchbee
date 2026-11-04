@@ -31,7 +31,6 @@ function panelLeaf(sequence: number): PanelLeaf {
 		primaryPresentation: {
 			closeActivity: 'unknown',
 			currentCwd: null,
-			launchCwd: null,
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,
 			presentationId: terminalPresentationId(`terminal-${sequence}`),
@@ -69,7 +68,6 @@ const appliedTransition: PanelWorkspaceTransition = {
 		nextPanelSlotSequence: 2,
 		nextSplitSequence: 1,
 		nextTerminalSequence: 2,
-		pendingRemovals: [],
 		tabs: [activeTab],
 	},
 };

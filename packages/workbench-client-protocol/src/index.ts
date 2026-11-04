@@ -11,13 +11,11 @@ export type {
 export {
 	TerminalPresentationIdSchema,
 	terminalPresentationId,
-	terminalPresentationOperationId,
 } from './terminal-presentation-contract';
 export type {
 	TerminalPresentationCloseActivity,
 	TerminalPresentationId,
 	TerminalPresentationLifecycle,
-	TerminalPresentationRemovalId,
 } from './terminal-presentation-contract';
 export {
 	createWorkbenchSharedDocument,

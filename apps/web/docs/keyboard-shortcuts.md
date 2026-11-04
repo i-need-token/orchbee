@@ -179,8 +179,7 @@ stale source, invalid order, or missing lower Action is unavailable and leaves t
   actually viewing. An invocation carries either no target, which resolves the active Tab's focused
   Panel, or one exact Panel target.
 - **Data and ownership:** Workbench captures the displayed primary or child Presentation identity
-  and reads its latest trusted non-empty `currentCwd`, falling back to that same Presentation's
-  `launchCwd`. The Server creates the Tab through `authority.createTab`; the Host remains
+  and reads its latest trusted non-empty `currentCwd`. The Server creates the Tab through `authority.createTab`; the Host remains
   authoritative for observed CWD and process launch.
 - **Transition and revalidation:** Execution revalidates terminal context, Tab, Panel, and
   Presentation before resolving the same terminal's newest CWD and creating one ordinary terminal
@@ -251,20 +250,21 @@ stale source, invalid order, or missing lower Action is unavailable and leaves t
   the active Tab, or an explicit trusted terminal-context/Tab identity captured by the menu. Commit
   carries that same identity pair and a string or reset intent.
 - **Data, model, and ownership:** Workbench owns the exact `terminalContextId`/`tabId` target and
-  `PanelWorkspaceState` remains the sole writer of the Tab's durable nullable custom title. Natural
-  OSC title, current/launch CWD, and localized fallback continue to update independently beneath it.
+  sends the name to the Server as `tab-renamed`; the Server holds the Tab's nullable custom title.
+  Natural OSC title, current CWD, and the published fallback continue to update independently
+  beneath it.
 - **Outputs and transitions:** Opening pre-fills the effective displayed title and selects it. A
   trimmed non-empty submission sets the custom title, including when it equals the current natural
-  title; an empty or whitespace-only submission clears it and reveals the newest
-  natural/CWD/fallback projection. Save and cancel close the modal and restore prior terminal focus.
+  title. A shared name has no way back to following the terminal, so an empty or whitespace-only
+  submission asks for nothing. Save and cancel close the modal and restore prior terminal focus.
 - **Invariants and revalidation:** Opening and commit independently resolve the exact context and Tab
   from the current snapshot. Switching active Tabs while the editor is open cannot redirect the
   write; removal of either identity blocks it. Dynamic metadata remains recorded while custom text
-  is visible, and reset never manufactures a fallback or writes terminal-owned metadata.
-- **Decisions:** Each platform has one default chord. A shared localized modal starts with the current title, blank submission resets it, and the durable shared document retains the result. Window-title editing, remote control and multiple simultaneous bindings are excluded.
-- **Verification:** Model tests cover custom/natural priority, equal-value custom locking, reset, and
-  shared-document persistence. Action and React tests cover active and explicit targets, stale
-  rejection, keyboard/context/Action-search entry points, blank reset, focus restoration, and
+  is visible, and a rename never writes terminal-owned metadata.
+- **Decisions:** Each platform has one default chord. A shared localized modal starts with the current title, blank submission changes nothing, and the Server retains the result. Window-title editing, remote control and multiple simultaneous bindings are excluded.
+- **Verification:** Runtime tests cover an unnamed Tab following its terminal's natural title,
+  current directory, and fallback. Action and React tests cover active and explicit targets, stale
+  rejection, keyboard/context/Action-search entry points, blank submission, focus restoration, and
   unchanged terminal input. Settings and storage validation cover both defaults and user overrides;
   the Desktop `terminal-parity/FS-11-tab-title` trace retired with the Desktop Electron suite.
 

@@ -126,23 +126,6 @@ describe('createWebApplicationRouting', () => {
 		fixture.dispose();
 	});
 
-	it('decodes an encoded route parameter exactly once', async () => {
-		const runtime = createRuntime();
-		runtime
-			.getActiveTerminalContext()
-			.tabModel.addTab({ group: null, pinned: false, title: 'Encoded' }, { id: 'tab/encoded' });
-		const fixture = createRouting(`/workspaces/${WORKSPACE_1}/tabs/tab%2Fencoded`, runtime);
-		await fixture.routing.router.load();
-
-		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().activeTabId).toBe(
-			'tab/encoded',
-		);
-		expect(fixture.routing.router.history.location.pathname).toBe(
-			`/workspaces/${WORKSPACE_1}/tabs/tab%2Fencoded`,
-		);
-		fixture.dispose();
-	});
-
 	it('keeps an explicit stale route unavailable instead of selecting another entity', async () => {
 		const fixture = createRouting(`/workspaces/${WORKSPACE_1}/tabs/missing-tab`);
 		const container = document.createElement('div');

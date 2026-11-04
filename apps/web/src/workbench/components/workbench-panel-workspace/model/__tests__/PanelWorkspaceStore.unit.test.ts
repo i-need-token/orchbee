@@ -29,7 +29,13 @@ describe('PanelWorkspaceStore', () => {
 				{ group: null, id: fixtureTabId(3), pinned: false, title: 'Terminal B' },
 			],
 		});
-		const store = new PanelWorkspaceStore(tabModel, { initialState });
+		const store = new PanelWorkspaceStore(tabModel, {
+			initialState,
+			tabTitlePolicies: [
+				{ customTitle: 'Terminal A', fallbackTitle: 'Tab 1', tabId: fixtureTabId(1) },
+				{ customTitle: 'Terminal B', fallbackTitle: 'Tab 3', tabId: fixtureTabId(3) },
+			],
+		});
 		const listener = vi.fn<() => void>();
 		const unsubscribe = store.subscribe(listener);
 

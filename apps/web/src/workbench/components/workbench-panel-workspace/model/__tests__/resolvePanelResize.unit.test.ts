@@ -119,7 +119,6 @@ function panel(id: string): Extract<PanelLayoutNode, { readonly kind: 'panel' }>
 		primaryPresentation: {
 			closeActivity: 'unknown',
 			currentCwd: null,
-			launchCwd: null,
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,
 			presentationId: `terminal-${id}` as never,

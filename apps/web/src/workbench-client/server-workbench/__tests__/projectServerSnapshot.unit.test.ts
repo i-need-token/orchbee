@@ -94,14 +94,11 @@ describe('projectServerSnapshot', () => {
 		);
 
 		expect(activeLeaf(runtime, 0).primaryPresentation.lifecycle.kind).toBe('running');
-		// Nothing is launching it, so it never reads as provisioning.
-		expect(activeLeaf(runtime, 1).primaryPresentation.lifecycle).toMatchObject({
-			failure: { code: 'terminal-unbound', retryable: false },
-			kind: 'provision-failed',
-		});
-		expect(activeLeaf(runtime, 2).primaryPresentation.lifecycle).toMatchObject({
+		// Nothing is launching it, so it never reads as starting.
+		expect(activeLeaf(runtime, 1).primaryPresentation.lifecycle).toEqual({ kind: 'unbound' });
+		expect(activeLeaf(runtime, 2).primaryPresentation.lifecycle).toEqual({
 			failure: { code: 'terminal-create-failed' },
-			kind: 'provision-failed',
+			kind: 'launch-failed',
 		});
 	});
 

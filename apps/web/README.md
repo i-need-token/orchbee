@@ -62,11 +62,11 @@ columns, rows, physical cell size, padding-aware grid, and document DPR through 
 resize observation or animation frame wakes an unmeasurable surface; release aborts that wait. No
 timer starts the child and no 80x24 visual fallback exists.
 
-A painted surface entering Workbench's managed `closing`, `close-failed`, or `closed` lifecycle is
-retained as a frozen, non-interactive frame instead of disposing its DOM. Entering that lifecycle
-releases the projection request, attachment, transport, input, and resize ownership without opening
-or retrying another attachment. The frozen renderer is disposed only when Workbench removes the
-surface after a surviving Tab crosses its display barrier, or clears the final Tab normally.
+A Presentation whose launch failed, or that the Server bound no terminal to, opens no projection.
+Its surface reads Terminal creation failed, with the shell or executable the Server reported, or
+Terminal unavailable when no terminal is bound, beside Close and New Tab; nothing retries the
+launch or binds a terminal by itself. The Server removes what it closes, so a surface never waits
+on a local close.
 
 A terminal that exits or fails at run time keeps its Tab and final frame, as the Server keeps it
 for every Client; the projected attachment rejects further PTY input, resize, clear, and reset
@@ -223,8 +223,9 @@ current-directory metadata, and transient `idle`/`active`/`unknown` close activi
 `TerminalPresentationId`. The shared client runtime
 normalizes that observation with the trusted terminal-machine hostname from the client-session
 bootstrap and applies it to the matching Workbench presentation. Natural titles and accepted
-current CWD remain transient; durable fallback/custom Tab-title policy and shared-document
-projection remain Workbench-owned. The page never derives terminal trust from its own URL hostname.
+current CWD remain transient. The Server holds each Tab's fallback and chosen name; Workbench
+shows the chosen name, or else the focused terminal's natural title, current directory, or
+fallback. The page never derives terminal trust from its own URL hostname.
 
 Suspicious paste text opens one localized review dialog owned by the shared projected-terminal
 surface. It presents a bounded, control-visible preview of the retained original text and identifies

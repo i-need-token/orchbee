@@ -158,35 +158,45 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(listener).toHaveBeenCalledTimes(1);
 	});
 
-	it('observes complete nested document projection and releases child subscriptions with the observer', () => {
+	it('observes the published document and releases the observer', () => {
 		const runtime = createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
-		const context = runtime.getActiveTerminalContext();
 		const listener = vi.fn<() => void>();
 		const unsubscribe = runtime.subscribeDocument(listener);
 
-		context.tabModel.updateTab(fixtureTabId(1), { title: 'Renamed' });
-		expect(listener).toHaveBeenCalled();
+		publishSnapshot(
+			runtime,
+			oneWorkspaceSnapshot(2, [snapshotTab(1, undefined, { label: 'Renamed' })]),
+		);
+		expect(listener).toHaveBeenCalledOnce();
 		listener.mockClear();
 		unsubscribe();
-		context.tabModel.updateTab(fixtureTabId(1), { title: 'Renamed again' });
+		publishSnapshot(
+			runtime,
+			oneWorkspaceSnapshot(3, [snapshotTab(1, undefined, { label: 'Renamed again' })]),
+		);
 
 		expect(listener).not.toHaveBeenCalled();
 	});
 
 	it('observes terminal topology and releases the observer', () => {
 		const runtime = createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
-		const context = runtime.getActiveTerminalContext();
 		const listener = vi.fn<() => void>();
 		const initialRevision = runtime.getTerminalTopologyRevision();
 		const unsubscribe = runtime.subscribeTerminalTopology(listener);
+		const observeTitle = (naturalTitle: string) =>
+			runtime.applyTerminalMetadataObservation(presentation(1), {
+				closeActivity: 'unknown',
+				currentDirectory: { kind: 'ignored' },
+				naturalTitle,
+			});
 
-		context.tabModel.updateTab(fixtureTabId(1), { title: 'Renamed Tab' });
+		observeTitle('vim');
 
 		expect(listener).toHaveBeenCalledOnce();
 		expect(runtime.getTerminalTopologyRevision()).not.toBe(initialRevision);
 		listener.mockClear();
 		unsubscribe();
-		context.tabModel.updateTab(fixtureTabId(1), { title: 'Renamed after unsubscribe' });
+		observeTitle('htop');
 
 		expect(listener).not.toHaveBeenCalled();
 	});
@@ -206,7 +216,10 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(clientViewListener).toHaveBeenCalledOnce();
 		expect(documentListener).not.toHaveBeenCalled();
 		clientViewListener.mockClear();
-		context.tabModel.updateTab(fixtureTabId(2), { title: 'Renamed' });
+		publishSnapshot(
+			runtime,
+			oneWorkspaceSnapshot(2, [snapshotTab(1), snapshotTab(2, undefined, { label: 'Renamed' })]),
+		);
 		expect(documentListener).toHaveBeenCalledOnce();
 		expect(clientViewListener).not.toHaveBeenCalled();
 		unsubscribeClientView();

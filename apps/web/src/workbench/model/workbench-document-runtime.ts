@@ -223,10 +223,6 @@ function projectSharedPanelWorkspace(state: PanelWorkspaceState) {
 		nextPanelSlotSequence: state.nextPanelSlotSequence,
 		nextSplitSequence: state.nextSplitSequence,
 		nextTerminalSequence: state.nextTerminalSequence,
-		pendingRemovals: state.pendingRemovals.map((removal) => ({
-			...removal,
-			presentationIds: [...removal.presentationIds],
-		})),
 		tabs: state.tabs.map((tab) => ({
 			root: projectSharedPanelNode(tab.root),
 			tabId: tab.tabId,
@@ -302,7 +298,6 @@ function projectPanelNodeView(
 function projectPresentation(presentation: TerminalPresentation): WorkbenchSharedPresentation {
 	return {
 		intent: intentForLifecycle(presentation.lifecycle),
-		launchCwd: presentation.launchCwd,
 		presentationId: presentation.presentationId,
 		title: presentation.title,
 	};
@@ -312,31 +307,13 @@ function intentForLifecycle(
 	lifecycle: TerminalPresentationLifecycle,
 ): WorkbenchSharedPresentationIntent {
 	switch (lifecycle.kind) {
-		case 'preview':
-			throw new Error('Preview terminal presentations cannot enter a shared document.');
-		case 'provisioning':
-		case 'provision-failed':
-			return { kind: 'provision', operationId: lifecycle.operationId };
 		case 'running':
-		case 'restoring':
-		case 'reconciling':
-		case 'restore-failed':
 		case 'exited':
 		case 'failed':
 			return { kind: 'retain' };
-		case 'stopping':
-		case 'stop-failed':
-			return { kind: 'stop', operationId: lifecycle.operationId };
-		case 'stopped':
-			return { kind: 'stopped' };
-		case 'closing':
-		case 'close-failed':
-		case 'closed':
-			return {
-				kind: 'close',
-				operationId: lifecycle.operationId,
-				removalId: lifecycle.removalId,
-			};
+		case 'launch-failed':
+		case 'unbound':
+			return { kind: 'provision' };
 	}
 }
 
@@ -350,7 +327,6 @@ function hydratePanelWorkspace(
 		nextPanelSlotSequence: state.nextPanelSlotSequence,
 		nextSplitSequence: state.nextSplitSequence,
 		nextTerminalSequence: state.nextTerminalSequence,
-		pendingRemovals: state.pendingRemovals.map((removal) => ({ ...removal })),
 		tabs: state.tabs.map((tab) => {
 			const tabView = requireDefined(tabViews.get(tab.tabId));
 			const panelViews = new Map(tabView.panels.map((panel) => [panel.panelId, panel]));
@@ -405,7 +381,6 @@ function hydratePresentation(presentation: WorkbenchSharedPresentation): Termina
 	return {
 		closeActivity: 'unknown',
 		currentCwd: null,
-		launchCwd: presentation.launchCwd,
 		lifecycle: lifecycleForIntent(presentation.intent),
 		naturalTitle: null,
 		presentationId: presentation.presentationId,
@@ -413,24 +388,15 @@ function hydratePresentation(presentation: WorkbenchSharedPresentation): Termina
 	};
 }
 
+/** A document holds no lifecycle, so this stands until the publication's lifecycle replaces it. */
 function lifecycleForIntent(
 	intent: WorkbenchSharedPresentationIntent,
 ): TerminalPresentationLifecycle {
 	switch (intent.kind) {
 		case 'provision':
-			return { kind: 'provisioning', operationId: intent.operationId };
+			return { kind: 'unbound' };
 		case 'retain':
-			return { kind: 'restoring' };
-		case 'stop':
-			return { kind: 'stopping', operationId: intent.operationId };
-		case 'stopped':
-			return { kind: 'stopped' };
-		case 'close':
-			return {
-				kind: 'closing',
-				operationId: intent.operationId,
-				removalId: intent.removalId,
-			};
+			return { kind: 'running' };
 	}
 }
 

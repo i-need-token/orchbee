@@ -13,8 +13,7 @@ function panel(id: string): PanelLeaf {
 		primaryPresentation: {
 			closeActivity: 'idle',
 			currentCwd: null,
-			launchCwd: null,
-			lifecycle: { kind: 'preview' },
+			lifecycle: { kind: 'running' },
 			naturalTitle: null,
 			presentationId: terminalPresentationId(`${id}-presentation`),
 			title: id,

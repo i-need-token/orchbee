@@ -1,10 +1,6 @@
 import { z } from 'zod';
 
-import {
-	TerminalPresentationIdSchema,
-	TerminalPresentationOperationIdSchema,
-	TerminalPresentationRemovalIdSchema,
-} from './terminal-presentation-contract';
+import { TerminalPresentationIdSchema } from './terminal-presentation-contract';
 import { assertWorkbenchSharedProjectWorkspaceInvariants } from './assertWorkbenchSharedProjectWorkspaceInvariants';
 
 const identifierSchema = z.string().min(1);
@@ -119,27 +115,14 @@ const tabCollectionSchema = z.strictObject({
 	tabs: z.array(tabSchema),
 });
 
+/** `retain` keeps the terminal bound to a Presentation; `provision` marks one that has none. */
 const presentationIntentSchema = z.discriminatedUnion('kind', [
-	z.strictObject({
-		kind: z.literal('provision'),
-		operationId: TerminalPresentationOperationIdSchema,
-	}),
+	z.strictObject({ kind: z.literal('provision') }),
 	z.strictObject({ kind: z.literal('retain') }),
-	z.strictObject({
-		kind: z.literal('stop'),
-		operationId: TerminalPresentationOperationIdSchema,
-	}),
-	z.strictObject({ kind: z.literal('stopped') }),
-	z.strictObject({
-		kind: z.literal('close'),
-		operationId: TerminalPresentationOperationIdSchema,
-		removalId: TerminalPresentationRemovalIdSchema,
-	}),
 ]);
 
 const presentationSchema = z.strictObject({
 	intent: presentationIntentSchema,
-	launchCwd: z.string().nullable(),
 	presentationId: TerminalPresentationIdSchema,
 	title: z.string(),
 });
@@ -197,43 +180,11 @@ const tabPanelWorkspaceSchema = z.strictObject({
 	tabId: identifierSchema,
 });
 
-const pendingRemovalSchema = z.discriminatedUnion('kind', [
-	z.strictObject({
-		childPresentationId: TerminalPresentationIdSchema,
-		kind: z.literal('child'),
-		panelId: identifierSchema,
-		presentationIds: z.array(TerminalPresentationIdSchema),
-		removalId: TerminalPresentationRemovalIdSchema,
-		tabId: identifierSchema,
-	}),
-	z.strictObject({
-		kind: z.literal('panel'),
-		panelId: identifierSchema,
-		presentationIds: z.array(TerminalPresentationIdSchema),
-		removalId: TerminalPresentationRemovalIdSchema,
-		tabId: identifierSchema,
-	}),
-	z.strictObject({
-		kind: z.literal('primary'),
-		panelId: identifierSchema,
-		presentationIds: z.array(TerminalPresentationIdSchema),
-		removalId: TerminalPresentationRemovalIdSchema,
-		tabId: identifierSchema,
-	}),
-	z.strictObject({
-		kind: z.literal('tab'),
-		presentationIds: z.array(TerminalPresentationIdSchema),
-		removalId: TerminalPresentationRemovalIdSchema,
-		tabId: identifierSchema,
-	}),
-]);
-
 const panelWorkspaceSchema = z.strictObject({
 	nextPanelSequence: sequenceSchema,
 	nextPanelSlotSequence: sequenceSchema,
 	nextSplitSequence: sequenceSchema,
 	nextTerminalSequence: sequenceSchema,
-	pendingRemovals: z.array(pendingRemovalSchema),
 	tabs: z.array(tabPanelWorkspaceSchema),
 });
 
@@ -394,68 +345,8 @@ function validatePanelWorkspace(
 	const panelIds = new Set<string>();
 	const splitIds = new Set<string>();
 	const slotIds = new Set<string>();
-	const presentations = new Map<string, WorkbenchSharedPresentation>();
-	const panelsByTab = new Map<string, Map<string, WorkbenchSharedPanelLeaf>>();
 	for (const tab of terminalContext.panelWorkspace.tabs) {
-		const localPanels = new Map<string, WorkbenchSharedPanelLeaf>();
-		visitPanelNode(
-			tab.root,
-			panelIds,
-			splitIds,
-			slotIds,
-			presentations,
-			globalPresentationIds,
-			localPanels,
-			issues,
-		);
-		panelsByTab.set(tab.tabId, localPanels);
-	}
-	const removalIds = new Set<string>();
-	const removalPresentationIds = new Set<string>();
-	for (const removal of terminalContext.panelWorkspace.pendingRemovals) {
-		if (removalIds.has(removal.removalId)) {
-			issues.push(`Duplicate pending removal: ${removal.removalId}.`);
-		}
-		removalIds.add(removal.removalId);
-		if (removal.presentationIds.length === 0) {
-			issues.push(`Pending removal ${removal.removalId} has no presentation.`);
-		}
-		const tab = terminalContext.panelWorkspace.tabs.find(
-			(candidate) => candidate.tabId === removal.tabId,
-		);
-		if (tab === undefined) {
-			issues.push(`Pending removal ${removal.removalId} references a missing Tab.`);
-			continue;
-		}
-		const expectedIds = expectedRemovalPresentationIds(
-			removal,
-			tab.root,
-			panelsByTab.get(removal.tabId),
-		);
-		if (expectedIds === null || !setsEqual(new Set(removal.presentationIds), expectedIds)) {
-			issues.push(`Pending removal ${removal.removalId} has an invalid target set.`);
-		}
-		for (const presentationId of removal.presentationIds) {
-			if (removalPresentationIds.has(presentationId)) {
-				issues.push(`Presentation ${presentationId} belongs to overlapping removals.`);
-			}
-			removalPresentationIds.add(presentationId);
-			const presentation = presentations.get(presentationId);
-			if (
-				presentation?.intent.kind !== 'close' ||
-				presentation.intent.removalId !== removal.removalId
-			) {
-				issues.push(`Presentation ${presentationId} has no matching close intent.`);
-			}
-		}
-	}
-	for (const presentation of presentations.values()) {
-		if (
-			presentation.intent.kind === 'close' &&
-			!removalPresentationIds.has(presentation.presentationId)
-		) {
-			issues.push(`Close intent ${presentation.presentationId} has no pending removal.`);
-		}
+		visitPanelNode(tab.root, panelIds, splitIds, slotIds, globalPresentationIds, issues);
 	}
 }
 
@@ -464,21 +355,17 @@ function visitPanelNode(
 	panelIds: Set<string>,
 	splitIds: Set<string>,
 	slotIds: Set<string>,
-	presentations: Map<string, WorkbenchSharedPresentation>,
 	globalPresentationIds: Set<string>,
-	localPanels: Map<string, WorkbenchSharedPanelLeaf>,
 	issues: string[],
 ): void {
 	if (node.kind === 'panel') {
 		if (panelIds.has(node.id)) issues.push(`Duplicate Panel: ${node.id}.`);
 		panelIds.add(node.id);
-		localPanels.set(node.id, node);
 		for (const presentation of [node.primaryPresentation, ...node.childPresentations]) {
 			if (globalPresentationIds.has(presentation.presentationId)) {
 				issues.push(`Duplicate TerminalPresentationId: ${presentation.presentationId}.`);
 			}
 			globalPresentationIds.add(presentation.presentationId);
-			presentations.set(presentation.presentationId, presentation);
 		}
 		return;
 	}
@@ -490,59 +377,12 @@ function visitPanelNode(
 	for (const child of node.children) {
 		if (slotIds.has(child.id)) issues.push(`Duplicate Panel slot: ${child.id}.`);
 		slotIds.add(child.id);
-		visitPanelNode(
-			child.node,
-			panelIds,
-			splitIds,
-			slotIds,
-			presentations,
-			globalPresentationIds,
-			localPanels,
-			issues,
-		);
+		visitPanelNode(child.node, panelIds, splitIds, slotIds, globalPresentationIds, issues);
 	}
-}
-
-function expectedRemovalPresentationIds(
-	removal: z.infer<typeof pendingRemovalSchema>,
-	root: WorkbenchSharedPanelNode,
-	panels: ReadonlyMap<string, WorkbenchSharedPanelLeaf> | undefined,
-): Set<string> | null {
-	if (removal.kind === 'tab') return new Set(collectPresentations(root));
-	const panel = panels?.get(removal.panelId);
-	if (panel === undefined) return null;
-	if (removal.kind === 'child') {
-		return panel.childPresentations.some(
-			(presentation) => presentation.presentationId === removal.childPresentationId,
-		)
-			? new Set([removal.childPresentationId])
-			: null;
-	}
-	if (removal.kind === 'primary') {
-		return new Set([panel.primaryPresentation.presentationId]);
-	}
-	return new Set([
-		panel.primaryPresentation.presentationId,
-		...panel.childPresentations.map((presentation) => presentation.presentationId),
-	]);
-}
-
-function collectPresentations(node: WorkbenchSharedPanelNode): readonly string[] {
-	if (node.kind === 'panel') {
-		return [
-			node.primaryPresentation.presentationId,
-			...node.childPresentations.map((presentation) => presentation.presentationId),
-		];
-	}
-	return node.children.flatMap((child) => collectPresentations(child.node));
 }
 
 function arraysEqual(left: readonly string[], right: readonly string[]): boolean {
 	return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
-	return left.size === right.size && [...left].every((value) => right.has(value));
 }
 
 function compareIdentifiers(left: string, right: string): number {

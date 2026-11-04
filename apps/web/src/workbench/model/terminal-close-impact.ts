@@ -7,8 +7,9 @@ export interface TerminalCloseImpact {
 }
 
 /**
- * Counts as the TUI does: a terminal ended once its launch failed, its Host settled it where this
- * Client saw, or its disposal is proven. Every other terminal, however idle, still runs.
+ * Counts as the TUI does: a terminal ended once its launch failed or its Host settled it where this
+ * Client saw. Every other terminal, however idle, still runs, and so does a Presentation the Server
+ * bound no terminal to, since nothing proves it ended.
  */
 export function terminalCloseImpact(
 	terminals: readonly TerminalPresentation[],
@@ -33,22 +34,12 @@ function closeImpactKind({ ended, running }: TerminalCloseImpact) {
 
 function terminalHasEnded({ lifecycle }: TerminalPresentation): boolean {
 	switch (lifecycle.kind) {
-		case 'closed':
 		case 'exited':
 		case 'failed':
-		case 'provision-failed':
-		case 'restore-failed':
-		case 'stopped':
+		case 'launch-failed':
 			return true;
-		case 'close-failed':
-		case 'closing':
-		case 'preview':
-		case 'provisioning':
-		case 'reconciling':
-		case 'restoring':
 		case 'running':
-		case 'stop-failed':
-		case 'stopping':
+		case 'unbound':
 			return false;
 	}
 }

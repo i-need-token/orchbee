@@ -8,8 +8,7 @@ function panel(id: string, childIds: readonly string[] = []): PanelLeaf {
 	const children = childIds.map((childId) => ({
 		closeActivity: 'idle' as const,
 		currentCwd: null,
-		launchCwd: null,
-		lifecycle: { kind: 'preview' as const },
+		lifecycle: { kind: 'running' as const },
 		naturalTitle: null,
 		presentationId: terminalPresentationId(childId),
 		title: childId,
@@ -22,8 +21,7 @@ function panel(id: string, childIds: readonly string[] = []): PanelLeaf {
 		primaryPresentation: {
 			closeActivity: 'idle',
 			currentCwd: null,
-			launchCwd: null,
-			lifecycle: { kind: 'preview' },
+			lifecycle: { kind: 'running' },
 			naturalTitle: null,
 			presentationId: terminalPresentationId(`${id}-primary`),
 			title: id,

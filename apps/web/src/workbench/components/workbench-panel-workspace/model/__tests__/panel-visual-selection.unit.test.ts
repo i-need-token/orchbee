@@ -334,7 +334,6 @@ function panel(id: string): PanelLeaf {
 		primaryPresentation: {
 			closeActivity: 'unknown',
 			currentCwd: null,
-			launchCwd: null,
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,
 			presentationId: `terminal-${id}` as never,

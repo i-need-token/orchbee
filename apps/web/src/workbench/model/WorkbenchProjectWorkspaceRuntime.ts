@@ -149,7 +149,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 						terminalContext,
 						existing?.panelWorkspaceStore.getSnapshot(),
 					),
-					initialTabTitlePolicies: terminalContext.tabTitlePolicies,
+					tabTitlePolicies: terminalContext.tabTitlePolicies,
 				}),
 				tabModel,
 				terminalContextId: terminalContext.terminalContextId,

@@ -9,51 +9,18 @@ const opaqueIdentitySchema = z
 export const TerminalPresentationIdSchema = opaqueIdentitySchema.brand<'TerminalPresentationId'>();
 export type TerminalPresentationId = z.infer<typeof TerminalPresentationIdSchema>;
 
-export const TerminalPresentationOperationIdSchema =
-	opaqueIdentitySchema.brand<'TerminalPresentationOperationId'>();
-type TerminalPresentationOperationId = z.infer<typeof TerminalPresentationOperationIdSchema>;
-
-export const TerminalPresentationRemovalIdSchema =
-	opaqueIdentitySchema.brand<'TerminalPresentationRemovalId'>();
-export type TerminalPresentationRemovalId = z.infer<typeof TerminalPresentationRemovalIdSchema>;
-
-type TerminalPresentationFailure = {
+/** Why a terminal ended or never started, in the words of whoever reported it. */
+interface TerminalPresentationFailure {
 	readonly code: string;
-	readonly retryable: boolean;
-};
+}
 
+/**
+ * What a Client knows of the terminal behind one Presentation: it runs, it ended where this Client
+ * saw, the Server's launch of it failed, or the Server bound no terminal to it. Nothing retries a
+ * failed launch or binds a terminal by itself.
+ */
 export type TerminalPresentationLifecycle =
-	| { readonly kind: 'preview' }
-	| {
-			readonly kind: 'provisioning';
-			readonly operationId: TerminalPresentationOperationId;
-	  }
-	| { readonly kind: 'restoring' }
-	| {
-			readonly kind: 'reconciling';
-			readonly operationId: TerminalPresentationOperationId;
-	  }
 	| { readonly kind: 'running' }
-	| {
-			readonly failure: TerminalPresentationFailure;
-			readonly kind: 'provision-failed';
-			readonly operationId: TerminalPresentationOperationId;
-	  }
-	| {
-			readonly failure: TerminalPresentationFailure;
-			readonly kind: 'restore-failed';
-			readonly operationId: TerminalPresentationOperationId;
-	  }
-	| {
-			readonly kind: 'stopping';
-			readonly operationId: TerminalPresentationOperationId;
-	  }
-	| {
-			readonly failure: TerminalPresentationFailure;
-			readonly kind: 'stop-failed';
-			readonly operationId: TerminalPresentationOperationId;
-	  }
-	| { readonly kind: 'stopped' }
 	| {
 			readonly exitCode: number | null;
 			readonly kind: 'exited';
@@ -64,29 +31,14 @@ export type TerminalPresentationLifecycle =
 			readonly kind: 'failed';
 	  }
 	| {
-			readonly kind: 'closing';
-			readonly operationId: TerminalPresentationOperationId;
-			readonly removalId: TerminalPresentationRemovalId;
-	  }
-	| {
 			readonly failure: TerminalPresentationFailure;
-			readonly kind: 'close-failed';
-			readonly operationId: TerminalPresentationOperationId;
-			readonly removalId: TerminalPresentationRemovalId;
+			readonly kind: 'launch-failed';
 	  }
-	| {
-			readonly kind: 'closed';
-			readonly operationId: TerminalPresentationOperationId;
-			readonly removalId: TerminalPresentationRemovalId;
-	  };
+	| { readonly kind: 'unbound' };
 
 /** Transient evidence used only to decide whether closing a live terminal needs confirmation. */
 export type TerminalPresentationCloseActivity = 'active' | 'idle' | 'unknown';
 
 export function terminalPresentationId(value: string): TerminalPresentationId {
 	return TerminalPresentationIdSchema.parse(value);
-}
-
-export function terminalPresentationOperationId(value: string): TerminalPresentationOperationId {
-	return TerminalPresentationOperationIdSchema.parse(value);
 }

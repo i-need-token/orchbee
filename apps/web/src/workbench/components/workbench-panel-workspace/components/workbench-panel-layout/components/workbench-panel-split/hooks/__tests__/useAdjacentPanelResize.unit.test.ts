@@ -22,8 +22,7 @@ const split: PanelSplit = {
 				primaryPresentation: {
 					closeActivity: 'unknown',
 					currentCwd: null,
-					launchCwd: null,
-					lifecycle: { kind: 'preview' },
+					lifecycle: { kind: 'running' },
 					naturalTitle: null,
 					presentationId: terminalPresentationId('terminal-1'),
 					title: 'Terminal 1',
@@ -41,8 +40,7 @@ const split: PanelSplit = {
 				primaryPresentation: {
 					closeActivity: 'unknown',
 					currentCwd: null,
-					launchCwd: null,
-					lifecycle: { kind: 'preview' },
+					lifecycle: { kind: 'running' },
 					naturalTitle: null,
 					presentationId: terminalPresentationId('terminal-2'),
 					title: 'Terminal 2',
@@ -87,8 +85,7 @@ function createThreePanelSplit(): PanelSplit {
 					primaryPresentation: {
 						closeActivity: 'unknown',
 						currentCwd: null,
-						launchCwd: null,
-						lifecycle: { kind: 'preview' },
+						lifecycle: { kind: 'running' },
 						naturalTitle: null,
 						presentationId: terminalPresentationId('terminal-3'),
 						title: 'Terminal 3',

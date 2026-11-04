@@ -41,11 +41,8 @@ function containsPresentation(
 ): boolean {
 	if (node.kind === 'split')
 		return node.children.some((child) => containsPresentation(child.node, receipt));
+	// The Server's Workspace launch started this presentation in the receipt's Directory.
 	return [node.primaryPresentation, ...node.childPresentations].some(
-		(presentation) =>
-			presentation.presentationId === receipt.presentationId &&
-			// A Server Client's document records no launch directory, since the Server publishes none; the
-			// Server's Workspace launch started this presentation in the receipt's Directory.
-			(presentation.launchCwd === null || presentation.launchCwd === receipt.path),
+		(presentation) => presentation.presentationId === receipt.presentationId,
 	);
 }

@@ -62,19 +62,18 @@ hostname of the machine that owns the terminal. Workbench normalizes the natural
 trimming outer whitespace and then removing NUL characters. `null` clears the natural title. The
 durable fallback title and optional durable custom Tab title remain separate. Display resolution is
 custom title, then the focused terminal's latest natural title, then the final non-empty path
-segment of its current CWD or launch CWD, then fallback. Setting a custom title trims it; blank or already-displayed input is unchanged. A later natural title remains
-hidden beneath the custom title, and clearing the custom title reveals that latest natural title
-immediately.
+segment of its current CWD, then fallback. The Server holds the custom title; setting one trims it,
+and blank input asks for nothing. A later natural title remains hidden beneath the custom title.
 
 An OSC 7 current-directory value is accepted only as
 `file://<host>/<percent-encoded-absolute-path>` when `<host>` matches the trusted terminal-machine
 hostname under ASCII case-insensitive comparison. Empty hosts, `localhost`, other hosts, non-file
 schemes, malformed percent escapes, and non-UTF-8 decoded bytes are ignored. Accepted paths are
 percent-decoded before replacing `currentCwd`; an ignored value preserves the prior current CWD,
-while a reported `null` clears it. Metadata never changes `launchCwd`.
+while a reported `null` clears it.
 
 Deterministic scenarios cover natural-title normalization,
-custom override, hidden natural updates, reset, persistence, local hostname matching, URI decoding,
+custom override, hidden natural updates, local hostname matching, URI decoding,
 and rejection classes. Projected metadata supplies no trusted command-execution or SSH state, so the policy does not suppress title or CWD updates on that basis.
 
 ## Decisions and transitions

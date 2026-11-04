@@ -20,8 +20,7 @@ function tab(tabId: string, presentationId: string): TabPanelWorkspace {
 			primaryPresentation: {
 				closeActivity: 'idle',
 				currentCwd: null,
-				launchCwd: null,
-				lifecycle: { kind: 'preview' },
+				lifecycle: { kind: 'running' },
 				naturalTitle: null,
 				presentationId: terminalPresentationId(presentationId),
 				title: presentationId,
