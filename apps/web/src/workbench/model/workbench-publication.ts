@@ -25,6 +25,11 @@ export interface WorkbenchPublishedTerminalContext {
 	readonly groups: readonly Omit<TabModelSnapshot['groups'][number], 'attention' | 'collapsed'>[];
 	readonly tabs: readonly WorkbenchPublishedTab[];
 	readonly terminalContextId: string;
+	/**
+	 * Tabs the authority still holds that this window leaves out for now, such as one whose close it
+	 * follows. This Client keeps its view of each, which the Tab takes up again if it returns.
+	 */
+	readonly withheldTabIds: readonly string[];
 }
 
 /**

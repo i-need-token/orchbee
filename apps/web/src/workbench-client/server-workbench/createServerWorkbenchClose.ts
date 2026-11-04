@@ -76,17 +76,20 @@ interface ObservedClose {
 	readonly stopped: StoppedTabClose | null;
 }
 
-/** Keeps or forgets the stopped close of one Tab, as the close it followed last settled. */
-type KeepStoppedTabClose = (
-	terminalContextId: string,
-	tabId: string,
-	stopped: StoppedTabClose | null,
-) => void;
+/** A followed Tab close that ended without closing its Tab, which the Server may still hold open. */
+interface UnsettledTabClose {
+	readonly closeRequestId: CloseOperationResult['operationId'];
+	/** Where an explicit Resume may continue it. */
+	readonly stopped: StoppedTabClose | null;
+}
 
-/** What following a Tab's accepted close tells the window, and keeps for Resume. */
+/** What following a Tab's accepted close tells the window, and keeps for Resume and a later Close. */
 interface TabCloseFollow {
-	readonly keep: KeepStoppedTabClose;
 	readonly leave: ServerTabLeave;
+	/** Keeps how the Tab's followed close ended without closing it, or forgets that with null. */
+	keep(terminalContextId: string, tabId: string, unsettled: UnsettledTabClose | null): void;
+	/** The followed close of the Tab that last ended without closing it, while the Tab is there. */
+	unsettled(terminalContextId: string, tabId: string): UnsettledTabClose | null;
 }
 
 /** How long this Client watches a close it started. The Server's work continues past it. */
@@ -95,12 +98,12 @@ const OBSERVATION_BUDGET_MILLISECONDS = 50_000;
 const OBSERVATION_INTERVAL_MILLISECONDS = 50;
 /** A newer revision that left the target untouched is not a refusal of the target. */
 const STALE_RETRY_LIMIT = 4;
-/** Stopped Tab closes kept for Resume; one person rarely leaves more than one behind. */
-const MAXIMUM_STOPPED_TAB_CLOSES = 16;
+/** Unsettled Tab closes kept for Resume and a later Close; one person rarely leaves more behind. */
+const MAXIMUM_UNSETTLED_TAB_CLOSES = 16;
 
 const NOT_SUBMITTED = { code: 'not-submitted', kind: 'blocked' } as const;
 const SCOPE_CHANGED = { code: 'scope-changed', kind: 'blocked' } as const;
-const NO_LEAVE: ServerTabLeave = { leave: () => undefined, stay: () => undefined };
+const NO_LEAVE: ServerTabLeave = { leave: () => () => undefined };
 
 function failed(code: string, details?: string): ActionResult<void> {
 	return { failure: details === undefined ? { code } : { code, details }, kind: 'failed' };
@@ -256,11 +259,15 @@ function stoppedTabClose(
 		: { closeRequestId: operationId, generation, stop, target };
 }
 
-/** Reads an accepted close by its original identity, which outlives the target it closed. */
+/**
+ * Reads an accepted close by its original identity, which outlives the target it closed.
+ * `onProgressing` hears each read that finds the close still on its way.
+ */
 async function observeClose(
 	session: CloseSession,
 	operationId: CloseOperationResult['operationId'],
 	deadline: number,
+	onProgressing?: () => void,
 ): Promise<ObservedClose> {
 	const unobserved = { result: failed('status-unavailable'), stopped: null };
 	for (;;) {
@@ -289,6 +296,7 @@ async function observeClose(
 		if (settled !== null) {
 			return { result: settled, stopped: stoppedTabClose(operationId, observation) };
 		}
+		onProgressing?.();
 		await delay(Math.min(OBSERVATION_INTERVAL_MILLISECONDS, remaining));
 	}
 }
@@ -328,26 +336,53 @@ async function submitShownClose(
 	}
 }
 
+/** Leaves a Tab out once, and shows it again once, through `leave`. */
+function tabLeaving(
+	leave: ServerTabLeave,
+	{ tabId, terminalContextId }: TabTarget,
+	inSequence: boolean,
+): { readonly leave: () => void; readonly stay: () => void } {
+	let stay: (() => void) | undefined;
+	return {
+		leave: () => {
+			stay ??= leave.leave(terminalContextId, tabId, inSequence);
+		},
+		stay: () => {
+			stay?.();
+		},
+	};
+}
+
 /**
  * Follows a Tab's accepted close to its end. As the TUI leaves a Tab out while its close
  * progresses, the window leaves it out until the close settles: a completed close has removed it
  * by then, and any other end shows it again with its report, keeping a stop Resume may continue.
+ * A Close of a Tab whose close ended unsettled joins that close while the Server holds it open, so,
+ * as the TUI keeps that close's last status, the Tab leaves only once a read finds the close on its
+ * way again; until then it stays and reports the same stop.
  */
 async function followTabClose(
 	session: CloseSession,
 	follow: TabCloseFollow,
-	{ tabId, terminalContextId }: TabTarget,
+	target: TabTarget,
 	closeRequestId: CloseOperationResult['operationId'],
 	deadline: number,
+	inSequence = false,
 ): Promise<ActionResult<void>> {
-	follow.leave.leave(terminalContextId, tabId);
+	const { tabId, terminalContextId } = target;
+	const leaving = tabLeaving(follow.leave, target, inSequence);
+	const joined = follow.unsettled(terminalContextId, tabId)?.closeRequestId === closeRequestId;
+	if (!joined) leaving.leave();
 	try {
-		// A Close of a Tab whose close stopped joins that close, so it reports the same stop again.
-		const observed = await observeClose(session, closeRequestId, deadline);
-		follow.keep(terminalContextId, tabId, observed.stopped);
+		const observed = await observeClose(session, closeRequestId, deadline, leaving.leave);
+		follow.keep(
+			terminalContextId,
+			tabId,
+			observed.result.kind === 'completed' ? null : { closeRequestId, stopped: observed.stopped },
+		);
 		return observed.result;
 	} finally {
-		follow.leave.stay(terminalContextId, tabId);
+		leaving.stay();
 	}
 }
 
@@ -388,6 +423,8 @@ async function closeTabs(
 ): Promise<ActionResult<void>> {
 	const deadline = performance.now() + OBSERVATION_BUDGET_MILLISECONDS;
 	const { terminalContextId } = closure;
+	// As in the TUI, several Tabs close as one sequence, which keeps the selection where it is.
+	const inSequence = closure.tabIds.length > 1;
 	const targets = closure.tabIds.map((tabId) => ({
 		expected: tabFacts(session.snapshot, terminalContextId, tabId),
 		tabId,
@@ -409,6 +446,7 @@ async function closeTabs(
 			{ tabId, terminalContextId },
 			outcome.closeRequestId,
 			deadline,
+			inSequence,
 		);
 		if (result.kind !== 'completed') return result;
 	}
@@ -457,7 +495,8 @@ function resumeRefused(
 /**
  * Continues exactly the close that stopped, under the attempt its status named, and never starts
  * another close in its place. A Stale answer means another attempt replaced that one, so this
- * window follows the close as it is now.
+ * window follows the close as it is now. Either answer puts the close back on its way, so, as in
+ * the TUI, the Tab leaves at once.
  */
 async function resumeTabClose(
 	session: CloseSession,
@@ -494,6 +533,7 @@ async function resumeTabClose(
 		if (outcome.kind === 'rejected') follow.keep(target.terminalContextId, target.tabId, null);
 		return resumeRefused(outcome);
 	}
+	follow.keep(target.terminalContextId, target.tabId, null);
 	return followTabClose(session, follow, target, closeRequestId, deadline);
 }
 
@@ -542,7 +582,7 @@ async function closePanel(
 	}
 	return followTabClose(
 		session,
-		{ keep: follow.keep, leave: NO_LEAVE },
+		{ ...follow, leave: NO_LEAVE },
 		closure,
 		outcome.closeRequestId,
 		performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
@@ -651,39 +691,44 @@ function tabKey(terminalContextId: string, tabId: string): string {
 
 /**
  * Runs each close until its result is known and never repeats one that may have run. It keeps each
- * Tab close that stopped where an explicit Resume may continue it, while that Tab is still there.
- * `leave` hears each Tab whose accepted close this follows, for as long as it follows it.
+ * Tab close that ended without closing its Tab, with any stop an explicit Resume may continue,
+ * while that Tab is still there. `leave` hears each Tab whose progressing close this follows, for
+ * as long as it follows it.
  */
 export function createServerWorkbenchClose(
 	session: CloseSession,
 	leave: ServerTabLeave = NO_LEAVE,
 ): Pick<WorkbenchAuthority, 'close' | 'stoppedTabClose' | 'watchClose'> {
-	const stoppedTabCloses = new Map<string, StoppedTabClose>();
-	const keep: KeepStoppedTabClose = (terminalContextId, tabId, stopped) => {
-		const key = tabKey(terminalContextId, tabId);
-		stoppedTabCloses.delete(key);
-		if (stopped === null) return;
-		stoppedTabCloses.set(key, stopped);
-		for (const oldest of stoppedTabCloses.keys()) {
-			if (stoppedTabCloses.size <= MAXIMUM_STOPPED_TAB_CLOSES) break;
-			stoppedTabCloses.delete(oldest);
-		}
+	const unsettledTabCloses = new Map<string, UnsettledTabClose>();
+	const follow: TabCloseFollow = {
+		keep: (terminalContextId, tabId, unsettled) => {
+			const key = tabKey(terminalContextId, tabId);
+			unsettledTabCloses.delete(key);
+			if (unsettled === null) return;
+			unsettledTabCloses.set(key, unsettled);
+			for (const oldest of unsettledTabCloses.keys()) {
+				if (unsettledTabCloses.size <= MAXIMUM_UNSETTLED_TAB_CLOSES) break;
+				unsettledTabCloses.delete(oldest);
+			}
+		},
+		leave,
+		unsettled: (terminalContextId, tabId) => {
+			const key = tabKey(terminalContextId, tabId);
+			const unsettled = unsettledTabCloses.get(key);
+			if (unsettled === undefined) return null;
+			const present = session.snapshot.terminalContexts
+				.find((candidate) => candidate.terminalContextId === terminalContextId)
+				?.tabs.some((candidate) => candidate.tabId === tabId);
+			// Tab IDs never return, so a Tab that has gone takes its unsettled close with it.
+			if (present !== true) {
+				unsettledTabCloses.delete(key);
+				return null;
+			}
+			return unsettled;
+		},
 	};
-	const stoppedClose = (terminalContextId: string, tabId: string): StoppedTabClose | null => {
-		const key = tabKey(terminalContextId, tabId);
-		const stopped = stoppedTabCloses.get(key);
-		if (stopped === undefined) return null;
-		const present = session.snapshot.terminalContexts
-			.find((candidate) => candidate.terminalContextId === terminalContextId)
-			?.tabs.some((candidate) => candidate.tabId === tabId);
-		// Tab IDs never return, so a Tab that has gone takes its stopped close with it.
-		if (present !== true) {
-			stoppedTabCloses.delete(key);
-			return null;
-		}
-		return stopped;
-	};
-	const follow: TabCloseFollow = { keep, leave };
+	const stoppedClose = (terminalContextId: string, tabId: string): StoppedTabClose | null =>
+		follow.unsettled(terminalContextId, tabId)?.stopped ?? null;
 	return {
 		close: (context, closure) => {
 			switch (closure.type) {

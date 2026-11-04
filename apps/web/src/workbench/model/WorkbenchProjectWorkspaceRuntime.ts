@@ -4,6 +4,7 @@ import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol'
 import {
 	projectWorkbenchClientView,
 	reconcileWorkbenchClientView,
+	type WorkbenchClientTabPanelView,
 	type WorkbenchClientView,
 } from '../document/workbench-client-view';
 import {
@@ -24,7 +25,6 @@ import {
 	validatePanelWorkspaceState,
 	type PanelLayoutNode,
 	type PanelWorkspaceState,
-	type TabPanelWorkspace,
 	type TerminalPresentation,
 } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import { terminalCloseImpact, type TerminalCloseImpact } from './terminal-close-impact';
@@ -55,10 +55,16 @@ interface PublishedWorkbenchTerminalContext extends WorkbenchTerminalContext {
 }
 
 type TerminalContextView = WorkbenchClientView['terminalContexts'][number];
-type PanelViews = ReadonlyMap<
-	string,
-	TerminalContextView['panelWorkspace']['tabs'][number]['panels'][number]
->;
+type PanelViews = ReadonlyMap<string, WorkbenchClientTabPanelView['panels'][number]>;
+
+/** What this Client keeps of a Tab a publication withholds, which the Tab takes up again. */
+interface WithheldTabView {
+	readonly panelFocusHistory: readonly string[];
+	readonly view: WorkbenchClientTabPanelView;
+}
+
+/** Withheld Tabs' views, by terminal context and then by Tab. */
+type WithheldTabViews = ReadonlyMap<string, ReadonlyMap<string, WithheldTabView>>;
 
 interface WorkbenchProjectWorkspaceRuntimeOptions {
 	/** The view this window recovers, when it reopens; otherwise the publication's default view. */
@@ -81,6 +87,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 	private terminalTopologyFingerprint: string | undefined;
 	private readonly terminalTopologyListeners = new Set<Listener>();
 	private state = createProjectWorkspaceState();
+	private withheldTabViews: WithheldTabViews = new Map();
 
 	public constructor(options: WorkbenchProjectWorkspaceRuntimeOptions) {
 		this.adoptPublication(options.initialPublication, options.initialClientView);
@@ -106,7 +113,17 @@ export class WorkbenchProjectWorkspaceRuntime {
 		publication: WorkbenchPublication,
 		candidate: WorkbenchClientView | undefined,
 	): void {
-		const view = reconcileWorkbenchClientView(publication, candidate);
+		const returning = this.withholdTabViews(publication, candidate);
+		const view = reconcileWorkbenchClientView(
+			publication,
+			candidate,
+			new Map(
+				[...returning].map(([terminalContextId, tabs]) => [
+					terminalContextId,
+					new Map([...tabs].map(([tabId, withheld]) => [tabId, withheld.view])),
+				]),
+			),
+		);
 		const contextViews = new Map(
 			view.terminalContexts.map((context) => [context.terminalContextId, context]),
 		);
@@ -126,7 +143,14 @@ export class WorkbenchProjectWorkspaceRuntime {
 				published,
 				requireDefined(contextViews.get(published.terminalContextId)),
 				observedTerminals,
-				existing?.panelWorkspaceStore.getSnapshot(),
+				new Map([
+					...[...(returning.get(published.terminalContextId) ?? [])].map(
+						([tabId, withheld]): [string, readonly string[]] => [tabId, withheld.panelFocusHistory],
+					),
+					...(existing?.panelWorkspaceStore.getSnapshot().tabs ?? []).map(
+						(tab): [string, readonly string[]] => [tab.tabId, tab.panelFocusHistory],
+					),
+				]),
 			);
 			const tabModel = new TabModel(hydrated.tabCollection);
 			this.contexts.set(published.terminalContextId, {
@@ -139,6 +163,58 @@ export class WorkbenchProjectWorkspaceRuntime {
 				terminalContextId: published.terminalContextId,
 			});
 		}
+	}
+
+	/**
+	 * Keeps this Client's view of each Tab the publication withholds, as the TUI keeps the navigation
+	 * memory of a Tab whose close is on its way, and answers the kept views of the Tabs that return.
+	 * A Tab the publication neither withholds nor holds is gone, and its view with it.
+	 */
+	private withholdTabViews(
+		publication: WorkbenchPublication,
+		candidate: WorkbenchClientView | undefined,
+	): WithheldTabViews {
+		const candidateContexts = new Map(
+			(candidate?.terminalContexts ?? []).map((context) => [context.terminalContextId, context]),
+		);
+		const withheld = new Map<string, ReadonlyMap<string, WithheldTabView>>();
+		const returning = new Map<string, ReadonlyMap<string, WithheldTabView>>();
+		for (const published of publication.terminalContexts) {
+			const { terminalContextId } = published;
+			const kept = this.withheldTabViews.get(terminalContextId);
+			const shownViews = new Map(
+				(candidateContexts.get(terminalContextId)?.panelWorkspace.tabs ?? []).map((tab) => [
+					tab.tabId,
+					tab,
+				]),
+			);
+			const shownTabs = new Map(
+				(this.contexts.get(terminalContextId)?.panelWorkspaceStore.getSnapshot().tabs ?? []).map(
+					(tab) => [tab.tabId, tab],
+				),
+			);
+			const contextWithheld = new Map<string, WithheldTabView>();
+			for (const tabId of published.withheldTabIds) {
+				const view = shownViews.get(tabId);
+				const held =
+					view === undefined
+						? kept?.get(tabId)
+						: {
+								panelFocusHistory: shownTabs.get(tabId)?.panelFocusHistory ?? [view.focusedPanelId],
+								view,
+							};
+				if (held !== undefined) contextWithheld.set(tabId, held);
+			}
+			const contextReturning = new Map<string, WithheldTabView>();
+			for (const tab of published.tabs) {
+				const held = kept?.get(tab.id);
+				if (held !== undefined && !shownViews.has(tab.id)) contextReturning.set(tab.id, held);
+			}
+			if (contextWithheld.size > 0) withheld.set(terminalContextId, contextWithheld);
+			if (contextReturning.size > 0) returning.set(terminalContextId, contextReturning);
+		}
+		this.withheldTabViews = withheld;
+		return returning;
 	}
 
 	public readonly subscribe = (listener: Listener): (() => void) => {
@@ -451,16 +527,15 @@ interface HydratedTerminalContext {
 
 /**
  * Builds a published context's stores around this Client's reconciled view of it. Each terminal
- * keeps what this window saw it report, and each Tab the Panel focus order its live store held.
+ * keeps what this window saw it report, and each Tab the Panel focus order it last held.
  */
 function hydrateTerminalContext(
 	published: WorkbenchPublishedTerminalContext,
 	view: TerminalContextView,
 	observedTerminals: ReadonlyMap<string, TerminalPresentation>,
-	current: PanelWorkspaceState | undefined,
+	panelFocusHistories: ReadonlyMap<string, readonly string[]>,
 ): HydratedTerminalContext {
 	const tabViews = new Map(view.panelWorkspace.tabs.map((tab) => [tab.tabId, tab]));
-	const currentTabs = new Map(current?.tabs.map((tab) => [tab.tabId, tab]) ?? []);
 	const panelWorkspace: PanelWorkspaceState = {
 		tabs: published.tabs.map((tab) => {
 			const tabView = requireDefined(tabViews.get(tab.id));
@@ -470,7 +545,7 @@ function hydrateTerminalContext(
 				panelFocusHistory: survivingPanelFocusHistory(
 					tab.root,
 					tabView.focusedPanelId,
-					currentTabs.get(tab.id),
+					panelFocusHistories.get(tab.id),
 				),
 				root: hydratePanelNode(
 					tab.root,
@@ -554,11 +629,11 @@ function observedTerminal(
 function survivingPanelFocusHistory(
 	root: PanelLayoutNode,
 	focusedPanelId: string,
-	currentTab: TabPanelWorkspace | undefined,
+	panelFocusHistory: readonly string[] | undefined,
 ): readonly string[] {
 	const livePanelIds = new Set(collectPanelLeaves(root).map((panel) => panel.id));
 	return [
-		...(currentTab?.panelFocusHistory ?? []).filter(
+		...(panelFocusHistory ?? []).filter(
 			(panelId) => livePanelIds.has(panelId) && panelId !== focusedPanelId,
 		),
 		focusedPanelId,

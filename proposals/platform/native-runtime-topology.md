@@ -1091,9 +1091,12 @@ These choices stand unless review changes them:
   Client sees, recovery fences, and removing a closed context.
 - **A close follows the TUI's states, and the Server decides when one asks.** A Workspace, one
   Tab, and one Panel send the Server's conditional close first, as the TUI does since ORC-307, and a
-  Project and a set of Tabs always ask. A Tab whose accepted close the window follows leaves the
-  strip at once and returns with its report when that close ends any other way. A set compares the
-  facts of its own Tabs, not the whole snapshot.
+  Project and a set of Tabs always ask. A Tab whose progressing close the window follows leaves the
+  strip at once and returns with its report when that close ends any other way, keeping the Panel it
+  had focused. While a set closes, the selected member stays until the Server removes it, so the
+  selection moves only then, as the TUI keeps the selection during a sequence. A Close that joins a
+  stopped close leaves only once that close progresses again. A set compares the facts of its own
+  Tabs, not the whole snapshot.
 - **A close is followed to an end and never replayed.** Stale conditional and Workspace closes alone
   are sent again, within the TUI's limit and only on unchanged facts. An accepted close reads its
   operation for at most 50 seconds, and a Tab's last Panel is followed as its Tab's close. Step 5

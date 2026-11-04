@@ -26,8 +26,9 @@ WorkbenchPublication
 └── terminalContexts[]                    (canonical identity order, one for each Workspace)
     ├── fingerprint
     ├── groups[]: { id, title, color }
-    └── tabs[]: { id, title, customTitle: nullable, group: nullable, pinned, root }
-        └── root: Panel/Split tree whose presentations carry lifecycle and names
+    ├── tabs[]: { id, title, customTitle: nullable, group: nullable, pinned, root }
+    │   └── root: Panel/Split tree whose presentations carry lifecycle and names
+    └── withheldTabIds[]: Tabs the Server holds that the window leaves out for now
 ```
 
 The projection keeps the Server's identities, order, and structure and adds only what a window needs
@@ -43,8 +44,10 @@ the Server holds none, so every Client shows the same sizes.
 | A binding this window saw settle | `exited` or `failed`, as it ended |
 | Any other binding                | `running`                         |
 
-A context's fingerprint covers the Server's context, the window's language, and the ends the window
-saw, so it changes exactly when the projected context does.
+A Tab whose progressing close the window follows is withheld: it leaves the published Tabs, a
+Group that holds only withheld Tabs leaves with them, and every other Tab keeps the place its
+automatic name carries. A context's fingerprint covers the Server's context, the window's language, the ends the
+window saw, and the Tabs it shows, so it changes exactly when the projected context does.
 
 ## Applying a publication
 
@@ -52,7 +55,10 @@ saw, so it changes exactly when the projected context does.
 then rebuilds only the contexts whose fingerprint changed. An unchanged context keeps its live
 `TabModel` and `PanelWorkspaceStore`, so focus, zoom, child selection, and terminal attachments
 survive a grouping-only change. A rebuilt context keeps the natural title and current CWD this
-window saw each remaining terminal report, and each Tab's Panel focus history.
+window saw each remaining terminal report, and each Tab's Panel focus history. The runtime keeps
+the Client View and Panel focus history of each withheld Tab, and a Tab that returns takes them up
+again, as the TUI keeps a leaving Tab's navigation memory; the selection stays where it moved. A Tab
+that is neither withheld nor published is gone, and its kept view with it.
 
 Applying sends no terminal command: the runtime has no command port, and nothing launches, retries,
 or binds a terminal because of a publication. A publication the runtime cannot apply ends the

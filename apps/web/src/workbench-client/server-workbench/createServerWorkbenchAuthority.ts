@@ -53,7 +53,7 @@ interface ServerWorkbenchAuthorityOptions {
 	/** Without them, every Tab starts with the default launch profile. */
 	readonly launchProfiles?: ServerLaunchProfileSource;
 	readonly session: Parameters<typeof createServerWorkbenchClose>[0];
-	/** Hears each Tab whose accepted close this window follows; absent where nothing leaves early. */
+	/** Hears each Tab whose progressing close this window follows; absent where nothing leaves early. */
 	readonly tabLeave?: ServerTabLeave | undefined;
 }
 

@@ -71,7 +71,12 @@ const WorkbenchClientViewSchema = workbenchClientViewBaseSchema.superRefine((vie
 export type WorkbenchClientView = z.infer<typeof WorkbenchClientViewSchema>;
 type WorkbenchClientViewInput = Omit<WorkbenchClientView, 'version'>;
 type TerminalContextView = WorkbenchClientView['terminalContexts'][number];
-type TabPanelView = TerminalContextView['panelWorkspace']['tabs'][number];
+/** This Client's view of one Tab's Panels: which one has focus or fills the Tab, and what each shows. */
+export type WorkbenchClientTabPanelView = TerminalContextView['panelWorkspace']['tabs'][number];
+type TabPanelView = WorkbenchClientTabPanelView;
+/** Views of Tabs that return to a publication, by terminal context and then by Tab. */
+type ReturningTabPanelViews = ReadonlyMap<string, ReadonlyMap<string, TabPanelView>>;
+const NO_RETURNING_TAB_PANEL_VIEWS: ReturningTabPanelViews = new Map();
 
 /** What this Client's stores hold, from which its view is read. */
 interface WorkbenchClientViewSource {
@@ -129,10 +134,15 @@ export function projectWorkbenchClientView(source: WorkbenchClientViewSource): W
 	});
 }
 
-/** Keeps every choice of `candidate` that still names something `publication` holds. */
+/**
+ * Keeps every choice of `candidate` that still names something `publication` holds. A Tab that
+ * `candidate` lacks takes its view from `returning`, where this Client kept it while an earlier
+ * publication withheld the Tab.
+ */
 export function reconcileWorkbenchClientView(
 	publication: WorkbenchPublication,
 	candidate: WorkbenchClientView | undefined,
+	returning: ReturningTabPanelViews = NO_RETURNING_TAB_PANEL_VIEWS,
 ): WorkbenchClientView {
 	const expandedCandidates = new Set(candidate?.expandedProjectIds ?? []);
 	const candidateContexts = new Map(
@@ -148,6 +158,7 @@ export function reconcileWorkbenchClientView(
 			reconcileTerminalContextView(
 				terminalContext,
 				candidateContexts.get(terminalContext.terminalContextId),
+				returning.get(terminalContext.terminalContextId),
 			),
 		),
 	});
@@ -210,6 +221,7 @@ function survivingActiveTabId(
 function reconcileTerminalContextView(
 	terminalContext: WorkbenchPublishedTerminalContext,
 	candidate: TerminalContextView | undefined,
+	returning: ReadonlyMap<string, TabPanelView> | undefined,
 ): TerminalContextView {
 	const tabIds = new Set(terminalContext.tabs.map((tab) => tab.id));
 	const groupIds = new Set(terminalContext.groups.map((group) => group.id));
@@ -237,9 +249,13 @@ function reconcileTerminalContextView(
 			? candidate.tabCollection.selectionAnchorId
 			: activeTabId;
 	const collapsedCandidates = new Set(candidate?.tabCollection.collapsedGroupIds ?? []);
-	const candidateTabs = new Map(
-		(candidate?.panelWorkspace.tabs ?? []).map((tab) => [tab.tabId, tab]),
-	);
+	const candidateTabs = new Map([
+		...(returning ?? []),
+		...(candidate?.panelWorkspace.tabs ?? []).map((tab): [string, TabPanelView] => [
+			tab.tabId,
+			tab,
+		]),
+	]);
 	return {
 		panelWorkspace: {
 			tabs: terminalContext.tabs.map((tab) =>

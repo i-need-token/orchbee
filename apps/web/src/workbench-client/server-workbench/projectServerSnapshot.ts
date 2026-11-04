@@ -108,7 +108,10 @@ function projectTerminalContext(
 ): WorkbenchPublishedTerminalContext {
 	// A Tab keeps its place among all the Server holds, so no other Tab is renumbered while it leaves.
 	const placedTabs = context.tabs.map((tab, position) => ({ position, tab }));
-	const shownTabs = placedTabs.filter(({ tab }) => !leaving(context.terminalContextId, tab.tabId));
+	const withheldTabIds = context.tabs
+		.filter((tab) => leaving(context.terminalContextId, tab.tabId))
+		.map((tab) => tab.tabId);
+	const shownTabs = placedTabs.filter(({ tab }) => !withheldTabIds.includes(tab.tabId));
 	const shownGroups = new Set(shownTabs.map(({ tab }) => tab.groupId));
 	const heldGroups = new Set(context.tabs.map((tab) => tab.groupId));
 	return {
@@ -143,6 +146,7 @@ function projectTerminalContext(
 			};
 		}),
 		terminalContextId: context.terminalContextId,
+		withheldTabIds,
 	};
 }
 
