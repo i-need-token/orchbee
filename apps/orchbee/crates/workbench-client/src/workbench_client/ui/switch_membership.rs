@@ -83,6 +83,7 @@ impl WorkbenchClientUi {
             | WorkbenchSnapshotOutcome::Unavailable { .. } => None,
         };
         // Canonical validation and all bounded candidate allocations precede the reply mutex.
+        let mut context_removed = false;
         let prepared = if state.switch_marker_is_current(&marker)
             && matches!(outcome, WorkbenchSnapshotOutcome::Available { .. })
         {
@@ -94,6 +95,17 @@ impl WorkbenchClientUi {
                     } else {
                         Some(prepared)
                     }
+                }
+                // A peer closed this context before the read. A Switch cannot land outside its
+                // context: it restores its selection and owes the publication read whose
+                // refresh classifies the removal.
+                Err(_)
+                    if index_snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| state.snapshot_removes_context(snapshot)) =>
+                {
+                    context_removed = true;
+                    None
                 }
                 Err(failure) => {
                     self.retire(failure);
@@ -172,6 +184,9 @@ impl WorkbenchClientUi {
                         )?;
                         canonical.commit();
                         desired.commit();
+                        if context_removed {
+                            state.owe_publication_read();
+                        }
                         RefreshDecision::Continue
                     }
                     Err(_) => {

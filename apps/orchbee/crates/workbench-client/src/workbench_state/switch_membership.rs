@@ -453,6 +453,10 @@ impl WorkbenchClientState {
         {
             return Err(CarrierFailure::Protocol);
         }
+        // A window observed at another size while the Switch was in flight is a newer
+        // observation, not changed pane evidence: the retained panes were never resized. The
+        // restore returns the focus to the geometry it last observed, and the next observation
+        // resizes the restored panes as it resizes any visible pane.
         let observed_geometry =
             match anchor {
                 StableAnchor::Ready {
@@ -460,12 +464,10 @@ impl WorkbenchClientState {
                     observed_geometry,
                     ..
                 } => {
-                    if self.latest_geometry != *observed_geometry
-                        || setup.previous.as_ref().is_none_or(|previous| {
-                            previous.selected != *ready.selected()
-                                || previous.mode.as_ref() != Some(ready.mode())
-                        })
-                    {
+                    if setup.previous.as_ref().is_none_or(|previous| {
+                        previous.selected != *ready.selected()
+                            || previous.mode.as_ref() != Some(ready.mode())
+                    }) {
                         return Err(CarrierFailure::Protocol);
                     }
                     *observed_geometry
@@ -480,14 +482,12 @@ impl WorkbenchClientState {
                     observed_geometry,
                     ..
                 } => {
-                    if self.latest_geometry != *observed_geometry
-                        || setup.previous.as_ref().is_none_or(|previous| {
-                            !projections.iter().any(|saved| {
-                                saved.pane.pane() == previous.selected.key()
-                                    && previous.mode.as_ref() == Some(&saved.mode)
-                            })
+                    if setup.previous.as_ref().is_none_or(|previous| {
+                        !projections.iter().any(|saved| {
+                            saved.pane.pane() == previous.selected.key()
+                                && previous.mode.as_ref() == Some(&saved.mode)
                         })
-                    {
+                    }) {
                         return Err(CarrierFailure::Protocol);
                     }
                     *observed_geometry

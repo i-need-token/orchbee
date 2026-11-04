@@ -659,7 +659,10 @@ fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_initial_wor
 /// The workbench's initial_workspace context moved to `ctx9` while the session's
 /// own `ctx2` is absent from navigation and terminal_contexts — the shape
 /// the removal classifier mints a landing permit for.
-fn removal_snapshot(tab_count: usize, revision: u64) -> Snapshot {
+pub(in crate::workbench_client::ui) fn removal_snapshot(
+    tab_count: usize,
+    revision: u64,
+) -> Snapshot {
     let mut snapshot = snapshot(tab_count, revision);
     let landing = removal_context();
     snapshot.navigation.workspaces[0].terminal_context_id = landing.clone();
@@ -667,7 +670,7 @@ fn removal_snapshot(tab_count: usize, revision: u64) -> Snapshot {
     snapshot
 }
 
-fn removal_context() -> WorkbenchTerminalContextId {
+pub(in crate::workbench_client::ui) fn removal_context() -> WorkbenchTerminalContextId {
     WorkbenchTerminalContextId::parse(&format!("{:032x}", 9)).unwrap()
 }
 

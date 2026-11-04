@@ -1408,7 +1408,9 @@ snapshot, the Tab's surviving leaf stands in, chosen as a refresh repairs a vani
 the new desired key names that leaf; a removed Tab keeps the fallback to another Tab or `Empty`. A
 Switch fenced to an Agent's Host keeps the fence only while the snapshot still binds the exact
 member to the fenced terminal; when the Server replaced or removed it first, the Switch lands as an
-ordinary one on what the Server now holds there, without the fence.
+ordinary one on what the Server now holds there, without the fence. A Switch never lands outside
+its context: a snapshot that removes the context
+([context removal recovery](#context-removal-recovery)) restores the Switch's selection.
 An intent cannot install a projection, accept target setup configuration, publish Ready, or settle
 as an unattached setup. Those paths require the installed candidate. The former direct
 Switch-old-Detached event and its intent-to-Attach continuation have been removed.
@@ -1423,9 +1425,11 @@ publishes those exact pane incarnations into the mailbox in the same desired-ins
 so ordinary Poll and input admission can resume without a new reconcile. Already departing panes
 remain departing. A missing or unfinished pane proof
 prevents restoration, and abandonment of any captured pane invalidates the anchor. Accepted Resize that clears
-the frame, unmatched latest geometry, unpreservable old Poll/causal abandonment, or viewer cleanup
-or replacement invalidates that proof. The anchor follows those facts; an admission-time clone
-cannot roll them back. A recorded selected-without-attachment or retryable origin may restore only
+the frame, unpreservable old Poll/causal abandonment, or viewer cleanup or replacement invalidates
+that proof. The anchor follows those facts; an admission-time clone cannot roll them back. A window
+observed at another size while the Switch is in flight does not: no Resize reaches the departing
+panes, so the restore returns the focus to the geometry it last observed, and the next observation
+resizes the restored panes as it resizes any visible pane. A recorded selected-without-attachment or retryable origin may restore only
 while it still has no viewer/controller, except an unbound selection or a retryable focus with
 live siblings uses the same exact whole-anchor projection proof described below; a retryable one
 restores still retryable. A partly completed Switch never creates a stable anchor;
@@ -2153,9 +2157,11 @@ The Linux PTY Close witness requires a fresh Disconnected frame before explicit 
 A workspace Close owned by another Client removes this Client's current context from canonical
 membership. The first visible fact is an ordinary Refresh reply whose validated navigation no
 longer contains the current context id while the preferred surviving Workspace still projects —
-or, for an already retired Client, the same shape inside one bounded recovery attempt. Snapshot
-absence is membership knowledge, not cleanup evidence; nothing in this entry relaxes the real
-Detach lifecycle.
+or, for an already retired Client, the same shape inside one bounded recovery attempt. A Switch
+whose snapshot shows that shape does not land: it restores its selection, and the snapshot itself
+owes one publication read, so the next publication Refresh classifies the removal even before the
+peer's hint arrives. Snapshot absence is membership knowledge, not cleanup evidence; nothing in
+this entry relaxes the real Detach lifecycle.
 
 Every candidate snapshot classifies before it commits. `Candidate` keeps the ordinary membership
 path: the current context still projects. `Removed` requires the full conjunction — validated

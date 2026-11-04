@@ -443,6 +443,172 @@ fn a_tab_switch_whose_panel_was_removed_lands_on_the_surviving_leaf() {
     );
 }
 
+/// A peer closed this Client's Workspace before a Tab Switch read its snapshot. A Switch cannot
+/// land outside its context, so it restores the selection and owes the publication read whose
+/// refresh classifies the removal and lands on the surviving Workspace.
+#[test]
+fn a_switch_whose_workspace_was_closed_restores_and_the_refresh_lands() {
+    use super::super::tests::membership::{removal_context, removal_snapshot};
+    let (mut ui, mailbox, clock, _elapsed) = ready();
+    let focus = super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
+    assert!(matches!(
+        ui.select_tab(ClientAction::SelectTab(2)),
+        ClientActionDisposition::DismissNavigator
+    ));
+    let lease = leased_switch(&mailbox);
+    let QueuedCommand::Switch(marker) = lease.record() else {
+        unreachable!("leased_switch answers a Switch")
+    };
+    let target = marker.target();
+    let permit = mailbox
+        .authorize_switch_snapshot(&lease, target, &clock)
+        .unwrap()
+        .unwrap();
+    mailbox.answer_switch_snapshot(permit).unwrap();
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::SwitchSnapshotResult {
+                marker: target.selected().key().clone(),
+                outcome: WorkbenchSnapshotOutcome::Available {
+                    snapshot: removal_snapshot(2, 2),
+                },
+            },
+            EventDeadline::PlacementOnly(target.deadlines().forward_cutoff()),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert_eq!(
+        mailbox.is_closed(),
+        None,
+        "a peer Workspace close never costs a Switch the Client"
+    );
+    let UiReply::Switch(settlement) = mailbox.take_deposited_reply(&wait).unwrap().unwrap() else {
+        panic!("Switch reply")
+    };
+    assert!(matches!(settlement.decision(), RefreshDecision::Continue));
+    assert_eq!(settlement.desired(), Some(focus.pane()));
+    mailbox.finish_lease(lease).unwrap();
+
+    ui.tick();
+    let lease = loop {
+        let lease = mailbox
+            .try_recv()
+            .unwrap()
+            .expect("a publication read follows");
+        if matches!(lease.record(), QueuedCommand::Refresh(_)) {
+            break lease;
+        }
+        mailbox.finish_lease(lease).unwrap();
+    };
+    let QueuedCommand::Refresh(refresh) = lease.record() else {
+        unreachable!("the loop answers a Refresh")
+    };
+    assert_eq!(
+        mailbox
+            .mark_refresh_in_flight(refresh.generation())
+            .unwrap(),
+        MutationResult::Applied
+    );
+    let wait = mailbox
+        .publish_refresh_result_before(
+            refresh.generation(),
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: removal_snapshot(2, 2),
+            },
+            refresh.deadline(),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    let UiReply::Refresh(settlement) = mailbox.take_deposited_reply(&wait).unwrap().unwrap() else {
+        panic!("Refresh reply")
+    };
+    let RefreshDecision::Cleanup(cleanup) = settlement.decision() else {
+        panic!("the removed Workspace's viewer is cleaned up first")
+    };
+    let wait = detached(&mailbox, &clock, cleanup);
+    ui.tick();
+    assert!(matches!(
+        mailbox.take_deposited_reply(&wait).unwrap().unwrap(),
+        UiReply::Membership(_)
+    ));
+    mailbox.finish_lease(lease).unwrap();
+    let state = ui.state.as_ref().unwrap();
+    assert_eq!(
+        state.cache().location().terminal_context_id(),
+        Some(&removal_context())
+    );
+    assert_eq!(mailbox.is_closed(), None);
+    assert!(state.invariant_holds());
+}
+
+/// A window resize while a Switch is in flight is only a newer observation: a refused Switch
+/// still restores its selection, and the restored focus follows the window's current size.
+#[test]
+fn a_switch_refused_after_a_resize_restores_and_resizes_the_focus() {
+    let (mut ui, mailbox, clock, _elapsed) = super::super::test_support::controlling_ui();
+    let focus = super::super::test_support::install_projection(&mut ui, Some((0, false, 24)), 0);
+    assert!(matches!(
+        ui.select_tab(ClientAction::SelectTab(2)),
+        ClientActionDisposition::DismissNavigator
+    ));
+    let resized = Geometry::new(100, 30, 8, 16).unwrap();
+    ui.observe_geometry(resized);
+    let lease = leased_switch(&mailbox);
+    let QueuedCommand::Switch(marker) = lease.record() else {
+        unreachable!("leased_switch answers a Switch")
+    };
+    let target = marker.target();
+    let permit = mailbox
+        .authorize_switch_snapshot(&lease, target, &clock)
+        .unwrap()
+        .unwrap();
+    mailbox.answer_switch_snapshot(permit).unwrap();
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::SwitchSnapshotResult {
+                marker: target.selected().key().clone(),
+                outcome: WorkbenchSnapshotOutcome::Unavailable {
+                    reason: orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+                },
+            },
+            EventDeadline::PlacementOnly(target.deadlines().forward_cutoff()),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert_eq!(
+        mailbox.is_closed(),
+        None,
+        "a resize during a Switch never costs the Client"
+    );
+    let UiReply::Switch(settlement) = mailbox.take_deposited_reply(&wait).unwrap().unwrap() else {
+        panic!("Switch reply")
+    };
+    assert!(matches!(settlement.decision(), RefreshDecision::Continue));
+    assert_eq!(settlement.desired(), Some(focus.pane()));
+    mailbox.finish_lease(lease).unwrap();
+
+    // The shell observes the restored layout at the window's current size.
+    ui.observe_geometry(resized);
+    let resize = loop {
+        let lease = mailbox
+            .try_recv()
+            .unwrap()
+            .expect("the restored focus follows the window");
+        if let QueuedCommand::Resize(resize) = lease.record() {
+            let resize = (resize.key().clone(), *resize.value());
+            mailbox.finish_lease(lease).unwrap();
+            break resize;
+        }
+        mailbox.finish_lease(lease).unwrap();
+    };
+    assert_eq!(resize, (focus, resized));
+    assert_eq!(mailbox.is_closed(), None);
+    assert!(ui.state.as_ref().unwrap().invariant_holds());
+}
+
 #[test]
 fn response_before_ui_new_marker_preserves_exact_cleanup_and_never_installs_stale_candidate() {
     let (mut ui, mailbox, clock, _elapsed) = ready();

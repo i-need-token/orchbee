@@ -3108,6 +3108,27 @@ impl WorkbenchClientState {
         matches!(self.publication_debt, PublicationDebt::Pending)
     }
 
+    /// A Switch read a snapshot it could not install, one that removes this context. That is
+    /// stale-cache evidence on its own, so it owes the publication drain one read even before
+    /// the peer's hint arrives.
+    pub(crate) fn owe_publication_read(&mut self) {
+        if matches!(
+            self.publication_debt,
+            PublicationDebt::Clean | PublicationDebt::Parked
+        ) {
+            self.publication_debt = PublicationDebt::Pending;
+        }
+    }
+
+    /// Whether `snapshot` removes this Client's context in the shape the refresh removal
+    /// classifier lands from.
+    pub(crate) fn snapshot_removes_context(
+        &self,
+        snapshot: &orchbee_workbench_protocol::Snapshot,
+    ) -> bool {
+        self.removed_context_landing(snapshot).is_some()
+    }
+
     #[cfg(test)]
     pub(crate) const fn publication_debt_kind(&self) -> PublicationDebt {
         self.publication_debt
