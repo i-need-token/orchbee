@@ -9,6 +9,8 @@ use crate::{
 use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 use std::{io, time::Instant};
 
+/// Stops a confirmed set of the Tabs from `target_index` on with its first member's own Close at
+/// `status`, which the Server left to that member as `61001` at attempt 7.
 fn halted_close(
     ui: &mut WorkbenchClientUi,
     target_index: usize,
@@ -18,9 +20,11 @@ fn halted_close(
     orchbee_workbench_protocol::WorkbenchRequestId,
     crate::workbench_state::CloseOperation,
 ) {
-    use crate::workbench_state::{CloseLeaseAcknowledgement, CloseResult};
+    use crate::workbench_state::{CloseLeaseAcknowledgement, CloseOperationKind, CloseResult};
     use orchbee_workbench_protocol::{
-        WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseReadOutcome,
+        TabSetCloseAction, TabSetCloseChild, TabSetCloseFailure, TabSetCloseMember,
+        TabSetCloseObservation, TabSetCloseOutcome, TabSetCloseStatus, WorkbenchLabel,
+        WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration,
     };
     let request = |id: u128| WorkbenchRequestId::parse(&format!("{id:032x}")).unwrap();
     let now = ui.clock.now();
@@ -40,33 +44,60 @@ fn halted_close(
         .plan_close_confirmation(request(61000), deadline)
         .unwrap();
     state.begin_close_exchange(&start, now).unwrap();
-    let known = request(61001);
+    let CloseOperationKind::TabSet(TabSetCloseAction::Start {
+        terminal_context_id,
+        condition,
+        ..
+    }) = start.kind().clone()
+    else {
+        panic!("a set of several Tabs closes as one Server operation")
+    };
+    let mut members: Vec<_> = ids
+        .iter()
+        .map(|tab_id| TabSetCloseMember {
+            tab_id: tab_id.clone(),
+            label: WorkbenchLabel::parse("member").unwrap(),
+            close: None,
+            absent: false,
+        })
+        .collect();
+    let available = |status, members| {
+        CloseResult::TabSet(TabSetCloseOutcome::Available {
+            terminal_context_id: terminal_context_id.clone(),
+            condition,
+            status,
+            members,
+        })
+    };
     state
         .settle_close_exchange(
             &start,
-            &CloseResult::Accepted(crate::local_client::workbench::WorkbenchTabCloseAccepted {
-                close_request_id: known.clone(),
-                terminal_context_id: start.key().target().terminal_context_id().clone(),
-                tab_id: ids[0].clone(),
-                accepted_revision: start.selection().base_revision(),
-            }),
+            &available(TabSetCloseStatus::Pending {}, members.clone()),
         )
         .unwrap();
     state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(start.key().clone()));
+    let later = now + std::time::Duration::from_secs(1);
     let read = state
-        .plan_close_read(request(61002), deadline, now)
+        .plan_tab_set_read(request(61002), deadline, later)
         .unwrap();
-    state.begin_close_exchange(&read, now).unwrap();
+    state.begin_close_exchange(&read, later).unwrap();
+    let known = request(61001);
+    members[0].close = Some(TabSetCloseChild {
+        request_id: known.clone(),
+        observation: Some(TabSetCloseObservation {
+            attempt_generation: WorkbenchTabCloseAttemptGeneration::new(7).unwrap(),
+            status,
+        }),
+    });
     state
         .settle_close_exchange(
             &read,
-            &CloseResult::Read(WorkbenchTabCloseReadOutcome::Available {
-                close_request_id: known.clone(),
-                terminal_context_id: start.key().target().terminal_context_id().clone(),
-                tab_id: ids[0].clone(),
-                attempt_generation: WorkbenchTabCloseAttemptGeneration::new(7).unwrap(),
-                status,
-            }),
+            &available(
+                TabSetCloseStatus::Failed {
+                    reason: TabSetCloseFailure::ChildBlocked,
+                },
+                members,
+            ),
         )
         .unwrap();
     state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(read.key().clone()));
@@ -208,15 +239,9 @@ fn close_set_menu_resumes_the_presented_exact_close_without_navigation_or_set_re
                 matches!(operation.kind(), CloseOperationKind::Resume { operation, generation }
         if operation == &known && generation.value() == 7)
             );
-            assert!(
-                ui.state
-                    .as_ref()
-                    .unwrap()
-                    .close_set_status()
-                    .unwrap()
-                    .halted
-            );
-            assert!(!ui.state.as_ref().unwrap().close_set_ready());
+            let state = ui.state.as_ref().unwrap();
+            assert!(state.close_set_status().unwrap().halted);
+            assert!(!state.close_set_read_due(ui.clock.now() + std::time::Duration::from_secs(1)));
         }
     }
 }
@@ -464,6 +489,79 @@ fn close_set_keyboard_recovery_addresses_the_presented_background_member() {
     );
 }
 
+/// The Server's acceptance of a set takes every member out of the strip, and in the tick that
+/// applies it the selection leaves a selected member for the next Tab outside the set.
+#[test]
+fn an_accepted_set_leaves_the_strip_and_moves_the_selection_in_the_same_tick() {
+    use crate::workbench_state::{CloseOperationKind, CloseResult};
+    use orchbee_workbench_protocol::{
+        TabSetCloseAction, TabSetCloseMember, TabSetCloseOutcome, TabSetCloseStatus, WorkbenchLabel,
+    };
+    let (mut ui, mailbox, clock, snapshot) = ready_snapshot(grouped());
+    let ids: Vec<_> = snapshot.terminal_contexts[0]
+        .tabs
+        .iter()
+        .map(|tab| tab.tab_id.clone())
+        .collect();
+    let members = ids[..2].to_vec();
+    assert_eq!(
+        ui.state.as_ref().unwrap().view().active_tab_id(),
+        Some(&ids[0])
+    );
+    assert!(ui.request_close_set(&members).is_some());
+    draw(&mut ui, Locale::EnUs, 120, 40, None);
+    ui.capture_confirmation_key(ClientKey::Enter);
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::Close(marker) = lease.record() else {
+        panic!("the set Start")
+    };
+    let operation = marker.operation().clone();
+    let CloseOperationKind::TabSet(TabSetCloseAction::Start {
+        terminal_context_id,
+        condition,
+        tab_ids,
+        ..
+    }) = operation.kind().clone()
+    else {
+        panic!("several Tabs close as one Server operation")
+    };
+    assert!(members.iter().all(|tab| !ui.view().tab_leaving(tab)));
+    assert_eq!(
+        mailbox.mark_close_in_flight(&operation).unwrap(),
+        MutationResult::Applied
+    );
+    let accepted = CloseResult::TabSet(TabSetCloseOutcome::Available {
+        terminal_context_id,
+        condition,
+        status: TabSetCloseStatus::Pending {},
+        members: tab_ids
+            .into_iter()
+            .map(|tab_id| TabSetCloseMember {
+                tab_id,
+                label: WorkbenchLabel::parse("member").unwrap(),
+                close: None,
+                absent: false,
+            })
+            .collect(),
+    });
+    let wait = mailbox
+        .publish_close_result_before(operation.clone(), accepted, operation.deadline(), &clock)
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.finish_lease(lease).unwrap();
+    assert!(members.iter().all(|tab| ui.view().tab_leaving(tab)));
+    let mut switched = None;
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        if let QueuedCommand::Switch(marker) = lease.record() {
+            switched = Some(marker.target().selected().key().tab_id().clone());
+            break;
+        }
+        mailbox.finish_lease(lease).unwrap();
+    }
+    assert_eq!(switched.as_ref(), Some(&ids[2]));
+}
+
 struct Port<'a> {
     ui: &'a mut WorkbenchClientUi,
     forwarded: &'a mut Vec<u8>,
@@ -656,7 +754,8 @@ fn draw_frame(
 #[test]
 fn close_set_maximum_names_are_bounded_previews_with_full_warning_and_frozen_targets() {
     use crate::terminal_text::{display_width, sanitize_terminal_text, truncate_display};
-    use crate::workbench_state::TabSelectionChange;
+    use crate::workbench_state::{CloseOperationKind, TabSelectionChange};
+    use orchbee_workbench_protocol::TabSetCloseAction;
     let names = [
         "A".repeat(512),
         "界".repeat(512),
@@ -751,9 +850,14 @@ fn close_set_maximum_names_are_bounded_previews_with_full_warning_and_frozen_tar
                 let QueuedCommand::Close(operation) = lease.record() else {
                     panic!("Close admission")
                 };
-                assert_eq!(operation.operation().set_source(), Some(&snapshot));
-                assert_eq!(operation.operation().key().target().tab_id(), &ids[0]);
-                assert_eq!(ui.view().close_set_status().unwrap().total, 4);
+                assert!(matches!(
+                    operation.operation().kind(),
+                    CloseOperationKind::TabSet(TabSetCloseAction::Start {
+                        tab_ids,
+                        expected_revision,
+                        ..
+                    }) if tab_ids == &ids && *expected_revision == snapshot.revision
+                ));
                 assert!(mailbox.try_recv().unwrap().is_none());
                 mailbox.close(CarrierFailure::Closed);
             }
@@ -855,6 +959,8 @@ fn tab_close_confirm_uses_shared_destructive_intent_without_changing_cancel_or_a
 
 #[test]
 fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_confirmation() {
+    use crate::workbench_state::CloseOperationKind;
+    use orchbee_workbench_protocol::TabSetCloseAction;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for (width, height) in [(120, 40), (80, 24)] {
             for pointer in [false, true] {
@@ -1030,16 +1136,28 @@ fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_co
                     let QueuedCommand::Close(operation) = lease.record() else {
                         panic!("one Close lane admission");
                     };
-                    assert_eq!(
-                        operation.operation().key().target().tab_id(),
-                        &ids[expected[0]]
-                    );
-                    assert_eq!(operation.operation().set_source(), Some(&snapshot));
+                    let members: Vec<_> =
+                        expected.iter().map(|index| ids[*index].clone()).collect();
+                    // One Tab closes as the key does; several close as one Server operation.
+                    match operation.operation().kind() {
+                        CloseOperationKind::Close => {
+                            assert_eq!(
+                                std::slice::from_ref(operation.operation().key().target().tab_id()),
+                                members.as_slice()
+                            );
+                        }
+                        CloseOperationKind::TabSet(TabSetCloseAction::Start {
+                            tab_ids,
+                            expected_revision,
+                            ..
+                        }) => {
+                            assert!(members.len() > 1);
+                            assert_eq!(tab_ids, &members);
+                            assert_eq!(*expected_revision, snapshot.revision);
+                        }
+                        kind => panic!("not a Close of the captured set: {kind:?}"),
+                    }
                     assert_eq!(ui.state.as_ref().unwrap().desired(), desired.as_ref());
-                    assert_eq!(
-                        ui.state.as_ref().unwrap().close_set_status().unwrap().total,
-                        expected.len()
-                    );
                     assert!(ui.view().close_confirmation().is_none());
                     assert!(ui.view().setup_draft().is_none());
                     assert!(

@@ -344,7 +344,8 @@ impl WorkbenchClientUi {
         mailbox
             .apply_local_for(state, |state| state.open_close_set(ids))
             .ok()?;
-        // One Tab closed by its [x] or a menu follows the same rule as the key; a larger set asks.
+        // A Tab closed by its [x] or a menu follows the same rule as the key, and so does a set:
+        // the Server closes it unasked when nothing runs in any member.
         if let Some(token) = state
             .view()
             .close_confirmation()
@@ -355,27 +356,34 @@ impl WorkbenchClientUi {
         Some(())
     }
 
+    /// Follows a set the Server holds, one exchange per lease: the Start a revision race refused
+    /// goes again once this Client holds that revision, and an accepted set is read every quarter
+    /// second or at once after a publication.
     pub(super) fn schedule_close_set(&mut self, mailbox: &Arc<CommandMailbox>) -> bool {
+        let now = self.clock.now();
         let Some(state) = self.state.as_mut() else {
             return false;
         };
-        let changed = state.settle_close_set(self.clock.now());
-        if !state.close_set_ready() {
+        let changed = state.settle_close_set(now);
+        let resend = state.close_set_resend_due(now);
+        if !resend && !state.close_set_read_due(now) {
             return changed;
         }
-        let Some(deadline) = state.close_set_deadline() else {
+        let Some(deadline) = now.checked_add(OPERATION_TOTAL) else {
             return changed;
         };
-        let Some(operation_deadline) = self.clock.now().checked_add(OPERATION_TOTAL) else {
-            return changed;
-        };
-        let deadline = deadline.min(operation_deadline);
         match mailbox.try_enqueue_close_for(
             state,
             deadline,
             &self.clock,
-            |state, request, _| state.plan_next_close_set(request, deadline),
-            WorkbenchClientState::begin_next_close_set,
+            |state, request, admitted_at| {
+                if resend {
+                    state.plan_tab_set_resend(request, deadline, admitted_at)
+                } else {
+                    state.plan_tab_set_read(request, deadline, admitted_at)
+                }
+            },
+            WorkbenchClientState::begin_close_exchange,
         ) {
             Ok(_) => true,
             Err(CloseAdmissionError::Closed(closed)) => {
@@ -635,9 +643,6 @@ impl WorkbenchClientUi {
         let Some(deadline) = sampled.checked_add(OPERATION_TOTAL) else {
             return;
         };
-        let deadline = state
-            .close_set_deadline()
-            .map_or(deadline, |sequence| sequence.min(deadline));
         let result = mailbox.try_enqueue_close_for(
             state,
             deadline,

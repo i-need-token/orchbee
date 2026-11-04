@@ -403,3 +403,40 @@ fn a_close_of_another_tab_delivers_typed_input_after_it_and_refuses_only_its_own
         if tagged.key() == &focus && tagged.value().as_bytes() == b"c"));
     mailbox.finish_lease(last).unwrap();
 }
+
+/// A set Start names every member as its own Tab: while it is out, typed input for any member's
+/// pane is refused, and input for a Tab outside the set queues behind it.
+#[test]
+fn a_set_start_refuses_typed_input_for_every_member_and_queues_the_rest() {
+    use crate::workbench_state::CloseOperationKind;
+    use orchbee_workbench_protocol::TabSetCloseAction;
+    let base = Instant::now();
+    let clock = FakeClock::new(base);
+    let deadline = base + Duration::from_secs(50);
+    for (tab, member) in [(1, false), (21, true)] {
+        let focus = PaneRef::new(pane_key(&key(1, tab)), 1);
+        let mailbox = mailbox_for_desired(focus.pane().clone(), 900);
+        let mut state = ready_state(3);
+        let members: Vec<_> = state.cache().tabs()[1..]
+            .iter()
+            .map(|tab| tab.tab_id().clone())
+            .collect();
+        state.open_close_set(&members).unwrap();
+        let token = state.view().close_confirmation().unwrap().token();
+        state.acknowledge_close_draw(Some(token), None);
+        let operation = mailbox
+            .try_enqueue_close_for_using(
+                &mut state,
+                deadline,
+                &clock,
+                |state, request_id, _| state.plan_close_confirmation(request_id, deadline),
+                WorkbenchClientState::begin_close_exchange,
+            )
+            .unwrap();
+        assert!(matches!(operation.kind(),
+            CloseOperationKind::TabSet(TabSetCloseAction::Start { tab_ids, .. }) if tab_ids == &members));
+        let admitted = mailbox.try_enqueue(typed(&focus, b"a"));
+        assert_eq!(matches!(admitted, Err(AdmissionError::Full)), member);
+        assert_eq!(admitted.is_ok(), !member);
+    }
+}

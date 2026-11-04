@@ -1,11 +1,12 @@
-//! Closes one Tab or Panel without its confirmation when the Server finds nothing running in it.
+//! Closes one Tab, a set of Tabs or a Panel without its confirmation when the Server finds nothing
+//! running in it.
 //!
 //! The confirmation opens first and stays hidden while the Server decides: the Client sends the
 //! conditional close, and the Server reads every live terminal that close would end. Accepted,
 //! the close goes on as a confirmed one; when the Server answers that the user must confirm, the
-//! armed confirmation presents. The rules are the Server's; see `docs/native-tab-close-sets.md`.
-//! A ReadOnly Client, a set of several Tabs and a Resume always present the confirmation and send
-//! nothing.
+//! armed confirmation presents. A set of several Tabs asks the same way with one conditional Start
+//! of the whole set. The rules are the Server's; see `docs/native-tab-close-sets.md`. A ReadOnly
+//! Client and a Resume always present the confirmation and send nothing.
 
 use super::{ActionBuildError, WorkbenchClientUi};
 use crate::workbench_client::mailbox::{CloseAdmissionError, MoveAdmissionError};

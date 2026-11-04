@@ -1,6 +1,6 @@
-//! A close of one Tab or Panel asks the Server first from every route, and a larger set always asks
-//! the user; `cli_windows_idle_close` witnesses the Server's answers on a real PowerShell. A lone
-//! close stays unreported for its delay.
+//! A close of one Tab, of a set of Tabs or of a Panel asks the Server first from every route;
+//! `cli_windows_idle_close` witnesses the Server's answers on a real PowerShell. A lone close stays
+//! unreported for its delay.
 use super::super::test_support::{controlling_ui, install_projection};
 use super::super::*;
 use super::normal_exit_hold::{exited, poll};
@@ -53,9 +53,9 @@ fn asks_the_server(mailbox: &CommandMailbox) -> bool {
 }
 
 /// The key, the [x] and the Tab menus close one Tab the same way, and so does the Panel key: the
-/// confirmation stays hidden while the Server decides. A larger set always asks and sends nothing.
+/// confirmation stays hidden while the Server decides.
 #[test]
-fn one_tab_or_panel_asks_the_server_first_and_a_larger_set_asks_the_user() {
+fn one_tab_or_panel_asks_the_server_first() {
     let (mut ui, mailbox, _) = shown_ui(true);
     ui.apply_client_action(ClientAction::RequestCloseTab);
     assert!(ui.view().close_confirmation().is_none());
@@ -75,12 +75,76 @@ fn one_tab_or_panel_asks_the_server_first_and_a_larger_set_asks_the_user() {
         next(&mailbox).record(),
         QueuedCommand::Panel(marker) if *marker.operation().intent() == PanelIntent::CloseIfIdle
     ));
+}
 
-    let (mut ui, mailbox, _) = shown_ui(true);
-    let tabs = tab_ids(&ui);
-    assert!(ui.request_close_set(&tabs).is_some());
-    assert!(ui.view().close_confirmation().is_some());
-    assert!(next_is_empty(&mailbox));
+/// A set of several Tabs asks with one conditional Start of the whole set: its confirmation stays
+/// hidden while the Server decides, presents when a member runs, and goes when the Server closes
+/// the set unasked.
+#[test]
+fn a_set_asks_the_server_first_with_one_conditional_start() {
+    use crate::workbench_client::mailbox::MutationResult;
+    use crate::workbench_state::CloseResult;
+    use orchbee_workbench_protocol::{
+        TabSetCloseAction, TabSetCloseCondition, TabSetCloseMember, TabSetCloseOutcome,
+        TabSetCloseStatus, WorkbenchLabel,
+    };
+    for asks in [true, false] {
+        let (mut ui, mailbox, _) = shown_ui(true);
+        let clock = ui.clock.clone();
+        let tabs = tab_ids(&ui);
+        assert!(ui.request_close_set(&tabs).is_some());
+        assert!(ui.view().close_confirmation().is_none());
+        let lease = next(&mailbox);
+        let QueuedCommand::Close(marker) = lease.record() else {
+            panic!("the set Start")
+        };
+        let operation = marker.operation().clone();
+        let CloseOperationKind::TabSet(TabSetCloseAction::Start {
+            terminal_context_id,
+            condition: TabSetCloseCondition::IfIdle,
+            tab_ids,
+            ..
+        }) = operation.kind().clone()
+        else {
+            panic!("one conditional Start of the whole set")
+        };
+        assert_eq!(tab_ids, tabs);
+        assert_eq!(
+            mailbox.mark_close_in_flight(&operation).unwrap(),
+            MutationResult::Applied
+        );
+        let answer = if asks {
+            TabSetCloseOutcome::ConfirmationRequired {}
+        } else {
+            TabSetCloseOutcome::Available {
+                terminal_context_id,
+                condition: TabSetCloseCondition::IfIdle,
+                status: TabSetCloseStatus::Pending {},
+                members: tab_ids
+                    .into_iter()
+                    .map(|tab_id| TabSetCloseMember {
+                        tab_id,
+                        label: WorkbenchLabel::parse("member").unwrap(),
+                        close: None,
+                        absent: false,
+                    })
+                    .collect(),
+            }
+        };
+        let wait = mailbox
+            .publish_close_result_before(
+                operation.clone(),
+                CloseResult::TabSet(answer),
+                operation.deadline(),
+                &clock,
+            )
+            .unwrap();
+        ui.tick();
+        assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+        mailbox.finish_lease(lease).unwrap();
+        assert_eq!(ui.view().close_confirmation().is_some(), asks);
+        assert!(tabs.iter().all(|tab| ui.view().tab_leaving(tab) != asks));
+    }
 }
 
 /// While a close stays unreported, its own terminal ending is no news; the UI wakes when its delay

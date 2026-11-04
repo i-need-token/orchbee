@@ -81,7 +81,7 @@ pub(crate) use tab_close::{
 };
 #[cfg(test)]
 pub(crate) use tab_close::{CloseIntent, CloseReadMode, CloseSelection, CloseTarget};
-pub(crate) use tab_close::{CloseSetKind, close_set_premises_match, close_set_targets};
+pub(crate) use tab_close::{CloseSetKind, close_set_targets};
 
 pub(crate) const OPERATION_TOTAL: Duration = Duration::from_secs(50);
 pub(crate) const CLEANUP_RESERVE: Duration = Duration::from_secs(5);
@@ -4031,7 +4031,6 @@ impl WorkbenchClientState {
 
     pub(crate) fn phase_allows_refresh(&self) -> bool {
         self.pending_mutation.is_none()
-            && !self.close.set_active()
             && !self.workspace_close_blocks_structure()
             && !self.setup_pending_or_draft()
             && !self.rename_draft_blocks_structure()
@@ -4091,7 +4090,7 @@ impl WorkbenchClientState {
     }
 
     pub(crate) fn retire(&mut self, failure: CarrierFailure) {
-        self.close.halt_set();
+        self.close.lose_set();
         self.stop_duplicate_sequence(DuplicateStop::Recovery);
         self.retire_close_reconciliations();
         self.cancel_close_confirmation();

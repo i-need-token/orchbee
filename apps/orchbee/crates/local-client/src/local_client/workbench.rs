@@ -49,6 +49,7 @@ pub(crate) mod panel_split;
 pub(crate) mod split_ratio;
 mod tab_close;
 mod tab_move;
+mod tab_set_close;
 mod workspace_close;
 mod workspace_group_close;
 pub(crate) mod workspace_launch;
@@ -66,6 +67,7 @@ pub use tab_move::{
     WorkbenchTabMoveCommit, WorkbenchTabMoveNotSubmitted, WorkbenchTabMoveOutcomeUnknownReason,
     WorkbenchTabMovePrecommit, WorkbenchTabMoveRequest, WorkbenchTabMoveSubmission,
 };
+pub use tab_set_close::TabSetCloseExchangeError;
 pub use workspace_close::{
     WorkbenchWorkspaceCloseAccepted, WorkbenchWorkspaceCloseRequest,
     WorkbenchWorkspaceCloseSubmission,

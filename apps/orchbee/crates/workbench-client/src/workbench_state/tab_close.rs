@@ -29,7 +29,7 @@ pub(crate) use reconciliation::{
 };
 pub(crate) use set::CloseSetCapture;
 pub(crate) use set::CloseSetStatus;
-pub(crate) use set::{CloseSetKind, close_set_premises_match, close_set_targets};
+pub(crate) use set::{CloseSetKind, close_set_targets};
 
 const MAXIMUM_CLOSE_RECORDS: usize = 256;
 const DISPOSED_AUTO_ADMISSIONS: u8 = 32;
@@ -413,7 +413,7 @@ enum CloseCarrier {
 
 #[derive(Default)]
 pub(crate) struct CloseState {
-    set: Option<set::CloseSetRun>,
+    set: Option<set::TabSetFollow>,
     records: Vec<CloseRecord>,
     confirmation: Option<CloseConfirmation>,
     next_display_token: u64,
@@ -431,7 +431,6 @@ pub(crate) struct CloseState {
 impl CloseState {
     pub(super) fn permits_retired_membership(&self) -> bool {
         self.records.is_empty()
-            && !self.set_active()
             && self.confirmation.is_none()
             && self.pending.is_none()
             && self.completed_handoff.is_none()
@@ -444,19 +443,21 @@ impl CloseState {
         Some(self.next_display_token)
     }
 
-    /// Whether this Tab has already left the Client's view: its close is progressing normally, so
-    /// the strip and navigation leave it out at once instead of when the Server's publication
-    /// lands. A close that fails, turns unknown or loses its observation shows the Tab again with
-    /// its report.
+    /// Whether this Tab has already left the Client's view: its close is progressing normally, or
+    /// it is a member of a set the Server is closing, so the strip and navigation leave it out at
+    /// once instead of when the Server's publication lands. A close that fails, turns unknown or
+    /// loses its observation, and a set member left open, shows the Tab again with its report.
     pub(crate) fn tab_leaving(&self, tab_id: &WorkbenchTabId) -> bool {
-        self.records.iter().any(|record| record.leaving(tab_id))
+        self.set_leaving(tab_id) || self.records.iter().any(|record| record.leaving(tab_id))
     }
 
     /// Whether the Server accepted the close of this leaving Tab, so the selection may move off it.
     pub(crate) fn tab_close_accepted(&self, tab_id: &WorkbenchTabId) -> bool {
-        self.records
-            .iter()
-            .any(|record| record.leaving(tab_id) && record.operation.is_some())
+        self.set_leaving(tab_id)
+            || self
+                .records
+                .iter()
+                .any(|record| record.leaving(tab_id) && record.operation.is_some())
     }
 
     fn record_index(&self, target: &CloseTarget) -> Option<usize> {
@@ -571,11 +572,8 @@ impl CloseState {
         Some(CloseConfirmationView {
             confirmation,
             status,
-            set_progress: status.and_then(|_| {
-                self.set
-                    .as_ref()?
-                    .resume_status(confirmation.intent.selection().target())
-            }),
+            set_progress: status
+                .and_then(|_| self.set_resume_status(confirmation.intent.selection().target())),
         })
     }
 
@@ -925,17 +923,16 @@ impl super::WorkbenchClientState {
             .is_some_and(|tab| !self.close.tab_leaving(tab.tab_id()))
     }
 
-    /// Where the selection goes once the Server accepts the selected Tab's close: the next Tab
-    /// still shown, else the previous one, the survivor the removal itself would select. The
-    /// Panel then leaves at the next Tab's first frame instead of when the publication lands.
-    /// There is none for the last Tab, or while several Tabs close as one sequence, which a focus
-    /// change would stop.
+    /// Where the selection goes once the Server accepts the selected Tab's close, alone or in a
+    /// set: the next Tab still shown, else the previous one, the survivor the removal itself would
+    /// select. The Panel then leaves at the next Tab's first frame instead of when the publication
+    /// lands. There is none when every Tab leaves; the last removal then empties the Client. A set
+    /// member left open comes back unselected.
     pub(crate) fn leaving_selection_successor(&self) -> Option<usize> {
         let selected = self.active()?.index();
         if !self
             .close
             .tab_close_accepted(self.cache.tabs().get(selected)?.tab_id())
-            || self.close.sequence_active()
         {
             return None;
         }
@@ -1086,10 +1083,15 @@ impl super::WorkbenchClientState {
     /// Whether the armed confirmation's frozen facts no longer match live
     /// state. Display flags are deliberately excluded — a transient
     /// not-yet-redrawn state is recoverable, a drifted identity is not.
+    /// While the Server decides an if-idle set, the set owns its hidden
+    /// confirmation: the Server's answer, or a resend's own check, settles it.
     fn close_confirmation_stale(&self) -> bool {
         let Some(confirmation) = &self.close.confirmation else {
             return false;
         };
+        if self.close.set_deciding() {
+            return false;
+        }
         if let CloseIntent::Resume {
             selection,
             operation,
@@ -1166,9 +1168,10 @@ impl<'a> super::WorkbenchClientView<'a> {
     /// Whether the Server is deciding if the armed Close needs asking; its confirmation stays
     /// hidden until the answer.
     pub(crate) fn close_deciding(&self) -> bool {
-        self.state.close.pending.as_ref().is_some_and(|operation| {
-            matches!(operation.kind(), CloseOperationKind::CloseIfIdle { .. })
-        })
+        self.state.close.set_deciding()
+            || self.state.close.pending.as_ref().is_some_and(|operation| {
+                matches!(operation.kind(), CloseOperationKind::CloseIfIdle { .. })
+            })
     }
     /// What `confirmation` ends, from the attachments `settled` reports as Host-settled. A Resume
     /// whose Server status proved disposal has no running terminal left.
@@ -1226,7 +1229,7 @@ impl<'a> super::WorkbenchClientView<'a> {
             .close
             .set
             .as_ref()
-            .and_then(set::CloseSetRun::halted_target)
+            .and_then(set::TabSetFollow::halted_target)
             .and_then(|target| self.state.close.status(target))
         {
             return Some(status);

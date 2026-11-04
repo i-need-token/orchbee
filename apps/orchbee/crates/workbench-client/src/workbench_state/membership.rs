@@ -245,10 +245,6 @@ impl PreparedMembershipInstall<'_> {
             self.refresh_generation,
             &self.prepared.candidate,
         );
-        if let Some(consumption) = &self.close_consumption {
-            self.state
-                .before_close_set_member_install(consumption.target());
-        }
         let foreground_created = self
             .settled_create
             .as_ref()
@@ -377,9 +373,7 @@ impl PreparedMembershipInstall<'_> {
             );
         }
         if let Some(consumption) = self.close_consumption {
-            let target = consumption.target().clone();
             self.state.close.commit_consumption(consumption);
-            self.state.installed_close_set_member(&target);
         }
         if let Some(witness) = self.duplicate_witness {
             self.state.commit_duplicate_install(witness);

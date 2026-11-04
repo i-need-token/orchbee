@@ -392,6 +392,107 @@ fn a_focused_viewer_lost_beside_a_background_close_parks() {
     assert!(ui.state.as_ref().unwrap().invariant_holds());
 }
 
+/// A set the Server closes holds back no other work: a focused viewer lost while the Client
+/// follows the set parks instead of costing the Client, the members stay out of the strip, and the
+/// automatic re-attach goes without waiting for the set.
+#[test]
+fn a_focused_viewer_lost_beside_a_tab_set_parks_and_reattaches() {
+    use crate::workbench_client::ui::test_support::{controlling_ui_with, install_projection};
+    use crate::workbench_state::{CloseOperationKind, CloseResult};
+    use orchbee_workbench_protocol::{
+        TabSetCloseAction, TabSetCloseMember, TabSetCloseOutcome, TabSetCloseStatus, WorkbenchLabel,
+    };
+    let (mut ui, mailbox, clock, elapsed) = controlling_ui_with(3);
+    ui.idle_close = false;
+    let focus = install_projection(&mut ui, Some((0, false, 24)), 0);
+    let members: Vec<_> = ui.state.as_ref().unwrap().cache().tabs()[1..]
+        .iter()
+        .map(|tab| tab.tab_id().clone())
+        .collect();
+    assert!(ui.request_close_set(&members).is_some());
+    let token = ui.view().close_confirmation().unwrap().token();
+    ui.state
+        .as_mut()
+        .unwrap()
+        .acknowledge_close_draw(Some(token), None);
+    let _ = ui.confirm_close();
+    let lease = loop {
+        let lease = mailbox.try_recv().unwrap().expect("the set Start");
+        if matches!(lease.record(), QueuedCommand::Close(_)) {
+            break lease;
+        }
+        mailbox.finish_lease(lease).unwrap();
+    };
+    let QueuedCommand::Close(marker) = lease.record() else {
+        unreachable!("the loop answers a Close")
+    };
+    let operation = marker.operation().clone();
+    let CloseOperationKind::TabSet(TabSetCloseAction::Start {
+        terminal_context_id,
+        condition,
+        tab_ids,
+        ..
+    }) = operation.kind().clone()
+    else {
+        panic!("several Tabs close as one Server operation")
+    };
+    assert_eq!(
+        mailbox.mark_close_in_flight(&operation).unwrap(),
+        MutationResult::Applied
+    );
+    let accepted = CloseResult::TabSet(TabSetCloseOutcome::Available {
+        terminal_context_id,
+        condition,
+        status: TabSetCloseStatus::Pending {},
+        members: tab_ids
+            .into_iter()
+            .map(|tab_id| TabSetCloseMember {
+                tab_id,
+                label: WorkbenchLabel::parse("member").unwrap(),
+                close: None,
+                absent: false,
+            })
+            .collect(),
+    });
+    let wait = mailbox
+        .publish_close_result_before(operation.clone(), accepted, operation.deadline(), &clock)
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.finish_lease(lease).unwrap();
+    assert!(members.iter().all(|tab| ui.view().tab_leaving(tab)));
+
+    mailbox
+        .publish_notice_before(
+            WorkerEvent::PaneFailed {
+                key: focus.clone(),
+                fault: PaneFault::ViewerLost,
+            },
+            clock.now() + OPERATION_TOTAL,
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert_eq!(mailbox.is_closed(), None, "a set never costs the Client");
+    let state = ui.state.as_ref().unwrap();
+    assert!(state.focused_viewer_lost());
+    assert_eq!(state.focus_pane_ref(), Some(focus));
+    assert!(members.iter().all(|tab| state.view().tab_leaving(tab)));
+
+    elapsed.fetch_add(300, Ordering::SeqCst);
+    ui.tick();
+    let mut switched = false;
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        if matches!(lease.record(), QueuedCommand::Switch(_)) {
+            switched = true;
+            break;
+        }
+        mailbox.finish_lease(lease).unwrap();
+    }
+    assert!(switched, "the re-attach does not wait for the set");
+    assert_eq!(mailbox.is_closed(), None);
+}
+
 /// A rename draft can stay open for a long time. A focused viewer lost meanwhile parks beside the
 /// draft instead of costing the Client, and its automatic re-attach waits for the draft.
 #[test]

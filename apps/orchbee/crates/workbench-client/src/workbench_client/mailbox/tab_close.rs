@@ -61,14 +61,14 @@ impl MailboxState {
         self.close_flight.is_some() || self.close_reconciliation.is_some()
     }
 
-    /// Whether an outstanding close step names `pane`'s own Tab. Input and viewport steps for
-    /// a pane of any other Tab queue behind the close records in FIFO order instead of being
-    /// refused while that close runs.
+    /// Whether an outstanding close step names `pane`'s own Tab, or a set Start names it as a
+    /// member. Input and viewport steps for a pane of any other Tab queue behind the close
+    /// records in FIFO order instead of being refused while that close runs.
     pub(super) fn close_targets(&self, pane: &PaneRef) -> bool {
         let anchor = pane.anchor();
         self.close_flight
             .as_ref()
-            .is_some_and(|flight| flight.operation.key().target().tab_id() == anchor.tab_id())
+            .is_some_and(|flight| flight.operation.closes_tab(anchor.tab_id()))
             || self
                 .close_reconciliation
                 .as_ref()

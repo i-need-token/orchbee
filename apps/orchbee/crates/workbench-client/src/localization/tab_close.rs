@@ -79,9 +79,9 @@ impl Locale {
             Self::ZhCn => format!("……以及另外 {count} 个标签页"),
         }
     }
-    /// A sequence of one Tab shows only its halt. The completed form replaces the running count, so
-    /// a finished close never reads as work that continues. A halted count names the Tabs left open
-    /// apart from the one submitted close whose outcome is still unknown.
+    /// The count of a set of several Tabs the Server closes. The completed form replaces the running
+    /// count, so a finished close never reads as work that continues. A halted count names the Tabs
+    /// left open apart from the one member whose own Close may still finish.
     pub(crate) fn close_set_status(self, status: crate::localization::CloseSetStatus) -> String {
         let crate::localization::CloseSetStatus {
             completed,
@@ -92,8 +92,6 @@ impl Locale {
         let remaining = total.saturating_sub(completed);
         let open = remaining.saturating_sub(usize::from(unconfirmed));
         match (self, halted, remaining) {
-            (Self::EnUs, true, _) if total == 1 => "Close not confirmed".into(),
-            (Self::ZhCn, true, _) if total == 1 => "关闭未确认".into(),
             (Self::EnUs, true, _) if unconfirmed && open == 0 => {
                 format!("Closing stopped: {completed} closed, 1 unconfirmed")
             }

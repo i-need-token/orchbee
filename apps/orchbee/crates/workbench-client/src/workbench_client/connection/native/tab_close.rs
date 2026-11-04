@@ -1,20 +1,20 @@
-//! Submits or explicitly resumes one captured retained close and carries its exact read or
-//! receipt outcome back to the UI. It does not decide that a close succeeded from connection
-//! loss or repeat a possibly delivered close.
+//! Submits or explicitly resumes one captured retained close, or exchanges once for a Tab set the
+//! Server closes, and carries its exact read or receipt outcome back to the UI. It does not decide
+//! that a close succeeded from connection loss or repeat a possibly delivered close.
 
 use super::{ClientExecutor, Result, closed, event, io_failure};
 use crate::local_client::workbench::{
-    WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted, WorkbenchTabCloseReadError,
-    WorkbenchTabCloseRequest, WorkbenchTabCloseResumeSubmission, WorkbenchTabCloseSubmission,
+    TabSetCloseExchangeError, WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted,
+    WorkbenchTabCloseReadError, WorkbenchTabCloseRequest, WorkbenchTabCloseResumeSubmission,
+    WorkbenchTabCloseSubmission,
 };
 use crate::workbench_client::mailbox::{CommandLease, MutationResult, UiReply};
 use crate::workbench_state::{
     CarrierFailure, CloseOperation, CloseOperationKind, CloseResult, PendingCloseResult,
-    close_set_premises_match,
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchTabCloseRead,
-    WorkbenchTabCloseResume, WorkbenchWireError,
+    ProtocolVersion, TabSetCloseAction, WorkbenchAction, WorkbenchCommand, WorkbenchTabCloseRead,
+    WorkbenchTabCloseResume, WorkbenchTabSetCloseRequest, WorkbenchWireError,
 };
 use std::time::Instant;
 
@@ -76,27 +76,7 @@ impl ClientExecutor {
         let request_id = operation.key().request_id().clone();
         let result = match operation.kind() {
             kind @ (CloseOperationKind::Close | CloseOperationKind::CloseIfIdle { .. }) => {
-                let mut expected_revision = operation.selection().base_revision();
-                if let Some(source) = operation.set_source() {
-                    let read_id = self
-                        .mailbox
-                        .allocate_workbench_request_id()
-                        .map_err(closed)?;
-                    let outcome = self.read_workbench_before(read_id, cutoff)?;
-                    let orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available {
-                        snapshot,
-                    } = outcome
-                    else {
-                        return Ok((CloseResult::NotSubmitted, None));
-                    };
-                    if !close_set_premises_match(&snapshot, source) {
-                        return Ok((CloseResult::NotSubmitted, None));
-                    }
-                    // This read reserves nothing. The existing Tab Close revision CAS remains the
-                    // only admission authority, at the revision this read just proved acceptable.
-                    expected_revision = snapshot.revision;
-                    self.ensure_before(cutoff)?;
-                }
+                let expected_revision = operation.selection().base_revision();
                 let terminal_context_id = target.terminal_context_id().clone();
                 let tab_id = target.tab_id().clone();
                 let action = if matches!(kind, CloseOperationKind::CloseIfIdle { .. }) {
@@ -185,6 +165,44 @@ impl ClientExecutor {
                     }
                     WorkbenchTabCloseResumeSubmission::OutcomeUnknown => {
                         return Ok((CloseResult::Ambiguous, Some(CarrierFailure::OutcomeUnknown)));
+                    }
+                }
+            }
+            CloseOperationKind::TabSet(action) => {
+                let request = WorkbenchTabSetCloseRequest {
+                    protocol_version: ProtocolVersion,
+                    request_id,
+                    session_id: target.session_id().clone(),
+                    action: action.clone(),
+                };
+                match self.client.submit_tab_set_close(request, cutoff, None) {
+                    Ok(result) => CloseResult::TabSet(result.outcome),
+                    Err(TabSetCloseExchangeError {
+                        submitted: false,
+                        reason,
+                    }) => {
+                        let unavailable =
+                            reason == "session-unavailable" || self.client.generation().is_none();
+                        return Ok((
+                            CloseResult::NotSubmitted,
+                            unavailable.then_some(CarrierFailure::Transport),
+                        ));
+                    }
+                    // A Start may have been admitted; the set is never started again from here.
+                    Err(error) => {
+                        let failure = if error.reason == "response-correlation" {
+                            CarrierFailure::Protocol
+                        } else {
+                            CarrierFailure::Transport
+                        };
+                        return Ok(match action {
+                            TabSetCloseAction::Start { .. } => {
+                                (CloseResult::Ambiguous, Some(CarrierFailure::OutcomeUnknown))
+                            }
+                            TabSetCloseAction::Read { .. } => {
+                                (CloseResult::ObservationUnavailable, Some(failure))
+                            }
+                        });
                     }
                 }
             }

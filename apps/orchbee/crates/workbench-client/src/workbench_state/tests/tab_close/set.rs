@@ -1,11 +1,14 @@
-//! Frozen-set lifecycle traces exercise the ordinary Close and membership commit owners.
+//! Set close traces: the Server closes several Tabs as one operation the Client follows, and one
+//! Tab closes as the key closes it.
 use super::*;
 use crate::workbench_state::{
     CloseLeaseAcknowledgement, CloseOperationKind, CloseSetKind, ControllerMode, FrameIdentity,
     MembershipInstallDecision, OperationDeadlines, close_set_targets,
 };
 use orchbee_workbench_protocol::{
-    Snapshot, WorkbenchTabCloseReadOutcome, WorkbenchTabGroupId, WorkbenchTabId,
+    Snapshot, TabSetCloseAction, TabSetCloseChild, TabSetCloseFailure, TabSetCloseMember,
+    TabSetCloseObservation, TabSetCloseOutcome, TabSetCloseRejection, TabSetCloseStatus,
+    WorkbenchLabel, WorkbenchTabCloseReadOutcome, WorkbenchTabGroupId, WorkbenchTabId,
 };
 use serde::Deserialize;
 
@@ -126,9 +129,7 @@ fn read_status(
     let read = state
         .plan_close_read(
             workbench_request_id(8001 + u128::from(state.cache().revision().value())),
-            state
-                .close_set_deadline()
-                .unwrap_or(now + Duration::from_secs(50)),
+            now + Duration::from_secs(50),
             now,
         )
         .unwrap();
@@ -166,22 +167,6 @@ fn observe_closed(
     accept(state, close);
     let closed = closed_status(state);
     read_status(state, close, closed, now)
-}
-
-/// Closes `close` through its membership install and admits the next member.
-fn finish_and_start_next(
-    state: &mut WorkbenchClientState,
-    close: &CloseOperation,
-    now: Instant,
-) -> CloseOperation {
-    observe_closed(state, close, now);
-    let source = removed(state, close.key().target().tab_id());
-    install(state, close, source, now);
-    let next = state
-        .plan_next_close_set(workbench_request_id(9500), close.deadline())
-        .unwrap();
-    state.begin_next_close_set(&next, now).unwrap();
-    next
 }
 
 fn screen(state: &WorkbenchClientState, locale: crate::localization::Locale) -> String {
@@ -305,95 +290,214 @@ fn install(
     assert!(state.invariant_holds());
 }
 
-#[test]
-fn close_set_background_targets_never_activate_and_alias_receipts_advance_only_after_membership_commit()
- {
-    let now = Instant::now();
-    let mut state = ready(3);
-    let desired = state.desired().cloned();
-    let second = state.cache().tabs()[2].tab_id().clone();
-    let close = open(&mut state, &[1, 2], now);
-    assert_eq!(close.selection().attachment(), None);
-    assert_eq!(close.selection().binding(), None);
-    assert_eq!(state.desired().cloned(), desired);
-    assert!(close.set_source().is_some());
-    observe_closed(&mut state, &close, now);
-    assert!(
-        !state.close_set_ready(),
-        "Closed status cannot stand in for canonical membership"
-    );
-    let source = removed(&state, close.key().target().tab_id());
-    install(&mut state, &close, source, now);
-    assert_eq!(state.desired().cloned(), desired);
-    assert!(state.close_set_ready());
-    let next = state
-        .plan_next_close_set(workbench_request_id(9999), close.deadline())
-        .unwrap();
-    assert_eq!(next.key().target().tab_id(), &second);
-    assert_eq!(next.deadline(), close.deadline());
-    assert_eq!(state.close_set_status().unwrap().completed, 1);
+/// The Tabs at `indexes`, in their order.
+fn tab_ids(state: &WorkbenchClientState, indexes: &[usize]) -> Vec<WorkbenchTabId> {
+    indexes
+        .iter()
+        .map(|index| state.cache().tabs()[*index].tab_id().clone())
+        .collect()
 }
 
-#[test]
-fn close_set_allows_only_own_survivor_selection_and_finishes_the_original_set() {
-    let now = Instant::now();
-    let mut state = ready(3);
-    let mut close = open(&mut state, &[0, 1, 2], now);
-    for completed in 1..=3 {
-        let sampled = now + Duration::from_secs(completed);
-        observe_closed(&mut state, &close, sampled);
-        let source = removed(&state, close.key().target().tab_id());
-        install(&mut state, &close, source, sampled);
-        assert_eq!(state.settle_close_set(sampled), completed == 3);
-        assert_eq!(
-            state.close_set_status().unwrap().completed,
-            completed as usize
-        );
-        if completed < 3 {
-            close = state
-                .plan_next_close_set(
-                    workbench_request_id(10000 + completed as u128),
-                    close.deadline(),
-                )
-                .unwrap();
-            state.begin_next_close_set(&close, sampled).unwrap();
-        }
+/// The Server's report of the set `start` names, with every member still open.
+fn report(start: &CloseOperation) -> Vec<TabSetCloseMember> {
+    let CloseOperationKind::TabSet(TabSetCloseAction::Start { tab_ids, .. }) = start.kind() else {
+        panic!("a set Start");
+    };
+    tab_ids
+        .iter()
+        .map(|tab_id| TabSetCloseMember {
+            tab_id: tab_id.clone(),
+            label: WorkbenchLabel::parse("member").unwrap(),
+            close: None,
+            absent: false,
+        })
+        .collect()
+}
+
+/// A member's own Close as the Server last observed it.
+fn child(request: u128, status: WorkbenchTabCloseStatus) -> Option<TabSetCloseChild> {
+    Some(TabSetCloseChild {
+        request_id: workbench_request_id(request),
+        observation: Some(TabSetCloseObservation {
+            attempt_generation: WorkbenchTabCloseAttemptGeneration::new(7).unwrap(),
+            status,
+        }),
+    })
+}
+
+fn closing() -> WorkbenchTabCloseStatus {
+    WorkbenchTabCloseStatus::Closing {
+        phase: orchbee_workbench_protocol::WorkbenchTabClosePhase::WaitingGrace,
     }
-    assert!(state.cache().tabs().is_empty());
-    assert_eq!(state.close_set_deadline(), None);
-    assert!(!state.close_set_status().unwrap().halted);
 }
 
+fn available(
+    start: &CloseOperation,
+    status: TabSetCloseStatus,
+    members: Vec<TabSetCloseMember>,
+) -> CloseResult {
+    let CloseOperationKind::TabSet(TabSetCloseAction::Start {
+        terminal_context_id,
+        condition,
+        ..
+    }) = start.kind()
+    else {
+        panic!("a set Start");
+    };
+    CloseResult::TabSet(TabSetCloseOutcome::Available {
+        terminal_context_id: terminal_context_id.clone(),
+        condition: *condition,
+        status,
+        members,
+    })
+}
+
+fn race(revision: u64) -> CloseResult {
+    CloseResult::TabSet(TabSetCloseOutcome::Rejected {
+        revision: WorkbenchRevision::new(revision),
+        reason: TabSetCloseRejection::RevisionMismatch,
+    })
+}
+
+/// Settles one exchange and releases its lease, as the UI does.
+fn settle(state: &mut WorkbenchClientState, exchange: &CloseOperation, result: &CloseResult) {
+    state.settle_close_exchange(exchange, result).unwrap();
+    state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(exchange.key().clone()));
+}
+
+/// Admits the accepted set's next Read at `now`.
+fn read_set(state: &mut WorkbenchClientState, request: u128, now: Instant) -> CloseOperation {
+    let read = state
+        .plan_tab_set_read(
+            workbench_request_id(request),
+            now + Duration::from_secs(50),
+            now,
+        )
+        .unwrap();
+    state.begin_close_exchange(&read, now).unwrap();
+    read
+}
+
+/// Reads the Close the stopped set left to `tab_id`, which the Server now reports as `status`.
+fn read_member(
+    state: &mut WorkbenchClientState,
+    tab_id: &WorkbenchTabId,
+    request: u128,
+    status: WorkbenchTabCloseStatus,
+    now: Instant,
+) {
+    let read = state
+        .plan_close_read(
+            workbench_request_id(request),
+            now + Duration::from_secs(50),
+            now,
+        )
+        .unwrap();
+    assert_eq!(read.key().target().tab_id(), tab_id);
+    let CloseOperationKind::Read {
+        expected_operation: Some(known),
+        ..
+    } = read.kind()
+    else {
+        panic!("the member's own Close");
+    };
+    let result = CloseResult::Read(WorkbenchTabCloseReadOutcome::Available {
+        close_request_id: known.clone(),
+        terminal_context_id: read.key().target().terminal_context_id().clone(),
+        tab_id: tab_id.clone(),
+        attempt_generation: WorkbenchTabCloseAttemptGeneration::new(7).unwrap(),
+        status,
+    });
+    state.begin_close_exchange(&read, now).unwrap();
+    settle(state, &read, &result);
+}
+
+/// A peer's edit lands at `revision`: beside the set, or on its Tab at `member`.
+fn advance(state: &mut WorkbenchClientState, revision: u64, member: Option<usize>) {
+    let mut peer = state.cache().canonical_snapshot().clone();
+    peer.revision = WorkbenchRevision::new(revision);
+    match member {
+        Some(index) => peer.terminal_contexts[0].tabs[index].label = "peer edit".into(),
+        None => peer.navigation.workspaces[0].label = format!("peer {revision}"),
+    }
+    state.cache = state.cache.project_snapshot(&peer).unwrap();
+}
+
+/// Several Tabs close as one Server operation: nothing leaves before the Server accepts it, and
+/// from then on every member is out of the strip and the status line counts them.
 #[test]
-fn close_set_partial_completion_halts_on_unrelated_snapshot_change_or_unknown_next_close() {
-    for drift in [false, true] {
+fn a_set_counts_from_its_acceptance_and_stops_reporting_once_every_member_is_closed() {
+    use crate::localization::Locale;
+    for (locale, running, one_closed, stopped) in [
+        (
+            Locale::EnUs,
+            "Closing Tabs: 0 closed, 2 remaining",
+            "Closing Tabs: 1 closed, 1 remaining",
+            "Closing stopped: 1 closed, 1 unconfirmed",
+        ),
+        (
+            Locale::ZhCn,
+            "正在关闭标签页：0 个已关闭，剩余 2 个",
+            "正在关闭标签页：1 个已关闭，剩余 1 个",
+            "关闭已停止：1 个已关闭，1 个未确认",
+        ),
+    ] {
         let now = Instant::now();
         let mut state = ready(3);
-        let close = open(&mut state, &[1, 2], now);
-        observe_closed(&mut state, &close, now);
-        let mut source = removed(&state, close.key().target().tab_id());
-        if drift {
-            source.terminal_contexts[0].tabs[0].label = "peer edit".into();
-        }
-        install(&mut state, &close, source, now);
-        if !drift {
-            let next = state
-                .plan_next_close_set(workbench_request_id(10001), close.deadline())
-                .unwrap();
-            state.begin_next_close_set(&next, now).unwrap();
-            state
-                .settle_close_exchange(&next, &CloseResult::Ambiguous)
-                .unwrap();
-            assert_eq!(state.uncertain_close_identity().unwrap().0, next.key());
-        }
-        let status = state.close_set_status().unwrap();
-        assert!(status.halted);
-        assert_eq!((status.completed, status.total), (1, 2));
-        assert!(
-            state
-                .plan_next_close_set(workbench_request_id(10002), close.deadline())
-                .is_err()
+        let members = tab_ids(&state, &[1, 2]);
+        let start = open(&mut state, &[1, 2], now);
+        assert!(members.iter().all(|tab| !state.view().tab_leaving(tab)));
+        assert!(state.view().close_set_status().is_none());
+
+        settle(
+            &mut state,
+            &start,
+            &available(&start, TabSetCloseStatus::Pending {}, report(&start)),
         );
+        assert!(members.iter().all(|tab| state.view().tab_leaving(tab)));
+        let shown = screen(&state, locale);
+        assert!(shown.contains(running), "{shown}");
+
+        let later = now + Duration::from_millis(250);
+        let read = read_set(&mut state, 9100, later);
+        let mut members_report = report(&start);
+        members_report[0].close = child(61000, closed_status(&state));
+        settle(
+            &mut state,
+            &read,
+            &available(
+                &start,
+                TabSetCloseStatus::Pending {},
+                members_report.clone(),
+            ),
+        );
+        let shown = screen(&state, locale);
+        assert!(shown.contains(one_closed), "{shown}");
+
+        // The set stops while the second member's own Close may still finish.
+        let later = later + Duration::from_millis(250);
+        let read = read_set(&mut state, 9101, later);
+        members_report[1].close = child(61001, closing());
+        settle(
+            &mut state,
+            &read,
+            &available(
+                &start,
+                TabSetCloseStatus::Failed {
+                    reason: TabSetCloseFailure::Deadline,
+                },
+                members_report,
+            ),
+        );
+        let shown = screen(&state, locale);
+        assert!(shown.contains(stopped), "{shown}");
+        assert!(!state.close_set_read_due(later + Duration::from_secs(1)));
+
+        let closed = closed_status(&state);
+        read_member(&mut state, &members[1], 9102, closed, later);
+        let facts = state.close_set_status().unwrap();
+        assert_eq!((facts.completed, facts.total, facts.halted), (2, 2, true));
+        assert!(state.view().close_set_status().is_none());
     }
 }
 
@@ -404,26 +508,35 @@ fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_eras
         for next in ["timeout", "notice", "action", "halted-notice"] {
             let now = Instant::now();
             let mut state = ready(3);
-            let close = open(&mut state, &[1, 2], now);
+            let start = open(&mut state, &[1, 2], now);
+            settle(
+                &mut state,
+                &start,
+                &available(&start, TabSetCloseStatus::Pending {}, report(&start)),
+            );
+            let later = now + Duration::from_millis(250);
+            let read = read_set(&mut state, 9100, later);
+            let mut members = report(&start);
+            members[0].close = child(61000, closed_status(&state));
             if next == "halted-notice" {
-                state
-                    .settle_close_exchange(&close, &CloseResult::Ambiguous)
-                    .unwrap();
-                state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(
-                    close.key().clone(),
-                ));
+                members[1].close = child(61001, closing());
+                let failed = TabSetCloseStatus::Failed {
+                    reason: TabSetCloseFailure::Deadline,
+                };
+                settle(&mut state, &read, &available(&start, failed, members));
             } else {
-                let second = finish_and_start_next(&mut state, &close, now);
-                let later = now + Duration::from_secs(1);
-                observe_closed(&mut state, &second, later);
-                let source = removed(&state, second.key().target().tab_id());
-                install(&mut state, &second, source, later);
-                assert!(state.settle_close_set(now));
+                members[1].close = child(61001, closed_status(&state));
+                settle(
+                    &mut state,
+                    &read,
+                    &available(&start, TabSetCloseStatus::Closed {}, members),
+                );
+                assert!(state.settle_close_set(later));
                 assert_eq!(
                     state.close_set_summary_deadline(),
-                    Some(now + Duration::from_secs(5))
+                    Some(later + Duration::from_secs(5))
                 );
-                assert!(!state.settle_close_set(now + Duration::from_secs(4)));
+                assert!(!state.settle_close_set(later + Duration::from_secs(4)));
                 // The completed form replaces the running count.
                 let shown = screen(&state, locale);
                 assert!(
@@ -435,12 +548,9 @@ fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_eras
                 );
             }
             let facts = state.close_set_status();
-            let recovery = state
-                .uncertain_close_identity()
-                .map(|(key, operation)| (key.clone(), operation.cloned()));
             match next {
                 "timeout" => {
-                    assert!(state.settle_close_set(now + Duration::from_secs(5)));
+                    assert!(state.settle_close_set(later + Duration::from_secs(5)));
                 }
                 "action" => state.dismiss_close_set_summary(),
                 _ => {
@@ -457,31 +567,394 @@ fn close_set_completed_summary_expires_or_yields_to_the_next_notice_without_eras
                 }
             }
             assert_eq!(state.close_set_status(), facts);
-            assert_eq!(
-                state
-                    .uncertain_close_identity()
-                    .map(|(key, operation)| (key.clone(), operation.cloned())),
-                recovery
-            );
             if next == "halted-notice" {
+                // A member's Close that may still finish keeps the report past any notice.
                 assert!(state.view().close_set_status().unwrap().halted);
-                assert!(!state.close_set_ready());
-                assert!(
-                    state
-                        .plan_next_close_set(
-                            workbench_request_id(90000),
-                            now + Duration::from_secs(50)
-                        )
-                        .is_err()
-                );
+                assert!(!state.close_set_read_due(later + Duration::from_secs(1)));
             } else {
                 assert!(state.view().close_set_status().is_none());
                 assert!(state.close_set_summary_deadline().is_none());
                 assert!(!screen(&state, locale).contains(&locale.close_set_status(facts.unwrap())));
-                assert!(!state.settle_close_set(now + Duration::from_secs(60)));
+                assert!(!state.settle_close_set(later + Duration::from_secs(60)));
             }
         }
     }
+}
+
+#[test]
+fn a_stopped_set_reports_while_a_close_may_finish_and_then_clears_like_any_notice() {
+    use crate::localization::Locale;
+    for (locale, left_open, in_doubt) in [
+        (
+            Locale::EnUs,
+            "Closing stopped: 1 closed, 2 still open",
+            "Closing stopped: 0 closed, 1 unconfirmed, 2 still open",
+        ),
+        (
+            Locale::ZhCn,
+            "关闭已停止：1 个已关闭，2 个仍打开",
+            "关闭已停止：0 个已关闭，1 个未确认，2 个仍打开",
+        ),
+    ] {
+        for dismissed in [false, true] {
+            // A member's terminals changed: the set stops with nothing left in flight.
+            let now = Instant::now();
+            let mut state = ready(4);
+            let start = open(&mut state, &[1, 2, 3], now);
+            settle(
+                &mut state,
+                &start,
+                &available(&start, TabSetCloseStatus::Pending {}, report(&start)),
+            );
+            let read = read_set(&mut state, 9100, now + Duration::from_millis(250));
+            let mut members = report(&start);
+            members[0].close = child(61000, closed_status(&state));
+            let failed = TabSetCloseStatus::Failed {
+                reason: TabSetCloseFailure::SourceChanged,
+            };
+            settle(&mut state, &read, &available(&start, failed, members));
+            let facts = state.close_set_status();
+            assert!(facts.unwrap().halted);
+            assert!(!facts.unwrap().unconfirmed);
+            assert!(screen(&state, locale).contains(left_open));
+            assert!(state.settle_close_set(now));
+            assert_eq!(
+                state.close_set_summary_deadline(),
+                Some(now + Duration::from_secs(5))
+            );
+            assert!(!state.settle_close_set(now + Duration::from_secs(4)));
+            assert!(screen(&state, locale).contains(left_open));
+            if dismissed {
+                state.dismiss_close_set_summary();
+            } else {
+                // Expiry is a change the next wake redraws.
+                assert!(state.settle_close_set(now + Duration::from_secs(5)));
+            }
+            assert!(state.view().close_set_status().is_none());
+            assert!(state.close_set_summary_deadline().is_none());
+            assert!(!screen(&state, locale).contains(left_open));
+            assert_eq!(state.close_set_status(), facts);
+        }
+
+        // The set stops while its first member's own Close may still finish; that report
+        // outlasts any idle time.
+        let now = Instant::now();
+        let mut state = ready(4);
+        let first = state.cache().tabs()[1].tab_id().clone();
+        let start = open(&mut state, &[1, 2, 3], now);
+        settle(
+            &mut state,
+            &start,
+            &available(&start, TabSetCloseStatus::Pending {}, report(&start)),
+        );
+        let later = now + Duration::from_millis(250);
+        let read = read_set(&mut state, 9100, later);
+        let mut members = report(&start);
+        members[0].close = child(61000, closing());
+        let failed = TabSetCloseStatus::Failed {
+            reason: TabSetCloseFailure::SessionStopping,
+        };
+        settle(&mut state, &read, &available(&start, failed, members));
+        assert!(state.close_set_status().unwrap().unconfirmed);
+        assert!(screen(&state, locale).contains(in_doubt));
+        assert!(state.close_set_summary_deadline().is_none());
+        state.dismiss_close_set_summary();
+        assert!(!state.settle_close_set(later + Duration::from_secs(60)));
+        assert!(screen(&state, locale).contains(in_doubt));
+
+        // Its outcome leaves nothing in flight, and the report starts to clear.
+        let later = later + Duration::from_secs(60);
+        let closed = closed_status(&state);
+        read_member(&mut state, &first, 9101, closed, later);
+        assert!(!state.close_set_status().unwrap().unconfirmed);
+        assert!(screen(&state, locale).contains(left_open));
+        assert!(state.settle_close_set(later));
+        assert!(state.settle_close_set(later + Duration::from_secs(5)));
+        assert!(state.view().close_set_status().is_none());
+    }
+}
+
+/// Every member leaves the strip as the Server accepts the set, and a selected member hands the
+/// selection to the next Tab outside it; with no Tab left, the last removal empties the Client.
+/// Nothing leaves or moves before.
+#[test]
+fn members_leave_and_the_selection_moves_when_the_server_accepts_the_set() {
+    for (indexes, successor) in [(&[0, 1][..], Some(2)), (&[0, 1, 2, 3][..], None)] {
+        let now = Instant::now();
+        let mut state = ready(4);
+        let desired = state.desired().cloned();
+        let members = tab_ids(&state, indexes);
+        let start = open(&mut state, indexes, now);
+        assert!(members.iter().all(|tab| !state.view().tab_leaving(tab)));
+        assert_eq!(state.leaving_selection_successor(), None);
+        settle(
+            &mut state,
+            &start,
+            &available(&start, TabSetCloseStatus::Pending {}, report(&start)),
+        );
+        assert!(members.iter().all(|tab| state.view().tab_leaving(tab)));
+        assert_eq!(state.leaving_selection_successor(), successor);
+        assert_eq!(state.view().last_tab_leaving(), successor.is_none());
+        assert_eq!(state.desired().cloned(), desired);
+    }
+}
+
+/// A set the Server holds runs to its end whatever the focus or the marks do meanwhile.
+#[test]
+fn a_focus_or_mark_change_stops_no_set() {
+    let now = Instant::now();
+    let mut state = ready(4);
+    let marked = state.cache().tabs()[2].tab_id().clone();
+    state
+        .mark_tabs(&marked, crate::workbench_state::TabSelectionChange::Toggle)
+        .unwrap();
+    let members = tab_ids(&state, &[1, 2, 3]);
+    let start = open(&mut state, &[1, 2, 3], now);
+    settle(
+        &mut state,
+        &start,
+        &available(&start, TabSetCloseStatus::Pending {}, report(&start)),
+    );
+    state.clear_tab_selection();
+    rebind_same_focused_pane(&mut state, now);
+    assert!(!state.settle_close_set(now));
+    let status = state.close_set_status().unwrap();
+    assert_eq!(
+        (status.completed, status.total, status.halted),
+        (0, 3, false)
+    );
+    assert!(members.iter().all(|tab| state.view().tab_leaving(tab)));
+
+    let read = read_set(&mut state, 9100, now + Duration::from_millis(250));
+    let mut closed = report(&start);
+    for (index, member) in closed.iter_mut().enumerate() {
+        member.close = child(61000 + index as u128, closed_status(&state));
+    }
+    settle(
+        &mut state,
+        &read,
+        &available(&start, TabSetCloseStatus::Closed {}, closed),
+    );
+    let status = state.close_set_status().unwrap();
+    assert_eq!(
+        (status.completed, status.total, status.halted),
+        (3, 3, false)
+    );
+}
+
+/// A stopped set brings back every member it did not close. The member whose own Close it left
+/// stopped keeps that Close: its Tab's Resume continues it, and the set never goes again.
+#[test]
+fn a_failed_set_returns_its_open_members_and_its_stopped_close_resumes_from_its_tab() {
+    let now = Instant::now();
+    let mut state = ready(4);
+    let members = tab_ids(&state, &[1, 2, 3]);
+    let start = open(&mut state, &[1, 2, 3], now);
+    settle(
+        &mut state,
+        &start,
+        &available(&start, TabSetCloseStatus::Pending {}, report(&start)),
+    );
+    let later = now + Duration::from_millis(250);
+    let read = read_set(&mut state, 9100, later);
+    let mut stopped = report(&start);
+    stopped[0].close = child(61000, closed_status(&state));
+    stopped[1].close = child(61001, parked());
+    let failed = TabSetCloseStatus::Failed {
+        reason: TabSetCloseFailure::ChildBlocked,
+    };
+    settle(&mut state, &read, &available(&start, failed, stopped));
+    // The closed member stays out until the publication removes it.
+    assert!(state.view().tab_leaving(&members[0]));
+    assert!(!state.view().tab_leaving(&members[1]));
+    assert!(!state.view().tab_leaving(&members[2]));
+    let status = state.close_set_status().unwrap();
+    assert_eq!(
+        (
+            status.completed,
+            status.total,
+            status.halted,
+            status.unconfirmed
+        ),
+        (1, 3, true, true)
+    );
+    assert!(!state.close_set_read_due(later + Duration::from_secs(1)));
+
+    let target = CloseTarget::new(
+        start.key().target().session_id().clone(),
+        start.key().target().terminal_context_id().clone(),
+        members[1].clone(),
+    );
+    let token = state.close.status(&target).unwrap().token();
+    state.acknowledge_close_draw(None, Some(token));
+    state.open_tab_close_resume(&members[1]).unwrap();
+    let prompt = state.view().close_confirmation().unwrap().token();
+    state.acknowledge_close_draw(Some(prompt), Some(token));
+    let resume = state
+        .plan_close_confirmation(workbench_request_id(8100), later + Duration::from_secs(50))
+        .unwrap();
+    assert_eq!(resume.key().target(), &target);
+    assert!(
+        matches!(resume.kind(), CloseOperationKind::Resume { operation, generation }
+            if operation == &workbench_request_id(61001) && generation.value() == 7)
+    );
+}
+
+/// A Start the Server refused for a revision race goes again under a new identity once this
+/// Client holds that revision with every member still the Tab it named, at most four times. The
+/// fifth race, a member changed meanwhile or any other refusal reports that the Close did not
+/// apply, and every member stays.
+#[test]
+fn a_start_lost_to_a_revision_race_goes_again_while_its_members_stand() {
+    let now = Instant::now();
+    let deadline = now + Duration::from_secs(50);
+    let mut state = ready(3);
+    let members = tab_ids(&state, &[1, 2]);
+    let mut start = open(&mut state, &[1, 2], now);
+    for revision in 2..=5 {
+        settle(&mut state, &start, &race(revision));
+        assert_eq!(state.notice(), None);
+        assert!(members.iter().all(|tab| !state.view().tab_leaving(tab)));
+        // It asks for the revision the Server named, and waits for it.
+        assert!(state.publication_debt_pending());
+        assert!(!state.close_set_resend_due(now));
+        advance(&mut state, revision, None);
+        assert!(!state.settle_close_set(now));
+        let again = state
+            .plan_tab_set_resend(
+                workbench_request_id(9000 + u128::from(revision)),
+                deadline,
+                now,
+            )
+            .unwrap();
+        state.begin_close_exchange(&again, now).unwrap();
+        let (
+            CloseOperationKind::TabSet(TabSetCloseAction::Start {
+                operation_id: before,
+                ..
+            }),
+            CloseOperationKind::TabSet(TabSetCloseAction::Start {
+                operation_id,
+                tab_ids,
+                expected_revision,
+                ..
+            }),
+        ) = (start.kind(), again.kind())
+        else {
+            panic!("set Starts");
+        };
+        assert_ne!(operation_id, before);
+        assert_eq!(tab_ids, &members);
+        assert_eq!(*expected_revision, WorkbenchRevision::new(revision));
+        start = again;
+    }
+    settle(&mut state, &start, &race(6));
+    advance(&mut state, 6, None);
+    assert!(!state.close_set_resend_due(now));
+    assert!(state.settle_close_set(now));
+    assert_eq!(state.notice(), Some(ClientNotice::CloseRequestNotApplied));
+    assert!(state.close_set_status().is_none());
+
+    // A member changed meanwhile.
+    let mut state = ready(3);
+    let start = open(&mut state, &[1, 2], now);
+    settle(&mut state, &start, &race(2));
+    advance(&mut state, 2, Some(2));
+    assert!(!state.close_set_resend_due(now));
+    assert!(state.settle_close_set(now));
+    assert_eq!(state.notice(), Some(ClientNotice::CloseRequestNotApplied));
+
+    // Any other refusal.
+    let mut state = ready(3);
+    let members = tab_ids(&state, &[1, 2]);
+    let start = open(&mut state, &[1, 2], now);
+    settle(
+        &mut state,
+        &start,
+        &CloseResult::TabSet(TabSetCloseOutcome::Rejected {
+            revision: WorkbenchRevision::new(1),
+            reason: TabSetCloseRejection::TabUnavailable,
+        }),
+    );
+    assert_eq!(state.notice(), Some(ClientNotice::CloseRequestNotApplied));
+    assert!(state.close_set_status().is_none());
+    assert!(!state.close_set_resend_due(now));
+    assert!(members.iter().all(|tab| !state.view().tab_leaving(tab)));
+}
+
+/// A set of one Tab is no set: the Tab's own Close carries it and reports every failure at once,
+/// as the key's does, and no count appears. A refusal keeps the Tab with its notice.
+#[test]
+fn a_set_of_one_tab_closes_and_reports_as_its_own_close() {
+    use crate::localization::{CloseStatusText, Locale};
+    let failures = [
+        WorkbenchTabCloseStatus::CleanupBlocked {
+            reason: WorkbenchTabCloseBlockedReason::HostRefused,
+            resumable: false,
+        },
+        WorkbenchTabCloseStatus::OutcomeUnknown {
+            phase: WorkbenchTabCloseUnknownPhase::Dispose,
+            reason: WorkbenchTabCloseUnknownReason::TransportLost,
+        },
+        WorkbenchTabCloseStatus::DisposedAwaitingPublication {
+            reason: WorkbenchTabClosePublicationReason::PreparationFailed,
+            resumable: false,
+        },
+    ];
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for failure in &failures {
+            let now = Instant::now();
+            let mut state = ready(3);
+            let close = open(&mut state, &[1], now);
+            assert_eq!(close.kind(), &CloseOperationKind::Close);
+            accept(&mut state, &close);
+            read_status(&mut state, &close, failure.clone(), now);
+            let status = state.view().announced_close_status().unwrap();
+            let told = locale.native_close_status(CloseStatusText {
+                label: status.target_label(),
+                kind: status.status(),
+                resumable: status.resumable(),
+                observation_paused: status.observation_paused(),
+                unavailable: status.unavailable(),
+            });
+            let shown = screen(&state, locale);
+            assert!(shown.contains(&told), "{shown}");
+            assert!(state.close_set_status().is_none());
+        }
+
+        // An exchange whose result was lost, with no read to tell.
+        let now = Instant::now();
+        let mut state = ready(3);
+        let close = open(&mut state, &[1], now);
+        state
+            .settle_close_exchange(&close, &CloseResult::Ambiguous)
+            .unwrap();
+        assert!(state.view().announced_close_status().unwrap().unavailable());
+        assert!(state.close_set_status().is_none());
+    }
+
+    let now = Instant::now();
+    let mut state = ready(3);
+    let close = open(&mut state, &[1], now);
+    state
+        .settle_close_exchange(
+            &close,
+            &CloseResult::Precommit(
+                crate::local_client::workbench::WorkbenchTabClosePrecommit::Rejected {
+                    revision: WorkbenchRevision::new(2),
+                    reason: orchbee_workbench_protocol::WorkbenchRejectionReason::RevisionMismatch,
+                },
+            ),
+        )
+        .unwrap();
+    assert!(!state.has_retained_close_records());
+    assert!(state.close_set_status().is_none());
+    assert!(
+        screen(&state, Locale::EnUs).contains(
+            &Locale::EnUs
+                .native_notice(crate::localization::WorkbenchClientNotice::CloseRequestNotApplied)
+        )
+    );
 }
 
 #[test]
@@ -537,396 +1010,6 @@ fn a_selected_tab_closing_unreported_withholds_its_own_cues() {
     accept(&mut state, &close);
     state.settle_close_pending(now + Duration::from_secs(1));
     assert!(!state.view().close_quiet_on_selected());
-}
-
-#[test]
-fn one_tab_reports_every_failure_at_once_and_a_change_around_it_is_no_failure() {
-    use crate::localization::Locale;
-    let failures = [
-        WorkbenchTabCloseStatus::CleanupBlocked {
-            reason: WorkbenchTabCloseBlockedReason::HostRefused,
-            resumable: false,
-        },
-        WorkbenchTabCloseStatus::OutcomeUnknown {
-            phase: WorkbenchTabCloseUnknownPhase::Dispose,
-            reason: WorkbenchTabCloseUnknownReason::TransportLost,
-        },
-        WorkbenchTabCloseStatus::DisposedAwaitingPublication {
-            reason: WorkbenchTabClosePublicationReason::PreparationFailed,
-            resumable: false,
-        },
-    ];
-    for (locale, stopped) in [
-        (Locale::EnUs, "Close not confirmed"),
-        (Locale::ZhCn, "关闭未确认"),
-    ] {
-        for failure in &failures {
-            let now = Instant::now();
-            let mut state = ready(3);
-            let close = open(&mut state, &[1], now);
-            accept(&mut state, &close);
-            read_status(&mut state, &close, failure.clone(), now);
-            assert!(state.view().announced_close_status().is_some());
-            let shown = screen(&state, locale);
-            assert!(shown.contains(stopped), "{shown}");
-        }
-
-        // An exchange whose result was lost, with no read to tell.
-        let now = Instant::now();
-        let mut state = ready(3);
-        let close = open(&mut state, &[1], now);
-        state
-            .settle_close_exchange(&close, &CloseResult::Ambiguous)
-            .unwrap();
-        assert!(state.view().announced_close_status().unwrap().unavailable());
-        assert!(screen(&state, locale).contains(stopped));
-
-        // The cutoff, and the Closed receipt that later settles it.
-        let now = Instant::now();
-        let mut state = ready(3);
-        let close = open(&mut state, &[1], now);
-        accept(&mut state, &close);
-        assert!(state.settle_close_set(close.deadline()));
-        assert!(screen(&state, locale).contains(stopped));
-        let closed = closed_status(&state);
-        read_status(&mut state, &close, closed, close.deadline());
-        assert!(state.view().close_set_status().is_none());
-        assert!(!screen(&state, locale).contains(stopped));
-    }
-
-    // A refusal keeps the Tab and already left its notice.
-    let now = Instant::now();
-    let mut state = ready(3);
-    let close = open(&mut state, &[1], now);
-    state
-        .settle_close_exchange(
-            &close,
-            &CloseResult::Precommit(
-                crate::local_client::workbench::WorkbenchTabClosePrecommit::Rejected {
-                    revision: WorkbenchRevision::new(2),
-                    reason: orchbee_workbench_protocol::WorkbenchRejectionReason::RevisionMismatch,
-                },
-            ),
-        )
-        .unwrap();
-    assert!(state.close_set_status().unwrap().halted);
-    assert!(state.view().close_set_status().is_none());
-    assert!(
-        screen(&state, Locale::EnUs).contains(
-            &Locale::EnUs
-                .native_notice(crate::localization::WorkbenchClientNotice::CloseRequestNotApplied)
-        )
-    );
-
-    // One Tab has no next member for a local change to protect.
-    let now = Instant::now();
-    let mut state = ready(3);
-    let other = state.cache().tabs()[2].tab_id().clone();
-    state
-        .mark_tabs(&other, crate::workbench_state::TabSelectionChange::Toggle)
-        .unwrap();
-    let close = open(&mut state, &[1], now);
-    state.clear_tab_selection();
-    assert!(!state.settle_close_set(now));
-    assert!(!state.close_set_status().unwrap().halted);
-    assert_eq!(state.close_set_deadline(), Some(close.deadline()));
-}
-
-#[test]
-fn several_tabs_count_at_once_and_stop_reporting_once_all_are_confirmed_closed() {
-    use crate::localization::Locale;
-    for (locale, running, stopped) in [
-        (
-            Locale::EnUs,
-            "Closing Tabs: 0 closed, 2 remaining",
-            "Closing stopped: 1 closed, 1 unconfirmed",
-        ),
-        (
-            Locale::ZhCn,
-            "正在关闭标签页：0 个已关闭，剩余 2 个",
-            "关闭已停止：1 个已关闭，1 个未确认",
-        ),
-    ] {
-        let now = Instant::now();
-        let mut state = ready(3);
-        let close = open(&mut state, &[1, 2], now);
-        let shown = screen(&state, locale);
-        assert!(shown.contains(running), "{shown}");
-
-        let second = finish_and_start_next(&mut state, &close, now);
-        accept(&mut state, &second);
-        assert!(state.settle_close_set(second.deadline()));
-        let shown = screen(&state, locale);
-        assert!(shown.contains(stopped), "{shown}");
-
-        let closed = closed_status(&state);
-        read_status(&mut state, &second, closed, second.deadline());
-        let facts = state.close_set_status().unwrap();
-        assert_eq!((facts.completed, facts.total, facts.halted), (2, 2, true));
-        assert!(state.view().close_set_status().is_none());
-    }
-}
-
-#[test]
-fn close_set_cutoff_halts_new_work_but_a_later_closed_receipt_keeps_truth_without_resuming() {
-    let now = Instant::now();
-    let mut state = ready(3);
-    let close = open(&mut state, &[1, 2], now);
-    assert!(state.settle_close_set(close.deadline()));
-    assert!(state.close_set_status().unwrap().halted);
-    observe_closed(&mut state, &close, now + Duration::from_secs(51));
-    let status = state.close_set_status().unwrap();
-    assert_eq!(
-        (status.completed, status.total, status.halted),
-        (1, 2, true)
-    );
-    assert!(!state.close_set_ready());
-}
-
-#[test]
-fn close_set_same_tick_local_drift_before_owned_membership_install_cannot_be_laundered() {
-    let now = Instant::now();
-    let mut state = ready(3);
-    let id = state.cache().tabs()[2].tab_id().clone();
-    state
-        .mark_tabs(&id, crate::workbench_state::TabSelectionChange::Toggle)
-        .unwrap();
-    assert_eq!(state.selected_tab_ids().len(), 2);
-    let close = open(&mut state, &[1, 2], now);
-    observe_closed(&mut state, &close, now);
-    // This is the same clear performed by ordinary navigation. No coordinator tick runs
-    // between the local change and the canonical close installation.
-    state.clear_tab_selection();
-    let source = removed(&state, close.key().target().tab_id());
-    install(&mut state, &close, source, now);
-    let status = state.close_set_status().unwrap();
-    assert_eq!(
-        (status.completed, status.total, status.halted),
-        (1, 2, true)
-    );
-    assert!(!state.close_set_ready());
-    assert!(
-        state
-            .plan_next_close_set(workbench_request_id(10002), close.deadline())
-            .is_err()
-    );
-    assert!(state.cache().tab_index(&id).is_some());
-}
-
-#[test]
-fn close_set_revision_race_goes_again_as_a_new_request_and_any_other_refusal_stops() {
-    use crate::local_client::workbench::WorkbenchTabClosePrecommit;
-    use crate::localization::Locale;
-    let now = Instant::now();
-    let mut state = ready(3);
-    let source = state.cache().canonical_snapshot().clone();
-    let desired = state.desired().cloned();
-    let close = open(&mut state, &[1, 2], now);
-    state
-        .settle_close_exchange(
-            &close,
-            &CloseResult::Precommit(WorkbenchTabClosePrecommit::Rejected {
-                revision: WorkbenchRevision::new(2),
-                reason: orchbee_workbench_protocol::WorkbenchRejectionReason::RevisionMismatch,
-            }),
-        )
-        .unwrap();
-    state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(close.key().clone()));
-    let status = state.close_set_status().unwrap();
-    assert_eq!(
-        (status.completed, status.total, status.halted),
-        (0, 2, false)
-    );
-    assert_eq!(state.notice(), None);
-    assert!(!state.has_retained_close_records());
-    assert_eq!(state.cache().canonical_snapshot(), &source);
-    assert_eq!(state.desired(), desired.as_ref());
-    assert!(state.close_set_ready());
-    let again = state
-        .plan_next_close_set(workbench_request_id(10002), close.deadline())
-        .unwrap();
-    assert_ne!(again.key().request_id(), close.key().request_id());
-    assert_eq!(again.key().target(), close.key().target());
-    assert_eq!(again.set_source(), Some(&source));
-
-    // Only a Server refusal of the revision goes again; the count reports any other.
-    state.begin_next_close_set(&again, now).unwrap();
-    state
-        .settle_close_exchange(
-            &again,
-            &CloseResult::Precommit(WorkbenchTabClosePrecommit::Denied),
-        )
-        .unwrap();
-    state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(again.key().clone()));
-    let status = state.close_set_status().unwrap();
-    assert_eq!(
-        (status.completed, status.total, status.halted),
-        (0, 2, true)
-    );
-    assert_eq!(state.notice(), None);
-    let shown = screen(&state, Locale::EnUs);
-    assert!(
-        shown.contains("Closing stopped: 0 closed, 2 still open"),
-        "{shown}"
-    );
-    assert!(
-        state
-            .plan_next_close_set(workbench_request_id(10003), close.deadline())
-            .is_err()
-    );
-}
-
-#[test]
-fn close_set_premises_leave_out_only_what_the_server_follows() {
-    use crate::workbench_state::close_set_premises_match;
-    let source = snapshot(3, 4, None);
-    fn workspace(snapshot: &mut Snapshot) -> &mut orchbee_workbench_protocol::Workspace {
-        &mut snapshot.navigation.workspaces[0]
-    }
-    assert!(close_set_premises_match(&source, &source));
-
-    let mut followed = source.clone();
-    followed.revision = WorkbenchRevision::new(9);
-    workspace(&mut followed).terminal_directory =
-        Some(orchbee_workbench_protocol::WorkbenchDirectoryPath::parse("/elsewhere").unwrap());
-    assert!(close_set_premises_match(&followed, &source));
-    // A person's name stays out of what following may change.
-    let mut renamed = followed.clone();
-    workspace(&mut renamed).label = "peer edit".into();
-    assert!(!close_set_premises_match(&renamed, &source));
-
-    let mut automatic = source.clone();
-    workspace(&mut automatic).automatic_label = true;
-    let mut named = automatic.clone();
-    workspace(&mut named).label = "elsewhere".into();
-    assert!(close_set_premises_match(&named, &automatic));
-    workspace(&mut named).automatic_label = false;
-    assert!(!close_set_premises_match(&named, &automatic));
-
-    let mut tab = followed.clone();
-    tab.terminal_contexts[0].tabs[0].label = "peer edit".into();
-    assert!(!close_set_premises_match(&tab, &source));
-    let mut session = followed.clone();
-    session.navigation.workspaces.clear();
-    assert!(!close_set_premises_match(&session, &source));
-}
-
-/// The follow lands on its own revision: between a Closed receipt and its install here, as in the
-/// real close of a first terminal, and on top of the source the next preflight compares against.
-fn followed(mut source: Snapshot, directory: &str) -> Snapshot {
-    source.revision = WorkbenchRevision::new(source.revision.value() + 1);
-    source.navigation.workspaces[0].terminal_directory =
-        Some(orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(directory).unwrap());
-    source
-}
-
-#[test]
-fn close_set_finishes_through_a_followed_directory_and_stops_for_any_other_change() {
-    let now = Instant::now();
-    let mut state = ready(3);
-    let close = open(&mut state, &[1, 2], now);
-    observe_closed(&mut state, &close, now);
-    let source = followed(removed(&state, close.key().target().tab_id()), "/elsewhere");
-    install(&mut state, &close, source.clone(), now);
-    assert!(!state.close_set_status().unwrap().halted);
-    assert!(state.close_set_ready());
-    let next = state
-        .plan_next_close_set(workbench_request_id(10001), close.deadline())
-        .unwrap();
-    assert_eq!(next.set_source(), Some(&source));
-    assert_eq!(next.selection().base_revision(), source.revision);
-    let later = now + Duration::from_secs(1);
-    state.begin_next_close_set(&next, later).unwrap();
-    observe_closed(&mut state, &next, later);
-    let source = followed(removed(&state, next.key().target().tab_id()), "/back");
-    install(&mut state, &next, source, later);
-    let status = state.close_set_status().unwrap();
-    assert_eq!(
-        (status.completed, status.total, status.halted),
-        (2, 2, false)
-    );
-
-    // The same follow beside a change of another kind still stops the set.
-    let mut state = ready(3);
-    let close = open(&mut state, &[1, 2], now);
-    observe_closed(&mut state, &close, now);
-    let mut source = followed(removed(&state, close.key().target().tab_id()), "/elsewhere");
-    source.terminal_contexts[0].tabs[0].label = "peer edit".into();
-    install(&mut state, &close, source, now);
-    assert!(state.close_set_status().unwrap().halted);
-    assert!(!state.close_set_ready());
-}
-
-#[test]
-fn a_stopped_set_reports_while_a_close_may_finish_and_then_clears_like_any_notice() {
-    use crate::localization::Locale;
-    for (locale, left_open, in_doubt) in [
-        (
-            Locale::EnUs,
-            "Closing stopped: 1 closed, 2 still open",
-            "Closing stopped: 0 closed, 1 unconfirmed, 2 still open",
-        ),
-        (
-            Locale::ZhCn,
-            "关闭已停止：1 个已关闭，2 个仍打开",
-            "关闭已停止：0 个已关闭，1 个未确认，2 个仍打开",
-        ),
-    ] {
-        for dismissed in [false, true] {
-            // An outside change stops the set between members: nothing is in flight.
-            let now = Instant::now();
-            let mut state = ready(4);
-            let close = open(&mut state, &[1, 2, 3], now);
-            observe_closed(&mut state, &close, now);
-            let mut source = removed(&state, close.key().target().tab_id());
-            source.terminal_contexts[0].tabs[0].label = "peer edit".into();
-            install(&mut state, &close, source, now);
-            let facts = state.close_set_status();
-            assert!(facts.unwrap().halted);
-            assert!(!facts.unwrap().unconfirmed);
-            assert!(screen(&state, locale).contains(left_open));
-            assert!(state.settle_close_set(now));
-            assert_eq!(
-                state.close_set_summary_deadline(),
-                Some(now + Duration::from_secs(5))
-            );
-            assert!(!state.settle_close_set(now + Duration::from_secs(4)));
-            assert!(screen(&state, locale).contains(left_open));
-            if dismissed {
-                state.dismiss_close_set_summary();
-            } else {
-                // Expiry is a change the next wake redraws.
-                assert!(state.settle_close_set(now + Duration::from_secs(5)));
-            }
-            assert!(state.view().close_set_status().is_none());
-            assert!(state.close_set_summary_deadline().is_none());
-            assert!(!screen(&state, locale).contains(left_open));
-            assert_eq!(state.close_set_status(), facts);
-        }
-
-        // A submitted close stands in doubt at the cutoff; its report outlasts any idle time.
-        let now = Instant::now();
-        let mut state = ready(4);
-        let close = open(&mut state, &[1, 2, 3], now);
-        accept(&mut state, &close);
-        assert!(state.settle_close_set(close.deadline()));
-        assert!(state.close_set_status().unwrap().unconfirmed);
-        assert!(screen(&state, locale).contains(in_doubt));
-        assert!(state.close_set_summary_deadline().is_none());
-        state.dismiss_close_set_summary();
-        assert!(!state.settle_close_set(close.deadline() + Duration::from_secs(60)));
-        assert!(screen(&state, locale).contains(in_doubt));
-
-        // Its outcome leaves nothing in flight, and the report starts to clear.
-        let later = close.deadline() + Duration::from_secs(60);
-        let closed = closed_status(&state);
-        read_status(&mut state, &close, closed, later);
-        assert!(!state.close_set_status().unwrap().unconfirmed);
-        assert!(screen(&state, locale).contains(left_open));
-        assert!(state.settle_close_set(later));
-        assert!(state.settle_close_set(later + Duration::from_secs(5)));
-        assert!(state.view().close_set_status().is_none());
-    }
 }
 
 fn rebind_same_focused_pane(state: &mut WorkbenchClientState, now: Instant) {
@@ -1079,117 +1162,23 @@ fn close_set_background_resume_draw_uses_its_exact_record_when_active_record_com
 }
 
 #[test]
-fn close_set_same_pane_key_rebind_revokes_confirmation_waiting_and_preinstall_premises() {
-    for stage in 0..3 {
-        let now = Instant::now();
-        let mut state = ready(3);
-        let source = state.cache().canonical_snapshot().clone();
-        let ids = vec![
-            state.cache().tabs()[1].tab_id().clone(),
-            state.cache().tabs()[2].tab_id().clone(),
-        ];
-        if stage == 0 {
-            state.open_close_set(&ids).unwrap();
-            let token = state.view().close_confirmation().unwrap().token();
-            state.acknowledge_close_draw(Some(token), None);
-            rebind_same_focused_pane(&mut state, now);
-            assert!(
-                state
-                    .plan_close_confirmation(
-                        workbench_request_id(8010),
-                        now + Duration::from_secs(50)
-                    )
-                    .is_err()
-            );
-            assert!(state.settle_stale_close_confirmations());
-            assert!(state.view().close_confirmation().is_none());
-        } else {
-            let close = open(&mut state, &[1, 2], now);
-            if stage == 2 {
-                observe_closed(&mut state, &close, now);
-            }
-            rebind_same_focused_pane(&mut state, now);
-            if stage == 1 {
-                assert!(state.settle_close_set(now));
-            } else {
-                // Deliberately no tick before installation, just as for the mark-race witness.
-                let candidate = removed(&state, close.key().target().tab_id());
-                install(&mut state, &close, candidate, now);
-            }
-            assert!(state.close_set_status().unwrap().halted);
-            assert!(!state.close_set_ready());
-        }
-        if stage != 2 {
-            assert_eq!(state.cache().canonical_snapshot(), &source);
-        }
-    }
-}
-
-#[test]
-fn close_set_expected_removal_preserves_other_contexts_and_unrelated_empty_groups() {
-    use crate::workbench_projection::project_preferred_workspace;
-    use orchbee_workbench_protocol::{TabGroup, TabGroupColor};
-    for drift in ["none", "context", "group"] {
-        let now = Instant::now();
-        let mut source = super::super::context_selection::contexts(1, 1);
-        let source_group = TabGroup {
-            group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 18000)).unwrap(),
-            label: "source".into(),
-            color: TabGroupColor::Green,
-        };
-        let unrelated = TabGroup {
-            group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 18001)).unwrap(),
-            label: "unrelated empty".into(),
-            color: TabGroupColor::Blue,
-        };
-        for tab in &mut source.terminal_contexts[0].tabs {
-            tab.group_id = Some(source_group.group_id.clone());
-        }
-        source.terminal_contexts[0].groups = vec![source_group.clone(), unrelated.clone()];
-        let other_context = source.terminal_contexts[1].clone();
-        let mut state =
-            super::super::ready_with_cache(project_preferred_workspace(&source).unwrap());
-        let first = open(&mut state, &[0, 1], now);
-        observe_closed(&mut state, &first, now);
-        let mut candidate = removed(&state, first.key().target().tab_id());
-        match drift {
-            "context" => candidate.terminal_contexts[1].tabs[0].label = "peer label".into(),
-            "group" => candidate.terminal_contexts[0].groups[1].color = TabGroupColor::Red,
-            "none" => {}
-            _ => unreachable!(),
-        }
-        install(&mut state, &first, candidate, now);
-        if drift != "none" {
-            assert!(
-                state.close_set_status().unwrap().halted,
-                "{drift} is not an owned revision advance"
-            );
-            assert!(!state.close_set_ready());
-            continue;
-        }
-        assert_eq!(
-            state.cache().canonical_snapshot().terminal_contexts[0].groups,
-            vec![source_group, unrelated.clone()]
-        );
-        let second = state
-            .plan_next_close_set(workbench_request_id(10001), first.deadline())
-            .unwrap();
+fn close_set_same_pane_key_rebind_revokes_its_confirmation() {
+    let now = Instant::now();
+    let mut state = ready(3);
+    let source = state.cache().canonical_snapshot().clone();
+    let ids = tab_ids(&state, &[1, 2]);
+    state.open_close_set(&ids).unwrap();
+    let token = state.view().close_confirmation().unwrap().token();
+    state.acknowledge_close_draw(Some(token), None);
+    rebind_same_focused_pane(&mut state, now);
+    assert!(
         state
-            .begin_next_close_set(&second, now + Duration::from_secs(1))
-            .unwrap();
-        observe_closed(&mut state, &second, now + Duration::from_secs(1));
-        let candidate = removed(&state, second.key().target().tab_id());
-        install(&mut state, &second, candidate, now + Duration::from_secs(1));
-        assert!(!state.close_set_status().unwrap().halted);
-        assert_eq!(
-            state.cache().canonical_snapshot().terminal_contexts[0].groups,
-            vec![unrelated]
-        );
-        assert_eq!(
-            state.cache().canonical_snapshot().terminal_contexts[1],
-            other_context
-        );
-    }
+            .plan_close_confirmation(workbench_request_id(8010), now + Duration::from_secs(50))
+            .is_err()
+    );
+    assert!(state.settle_stale_close_confirmations());
+    assert!(state.view().close_confirmation().is_none());
+    assert_eq!(state.cache().canonical_snapshot(), &source);
 }
 
 #[test]

@@ -1428,7 +1428,7 @@ impl WorkbenchClientUi {
         let close = self
             .state
             .as_ref()
-            .and_then(WorkbenchClientState::close_set_deadline);
+            .and_then(|state| state.close_set_wake(self.clock.now()));
         let summary = self
             .state
             .as_ref()

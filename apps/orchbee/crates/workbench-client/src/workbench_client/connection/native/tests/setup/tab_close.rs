@@ -6,10 +6,11 @@ use crate::workbench_state::{
     CloseResult, CloseSelection, CloseTarget, PendingCloseResult,
 };
 use orchbee_workbench_protocol::{
-    WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchRequestId,
-    WorkbenchTabCloseAttemptGeneration, WorkbenchTabClosePublicationReason,
+    TabSetCloseAction, TabSetCloseCondition, TabSetCloseMember, TabSetCloseOutcome,
+    TabSetCloseStatus, WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchLabel,
+    WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabClosePublicationReason,
     WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult, WorkbenchTabCloseResumeOutcome,
-    WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus,
+    WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus, WorkbenchTabSetCloseResult,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -119,118 +120,56 @@ fn admit_close_set(harness: &mut Harness) -> TestResult<CloseOperation> {
         .map_err(|error| test_error(&format!("Close set admission: {error:?}")))
 }
 
+/// A set of several Tabs goes to the Server as one exact Start at the revision its confirmation
+/// froze, with no read of its own first, and its typed answer comes back unchanged.
 #[test]
-fn close_set_preflight_goes_ahead_at_the_revision_it_read_past_what_the_server_followed()
--> TestResult {
-    let mut harness = Harness::start(steps(2), fixture_geometry()?)?;
+fn close_set_sends_one_exact_start_and_returns_its_typed_answer() -> TestResult {
+    let mut harness = Harness::start(steps(1), fixture_geometry()?)?;
     ready(&mut harness)?;
-    let mut source = harness.ui.state().cache().canonical_snapshot().clone();
     let operation = admit_close_set(&mut harness)?;
-    let read = harness.carrier.take_read()?;
-    source.revision = WorkbenchRevision::new(2);
-    source.navigation.workspaces[0].terminal_directory =
-        Some(orchbee_workbench_protocol::WorkbenchDirectoryPath::parse("/elsewhere").unwrap());
-    harness.carrier.respond_read(
-        &read,
-        WorkbenchSnapshotOutcome::Available { snapshot: source },
-    )?;
-    let WorkbenchRequest::Command(command) = harness.carrier.take_workbench()? else {
-        return Err(test_error("the preflight must lead to the Close command"));
+    let CloseOperationKind::TabSet(action @ TabSetCloseAction::Start { tab_ids, .. }) =
+        operation.kind()
+    else {
+        return Err(test_error("several Tabs close as one Server operation"));
     };
-    assert_eq!(&command.request_id, operation.key().request_id());
-    assert_eq!(command.expected_revision, WorkbenchRevision::new(2));
-    let target = operation.key().target();
+    let WorkbenchRequest::TabSetClose(request) = harness.carrier.take_workbench()? else {
+        return Err(test_error("the set goes as one Tab set Close request"));
+    };
+    assert_eq!(&request.request_id, operation.key().request_id());
+    assert_eq!(&request.session_id, operation.key().target().session_id());
+    assert_eq!(&request.action, action);
+    let outcome = TabSetCloseOutcome::Available {
+        terminal_context_id: operation.key().target().terminal_context_id().clone(),
+        condition: TabSetCloseCondition::Confirmed,
+        status: TabSetCloseStatus::Pending {},
+        members: tab_ids
+            .iter()
+            .map(|tab_id| TabSetCloseMember {
+                tab_id: tab_id.clone(),
+                label: WorkbenchLabel::parse("member").unwrap(),
+                close: None,
+                absent: false,
+            })
+            .collect(),
+    };
     harness
         .carrier
-        .respond_workbench(WorkbenchResponse::Command(WorkbenchCommandResult {
+        .respond_workbench(WorkbenchResponse::TabSetClose(WorkbenchTabSetCloseResult {
             protocol_version: ProtocolVersion,
-            request_id: command.request_id,
-            outcome: WorkbenchCommandOutcome::TabCloseAccepted {
-                close_request_id: operation.key().request_id().clone(),
-                terminal_context_id: target.terminal_context_id().clone(),
-                tab_id: target.tab_id().clone(),
-                accepted_revision: WorkbenchRevision::new(2),
-            },
+            request_id: request.request_id.clone(),
+            operation_id: action.operation_id().clone(),
+            outcome: outcome.clone(),
         }))?;
-    let (wait, actual, outcome) = take_result(&harness)?;
+    let (wait, actual, result) = take_result(&harness)?;
     assert_eq!(actual, operation);
-    assert!(matches!(outcome, CloseResult::Accepted(_)));
+    assert_eq!(result, CloseResult::TabSet(outcome));
     harness
         .ui
         .state_mut()
-        .settle_close_exchange(&operation, &outcome)
+        .settle_close_exchange(&operation, &result)
         .unwrap();
-    assert!(!harness.ui.state().close_set_status().unwrap().halted);
     settle(&harness, &wait, operation.key())?;
     harness.finish()?;
-    Ok(())
-}
-
-#[test]
-fn close_set_full_preflight_cannot_reserve_cas_and_goes_again_only_after_a_revision_race()
--> TestResult {
-    for changed_before_read in [false, true] {
-        let mut harness = Harness::start(
-            steps(if changed_before_read { 1 } else { 2 }),
-            fixture_geometry()?,
-        )?;
-        ready(&mut harness)?;
-        let mut source = harness.ui.state().cache().canonical_snapshot().clone();
-        let desired = harness.ui.state().desired().cloned();
-        let operation = admit_close_set(&mut harness)?;
-        let read = harness.carrier.take_read()?;
-        if changed_before_read {
-            source.revision = WorkbenchRevision::new(2);
-            source.terminal_contexts[0].tabs[0].label = "peer edit".into();
-        }
-        harness.carrier.respond_read(
-            &read,
-            WorkbenchSnapshotOutcome::Available { snapshot: source },
-        )?;
-        if !changed_before_read {
-            receive(&harness, Family::Close, &operation)?;
-            harness
-                .carrier
-                .respond_workbench(WorkbenchResponse::Command(WorkbenchCommandResult {
-                    protocol_version: ProtocolVersion,
-                    request_id: operation.key().request_id().clone(),
-                    outcome: WorkbenchCommandOutcome::Rejected {
-                        revision: WorkbenchRevision::new(2),
-                        reason:
-                            orchbee_workbench_protocol::WorkbenchRejectionReason::RevisionMismatch,
-                    },
-                }))?;
-        }
-        let (wait, actual, outcome) = take_result(&harness)?;
-        assert_eq!(actual, operation);
-        if changed_before_read {
-            assert_eq!(outcome, CloseResult::NotSubmitted);
-        } else {
-            assert!(matches!(
-                outcome,
-                CloseResult::Precommit(
-                    crate::local_client::workbench::WorkbenchTabClosePrecommit::Rejected {
-                        reason:
-                            orchbee_workbench_protocol::WorkbenchRejectionReason::RevisionMismatch,
-                        ..
-                    }
-                )
-            ));
-        }
-        harness
-            .ui
-            .state_mut()
-            .settle_close_exchange(&operation, &outcome)
-            .unwrap();
-        assert_eq!(
-            harness.ui.state().close_set_status().unwrap().halted,
-            changed_before_read
-        );
-        assert_eq!(harness.ui.state().desired(), desired.as_ref());
-        assert_eq!(harness.ui.state().cache().tabs().len(), 2);
-        settle(&harness, &wait, operation.key())?;
-        harness.finish()?;
-    }
     Ok(())
 }
 

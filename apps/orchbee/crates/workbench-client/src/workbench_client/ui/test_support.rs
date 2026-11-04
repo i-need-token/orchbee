@@ -143,6 +143,18 @@ pub(in crate::workbench_client) fn controlling_ui() -> (
     LocalOperationClock,
     Arc<AtomicU64>,
 ) {
+    controlling_ui_with(2)
+}
+
+/// [`controlling_ui`] over `tab_count` Tabs, the first one selected.
+pub(in crate::workbench_client) fn controlling_ui_with(
+    tab_count: usize,
+) -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Arc<AtomicU64>,
+) {
     let elapsed = Arc::new(AtomicU64::new(0));
     let clock = adjustable_operation_clock(Arc::clone(&elapsed));
     let mailbox = Arc::new(CommandMailbox::new(
@@ -154,8 +166,10 @@ pub(in crate::workbench_client) fn controlling_ui() -> (
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: crate::workbench_projection::project_preferred_workspace(&snapshot(2, 1))
-                    .unwrap(),
+                cache: crate::workbench_projection::project_preferred_workspace(&snapshot(
+                    tab_count, 1,
+                ))
+                .unwrap(),
             },
             EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
