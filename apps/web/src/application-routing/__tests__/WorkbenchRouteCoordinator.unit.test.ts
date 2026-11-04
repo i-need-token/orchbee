@@ -2,6 +2,7 @@ import type { ActionExecutionContext, ActionResult } from '@orchbee/actions';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixtureContextId,
 	fixturePresentationId,
@@ -93,7 +94,10 @@ describe('WorkbenchRouteCoordinator', () => {
 				);
 				if (change === 'retire') fixture.lifetime.abort();
 				else if (change === 'replace')
-					fixture.coordinator.navigation.navigate(createActionContext(), { kind: 'standalone' });
+					fixture.coordinator.navigation.navigate(createActionContext(), {
+						kind: 'workspace',
+						workspaceId: WORKSPACE_1,
+					});
 				else if (change === 'dispose') fixture.coordinator.dispose();
 				else if (change === 'timeout') await vi.advanceTimersByTimeAsync(10_000);
 				else {
@@ -124,7 +128,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		const target = { kind: 'workspace', workspaceId: WORKSPACE_2 } as const;
 		expect(runtime.getSnapshot().activeLocation).toEqual(target);
 		expect(coordinator.navigation.isActive?.(target)).toBe(false);
-		coordinator.prepare({ kind: 'standalone' });
+		coordinator.prepare({ kind: 'workspace', tabId: TAB_1, workspaceId: WORKSPACE_1 });
 		coordinator.navigation.navigate(createActionContext(), target);
 		expect(coordinator.navigation.isActive?.(target)).toBe(false);
 		coordinator.prepare({ ...target, tabId: TAB_3 });
@@ -143,8 +147,8 @@ describe('WorkbenchRouteCoordinator', () => {
 			coordinator.prepare({ kind: 'workspace', tabId: TAB_2, workspaceId: WORKSPACE_1 }),
 		).toMatchObject({ kind: 'ready' });
 
-		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().activeTabId).toBe(TAB_2);
-		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toHaveLength(2);
+		expect(activeTerminalContext(runtime).tabModel.getSnapshot().activeTabId).toBe(TAB_2);
+		expect(activeTerminalContext(runtime).tabModel.getSnapshot().tabs).toHaveLength(2);
 		expect(navigate).not.toHaveBeenCalled();
 		coordinator.dispose();
 	});
@@ -155,14 +159,24 @@ describe('WorkbenchRouteCoordinator', () => {
 		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate);
 		coordinator.prepare({ kind: 'workspace', tabId: TAB_2, workspaceId: WORKSPACE_1 });
 
-		expect(coordinator.navigation.navigate(createActionContext(), { kind: 'standalone' })).toEqual({
-			kind: 'completed',
-		});
+		expect(
+			coordinator.navigation.navigate(createActionContext(), {
+				kind: 'workspace',
+				workspaceId: WORKSPACE_2,
+			}),
+		).toEqual({ kind: 'completed' });
 
-		expect(navigate).toHaveBeenCalledWith({ kind: 'standalone', tabId: null }, { replace: false });
-		expect(runtime.getSnapshot().activeLocation).toMatchObject({ kind: 'workspace' });
-		coordinator.prepare({ kind: 'standalone' });
-		expect(runtime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
+		const location = { kind: 'workspace', tabId: TAB_3, workspaceId: WORKSPACE_2 } as const;
+		expect(navigate).toHaveBeenCalledWith(location, { replace: false });
+		expect(runtime.getSnapshot().activeLocation).toEqual({
+			kind: 'workspace',
+			workspaceId: WORKSPACE_1,
+		});
+		coordinator.prepare(location);
+		expect(runtime.getSnapshot().activeLocation).toEqual({
+			kind: 'workspace',
+			workspaceId: WORKSPACE_2,
+		});
 		coordinator.dispose();
 	});
 
@@ -173,10 +187,10 @@ describe('WorkbenchRouteCoordinator', () => {
 		coordinator.prepare({ kind: 'workspace', tabId: TAB_1, workspaceId: WORKSPACE_1 });
 
 		coordinator.navigation.selectTab(createActionContext(), { mode: 'extend', tabId: TAB_2 });
-		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().activeTabId).toBe(TAB_1);
+		expect(activeTerminalContext(runtime).tabModel.getSnapshot().activeTabId).toBe(TAB_1);
 		coordinator.prepare({ kind: 'workspace', tabId: TAB_2, workspaceId: WORKSPACE_1 });
 
-		const selection = runtime.getActiveTerminalContext().tabModel.getSnapshot();
+		const selection = activeTerminalContext(runtime).tabModel.getSnapshot();
 		expect(selection.activeTabId).toBe(TAB_2);
 		expect(selection.selectedTabIds).toEqual(new Set([TAB_1, TAB_2]));
 		coordinator.dispose();
@@ -187,7 +201,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		const navigate = vi.fn<WorkbenchRouteNavigation>();
 		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate);
 		coordinator.prepare({ kind: 'workspace', tabId: TAB_2, workspaceId: WORKSPACE_1 });
-		const tabModel = runtime.getActiveTerminalContext().tabModel;
+		const tabModel = activeTerminalContext(runtime).tabModel;
 		tabModel.setSelection([TAB_1, TAB_2], TAB_2);
 
 		expect(
@@ -207,7 +221,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate);
 		coordinator.prepare({ kind: 'workspace', tabId: TAB_1, workspaceId: WORKSPACE_1 });
 
-		runtime.getActiveTerminalContext().tabModel.selectTab(TAB_2);
+		activeTerminalContext(runtime).tabModel.selectTab(TAB_2);
 		expect(navigate).toHaveBeenLastCalledWith(
 			{ kind: 'workspace', tabId: TAB_2, workspaceId: WORKSPACE_1 },
 			{ replace: false },
@@ -226,19 +240,16 @@ describe('WorkbenchRouteCoordinator', () => {
 /** Workspace 1 is displayed while Workspace 2 is the Project the Server just created. */
 function createProjectCreationRoute() {
 	const runtime = createRuntime();
-	const workspace = runtime.getSnapshot().workspaces.find((each) => each.id === WORKSPACE_2);
-	const scope = runtime
+	const directory = runtime
 		.getSnapshot()
-		.resourceScopes.find((each) => each.id === workspace?.resourceScopeId);
-	const directory = scope?.directories[0];
-	if (workspace === undefined || directory === undefined)
+		.workspaces.find((each) => each.id === WORKSPACE_2)?.directory;
+	if (directory === undefined || directory === null)
 		throw new Error('Expected the created Workspace and its Directory.');
 	const receipt: WorkbenchProjectCreationReceipt = {
 		directoryId: directory.id,
 		path: directory.path,
 		presentationId: fixturePresentationId(3),
 		projectId: fixtureProjectId(1),
-		resourceScopeId: workspace.resourceScopeId,
 		terminalContextId: fixtureContextId(2),
 		workspaceId: WORKSPACE_2,
 	};

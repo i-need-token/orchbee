@@ -9,6 +9,7 @@ import {
 } from '../../components/workbench-panel-workspace/model/panel-workspace-state';
 import { resolveActiveTerminalCommand } from '../resolveActiveTerminalCommand';
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixturePanelId,
 	fixturePresentationId,
@@ -342,9 +343,9 @@ describe('resolveActiveTerminalCommand', () => {
 });
 
 function panelState(root: FixtureRecord, focusedPanelId?: string): PanelWorkspaceState {
-	const state = createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1, root)]))
-		.getActiveTerminalContext()
-		.panelWorkspaceStore.getSnapshot();
+	const state = activeTerminalContext(
+		createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1, root)])),
+	).panelWorkspaceStore.getSnapshot();
 	return focusedPanelId === undefined
 		? state
 		: transitionPanelWorkspace(state, {

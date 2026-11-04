@@ -11,6 +11,7 @@ import { TAB_STRIP_ACTION_IDS, type TabCloseInput } from '@orchbee/tab-strip';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixturePanelId,
 	fixtureTabId,
@@ -67,9 +68,9 @@ describe('registerWorkbenchActiveTerminalActions', () => {
 		await expect(harness.execute(WORKBENCH_ACTION_IDS.closeActiveTerminal)).resolves.toEqual({
 			kind: 'completed',
 		});
-		const activeTabId = harness.projectWorkspaceRuntime
-			.getActiveTerminalContext()
-			.panelWorkspaceStore.getActiveTabId();
+		const activeTabId = activeTerminalContext(
+			harness.projectWorkspaceRuntime,
+		).panelWorkspaceStore.getActiveTabId();
 		if (activeTabId === null) throw new Error('Expected an active Tab.');
 		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({
 			closeSource: 'non-ui',
@@ -219,7 +220,7 @@ describe('registerWorkbenchActiveTerminalActions', () => {
 		).toMatchObject({ availability: { kind: 'disabled' } });
 
 		const split = createHarness(2);
-		split.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore.transition({
+		activeTerminalContext(split.projectWorkspaceRuntime).panelWorkspaceStore.transition({
 			panelId: fixturePanelId(2),
 			tabId: TAB_ID,
 			type: 'panel-maximization-toggled',
@@ -284,7 +285,7 @@ describe('registerWorkbenchActiveTerminalActions', () => {
 		});
 		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({ panelId: fixturePanelId(1) });
 
-		split.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore.transition({
+		activeTerminalContext(split.projectWorkspaceRuntime).panelWorkspaceStore.transition({
 			panelId: fixturePanelId(1),
 			tabId: TAB_ID,
 			type: 'panel-maximization-toggled',
@@ -319,7 +320,7 @@ describe('registerWorkbenchActiveTerminalActions', () => {
 
 	it('keeps missing, maximized, stale-source, and unregistered positional focus unavailable', () => {
 		const harness = createHarness(2);
-		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
+		const store = activeTerminalContext(harness.projectWorkspaceRuntime).panelWorkspaceStore;
 		const lowerRegistration = registerPanelFocus(harness, () => ({ kind: 'unchanged' }));
 		const invocation = { scope: harness.scope, source: 'keyboard' as const };
 
@@ -494,7 +495,7 @@ function createHarness(panelCount: 1 | 2 | 3 = 1, confirm?: () => boolean): Harn
 	const projectWorkspaceRuntime = createSnapshotRuntime(
 		oneWorkspaceSnapshot(1, [snapshotTab(1, root)]),
 	);
-	projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore.transition({
+	activeTerminalContext(projectWorkspaceRuntime).panelWorkspaceStore.transition({
 		panelId: fixturePanelId(panelCount),
 		tabId: TAB_ID,
 		type: 'panel-focused',

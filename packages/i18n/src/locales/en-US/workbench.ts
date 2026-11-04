@@ -83,7 +83,6 @@ export const enUSWorkbenchMessages = {
 	'workbench.sidebar.actions.show': 'Show Sidebar',
 	'workbench.sidebar.actions.toggle': 'Toggle Sidebar',
 	'workbench.sidebar.items.newTerminal': 'New Terminal',
-	'workbench.sidebar.items.terminal': 'Terminal',
 	'workbench.sidebar.items.search': 'Search',
 	'workbench.sidebar.items.settings': 'Settings',
 	'workbench.sidebar.sections.project': 'Workspaces',

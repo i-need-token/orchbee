@@ -9,6 +9,7 @@ import {
 	type WorkbenchAgentNavigationInput,
 } from './project-workbench-agent-overview';
 import type { WorkbenchProjectWorkspaceRuntime } from './WorkbenchProjectWorkspaceRuntime';
+import { workbenchActiveLocationsEqual } from './workbench-terminal-location-activation';
 
 type WorkbenchAgentNavigationProjection = 'pending' | 'ready' | 'unavailable';
 
@@ -116,7 +117,7 @@ export function transitionWorkbenchAgentNavigation(
 			: { commands: [], state: { ...state, projection: 'ready' } };
 	}
 	if (
-		!locationsEqual(event.activeLocation, state.originLocation) &&
+		!workbenchActiveLocationsEqual(event.activeLocation, state.originLocation) &&
 		!isTargetWorkspace(event.activeLocation, state.input)
 	) {
 		return { commands: [], state: { kind: 'idle' } };
@@ -161,10 +162,4 @@ function isTargetWorkspace(
 	input: WorkbenchAgentNavigationInput,
 ): boolean {
 	return location.kind === 'workspace' && location.workspaceId === input.workspaceId;
-}
-
-function locationsEqual(left: WorkbenchActiveLocation, right: WorkbenchActiveLocation): boolean {
-	if (left.kind !== right.kind) return false;
-	if (left.kind === 'standalone' || right.kind === 'standalone') return true;
-	return left.workspaceId === right.workspaceId;
 }

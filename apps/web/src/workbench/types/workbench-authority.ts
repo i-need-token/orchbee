@@ -37,8 +37,6 @@ export type WorkbenchAuthorityNavigationChange =
 	| {
 			readonly type: 'workspace-updated';
 			readonly workspaceId: string;
-			readonly launchConfigurationId: string | null;
-			readonly primaryDirectoryId: string;
 			readonly name: string;
 	  };
 

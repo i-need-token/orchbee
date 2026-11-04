@@ -54,7 +54,7 @@
 		"A refused name shows its localized reason on submit or blur, and the reason then follows the field until the name is fixed.",
 		"Cancel, Escape, the close button and backdrop dismissal commit nothing, and a Dialog whose target leaves closes with it.",
 		"Submitting commits to the target captured when the Dialog opened and never redirects the name to a newly active Tab, group, Project, or Workspace.",
-		"A name never changes a directory, launch resources, terminal identity, or Git identity."
+		"A name never changes a directory, terminal identity, or Git identity."
 	],
 	"references": ["apps/web/docs/workbench.md", "apps/web/docs/project-workspace.md"]
 }

@@ -80,5 +80,4 @@ export type WorkbenchSidebarWorkspaceCreation =
 	| {
 			readonly directoryId: string;
 			readonly projectId: string | null;
-			readonly resourceScopeId: string;
 	  };

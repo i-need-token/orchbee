@@ -26,28 +26,6 @@ const indexRoute = createRoute({
 	path: '/',
 });
 
-const standaloneRoute = createRoute({
-	beforeLoad: ({ context }) => prepareRoute(context, { kind: 'standalone' }),
-	component: WorkbenchRoute,
-	getParentRoute: () => webApplicationRootRoute,
-	path: '/terminal',
-});
-
-const standaloneTabsRoute = createRoute({
-	beforeLoad: ({ context }) => prepareRoute(context, { kind: 'standalone' }),
-	component: WorkbenchRoute,
-	getParentRoute: () => webApplicationRootRoute,
-	path: '/terminal/tabs',
-});
-
-const standaloneTabRoute = createRoute({
-	beforeLoad: ({ context, params }) =>
-		prepareRoute(context, { kind: 'standalone', tabId: params.tabId }),
-	component: WorkbenchRoute,
-	getParentRoute: () => webApplicationRootRoute,
-	path: '/terminal/tabs/$tabId',
-});
-
 const projectsRoute = createRoute({
 	beforeLoad: ({ context }) => prepareRoute(context, { kind: 'projects' }),
 	component: WorkbenchRoute,
@@ -110,9 +88,6 @@ const workspaceTabRoute = createRoute({
 
 const routeTree = webApplicationRootRoute.addChildren([
 	indexRoute,
-	standaloneRoute,
-	standaloneTabsRoute,
-	standaloneTabRoute,
 	projectsRoute,
 	projectRoute,
 	projectWorkspacesRoute,

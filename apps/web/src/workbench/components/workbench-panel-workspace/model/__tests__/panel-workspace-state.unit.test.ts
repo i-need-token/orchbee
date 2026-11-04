@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixturePanelId,
 	fixturePresentationId,
@@ -32,9 +33,9 @@ const TAB_ID = fixtureTabId(1);
 
 /** The Panels a window holds when the Server publishes Workspace 1 with `tabs`. */
 function publishedState(tabs: readonly FixtureRecord[]): PanelWorkspaceState {
-	return createSnapshotRuntime(oneWorkspaceSnapshot(1, tabs))
-		.getActiveTerminalContext()
-		.panelWorkspaceStore.getSnapshot();
+	return activeTerminalContext(
+		createSnapshotRuntime(oneWorkspaceSnapshot(1, tabs)),
+	).panelWorkspaceStore.getSnapshot();
 }
 
 function oneTabState(root: FixtureRecord): PanelWorkspaceState {

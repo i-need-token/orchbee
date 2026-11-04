@@ -81,20 +81,36 @@ const receiptFor = (workspaceId: string): WorkbenchProjectCreationReceipt => ({
 	path: '/workspace/orchbee',
 	presentationId: 'presentation-1',
 	projectId: null,
-	resourceScopeId: 'resource-scope-1',
 	terminalContextId: 'terminal-context-1',
 	workspaceId,
 });
 
+/** Primary and Feature Workspaces in Project 1. */
+const TWO_WORKSPACES = projectSnapshot(1, [
+	[1, 1],
+	[2, 1],
+]);
+
+/** No Workspace, as when the last one closed. */
+const NO_WORKSPACES = workbenchSnapshot(1, { workspaces: [] }, []);
+
+function enterFeatureWorkspace(
+	runtime: ReturnType<typeof createHarness>['projectWorkspaceRuntime'],
+) {
+	runtime.transition({ type: 'workspace-activated', workspaceId: FEATURE_WORKSPACE_ID });
+}
+
 describe('registerWorkbenchProjectWorkspaceActions', () => {
 	it('rejects a creation receipt whose first presentation was replaced', async () => {
-		const { execute, projectWorkspaceRuntime } = createHarness();
-		const state = projectWorkspaceRuntime.getSnapshot();
-		const workspace = state.workspaces[0];
-		const directory = state.resourceScopes
-			.find((resources) => resources.id === workspace?.resourceScopeId)
-			?.directories.find((candidate) => candidate.id === workspace?.primaryDirectoryId);
-		if (workspace === undefined || directory?.kind !== 'folder') {
+		const { execute, projectWorkspaceRuntime } = createHarness(
+			undefined,
+			undefined,
+			undefined,
+			TWO_WORKSPACES,
+		);
+		const workspace = projectWorkspaceRuntime.getSnapshot().workspaces[0];
+		const directory = workspace?.directory;
+		if (workspace === undefined || directory === undefined || directory === null) {
 			throw new Error('Expected a Workspace in a Folder.');
 		}
 		const receipt: WorkbenchProjectCreationReceipt = {
@@ -102,11 +118,10 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 			path: directory.path,
 			presentationId: fixturePresentationId(1),
 			projectId: workspace.projectId,
-			resourceScopeId: workspace.resourceScopeId,
 			terminalContextId: workspace.terminalContextId,
 			workspaceId: workspace.id,
 		};
-		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+		enterFeatureWorkspace(projectWorkspaceRuntime);
 
 		await expect(
 			execute(WORKBENCH_ACTION_IDS.activateWorkspace, {
@@ -114,7 +129,10 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 				workspaceId: receipt.workspaceId,
 			}),
 		).resolves.toMatchObject({ kind: 'blocked' });
-		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
+		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+			kind: 'workspace',
+			workspaceId: FEATURE_WORKSPACE_ID,
+		});
 
 		await expect(
 			execute(WORKBENCH_ACTION_IDS.activateWorkspace, {
@@ -239,8 +257,10 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 					Promise.resolve({ kind: 'completed', value: receiptFor(PRIMARY_WORKSPACE_ID) }),
 			},
 			{ complete, held: () => true },
+			undefined,
+			TWO_WORKSPACES,
 		);
-		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+		enterFeatureWorkspace(projectWorkspaceRuntime);
 
 		await expect(execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined)).resolves.toEqual({
 			kind: 'completed',
@@ -258,10 +278,8 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		const { execute, projectWorkspaceRuntime } = createHarness(
 			{
 				create: () => {
-					projectWorkspaceRuntime.transition({
-						type: 'workspace-activated',
-						workspaceId: PRIMARY_WORKSPACE_ID,
-					});
+					// Once a Workspace exists, No Workspace is no longer a place to be.
+					publishSnapshot(projectWorkspaceRuntime, projectSnapshot(2));
 					return Promise.resolve({
 						kind: 'completed',
 						value: receiptFor(PRIMARY_WORKSPACE_ID),
@@ -269,8 +287,9 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 				},
 			},
 			{ complete, held: () => true },
+			undefined,
+			NO_WORKSPACES,
 		);
-		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
 
 		await execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined);
 
@@ -285,14 +304,19 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 					Promise.resolve({ kind: 'completed', value: receiptFor(PRIMARY_WORKSPACE_ID) }),
 			},
 			{ complete, held: () => false },
+			undefined,
+			TWO_WORKSPACES,
 		);
-		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+		enterFeatureWorkspace(projectWorkspaceRuntime);
 
 		await expect(execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined)).resolves.toEqual({
 			kind: 'completed',
 		});
 
-		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
+		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+			kind: 'workspace',
+			workspaceId: FEATURE_WORKSPACE_ID,
+		});
 		expect(complete).not.toHaveBeenCalled();
 	});
 
@@ -308,8 +332,9 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 					}),
 			},
 			{ complete, held: () => true },
+			undefined,
+			NO_WORKSPACES,
 		);
-		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
 		const creation = execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined);
 		await vi.waitFor(() => expect(pending.finish).toBeDefined());
 

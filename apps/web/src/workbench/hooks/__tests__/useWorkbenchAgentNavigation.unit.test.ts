@@ -46,7 +46,10 @@ describe('useWorkbenchAgentNavigation', () => {
 			const invokeAgentNavigation = vi.fn<
 				(input: WorkbenchAgentNavigationInput) => ActionExecution
 			>(() => execution.execution);
-			const origin: WorkbenchActiveLocation = { kind: 'standalone' };
+			const origin: WorkbenchActiveLocation = {
+				kind: 'workspace',
+				workspaceId: fixture.originWorkspaceId,
+			};
 			const unrelated: WorkbenchActiveLocation = {
 				kind: 'workspace',
 				workspaceId: fixture.unrelatedWorkspaceId,
@@ -114,6 +117,7 @@ describe('useWorkbenchAgentNavigation', () => {
 
 	it('announces a terminal that holds no Agent in the latest projection', () => {
 		const runtime = createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
+		const activeLocation = runtime.getSnapshot().activeLocation;
 		const announceUnavailable = vi.fn<() => void>();
 		const invokeAgentNavigation = vi.fn<(input: WorkbenchAgentNavigationInput) => ActionExecution>(
 			() => blockedExecution,
@@ -121,7 +125,7 @@ describe('useWorkbenchAgentNavigation', () => {
 		const requestTerminalFocus = vi.fn<() => boolean>(() => true);
 		const rendered = renderHook(() =>
 			useWorkbenchAgentNavigation({
-				activeLocation: { kind: 'standalone' },
+				activeLocation,
 				announceUnavailable,
 				invokeAgentNavigation,
 				projectWorkspaceRuntime: runtime,
@@ -148,19 +152,26 @@ function navigationFixture() {
 		workbenchSnapshot(
 			1,
 			{
-				directories: [snapshotDirectory(1), snapshotDirectory(2)],
-				workspaces: [snapshotWorkspace(1), snapshotWorkspace(2)],
+				directories: [snapshotDirectory(1), snapshotDirectory(2), snapshotDirectory(3)],
+				workspaces: [snapshotWorkspace(1), snapshotWorkspace(2), snapshotWorkspace(3)],
 			},
-			[snapshotContext(1, [snapshotTab(1)]), snapshotContext(2, [snapshotTab(2)])],
+			[
+				snapshotContext(1, [snapshotTab(1)]),
+				snapshotContext(2, [snapshotTab(2)]),
+				snapshotContext(3, [snapshotTab(3)]),
+			],
 		),
 	);
-	const [target, unrelated] = runtime.getSnapshot().workspaces;
-	if (target === undefined || unrelated === undefined) throw new Error('Expected two Workspaces.');
+	// The person starts in a third Workspace, away from both.
+	const [target, unrelated, origin] = runtime.getSnapshot().workspaces;
+	if (target === undefined || unrelated === undefined || origin === undefined) {
+		throw new Error('Expected three Workspaces.');
+	}
 	const panel = runtime
 		.getTerminalContext(target.terminalContextId)
 		?.panelWorkspaceStore.getSnapshot().tabs[0]?.root;
 	if (panel?.kind !== 'panel') throw new Error('Expected one target Panel.');
-	runtime.transition({ type: 'standalone-activated' });
+	runtime.transition({ type: 'workspace-activated', workspaceId: origin.id });
 	const { presentationId } = panel.primaryPresentation;
 	const observed = (sequence: bigint): WorkbenchAgentSnapshot => ({
 		complete: true,
@@ -186,6 +197,7 @@ function navigationFixture() {
 	return {
 		input: { presentationId, workspaceId: target.id },
 		observed,
+		originWorkspaceId: origin.id,
 		runtime,
 		source,
 		unrelatedWorkspaceId: unrelated.id,

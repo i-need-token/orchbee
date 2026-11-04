@@ -12,6 +12,7 @@ import { TerminalSettingsController } from '../../../terminal-settings';
 import { ApplicationLocaleController } from '../../../application-locale';
 import { KeyboardShortcutSettingsController } from '../../../keyboard-shortcuts';
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	oneWorkspaceSnapshot,
 	snapshotTab,
@@ -110,9 +111,9 @@ describe('useWebApplication', () => {
 		const createFromSettings = appleCommand('KeyT');
 		await act(async () => settingsInput.dispatchEvent(createFromSettings));
 		expect(createFromSettings.defaultPrevented).toBe(false);
-		expect(
-			projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
-		).toHaveLength(1);
+		expect(activeTerminalContext(projectWorkspaceRuntime).tabModel.getSnapshot().tabs).toHaveLength(
+			1,
+		);
 		expect(document.activeElement).toBe(settingsInput);
 		await act(async () => {
 			settingsInput.dispatchEvent(

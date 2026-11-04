@@ -79,7 +79,6 @@ export const zhCNWorkbenchMessages = {
 	'workbench.sidebar.actions.show': '显示边栏',
 	'workbench.sidebar.actions.toggle': '切换边栏',
 	'workbench.sidebar.items.newTerminal': '新建终端',
-	'workbench.sidebar.items.terminal': '终端',
 	'workbench.sidebar.items.search': '搜索',
 	'workbench.sidebar.items.settings': '设置',
 	'workbench.sidebar.sections.project': '工作区',

@@ -6,11 +6,11 @@ import {
 	type WorkbenchProjectCreationReceipt,
 	type WorkbenchProjectWorkspaceRuntime,
 } from '../workbench';
-import { workbenchSharedDocumentRevision } from '@orchbee/workbench-client-protocol';
 
 import {
 	canonicalWorkbenchRoute,
 	resolveWorkbenchRoute,
+	workbenchRouteLocationExists,
 	workbenchRouteLocationsEqual,
 	type WorkbenchRouteLocation,
 	type WorkbenchRouteRequest,
@@ -19,6 +19,9 @@ import {
 } from './workbench-route-model';
 
 type WorkbenchTabSelectionInput = Parameters<WorkbenchNavigationPort['selectTab']>[1];
+type WorkbenchTabModel = NonNullable<
+	ReturnType<WorkbenchProjectWorkspaceRuntime['getActiveTerminalContext']>
+>['tabModel'];
 type WorkbenchRouteNavigationResult = 'navigated' | 'unavailable' | 'unchanged' | 'updated';
 
 type WorkbenchRouteNavigation = (
@@ -38,9 +41,6 @@ function readWorkbenchRouteSnapshot(
 	runtime: WorkbenchProjectWorkspaceRuntime,
 ): WorkbenchRouteSnapshot {
 	const state = runtime.getSnapshot();
-	const standalone = runtime.getTerminalContext(state.standaloneTerminalContextId);
-	if (standalone === null) throw new Error('The standalone terminal context is unavailable.');
-	const standaloneTabs = standalone.tabModel.getSnapshot();
 	return {
 		activeLocation: state.activeLocation,
 		projects: state.projects.map((project) => ({ id: project.id })),
@@ -55,10 +55,6 @@ function readWorkbenchRouteSnapshot(
 				tabIds: tabs.tabs.map((tab) => tab.id),
 			};
 		}),
-		standalone: {
-			activeTabId: standaloneTabs.activeTabId,
-			tabIds: standaloneTabs.tabs.map((tab) => tab.id),
-		},
 	};
 }
 
@@ -86,9 +82,8 @@ export class WorkbenchRouteCoordinator {
 				displayed !== undefined &&
 				(this.#requestedLocation === undefined ||
 					workbenchRouteLocationsEqual(this.#requestedLocation, displayed)) &&
-				(target.kind === 'standalone'
-					? displayed.kind === 'standalone'
-					: displayed.kind === 'workspace' && displayed.workspaceId === target.workspaceId)
+				displayed.kind === 'workspace' &&
+				displayed.workspaceId === target.workspaceId
 			);
 		},
 		navigate: (context, target, receipt) => this.#navigateFromAction(context, target, receipt),
@@ -136,40 +131,25 @@ export class WorkbenchRouteCoordinator {
 		this.#applying = true;
 		try {
 			const activeLocation = this.#runtime.getSnapshot().activeLocation;
-			if (location.kind === 'standalone') {
-				if (activeLocation.kind !== 'standalone') {
-					const transition = this.#runtime.transition({ type: 'standalone-activated' });
-					if (transition.outcome === 'rejected') {
-						throw new Error('The standalone route could not be activated.');
-					}
-				}
-			} else if (
-				activeLocation.kind !== 'workspace' ||
-				activeLocation.workspaceId !== location.workspaceId
-			) {
-				const transition = this.#runtime.transition({
-					type: 'workspace-activated',
-					workspaceId: location.workspaceId,
-				});
-				if (transition.outcome === 'rejected') {
-					throw new Error('The Workspace route could not be activated.');
-				}
-			}
-
-			const tabModel = this.#runtime.getActiveTerminalContext().tabModel;
-			if (location.tabId === null) {
-				if (tabModel.getSnapshot().tabs.length !== 0) {
-					throw new Error('An empty-context route cannot display a non-empty Tab collection.');
+			if (location.kind === 'no-workspace') {
+				// The runtime opens No Workspace by itself, and only once no Workspace is left.
+				if (activeLocation.kind !== 'no-workspace') {
+					throw new Error('No Workspace cannot be shown while a Workspace is open.');
 				}
 			} else {
-				const pendingSelection = this.#pendingSelection;
-				this.#applyTabSelection(
-					tabModel,
-					pendingSelection !== undefined &&
-						workbenchRouteLocationsEqual(pendingSelection.location, location)
-						? pendingSelection.input
-						: { mode: 'replace', tabId: location.tabId },
-				);
+				if (
+					activeLocation.kind !== 'workspace' ||
+					activeLocation.workspaceId !== location.workspaceId
+				) {
+					const transition = this.#runtime.transition({
+						type: 'workspace-activated',
+						workspaceId: location.workspaceId,
+					});
+					if (transition.outcome === 'rejected') {
+						throw new Error('The Workspace route could not be activated.');
+					}
+				}
+				this.#applyWorkspaceTab(location);
 			}
 			this.#displayedLocation = location;
 			this.#pendingSelection = undefined;
@@ -188,10 +168,33 @@ export class WorkbenchRouteCoordinator {
 		}
 	}
 
-	#applyTabSelection(
-		tabModel: ReturnType<WorkbenchProjectWorkspaceRuntime['getActiveTerminalContext']>['tabModel'],
-		input: WorkbenchTabSelectionInput,
-	): boolean {
+	#applyWorkspaceTab(
+		location: Extract<WorkbenchRouteLocation, { readonly kind: 'workspace' }>,
+	): void {
+		const tabModel = this.#requireActiveTabModel();
+		if (location.tabId === null) {
+			if (tabModel.getSnapshot().tabs.length !== 0) {
+				throw new Error('An empty-context route cannot display a non-empty Tab collection.');
+			}
+			return;
+		}
+		const pendingSelection = this.#pendingSelection;
+		this.#applyTabSelection(
+			tabModel,
+			pendingSelection !== undefined &&
+				workbenchRouteLocationsEqual(pendingSelection.location, location)
+				? pendingSelection.input
+				: { mode: 'replace', tabId: location.tabId },
+		);
+	}
+
+	#requireActiveTabModel(): WorkbenchTabModel {
+		const context = this.#runtime.getActiveTerminalContext();
+		if (context === null) throw new Error('No Workspace is open.');
+		return context.tabModel;
+	}
+
+	#applyTabSelection(tabModel: WorkbenchTabModel, input: WorkbenchTabSelectionInput): boolean {
 		const snapshot = tabModel.getSnapshot();
 		if (
 			input.mode === 'replace' &&
@@ -222,23 +225,19 @@ export class WorkbenchRouteCoordinator {
 		const snapshot = readWorkbenchRouteSnapshot(this.#runtime);
 		const canonical = canonicalWorkbenchRoute(snapshot);
 		if (workbenchRouteLocationsEqual(this.#displayedLocation, canonical)) return;
-		this.#requestNavigation(canonical, !locationExists(snapshot, this.#displayedLocation));
+		this.#requestNavigation(
+			canonical,
+			!workbenchRouteLocationExists(snapshot, this.#displayedLocation),
+		);
 	};
 
 	#locationForTarget(target: WorkbenchNavigationTarget): WorkbenchRouteLocation | null {
 		const snapshot = readWorkbenchRouteSnapshot(this.#runtime);
-		if (target.kind === 'standalone') {
-			return {
-				kind: 'standalone',
-				tabId: snapshot.standalone.activeTabId ?? snapshot.standalone.tabIds[0] ?? null,
-			};
-		}
 		const workspace = snapshot.workspaces.find((candidate) => candidate.id === target.workspaceId);
 		return workspace === undefined
 			? null
 			: {
 					kind: 'workspace',
-
 					tabId: workspace.activeTabId ?? workspace.tabIds[0] ?? null,
 					workspaceId: workspace.id,
 				};
@@ -258,10 +257,7 @@ export class WorkbenchRouteCoordinator {
 	}
 
 	#matchesProjectCreation(receipt: WorkbenchProjectCreationReceipt): boolean {
-		return matchesWorkbenchProjectCreation(
-			this.#runtime.getSharedDocument(workbenchSharedDocumentRevision('0')),
-			receipt,
-		);
+		return matchesWorkbenchProjectCreation(this.#runtime, receipt);
 	}
 
 	#rejectPendingProjectCreation(code: string): void {
@@ -274,11 +270,7 @@ export class WorkbenchRouteCoordinator {
 		receipt: WorkbenchProjectCreationReceipt,
 	): ActionResult<void> | Promise<ActionResult<void>> {
 		if (this.#disposed) return { code: 'route-acceptance-retired', kind: 'blocked' };
-		if (
-			target.kind !== 'workspace' ||
-			target.workspaceId !== receipt.workspaceId ||
-			!this.#matchesProjectCreation(receipt)
-		)
+		if (target.workspaceId !== receipt.workspaceId || !this.#matchesProjectCreation(receipt))
 			return { code: 'project-creation-target-replaced', kind: 'blocked' };
 		const location = this.#locationForTarget(target);
 		if (location === null) return { code: 'route-target-unavailable', kind: 'blocked' };
@@ -355,7 +347,8 @@ export class WorkbenchRouteCoordinator {
 	): WorkbenchRouteNavigationResult {
 		const snapshot = readWorkbenchRouteSnapshot(this.#runtime);
 		const activeLocation = snapshot.activeLocation;
-		const tabModel = this.#runtime.getActiveTerminalContext().tabModel;
+		const tabModel = this.#runtime.getActiveTerminalContext()?.tabModel;
+		if (activeLocation.kind !== 'workspace' || tabModel === undefined) return 'unavailable';
 		const tabSnapshot = tabModel.getSnapshot();
 		if (!tabSnapshot.tabs.some((tab) => tab.id === input.tabId)) return 'unavailable';
 		const targetTabId =
@@ -363,23 +356,17 @@ export class WorkbenchRouteCoordinator {
 				? tabSnapshot.activeTabId
 				: input.tabId;
 		if (targetTabId === null) return 'unavailable';
-		let location: WorkbenchRouteLocation;
-		if (activeLocation.kind === 'standalone') {
-			location = { kind: 'standalone', tabId: targetTabId };
-		} else {
-			const workspace = snapshot.workspaces.find(
-				(candidate) => candidate.id === activeLocation.workspaceId,
-			);
-			if (workspace === undefined || !workspace.tabIds.includes(targetTabId)) {
-				return 'unavailable';
-			}
-			location = {
-				kind: 'workspace',
-
-				tabId: targetTabId,
-				workspaceId: workspace.id,
-			};
+		const workspace = snapshot.workspaces.find(
+			(candidate) => candidate.id === activeLocation.workspaceId,
+		);
+		if (workspace === undefined || !workspace.tabIds.includes(targetTabId)) {
+			return 'unavailable';
 		}
+		const location: WorkbenchRouteLocation = {
+			kind: 'workspace',
+			tabId: targetTabId,
+			workspaceId: workspace.id,
+		};
 		beforeCommit?.();
 		if (
 			this.#displayedLocation !== undefined &&
@@ -412,20 +399,6 @@ export class WorkbenchRouteCoordinator {
 		this.#requestedLocation = location;
 		this.#navigate(location, { replace });
 	}
-}
-
-function locationExists(
-	snapshot: WorkbenchRouteSnapshot,
-	location: WorkbenchRouteLocation,
-): boolean {
-	if (location.kind === 'standalone') {
-		return location.tabId === null || snapshot.standalone.tabIds.includes(location.tabId);
-	}
-	const workspace = snapshot.workspaces.find((candidate) => candidate.id === location.workspaceId);
-	return (
-		workspace !== undefined &&
-		(location.tabId === null || workspace.tabIds.includes(location.tabId))
-	);
 }
 
 function navigationActionResult(result: WorkbenchRouteNavigationResult): ActionResult<void> {

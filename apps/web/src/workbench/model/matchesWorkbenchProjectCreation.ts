@@ -1,48 +1,37 @@
-import type {
-	WorkbenchSharedDocument,
-	WorkbenchSharedPanelNode,
-} from '@orchbee/workbench-client-protocol';
-
+import { findWorkbenchWorkspace } from '../../project-workspace';
+import { collectPanelLeaves } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
+import type { WorkbenchProjectWorkspaceRuntime } from './WorkbenchProjectWorkspaceRuntime';
 
+/**
+ * Whether what this Client holds still shows what the receipt says a Project creation made: its
+ * Workspace in the receipt's folder and context, and the first terminal the Server's Workspace
+ * launch started there.
+ */
 export function matchesWorkbenchProjectCreation(
-	document: WorkbenchSharedDocument,
+	projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime,
 	receipt: WorkbenchProjectCreationReceipt,
 ): boolean {
-	const project = document.projectWorkspace.resourceScopes.find(
-		(candidate) => candidate.id === receipt.resourceScopeId,
-	);
-	const directory = project?.directories.find((candidate) => candidate.id === receipt.directoryId);
-	const workspace = document.projectWorkspace.workspaces.find(
-		(candidate) => candidate.id === receipt.workspaceId,
+	const workspace = findWorkbenchWorkspace(
+		projectWorkspaceRuntime.getSnapshot(),
+		receipt.workspaceId,
 	);
 	if (
-		directory?.kind !== 'folder' ||
-		!directory.available ||
-		project?.primaryDirectoryId !== receipt.directoryId ||
-		directory.placement.kind !== 'local' ||
-		directory.path !== receipt.path ||
-		workspace?.resourceScopeId !== receipt.resourceScopeId ||
-		workspace.primaryDirectoryId !== receipt.directoryId ||
+		workspace?.directory?.id !== receipt.directoryId ||
+		workspace.directory.path !== receipt.path ||
 		workspace.terminalContextId !== receipt.terminalContextId
 	)
 		return false;
-	const context = document.terminalContexts.find(
-		(candidate) => candidate.terminalContextId === receipt.terminalContextId,
-	);
+	const context = projectWorkspaceRuntime.getTerminalContext(receipt.terminalContextId);
 	return (
-		context?.panelWorkspace.tabs.some((tab) => containsPresentation(tab.root, receipt)) === true
-	);
-}
-
-function containsPresentation(
-	node: WorkbenchSharedPanelNode,
-	receipt: WorkbenchProjectCreationReceipt,
-): boolean {
-	if (node.kind === 'split')
-		return node.children.some((child) => containsPresentation(child.node, receipt));
-	// The Server's Workspace launch started this presentation in the receipt's Directory.
-	return [node.primaryPresentation, ...node.childPresentations].some(
-		(presentation) => presentation.presentationId === receipt.presentationId,
+		context?.panelWorkspaceStore
+			.getSnapshot()
+			.tabs.some((tab) =>
+				collectPanelLeaves(tab.root).some((panel) =>
+					[panel.primaryPresentation, ...panel.childPresentations].some(
+						(presentation) => presentation.presentationId === receipt.presentationId,
+					),
+				),
+			) === true
 	);
 }

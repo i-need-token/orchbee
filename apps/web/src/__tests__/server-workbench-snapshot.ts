@@ -6,10 +6,10 @@ import {
 	createWorkbenchClientView,
 	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchClientView,
+	type WorkbenchPublication,
 } from '../workbench';
 import { projectServerSnapshot } from '../workbench-client/server-workbench';
 
-export const FIXTURE_DEFAULT_DIRECTORY = 'C:\\Users\\someone';
 export const FIXTURE_INTL = createOrchbeeIntl('en-US');
 export const FIXTURE_WORKER_ID = fixtureId(0x2);
 
@@ -237,17 +237,13 @@ export function createSnapshotRuntime(
 	snapshot: WorkbenchSnapshot,
 	options: SnapshotRuntimeOptions = {},
 ): WorkbenchProjectWorkspaceRuntime {
-	const initialPublication = projectServerSnapshot(
-		snapshot,
-		FIXTURE_DEFAULT_DIRECTORY,
-		FIXTURE_INTL,
-	);
+	const initialPublication = snapshotPublication(snapshot);
 	const initialClientView =
 		options.clientView ??
 		(options.expandedProjectIds === undefined
 			? undefined
 			: createWorkbenchClientView({
-					...createDefaultWorkbenchClientView(initialPublication.document),
+					...createDefaultWorkbenchClientView(initialPublication),
 					expandedProjectIds: [...options.expandedProjectIds],
 				}));
 	return new WorkbenchProjectWorkspaceRuntime({ initialClientView, initialPublication });
@@ -258,7 +254,19 @@ export function publishSnapshot(
 	runtime: WorkbenchProjectWorkspaceRuntime,
 	snapshot: WorkbenchSnapshot,
 ): void {
-	runtime.applyPublishedWorkbench(
-		projectServerSnapshot(snapshot, FIXTURE_DEFAULT_DIRECTORY, FIXTURE_INTL),
-	);
+	runtime.applyPublishedWorkbench(snapshotPublication(snapshot));
+}
+
+/** What a window projects from `snapshot` for its stores to hold. */
+export function snapshotPublication(snapshot: WorkbenchSnapshot): WorkbenchPublication {
+	return projectServerSnapshot(snapshot, FIXTURE_INTL);
+}
+
+/** The open Workspace's context, which a test that opened one takes as present. */
+export function activeTerminalContext(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+): NonNullable<ReturnType<WorkbenchProjectWorkspaceRuntime['getActiveTerminalContext']>> {
+	const context = runtime.getActiveTerminalContext();
+	if (context === null) throw new Error('No Workspace is open.');
+	return context;
 }

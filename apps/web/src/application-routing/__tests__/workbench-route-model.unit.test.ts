@@ -23,10 +23,6 @@ const snapshot: WorkbenchRouteSnapshot = {
 		},
 		{ activeTabId: null, id: 'workspace-empty', projectId: 'project/two', tabIds: [] },
 	],
-	standalone: {
-		activeTabId: 'standalone-tab-2',
-		tabIds: ['standalone-tab-1', 'standalone-tab-2'],
-	},
 };
 
 describe('Workbench route model', () => {
@@ -39,7 +35,7 @@ describe('Workbench route model', () => {
 				workspaceId: 'workspace two',
 			}),
 		).toBe('/workspaces/workspace%20two/tabs/tab%3F%23%2Ftwo');
-		expect(workbenchRoutePath({ kind: 'standalone', tabId: null })).toBe('/terminal');
+		expect(workbenchRoutePath({ kind: 'no-workspace' })).toBe('/');
 	});
 
 	it('derives the canonical route from the active Client View location and Tab', () => {
@@ -51,22 +47,26 @@ describe('Workbench route model', () => {
 		});
 	});
 
-	it('canonicalizes the root and incomplete standalone routes with replace intent', () => {
+	it('canonicalizes the root to the active Workspace with replace intent', () => {
 		expect(resolveWorkbenchRoute(snapshot, { kind: 'root' })).toEqual({
 			kind: 'redirect',
 			location: canonicalWorkbenchRoute(snapshot),
 		});
-		expect(resolveWorkbenchRoute(snapshot, { kind: 'standalone' })).toEqual({
-			kind: 'redirect',
-			location: { kind: 'standalone', tabId: 'standalone-tab-1' },
-		});
 	});
 
-	it('keeps an empty standalone context as a canonical displayed route', () => {
-		const emptySnapshot = { ...snapshot, standalone: { activeTabId: null, tabIds: [] } };
-		expect(resolveWorkbenchRoute(emptySnapshot, { kind: 'standalone' })).toEqual({
+	it('shows No Workspace at the root only while no Workspace exists', () => {
+		const emptySnapshot: WorkbenchRouteSnapshot = {
+			activeLocation: { kind: 'no-workspace' },
+			projects: [],
+			workspaces: [],
+		};
+		expect(resolveWorkbenchRoute(emptySnapshot, { kind: 'root' })).toEqual({
 			kind: 'ready',
-			location: { kind: 'standalone', tabId: null },
+			location: { kind: 'no-workspace' },
+		});
+		expect(resolveWorkbenchRoute(emptySnapshot, { kind: 'projects' })).toEqual({
+			kind: 'redirect',
+			location: { kind: 'no-workspace' },
 		});
 	});
 

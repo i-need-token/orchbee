@@ -58,7 +58,9 @@ describe('WebApplication', () => {
 		expect(markup).toContain('data-slot="workbench-left-panel"');
 		expect(markup).toContain('data-slot="workbench-right-panel"');
 		expect(markup).toContain('flex-basis:320px');
-		expect(markup).toContain('role="tablist"');
+		// As in the TUI, the main area stays blank: no Tab Strip and no statement.
+		expect(markup).not.toContain('role="tablist"');
+		expect(markup).not.toContain('data-slot="workbench-empty-workspace"');
 		expect(markup).toContain('aria-label="Create Project"');
 		expect(markup).not.toContain('data-slot="workbench-sidebar-project"');
 		expect(markup).not.toContain('data-slot="workbench-sidebar-workspace"');

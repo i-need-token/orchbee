@@ -248,11 +248,6 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.newTerminal'],
 		description: 'Label for the new-terminal entry in the Workbench sidebar.',
 	},
-	terminal: {
-		id: 'workbench.sidebar.items.terminal',
-		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.terminal'],
-		description: 'Label for the standalone terminal entry in the Workbench sidebar.',
-	},
 	terminalCloseActive: {
 		id: 'workbench.terminal.actions.closeActive',
 		defaultMessage: enUSWorkbenchMessages['workbench.terminal.actions.closeActive'],

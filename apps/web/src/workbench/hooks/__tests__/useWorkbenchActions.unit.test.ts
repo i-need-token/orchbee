@@ -8,6 +8,7 @@ import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
 	createSnapshotRuntime,
+	fixtureDirectoryId,
 	fixturePresentationId,
 	fixtureProjectId,
 	fixtureWorkspaceId,
@@ -142,7 +143,19 @@ afterEach(() => cleanup());
 describe('useWorkbenchActions', () => {
 	it('delegates location navigation without mutating the Workbench first', async () => {
 		const runtime = new ActionRuntime();
-		const projectWorkspaceRuntime = createProjectRuntime();
+		const projectWorkspaceRuntime = createSnapshotRuntime(
+			workbenchSnapshot(
+				1,
+				{
+					directories: [snapshotDirectory(1)],
+					workspaces: [
+						snapshotWorkspace(1),
+						snapshotWorkspace(2, { primaryDirectoryId: fixtureDirectoryId(1) }),
+					],
+				},
+				[snapshotContext(1, [snapshotTab(1)]), snapshotContext(2, [snapshotTab(2)])],
+			),
+		);
 		const navigate = vi.fn<WorkbenchNavigationPort['navigate']>((context) => {
 			context.markCommitted();
 			return { kind: 'completed' };
@@ -164,12 +177,16 @@ describe('useWorkbenchActions', () => {
 		);
 		if (actionScope === undefined) throw new Error('Expected the Workbench action scope.');
 
-		await runtime.execute(WORKBENCH_ACTION_IDS.activateStandalone, undefined, {
-			scope: actionScope,
-			source: 'button',
-		}).completion;
+		await runtime.execute(
+			WORKBENCH_ACTION_IDS.activateWorkspace,
+			{ workspaceId: fixtureWorkspaceId(2) },
+			{ scope: actionScope, source: 'button' },
+		).completion;
 
-		expect(navigate).toHaveBeenCalledWith(expect.anything(), { kind: 'standalone' });
+		expect(navigate).toHaveBeenCalledWith(expect.anything(), {
+			kind: 'workspace',
+			workspaceId: fixtureWorkspaceId(2),
+		});
 		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
 			kind: 'workspace',
 			workspaceId: fixtureWorkspaceId(1),
@@ -223,7 +240,6 @@ describe('useWorkbenchActions', () => {
 							[WORKBENCH_ACTION_IDS.createWorkspace]: {
 								directoryId: 'missing-directory',
 								projectId: 'missing-project',
-								resourceScopeId: 'missing-scope',
 							},
 							[WORKBENCH_ACTION_IDS.createProject]: {
 								path: '/workspace/orchbee',
@@ -262,8 +278,6 @@ describe('useWorkbenchActions', () => {
 							},
 							[WORKBENCH_ACTION_IDS.updateWorkspace]: {
 								name: 'Missing Workspace',
-								primaryDirectoryId: 'missing-directory',
-								projectId: 'missing-project',
 								workspaceId: 'missing-workspace',
 							},
 						},
@@ -513,8 +527,12 @@ describe('useWorkbenchActions', () => {
 	it('routes Project and Workspace intents through stable actions', async () => {
 		const runtime = new ActionRuntime({ confirm: () => true });
 		const projectWorkspaceRuntime = createProjectRuntime();
-		const workspace = projectWorkspaceRuntime.getSnapshot().workspaces[0];
-		if (workspace === undefined) throw new Error('Expected one Workspace.');
+		const before = projectWorkspaceRuntime.getSnapshot();
+		const workspace = before.workspaces[0];
+		const directory = workspace?.directory;
+		if (workspace === undefined || directory === undefined || directory === null) {
+			throw new Error('Expected one Workspace in a Folder.');
+		}
 		const change = vi.fn<WorkbenchAuthority['change']>(() =>
 			Promise.resolve({ kind: 'completed' }),
 		);
@@ -544,37 +562,26 @@ describe('useWorkbenchActions', () => {
 			});
 		};
 
-		await execute(WORKBENCH_ACTION_IDS.activateStandalone, undefined);
-		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
-
 		await execute(WORKBENCH_ACTION_IDS.renameProject, {
 			name: 'Orchbee Project',
 			projectId: fixtureProjectId(1),
 		});
 		await execute(WORKBENCH_ACTION_IDS.createWorkspace, {
-			directoryId: workspace.primaryDirectoryId,
+			directoryId: directory.id,
 			projectId: fixtureProjectId(1),
-			resourceScopeId: workspace.resourceScopeId,
 		});
 		await execute(WORKBENCH_ACTION_IDS.updateWorkspace, {
 			name: 'Feature',
-			primaryDirectoryId: workspace.primaryDirectoryId,
 			workspaceId: workspace.id,
 		});
 		await execute(WORKBENCH_ACTION_IDS.deleteWorkspace, { workspaceId: workspace.id });
 
 		expect(change.mock.calls.map(([, request]) => request)).toEqual([
 			{ name: 'Orchbee Project', projectId: fixtureProjectId(1), type: 'project-renamed' },
-			{
-				launchConfigurationId: null,
-				name: 'Feature',
-				primaryDirectoryId: workspace.primaryDirectoryId,
-				type: 'workspace-updated',
-				workspaceId: workspace.id,
-			},
+			{ name: 'Feature', type: 'workspace-updated', workspaceId: workspace.id },
 		]);
 		expect(create).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
-			directoryId: workspace.primaryDirectoryId,
+			directoryId: directory.id,
 			projectId: fixtureProjectId(1),
 			type: 'workspace-created',
 		});
@@ -583,7 +590,7 @@ describe('useWorkbenchActions', () => {
 			workspaceId: workspace.id,
 		});
 		// Every change shows once the authority publishes it.
-		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
+		expect(projectWorkspaceRuntime.getSnapshot()).toBe(before);
 	});
 
 	it('passes cancellation and terminal-result ownership to an asynchronous host operation', async () => {

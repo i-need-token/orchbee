@@ -8,6 +8,7 @@ import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixturePanelId,
 	fixtureTabId,
@@ -36,7 +37,7 @@ const createPanelTerminal: WorkbenchSharedPanelTerminalCreate = unexpected;
 
 /** The terminal context a window holds when the Server publishes Workspace 1 with `tabs`. */
 function publishedContext(tabs: readonly FixtureRecord[]): WorkbenchTerminalContext {
-	return createSnapshotRuntime(oneWorkspaceSnapshot(1, tabs)).getActiveTerminalContext();
+	return activeTerminalContext(createSnapshotRuntime(oneWorkspaceSnapshot(1, tabs)));
 }
 
 function HookProjection({

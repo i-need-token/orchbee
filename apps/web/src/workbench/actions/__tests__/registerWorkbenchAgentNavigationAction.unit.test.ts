@@ -3,16 +3,23 @@ import { describe, expect, it } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
+	fixtureDirectoryId,
 	fixturePanelId,
 	fixturePresentationId,
 	fixtureTabId,
 	fixtureWorkspaceId,
 	oneWorkspaceSnapshot,
+	snapshotContext,
+	snapshotDirectory,
 	snapshotPanel,
 	snapshotPresentation,
 	snapshotSplit,
 	snapshotTab,
+	snapshotWorkspace,
+	workbenchSnapshot,
+	type FixtureRecord,
 } from '../../../__tests__/server-workbench-snapshot';
 import {
 	findPanel,
@@ -25,16 +32,35 @@ import { registerWorkbenchAgentNavigationAction } from '../registerWorkbenchAgen
 
 const WORKSPACE_ID = fixtureWorkspaceId(1);
 
+/** Workspace 1 holds `tabs` and Workspace 2, which is open, holds Tab 9. */
+function inactiveWorkspaceRuntime(tabs: readonly FixtureRecord[]) {
+	const runtime = createSnapshotRuntime(
+		workbenchSnapshot(
+			1,
+			{
+				directories: [snapshotDirectory(1)],
+				workspaces: [
+					snapshotWorkspace(1),
+					snapshotWorkspace(2, { primaryDirectoryId: fixtureDirectoryId(1) }),
+				],
+			},
+			[snapshotContext(1, tabs), snapshotContext(2, [snapshotTab(9)])],
+		),
+	);
+	const context = activeTerminalContext(runtime);
+	runtime.transition({ type: 'workspace-activated', workspaceId: fixtureWorkspaceId(2) });
+	return { context, runtime };
+}
+
 describe('registerWorkbenchAgentNavigationAction', () => {
 	it('re-resolves and opens the exact inactive Workspace Tab before focusing its Panel', async () => {
-		const projectWorkspaceRuntime = createSnapshotRuntime(
-			oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]),
-		);
-		const context = projectWorkspaceRuntime.getActiveTerminalContext();
+		const { context, runtime: projectWorkspaceRuntime } = inactiveWorkspaceRuntime([
+			snapshotTab(1),
+			snapshotTab(2),
+		]);
 		const targetTabId = fixtureTabId(2);
 		const targetPresentationId = fixturePresentationId(2);
 		context.tabModel.selectTab(fixtureTabId(1));
-		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
 
 		const { execute, registration } = registerNavigation(
 			projectWorkspaceRuntime,
@@ -77,20 +103,17 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 	it('reveals an exact child terminal and removes a conflicting Panel maximization', async () => {
 		const targetPanelId = fixturePanelId(1);
 		const childPresentationId = fixturePresentationId(3);
-		const projectWorkspaceRuntime = createSnapshotRuntime(
-			oneWorkspaceSnapshot(1, [
-				snapshotTab(
+		const { context, runtime: projectWorkspaceRuntime } = inactiveWorkspaceRuntime([
+			snapshotTab(
+				1,
+				snapshotSplit(
 					1,
-					snapshotSplit(
-						1,
-						'horizontal',
-						snapshotPanel(1, snapshotPresentation(1), [snapshotPresentation(3)]),
-						snapshotPanel(2),
-					),
+					'horizontal',
+					snapshotPanel(1, snapshotPresentation(1), [snapshotPresentation(3)]),
+					snapshotPanel(2),
 				),
-			]),
-		);
-		const context = projectWorkspaceRuntime.getActiveTerminalContext();
+			),
+		]);
 		const tabId = fixtureTabId(1);
 		expect(
 			context.panelWorkspaceStore.transition({
@@ -106,7 +129,6 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 				type: 'panel-maximization-toggled',
 			}).outcome,
 		).toBe('applied');
-		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
 
 		const { execute, registration } = registerNavigation(
 			projectWorkspaceRuntime,

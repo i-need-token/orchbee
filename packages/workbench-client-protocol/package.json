@@ -36,7 +36,6 @@
 		"@rslib/core": "catalog:",
 		"@types/node": "catalog:",
 		"ajv": "8.20.0",
-		"fast-check": "4.9.0",
 		"vitest": "catalog:"
 	}
 }

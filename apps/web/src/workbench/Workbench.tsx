@@ -121,14 +121,14 @@ export function Workbench({
 		storage: layoutStorage,
 		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});
+	const terminalContext = view.terminalContext;
 	const agentPresentation = useWorkbenchAgentPresentation({
 		navigateAgent: view.navigateAgent,
 		notificationObserver: agentNotificationObserver,
-		panelWorkspaceStore: view.terminalContext.panelWorkspaceStore,
 		projectWorkspaceRuntime,
 		source: agentObservationSource,
 		root: view.shortcutScopeReference,
-		tabModel: view.tabModel,
+		terminalContext,
 	});
 	const sidebarToggle = (
 		<WorkbenchSidebarToggle
@@ -293,47 +293,58 @@ export function Workbench({
 						<div
 							className={styles['rightPanel']}
 							data-slot='workbench-right-panel'
-							data-tab-strip-orientation={view.tabStripOrientation}
+							data-tab-strip-orientation={
+								terminalContext === null ? undefined : view.tabStripOrientation
+							}
 						>
-							<WorkbenchTabBar
-								actionRuntime={actionRuntime}
-								closeResume={view.closeResume}
-								createCrossWindowDragRuntime={createCrossWindowDragRuntime}
-								newTabChoices={view.newTabChoices}
-								onNewTerminal={view.newTab}
-								onOrientationChange={view.onTabStripOrientationChange}
-								onVerticalCollapsedChange={view.onVerticalTabStripCollapsedChange}
-								orientation={view.tabStripOrientation}
-								onCloseTabs={view.onCloseTabs}
-								getCloseTabsConfirmation={view.getCloseTabsConfirmation}
-								focusRequest={view.tabStripFocusRequest}
-								getTabCreationAvailability={view.getTabCreationAvailability}
-								onSelectTab={navigation?.selectTab}
-								onSetTabTitle={view.setTabTitle}
-								onTabsChange={view.onTabsChange}
-								parentActionScope={view.actionScope}
-								reserveSidebarToggleSpace={!view.isSidebarVisible}
-								tabModel={view.tabModel}
-								statusAdornments={agentPresentation.tabStatusAdornments}
-								tabIdentityIcons={agentPresentation.tabIdentityIcons}
-								tabStripMessages={tabStripMessages}
-								verticalCollapsed={view.verticalTabStripCollapsed}
-							/>
+							{terminalContext === null ? (
+								// No Workspace has no Tab Strip, so its row keeps the toggle's place and the window's drag.
+								<div
+									aria-hidden='true'
+									className={styles['noWorkspaceChrome']}
+									data-slot='workbench-window-drag-region'
+								/>
+							) : (
+								<WorkbenchTabBar
+									actionRuntime={actionRuntime}
+									closeResume={view.closeResume}
+									createCrossWindowDragRuntime={createCrossWindowDragRuntime}
+									newTabChoices={view.newTabChoices}
+									onNewTerminal={view.newTab}
+									onOrientationChange={view.onTabStripOrientationChange}
+									onVerticalCollapsedChange={view.onVerticalTabStripCollapsedChange}
+									orientation={view.tabStripOrientation}
+									onCloseTabs={view.onCloseTabs}
+									getCloseTabsConfirmation={view.getCloseTabsConfirmation}
+									focusRequest={view.tabStripFocusRequest}
+									getTabCreationAvailability={view.getTabCreationAvailability}
+									onSelectTab={navigation?.selectTab}
+									onSetTabTitle={view.setTabTitle}
+									onTabsChange={view.onTabsChange}
+									parentActionScope={view.actionScope}
+									reserveSidebarToggleSpace={!view.isSidebarVisible}
+									tabModel={terminalContext.tabModel}
+									statusAdornments={agentPresentation.tabStatusAdornments}
+									tabIdentityIcons={agentPresentation.tabIdentityIcons}
+									tabStripMessages={tabStripMessages}
+									verticalCollapsed={view.verticalTabStripCollapsed}
+								/>
+							)}
 							<div
 								className={styles['tabContent']}
 								data-slot='workbench-tab-content'
 								data-workbench-focus-region='terminal'
 							>
-								{view.hasVisibleTerminalTabs ? (
+								{terminalContext !== null && view.hasVisibleTerminalTabs ? (
 									<WorkbenchPanelWorkspace
 										actionRuntime={actionRuntime}
 										authority={view.authority}
 										createPanelTerminal={view.createPanelTerminal}
-										panelWorkspaceStore={view.terminalContext.panelWorkspaceStore}
+										panelWorkspaceStore={terminalContext.panelWorkspaceStore}
 										parentActionScope={view.actionScope}
 										shortcutLabelForAction={shortcutLabelForAction}
 										terminalAutoFocusAllowed={view.terminalAutoFocusAllowed}
-										terminalContextId={view.terminalContext.terminalContextId}
+										terminalContextId={terminalContext.terminalContextId}
 										terminalFocusRequest={view.terminalFocusRequest}
 										terminalSurface={terminalSurface}
 										onTerminalEdit={agentPresentation.terminalEdited}

@@ -1,58 +1,15 @@
-import { assertWorkbenchSharedProjectWorkspaceInvariants } from '@orchbee/workbench-client-protocol';
-
-type WorkbenchDirectorySource = 'created' | 'discovered' | 'selected';
-
-type WorkbenchDirectoryPlacement =
-	| { readonly kind: 'local' }
-	| { readonly environmentId: string; readonly kind: 'environment' };
-
-interface WorkbenchDirectoryGitMetadataBase {
-	readonly branch: string | null;
-	readonly head: string;
-	readonly repositoryId: string;
-}
-
-interface WorkbenchRepositoryDirectoryGitMetadata extends WorkbenchDirectoryGitMetadataBase {
-	readonly worktree: false;
-}
-
-interface WorkbenchWorktreeDirectoryGitMetadata extends WorkbenchDirectoryGitMetadataBase {
-	readonly worktree: true;
-}
-
-interface WorkbenchDirectoryBase {
-	readonly available: boolean;
+/** The folder a Workspace records, where its new terminals start. */
+export interface WorkbenchDirectory {
 	readonly id: string;
-	readonly name: string;
 	readonly path: string;
-	readonly placement: WorkbenchDirectoryPlacement;
-	readonly source: WorkbenchDirectorySource;
-}
-
-interface WorkbenchFolderDirectory extends WorkbenchDirectoryBase {
-	readonly git: WorkbenchRepositoryDirectoryGitMetadata | null;
-	readonly kind: 'folder';
-}
-
-interface WorkbenchWorktreeDirectory extends WorkbenchDirectoryBase {
-	readonly git: WorkbenchWorktreeDirectoryGitMetadata;
-	readonly kind: 'worktree';
-}
-
-export type WorkbenchDirectory = WorkbenchFolderDirectory | WorkbenchWorktreeDirectory;
-
-interface WorkbenchLaunchConfigurationReference {
-	readonly id: string;
-	readonly name: string;
 }
 
 export interface WorkbenchWorkspace {
+	/** Null while the Workspace records no folder, so no Tab can start in it. */
+	readonly directory: WorkbenchDirectory | null;
 	readonly id: string;
-	readonly launchConfigurationId: string | null;
 	readonly name: string;
-	readonly primaryDirectoryId: string;
 	readonly projectId: string | null;
-	readonly resourceScopeId: string;
 	readonly terminalContextId: string;
 }
 
@@ -61,17 +18,12 @@ export interface WorkbenchProject {
 	readonly name: string;
 }
 
-/** Immutable resource identity; grouping never transfers or merges this namespace. */
-interface WorkbenchResourceScope {
-	readonly directories: readonly WorkbenchDirectory[];
-	readonly id: string;
-	readonly launchConfigurations: readonly WorkbenchLaunchConfigurationReference[];
-	readonly name: string;
-	readonly primaryDirectoryId: string;
-}
-
+/**
+ * Where this Client is. As in the TUI, the no-Workspace location holds no terminal context, and this
+ * Client is there only while no Workspace exists.
+ */
 export type WorkbenchActiveLocation =
-	| { readonly kind: 'standalone' }
+	| { readonly kind: 'no-workspace' }
 	| {
 			readonly kind: 'workspace';
 			readonly workspaceId: string;
@@ -80,18 +32,12 @@ export type WorkbenchActiveLocation =
 export interface ProjectWorkspaceState {
 	readonly activeLocation: WorkbenchActiveLocation;
 	readonly expandedProjectIds: readonly string[];
-	readonly nextProjectSequence: number;
-	readonly nextResourceScopeSequence: number;
-	readonly nextTerminalContextSequence: number;
-	readonly nextWorkspaceSequence: number;
 	readonly projects: readonly WorkbenchProject[];
 	/**
 	 * Whether Recents, the group of Workspaces outside any Project, shows them. Like a Project, it
 	 * opens when one of its Workspaces is activated or created here.
 	 */
 	readonly recentsExpanded: boolean;
-	readonly resourceScopes: readonly WorkbenchResourceScope[];
-	readonly standaloneTerminalContextId: string;
 	readonly workspaces: readonly WorkbenchWorkspace[];
 }
 
@@ -99,7 +45,6 @@ export interface ProjectWorkspaceState {
 export type ProjectWorkspaceEvent =
 	| { readonly type: 'project-expansion-toggled'; readonly projectId: string }
 	| { readonly type: 'recents-expansion-toggled' }
-	| { readonly type: 'standalone-activated' }
 	| { readonly type: 'workspace-activated'; readonly workspaceId: string };
 
 type ProjectWorkspaceRejection = 'project-not-found' | 'workspace-not-found';
@@ -112,16 +57,10 @@ export interface ProjectWorkspaceTransition {
 
 export function createProjectWorkspaceState(): ProjectWorkspaceState {
 	return {
-		activeLocation: { kind: 'standalone' },
+		activeLocation: { kind: 'no-workspace' },
 		expandedProjectIds: [],
-		nextProjectSequence: 1,
-		nextResourceScopeSequence: 1,
-		nextTerminalContextSequence: 2,
-		nextWorkspaceSequence: 1,
 		projects: [],
 		recentsExpanded: true,
-		resourceScopes: [],
-		standaloneTerminalContextId: 'terminal-context-1',
 		workspaces: [],
 	};
 }
@@ -157,10 +96,6 @@ function transition(
 			});
 		case 'recents-expansion-toggled':
 			return applied({ ...state, recentsExpanded: !state.recentsExpanded });
-		case 'standalone-activated':
-			return state.activeLocation.kind === 'standalone'
-				? unchanged(state)
-				: applied({ ...state, activeLocation: { kind: 'standalone' } });
 		case 'workspace-activated':
 			return activateWorkspace(state, event.workspaceId);
 	}
@@ -221,7 +156,6 @@ function rejected(
 }
 
 function assertProjectWorkspaceInvariants(state: ProjectWorkspaceState): void {
-	assertWorkbenchSharedProjectWorkspaceInvariants(state);
 	const projectIds = new Set(state.projects.map((project) => project.id));
 	const workspaceIds = new Set(state.workspaces.map((workspace) => workspace.id));
 	const expanded = new Set<string>();

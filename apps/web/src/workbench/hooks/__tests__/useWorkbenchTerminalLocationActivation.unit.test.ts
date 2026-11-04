@@ -27,7 +27,7 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 				return activate;
 			},
 			{
-				initialProps: { projection: standaloneProjection(), suspend: false },
+				initialProps: { projection: thirdWorkspaceProjection(), suspend: false },
 				wrapper: ({ children }) => createElement(Suspense, { fallback: null }, children),
 			},
 		);
@@ -50,7 +50,7 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 		const requestTerminalFocus = vi.fn<(targetLocation: WorkbenchActiveLocation) => boolean>(
 			() => true,
 		);
-		let properties = standaloneProjection();
+		let properties = thirdWorkspaceProjection();
 		const rendered = renderHook(
 			({ activeLocation, terminalTargetAvailable }) =>
 				useWorkbenchTerminalLocationActivation({
@@ -76,7 +76,7 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 		expect(requestTerminalFocus).toHaveBeenCalledOnce();
 	});
 
-	it('waits for the Action result when standalone publication arrives first', async () => {
+	it('waits for the Action result when the target Workspace publication arrives first', async () => {
 		const pending = pendingActionExecution('activation-1');
 		const requestTerminalFocus = vi.fn<(targetLocation: WorkbenchActiveLocation) => boolean>(
 			() => true,
@@ -93,8 +93,8 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 			{ initialProps: properties },
 		);
 
-		act(() => rendered.result.current(standaloneLocation, 'pointer'));
-		properties = { activeLocation: { kind: 'standalone' }, terminalTargetAvailable: true };
+		act(() => rendered.result.current(thirdWorkspaceLocation, 'pointer'));
+		properties = { activeLocation: thirdWorkspaceLocation, terminalTargetAvailable: true };
 		rendered.rerender(properties);
 		expect(requestTerminalFocus).not.toHaveBeenCalled();
 
@@ -118,7 +118,7 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 		);
 		const rendered = renderHook(() =>
 			useWorkbenchTerminalLocationActivation({
-				activeLocation: { kind: 'standalone' },
+				activeLocation: thirdWorkspaceLocation,
 				invokeLocationActivation,
 				requestTerminalFocus,
 				terminalTargetAvailable: true,
@@ -130,7 +130,7 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 		expect(invokeLocationActivation).toHaveBeenNthCalledWith(1, workspaceLocation, 'button');
 		expect(requestTerminalFocus).not.toHaveBeenCalled();
 
-		act(() => rendered.result.current(standaloneLocation, 'pointer'));
+		act(() => rendered.result.current(thirdWorkspaceLocation, 'pointer'));
 		await pointer.settle({ kind: 'cancelled' });
 		expect(requestTerminalFocus).not.toHaveBeenCalled();
 	});
@@ -144,7 +144,7 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 		);
 		const rendered = renderHook(() =>
 			useWorkbenchTerminalLocationActivation({
-				activeLocation: { kind: 'standalone' },
+				activeLocation: thirdWorkspaceLocation,
 				invokeLocationActivation: () => {
 					const execution = executions.shift();
 					if (execution === undefined) throw new Error('Expected a pending activation.');
@@ -157,7 +157,7 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 
 		act(() => {
 			rendered.result.current(workspaceLocation, 'pointer');
-			rendered.result.current(standaloneLocation, 'pointer');
+			rendered.result.current(thirdWorkspaceLocation, 'pointer');
 		});
 		await first.settle({ kind: 'completed' });
 		expect(requestTerminalFocus).not.toHaveBeenCalled();
@@ -168,7 +168,7 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 	});
 });
 
-const standaloneLocation = { kind: 'standalone' } as const;
+const thirdWorkspaceLocation = { kind: 'workspace', workspaceId: 'workspace-3' } as const;
 const workspaceLocation = {
 	kind: 'workspace',
 
@@ -189,12 +189,12 @@ function workspaceProjection(): {
 	};
 }
 
-function standaloneProjection(): {
+function thirdWorkspaceProjection(): {
 	readonly activeLocation: WorkbenchActiveLocation;
 	readonly terminalTargetAvailable: boolean;
 } {
 	return {
-		activeLocation: standaloneLocation,
+		activeLocation: thirdWorkspaceLocation,
 		terminalTargetAvailable: true,
 	};
 }

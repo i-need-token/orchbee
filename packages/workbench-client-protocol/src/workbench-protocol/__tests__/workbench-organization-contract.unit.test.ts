@@ -78,7 +78,6 @@ it('bounds grouped and ungrouped membership independently and preserves display 
 			workspaceOrder: navigation.workspaceOrder.slice(1),
 		}),
 	).toBe(false);
-	expect(admitsNavigation({ ...navigation, standaloneTerminalContextId: id(2) })).toBe(false);
 });
 
 it('admits the worst escaped Workspace launch under the dedicated 96 KiB class', () => {

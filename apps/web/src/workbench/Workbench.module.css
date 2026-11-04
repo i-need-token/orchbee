@@ -136,6 +136,11 @@
 	flex-direction: row;
 }
 
+.noWorkspaceChrome {
+	flex: none;
+	height: var(--ob-comp-workbench-horizontal-chrome-height);
+}
+
 .tabContent {
 	min-height: 0;
 	min-width: 0;

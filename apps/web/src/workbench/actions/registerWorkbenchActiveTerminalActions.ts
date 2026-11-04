@@ -51,11 +51,13 @@ export function registerWorkbenchActiveTerminalActions({
 }: RegisterWorkbenchActiveTerminalActionsOptions): readonly ActionDisposable[] {
 	/** The TUI's Close key retries a close that stopped on the active Tab before it closes anything. */
 	const activeTabCloseStopped = (): boolean => {
-		if (stoppedTabClose === undefined) return false;
-		const { panelWorkspaceStore, terminalContextId } =
-			projectWorkspaceRuntime.getActiveTerminalContext();
-		const activeTabId = panelWorkspaceStore.getActiveTabId();
-		return activeTabId !== null && stoppedTabClose(terminalContextId, activeTabId) !== null;
+		const terminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
+		if (stoppedTabClose === undefined || terminalContext === null) return false;
+		const activeTabId = terminalContext.panelWorkspaceStore.getActiveTabId();
+		return (
+			activeTabId !== null &&
+			stoppedTabClose(terminalContext.terminalContextId, activeTabId) !== null
+		);
 	};
 	const terminalCategory = {
 		id: 'terminal',
@@ -572,8 +574,8 @@ function resolvePanelPositionForContext(
 		return { kind: 'unavailable', reason: 'panel-unavailable' };
 	}
 	const terminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
-	const activeTabId = terminalContext.panelWorkspaceStore.getActiveTabId();
-	if (activeTabId === null) {
+	const activeTabId = terminalContext?.panelWorkspaceStore.getActiveTabId() ?? null;
+	if (terminalContext === null || activeTabId === null) {
 		return { kind: 'unavailable', reason: 'active-tab-unavailable' };
 	}
 	const activeTab = terminalContext.panelWorkspaceStore
@@ -599,6 +601,7 @@ function resolveForContext(
 		return { kind: 'unavailable', reason: 'panel-unavailable' };
 	}
 	const terminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
+	if (terminalContext === null) return { kind: 'unavailable', reason: 'active-tab-unavailable' };
 	return resolveActiveTerminalCommand({
 		activeTabId: terminalContext.panelWorkspaceStore.getActiveTabId(),
 		command,

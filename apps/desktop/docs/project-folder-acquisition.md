@@ -25,18 +25,18 @@ renderer filesystem access are excluded.
 
 ## Selection data and ownership
 
-| Mutable fact                                     | Sole owner                                                                       |
-| ------------------------------------------------ | -------------------------------------------------------------------------------- |
-| Current acquisition target and phase             | Mounted Workbench Folder-acquisition workflow                                    |
-| Renderer request identity and completion         | Electron Folder-acquisition client                                               |
-| One active native operation                      | Desktop Folder-acquisition broker                                                |
-| Native dialog and path observation               | Desktop Folder-acquisition runtime                                               |
-| Project organization and scoped Folder resources | The Server, through Workbench Actions                                            |
-| Renderer-document capability lifetime            | `DesktopServerClientApplication`, together with the document's Server connection |
+| Mutable fact                                   | Sole owner                                                                       |
+| ---------------------------------------------- | -------------------------------------------------------------------------------- |
+| Current acquisition phase                      | Mounted Workbench Folder-acquisition workflow                                    |
+| Renderer request identity and completion       | Electron Folder-acquisition client                                               |
+| One active native operation                    | Desktop Folder-acquisition broker                                                |
+| Native dialog and path observation             | Desktop Folder-acquisition runtime                                               |
+| Project organization and Workspace Directories | The Server, through Workbench Actions                                            |
+| Renderer-document capability lifetime          | `DesktopServerClientApplication`, together with the document's Server connection |
 
 The Workbench workflow has `idle`, `selecting`, `failed`, and terminal `disposed` phases. A
-`selecting` phase contains one target: `create-project` or `add-project-folder(ResourceScopeId)`. The
-Electron renderer client separately owns the correlated request identity. The protocol result is
+selection only creates a Project, so `selecting` holds no target. The Electron renderer client
+separately owns the correlated request identity. The protocol result is
 exactly one of `selected(Path)`, `cancelled`, or `failed(FailureCode)`.
 
 ## Selection path policy
@@ -94,8 +94,8 @@ behavior above.
 | Filesystem commit       | Successful non-recursive `mkdir` creates one absent directory. Main consumes the parent token and retains the exact request/path receipt until acknowledgement or Main-lifetime fallback reporting.                                                                                      |
 | Known no effect         | Invalid name, parent validation failure, or rejected atomic mkdir leaves the parent selected. A corrected name can be explicitly submitted with a new attempt; an old attempt is never replayed.                                                                                         |
 | Created but unavailable | Validation after successful mkdir failed. Preserve and display the created path; do not create a Project, delete the Folder or retry mkdir.                                                                                                                                              |
-| Opening                 | Retain the actual Project-create `ActionExecution` and await its result. The Action settles only once the Server's publication carries the Project, so exact receipt validation reads the current document with no flush.                                                                |
-| Opened                  | The exact Workspace/resource-scope/Directory/path/context/first-presentation receipt is still canonical and current; the existing Workspace activation Action accepts that exact destination. First-shell provisioning or failure remains terminal-lifecycle-owned.                      |
+| Opening                 | Retain the actual Project-create `ActionExecution` and await its result. The Action settles only once the Server's publication carries the Project, so exact receipt validation reads the current publication with no flush.                                                             |
+| Opened                  | The exact Workspace/Directory/path/context/first-presentation receipt is still canonical and current; the existing Workspace activation Action accepts that exact destination. First-shell provisioning or failure remains terminal-lifecycle-owned.                                     |
 | Created but not opened  | Action, publication, exact-target or activation failure retains the Folder and any already committed Project facts. Display the path and offer the existing Select Folder recovery.                                                                                                      |
 | Outcome unknown         | Transport retirement after submission cannot prove whether mkdir committed. Display parent/name, preserve content, and allow only Select Folder recovery; never replay creation.                                                                                                         |
 | Retirement              | Cancel uncommitted queued Actions and fence every continuation. Main retains any unacknowledged created-path receipt and reports it through a localized native message while Main survives. There is no process-exit guarantee, persistent recovery, automatic rollback or quit barrier. |
@@ -120,8 +120,9 @@ provisioning authority and never causes automatic deletion, Project replay or na
 The Project-create Action returns its captured transition receipt, not a later active Workspace.
 The Server's Workspace launch creates the Project, its Primary Workspace,
 terminal context, Tab and first presentation in the selected Folder, and the receipt names what that
-launch created. The Server publishes no launch directory for a presentation, so receipt validation
-compares a presentation's launch directory only where the document records one. A document that
+launch created. Receipt validation checks that the Workspace still records the receipt's Directory,
+path, and terminal context and that the context still holds the first presentation; the Server
+publishes no launch directory for a presentation, so none is compared. A renderer document that
 ends after the Server accepted the launch but before its publication arrived leaves a Project that
 Main still reports as unconfirmed; the report therefore points to Select Folder only when the
 Project is missing from the sidebar.
@@ -138,4 +139,4 @@ Deterministic owner tests cover explicit submission, separate filesystem and Pro
 | Electron-only capability delivery            | Protocol schema, preload bridge, and renderer client tests                                                                            | A trusted Electron renderer holding the port may request a dialog without a second user-gesture proof. |
 | Observable native integration                | Manual current-platform inspection; the Desktop system trace with an injected native selector retired with the Desktop Electron suite | No automated test drives the real macOS, Windows, or Linux system picker UI.                           |
 
-Project membership in creation receipts is informational. Moving or dissolving a group cannot invalidate a source resource namespace or exact Workspace receipt. Folder addition uses `resourceScopeId`; a closed or replaced exact Workspace cannot be reactivated by a late result.
+Project membership in creation receipts is informational. Moving or dissolving a group cannot invalidate an exact Workspace receipt, and a closed or replaced exact Workspace cannot be reactivated by a late result.

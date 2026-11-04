@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	oneWorkspaceSnapshot,
 	snapshotTab,
@@ -19,7 +20,7 @@ describe('findActiveTerminalFocusTarget', () => {
 
 	it('prefers the terminal textbox in the active Tab focused Panel', () => {
 		const runtime = createRuntime();
-		const activeTab = runtime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot().tabs[0];
+		const activeTab = activeTerminalContext(runtime).panelWorkspaceStore.getSnapshot().tabs[0];
 		if (activeTab === undefined) throw new Error('Expected the initial Tab.');
 		const viewport = document.createElement('section');
 		viewport.dataset['slot'] = 'workbench-terminal-viewport';
@@ -33,7 +34,7 @@ describe('findActiveTerminalFocusTarget', () => {
 
 	it('falls back to the matching viewport and rejects another Panel', () => {
 		const runtime = createRuntime();
-		const activeTab = runtime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot().tabs[0];
+		const activeTab = activeTerminalContext(runtime).panelWorkspaceStore.getSnapshot().tabs[0];
 		if (activeTab === undefined) throw new Error('Expected the initial Tab.');
 		const otherViewport = document.createElement('section');
 		otherViewport.dataset['slot'] = 'workbench-terminal-viewport';

@@ -16,17 +16,17 @@ const otherWorkspaceLocation = {
 
 	workspaceId: 'workspace-2',
 } as const;
-const standaloneLocation = { kind: 'standalone' } as const;
+const thirdWorkspaceLocation = { kind: 'workspace', workspaceId: 'workspace-3' } as const;
 
 describe('transitionWorkbenchTerminalLocationActivation', () => {
-	it('focuses once when pointer activation settles before the standalone projection', () => {
-		const requested = pointerRequest(mountedState(), 1, standaloneLocation);
+	it('focuses once when pointer activation settles before the target Workspace projection', () => {
+		const requested = pointerRequest(mountedState(), 1, thirdWorkspaceLocation);
 		expect(requested.commands).toEqual([
 			{
 				kind: 'invoke-location-activation',
 				requestId: 1,
 				source: 'pointer',
-				targetLocation: standaloneLocation,
+				targetLocation: thirdWorkspaceLocation,
 			},
 		]);
 
@@ -37,12 +37,12 @@ describe('transitionWorkbenchTerminalLocationActivation', () => {
 		});
 		expect(accepted.commands).toEqual([]);
 
-		const focused = observeStandalone(accepted.state, true);
+		const focused = observeThirdWorkspace(accepted.state, true);
 		expect(focused).toEqual({
-			commands: [{ kind: 'request-terminal-focus', targetLocation: standaloneLocation }],
+			commands: [{ kind: 'request-terminal-focus', targetLocation: thirdWorkspaceLocation }],
 			state: { kind: 'idle' },
 		});
-		expect(observeStandalone(focused.state, true).commands).toEqual([]);
+		expect(observeThirdWorkspace(focused.state, true).commands).toEqual([]);
 	});
 
 	it('focuses a Workspace once when its projection arrives before pointer activation settles', () => {
@@ -78,17 +78,17 @@ describe('transitionWorkbenchTerminalLocationActivation', () => {
 	});
 
 	it('does not focus after failed activation or a different non-target projection', () => {
-		const requested = pointerRequest(mountedState(), 1, standaloneLocation);
+		const requested = pointerRequest(mountedState(), 1, thirdWorkspaceLocation);
 		const failed = transitionWorkbenchTerminalLocationActivation(requested.state, {
 			kind: 'activation-settled',
 			outcome: 'rejected',
 			requestId: 1,
 		});
 		expect(failed).toEqual({ commands: [], state: { kind: 'idle' } });
-		expect(observeStandalone(failed.state, true).commands).toEqual([]);
+		expect(observeThirdWorkspace(failed.state, true).commands).toEqual([]);
 
 		const supersededLocation = transitionWorkbenchTerminalLocationActivation(
-			pointerRequest(mountedState(), 2, standaloneLocation).state,
+			pointerRequest(mountedState(), 2, thirdWorkspaceLocation).state,
 			{
 				activeLocation: {
 					kind: 'workspace',
@@ -103,7 +103,7 @@ describe('transitionWorkbenchTerminalLocationActivation', () => {
 	});
 
 	it('lets the latest pointer request win and ignores a stale settlement', () => {
-		const first = pointerRequest(mountedState(), 1, standaloneLocation);
+		const first = pointerRequest(mountedState(), 1, thirdWorkspaceLocation);
 		const latest = pointerRequest(first.state, 2, otherWorkspaceLocation);
 		const stale = transitionWorkbenchTerminalLocationActivation(latest.state, {
 			kind: 'activation-settled',
@@ -128,7 +128,7 @@ describe('transitionWorkbenchTerminalLocationActivation', () => {
 			origin: 'other',
 			originLocation: workspaceLocation,
 			requestId: 1,
-			targetLocation: standaloneLocation,
+			targetLocation: thirdWorkspaceLocation,
 		});
 		expect(activation).toEqual({
 			commands: [
@@ -136,12 +136,12 @@ describe('transitionWorkbenchTerminalLocationActivation', () => {
 					kind: 'invoke-location-activation',
 					requestId: 1,
 					source: 'button',
-					targetLocation: standaloneLocation,
+					targetLocation: thirdWorkspaceLocation,
 				},
 			],
 			state: { kind: 'idle' },
 		});
-		expect(observeStandalone(activation.state, true).commands).toEqual([]);
+		expect(observeThirdWorkspace(activation.state, true).commands).toEqual([]);
 		expect(
 			transitionWorkbenchTerminalLocationActivation(activation.state, {
 				kind: 'activation-settled',
@@ -152,7 +152,7 @@ describe('transitionWorkbenchTerminalLocationActivation', () => {
 	});
 
 	it('drops pending focus intent on non-pointer activation and disposal', () => {
-		const pointer = pointerRequest(mountedState(), 1, standaloneLocation);
+		const pointer = pointerRequest(mountedState(), 1, thirdWorkspaceLocation);
 		const keyboard = transitionWorkbenchTerminalLocationActivation(pointer.state, {
 			kind: 'activate',
 			origin: 'other',
@@ -173,7 +173,7 @@ describe('transitionWorkbenchTerminalLocationActivation', () => {
 			kind: 'dispose',
 		});
 		expect(disposed).toEqual({ commands: [], state: { kind: 'disposed' } });
-		expect(observeStandalone(disposed.state, true)).toEqual(disposed);
+		expect(observeThirdWorkspace(disposed.state, true)).toEqual(disposed);
 	});
 });
 
@@ -187,7 +187,7 @@ function mountedState(): WorkbenchTerminalLocationActivationState {
 function pointerRequest(
 	state: WorkbenchTerminalLocationActivationState,
 	requestId: number,
-	targetLocation: typeof standaloneLocation | typeof otherWorkspaceLocation,
+	targetLocation: typeof thirdWorkspaceLocation | typeof otherWorkspaceLocation,
 ) {
 	return transitionWorkbenchTerminalLocationActivation(state, {
 		kind: 'activate',
@@ -198,16 +198,16 @@ function pointerRequest(
 	});
 }
 
-function observeStandalone(
+function observeThirdWorkspace(
 	state: WorkbenchTerminalLocationActivationState,
 	terminalTargetAvailable: boolean,
 ) {
-	return observeLocation(state, standaloneLocation, terminalTargetAvailable);
+	return observeLocation(state, thirdWorkspaceLocation, terminalTargetAvailable);
 }
 
 function observeLocation(
 	state: WorkbenchTerminalLocationActivationState,
-	activeLocation: typeof standaloneLocation | typeof otherWorkspaceLocation,
+	activeLocation: typeof thirdWorkspaceLocation | typeof otherWorkspaceLocation,
 	terminalTargetAvailable: boolean,
 ) {
 	return transitionWorkbenchTerminalLocationActivation(state, {

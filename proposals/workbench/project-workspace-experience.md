@@ -10,9 +10,8 @@
 ## Current foundation
 
 `apps/web`'s Workbench already owns the in-memory Project, Directory, Workspace, active-location, Tab,
-Panel, and terminal-presentation composition. The browser preview supports synthetic Folder paths
-without filesystem or Git effects. Those implemented facts are maintained by the current authority
-and are not repeated here.
+Panel, and terminal-presentation composition, projected from the Server's snapshots. Those
+implemented facts are maintained by the current authority and are not repeated here.
 
 The next phase follows [native runtime topology](../platform/native-runtime-topology.md): Server owns canonical Workbench state and authorization; Worker owns filesystem, Git and terminal effects; Desktop retains native pickers and Client platform adapters; Web owns interaction and presentation. The TypeScript model is the current implementation, not a requirement to retain canonical state ownership in the future.
 
@@ -65,16 +64,15 @@ terminal-CWD handling, Git ordering, and recovery.
 
 ## Launch configuration and remaining durability
 
-Workbench currently models launch-configuration identity and selection but does not define an
-executable payload. A later owner must define command, arguments, environment, secret references,
-platform applicability, validation, execution failure, and duplication semantics before real launch
-configuration execution.
+Workbench models no launch configuration: a Workspace's new terminals start in its Directory. A
+later owner must define launch-configuration identity, selection, command, arguments, environment,
+secret references, platform applicability, validation, execution failure, and duplication semantics
+before real launch configuration execution.
 
-Desktop already persists the canonical shared Workbench document and durable terminal intent. Any
-expansion beyond that local authority must continue to respect the shared-document and client-view
-ownership split. Client View recovery, missing Directory reconciliation, external filesystem
-changes, cross-device synchronization, and conflict handling require their own accepted behavior and
-recovery evidence.
+The Server holds the canonical Workbench state, and each window keeps only its own Client View over
+the Server's snapshots. Any expansion must keep that split. Client View recovery, missing Directory
+reconciliation, external filesystem changes, cross-device synchronization, and conflict handling
+require their own accepted behavior and recovery evidence.
 
 ## Exclusions
 

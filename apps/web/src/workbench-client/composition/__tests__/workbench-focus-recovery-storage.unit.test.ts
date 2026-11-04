@@ -1,108 +1,49 @@
-import { createDefaultWorkbenchClientView, createWorkbenchClientView } from '../../../workbench';
 import { describe, expect, it } from 'vitest';
-import {
-	terminalPresentationId,
-	createWorkbenchSharedDocument,
-	workbenchSharedDocumentRevision,
-} from '@orchbee/workbench-client-protocol';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
+import {
+	activeTerminalContext,
+	createSnapshotRuntime,
+	fixturePanelId,
+	fixturePresentationId,
+	fixtureTabId,
+	oneWorkspaceSnapshot,
+	snapshotPanel,
+	snapshotPresentation,
+	snapshotPublication,
+	snapshotSplit,
+	snapshotTab,
+} from '../../../__tests__/server-workbench-snapshot';
+import {
+	createDefaultWorkbenchClientView,
+	resolveActiveTerminalPresentationId,
+} from '../../../workbench';
 import {
 	createFocusRecoveredWorkbenchClientView,
 	readWorkbenchFocusRecovery,
-	resolveFocusedWorkbenchPresentationId,
 	writeWorkbenchFocusRecovery,
 	type WorkbenchFocusRecoveryStorage,
 } from '../workbench-focus-recovery-storage';
 
 const EXPECTED_STORAGE_KEY = 'orchbee:web:terminal-focus-recovery:v1';
-const primaryPresentationId = terminalPresentationId('presentation-primary');
-const splitPresentationId = terminalPresentationId('presentation-split');
-const childPresentationId = terminalPresentationId('presentation-child');
-const otherTabPresentationId = terminalPresentationId('presentation-other-tab');
+const splitPresentationId = terminalPresentationId(fixturePresentationId(2));
+const otherTabPresentationId = terminalPresentationId(fixturePresentationId(3));
+const childPresentationId = terminalPresentationId(fixturePresentationId(4));
 
-const document = createWorkbenchSharedDocument({
-	projectWorkspace: {
-		nextResourceScopeSequence: 1,
-		resourceScopes: [],
-		workspaces: [],
-		nextProjectSequence: 1,
-		nextTerminalContextSequence: 2,
-		nextWorkspaceSequence: 1,
-		projects: [],
-		standaloneTerminalContextId: 'terminal-context-1',
-	},
-	revision: workbenchSharedDocumentRevision('0'),
-	terminalContexts: [
-		{
-			nextTabSequence: 3,
-			panelWorkspace: {
-				nextPanelSequence: 4,
-				nextPanelSlotSequence: 3,
-				nextSplitSequence: 2,
-				nextTerminalSequence: 5,
-				tabs: [
-					{
-						root: {
-							children: [
-								{
-									id: 'panel-slot-1',
-									node: {
-										childPresentations: [],
-										id: 'panel-1',
-										kind: 'panel',
-										primaryPresentation: presentation(primaryPresentationId, 'Terminal 1'),
-									},
-								},
-								{
-									id: 'panel-slot-2',
-									node: {
-										childPresentations: [presentation(childPresentationId, 'Agent child')],
-										id: 'panel-2',
-										kind: 'panel',
-										primaryPresentation: presentation(splitPresentationId, 'Terminal 2'),
-									},
-								},
-							],
-							id: 'split-1',
-							kind: 'split',
-							orientation: 'horizontal',
-						},
-						tabId: 'terminal-context-1-tab-1',
-					},
-					{
-						root: {
-							childPresentations: [],
-							id: 'panel-3',
-							kind: 'panel',
-							primaryPresentation: presentation(otherTabPresentationId, 'Terminal 3'),
-						},
-						tabId: 'terminal-context-1-tab-2',
-					},
-				],
-			},
-			tabCollection: {
-				groups: [],
-				tabs: [
-					{
-						customTitle: null,
-						group: null,
-						id: 'terminal-context-1-tab-1',
-						pinned: false,
-						title: 'Terminal 1',
-					},
-					{
-						customTitle: null,
-						group: null,
-						id: 'terminal-context-1-tab-2',
-						pinned: false,
-						title: 'Terminal 3',
-					},
-				],
-			},
-			terminalContextId: 'terminal-context-1',
-		},
-	],
-});
+/** Tab 1 splits Panels 1 and 2, and Panel 2 holds child Presentation 4; Tab 2 holds Panel 3. */
+const snapshot = oneWorkspaceSnapshot(1, [
+	snapshotTab(
+		1,
+		snapshotSplit(
+			1,
+			'horizontal',
+			snapshotPanel(1),
+			snapshotPanel(2, snapshotPresentation(2), [snapshotPresentation(4)]),
+		),
+	),
+	snapshotTab(2, snapshotPanel(3)),
+]);
+const publication = snapshotPublication(snapshot);
 
 describe('Workbench focus recovery storage', () => {
 	it('strictly reads only one bounded presentation identity', () => {
@@ -163,83 +104,63 @@ describe('Workbench focus recovery storage', () => {
 	});
 
 	it('restores the exact Workspace, Tab, Panel and child for a surviving presentation', () => {
-		const defaultView = createDefaultWorkbenchClientView(document);
-		const recoveredPrimary = createFocusRecoveredWorkbenchClientView(document, splitPresentationId);
-		const recoveredChild = createFocusRecoveredWorkbenchClientView(document, childPresentationId);
+		const defaultView = createDefaultWorkbenchClientView(publication);
+		const recoveredPrimary = createFocusRecoveredWorkbenchClientView(
+			publication,
+			splitPresentationId,
+		);
+		const recoveredChild = createFocusRecoveredWorkbenchClientView(
+			publication,
+			childPresentationId,
+		);
 		const recoveredOtherTab = createFocusRecoveredWorkbenchClientView(
-			document,
+			publication,
 			otherTabPresentationId,
 		);
 
 		expect(recoveredPrimary?.terminalContexts[0]?.panelWorkspace.tabs[0]).toMatchObject({
-			focusedPanelId: 'panel-2',
+			focusedPanelId: fixturePanelId(2),
 			panels: [
-				{ activeChildPresentationId: null, panelId: 'panel-1' },
-				{ activeChildPresentationId: null, panelId: 'panel-2' },
+				{ activeChildPresentationId: null, panelId: fixturePanelId(1) },
+				{ activeChildPresentationId: null, panelId: fixturePanelId(2) },
 			],
 		});
 		expect(recoveredChild?.terminalContexts[0]?.panelWorkspace.tabs[0]).toMatchObject({
-			focusedPanelId: 'panel-2',
+			focusedPanelId: fixturePanelId(2),
 			panels: [
-				{ activeChildPresentationId: null, panelId: 'panel-1' },
-				{ activeChildPresentationId: childPresentationId, panelId: 'panel-2' },
+				{ activeChildPresentationId: null, panelId: fixturePanelId(1) },
+				{ activeChildPresentationId: childPresentationId, panelId: fixturePanelId(2) },
 			],
 		});
 		expect(recoveredOtherTab?.terminalContexts[0]?.tabCollection).toMatchObject({
-			activeTabId: 'terminal-context-1-tab-2',
-			selectedTabIds: ['terminal-context-1-tab-2'],
-			selectionAnchorId: 'terminal-context-1-tab-2',
+			activeTabId: fixtureTabId(2),
+			selectedTabIds: [fixtureTabId(2)],
+			selectionAnchorId: fixtureTabId(2),
 		});
 		expect(recoveredOtherTab?.terminalContexts[0]?.panelWorkspace.tabs[1]?.focusedPanelId).toBe(
-			'panel-3',
+			fixturePanelId(3),
 		);
 		expect(recoveredPrimary?.activeLocation).toEqual(defaultView.activeLocation);
 	});
 
-	it('ignores a stale presentation and resolves the currently displayed one', () => {
+	it('ignores a stale presentation, and a recovered window shows the stored one again', () => {
 		expect(
 			createFocusRecoveredWorkbenchClientView(
-				document,
-				terminalPresentationId('presentation-missing'),
+				publication,
+				terminalPresentationId(fixturePresentationId(9)),
 			),
 		).toBeUndefined();
-		expect(createFocusRecoveredWorkbenchClientView(document, null)).toBeUndefined();
+		expect(createFocusRecoveredWorkbenchClientView(publication, null)).toBeUndefined();
 
-		const recoveredChild = createFocusRecoveredWorkbenchClientView(document, childPresentationId);
-		if (recoveredChild === undefined) throw new Error('Expected a recovered Client View.');
-		expect(resolveFocusedWorkbenchPresentationId(document, recoveredChild)).toBe(
-			childPresentationId,
-		);
-
-		const context = recoveredChild.terminalContexts[0];
-		if (context === undefined) throw new Error('Expected one terminal context.');
-		const otherTabView = createWorkbenchClientView({
-			...recoveredChild,
-			terminalContexts: [
-				{
-					...context,
-					tabCollection: {
-						...context.tabCollection,
-						activeTabId: 'terminal-context-1-tab-2',
-						selectedTabIds: ['terminal-context-1-tab-2'],
-						selectionAnchorId: 'terminal-context-1-tab-2',
-					},
-				},
-			],
+		const runtime = createSnapshotRuntime(snapshot, {
+			clientView: createFocusRecoveredWorkbenchClientView(publication, childPresentationId),
 		});
-		expect(resolveFocusedWorkbenchPresentationId(document, otherTabView)).toBe(
-			otherTabPresentationId,
-		);
+		expect(resolveActiveTerminalPresentationId(runtime)).toBe(childPresentationId);
+
+		activeTerminalContext(runtime).tabModel.selectTab(fixtureTabId(2));
+		expect(resolveActiveTerminalPresentationId(runtime)).toBe(otherTabPresentationId);
 	});
 });
-
-function presentation(presentationId: ReturnType<typeof terminalPresentationId>, title: string) {
-	return {
-		intent: { kind: 'retain' as const },
-		presentationId,
-		title,
-	};
-}
 
 function createMemoryStorage(): WorkbenchFocusRecoveryStorage {
 	const values = new Map<string, string>();

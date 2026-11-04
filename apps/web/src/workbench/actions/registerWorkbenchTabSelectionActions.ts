@@ -177,7 +177,8 @@ function prepareAdjacentTabSelection({
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
 }): PreparedActionInvocation | null {
-	const snapshot = projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot();
+	const snapshot = projectWorkspaceRuntime.getActiveTerminalContext()?.tabModel.getSnapshot();
+	if (snapshot === undefined) return null;
 	const tabId = resolveAdjacentTabSelection({
 		activeTabId: snapshot.activeTabId,
 		direction,
@@ -199,7 +200,7 @@ function prepareTabPositionSelection({
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
 }): PreparedActionInvocation | null {
-	const tab = projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs[
+	const tab = projectWorkspaceRuntime.getActiveTerminalContext()?.tabModel.getSnapshot().tabs[
 		input.position - 1
 	];
 	if (tab === undefined) return null;

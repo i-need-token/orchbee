@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	oneWorkspaceSnapshot,
 	snapshotPanel,
@@ -442,11 +443,13 @@ function renderBroadcast() {
 
 /** Two running Panels side by side, as the Server publishes them. */
 function runningTwoPanelStore(): PanelWorkspaceStore {
-	return createSnapshotRuntime(
-		oneWorkspaceSnapshot(1, [
-			snapshotTab(1, snapshotSplit(1, 'horizontal', snapshotPanel(1), snapshotPanel(2))),
-		]),
-	).getActiveTerminalContext().panelWorkspaceStore;
+	return activeTerminalContext(
+		createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [
+				snapshotTab(1, snapshotSplit(1, 'horizontal', snapshotPanel(1), snapshotPanel(2))),
+			]),
+		),
+	).panelWorkspaceStore;
 }
 
 function deferred<Value>(): {

@@ -2,6 +2,7 @@ import { TabModel } from '@orchbee/tab-strip';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixturePanelId,
 	fixtureTabId,
@@ -14,14 +15,14 @@ import { PanelWorkspaceStore } from '../PanelWorkspaceStore';
 
 describe('PanelWorkspaceStore', () => {
 	it('publishes semantic transitions and reconciles the host-owned tab collection', () => {
-		const initialState = createSnapshotRuntime(
-			oneWorkspaceSnapshot(1, [
-				snapshotTab(1, snapshotSplit(1, 'horizontal', snapshotPanel(1), snapshotPanel(2))),
-				snapshotTab(3),
-			]),
-		)
-			.getActiveTerminalContext()
-			.panelWorkspaceStore.getSnapshot();
+		const initialState = activeTerminalContext(
+			createSnapshotRuntime(
+				oneWorkspaceSnapshot(1, [
+					snapshotTab(1, snapshotSplit(1, 'horizontal', snapshotPanel(1), snapshotPanel(2))),
+					snapshotTab(3),
+				]),
+			),
+		).panelWorkspaceStore.getSnapshot();
 		const tabModel = new TabModel({
 			activeTabId: fixtureTabId(1),
 			tabs: [

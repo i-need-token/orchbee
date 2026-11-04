@@ -2,13 +2,13 @@ import {
 	createDefaultWorkbenchClientView,
 	createWorkbenchClientView,
 	type WorkbenchClientView,
+	type WorkbenchPublication,
+	type WorkbenchPublishedTab,
 } from '../../workbench';
 import { z } from 'zod';
 import {
 	TerminalPresentationIdSchema,
 	type TerminalPresentationId,
-	type WorkbenchSharedDocument,
-	type WorkbenchSharedPanelNode,
 } from '@orchbee/workbench-client-protocol';
 
 const WORKBENCH_FOCUS_RECOVERY_STORAGE_KEY = 'orchbee:web:terminal-focus-recovery:v1';
@@ -55,24 +55,26 @@ export function writeWorkbenchFocusRecovery(
 	}
 }
 
+/**
+ * Opens the Workspace, Tab and Panel that show the terminal this window last focused, while the
+ * publication still holds it.
+ */
 export function createFocusRecoveredWorkbenchClientView(
-	document: WorkbenchSharedDocument,
+	publication: WorkbenchPublication,
 	presentationId: TerminalPresentationId | null,
 ): WorkbenchClientView | undefined {
 	if (presentationId === null) return undefined;
-	const location = findPresentationLocation(document, presentationId);
+	const location = findPresentationLocation(publication, presentationId);
 	if (location === null) return undefined;
-	const defaultView = createDefaultWorkbenchClientView(document);
-	const workspace = document.projectWorkspace.workspaces.find(
+	const workspace = publication.workspaces.find(
 		(candidate) => candidate.terminalContextId === location.terminalContextId,
 	);
+	if (workspace === undefined) return undefined;
+	const defaultView = createDefaultWorkbenchClientView(publication);
 	return createWorkbenchClientView({
-		activeLocation:
-			workspace === undefined
-				? { kind: 'standalone' }
-				: { kind: 'workspace', workspaceId: workspace.id },
+		activeLocation: { kind: 'workspace', workspaceId: workspace.id },
 		expandedProjectIds:
-			workspace?.projectId === null || workspace === undefined
+			workspace.projectId === null
 				? defaultView.expandedProjectIds
 				: [...new Set([...defaultView.expandedProjectIds, workspace.projectId])],
 		recentsExpanded: defaultView.recentsExpanded,
@@ -110,62 +112,17 @@ export function createFocusRecoveredWorkbenchClientView(
 	});
 }
 
-export function resolveFocusedWorkbenchPresentationId(
-	document: WorkbenchSharedDocument,
-	view: WorkbenchClientView,
-): TerminalPresentationId | null {
-	const terminalContextId = resolveActiveTerminalContextId(document, view);
-	if (terminalContextId === null) return null;
-	const terminalContext = document.terminalContexts.find(
-		(candidate) => candidate.terminalContextId === terminalContextId,
-	);
-	const terminalContextView = view.terminalContexts.find(
-		(candidate) => candidate.terminalContextId === terminalContextId,
-	);
-	const activeTabId = terminalContextView?.tabCollection.activeTabId;
-	if (
-		terminalContext === undefined ||
-		terminalContextView === undefined ||
-		activeTabId === null ||
-		activeTabId === undefined
-	) {
-		return null;
-	}
-	const tab = terminalContext.panelWorkspace.tabs.find(
-		(candidate) => candidate.tabId === activeTabId,
-	);
-	const tabView = terminalContextView.panelWorkspace.tabs.find(
-		(candidate) => candidate.tabId === activeTabId,
-	);
-	if (tab === undefined || tabView === undefined) return null;
-	const panel = findPanel(tab.root, tabView.focusedPanelId);
-	const panelView = tabView.panels.find(
-		(candidate) => candidate.panelId === tabView.focusedPanelId,
-	);
-	if (panel === null || panelView === undefined) return null;
-	const activeChildPresentationId = panelView.activeChildPresentationId;
-	if (
-		activeChildPresentationId !== null &&
-		panel.childPresentations.some(
-			(presentation) => presentation.presentationId === activeChildPresentationId,
-		)
-	) {
-		return activeChildPresentationId;
-	}
-	return panel.primaryPresentation.presentationId;
-}
-
 function findPresentationLocation(
-	document: WorkbenchSharedDocument,
+	publication: WorkbenchPublication,
 	presentationId: TerminalPresentationId,
 ): WorkbenchPresentationLocation | null {
-	for (const terminalContext of document.terminalContexts) {
-		for (const tab of terminalContext.panelWorkspace.tabs) {
+	for (const terminalContext of publication.terminalContexts) {
+		for (const tab of terminalContext.tabs) {
 			const panelLocation = findPresentationInPanelTree(tab.root, presentationId);
 			if (panelLocation === null) continue;
 			return {
 				...panelLocation,
-				tabId: tab.tabId,
+				tabId: tab.id,
 				terminalContextId: terminalContext.terminalContextId,
 			};
 		}
@@ -174,7 +131,7 @@ function findPresentationLocation(
 }
 
 function findPresentationInPanelTree(
-	node: WorkbenchSharedPanelNode,
+	node: WorkbenchPublishedTab['root'],
 	presentationId: TerminalPresentationId,
 ): Pick<WorkbenchPresentationLocation, 'activeChildPresentationId' | 'panelId'> | null {
 	if (node.kind === 'panel') {
@@ -192,31 +149,4 @@ function findPresentationInPanelTree(
 		if (location !== null) return location;
 	}
 	return null;
-}
-
-function findPanel(
-	node: WorkbenchSharedPanelNode,
-	panelId: string,
-): Extract<WorkbenchSharedPanelNode, { kind: 'panel' }> | null {
-	if (node.kind === 'panel') return node.id === panelId ? node : null;
-	for (const child of node.children) {
-		const panel = findPanel(child.node, panelId);
-		if (panel !== null) return panel;
-	}
-	return null;
-}
-
-function resolveActiveTerminalContextId(
-	document: WorkbenchSharedDocument,
-	view: WorkbenchClientView,
-): string | null {
-	const activeLocation = view.activeLocation;
-	if (activeLocation.kind === 'standalone') {
-		return document.projectWorkspace.standaloneTerminalContextId;
-	}
-	return (
-		document.projectWorkspace.workspaces.find(
-			(candidate) => candidate.id === activeLocation.workspaceId,
-		)?.terminalContextId ?? null
-	);
 }

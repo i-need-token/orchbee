@@ -17,19 +17,6 @@ export type {
 	TerminalPresentationId,
 	TerminalPresentationLifecycle,
 } from './terminal-presentation-contract';
-export {
-	createWorkbenchSharedDocument,
-	parseWorkbenchSharedDocument,
-	workbenchSharedDocumentRevision,
-} from './workbench-shared-document-contract';
-export type {
-	WorkbenchSharedDocument,
-	WorkbenchSharedDocumentRevision,
-	WorkbenchSharedPanelNode,
-	WorkbenchSharedPresentation,
-	WorkbenchSharedPresentationIntent,
-} from './workbench-shared-document-contract';
-export { assertWorkbenchSharedProjectWorkspaceInvariants } from './assertWorkbenchSharedProjectWorkspaceInvariants';
 
 export {
 	AGENT_INTEGRATION_PROVIDERS,

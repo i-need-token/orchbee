@@ -302,14 +302,8 @@ describe('createServerWorkbenchAuthority', () => {
 			{ kind: 'workspace.create-project', label: 'New', workspaceId: SECOND_WORKSPACE },
 		],
 		[
-			'renames a Workspace and leaves its directory alone',
-			{
-				launchConfigurationId: null,
-				name: 'Renamed',
-				primaryDirectoryId: 'elsewhere',
-				type: 'workspace-updated',
-				workspaceId: FIRST_WORKSPACE,
-			},
+			'renames a Workspace',
+			{ name: 'Renamed', type: 'workspace-updated', workspaceId: FIRST_WORKSPACE },
 			{ kind: 'workspace.rename', label: 'Renamed', workspaceId: FIRST_WORKSPACE },
 		],
 		[
@@ -656,7 +650,6 @@ describe('createServerWorkbenchAuthority', () => {
 				path: 'C:\\Users\\person',
 				presentationId: PRESENTATION,
 				projectId: null,
-				resourceScopeId: `resource-scope:${SECOND_WORKSPACE}`,
 				terminalContextId: SECOND_CONTEXT,
 				workspaceId: SECOND_WORKSPACE,
 			},

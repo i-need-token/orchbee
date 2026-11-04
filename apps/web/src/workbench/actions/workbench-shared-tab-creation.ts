@@ -43,17 +43,25 @@ const unavailable: ActionAvailability = {
 	reason: workbenchMessages.actionUnavailable,
 };
 
-/** Without a Workspace, only a plain New Tab means anything: it asks for the Workspace first. */
+const ACTIVE_TAB_UNAVAILABLE = { code: 'active-tab-unavailable', kind: 'blocked' } as const;
+
+/**
+ * Without a Workspace, only a plain New Tab means anything: as the TUI's does, it starts a Workspace,
+ * while a Tab placed in a group or at a position waits for one.
+ */
 export function getSharedTabCreationAvailability(
 	runtime: WorkbenchProjectWorkspaceRuntime,
 	intent: TabStripTabCreationIntent,
 ): ActionAvailability {
-	if (runtime.getSnapshot().activeLocation.kind !== 'workspace') {
-		return intent.kind === 'new-tab' && intent.groupId === null ? { kind: 'enabled' } : unavailable;
+	const terminalContext = runtime.getActiveTerminalContext();
+	if (terminalContext === null) {
+		return intent.kind === 'new-tab' && intent.groupId === null && intent.index === undefined
+			? { kind: 'enabled' }
+			: unavailable;
 	}
 	if (intent.kind !== 'new-tab' || intent.index === undefined) return { kind: 'enabled' };
 	// A new Tab is never pinned, so the authority refuses one placed among the pinned Tabs.
-	const { tabs } = runtime.getActiveTerminalContext().tabModel.getSnapshot();
+	const { tabs } = terminalContext.tabModel.getSnapshot();
 	return intent.index < tabs.filter((tab) => tab.pinned).length ? unavailable : { kind: 'enabled' };
 }
 
@@ -62,7 +70,7 @@ export function getSharedTerminalCreationAvailability(
 	runtime: WorkbenchProjectWorkspaceRuntime,
 	input: WorkbenchTerminalCreateInput,
 ): ActionAvailability {
-	if (input.profile !== undefined && runtime.getSnapshot().activeLocation.kind !== 'workspace') {
+	if (input.profile !== undefined && runtime.getActiveTerminalContext() === null) {
 		return unavailable;
 	}
 	return getSharedTabCreationAvailability(runtime, {
@@ -88,10 +96,12 @@ export async function createSharedTab(
 	{ authority, beginTerminalHandover, runtime }: SharedTabCreationOptions,
 ): Promise<ActionResult<void>> {
 	const origin = runtime.getSnapshot().activeLocation;
+	const originContext = runtime.getActiveTerminalContext();
+	if (originContext === null) return ACTIVE_TAB_UNAVAILABLE;
 	const handover = beginTerminalHandover();
 	const created = await authority.createTab(context, {
 		...creation,
-		terminalContextId: runtime.getActiveTerminalContext().terminalContextId,
+		terminalContextId: originContext.terminalContextId,
 	});
 	if (created.kind !== 'completed' || created.value === undefined) return withoutReceipt(created);
 	const { tabId, terminalContextId } = created.value;
@@ -124,7 +134,7 @@ export function createSharedTerminal(
 			? createSharedTab(context, { cwd: directory.cwd, placement: null, ...launch }, options)
 			: { code: directory.reason, kind: 'blocked' };
 	}
-	const { tabs } = options.runtime.getActiveTerminalContext().tabModel.getSnapshot();
+	const tabs = options.runtime.getActiveTerminalContext()?.tabModel.getSnapshot().tabs ?? [];
 	const previous = input.index === undefined ? undefined : tabs[input.index - 1];
 	if (previous !== undefined) {
 		return createSharedTab(
@@ -145,8 +155,12 @@ export function createSharedTerminal(
 
 /** What a Duplicate started from, since it copies what the person was looking at when they asked. */
 function attentionOf(runtime: WorkbenchProjectWorkspaceRuntime): string {
-	const { activeTabId, selectedTabIds } = runtime.getActiveTerminalContext().tabModel.getSnapshot();
-	return JSON.stringify([runtime.getSnapshot().activeLocation, activeTabId, [...selectedTabIds]]);
+	const tabs = runtime.getActiveTerminalContext()?.tabModel.getSnapshot();
+	return JSON.stringify([
+		runtime.getSnapshot().activeLocation,
+		tabs?.activeTabId ?? null,
+		[...(tabs?.selectedTabIds ?? [])],
+	]);
 }
 
 /**
@@ -158,7 +172,9 @@ export async function duplicateSharedTabs(
 	tabIds: readonly string[],
 	{ authority, onStopped, runtime }: SharedTabDuplicationOptions,
 ): Promise<ActionResult<void>> {
-	const { tabModel, terminalContextId } = runtime.getActiveTerminalContext();
+	const active = runtime.getActiveTerminalContext();
+	if (active === null) return ACTIVE_TAB_UNAVAILABLE;
+	const { tabModel, terminalContextId } = active;
 	const requested = new Set(tabIds);
 	const sources = tabModel
 		.getSnapshot()

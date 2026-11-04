@@ -173,21 +173,12 @@ event grants HTML, raw VT, or a generic clipboard capability.
 
 Host-originated clipboard-write commit is a separate, request-bound flow. The transport forwards at most one pending bounded request per attachment, and the renderer automatically returns only an exact `clipboard-write-decision` containing the original attachment, sequence, and text plus the commit result. A transport that performs the write itself rejects mismatched and duplicate decisions and writes only for a positive transport-effect decision; no current transport does. A client-effect attachment performs its local Browser write first and uses the same exact decision only to consume the transport's pending request, so the transport cannot duplicate the effect.
 
-## Shared document and TerminalPresentation contracts
+## TerminalPresentation contract
 
-`workbench-shared-document-contract.ts` owns the current strict `WorkbenchSharedDocument`: its
-version-1 schema, canonical revision, creation, and parsing. `terminal-presentation-contract.ts`
-owns the TerminalPresentation identity and the five lifecycle states a Server Client can know:
-`running`, `exited`, `failed`, `launch-failed`, and `unbound`. Project and Workspace structural
-invariants live in `assertWorkbenchSharedProjectWorkspaceInvariants.ts`; shared-document
-parsing and Workbench transitions apply the same checks, so neither accepts a structure that the
-other rejects.
-
-`apps/web`'s Workbench consumes these contracts and retains Client View, document transitions,
-projection, hydration, reconciliation, and terminal-theme revisions. Its
-[shared-document reference](../../apps/web/docs/shared-workbench-document.md) remains the semantic
-description of the document shape, presentation intent, and invariants. Applications and protocol
-packages parse stored or transported documents here without importing the React Workbench.
+`terminal-presentation-contract.ts` owns the TerminalPresentation identity and the five lifecycle
+states a Server Client can know: `running`, `exited`, `failed`, `launch-failed`, and `unbound`.
+`apps/web` projects each parsed Server snapshot into the stores its Workbench holds, as its
+[publication reference](../../apps/web/docs/publication-and-client-view.md) describes.
 
 ## Verification
 

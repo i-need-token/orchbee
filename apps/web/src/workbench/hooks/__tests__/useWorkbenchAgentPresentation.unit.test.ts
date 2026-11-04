@@ -6,6 +6,7 @@ import { createElement, type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixturePresentationId,
 	fixtureTabId,
@@ -22,7 +23,7 @@ describe('useWorkbenchAgentPresentation', () => {
 		const projectWorkspaceRuntime = createSnapshotRuntime(
 			oneWorkspaceSnapshot(1, [snapshotTab(1)]),
 		);
-		const { panelWorkspaceStore, tabModel } = projectWorkspaceRuntime.getActiveTerminalContext();
+		const terminalContext = activeTerminalContext(projectWorkspaceRuntime);
 		let snapshot: WorkbenchAgentSnapshot = {
 			complete: true,
 			presentations: new Map([
@@ -45,11 +46,10 @@ describe('useWorkbenchAgentPresentation', () => {
 				useWorkbenchAgentPresentation({
 					navigateAgent: () => undefined,
 					notificationObserver: undefined,
-					panelWorkspaceStore,
 					projectWorkspaceRuntime,
 					root: { current: null },
 					source,
-					tabModel,
+					terminalContext,
 				}),
 			{
 				wrapper: ({ children }: { readonly children: ReactNode }) =>

@@ -2,6 +2,7 @@ export { Workbench } from './Workbench';
 
 export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 export { matchesWorkbenchProjectCreation } from './model/matchesWorkbenchProjectCreation';
+export { resolveActiveTerminalPresentationId } from './utils/resolveActiveTerminalPresentationId';
 export {
 	readWorkbenchClientSelection,
 	readWorkbenchShownPresentationId,
@@ -58,7 +59,11 @@ export type {
 	WorkbenchTabCloseStop,
 } from './types/workbench-authority';
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';
-export type { WorkbenchPublication } from './model/workbench-publication';
+export type {
+	WorkbenchPublication,
+	WorkbenchPublishedTab,
+	WorkbenchPublishedTerminalContext,
+} from './model/workbench-publication';
 export { createDefaultWorkbenchClientView, createWorkbenchClientView } from './document';
 export type { WorkbenchClientView } from './document';
 

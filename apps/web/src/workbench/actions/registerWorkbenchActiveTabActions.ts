@@ -196,7 +196,8 @@ function activeTabActionDefinition<Id extends ActiveTabActionId>({
 	readonly title: ActionMessageDescriptor;
 }) {
 	const prepare = (context: ActionAvailabilityContext | ActionExecutionContext) => {
-		const next = command(projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot());
+		const tabModel = projectWorkspaceRuntime.getActiveTerminalContext()?.tabModel;
+		const next = tabModel === undefined ? null : command(tabModel.getSnapshot());
 		return next === null ? null : prepareLowerAction(context, runtime, scope, next);
 	};
 	return defineAction({

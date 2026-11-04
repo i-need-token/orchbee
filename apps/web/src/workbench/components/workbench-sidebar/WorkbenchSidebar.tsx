@@ -83,7 +83,7 @@ interface WorkbenchSidebarProps {
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly toggleRecentsExpansion: () => void;
 	readonly toggleWorkspaceAgents: (workspaceId: string) => void;
-	readonly updateWorkspace: (workspaceId: string, name: string, primaryDirectoryId: string) => void;
+	readonly updateWorkspace: (workspaceId: string, name: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
 	readonly workspaceLocationSource?: WorkbenchWorkspaceLocationSource | undefined;
 	/** Absent where the authority cannot reach Git for its Workspaces. */
@@ -377,12 +377,7 @@ export function WorkbenchSidebar({
 					onClose={workspaceRename.close}
 					onNameChange={workspaceRename.setName}
 					onSubmit={(name) => {
-						// Only the name changes; the Workspace keeps the directory it records.
-						updateWorkspace(
-							workspaceRename.workspace.id,
-							name,
-							workspaceRename.workspace.primaryDirectoryId,
-						);
+						updateWorkspace(workspaceRename.workspace.id, name);
 						workspaceRename.close();
 					}}
 					submitLabel={projectNavigationMessages.renameSubmit}

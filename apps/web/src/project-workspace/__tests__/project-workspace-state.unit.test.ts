@@ -12,34 +12,12 @@ function oneProjectState(): ProjectWorkspaceState {
 		activeLocation: { kind: 'workspace', workspaceId: 'workspace-1' },
 		expandedProjectIds: ['project-1'],
 		projects: [{ id: 'project-1', name: 'Project' }],
-		resourceScopes: [
-			{
-				directories: [
-					{
-						available: true,
-						git: null,
-						id: 'directory-a',
-						kind: 'folder',
-						name: 'directory-a',
-						path: '/projects/directory-a',
-						placement: { kind: 'local' },
-						source: 'selected',
-					},
-				],
-				id: 'resource-scope-1',
-				launchConfigurations: [],
-				name: 'Project',
-				primaryDirectoryId: 'directory-a',
-			},
-		],
 		workspaces: [
 			{
+				directory: { id: 'directory-a', path: '/projects/directory-a' },
 				id: 'workspace-1',
-				launchConfigurationId: null,
 				name: 'Primary',
-				primaryDirectoryId: 'directory-a',
 				projectId: 'project-1',
-				resourceScopeId: 'resource-scope-1',
 				terminalContextId: 'terminal-context-2',
 			},
 		],

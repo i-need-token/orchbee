@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixtureContextId,
 	fixturePanelId,
@@ -60,7 +61,7 @@ describe('current-directory terminal target resolution', () => {
 		reportCurrentDirectory(runtime, 1, '/primary');
 		reportCurrentDirectory(runtime, 2, '/second');
 		reportCurrentDirectory(runtime, 3, '/child');
-		const store = runtime.getActiveTerminalContext().panelWorkspaceStore;
+		const store = activeTerminalContext(runtime).panelWorkspaceStore;
 		store.transition({ panelId: fixturePanelId(2), tabId: fixtureTabId(1), type: 'panel-focused' });
 		store.transition({
 			childPresentationId: presentation(3),

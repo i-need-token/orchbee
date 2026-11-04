@@ -11,6 +11,7 @@ import { TAB_STRIP_ACTION_IDS, TabStripOrientation, type TabModel } from '@orchb
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixtureTabId,
 	oneWorkspaceSnapshot,
@@ -40,7 +41,7 @@ describe('registerWorkbenchActiveTabActions', () => {
 			[snapshotTab(1), snapshotTab(2), snapshotTab(3), snapshotTab(4)],
 			FIRST,
 		);
-		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
+		const model = activeTerminalContext(harness.projectWorkspaceRuntime).tabModel;
 		// Adding a Tab to the selection also makes it the active Tab.
 		model.toggleSelected(SECOND);
 		const lowerInputs = vi.fn<(actionId: string, input: unknown) => void>();
@@ -98,7 +99,7 @@ describe('registerWorkbenchActiveTabActions', () => {
 
 	it('moves the active Tab circularly through the prepared Tab Strip Action', async () => {
 		const harness = createHarness([snapshotTab(1), snapshotTab(2), snapshotTab(3)], FIRST);
-		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
+		const model = activeTerminalContext(harness.projectWorkspaceRuntime).tabModel;
 		const lowerExecute = vi.fn<(input: TabMoveInput) => void>();
 		registerTabMovement(harness, (context, input) => {
 			lowerExecute(input);
@@ -129,7 +130,7 @@ describe('registerWorkbenchActiveTabActions', () => {
 
 	it('keeps circular movement inside the active Tab pinned partition', async () => {
 		const harness = createHarness([pinnedTab(5), pinnedTab(6), snapshotTab(1)], PINNED_A);
-		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
+		const model = activeTerminalContext(harness.projectWorkspaceRuntime).tabModel;
 		registerTabMovement(harness, (context, input) => {
 			applyMove(input, model);
 			context.markCommitted();
@@ -171,7 +172,7 @@ describe('registerWorkbenchActiveTabActions', () => {
 
 	it('re-resolves the active Tab at execution and blocks after lower disposal', async () => {
 		const harness = createHarness([snapshotTab(1), snapshotTab(2), snapshotTab(3)], FIRST);
-		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
+		const model = activeTerminalContext(harness.projectWorkspaceRuntime).tabModel;
 		const lowerExecute = vi.fn<(input: TabMoveInput) => void>();
 		const lowerRegistration = registerTabMovement(harness, (context, input) => {
 			lowerExecute(input);
@@ -246,7 +247,7 @@ function createHarness(tabs: readonly FixtureRecord[], activeTabId: string): Har
 	const runtime = new ActionRuntime();
 	const scope = runtime.createScope('workbench');
 	const projectWorkspaceRuntime = createSnapshotRuntime(oneWorkspaceSnapshot(1, tabs));
-	projectWorkspaceRuntime.getActiveTerminalContext().tabModel.selectTab(activeTabId);
+	activeTerminalContext(projectWorkspaceRuntime).tabModel.selectTab(activeTabId);
 	registerWorkbenchActiveTabActions({
 		projectWorkspaceRuntime,
 		runtime,

@@ -1,12 +1,14 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { agentObservationMessages, useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
-import type { TabStatusAdornment, TabStatusAdornmentKind, TabModel } from '@orchbee/tab-strip';
+import type { TabStatusAdornment, TabStatusAdornmentKind } from '@orchbee/tab-strip';
 import * as React from 'react';
 
 import { WorkbenchAgentProviderIcon } from '../components/workbench-agent-provider-icon/WorkbenchAgentProviderIcon';
-import type { PanelWorkspaceStore } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 import { collectPanelLeaves } from '../components/workbench-panel-workspace/model/panel-workspace-state';
-import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
+import type {
+	WorkbenchProjectWorkspaceRuntime,
+	WorkbenchTerminalContext,
+} from '../model/WorkbenchProjectWorkspaceRuntime';
 import {
 	mostUrgentWorkbenchAgentState,
 	projectWorkbenchAgentOverview,
@@ -24,17 +26,18 @@ import {
 	formatWorkbenchAgentName,
 } from '../utils/workbench-agent-names';
 import { formatWorkbenchAgentStatus } from '../utils/formatWorkbenchAgentStatus';
+import { subscribeToNothing } from '../utils/subscribeToNothing';
 import { useWorkbenchAgentAttention } from './useWorkbenchAgentAttention';
 import { useWorkbenchAgentNotifications } from './useWorkbenchAgentNotifications';
 
 interface UseWorkbenchAgentPresentationOptions {
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly notificationObserver: WorkbenchAgentNotificationObserver | undefined;
-	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly root: React.RefObject<HTMLElement | null>;
 	readonly source: WorkbenchAgentSource | undefined;
-	readonly tabModel: TabModel;
+	/** The active Workspace's context, whose Tabs carry Agent marks; null while none is open. */
+	readonly terminalContext: WorkbenchTerminalContext | null;
 }
 
 interface WorkbenchAgentPresentationView {
@@ -49,6 +52,8 @@ interface WorkbenchAgentPresentationView {
 /** The TUI's `STATUS_GLYPHS`: a folded Workspace shows this many states, or one fewer and `+N`. */
 const FOLDED_STATUS_GLYPHS = 5;
 
+const NO_PANEL_TABS: readonly [] = [];
+
 const TAB_ADORNMENT_KINDS: Readonly<Record<WorkbenchAgentState, TabStatusAdornmentKind>> = {
 	blocked: 'attention',
 	done: 'success',
@@ -61,11 +66,10 @@ const TAB_ADORNMENT_KINDS: Readonly<Record<WorkbenchAgentState, TabStatusAdornme
 export function useWorkbenchAgentPresentation({
 	navigateAgent,
 	notificationObserver,
-	panelWorkspaceStore,
 	projectWorkspaceRuntime,
 	root,
 	source,
-	tabModel,
+	terminalContext,
 }: UseWorkbenchAgentPresentationOptions): WorkbenchAgentPresentationView {
 	const agentIconGradientPrefix = React.useId().replaceAll(':', '');
 	const intl = useOrchbeeIntl();
@@ -80,11 +84,13 @@ export function useWorkbenchAgentPresentation({
 		presentation: snapshot,
 		unread,
 		terminalEdited,
-	} = useWorkbenchAgentAttention(source, panelWorkspaceStore, tabModel, root, painted);
-	const panelWorkspaceState = React.useSyncExternalStore(
-		panelWorkspaceStore.subscribe,
-		panelWorkspaceStore.getSnapshot,
-		panelWorkspaceStore.getSnapshot,
+	} = useWorkbenchAgentAttention(source, terminalContext, root, painted);
+	const panelWorkspaceStore = terminalContext?.panelWorkspaceStore;
+	const readPanelTabs = () => panelWorkspaceStore?.getSnapshot().tabs ?? NO_PANEL_TABS;
+	const panelTabs = React.useSyncExternalStore(
+		panelWorkspaceStore?.subscribe ?? subscribeToNothing,
+		readPanelTabs,
+		readPanelTabs,
 	);
 	const terminalTopologyRevision = React.useSyncExternalStore(
 		projectWorkspaceRuntime.subscribeTerminalTopology,
@@ -108,7 +114,7 @@ export function useWorkbenchAgentPresentation({
 		const identityIcons = new Map<string, React.ReactNode>();
 		const statusAdornments = new Map<string, Readonly<TabStatusAdornment>>();
 		const unreadLabel = intl.formatMessage(agentObservationMessages.statusUnread);
-		for (const tab of panelWorkspaceState.tabs) {
+		for (const tab of panelTabs) {
 			const presentationIds = collectPanelLeaves(tab.root).flatMap((panel) => [
 				panel.primaryPresentation.presentationId,
 				...panel.childPresentations.map((presentation) => presentation.presentationId),
@@ -138,7 +144,7 @@ export function useWorkbenchAgentPresentation({
 			});
 		}
 		return { identityIcons, statusAdornments };
-	}, [agentIconGradientPrefix, intl, panelWorkspaceState, snapshot, unread]);
+	}, [agentIconGradientPrefix, intl, panelTabs, snapshot, unread]);
 	const workspaceAgentOverviews = React.useMemo(() => {
 		if (terminalTopologyRevision !== projectWorkspaceRuntime.getTerminalTopologyRevision()) {
 			return [];

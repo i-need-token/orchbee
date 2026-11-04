@@ -11,8 +11,8 @@ export interface WorkbenchEmptyWorkspace {
 }
 
 /**
- * Says what the TUI's empty Workspace says. A shared Workbench's only unavailable directory stands in
- * for a Workspace that has none, where no Tab can start until one is set, which this Client cannot do.
+ * Says what the TUI's empty Workspace says. A Workspace without a directory starts no Tab until one
+ * is set, which this Client cannot do.
  */
 export function projectWorkbenchEmptyWorkspace(
 	state: ProjectWorkspaceState,
@@ -22,10 +22,8 @@ export function projectWorkbenchEmptyWorkspace(
 	if (location.kind !== 'workspace') return null;
 	const workspace = state.workspaces.find((candidate) => candidate.id === location.workspaceId);
 	if (workspace === undefined) return null;
-	const directory = state.resourceScopes
-		.find((scope) => scope.id === workspace.resourceScopeId)
-		?.directories.find((candidate) => candidate.id === workspace.primaryDirectoryId);
-	if (directory?.available !== true) {
+	const directory = workspace.directory;
+	if (directory === null) {
 		return {
 			fact: intl.formatMessage(workbenchMessages.workspaceEmptyNoDirectory),
 			newTabLabel: null,

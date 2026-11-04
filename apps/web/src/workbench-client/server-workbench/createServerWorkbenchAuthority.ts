@@ -27,7 +27,6 @@ import {
 	panelTerminalCreated,
 } from './server-workbench-panels';
 import { serverProfileLaunch, tabCreateAction, tabsChangeAction } from './server-workbench-tabs';
-import { serverResourceScopeId } from './serverResourceScopeId';
 import { serverWorkbenchResult } from './serverWorkbenchResult';
 import type { ServerWorkbenchAction } from './ServerWorkbenchSession';
 import { workspaceLaunchAction, type ServerWorkspacePlacement } from './workspace-launch';
@@ -136,7 +135,6 @@ function changeAction(
 						},
 					});
 		}
-		// A Server Workspace's directory is not this Client's to change, so only the name travels.
 		case 'workspace-updated':
 			return readServerWorkbenchAction({
 				kind: 'workspace.rename',
@@ -301,7 +299,6 @@ export function createServerWorkbenchAuthority({
 									path: directory,
 									presentationId: outcome.presentationId,
 									projectId: outcome.projectId,
-									resourceScopeId: serverResourceScopeId(outcome.workspaceId),
 									terminalContextId: outcome.terminalContextId,
 									workspaceId: outcome.workspaceId,
 								},

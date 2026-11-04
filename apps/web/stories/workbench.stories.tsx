@@ -830,6 +830,21 @@ export const HiddenSidebar: Story = {
 	),
 };
 
+/** The window while the Server holds no Workspace. */
+export const NoWorkspace: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createStoryWorkbench({}).runtime,
+		shortcutPlatform: 'apple',
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
 export const UnifiedSearchAll: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),

@@ -7,9 +7,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	createSnapshotRuntime,
+	fixtureDirectoryId,
 	fixturePresentationId,
 	fixtureProjectId,
 	fixtureTabId,
+	fixtureWorkspaceId,
 	oneWorkspaceSnapshot,
 	snapshotContext,
 	snapshotDirectory,
@@ -26,9 +28,14 @@ function renderWorkbench(
 	locale: OrchbeeLocale = 'en-US',
 	withProject = false,
 	collapseProject = false,
-	activateStandalone = false,
+	activateRecentWorkspace = false,
 ): string {
 	const tabs = [snapshotTab(1), snapshotTab(2)];
+	// A Workspace outside the Project, which Recents holds.
+	const recentWorkspaces = activateRecentWorkspace
+		? [snapshotWorkspace(2, { primaryDirectoryId: fixtureDirectoryId(1) })]
+		: [];
+	const recentContexts = activateRecentWorkspace ? [snapshotContext(2, [snapshotTab(3)])] : [];
 	const projectWorkspaceRuntime = createSnapshotRuntime(
 		withProject
 			? workbenchSnapshot(
@@ -38,9 +45,10 @@ function renderWorkbench(
 						projects: [snapshotProject(1, 'orchbee')],
 						workspaces: [
 							snapshotWorkspace(1, { label: 'Primary', projectId: fixtureProjectId(1) }),
+							...recentWorkspaces,
 						],
 					},
-					[snapshotContext(1, tabs)],
+					[snapshotContext(1, tabs), ...recentContexts],
 				)
 			: oneWorkspaceSnapshot(1, tabs),
 	);
@@ -50,7 +58,12 @@ function renderWorkbench(
 			type: 'project-expansion-toggled',
 		});
 	}
-	if (activateStandalone) projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+	if (activateRecentWorkspace) {
+		projectWorkspaceRuntime.transition({
+			type: 'workspace-activated',
+			workspaceId: fixtureWorkspaceId(2),
+		});
+	}
 	return renderToStaticMarkup(
 		createElement(
 			OrchbeeI18nProvider,
@@ -176,14 +189,14 @@ describe('Workbench', () => {
 
 	it('marks the folded Project hiding the active Workspace for sidebar focus, never as current', () => {
 		const activeMarkup = renderWorkbench(() => null, 'en-US', true, true);
-		const standaloneMarkup = renderWorkbench(() => null, 'en-US', true, true, true);
+		const recentMarkup = renderWorkbench(() => null, 'en-US', true, true, true);
 
 		expect(activeMarkup).toContain('aria-label="Expand project: orchbee"');
 		expect(activeMarkup).toMatch(
 			/<button(?=[^>]*data-slot="workbench-sidebar-project")(?=[^>]*data-holds-active-workspace="true")(?![^>]*data-active=)[^>]*>/,
 		);
 		expect(activeMarkup).not.toContain('data-slot="workbench-sidebar-workspace"');
-		expect(standaloneMarkup).not.toContain('data-holds-active-workspace');
+		expect(recentMarkup).not.toContain('data-holds-active-workspace');
 	});
 
 	it('restores the vertical tab-strip layout from host-provided storage', () => {

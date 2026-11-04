@@ -9,7 +9,6 @@ import type {
 } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import {
-	type TabModel,
 	type TabStripChangeCallback,
 	type TabStripCloseCallback,
 	type TabStripCloseConfirmation,
@@ -20,10 +19,7 @@ import {
 	type TabStripTabCreationIntent,
 } from '@orchbee/tab-strip';
 import * as React from 'react';
-import {
-	workbenchSharedDocumentRevision,
-	type UserLaunchProfile,
-} from '@orchbee/workbench-client-protocol';
+import type { UserLaunchProfile } from '@orchbee/workbench-client-protocol';
 
 import {
 	readWorkbenchLeftPanelWidth,
@@ -77,6 +73,7 @@ import type {
 } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
 import { resolveActiveTerminalPresentationId } from '../utils/resolveActiveTerminalPresentationId';
+import { subscribeToNothing } from '../utils/subscribeToNothing';
 import {
 	createSharedTab,
 	createSharedTerminal,
@@ -113,6 +110,21 @@ import {
 
 /** The TUI names this many Tabs in a close question and counts the rest. */
 const SHARED_TAB_CLOSE_NAMED_TABS = 3;
+
+const ACTIVE_TAB_UNAVAILABLE = { code: 'active-tab-unavailable', kind: 'blocked' } as const;
+
+/** The close of those requested Tabs the context still holds, in its strip's order. */
+function sharedTabsClosure(activeContext: WorkbenchTerminalContext, tabIds: readonly string[]) {
+	const requested = new Set(tabIds);
+	return {
+		tabIds: activeContext.tabModel
+			.getSnapshot()
+			.tabs.filter((tab) => requested.has(tab.id))
+			.map((tab) => tab.id),
+		terminalContextId: activeContext.terminalContextId,
+		type: 'tabs-close' as const,
+	};
+}
 
 interface ResizableLayoutChangedMeta {
 	readonly isUserInteraction: boolean;
@@ -152,7 +164,6 @@ interface WorkbenchView {
 		input?:
 			| { readonly projectId: string }
 			| {
-					readonly resourceScopeId: string;
 					readonly projectId: string | null;
 					readonly directoryId: string;
 			  },
@@ -228,10 +239,10 @@ interface WorkbenchView {
 	readonly cancelTabTitleEditor: () => void;
 	readonly submitTabTitleEditor: () => void;
 	readonly updateTabTitleEditor: (title: string) => void;
-	readonly terminalContext: WorkbenchTerminalContext;
+	/** The active Workspace's context; null while no Workspace is open. */
+	readonly terminalContext: WorkbenchTerminalContext | null;
 	readonly terminalAutoFocusAllowed: boolean;
 	readonly terminalFocusRequest: WorkbenchTerminalFocusRequest | null;
-	readonly tabModel: TabModel;
 	readonly hasVisibleTerminalTabs: boolean;
 	/** Only a shared Workbench says anything in place of a Workspace's missing Tabs. */
 	readonly emptyWorkspace: WorkbenchEmptyWorkspace | null;
@@ -247,7 +258,7 @@ interface WorkbenchView {
 		workspaceId: string,
 		origin: WorkbenchTerminalLocationActivationOrigin,
 	) => void;
-	readonly updateWorkspace: (workspaceId: string, name: string, primaryDirectoryId: string) => void;
+	readonly updateWorkspace: (workspaceId: string, name: string) => void;
 	/** Present when the authority reaches Git for its Workspaces. */
 	readonly worktreeCommands: WorkbenchWorktreeCommands | undefined;
 }
@@ -301,11 +312,12 @@ export function useWorkbench({
 		projectWorkspaceRuntime.getSnapshot,
 	);
 	const terminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
-	const tabModel = terminalContext.tabModel;
-	const tabModelSnapshot = React.useSyncExternalStore(
-		tabModel.subscribe,
-		tabModel.getSnapshot,
-		tabModel.getSnapshot,
+	const tabModel = terminalContext?.tabModel;
+	const readTabCount = () => tabModel?.getSnapshot().tabs.length ?? 0;
+	const tabCount = React.useSyncExternalStore(
+		tabModel?.subscribe ?? subscribeToNothing,
+		readTabCount,
+		readTabCount,
 	);
 	const [isSidebarVisible, setIsSidebarVisible] = React.useState(() =>
 		readWorkbenchSidebarVisibility(storage),
@@ -478,35 +490,28 @@ export function useWorkbench({
 					onStopped: authorityNotice.reportDuplicationStopped,
 					runtime: projectWorkspaceRuntime,
 				});
-			default:
-				return decider.change(context, {
-					change,
-					terminalContextId: projectWorkspaceRuntime.getActiveTerminalContext().terminalContextId,
-					type: 'tabs-changed',
-				});
+			default: {
+				const activeContext = projectWorkspaceRuntime.getActiveTerminalContext();
+				return activeContext === null
+					? ACTIVE_TAB_UNAVAILABLE
+					: decider.change(context, {
+							change,
+							terminalContextId: activeContext.terminalContextId,
+							type: 'tabs-changed',
+						});
+			}
 		}
 	});
 	/** In the order the strip shows them, which is the order a set of Tabs closes in. */
-	const sharedTabsClosure = (tabIds: readonly string[]) => {
-		const { tabModel: activeTabModel, terminalContextId } =
-			projectWorkspaceRuntime.getActiveTerminalContext();
-		const requested = new Set(tabIds);
-		return {
-			tabIds: activeTabModel
-				.getSnapshot()
-				.tabs.filter((tab) => requested.has(tab.id))
-				.map((tab) => tab.id),
-			terminalContextId,
-			type: 'tabs-close' as const,
-		};
-	};
 	const closeSharedTabs = async (
 		context: Parameters<TabStripCloseCallback>[0],
 		decider: WorkbenchAuthority,
 		tabIds: readonly string[],
 	): Promise<ActionResult<void>> => {
+		const activeContext = projectWorkspaceRuntime.getActiveTerminalContext();
+		if (activeContext === null) return ACTIVE_TAB_UNAVAILABLE;
 		const handover = focusRouting.beginTerminalHandover();
-		const result = await decider.close(context, sharedTabsClosure(tabIds));
+		const result = await decider.close(context, sharedTabsClosure(activeContext, tabIds));
 		if (result.kind === 'completed') handover.complete();
 		return result;
 	};
@@ -524,15 +529,17 @@ export function useWorkbench({
 		ReturnType<TabStripCloseConfirmation>
 	>((request) => {
 		const decider = authorityNotice.authority;
+		const activeContext = projectWorkspaceRuntime.getActiveTerminalContext();
 		const asks =
 			projectWorkspaceRuntime.getActiveTerminalTabsCloseConfirmationCount(request.tabIds) > 0 ||
 			// A shared set always asks, because one press ends more than the Tab under the pointer.
 			request.tabIds.length > 1;
-		if (!asks) return null;
-		const closure = sharedTabsClosure(request.tabIds);
-		const { tabModel: activeTabModel } = projectWorkspaceRuntime.getActiveTerminalContext();
+		if (!asks || activeContext === null) return null;
+		const closure = sharedTabsClosure(activeContext, request.tabIds);
 		const shown = closure.tabIds.slice(0, SHARED_TAB_CLOSE_NAMED_TABS);
-		const titles = new Map(activeTabModel.getSnapshot().tabs.map((tab) => [tab.id, tab.title]));
+		const titles = new Map(
+			activeContext.tabModel.getSnapshot().tabs.map((tab) => [tab.id, tab.title]),
+		);
 		return {
 			cancelLabel: workbenchMessages.panelCancel,
 			confirmLabel: workbenchMessages.panelClose,
@@ -577,13 +584,21 @@ export function useWorkbench({
 	const invokeAction = actions.invoke;
 	const closeResume = React.useMemo<TabStripCloseResume>(() => {
 		const decider = authorityNotice.authority;
-		const shownContext = () => projectWorkspaceRuntime.getActiveTerminalContext().terminalContextId;
+		const shownContext = () =>
+			projectWorkspaceRuntime.getActiveTerminalContext()?.terminalContextId ?? null;
 		return {
-			available: (tabId) => decider.stoppedTabClose(shownContext(), tabId) !== null,
+			available: (tabId) => {
+				const terminalContextId = shownContext();
+				return (
+					terminalContextId !== null && decider.stoppedTabClose(terminalContextId, tabId) !== null
+				);
+			},
 			resume: (tabId) => {
+				const terminalContextId = shownContext();
+				if (terminalContextId === null) return;
 				invokeAction(
 					WORKBENCH_ACTION_IDS.resumeTabClose,
-					{ tabId, terminalContextId: shownContext() },
+					{ tabId, terminalContextId },
 					'context-menu',
 				);
 			},
@@ -598,16 +613,15 @@ export function useWorkbench({
 		createTabWithProfile,
 	);
 	const invokeLocationActivation = useMemoizedFn(
-		(targetLocation: WorkbenchActiveLocation, source: 'button' | 'pointer') =>
-			targetLocation.kind === 'standalone'
-				? actions.invoke(WORKBENCH_ACTION_IDS.activateStandalone, undefined, source)
-				: actions.invoke(
-						WORKBENCH_ACTION_IDS.activateWorkspace,
-						{
-							workspaceId: targetLocation.workspaceId,
-						},
-						source,
-					),
+		(targetLocation: WorkbenchActiveLocation, source: 'button' | 'pointer') => {
+			// No Workspace opens by itself once none is left, so nothing activates it.
+			if (targetLocation.kind !== 'workspace') throw new Error('Only a Workspace activates.');
+			return actions.invoke(
+				WORKBENCH_ACTION_IDS.activateWorkspace,
+				{ workspaceId: targetLocation.workspaceId },
+				source,
+			);
+		},
 	);
 	const requestLocationTerminalFocus = useMemoizedFn(
 		(targetLocation: WorkbenchActiveLocation): boolean => {
@@ -741,10 +755,7 @@ export function useWorkbench({
 				location.kind === 'workspace' &&
 				location.workspaceId === receipt.workspaceId &&
 				(navigation === undefined || navigation.isActive?.(location) === true) &&
-				matchesWorkbenchProjectCreation(
-					projectWorkspaceRuntime.getSharedDocument(workbenchSharedDocumentRevision('0')),
-					receipt,
-				)
+				matchesWorkbenchProjectCreation(projectWorkspaceRuntime, receipt)
 			);
 		},
 		setWorkspaceProject: (workspaceId, projectId) => {
@@ -912,6 +923,7 @@ export function useWorkbench({
 		sidebarFocusRequest: focusRouting.sidebarFocusRequest,
 		setTabTitle: (tabId) => {
 			const activeTerminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
+			if (activeTerminalContext === null) return;
 			actions.invoke(
 				WORKBENCH_ACTION_IDS.setTabTitle,
 				{ kind: 'open', tabId, terminalContextId: activeTerminalContext.terminalContextId },
@@ -951,12 +963,9 @@ export function useWorkbench({
 		terminalContext,
 		terminalAutoFocusAllowed: focusRouting.terminalAutoFocusAllowed,
 		terminalFocusRequest: focusRouting.terminalFocusRequest,
-		tabModel,
-		hasVisibleTerminalTabs: tabModelSnapshot.tabs.length > 0,
+		hasVisibleTerminalTabs: tabCount > 0,
 		emptyWorkspace:
-			tabModelSnapshot.tabs.length > 0
-				? null
-				: projectWorkbenchEmptyWorkspace(projectWorkspaceState, intl),
+			tabCount > 0 ? null : projectWorkbenchEmptyWorkspace(projectWorkspaceState, intl),
 		tabStripOrientation,
 		tabStripFocusRequest: focusRouting.tabStripFocusRequest,
 		onTabStripOrientationChange: (orientation) => {
@@ -973,12 +982,8 @@ export function useWorkbench({
 		toggleRecentsExpansion: () => {
 			actions.invoke(WORKBENCH_ACTION_IDS.toggleRecentsExpansion, undefined, 'button');
 		},
-		updateWorkspace: (workspaceId, name, primaryDirectoryId) => {
-			actions.invoke(
-				WORKBENCH_ACTION_IDS.updateWorkspace,
-				{ name, primaryDirectoryId, workspaceId },
-				'button',
-			);
+		updateWorkspace: (workspaceId, name) => {
+			actions.invoke(WORKBENCH_ACTION_IDS.updateWorkspace, { name, workspaceId }, 'button');
 		},
 		updateSearch,
 		worktreeCommands:

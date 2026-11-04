@@ -150,7 +150,20 @@ describe('createWebApplicationRouting', () => {
 	});
 
 	it('applies Back navigation without appending another history entry', async () => {
-		const fixture = createRouting('/terminal');
+		const workspace2 = fixtureWorkspaceId(2);
+		const fixture = createRouting(
+			`/workspaces/${workspace2}/tabs/${fixtureTabId(2)}`,
+			createSnapshotRuntime(
+				workbenchSnapshot(
+					1,
+					{
+						directories: [snapshotDirectory(1), snapshotDirectory(2)],
+						workspaces: [snapshotWorkspace(1), snapshotWorkspace(2)],
+					},
+					[snapshotContext(1, [snapshotTab(1)]), snapshotContext(2, [snapshotTab(2)])],
+				),
+			),
+		);
 		await fixture.routing.router.load();
 		const initialLength = fixture.routing.router.history.length;
 
@@ -171,7 +184,10 @@ describe('createWebApplicationRouting', () => {
 
 		fixture.routing.router.history.back();
 		await fixture.routing.router.load();
-		expect(fixture.runtime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
+		expect(fixture.runtime.getSnapshot().activeLocation).toEqual({
+			kind: 'workspace',
+			workspaceId: workspace2,
+		});
 		expect(fixture.routing.router.history.length).toBe(initialLength + 1);
 		fixture.dispose();
 	});

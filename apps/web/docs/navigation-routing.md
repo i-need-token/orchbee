@@ -20,20 +20,17 @@ route tree through a separately accepted change before becoming current behavior
 
 ## Route tree
 
-| Path                                   | Resolution                                                           |
-| -------------------------------------- | -------------------------------------------------------------------- |
-| `/`                                    | Current canonical route from reconciled Client View                  |
-| `/terminal`                            | First standalone Tab or empty standalone context                     |
-| `/terminal/tabs`                       | First standalone Tab or `/terminal`                                  |
-| `/terminal/tabs/$tabId`                | Exact standalone Tab                                                 |
-| `/workspaces/$workspaceId`             | First Tab or empty Workspace context                                 |
-| `/workspaces/$workspaceId/tabs`        | First Tab or empty Workspace route                                   |
-| `/workspaces/$workspaceId/tabs/$tabId` | Exact Workspace and Tab, independent of grouping                     |
-| `/projects`                            | First globally ordered Workspace, including ungrouped, or standalone |
-| `/projects/$projectId`                 | First current member Workspace and its first Tab                     |
-| `/projects/$projectId/workspaces`      | Same current-member resolution                                       |
+| Path                                   | Resolution                                                                                |
+| -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `/`                                    | No Workspace while none exists; otherwise the canonical route from reconciled Client View |
+| `/workspaces/$workspaceId`             | First Tab or empty Workspace context                                                      |
+| `/workspaces/$workspaceId/tabs`        | First Tab or empty Workspace route                                                        |
+| `/workspaces/$workspaceId/tabs/$tabId` | Exact Workspace and Tab, independent of grouping                                          |
+| `/projects`                            | First globally ordered Workspace, including ungrouped, or `/`                             |
+| `/projects/$projectId`                 | First current member Workspace and its first Tab                                          |
+| `/projects/$projectId/workspaces`      | Same current-member resolution                                                            |
 
-Workspace links use stable Workspace/Tab identities. Old Project-qualified Workspace paths are outside the route tree. Group-only links still require the current Project. Missing explicit Workspace or Tab identity remains unavailable at the entered address and never selects a different entity. An empty group has no terminal route.
+As in the TUI, No Workspace is a location only while no Workspace exists, and `/` is its only path. Any path outside the tree shows the localized route-unavailable state. Workspace links use stable Workspace/Tab identities. Old Project-qualified Workspace paths are outside the route tree. Group-only links still require the current Project. Missing explicit Workspace or Tab identity remains unavailable at the entered address and never selects a different entity. An empty group has no terminal route.
 
 Incomplete routes resolve by authoritative order, then replace history with the deepest available canonical route. Parameters are stable IDs, encoded as one segment and decoded once. Query strings and fragments do not select objects. `/settings` and `/login` remain outside the current route tree.
 
@@ -41,9 +38,9 @@ Incomplete routes resolve by authoritative order, then replace history with the 
 
 The route is authoritative for the displayed location and active Tab. The Workbench Client View
 remains authoritative for non-routed local state such as expanded Projects, multi-selected Tabs,
-panel focus, split weights, and maximization. The shared Workbench document remains authoritative
-for Project, Workspace, Tab, Panel, and terminal membership and is never mutated merely by history
-navigation.
+panel focus, and maximization. The Server's publication remains authoritative for Project,
+Workspace, Tab, Panel, Split weight, and terminal membership, and history navigation never changes
+it.
 
 | Input                                    | Transition                                                                           |
 | ---------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -69,7 +66,7 @@ The navigation port exposes a read-only `isActive` predicate for the currently a
 - **Problem and inputs:** Reloading the Electron renderer replaces its in-memory Client View while
   the native window and the Server's Session survive. Without a
   client-local handoff, the active Tab falls back to its first Panel and later keyboard input can
-  reach a different terminal. Trusted inputs are the reconciled shared document and Client View;
+  reach a different terminal. Trusted inputs are the runtime's latest publication and reconciled Client View;
   the optional `sessionStorage` value is untrusted and strict-parsed at the Web composition
   boundary. Missing, malformed, unavailable, or stale input means no recovery hint.
 - **Data and ownership:** The Desktop composition owns one version-1
@@ -79,13 +76,13 @@ The navigation port exposes a read-only `isActive` predicate for the currently a
   for the process and terminal. The record is disposable with the Electron page-session lifetime
   and is neither shared nor durable application state.
 - **Outputs and model:** A deterministic projector starts from the default Client View and, when
-  the exact presentation still resolves, selects its stable Workspace (or standalone) and exact Tab, then restores that Tab's focused Panel and displayed child
+  the exact presentation still resolves, selects its stable Workspace and exact Tab, then restores that Tab's focused Panel and displayed child
   presentation. Subsequent explicit route navigation retains authority. Workbench's existing `autoFocus` projection
   moves real DOM focus only after the recovered terminal renderer is ready. A missing target is an
   intentional no-op that retains the default Client View.
-- **Transitions:** Every committed shared-document or Client View notification resolves its one
-  displayed terminal and replaces the session record; a view with no displayed terminal removes
-  it. Renderer bootstrap reads once and supplies the projected candidate to Workbench before route
+- **Transitions:** Every committed Client View or terminal-topology notification resolves its one
+  displayed terminal and, when it changed, replaces the session record; a view with no displayed
+  terminal removes it. Renderer bootstrap reads once and supplies the projected candidate to Workbench before route
   reconciliation. Storage read, write, removal, validation, or quota failure never blocks startup
   or changes the current in-memory focus.
 - **Invariants and exclusions:** At most one bounded presentation identity is stored per browsing
@@ -104,8 +101,8 @@ The navigation port exposes a read-only `isActive` predicate for the currently a
 - A canonical Tab route resolves to exactly one terminal context and one active Tab.
 - An empty-context canonical route resolves to exactly one terminal context and no active Tab.
 - A Workspace route is valid when the stable Workspace owns the terminal context containing the Tab; group membership does not participate.
-- A standalone route is valid only when the standalone terminal context contains the Tab.
-- Partial-route resolution uses document order and never depends on mutable display names, locale,
+- The no-Workspace route is valid only while no Workspace exists.
+- Partial-route resolution uses published order and never depends on mutable display names, locale,
   object enumeration, or asynchronous arrival order.
 - Applying the current route twice is idempotent.
 - A pushed in-app navigation creates one history entry; canonicalization and domain reconciliation
@@ -145,4 +142,4 @@ The packaging command builds the Web renderer before Desktop, packages the rende
 resource, and places the executable Terminal Host outside `app.asar`. Release verification must
 launch the unpacked application against `orchbee://app` and reject a candidate if the custom origin
 cannot load a nested canonical route. Reverting the release restores the previous renderer entry
-without migrating shared documents because routing changes Client View only.
+with no migration because routing changes only the Client View.

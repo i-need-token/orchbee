@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixtureDirectoryId,
 	fixturePresentationId,
@@ -125,8 +126,7 @@ function createOverviewFixture() {
 			[snapshotContext(1, [snapshotTab(1), snapshotTab(2)]), snapshotContext(2, [snapshotTab(3)])],
 		),
 	);
-	const secondTabTitle = runtime
-		.getActiveTerminalContext()
+	const secondTabTitle = activeTerminalContext(runtime)
 		.tabModel.getSnapshot()
 		.tabs.find((tab) => tab.id === fixtureTabId(2))?.title;
 	if (secondTabTitle === undefined) throw new Error('Expected the second Tab.');

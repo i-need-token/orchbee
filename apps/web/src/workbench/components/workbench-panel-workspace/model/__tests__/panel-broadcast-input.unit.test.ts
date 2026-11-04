@@ -247,10 +247,6 @@ function environmentFor(
 		conflictingInteraction: overrides.conflictingInteraction ?? false,
 		sinks,
 		state: {
-			nextPanelSequence: panels.length + 1,
-			nextPanelSlotSequence: panels.length * 2,
-			nextSplitSequence: panels.length,
-			nextTerminalSequence: panels.length + 1,
 			tabs: [
 				{
 					focusedPanelId: overrides.focusedPanelId ?? panels[0]?.id ?? 'missing',

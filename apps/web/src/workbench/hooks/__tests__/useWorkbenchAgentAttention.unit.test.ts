@@ -4,6 +4,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixturePresentationId,
 	oneWorkspaceSnapshot,
@@ -61,9 +62,9 @@ describe('Workbench Agent read visibility', () => {
 		element.append(layer);
 		document.body.append(element);
 		const root = { current: element };
-		const { panelWorkspaceStore: panels, tabModel } = createSnapshotRuntime(
-			oneWorkspaceSnapshot(1, [snapshotTab(1)]),
-		).getActiveTerminalContext();
+		const terminalContext = activeTerminalContext(
+			createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)])),
+		);
 		let snapshot = observation(1n);
 		const listeners = new Set<() => void>();
 		const source = {
@@ -77,7 +78,7 @@ describe('Workbench Agent read visibility', () => {
 		};
 		const painted = vi.fn<(shown: WorkbenchAgentSnapshot, ids: ReadonlySet<string>) => void>();
 		const rendered = renderHook(() =>
-			useWorkbenchAgentAttention(source, panels, tabModel, root, painted),
+			useWorkbenchAgentAttention(source, terminalContext, root, painted),
 		);
 		act(() => {
 			snapshot = observation(2n);

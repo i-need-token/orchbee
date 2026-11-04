@@ -4,8 +4,7 @@ import type { UserLaunchProfile } from '@orchbee/workbench-client-protocol';
 import * as React from 'react';
 
 import type { WorkbenchLaunchProfiles } from '../types/workbench-authority';
-
-const subscribeToNothing = (): (() => void) => () => undefined;
+import { subscribeToNothing } from '../utils/subscribeToNothing';
 
 /**
  * The New Tab button's menu, as in the TUI: every saved launch profile, the default first and marked

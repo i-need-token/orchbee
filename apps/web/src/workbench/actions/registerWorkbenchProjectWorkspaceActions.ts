@@ -8,7 +8,6 @@ import {
 	type TypedActionRuntime,
 } from '@orchbee/actions';
 import { workbenchMessages } from '@orchbee/i18n';
-import { workbenchSharedDocumentRevision } from '@orchbee/workbench-client-protocol';
 
 import { deriveProjectNameFromPath, type ProjectWorkspaceEvent } from '../../project-workspace';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
@@ -84,10 +83,6 @@ export function registerWorkbenchProjectWorkspaceActions({
 	scope,
 	typedRuntime,
 }: RegisterWorkbenchProjectWorkspaceActionsOptions): readonly ActionDisposable[] {
-	const categoryNavigation = {
-		id: 'navigation',
-		title: workbenchMessages.actionCategoryNavigation,
-	};
 	const categoryProjects = {
 		id: 'projects',
 		title: workbenchMessages.actionCategoryProjects,
@@ -98,10 +93,6 @@ export function registerWorkbenchProjectWorkspaceActions({
 		projectWorkspaceRuntime
 			.getSnapshot()
 			.workspaces.find((workspace) => workspace.id === input.workspaceId);
-	const resourcesFor = (resourceScopeId: string) =>
-		projectWorkspaceRuntime
-			.getSnapshot()
-			.resourceScopes.find((resource) => resource.id === resourceScopeId);
 	const projectExecution = {
 		concurrency: 'serialize' as const,
 		concurrencyKey: (input: WorkbenchProjectInput) => input.projectId,
@@ -228,34 +219,6 @@ export function registerWorkbenchProjectWorkspaceActions({
 		typedRuntime.register(
 			scope,
 			defineAction({
-				category: categoryNavigation,
-				execution: {
-					concurrency: 'parallel',
-					concurrencyKey: () => 'workbench',
-					mode: 'foreground',
-				},
-				getAvailability: () => ({
-					checked: projectWorkspaceRuntime.getSnapshot().activeLocation.kind === 'standalone',
-					kind: 'enabled',
-				}),
-				handler: {
-					execute: (context) =>
-						navigation === undefined
-							? resultFor(
-									transitionWithCommit(context, projectWorkspaceRuntime, {
-										type: 'standalone-activated',
-									}),
-								)
-							: navigation.navigate(context, { kind: 'standalone' }),
-				},
-				id: WORKBENCH_ACTION_IDS.activateStandalone,
-				input: noActionInput,
-				title: workbenchMessages.terminal,
-			}),
-		),
-		typedRuntime.register(
-			scope,
-			defineAction({
 				category: categoryProjects,
 				execution: {
 					concurrency: 'serialize',
@@ -348,10 +311,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 					const activeLocation = projectWorkspaceRuntime.getSnapshot().activeLocation;
 					return workspaceFor(input) === undefined ||
 						(input.creationReceipt !== undefined &&
-							!matchesWorkbenchProjectCreation(
-								projectWorkspaceRuntime.getSharedDocument(workbenchSharedDocumentRevision('0')),
-								input.creationReceipt,
-							))
+							!matchesWorkbenchProjectCreation(projectWorkspaceRuntime, input.creationReceipt))
 						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
 						: {
 								checked:
@@ -364,10 +324,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 					execute: (context, input) => {
 						if (
 							input.creationReceipt !== undefined &&
-							!matchesWorkbenchProjectCreation(
-								projectWorkspaceRuntime.getSharedDocument(workbenchSharedDocumentRevision('0')),
-								input.creationReceipt,
-							)
+							!matchesWorkbenchProjectCreation(projectWorkspaceRuntime, input.creationReceipt)
 						)
 							return { code: 'project-creation-target-replaced', kind: 'blocked' };
 						if (navigation === undefined)
@@ -408,10 +365,10 @@ export function registerWorkbenchProjectWorkspaceActions({
 							? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
 							: { kind: 'enabled' };
 					}
-					const directory = resourcesFor(input.resourceScopeId)?.directories.find(
-						(candidate) => candidate.id === input.directoryId,
-					);
-					return directory?.available === true
+					// A recorded folder stays offered only while some Workspace still records it.
+					return projectWorkspaceRuntime
+						.getSnapshot()
+						.workspaces.some((workspace) => workspace.directory?.id === input.directoryId)
 						? { kind: 'enabled' }
 						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable };
 				},
@@ -544,9 +501,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 							return { code: 'workspace-not-found', kind: 'blocked' };
 						}
 						return commit(context, {
-							launchConfigurationId: workspace.launchConfigurationId,
 							name: input.name,
-							primaryDirectoryId: input.primaryDirectoryId,
 							type: 'workspace-updated',
 							workspaceId: input.workspaceId,
 						});

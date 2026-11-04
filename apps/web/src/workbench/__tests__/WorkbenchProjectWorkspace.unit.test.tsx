@@ -9,6 +9,7 @@ import { useEffect, useLayoutEffect, useRef, type ComponentProps, type ReactNode
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixtureContextId,
 	fixtureDirectoryId,
@@ -129,13 +130,14 @@ function receiptFor(
 	const workspace = runtime
 		.getSnapshot()
 		.workspaces.find((candidate) => candidate.id === fixtureWorkspaceId(sequence));
-	if (workspace === undefined) throw new Error('Expected the published Workspace.');
+	if (workspace?.directory === undefined || workspace.directory === null) {
+		throw new Error('Expected the published Workspace and its Directory.');
+	}
 	return {
-		directoryId: workspace.primaryDirectoryId,
+		directoryId: workspace.directory.id,
 		path: '/workspace/orchbee',
 		presentationId: fixturePresentationId(sequence),
 		projectId: workspace.projectId,
-		resourceScopeId: workspace.resourceScopeId,
 		terminalContextId: workspace.terminalContextId,
 		workspaceId: workspace.id,
 	};
@@ -313,9 +315,7 @@ describe('Workbench Project and Workspace management', () => {
 		fireEvent.click(within(dialog).getByRole('button', { name: 'Rename' }));
 		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 		expect(change).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
-			launchConfigurationId: null,
 			name: 'First only',
-			primaryDirectoryId: fixtureDirectoryId(1),
 			type: 'workspace-updated',
 			workspaceId: fixtureWorkspaceId(1),
 		});
@@ -514,7 +514,10 @@ describe('Workbench Project and Workspace management', () => {
 			navigationSnapshot(
 				1,
 				[ORCHBEE],
-				[{ label: 'Primary', sequence: 1, tabs: [snapshotTab(1), snapshotTab(2)] }],
+				[
+					{ label: 'Primary', sequence: 1, tabs: [snapshotTab(1), snapshotTab(2)] },
+					{ label: 'Elsewhere', projectId: null, sequence: 3, tabs: [snapshotTab(3)] },
+				],
 			),
 		);
 		const workspace = projectWorkspaceRuntime.getSnapshot().workspaces[0];
@@ -539,7 +542,10 @@ describe('Workbench Project and Workspace management', () => {
 				};
 			},
 		};
-		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+		projectWorkspaceRuntime.transition({
+			type: 'workspace-activated',
+			workspaceId: fixtureWorkspaceId(3),
+		});
 		renderWorkbench({
 			agentObservationSource: agentSource,
 			projectWorkspaceRuntime,
@@ -596,8 +602,13 @@ describe('Workbench Project and Workspace management', () => {
 	});
 
 	it('focuses the Workspace terminal only after pointer-click navigation is published', async () => {
-		const projectWorkspaceRuntime = createSnapshotRuntime(orchbeeSnapshot(1));
-		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+		const projectWorkspaceRuntime = createSnapshotRuntime(
+			orchbeeSnapshot(1, ['Primary', 'Secondary']),
+		);
+		projectWorkspaceRuntime.transition({
+			type: 'workspace-activated',
+			workspaceId: fixtureWorkspaceId(2),
+		});
 		const navigate = vi.fn<WorkbenchNavigationPort['navigate']>((context) => {
 			context.markCommitted();
 			return { kind: 'completed' };
@@ -617,7 +628,10 @@ describe('Workbench Project and Workspace management', () => {
 				workspaceId: fixtureWorkspaceId(1),
 			}),
 		);
-		expect(projectWorkspaceRuntime.getSnapshot().activeLocation.kind).toBe('standalone');
+		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+			kind: 'workspace',
+			workspaceId: fixtureWorkspaceId(2),
+		});
 		expect(document.activeElement).toBe(workspaceButton);
 
 		act(() => {
@@ -636,8 +650,13 @@ describe('Workbench Project and Workspace management', () => {
 	});
 
 	it('keeps keyboard activation of a Workspace button focus-neutral', async () => {
-		const projectWorkspaceRuntime = createSnapshotRuntime(orchbeeSnapshot(1));
-		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+		const projectWorkspaceRuntime = createSnapshotRuntime(
+			orchbeeSnapshot(1, ['Primary', 'Secondary']),
+		);
+		projectWorkspaceRuntime.transition({
+			type: 'workspace-activated',
+			workspaceId: fixtureWorkspaceId(2),
+		});
 		renderWorkbench({ projectWorkspaceRuntime, terminalSurface: FocusTestTerminalSurface });
 
 		const workspaceButton = screen.getByRole('button', { name: 'Primary' });
@@ -711,7 +730,7 @@ describe('Workbench Project and Workspace management', () => {
 		const projectWorkspaceRuntime = createSnapshotRuntime(
 			oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]),
 		);
-		const terminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
+		const terminalContext = activeTerminalContext(projectWorkspaceRuntime);
 		const firstTabId = fixtureTabId(1);
 		terminalContext.tabModel.selectTab(firstTabId);
 		const change = completingChange();

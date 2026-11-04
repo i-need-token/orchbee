@@ -1877,7 +1877,7 @@ beside the Server path. These choices stand unless review changes them:
   publication, and every change it asks for is a `WorkbenchAuthority` command. The window itself
   changes only what it shows: the selected location and Tab, Project and Recents expansion, focus,
   the maximized Panel, and the displayed child terminal. The Project-Workspace reducer keeps those
-  four location events and the Panel reducer seven events.
+  three location events and the Panel reducer seven events.
 - **No route creates a terminal.** Every terminal comes from the Server, so a route to an empty
   Workspace shows that Workspace without starting one.
 - **A stopped terminal has no surface.** The Server publishes running, ended, and failed-to-start
@@ -1906,9 +1906,20 @@ beside the Server path. These choices stand unless review changes them:
   records and storage keys are retired without reading or deleting old data. Browser storage keeps
   only this device's values: the seven host appearance leaves, macOS Option-as-Alt, keyboard
   shortcut overrides, layout widths, and focus recovery.
+- **Snapshots project straight into the stores.** `projectServerSnapshot` turns each Server
+  snapshot into one `WorkbenchPublication` in the shapes the Tab and Panel stores hold, and a
+  context keeps its live stores while its projection is unchanged. The revisioned shared document,
+  its protocol contract and invariant checks, and the resource scopes, launch configurations, and
+  Worktree Directory kind that only it carried are deleted. Focus recovery, the window title, and
+  Project creation receipts read the runtime's stores.
+- **No Workspace replaces the standalone terminal context.** As in the TUI, a window shows No
+  Workspace only while the Server holds no Workspace, and its main area stays blank beside the
+  sidebar's fixed rows. A plain New Tab there runs New Workspace, while New Tab in a group, at a
+  position, or with a launch profile waits for a Workspace. `/` is that location's path, and the
+  `/terminal` routes are deleted, so an old address shows the route-unavailable state.
 
-Not done yet: dropping the shared-document intermediate so snapshots project straight into the view
-model, and settling the standalone terminal context, whose routes and location kind remain.
+Not done yet: two decisions remain open, starting an Agent from the empty board and closing a child
+terminal, which stays disabled under the Server.
 
 ### Evidence
 

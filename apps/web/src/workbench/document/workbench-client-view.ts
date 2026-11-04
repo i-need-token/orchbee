@@ -1,16 +1,23 @@
+import type { TabModelSnapshot } from '@orchbee/tab-strip/model';
 import { z } from 'zod';
+import { TerminalPresentationIdSchema } from '@orchbee/workbench-client-protocol';
+
+import type { ProjectWorkspaceState, WorkbenchWorkspace } from '../../project-workspace';
 import {
-	TerminalPresentationIdSchema,
-	type WorkbenchSharedDocument,
-	type WorkbenchSharedPanelNode,
-} from '@orchbee/workbench-client-protocol';
+	collectPanelLeaves,
+	type PanelWorkspaceState,
+} from '../components/workbench-panel-workspace/model/panel-workspace-state';
+import type {
+	WorkbenchPublication,
+	WorkbenchPublishedTab,
+	WorkbenchPublishedTerminalContext,
+} from '../model/workbench-publication';
 
 const identifierSchema = z.string().min(1);
 const nullableIdentifierSchema = identifierSchema.nullable();
-const weightSchema = z.number().finite().nonnegative();
 
 const activeLocationSchema = z.discriminatedUnion('kind', [
-	z.strictObject({ kind: z.literal('standalone') }),
+	z.strictObject({ kind: z.literal('no-workspace') }),
 	z.strictObject({
 		kind: z.literal('workspace'),
 		workspaceId: identifierSchema,
@@ -30,21 +37,10 @@ const panelViewSchema = z.strictObject({
 	panelId: identifierSchema,
 });
 
-const splitWeightSchema = z.strictObject({
-	slotId: identifierSchema,
-	weight: weightSchema,
-});
-
-const splitViewSchema = z.strictObject({
-	splitId: identifierSchema,
-	weights: z.array(splitWeightSchema),
-});
-
 const tabPanelViewSchema = z.strictObject({
 	focusedPanelId: identifierSchema,
 	maximizedPanelId: nullableIdentifierSchema,
 	panels: z.array(panelViewSchema),
-	splits: z.array(splitViewSchema),
 	tabId: identifierSchema,
 });
 
@@ -74,40 +70,81 @@ const WorkbenchClientViewSchema = workbenchClientViewBaseSchema.superRefine((vie
 
 export type WorkbenchClientView = z.infer<typeof WorkbenchClientViewSchema>;
 type WorkbenchClientViewInput = Omit<WorkbenchClientView, 'version'>;
+type TerminalContextView = WorkbenchClientView['terminalContexts'][number];
+type TabPanelView = TerminalContextView['panelWorkspace']['tabs'][number];
+
+/** What this Client's stores hold, from which its view is read. */
+interface WorkbenchClientViewSource {
+	readonly projectWorkspace: ProjectWorkspaceState;
+	readonly terminalContexts: readonly {
+		readonly panelWorkspace: PanelWorkspaceState;
+		readonly tabCollection: TabModelSnapshot;
+		readonly terminalContextId: string;
+	}[];
+}
 
 export function createWorkbenchClientView(input: WorkbenchClientViewInput): WorkbenchClientView {
 	return WorkbenchClientViewSchema.parse({ ...input, version: 1 });
 }
 
-export function parseWorkbenchClientView(value: unknown): WorkbenchClientView {
-	return WorkbenchClientViewSchema.parse(value);
-}
-
 export function createDefaultWorkbenchClientView(
-	document: WorkbenchSharedDocument,
+	publication: WorkbenchPublication,
 ): WorkbenchClientView {
-	return reconcileWorkbenchClientView(document, undefined);
+	return reconcileWorkbenchClientView(publication, undefined);
 }
 
+/** Reads what this Client chose out of its stores, which a publication then reconciles. */
+export function projectWorkbenchClientView(source: WorkbenchClientViewSource): WorkbenchClientView {
+	return createWorkbenchClientView({
+		activeLocation: { ...source.projectWorkspace.activeLocation },
+		expandedProjectIds: [...source.projectWorkspace.expandedProjectIds],
+		recentsExpanded: source.projectWorkspace.recentsExpanded,
+		terminalContexts: source.terminalContexts
+			.map(({ panelWorkspace, tabCollection, terminalContextId }) => ({
+				panelWorkspace: {
+					tabs: panelWorkspace.tabs.map((tab) => ({
+						focusedPanelId: tab.focusedPanelId,
+						maximizedPanelId: tab.maximizedPanelId,
+						panels: collectPanelLeaves(tab.root).map((panel) => ({
+							activeChildPresentationId: panel.activeChildPresentationId,
+							panelId: panel.id,
+						})),
+						tabId: tab.tabId,
+					})),
+				},
+				tabCollection: {
+					activeTabId: tabCollection.activeTabId,
+					collapsedGroupIds: tabCollection.groups
+						.filter((group) => group.collapsed)
+						.map((group) => group.id),
+					mostRecentGroupId: tabCollection.mostRecentGroupId,
+					selectedTabIds: tabCollection.tabs
+						.filter((tab) => tabCollection.selectedTabIds.has(tab.id))
+						.map((tab) => tab.id),
+					selectionAnchorId: tabCollection.selectionAnchorId,
+				},
+				terminalContextId,
+			}))
+			.sort((left, right) => compareIdentifiers(left.terminalContextId, right.terminalContextId)),
+	});
+}
+
+/** Keeps every choice of `candidate` that still names something `publication` holds. */
 export function reconcileWorkbenchClientView(
-	document: WorkbenchSharedDocument,
+	publication: WorkbenchPublication,
 	candidate: WorkbenchClientView | undefined,
 ): WorkbenchClientView {
-	const activeLocation = reconcileActiveLocation(
-		document.projectWorkspace.workspaces,
-		candidate?.activeLocation,
-	);
 	const expandedCandidates = new Set(candidate?.expandedProjectIds ?? []);
 	const candidateContexts = new Map(
 		(candidate?.terminalContexts ?? []).map((context) => [context.terminalContextId, context]),
 	);
 	return createWorkbenchClientView({
-		activeLocation,
-		expandedProjectIds: document.projectWorkspace.projects
+		activeLocation: reconcileActiveLocation(publication, candidate?.activeLocation),
+		expandedProjectIds: publication.projects
 			.filter((project) => expandedCandidates.has(project.id))
 			.map((project) => project.id),
 		recentsExpanded: candidate?.recentsExpanded ?? true,
-		terminalContexts: document.terminalContexts.map((terminalContext) =>
+		terminalContexts: publication.terminalContexts.map((terminalContext) =>
 			reconcileTerminalContextView(
 				terminalContext,
 				candidateContexts.get(terminalContext.terminalContextId),
@@ -116,30 +153,50 @@ export function reconcileWorkbenchClientView(
 	});
 }
 
+/** A Workspace that is gone gives way to the first one the sidebar lists, and the last one to none. */
 function reconcileActiveLocation(
-	workspaces: WorkbenchSharedDocument['projectWorkspace']['workspaces'],
+	publication: WorkbenchPublication,
 	candidate: WorkbenchClientView['activeLocation'] | undefined,
 ): WorkbenchClientView['activeLocation'] {
-	return candidate?.kind === 'workspace' &&
-		workspaces.some((workspace) => workspace.id === candidate.workspaceId)
-		? { ...candidate }
-		: { kind: 'standalone' };
+	if (
+		candidate?.kind === 'workspace' &&
+		publication.workspaces.some((workspace) => workspace.id === candidate.workspaceId)
+	) {
+		return { ...candidate };
+	}
+	const workspace = firstWorkspaceInDisplayOrder(publication);
+	return workspace === undefined
+		? { kind: 'no-workspace' }
+		: { kind: 'workspace', workspaceId: workspace.id };
+}
+
+/** The sidebar lists each Project's Workspaces in Project order, then Recents. */
+function firstWorkspaceInDisplayOrder(
+	publication: WorkbenchPublication,
+): WorkbenchWorkspace | undefined {
+	for (const project of publication.projects) {
+		const workspace = publication.workspaces.find(
+			(candidate) => candidate.projectId === project.id,
+		);
+		if (workspace !== undefined) return workspace;
+	}
+	return publication.workspaces.find((workspace) => workspace.projectId === null);
 }
 
 function reconcileTerminalContextView(
-	terminalContext: WorkbenchSharedDocument['terminalContexts'][number],
-	candidate: WorkbenchClientView['terminalContexts'][number] | undefined,
-): WorkbenchClientView['terminalContexts'][number] {
-	const tabIds = new Set(terminalContext.tabCollection.tabs.map((tab) => tab.id));
-	const groupIds = new Set(terminalContext.tabCollection.groups.map((group) => group.id));
+	terminalContext: WorkbenchPublishedTerminalContext,
+	candidate: TerminalContextView | undefined,
+): TerminalContextView {
+	const tabIds = new Set(terminalContext.tabs.map((tab) => tab.id));
+	const groupIds = new Set(terminalContext.groups.map((group) => group.id));
 	const activeTabId =
 		candidate?.tabCollection.activeTabId !== null &&
 		candidate?.tabCollection.activeTabId !== undefined &&
 		tabIds.has(candidate.tabCollection.activeTabId)
 			? candidate.tabCollection.activeTabId
-			: (terminalContext.tabCollection.tabs[0]?.id ?? null);
+			: (terminalContext.tabs[0]?.id ?? null);
 	const selectedCandidates = new Set(candidate?.tabCollection.selectedTabIds ?? []);
-	const selectedTabIds = terminalContext.tabCollection.tabs
+	const selectedTabIds = terminalContext.tabs
 		.filter((tab) => selectedCandidates.has(tab.id))
 		.map((tab) => tab.id);
 	if (activeTabId !== null && !selectedTabIds.includes(activeTabId))
@@ -147,13 +204,13 @@ function reconcileTerminalContextView(
 	const activeGroupId =
 		activeTabId === null
 			? null
-			: (terminalContext.tabCollection.tabs.find((tab) => tab.id === activeTabId)?.group ?? null);
+			: (terminalContext.tabs.find((tab) => tab.id === activeTabId)?.group ?? null);
 	const mostRecentGroupId =
 		candidate?.tabCollection.mostRecentGroupId !== null &&
 		candidate?.tabCollection.mostRecentGroupId !== undefined &&
 		groupIds.has(candidate.tabCollection.mostRecentGroupId)
 			? candidate.tabCollection.mostRecentGroupId
-			: (activeGroupId ?? terminalContext.tabCollection.groups.at(-1)?.id ?? null);
+			: (activeGroupId ?? terminalContext.groups.at(-1)?.id ?? null);
 	const selectionAnchorId =
 		candidate?.tabCollection.selectionAnchorId !== null &&
 		candidate?.tabCollection.selectionAnchorId !== undefined &&
@@ -166,13 +223,13 @@ function reconcileTerminalContextView(
 	);
 	return {
 		panelWorkspace: {
-			tabs: terminalContext.panelWorkspace.tabs.map((tab) =>
-				reconcileTabPanelView(tab, candidateTabs.get(tab.tabId)),
+			tabs: terminalContext.tabs.map((tab) =>
+				reconcileTabPanelView(tab, candidateTabs.get(tab.id)),
 			),
 		},
 		tabCollection: {
 			activeTabId,
-			collapsedGroupIds: terminalContext.tabCollection.groups
+			collapsedGroupIds: terminalContext.groups
 				.filter((group) => collapsedCandidates.has(group.id))
 				.map((group) => group.id),
 			mostRecentGroupId,
@@ -184,19 +241,14 @@ function reconcileTerminalContextView(
 }
 
 function reconcileTabPanelView(
-	tab: WorkbenchSharedDocument['terminalContexts'][number]['panelWorkspace']['tabs'][number],
-	candidate:
-		| WorkbenchClientView['terminalContexts'][number]['panelWorkspace']['tabs'][number]
-		| undefined,
-): WorkbenchClientView['terminalContexts'][number]['panelWorkspace']['tabs'][number] {
-	const panels: Extract<WorkbenchSharedPanelNode, { kind: 'panel' }>[] = [];
-	const splits: Extract<WorkbenchSharedPanelNode, { kind: 'split' }>[] = [];
-	visitPanelTree(tab.root, panels, splits);
+	tab: WorkbenchPublishedTab,
+	candidate: TabPanelView | undefined,
+): TabPanelView {
+	const panels = collectPanelLeaves(tab.root);
 	const panelIds = new Set(panels.map((panel) => panel.id));
 	const candidatePanels = new Map(candidate?.panels.map((panel) => [panel.panelId, panel]) ?? []);
-	const candidateSplits = new Map(candidate?.splits.map((split) => [split.splitId, split]) ?? []);
 	const firstPanelId = panels[0]?.id;
-	if (firstPanelId === undefined) throw new Error(`Tab ${tab.tabId} has no Panel.`);
+	if (firstPanelId === undefined) throw new Error(`Tab ${tab.id} has no Panel.`);
 	return {
 		focusedPanelId:
 			candidate !== undefined && panelIds.has(candidate.focusedPanelId)
@@ -223,52 +275,8 @@ function reconcileTabPanelView(
 				panelId: node.id,
 			};
 		}),
-		splits: splits.map((split) => ({
-			splitId: split.id,
-			weights: reconcileSplitWeights(split, candidateSplits.get(split.id)),
-		})),
-		tabId: tab.tabId,
+		tabId: tab.id,
 	};
-}
-
-function visitPanelTree(
-	node: WorkbenchSharedPanelNode,
-	panels: Extract<WorkbenchSharedPanelNode, { kind: 'panel' }>[],
-	splits: Extract<WorkbenchSharedPanelNode, { kind: 'split' }>[],
-): void {
-	if (node.kind === 'panel') {
-		panels.push(node);
-		return;
-	}
-	splits.push(node);
-	for (const child of node.children) visitPanelTree(child.node, panels, splits);
-}
-
-function reconcileSplitWeights(
-	split: Extract<WorkbenchSharedPanelNode, { kind: 'split' }>,
-	candidate:
-		| WorkbenchClientView['terminalContexts'][number]['panelWorkspace']['tabs'][number]['splits'][number]
-		| undefined,
-): WorkbenchClientView['terminalContexts'][number]['panelWorkspace']['tabs'][number]['splits'][number]['weights'] {
-	const candidateWeights = new Map(
-		candidate?.weights.map((weight) => [weight.slotId, weight.weight]) ?? [],
-	);
-	if (
-		candidateWeights.size === split.children.length &&
-		split.children.every((child) => candidateWeights.has(child.id))
-	) {
-		return split.children.map((child) => ({
-			slotId: child.id,
-			weight: requireWeight(candidateWeights.get(child.id)),
-		}));
-	}
-	const weight = 100 / split.children.length;
-	return split.children.map((child) => ({ slotId: child.id, weight }));
-}
-
-function requireWeight(weight: number | undefined): number {
-	if (weight === undefined) throw new Error('Missing reconciled split weight.');
-	return weight;
 }
 
 function validateClientView(
@@ -312,22 +320,6 @@ function validateClientView(
 				'client Panel',
 				issues,
 			);
-			validateUnique(
-				tab.splits.map((split) => split.splitId),
-				'client Split',
-				issues,
-			);
-			for (const split of tab.splits) {
-				validateUnique(
-					split.weights.map((weight) => weight.slotId),
-					'client Panel slot',
-					issues,
-				);
-				const total = split.weights.reduce((sum, weight) => sum + weight.weight, 0);
-				if (split.weights.length !== 2 || Math.abs(total - 100) > 0.000_001) {
-					issues.push(`Client Split ${split.splitId} has invalid weights.`);
-				}
-			}
 		}
 	}
 	return issues;

@@ -29,10 +29,6 @@ export interface TabPanelWorkspace {
 }
 
 export interface PanelWorkspaceState {
-	readonly nextPanelSequence: number;
-	readonly nextPanelSlotSequence: number;
-	readonly nextSplitSequence: number;
-	readonly nextTerminalSequence: number;
 	readonly tabs: readonly TabPanelWorkspace[];
 }
 

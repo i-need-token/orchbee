@@ -3,6 +3,7 @@ import type { WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixtureTabId,
 	oneWorkspaceSnapshot,
@@ -26,7 +27,7 @@ import {
 describe('registerWorkbenchTabTitleAction', () => {
 	it('opens the active Tab with a captured stable identity and effective title', async () => {
 		const harness = createHarness(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
-		const context = harness.projectWorkspaceRuntime.getActiveTerminalContext();
+		const context = activeTerminalContext(harness.projectWorkspaceRuntime);
 
 		await expect(harness.execute(undefined)).resolves.toEqual({ kind: 'completed' });
 
@@ -45,7 +46,7 @@ describe('registerWorkbenchTabTitleAction', () => {
 		const harness = createHarness(oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]), {
 			change,
 		});
-		const context = harness.projectWorkspaceRuntime.getActiveTerminalContext();
+		const context = activeTerminalContext(harness.projectWorkspaceRuntime);
 		context.tabModel.selectTab(fixtureTabId(1));
 		const target = {
 			kind: 'open' as const,
@@ -81,7 +82,7 @@ describe('registerWorkbenchTabTitleAction', () => {
 			oneWorkspaceSnapshot(1, [snapshotTab(1, snapshotPanel(1), { automaticLabel: true })]),
 			{ change },
 		);
-		const context = harness.projectWorkspaceRuntime.getActiveTerminalContext();
+		const context = activeTerminalContext(harness.projectWorkspaceRuntime);
 		const tabId = context.tabModel.getSnapshot().activeTabId;
 		if (tabId === null) throw new Error('Expected one active Tab.');
 		const target = { tabId, terminalContextId: context.terminalContextId };
@@ -109,7 +110,7 @@ describe('registerWorkbenchTabTitleAction', () => {
 
 	it('disables stale Tab and terminal-context targets', async () => {
 		const harness = createHarness(oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]));
-		const context = harness.projectWorkspaceRuntime.getActiveTerminalContext();
+		const context = activeTerminalContext(harness.projectWorkspaceRuntime);
 		const tabId = fixtureTabId(1);
 		const staleContextInput = {
 			kind: 'open' as const,

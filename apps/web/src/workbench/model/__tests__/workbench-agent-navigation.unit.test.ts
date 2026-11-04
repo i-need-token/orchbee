@@ -70,7 +70,6 @@ describe('transitionWorkbenchAgentNavigation', () => {
 		const transition = transitionWorkbenchAgentNavigation(state, {
 			activeLocation: {
 				kind: 'workspace',
-
 				workspaceId: 'workspace-b',
 			},
 			kind: 'projection-observed',
@@ -98,6 +97,9 @@ describe('transitionWorkbenchAgentNavigation', () => {
 	});
 });
 
+/** Where the person was when they asked, a Workspace other than the Agent's. */
+const ORIGIN_LOCATION = { kind: 'workspace', workspaceId: 'workspace-origin' } as const;
+
 function mount(): WorkbenchAgentNavigationState {
 	return apply(INITIAL_WORKBENCH_AGENT_NAVIGATION_STATE, { kind: 'mount' });
 }
@@ -106,7 +108,7 @@ function navigate(requestId: number, presentationId: string): WorkbenchAgentNavi
 	return {
 		input: input(presentationId),
 		kind: 'navigate',
-		originLocation: { kind: 'standalone' },
+		originLocation: ORIGIN_LOCATION,
 		requestId,
 	};
 }
@@ -121,9 +123,7 @@ function input(presentationId: string) {
 function projection(value: 'pending' | 'ready' | 'unavailable'): WorkbenchAgentNavigationEvent {
 	return {
 		activeLocation:
-			value === 'ready'
-				? { kind: 'workspace', workspaceId: 'workspace-a' }
-				: { kind: 'standalone' },
+			value === 'ready' ? { kind: 'workspace', workspaceId: 'workspace-a' } : ORIGIN_LOCATION,
 		kind: 'projection-observed',
 		projection: value,
 	};

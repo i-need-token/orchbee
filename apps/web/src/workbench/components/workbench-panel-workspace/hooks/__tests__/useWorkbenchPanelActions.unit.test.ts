@@ -64,10 +64,6 @@ const appliedTransition: PanelWorkspaceTransition = {
 	outcome: 'applied',
 	rejection: null,
 	state: {
-		nextPanelSequence: 2,
-		nextPanelSlotSequence: 2,
-		nextSplitSequence: 1,
-		nextTerminalSequence: 2,
 		tabs: [activeTab],
 	},
 };

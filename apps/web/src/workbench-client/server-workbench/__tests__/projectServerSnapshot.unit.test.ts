@@ -2,8 +2,8 @@ import type { WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
-	FIXTURE_DEFAULT_DIRECTORY,
 	FIXTURE_INTL,
 	FIXTURE_WORKER_ID,
 	fixtureBinding,
@@ -29,15 +29,12 @@ function publishWithEnds(
 	terminalEnds: ServerTerminalEndObserver,
 ): void {
 	terminalEnds.prune(next);
-	runtime.applyPublishedWorkbench(
-		projectServerSnapshot(next, FIXTURE_DEFAULT_DIRECTORY, FIXTURE_INTL, terminalEnds.ends),
-	);
+	runtime.applyPublishedWorkbench(projectServerSnapshot(next, FIXTURE_INTL, terminalEnds.ends));
 }
 
 function activeLeaf(runtime: WorkbenchProjectWorkspaceRuntime, tabIndex = 0) {
-	const root = runtime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot().tabs[
-		tabIndex
-	]?.root;
+	const root =
+		activeTerminalContext(runtime).panelWorkspaceStore.getSnapshot().tabs[tabIndex]?.root;
 	if (root?.kind !== 'panel') throw new Error('The fixture Tab is not one Panel.');
 	return root;
 }
@@ -117,8 +114,7 @@ describe('projectServerSnapshot', () => {
 			oneWorkspaceSnapshot(1, [snapshotTab(1, split({ ratio: 0.3 }))]),
 		);
 		const weights = (): readonly number[] => {
-			const root = runtime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot()
-				.tabs[0]?.root;
+			const root = activeTerminalContext(runtime).panelWorkspaceStore.getSnapshot().tabs[0]?.root;
 			if (root?.kind !== 'split') throw new Error('The fixture Tab is not one Split.');
 			return root.children.map((child) => child.weight);
 		};
@@ -128,18 +124,15 @@ describe('projectServerSnapshot', () => {
 		expect(weights()).toEqual([50, 50]);
 	});
 
-	it('holds a Workspace that has no directory without inventing an available one', () => {
+	it('holds a Workspace that has no directory without inventing one', () => {
 		const runtime = createSnapshotRuntime(
 			workbenchSnapshot(1, { workspaces: [snapshotWorkspace(1, { primaryDirectoryId: null })] }, [
 				snapshotContext(1, []),
 			]),
 		);
 
-		const [scope] = runtime.getSnapshot().resourceScopes;
-		expect(scope?.directories).toMatchObject([
-			{ available: false, path: FIXTURE_DEFAULT_DIRECTORY },
-		]);
-		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toEqual([]);
+		expect(runtime.getSnapshot().workspaces).toMatchObject([{ directory: null }]);
+		expect(activeTerminalContext(runtime).tabModel.getSnapshot().tabs).toEqual([]);
 	});
 
 	it('lets a name a person chose outrank what the terminal reports', () => {
@@ -155,8 +148,7 @@ describe('projectServerSnapshot', () => {
 			naturalTitle: 'pwsh',
 		});
 
-		const [title] = runtime
-			.getActiveTerminalContext()
+		const [title] = activeTerminalContext(runtime)
 			.tabModel.getSnapshot()
 			.tabs.map((candidate) => candidate.title);
 		expect(title).toBe('build');
@@ -191,8 +183,7 @@ describe('projectServerSnapshot', () => {
 			]),
 		);
 
-		const titles = runtime
-			.getActiveTerminalContext()
+		const titles = activeTerminalContext(runtime)
 			.tabModel.getSnapshot()
 			.tabs.map((candidate) => candidate.title);
 		expect(titles).toEqual(['PowerShell', 'node', 'Tab 3', 'build']);
@@ -231,7 +222,7 @@ describe('applyPublishedWorkbench', () => {
 			oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]),
 		);
 		const secondTabId = fixtureId(0x602);
-		runtime.getActiveTerminalContext().tabModel.selectTab(secondTabId);
+		activeTerminalContext(runtime).tabModel.selectTab(secondTabId);
 		const presentationId = activeLeaf(runtime, 1).primaryPresentation.presentationId;
 		runtime.applyTerminalMetadataObservation(presentationId, {
 			closeActivity: 'unknown',
@@ -244,7 +235,7 @@ describe('applyPublishedWorkbench', () => {
 			oneWorkspaceSnapshot(2, [snapshotTab(1), snapshotTab(2), snapshotTab(3)]),
 		);
 
-		const tabs = runtime.getActiveTerminalContext().tabModel.getSnapshot();
+		const tabs = activeTerminalContext(runtime).tabModel.getSnapshot();
 		expect(tabs.activeTabId).toBe(secondTabId);
 		expect(tabs.tabs).toHaveLength(3);
 		expect(activeLeaf(runtime, 1).primaryPresentation.naturalTitle).toBe('vim');
@@ -340,8 +331,8 @@ describe('applyPublishedWorkbench', () => {
 		});
 
 		publishSnapshot(runtime, workbenchSnapshot(3, { workspaces: [] }, []));
-		expect(runtime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
-		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toEqual([]);
+		expect(runtime.getSnapshot().activeLocation).toEqual({ kind: 'no-workspace' });
+		expect(runtime.getActiveTerminalContext()).toBeNull();
 	});
 
 	it('expands a Project it has not seen and leaves a collapsed one collapsed', () => {

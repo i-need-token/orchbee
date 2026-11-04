@@ -24,7 +24,6 @@ describe('workbench action contracts', () => {
 	it('owns stable semantic action ids', () => {
 		expect(WORKBENCH_ACTION_IDS).toEqual({
 			navigateAgent: 'workbench.agent.navigate',
-			activateStandalone: 'workbench.location.standalone.activate',
 			activateWorkspace: 'workbench.workspace.activate',
 			createProject: 'workbench.project.create',
 			createTerminal: 'workbench.terminal.create',
@@ -209,13 +208,11 @@ describe('workbench action contracts', () => {
 		expect(
 			workbenchWorkspaceCreateInput.parse({
 				directoryId: 'directory-1',
-				resourceScopeId: 'resource-scope-1',
 				projectId: 'project-1',
 			}),
 		).toEqual({
 			data: {
 				directoryId: 'directory-1',
-				resourceScopeId: 'resource-scope-1',
 				projectId: 'project-1',
 			},
 			success: true,
@@ -268,14 +265,12 @@ describe('workbench action contracts', () => {
 		expect(
 			workbenchWorkspaceUpdateInput.parse({
 				name: ' Feature ',
-				primaryDirectoryId: 'directory-1',
 				projectId: 'project-1',
 				workspaceId: 'workspace-1',
 			}),
 		).toEqual({
 			data: {
 				name: ' Feature ',
-				primaryDirectoryId: 'directory-1',
 				workspaceId: 'workspace-1',
 			},
 			success: true,

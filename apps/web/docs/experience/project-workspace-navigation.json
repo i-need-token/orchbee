@@ -104,6 +104,14 @@
 				"Verify the icon, row options, and Agent disclosure stay centred on the identity line of two-line rows, and that a Workspace without a location stays one line.",
 				"Drag a two-line Workspace across one-line and two-line siblings and verify each squeeze moves by the dragged row's height without overlap or gaps."
 			]
+		},
+		{
+			"exportName": "NoWorkspace",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--no-workspace",
+			"states": [
+				"Inspect the window while no Workspace exists: the fixed New workspace, Search, and Settings rows remain, and the main area stays blank below a row that keeps the sidebar control's place and the window's drag surface, in both locales."
+			]
 		}
 	],
 	"uses": ["workbench.action-menu", "workbench.name-dialog", "workbench.project-create-flow"],
@@ -119,6 +127,7 @@
 	],
 	"invariants": [
 		"New workspace and Search occupy separate full-width fixed rows in that order. The independently scrolling list has no heading of its own and retains the trailing Project creation menu.",
+		"While no Workspace exists, the main area stays blank, with no title, onboarding statement, or second creation control: the fixed New workspace, Search, and Settings rows remain the ways forward, and a plain New Tab runs New Workspace while New Tab in a group, at a position, or with a launch profile stays unavailable.",
 		"Projects come first in their order, then the Workspaces outside any Project under a Recents heading, always last and absent while it would be empty; no group heading shows a member count.",
 		"Project and Recents headings are never current, even folded around the active Workspace. Recents folds like a Project but has no menu and neither starts nor receives a drag; activating or creating one of its Workspaces opens it, as it opens a Project.",
 		"Row options and Project creation remain reachable in both Tab directions, with immediate focus-within disclosure and no pointer hit target while hidden.",
@@ -146,8 +155,8 @@
 		"A folded Workspace replaces its location line with its Agents' state glyphs, most urgent first, at most five or four and a muted +N; the line's title and the row's accessible name say each distinct state in words, and only a folded Workspace row repeats its Agents' unread marker.",
 		"Expanded Agent detail is a flat list only: it never repeats Tabs, terminal-only rows, panel thumbnails, prompts, commands, provider errors, or internal identifiers.",
 		"Agent-row navigation revalidates the latest live Session and focuses only the exact ready terminal projection; replacement, disappearance, rejection, or unrelated navigation cannot produce a late fallback focus.",
-		"New Workspace immediately commits an ungrouped Workspace, stable launch resources, and first shell without a form or automatic Agent startup; generated names choose the first available numeric suffix.",
-		"Moving, ungrouping, or dissolving a Project changes only grouping and preserves Workspace identity, launch resources, terminal contexts, attachments, focus, and zoom.",
+		"New Workspace immediately commits an ungrouped Workspace and its first shell without a form or automatic Agent startup; generated names choose the first available numeric suffix.",
+		"Moving, ungrouping, or dissolving a Project changes only grouping and preserves Workspace identity, directory, terminal contexts, attachments, focus, and zoom.",
 		"A late Worktree creation or opening activates only the latest live initiating intent; newer Workspace, Tab, or Panel navigation retires it."
 	],
 	"references": ["apps/web/docs/project-workspace.md", "apps/web/docs/workbench.md"]

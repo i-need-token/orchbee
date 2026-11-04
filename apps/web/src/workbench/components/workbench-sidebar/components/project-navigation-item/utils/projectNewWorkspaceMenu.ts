@@ -1,4 +1,8 @@
-import type { ProjectWorkspaceState, WorkbenchProject } from '../../../../../../project-workspace';
+import type {
+	ProjectWorkspaceState,
+	WorkbenchDirectory,
+	WorkbenchProject,
+} from '../../../../../../project-workspace';
 import type {
 	WorkbenchActionMenuCommand,
 	WorkbenchActionMenuEntry,
@@ -17,12 +21,6 @@ interface ProjectNewWorkspaceMenuOptions {
 	readonly worktrees: ProjectWorktreeRows;
 }
 
-interface RecordedFolder {
-	readonly directoryId: string;
-	readonly path: string;
-	readonly resourceScopeId: string;
-}
-
 /** Recorded paths may differ only in ASCII case on hosts that ignore it, as the TUI compares them. */
 function asciiLowerCase(value: string): string {
 	return value.replaceAll(/[A-Z]/gu, (letter) => letter.toLowerCase());
@@ -37,22 +35,14 @@ function folderName(path: string): string {
 }
 
 /** The directory each of the Project's Workspaces records, in navigation order, each path once. */
-function recordedFolders(state: ProjectWorkspaceState, projectId: string): RecordedFolder[] {
-	const folders: RecordedFolder[] = [];
+function recordedFolders(state: ProjectWorkspaceState, projectId: string): WorkbenchDirectory[] {
+	const folders: WorkbenchDirectory[] = [];
 	for (const workspace of state.workspaces) {
-		if (workspace.projectId !== projectId) continue;
-		const directory = state.resourceScopes
-			.find((scope) => scope.id === workspace.resourceScopeId)
-			?.directories.find((candidate) => candidate.id === workspace.primaryDirectoryId);
-		// A Workspace without a directory stands in one that is never available.
-		if (directory === undefined || !directory.available) continue;
+		const directory = workspace.directory;
+		if (workspace.projectId !== projectId || directory === null) continue;
 		const key = asciiLowerCase(directory.path);
 		if (folders.some((folder) => asciiLowerCase(folder.path) === key)) continue;
-		folders.push({
-			directoryId: directory.id,
-			path: directory.path,
-			resourceScopeId: workspace.resourceScopeId,
-		});
+		folders.push(directory);
 	}
 	return folders;
 }
@@ -75,19 +65,14 @@ export function projectNewWorkspaceMenu({
 	const folderRows = folders.map(
 		(folder, index): WorkbenchActionMenuCommand => ({
 			icon: 'folder',
-			id: `folder-${folder.directoryId}`,
+			id: `folder-${folder.id}`,
 			kind: 'command',
 			// A shared folder name is ambiguous, so those rows show their whole path.
 			label:
 				names.filter((name) => name === names[index]).length > 1
 					? folder.path
 					: folderName(folder.path),
-			onSelect: () =>
-				createWorkspace({
-					directoryId: folder.directoryId,
-					projectId: project.id,
-					resourceScopeId: folder.resourceScopeId,
-				}),
+			onSelect: () => createWorkspace({ directoryId: folder.id, projectId: project.id }),
 		}),
 	);
 	const leadingRows: WorkbenchActionMenuCommand[] = [];

@@ -12,6 +12,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixtureId,
 	fixtureTabId,
@@ -55,7 +56,7 @@ function groupedSnapshot(): WorkbenchSnapshot {
 /** The grouped Tabs, with the first Tab active and the group collapsed. */
 function createGroupedHarness(): Harness {
 	const harness = createHarness(groupedSnapshot());
-	const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
+	const model = activeTerminalContext(harness.projectWorkspaceRuntime).tabModel;
 	model.selectTab(FIRST_TAB_ID);
 	model.toggleGroupCollapsed(GROUP_ID);
 	return harness;
@@ -64,7 +65,7 @@ function createGroupedHarness(): Harness {
 describe('registerWorkbenchTabSelectionActions', () => {
 	it('selects the one-based TabModel position through the prepared Tab Strip Action', async () => {
 		const harness = createGroupedHarness();
-		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
+		const model = activeTerminalContext(harness.projectWorkspaceRuntime).tabModel;
 		const lowerExecute = vi.fn<(input: TabSelectionInput) => void>();
 		registerTabSelection(harness, (context, input) => {
 			lowerExecute(input);
@@ -105,7 +106,7 @@ describe('registerWorkbenchTabSelectionActions', () => {
 
 	it('selects previous and next in canonical order and wraps both boundaries', async () => {
 		const harness = createGroupedHarness();
-		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
+		const model = activeTerminalContext(harness.projectWorkspaceRuntime).tabModel;
 		const lowerExecute = vi.fn<(input: TabSelectionInput) => void>();
 		registerTabSelection(harness, (context, input) => {
 			lowerExecute(input);
@@ -135,7 +136,7 @@ describe('registerWorkbenchTabSelectionActions', () => {
 		const harness = createHarness(
 			oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2), snapshotTab(3)]),
 		);
-		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
+		const model = activeTerminalContext(harness.projectWorkspaceRuntime).tabModel;
 		model.selectTab(FIRST_TAB_ID);
 		const lowerExecute = vi.fn<(input: TabSelectionInput) => void>();
 		const lowerRegistration = registerTabSelection(harness, (context, input) => {

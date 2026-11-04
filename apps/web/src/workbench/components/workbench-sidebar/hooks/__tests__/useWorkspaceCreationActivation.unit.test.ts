@@ -25,6 +25,7 @@ afterEach(cleanup);
 const subscribeNavigation = () => () => undefined;
 const PRIMARY_WORKSPACE_ID = fixtureWorkspaceId(1);
 const CREATED_WORKSPACE_ID = fixtureWorkspaceId(2);
+const OTHER_WORKSPACE_ID = fixtureWorkspaceId(3);
 
 describe('useWorkspaceCreationActivation', () => {
 	it.each(['before', 'after'] as const)(
@@ -107,7 +108,7 @@ describe('useWorkspaceCreationActivation', () => {
 
 	it('does not steal focus after navigation away and back, or after explicit navigation to the same location', () => {
 		const activateWorkspace = vi.fn<(workspaceId: string) => void>();
-		const runtime = createSnapshotRuntime(navigationSnapshot(1, [1]));
+		const runtime = createSnapshotRuntime(navigationSnapshot(1, [1, 3]));
 		const rendered = renderHook(
 			({ projectWorkspaceState }) =>
 				useWorkspaceCreationActivation({
@@ -118,10 +119,10 @@ describe('useWorkspaceCreationActivation', () => {
 			{ initialProps: { projectWorkspaceState: runtime.getSnapshot() } },
 		);
 		const complete = rendered.result.current.begin();
-		runtime.transition({ type: 'standalone-activated' });
+		runtime.transition({ type: 'workspace-activated', workspaceId: OTHER_WORKSPACE_ID });
 		rendered.rerender({ projectWorkspaceState: runtime.getSnapshot() });
 		runtime.transition({ type: 'workspace-activated', workspaceId: PRIMARY_WORKSPACE_ID });
-		publishSnapshot(runtime, navigationSnapshot(2, [1, 2]));
+		publishSnapshot(runtime, navigationSnapshot(2, [1, 2, 3]));
 		rendered.rerender({ projectWorkspaceState: runtime.getSnapshot() });
 		act(() => complete(CREATED_WORKSPACE_ID));
 		const second = rendered.result.current.begin();

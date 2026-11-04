@@ -1,180 +1,67 @@
-import {
-	createWorkbenchSharedDocument,
-	terminalPresentationId,
-	workbenchSharedDocumentRevision,
-	type WorkbenchSharedPanelNode,
-} from '@orchbee/workbench-client-protocol';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
 import {
+	fixturePanelId,
+	fixtureTabId,
+	fixtureWorkspaceId,
+	oneWorkspaceSnapshot,
+	snapshotPanel,
+	snapshotPublication,
+	snapshotSplit,
+	snapshotTab,
+	workbenchSnapshot,
+	type FixtureRecord,
+} from '../../../__tests__/server-workbench-snapshot';
+import {
 	createDefaultWorkbenchClientView,
 	createWorkbenchClientView,
-	parseWorkbenchClientView,
 	reconcileWorkbenchClientView,
-	type WorkbenchClientView,
 } from '../workbench-client-view';
 
-function emptySharedDocument() {
-	return createWorkbenchSharedDocument({
-		projectWorkspace: {
-			nextResourceScopeSequence: 1,
-			resourceScopes: [],
-			workspaces: [],
-			nextProjectSequence: 1,
-			nextTerminalContextSequence: 2,
-			nextWorkspaceSequence: 1,
-			projects: [],
-			standaloneTerminalContextId: 'terminal-context-1',
-		},
-		revision: workbenchSharedDocumentRevision('0'),
-		terminalContexts: [
-			{
-				nextTabSequence: 1,
-				panelWorkspace: {
-					nextPanelSequence: 1,
-					nextPanelSlotSequence: 1,
-					nextSplitSequence: 1,
-					nextTerminalSequence: 1,
-					tabs: [],
-				},
-				tabCollection: { groups: [], tabs: [] },
-				terminalContextId: 'terminal-context-1',
-			},
-		],
-	});
+/** Panels `firstPanel` onward, each split from the rest; Splits are numbered like the Panels. */
+function nestedPanels(firstPanel: number, panelCount: number): FixtureRecord {
+	if (panelCount === 1) return snapshotPanel(firstPanel);
+	return snapshotSplit(
+		firstPanel,
+		firstPanel % 2 === 0 ? 'horizontal' : 'vertical',
+		snapshotPanel(firstPanel),
+		nestedPanels(firstPanel + 1, panelCount - 1),
+	);
 }
 
-function inputWithTabs(
-	panelCounts: readonly number[] = [1],
-): Parameters<typeof createWorkbenchSharedDocument>[0] {
-	const terminalContextId = 'terminal-context-1';
-	const tabs = panelCounts.map((_, index) => ({
-		customTitle: null,
-		group: null,
-		id: `${terminalContextId}-tab-${index + 1}`,
-		pinned: false,
-		title: `Terminal ${index + 1}`,
-	}));
-	return {
-		projectWorkspace: {
-			nextResourceScopeSequence: 1,
-			resourceScopes: [],
-			workspaces: [],
-			nextProjectSequence: 1,
-			nextTerminalContextSequence: 2,
-			nextWorkspaceSequence: 1,
-			projects: [],
-			standaloneTerminalContextId: terminalContextId,
-		},
-		revision: workbenchSharedDocumentRevision('0'),
-		terminalContexts: [
-			{
-				nextTabSequence: tabs.length + 1,
-				panelWorkspace: {
-					nextPanelSequence: panelCounts.reduce((total, count) => total + count, 0) + 1,
-					nextPanelSlotSequence: panelCounts.reduce(
-						(total, count) => total + (count === 1 ? 0 : count),
-						1,
-					),
-					nextSplitSequence: panelCounts.filter((count) => count > 1).length + 1,
-					nextTerminalSequence: tabs.length + 1,
-					tabs: panelCounts.map((count, index) => ({
-						root: panelRoot(panelCounts, index, count),
-						tabId: tabs[index]?.id ?? 'missing-tab',
-					})),
-				},
-				tabCollection: { groups: [], tabs },
-				terminalContextId,
-			},
-		],
-	};
-}
-
-function panelOffset(panelCounts: readonly number[], tabIndex: number): number {
-	return panelCounts.slice(0, tabIndex).reduce((total, count) => total + count, 1);
-}
-
-function panelRoot(
-	panelCounts: readonly number[],
-	tabIndex: number,
-	panelCount: number,
-): WorkbenchSharedPanelNode {
-	const firstPanel = panelOffset(panelCounts, tabIndex);
-	return nestedPanelRoot(firstPanel, panelCount, tabIndex, 0);
-}
-
-function nestedPanelRoot(
-	firstPanel: number,
-	panelCount: number,
-	tabIndex: number,
-	depth: number,
-): WorkbenchSharedPanelNode {
-	if (panelCount === 1) return panel(firstPanel);
-	return {
-		children: [
-			{
-				id: `panel-slot-${tabIndex + 1}-${depth + 1}-1`,
-				node: panel(firstPanel),
-			},
-			{
-				id: `panel-slot-${tabIndex + 1}-${depth + 1}-2`,
-				node: nestedPanelRoot(firstPanel + 1, panelCount - 1, tabIndex, depth + 1),
-			},
-		],
-		id: `split-${tabIndex + 1}-${depth + 1}`,
-		kind: 'split',
-		orientation: (tabIndex + depth) % 2 === 0 ? 'horizontal' : 'vertical',
-	};
-}
-
-function panel(sequence: number): WorkbenchSharedPanelNode {
-	return {
-		childPresentations: [],
-		id: `panel-${sequence}`,
-		kind: 'panel',
-		primaryPresentation: {
-			intent: { kind: 'provision' },
-			presentationId: terminalPresentationId(`presentation-${sequence}`),
-			title: `Terminal ${sequence}`,
-		},
-	};
-}
-
-function parsedViewJson(view: WorkbenchClientView): WorkbenchClientView {
-	return parseWorkbenchClientView(JSON.parse(JSON.stringify(view)));
+/** Workspace 1 with one Tab per count, each holding that many Panels numbered after the last. */
+function publicationWithPanels(panelCounts: readonly number[]) {
+	return snapshotPublication(
+		oneWorkspaceSnapshot(
+			1,
+			panelCounts.map((count, index) => {
+				const before = panelCounts.slice(0, index).reduce((total, each) => total + each, 0);
+				return snapshotTab(index + 1, nestedPanels(before + 1, count));
+			}),
+		),
+	);
 }
 
 describe('Workbench Client View', () => {
-	it('creates and parses a deterministic disposable default', () => {
-		const view = createDefaultWorkbenchClientView(emptySharedDocument());
-
-		expect(parseWorkbenchClientView(JSON.parse(JSON.stringify(view)))).toEqual(view);
-		expect(view).toEqual({
-			activeLocation: { kind: 'standalone' },
+	it('opens No Workspace by default while the Server publishes none', () => {
+		expect(
+			createDefaultWorkbenchClientView(
+				snapshotPublication(workbenchSnapshot(1, { workspaces: [] }, [])),
+			),
+		).toEqual({
+			activeLocation: { kind: 'no-workspace' },
 			expandedProjectIds: [],
 			recentsExpanded: true,
-			terminalContexts: [
-				{
-					panelWorkspace: { tabs: [] },
-					tabCollection: {
-						activeTabId: null,
-						collapsedGroupIds: [],
-						mostRecentGroupId: null,
-						selectedTabIds: [],
-						selectionAnchorId: null,
-					},
-					terminalContextId: 'terminal-context-1',
-				},
-			],
+			terminalContexts: [],
 			version: 1,
 		});
 	});
 
-	it('drops a well-formed stale context and rejects unknown fields', () => {
-		const document = emptySharedDocument();
+	it('drops a well-formed stale context', () => {
+		const publication = publicationWithPanels([1]);
 		const stale = createWorkbenchClientView({
-			activeLocation: { kind: 'standalone' },
+			activeLocation: { kind: 'workspace', workspaceId: 'missing-workspace' },
 			expandedProjectIds: ['missing-project'],
 			recentsExpanded: true,
 			terminalContexts: [
@@ -192,32 +79,27 @@ describe('Workbench Client View', () => {
 			],
 		});
 
-		expect(reconcileWorkbenchClientView(document, stale)).toEqual(
-			createDefaultWorkbenchClientView(document),
-		);
-		expect(() => parseWorkbenchClientView({ ...stale, attachmentId: 'forbidden' })).toThrow(
-			/attachmentId/u,
+		expect(reconcileWorkbenchClientView(publication, stale)).toEqual(
+			createDefaultWorkbenchClientView(publication),
 		);
 	});
 
-	it('derives a complete default Client View without changing the shared document', () => {
-		const document = createWorkbenchSharedDocument(inputWithTabs([1, 3]));
-		const before = JSON.stringify(document);
-		const view = createDefaultWorkbenchClientView(document);
+	it('derives a complete default Client View without changing the publication', () => {
+		const publication = publicationWithPanels([1, 3]);
+		const before = JSON.stringify(publication);
+		const view = createDefaultWorkbenchClientView(publication);
 
-		expect(parsedViewJson(view)).toEqual(view);
-		expect(view.activeLocation).toEqual({ kind: 'standalone' });
-		expect(view.terminalContexts[0]?.tabCollection.activeTabId).toBe('terminal-context-1-tab-1');
-		expect(view.terminalContexts[0]?.panelWorkspace.tabs[1]?.splits[0]?.weights).toEqual([
-			{ slotId: 'panel-slot-2-1-1', weight: 50 },
-			{ slotId: 'panel-slot-2-1-2', weight: 50 },
-		]);
-		expect(JSON.stringify(document)).toBe(before);
+		expect(view.activeLocation).toEqual({ kind: 'workspace', workspaceId: fixtureWorkspaceId(1) });
+		expect(view.terminalContexts[0]?.tabCollection.activeTabId).toBe(fixtureTabId(1));
+		expect(view.terminalContexts[0]?.panelWorkspace.tabs[1]?.focusedPanelId).toBe(
+			fixturePanelId(2),
+		);
+		expect(JSON.stringify(publication)).toBe(before);
 	});
 
-	it('keeps two Client Views independent over one shared document', () => {
-		const document = createWorkbenchSharedDocument(inputWithTabs([1, 1]));
-		const first = createDefaultWorkbenchClientView(document);
+	it('keeps two Client Views independent over one publication', () => {
+		const publication = publicationWithPanels([1, 1]);
+		const first = createDefaultWorkbenchClientView(publication);
 		const firstContext = first.terminalContexts[0];
 		if (firstContext === undefined) throw new Error('Expected one terminal context.');
 		const second = createWorkbenchClientView({
@@ -227,23 +109,23 @@ describe('Workbench Client View', () => {
 					...firstContext,
 					tabCollection: {
 						...firstContext.tabCollection,
-						activeTabId: 'terminal-context-1-tab-2',
-						selectedTabIds: ['terminal-context-1-tab-2'],
-						selectionAnchorId: 'terminal-context-1-tab-2',
+						activeTabId: fixtureTabId(2),
+						selectedTabIds: [fixtureTabId(2)],
+						selectionAnchorId: fixtureTabId(2),
 					},
 				},
 			],
 		});
 
-		expect(reconcileWorkbenchClientView(document, first)).toEqual(first);
-		expect(reconcileWorkbenchClientView(document, second)).toEqual(second);
-		expect(first.terminalContexts[0]?.tabCollection.activeTabId).toBe('terminal-context-1-tab-1');
-		expect(second.terminalContexts[0]?.tabCollection.activeTabId).toBe('terminal-context-1-tab-2');
+		expect(reconcileWorkbenchClientView(publication, first)).toEqual(first);
+		expect(reconcileWorkbenchClientView(publication, second)).toEqual(second);
+		expect(first.terminalContexts[0]?.tabCollection.activeTabId).toBe(fixtureTabId(1));
+		expect(second.terminalContexts[0]?.tabCollection.activeTabId).toBe(fixtureTabId(2));
 	});
 
 	it('deterministically removes stale Client View references and is idempotent', () => {
-		const document = createWorkbenchSharedDocument(inputWithTabs([1, 2]));
-		const defaultView = createDefaultWorkbenchClientView(document);
+		const publication = publicationWithPanels([1, 2]);
+		const defaultView = createDefaultWorkbenchClientView(publication);
 		const context = defaultView.terminalContexts[0];
 		const tab = context?.panelWorkspace.tabs[1];
 		if (context === undefined || tab === undefined)
@@ -275,13 +157,13 @@ describe('Workbench Client View', () => {
 			],
 		});
 
-		const reconciled = reconcileWorkbenchClientView(document, stale);
+		const reconciled = reconcileWorkbenchClientView(publication, stale);
 		expect(reconciled.expandedProjectIds).toEqual([]);
-		expect(reconciled.terminalContexts[0]?.tabCollection.activeTabId).toBe(
-			'terminal-context-1-tab-1',
+		expect(reconciled.terminalContexts[0]?.tabCollection.activeTabId).toBe(fixtureTabId(1));
+		expect(reconciled.terminalContexts[0]?.panelWorkspace.tabs[1]?.focusedPanelId).toBe(
+			fixturePanelId(2),
 		);
-		expect(reconciled.terminalContexts[0]?.panelWorkspace.tabs[1]?.focusedPanelId).toBe('panel-2');
-		expect(reconcileWorkbenchClientView(document, reconciled)).toEqual(reconciled);
+		expect(reconcileWorkbenchClientView(publication, reconciled)).toEqual(reconciled);
 	});
 
 	it('reconciles Client Views over generated hierarchies with a stable seed', () => {
@@ -289,10 +171,9 @@ describe('Workbench Client View', () => {
 			fc.property(
 				fc.array(fc.integer({ max: 4, min: 1 }), { maxLength: 8, minLength: 1 }),
 				(panelCounts) => {
-					const document = createWorkbenchSharedDocument(inputWithTabs(panelCounts));
-					const view = createDefaultWorkbenchClientView(document);
-					expect(parsedViewJson(view)).toEqual(view);
-					expect(reconcileWorkbenchClientView(document, view)).toEqual(view);
+					const publication = publicationWithPanels(panelCounts);
+					const view = createDefaultWorkbenchClientView(publication);
+					expect(reconcileWorkbenchClientView(publication, view)).toEqual(view);
 				},
 			),
 			{ numRuns: 200, seed: 0x0b_ee_01 },

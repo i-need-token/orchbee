@@ -183,10 +183,6 @@ function renderPanel(
 		startPanelDrag: () => undefined,
 		startBroadcastInput: () => undefined,
 		state: {
-			nextPanelSequence: 2,
-			nextPanelSlotSequence: 1,
-			nextSplitSequence: 1,
-			nextTerminalSequence: 3,
 			tabs: [tab],
 		},
 		togglePanelMaximization: () => undefined,

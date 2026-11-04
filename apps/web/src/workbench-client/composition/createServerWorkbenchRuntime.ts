@@ -6,6 +6,7 @@ import {
 	type TerminalInteractionConfigurationSource,
 } from '@orchbee/terminal';
 import {
+	resolveActiveTerminalPresentationId,
 	resolveTerminalMetadataObservation,
 	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchAgentSource,
@@ -13,11 +14,7 @@ import {
 	type WorkbenchShortcutPlatform,
 	type WorkbenchWorkspaceLocationSource,
 } from '../../workbench';
-import {
-	workbenchSharedDocumentRevision,
-	type TerminalPresentationId,
-	type WorkbenchSnapshot,
-} from '@orchbee/workbench-client-protocol';
+import type { TerminalPresentationId, WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 
 import type { ApplicationLocaleSource } from '../../application-locale';
 import { runApplicationCleanup } from '../../runApplicationCleanup';
@@ -63,7 +60,6 @@ import {
 import {
 	createFocusRecoveredWorkbenchClientView,
 	readWorkbenchFocusRecovery,
-	resolveFocusedWorkbenchPresentationId,
 	writeWorkbenchFocusRecovery,
 	type WorkbenchFocusRecoveryStorage,
 } from './workbench-focus-recovery-storage';
@@ -87,7 +83,7 @@ export interface ServerWorkbenchRuntime {
 export interface CreateServerWorkbenchRuntimeOptions {
 	readonly applicationLocaleSource: ApplicationLocaleSource;
 	readonly connection: ServerConnection;
-	/** Names the directory of a Workspace the Server holds without one. */
+	/** Where New Workspace starts while the person works in no Workspace. */
 	readonly defaultDirectory: string;
 	readonly documentElement: Pick<HTMLElement, 'dir' | 'lang'>;
 	readonly focusRecoveryStorage?: WorkbenchFocusRecoveryStorage | undefined;
@@ -156,14 +152,14 @@ export function createServerWorkbenchRuntime({
 	let disposed = false;
 	let locale = applicationLocaleSource.current();
 	let intl = createOrchbeeIntl(locale);
-	const initialPublication = projectServerSnapshot(session.snapshot, defaultDirectory, intl);
+	const initialPublication = projectServerSnapshot(session.snapshot, intl);
 	const actionRuntime = new ActionRuntime();
 	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 		initialClientView:
 			focusRecoveryStorage === undefined
 				? undefined
 				: createFocusRecoveredWorkbenchClientView(
-						initialPublication.document,
+						initialPublication,
 						readWorkbenchFocusRecovery(focusRecoveryStorage),
 					),
 		initialPublication,
@@ -180,7 +176,7 @@ export function createServerWorkbenchRuntime({
 		terminalEnds.prune(snapshot);
 		try {
 			projectWorkspaceRuntime.applyPublishedWorkbench(
-				projectServerSnapshot(snapshot, defaultDirectory, intl, terminalEnds.ends),
+				projectServerSnapshot(snapshot, intl, terminalEnds.ends),
 			);
 		} catch (error) {
 			onPublicationFailure(error);
@@ -216,20 +212,21 @@ export function createServerWorkbenchRuntime({
 		session,
 	});
 
+	// A publication can replace the terminal a Panel shows and this Client can move its focus, so both
+	// are watched; only a different terminal is written.
+	let persistedPresentationId: TerminalPresentationId | null | undefined;
 	const persistFocusRecovery = (): void => {
 		if (focusRecoveryStorage === undefined) return;
-		writeWorkbenchFocusRecovery(
-			focusRecoveryStorage,
-			resolveFocusedWorkbenchPresentationId(
-				projectWorkspaceRuntime.getSharedDocument(workbenchSharedDocumentRevision('0')),
-				projectWorkspaceRuntime.getClientView(),
-			),
-		);
+		const presentationId = resolveActiveTerminalPresentationId(projectWorkspaceRuntime);
+		if (presentationId === persistedPresentationId) return;
+		if (writeWorkbenchFocusRecovery(focusRecoveryStorage, presentationId)) {
+			persistedPresentationId = presentationId;
+		}
 	};
-	const stopFocusRecoveryDocumentObservation =
+	const stopFocusRecoveryTopologyObservation =
 		focusRecoveryStorage === undefined
 			? undefined
-			: projectWorkspaceRuntime.subscribeDocument(persistFocusRecovery);
+			: projectWorkspaceRuntime.subscribeTerminalTopology(persistFocusRecovery);
 	const stopFocusRecoveryViewObservation =
 		focusRecoveryStorage === undefined
 			? undefined
@@ -364,7 +361,7 @@ export function createServerWorkbenchRuntime({
 					() => terminalEnds.dispose(),
 					() => stopLocaleObservation(),
 					() => windowTitle?.dispose(),
-					() => stopFocusRecoveryDocumentObservation?.(),
+					() => stopFocusRecoveryTopologyObservation?.(),
 					() => stopFocusRecoveryViewObservation?.(),
 					() => actionRuntime.dispose(),
 					() => agentObservationSource.dispose(),

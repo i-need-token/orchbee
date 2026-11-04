@@ -11,6 +11,7 @@ import { createElement, useEffect, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	oneWorkspaceSnapshot,
 	snapshotPanel,
@@ -61,7 +62,7 @@ const authority: WorkbenchAuthority = {
 	watchClose: () => () => undefined,
 };
 
-const panelWorkspaceStore = projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
+const panelWorkspaceStore = activeTerminalContext(projectWorkspaceRuntime).panelWorkspaceStore;
 const broadcastTab = panelWorkspaceStore.getSnapshot().tabs[0];
 if (broadcastTab === undefined)
 	throw new Error('Broadcast witness did not retain its terminal Tab.');

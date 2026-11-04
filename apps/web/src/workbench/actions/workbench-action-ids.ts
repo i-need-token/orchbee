@@ -17,7 +17,6 @@ import type { WorkbenchWorktreeFailureCause } from '../types/workbench-worktrees
 
 export const WORKBENCH_ACTION_IDS = {
 	navigateAgent: 'workbench.agent.navigate',
-	activateStandalone: 'workbench.location.standalone.activate',
 	activateWorkspace: 'workbench.workspace.activate',
 	createProject: 'workbench.project.create',
 	createTerminal: 'workbench.terminal.create',
@@ -138,7 +137,6 @@ type WorkbenchWorkspaceCreateInput =
 	| void
 	| { readonly projectId: string }
 	| {
-			readonly resourceScopeId: string;
 			readonly projectId: string | null;
 			readonly directoryId: string;
 	  };
@@ -160,7 +158,6 @@ interface WorkbenchProjectReorderInput extends WorkbenchProjectInput {
 
 interface WorkbenchWorkspaceUpdateInput extends WorkbenchWorkspaceInput {
 	readonly name: string;
-	readonly primaryDirectoryId: string;
 }
 
 interface WorkbenchWorkspaceReorderInput extends WorkbenchWorkspaceInput {
@@ -220,7 +217,6 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.closeProjectWorkspaces]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed]: ActionSignature<WorkbenchWorkspaceInput>;
 	readonly [WORKBENCH_ACTION_IDS.navigateAgent]: ActionSignature<WorkbenchAgentNavigateInput>;
-	readonly [WORKBENCH_ACTION_IDS.activateStandalone]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.activateWorkspace]: ActionSignature<WorkbenchWorkspaceActivationInput>;
 	readonly [WORKBENCH_ACTION_IDS.createProject]: ActionSignature<
 		WorkbenchProjectCreateInput,
@@ -498,7 +494,6 @@ const workspaceActivationSchema = z
 				path: z.string().min(1),
 				presentationId: z.string().min(1),
 				projectId: z.string().min(1).nullable(),
-				resourceScopeId: z.string().min(1),
 				terminalContextId: z.string().min(1),
 				workspaceId: z.string().min(1),
 			})
@@ -638,7 +633,6 @@ export const workbenchWorkspaceReorderInput: ActionInputValidation<WorkbenchWork
 
 const workspaceCreateSchema = z.union([
 	z.strictObject({
-		resourceScopeId: z.string().min(1),
 		projectId: z.string().min(1).nullable(),
 		directoryId: z.string().min(1),
 	}),
@@ -689,13 +683,11 @@ export const workbenchWorkspaceUpdateInput: ActionInputValidation<WorkbenchWorks
 		isRecord(input) &&
 		typeof input['name'] === 'string' &&
 		WorkbenchLabelSchema.safeParse(input['name']).success &&
-		typeof input['primaryDirectoryId'] === 'string' &&
 		typeof input['workspaceId'] === 'string'
 			? {
 					success: true,
 					data: {
 						name: input['name'],
-						primaryDirectoryId: input['primaryDirectoryId'],
 						workspaceId: input['workspaceId'],
 					},
 				}

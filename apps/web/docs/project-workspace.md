@@ -4,48 +4,42 @@ The Server holds every Project, Workspace, Directory, and terminal. `projectServ
 
 ## Status and scope
 
-Workbench owns the read model of independently usable Workspaces and optional Project organization, client-local selection and disclosure, and terminal-context composition. Structure, filesystem and Git effects, PTY ownership, persistence, and commit ordering belong to the Server. The GUI document contract is [shared-workbench-document.md](shared-workbench-document.md).
+Workbench owns the read model of independently usable Workspaces and optional Project organization, client-local selection and disclosure, and terminal-context composition. Structure, filesystem and Git effects, PTY ownership, persistence, and commit ordering belong to the Server. The publication and Client View contracts are in [publication-and-client-view.md](publication-and-client-view.md).
 
 ## Problem
 
-A person can create a Workspace immediately, then organize it later. A Project is an optional named group, with ordinary and Worktree-backed Workspaces as peers. Changing organization must not change execution, resource identity, or any client's selection.
+A person can create a Workspace immediately, then organize it later. A Project is an optional named group, with ordinary and Worktree-backed Workspaces as peers. Changing organization must not change execution, a Workspace's identity or directory, or any client's selection.
 
 ## Inputs and validation
 
-| Input                                  | Contract                                                                                            |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Workspace and terminal-context IDs     | Server identities independent of group membership; missing identities reject                        |
-| Project ID                             | Nullable Workspace membership; a non-null ID must resolve                                           |
-| Directory and launch-configuration IDs | Scoped to an immutable `resourceScopeId`; never flatten raw IDs globally                            |
-| Directory                              | The Workspace's Server directory; a Workspace without one gets an unavailable placeholder Directory |
-| Display name                           | The Server's label; duplicate names are allowed                                                     |
-
-A Directory has `placement: local` or `placement: environment(EnvironmentId)`, and its discriminated kind must agree with Git metadata. `projectServerSnapshot` publishes only local Folder Directories without Git metadata.
+| Input                              | Contract                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------- |
+| Workspace and terminal-context IDs | Server identities independent of group membership; missing identities reject |
+| Project ID                         | Nullable Workspace membership; a non-null ID must resolve                    |
+| Directory                          | The Server's identity and path for the Workspace's directory, or none        |
+| Display name                       | The Server's label; duplicate names are allowed                              |
 
 ## Data
 
 ```text
 ProjectWorkspaceState
-├── activeLocation: standalone | workspace(WorkspaceId)
-├── standaloneTerminalContextId, expandedProjectIds, recentsExpanded, allocation sequences (unused)
+├── activeLocation: no-workspace | workspace(WorkspaceId)
+├── expandedProjectIds, recentsExpanded
 ├── projects[]: { id, name } (ordered optional groups)
-├── resourceScopes[]: { id, name, directories[], primaryDirectoryId, launchConfigurations[] }
 └── workspaces[] (ordered)
-    └── { id, name, projectId: nullable, resourceScopeId,
-          primaryDirectoryId, launchConfigurationId: nullable, terminalContextId }
+    └── { id, name, projectId: nullable, directory: { id, path } | null, terminalContextId }
 ```
 
-`Directory` is the domain term; product copy uses Folder. `resourceScopeId` is the namespace for launch resources and the fallback Directory, not another user-visible group. The Server has no scopes, so `projectServerSnapshot` gives each Workspace its own scope holding its one Directory and no launch configurations. Each resource key is `(resourceScopeId, id)`. The standalone terminal context is a placeholder that holds no Tabs, because every Server terminal belongs to a Workspace.
+`Directory` is the domain term; product copy uses Folder. A Workspace records at most one Directory, where its new terminals start; a Workspace without one starts no Tab. As in the TUI, the no-Workspace location holds no terminal context, and this Client is there only while no Workspace exists.
 
-Projects neither define repository identity nor own terminal structure. One Project can contain several repositories; one repository can appear in several Projects. Each Workspace owns one independent terminal context containing Tabs, Panels and presentations. Launch configurations retain stable references and display names; executable payload remains host-owned.
+Projects neither define repository identity nor own terminal structure. One Project can contain several repositories; one repository can appear in several Projects. Each Workspace owns one independent terminal context containing Tabs, Panels and presentations.
 
 ## Invariants
 
-- Project, resource-scope and Workspace IDs are unique in their respective collections; Directory and launch-configuration IDs are unique only within a resource scope.
-- Every scope has at least one Directory and a resolving fallback primary Directory. Paths are unique within their placement and namespace.
-- A Workspace's Directory and optional launch configuration resolve in its immutable resource scope, independently of its nullable Project membership.
-- Standalone and Workspace terminal-context IDs are unique and resolve exactly once.
-- Active location names only a Workspace, never its Project. A publication keeps this Client's view, so moving, ungrouping, and dissolving preserve selection in every Client.
+- Project and Workspace IDs are unique in their respective collections.
+- A Workspace's Directory is independent of its nullable Project membership.
+- Every Workspace names exactly one terminal context, and every terminal context belongs to exactly one Workspace.
+- Active location names only a Workspace, never its Project, or names no Workspace while none exists. A publication keeps this Client's view, so moving, ungrouping, and dissolving preserve selection in every Client.
 - A publication that leaves a terminal context unchanged keeps that context's Tab and Panel objects, focus, child selection, and zoom.
 - Names are not identity. Rejected and unchanged transitions preserve the complete input state.
 
@@ -81,7 +75,6 @@ and rejection classes. Projected metadata supplies no trusted command-execution 
 | Event                       | Guard            | Result                                        |
 | --------------------------- | ---------------- | --------------------------------------------- |
 | `workspace-activated`       | Workspace exists | Select it and disclose its Project or Recents |
-| `standalone-activated`      | None             | Select the standalone location                |
 | `project-expansion-toggled` | Project exists   | Fold or unfold that Project                   |
 | `recents-expansion-toggled` | None             | Fold or unfold Recents                        |
 
@@ -93,11 +86,11 @@ Close Workspace is a destructive Action with the shared confirmation dialog. Dis
 
 The sidebar's New Workspace control is immediate. The optional Create Project menu retains Select Folder and New Folder onboarding. Native Desktop selection validates one directory without changing disk state; a composition without that capability asks for one path instead and does not validate it. Folder-derived group names use the final path segment, falling back to the trimmed path for a root.
 
-Rename asks for a Project's or Workspace's name in one field that the Dialog's title labels, prefilled with the current name. The name is kept exactly as typed, as the protocol and the TUI keep it: a name that is blank by Unicode White_Space or longer than 512 characters is refused on submit or blur with a localized reason. Renaming a Workspace keeps the directory it records. New Project… in a Workspace's Move to Project submenu asks the same way for the new Project's name, prefilled with the Workspace's, and commits the Project and that Workspace's membership together. A Dialog whose Project or Workspace leaves closes with it. A Project gains a folder only through a Workspace that records it; the sidebar no longer edits a Workspace's launch-resource Folders.
+Rename asks for a Project's or Workspace's name in one field that the Dialog's title labels, prefilled with the current name. The name is kept exactly as typed, as the protocol and the TUI keep it: a name that is blank by Unicode White_Space or longer than 512 characters is refused on submit or blur with a localized reason. Renaming a Workspace keeps the directory it records. New Project… in a Workspace's Move to Project submenu asks the same way for the new Project's name, prefilled with the Workspace's, and commits the Project and that Workspace's membership together. A Dialog whose Project or Workspace leaves closes with it. A Project gains a folder only through a Workspace that records it.
 
 One mounted Workbench permits one native selection, which only creates a Project. Cancellation, unmount, port retirement and replacement revoke the request.
 
-New Folder selects a parent then explicitly submits one child name. Filesystem success and product success remain separate. The retained creation receipt identifies Workspace, resource scope, Directory, context and first presentation; its nullable Project is informational and regrouping does not invalidate it. The workflow awaits canonical publication and exact route acceptance before acknowledgement. A created Folder survives failed or uncertain opening, with path-based Select Folder recovery; unknown effects never trigger another mkdir. Main's lifecycle and filesystem rules are owned by [project-folder-acquisition.md](../../../apps/desktop/docs/project-folder-acquisition.md).
+New Folder selects a parent then explicitly submits one child name. Filesystem success and product success remain separate. The retained creation receipt identifies Workspace, Directory, path, context and first presentation; its nullable Project is informational and regrouping does not invalidate it. The workflow awaits canonical publication and exact route acceptance before acknowledgement. A created Folder survives failed or uncertain opening, with path-based Select Folder recovery; unknown effects never trigger another mkdir. Main's lifecycle and filesystem rules are owned by [project-folder-acquisition.md](../../../apps/desktop/docs/project-folder-acquisition.md).
 
 ## Server Worktree commands
 
@@ -257,14 +250,14 @@ Navigation origin and cancellation use the last committed React location; suspen
 
 ## Dependencies and ownership
 
-Workbench owns the read model, action adapters, dialogs and client-local views. Tab Strip owns Tab semantics, UI owns menu/dialog primitives, and i18n owns copy. The Server owns structure, terminal Agent observations, filesystem validation, Git physical identity, revisions, storage and process reconciliation. The GUI resource namespace is intentionally independent from the native protocol's globally unique Directory IDs.
+Workbench owns the read model, action adapters, dialogs and client-local views. Tab Strip owns Tab semantics, UI owns menu/dialog primitives, and i18n owns copy. The Server owns structure, terminal Agent observations, filesystem validation, Git physical identity, revisions, storage and process reconciliation.
 
 ## Correctness and verification
 
-Deterministic tests cover the client-local events and rejected transitions, and snapshot tests cover how publications project into this model. Current-shape tests cover graph validation and malformed Client Views. Runtime tests preserve context object identity, focus, child selection and zoom across publications.
+Deterministic tests cover the client-local events and rejected transitions, and snapshot tests cover how publications project into this model. Client View tests cover reconciliation of stale references and its idempotence. Runtime tests preserve context object identity, focus, child selection and zoom across publications.
 
 Hook and component tests cover menus, stable management targets, Agent rows and late activation suppression. The Server owns Worktree Git effects, races and retained partial results; Web owns stable routes and unavailable identities. DOM tests do not establish native-window focus or actual shell process behavior. The repository integration gate remains the integration owner's responsibility.
 
 ## Delivery and recovery
 
-GUI shared documents and Client Views accept only their current version-1 shapes. Complete graphs validate before use; invalid graphs are never migrated, reset or repaired. Historical development shapes have no compatibility promise. See [shared-workbench-document.md](shared-workbench-document.md).
+This model stores nothing: each window projects it again from the Server's snapshots, which the protocol parser validates before use and never repairs. The Client View accepts only its current version-1 shape and rejects a malformed one without migration. See [publication-and-client-view.md](publication-and-client-view.md).

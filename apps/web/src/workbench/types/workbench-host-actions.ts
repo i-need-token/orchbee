@@ -9,12 +9,10 @@ export type WorkbenchHostActionResult<Output = void> =
 	| ActionResult<Output>
 	| Promise<ActionResult<Output>>;
 
-export type WorkbenchNavigationTarget =
-	| { readonly kind: 'standalone' }
-	| {
-			readonly kind: 'workspace';
-			readonly workspaceId: string;
-	  };
+export interface WorkbenchNavigationTarget {
+	readonly kind: 'workspace';
+	readonly workspaceId: string;
+}
 
 export interface WorkbenchNavigationPort {
 	/** The currently accepted route, rather than a pending navigation request. */

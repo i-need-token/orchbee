@@ -1,16 +1,16 @@
-import type { TabModel } from '@orchbee/tab-strip';
 import * as React from 'react';
 
 import {
 	WorkbenchAgentAttention,
 	type WorkbenchAgentAttentionSnapshot,
 } from '../model/WorkbenchAgentAttention';
-import type { PanelWorkspaceStore } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 import { collectPanelLeaves } from '../components/workbench-panel-workspace/model/panel-workspace-state';
+import type { WorkbenchTerminalContext } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type {
 	WorkbenchAgentSnapshot,
 	WorkbenchAgentSource,
 } from '../types/workbench-agent-observation';
+import { subscribeToNothing } from '../utils/subscribeToNothing';
 import { hasWorkbenchExclusiveFocusSurface } from '../utils/workbench-focus-dom';
 
 /** Receives the exact states a visible window painted, focused or not. */
@@ -19,10 +19,10 @@ type WorkbenchAgentPaintWitness = (
 	presentationIds: ReadonlySet<string>,
 ) => void;
 
+/** Only the active Workspace's terminals can be seen, so none are while no Workspace is open. */
 export function useWorkbenchAgentAttention(
 	source: WorkbenchAgentSource | undefined,
-	panelWorkspaceStore: PanelWorkspaceStore,
-	tabModel: TabModel,
+	terminalContext: WorkbenchTerminalContext | null,
 	root: React.RefObject<HTMLElement | null>,
 	painted: WorkbenchAgentPaintWitness,
 ): WorkbenchAgentAttentionSnapshot & { readonly terminalEdited: (presentationId: string) => void } {
@@ -32,21 +32,25 @@ export function useWorkbenchAgentAttention(
 		attention.getSnapshot,
 		attention.getSnapshot,
 	);
+	const panelWorkspaceStore = terminalContext?.panelWorkspaceStore;
+	const tabModel = terminalContext?.tabModel;
+	const readPanels = () => panelWorkspaceStore?.getSnapshot() ?? null;
+	const readTabs = () => tabModel?.getSnapshot() ?? null;
 	const panels = React.useSyncExternalStore(
-		panelWorkspaceStore.subscribe,
-		panelWorkspaceStore.getSnapshot,
-		panelWorkspaceStore.getSnapshot,
+		panelWorkspaceStore?.subscribe ?? subscribeToNothing,
+		readPanels,
+		readPanels,
 	);
 	const tabs = React.useSyncExternalStore(
-		tabModel.subscribe,
-		tabModel.getSnapshot,
-		tabModel.getSnapshot,
+		tabModel?.subscribe ?? subscribeToNothing,
+		readTabs,
+		readTabs,
 	);
 	React.useEffect(() => {
 		const element = root.current;
 		if (element === null) return;
 		const visiblePresentations = new Set<string>();
-		const active = panels.tabs.find((tab) => tab.tabId === tabs.activeTabId);
+		const active = panels?.tabs.find((tab) => tab.tabId === tabs?.activeTabId);
 		if (active !== undefined) {
 			for (const panel of collectPanelLeaves(active.root)) {
 				if (active.maximizedPanelId === null || active.maximizedPanelId === panel.id) {
@@ -62,7 +66,10 @@ export function useWorkbenchAgentAttention(
 			// Allow a visible browser frame before acknowledging the exact observed version.
 			frame = requestAnimationFrame(() => {
 				frame = requestAnimationFrame(() => {
-					if (panels !== panelWorkspaceStore.getSnapshot() || tabs !== tabModel.getSnapshot())
+					if (
+						panels !== (panelWorkspaceStore?.getSnapshot() ?? null) ||
+						tabs !== (tabModel?.getSnapshot() ?? null)
+					)
 						return;
 					if (document.visibilityState !== 'visible') return;
 					// Selection can lead the visual handoff. Only a ready, active terminal

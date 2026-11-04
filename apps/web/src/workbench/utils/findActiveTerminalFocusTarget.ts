@@ -5,8 +5,8 @@ export function findActiveTerminalFocusTarget(
 ): HTMLElement | null {
 	if (typeof document === 'undefined') return null;
 	const terminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
-	const activeTabId = terminalContext.tabModel.getSnapshot().activeTabId;
-	if (activeTabId === null) return null;
+	const activeTabId = terminalContext?.tabModel.getSnapshot().activeTabId ?? null;
+	if (terminalContext === null || activeTabId === null) return null;
 	const activeTab = terminalContext.panelWorkspaceStore
 		.getSnapshot()
 		.tabs.find((tab) => tab.tabId === activeTabId);

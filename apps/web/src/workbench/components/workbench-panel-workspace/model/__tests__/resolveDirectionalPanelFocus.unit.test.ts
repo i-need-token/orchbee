@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixturePanelId,
 	oneWorkspaceSnapshot,
@@ -69,9 +70,9 @@ function resolve(
 
 /** The Panel layout a window shows when the Server publishes one Tab holding `root`. */
 function layout(root: FixtureRecord): PanelLayoutNode {
-	const tab = createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1, root)]))
-		.getActiveTerminalContext()
-		.panelWorkspaceStore.getSnapshot().tabs[0];
+	const tab = activeTerminalContext(
+		createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1, root)])),
+	).panelWorkspaceStore.getSnapshot().tabs[0];
 	if (tab === undefined) throw new Error('Expected the published Tab.');
 	return tab.root;
 }

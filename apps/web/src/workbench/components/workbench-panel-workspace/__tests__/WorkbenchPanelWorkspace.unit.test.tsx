@@ -8,6 +8,7 @@ import { useEffect, useMemo, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixturePanelId,
 	fixturePresentationId,
@@ -136,7 +137,7 @@ function publishedRuntime(tabs: readonly FixtureRecord[]): WorkbenchProjectWorks
 function renderWorkspace(projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime) {
 	const actionRuntime = new ActionRuntime();
 	const parentActionScope = actionRuntime.createScope('test.workbench');
-	const context = projectWorkspaceRuntime.getActiveTerminalContext();
+	const context = activeTerminalContext(projectWorkspaceRuntime);
 	const change = vi.fn<WorkbenchAuthority['change']>(() => Promise.resolve({ kind: 'completed' }));
 	const authority = inertWorkbenchAuthority({ change });
 	registerWorkbenchActiveTerminalActions({
@@ -177,7 +178,7 @@ function renderWorkspace(projectWorkspaceRuntime: WorkbenchProjectWorkspaceRunti
 /** Three Panels with Panel 3 focused, as after splitting to the right twice. */
 function renderThreePanelWorkspace() {
 	const projectWorkspaceRuntime = publishedRuntime([snapshotTab(1, THREE_PANEL_ROOT)]);
-	projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore.transition({
+	activeTerminalContext(projectWorkspaceRuntime).panelWorkspaceStore.transition({
 		panelId: fixturePanelId(3),
 		tabId: TAB_A,
 		type: 'panel-focused',
@@ -522,7 +523,7 @@ describe('WorkbenchPanelWorkspace', () => {
 			snapshotTab(1, TWO_PANEL_ROOT),
 			snapshotTab(2),
 		]);
-		projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore.transition({
+		activeTerminalContext(projectWorkspaceRuntime).panelWorkspaceStore.transition({
 			panelId: fixturePanelId(3),
 			tabId: TAB_A,
 			type: 'panel-maximization-toggled',

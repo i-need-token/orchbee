@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	fixtureContextId,
 	fixtureDirectoryId,
+	fixturePanelId,
 	fixturePresentationId,
 	fixtureTabId,
 	fixtureWorkspaceId,
@@ -100,7 +102,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		const runtime = createSnapshotRuntime(
 			oneWorkspaceSnapshot(1, [snapshotTab(1, snapshotPanel(1), { automaticLabel: true })]),
 		);
-		const context = runtime.getActiveTerminalContext();
+		const context = activeTerminalContext(runtime);
 		const title = () => context.tabModel.getSnapshot().tabs[0]?.title;
 		const publishedTitle = title();
 
@@ -137,14 +139,14 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 
 	it('preserves independent terminal contexts when switching locations', () => {
 		const runtime = createSnapshotRuntime(twoWorkspaceSnapshot(1));
-		const firstContext = runtime.getActiveTerminalContext();
+		const firstContext = activeTerminalContext(runtime);
 		expect(firstContext.tabModel.getSnapshot().tabs).toHaveLength(2);
 
 		runtime.transition({ type: 'workspace-activated', workspaceId: fixtureWorkspaceId(2) });
-		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toHaveLength(1);
+		expect(activeTerminalContext(runtime).tabModel.getSnapshot().tabs).toHaveLength(1);
 
 		runtime.transition({ type: 'workspace-activated', workspaceId: fixtureWorkspaceId(1) });
-		expect(runtime.getActiveTerminalContext()).toBe(firstContext);
+		expect(activeTerminalContext(runtime)).toBe(firstContext);
 	});
 
 	it('notifies once after an applied domain transition and not after rejection', () => {
@@ -156,26 +158,6 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		runtime.transition({ type: 'workspace-activated', workspaceId: 'missing' });
 
 		expect(listener).toHaveBeenCalledTimes(1);
-	});
-
-	it('observes the published document and releases the observer', () => {
-		const runtime = createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
-		const listener = vi.fn<() => void>();
-		const unsubscribe = runtime.subscribeDocument(listener);
-
-		publishSnapshot(
-			runtime,
-			oneWorkspaceSnapshot(2, [snapshotTab(1, undefined, { label: 'Renamed' })]),
-		);
-		expect(listener).toHaveBeenCalledOnce();
-		listener.mockClear();
-		unsubscribe();
-		publishSnapshot(
-			runtime,
-			oneWorkspaceSnapshot(3, [snapshotTab(1, undefined, { label: 'Renamed again' })]),
-		);
-
-		expect(listener).not.toHaveBeenCalled();
 	});
 
 	it('observes terminal topology and releases the observer', () => {
@@ -201,29 +183,75 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(listener).not.toHaveBeenCalled();
 	});
 
-	it('notifies shared-document and Client View observers only for their owned projection', () => {
+	it('notifies Client View observers for choices this Client makes, not for Server renames', () => {
 		const runtime = createSnapshotRuntime(
 			oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]),
 		);
-		const context = runtime.getActiveTerminalContext();
-		const documentListener = vi.fn<() => void>();
+		const context = activeTerminalContext(runtime);
 		const clientViewListener = vi.fn<() => void>();
-		const unsubscribeDocument = runtime.subscribeDocument(documentListener);
 		const unsubscribeClientView = runtime.subscribeClientView(clientViewListener);
 
 		context.tabModel.selectTab(fixtureTabId(2));
 
 		expect(clientViewListener).toHaveBeenCalledOnce();
-		expect(documentListener).not.toHaveBeenCalled();
 		clientViewListener.mockClear();
 		publishSnapshot(
 			runtime,
 			oneWorkspaceSnapshot(2, [snapshotTab(1), snapshotTab(2, undefined, { label: 'Renamed' })]),
 		);
-		expect(documentListener).toHaveBeenCalledOnce();
 		expect(clientViewListener).not.toHaveBeenCalled();
 		unsubscribeClientView();
-		unsubscribeDocument();
+	});
+
+	it('moves a choice the next publication drops to what that publication still holds', () => {
+		const runtime = createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]),
+		);
+		activeTerminalContext(runtime).tabModel.selectTab(fixtureTabId(2));
+
+		publishSnapshot(runtime, oneWorkspaceSnapshot(2, [snapshotTab(1)]));
+
+		expect(runtime.getClientView().terminalContexts[0]?.tabCollection.activeTabId).toBe(
+			fixtureTabId(1),
+		);
+		expect(
+			activeTerminalContext(runtime).panelWorkspaceStore.getSnapshot().tabs[0]?.root,
+		).toMatchObject({ primaryPresentation: { lifecycle: { kind: 'running' } } });
+	});
+
+	it('keeps Panel focus history across a publication without recording it in the Client View', () => {
+		const threePanels = snapshotTab(
+			1,
+			snapshotSplit(
+				1,
+				'horizontal',
+				snapshotPanel(1),
+				snapshotSplit(2, 'horizontal', snapshotPanel(2), snapshotPanel(3)),
+			),
+		);
+		const runtime = createSnapshotRuntime(oneWorkspaceSnapshot(1, [threePanels]));
+		const context = activeTerminalContext(runtime);
+		for (const sequence of [1, 3, 2]) {
+			context.panelWorkspaceStore.transition({
+				panelId: fixturePanelId(sequence),
+				tabId: fixtureTabId(1),
+				type: 'panel-focused',
+			});
+		}
+		const focusOrder = [fixturePanelId(1), fixturePanelId(3), fixturePanelId(2)];
+		const clientView = runtime.getClientView();
+
+		expect(JSON.stringify(clientView)).not.toContain('panelFocusHistory');
+		expect(
+			activeTerminalContext(
+				createSnapshotRuntime(oneWorkspaceSnapshot(1, [threePanels]), { clientView }),
+			).panelWorkspaceStore.getSnapshot().tabs[0]?.panelFocusHistory,
+		).toEqual([fixturePanelId(2)]);
+
+		publishSnapshot(runtime, oneWorkspaceSnapshot(2, [threePanels, snapshotTab(4)]));
+		expect(
+			activeTerminalContext(runtime).panelWorkspaceStore.getSnapshot().tabs[0]?.panelFocusHistory,
+		).toEqual(focusOrder);
 	});
 
 	it('crosses the Action commit point before applying a transition', () => {
@@ -273,11 +301,11 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 
 	it('disposes the context of a Workspace the Server no longer publishes', () => {
 		const runtime = createSnapshotRuntime(twoWorkspaceSnapshot(1));
-		const firstContext = runtime.getActiveTerminalContext();
+		const firstContext = activeTerminalContext(runtime);
 
 		publishSnapshot(runtime, twoWorkspaceSnapshot(2, 1));
 
 		expect(runtime.getTerminalContext(fixtureContextId(2))).toBeNull();
-		expect(runtime.getActiveTerminalContext()).toBe(firstContext);
+		expect(activeTerminalContext(runtime)).toBe(firstContext);
 	});
 });

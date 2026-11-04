@@ -1,12 +1,11 @@
-import { TabModel } from '@orchbee/tab-strip/model';
-import {
-	workbenchSharedDocumentRevision,
-	type TerminalPresentationId,
-	type WorkbenchSharedDocument,
-	type WorkbenchSharedDocumentRevision,
-} from '@orchbee/workbench-client-protocol';
+import { TabModel, type TabModelInit } from '@orchbee/tab-strip/model';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import type { WorkbenchClientView } from '../document/workbench-client-view';
+import {
+	projectWorkbenchClientView,
+	reconcileWorkbenchClientView,
+	type WorkbenchClientView,
+} from '../document/workbench-client-view';
 import {
 	createProjectWorkspaceState,
 	transitionProjectWorkspace,
@@ -14,25 +13,26 @@ import {
 	type ProjectWorkspaceState,
 	type ProjectWorkspaceTransition,
 	findWorkbenchWorkspace,
-	type WorkbenchWorkspace,
 } from '../../project-workspace';
-import { PanelWorkspaceStore } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
+import {
+	PanelWorkspaceStore,
+	type WorkbenchTabTitlePolicy,
+} from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 import {
 	collectPanelLeaves,
 	countTerminalsRequiringCloseConfirmation,
 	findTerminal,
+	validatePanelWorkspaceState,
 	type PanelLayoutNode,
 	type PanelWorkspaceState,
+	type TabPanelWorkspace,
 	type TerminalPresentation,
 } from '../components/workbench-panel-workspace/model/panel-workspace-state';
-import {
-	hydrateWorkbenchDocuments,
-	projectWorkbenchClientView,
-	projectWorkbenchSharedDocument,
-	type HydratedWorkbenchDocumentTerminalContext,
-} from './workbench-document-runtime';
 import { terminalCloseImpact, type TerminalCloseImpact } from './terminal-close-impact';
-import type { WorkbenchPublication } from './workbench-publication';
+import type {
+	WorkbenchPublication,
+	WorkbenchPublishedTerminalContext,
+} from './workbench-publication';
 import { workbenchActiveLocationsEqual } from './workbench-terminal-location-activation';
 import type { WorkbenchTerminalMetadataObservation } from './resolveTerminalMetadataObservation';
 import {
@@ -50,9 +50,16 @@ export interface WorkbenchTerminalContext {
 	readonly terminalContextId: string;
 }
 
-interface MutableWorkbenchTerminalContext extends WorkbenchTerminalContext {
-	nextTabSequence: number;
+interface PublishedWorkbenchTerminalContext extends WorkbenchTerminalContext {
+	/** The publication's fingerprint of the context these models were built from. */
+	readonly fingerprint: string;
 }
+
+type TerminalContextView = WorkbenchClientView['terminalContexts'][number];
+type PanelViews = ReadonlyMap<
+	string,
+	TerminalContextView['panelWorkspace']['tabs'][number]['panels'][number]
+>;
 
 interface WorkbenchProjectWorkspaceRuntimeOptions {
 	/** The view this window recovers, when it reopens; otherwise the publication's default view. */
@@ -67,14 +74,11 @@ type TerminalMetadataObservationResult =
 	| { readonly kind: 'rejected'; readonly reason: string };
 
 export class WorkbenchProjectWorkspaceRuntime {
-	private readonly contexts = new Map<string, MutableWorkbenchTerminalContext>();
-	private readonly contextDocumentSubscriptions = new Map<string, () => void>();
+	private readonly contexts = new Map<string, PublishedWorkbenchTerminalContext>();
+	private readonly contextSubscriptions = new Map<string, () => void>();
 	private clientViewFingerprint: string | undefined;
 	private readonly clientViewListeners = new Set<Listener>();
-	private readonly documentListeners = new Set<Listener>();
-	private documentFingerprint: string | undefined;
 	private readonly listeners = new Set<Listener>();
-	private publishedContextFingerprints: ReadonlyMap<string, string> = new Map();
 	private terminalTopologyFingerprint: string | undefined;
 	private readonly terminalTopologyListeners = new Set<Listener>();
 	private state = createProjectWorkspaceState();
@@ -84,10 +88,6 @@ export class WorkbenchProjectWorkspaceRuntime {
 	}
 
 	public readonly getSnapshot = (): ProjectWorkspaceState => this.state;
-
-	public getSharedDocument(revision: WorkbenchSharedDocumentRevision): WorkbenchSharedDocument {
-		return projectWorkbenchSharedDocument(this.runtimeSnapshot(), revision);
-	}
 
 	public getClientView(): WorkbenchClientView {
 		return projectWorkbenchClientView(this.runtimeSnapshot());
@@ -99,60 +99,45 @@ export class WorkbenchProjectWorkspaceRuntime {
 		this.emit();
 	}
 
+	/**
+	 * Keeps every choice of `candidate` that the publication still allows and every observation of a
+	 * terminal it still holds. A context whose fingerprint did not change keeps its live models.
+	 */
 	private adoptPublication(
 		publication: WorkbenchPublication,
 		candidate: WorkbenchClientView | undefined,
 	): void {
-		const hydrated = hydrateWorkbenchDocuments(publication.document, candidate);
-		const observedTerminals = collectRuntimeTerminals(this.contexts);
-		const previousFingerprints = this.publishedContextFingerprints;
-		this.publishedContextFingerprints = publication.contextFingerprints;
-		this.state = publishedProjectWorkspaceState(this.state, hydrated.projectWorkspace);
-		this.replaceTerminalContexts(
-			hydrated.terminalContexts,
-			(terminalContextId) =>
-				previousFingerprints.get(terminalContextId) ===
-				publication.contextFingerprints.get(terminalContextId),
-			(terminalContext, currentState) =>
-				publishedPanelWorkspaceState(
-					terminalContext.panelWorkspace,
-					currentState,
-					observedTerminals,
-					publication,
-				),
+		const view = reconcileWorkbenchClientView(publication, candidate);
+		const contextViews = new Map(
+			view.terminalContexts.map((context) => [context.terminalContextId, context]),
 		);
-	}
-
-	private replaceTerminalContexts(
-		terminalContexts: readonly HydratedWorkbenchDocumentTerminalContext[],
-		isUnchanged: (terminalContextId: string) => boolean,
-		panelWorkspaceFor: (
-			terminalContext: HydratedWorkbenchDocumentTerminalContext,
-			currentState: PanelWorkspaceState | undefined,
-		) => PanelWorkspaceState,
-	): void {
+		const observedTerminals = collectRuntimeTerminals(this.contexts);
+		this.state = publishedProjectWorkspaceState(this.state, publication, view);
 		const previousContexts = new Map(this.contexts);
-		for (const unsubscribe of this.contextDocumentSubscriptions.values()) unsubscribe();
-		this.contextDocumentSubscriptions.clear();
+		for (const unsubscribe of this.contextSubscriptions.values()) unsubscribe();
+		this.contextSubscriptions.clear();
 		this.contexts.clear();
-		for (const terminalContext of terminalContexts) {
-			const existing = previousContexts.get(terminalContext.terminalContextId);
-			if (existing !== undefined && isUnchanged(terminalContext.terminalContextId)) {
-				this.contexts.set(terminalContext.terminalContextId, existing);
+		for (const published of publication.terminalContexts) {
+			const existing = previousContexts.get(published.terminalContextId);
+			if (existing?.fingerprint === published.fingerprint) {
+				this.contexts.set(published.terminalContextId, existing);
 				continue;
 			}
-			const tabModel = new TabModel(terminalContext.tabCollection);
-			this.contexts.set(terminalContext.terminalContextId, {
-				nextTabSequence: terminalContext.nextTabSequence,
+			const hydrated = hydrateTerminalContext(
+				published,
+				requireDefined(contextViews.get(published.terminalContextId)),
+				observedTerminals,
+				existing?.panelWorkspaceStore.getSnapshot(),
+			);
+			const tabModel = new TabModel(hydrated.tabCollection);
+			this.contexts.set(published.terminalContextId, {
+				fingerprint: published.fingerprint,
 				panelWorkspaceStore: new PanelWorkspaceStore(tabModel, {
-					initialState: panelWorkspaceFor(
-						terminalContext,
-						existing?.panelWorkspaceStore.getSnapshot(),
-					),
-					tabTitlePolicies: terminalContext.tabTitlePolicies,
+					initialState: hydrated.panelWorkspace,
+					tabTitlePolicies: hydrated.tabTitlePolicies,
 				}),
 				tabModel,
-				terminalContextId: terminalContext.terminalContextId,
+				terminalContextId: published.terminalContextId,
 			});
 		}
 	}
@@ -167,11 +152,11 @@ export class WorkbenchProjectWorkspaceRuntime {
 			this.clientViewFingerprint = JSON.stringify(this.getClientView());
 		}
 		this.clientViewListeners.add(listener);
-		this.syncContextDocumentSubscriptions();
+		this.syncContextSubscriptions();
 		return () => {
 			this.clientViewListeners.delete(listener);
 			if (this.clientViewListeners.size === 0) this.clientViewFingerprint = undefined;
-			this.syncContextDocumentSubscriptions();
+			this.syncContextSubscriptions();
 		};
 	};
 
@@ -179,6 +164,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 	public readonly subscribeNavigation = (listener: Listener): (() => void) => {
 		const identity = () => {
 			const context = this.getActiveTerminalContext();
+			if (context === null) return JSON.stringify({ location: this.state.activeLocation });
 			const activeTabId = context.tabModel.getSnapshot().activeTabId;
 			const tab = context.panelWorkspaceStore
 				.getSnapshot()
@@ -203,21 +189,6 @@ export class WorkbenchProjectWorkspaceRuntime {
 		});
 	};
 
-	public readonly subscribeDocument = (listener: Listener): (() => void) => {
-		if (this.documentListeners.size === 0) {
-			this.documentFingerprint = sharedDocumentFingerprint(
-				this.getSharedDocument(workbenchSharedDocumentRevision('0')),
-			);
-		}
-		this.documentListeners.add(listener);
-		this.syncContextDocumentSubscriptions();
-		return () => {
-			this.documentListeners.delete(listener);
-			if (this.documentListeners.size === 0) this.documentFingerprint = undefined;
-			this.syncContextDocumentSubscriptions();
-		};
-	};
-
 	public readonly getTerminalTopologyRevision = (): string =>
 		JSON.stringify(this.runtimeSnapshot());
 
@@ -226,22 +197,25 @@ export class WorkbenchProjectWorkspaceRuntime {
 			this.terminalTopologyFingerprint = this.getTerminalTopologyRevision();
 		}
 		this.terminalTopologyListeners.add(listener);
-		this.syncContextDocumentSubscriptions();
+		this.syncContextSubscriptions();
 		return () => {
 			this.terminalTopologyListeners.delete(listener);
 			if (this.terminalTopologyListeners.size === 0) {
 				this.terminalTopologyFingerprint = undefined;
 			}
-			this.syncContextDocumentSubscriptions();
+			this.syncContextSubscriptions();
 		};
 	};
 
-	public getActiveTerminalContext(): WorkbenchTerminalContext {
-		const terminalContextId =
-			this.state.activeLocation.kind === 'standalone'
-				? this.state.standaloneTerminalContextId
-				: this.requireActiveWorkspaceTerminalContextId();
-		return this.requireContext(terminalContextId);
+	/** The active Workspace's context; null where no Workspace is open, which has none. */
+	public getActiveTerminalContext(): WorkbenchTerminalContext | null {
+		const activeLocation = this.state.activeLocation;
+		if (activeLocation.kind === 'no-workspace') return null;
+		const workspace = findWorkbenchWorkspace(this.state, activeLocation.workspaceId);
+		if (workspace === undefined) {
+			throw new Error('The active Workspace has no terminal context.');
+		}
+		return this.requireContext(workspace.terminalContextId);
 	}
 
 	public getTerminalContext(terminalContextId: string): WorkbenchTerminalContext | null {
@@ -251,7 +225,8 @@ export class WorkbenchProjectWorkspaceRuntime {
 	public resolveActiveTerminalCurrentDirectoryTarget(
 		targetPanelId?: string,
 	): CurrentDirectoryTerminalTargetResolution {
-		const context = this.getActiveMutableContext();
+		const context = this.getActiveTerminalContext();
+		if (context === null) return { kind: 'unavailable', reason: 'active-tab-unavailable' };
 		return resolveCurrentDirectoryTerminalTarget({
 			activeTabId: context.tabModel.getSnapshot().activeTabId,
 			state: context.panelWorkspaceStore.getSnapshot(),
@@ -263,7 +238,8 @@ export class WorkbenchProjectWorkspaceRuntime {
 	public resolveTerminalCurrentDirectoryTarget(
 		target: CurrentDirectoryTerminalTarget,
 	): CurrentDirectoryTerminalTargetResolution {
-		const context = this.getActiveMutableContext();
+		const context = this.getActiveTerminalContext();
+		if (context === null) return { kind: 'unavailable', reason: 'terminal-target-stale' };
 		return revalidateCurrentDirectoryTerminalTarget({
 			activeTabId: context.tabModel.getSnapshot().activeTabId,
 			state: context.panelWorkspaceStore.getSnapshot(),
@@ -274,24 +250,21 @@ export class WorkbenchProjectWorkspaceRuntime {
 
 	public getActiveTerminalTabsCloseConfirmationCount(tabIds: readonly string[]): number {
 		const requestedTabIds = new Set(tabIds);
-		return this.getActiveMutableContext()
-			.panelWorkspaceStore.getSnapshot()
-			.tabs.reduce(
-				(count, tab) =>
-					requestedTabIds.has(tab.tabId)
-						? count + countTerminalsRequiringCloseConfirmation(tab.root)
-						: count,
-				0,
-			);
+		return (this.getActiveTerminalContext()?.panelWorkspaceStore.getSnapshot().tabs ?? []).reduce(
+			(count, tab) =>
+				requestedTabIds.has(tab.tabId)
+					? count + countTerminalsRequiringCloseConfirmation(tab.root)
+					: count,
+			0,
+		);
 	}
 
 	/** What closing these Tabs does to every terminal they hold. */
 	public getActiveTerminalTabsCloseImpact(tabIds: readonly string[]): TerminalCloseImpact {
 		const requestedTabIds = new Set(tabIds);
 		return terminalCloseImpact(
-			this.getActiveMutableContext()
-				.panelWorkspaceStore.getSnapshot()
-				.tabs.filter((tab) => requestedTabIds.has(tab.tabId))
+			(this.getActiveTerminalContext()?.panelWorkspaceStore.getSnapshot().tabs ?? [])
+				.filter((tab) => requestedTabIds.has(tab.tabId))
 				.flatMap((tab) => collectPanelLeaves(tab.root))
 				.flatMap((panel) => [panel.primaryPresentation, ...panel.childPresentations]),
 		);
@@ -360,29 +333,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 		return result;
 	}
 
-	private activeTerminalContextId(): string {
-		return this.state.activeLocation.kind === 'standalone'
-			? this.state.standaloneTerminalContextId
-			: this.requireActiveWorkspaceTerminalContextId();
-	}
-
-	private getActiveMutableContext(): MutableWorkbenchTerminalContext {
-		return this.requireContext(this.activeTerminalContextId());
-	}
-
-	private requireActiveWorkspaceTerminalContextId(): string {
-		const activeLocation = this.state.activeLocation;
-		if (activeLocation.kind !== 'workspace') {
-			throw new Error('The active location is not a Workspace.');
-		}
-		const workspace = findWorkbenchWorkspace(this.state, activeLocation.workspaceId);
-		if (workspace === undefined) {
-			throw new Error('The active Workspace has no terminal context.');
-		}
-		return workspace.terminalContextId;
-	}
-
-	private requireContext(terminalContextId: string): MutableWorkbenchTerminalContext {
+	private requireContext(terminalContextId: string): PublishedWorkbenchTerminalContext {
 		const context = this.contexts.get(terminalContextId);
 		if (context === undefined) {
 			throw new Error(`Terminal context ${terminalContextId} does not exist.`);
@@ -391,7 +342,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 	}
 
 	private emit(): void {
-		this.syncContextDocumentSubscriptions();
+		this.syncContextSubscriptions();
 		for (const listener of this.listeners) {
 			try {
 				listener();
@@ -400,10 +351,10 @@ export class WorkbenchProjectWorkspaceRuntime {
 				continue;
 			}
 		}
-		this.emitDocumentAndClientView();
+		this.emitTopologyAndClientView();
 	}
 
-	private readonly emitDocumentAndClientView = (): void => {
+	private readonly emitTopologyAndClientView = (): void => {
 		if (this.terminalTopologyListeners.size > 0) {
 			const fingerprint = this.getTerminalTopologyRevision();
 			if (fingerprint !== this.terminalTopologyFingerprint) {
@@ -413,22 +364,6 @@ export class WorkbenchProjectWorkspaceRuntime {
 						listener();
 					} catch {
 						// Topology observers cannot take ownership of an authoritative transition.
-						continue;
-					}
-				}
-			}
-		}
-		if (this.documentListeners.size > 0) {
-			const fingerprint = sharedDocumentFingerprint(
-				this.getSharedDocument(workbenchSharedDocumentRevision('0')),
-			);
-			if (fingerprint !== this.documentFingerprint) {
-				this.documentFingerprint = fingerprint;
-				for (const listener of this.documentListeners) {
-					try {
-						listener();
-					} catch {
-						// Document observers cannot take ownership of an authoritative transition.
 						continue;
 					}
 				}
@@ -454,7 +389,6 @@ export class WorkbenchProjectWorkspaceRuntime {
 		return {
 			projectWorkspace: this.state,
 			terminalContexts: [...this.contexts].map(([terminalContextId, context]) => ({
-				nextTabSequence: context.nextTabSequence,
 				panelWorkspace: context.panelWorkspaceStore.getSnapshot(),
 				tabCollection: context.tabModel.getSnapshot(),
 				tabTitlePolicies: context.panelWorkspaceStore.getTabTitlePolicies(),
@@ -463,37 +397,29 @@ export class WorkbenchProjectWorkspaceRuntime {
 		};
 	}
 
-	private syncContextDocumentSubscriptions(): void {
-		if (
-			this.documentListeners.size === 0 &&
-			this.clientViewListeners.size === 0 &&
-			this.terminalTopologyListeners.size === 0
-		) {
-			for (const unsubscribe of this.contextDocumentSubscriptions.values()) unsubscribe();
-			this.contextDocumentSubscriptions.clear();
+	private syncContextSubscriptions(): void {
+		if (this.clientViewListeners.size === 0 && this.terminalTopologyListeners.size === 0) {
+			for (const unsubscribe of this.contextSubscriptions.values()) unsubscribe();
+			this.contextSubscriptions.clear();
 			return;
 		}
-		for (const [terminalContextId, unsubscribe] of this.contextDocumentSubscriptions) {
+		for (const [terminalContextId, unsubscribe] of this.contextSubscriptions) {
 			if (this.contexts.has(terminalContextId)) continue;
 			unsubscribe();
-			this.contextDocumentSubscriptions.delete(terminalContextId);
+			this.contextSubscriptions.delete(terminalContextId);
 		}
 		for (const [terminalContextId, context] of this.contexts) {
-			if (this.contextDocumentSubscriptions.has(terminalContextId)) continue;
-			this.contextDocumentSubscriptions.set(
+			if (this.contextSubscriptions.has(terminalContextId)) continue;
+			this.contextSubscriptions.set(
 				terminalContextId,
-				context.panelWorkspaceStore.subscribe(this.emitDocumentAndClientView),
+				context.panelWorkspaceStore.subscribe(this.emitTopologyAndClientView),
 			);
 		}
 	}
 }
 
-function sharedDocumentFingerprint(document: WorkbenchSharedDocument): string {
-	return JSON.stringify([document.version, document.projectWorkspace, document.terminalContexts]);
-}
-
 function collectRuntimeTerminals(
-	contexts: ReadonlyMap<string, MutableWorkbenchTerminalContext>,
+	contexts: ReadonlyMap<string, WorkbenchTerminalContext>,
 ): ReadonlyMap<string, TerminalPresentation> {
 	const terminals = new Map<string, TerminalPresentation>();
 	for (const context of contexts.values()) {
@@ -517,123 +443,155 @@ function retainActiveLocation(
 
 /**
  * This Client's location outlives a publication unless its Workspace is gone, which selects the
- * first Workspace in display order. A Project it has not seen before starts expanded, even when
- * the view it starts from, such as a reloaded document's, already expands it.
+ * first Workspace in display order, or the no-Workspace location once none is left. A Project it has
+ * not seen before starts expanded, even when the view it starts from, such as a recovered one,
+ * already expands it.
  */
 function publishedProjectWorkspaceState(
 	previous: ProjectWorkspaceState,
-	hydrated: ProjectWorkspaceState,
+	publication: WorkbenchPublication,
+	view: WorkbenchClientView,
 ): ProjectWorkspaceState {
 	const knownProjectIds = new Set(previous.projects.map((project) => project.id));
-	const viewExpandedProjectIds = new Set(hydrated.expandedProjectIds);
-	const firstWorkspace = firstWorkspaceInDisplayOrder(hydrated);
+	const viewExpandedProjectIds = new Set(view.expandedProjectIds);
 	return {
-		...hydrated,
-		activeLocation: retainActiveLocation(
-			previous.activeLocation,
-			hydrated.activeLocation.kind === 'standalone' && firstWorkspace !== undefined
-				? { kind: 'workspace', workspaceId: firstWorkspace.id }
-				: hydrated.activeLocation,
-		),
-		expandedProjectIds: hydrated.projects
+		activeLocation: retainActiveLocation(previous.activeLocation, view.activeLocation),
+		expandedProjectIds: publication.projects
 			.map((project) => project.id)
 			.filter(
 				(projectId) => viewExpandedProjectIds.has(projectId) || !knownProjectIds.has(projectId),
 			),
+		projects: publication.projects,
+		recentsExpanded: view.recentsExpanded,
+		workspaces: publication.workspaces,
 	};
 }
 
-/** The sidebar lists each Project's Workspaces in Project order, then Recents. */
-function firstWorkspaceInDisplayOrder(
-	state: ProjectWorkspaceState,
-): WorkbenchWorkspace | undefined {
-	for (const project of state.projects) {
-		const workspace = state.workspaces.find((candidate) => candidate.projectId === project.id);
-		if (workspace !== undefined) return workspace;
-	}
-	return state.workspaces.find((workspace) => workspace.projectId === null);
+/** What one terminal context's stores start from. */
+interface HydratedTerminalContext {
+	readonly panelWorkspace: PanelWorkspaceState;
+	readonly tabCollection: TabModelInit;
+	readonly tabTitlePolicies: readonly WorkbenchTabTitlePolicy[];
 }
 
-function publishedPanelWorkspaceState(
-	state: PanelWorkspaceState,
-	currentState: PanelWorkspaceState | undefined,
+/**
+ * Builds a published context's stores around this Client's reconciled view of it. Each terminal
+ * keeps what this window saw it report, and each Tab the Panel focus order its live store held.
+ */
+function hydrateTerminalContext(
+	published: WorkbenchPublishedTerminalContext,
+	view: TerminalContextView,
 	observedTerminals: ReadonlyMap<string, TerminalPresentation>,
-	publication: WorkbenchPublication,
-): PanelWorkspaceState {
-	const currentTabs = new Map(currentState?.tabs.map((tab) => [tab.tabId, tab]) ?? []);
+	current: PanelWorkspaceState | undefined,
+): HydratedTerminalContext {
+	const tabViews = new Map(view.panelWorkspace.tabs.map((tab) => [tab.tabId, tab]));
+	const currentTabs = new Map(current?.tabs.map((tab) => [tab.tabId, tab]) ?? []);
+	const panelWorkspace: PanelWorkspaceState = {
+		tabs: published.tabs.map((tab) => {
+			const tabView = requireDefined(tabViews.get(tab.id));
+			return {
+				focusedPanelId: tabView.focusedPanelId,
+				maximizedPanelId: tabView.maximizedPanelId,
+				panelFocusHistory: survivingPanelFocusHistory(
+					tab.root,
+					tabView.focusedPanelId,
+					currentTabs.get(tab.id),
+				),
+				root: hydratePanelNode(
+					tab.root,
+					new Map(tabView.panels.map((panel) => [panel.panelId, panel])),
+					observedTerminals,
+				),
+				tabId: tab.id,
+			};
+		}),
+	};
+	const invariantErrors = validatePanelWorkspaceState(panelWorkspace);
+	if (invariantErrors.length > 0) {
+		throw new Error(`Hydrated Panel workspace is invalid: ${invariantErrors.join('; ')}`);
+	}
+	const collapsedGroupIds = new Set(view.tabCollection.collapsedGroupIds);
 	return {
-		...state,
-		tabs: state.tabs.map((tab) => ({
-			...tab,
-			panelFocusHistory: survivingPanelFocusHistory(tab, currentTabs.get(tab.tabId)),
-			root: publishedPanelNode(tab.root, observedTerminals, publication),
+		panelWorkspace,
+		tabCollection: {
+			activeTabId: view.tabCollection.activeTabId,
+			groups: published.groups.map((group) => ({
+				...group,
+				collapsed: collapsedGroupIds.has(group.id),
+			})),
+			mostRecentGroupId: view.tabCollection.mostRecentGroupId,
+			selectedTabIds: view.tabCollection.selectedTabIds,
+			selectionAnchorId: view.tabCollection.selectionAnchorId,
+			tabs: published.tabs.map((tab) => ({
+				group: tab.group,
+				id: tab.id,
+				pinned: tab.pinned,
+				title: tab.customTitle ?? tab.title,
+			})),
+		},
+		tabTitlePolicies: published.tabs.map((tab) => ({
+			customTitle: tab.customTitle,
+			fallbackTitle: tab.title,
+			tabId: tab.id,
 		})),
 	};
 }
 
-function publishedPanelNode(
+function hydratePanelNode(
 	node: PanelLayoutNode,
+	panelViews: PanelViews,
 	observedTerminals: ReadonlyMap<string, TerminalPresentation>,
-	publication: WorkbenchPublication,
 ): PanelLayoutNode {
 	if (node.kind === 'panel') {
 		return {
 			...node,
+			activeChildPresentationId: requireDefined(panelViews.get(node.id)).activeChildPresentationId,
 			childPresentations: node.childPresentations.map((terminal) =>
-				publishedTerminal(terminal, observedTerminals, publication),
+				observedTerminal(terminal, observedTerminals),
 			),
-			primaryPresentation: publishedTerminal(
-				node.primaryPresentation,
-				observedTerminals,
-				publication,
-			),
+			primaryPresentation: observedTerminal(node.primaryPresentation, observedTerminals),
 		};
 	}
-	const weights = publication.splitWeights.get(node.id);
-	if (weights === undefined) throw new Error(`Split ${node.id} was published without weights.`);
 	return {
 		...node,
-		children: node.children.map((child, index) => ({
+		children: node.children.map((child) => ({
 			...child,
-			node: publishedPanelNode(child.node, observedTerminals, publication),
-			weight: index === 0 ? weights[0] : weights[1],
+			node: hydratePanelNode(child.node, panelViews, observedTerminals),
 		})),
 	};
 }
 
-function publishedTerminal(
-	hydrated: TerminalPresentation,
+/** What this window saw a terminal report outlives a publication; everything else is published. */
+function observedTerminal(
+	published: TerminalPresentation,
 	observedTerminals: ReadonlyMap<string, TerminalPresentation>,
-	publication: WorkbenchPublication,
 ): TerminalPresentation {
-	const published = publication.presentations.get(hydrated.presentationId);
-	if (published === undefined) {
-		throw new Error(`Terminal ${hydrated.presentationId} was published without its facts.`);
-	}
-	const observed = observedTerminals.get(hydrated.presentationId);
-	return {
-		...hydrated,
-		...(observed === undefined
-			? {}
-			: {
-					closeActivity: observed.closeActivity,
-					currentCwd: observed.currentCwd,
-					naturalTitle: observed.naturalTitle,
-				}),
-		...(published.customTitle === null ? {} : { customTitle: published.customTitle }),
-		lifecycle: published.lifecycle,
-	};
+	const observed = observedTerminals.get(published.presentationId);
+	return observed === undefined
+		? published
+		: {
+				...published,
+				closeActivity: observed.closeActivity,
+				currentCwd: observed.currentCwd,
+				naturalTitle: observed.naturalTitle,
+			};
 }
 
 function survivingPanelFocusHistory(
-	tab: PanelWorkspaceState['tabs'][number],
-	currentTab: PanelWorkspaceState['tabs'][number] | undefined,
+	root: PanelLayoutNode,
+	focusedPanelId: string,
+	currentTab: TabPanelWorkspace | undefined,
 ): readonly string[] {
-	const livePanelIds = new Set(collectPanelLeaves(tab.root).map((panel) => panel.id));
+	const livePanelIds = new Set(collectPanelLeaves(root).map((panel) => panel.id));
 	return [
 		...(currentTab?.panelFocusHistory ?? []).filter(
-			(panelId) => livePanelIds.has(panelId) && panelId !== tab.focusedPanelId,
+			(panelId) => livePanelIds.has(panelId) && panelId !== focusedPanelId,
 		),
-		tab.focusedPanelId,
+		focusedPanelId,
 	];
+}
+
+function requireDefined<Value>(value: Value | undefined): Value {
+	if (value === undefined) throw new Error('Expected a reconciled Workbench value.');
+	return value;
 }

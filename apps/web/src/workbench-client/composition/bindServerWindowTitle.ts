@@ -1,8 +1,8 @@
-import type { WorkbenchProjectWorkspaceRuntime } from '../../workbench';
 import {
-	workbenchSharedDocumentRevision,
-	type TerminalPresentationId,
-} from '@orchbee/workbench-client-protocol';
+	resolveActiveTerminalPresentationId,
+	type WorkbenchProjectWorkspaceRuntime,
+} from '../../workbench';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { ServerConnection } from '../server-connection';
 import {
@@ -10,7 +10,6 @@ import {
 	ServerWindowTitle,
 	type ServerWorkbenchSession,
 } from '../server-workbench';
-import { resolveFocusedWorkbenchPresentationId } from './workbench-focus-recovery-storage';
 
 /** A window's title and focus; the Server sends a title only to a focused or newly attached one. */
 export interface ServerTitleWindow {
@@ -68,13 +67,7 @@ export function bindServerWindowTitle({
 		const tab = snapshot.terminalContexts
 			.find(({ terminalContextId }) => terminalContextId === workspace?.terminalContextId)
 			?.tabs.find(({ tabId }) => tabId === activeTabId);
-		const presentationId =
-			context === null
-				? null
-				: resolveFocusedWorkbenchPresentationId(
-						runtime.getSharedDocument(workbenchSharedDocumentRevision('0')),
-						runtime.getClientView(),
-					);
+		const presentationId = context === null ? null : resolveActiveTerminalPresentationId(runtime);
 		namedPresentationId = presentationId;
 		windowTitle.update(titleWindow.document.hasFocus(), {
 			pane:

@@ -35,7 +35,7 @@ input; only the final composition commit does. Clipboard paste, file drop, mouse
 unknown keys, and operating-system Meta chords are consumed without a broadcast command.
 
 The transient FIFO may contain terminal content and is never persisted, logged, included in Action
-observations, copied into a stopped notice, or projected into shared-document or Client View state.
+observations, copied into a stopped notice, or projected into published or Client View state.
 Closing or invalidating a session clears every queued payload.
 
 ## Start decision

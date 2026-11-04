@@ -47,7 +47,9 @@ export function registerWorkbenchTabCloseResumeAction({
 	typedRuntime,
 }: RegisterWorkbenchTabCloseResumeActionOptions): ActionDisposable {
 	const stoppedTab = (input: WorkbenchTabTargetInput): StoppedTab | null => {
-		const { tabModel, terminalContextId } = projectWorkspaceRuntime.getActiveTerminalContext();
+		const active = projectWorkspaceRuntime.getActiveTerminalContext();
+		if (active === null) return null;
+		const { tabModel, terminalContextId } = active;
 		if (input !== undefined && input.terminalContextId !== terminalContextId) return null;
 		const snapshot = tabModel.getSnapshot();
 		const tabId = input?.tabId ?? snapshot.activeTabId;
@@ -95,8 +97,8 @@ export function registerWorkbenchTabCloseResumeAction({
 				// The Close key names no Tab, so it shares the key of the Tab it means.
 				concurrencyKey: (input) => {
 					const active = projectWorkspaceRuntime.getActiveTerminalContext();
-					const tabId = input?.tabId ?? active.tabModel.getSnapshot().activeTabId;
-					return `${input?.terminalContextId ?? active.terminalContextId}:${tabId ?? ''}`;
+					const tabId = input?.tabId ?? active?.tabModel.getSnapshot().activeTabId;
+					return `${input?.terminalContextId ?? active?.terminalContextId ?? ''}:${tabId ?? ''}`;
 				},
 				mode: 'foreground',
 			},

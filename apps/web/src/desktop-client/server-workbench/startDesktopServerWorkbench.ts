@@ -18,7 +18,6 @@ import {
 } from '@orchbee/i18n';
 import { normalizePermittedExternalTerminalUrl } from '@orchbee/terminal';
 import { matchesWorkbenchProjectCreation, type WorkbenchShortcutPlatform } from '../../workbench';
-import { workbenchSharedDocumentRevision } from '@orchbee/workbench-client-protocol';
 import { createMemoryHistory } from '@tanstack/react-router';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -225,14 +224,11 @@ async function run(
 		projectFolderPort,
 		undefined,
 		// The Server settles a creation only once its publication carries it, so a Project this
-		// document shows is already every Client's.
+		// window shows is already every Client's.
 		(receipt) =>
 			Promise.resolve(
 				runtime !== undefined &&
-					matchesWorkbenchProjectCreation(
-						runtime.projectWorkspaceRuntime.getSharedDocument(workbenchSharedDocumentRevision('0')),
-						receipt,
-					),
+					matchesWorkbenchProjectCreation(runtime.projectWorkspaceRuntime, receipt),
 			),
 	);
 	targetWindow.addEventListener(
