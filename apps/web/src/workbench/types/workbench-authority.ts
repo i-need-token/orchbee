@@ -171,17 +171,23 @@ export type WorkbenchAuthorityClosure =
 	| { readonly type: 'workspace-close-if-idle'; readonly workspaceId: string }
 	| { readonly type: 'workspace-close'; readonly workspaceId: string }
 	| { readonly type: 'project-workspaces-close'; readonly projectId: string }
-	/** Closes in the given order, each waiting for the one before it, and stops at the first failure. */
+	/**
+	 * Closes in the given order, each waiting for the one before it, and stops at the first failure.
+	 * Several Tabs close as one operation of the authority, which this Client only follows.
+	 */
 	| {
 			readonly type: 'tabs-close';
 			readonly terminalContextId: string;
 			readonly tabIds: readonly string[];
 	  }
-	/** Closes the Tab only if it runs nothing; otherwise settles `blocked` with `confirmation-required`. */
+	/**
+	 * As `tabs-close`, only if no Tab runs anything; otherwise settles `blocked` with
+	 * `confirmation-required`.
+	 */
 	| {
-			readonly type: 'tab-close-if-idle';
+			readonly type: 'tabs-close-if-idle';
 			readonly terminalContextId: string;
-			readonly tabId: string;
+			readonly tabIds: readonly string[];
 	  }
 	/**
 	 * Settles when the authority accepts it, and the Panel leaves with a later publication. A Tab's
@@ -193,7 +199,7 @@ export type WorkbenchAuthorityClosure =
 			readonly tabId: string;
 			readonly panelId: string;
 	  }
-	/** As `panel-close`, only if the Panel runs nothing; otherwise as `tab-close-if-idle` refuses. */
+	/** As `panel-close`, only if the Panel runs nothing; otherwise as `tabs-close-if-idle` refuses. */
 	| {
 			readonly type: 'panel-close-if-idle';
 			readonly terminalContextId: string;

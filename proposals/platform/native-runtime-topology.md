@@ -1081,26 +1081,26 @@ These choices stand unless review changes them:
   otherwise answers the Workspace's directory. The sample takes a directory the shell reported
   before the root process's, where the TUI used to read only the root process. The GUI waits at
   most five seconds, then uses the last directory the Server followed.
-- **Decision 2 has moved two workflows so far.** Of the Rust Client's multi-step workflows, the
-  New Workspace directory and the evidence for whether one Tab or Panel close asks (ORC-307) moved
-  to the Server. A Tab set close waits until ORC-301 settles the TUI's own sequence, and Duplicate
-  waits for step 5's decision on progress and the full comparison. The
+- **Decision 2 has moved three workflows so far.** Of the Rust Client's multi-step workflows, the
+  New Workspace directory, the evidence for whether one Tab or Panel close asks, and the Tab set
+  close (ORC-307) moved to the Server. Duplicate waits for step 5's decision on progress and the
+  full comparison. The
   TUI's Worktree launch and Worktree sidebar keep sampling the source terminal themselves until step 5. The rest stays in each Client, either as presentation, such as selection, navigation memory,
   drafts, and the close and take-control prompts, or because it belongs to the Client's own
   connection: Viewer membership and switching, settling a commit against the publications that
   Client sees, recovery fences, and removing a closed context.
 - **A close follows the TUI's states, and the Server decides when one asks.** A Workspace, one
-  Tab, and one Panel send the Server's conditional close first, as the TUI does since ORC-307, and a
-  Project and a set of Tabs always ask. A Tab whose progressing close the window follows leaves the
-  strip at once and returns with its report when that close ends any other way, keeping the Panel it
-  had focused. While a set closes, the selected member stays until the Server removes it, so the
-  selection moves only then, as the TUI keeps the selection during a sequence. A Close that joins a
-  stopped close leaves only once that close progresses again. A set compares the facts of its own
-  Tabs, not the whole snapshot.
-- **A close is followed to an end and never replayed.** Stale conditional and Workspace closes alone
-  are sent again, within the TUI's limit and only on unchanged facts. An accepted close reads its
-  operation for at most 50 seconds, and a Tab's last Panel is followed as its Tab's close. Step 5
-  adds Resume for a Tab close that stopped where it may continue; an unknown outcome is never
+  Tab, one Panel, and a set of Tabs send the Server's conditional close first, as the TUI does
+  since ORC-307, and a Project always asks. A Tab whose progressing close the window follows leaves
+  the strip at once and returns with its report when that close ends any other way, keeping the
+  Panel it had focused. A set closes as one Server operation, and every member leaves at once when
+  the Server accepts it, so a selected member gives way to the next Tab outside the set, else the
+  previous one, in both Clients. A Close that joins a stopped close leaves only once that close
+  progresses again. A set compares the facts of its own Tabs, not the whole snapshot.
+- **A close is followed to an end and never replayed.** Stale conditional, Workspace, and set closes
+  alone are sent again, within the TUI's limit and only on unchanged facts. An accepted close reads
+  its operation for at most 50 seconds, and a Tab's last Panel is followed as its Tab's close. Step
+  5 adds Resume for a Tab close that stopped where it may continue; an unknown outcome is never
   resumed.
 - **Child terminals have no close.** The Server has no command that closes one child Presentation,
   so that entry stays disabled.
@@ -1694,8 +1694,8 @@ choices stand unless review changes them:
   ended ones, and the button says Close in place of Close anyway. A terminal has ended once its
   launch failed, the window saw its Host settle that exact terminal, or its disposal is proven. The
   Server publishes nothing when a terminal ends, so a window that did not see the end still counts
-  that terminal as running. The Server decides whether one Tab or Panel asks, from its own evidence,
-  and a set of several Tabs always asks.
+  that terminal as running. The Server decides whether one Tab, a set of Tabs, or a Panel asks,
+  from its own evidence, and a set asks once for all its members.
   A lone Panel's Close is its Tab's question, so the TUI's last-Panel line has no GUI place, and a
   child terminal's Close keeps its own title, Close running terminal?, on the local path only.
 - **A clean exit keeps its frame for a second, as in the TUI.** When all a Panel holds exits with

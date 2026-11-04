@@ -47,7 +47,6 @@ function VerticalWorkbenchTabBar({
 		<WorkbenchTabBar
 			actionRuntime={actionRuntime}
 			focusRequest={0}
-			getCloseTabsConfirmation={() => null}
 			getTabCreationAvailability={() =>
 				creationEnabled
 					? { kind: 'enabled' }

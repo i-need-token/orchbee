@@ -9,7 +9,6 @@ import {
 	type TabModel,
 	type TabStripChangeCallback,
 	type TabStripCloseCallback,
-	type TabStripCloseConfirmation,
 	type TabStripCloseResume,
 	type TabStripMessages,
 	type TabStripNewTabChoice,
@@ -32,7 +31,6 @@ interface WorkbenchTabBarProps {
 	readonly newTabChoices?: readonly TabStripNewTabChoice[] | undefined;
 	readonly onNewTerminal: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onCloseTabs?: TabStripCloseCallback | undefined;
-	readonly getCloseTabsConfirmation: TabStripCloseConfirmation;
 	readonly focusRequest: number;
 	readonly getTabCreationAvailability?:
 		| ((intent: TabStripTabCreationIntent) => ActionAvailability)
@@ -57,7 +55,6 @@ export function WorkbenchTabBar({
 	newTabChoices,
 	onNewTerminal,
 	onCloseTabs,
-	getCloseTabsConfirmation,
 	focusRequest,
 	getTabCreationAvailability,
 	onOrientationChange,
@@ -101,7 +98,6 @@ export function WorkbenchTabBar({
 					statusAdornments={statusAdornments}
 					onNewTab={onNewTerminal}
 					onCloseTabs={onCloseTabs}
-					getCloseTabsConfirmation={getCloseTabsConfirmation}
 					closeResume={closeResume}
 					getTabCreationAvailability={getTabCreationAvailability}
 					onOrientationChange={onOrientationChange}

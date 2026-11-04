@@ -11,7 +11,6 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import {
 	type TabStripChangeCallback,
 	type TabStripCloseCallback,
-	type TabStripCloseConfirmation,
 	type TabStripCloseResume,
 	type TabStripNewTabChoice,
 	type TabStripNewTabRequest,
@@ -108,12 +107,12 @@ import {
 	type WorkbenchTerminalLocationActivationOrigin,
 } from '../model/workbench-terminal-location-activation';
 
-/** The TUI names this many Tabs in a close question and counts the rest. */
-const SHARED_TAB_CLOSE_NAMED_TABS = 3;
-
 const ACTIVE_TAB_UNAVAILABLE = { code: 'active-tab-unavailable', kind: 'blocked' } as const;
 
-/** The close of those requested Tabs the context still holds, in its strip's order. */
+/**
+ * The close of those requested Tabs the context still holds, in its strip's order, which asks the
+ * authority first.
+ */
 function sharedTabsClosure(activeContext: WorkbenchTerminalContext, tabIds: readonly string[]) {
 	const requested = new Set(tabIds);
 	return {
@@ -122,7 +121,7 @@ function sharedTabsClosure(activeContext: WorkbenchTerminalContext, tabIds: read
 			.tabs.filter((tab) => requested.has(tab.id))
 			.map((tab) => tab.id),
 		terminalContextId: activeContext.terminalContextId,
-		type: 'tabs-close' as const,
+		type: 'tabs-close-if-idle' as const,
 	};
 }
 
@@ -178,7 +177,6 @@ interface WorkbenchView {
 	readonly onCloseTabs: TabStripCloseCallback;
 	/** Present when an authority decides the Tabs, which then show only as it answers. */
 	readonly onTabsChange: TabStripChangeCallback;
-	readonly getCloseTabsConfirmation: TabStripCloseConfirmation;
 	readonly getTabCreationAvailability: (intent: TabStripTabCreationIntent) => ActionAvailability;
 	readonly onLayoutChanged: (
 		layout: Readonly<Record<string, number>>,
@@ -502,7 +500,11 @@ export function useWorkbench({
 			}
 		}
 	});
-	/** In the order the strip shows them, which is the order a set of Tabs closes in. */
+	/**
+	 * In the order the strip shows them, which is the order a set of Tabs closes in. As in the TUI,
+	 * one Tab or a set closes unasked when nothing runs in any of them, which only the authority
+	 * knows, and otherwise asks once for all of them.
+	 */
 	const closeSharedTabs = async (
 		context: Parameters<TabStripCloseCallback>[0],
 		decider: WorkbenchAuthority,
@@ -510,32 +512,15 @@ export function useWorkbench({
 	): Promise<ActionResult<void>> => {
 		const activeContext = projectWorkspaceRuntime.getActiveTerminalContext();
 		if (activeContext === null) return ACTIVE_TAB_UNAVAILABLE;
+		const closure = sharedTabsClosure(activeContext, tabIds);
 		const handover = focusRouting.beginTerminalHandover();
-		const result = await decider.close(context, sharedTabsClosure(activeContext, tabIds));
-		if (result.kind === 'completed') handover.complete();
-		return result;
-	};
-	/** As in the TUI, one Tab closes unasked when nothing runs in it, which only the authority knows. */
-	const closeSharedTab = async (
-		context: Parameters<TabStripCloseCallback>[0],
-		decider: WorkbenchAuthority,
-		tabId: string,
-	): Promise<ActionResult<void>> => {
-		const activeContext = projectWorkspaceRuntime.getActiveTerminalContext();
-		if (activeContext === null) return ACTIVE_TAB_UNAVAILABLE;
-		const { terminalContextId } = activeContext;
-		const handover = focusRouting.beginTerminalHandover();
-		const result = await decider.close(context, {
-			tabId,
-			terminalContextId,
-			type: 'tab-close-if-idle',
-		});
+		const result = await decider.close(context, closure);
 		if (result.kind === 'completed') handover.complete();
 		if (result.kind !== 'blocked' || result.code !== 'confirmation-required') return result;
 		// The question is its own Action, because this one has already asked the authority.
 		actions.invoke(
 			WORKBENCH_ACTION_IDS.closeTabConfirmed,
-			{ tabId, terminalContextId },
+			{ tabIds: closure.tabIds, terminalContextId: closure.terminalContextId },
 			context.source,
 		);
 		return { kind: 'unchanged' };
@@ -544,46 +529,11 @@ export function useWorkbench({
 		void,
 		Parameters<TabStripCloseCallback>,
 		ReturnType<TabStripCloseCallback>
-	>((context, request) => {
-		if (context.signal.aborted) return { kind: 'cancelled' };
-		const [tabId, ...others] = request.tabIds;
-		return tabId === undefined || others.length > 0
-			? closeSharedTabs(context, authorityNotice.authority, request.tabIds)
-			: closeSharedTab(context, authorityNotice.authority, tabId);
-	});
-	const getCloseTabsConfirmation = useMemoizedFn<
-		void,
-		Parameters<TabStripCloseConfirmation>,
-		ReturnType<TabStripCloseConfirmation>
-	>((request) => {
-		const decider = authorityNotice.authority;
-		const activeContext = projectWorkspaceRuntime.getActiveTerminalContext();
-		// A shared set always asks, because one press ends more than the Tab under the pointer. One Tab
-		// asks only once the authority answers that something may run in it.
-		if (request.tabIds.length < 2 || activeContext === null) return null;
-		const closure = sharedTabsClosure(activeContext, request.tabIds);
-		const shown = closure.tabIds.slice(0, SHARED_TAB_CLOSE_NAMED_TABS);
-		const titles = new Map(
-			activeContext.tabModel.getSnapshot().tabs.map((tab) => [tab.id, tab.title]),
-		);
-		return {
-			cancelLabel: workbenchMessages.panelCancel,
-			confirmLabel: workbenchMessages.panelClose,
-			description: {
-				...workbenchMessages.tabCloseDescription,
-				values: {
-					more: closure.tabIds.length - shown.length,
-					names: shown.map((tabId) => titles.get(tabId) ?? '').join(', '),
-					warning: formatCloseWarning(
-						projectWorkspaceRuntime.getActiveTerminalTabsCloseImpact(closure.tabIds),
-					),
-				},
-			},
-			risk: 'destructive',
-			title: { ...workbenchMessages.tabCloseTitle, values: { count: closure.tabIds.length } },
-			watch: (withdraw) => decider.watchClose(closure, withdraw),
-		};
-	});
+	>((context, request) =>
+		context.signal.aborted
+			? { kind: 'cancelled' }
+			: closeSharedTabs(context, authorityNotice.authority, request.tabIds),
+	);
 	const actions = useWorkbenchActions({
 		agentObservationSource,
 		authority: authorityNotice.authority,
@@ -811,7 +761,6 @@ export function useWorkbench({
 		onCloseTabs: closeTabs,
 		createPanelTerminal,
 		onTabsChange: changeSharedTabs,
-		getCloseTabsConfirmation,
 		getTabCreationAvailability,
 		onLayoutChanged: (_layout, meta) => {
 			if (meta.isUserInteraction) {

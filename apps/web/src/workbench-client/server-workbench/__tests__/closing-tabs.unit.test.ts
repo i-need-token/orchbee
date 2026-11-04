@@ -60,7 +60,8 @@ function closeStatus(status: CloseStatus, revision: number): unknown {
  * A window showing Tabs 1 to `tabCount` with `selectedTab` selected, wired as the window wires its
  * close to the Tabs it leaves out, against a Server that answers each read of Tab `n`'s close with
  * the next status `reads.get(n)` names. Every Close of a Tab joins the one close the Server keeps
- * for it, and a closed read removes the Tab.
+ * for it, and a closed read removes the Tab. A set closes its members in order, each by that same
+ * close, and each read of the set reads its first member not yet closed; a blocked member stops it.
  */
 function closingWindow(
 	tabCount: number,
@@ -77,11 +78,11 @@ function closingWindow(
 	const views: ReadView[] = [];
 	const runtime = createSnapshotRuntime(snapshot);
 	activeTerminalContext(runtime).tabModel.selectTab(fixtureTabId(selectedTab));
+	let set: { readonly members: readonly number[]; readonly operationId: string } | null = null;
+	const observed = new Map<number, { readonly answer: CloseStatus; readonly revision: number }>();
 
 	const leavingTabs = new ServerLeavingTabs(
 		() => snapshot,
-		(terminalContextId, tabId) =>
-			runtime.getTerminalContext(terminalContextId)?.tabModel.getSnapshot().activeTabId === tabId,
 		() => {
 			project();
 		},
@@ -101,10 +102,10 @@ function closingWindow(
 	const sequenceOf = (tabId: string) =>
 		held.find((sequence) => fixtureTabId(sequence) === tabId) ?? 0;
 
-	const read = (operationId: string): ServerWorkbenchAnswer => {
-		const sequence = held.find((candidate) => closeRequestOf(candidate) === operationId);
-		const answer = sequence === undefined ? undefined : remaining.get(sequence)?.shift();
-		if (sequence === undefined || answer === undefined) throw new Error('Nothing more is read.');
+	/** Takes the next status of Tab `sequence`'s close, as the window shows it then. */
+	const step = (sequence: number): CloseStatus => {
+		const answer = remaining.get(sequence)?.shift();
+		if (answer === undefined) throw new Error('Nothing more is read.');
 		views.push({ answer, tab: fixtureTabId(sequence), ...view() });
 		if (answer === 'closed') {
 			held = held.filter((candidate) => candidate !== sequence);
@@ -115,6 +116,12 @@ function closingWindow(
 			);
 			project();
 		}
+		return answer;
+	};
+	const read = (operationId: string): ServerWorkbenchAnswer => {
+		const sequence = held.find((candidate) => closeRequestOf(candidate) === operationId);
+		if (sequence === undefined) throw new Error('Nothing more is read.');
+		const answer = step(sequence);
 		return {
 			kind: 'answered',
 			response: response({
@@ -131,11 +138,62 @@ function closingWindow(
 		};
 	};
 
+	const readSet = ({ members, operationId }: NonNullable<typeof set>): ServerWorkbenchAnswer => {
+		const seen = members.map((sequence) => observed.get(sequence)?.answer);
+		let status: Readonly<Record<string, string>> = { kind: 'pending' };
+		if (seen.includes('blocked')) status = { kind: 'failed', reason: 'child-blocked' };
+		else if (seen.every((answer) => answer === 'closed')) status = { kind: 'closed' };
+		return {
+			kind: 'answered',
+			response: response({
+				kind: 'workbench.tab-set-close.result',
+				operationId,
+				outcome: {
+					condition: 'confirmed',
+					kind: 'available',
+					members: members.map((sequence) => {
+						const close = observed.get(sequence);
+						return {
+							absent: false,
+							close:
+								close === undefined
+									? null
+									: {
+											observation: {
+												attemptGeneration: '1',
+												status: closeStatus(close.answer, close.revision),
+											},
+											requestId: closeRequestOf(sequence),
+										},
+							label: `Tab ${sequence}`,
+							tabId: fixtureTabId(sequence),
+						};
+					}),
+					status,
+					terminalContextId: CONTEXT,
+				},
+			}),
+		};
+	};
+
 	const session: CloseSession = {
 		ask: (request) => {
 			switch (request.kind) {
 				case 'workbench.close-operation.read':
 					return Promise.resolve(read(request.operationId));
+				case 'workbench.tab-set-close': {
+					const { action } = request;
+					if (action.kind === 'start') {
+						set = { members: action.tabIds.map(sequenceOf), operationId: action.operationId };
+					} else if (set?.operationId === action.operationId) {
+						const next = set.members.find(
+							(sequence) => observed.get(sequence)?.answer !== 'closed',
+						);
+						if (next !== undefined) observed.set(next, { answer: step(next), revision });
+					}
+					if (set === null) throw new Error('No set has started.');
+					return Promise.resolve(readSet(set));
+				}
 				case 'workbench.tab-close.resume':
 					return Promise.resolve({
 						kind: 'answered',
@@ -197,10 +255,16 @@ function closingWindow(
 
 const CLOSES_THEN_CLOSED: readonly CloseStatus[] = ['closing', 'closed'];
 
+/**
+ * As in the TUI, every member of a set leaves the strip once the Server accepts the set, and a
+ * selected member gives way in that same change to the next Tab outside the set, else the previous
+ * one, else none. The members the Server leaves open come back, and the selection stays where it
+ * moved.
+ */
 describe('closing several Tabs', () => {
-	it('keeps the selected member selected and shown until the Server removes it, then selects the next Tab still shown, else the previous', async () => {
-		const strip = closingWindow(
-			4,
+	it('leaves with every member at once, moving the selection to the next Tab outside the set, else the previous, else none', async () => {
+		const next = closingWindow(
+			5,
 			3,
 			new Map([
 				[2, CLOSES_THEN_CLOSED],
@@ -208,31 +272,51 @@ describe('closing several Tabs', () => {
 				[4, CLOSES_THEN_CLOSED],
 			]),
 		);
+		await expect(next.close(2, 3, 4)).resolves.toEqual({ kind: 'completed' });
+		const outside = { selected: fixtureTabId(5), shown: [fixtureTabId(1), fixtureTabId(5)] };
+		expect(next.viewsAt(2, 'closing')).toEqual([outside]);
+		expect(next.view()).toEqual(outside);
 
-		await expect(strip.close(2, 3, 4)).resolves.toEqual({ kind: 'completed' });
+		const previous = closingWindow(
+			4,
+			4,
+			new Map([
+				[3, CLOSES_THEN_CLOSED],
+				[4, CLOSES_THEN_CLOSED],
+			]),
+		);
+		await expect(previous.close(3, 4)).resolves.toEqual({ kind: 'completed' });
+		expect(previous.viewsAt(3, 'closing')).toEqual([
+			{ selected: fixtureTabId(2), shown: [fixtureTabId(1), fixtureTabId(2)] },
+		]);
 
-		const selectedWhileClosing = (sequence: number) =>
-			strip.viewsAt(sequence, 'closing').map(({ selected }) => selected);
-		expect(selectedWhileClosing(2)).toEqual([fixtureTabId(3)]);
-		expect(selectedWhileClosing(3)).toEqual([fixtureTabId(3)]);
-		expect(strip.viewsAt(3, 'closing')[0]?.shown).toContain(fixtureTabId(3));
-		expect(selectedWhileClosing(4)).toEqual([fixtureTabId(4)]);
-		expect(strip.viewsAt(4, 'closing')[0]?.shown).toContain(fixtureTabId(4));
-		expect(strip.view().selected).toBe(fixtureTabId(1));
+		const none = closingWindow(
+			2,
+			1,
+			new Map([
+				[1, CLOSES_THEN_CLOSED],
+				[2, CLOSES_THEN_CLOSED],
+			]),
+		);
+		await expect(none.close(1, 2)).resolves.toEqual({ kind: 'completed' });
+		expect(none.viewsAt(1, 'closing')).toEqual([{ selected: null, shown: [] }]);
 	});
 
-	it.each([
-		['the selected member', [2, 3]],
-		['a member that is not selected', [1, 2]],
-	])('leaves the selection where it was when %s comes back', async (_name, members) => {
-		const [first = 0] = members;
-		const strip = closingWindow(3, 2, new Map([[first, ['blocked']]]));
+	it('brings back the members the Server leaves open, and keeps the selection where it moved', async () => {
+		const strip = closingWindow(
+			4,
+			2,
+			new Map<number, readonly CloseStatus[]>([
+				[1, CLOSES_THEN_CLOSED],
+				[2, ['blocked']],
+			]),
+		);
 
-		await expect(strip.close(...members)).resolves.toMatchObject({ kind: 'failed' });
+		await expect(strip.close(1, 2, 3)).resolves.toMatchObject({ kind: 'failed' });
 
 		expect(strip.view()).toEqual({
-			selected: fixtureTabId(2),
-			shown: [fixtureTabId(1), fixtureTabId(2), fixtureTabId(3)],
+			selected: fixtureTabId(4),
+			shown: [fixtureTabId(2), fixtureTabId(3), fixtureTabId(4)],
 		});
 	});
 });

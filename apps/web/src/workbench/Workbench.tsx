@@ -311,7 +311,6 @@ export function Workbench({
 									onVerticalCollapsedChange={view.onVerticalTabStripCollapsedChange}
 									orientation={view.tabStripOrientation}
 									onCloseTabs={view.onCloseTabs}
-									getCloseTabsConfirmation={view.getCloseTabsConfirmation}
 									focusRequest={view.tabStripFocusRequest}
 									getTabCreationAvailability={view.getTabCreationAvailability}
 									onSelectTab={navigation?.selectTab}

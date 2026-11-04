@@ -52,6 +52,8 @@ export interface WorkbenchTerminalContext {
 interface PublishedWorkbenchTerminalContext extends WorkbenchTerminalContext {
 	/** The publication's fingerprint of the context these models were built from. */
 	readonly fingerprint: string;
+	/** The Tabs the authority holds that this window leaves out for now. */
+	readonly withheldTabIds: ReadonlySet<string>;
 }
 
 type TerminalContextView = WorkbenchClientView['terminalContexts'][number];
@@ -161,6 +163,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 				}),
 				tabModel,
 				terminalContextId: published.terminalContextId,
+				withheldTabIds: new Set(published.withheldTabIds),
 			});
 		}
 	}
@@ -295,6 +298,16 @@ export class WorkbenchProjectWorkspaceRuntime {
 
 	public getTerminalContext(terminalContextId: string): WorkbenchTerminalContext | null {
 		return this.contexts.get(terminalContextId) ?? null;
+	}
+
+	/** Whether the authority still holds the Tab, shown or left out for now while its close runs. */
+	public holdsTab(terminalContextId: string, tabId: string): boolean {
+		const context = this.contexts.get(terminalContextId);
+		return (
+			context !== undefined &&
+			(context.withheldTabIds.has(tabId) ||
+				context.tabModel.getSnapshot().tabs.some((tab) => tab.id === tabId))
+		);
 	}
 
 	public resolveActiveTerminalCurrentDirectoryTarget(

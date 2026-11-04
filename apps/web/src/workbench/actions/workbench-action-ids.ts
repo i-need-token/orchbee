@@ -185,6 +185,11 @@ export type WorkbenchTabTargetInput =
 	| undefined
 	| { readonly tabId: string; readonly terminalContextId: string };
 
+/** One or more distinct Tabs of one terminal context, named exactly. */
+export type WorkbenchTabSetTargetInput =
+	| undefined
+	| { readonly tabIds: readonly string[]; readonly terminalContextId: string };
+
 export type WorkbenchTabTitleInput =
 	| undefined
 	| {
@@ -216,7 +221,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.createWorkspaceProject]: ActionSignature<WorkbenchWorkspaceProjectCreateInput>;
 	readonly [WORKBENCH_ACTION_IDS.closeProjectWorkspaces]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed]: ActionSignature<WorkbenchWorkspaceInput>;
-	readonly [WORKBENCH_ACTION_IDS.closeTabConfirmed]: ActionSignature<WorkbenchTabTargetInput>;
+	readonly [WORKBENCH_ACTION_IDS.closeTabConfirmed]: ActionSignature<WorkbenchTabSetTargetInput>;
 	readonly [WORKBENCH_ACTION_IDS.navigateAgent]: ActionSignature<WorkbenchAgentNavigateInput>;
 	readonly [WORKBENCH_ACTION_IDS.activateWorkspace]: ActionSignature<WorkbenchWorkspaceActivationInput>;
 	readonly [WORKBENCH_ACTION_IDS.createProject]: ActionSignature<
@@ -406,6 +411,24 @@ export const workbenchTabTargetInput: ActionInputValidation<WorkbenchTabTargetIn
 					success: true,
 				}
 			: { code: 'expected-workbench-tab-target-input', success: false };
+	},
+};
+
+export const workbenchTabSetTargetInput: ActionInputValidation<WorkbenchTabSetTargetInput> = {
+	name: 'WorkbenchTabSetTargetInput',
+	parse: (input) => {
+		if (input === undefined) return { data: undefined, success: true };
+		if (!isRecord(input))
+			return { code: 'expected-workbench-tab-set-target-input', success: false };
+		const { tabIds, terminalContextId } = input;
+		return Array.isArray(tabIds) &&
+			tabIds.length > 0 &&
+			tabIds.every((tabId): tabId is string => typeof tabId === 'string' && tabId.length > 0) &&
+			new Set(tabIds).size === tabIds.length &&
+			typeof terminalContextId === 'string' &&
+			terminalContextId.length > 0
+			? { data: { tabIds: [...tabIds], terminalContextId }, success: true }
+			: { code: 'expected-workbench-tab-set-target-input', success: false };
 	},
 };
 

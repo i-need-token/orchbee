@@ -123,7 +123,6 @@ export function readWorkbenchCloseSubject(
 			return closesTab(runtime, closure.terminalContextId, closure.tabId)
 				? tabSubject(runtime, closure.terminalContextId, closure.tabId)
 				: { kind: 'panel' };
-		case 'tab-close-if-idle':
 		case 'tab-close-resume':
 			return tabSubject(runtime, closure.terminalContextId, closure.tabId);
 		case 'project-workspaces-close':
@@ -133,7 +132,8 @@ export function readWorkbenchCloseSubject(
 					runtime.getSnapshot().projects.find((project) => project.id === closure.projectId)
 						?.name ?? '',
 			};
-		case 'tabs-close': {
+		case 'tabs-close':
+		case 'tabs-close-if-idle': {
 			const [only, ...others] = closure.tabIds;
 			if (only === undefined || others.length > 0) {
 				return {
@@ -156,17 +156,14 @@ export function readWorkbenchCloseSubject(
 	}
 }
 
+/** A member still counts while the authority holds it, though the strip leaves it out meanwhile. */
 function tabSetCounts(
 	subject: Extract<WorkbenchCloseSubject, { readonly kind: 'tabs' }>,
 	runtime: WorkbenchProjectWorkspaceRuntime,
 ): { readonly completed: number; readonly remaining: number } {
-	const present = new Set(
-		runtime
-			.getTerminalContext(subject.terminalContextId)
-			?.tabModel.getSnapshot()
-			.tabs.map((tab) => tab.id),
-	);
-	const remaining = subject.tabIds.filter((tabId) => present.has(tabId)).length;
+	const remaining = subject.tabIds.filter((tabId) =>
+		runtime.holdsTab(subject.terminalContextId, tabId),
+	).length;
 	return { completed: subject.tabIds.length - remaining, remaining };
 }
 
@@ -217,9 +214,9 @@ export function workbenchCloseWithdrawnNotice(
 		descriptor:
 			closure.type === 'panel-close' ||
 			closure.type === 'panel-close-if-idle' ||
-			closure.type === 'tab-close-if-idle' ||
 			closure.type === 'tab-close-resume' ||
-			closure.type === 'tabs-close'
+			closure.type === 'tabs-close' ||
+			closure.type === 'tabs-close-if-idle'
 				? workbenchMessages.tabCloseCancelled
 				: workbenchMessages.workspaceCloseChanged,
 		lifetime: 'timed',
@@ -327,6 +324,10 @@ export function workbenchCloseResultNotice(
 					};
 		}
 		case 'tabs': {
+			// A set the authority did not take closed nothing.
+			if (result.kind === 'blocked') {
+				return { descriptor: workbenchMessages.tabCloseNotApplied, lifetime: 'timed' };
+			}
 			const values = tabSetCounts(subject, runtime);
 			return result.kind === 'completed'
 				? { descriptor: workbenchMessages.tabCloseSetProgress, lifetime: 'timed', values }

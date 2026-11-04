@@ -59,6 +59,11 @@ const CLOSE_TABS: WorkbenchAuthorityClosure = {
 	terminalContextId: CONTEXT,
 	type: 'tabs-close',
 };
+const CLOSE_TABS_IF_IDLE: WorkbenchAuthorityClosure = {
+	tabIds: [FIRST_TAB, SECOND_TAB],
+	terminalContextId: CONTEXT,
+	type: 'tabs-close-if-idle',
+};
 const CLOSE_PROJECT: WorkbenchAuthorityClosure = {
 	projectId: PROJECT,
 	type: 'project-workspaces-close',
@@ -232,6 +237,54 @@ function groupStatus(
 			requestId: REQUEST,
 		}),
 	};
+}
+
+function setAnswer(outcome: unknown): ServerWorkbenchAnswer {
+	return {
+		kind: 'answered',
+		response: parseWorkbenchResponse({
+			kind: 'workbench.tab-set-close.result',
+			operationId: REQUEST,
+			outcome,
+			protocolVersion: 1,
+			requestId: REQUEST,
+		}),
+	};
+}
+
+/** A set of the two Tabs, whose members' own closes report `children`; null is one not started. */
+function setStatus(status: unknown, children: readonly unknown[]): ServerWorkbenchAnswer {
+	const members = [
+		{ requestId: CLOSE_REQUEST, tabId: FIRST_TAB },
+		{ requestId: OTHER_CLOSE_REQUEST, tabId: SECOND_TAB },
+	];
+	return setAnswer({
+		condition: 'confirmed',
+		kind: 'available',
+		members: members.map(({ requestId, tabId }, index) => {
+			const child = children[index] ?? null;
+			return {
+				absent: false,
+				close:
+					child === null
+						? null
+						: { observation: { attemptGeneration: '1', status: child }, requestId },
+				label: `Member ${index}`,
+				tabId,
+			};
+		}),
+		status,
+		terminalContextId: CONTEXT,
+	});
+}
+
+/** The Start of each set the close asked for, in order. */
+function setStarts(asked: readonly Parameters<CloseSession['ask']>[0][]) {
+	return asked.flatMap((request) =>
+		request.kind === 'workbench.tab-set-close' && request.action.kind === 'start'
+			? [request.action]
+			: [],
+	);
 }
 
 interface Step {
@@ -412,32 +465,98 @@ describe('close', () => {
 		});
 	});
 
-	it('closes a set of Tabs in order and leaves the rest once one does not close', async () => {
-		const { actions, session } = fakeSession(
-			[FIRST_TAB_ACCEPTED],
-			[closeStatus({ kind: 'cleanup-blocked', reason: 'host-refused', resumable: true })],
+	it('starts a set of Tabs once and follows it by its operation until the last closed member has been published', async () => {
+		const { actions, asked, published, session } = fakeSession(
+			[],
+			[
+				setStatus({ kind: 'pending' }, [null, null]),
+				setStatus({ kind: 'pending' }, [
+					{ kind: 'closed', revision: '8' },
+					{ kind: 'closing', phase: 'queued' },
+				]),
+				setStatus({ kind: 'closed' }, [
+					{ kind: 'closed', revision: '8' },
+					{ kind: 'closed', revision: '9' },
+				]),
+			],
 		);
+		const { context, markCommitted } = executionContext();
 
-		await expect(closeWith(session, executionContext().context, CLOSE_TABS)).resolves.toEqual({
-			failure: { code: 'cleanup-blocked' },
-			kind: 'failed',
-		});
+		await expect(closeWith(session, context, CLOSE_TABS)).resolves.toEqual({ kind: 'completed' });
 
-		expect(actions).toEqual([{ kind: 'tab.close', tabId: FIRST_TAB, terminalContextId: CONTEXT }]);
+		const [start] = asked;
+		expect(setStarts(asked)).toEqual([
+			{
+				condition: 'confirmed',
+				expectedRevision: '5',
+				kind: 'start',
+				operationId: start?.requestId,
+				tabIds: [FIRST_TAB, SECOND_TAB],
+				terminalContextId: CONTEXT,
+			},
+		]);
+		expect(
+			asked.slice(1).map((read) => read.kind === 'workbench.tab-set-close' && read.action),
+		).toEqual([
+			{ kind: 'read', operationId: start?.requestId },
+			{ kind: 'read', operationId: start?.requestId },
+		]);
+		expect(actions).toEqual([]);
+		expect(published).toEqual(['9']);
+		expect(markCommitted).toHaveBeenCalled();
 	});
 
-	it('leaves a Tab that changed after the question was answered', async () => {
-		const { actions, session } = fakeSession(
-			[{ answer: FIRST_TAB_ACCEPTED, delivered: readSnapshot({ secondTabLabel: 'Renamed' }) }],
-			[CLOSED],
-		);
+	it('asks first with one if-idle Start, which the Server may answer with its question', async () => {
+		const { asked, session } = fakeSession([], [setAnswer({ kind: 'confirmation-required' })]);
 
-		await expect(closeWith(session, executionContext().context, CLOSE_TABS)).resolves.toEqual({
-			code: 'scope-changed',
-			kind: 'blocked',
-		});
+		await expect(
+			closeWith(session, executionContext().context, CLOSE_TABS_IF_IDLE),
+		).resolves.toEqual({ code: 'confirmation-required', kind: 'blocked' });
 
-		expect(actions).toHaveLength(1);
+		expect(setStarts(asked).map(({ condition }) => condition)).toEqual(['if-idle']);
+		expect(asked).toHaveLength(1);
+	});
+
+	it('starts a set again at the newer revision that left every member as shown, but not forever, not once one changed, and not once cancelled', async () => {
+		const stale = setAnswer({ kind: 'rejected', reason: 'revision-mismatch', revision: '6' });
+		const racing = fakeSession([], [stale, stale, stale, stale, stale]);
+		racing.session.published = (revision) => {
+			racing.session.snapshot = readSnapshot({ revision });
+			return Promise.resolve();
+		};
+		await expect(
+			closeWith(racing.session, executionContext().context, CLOSE_TABS),
+		).resolves.toEqual({ code: 'scope-changed', kind: 'blocked' });
+		const starts = setStarts(racing.asked);
+		expect(starts.map(({ expectedRevision }) => expectedRevision)).toEqual([
+			'5',
+			'6',
+			'6',
+			'6',
+			'6',
+		]);
+		expect(new Set(starts.map(({ operationId }) => operationId)).size).toBe(5);
+
+		const changed = fakeSession([], [stale]);
+		changed.session.published = () => {
+			changed.session.snapshot = readSnapshot({ revision: '6', secondTabLabel: 'Renamed' });
+			return Promise.resolve();
+		};
+		await expect(
+			closeWith(changed.session, executionContext().context, CLOSE_TABS),
+		).resolves.toEqual({ code: 'scope-changed', kind: 'blocked' });
+		expect(changed.asked).toHaveLength(1);
+
+		const cancelling = new AbortController();
+		const cancelled = fakeSession([], [stale]);
+		cancelled.session.published = () => {
+			cancelling.abort();
+			return Promise.resolve();
+		};
+		await expect(
+			closeWith(cancelled.session, executionContext(cancelling.signal).context, CLOSE_TABS),
+		).resolves.toEqual({ code: 'not-submitted', kind: 'blocked' });
+		expect(cancelled.asked).toHaveLength(1);
 	});
 
 	it('follows the close of the last Panel as the close of its Tab, which Resume continues', async () => {
@@ -484,16 +603,6 @@ describe('close', () => {
 			kind: 'cancelled',
 		});
 		expect(markCommitted).not.toHaveBeenCalled();
-
-		const during = new AbortController();
-		const started = fakeSession([FIRST_TAB_ACCEPTED], []);
-		started.session.ask = () => {
-			during.abort();
-			return Promise.resolve(CLOSED);
-		};
-		await expect(
-			closeWith(started.session, executionContext(during.signal).context, CLOSE_TABS),
-		).resolves.toEqual({ code: 'not-submitted', kind: 'blocked' });
 	});
 
 	it('follows a Project close by its operation until the last member has been published', async () => {
@@ -585,6 +694,46 @@ describe('stoppedTabClose', () => {
 			terminalContextId: CONTEXT,
 		});
 		expect(closes.stoppedTabClose(CONTEXT, FIRST_TAB)).toBeNull();
+	});
+});
+
+describe('stoppedTabClose after a set', () => {
+	it('keeps the stop of the member a stopped set left, which Resume continues by its own close', async () => {
+		const blocked = { kind: 'cleanup-blocked', reason: 'host-refused', resumable: true };
+		const { asked, session } = fakeSession(
+			[],
+			[
+				setStatus({ kind: 'pending' }, [null, null]),
+				setStatus({ kind: 'failed', reason: 'child-blocked' }, [blocked, null]),
+				resumeAnswer({ attemptGeneration: '2', kind: 'resumed' }),
+				CLOSED,
+			],
+		);
+		const closes = createServerWorkbenchClose(session);
+
+		const result = await closes.close(executionContext().context, CLOSE_TABS);
+
+		const [start] = asked;
+		expect(result).toEqual({
+			failure: { code: 'close-stopped', details: start?.requestId },
+			kind: 'failed',
+		});
+		expect(closes.stoppedTabClose(CONTEXT, FIRST_TAB)).toBe('cleanup-blocked');
+		expect(closes.stoppedTabClose(CONTEXT, SECOND_TAB)).toBeNull();
+		await expect(
+			closes.close(executionContext().context, {
+				tabId: FIRST_TAB,
+				terminalContextId: CONTEXT,
+				type: 'tab-close-resume',
+			}),
+		).resolves.toEqual({ kind: 'completed' });
+		expect(asked[2]).toMatchObject({
+			closeRequestId: CLOSE_REQUEST,
+			expectedAttemptGeneration: '1',
+			kind: 'workbench.tab-close.resume',
+			tabId: FIRST_TAB,
+			terminalContextId: CONTEXT,
+		});
 	});
 });
 

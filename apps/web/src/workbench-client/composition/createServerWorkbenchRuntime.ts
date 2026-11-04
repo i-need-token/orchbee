@@ -175,9 +175,6 @@ export function createServerWorkbenchRuntime({
 	);
 	const leavingTabs = new ServerLeavingTabs(
 		() => session.snapshot,
-		(terminalContextId, tabId) =>
-			projectWorkspaceRuntime.getTerminalContext(terminalContextId)?.tabModel.getSnapshot()
-				.activeTabId === tabId,
 		(returned) => {
 			adoptPublication(session.snapshot);
 			// A Tab that left took what its terminals reported with it, so it shows that again.
