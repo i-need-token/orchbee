@@ -14,30 +14,42 @@ use windows::storage_path;
 pub(crate) struct Preferences {
     path: std::path::PathBuf,
     pub(crate) position: Option<Position>,
+    /// A record exists that this build cannot read, such as an older format. It counts as no saved
+    /// position, and the next displayed position replaces it.
+    pub(crate) unreadable: bool,
+    /// The cache itself is unavailable, so this invocation neither reads nor writes it.
     pub(crate) failed: bool,
 }
 impl Preferences {
     pub(crate) fn load(runtime: &std::path::Path) -> Self {
-        let Ok(path) = storage_path(runtime) else {
-            return Self {
+        match storage_path(runtime) {
+            Ok(path) => Self::load_from(path),
+            Err(_) => Self {
                 path: Default::default(),
                 position: None,
+                unreadable: false,
                 failed: true,
+            },
+        }
+    }
+    fn load_from(path: std::path::PathBuf) -> Self {
+        let (position, unreadable, failed) =
+            match orchbee_local_runtime::PrivateCache::read_existing(&path, FILE, MAXIMUM_BYTES) {
+                Ok(None) => (None, false, false),
+                Ok(Some(bytes)) => match decode(&bytes) {
+                    Ok(position) => (Some(position), false, false),
+                    Err(_) => (None, true, false),
+                },
+                Err(error) if error.kind() == std::io::ErrorKind::FileTooLarge => {
+                    (None, true, false)
+                }
+                Err(_) => (None, false, true),
             };
-        };
-        let result = orchbee_local_runtime::PrivateCache::read_existing(&path, FILE, MAXIMUM_BYTES)
-            .and_then(|bytes| bytes.map(|bytes| decode(&bytes)).transpose());
-        match result {
-            Ok(position) => Self {
-                path,
-                position,
-                failed: false,
-            },
-            Err(_) => Self {
-                path,
-                position: None,
-                failed: true,
-            },
+        Self {
+            path,
+            position,
+            unreadable,
+            failed,
         }
     }
     pub(crate) fn writer(self) -> std::io::Result<Option<Writer>> {

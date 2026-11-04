@@ -133,7 +133,9 @@ advice, separate from Server checkpoints and terminal lifetime. Its versioned, b
 lives under the private `LOCALAPPDATA/Orchbee/tui-position/<runtime-key>` cache; the key includes
 the user-scoped runtime directory and runtime base. Only schema `orchbee.tui.position`, version 1, with required position/location/member fields is
 readable; member is explicitly nullable. Workspace/context identity excludes mutable Project membership.
-Old shapes and the preceding version 2 record remain untouched and disable writes for that invocation.
+Old shapes, the preceding version 2 record and any other unreadable or oversized record count as no
+saved record, and the next published position replaces them, so a format change never retires
+position memory. Only an unavailable cache disables writes for that invocation.
 Stable structural IDs survive checkpoint restart. The new Server's Session ID and bindings always
 come from its validated snapshot.
 
@@ -155,8 +157,8 @@ position selects the first canonical Workspace, even when empty; with none, it r
 legacy content or the no-Workspace state. A valid legacy preference retains its exact member only
 when there is no canonical Workspace. Fallback produces a localized notice. Without a saved record,
 directory startup chooses eligible empty-Session creation or the same existing-Workspace order
-without Open. Invalid or unsupported records are preserved,
-disable preference writes for that invocation and produce a localized notice. Explicit context or
+without Open. An unreadable record follows the same directory startup and reports the
+location fallback notice once. Explicit context or
 Agent startup retains its exact target. Preferences never grant input, change Create provenance,
 launch, dispose, change checkpoint data or move another live Client. An existing empty Workspace
 with an absent saved member is an exact restoration without a warning. A fallback to Empty

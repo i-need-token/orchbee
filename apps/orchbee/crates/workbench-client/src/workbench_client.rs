@@ -256,6 +256,7 @@ impl WorkbenchClient {
             directory: Box::new(directory),
         });
         let mut failed = preferences.failed;
+        let unreadable = preferences.unreadable;
         let saved = preferences.position.clone();
         let writer = match preferences.writer() {
             Ok(writer) => writer,
@@ -269,6 +270,7 @@ impl WorkbenchClient {
         workbench_client.position_startup = Some(crate::startup_preference::Startup {
             fallback,
             failed,
+            unreadable,
             saved,
         });
         Ok(workbench_client)
@@ -280,7 +282,9 @@ impl WorkbenchClient {
         {
             if startup.failed {
                 native.report_position_notice(false);
-            } else if startup.fallback.load(std::sync::atomic::Ordering::Acquire) {
+            } else if startup.unreadable
+                || startup.fallback.load(std::sync::atomic::Ordering::Acquire)
+            {
                 native.report_position_fallback(startup.saved.as_ref());
             }
         }

@@ -19,6 +19,8 @@ pub struct Position {
 pub(crate) struct Startup {
     pub(crate) fallback: std::sync::Arc<std::sync::atomic::AtomicBool>,
     pub(crate) failed: bool,
+    /// The saved record could not be read; startup proceeded as if none was saved.
+    pub(crate) unreadable: bool,
     pub(crate) saved: Option<Position>,
 }
 
