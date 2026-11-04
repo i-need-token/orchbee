@@ -2032,6 +2032,17 @@ fn render_tab_strip(
                     } else if let (Some(source), Some(target)) =
                         (tab_source.as_ref(), tab_target(index, part))
                     {
+                        // Glyph tooltips record first, so they win within their own cells.
+                        for (glyph, content) in tabs::strip_glyph_tooltips(view, cue, locale, theme)
+                        {
+                            hits.record_target_part_tooltip(
+                                HitLayer::Foreground,
+                                glyph,
+                                rect,
+                                target.clone(),
+                                content,
+                            );
+                        }
                         if let Some(content) = content {
                             hits.record_tooltip(
                                 HitLayer::Foreground,

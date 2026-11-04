@@ -51,10 +51,12 @@ type Cue = (
     bool,
     Option<String>,
     bool,
+    Option<Rect>,
+    Option<Rect>,
 );
 
-/// Each recorded part and what its tooltip names: Agent states, unread, a cut name, and the paging
-/// direction.
+/// Each recorded part and what its tooltip names: Agent states, unread, a cut name, the paging
+/// direction, and the cells of the state glyph and unread dot that alone name them.
 fn cues(tabs: &[GroupTabDisplay<'_>], theme: &Theme, width: u16) -> Vec<Cue> {
     let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
     let mut cues = Vec::new();
@@ -79,6 +81,8 @@ fn cues(tabs: &[GroupTabDisplay<'_>], theme: &Theme, width: u16) -> Vec<Cue> {
                             cue.unread,
                             cue.name.map(str::to_owned),
                             cue.later,
+                            cue.glyph,
+                            cue.dot,
                         ));
                     },
                 ),
@@ -152,7 +156,7 @@ fn overflow_markers_keep_the_active_tab_visible_and_page_the_strip() {
                 );
             }
             // Each marker's tooltip names the direction it pages.
-            for (_, rect, _, _, _, later) in cues(&tabs, &theme, 36)
+            for (_, rect, _, _, _, later, ..) in cues(&tabs, &theme, 36)
                 .into_iter()
                 .filter(|(part, ..)| is_page(*part))
             {
@@ -529,6 +533,26 @@ fn agent_cues_lead_tabs_and_a_collapsed_group_carries_and_names_its_hidden_state
     assert!(text(&buffer).starts_with(&format!(" {glyph} agent {}", theme.glyphs.status_bullet)));
     assert_eq!(buffer[(1, 0)].fg, theme.color(Role::StatusWorking));
     assert_eq!(buffer[(9, 0)].fg, theme.color(Role::StatusUnread));
+    // The state glyph and unread dot name themselves only from the cells that paint them; the
+    // close control names neither.
+    let painted = |buffer: &Buffer, rect: Option<Rect>| {
+        let rect = rect.unwrap();
+        assert_eq!((rect.width, rect.height), (1, 1));
+        buffer[(rect.x, rect.y)].symbol().to_owned()
+    };
+    for (part, _, _, _, _, _, glyph_cells, dot_cells) in
+        cues(std::slice::from_ref(&working), &theme, 40)
+    {
+        if part == StripPart::Tab {
+            assert_eq!(painted(&buffer, glyph_cells), glyph);
+            assert_eq!(painted(&buffer, dot_cells), theme.glyphs.status_bullet);
+        } else {
+            assert_eq!(
+                (part, glyph_cells, dot_cells),
+                (StripPart::Close, None, None)
+            );
+        }
+    }
 
     let group = group("Agents", TabGroupColor::Blue);
     let members: Vec<_> = [
@@ -554,18 +578,32 @@ fn agent_cues_lead_tabs_and_a_collapsed_group_carries_and_names_its_hidden_state
         "{}",
         text(&buffer)
     );
-    // Its tooltip names each hidden state once, most urgent first, then unread.
+    // Its glyph names each hidden state once, most urgent first, and its dot unread activity.
+    let [(part, rect, states, unread, name, later, glyph_cells, dot_cells)] =
+        &cues(&members, &theme, 40)[..]
+    else {
+        panic!("one header part");
+    };
     assert_eq!(
-        cues(&members, &theme, 40),
-        [(
+        (
+            *part,
+            *rect,
+            states.as_slice(),
+            *unread,
+            name.as_deref(),
+            *later
+        ),
+        (
             StripPart::Header,
             hits[0].2,
-            vec![MetadataState::Blocked, MetadataState::Done],
+            [MetadataState::Blocked, MetadataState::Done].as_slice(),
             true,
             None,
             false
-        )]
+        )
     );
+    assert_eq!(painted(&buffer, *glyph_cells), blocked);
+    assert_eq!(painted(&buffer, *dot_cells), theme.glyphs.status_bullet);
 
     // A label past the strip's 24 cells, or cut to fit, is named whole; a whole one is not.
     let long = "cargo test -p orchbee-workbench-client tui_render";
@@ -574,7 +612,7 @@ fn agent_cues_lead_tabs_and_a_collapsed_group_carries_and_names_its_hidden_state
         let named = cues(std::slice::from_ref(&tab), &theme, width)
             .into_iter()
             .find(|(part, ..)| *part == StripPart::Tab)
-            .and_then(|(.., name, _)| name);
+            .and_then(|(_, _, _, _, name, ..)| name);
         assert_eq!(named.as_deref(), cut.then_some(label), "{label} in {width}");
     }
 }

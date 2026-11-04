@@ -51,6 +51,10 @@ pub(in crate::tui_render) struct PartCue<'a> {
     pub(in crate::tui_render) states: &'a [MetadataState],
     /// The token shows the unread dot.
     pub(in crate::tui_render) unread: bool,
+    /// Where the token paints its state glyph, the only cells that name its states.
+    pub(in crate::tui_render) glyph: Option<Rect>,
+    /// Where the token paints the unread dot, the only cells that name unread activity.
+    pub(in crate::tui_render) dot: Option<Rect>,
     /// The whole name the token cuts.
     pub(in crate::tui_render) name: Option<&'a str>,
     /// The edge marker pages toward later Tabs rather than earlier ones.
@@ -684,6 +688,7 @@ fn paint_token<C, P, R>(
         )
     };
     let mut x = rect.x;
+    let (mut glyph, mut dot) = (None, None);
     for (text, piece) in pieces {
         let text = match piece {
             Piece::Close if revealed => "[x]",
@@ -705,6 +710,12 @@ fn paint_token<C, P, R>(
             usize::from(rect.right().saturating_sub(x)),
             style(*piece),
         );
+        let painted = Rect::new(x, rect.y, next.saturating_sub(x), 1);
+        match piece {
+            Piece::Glyph => glyph = Some(painted),
+            Piece::Unread => dot = Some(painted),
+            _ => {}
+        }
         x = next;
     }
     if !visible {
@@ -716,6 +727,9 @@ fn paint_token<C, P, R>(
     let cue = PartCue {
         states: &token.states,
         unread: token.agent.is_some_and(|agent| agent.unread),
+        glyph: glyph
+            .filter(|glyph| !token.states.is_empty() && body.intersection(*glyph) == *glyph),
+        dot: dot.filter(|dot| body.intersection(*dot) == *dot),
         name: cut.then(|| token.full_text()),
         later: false,
     };
@@ -725,6 +739,11 @@ fn paint_token<C, P, R>(
             StripPart::Close
         } else {
             StripPart::Tab
+        };
+        let cue = PartCue {
+            glyph: None,
+            dot: None,
+            ..cue
         };
         interactions.record(token.index, close_part, close, cue);
     }

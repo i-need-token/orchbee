@@ -93,8 +93,6 @@ pub(super) fn paint(
                 .remove_modifier(Modifier::BOLD),
         )
     });
-    let legend = super::tooltip::legend(state, unread, title.working_frame, locale, theme);
-
     let unread = unread.then(|| format!(" {}", theme.glyphs.status_bullet));
     let fixed = 2
         + glyph.map_or(0, |(glyph, _)| display_width(glyph) + 1)
@@ -115,6 +113,13 @@ pub(super) fn paint(
     }
     let room = width.saturating_sub(fixed + right(&badge));
     let mut spans = vec![Span::styled(" ", name_style)];
+    // Where the state glyph and unread dot land, the only cells that name them.
+    let cells = |offset: usize, text: &str| {
+        let x = line.x.saturating_add(u16::try_from(offset).ok()?);
+        let width = u16::try_from(display_width(text)).ok()?;
+        Some(Rect::new(x, line.y, width, 1)).filter(|rect| line.intersection(*rect) == *rect)
+    };
+    let glyph_cells = glyph.and_then(|(glyph, _)| cells(1, glyph));
     if let Some((glyph, style)) = glyph {
         spans.push(Span::styled(glyph, style));
         spans.push(Span::styled(" ", name_style));
@@ -123,6 +128,10 @@ pub(super) fn paint(
     let cut = (shown != name).then(|| TooltipText {
         text: name.clone(),
         middle: false,
+    });
+    let dot_cells = unread.as_ref().and_then(|_| {
+        let lead: usize = spans.iter().map(|span| display_width(&span.content)).sum();
+        cells(lead + display_width(&shown) + 1, theme.glyphs.status_bullet)
     });
     spans.push(Span::styled(shown, name_style));
     if let Some(unread) = unread {
@@ -133,15 +142,39 @@ pub(super) fn paint(
     frame
         .buffer_mut()
         .set_line(line.x, line.y, &left, line.width);
-    // The title's text gives a cut name in full and names its state glyph and unread dot. It
-    // records no target, so a press there still reaches the divider beneath.
-    if let Some(pane) = panel.and_then(|panel| native.pane_ref_for_panel(panel.panel_id()))
-        && let Some(content) = super::tooltip::describe(cut, legend)
-    {
+    // The state glyph names its state and the unread dot unread activity, each from its own
+    // cells; the rest of the title gives only a cut name, in full. Neither records a target, so a
+    // press there still reaches the divider beneath.
+    if let Some(pane) = panel.and_then(|panel| native.pane_ref_for_panel(panel.panel_id())) {
         let width = u16::try_from(left.width())
             .unwrap_or(u16::MAX)
             .min(line.width);
-        hits.record_pane_title_tooltip(Rect::new(line.x, line.y, width, 1), pane, content);
+        let text = Rect::new(line.x, line.y, width, 1);
+        let legends = [
+            glyph_cells.map(|rect| {
+                (
+                    rect,
+                    super::tooltip::legend(state, false, title.working_frame, locale, theme),
+                )
+            }),
+            dot_cells.map(|rect| {
+                (
+                    rect,
+                    super::tooltip::legend(None, true, title.working_frame, locale, theme),
+                )
+            }),
+        ];
+        // The glyphs record first, so they win within their own cells.
+        for (rect, legend) in legends.into_iter().flatten() {
+            if text.intersection(rect) == rect
+                && let Some(content) = super::tooltip::describe(None, legend)
+            {
+                hits.record_pane_title_tooltip(rect, pane.clone(), content);
+            }
+        }
+        if let Some(content) = super::tooltip::describe(cut, Vec::new()) {
+            hits.record_pane_title_tooltip(text, pane, content);
+        }
     }
     if let Some(selector) = &selector {
         selector.paint(frame, ControlSurface::Canvas, theme, hits);

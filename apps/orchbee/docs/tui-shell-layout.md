@@ -369,8 +369,9 @@ Multiple-Presentation arrows and their count end the leaf's title line in split 
 bare pane's selector ends the Tab strip instead. Selectors on a divider line take pointer precedence
 over that divider; other title cells keep the divider's drag target. A pointer resting on a title's
 text opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) that gives
-a cut name in full, then names its state glyph and unread dot. The title records no target for it,
-so those cells still drag the divider.
+a cut name in full; its state glyph names its state and its unread dot unread activity, each only
+while the pointer rests on its cells, and the rest of the title names no glyph. The title records no
+target for them, so those cells still drag the divider.
 The renderer, PTY dimensions, popups and read-only layout queries share
 this geometry; zoomed hidden leaves retain their canonical unzoomed dimensions.
 Inactive terminal content retains normal text contrast; focus is expressed by

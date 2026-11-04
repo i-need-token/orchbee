@@ -76,9 +76,10 @@ pub(super) struct TabDisplay<'a> {
     pub(super) label: std::borrow::Cow<'a, str>,
 }
 
-/// What a pointer resting on one strip part reads: a Tab or group header gives the name it cuts
-/// in full and names the glyphs it shows, close names its key only on the current Tab, the one the key closes, and an edge marker
-/// names the direction it pages.
+/// What a pointer resting on one strip part reads: a Tab or group header gives only the name it
+/// cuts, in full, close names its key only on the current Tab, the one the key closes, and an edge
+/// marker names the direction it pages. Its glyphs name themselves from their own cells, through
+/// [`strip_glyph_tooltips`].
 pub(super) fn strip_tooltip(
     view: &ClientView,
     active: bool,
@@ -93,13 +94,7 @@ pub(super) fn strip_tooltip(
                 text: name.to_owned(),
                 middle: false,
             }),
-            super::tooltip::legend(
-                cue.states.iter().copied(),
-                cue.unread,
-                view.machines.working_frame(),
-                locale,
-                theme,
-            ),
+            Vec::new(),
         ),
         groups::StripPart::Close => Some(TooltipContent::Action {
             label: locale.menu_action(MenuLabel::CloseSelectedTabs).to_owned(),
@@ -118,6 +113,40 @@ pub(super) fn strip_tooltip(
             key: None,
         }),
     }
+}
+
+/// A Tab's or collapsed header's state glyph names its states, and its unread dot unread activity,
+/// each only while the pointer rests on its cells.
+pub(super) fn strip_glyph_tooltips(
+    view: &ClientView,
+    cue: groups::PartCue<'_>,
+    locale: Locale,
+    theme: &Theme,
+) -> impl Iterator<Item = (ratatui::layout::Rect, TooltipContent)> {
+    let working_frame = view.machines.working_frame();
+    [
+        cue.glyph.map(|rect| {
+            (
+                rect,
+                super::tooltip::legend(
+                    cue.states.iter().copied(),
+                    false,
+                    working_frame,
+                    locale,
+                    theme,
+                ),
+            )
+        }),
+        cue.dot.filter(|_| cue.unread).map(|rect| {
+            (
+                rect,
+                super::tooltip::legend([], true, working_frame, locale, theme),
+            )
+        }),
+    ]
+    .into_iter()
+    .flatten()
+    .filter_map(|(rect, legend)| Some((rect, super::tooltip::describe(None, legend)?)))
 }
 
 /// The create control names its action and the key that does the same.

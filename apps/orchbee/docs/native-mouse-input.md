@@ -533,11 +533,12 @@ owners and no thread or timer of its own.
   region, plus its `TooltipContent`. The published `FrameHitMap` keeps only which regions offer
   one; content stays with the candidate frame, so the box shows that frame's words, Working phase,
   and effective binding. `record_part_tooltip` offers one on a glyph inside such a region, such as
-  a sidebar row's state glyph or unread dot; recorded before the region's own tooltip, it wins
-  only within the glyph's cells. A pane title's text records no target, so pressing it still reaches the
-  divider beneath: `record_pane_title_tooltip` offers its tooltip by rectangle and `PaneRef`
-  wherever the frontmost region there is a `Foreground` region without a tooltip of its own, or
-  dead space.
+  a sidebar row's state glyph or unread dot, and `record_target_part_tooltip` does the same inside a
+  region recorded by its `HitTarget`, such as a Tab's glyph or dot; recorded before the region's own
+  tooltip, it wins only within the glyph's cells. A pane title's text records no target, so pressing
+  it still reaches the divider beneath: `record_pane_title_tooltip` offers its tooltip by rectangle
+  and `PaneRef` wherever the frontmost region there is a `Foreground` region without a tooltip of its
+  own, or dead space. The title's glyph and dot record theirs first, so each wins within its cells.
 - `tui_pointer/tooltip.rs` keeps the state on `PointerState`: the last real movement cell, a
   one-shot rest start, the open target's layer, rectangle, and `HitTarget` with the cell it opened
   at, a 400 ms warm window, and the target a press quieted. The ordinary pointer `tick`, driven by

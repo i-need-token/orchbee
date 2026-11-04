@@ -1111,10 +1111,22 @@ impl HitMapBuilder {
         target: &InteractionTarget,
         content: TooltipContent,
     ) {
+        self.record_target_part_tooltip(layer, rect, region, target.hit_target(), content);
+    }
+
+    /// [`Self::record_part_tooltip`] inside a region recorded by its `HitTarget`, such as a Tab.
+    pub(crate) fn record_target_part_tooltip(
+        &mut self,
+        layer: HitLayer,
+        rect: Rect,
+        region: Rect,
+        target: HitTarget,
+        content: TooltipContent,
+    ) {
         if rect.is_empty() || region.intersection(rect) != rect {
             return;
         }
-        let key = tooltip::Key::part(layer, rect, region, target.hit_target());
+        let key = tooltip::Key::part(layer, rect, region, target);
         self.map.tooltips.push(key.clone());
         self.tooltip_contents.push((key, content));
     }
