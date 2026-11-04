@@ -212,6 +212,9 @@ struct CloseRecord {
     /// The pending delay passed, or this record already reached the status line. It stays there,
     /// so a recovered read never turns a reported close silent again.
     announced: bool,
+    /// The last completed draw left this Tab out of the strip. The selection follows an accepted
+    /// close only afterwards, so the strip entry leaves before the switch holds the frame.
+    strip_drawn: bool,
     initial_read_pending: bool,
     reconciliation: Option<reconciliation::RetainedReconciliation>,
 }
@@ -234,6 +237,7 @@ impl CloseRecord {
             displayed: false,
             submitted_at,
             announced: false,
+            strip_drawn: false,
             initial_read_pending: false,
             reconciliation: None,
         }
@@ -459,6 +463,13 @@ impl CloseState {
             .any(|record| record.leaving(tab_id) && record.operation.is_some())
     }
 
+    /// Whether the last completed draw already left this leaving Tab out of the strip.
+    fn tab_left_strip(&self, tab_id: &WorkbenchTabId) -> bool {
+        self.records
+            .iter()
+            .any(|record| record.leaving(tab_id) && record.strip_drawn)
+    }
+
     fn record_index(&self, target: &CloseTarget) -> Option<usize> {
         self.records
             .iter()
@@ -617,6 +628,7 @@ impl CloseState {
         for record in &mut self.records {
             record.displayed = status.is_some() && record.status_token == status;
             record.announced |= record.displayed;
+            record.strip_drawn = record.leaving(record.selection.target.tab_id());
         }
         let resume_displayed =
             self.confirmation
@@ -929,19 +941,29 @@ impl super::WorkbenchClientState {
     /// still shown, else the previous one, the survivor the removal itself would select. The
     /// Panel then leaves with the strip entry instead of when the publication lands. There is
     /// none for the last Tab, or while several Tabs close as one sequence, which a focus change
-    /// would stop.
+    /// would stop. The move waits until a completed draw has left the Tab out of the strip,
+    /// because the switch keeps the last frame until the next Tab's first one.
     pub(crate) fn leaving_selection_successor(&self) -> Option<usize> {
+        self.leaving_selection()
+            .and_then(|(successor, drawn)| drawn.then_some(successor))
+    }
+
+    /// Whether the selection would leave an accepted close but the strip has not yet been drawn
+    /// without that Tab.
+    pub(crate) fn leaving_selection_awaits_draw(&self) -> bool {
+        self.leaving_selection().is_some_and(|(_, drawn)| !drawn)
+    }
+
+    fn leaving_selection(&self) -> Option<(usize, bool)> {
         let selected = self.active()?.index();
-        if !self
-            .close
-            .tab_close_accepted(self.cache.tabs().get(selected)?.tab_id())
-            || self.close.sequence_active()
-        {
+        let tab_id = self.cache.tabs().get(selected)?.tab_id();
+        if !self.close.tab_close_accepted(tab_id) || self.close.sequence_active() {
             return None;
         }
-        (selected + 1..self.cache.tabs().len())
+        let successor = (selected + 1..self.cache.tabs().len())
             .find(|index| self.tab_shown(*index))
-            .or_else(|| (0..selected).rev().find(|index| self.tab_shown(*index)))
+            .or_else(|| (0..selected).rev().find(|index| self.tab_shown(*index)))?;
+        Some((successor, self.close.tab_left_strip(tab_id)))
     }
 
     fn close_confirmation_scope_available(&self) -> bool {

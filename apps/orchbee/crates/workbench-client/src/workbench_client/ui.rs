@@ -1907,7 +1907,8 @@ impl WorkbenchClientUi {
             changed |= self.replay_held_intent();
             // A lost focused viewer re-attaches before a background read can take the slot.
             changed |= self.drive_viewer_recovery(&mailbox);
-            // So does the selection leaving a Tab whose close the Server accepted.
+            // So does the selection leaving a Tab whose close the Server accepted, once the strip
+            // has been drawn without it.
             changed |= self.follow_leaving_selection(&mailbox);
             if self
                 .publications
