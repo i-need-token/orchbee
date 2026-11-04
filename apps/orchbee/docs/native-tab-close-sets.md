@@ -106,12 +106,15 @@ because a focus change stops the sequence. A refused, blocked, unknown or unobse
 Tab again with its report, and the selection stays where it moved; a Tab of a set leaves as its own
 close is submitted. Until 1 second after submission, or after the user asked for a close the Server
 accepted unasked, an unreported close also withholds the selected Tab's connection and exit cues;
-the Panel title still says how its terminal ended. On a debug build the Panel shows the next Tab 40
-to 60 ms after the close starts, and a PowerShell Tab at its prompt leaves the canonical list 0.1 to
-0.15 seconds after it, but a slower shell or a busy machine would flash the 200 ms delay of other
-pending indications. Past the delay `{label} · Closing` appears, as when a program running in the
-shell keeps the console after Terminate ends the shell and the close waits out the five-second
-grace.
+the Panel title still says how its terminal ended. On a debug build a confirmed close shows the
+next Tab 40 to 60 ms after it starts. A close the Server decides unasked waits for its answer, 15
+to 35 ms after the user asks: a background Tab then leaves the strip by 45 ms, and the selected Tab
+leaves with the Panel moving to the next Tab 80 to 105 ms after the ask, since a selection change
+keeps the last frame until the next Tab's first one. A PowerShell Tab at its prompt leaves the
+canonical list 0.1 to 0.15 seconds after its close starts, but a slower shell or a busy machine
+would flash the 200 ms delay of other pending indications. Past the delay `{label} · Closing`
+appears, as when a program running in the shell keeps the console after Terminate ends the shell
+and the close waits out the five-second grace.
 
 Status reads of a retained close are 250 ms apart, except that a Workbench publication lets the
 next one go at once: the Server publishes a closed Tab as it finishes, and the close set holds
