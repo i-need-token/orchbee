@@ -2065,7 +2065,12 @@ projection recovery keep their premises and complete against the parked focus. T
 disposed and the exact selection is precisely parked for the existing publication reconciliation,
 so the loss does not establish this retired origin. Every owner that still keeps the whole-Client
 retirement (a takeover, a setup or Workspace close in flight, a recovery refresh, an uncertain
-Rename) also excludes this entry, so a focused typed loss does not establish it either.
+Rename) also excludes this entry, so a focused typed loss does not establish it either. A loss
+whose typed notice never reaches the UI still does. The worker records the Poll before it disposes
+the viewer. When it cannot place the `ViewerLost` notice before the Poll's cutoff it exits with
+`Deadline`, and a later worker failure can close the mailbox before the UI takes a placed notice.
+If the Client then retires while the focus is still attached and that Poll is still the UI's
+ordinary Poll, a clean join establishes the origin.
 
 An explicit `Ctrl+B w` after finalized retirement may start one Snapshot-only connection through the
 retained local origin. There is no automatic reconnect. The same task owner and race-safe shutdown
@@ -2139,16 +2144,16 @@ marker refines the model's ordinary gate; the tick scheduler block, the observed
 admission, and the pane reconcile enqueue are its three guarded sites. The existing mailbox
 seed, Snapshot flight, common membership transaction and setup executor retain their ownership.
 
-Deterministic tests in `workbench_client/tests/retired_membership.rs` deliver the typed loss
-only after a real drawn uncommitted panel-close confirmation is armed over the leased ordinary
-Poll; together with `workbench_client/ui/tests/retired_membership.rs` they cover
-Snapshot-first Empty and successful neighbor setup, parked explicit retry,
-wrong-ID/transport/other-unavailability rejection, setup-Poll rejection,
-retained conflicts, missing return, stale replies, cancellation during connect and Snapshot, original
-45 s forward / 50 s total boundary checks, and candidate/cursor retention after setup refusal.
-`mailbox/tests/tab_close.rs` checks that all five allocator cursors survive retirement, exhaustion
-cannot wrap, and recovery starts without live work or bootstrap. Run
-`cargo test --locked -p orchbee --bin orchbee retired_` on Linux.
+`workbench_client/tests/retired_membership.rs` checks over a scripted Server that a wrong request
+ID, a transport loss or another unavailability reason establishes no origin.
+`workbench_client/ui/tests/retired_membership.rs` hands the UI the correlated evidence at
+retirement and covers Snapshot-first Empty or one-successor installation against the original
+forward deadline, parked explicit retry, retained conflicts, stale Polls and replies, missing
+return, the armed attempt's admission suppression, Workspace replacement and context removal. No
+test drives either lost-notice entry, a recovered neighbor's real setup or cancellation during
+connect. `mailbox/tests/tab_close.rs` checks that all five allocator cursors survive retirement,
+exhaustion cannot wrap, and recovery starts without live work or bootstrap. Run
+`cargo test --locked -p orchbee-workbench-client retired_`.
 
 The Linux PTY Close witness requires a fresh Disconnected frame before explicit Refresh, both Clients observing the exact empty Workspace, original shell exit and a bounded check against automatic creation. Explicit `c` then creates fresh member identities in that same Workspace; a peer refresh attaches view-only. Client exit preserves the shell and Server/Worker/Host, and later startup reattaches canonical membership without launching. Process checks require the staged cohort and do not establish remote cleanup, restart adoption or general recovery.
 
