@@ -48,7 +48,6 @@ import type {
 	TabStripChange,
 	TabStripChangeCallback,
 	TabStripCloseCallback,
-	TabStripCloseConfirmation,
 	TabStripNewTabRequest,
 	TabStripSelectCallback,
 	TabStripTabCreationIntent,
@@ -107,7 +106,6 @@ interface UseTabStripActionsOptions {
 		  ) => ReturnType<TabStripActions['getCreationAvailability']>)
 		| undefined;
 	readonly onCloseTabs: TabStripCloseCallback | undefined;
-	readonly getCloseTabsConfirmation: TabStripCloseConfirmation | undefined;
 	readonly onSelectTab: TabStripSelectCallback | undefined;
 	readonly onTabsChange: TabStripChangeCallback | undefined;
 	readonly parentActionScope: ActionScope | undefined;
@@ -129,7 +127,6 @@ export function useTabStripActions({
 	onNewTab,
 	getTabCreationAvailability,
 	onCloseTabs,
-	getCloseTabsConfirmation,
 	onSelectTab,
 	onTabsChange,
 	parentActionScope,
@@ -280,7 +277,6 @@ export function useTabStripActions({
 				scope,
 				defineAction({
 					category,
-					confirmation: (input) => getCloseTabsConfirmation?.(input) ?? null,
 					// A close can outlast the press that asked for it, and a middle click reports itself twice.
 					execution: { ...parallelByTabs, concurrency: 'reject-duplicate' },
 					getAvailability: (_context, input) => tabAvailability(input.tabIds),
@@ -874,7 +870,6 @@ export function useTabStripActions({
 		comboButtonController,
 		messages.newTabTitle,
 		model,
-		getCloseTabsConfirmation,
 		getCreationAvailability,
 		getTabCreationAvailability,
 		onMoveGroupToNewWindow,

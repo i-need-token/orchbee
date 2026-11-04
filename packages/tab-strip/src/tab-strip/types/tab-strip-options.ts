@@ -1,5 +1,4 @@
 import type {
-	ActionConfirmation,
 	ActionAvailability,
 	ActionExecution,
 	ActionExecutionContext,
@@ -44,10 +43,6 @@ export type TabStripCloseCallback = (
 	context: ActionExecutionContext,
 	request: TabStripCloseRequest,
 ) => ActionResult<void> | Promise<ActionResult<void>>;
-
-export type TabStripCloseConfirmation = (
-	request: TabStripCloseRequest,
-) => ActionConfirmation | null;
 
 /** A Tab's close that stopped where the composing application may continue it. */
 export interface TabStripCloseResume {
@@ -210,7 +205,6 @@ export interface TabStripOptions {
 		| ((intent: TabStripTabCreationIntent) => ActionAvailability)
 		| undefined;
 	onCloseTabs?: TabStripCloseCallback | undefined;
-	getCloseTabsConfirmation?: TabStripCloseConfirmation | undefined;
 	/** Absent, no Tab menu offers to continue a stopped close. */
 	closeResume?: TabStripCloseResume | undefined;
 	onSelectTab?: TabStripSelectCallback | undefined;

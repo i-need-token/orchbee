@@ -8,7 +8,6 @@ export {
 	type TabStripArrangementChange,
 	type TabStripChangeCallback,
 	type TabStripCloseCallback,
-	type TabStripCloseConfirmation,
 	type TabStripCloseResume,
 	type TabStripGroupNameRequest,
 	type TabCloseInput,
