@@ -48,9 +48,13 @@ between the installed product and source are not evidence that they implement th
 
 ## Render evidence
 
-- Render through `ratatui::backend::TestBackend` and compare the buffer as text with an expected
-  value kept inline in the test or in a fixture beside it. Adding a snapshot library is a dependency
-  decision under [`DEVELOPMENT.md`](../DEVELOPMENT.md#decision-authority).
+- Render through `ratatui::backend::TestBackend` and assert invariants over the buffer: required
+  content and hints are present or truncated by their owning rule, nothing paints outside its
+  region, wide characters occupy their display width, recorded hit rectangles match painted targets,
+  and required state cues stay distinguishable. Compare complete expected text only for an owned
+  contract under [design-pinning assertions](../TESTING.md#design-pinning-assertions). Adding a
+  snapshot library is a dependency decision under
+  [`DEVELOPMENT.md`](../DEVELOPMENT.md#decision-authority).
 - Every surface renders at these geometries: 80×24, 120×40, one Compact and one Minimal geometry
   from [`layout.md`](layout.md#size-tiers), and the too-small geometry.
 - Every surface renders under the `terminal-native` theme and one RGB theme, and under `en-US` and
@@ -63,8 +67,9 @@ between the installed product and source are not evidence that they implement th
   collapsed host-default colors: focus, current context, checked value, provisional selection,
   availability, and operation status remain distinguishable through their required markers, text,
   or modifiers. Absence of RGB cells alone does not prove usable contrast.
-- An expected-text update is reviewed as a visual diff. A snapshot never changes without the
-  reviewer seeing the before and after rows.
+- When an intended change breaks a render assertion, apply
+  [design-pinning assertions](../TESTING.md#design-pinning-assertions): delete a design-pinning
+  assertion, and review an owned-contract text update as a visual diff of the before and after rows.
 
 ## Whole-screen visual review
 

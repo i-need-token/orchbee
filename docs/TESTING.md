@@ -60,6 +60,25 @@ Preserve distinct meaningful behavior, failure, boundary, and regression evidenc
 test is not obsolete for that reason. Do not create a per-file coverage manifest or retain empty
 test roots, unused fixtures, or imports after removing their last consumer.
 
+## Design-pinning assertions
+
+Assert rules that must hold under any acceptable design: invariants, decisions and state
+transitions, protocol and persisted-format contracts, completeness between registries, round trips,
+and boundaries. A design-pinning assertion fixes one presentation or implementation choice that
+another acceptable design could change, such as exact geometry, complete rendered rows, wording,
+item order, literal style values, or the sequence of internal messages. Use one only when that exact
+form is an owned contract: a protocol or persisted format, machine-readable output, or a value that
+a repository standard fixes. To classify an assertion, ask whether it must still hold after the
+design changes.
+
+When an intended change breaks a test:
+
+| Failing assertion                             | Action                                                                                                                                                |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pins a design                                 | Delete it instead of updating it to the new output. Name the removed claim in the commit message, and keep asserting any invariant it also protected. |
+| Protects an owned contract the change revises | Update the test together with the contract's authority.                                                                                               |
+| Protects a rule the change must preserve      | Treat the failure as a defect and fix the code.                                                                                                       |
+
 ## Test layers and cost
 
 | Layer                | Evidence and execution cost                                                                                                                                                                                            |
@@ -132,15 +151,22 @@ acceptsOnlyStrings(1);
 
 ## Regression coverage
 
-For an automatable behavior defect, add or strengthen a regression case that fails before the fix
-and passes after it. An existing failing test, compiler check, or contract check can supply that
-evidence when its failure and the fix's effect are demonstrated; do not duplicate it at another layer.
+A defect in logic, a state transition, protocol or persisted data, concurrency, recovery, or a
+security boundary requires an automated regression case that fails before the fix and passes after
+it. An existing failing test, compiler check, or contract check can supply that evidence when its
+failure and the fix's effect are demonstrated; do not duplicate it at another layer. Difficulty,
+cost, or author confidence does not waive this evidence.
 
-For a visual or environment-dependent defect that cannot be judged faithfully by a stable automated
-check, use a controlled visual, integration, or reproduction check. State the observed failure,
-checked result, environment, and automation limit in the existing review record. Protect any
-separable domain decision with an automated test. Difficulty, cost, or author confidence alone does
-not waive automation for state, data integrity, protocol, security, or recovery claims.
+Verify a presentation defect, such as layout, alignment, color, wording, or visual hierarchy, by
+reviewing the running interface: the TUI uses
+[whole-screen visual review](tui/verification.md#whole-screen-visual-review), and a GUI uses a
+browser or real-window screenshot check. An automated case is optional; when added, it asserts the
+violated invariant, such as overflow, display width, contrast, or hit-target alignment, never the
+corrected rows or values. Protect any separable domain decision with an automated test.
+
+For an environment-dependent defect that no stable automated check can judge faithfully, use a
+controlled integration or reproduction check. State the observed failure, checked result,
+environment, and automation limit in the existing review record.
 
 ## Localization contracts
 
