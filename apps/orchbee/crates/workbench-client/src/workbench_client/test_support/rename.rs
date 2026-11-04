@@ -101,6 +101,7 @@ impl RenameServer {
                             | WorkbenchRequest::CurrentDirectory(_)
                             | WorkbenchRequest::ClientView(_)
                             | WorkbenchRequest::WorkspaceGroupClose(_)
+                            | WorkbenchRequest::TabSetClose(_)
                             | WorkbenchRequest::LaunchProfileCatalogRead(_) => {
                                 return Err(io::Error::other(
                                     "Rename unexpectedly issued a non-command request",

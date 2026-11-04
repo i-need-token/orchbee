@@ -446,6 +446,10 @@ syntax; consuming Move/Create adapters must still reject action-inappropriate re
 Canonical fixtures and independent bindings establish grammar agreement, not lifecycle effects,
 replay immutability, authorization, state transitions or eventual cleanup.
 
+## Tab set Close wire contract
+
+[`workbench-tab-set-close.schema.json`](v1/workbench-tab-set-close.schema.json) owns `workbench.tab-set-close` and its result, OBWP kinds 67/68. Requests retain the 16 KiB intent cap; results have an independent 1 MiB pre-allocation cap. Start names one terminal context, 1–256 distinct Tabs in its current order, the expected revision and an `if-idle` or `confirmed` condition; Read names only the operation ID. Available replies echo the context and condition and carry 1–256 frozen members with a required-nullable child Close record and an `absent` flag for a Tab already gone at its turn. `confirmation-required` (if-idle Start only) and `rejected` retain nothing. Existing Close owns child status and generation definitions. Bindings enforce unique members and child IDs, a finished-member prefix before any later child or absence, and Closed only when every member is closed or absent; there is no set-level Resume. The [shared corpus](v1/workbench-tab-set-close-conformance-v1.json) covers Rust, TypeScript and structural schema validation. The [Server Close contract](../../apps/orchbee-server/docs/terminal-tab-close.md) owns admission, evidence, sequencing and publication.
+
 ## Limits
 
 | Value                     | Version-1 limit                     |

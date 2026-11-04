@@ -216,6 +216,13 @@ pub use validation::{
     parse_snapshot, parse_snapshot_read_intent, serialize_document,
 };
 
+pub use command::{
+    MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES, MAXIMUM_TAB_SET_CLOSE_MEMBERS, TabSetCloseAction,
+    TabSetCloseChild, TabSetCloseCondition, TabSetCloseFailure, TabSetCloseMember,
+    TabSetCloseObservation, TabSetCloseOutcome, TabSetCloseRejection, TabSetCloseStatus,
+    TabSetCloseUnavailable, WorkbenchTabSetCloseRequest, WorkbenchTabSetCloseResult,
+};
+
 mod launch_options;
 pub use launch_options::{LaunchOptions, PluginPaneSelector};
 mod launch_environment;

@@ -88,6 +88,11 @@ import {
 	WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES,
 } from './workbench-workspace-group-close-contract';
 import {
+	WorkbenchTabSetCloseRequestSchema,
+	WorkbenchTabSetCloseResultSchema,
+	WORKBENCH_MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES,
+} from './workbench-tab-set-close-contract';
+import {
 	WorkbenchWorktreeQuerySchema,
 	WorkbenchWorktreeQueryResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES,
@@ -657,6 +662,7 @@ export const WorkbenchRequestSchema = z
 		PanelAgentRequestSchema,
 		PanelMetadataRequestSchema,
 		WorkbenchWorkspaceGroupCloseRequestSchema,
+		WorkbenchTabSetCloseRequestSchema,
 		WorkbenchClientViewRequestSchema,
 	])
 	.refine((value) => {
@@ -792,6 +798,7 @@ export const WorkbenchResponseSchema = z
 		PanelAgentResultSchema,
 		PanelMetadataResultSchema,
 		WorkbenchWorkspaceGroupCloseResultSchema,
+		WorkbenchTabSetCloseResultSchema,
 		WorkbenchClientViewResultSchema,
 	])
 	.superRefine((value, context) => {
@@ -814,6 +821,8 @@ export const WorkbenchResponseSchema = z
 					: WORKBENCH_MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES;
 		} else if (value.kind === 'workbench.workspace-group-close.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES;
+		} else if (value.kind === 'workbench.tab-set-close.result') {
+			maximum = WORKBENCH_MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES;
 		} else if (value.kind === 'workbench.agent-manifests.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES;
 		} else if (value.kind === 'workbench.settings.result') {

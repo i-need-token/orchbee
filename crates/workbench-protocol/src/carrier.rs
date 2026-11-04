@@ -89,6 +89,7 @@ pub fn write_workbench_response(
 
 fn request_kind(request: &WorkbenchRequest) -> u16 {
     match request {
+        WorkbenchRequest::TabSetClose(_) => 67,
         WorkbenchRequest::CurrentDirectory(_) => 65,
         WorkbenchRequest::AgentIntegration(_) => 63,
         WorkbenchRequest::CloseOperationRead(_) => 61,
@@ -140,6 +141,7 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
 
 fn response_kind(response: &WorkbenchResponse) -> u16 {
     match response {
+        WorkbenchResponse::TabSetClose(_) => 68,
         WorkbenchResponse::CurrentDirectory(_) => 66,
         WorkbenchResponse::AgentIntegration(_) => 64,
         WorkbenchResponse::CloseOperation(_) => 62,
@@ -224,6 +226,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 61
                     | 63
                     | 65
+                    | 67
             ))
         || (!request
             && !matches!(
@@ -259,6 +262,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 62
                     | 64
                     | 66
+                    | 68
             ))
     {
         return Err(WorkbenchWireError::InvalidHeader);
@@ -317,6 +321,8 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
         crate::MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES
     } else if kind == 24 {
         crate::MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES
+    } else if kind == 68 {
+        crate::MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES
     } else if kind == 22 {
         crate::MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES
     } else if kind == 12 {

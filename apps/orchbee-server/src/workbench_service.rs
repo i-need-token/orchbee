@@ -145,6 +145,16 @@ impl WorkbenchService {
                     self.policy.manage_terminal_lifecycle
                 }
             }
+            WorkbenchRequest::TabSetClose(request) => {
+                if matches!(
+                    request.action,
+                    orchbee_workbench_protocol::TabSetCloseAction::Read { .. }
+                ) {
+                    self.policy.read
+                } else {
+                    self.policy.manage_terminal_lifecycle
+                }
+            }
             WorkbenchRequest::WorktreeOperation(request) => {
                 if matches!(
                     request.action,
@@ -269,6 +279,9 @@ impl WorkbenchService {
                     self.terminals
                         .execute_workspace_group_close(request.clone()),
                 ));
+            }
+            WorkbenchRequest::TabSetClose(_) => {
+                return WorkbenchExecution::Response(unavailable_or_denied(request, false));
             }
             WorkbenchRequest::WorktreeQuery(query) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorktreeQuery(
@@ -762,6 +775,21 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                 },
             },
         ),
+        WorkbenchRequest::TabSetClose(request) => {
+            WorkbenchResponse::TabSetClose(orchbee_workbench_protocol::WorkbenchTabSetCloseResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                operation_id: request.action.operation_id().clone(),
+                outcome: if denied {
+                    orchbee_workbench_protocol::TabSetCloseOutcome::Denied {}
+                } else {
+                    orchbee_workbench_protocol::TabSetCloseOutcome::Unavailable {
+                        reason:
+                            orchbee_workbench_protocol::TabSetCloseUnavailable::ServiceUnavailable,
+                    }
+                },
+            })
+        }
         WorkbenchRequest::WorktreeQuery(request) => WorkbenchResponse::WorktreeQuery(
             orchbee_workbench_protocol::WorkbenchWorktreeQueryResult {
                 protocol_version: ProtocolVersion,

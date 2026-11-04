@@ -4,9 +4,9 @@
 
 Action/result pairing belongs to this crate. The result-family `answers` methods enumerate
 their actions and retain the required identity, order, cursor and payload echoes.
-`ClientViewAction::admits`, `WorkbenchWorktreeAction::admits` and
-`WorkspaceGroupCloseAction::admits` share the response rules with Clients, including resume
-attempts and intent-specific progress. `WorkbenchCommand::admits_creation_outcome` admits only
+`ClientViewAction::admits`, `WorkbenchWorktreeAction::admits`,
+`WorkspaceGroupCloseAction::admits` and `TabSetCloseAction::admits` share the response rules with
+Clients, including resume attempts, frozen set scope and intent-specific progress. `WorkbenchCommand::admits_creation_outcome` admits only
 layout/terminal creation receipts with their revision and target checks. Clients separately
 validate connection generation and operation-specific state postconditions.
 
@@ -149,6 +149,22 @@ This is one unpublished OBWP v1 matched-cohort change: Rust, TypeScript, schemas
 activate and roll back together. Protocol tests cover exact encoded limits, closed shapes, nullable
 fields, global references/order/capacity, launch placements and retained child truth. Checkpoint
 migration and native/frontend effects belong to their runtime owners.
+
+## Tab set Close
+
+`workbench.tab-set-close` (OBWP 67/68) closes several Tabs of one terminal context as one retained
+Server operation. Start carries `operationId`, `terminalContextId`, 1–256 distinct `tabIds` in the
+context's current order, `expectedRevision` and `condition` (`if-idle` or `confirmed`); Read carries
+only `operationId`. Available results echo the context and condition with a status (`pending`,
+`closed`, or `failed` with a reason) and frozen `members`: `tabId`, `label`, required-nullable
+`close` (the member's own Close request ID and nullable observation) and `absent`, set when the Tab
+was gone before its turn. An if-idle Start may answer `confirmation-required`; `rejected` carries the
+current revision and a set-specific reason. Neither retains anything. `TabSetCloseAction::admits`
+requires a Start receipt to name the requested context, members and condition. Results enforce
+unique members and child IDs, no child or absence after the first unfinished member, and Closed
+only when every member is closed or absent. There is no set-level Resume: a failed member's own
+Close stays retained for Tab Resume. Requests keep the 16 KiB intent cap; results have a 1 MiB
+pre-allocation cap so 256 maximum escaped labels fit.
 
 ## Tab configuration
 

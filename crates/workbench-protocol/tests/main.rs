@@ -24,6 +24,7 @@ mod split_ratios;
 mod tab_configuration;
 mod tab_creation;
 mod tab_labels;
+mod tab_set_close;
 mod terminal_editor;
 mod user_preferences_conformance;
 mod window_title;

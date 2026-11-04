@@ -3,8 +3,8 @@
 use orchbee_workbench_protocol::{
     AgentManifestsAction, ClientViewAction, ConfigurationAction, ConfiguredCommandAction,
     NotificationAction, PaneGraphicsAction, PanelAgentAction, PanelMetadataAction,
-    SemanticEventsAction, SettingsOperation, TerminalEditorAction, WindowTitleAction,
-    WorkbenchRequest, WorkbenchWorktreeAction, WorkspaceMetadataAction,
+    SemanticEventsAction, SettingsOperation, TabSetCloseAction, TerminalEditorAction,
+    WindowTitleAction, WorkbenchRequest, WorkbenchWorktreeAction, WorkspaceMetadataAction,
 };
 
 pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
@@ -79,6 +79,10 @@ pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
         }
         WorkbenchRequest::ConfiguredCommand(request) => {
             matches!(request.action, ConfiguredCommandAction::PopupRead { .. })
+        }
+        // A set's Read is polled while it runs, so it must not invalidate what it reads.
+        WorkbenchRequest::TabSetClose(request) => {
+            matches!(request.action, TabSetCloseAction::Read { .. })
         }
         WorkbenchRequest::AgentManifests(request) => matches!(
             request.action,

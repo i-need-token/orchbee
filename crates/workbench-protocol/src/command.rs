@@ -138,6 +138,13 @@ pub use workspace_group_close::{
     WorkspaceGroupCloseFailure, WorkspaceGroupCloseMember, WorkspaceGroupCloseObservation,
     WorkspaceGroupCloseOutcome, WorkspaceGroupCloseStatus, WorkspaceGroupCloseUnavailable,
 };
+mod tab_set_close;
+pub use tab_set_close::{
+    MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES, MAXIMUM_TAB_SET_CLOSE_MEMBERS, TabSetCloseAction,
+    TabSetCloseChild, TabSetCloseCondition, TabSetCloseFailure, TabSetCloseMember,
+    TabSetCloseObservation, TabSetCloseOutcome, TabSetCloseRejection, TabSetCloseStatus,
+    TabSetCloseUnavailable, WorkbenchTabSetCloseRequest, WorkbenchTabSetCloseResult,
+};
 mod json_fields;
 mod worktree_query;
 pub use worktree_query::{
@@ -1074,6 +1081,8 @@ pub enum WorkbenchRequest {
     ClientView(WorkbenchClientViewRequest),
     #[serde(rename = "workbench.workspace-group-close")]
     WorkspaceGroupClose(WorkbenchWorkspaceGroupCloseRequest),
+    #[serde(rename = "workbench.tab-set-close")]
+    TabSetClose(WorkbenchTabSetCloseRequest),
     #[serde(rename = "workbench.worktree.query")]
     WorktreeQuery(WorkbenchWorktreeQuery),
     #[serde(rename = "workbench.worktree.operation")]
@@ -1492,6 +1501,8 @@ pub enum WorkbenchResponse {
     ClientView(WorkbenchClientViewResult),
     #[serde(rename = "workbench.workspace-group-close.result")]
     WorkspaceGroupClose(WorkbenchWorkspaceGroupCloseResult),
+    #[serde(rename = "workbench.tab-set-close.result")]
+    TabSetClose(WorkbenchTabSetCloseResult),
     #[serde(rename = "workbench.worktree.query.result")]
     WorktreeQuery(WorkbenchWorktreeQueryResult),
     #[serde(rename = "workbench.worktree.operation.result")]
@@ -1577,6 +1588,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
         return request.validate();
     }
     if let WorkbenchRequest::WorkspaceGroupClose(request) = request {
+        return request.validate();
+    }
+    if let WorkbenchRequest::TabSetClose(request) = request {
         return request.validate();
     }
     if let WorkbenchRequest::WorktreeOperation(request) = request {
@@ -1858,6 +1872,10 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         }
         WorkbenchResponse::WorkspaceGroupClose(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES)?;
+            result.validate()
+        }
+        WorkbenchResponse::TabSetClose(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES)?;
             result.validate()
         }
         WorkbenchResponse::WorktreeQuery(result) => {

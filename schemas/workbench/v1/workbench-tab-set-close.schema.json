@@ -1,0 +1,316 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "urn:orchbee:schema:workbench-tab-set-close:v1",
+	"$comment": "Bindings additionally enforce request16KiB/result1MiB, unique Tab members and child IDs, absent members without a child, a finished-member prefix before any later child or absence, truthful Closed and Start receipt correlation. Existing Close owns child observations. The Server checks current Tab order and revision.",
+	"oneOf": [
+		{
+			"$ref": "#/$defs/request"
+		},
+		{
+			"$ref": "#/$defs/result"
+		}
+	],
+	"$defs": {
+		"requestId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+		},
+		"terminalContextId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+		},
+		"tabId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+		},
+		"sessionId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
+		},
+		"revision": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+		},
+		"label": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+		},
+		"condition": {
+			"enum": ["if-idle", "confirmed"]
+		},
+		"action": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "start"
+						},
+						"operationId": {
+							"$ref": "#/$defs/requestId"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabIds": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 256,
+							"uniqueItems": true,
+							"items": {
+								"$ref": "#/$defs/tabId"
+							}
+						},
+						"expectedRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"condition": {
+							"$ref": "#/$defs/condition"
+						}
+					},
+					"required": [
+						"kind",
+						"operationId",
+						"terminalContextId",
+						"tabIds",
+						"expectedRevision",
+						"condition"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "read"
+						},
+						"operationId": {
+							"$ref": "#/$defs/requestId"
+						}
+					},
+					"required": ["kind", "operationId"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"request": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.tab-set-close"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
+				},
+				"action": {
+					"$ref": "#/$defs/action"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"],
+			"additionalProperties": false
+		},
+		"observation": {
+			"type": "object",
+			"properties": {
+				"attemptGeneration": {
+					"$ref": "urn:orchbee:schema:workbench-command:v1#/$defs/tabCloseAttemptGeneration"
+				},
+				"status": {
+					"$ref": "urn:orchbee:schema:workbench-command:v1#/$defs/tabCloseStatus"
+				}
+			},
+			"required": ["attemptGeneration", "status"],
+			"additionalProperties": false
+		},
+		"child": {
+			"type": "object",
+			"properties": {
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"observation": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/observation"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["requestId", "observation"],
+			"additionalProperties": false
+		},
+		"member": {
+			"type": "object",
+			"properties": {
+				"tabId": {
+					"$ref": "#/$defs/tabId"
+				},
+				"label": {
+					"$ref": "#/$defs/label"
+				},
+				"close": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/child"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"absent": {
+					"type": "boolean"
+				}
+			},
+			"required": ["tabId", "label", "close", "absent"],
+			"additionalProperties": false
+		},
+		"status": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "pending"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "closed"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"enum": [
+								"source-changed",
+								"worker-unavailable",
+								"child-busy",
+								"child-admission",
+								"child-blocked",
+								"outcome-unknown",
+								"deadline",
+								"session-stopping",
+								"internal"
+							]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"enum": ["confirmation-required", "not-found", "conflict", "denied"]
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "rejected"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						},
+						"reason": {
+							"enum": [
+								"revision-mismatch",
+								"terminal-context-unavailable",
+								"tab-unavailable",
+								"tab-order-mismatch"
+							]
+						}
+					},
+					"required": ["kind", "revision", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": ["service-unavailable", "busy", "capacity"]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "available"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"condition": {
+							"$ref": "#/$defs/condition"
+						},
+						"status": {
+							"$ref": "#/$defs/status"
+						},
+						"members": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 256,
+							"items": {
+								"$ref": "#/$defs/member"
+							}
+						}
+					},
+					"required": ["kind", "terminalContextId", "condition", "status", "members"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"result": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.tab-set-close.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"operationId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "operationId", "outcome"],
+			"additionalProperties": false
+		}
+	}
+}
