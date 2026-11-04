@@ -156,13 +156,13 @@ describe('TerminalSettingsSurface', () => {
 		expect(container.textContent).toContain('Display language');
 		expect(container.textContent).not.toContain('Planned');
 		expect(container.querySelector("button[data-settings-category='windows-tabs']")).toBeNull();
-		expect(container.querySelectorAll('[data-settings-group]')).toHaveLength(5);
+		expect(container.querySelectorAll('[data-settings-group]')).toHaveLength(4);
 		expect(
 			Array.from(
 				container.querySelectorAll('[data-settings-group-label]'),
 				(groupLabel) => groupLabel.textContent,
 			),
-		).toEqual(['Application', 'Terminal', 'Workspace', 'Integrations', 'Data & Access']);
+		).toEqual(['Application', 'Terminal', 'Workspace', 'Integrations']);
 
 		await act(async () => {
 			setInputValue(search, 'does not exist');
@@ -191,7 +191,6 @@ describe('TerminalSettingsSurface', () => {
 			).click(),
 		);
 		expect(search.value).toBe('');
-		expect(container.querySelectorAll('[data-settings-group]')).toHaveLength(5);
 		expect(container.textContent).toContain('Terminal font family');
 		await act(async () =>
 			requiredElement<HTMLButtonElement>(
@@ -895,104 +894,6 @@ describe('TerminalSettingsSurface', () => {
 		});
 	});
 
-	it('explains a pasted Ghostty configuration without applying or persisting it', async () => {
-		const container = trackContainer(document.createElement('div'));
-		document.body.append(container);
-		const storage = memoryStorage();
-		const controller = trackDisposable(
-			new TerminalSettingsController({
-				storage,
-				themeTarget: document.documentElement,
-				userPreferences: memoryUserPreferences(),
-			}),
-		);
-		const keyboardShortcutController = trackDisposable(
-			new KeyboardShortcutSettingsController({
-				platform: 'apple',
-				storage,
-			}),
-		);
-		controller.open();
-		const initialPreferences = controller.getSnapshot().preferences;
-		const root = trackRoot(createRoot(container));
-		await act(async () => {
-			root.render(
-				createElement(
-					OrchbeeI18nProvider,
-					{ locale: 'en-US' },
-					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
-						controller,
-						keyboardShortcutController,
-						keyboardShortcutPlatform: 'apple',
-						onRequestClose: () => undefined,
-					}),
-				),
-			);
-		});
-
-		const migrationCategory = requiredElement<HTMLButtonElement>(
-			[...container.querySelectorAll('button')].find(
-				(button) => button.textContent?.trim() === 'Ghostty migration',
-			),
-		);
-		await act(async () => migrationCategory.click());
-		expect(container.textContent).toContain(
-			'This is a dry run. Orchbee will not change or save any settings.',
-		);
-
-		const source = requiredElement<HTMLTextAreaElement>(
-			container.querySelector('#ghostty-migration-source'),
-		);
-		await act(async () => {
-			setTextareaValue(
-				source,
-				[
-					'font-family = JetBrains Mono',
-					'macos-option-as-alt = right',
-					'font-size = 13.5',
-					'background = #abc',
-					'theme = light:Day,dark:Night',
-					'cursor-style = block',
-					'broken',
-				].join('\n'),
-			);
-			source.dispatchEvent(new Event('input', { bubbles: true }));
-		});
-		const analyze = requiredElement<HTMLButtonElement>(
-			[...container.querySelectorAll('button')].find(
-				(button) => button.textContent?.trim() === 'Analyze configuration',
-			),
-		);
-		await act(async () => analyze.click());
-
-		const report = requiredElement<HTMLElement>(
-			container.querySelector("section[aria-labelledby='ghostty-migration-report-title']"),
-		);
-		expect(report.textContent).toContain('Can carry over3');
-		expect(report.textContent).toContain('Review manually2');
-		expect(report.textContent).toContain('Not migrated1');
-		expect(report.textContent).toContain('Needs correction1');
-		expect(report.textContent).toContain('Terminal font familyJetBrains Mono');
-		expect(report.textContent).toContain('Background color#aabbcc');
-		expect(report.textContent).toContain('Use Option as AltRight Option only');
-		expect(controller.getSnapshot().preferences).toBe(initialPreferences);
-		expect(storage.setItem).not.toHaveBeenCalled();
-
-		const appearanceCategory = requiredElement<HTMLButtonElement>(
-			[...container.querySelectorAll('button')].find(
-				(button) => button.textContent?.trim() === 'Appearance',
-			),
-		);
-		await act(async () => appearanceCategory.click());
-		await act(async () => migrationCategory.click());
-		const remountedSource = requiredElement<HTMLTextAreaElement>(
-			container.querySelector('#ghostty-migration-source'),
-		);
-		expect(remountedSource.value).toBe('');
-		expect(container.textContent).not.toContain('Migration report');
-	});
-
 	it('keeps the read-only remote diagnostic stable during global search without side effects', async () => {
 		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
@@ -1126,16 +1027,6 @@ describe('TerminalSettingsSurface', () => {
 		expect(container.textContent).toContain('已聚焦的终端');
 		expect(container.textContent).not.toContain('Search actions');
 
-		const migrationCategory = requiredElement<HTMLButtonElement>(
-			[...container.querySelectorAll('button')].find(
-				(button) => button.textContent?.trim() === 'Ghostty 迁移',
-			),
-		);
-		await act(async () => migrationCategory.click());
-		expect(container.textContent).toContain('从 Ghostty 迁移');
-		expect(container.textContent).toContain('这只是预检，Orchbee 不会更改或保存任何设置。');
-		expect(container.textContent).not.toContain('This is a dry run');
-
 		const remoteCategory = requiredElement<HTMLButtonElement>(
 			container.querySelector("button[data-settings-category='remote-development']"),
 		);
@@ -1190,11 +1081,5 @@ function setInputValue(input: HTMLInputElement, value: string): void {
 function setSelectValue(input: HTMLSelectElement, value: string): void {
 	const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
 	if (setter === undefined) throw new Error('The select value setter is unavailable.');
-	setter.call(input, value);
-}
-
-function setTextareaValue(input: HTMLTextAreaElement, value: string): void {
-	const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-	if (setter === undefined) throw new Error('The textarea value setter is unavailable.');
 	setter.call(input, value);
 }

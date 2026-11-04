@@ -1,5 +1,5 @@
-import type { DragEvent, RefObject } from 'react';
-import type { ProjectedPasteReview, TerminalImagePreviewPresentation } from '@orchbee/terminal';
+import type { RefObject } from 'react';
+import type { ProjectedPasteReview } from '@orchbee/terminal';
 import type { ProjectedTerminalControlPresentation } from '../../projected-terminal-actions';
 import type {
 	MobileTerminalInputState,
@@ -16,10 +16,6 @@ export type ProjectedTerminalLaunchFailureView =
 export interface ProjectedTerminalSurfaceView {
 	readonly controlPresentation: ProjectedTerminalControlPresentation;
 	readonly failureMessage: string | null;
-	readonly imagePreview: Extract<
-		TerminalImagePreviewPresentation,
-		{ readonly kind: 'visible' }
-	> | null;
 	readonly launchFailure: ProjectedTerminalLaunchFailureView | null;
 	readonly launchFailureRoot: RefObject<HTMLElement | null>;
 	/** The pane shows only the part of a larger terminal around its cursor. */
@@ -35,8 +31,6 @@ export interface ProjectedTerminalSurfaceView {
 	cancelPaste(): void;
 	closeTerminal(): void;
 	createTab(): void;
-	handleFileDragOver(event: DragEvent<HTMLDivElement>): void;
-	handleFileDrop(event: DragEvent<HTMLDivElement>): void;
 	retryProjection(): void;
 	sendMobileKey(key: MobileTerminalKey): boolean;
 	takeControl(): void;

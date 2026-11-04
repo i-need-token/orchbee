@@ -14,7 +14,6 @@ import type { TerminalLaunchProfileControl } from '../terminal-launch-profile-co
 import type { TerminalSettingsController } from '../terminal-settings';
 import { AgentIntegrationSettings } from './components/agent-integration-settings/AgentIntegrationSettings';
 import { ApplicationLanguageSettings } from './components/application-language-settings/ApplicationLanguageSettings';
-import { GhosttyMigrationSettings } from './components/ghostty-migration-settings/GhosttyMigrationSettings';
 import { KeyboardShortcutSettings } from './components/keyboard-shortcut-settings/KeyboardShortcutSettings';
 import { MacosTerminalInputSettings } from './components/macos-terminal-input-settings/MacosTerminalInputSettings';
 import { RemoteDevelopmentSettings } from './components/remote-development-settings/RemoteDevelopmentSettings';
@@ -93,8 +92,6 @@ function TerminalSettingsSurfaceContent(props: TerminalSettingsSurfaceProps): Re
 				platform={props.keyboardShortcutPlatform}
 			/>
 		);
-	} else if (view.category === 'ghostty-migration') {
-		mainContent = <GhosttyMigrationSettings />;
 	} else if (view.category === 'remote-development') {
 		mainContent = <RemoteDevelopmentSettings messages={view.messages} />;
 	} else if (view.category === 'profiles' && props.terminalLaunchProfileClient !== undefined) {

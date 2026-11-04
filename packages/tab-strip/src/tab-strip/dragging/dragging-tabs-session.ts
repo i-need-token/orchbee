@@ -1,10 +1,5 @@
 import type { TabGroupId } from '../model/tab-types';
 
-export interface DragPoint {
-	x: number;
-	y: number;
-}
-
 export function calculateHorizontalMoveThreshold(
 	targetTabWidth: number,
 	standardTabWidth: number,

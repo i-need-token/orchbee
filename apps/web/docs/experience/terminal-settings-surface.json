@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns the centered bounded Settings shell, capability-filtered information architecture, global current-category-and-setting discovery, System, English or Simplified-Chinese display-language selection, explicit Desktop Agent-integration, shell-profile and scrollback-default management over the Session's shared preferences, device-shared common preferences with source-bound drafts and confirmed persistence, host-local appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut discovery and overrides, Shell-integration completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns the centered bounded Settings shell, capability-filtered information architecture, global current-category-and-setting discovery, System, English or Simplified-Chinese display-language selection, explicit Desktop Agent-integration, shell-profile and scrollback-default management over the Session's shared preferences, device-shared common preferences with source-bound drafts and confirmed persistence, host-local appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut discovery and overrides, Shell-integration completion-reminder policy, and a read-only remote-shell diagnostic without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -19,7 +19,6 @@
 		"configure-local-shell-profiles",
 		"configure-shell-integration-reminders",
 		"diagnose-remote-terminal-environment",
-		"explain-ghostty-configuration-migration",
 		"search-terminal-settings"
 	],
 	"implementation": [
@@ -27,7 +26,6 @@
 		"apps/web/src/terminal-settings-surface/TerminalSettingsSurface.tsx",
 		"apps/web/src/terminal-settings-surface/components/agent-integration-settings/AgentIntegrationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/application-language-settings/ApplicationLanguageSettings.tsx",
-		"apps/web/src/terminal-settings-surface/components/ghostty-migration-settings/GhosttyMigrationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/keyboard-shortcut-settings/KeyboardShortcutSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/macos-terminal-input-settings/MacosTerminalInputSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/remote-development-settings/RemoteDevelopmentSettings.tsx",
@@ -39,7 +37,6 @@
 		"apps/web/src/terminal-settings-surface/constants/terminal-settings-information-architecture.ts",
 		"apps/web/src/terminal-settings-surface/utils/buildTerminalSettingsSearchCatalog.ts",
 		"apps/web/src/terminal-settings-surface/utils/resolveTerminalSettingsSearch.ts",
-		"apps/web/src/ghostty-configuration-analysis/analyzeGhosttyConfiguration.ts",
 		"apps/web/src/keyboard-shortcuts/model/keyboard-shortcut-search.ts",
 		"apps/web/src/keyboard-shortcuts/model/keyboard-shortcut-settings-controller.ts",
 		"apps/web/src/macos-terminal-input-settings/model/MacosTerminalInputSettingsController.ts",
@@ -64,7 +61,6 @@
 				"Open Agent integrations to inspect the ten Agent-labeled local adapter states, the explicit no-auto-install disclosure, privacy boundary, refresh and snapshot-controlled enablement switches, conflict-safe failures, and manual-only remote-host explanation.",
 				"Open Shell integration to inspect completion-reminder and Agent-notification policy, explicit notification-permission control, and reset.",
 				"Open Remote development to inspect the xterm-256color baseline, complete read-only diagnostic command, result explanation, and explicit absence of automatic remote changes.",
-				"Open Ghostty migration to inspect the paste-only dry-run notice, bounded source field, explicit analysis action, four result dispositions, and absence of an Apply or Import action.",
 				"Inspect System appearance and locale, notification sound, and the shared save/conflict/reload/reset status of the Session's device preferences."
 			]
 		},
@@ -73,7 +69,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--chinese-dark-custom",
 			"states": [
-				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, the bounded shell, compact grouped navigation with subdued localized labels, direct low-chrome rows, keyboard-shortcut, Shell-integration, Remote-development and Ghostty-migration navigation, the absence of roadmap-only categories or controls.",
+				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, the bounded shell, compact grouped navigation with subdued localized labels, direct low-chrome rows, keyboard-shortcut, Shell-integration and Remote-development navigation, the absence of roadmap-only categories or controls.",
 				"Open Keyboard shortcuts to inspect the localized action-or-shortcut search, Standard-platform key labels, Record keys capture guidance, exact result projection, and the unchanged binding editor.",
 				"Inspect System appearance and locale, notification sound, and the shared save/conflict/reload/reset status of the Session's device preferences."
 			]
@@ -90,12 +86,10 @@
 		"A Desktop client changes the Host scrollback default captured only by future terminals.",
 		"A Desktop user explicitly inspects, enables, or disables Orchbee's exact local observation integration for one supported terminal Agent without granting remote-host mutation authority.",
 		"A user wants to configure device-local long-command completion reminders.",
-		"A user needs to inspect the TERM and terminfo state visible after an ordinary SSH connection without allowing Orchbee to change the remote host.",
-		"A user moving from Ghostty needs a source-ordered dry-run that explains which common pasted settings have a lossless Orchbee target and which require review or will not migrate."
+		"A user needs to inspect the TERM and terminfo state visible after an ordinary SSH connection without allowing Orchbee to change the remote host."
 	],
 	"avoidWhen": [
 		"A terminal setting must synchronize through the shared Workbench document.",
-		"Ghostty files, included configuration, or themes must be read, or analyzed values must be applied automatically.",
 		"A native window, operating-system transparency, palette, VT, or OSC setting is being configured."
 	],
 	"invariants": [
@@ -119,7 +113,6 @@
 		"The surface never reads or edits a shell startup file, executes a source command, or requests notification permission without the settings-page button.",
 		"Completion-reminder preferences stay device-local, default to off, and never include command text; qualifying events retain a localized terminal status when system notification is unavailable.",
 		"Remote development exposes one constant read-only command and explanation; opening, searching, and switching categories starts no process, writes no terminal input, persists no remote data, and performs no remote installation.",
-		"Ghostty migration analyzes pasted text only, emits one visible source-ordered finding per assignment, never applies or persists a value, and clears its source and report when its category unmounts.",
 		"No current composition runs a Host-owned terminal-theme transaction: a Desktop window, as a Server Client, paints default-coded cells for Light, Dark, and Custom through defaultColorOverride. Explicit colors, palette projection, cursor, VT, and OSC state retain their Host authority.",
 		"The complete strict appearance and interaction preference records are local to one browser origin and all product copy ships in English and Simplified Chinese.",
 		"Navigation and search project only currently implemented categories, settings, and management entries whose required composition capabilities are present; roadmap-only categories and controls remain absent."

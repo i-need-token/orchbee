@@ -56,12 +56,6 @@ export const TERMINAL_SETTINGS_CATEGORIES = {
 		label: catalogMessage('terminal.settings.catalog.categories.general.title'),
 		title: catalogMessage('terminal.settings.catalog.categories.general.title'),
 	},
-	'ghostty-migration': {
-		description: terminalSettingsMessages.ghosttyMigrationDescription,
-		icon: 'clipboard',
-		label: terminalSettingsMessages.ghosttyMigrationCategory,
-		title: terminalSettingsMessages.ghosttyMigrationTitle,
-	},
 	interaction: {
 		description: catalogMessage('terminal.settings.catalog.categories.interaction.description'),
 		icon: 'sidebar-left',
@@ -138,10 +132,5 @@ export const TERMINAL_SETTINGS_NAVIGATION_GROUPS = [
 		],
 		id: 'integrations',
 		label: catalogMessage('terminal.settings.catalog.groups.integrations'),
-	},
-	{
-		categories: ['ghostty-migration'],
-		id: 'data-access',
-		label: catalogMessage('terminal.settings.catalog.groups.dataAccess'),
 	},
 ] as const satisfies readonly TerminalSettingsNavigationGroupDefinition[];

@@ -42,7 +42,6 @@ import {
 	ProjectedHistoryPhase,
 	ProjectedTerminal,
 	type ProjectedBrokerFailure,
-	type ProjectedPasteReview,
 	type ProjectedTerminalCommand,
 	type ProjectedTerminalErrorEvent,
 	type ProjectedTerminalFrameTelemetry,
@@ -9063,47 +9062,6 @@ describe('ProjectedTerminal', () => {
 			expect.objectContaining({ kind: 'blocked' }),
 		);
 		expect(reviewPaste).toHaveBeenCalledOnce();
-		terminal.dispose();
-	});
-
-	it('publishes a safe prepared file drop directly but retains review for suspicious input', async () => {
-		const browser = createFakeBrowser();
-		vi.stubGlobal('document', browser.document);
-		vi.stubGlobal('window', browser.document.defaultView);
-		vi.stubGlobal('navigator', {});
-		const commands: ProjectedTerminalCommand[] = [];
-		const reviewPaste = vi.fn<(review: ProjectedPasteReview) => boolean>(() => false);
-		const terminal = new ProjectedTerminal({
-			attachmentId,
-			creationId,
-			hostEpoch,
-			labels: { input: 'input', screen: 'screen' },
-			port: {
-				send: (command) => {
-					commands.push(command);
-				},
-			},
-			reviewPaste,
-			terminalId,
-		});
-		await terminal.open(browser.root);
-		const text = '/tmp/safe.txt';
-
-		await expect(terminal.paste(text, 'file-drop')).resolves.toMatchObject({ kind: 'sent' });
-		expect(reviewPaste).not.toHaveBeenCalled();
-		expect(commands.at(-1)).toEqual({
-			kind: 'paste-input',
-			payload: { attachmentId, bracketed: false, capabilityRevision, text },
-		});
-
-		await expect(terminal.paste('one\ntwo', 'file-drop')).resolves.toMatchObject({
-			kind: 'blocked',
-		});
-		expect(reviewPaste).toHaveBeenCalledExactlyOnceWith(
-			expect.objectContaining({ multiline: true, source: 'file-drop' }),
-			expect.any(AbortSignal),
-		);
-		expect(commands.filter((command) => command.kind === 'paste-input')).toHaveLength(1);
 		terminal.dispose();
 	});
 

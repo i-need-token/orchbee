@@ -71,7 +71,6 @@ export function useTerminalSettingsSurface({
 		'appearance',
 		'colors',
 		'general',
-		'ghostty-migration',
 		'keyboard-shortcuts',
 		'remote-development',
 		'text',

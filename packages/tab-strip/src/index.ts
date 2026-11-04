@@ -7,7 +7,6 @@ export {
 	type TabData,
 	type TabStripArrangementChange,
 	type TabStripChangeCallback,
-	type TabStripCrossWindowDragRuntimeFactory,
 	type TabStripCloseCallback,
 	type TabStripCloseConfirmation,
 	type TabStripCloseResume,

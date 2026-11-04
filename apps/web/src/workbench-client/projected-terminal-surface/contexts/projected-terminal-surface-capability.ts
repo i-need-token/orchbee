@@ -15,7 +15,6 @@ import type {
 import type { TerminalPresentationConfigurationSource } from '../../../terminal-presentation';
 import type { ProjectedTerminalPlatformEffects } from '../../projected-terminal-platform-effects';
 import type { TerminalProjectionClient } from '../../terminal-projection';
-import type { TerminalFileDropCapability } from '../../../terminal-file-drop';
 import type { TerminalCompletionReminderObserver } from '../../../terminal-feedback-settings';
 import type { TerminalInputConfigurationSource } from '../../../terminal-input-configuration';
 import type { TerminalTrailingBlankRowsPreferenceSource } from '../../../terminal-interaction-settings';
@@ -53,7 +52,6 @@ export interface ProjectedTerminalSurfaceCapability {
 		| undefined;
 	readonly shortcutBindingSource?: ProjectedTerminalShortcutBindingSource | undefined;
 	readonly shortcutPlatform: ProjectedTerminalShortcutPlatform;
-	readonly terminalFileDropCapability?: TerminalFileDropCapability | undefined;
 	readonly terminalCompletionReminderObserver?: TerminalCompletionReminderObserver | undefined;
 	readonly presentationConfigurationSource: TerminalPresentationConfigurationSource;
 	readonly inputConfigurationSource?: TerminalInputConfigurationSource | undefined;

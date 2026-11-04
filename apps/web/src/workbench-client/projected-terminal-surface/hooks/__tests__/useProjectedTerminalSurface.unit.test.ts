@@ -105,13 +105,11 @@ afterEach(() => {
 
 function TestHarness({
 	autoFocus,
-	bindBroadcastInputSink,
 	focusRequest = 0,
 	onPresentationReady = () => undefined,
 	presentation,
 }: {
 	readonly autoFocus?: boolean | undefined;
-	readonly bindBroadcastInputSink?: WorkbenchTerminalSurfaceProps['bindBroadcastInputSink'];
 	readonly focusRequest?: number | undefined;
 	readonly onPresentationReady?: WorkbenchTerminalSurfaceProps['onPresentationReady'] | undefined;
 	readonly presentation: WorkbenchTerminalPresentation;
@@ -126,7 +124,6 @@ function TestHarness({
 					admitBellEffect,
 					autoFocus,
 					bindActionContextProvider,
-					...(bindBroadcastInputSink === undefined ? {} : { bindBroadcastInputSink }),
 					focusRequest,
 					onPresentationReady,
 				},
@@ -138,8 +135,6 @@ function TestHarness({
 			'data-paste-review-text': view.pasteReview?.originalText,
 			'data-projection-state': view.projectionState,
 			'data-recovery-available': view.recoveryAvailable,
-			onDragOver: view.handleFileDragOver,
-			onDrop: view.handleFileDrop,
 			ref: view.root,
 		},
 		view.pasteReview === null
@@ -166,7 +161,6 @@ function createRunningTerminalFixture(presentationReady: Promise<void> = Promise
 		focus,
 		freeze: vi.fn<() => void>(),
 		isTransportAvailable: () => true,
-		pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
 		presentationReady,
 		transportUnavailable: new Promise<void>(() => undefined),
 		updatePresentationConfiguration: vi
@@ -277,66 +271,6 @@ describe('useProjectedTerminalSurface', () => {
 		expect(release).toHaveBeenCalledOnce();
 		container.remove();
 	});
-
-	it.each([false, true])(
-		'releases the projection when broadcast disposal fails (renderer failure: %s)',
-		async (rendererFails) => {
-			const { capability, presentation, release, session } = createRunningTerminalFixture();
-			const broadcastFailure = new Error('Broadcast registration disposal failed');
-			const rendererFailure = new Error('Renderer disposal failed');
-			const disposeBroadcast = vi.fn<() => void>(() => {
-				throw broadcastFailure;
-			});
-			if (rendererFails)
-				session.dispose.mockImplementation(() => {
-					throw rendererFailure;
-				});
-			const bindBroadcastInputSink: WorkbenchTerminalSurfaceProps['bindBroadcastInputSink'] =
-				() => ({ dispose: disposeBroadcast });
-			const container = document.createElement('div');
-			document.body.appendChild(container);
-			const root = createRoot(container);
-			try {
-				await act(async () => {
-					root.render(
-						createElement(
-							ProjectedTerminalSurfaceCapabilityContext.Provider,
-							{ value: capability },
-							createElement(
-								OrchbeeI18nProvider,
-								{ locale: 'en-US' },
-								createElement(TestHarness, {
-									autoFocus: false,
-									bindBroadcastInputSink,
-									presentation,
-								}),
-							),
-						),
-					);
-				});
-				await vi.waitFor(() => expect(renderer.start).toHaveBeenCalledOnce());
-
-				let cleanupFailure: unknown;
-				try {
-					await act(async () => root.unmount());
-				} catch (error) {
-					cleanupFailure = error;
-				}
-				expect(disposeBroadcast).toHaveBeenCalledOnce();
-				expect(session.dispose).toHaveBeenCalledOnce();
-				expect(release).toHaveBeenCalledOnce();
-				const failures =
-					cleanupFailure instanceof AggregateError ? cleanupFailure.errors : [cleanupFailure];
-				expect(cleanupFailure instanceof AggregateError).toBe(rendererFails);
-				expect(failures).toHaveLength(rendererFails ? 2 : 1);
-				expect(failures[0]).toBe(broadcastFailure);
-				expect(failures[1]).toBe(rendererFails ? rendererFailure : undefined);
-			} finally {
-				await act(async () => root.unmount());
-				container.remove();
-			}
-		},
-	);
 
 	it.each([
 		{ kind: 'running' },
@@ -467,7 +401,6 @@ describe('useProjectedTerminalSurface', () => {
 			focus: vi.fn<() => void>(),
 			freeze: vi.fn<() => void>(),
 			isTransportAvailable: () => true,
-			pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
 			presentationReady: new Promise<void>(() => undefined),
 			transportUnavailable: new Promise<void>(() => undefined),
 			updatePresentationConfiguration: vi
@@ -559,7 +492,6 @@ describe('useProjectedTerminalSurface', () => {
 			focus: vi.fn<() => void>(),
 			freeze: sessionFreeze,
 			isTransportAvailable: () => true,
-			pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
 			presentationReady: Promise.resolve(),
 			transportUnavailable,
 			updatePresentationConfiguration: vi
@@ -768,7 +700,6 @@ describe('useProjectedTerminalSurface', () => {
 			focus: vi.fn<() => void>(),
 			freeze: vi.fn<() => void>(),
 			isTransportAvailable: () => true,
-			pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
 			presentationReady: Promise.resolve(),
 			transportUnavailable: new Promise<void>(() => undefined),
 			updatePresentationConfiguration: vi
@@ -884,273 +815,4 @@ describe('useProjectedTerminalSurface', () => {
 		expect(release).toHaveBeenCalledOnce();
 		container.remove();
 	});
-
-	it('blocks native file navigation and reports unavailable clients without a path capability', async () => {
-		const presentation: WorkbenchTerminalPresentation = {
-			closeActivity: 'unknown',
-			currentCwd: '/workspace',
-			lifecycle: { kind: 'unbound' },
-			naturalTitle: null,
-			presentationId: terminalPresentationId('presentation-file-drop-unavailable'),
-			title: 'Terminal File Drop Unavailable',
-		};
-		const container = document.createElement('div');
-		document.body.appendChild(container);
-		const root = createRoot(container);
-		await act(async () => {
-			root.render(
-				createElement(
-					ProjectedTerminalSurfaceCapabilityContext.Provider,
-					{
-						value: {
-							documentElement: document.documentElement,
-							observeTerminalMetadata: () => undefined,
-							platformEffects: {},
-							preferredLocales: ['en-US'],
-							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
-							projectionClient: {
-								open: () => {
-									throw new Error('An unavailable file drop must not open a projection.');
-								},
-							},
-							shortcutPlatform: 'apple',
-						},
-					},
-					createElement(
-						OrchbeeI18nProvider,
-						{ locale: 'en-US' },
-						createElement(TestHarness, { presentation }),
-					),
-				),
-			);
-		});
-		const surface = container.firstElementChild;
-		if (!(surface instanceof HTMLElement)) throw new Error('Terminal surface did not mount.');
-		const selectedFile = new File([], 'unavailable.txt');
-		const dragOver = terminalFileDragEvent('dragover', [], { types: ['Files'] });
-		surface.dispatchEvent(dragOver.event);
-		expect(dragOver.event.defaultPrevented).toBe(true);
-		expect(dragOver.dataTransfer.dropEffect).toBe('none');
-		const drop = terminalFileDragEvent('drop', [selectedFile]);
-		await act(async () => {
-			surface.dispatchEvent(drop.event);
-		});
-		expect(drop.event.defaultPrevented).toBe(true);
-		expect(surface.getAttribute('data-failure-message')).toBe(
-			'File drop is unavailable in this client.',
-		);
-		expect(renderer.start).not.toHaveBeenCalled();
-		await act(async () => root.unmount());
-		container.remove();
-	});
-
-	it('owns Desktop file drops, publishes only prepared text, and reports bounded rejection', async () => {
-		const preparedText = '/tmp/space\\ name.txt';
-		const preparedDirectoryText = '/Users/example/github/ghostty';
-		const pasteFileDrop = vi
-			.fn<ProjectedTerminalRendererSession['pasteFileDrop']>()
-			.mockResolvedValue({
-				kind: 'sent',
-				review: {
-					bracketed: false,
-					embeddedBracketTerminator: false,
-					multiline: false,
-					originalText: preparedText,
-					replacedControlCharacters: 0,
-					source: 'file-drop',
-					text: preparedText,
-				},
-			});
-		renderer.start.mockResolvedValue({
-			dispose: vi.fn<() => void>(),
-			focus: vi.fn<() => void>(),
-			freeze: vi.fn<() => void>(),
-			isTransportAvailable: () => true,
-			pasteFileDrop,
-			presentationReady: Promise.resolve(),
-			transportUnavailable: new Promise<void>(() => undefined),
-			updatePresentationConfiguration: vi
-				.fn<ProjectedTerminalRendererSession['updatePresentationConfiguration']>()
-				.mockResolvedValue({
-					configuration: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current(),
-					kind: 'completed',
-				}),
-		});
-		const transport: ProjectedTerminalTransport = {
-			close: vi.fn<() => void>(),
-			projectionBufferTrust: 'external',
-			send: vi.fn<ProjectedTerminalTransport['send']>(),
-			subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => () => undefined),
-		};
-		const release = vi.fn<() => void>();
-		const open = vi.fn<TerminalProjectionClient['open']>(() => ({
-			release,
-			result: Promise.resolve({
-				bootstrap: {
-					attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
-					canInput: true,
-					canResize: true,
-					capabilityRevision: CanonicalUint64TextSchema.parse('1'),
-					creationId: CreationIdSchema.parse('22'.repeat(16)),
-					hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
-					terminalId: TerminalIdSchema.parse('44'.repeat(16)),
-					terminalOutcome: null,
-					theme,
-				},
-				transport,
-			}),
-		}));
-		const prepare = vi
-			.fn<
-				NonNullable<ProjectedTerminalSurfaceCapability['terminalFileDropCapability']>['prepare']
-			>()
-			.mockResolvedValueOnce({
-				kind: 'ready',
-				paths: ['/tmp/space name.txt'],
-				text: preparedText,
-			})
-			.mockResolvedValueOnce({
-				kind: 'ready',
-				paths: ['/Users/example/github/ghostty'],
-				text: preparedDirectoryText,
-			})
-			.mockResolvedValueOnce({ kind: 'rejected', reason: 'too-many-files' });
-		const presentation: WorkbenchTerminalPresentation = {
-			closeActivity: 'unknown',
-			currentCwd: '/workspace',
-			lifecycle: { kind: 'running' },
-			naturalTitle: null,
-			presentationId: terminalPresentationId('presentation-file-drop'),
-			title: 'Terminal File Drop',
-		};
-		const container = document.createElement('div');
-		document.body.appendChild(container);
-		const root = createRoot(container);
-		await act(async () => {
-			root.render(
-				createElement(
-					ProjectedTerminalSurfaceCapabilityContext.Provider,
-					{
-						value: {
-							documentElement: document.documentElement,
-							observeTerminalMetadata: () => undefined,
-							platformEffects: {},
-							preferredLocales: ['en-US'],
-							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
-							projectionClient: { open },
-							shortcutPlatform: 'apple',
-							terminalFileDropCapability: { prepare },
-						},
-					},
-					createElement(
-						OrchbeeI18nProvider,
-						{ locale: 'en-US' },
-						createElement(TestHarness, { presentation }),
-					),
-				),
-			);
-			await Promise.resolve();
-			await Promise.resolve();
-			await Promise.resolve();
-		});
-		await vi.waitFor(() => expect(renderer.start).toHaveBeenCalledOnce());
-		const surface = container.firstElementChild;
-		if (!(surface instanceof HTMLElement)) throw new Error('Terminal surface did not mount.');
-		const selectedFile = new File([], 'space name.txt');
-		const protectedItem = vi.fn<() => File | null>(() => null);
-		const dragOver = terminalFileDragEvent('dragover', [], {
-			items: [{ getAsFile: protectedItem, kind: 'file' }],
-			types: ['Files'],
-		});
-		surface.dispatchEvent(dragOver.event);
-		expect(dragOver.event.defaultPrevented).toBe(true);
-		expect(dragOver.dataTransfer.dropEffect).toBe('copy');
-		expect(protectedItem).not.toHaveBeenCalled();
-
-		const drop = terminalFileDragEvent('drop', [selectedFile]);
-		await act(async () => {
-			surface.dispatchEvent(drop.event);
-			await Promise.resolve();
-		});
-		await vi.waitFor(() => expect(pasteFileDrop).toHaveBeenCalledExactlyOnceWith(preparedText));
-		expect(drop.event.defaultPrevented).toBe(true);
-		expect(prepare).toHaveBeenNthCalledWith(1, [selectedFile]);
-
-		const selectedDirectory = new File([], 'ghostty');
-		const directoryDrop = terminalFileDragEvent('drop', [], {
-			items: [{ getAsFile: () => selectedDirectory, kind: 'file' }],
-			types: ['Files'],
-		});
-		await act(async () => {
-			surface.dispatchEvent(directoryDrop.event);
-			await Promise.resolve();
-		});
-		await vi.waitFor(() => expect(pasteFileDrop).toHaveBeenNthCalledWith(2, preparedDirectoryText));
-		expect(directoryDrop.event.defaultPrevented).toBe(true);
-		expect(prepare).toHaveBeenNthCalledWith(2, [selectedDirectory]);
-
-		const tooMany = Array.from({ length: 33 }, (_, index) => new File([], `file-${index}`));
-		await act(async () => {
-			surface.dispatchEvent(terminalFileDragEvent('drop', tooMany).event);
-			await Promise.resolve();
-		});
-		await vi.waitFor(() =>
-			expect(surface.getAttribute('data-failure-message')).toContain(
-				'33 files were dropped. Select no more than 32.',
-			),
-		);
-		expect(pasteFileDrop).toHaveBeenCalledTimes(2);
-
-		let releaseStalePreparation: (() => void) | undefined;
-		prepare.mockImplementationOnce(async () => {
-			await new Promise<void>((resolve) => {
-				releaseStalePreparation = resolve;
-			});
-			return {
-				kind: 'ready',
-				paths: ['/tmp/stale.txt'],
-				text: '/tmp/stale.txt',
-			};
-		});
-		await act(async () => {
-			surface.dispatchEvent(terminalFileDragEvent('drop', [new File([], 'stale.txt')]).event);
-			await Promise.resolve();
-		});
-		await vi.waitFor(() => expect(prepare).toHaveBeenCalledTimes(4));
-		await act(async () => root.unmount());
-		releaseStalePreparation?.();
-		await Promise.resolve();
-		await Promise.resolve();
-		expect(pasteFileDrop).toHaveBeenCalledTimes(2);
-		expect(release).toHaveBeenCalledOnce();
-		container.remove();
-	});
 });
-
-function terminalFileDragEvent(
-	type: 'dragover' | 'drop',
-	files: readonly File[],
-	options?: {
-		readonly items?: readonly { getAsFile(): File | null; readonly kind: string }[];
-		readonly types?: readonly string[];
-	},
-): {
-	readonly dataTransfer: {
-		dropEffect: string;
-		readonly files: readonly File[];
-		readonly items: readonly { getAsFile(): File | null; readonly kind: string }[];
-		readonly types: readonly string[];
-	};
-	readonly event: Event;
-} {
-	const dataTransfer = {
-		dropEffect: 'none',
-		files,
-		items:
-			options?.items ?? files.map((file) => ({ getAsFile: () => file, kind: 'file' as const })),
-		types: options?.types ?? (files.length === 0 ? [] : ['Files']),
-	};
-	const event = new Event(type, { bubbles: true, cancelable: true });
-	Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
-	return { dataTransfer, event };
-}

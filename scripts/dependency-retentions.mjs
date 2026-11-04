@@ -25,10 +25,8 @@ const analysisInputs = [
 		sha256: '5d9a3e726c3d0dbad3973ee92954edb2d7ab7bd0dcc753ca5ffa517a326c31ac',
 	},
 ];
-const retentionOwners = [
-	['packages/ui/dependency-retentions.json', '@orchbee/ui'],
-	['packages/tab-strip/dependency-retentions.json', '@orchbee/tab-strip'],
-];
+// Each package-owned dependency-retentions.json is registered here as [file, package name].
+const retentionOwners = [];
 const issueKinds = [
 	'files',
 	'dependencies',

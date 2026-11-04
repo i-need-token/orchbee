@@ -536,7 +536,10 @@ function retentionProcessReport(rows, production) {
 }
 
 test('retention acceptance rejects new, stale, malformed, dependency and process failures', () => {
-	const { expected } = readRetentionPolicy(repositoryRoot);
+	const expected = [
+		{ kind: 'exports', file: 'packages/ui/src/components/ui/index.ts', name: 'RetainedSlot' },
+		{ kind: 'types', file: 'packages/ui/src/components/ui/index.ts', name: 'RetainedSlotProps' },
+	];
 	const full = retentionProcessReport([], false);
 	const strict = retentionProcessReport(expected, true);
 	assert.deepEqual(assessDependencyReports(full, strict, expected), {
@@ -547,7 +550,7 @@ test('retention acceptance rejects new, stale, malformed, dependency and process
 	});
 	const unexpected = {
 		kind: 'exports',
-		file: 'packages/ui/src/components/ui/tabs.tsx',
+		file: 'packages/ui/src/components/ui/index.ts',
 		name: 'UnadmittedSlot',
 	};
 	for (const [label, invalid] of [
@@ -602,37 +605,15 @@ test('retention acceptance rejects new, stale, malformed, dependency and process
 	assert.throws(() => assessDependencyReports(full, strict, expected.slice(1)), /Unregistered/u);
 });
 
-test('retention fingerprints reject missing or disconnected real consumer and discovery inputs', () => {
+test('retention fingerprints reject changed analysis configuration', () => {
 	const read = (file) => readFileSync(join(repositoryRoot, file), 'utf8');
-	for (const consumer of [
-		'packages/ui/stories/tabs.stories.tsx',
-		'packages/tab-strip/src/tab-strip/dragging/__tests__/dom-tab-drag-registry.unit.test.ts',
-		'packages/tab-strip/src/tab-strip/dragging/__tests__/cross-window-drag-runtime.unit.test.ts',
-	]) {
-		assert.throws(
-			() =>
-				readRetentionPolicy(repositoryRoot, (file) => (file === consumer ? undefined : read(file))),
-			/Missing input/u,
-		);
-		// The file and old symbol text still exist, but no render/call/assertion remains connected.
-		assert.throws(
-			() =>
-				readRetentionPolicy(repositoryRoot, (file) =>
-					file === consumer ? `/* ${read(file)} */\nexport {};\n` : read(file),
-				),
-			/Reviewed consumer/u,
-		);
-	}
-	for (const config of [
-		'knip.config.mjs',
-		'apps/storybook/.storybook/main.ts',
-		'packages/tab-strip/vitest.config.ts',
-	]) {
-		assert.throws(
-			() => readRetentionPolicy(repositoryRoot, (file) => (file === config ? '{}' : read(file))),
-			/configuration changed/u,
-		);
-	}
+	assert.throws(
+		() =>
+			readRetentionPolicy(repositoryRoot, (file) =>
+				file === 'knip.config.mjs' ? '{}' : read(file),
+			),
+		/configuration changed/u,
+	);
 });
 
 function retentionEvidenceEnvelope(result) {

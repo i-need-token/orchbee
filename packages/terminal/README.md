@@ -760,10 +760,7 @@ checking. No liveness claim is made for operating-system filesystem completion; 
 presentation-authoritative even when an underlying read cannot stop synchronously.
 
 Plain-text drops follow the same sanitization, review, ordering, and Host input path as paste. The
-`file-drop` paste source follows the same hazard policy, but its source alone does not force review:
-safe single-line text is published directly, while controls, embedded bracket terminators, and
-unprotected multiline input retain the ordinary review rules. Resolving and safely preparing file
-paths remains an application-owned capability, so this package receives no filesystem authority.
+package accepts no file drops and receives no filesystem authority.
 
 The off-screen accessibility mirror is a labeled `list` whose direct `listitem` rows preserve spaces, grapheme-to-column mappings, and absolute `aria-posinset`/`aria-setsize` positions. It labels rows and the cursor with caller-provided localized text. A separate polite status region announces only changed visible output, including localized deletion announcements. Retained-history inspection disables live updates without replacing the live-output baseline, so returning to the bottom announces only output changed since the last live frame.
 

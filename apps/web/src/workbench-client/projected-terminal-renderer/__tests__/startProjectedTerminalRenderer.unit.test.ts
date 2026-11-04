@@ -185,11 +185,6 @@ describe('startProjectedTerminalRenderer', () => {
 			vi.fn<NonNullable<ProjectedTerminalPlatformEffects['showBellNotification']>>();
 		let emitExit: Parameters<ProjectedTerminal['onExit']>[0] = () => undefined;
 		let emitFrameTelemetry: Parameters<ProjectedTerminal['onFrameTelemetry']>[0] = () => undefined;
-		let emitInjectedInputReadiness: Parameters<
-			ProjectedTerminal['onInjectedInputReadinessChange']
-		>[0] = () => undefined;
-		let emitImagePreview: Parameters<ProjectedTerminal['onImagePreviewChange']>[0] = () =>
-			undefined;
 		let emitLinkOpenRequest: Parameters<ProjectedTerminal['onLinkOpenRequest']>[0] = () =>
 			undefined;
 		let emitMetadata: Parameters<ProjectedTerminal['onMetadataChange']>[0] | undefined;
@@ -278,16 +273,9 @@ describe('startProjectedTerminalRenderer', () => {
 						onHistoryChange: vi.fn<ProjectedTerminal['onHistoryChange']>(() => ({
 							dispose: vi.fn<() => void>(),
 						})),
-						onImagePreviewChange: vi.fn<ProjectedTerminal['onImagePreviewChange']>((listener) => {
-							emitImagePreview = listener;
-							return { dispose: vi.fn<() => void>() };
-						}),
 						onInjectedInputReadinessChange: vi.fn<
 							ProjectedTerminal['onInjectedInputReadinessChange']
-						>((listener) => {
-							emitInjectedInputReadiness = listener;
-							return { dispose: vi.fn<() => void>() };
-						}),
+						>(() => ({ dispose: vi.fn<() => void>() })),
 						onLinkOpenRequest: vi.fn<ProjectedTerminal['onLinkOpenRequest']>((listener) => {
 							emitLinkOpenRequest = listener;
 							return { dispose: vi.fn<() => void>() };
@@ -447,7 +435,6 @@ describe('startProjectedTerminalRenderer', () => {
 			},
 		};
 		const observeMetadata = vi.fn<(metadata: ProjectedTerminalMetadata) => void>();
-		const observeImagePreview = vi.fn<Parameters<ProjectedTerminal['onImagePreviewChange']>[0]>();
 		const actionRuntime = new ActionRuntime();
 		const actionScope = actionRuntime.createScope('test.workbench.terminal');
 		const admitBellEffect = vi.fn<(event: WorkbenchTerminalBellEffect) => boolean>(() => true);
@@ -502,11 +489,9 @@ describe('startProjectedTerminalRenderer', () => {
 				},
 				interactionConfigurationSource,
 				undefined,
-				observeImagePreview,
 				applicationLocaleSource,
 				trailingBlankRowsPresentationSource,
 			);
-			const broadcastReadinessChanged = vi.fn<() => void>();
 			const inputPort = vi.mocked(dependencies.createTerminal).mock.calls[0]?.[0].port;
 			if (inputPort === undefined) throw new Error('terminal input port missing');
 			await inputPort.send({
@@ -541,27 +526,6 @@ describe('startProjectedTerminalRenderer', () => {
 				}),
 			).toThrow('input refused');
 			expect(onTerminalEdit).toHaveBeenCalledOnce();
-			const broadcastReadinessSubscription =
-				session.subscribeBroadcastInputReadiness?.(broadcastReadinessChanged);
-			expect(session.getBroadcastInputReadiness?.()).toEqual({
-				kind: 'ready',
-				revision: `${bootstrap.attachmentId}:1`,
-			});
-			await expect(
-				session.sendBroadcastInput?.(
-					{ kind: 'text', text: 'broadcast' },
-					`${bootstrap.attachmentId}:1`,
-				),
-			).resolves.toEqual({ kind: 'sent' });
-			expect(injectInput).toHaveBeenCalledWith(
-				{ kind: 'text', text: 'broadcast' },
-				`${bootstrap.attachmentId}:1`,
-			);
-			emitInjectedInputReadiness({
-				kind: 'ready',
-				revision: `${bootstrap.attachmentId}:1`,
-			});
-			expect(broadcastReadinessChanged).toHaveBeenCalledOnce();
 			expect(dependencies.createTerminal).toHaveBeenCalledWith(
 				expect.objectContaining({
 					copyOnSelect: false,
@@ -625,25 +589,9 @@ describe('startProjectedTerminalRenderer', () => {
 				requestSequence: '11',
 			});
 			emitTransportMessage({ kind: 'image-preview-unavailable', requestSequence: '12' });
-			const imagePresentation = {
-				anchor: {
-					height: 18,
-					left: 24,
-					surfaceHeight: 400,
-					surfaceWidth: 600,
-					top: 40,
-					width: 8,
-				},
-				content: imagePreviewContent,
-				kind: 'visible' as const,
-				mediaType: 'image/png' as const,
-				path: '/tmp/output.png',
-			};
-			emitImagePreview(imagePresentation);
 			expect(applyFrame).toHaveBeenCalledOnce();
 			expect(applyImagePreviewContent).toHaveBeenCalledWith('11', imagePreviewContent, 'image/png');
 			expect(applyImagePreviewUnavailable).toHaveBeenCalledWith('12');
-			expect(observeImagePreview).toHaveBeenCalledWith(imagePresentation);
 			expect(notifyBell).toHaveBeenCalledWith({
 				attachmentId: bootstrap.attachmentId,
 				sequence: '5',
@@ -1006,8 +954,6 @@ describe('startProjectedTerminalRenderer', () => {
 				throw new Error('transport unavailable listener is missing');
 			}
 			emitTransportUnavailable();
-			expect(broadcastReadinessChanged).toHaveBeenCalledTimes(2);
-			expect(session.getBroadcastInputReadiness?.()).toEqual({ kind: 'unavailable' });
 			expect(dataset['projectedTerminalState']).toBe('exited');
 			expect(status).toMatchObject({
 				dataset: { projectedTerminalStatus: 'true' },
@@ -1023,7 +969,6 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(freezeTerminal).toHaveBeenCalledOnce();
 			expect(disposeTerminal).not.toHaveBeenCalled();
 			session.dispose();
-			broadcastReadinessSubscription?.dispose();
 			expect(disposeContextProvider).toHaveBeenCalledOnce();
 			actionRuntime.dispose();
 			session.dispose();

@@ -8,7 +8,6 @@ import {
 	TabStrip,
 	type TabModel,
 	type TabStripChangeCallback,
-	type TabStripCrossWindowDragRuntimeFactory,
 	type TabStripCloseCallback,
 	type TabStripCloseConfirmation,
 	type TabStripCloseResume,
@@ -30,7 +29,6 @@ interface WorkbenchTabBarProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly parentActionScope: ActionScope;
 	readonly closeResume?: TabStripCloseResume | undefined;
-	readonly createCrossWindowDragRuntime: TabStripCrossWindowDragRuntimeFactory | undefined;
 	readonly newTabChoices?: readonly TabStripNewTabChoice[] | undefined;
 	readonly onNewTerminal: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onCloseTabs?: TabStripCloseCallback | undefined;
@@ -56,7 +54,6 @@ interface WorkbenchTabBarProps {
 export function WorkbenchTabBar({
 	actionRuntime,
 	closeResume,
-	createCrossWindowDragRuntime,
 	newTabChoices,
 	onNewTerminal,
 	onCloseTabs,
@@ -89,7 +86,6 @@ export function WorkbenchTabBar({
 			>
 				<TabStrip
 					actionRuntime={actionRuntime}
-					createCrossWindowDragRuntime={createCrossWindowDragRuntime}
 					focusRequest={focusRequest}
 					horizontalLeadingActions={
 						reserveSidebarToggleSpace ? (

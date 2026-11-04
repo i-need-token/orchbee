@@ -72,37 +72,6 @@ export function registerWorkbenchActiveTerminalActions({
 			resolveForContext(projectWorkspaceRuntime, command, context).kind === 'ready'
 				? ({ kind: 'enabled' } as const)
 				: ({ kind: 'disabled', reason: workbenchMessages.actionUnavailable } as const);
-	const descendantAvailabilityFor =
-		(command: ActiveTerminalCommand) => (context: ActionAvailabilityContext) => {
-			const resolution = resolveForContext(projectWorkspaceRuntime, command, context);
-			if (resolution.kind === 'unavailable') {
-				return { kind: 'disabled', reason: workbenchMessages.actionUnavailable } as const;
-			}
-			const ready = runtime
-				.discover(
-					{
-						scope,
-						source: context.source,
-						target: { id: resolution.panelId, type: 'panel' },
-					},
-					{
-						includeDescendants: true,
-						inputByActionId: {
-							...WORKBENCH_DESCENDANT_ACTION_DISCOVERY_INPUTS,
-							[resolution.actionId]: resolution.input,
-						},
-					},
-				)
-				.some(
-					(result) =>
-						result.kind === 'ready' &&
-						result.descriptor.id === resolution.actionId &&
-						result.availability.kind === 'enabled',
-				);
-			return ready
-				? ({ kind: 'enabled' } as const)
-				: ({ kind: 'disabled', reason: workbenchMessages.actionUnavailable } as const);
-		};
 	const execute = (command: ActiveTerminalCommand) => async (context: ActionExecutionContext) =>
 		await executeResolvedCommand({
 			command,
@@ -113,22 +82,6 @@ export function registerWorkbenchActiveTerminalActions({
 		});
 
 	return [
-		typedRuntime.register(
-			scope,
-			defineAction({
-				category: panelCategory,
-				execution: {
-					concurrency: 'serialize',
-					concurrencyKey: () => 'active-panel-broadcast-input',
-					mode: 'foreground',
-				},
-				getAvailability: descendantAvailabilityFor('open-broadcast-input'),
-				handler: { execute: execute('open-broadcast-input') },
-				id: WORKBENCH_ACTION_IDS.openPanelBroadcastInput,
-				input: noActionInput,
-				title: workbenchMessages.panelBroadcastInputStart,
-			}),
-		),
 		typedRuntime.register(
 			scope,
 			defineAction({

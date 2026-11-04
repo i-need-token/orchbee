@@ -101,11 +101,9 @@ function Harness({
 		createPanelTerminal,
 		operations: {
 			activateChildTerminal: () => appliedTransition,
-			canStartBroadcastInput: () => true,
 			focusPanel,
 			showPrimaryTerminal: () => appliedTransition,
 			startPanelResize: () => true,
-			startBroadcastInput: () => true,
 			startPanelVisualSelection,
 			togglePanelMaximization: () => appliedTransition,
 		},
@@ -399,7 +397,6 @@ describe('useWorkbenchPanelActions', () => {
 								direction: 'right',
 								panelId: 'panel-1',
 							},
-							[PANEL_ACTION_IDS.startBroadcastInput]: { panelId: 'panel-1' },
 							[PANEL_ACTION_IDS.startResize]: { panelId: 'panel-1' },
 							[PANEL_ACTION_IDS.startVisualSelection]: {
 								mode: 'focus',

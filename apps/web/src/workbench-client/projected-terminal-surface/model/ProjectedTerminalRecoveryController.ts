@@ -1,13 +1,4 @@
-import type {
-	ProjectedPasteResult,
-	ProjectedTerminalPresentationSnapshot,
-} from '@orchbee/terminal';
-import type {
-	WorkbenchTerminalBroadcastInput,
-	WorkbenchTerminalBroadcastInputReadiness,
-	WorkbenchTerminalBroadcastInputResult,
-	WorkbenchTerminalBroadcastInputSink,
-} from '../../../workbench';
+import type { ProjectedTerminalPresentationSnapshot } from '@orchbee/terminal';
 
 import type { ProjectedTerminalControlPresentation } from '../../projected-terminal-actions';
 import type {
@@ -50,14 +41,10 @@ export interface ProjectedTerminalRecoveryControllerOptions {
 	) => Promise<ProjectedTerminalRendererSession>;
 }
 
-export type ProjectedTerminalRecoveryFileDropResult =
-	| ProjectedPasteResult
-	| { readonly kind: 'unavailable' };
-
 type RecoveryAttemptSource = 'automatic' | 'initial' | 'manual';
 
 /** Owns one bounded projected-attachment recovery sequence for a mounted terminal surface. */
-export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBroadcastInputSink {
+export class ProjectedTerminalRecoveryController {
 	readonly #onActivationReady: () => void;
 	readonly #onDisplayReady: () => void;
 	readonly #onRetainedSnapshot: (snapshot: ProjectedTerminalPresentationSnapshot) => void;
@@ -65,11 +52,9 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 	readonly #open: ProjectedTerminalRecoveryControllerOptions['open'];
 	readonly #startRenderer: ProjectedTerminalRecoveryControllerOptions['startRenderer'];
 	#active: ManagedProjectedTerminalSession | undefined;
-	#activeBroadcastInputSubscription: { dispose(): void } | undefined;
 	#activeControlSubscription: { dispose(): void } | undefined;
 	#activeMobileInputSubscription: { dispose(): void } | undefined;
 	#automaticRetryIndex = 0;
-	readonly #broadcastInputReadinessListeners = new Set<() => void>();
 	readonly #controlPresentationListeners = new Set<() => void>();
 	readonly #mobileInputStateListeners = new Set<() => void>();
 	#candidate: ManagedProjectedTerminalSession | undefined;
@@ -123,7 +108,6 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 			this.#active = undefined;
 			this.#freezeProjection(active, 'retention');
 			if (this.#disposed) return;
-			this.#notifyBroadcastInputReadiness();
 			this.#notifyMobileInputState();
 			this.#notifyControlPresentation();
 		} else {
@@ -211,49 +195,12 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		return { dispose: () => this.#mobileInputStateListeners.delete(listener) };
 	}
 
-	getReadiness(): WorkbenchTerminalBroadcastInputReadiness {
-		return this.#disposed
-			? { kind: 'unavailable' }
-			: (this.#active?.session.getBroadcastInputReadiness?.() ?? { kind: 'unavailable' });
-	}
-
-	async send(
-		input: WorkbenchTerminalBroadcastInput,
-		expectedRevision: string,
-	): Promise<WorkbenchTerminalBroadcastInputResult> {
-		const active = this.#active;
-		if (this.#disposed || active === undefined) return { kind: 'blocked' };
-		const readiness = active.session.getBroadcastInputReadiness?.();
-		if (readiness?.kind !== 'ready' || readiness.revision !== expectedRevision) {
-			return { kind: 'blocked' };
-		}
-		return (
-			(await active.session.sendBroadcastInput?.(input, expectedRevision)) ?? {
-				kind: 'blocked',
-			}
-		);
-	}
-
-	subscribe(listener: () => void): { dispose(): void } {
-		if (!this.#disposed) this.#broadcastInputReadinessListeners.add(listener);
-		return {
-			dispose: () => this.#broadcastInputReadinessListeners.delete(listener),
-		};
-	}
-
-	async pasteFileDrop(text: string): Promise<ProjectedTerminalRecoveryFileDropResult> {
-		if (this.#disposed || this.#active === undefined) return { kind: 'unavailable' };
-		return await this.#active.session.pasteFileDrop(text);
-	}
-
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
 		this.#opening = undefined;
-		const broadcastInputSubscription = this.#activeBroadcastInputSubscription;
 		const controlSubscription = this.#activeControlSubscription;
 		const mobileInputSubscription = this.#activeMobileInputSubscription;
-		const broadcastListeners = [...this.#broadcastInputReadinessListeners];
 		const controlListeners = [...this.#controlPresentationListeners];
 		const mobileListeners = [...this.#mobileInputStateListeners];
 		const resolveDisposed = this.#resolveDisposed;
@@ -262,7 +209,6 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		const candidate = this.#candidate;
 		const active = this.#active;
 		const frozen = this.#frozen;
-		this.#activeBroadcastInputSubscription = undefined;
 		this.#activeControlSubscription = undefined;
 		this.#activeMobileInputSubscription = undefined;
 		this.#resolveDisposed = undefined;
@@ -277,19 +223,14 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 					if (retryTimer !== undefined) globalThis.clearTimeout(retryTimer);
 				},
 				() => resolveDisposed?.(),
-				() => broadcastInputSubscription?.dispose(),
 				() => controlSubscription?.dispose(),
 				() => mobileInputSubscription?.dispose(),
-				...broadcastListeners.map((listener) => () => {
-					if (this.#broadcastInputReadinessListeners.has(listener)) listener();
-				}),
 				...controlListeners.map((listener) => () => {
 					if (this.#controlPresentationListeners.has(listener)) listener();
 				}),
 				...mobileListeners.map((listener) => () => {
 					if (this.#mobileInputStateListeners.has(listener)) listener();
 				}),
-				() => this.#broadcastInputReadinessListeners.clear(),
 				() => this.#controlPresentationListeners.clear(),
 				() => this.#mobileInputStateListeners.clear(),
 				() => pending?.release(),
@@ -414,8 +355,6 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		this.#candidate = undefined;
 		this.#pending = undefined;
 		this.#active = managed;
-		this.#bindActiveBroadcastInput(managed);
-		if (!this.#ownsActive(managed)) return;
 		this.#bindActiveMobileInput(managed);
 		if (!this.#ownsActive(managed)) return;
 		this.#bindActiveControl(managed);
@@ -436,7 +375,6 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		this.#automaticRetryIndex = 0;
 		this.#freezeProjection(managed, 'recovery');
 		if (!this.#ownsFrozen(managed)) return;
-		this.#notifyBroadcastInputReadiness();
 		this.#notifyMobileInputState();
 		this.#notifyControlPresentation();
 		this.#scheduleAutomaticRetry();
@@ -502,8 +440,6 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		let previous = this.#frozen;
 		this.#frozen = managed;
 		try {
-			this.#unbindActiveBroadcastInput();
-			if (!this.#ownsFrozen(managed)) return;
 			this.#unbindActiveMobileInput();
 			if (!this.#ownsFrozen(managed)) return;
 			this.#unbindActiveControl();
@@ -529,26 +465,6 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		} finally {
 			disposeManagedSession(previous);
 		}
-	}
-
-	#bindActiveBroadcastInput(managed: ManagedProjectedTerminalSession): void {
-		this.#unbindActiveBroadcastInput();
-		if (!this.#ownsActive(managed)) return;
-		const subscription = managed.session.subscribeBroadcastInputReadiness?.(() =>
-			this.#notifyBroadcastInputReadiness(),
-		);
-		if (!this.#ownsActive(managed)) {
-			subscription?.dispose();
-			return;
-		}
-		this.#activeBroadcastInputSubscription = subscription;
-		this.#notifyBroadcastInputReadiness();
-	}
-
-	#unbindActiveBroadcastInput(): void {
-		const subscription = this.#activeBroadcastInputSubscription;
-		this.#activeBroadcastInputSubscription = undefined;
-		subscription?.dispose();
 	}
 
 	#bindActiveMobileInput(managed: ManagedProjectedTerminalSession): void {
@@ -593,10 +509,6 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 
 	#notifyControlPresentation(): void {
 		for (const listener of this.#controlPresentationListeners) listener();
-	}
-
-	#notifyBroadcastInputReadiness(): void {
-		for (const listener of this.#broadcastInputReadinessListeners) listener();
 	}
 
 	#notifyMobileInputState(): void {

@@ -8,13 +8,12 @@ import { TAB_BOUNDS_ANIMATION_DURATION_MS } from '../utils/tab-strip-internals';
 
 import { requireDefined } from '../utils/requireDefined';
 import { TabStripOrientation } from '../types/tab-strip-types';
-import type { DragSessionData } from '../dragging/drag-session-data';
 import { ThumbnailCaptureReadiness } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
 import type {
 	HoverCardThumbnailSource,
 	HoverCardThumbnailSubscription,
 } from '../components/tab-strip-view/components/hover-card/model/TabHoverCardThumbnailObserver';
-import { TabModel, type TabGroupData } from '../model/tab-model';
+import { TabModel } from '../model/tab-model';
 import { TabStripComboButtonController } from '../model/TabStripComboButtonController';
 import { VerticalTabStripExpandOnHoverController } from '../model/vertical-tab-strip-expand-on-hover';
 import { TabStrip, type TabStripGroupNameRequest, type TabStripNewTabChoice } from '../TabStrip';
@@ -2449,96 +2448,9 @@ describe('TabStrip', () => {
 		fireEvent.pointerCancel(window, { pointerId: 11, clientX: 280, clientY: 20 });
 	});
 
-	it('forwards the React pointer lifecycle and screen coordinates to a cross-window runtime', () => {
+	it('ends a started drag when a dragged source tab disappears', () => {
 		const model = createModel();
-		const runtime = {
-			start: vi.fn<() => void>(),
-			update: vi.fn<() => void>(),
-			end: vi.fn<() => void>(),
-			getSnapshot: vi.fn<() => { targetActive: boolean }>(() => ({ targetActive: true })),
-		};
-		const createRuntime = vi.fn<
-			(_session: DragSessionData<Readonly<TabGroupData>>) => typeof runtime
-		>(() => runtime);
-		render(<TabStrip model={model} createCrossWindowDragRuntime={createRuntime} />);
-		const loose = screen.getByRole('tab', { name: /^Loose/ });
-		setRect(loose, 250, 100);
-
-		fireEvent.pointerDown(loose, { button: 0, pointerId: 40, clientX: 300, clientY: 20 });
-		const session = requireDefined(requireDefined(createRuntime.mock.calls[0])[0]);
-		expect(session.sourceViewDragData.contentsId).toBe('loose');
-		expect(session.numDraggingTabs).toBe(1);
-
-		fireEvent.pointerMove(window, {
-			pointerId: 40,
-			clientX: 60,
-			clientY: 20,
-			screenX: 460,
-			screenY: 220,
-		});
-		expect(runtime.start).toHaveBeenCalledOnce();
-		expect(runtime.update).toHaveBeenCalledWith({ x: 460, y: 220 });
-		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
-			'pinned',
-			'research-a',
-			'research-b',
-			'loose',
-		]);
-
-		fireEvent.pointerUp(window, { pointerId: 40, clientX: 60, clientY: 20 });
-		expect(runtime.end).toHaveBeenCalledWith('complete');
-	});
-
-	it('cancels a started cross-window runtime on Escape', () => {
-		const model = createModel();
-		const runtime = {
-			start: vi.fn<() => void>(),
-			update: vi.fn<() => void>(),
-			end: vi.fn<() => void>(),
-			getSnapshot: vi.fn<() => { targetActive: boolean }>(() => ({ targetActive: false })),
-		};
-		render(<TabStrip model={model} createCrossWindowDragRuntime={() => runtime} />);
-		const loose = screen.getByRole('tab', { name: /^Loose/ });
-		setRect(loose, 250, 100);
-
-		fireEvent.pointerDown(loose, { button: 0, pointerId: 41, clientX: 300, clientY: 20 });
-		fireEvent.pointerMove(window, {
-			pointerId: 41,
-			clientX: 60,
-			clientY: 20,
-			screenX: 60,
-			screenY: 20,
-		});
-		fireEvent.keyDown(window, { key: 'Escape' });
-
-		expect(runtime.end).toHaveBeenCalledWith('cancel');
-		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
-			'pinned',
-			'research-a',
-			'research-b',
-			'loose',
-		]);
-	});
-
-	it('ends a drag as tab-destroyed when a dragged source tab disappears', () => {
-		const model = createModel();
-		const runtime = {
-			start: vi.fn<() => void>(),
-			update: vi.fn<() => void>(),
-			end: vi.fn<() => void>(),
-			getSnapshot: vi.fn<
-				() => {
-					targetActive: boolean;
-					sourceContextId: string;
-					attachedContextId: string;
-				}
-			>(() => ({
-				targetActive: false,
-				sourceContextId: 'source',
-				attachedContextId: 'source',
-			})),
-		};
-		render(<TabStrip model={model} createCrossWindowDragRuntime={() => runtime} />);
+		render(<TabStrip model={model} />);
 		const loose = screen.getByRole('tab', { name: /^Loose/ });
 		setRect(loose, 250, 100);
 
@@ -2547,35 +2459,16 @@ describe('TabStrip', () => {
 			pointerId: 42,
 			clientX: 60,
 			clientY: 20,
-			screenX: 60,
-			screenY: 20,
 		});
 		expect(document.querySelector('[data-horizontal-drag-context]')).not.toBeNull();
 		act(() => model.closeTab('loose'));
 
-		expect(runtime.end).toHaveBeenCalledWith('tab-destroyed');
 		expect(document.querySelector('[data-horizontal-drag-context]')).toBeNull();
 	});
 
 	it('cancels an armed drag before activation when a dragged tab disappears', () => {
 		const model = createModel();
-		const runtime = {
-			start: vi.fn<() => void>(),
-			update: vi.fn<() => void>(),
-			end: vi.fn<() => void>(),
-			getSnapshot: vi.fn<
-				() => {
-					targetActive: boolean;
-					sourceContextId: string;
-					attachedContextId: string;
-				}
-			>(() => ({
-				targetActive: false,
-				sourceContextId: 'source',
-				attachedContextId: 'source',
-			})),
-		};
-		render(<TabStrip model={model} createCrossWindowDragRuntime={() => runtime} />);
+		render(<TabStrip model={model} />);
 		const loose = screen.getByRole('tab', { name: /^Loose/ });
 		setRect(loose, 250, 100);
 
@@ -2585,26 +2478,14 @@ describe('TabStrip', () => {
 			pointerId: 103,
 			clientX: 340,
 			clientY: 20,
-			screenX: 340,
-			screenY: 20,
 		});
 
-		expect(runtime.start).not.toHaveBeenCalled();
-		expect(runtime.end).not.toHaveBeenCalled();
 		expect(document.querySelector('[data-horizontal-drag-context]')).toBeNull();
 	});
 
 	it('cancels and restores a live drag when the React strip unmounts', () => {
 		const model = createModel();
-		const runtime = {
-			start: vi.fn<() => void>(),
-			update: vi.fn<() => void>(),
-			end: vi.fn<() => void>(),
-			getSnapshot: vi.fn<() => { targetActive: boolean }>(() => ({ targetActive: false })),
-		};
-		const { unmount } = render(
-			<TabStrip model={model} createCrossWindowDragRuntime={() => runtime} />,
-		);
+		const { unmount } = render(<TabStrip model={model} />);
 		const pinned = screen.getByRole('tab', { name: /^Pinned/ });
 		const researchA = screen.getByRole('tab', { name: /^Research A/ });
 		const researchB = screen.getByRole('tab', { name: /^Research B/ });
@@ -2619,13 +2500,10 @@ describe('TabStrip', () => {
 			pointerId: 43,
 			clientX: 60,
 			clientY: 20,
-			screenX: 60,
-			screenY: 20,
 		});
 		expect(model.getSnapshot().tabs[1]?.id).toBe('loose');
 		unmount();
 
-		expect(runtime.end).toHaveBeenCalledWith('cancel');
 		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
 			'pinned',
 			'research-a',
@@ -2894,16 +2772,7 @@ describe('TabStrip', () => {
 				activeTabId: 'c',
 				selectedTabIds: ['a', 'c'],
 			});
-			let session: DragSessionData<Readonly<TabGroupData>> | null = null;
-			render(
-				<TabStrip
-					model={model}
-					createCrossWindowDragRuntime={(candidate) => {
-						session = candidate;
-						return null;
-					}}
-				/>,
-			);
+			render(<TabStrip model={model} />);
 			const a = screen.getByRole('tab', { name: /^A/ });
 			const b = screen.getByRole('tab', { name: /^B/ });
 			const c = screen.getByRole('tab', { name: /^C/ });
@@ -2915,8 +2784,8 @@ describe('TabStrip', () => {
 
 			fireEvent.pointerDown(c, { button: 0, pointerId: 153, clientX: 250, clientY: 20 });
 			fireEvent.pointerMove(window, { pointerId: 153, clientX: 261, clientY: 20 });
-			const startedSession = requireDefined<DragSessionData<Readonly<TabGroupData>>>(session);
-			const startedAt = startedSession.dragStartTime;
+			// The mocked clock fixes the pickup time the drag records as it starts.
+			const startedAt = now;
 			const callbacks = requestAnimationFrame.mock.calls.flatMap((call) =>
 				call[0] === undefined ? [] : [call[0]],
 			);
@@ -2941,7 +2810,6 @@ describe('TabStrip', () => {
 				Number.parseFloat(draggedA.style.getPropertyValue('--ob-comp-tab-strip-inline-start')) -
 				Number.parseFloat(source.style.getPropertyValue('--ob-comp-tab-strip-inline-start'));
 			expect(relativeAfterRetarget).toBe(relativeAtMidpoint);
-			expect(startedSession.dragStartTime).toBe(startedAt);
 			fireEvent.pointerUp(window, { pointerId: 153, clientX: 271, clientY: 20 });
 		} finally {
 			clock.mockRestore();
@@ -3389,17 +3257,8 @@ describe('TabStrip', () => {
 				activeTabId: 'c',
 				selectedTabIds: ['a', 'c'],
 			});
-			let session: DragSessionData<Readonly<TabGroupData>> | null = null;
 			render(
-				<TabStrip
-					model={model}
-					orientation={TabStripOrientation.Vertical}
-					verticalCollapsed
-					createCrossWindowDragRuntime={(candidate) => {
-						session = candidate;
-						return null;
-					}}
-				/>,
+				<TabStrip model={model} orientation={TabStripOrientation.Vertical} verticalCollapsed />,
 			);
 			const a = screen.getByRole('tab', { name: /^A/ });
 			const b = screen.getByRole('tab', { name: /^B/ });
@@ -3417,7 +3276,8 @@ describe('TabStrip', () => {
 			);
 			act(() =>
 				animationFrames.forEach((animationFrame) =>
-					animationFrame(requireDefined(session).dragStartTime + 200),
+					// The mocked clock fixes the pickup time at 100.
+					animationFrame(100 + 200),
 				),
 			);
 			expect(document.querySelectorAll('[data-vertical-drag-view="tab"]')).toHaveLength(1);

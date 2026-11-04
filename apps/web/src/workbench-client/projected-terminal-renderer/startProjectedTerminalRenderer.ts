@@ -13,14 +13,12 @@ import {
 	type ProjectedTerminalThemePreparationResult,
 	type ProjectedTerminalThemeReadinessResult,
 	type ProjectedPasteReview,
-	type ProjectedPasteResult,
 	type ProjectedTerminalMetadata,
 	type ProjectedTerminalOptions,
 	type ProjectedTerminalPresentationSnapshot,
 	type TerminalInputConfiguration,
 	type TerminalInteractionConfiguration,
 	type TerminalInteractionConfigurationSource,
-	type TerminalImagePreviewPresentation,
 	type TerminalPresentationConfiguration,
 	type TerminalPresentationConfigurationUpdateResult,
 } from '@orchbee/terminal';
@@ -32,9 +30,6 @@ import {
 import type {
 	WorkbenchTerminalActionContextProvider,
 	WorkbenchTerminalBellEffect,
-	WorkbenchTerminalBroadcastInput,
-	WorkbenchTerminalBroadcastInputReadiness,
-	WorkbenchTerminalBroadcastInputResult,
 } from '../../workbench';
 
 import type { TerminalCompletionReminderObserver } from '../../terminal-feedback-settings';
@@ -127,7 +122,6 @@ type ProjectedTerminalDriver = Pick<
 	| 'onExit'
 	| 'onFrameTelemetry'
 	| 'onHistoryChange'
-	| 'onImagePreviewChange'
 	| 'onLinkOpenRequest'
 	| 'onMetadataChange'
 	| 'onRendererHealth'
@@ -230,20 +224,6 @@ function isProjectedTerminalSnapshotDriver(
 	return typeof Reflect.get(terminal, 'capturePresentationSnapshot') === 'function';
 }
 
-function isProjectedTerminalBroadcastInputDriver(
-	terminal: ProjectedTerminalDriver,
-): terminal is ProjectedTerminalDriver &
-	Pick<
-		ProjectedTerminal,
-		'injectInput' | 'injectedInputReadiness' | 'onInjectedInputReadinessChange'
-	> {
-	return (
-		typeof Reflect.get(terminal, 'injectInput') === 'function' &&
-		Reflect.has(terminal, 'injectedInputReadiness') &&
-		typeof Reflect.get(terminal, 'onInjectedInputReadinessChange') === 'function'
-	);
-}
-
 function isMobileTerminalInputDriver(
 	terminal: ProjectedTerminalDriver,
 ): terminal is ProjectedTerminalDriver &
@@ -286,19 +266,12 @@ export interface ProjectedTerminalRendererSession {
 	/** Whether the surface shows only the part of a larger terminal around its cursor. */
 	isLiveCropped?(): boolean;
 	getMobileInputState?(): MobileTerminalInputState;
-	getBroadcastInputReadiness?(): WorkbenchTerminalBroadcastInputReadiness;
 	isTransportAvailable(): boolean;
-	pasteFileDrop(text: string): Promise<ProjectedPasteResult>;
 	readonly presentationReady: Promise<void>;
 	readonly transportUnavailable: Promise<void>;
 	/** Retire transport and interaction while retaining the already painted frame DOM. */
 	freeze(): void;
-	sendBroadcastInput?(
-		input: WorkbenchTerminalBroadcastInput,
-		expectedRevision: string,
-	): Promise<WorkbenchTerminalBroadcastInputResult>;
 	sendMobileKey?(key: MobileTerminalKey): boolean;
-	subscribeBroadcastInputReadiness?(listener: () => void): ActionDisposable;
 	/** Notifies when the control presentation, the live crop, or the terminal's outcome changes. */
 	subscribeControlPresentation?(listener: () => void): ActionDisposable;
 	subscribeMobileInputState?(listener: () => void): MobileTerminalInputSubscription;
@@ -336,7 +309,6 @@ export async function startProjectedTerminalRenderer(
 	workbenchHost?: ProjectedTerminalWorkbenchHost,
 	interactionConfigurationSource: TerminalInteractionConfigurationSource = DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
 	presentationSnapshot?: ProjectedTerminalPresentationSnapshot,
-	observeImagePreview?: (presentation: TerminalImagePreviewPresentation) => void,
 	applicationLocaleSource?: ApplicationLocaleSource,
 	trailingBlankRowsPresentationSource: TerminalTrailingBlankRowsPresentationSource = DEFAULT_TERMINAL_TRAILING_BLANK_ROWS_PRESENTATION_SOURCE,
 ): Promise<ProjectedTerminalRendererSession> {
@@ -445,7 +417,6 @@ export async function startProjectedTerminalRenderer(
 	let terminalOutcomeKind: ProjectedTerminalOutcome | undefined;
 	let pendingPresentationConfiguration: TerminalPresentationConfiguration | undefined;
 	let transportAvailable = true;
-	const broadcastInputReadinessListeners = new Set<() => void>();
 	let activationPresentationDrawn = false;
 	let displayPresentationDrawn = false;
 	let inputGranted = bootstrap.canInput;
@@ -503,7 +474,6 @@ export async function startProjectedTerminalRenderer(
 	const reportTransportUnavailable = (): void => {
 		if (!transportAvailable) return;
 		transportAvailable = false;
-		for (const listener of broadcastInputReadinessListeners) listener();
 		notifyControlPresentation();
 		resolveTransportUnavailable?.();
 		resolveTransportUnavailable = undefined;
@@ -1158,13 +1128,6 @@ export async function startProjectedTerminalRenderer(
 			);
 			const liveCropSubscription = terminal.onLiveCropChange?.(notifyControlPresentation);
 			if (liveCropSubscription !== undefined) pendingSubscriptions.push(liveCropSubscription);
-			if (isProjectedTerminalBroadcastInputDriver(terminal)) {
-				pendingSubscriptions.push(
-					terminal.onInjectedInputReadinessChange(() => {
-						for (const listener of broadcastInputReadinessListeners) listener();
-					}),
-				);
-			}
 			pendingSubscriptions.push(
 				terminal.onLinkOpenRequest((event) => {
 					void activeActions.execute(
@@ -1268,9 +1231,6 @@ export async function startProjectedTerminalRenderer(
 					status.textContent = renderStatus();
 					status.hidden = false;
 				}),
-			);
-			pendingSubscriptions.push(
-				terminal.onImagePreviewChange((presentation) => observeImagePreview?.(presentation)),
 			);
 			pendingSubscriptions.push(
 				terminal.onSelectionCopied((event) => {
@@ -1654,13 +1614,6 @@ export async function startProjectedTerminalRenderer(
 				focused: false,
 				readiness: { kind: 'unavailable' },
 			},
-		getBroadcastInputReadiness: () =>
-			disposed ||
-			frozen ||
-			!transportAvailable ||
-			!isProjectedTerminalBroadcastInputDriver(terminal)
-				? { kind: 'unavailable' }
-				: terminal.injectedInputReadiness,
 		freeze: () => {
 			if (disposed || frozen) return;
 			frozen = true;
@@ -1690,28 +1643,8 @@ export async function startProjectedTerminalRenderer(
 			]);
 		},
 		isTransportAvailable: () => transportAvailable,
-		pasteFileDrop: async (text) => await terminal.paste(text, 'file-drop'),
 		presentationReady,
 		sendMobileKey: (key) => mobileInputController?.sendKey(key) ?? false,
-		sendBroadcastInput: async (input, expectedRevision) => {
-			if (
-				disposed ||
-				frozen ||
-				!transportAvailable ||
-				!isProjectedTerminalBroadcastInputDriver(terminal) ||
-				terminal.injectedInputReadiness.kind !== 'ready' ||
-				terminal.injectedInputReadiness.revision !== expectedRevision
-			) {
-				return { kind: 'blocked' };
-			}
-			return await terminal.injectInput(input, expectedRevision);
-		},
-		subscribeBroadcastInputReadiness: (listener) => {
-			if (!disposed) broadcastInputReadinessListeners.add(listener);
-			return {
-				dispose: () => broadcastInputReadinessListeners.delete(listener),
-			};
-		},
 		subscribeControlPresentation: (listener) => {
 			if (!disposed) controlPresentationListeners.add(listener);
 			return { dispose: () => controlPresentationListeners.delete(listener) };

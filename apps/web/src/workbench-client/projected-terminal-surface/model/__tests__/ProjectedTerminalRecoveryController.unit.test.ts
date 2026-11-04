@@ -14,7 +14,7 @@ import {
 afterEach(() => vi.useRealTimers());
 
 describe('ProjectedTerminalRecoveryController', () => {
-	it.each(['subscribe', 'subscribeMobileInputState'] as const)(
+	it.each(['subscribeControlPresentation', 'subscribeMobileInputState'] as const)(
 		'honors %s cancellation during the final disposal notification',
 		(subscribe) => {
 			const controller = new ProjectedTerminalRecoveryController({
@@ -192,17 +192,17 @@ describe('ProjectedTerminalRecoveryController', () => {
 		expect(startRenderer).not.toHaveBeenCalled();
 	});
 
-	it('releases a readiness subscription acquired during disposal', async () => {
-		const disposeReadiness = vi.fn<() => void>();
-		const subscribeMobile =
-			vi.fn<NonNullable<ProjectedTerminalRendererSession['subscribeMobileInputState']>>();
+	it('releases an input subscription acquired during disposal', async () => {
+		const disposeMobile = vi.fn<() => void>();
+		const subscribeControl =
+			vi.fn<NonNullable<ProjectedTerminalRendererSession['subscribeControlPresentation']>>();
 		const activationReady = vi.fn<() => void>();
 		const active = rendererSession({
-			subscribeBroadcastInputReadiness: () => {
+			subscribeControlPresentation: subscribeControl,
+			subscribeMobileInputState: () => {
 				controller.dispose();
-				return { dispose: disposeReadiness };
+				return { dispose: disposeMobile };
 			},
-			subscribeMobileInputState: subscribeMobile,
 		});
 		const request = projectionRequest();
 		const controller = new ProjectedTerminalRecoveryController({
@@ -214,8 +214,8 @@ describe('ProjectedTerminalRecoveryController', () => {
 		controller.start();
 		request.resolve();
 		await vi.waitFor(() => expect(active.dispose).toHaveBeenCalledOnce());
-		expect(disposeReadiness).toHaveBeenCalledOnce();
-		expect(subscribeMobile).not.toHaveBeenCalled();
+		expect(disposeMobile).toHaveBeenCalledOnce();
+		expect(subscribeControl).not.toHaveBeenCalled();
 		expect(activationReady).not.toHaveBeenCalled();
 		expect(request.release).toHaveBeenCalledOnce();
 	});
@@ -279,7 +279,7 @@ describe('ProjectedTerminalRecoveryController', () => {
 			const request = projectionRequest();
 			const subscriptionDispose = vi.fn<() => void>(() => controller.dispose());
 			const active = rendererSession({
-				subscribeBroadcastInputReadiness: () => ({ dispose: subscriptionDispose }),
+				subscribeMobileInputState: () => ({ dispose: subscriptionDispose }),
 				transportUnavailable: unavailable.promise,
 			});
 			const controller = new ProjectedTerminalRecoveryController({
@@ -329,7 +329,7 @@ describe('ProjectedTerminalRecoveryController', () => {
 		const firstRequest = projectionRequest();
 		const secondRequest = projectionRequest();
 		const first = rendererSession({
-			subscribeBroadcastInputReadiness: () => ({ dispose: () => controller.resume() }),
+			subscribeMobileInputState: () => ({ dispose: () => controller.resume() }),
 		});
 		const second = rendererSession();
 		const open = vi
@@ -361,18 +361,18 @@ describe('ProjectedTerminalRecoveryController', () => {
 	});
 
 	it('releases every owned resource and retains cleanup failures', async () => {
-		const readinessError = new Error('Readiness cleanup failed');
+		const controlError = new Error('Control cleanup failed');
 		const mobileError = new Error('Mobile cleanup failed');
 		const rendererError = new Error('Renderer cleanup failed');
 		const releaseError = new Error('Request cleanup failed');
-		const disposeReadiness = vi.fn<() => void>(() => {
-			throw readinessError;
+		const disposeControl = vi.fn<() => void>(() => {
+			throw controlError;
 		});
 		const disposeMobile = vi.fn<() => void>(() => {
 			throw mobileError;
 		});
 		const active = rendererSession({
-			subscribeBroadcastInputReadiness: () => ({ dispose: disposeReadiness }),
+			subscribeControlPresentation: () => ({ dispose: disposeControl }),
 			subscribeMobileInputState: () => ({ dispose: disposeMobile }),
 		});
 		const request = projectionRequest();
@@ -398,12 +398,12 @@ describe('ProjectedTerminalRecoveryController', () => {
 		}
 		expect(failure).toBeInstanceOf(AggregateError);
 		if (!(failure instanceof AggregateError)) throw failure;
-		expect(disposeReadiness).toHaveBeenCalledOnce();
+		expect(disposeControl).toHaveBeenCalledOnce();
 		expect(disposeMobile).toHaveBeenCalledOnce();
 		expect(active.dispose).toHaveBeenCalledOnce();
 		expect(request.release).toHaveBeenCalledOnce();
 		expect(collectFailures(failure)).toEqual([
-			readinessError,
+			controlError,
 			mobileError,
 			rendererError,
 			releaseError,
@@ -522,93 +522,6 @@ describe('ProjectedTerminalRecoveryController', () => {
 		controller.dispose();
 		expect(controller.focusTerminal()).toBe(false);
 		expect(active.focus).toHaveBeenCalledOnce();
-	});
-
-	it('routes a file drop only through the current painted attachment', async () => {
-		const active = rendererSession();
-		const request = projectionRequest();
-		const states: ProjectedTerminalRecoveryState[] = [];
-		const controller = new ProjectedTerminalRecoveryController({
-			onStateChange: (state) => states.push(state),
-			open: () => request.request,
-			startRenderer: async () => active.session,
-		});
-
-		await expect(controller.pasteFileDrop("'/tmp/before.txt'")).resolves.toEqual({
-			kind: 'unavailable',
-		});
-		controller.start();
-		request.resolve();
-		await vi.waitFor(() => expect(states.at(-1)).toEqual({ kind: 'ready' }));
-		await expect(controller.pasteFileDrop("'/tmp/ready.txt'")).resolves.toMatchObject({
-			kind: 'sent',
-		});
-		expect(active.session.pasteFileDrop).toHaveBeenCalledExactlyOnceWith("'/tmp/ready.txt'");
-
-		controller.dispose();
-		await expect(controller.pasteFileDrop("'/tmp/after.txt'")).resolves.toEqual({
-			kind: 'unavailable',
-		});
-	});
-
-	it('exposes broadcast input only for the exact active attachment and revokes it on recovery', async () => {
-		const transportUnavailable = deferred<void>();
-		const sendBroadcastInput = vi
-			.fn<NonNullable<ProjectedTerminalRendererSession['sendBroadcastInput']>>()
-			.mockResolvedValue({ kind: 'sent' });
-		let emitReadiness = (): void => undefined;
-		const disposeReadiness = vi.fn<() => void>();
-		const active = rendererSession({
-			getBroadcastInputReadiness: () => ({ kind: 'ready', revision: 'attachment-a:7' }),
-			sendBroadcastInput,
-			subscribeBroadcastInputReadiness: (listener) => {
-				emitReadiness = listener;
-				return { dispose: disposeReadiness };
-			},
-			transportUnavailable: transportUnavailable.promise,
-		});
-		const request = projectionRequest();
-		const states: ProjectedTerminalRecoveryState[] = [];
-		const controller = new ProjectedTerminalRecoveryController({
-			onStateChange: (state) => states.push(state),
-			open: () => request.request,
-			startRenderer: async () => active.session,
-		});
-		const readinessChanged = vi.fn<() => void>();
-		controller.subscribe(readinessChanged);
-
-		expect(controller.getReadiness()).toEqual({ kind: 'unavailable' });
-		await expect(
-			controller.send({ kind: 'text', text: 'before' }, 'attachment-a:7'),
-		).resolves.toEqual({ kind: 'blocked' });
-		controller.start();
-		request.resolve();
-		await vi.waitFor(() => expect(states.at(-1)).toEqual({ kind: 'ready' }));
-		expect(controller.getReadiness()).toEqual({
-			kind: 'ready',
-			revision: 'attachment-a:7',
-		});
-		await expect(controller.send({ kind: 'text', text: 'now' }, 'attachment-a:7')).resolves.toEqual(
-			{
-				kind: 'sent',
-			},
-		);
-		expect(sendBroadcastInput).toHaveBeenCalledExactlyOnceWith(
-			{ kind: 'text', text: 'now' },
-			'attachment-a:7',
-		);
-		emitReadiness();
-		expect(readinessChanged).toHaveBeenCalledTimes(2);
-
-		transportUnavailable.resolve();
-		await drainMicrotasks();
-		expect(disposeReadiness).toHaveBeenCalledOnce();
-		expect(controller.getReadiness()).toEqual({ kind: 'unavailable' });
-		await expect(
-			controller.send({ kind: 'text', text: 'after' }, 'attachment-a:7'),
-		).resolves.toEqual({ kind: 'blocked' });
-		expect(readinessChanged).toHaveBeenCalledTimes(3);
-		controller.dispose();
 	});
 
 	it('routes mobile input state and controls only through the exact active renderer', async () => {
@@ -844,18 +757,6 @@ function rendererSession(overrides: Partial<ProjectedTerminalRendererSession> = 
 	const capturePresentationSnapshot = vi.fn<() => null>(() => null);
 	const focus = vi.fn<() => void>();
 	const freeze = vi.fn<() => void>();
-	const pasteFileDrop = vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(async () => ({
-		kind: 'sent',
-		review: {
-			bracketed: false,
-			embeddedBracketTerminator: false,
-			multiline: false,
-			originalText: "'/tmp/file.txt'",
-			replacedControlCharacters: 0,
-			source: 'file-drop',
-			text: "'/tmp/file.txt'",
-		},
-	}));
 	return {
 		capturePresentationSnapshot,
 		dispose,
@@ -867,7 +768,6 @@ function rendererSession(overrides: Partial<ProjectedTerminalRendererSession> = 
 			focus,
 			freeze,
 			isTransportAvailable: () => true,
-			pasteFileDrop,
 			presentationReady: Promise.resolve(),
 			transportUnavailable: new Promise<void>(() => undefined),
 			updatePresentationConfiguration:

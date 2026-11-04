@@ -7,7 +7,6 @@ import type {
 	WorkbenchAgentSnapshot,
 	WorkbenchAuthority,
 	WorkbenchProjectWorkspaceRuntime,
-	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalSurfaceProps,
 	WorkbenchWorkspaceLocation,
 	WorkbenchWorkspaceLocationSource,
@@ -29,7 +28,7 @@ import {
 	workbenchSnapshot,
 	type FixtureRecord,
 } from '../src/__tests__/server-workbench-snapshot';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
 /** Decides nothing: each Story shows a fixed Server snapshot, so every write leaves it as it is. */
@@ -376,47 +375,6 @@ const createThreePanelRuntime = () => {
 	return runtime;
 };
 
-function BroadcastStoryTerminalSurface({
-	bindBroadcastInputSink,
-	presentation,
-}: WorkbenchTerminalSurfaceProps) {
-	const [received, setReceived] = useState('Waiting for broadcast input');
-	const sink = useMemo(
-		() => ({
-			getReadiness: () => ({
-				kind: 'ready' as const,
-				revision: `${presentation.presentationId}:storybook-ready`,
-			}),
-			send: async (input: WorkbenchTerminalBroadcastInput) => {
-				setReceived(input.kind === 'text' ? input.text : `[${input.key}]`);
-				return { kind: 'sent' as const };
-			},
-			subscribe: () => ({ dispose: () => undefined }),
-		}),
-		[presentation.presentationId],
-	);
-	useEffect(() => {
-		const registration = bindBroadcastInputSink(sink);
-		return () => registration.dispose();
-	}, [bindBroadcastInputSink, sink]);
-	return (
-		<div
-			style={{
-				background: '#10151d',
-				color: '#cdd6e0',
-				display: 'grid',
-				fontFamily: 'monospace',
-				height: '100%',
-				padding: '1rem',
-				placeContent: 'center',
-			}}
-		>
-			<div>{presentation.title}</div>
-			<div>{received}</div>
-		</div>
-	);
-}
-
 function FocusStoryTerminalSurface({
 	autoFocus,
 	focusRequest,
@@ -509,40 +467,6 @@ export const PanelVisualSwapSelection: Story = {
 				shiftKey: true,
 			}),
 		);
-	},
-	render: (arguments_) => (
-		<OrchbeeI18nProvider locale='en-US'>
-			<Workbench {...arguments_} />
-		</OrchbeeI18nProvider>
-	),
-};
-
-export const PanelBroadcastInput: Story = {
-	args: {
-		actionRuntime: new ActionRuntime(),
-		onSettings: () => ({ kind: 'unchanged' }),
-		projectWorkspaceRuntime: createThreePanelRuntime(),
-		shortcutPlatform: 'apple',
-		terminalSurface: BroadcastStoryTerminalSurface,
-	},
-	play: async ({ canvasElement }) => {
-		const viewport = canvasElement.querySelector<HTMLElement>(
-			'[data-focused="true"] [data-slot="workbench-terminal-viewport"]',
-		);
-		viewport?.focus();
-		viewport?.dispatchEvent(
-			new MouseEvent('contextmenu', {
-				bubbles: true,
-				cancelable: true,
-				clientX: 40,
-				clientY: 40,
-			}),
-		);
-		await new Promise((resolve) => globalThis.setTimeout(resolve, 50));
-		const broadcastItem = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
-			(item) => item.textContent?.includes('Broadcast Input') === true,
-		);
-		broadcastItem?.click();
 	},
 	render: (arguments_) => (
 		<OrchbeeI18nProvider locale='en-US'>

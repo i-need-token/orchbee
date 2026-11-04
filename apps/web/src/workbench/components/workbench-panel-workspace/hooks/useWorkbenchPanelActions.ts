@@ -51,11 +51,9 @@ interface PanelActionOperations {
 		panelId: string,
 		childPresentationId: TerminalPresentationId,
 	) => PanelWorkspaceTransition | null;
-	readonly canStartBroadcastInput: (panelId: string) => boolean;
 	readonly focusPanel: (panelId: string) => PanelWorkspaceTransition | null;
 	readonly showPrimaryTerminal: (panelId: string) => PanelWorkspaceTransition | null;
 	readonly startPanelResize: (panelId: string) => boolean;
-	readonly startBroadcastInput: (panelId: string) => boolean;
 	readonly startPanelVisualSelection: (
 		panelId: string,
 		mode: PanelVisualSelectionInput['mode'],
@@ -155,33 +153,6 @@ export function useWorkbenchPanelActions({
 				: { kind: 'completed' as const };
 		};
 		const registrations = [
-			typedRuntime.register(
-				scope,
-				defineAction({
-					category,
-					execution: {
-						concurrency: 'serialize',
-						concurrencyKey: () => 'panel-broadcast-input',
-						mode: 'foreground',
-					},
-					getAvailability: (_context, input) =>
-						operations.canStartBroadcastInput(input.panelId)
-							? { kind: 'enabled' }
-							: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
-					handler: {
-						execute: (context, input) => {
-							if (!operations.startBroadcastInput(input.panelId)) {
-								return { code: 'broadcast-target-unavailable', kind: 'blocked' };
-							}
-							context.markCommitted();
-							return { kind: 'completed' };
-						},
-					},
-					id: PANEL_ACTION_IDS.startBroadcastInput,
-					input: panelTargetInput,
-					title: workbenchMessages.panelBroadcastInputStart,
-				}),
-			),
 			typedRuntime.register(
 				scope,
 				defineAction({

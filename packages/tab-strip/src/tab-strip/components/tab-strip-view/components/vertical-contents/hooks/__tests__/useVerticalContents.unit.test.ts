@@ -38,8 +38,6 @@ function activeDrag(model: TabModel, y: number): DragState {
 		touchLongPressRecognized: false,
 		startX: 100,
 		startY: 40,
-		screenX: 100,
-		screenY: y,
 		shiftPressedOnPointerDown: false,
 		x: 100,
 		y,
@@ -64,7 +62,6 @@ function activeDrag(model: TabModel, y: number): DragState {
 		dragStartAnimationRequired: false,
 		dragStartAnimationStartedAt: 0,
 		dragStartAnimationProgress: 1,
-		crossWindowRuntime: null,
 		settling: false,
 	};
 }

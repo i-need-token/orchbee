@@ -15,7 +15,6 @@ The following behavior is outside this model:
 - individual or multi-tab dragging;
 - pinned-tab dragging;
 - vertical strips;
-- cross-window detach and attach;
 - touch long-press and context-menu behavior; and
 - exact color, typography, and non-drag hover styling.
 

@@ -1,5 +1,4 @@
 import { ContextMenu, ContextMenuTrigger } from '@orchbee/ui/components';
-import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 
 import { WorkbenchActionContextMenuContent } from '../../../../../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
@@ -10,10 +9,7 @@ import {
 } from '../../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../../types/panel-workspace-view';
 import type { TerminalTabPresentationLayer } from '../../../../../../types/terminal-tab-presentation-layer';
-import type {
-	WorkbenchTerminalSurface,
-	WorkbenchTerminalSurfaceProps,
-} from '../../../../../../../../types/workbench-terminal-surface';
+import type { WorkbenchTerminalSurface } from '../../../../../../../../types/workbench-terminal-surface';
 import type { WorkbenchTerminalFocusRequest } from '../../../../../../../../model/resolveWorkbenchFocusTarget';
 import { buildWorkbenchPanelMenuEntries } from '../../utils/buildWorkbenchPanelMenuEntries';
 import { useWorkbenchTerminalContextMenu } from './hooks/useWorkbenchTerminalContextMenu';
@@ -57,10 +53,6 @@ export function WorkbenchTerminalViewport({
 		runtime: view.actionRuntime,
 		shortcutLabelForAction: view.shortcutLabelForAction,
 	});
-	const bindBroadcastInputSink = useMemoizedFn(
-		(sink: Parameters<WorkbenchTerminalSurfaceProps['bindBroadcastInputSink']>[0]) =>
-			view.bindBroadcastInputSink(terminal.presentationId, sink),
-	);
 	const panelEntries = buildWorkbenchPanelMenuEntries({
 		panelId,
 		source: 'context-menu',
@@ -109,7 +101,6 @@ export function WorkbenchTerminalViewport({
 						admitBellEffect={view.admitTerminalBellEffect}
 						autoFocus={
 							terminalAutoFocusAllowed &&
-							view.broadcastInput.kind === 'idle' &&
 							layoutSettled &&
 							layer.mode === 'active' &&
 							view.activeTab?.focusedPanelId === panelId
@@ -120,7 +111,6 @@ export function WorkbenchTerminalViewport({
 								: 0
 						}
 						bindActionContextProvider={terminalActions.bindActionContextProvider}
-						bindBroadcastInputSink={bindBroadcastInputSink}
 						closeTerminal={(source) => view.closeActiveTerminal(panelId, source)}
 						createTab={view.createTerminalTab}
 						onTerminalEdit={() => view.onTerminalEdit?.(terminal.presentationId)}

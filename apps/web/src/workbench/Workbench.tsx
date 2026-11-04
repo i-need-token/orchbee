@@ -13,7 +13,6 @@ import {
 	ResizablePanelGroup,
 } from '@orchbee/ui/components';
 import type { ActionRuntime } from '@orchbee/actions';
-import type { TabStripCrossWindowDragRuntimeFactory } from '@orchbee/tab-strip';
 import * as React from 'react';
 
 import {
@@ -62,7 +61,6 @@ interface WorkbenchProps {
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	/** Decides the shared Workbench structure. */
 	readonly authority: WorkbenchAuthority;
-	readonly createCrossWindowDragRuntime?: TabStripCrossWindowDragRuntimeFactory | undefined;
 	readonly isShortcutScopeActive?: boolean | undefined;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
@@ -84,7 +82,6 @@ export function Workbench({
 	agentNotificationObserver,
 	agentObservationSource,
 	authority,
-	createCrossWindowDragRuntime,
 	isShortcutScopeActive = true,
 	layoutStorage,
 	navigation,
@@ -308,7 +305,6 @@ export function Workbench({
 								<WorkbenchTabBar
 									actionRuntime={actionRuntime}
 									closeResume={view.closeResume}
-									createCrossWindowDragRuntime={createCrossWindowDragRuntime}
 									newTabChoices={view.newTabChoices}
 									onNewTerminal={view.newTab}
 									onOrientationChange={view.onTabStripOrientationChange}

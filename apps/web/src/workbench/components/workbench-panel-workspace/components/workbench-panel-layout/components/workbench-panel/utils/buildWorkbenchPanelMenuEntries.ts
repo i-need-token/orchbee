@@ -17,11 +17,11 @@ interface WorkbenchPanelMenuOptions {
 }
 
 /**
- * A panel's menu, composed as the TUI's pane menu: Split right and Split below, Maximize only beside
- * another panel and Take control only while another Client holds the panel's size, then the red
- * Close. The GUI's own broadcast input leads in a section of its own; the other split directions,
- * resizing and equalizing stay in Search and their shortcuts. Opening the menu focuses its panel,
- * so a row's active-panel shortcut does what the row does.
+ * A panel's menu, composed as the TUI's pane menu with no GUI-only section: Split right and Split
+ * below, Maximize only beside another panel and Take control only while another Client holds the
+ * panel's size, then the red Close. The other split directions, resizing and equalizing stay in
+ * Search and their shortcuts. Opening the menu focuses its panel, so a row's active-panel shortcut
+ * does what the row does.
  */
 export function buildWorkbenchPanelMenuEntries({
 	panelId,
@@ -32,15 +32,6 @@ export function buildWorkbenchPanelMenuEntries({
 }: WorkbenchPanelMenuOptions): readonly WorkbenchActionMenuEntry[] {
 	const isMaximized = view.maximizedPanelId === panelId;
 	return [
-		{
-			disabled: !view.canStartBroadcastInput(panelId),
-			icon: 'terminal',
-			id: 'broadcast-panel-input',
-			kind: 'command',
-			label: view.messages.broadcastStart,
-			onSelect: () => view.startBroadcastInput(panelId, source),
-		},
-		{ id: 'panel-layout-actions', kind: 'separator' },
 		{
 			icon: 'panels',
 			id: 'split-panel-right',

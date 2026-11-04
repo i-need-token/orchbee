@@ -7,7 +7,6 @@ import type { WorkbenchAuthority } from '../../types/workbench-authority';
 import type { WorkbenchTerminalSurface } from '../../types/workbench-terminal-surface';
 import { WorkbenchPanelCloseDialog } from './components/workbench-panel-close-dialog/WorkbenchPanelCloseDialog';
 import { WorkbenchPanelDragGhost } from './components/workbench-panel-drag-ghost/WorkbenchPanelDragGhost';
-import { WorkbenchPanelBroadcastInput } from './components/workbench-panel-broadcast-input/WorkbenchPanelBroadcastInput';
 import { WorkbenchPanelLayout } from './components/workbench-panel-layout/WorkbenchPanelLayout';
 import { WorkbenchPanelResizeDialog } from './components/workbench-panel-resize-dialog/WorkbenchPanelResizeDialog';
 import { useWorkbenchPanelWorkspace } from './hooks/useWorkbenchPanelWorkspace';
@@ -77,19 +76,12 @@ export function WorkbenchPanelWorkspace({
 
 	return (
 		<div
-			aria-label={
-				view.panelVisualSelectionLabel ??
-				(view.broadcastInput.kind === 'active' ? view.messages.broadcastInputLabel : undefined)
-			}
+			aria-label={view.panelVisualSelectionLabel}
 			className={styles['root']}
 			data-dragging={view.panelDrag.ghost !== null || undefined}
 			data-panel-visual-selection-mode={view.panelVisualSelection?.mode}
 			data-slot='workbench-panel-workspace'
-			data-workbench-keyboard-capture={
-				view.panelVisualSelection !== null || view.broadcastInput.kind === 'active'
-					? 'true'
-					: undefined
-			}
+			data-workbench-keyboard-capture={view.panelVisualSelection === null ? undefined : 'true'}
 			onBlurCapture={(event) => {
 				if (
 					view.panelVisualSelection !== null &&
@@ -135,7 +127,6 @@ export function WorkbenchPanelWorkspace({
 				);
 			})}
 			{view.panelDrag.ghost !== null && <WorkbenchPanelDragGhost ghost={view.panelDrag.ghost} />}
-			<WorkbenchPanelBroadcastInput view={view} />
 			<WorkbenchPanelCloseDialog view={view} />
 			<WorkbenchPanelResizeDialog view={view} />
 		</div>

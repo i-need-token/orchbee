@@ -421,7 +421,7 @@ export interface ProjectedPasteReview {
 	readonly text: string;
 }
 
-export type ProjectedPasteSource = 'api' | 'beforeinput' | 'clipboard' | 'drop' | 'file-drop';
+export type ProjectedPasteSource = 'api' | 'beforeinput' | 'clipboard' | 'drop';
 
 export interface ProjectedTerminalInputCapability {
 	readonly attachmentId: AttachmentId;

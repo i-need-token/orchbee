@@ -37,7 +37,6 @@ export const enUSTerminalSettingsMessages = {
 		'Enter a whole number from {minimum, number} to {maximum, number}.',
 	'terminal.settings.appearance.terminalPadding.label': 'Terminal padding',
 
-	'terminal.settings.categories.ghosttyMigration': 'Ghostty migration',
 	'terminal.settings.categories.macosInput': 'macOS input',
 	'terminal.settings.categories.remoteDevelopment': 'Remote development',
 	'terminal.settings.categories.shellIntegration': 'Shell integration',
@@ -79,71 +78,6 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.macosInput.optionAsAlt.right': 'Right Option only',
 	'terminal.settings.macosInput.sections.optionKey': 'Option key',
 	'terminal.settings.macosInput.title': 'macOS input',
-	'terminal.settings.ghosttyMigration.actions.analyze': 'Analyze configuration',
-	'terminal.settings.ghosttyMigration.actions.clear': 'Clear',
-	'terminal.settings.ghosttyMigration.description':
-		'See which common Ghostty settings can be carried over, need review, or will not be migrated.',
-	'terminal.settings.ghosttyMigration.dispositions.ignored': 'Not migrated',
-	'terminal.settings.ghosttyMigration.dispositions.invalid': 'Needs correction',
-	'terminal.settings.ghosttyMigration.dispositions.manual': 'Review manually',
-	'terminal.settings.ghosttyMigration.dispositions.supported': 'Can carry over',
-	'terminal.settings.ghosttyMigration.empty':
-		'Paste configuration text to create a migration report.',
-	'terminal.settings.ghosttyMigration.lineNumber': 'Line {line, number}',
-	'terminal.settings.ghosttyMigration.noAssignments': 'No configuration assignments were found.',
-	'terminal.settings.ghosttyMigration.reasons.cellOpacity':
-		'Ghostty can make explicit cell backgrounds transparent; the current Orchbee setting changes only the default background.',
-	'terminal.settings.ghosttyMigration.reasons.color':
-		'Ghostty also accepts named X11 colors. Choose an equivalent #RRGGBB value manually.',
-	'terminal.settings.ghosttyMigration.reasons.configFile':
-		'Included files were not read. Analyze their contents separately.',
-	'terminal.settings.ghosttyMigration.reasons.customColorTarget':
-		'Choose the Custom terminal display theme before using this value. The other Custom color remains your current Orchbee value.',
-	'terminal.settings.ghosttyMigration.reasons.fontDetails':
-		'Orchbee does not expose this font detail in the current Settings surface.',
-	'terminal.settings.ghosttyMigration.reasons.fontFallback':
-		'Ghostty keeps an ordered fallback list, while this Orchbee setting accepts one value.',
-	'terminal.settings.ghosttyMigration.reasons.fontFamily':
-		'This font family cannot be represented safely as one current Orchbee value.',
-	'terminal.settings.ghosttyMigration.reasons.fontSize':
-		'Orchbee supports only whole terminal font sizes from 8 through 48.',
-	'terminal.settings.ghosttyMigration.reasons.invalidValue':
-		'This value cannot be interpreted by the migration analyzer.',
-	'terminal.settings.ghosttyMigration.reasons.keybind':
-		'Ghostty action names and binding syntax are not imported. Recreate this in Keyboard shortcuts.',
-	'terminal.settings.ghosttyMigration.reasons.losslessTarget':
-		'This value has a lossless target in the current Orchbee Settings.',
-	'terminal.settings.ghosttyMigration.reasons.malformedLine':
-		'Use a key = value line for this migration report.',
-	'terminal.settings.ghosttyMigration.reasons.notInWhitelist':
-		'This key is not in the migration whitelist and may be Ghostty-specific or misspelled.',
-	'terminal.settings.ghosttyMigration.reasons.opacity':
-		'Orchbee supports whole background-opacity percentages from 10% through 100%; this value would require rounding or clamping.',
-	'terminal.settings.ghosttyMigration.reasons.reset':
-		'This resets Ghostty to its default, so no custom value is carried over.',
-	'terminal.settings.ghosttyMigration.reasons.superseded':
-		'A later valid assignment for this key takes precedence.',
-	'terminal.settings.ghosttyMigration.reasons.theme':
-		'Ghostty themes may load files and many settings. Choose an Orchbee terminal theme manually.',
-	'terminal.settings.ghosttyMigration.reasons.windowTheme':
-		'Ghostty window theme does not have the same scope as the Orchbee application theme.',
-	'terminal.settings.ghosttyMigration.reasons.workingDirectory':
-		'Choose a Project or Workspace folder in Orchbee instead of importing this value.',
-	'terminal.settings.ghosttyMigration.rejected.lineTooLong':
-		'Line {line, number} is longer than the {limit, number}-character limit. Nothing was analyzed.',
-	'terminal.settings.ghosttyMigration.rejected.sourceTooLarge':
-		'This text is longer than the {limit, number}-character limit. Nothing was analyzed.',
-	'terminal.settings.ghosttyMigration.rejected.tooManyLines':
-		'This text has more than {limit, number} lines. Nothing was analyzed.',
-	'terminal.settings.ghosttyMigration.reportTitle': 'Migration report',
-	'terminal.settings.ghosttyMigration.safetyNotice':
-		'This is a dry run. Orchbee will not change or save any settings.',
-	'terminal.settings.ghosttyMigration.source.description':
-		'Paste the contents of a Ghostty config file. Included files and themes are not opened.',
-	'terminal.settings.ghosttyMigration.source.label': 'Ghostty configuration',
-	'terminal.settings.ghosttyMigration.source.placeholder': 'font-family = JetBrains Mono',
-	'terminal.settings.ghosttyMigration.target': 'Orchbee setting',
-	'terminal.settings.ghosttyMigration.title': 'Move from Ghostty',
 	'terminal.settings.persistence.invalidWarning':
 		'Saved settings are invalid. Defaults are in use; reset to try saving them.',
 	'terminal.settings.persistence.readWarning':

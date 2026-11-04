@@ -60,20 +60,6 @@ export const zhCNWorkbenchMessages = {
 	'workbench.terminal.actions.fontSize.decrease': '减小终端字号',
 	'workbench.terminal.actions.fontSize.increase': '增大终端字号',
 	'workbench.terminal.actions.fontSize.reset': '重置终端字号',
-	'workbench.panels.broadcastInput.actions.start': '广播输入',
-	'workbench.panels.broadcastInput.actions.dismiss': '关闭提示',
-	'workbench.panels.broadcastInput.actions.end': '结束广播',
-	'workbench.panels.broadcastInput.actions.hide': '隐藏输入',
-	'workbench.panels.broadcastInput.actions.show': '显示输入',
-	'workbench.panels.broadcastInput.label': '广播输入',
-	'workbench.panels.broadcastInput.placeholder': '向每个面板输入…',
-	'workbench.panels.broadcastInput.targetCount': '{count} 个目标终端',
-	'workbench.panels.broadcastInput.failure.targetInvalidated':
-		'面板目标已变化或不可用，广播已停止。已在处理的输入可能送达了部分终端；系统没有重试。',
-	'workbench.panels.broadcastInput.failure.partialDelivery':
-		'广播已停止：{total} 个终端中有 {delivered} 个确认了本次输入，其他终端的投递结果可能不确定。系统没有重试或回滚。',
-	'workbench.panels.broadcastInput.failure.deliveryFailed':
-		'没有终端确认本次输入，广播已停止；实际投递结果仍可能不确定。系统没有重试。',
 	'workbench.sidebar.label': '工作区导航',
 	'workbench.sidebar.actions.hide': '隐藏边栏',
 	'workbench.sidebar.actions.show': '显示边栏',

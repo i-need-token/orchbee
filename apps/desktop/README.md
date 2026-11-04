@@ -71,7 +71,7 @@ with.
   unoccupied point in its `36px` top chrome without losing Tabs, groups, the sidebar toggle, the
   new-Tab control, or operating-system window controls. This projection covers the sidebar top row
   and a horizontal Tab bar. The vertical Tab Strip, content below the top chrome, Panel and sidebar
-  interactions, resize separators, Tab cross-window drag, and the native move lifecycle are non-goals.
+  interactions, resize separators, and the native move lifecycle are non-goals.
 - **Inputs, data, and ownership:** Trusted Workbench layout supplies sidebar visibility, Tab Strip
   orientation, the horizontal chrome boundary, and the rendered control geometry; `windowControls`
   supplies the operating-system control side. There is no durable drag-region state and no missing

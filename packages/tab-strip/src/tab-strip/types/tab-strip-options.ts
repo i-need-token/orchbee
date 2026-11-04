@@ -14,32 +14,11 @@ import type { ReactNode } from 'react';
 import type { TabSelectionInput } from '../actions/tab-strip-action-contracts';
 import type { TabHoverCardController } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
 import type { HoverCardThumbnailSource } from '../components/tab-strip-view/components/hover-card/model/TabHoverCardThumbnailObserver';
-import type { TabData, TabGroupColor, TabGroupData, TabModel } from '../model/tab-model';
+import type { TabData, TabGroupColor, TabModel } from '../model/tab-model';
 import type { TabCloseSource } from '../layout/tab-closing-mode';
-import type {
-	CrossWindowDragEndReason,
-	CrossWindowDragSnapshot,
-} from '../dragging/cross-window-drag-runtime';
-import type { DragSessionData } from '../dragging/drag-session-data';
-import type { DragPoint } from '../dragging/dragging-tabs-session';
 import type { TabStripComboButtonController } from '../model/TabStripComboButtonController';
 import type { TabStripOrientation } from './tab-strip-types';
 import type { VerticalTabStripExpandOnHoverController } from '../model/vertical-tab-strip-expand-on-hover';
-
-export interface TabStripCrossWindowDragRuntime {
-	start(): void;
-	update(pointInScreen: Readonly<DragPoint>): void;
-	end(reason: CrossWindowDragEndReason): void;
-	subscribe?(listener: () => void): () => void;
-	getSnapshot?(): Pick<CrossWindowDragSnapshot, 'targetActive'> &
-		Partial<
-			Pick<CrossWindowDragSnapshot, 'sourceContextId' | 'attachedContextId' | 'state' | 'endReason'>
-		>;
-}
-
-export type TabStripCrossWindowDragRuntimeFactory = (
-	sessionData: DragSessionData<Readonly<TabGroupData>>,
-) => TabStripCrossWindowDragRuntime | null;
 
 export interface TabStripNewTabRequest {
 	readonly groupId: string | null;
@@ -218,8 +197,6 @@ export interface TabStripOptions {
 	touchUi?: boolean;
 	/** Mirrors current Chrome tab decluttering; pass false for legacy channels. */
 	tabStripDeclutter?: boolean;
-	/** Connects the DOM pointer lifecycle to a host-owned cross-window drag runtime. */
-	createCrossWindowDragRuntime?: TabStripCrossWindowDragRuntimeFactory | undefined;
 	/** Host bridge for Chromium's immersive-reveal drag lock lifecycle. */
 	onDraggingChange?: (dragging: boolean) => void;
 	/** Host bridge for BrowserCommandController::TabKeyboardFocusChangedTo. */

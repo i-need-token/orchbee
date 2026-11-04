@@ -83,14 +83,10 @@ function createView(actionRuntime: ActionRuntime): WorkbenchPanelWorkspaceView {
 		actionScope: actionRuntime.createScope('test.workbench'),
 		admitTerminalBellEffect: () => true,
 		activeTab: { focusedPanelId: 'panel-1' },
-		bindBroadcastInputSink: () => ({ dispose: () => undefined }),
-		broadcastInput: { kind: 'idle' },
-		canStartBroadcastInput: () => false,
 		closeActiveTerminal: () => undefined,
 		createTerminalTab: () => undefined,
 		maximizedPanelId: null,
 		messages: {
-			broadcastStart: 'Broadcast Input',
 			close: 'Close',
 			maximize: 'Maximize',
 			restore: 'Restore',
@@ -101,7 +97,6 @@ function createView(actionRuntime: ActionRuntime): WorkbenchPanelWorkspaceView {
 		shortcutLabelForAction: (actionId: string) =>
 			actionId === TERMINAL_ACTION_IDS.clear ? '⌘K' : undefined,
 		splitPanel: () => null,
-		startBroadcastInput: () => undefined,
 		togglePanelMaximization: () => undefined,
 	} as unknown as WorkbenchPanelWorkspaceView;
 }

@@ -121,23 +121,6 @@ export const enUSProjectedTerminalMessages = {
 		'Terminal output changed before the scrollback could be prepared.',
 	'terminal.projected.scrollback.title': 'Scrollback',
 	'terminal.projected.scrollback.unavailable': 'Scrollback is temporarily unavailable.',
-	'terminal.projected.fileDrop.failure.invalid': 'The dropped paths could not be prepared safely.',
-	'terminal.projected.fileDrop.failure.inputTooLarge':
-		'The generated terminal input exceeds the {maximum, number}-character limit.',
-	'terminal.projected.fileDrop.failure.terminalUnavailable':
-		'The active terminal is not ready to receive dropped paths.',
-	'terminal.projected.fileDrop.failure.tooMany':
-		'{count, plural, one {One file was} other {# files were}} dropped. Select no more than {maximum, number}.',
-	'terminal.projected.fileDrop.failure.unsupported': 'File drop is unavailable in this client.',
-	'terminal.projected.fileDrop.review.confirm': 'Paste paths',
-	'terminal.projected.fileDrop.review.description':
-		'Review the exact shell input generated from the dropped local paths.',
-	'terminal.projected.fileDrop.review.input': 'Generated terminal input',
-	'terminal.projected.fileDrop.review.newline':
-		'At least one local path contains a line break. Verify the exact input carefully.',
-	'terminal.projected.fileDrop.review.remote':
-		'These are paths on this device. They may not exist in SSH, containers, or other remote shells.',
-	'terminal.projected.fileDrop.review.title': 'Review dropped paths',
 	'terminal.projected.input': 'Terminal input',
 	'terminal.projected.mobile.alt': 'Alt',
 	'terminal.projected.mobile.arrowDown': 'Down arrow',

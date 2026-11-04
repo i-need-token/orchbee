@@ -6,7 +6,7 @@ Complete reusable React tab-strip capability. The package combines the public co
 
 ## Scope
 
-The package owns tab and group transitions, selection invariants, pinned and grouped ordering, horizontal and vertical layout, drag geometry, accessibility projections, hover cards, menus, and deterministic React event integration. Consumers own application composition, terminal sessions, navigation, persistence, product localization, theme token values, and platform or cross-window host implementations.
+The package owns tab and group transitions, selection invariants, pinned and grouped ordering, horizontal and vertical layout, drag geometry, accessibility projections, hover cards, menus, and deterministic React event integration. Consumers own application composition, terminal sessions, navigation, persistence, product localization, theme token values, and platform host implementations.
 
 ## Entry points
 
@@ -52,27 +52,7 @@ New Tab and Close use the shared `ProductIcon` glyphs and compact system control
 
 Hosts that support both orientations pass the controlled `orientation` value and `onOrientationChange`. Right-clicking blank strip space then exposes the localized action for opening or closing vertical tabs; tab, group, and new-tab controls keep their own context menus.
 
-The package API intentionally has no React or browser-vendor subpath. `TabStrip` accepts a `createCrossWindowDragRuntime` factory. Its internal `CrossWindowTabDragRuntime` owns model handoff, cancel restoration, attached-model liveness, and destination layout sequencing; `DomTabDragRegistry` adapts host bounds, z-order, liveness, and compatibility. These implementations are retained for the admitted cross-window host work and are not exported from the package root. Native window creation, movement, capture, move loops, and source-window disposal remain host responsibilities; a future host integration must admit the concrete exports it consumes. The browser application does not synthesize those operating-system capabilities. Upstream source attribution and license obligations are recorded in [`NOTICE.reference`](NOTICE.reference).
-
-## Retained development consumers
-
-[Dependency retentions](dependency-retentions.json) owns the exact strict file diagnostic for
-`dom-tab-drag-registry.ts`, the `CrossWindowDragState` and `CrossWindowTabDragRuntime` exports,
-and the `CrossWindowDragHost` and `TabDragPositioningDelegate` types. The files remain internal.
-The [registry behavior suite](src/tab-strip/dragging/__tests__/dom-tab-drag-registry.unit.test.ts)
-constructs the registry and checks target selection, liveness, compatibility and coordinate behavior.
-The [runtime behavior suite](src/tab-strip/dragging/__tests__/cross-window-drag-runtime.unit.test.ts)
-constructs the runtime with the typed host/positioning contracts and checks handoff, cancellation,
-layout sequencing and attached-model liveness. A current production host has not instantiated them.
-
-The admitted cross-window host work above is the retained purpose. TabStrip and native window host
-owners carry the real factory integration through ORC-201; retention does not start product migration
-or add public exports. The manifest binds the reviewed source, both suites and their discovery
-configuration. Apply the [retention check contract](../../docs/LINTING.md#retained-development-consumers)
-to changes, keeping the existing build, typecheck, Story, behavior and `test:exports` evidence.
-Production consumption or withdrawal of the purpose removes the corresponding records in the same
-change. A disappeared diagnostic requires deleting its stale record; remove exhausted records/files
-and their gate registration. Updating fingerprints alone never approves a changed consumer.
+The package API intentionally has no React or browser-vendor subpath. Upstream source attribution and license obligations are recorded in [`NOTICE.reference`](NOTICE.reference).
 
 ## Source ownership
 
@@ -133,13 +113,7 @@ creation revalidates against their resulting state, without rolling back those i
 changes. Local creation and move-to-group Actions check destination liveness at discovery and execution.
 The creation Action reports an invalid candidate as `blocked` and records commit only after insertion.
 
-Drag movement and direct group placement validate copied arrangements before replacing live authority. Detached
-insertion validates the complete target placement, including retained group identities and the
-requested index. A rejected cross-model transfer leaves both models and their notifications unchanged.
-A successful transfer installs both states and snapshots before notifying source then destination, so
-synchronous observers cannot intervene between detachment and insertion. When an existing group ID is
-shared, valid contiguous insertion keeps the destination metadata; conflicting topology is refused
-without remapping identities.
+Drag movement and direct group placement validate copied arrangements before replacing live authority.
 
 Committed model notifications capture one listener cohort, skip listeners removed before their turn,
 and isolate observer exceptions. The synchronous arrangement handler records its commit immediately
@@ -161,4 +135,4 @@ pnpm --filter @orchbee/tab-strip verify:correctness
 pnpm --filter @orchbee/tab-strip test:exports
 ```
 
-Pixel-exact animation midpoint witnesses control one shared monotonic clock for pickup, frame callbacks and pointer retargeting. They retain exact geometry and unchanged-start-time assertions; constructing a midpoint from a live fractional timestamp can cross an integer-pixel rounding boundary.
+Pixel-exact animation midpoint witnesses control one shared monotonic clock for pickup, frame callbacks and pointer retargeting. They retain exact geometry assertions, including an unchanged offset after retargeting that shows the start time held; constructing a midpoint from a live fractional timestamp can cross an integer-pixel rounding boundary.

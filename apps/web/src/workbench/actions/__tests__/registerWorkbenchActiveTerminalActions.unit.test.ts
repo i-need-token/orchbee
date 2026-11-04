@@ -34,26 +34,6 @@ import { registerWorkbenchActiveTerminalActions } from '../registerWorkbenchActi
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../workbench-action-ids';
 
 describe('registerWorkbenchActiveTerminalActions', () => {
-	it('discovers and executes broadcast input without recursively rediscovering its composite', async () => {
-		const harness = createHarness(2);
-		const lowerExecute = vi.fn<(input: PanelTargetInput) => void>();
-		registerPanelTargetAction(harness, PANEL_ACTION_IDS.startBroadcastInput, (context, input) => {
-			lowerExecute(input);
-			context.markCommitted();
-			return { kind: 'completed' };
-		});
-
-		expect(
-			harness.runtime
-				.discover({ scope: harness.scope, source: 'command-surface' }, { includeDescendants: true })
-				.find((result) => result.descriptor.id === WORKBENCH_ACTION_IDS.openPanelBroadcastInput),
-		).toMatchObject({ availability: { kind: 'enabled' }, kind: 'ready' });
-		await expect(harness.execute(WORKBENCH_ACTION_IDS.openPanelBroadcastInput)).resolves.toEqual({
-			kind: 'completed',
-		});
-		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({ panelId: fixturePanelId(2) });
-	});
-
 	it.each([
 		{ expected: fixturePanelId(1), panels: 1 as const },
 		{ expected: fixturePanelId(2), panels: 2 as const },
@@ -579,7 +559,6 @@ function registerPanelTargetAction(
 	actionId:
 		| typeof PANEL_ACTION_IDS.equalize
 		| typeof PANEL_ACTION_IDS.focus
-		| typeof PANEL_ACTION_IDS.startBroadcastInput
 		| typeof PANEL_ACTION_IDS.startResize,
 	execute: (
 		context: ActionExecutionContext,

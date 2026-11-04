@@ -32,7 +32,6 @@ export const enUSTerminalSettingsCatalogMessages = {
 	'terminal.settings.catalog.common.plannedNotice':
 		'These controls show the planned Settings catalog. They are not available yet and do not change your configuration.',
 	'terminal.settings.catalog.groups.application': 'Application',
-	'terminal.settings.catalog.groups.dataAccess': 'Data & Access',
 	'terminal.settings.catalog.groups.integrations': 'Integrations',
 	'terminal.settings.catalog.groups.terminal': 'Terminal',
 	'terminal.settings.catalog.groups.workspace': 'Workspace',

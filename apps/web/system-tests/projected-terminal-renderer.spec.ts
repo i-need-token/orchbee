@@ -653,102 +653,6 @@ test('terminal-parity/IN-10-read-only', async () => {
 	}
 });
 
-test('terminal-parity/FS-18-panel-broadcast-input', async () => {
-	test.setTimeout(45_000);
-	const currentDevelopmentRendererUrl = developmentRendererUrl;
-	if (currentDevelopmentRendererUrl === undefined) {
-		throw new Error('Web development renderer server is unavailable.');
-	}
-	const browser = await chromium.launch();
-	try {
-		const page = await browser.newPage({ viewport: { height: 500, width: 1000 } });
-		await page.goto(
-			new URL('panel-broadcast-input-fixture.html', currentDevelopmentRendererUrl).href,
-		);
-		const root = page.locator('#panel-broadcast-input-witness');
-		await expect(root).toHaveAttribute('data-witness-ready', 'true');
-		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
-		const viewport = page.locator('[data-slot="workbench-terminal-viewport"]').last();
-		await viewport.focus();
-		await viewport.click({ button: 'right', position: { x: 30, y: 30 } });
-		await page.getByRole('menuitem', { name: 'Broadcast Input' }).click();
-		const input = page.getByRole('textbox', { name: 'Broadcast input' });
-		await expect(input).toBeVisible();
-		await expect(page.locator('[data-panel-broadcast-target="true"]')).toHaveCount(3);
-
-		await input.evaluate((element) => {
-			if (!(element instanceof HTMLInputElement)) throw new Error('Broadcast input is missing.');
-			element.value = 'forbidden-paste';
-			element.dispatchEvent(
-				new InputEvent('input', {
-					bubbles: true,
-					data: 'forbidden-paste',
-					inputType: 'insertFromPaste',
-				}),
-			);
-			element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
-			element.value = '部署';
-			element.dispatchEvent(
-				new InputEvent('input', {
-					bubbles: true,
-					data: '部署',
-					inputType: 'insertCompositionText',
-					isComposing: true,
-				}),
-			);
-			element.dispatchEvent(
-				new CompositionEvent('compositionend', { bubbles: true, data: '部署' }),
-			);
-		});
-		await expect(root).toHaveAttribute(
-			'data-witness-deliveries',
-			'1:text:部署|2:text:部署|3:text:部署',
-		);
-		await input.evaluate((element) => {
-			if (!(element instanceof HTMLInputElement)) throw new Error('Broadcast input is missing.');
-			for (const text of ['first', 'second']) {
-				element.value = text;
-				element.dispatchEvent(
-					new InputEvent('input', {
-						bubbles: true,
-						data: text,
-						inputType: 'insertText',
-					}),
-				);
-			}
-		});
-		await expect(root).toHaveAttribute(
-			'data-witness-deliveries',
-			'1:text:部署>text:first>text:second|2:text:部署>text:first>text:second|3:text:部署>text:first>text:second',
-		);
-		await input.press('Escape');
-		await expect(root).toHaveAttribute(
-			'data-witness-deliveries',
-			'1:text:部署>text:first>text:second>key:Escape|2:text:部署>text:first>text:second>key:Escape|3:text:部署>text:first>text:second>key:Escape',
-		);
-		await input.press('Control+Alt+Escape');
-		const hiddenInput = page.locator('[data-slot="workbench-panel-broadcast-input-field"]');
-		await expect(hiddenInput).toHaveAttribute('type', 'password');
-		await hiddenInput.press('Control+Escape');
-		await expect(input).toHaveCount(0);
-		await expect(page.locator('[data-panel-broadcast-target="true"]')).toHaveCount(0);
-
-		await viewport.focus();
-		await viewport.click({ button: 'right', position: { x: 30, y: 30 } });
-		await page.getByRole('menuitem', { name: 'Broadcast Input' }).click();
-		await page.getByRole('textbox', { name: 'Broadcast input' }).fill('partial');
-		const warning = page.getByRole('alert');
-		await expect(warning).toContainText('confirmed by 2 of 3 terminals');
-		await expect(page.getByRole('textbox', { name: 'Broadcast input' })).toHaveCount(0);
-		await expect(root).toHaveAttribute(
-			'data-witness-deliveries',
-			'1:text:部署>text:first>text:second>key:Escape>text:partial|2:text:部署>text:first>text:second>key:Escape>text:partial|3:text:部署>text:first>text:second>key:Escape>text:partial',
-		);
-	} finally {
-		await browser.close();
-	}
-});
-
 test('terminal-parity/IN-09-action-scope', async () => {
 	test.setTimeout(45_000);
 	const page = await openTerminalActionsWitness();
@@ -1139,32 +1043,6 @@ test('terminal-parity/FS-19-local-file-links', async () => {
 	}
 });
 
-test('terminal-parity/FS-20-image-preview', async () => {
-	test.setTimeout(45_000);
-	const page = await openTerminalUrlPolicyWitness();
-	try {
-		const root = page.locator('#terminal-url-policy-witness');
-		await expect(root).toHaveAttribute('data-witness-ready', 'true');
-		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
-		await expect(root).toHaveAttribute('data-witness-local-preview-requests', '2');
-		await expect(root).toHaveAttribute('data-witness-local-preview-cancellations', /.+/u);
-		await expect(root).toHaveAttribute('data-witness-local-preview-media-type', 'image/png');
-
-		const preview = page.locator(
-			'#local-file-effects-witness [data-slot="projected-terminal-image-preview-card"]',
-		);
-		await expect(preview).toHaveCount(1);
-		await expect(preview).toHaveAttribute('data-placement', 'below');
-		await expect(preview.locator('figcaption')).toHaveText('final.png');
-		await expect(preview.locator('img')).toHaveAttribute('src', /^data:image\/png;base64,/u);
-		expect(await preview.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe(
-			'none',
-		);
-	} finally {
-		await page.context().browser()?.close();
-	}
-});
-
 test('terminal-parity/LC-05-lan-capability', async () => {
 	test.setTimeout(45_000);
 	const page = await openTerminalClipboardCapabilityWitness();
@@ -1337,8 +1215,6 @@ async function startWebRendererDevelopmentServer(): Promise<{
 		source: {
 			entry: {
 				index: './src/composition/entry.ts',
-				'panel-broadcast-input-fixture':
-					'./src/workbench-client/projected-terminal-renderer/__tests__/panel-broadcast-input.system-fixture.ts',
 				'terminal-bell-effects-fixture':
 					'./src/workbench-client/projected-terminal-renderer/__tests__/bell-effects.system-fixture.ts',
 				'terminal-dpr-fixture':

@@ -32,30 +32,11 @@ export function Example() {
 
 The explicit `@orchbee/ui/components` entry exports consumed shadcn Base UI and Orchbee visual primitives; `@orchbee/ui/styles.css` supplies their styles. These are the only public entries; the package has no root entry. Components retain the relied-on variants, `className` composition and Base UI props. New components and slots require an admitted use rather than speculative inventory.
 
-`Tabs` also exposes the `workspace` variant used for full-height application work areas. Compose it with `TabsBar`, a workspace `TabsList`, one `TabsItem` per trigger, and an independent one-pixel `TabsDivider` between adjacent items. Tab triggers do not draw their own separators. `TabsBar` is `35px` high, composed of a `34px` content area and a `1px` bottom border, and may contain product-owned controls beside the semantic tab list. Each item is at most `200px` wide and shrinks equally when space is constrained. Unselected tabs use the brighter base surface, hover adds a lighter surface without changing the label color, and the selected tab uses the darker selected surface. The UI package provides accessible Base UI interaction and responsive chrome; product packages remain responsible for tab data and semantic actions such as selection, creation, and closure.
-
 Dropdown, context, and submenu surfaces use the shared `250px` menu width and shrink only when the available viewport is narrower. Product consumers keep the primitive default instead of assigning one-off menu widths. Their content, trigger, and interaction contract follows the repository [frontend menu standard](../../docs/frontend/menus.md).
 
 Portaled floating content keeps its generated default layer outside a modal. Modal consumers use the supported `positionerClassName` override with a CSS Module class mapped to `--ob-ref-layer-modal`, so the portal stays above its owning dialog without a one-off popup `z-index`.
 
 Default Dialog and Alert Dialog surfaces use the shared `480px` width, constrained by the viewport, and shadow without an outer outline. Their action footers share the content surface and rely on spacing instead of a divider or tinted footer band.
-
-## Retained development consumers
-
-[Dependency retentions](dependency-retentions.json) owns the exact strict diagnostics for
-`Tabs`, `TabsBar`, `TabsContent`, `TabsDivider`, `TabsItem`, `TabsList` and `TabsTrigger`
-through `src/components/ui/tabs.tsx`, `src/components/ui/index.ts` and `src/components/index.ts`.
-The actual current consumer is [the Tabs Story](stories/tabs.stories.tsx): `Default` and
-`Workspace` render the imported components. No current product host is claimed. The admitted
-workspace composition above is the retained purpose; the UI and future Web/Desktop composition
-owners carry the integration through ORC-201, without starting that migration here.
-
-The manifest fingerprints the reviewed Story, export chain and discovery/resolution inputs.
-Follow the [retention check contract](../../docs/LINTING.md#retained-development-consumers) when
-any input changes; updating hashes alone does not approve changed use. Keep the existing build,
-typecheck, Storybook, behavior and `test:exports` evidence. Production consumption or withdrawal
-of the purpose removes the corresponding exact records in the same change. A disappearing diagnostic
-requires removing its stale record; delete the exhausted manifest and its gate registration.
 
 ## Product icons
 

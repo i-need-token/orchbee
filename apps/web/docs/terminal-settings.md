@@ -18,7 +18,7 @@ Mounted geometry pins the first presentation configuration while forwarding live
 the mounted terminal still participates in later theme transactions and releases that registration on disposal.
 Desktop supplies configured Host default colors separately from the active theme. Choosing Host restores
 those colors even after renderer reload; it preserves the current palette and cursor configuration.
-Ghostty analysis is an ephemeral report; remote diagnostics neither own SSH nor mutate remote state.
+Remote diagnostics neither own SSH nor mutate remote state.
 
 ## Application locale preference
 
@@ -304,7 +304,7 @@ owns Close, search, monochrome product-outcome categories, and a restrained neut
 moderate content column owns a compact category title, optional introduction, section labels, direct
 rows with hairline separators, descriptions, and a stable trailing control column. Radius and shadow
 belong to the outer shell and transient surfaces rather than ordinary setting sections. Diagnostics,
-migration input, profile management, and shell setup may retain the semantic boundaries required by
+profile management, and shell setup may retain the semantic boundaries required by
 their task states without turning every setting into a card. Behavior and architecture follow Orchbee's shared settings contract.
 
 At narrow widths, Settings shows one pane at a time. It opens to the searchable category list;
@@ -320,15 +320,14 @@ The catalog keeps a stable product-outcome order instead of exposing implementat
 rail renders the following groups with quiet localized labels and restrained vertical separation;
 those groups also retain deterministic category and search order:
 
-| Group         | Categories                                                |
-| ------------- | --------------------------------------------------------- |
-| Application   | General, Appearance                                       |
-| Terminal      | Text, Colors, Cursor & Input, Interaction, Terminal       |
-| Workspace     | Profiles, Keyboard Shortcuts                              |
-| Integrations  | Agent Integrations, Shell Integration, Remote Development |
-| Data & Access | Ghostty Migration                                         |
+| Group        | Categories                                                |
+| ------------ | --------------------------------------------------------- |
+| Application  | General, Appearance                                       |
+| Terminal     | Text, Colors, Cursor & Input, Interaction, Terminal       |
+| Workspace    | Profiles, Keyboard Shortcuts                              |
+| Integrations | Agent Integrations, Shell Integration, Remote Development |
 
-Application language and appearance, terminal typography and colors, input and interaction, shortcuts, local Agent integrations, Shell integration, remote diagnostics, Ghostty migration, Desktop launch profiles, and Desktop scrollback defaults retain their existing ownership. Navigation and search expose only implemented categories whose required capabilities are present. Roadmap-only controls remain absent.
+Application language and appearance, terminal typography and colors, input and interaction, shortcuts, local Agent integrations, Shell integration, remote diagnostics, Desktop launch profiles, and Desktop scrollback defaults retain their existing ownership. Navigation and search expose only implemented categories whose required capabilities are present. Roadmap-only controls remain absent.
 
 Ordinary settings use direct rows between quiet hairlines. Only real control boundaries, focus
 indicators, and semantic status, warning, or danger notices retain additional borders or surfaces.
@@ -342,7 +341,7 @@ contains every available category plus each current setting or management entry 
 identifier, owning category, localized label, optional section, description, and search keywords.
 Capability-gated categories and settings enter the catalog only when their composition capability is
 present. The catalog never reads a preference value and search never changes a controller, storage,
-Host, terminal attachment, migration report, or remote environment.
+Host, terminal attachment, or remote environment.
 
 The query is trimmed, Unicode-normalized, split into non-empty terms, and compared
 case-insensitively in the effective locale. Category results match their category label. Setting
@@ -481,54 +480,6 @@ Workbench/Host event subscription rather than hidden renderers. Agent observatio
 such an application-level subscription and does not share this command-completion limitation;
 fully disconnected SSH delivery remains out of scope.
 
-## Ghostty migration report
-
-The Settings migration category analyzes user-pasted text without reading a file, invoking
-Ghostty, logging the source, changing a preference, or writing Browser storage. The source and its
-report exist only while that category is mounted; leaving the category or closing Settings clears
-both. There is no Apply or Import action.
-
-The analyzer is a deliberately bounded compatibility projection of Ghostty revision
-`91f66da24527fa02d92b5fd0b41cd020f553a64c`, not a Ghostty configuration parser. It recognizes
-newline-delimited `key = value` assignments, surrounding whitespace, whole-line comments, CRLF,
-the first equals sign, and one pair of surrounding double quotes. It does not load `config-file`,
-resolve themes, merge files, run commands, or model CLI precedence and platform defaults.
-
-Every non-empty, non-comment line produces exactly one source-ordered finding:
-
-| Finding   | Meaning                                                                                                                    |
-| --------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Supported | The normalized value has one lossless current Orchbee setting target; it has not been applied.                             |
-| Manual    | A nearby user outcome exists, but the Ghostty value or combined semantics cannot be represented safely.                    |
-| Ignored   | The line is superseded, resets a source default, or is outside the migration whitelist; an unknown key may also be a typo. |
-| Invalid   | The bounded analyzer cannot interpret the line or value. Other valid lines still receive findings.                         |
-
-Only these final effective values can be Supported:
-
-| Ghostty key           | Orchbee target       | Supported source values                                                                                          |
-| --------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `font-family`         | Terminal font family | Exactly one active non-empty family of at most 256 characters without a CSS list delimiter                       |
-| `font-size`           | Terminal font size   | A decimal value that is an integer from 8 through 48                                                             |
-| `foreground`          | Custom foreground    | Three- or six-digit hexadecimal RGB, with or without `#`; requires Custom display theme                          |
-| `background`          | Custom background    | Three- or six-digit hexadecimal RGB, with or without `#`; requires Custom display theme                          |
-| `background-opacity`  | Background opacity   | A value from 0.1 through 1 whose percentage is an integer, unless effective `background-opacity-cells` is `true` |
-| `macos-option-as-alt` | Use Option as Alt    | `false`, `true`, `left`, or `right`, mapped to Off, Both, Left, or Right                                         |
-
-Later supported scalar assignments supersede earlier accepted assignments for the same key within
-the pasted text. `font-family` retains Ghostty's empty-value reset and repeatable fallback-list
-meaning; multiple active families are Manual instead of being guessed into a CSS list. Named
-colors, named or light/dark theme files, `window-theme`, key bindings, working directories,
-included configuration, font-style details, and cell-opacity semantics are Manual. Other keys are
-Ignored with a non-whitelist diagnostic.
-
-A supported color finding identifies one lossless value target, not a complete theme conversion.
-The report tells the user to select Custom display theme and preserves the other current Orchbee
-Custom color; it never invents a counterpart color that was absent from the pasted text.
-
-Analysis rejects the complete source rather than truncating it when it exceeds 262,144 JavaScript
-UTF-16 code units, 4,096 lines, or 4,096 code units on one line. These are Orchbee resource bounds,
-not claims about Ghostty's byte limits.
-
 ## Required evidence
 
 - Host appearance and macOS input storage tests cover missing, malformed, unknown, out-of-range,
@@ -555,7 +506,7 @@ not claims about Ghostty's byte limits.
   stable ordering, and empty results. Component tests cover both locales, global cross-category
   results, stable content during a query, pointer and keyboard activation, layered Escape, target
   reveal, the disabled empty-result option, keyboard-scrollable content, invalid drafts, immediate
-  updates, Reset, read-only remote diagnostics, migration analysis and disposal, inertness,
+  updates, Reset, read-only remote diagnostics, inertness,
   idempotent open, focus restoration. Story browser review covers
   the bounded shell, every available category, populated and empty search projections, wide and
   narrow one-pane layouts, and both light and dark themes.
@@ -573,7 +524,4 @@ not claims about Ghostty's byte limits.
 - Agent-integration protocol and Settings tests cover canonical ordering, read-only startup, one
   pending mutation, explicit user actions, remote exclusion, localization, and no automatic
   mutation.
-- Migration analyzer tests cover accepted syntax, exact target boundaries, scalar supersession,
-  font resets and fallback lists, opacity-cell interaction, malformed lines, resource limits, and
-  one-finding-per-assignment ordering without depending on React or storage.
 - No composition or Desktop window test covers Settings on the Server path.

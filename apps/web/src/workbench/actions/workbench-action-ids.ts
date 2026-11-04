@@ -45,7 +45,6 @@ export const WORKBENCH_ACTION_IDS = {
 	increaseTerminalFontSize: 'workbench.terminal.font-size.increase',
 	openAgentBoard: 'workbench.agent-board.open',
 	openSearch: 'workbench.search.open',
-	openPanelBroadcastInput: 'workbench.panel.active.broadcast-input.open',
 	openSettings: 'workbench.settings.open',
 	removeProject: 'workbench.project.dissolve',
 	resetTerminalFontSize: 'workbench.terminal.font-size.reset',
@@ -244,7 +243,6 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.increaseTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openAgentBoard]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openSearch]: ActionSignature<WorkbenchSearchOpenInput>;
-	readonly [WORKBENCH_ACTION_IDS.openPanelBroadcastInput]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openSettings]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.removeProject]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.resetTerminalFontSize]: ActionSignature<void>;

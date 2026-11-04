@@ -318,20 +318,6 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		label: terminalSettingsMessages.remoteDevelopmentNoChangesTitle,
 		targetId: 'remote-development.no-automatic-changes',
 	},
-	{
-		category: 'ghostty-migration',
-		description: terminalSettingsMessages.ghosttyMigrationSourceDescription,
-		id: 'ghostty-migration.source',
-		keywords: [
-			terminalSettingsMessages.ghosttyMigrationSafetyNotice,
-			terminalSettingsMessages.ghosttyMigrationAnalyze,
-			'Ghostty',
-			'import',
-			'migration',
-		],
-		label: terminalSettingsMessages.ghosttyMigrationSourceLabel,
-		targetId: 'ghostty-migration.source',
-	},
 ];
 
 export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {

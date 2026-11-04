@@ -34,7 +34,6 @@ export const zhCNTerminalSettingsMessages = {
 		'请输入 {minimum, number} 到 {maximum, number} 之间的整数。',
 	'terminal.settings.appearance.terminalPadding.label': '终端内边距',
 
-	'terminal.settings.categories.ghosttyMigration': 'Ghostty 迁移',
 	'terminal.settings.categories.macosInput': 'macOS 输入',
 	'terminal.settings.categories.remoteDevelopment': '远程开发',
 	'terminal.settings.categories.shellIntegration': 'Shell 集成',
@@ -72,66 +71,6 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.macosInput.optionAsAlt.right': '仅右 Option 键',
 	'terminal.settings.macosInput.sections.optionKey': 'Option 键',
 	'terminal.settings.macosInput.title': 'macOS 输入',
-	'terminal.settings.ghosttyMigration.actions.analyze': '分析配置',
-	'terminal.settings.ghosttyMigration.actions.clear': '清除',
-	'terminal.settings.ghosttyMigration.description':
-		'查看常用 Ghostty 设置中哪些可直接带入、哪些需手工处理、哪些不会迁移。',
-	'terminal.settings.ghosttyMigration.dispositions.ignored': '不会迁移',
-	'terminal.settings.ghosttyMigration.dispositions.invalid': '需要修正',
-	'terminal.settings.ghosttyMigration.dispositions.manual': '手工处理',
-	'terminal.settings.ghosttyMigration.dispositions.supported': '可直接带入',
-	'terminal.settings.ghosttyMigration.empty': '粘贴配置文本后即可生成迁移报告。',
-	'terminal.settings.ghosttyMigration.lineNumber': '第 {line, number} 行',
-	'terminal.settings.ghosttyMigration.noAssignments': '未找到配置赋值。',
-	'terminal.settings.ghosttyMigration.reasons.cellOpacity':
-		'Ghostty 可让显式单元格背景透明；Orchbee 当前设置只改变默认背景。',
-	'terminal.settings.ghosttyMigration.reasons.color':
-		'Ghostty 还接受 X11 命名颜色，请手工选择对应的 #RRGGBB 值。',
-	'terminal.settings.ghosttyMigration.reasons.configFile':
-		'没有读取被包含的文件，请另行分析其内容。',
-	'terminal.settings.ghosttyMigration.reasons.customColorTarget':
-		'使用此值前请先选择“自定义”终端显示主题；另一项自定义颜色会保留 Orchbee 当前值。',
-	'terminal.settings.ghosttyMigration.reasons.fontDetails': 'Orchbee 当前设置中没有这项字体细节。',
-	'terminal.settings.ghosttyMigration.reasons.fontFallback':
-		'Ghostty 会保留有顺序的回退字体列表，而 Orchbee 当前设置只接受一个值。',
-	'terminal.settings.ghosttyMigration.reasons.fontFamily':
-		'此字体族无法安全表示为一个当前 Orchbee 设置值。',
-	'terminal.settings.ghosttyMigration.reasons.fontSize':
-		'Orchbee 目前只支持 8 到 48 之间的整数终端字号。',
-	'terminal.settings.ghosttyMigration.reasons.invalidValue': '迁移分析器无法解释这个值。',
-	'terminal.settings.ghosttyMigration.reasons.keybind':
-		'不会导入 Ghostty Action 名称和按键语法，请在键盘快捷键中重新设置。',
-	'terminal.settings.ghosttyMigration.reasons.losslessTarget':
-		'此值在当前 Orchbee 设置中有无损对应项。',
-	'terminal.settings.ghosttyMigration.reasons.malformedLine':
-		'迁移报告只接受 key = value 格式的行。',
-	'terminal.settings.ghosttyMigration.reasons.notInWhitelist':
-		'此键不在迁移白名单中，可能是 Ghostty 专属选项或拼写错误。',
-	'terminal.settings.ghosttyMigration.reasons.opacity':
-		'Orchbee 只支持 10% 到 100% 的整数背景不透明度；此值需要取整或限制范围。',
-	'terminal.settings.ghosttyMigration.reasons.reset':
-		'此项会把 Ghostty 恢复为默认值，因此没有自定义值需要带入。',
-	'terminal.settings.ghosttyMigration.reasons.superseded': '此键后面的有效赋值优先生效。',
-	'terminal.settings.ghosttyMigration.reasons.theme':
-		'Ghostty 主题可能加载文件和多项设置，请手工选择 Orchbee 终端主题。',
-	'terminal.settings.ghosttyMigration.reasons.windowTheme':
-		'Ghostty 窗口主题与 Orchbee 应用主题的作用范围不同。',
-	'terminal.settings.ghosttyMigration.reasons.workingDirectory':
-		'请在 Orchbee 中选择项目或工作区文件夹，不要直接导入此值。',
-	'terminal.settings.ghosttyMigration.rejected.lineTooLong':
-		'第 {line, number} 行超过 {limit, number} 个字符的限制，未分析任何内容。',
-	'terminal.settings.ghosttyMigration.rejected.sourceTooLarge':
-		'文本超过 {limit, number} 个字符的限制，未分析任何内容。',
-	'terminal.settings.ghosttyMigration.rejected.tooManyLines':
-		'文本超过 {limit, number} 行的限制，未分析任何内容。',
-	'terminal.settings.ghosttyMigration.reportTitle': '迁移报告',
-	'terminal.settings.ghosttyMigration.safetyNotice': '这只是预检，Orchbee 不会更改或保存任何设置。',
-	'terminal.settings.ghosttyMigration.source.description':
-		'粘贴 Ghostty 配置文件的内容；被包含的文件和主题不会被打开。',
-	'terminal.settings.ghosttyMigration.source.label': 'Ghostty 配置',
-	'terminal.settings.ghosttyMigration.source.placeholder': 'font-family = JetBrains Mono',
-	'terminal.settings.ghosttyMigration.target': 'Orchbee 设置',
-	'terminal.settings.ghosttyMigration.title': '从 Ghostty 迁移',
 	'terminal.settings.persistence.invalidWarning':
 		'已保存的设置无效，当前正在使用默认设置；重置可尝试保存默认设置。',
 	'terminal.settings.persistence.readWarning':

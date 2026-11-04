@@ -20,7 +20,6 @@ export type TerminalSettingsCategory =
 	| 'colors'
 	| 'cursor-input'
 	| 'general'
-	| 'ghostty-migration'
 	| 'interaction'
 	| 'keyboard-shortcuts'
 	| 'profiles'
@@ -98,9 +97,6 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly foregroundDescription: string;
 	readonly foregroundInvalid: string;
 	readonly foregroundLabel: string;
-	readonly ghosttyMigrationCategory: string;
-	readonly ghosttyMigrationDescription: string;
-	readonly ghosttyMigrationTitle: string;
 	readonly keyboardShortcutsCategory: string;
 	readonly keyboardShortcutsDescription: string;
 	readonly keyboardShortcutsTitle: string;

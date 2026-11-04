@@ -7,7 +7,6 @@ import type { TabStripMessages } from './types/tab-strip-messages';
 import type {
 	TabStripArrangementChange,
 	TabStripChangeCallback,
-	TabStripCrossWindowDragRuntimeFactory,
 	TabStripCloseCallback,
 	TabStripCloseConfirmation,
 	TabStripCloseResume,
@@ -29,7 +28,6 @@ interface TabStripProps extends TabStripOptions {
 export type {
 	TabStripArrangementChange,
 	TabStripChangeCallback,
-	TabStripCrossWindowDragRuntimeFactory,
 	TabStripCloseCallback,
 	TabStripCloseConfirmation,
 	TabStripCloseResume,

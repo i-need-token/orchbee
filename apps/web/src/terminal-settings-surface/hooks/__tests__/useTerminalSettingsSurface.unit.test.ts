@@ -15,8 +15,8 @@ describe('useTerminalSettingsSurface', () => {
 		const controller = createController();
 		controller.open();
 
-		expect(renderView(controller, 'en-US')).toBe('Settings|7|custom-enabled');
-		expect(renderView(controller, 'zh-CN')).toBe('设置|7|custom-enabled');
+		expect(renderView(controller, 'en-US')).toBe('Settings|custom-enabled');
+		expect(renderView(controller, 'zh-CN')).toBe('设置|custom-enabled');
 	});
 });
 
@@ -36,11 +36,7 @@ function SurfaceProbe({
 		keyboardShortcutPlatform: 'apple',
 		onRequestClose: () => undefined,
 	});
-	const categoryCount = view.navigationGroups.reduce(
-		(total, group) => total + group.items.length,
-		0,
-	);
-	return `${view.messages.title}|${categoryCount}|${view.customColorsEnabled ? 'custom-enabled' : 'custom-disabled'}`;
+	return `${view.messages.title}|${view.customColorsEnabled ? 'custom-enabled' : 'custom-disabled'}`;
 }
 
 function createController(): TerminalSettingsController {

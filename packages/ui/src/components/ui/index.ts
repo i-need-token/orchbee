@@ -75,7 +75,6 @@ export { Slider } from './slider';
 
 export { Switch } from './switch';
 
-export { Tabs, TabsBar, TabsContent, TabsDivider, TabsItem, TabsList, TabsTrigger } from './tabs';
 export { Textarea } from './textarea';
 
 export { Toggle } from './toggle';

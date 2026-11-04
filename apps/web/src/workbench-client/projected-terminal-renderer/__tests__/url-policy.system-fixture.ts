@@ -9,8 +9,6 @@ import {
 } from '@orchbee/terminal';
 import type { WorkbenchTerminalActionContextProvider } from '../../../workbench';
 import type { ProjectedTerminalCommand } from '@orchbee/workbench-client-protocol';
-import { createElement } from 'react';
-import { createRoot } from 'react-dom/client';
 import {
 	ActiveScreen,
 	AttachmentIdSchema,
@@ -51,7 +49,6 @@ import {
 	startProjectedTerminalRenderer,
 	type ProjectedTerminalRendererDependencies,
 } from '../startProjectedTerminalRenderer';
-import { ProjectedTerminalImagePreviewCard } from '../../projected-terminal-surface';
 
 interface LinkScenario {
 	readonly id: string;
@@ -360,15 +357,8 @@ async function runLocalFileEffectsWitness(): Promise<void> {
 	surface.style.width = '720px';
 	document.body.appendChild(surface);
 
-	const overlay = document.createElement('div');
-	overlay.style.inset = '0';
-	overlay.style.pointerEvents = 'none';
-	overlay.style.position = 'absolute';
-	surface.appendChild(overlay);
-	const previewRoot = createRoot(overlay);
 	const localText = './images/old.png ./images/final.png';
 	const previewRequests: Extract<TerminalSurfaceCommand, { readonly kind: 'image-preview' }>[] = [];
-	const previewCancellations: string[] = [];
 	const openedPaths: string[] = [];
 	const previewState: { current: TerminalImagePreviewPresentation } = {
 		current: { kind: 'hidden' },
@@ -380,10 +370,7 @@ async function runLocalFileEffectsWitness(): Promise<void> {
 				queueMicrotask(() => localTerminal.applyRows(localTerminalRows(command, localText)));
 				return;
 			}
-			if (command.kind === 'image-preview-cancel') {
-				previewCancellations.push(command.payload.requestSequence);
-				return;
-			}
+			if (command.kind === 'image-preview-cancel') return;
 			if (command.kind === 'image-preview') {
 				previewRequests.push(command);
 				if (previewRequests.length === 2) {
@@ -418,11 +405,6 @@ async function runLocalFileEffectsWitness(): Promise<void> {
 	});
 	const previewSubscription = localTerminal.onImagePreviewChange((presentation) => {
 		previewState.current = presentation;
-		previewRoot.render(
-			presentation.kind === 'visible'
-				? createElement(ProjectedTerminalImagePreviewCard, { preview: presentation })
-				: null,
-		);
 	});
 	const linkSubscription = localTerminal.onLinkOpenRequest((request) => {
 		localTerminal.openTarget(request.target);
@@ -481,10 +463,7 @@ async function runLocalFileEffectsWitness(): Promise<void> {
 		}),
 	);
 	await until(() => openedPaths.length === 1);
-	root.dataset['witnessLocalPreviewRequests'] = String(previewRequests.length);
-	root.dataset['witnessLocalPreviewCancellations'] = previewCancellations.join('|');
 	root.dataset['witnessLocalPreviewPath'] = finalPresentation.path;
-	root.dataset['witnessLocalPreviewMediaType'] = finalPresentation.mediaType;
 	root.dataset['witnessLocalReady'] = 'true';
 	window.addEventListener(
 		'pagehide',
@@ -492,7 +471,6 @@ async function runLocalFileEffectsWitness(): Promise<void> {
 			linkSubscription.dispose();
 			previewSubscription.dispose();
 			localTerminal.dispose();
-			previewRoot.unmount();
 		},
 		{ once: true },
 	);

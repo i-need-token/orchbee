@@ -7,7 +7,7 @@
 	"nonGoals": [
 		"Owning Orchbee sessions, routing, persistence, localization, or application composition.",
 		"Defining the product theme, icons, visual language, or product-facing messages.",
-		"Selecting browser, desktop, or cross-window host implementations for consumers.",
+		"Selecting browser or desktop host implementations for consumers.",
 		"Providing framework-independent package entry points beyond the headless Tab model."
 	]
 }

@@ -1,10 +1,5 @@
 /* Generated from tokens.css by scripts/generate-design-token-inventory.mjs. */
 export const designTokenNames = [
-	'--ob-comp-projected-terminal-image-preview-anchor-block-size',
-	'--ob-comp-projected-terminal-image-preview-block-size',
-	'--ob-comp-projected-terminal-image-preview-block-start',
-	'--ob-comp-projected-terminal-image-preview-inline-size',
-	'--ob-comp-projected-terminal-image-preview-inline-start',
 	'--ob-comp-projected-terminal-progress-value',
 	'--ob-comp-tab-strip-alert-fade-duration',
 	'--ob-comp-tab-strip-block-size',

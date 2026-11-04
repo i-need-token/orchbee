@@ -40,7 +40,6 @@ export type ActiveTerminalCommand =
 	| 'move-left'
 	| 'move-right'
 	| 'move-up'
-	| 'open-broadcast-input'
 	| 'start-resize'
 	| 'split-above'
 	| 'split-below'
@@ -101,12 +100,6 @@ interface ResolveActiveTerminalCommandOptions {
 }
 
 export type ActiveTerminalCommandResolution =
-	| {
-			readonly actionId: typeof PANEL_ACTION_IDS.startBroadcastInput;
-			readonly input: PanelTargetInput;
-			readonly kind: 'ready';
-			readonly panelId: string;
-	  }
 	| {
 			readonly actionId: typeof PANEL_ACTION_IDS.equalize;
 			readonly input: PanelTargetInput;
@@ -184,18 +177,6 @@ export function resolveActiveTerminalCommand({
 	}
 
 	switch (command) {
-		case 'open-broadcast-input':
-			if (activeTab.maximizedPanelId !== null) {
-				return { kind: 'unavailable', reason: 'panel-maximized' };
-			}
-			return collectPanelLeaves(activeTab.root).length < 2
-				? { kind: 'unavailable', reason: 'requires-multiple-panels' }
-				: {
-						actionId: PANEL_ACTION_IDS.startBroadcastInput,
-						input: { panelId },
-						kind: 'ready',
-						panelId,
-					};
 		// As in the TUI, Close ends the whole Panel, and the Server closes a last Panel's Tab with it.
 		case 'close':
 			return {

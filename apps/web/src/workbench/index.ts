@@ -98,10 +98,6 @@ export type {
 export type { WorkbenchShortcutBindings, WorkbenchShortcutId } from './utils/workbench-shortcuts';
 export type {
 	WorkbenchTerminalActionContextProvider,
-	WorkbenchTerminalBroadcastInput,
-	WorkbenchTerminalBroadcastInputReadiness,
-	WorkbenchTerminalBroadcastInputResult,
-	WorkbenchTerminalBroadcastInputSink,
 	WorkbenchTerminalPresentation,
 	WorkbenchTerminalSurface,
 	WorkbenchTerminalSurfaceProps,

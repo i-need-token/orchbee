@@ -4,15 +4,10 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Projected Terminal Paste Review Dialog",
-	"description": "Reviews suspicious terminal paste text or safely prepared local file paths before one attachment can publish its sanitized semantic input.",
+	"description": "Reviews suspicious terminal paste text before one attachment can publish its sanitized semantic input.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
-	"intents": [
-		"review-terminal-paste",
-		"confirm-terminal-paste",
-		"review-terminal-file-drop",
-		"confirm-terminal-file-drop"
-	],
+	"intents": ["review-terminal-paste", "confirm-terminal-paste"],
 	"implementation": [
 		"apps/web/src/workbench-client/projected-terminal-surface/components/projected-terminal-paste-review-dialog/ProjectedTerminalPasteReviewDialog.tsx",
 		"apps/web/src/workbench-client/projected-terminal-surface/hooks/useProjectedTerminalSurface.ts"
@@ -26,21 +21,11 @@
 				"Inspect the localized warnings and control-visible original preview for replaced controls and an embedded bracketed-paste terminator.",
 				"Cancel with Escape or the visible action, then approve with Paste; each path settles the pending attachment decision once."
 			]
-		},
-		{
-			"exportName": "LocalFileDrop",
-			"file": "apps/web/stories/projected-terminal-paste-review-dialog.stories.tsx",
-			"id": "applications-web-projected-terminal-paste-review-dialog--local-file-drop",
-			"states": [
-				"Inspect the complete shell-quoted local-path input and the warning that those paths may not exist in a remote shell.",
-				"Cancel publishes nothing; Paste paths publishes the reviewed text without an Enter key."
-			]
 		}
 	],
 	"uses": [],
 	"useWhen": [
-		"One projected terminal attachment must review multiline or control-bearing paste text before semantic input publication.",
-		"A Desktop file drop has produced bounded shell-quoted local paths that require explicit review before terminal input publication."
+		"One projected terminal attachment must review multiline or control-bearing paste text before semantic input publication."
 	],
 	"avoidWhen": [
 		"The inspected paste is safe without review, or another product workflow owns a non-terminal confirmation."
@@ -48,8 +33,7 @@
 	"invariants": [
 		"The preview is bounded, displays unsafe control code points visibly, and derives from the retained original text rather than sanitized output.",
 		"Cancel, lifecycle abort, and approval settle the pending attachment decision at most once and never bypass FIFO input ordering.",
-		"Approval publishes only sanitized text with the reviewed bracketed-paste mode; the Host rejects a changed authoritative mode before admission.",
-		"Every file drop displays its complete generated input and remote-path warning, and approval never appends Enter."
+		"Approval publishes only sanitized text with the reviewed bracketed-paste mode; the Host rejects a changed authoritative mode before admission."
 	],
 	"references": ["apps/web/README.md"]
 }

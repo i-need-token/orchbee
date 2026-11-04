@@ -62,11 +62,6 @@ export function buildTerminalSettingsSurfaceMessages(
 		foregroundDescription: formatMessage(terminalSettingsMessages.foregroundDescription),
 		foregroundInvalid: formatMessage(terminalSettingsMessages.foregroundInvalid),
 		foregroundLabel: formatMessage(terminalSettingsMessages.foregroundLabel),
-		ghosttyMigrationCategory: formatMessage(terminalSettingsMessages.ghosttyMigrationCategory),
-		ghosttyMigrationDescription: formatMessage(
-			terminalSettingsMessages.ghosttyMigrationDescription,
-		),
-		ghosttyMigrationTitle: formatMessage(terminalSettingsMessages.ghosttyMigrationTitle),
 		keyboardShortcutsCategory: formatMessage(keyboardShortcutMessages.category),
 		keyboardShortcutsDescription: formatMessage(keyboardShortcutMessages.description),
 		keyboardShortcutsTitle: formatMessage(keyboardShortcutMessages.title),

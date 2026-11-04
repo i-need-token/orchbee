@@ -4,7 +4,6 @@ import type { WorkbenchTerminalSurfaceProps } from '../../workbench';
 import type { ReactNode } from 'react';
 
 import styles from './ProjectedTerminalSurface.module.css';
-import { ProjectedTerminalImagePreviewCard } from './components/projected-terminal-image-preview-card/ProjectedTerminalImagePreviewCard';
 import { ProjectedTerminalLaunchFailure } from './components/projected-terminal-launch-failure/ProjectedTerminalLaunchFailure';
 import { ProjectedTerminalMobileInputBar } from './components/projected-terminal-mobile-input-bar/ProjectedTerminalMobileInputBar';
 import { ProjectedTerminalPasteReviewDialog } from './components/projected-terminal-paste-review-dialog/ProjectedTerminalPasteReviewDialog';
@@ -17,7 +16,6 @@ export function ProjectedTerminalSurface({
 	admitBellEffect,
 	autoFocus,
 	bindActionContextProvider,
-	bindBroadcastInputSink,
 	closeTerminal,
 	createTab,
 	focusRequest,
@@ -32,7 +30,6 @@ export function ProjectedTerminalSurface({
 		admitBellEffect,
 		autoFocus,
 		bindActionContextProvider,
-		bindBroadcastInputSink,
 		closeTerminal,
 		createTab,
 		focusRequest,
@@ -52,8 +49,6 @@ export function ProjectedTerminalSurface({
 				data-projected-terminal-mobile-controls={terminalShown ? 'visible' : 'hidden'}
 				data-terminal-presentation-id={presentation.presentationId}
 				data-terminal-projection-state={view.projectionState}
-				onDragOver={view.handleFileDragOver}
-				onDrop={view.handleFileDrop}
 				ref={view.root}
 			>
 				{view.failureMessage === null ? null : (
@@ -77,9 +72,6 @@ export function ProjectedTerminalSurface({
 						onCreateTab={view.createTab}
 						rootRef={view.launchFailureRoot}
 					/>
-				)}
-				{view.imagePreview === null ? null : (
-					<ProjectedTerminalImagePreviewCard preview={view.imagePreview} />
 				)}
 				{view.terminalOutcome === null ? null : (
 					<ProjectedTerminalPersistentStatus

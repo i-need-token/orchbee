@@ -8,10 +8,9 @@ export type {
 	ProjectedTerminalEvent,
 	ProjectedTerminalFailure,
 } from './projected-terminal-contract';
-export {
-	TerminalPresentationIdSchema,
-	terminalPresentationId,
-} from './terminal-presentation-contract';
+export { TerminalPresentationIdSchema } from './terminal-presentation-contract';
+/** @internal Builds presentation IDs for tests in this package and `apps/web`; production boundaries parse them with `TerminalPresentationIdSchema`. */
+export { terminalPresentationId } from './terminal-presentation-contract';
 export type {
 	TerminalPresentationCloseActivity,
 	TerminalPresentationId,

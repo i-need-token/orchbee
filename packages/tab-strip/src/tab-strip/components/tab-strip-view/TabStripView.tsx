@@ -13,8 +13,6 @@ import type { TabStripViewModel } from '../../types/tab-strip-view-model';
 
 // TabContainerImpl::AnimateViewTo uses the configured rich-animation duration.
 
-/** Pointer-lifecycle surface implemented by CrossWindowTabDragRuntime. */
-
 export function TabStripView({
 	horizontalLeadingActions,
 	view,

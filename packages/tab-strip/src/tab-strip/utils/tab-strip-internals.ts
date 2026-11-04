@@ -15,7 +15,6 @@ import { TabStripOrientation } from '../types/tab-strip-types';
 import { DEFAULT_TAB_STYLE_METRICS } from '../layout/tab-style-metrics';
 import { LAYOUT_CONSTANTS } from '../layout/layout-constants';
 import { calculateHorizontalTabGroupHeaderLayout } from '../layout/tab-group-style';
-import type { TabStripCrossWindowDragRuntime } from '../types/tab-strip-options';
 import {
 	buildDraggedTabsLayout,
 	getDragStartAnimationOffset,
@@ -101,8 +100,6 @@ export interface DragState {
 	touchLongPressRecognized: boolean;
 	startX: number;
 	startY: number;
-	screenX: number;
-	screenY: number;
 	shiftPressedOnPointerDown: boolean;
 	x: number;
 	y: number;
@@ -137,7 +134,6 @@ export interface DragState {
 	dragStartAnimationRequired: boolean;
 	dragStartAnimationStartedAt: number | null;
 	dragStartAnimationProgress: number;
-	crossWindowRuntime: TabStripCrossWindowDragRuntime | null;
 	settling: boolean;
 }
 

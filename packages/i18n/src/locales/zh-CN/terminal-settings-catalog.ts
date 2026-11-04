@@ -33,7 +33,6 @@ export const zhCNTerminalSettingsCatalogMessages = {
 	'terminal.settings.catalog.common.plannedNotice':
 		'这些控件用于展示规划中的完整设置目录，目前尚不可用，也不会更改你的配置。',
 	'terminal.settings.catalog.groups.application': '应用',
-	'terminal.settings.catalog.groups.dataAccess': '数据与访问',
 	'terminal.settings.catalog.groups.integrations': '集成',
 	'terminal.settings.catalog.groups.terminal': '终端',
 	'terminal.settings.catalog.groups.workspace': '工作区',

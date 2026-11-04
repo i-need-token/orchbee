@@ -46,7 +46,6 @@ function VerticalWorkbenchTabBar({
 	return (
 		<WorkbenchTabBar
 			actionRuntime={actionRuntime}
-			createCrossWindowDragRuntime={undefined}
 			focusRequest={0}
 			getCloseTabsConfirmation={() => null}
 			getTabCreationAvailability={() =>

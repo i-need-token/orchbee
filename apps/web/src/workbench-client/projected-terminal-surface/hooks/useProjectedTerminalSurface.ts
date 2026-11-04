@@ -1,19 +1,12 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { projectedTerminalMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import type { ProjectedPasteReview, TerminalImagePreviewPresentation } from '@orchbee/terminal';
+import type { ProjectedPasteReview } from '@orchbee/terminal';
 import type {
 	WorkbenchTerminalPresentation,
 	WorkbenchTerminalSurfaceProps,
 } from '../../../workbench';
 import * as React from 'react';
 
-import {
-	containsTerminalFileDrop,
-	extractTerminalFileDropFiles,
-	MAXIMUM_TERMINAL_FILE_DROP_FILES,
-	MAXIMUM_TERMINAL_FILE_DROP_INPUT_CHARACTERS,
-	type TerminalFileDropRejectionReason,
-} from '../../../terminal-file-drop';
 import type { ProjectedTerminalControlPresentation } from '../../projected-terminal-actions';
 import {
 	createTerminalTrailingBlankRowsPresentationSource,
@@ -61,23 +54,12 @@ interface PresentationControl {
 	readonly presentationId: string;
 }
 
-interface PresentationImagePreview {
-	readonly presentationId: string;
-	readonly preview: Extract<TerminalImagePreviewPresentation, { readonly kind: 'visible' }>;
-}
-
 const unavailableMobileInputState: MobileTerminalInputState = {
 	alt: false,
 	control: false,
 	focused: false,
 	readiness: { kind: 'unavailable' },
 };
-
-interface PresentationFileDropFailure {
-	readonly count: number;
-	readonly presentationId: string;
-	readonly reason: TerminalFileDropRejectionReason | 'terminal-unavailable';
-}
 
 type ProjectedTerminalSessionPolicy = 'project' | 'retain';
 
@@ -88,7 +70,6 @@ type ProjectedTerminalSurfaceWorkbenchHost = Pick<
 	Partial<
 		Pick<
 			WorkbenchTerminalSurfaceProps,
-			| 'bindBroadcastInputSink'
 			| 'closeTerminal'
 			| 'createTab'
 			| 'focusRequest'
@@ -107,7 +88,6 @@ export function useProjectedTerminalSurface(
 	const admitBellEffect = workbenchHost?.admitBellEffect;
 	const autoFocus = workbenchHost?.autoFocus ?? false;
 	const bindActionContextProvider = workbenchHost?.bindActionContextProvider;
-	const bindBroadcastInputSink = workbenchHost?.bindBroadcastInputSink;
 	const closeTerminal = workbenchHost?.closeTerminal;
 	const createTab = workbenchHost?.createTab;
 	const focusRequest = workbenchHost?.focusRequest ?? 0;
@@ -122,9 +102,6 @@ export function useProjectedTerminalSurface(
 		readonly controller: ProjectedTerminalRecoveryController;
 		readonly presentationId: string;
 	} | null>(null);
-	const fileDropEpoch = React.useRef(0);
-	const [presentationFileDropFailure, setPresentationFileDropFailure] =
-		React.useState<PresentationFileDropFailure | null>(null);
 	const [presentationRecovery, setPresentationRecovery] =
 		React.useState<PresentationRecoveryState | null>(null);
 	const [presentationMobileInput, setPresentationMobileInput] =
@@ -132,8 +109,6 @@ export function useProjectedTerminalSurface(
 	const [presentationControl, setPresentationControl] = React.useState<PresentationControl | null>(
 		null,
 	);
-	const [presentationImagePreview, setPresentationImagePreview] =
-		React.useState<PresentationImagePreview | null>(null);
 	const [pasteReview, setPasteReview] = React.useState<ProjectedPasteReview | null>(null);
 	const pendingPasteDecision = React.useRef<PendingPasteDecision | null>(null);
 	const projectable =
@@ -159,10 +134,6 @@ export function useProjectedTerminalSurface(
 		presentationRecovery?.presentationId === presentation.presentationId
 			? presentationRecovery.state
 			: undefined;
-	const currentImagePreview =
-		presentationImagePreview?.presentationId === presentation.presentationId
-			? presentationImagePreview.preview
-			: null;
 	const reportPresentationReady = useMemoizedFn(
 		(readiness: Parameters<WorkbenchTerminalSurfaceProps['onPresentationReady']>[0]): void => {
 			if (presentationMode !== 'retained') onPresentationReady?.(readiness);
@@ -199,70 +170,6 @@ export function useProjectedTerminalSurface(
 			});
 		},
 	);
-	const handleFileDragOver = useMemoizedFn((event: React.DragEvent<HTMLDivElement>): void => {
-		if (!containsTerminalFileDrop(event.dataTransfer)) return;
-		event.preventDefault();
-		event.dataTransfer.dropEffect =
-			capability?.terminalFileDropCapability === undefined ? 'none' : 'copy';
-	});
-	const handleFileDrop = useMemoizedFn((event: React.DragEvent<HTMLDivElement>): void => {
-		const fileDropCapability = capability?.terminalFileDropCapability;
-		if (!containsTerminalFileDrop(event.dataTransfer)) return;
-		const files = extractTerminalFileDropFiles(event.dataTransfer);
-		event.preventDefault();
-		event.stopPropagation();
-		if (fileDropCapability === undefined) {
-			setPresentationFileDropFailure({
-				count: files.length,
-				presentationId: presentation.presentationId,
-				reason: 'unsupported',
-			});
-			return;
-		}
-		settlePasteReview(false);
-		const epoch = ++fileDropEpoch.current;
-		setPresentationFileDropFailure(null);
-		void (async () => {
-			let preparation;
-			try {
-				preparation = await fileDropCapability.prepare(files);
-			} catch {
-				preparation = { kind: 'rejected', reason: 'unavailable-path' } as const;
-			}
-			if (fileDropEpoch.current !== epoch) return;
-			if (preparation.kind === 'rejected') {
-				setPresentationFileDropFailure({
-					count: files.length,
-					presentationId: presentation.presentationId,
-					reason: preparation.reason,
-				});
-				return;
-			}
-			const recovery = recoveryController.current;
-			if (recovery?.presentationId !== presentation.presentationId) {
-				setPresentationFileDropFailure({
-					count: files.length,
-					presentationId: presentation.presentationId,
-					reason: 'terminal-unavailable',
-				});
-				return;
-			}
-			const result = await recovery.controller.pasteFileDrop(preparation.text);
-			if (fileDropEpoch.current !== epoch || result.kind !== 'unavailable') return;
-			setPresentationFileDropFailure({
-				count: files.length,
-				presentationId: presentation.presentationId,
-				reason: 'terminal-unavailable',
-			});
-		})().catch(() => {
-			if (fileDropEpoch.current !== epoch) return;
-			setPresentationFileDropFailure({
-				count: files.length,
-				presentationId: presentation.presentationId,
-				reason: 'terminal-unavailable',
-			});
-		});
-	});
 	const sendMobileKey = useMemoizedFn((key: MobileTerminalKey): boolean => {
 		const recovery = recoveryController.current;
 		return recovery?.presentationId === presentation.presentationId
@@ -371,19 +278,6 @@ export function useProjectedTerminalSurface(
 							},
 					capability.interactionConfigurationSource,
 					capability.presentationSnapshots?.get(presentation.presentationId),
-					(preview) => {
-						if (cancelled) return;
-						if (preview.kind === 'visible') {
-							setPresentationImagePreview({
-								presentationId: presentation.presentationId,
-								preview,
-							});
-							return;
-						}
-						setPresentationImagePreview((current) =>
-							current?.presentationId === presentation.presentationId ? null : current,
-						);
-					},
 					capability.applicationLocaleSource,
 					trailingBlankRowsPresentationSource,
 				);
@@ -410,19 +304,14 @@ export function useProjectedTerminalSurface(
 				presentationId: presentation.presentationId,
 			});
 		});
-		const broadcastInputRegistration = bindBroadcastInputSink?.(controller);
 		if (sessionPolicyReference.current === 'retain') controller.retain();
 		else controller.start();
 		return () => {
 			if (cancelled) return;
 			cancelled = true;
-			setPresentationImagePreview((current) =>
-				current?.presentationId === presentation.presentationId ? null : current,
-			);
 			setPresentationControl((current) =>
 				current?.presentationId === presentation.presentationId ? null : current,
 			);
-			fileDropEpoch.current += 1;
 			if (recoveryController.current?.controller === controller) {
 				recoveryController.current = null;
 			}
@@ -431,7 +320,6 @@ export function useProjectedTerminalSurface(
 					() => settlePasteReview(false),
 					() => mobileInputSubscription.dispose(),
 					() => controlSubscription.dispose(),
-					() => broadcastInputRegistration?.dispose(),
 					() => controller.dispose(),
 				],
 				'Projected terminal cleanup failed',
@@ -442,7 +330,6 @@ export function useProjectedTerminalSurface(
 		actionScope,
 		admitBellEffect,
 		bindActionContextProvider,
-		bindBroadcastInputSink,
 		capability,
 		presentation.presentationId,
 		projectable,
@@ -495,10 +382,6 @@ export function useProjectedTerminalSurface(
 	} else if (currentRecovery?.kind === 'failed') {
 		failureMessage = intl.formatMessage(projectedTerminalMessages.disconnected);
 	}
-	const currentFileDropFailure =
-		presentationFileDropFailure?.presentationId === presentation.presentationId
-			? presentationFileDropFailure
-			: null;
 	const mobileInputState =
 		presentationMobileInput?.presentationId === presentation.presentationId
 			? presentationMobileInput.state
@@ -508,35 +391,6 @@ export function useProjectedTerminalSurface(
 			? presentationControl
 			: null;
 	const controlPresentation = currentControl?.presentation ?? 'none';
-	if (failureMessage === null && currentFileDropFailure !== null) {
-		switch (currentFileDropFailure.reason) {
-			case 'too-many-files':
-				failureMessage = intl.formatMessage(projectedTerminalMessages.fileDropFailureTooMany, {
-					count: currentFileDropFailure.count,
-					maximum: MAXIMUM_TERMINAL_FILE_DROP_FILES,
-				});
-				break;
-			case 'input-too-large':
-				failureMessage = intl.formatMessage(
-					projectedTerminalMessages.fileDropFailureInputTooLarge,
-					{ maximum: MAXIMUM_TERMINAL_FILE_DROP_INPUT_CHARACTERS },
-				);
-				break;
-			case 'unsupported':
-				failureMessage = intl.formatMessage(projectedTerminalMessages.fileDropFailureUnsupported);
-				break;
-			case 'terminal-unavailable':
-				failureMessage = intl.formatMessage(
-					projectedTerminalMessages.fileDropFailureTerminalUnavailable,
-				);
-				break;
-			case 'empty':
-			case 'invalid-path':
-			case 'unavailable-path':
-				failureMessage = intl.formatMessage(projectedTerminalMessages.fileDropFailureInvalid);
-				break;
-		}
-	}
 	return {
 		approvePaste: () => settlePasteReview(true),
 		cancelPaste: () => settlePasteReview(false),
@@ -544,9 +398,6 @@ export function useProjectedTerminalSurface(
 		controlPresentation,
 		createTab: () => createTab?.('button'),
 		failureMessage,
-		handleFileDragOver,
-		handleFileDrop,
-		imagePreview: currentImagePreview,
 		launchFailure,
 		launchFailureRoot,
 		liveCropped: currentControl?.liveCropped === true,

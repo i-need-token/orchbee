@@ -923,7 +923,6 @@ describe('Workbench Project and Workspace management', () => {
 		const menu = await openTerminalMenu();
 		expectActionableMenuItemsToHaveIcons(menu);
 		expect(getActionableMenuPresentation(menu)).toEqual([
-			{ icon: 'terminal', label: 'Broadcast Input' },
 			{ icon: 'panels', label: 'Split right⌘D' },
 			{ icon: 'panels', label: 'Split below⇧⌘D' },
 			{ icon: 'close', label: 'Close⌘W' },
@@ -948,7 +947,6 @@ describe('Workbench Project and Workspace management', () => {
 		);
 
 		expect(getActionableMenuPresentation(await openTerminalMenu())).toEqual([
-			{ icon: 'terminal', label: 'Broadcast Input' },
 			{ icon: 'panels', label: 'Split right⌘D' },
 			{ icon: 'panels', label: 'Split below⇧⌘D' },
 			{ icon: 'screen-full', label: 'Maximize⇧⌘Enter' },

@@ -110,8 +110,6 @@ interface DragPointerUpdate {
 	readonly pointerId: number;
 	readonly clientX: number;
 	readonly clientY: number;
-	readonly screenX: number;
-	readonly screenY: number;
 	readonly forceReorder?: boolean;
 }
 
@@ -147,7 +145,6 @@ export function useTabStrip(
 		horizontalFrameCondensed = false,
 		touchUi = false,
 		tabStripDeclutter = true,
-		createCrossWindowDragRuntime,
 		onDraggingChange,
 		onTabKeyboardFocusChanged,
 		onMoveTabsToNewWindow,
@@ -560,7 +557,6 @@ export function useTabStrip(
 		() => () => {
 			const current = dragRef.current;
 			if (!current?.started || current.settling) return;
-			current.crossWindowRuntime?.end('cancel');
 			if (horizontal && current.horizontalGroupDrag !== null) {
 				const canceled = transitionHorizontalGroupDrag(current.horizontalGroupDrag, {
 					type: 'cancel',
@@ -604,43 +600,14 @@ export function useTabStrip(
 		if (!current || current.settling) return;
 		const liveIds = new Set(snapshot.tabs.map((tab) => tab.id));
 		if (current.tabIds.every((id) => liveIds.has(id))) return;
-		const runtimeSnapshot = current.crossWindowRuntime?.getSnapshot?.();
-		const transferredToAnotherContext =
-			current.started &&
-			runtimeSnapshot?.sourceContextId !== undefined &&
-			runtimeSnapshot.attachedContextId !== undefined &&
-			runtimeSnapshot.attachedContextId !== runtimeSnapshot.sourceContextId;
-		if (transferredToAnotherContext) return;
 		if (touchLongPressTimer.current !== null) {
 			window.clearTimeout(touchLongPressTimer.current);
 			touchLongPressTimer.current = null;
 		}
-		if (current.started) {
-			current.crossWindowRuntime?.end('tab-destroyed');
-			announce(messages.tabMoveCanceled);
-		}
+		if (current.started) announce(messages.tabMoveCanceled);
 		cancelVerticalGroupPickupFrame();
 		setDrag(null);
 	}, [cancelVerticalGroupPickupFrame, messages.tabMoveCanceled, snapshot.revision, snapshot.tabs]);
-
-	useEffect(() => {
-		const runtime = drag?.crossWindowRuntime;
-		if (!runtime?.subscribe) return;
-		return runtime.subscribe(() => {
-			const runtimeSnapshot = runtime.getSnapshot?.();
-			if (runtimeSnapshot?.endReason !== 'tab-destroyed') return;
-			if (touchLongPressTimer.current !== null) {
-				window.clearTimeout(touchLongPressTimer.current);
-				touchLongPressTimer.current = null;
-			}
-			setAnnouncement((current) => ({
-				text: messages.tabMoveCanceled,
-				sequence: current.sequence + 1,
-			}));
-			cancelVerticalGroupPickupFrame();
-			setDrag((current) => (current?.crossWindowRuntime === runtime ? null : current));
-		});
-	}, [cancelVerticalGroupPickupFrame, drag?.crossWindowRuntime, messages.tabMoveCanceled]);
 
 	const announce = (text: string) => {
 		setAnnouncement((current) => ({ text, sequence: current.sequence + 1 }));
@@ -661,24 +628,16 @@ export function useTabStrip(
 			model.subscribeBeforeTabAdded(() => {
 				const current = dragRef.current;
 				if (!current?.started || current.settling || current.groupHeaderId === null) return;
-				const runtimeSnapshot = current.crossWindowRuntime?.getSnapshot?.();
-				const transferredToAnotherContext =
-					runtimeSnapshot?.sourceContextId !== undefined &&
-					runtimeSnapshot.attachedContextId !== undefined &&
-					runtimeSnapshot.attachedContextId !== runtimeSnapshot.sourceContextId;
-				current.crossWindowRuntime?.end(transferredToAnotherContext ? 'complete' : 'cancel');
-				if (!transferredToAnotherContext) {
-					if (horizontal && current.horizontalGroupDrag !== null) {
-						const canceled = transitionHorizontalGroupDrag(current.horizontalGroupDrag, {
-							type: 'cancel',
-						});
-						applyHorizontalGroupDragCommands(model, current.restoreState, canceled.commands);
-						assertHorizontalGroupDragRefinement(model, canceled.state);
-					} else {
-						model.restoreCanceledDrag(current.restoreState);
-					}
-					announce(messages.groupMoveCanceled);
+				if (horizontal && current.horizontalGroupDrag !== null) {
+					const canceled = transitionHorizontalGroupDrag(current.horizontalGroupDrag, {
+						type: 'cancel',
+					});
+					applyHorizontalGroupDragCommands(model, current.restoreState, canceled.commands);
+					assertHorizontalGroupDragRefinement(model, canceled.state);
+				} else {
+					model.restoreCanceledDrag(current.restoreState);
 				}
+				announce(messages.groupMoveCanceled);
 				dragRef.current = null;
 				cancelVerticalGroupPickupFrame();
 				setDrag(null);
@@ -1457,8 +1416,6 @@ export function useTabStrip(
 			touchLongPressRecognized: false,
 			startX: event.clientX,
 			startY: event.clientY,
-			screenX: event.screenX,
-			screenY: event.screenY,
 			shiftPressedOnPointerDown: event.shiftKey,
 			x: event.clientX,
 			y: event.clientY,
@@ -1477,7 +1434,6 @@ export function useTabStrip(
 			dragStartAnimationRequired: false,
 			dragStartAnimationStartedAt: null,
 			dragStartAnimationProgress: 1,
-			crossWindowRuntime: createCrossWindowDragRuntime?.(dragSessionData) ?? null,
 			settling: false,
 		};
 		setDrag(next);
@@ -1578,8 +1534,6 @@ export function useTabStrip(
 			touchLongPressRecognized: false,
 			startX: event.clientX,
 			startY: event.clientY,
-			screenX: event.screenX,
-			screenY: event.screenY,
 			shiftPressedOnPointerDown: event.shiftKey,
 			x: event.clientX,
 			y: event.clientY,
@@ -1600,7 +1554,6 @@ export function useTabStrip(
 			dragStartAnimationRequired: false,
 			dragStartAnimationStartedAt: null,
 			dragStartAnimationProgress: 1,
-			crossWindowRuntime: createCrossWindowDragRuntime?.(dragSessionData) ?? null,
 			settling: false,
 		};
 		setDrag(next);
@@ -1718,8 +1671,6 @@ export function useTabStrip(
 					...current,
 					x: event.clientX,
 					y: event.clientY,
-					screenX: event.screenX,
-					screenY: event.screenY,
 				};
 				dragRef.current = pendingPickup;
 				setDrag(pendingPickup);
@@ -1773,7 +1724,6 @@ export function useTabStrip(
 					dragStartAnimationStartedAt,
 					dragStartAnimationProgress: dragStartAnimationRequired ? 0 : 1,
 				};
-				current.crossWindowRuntime?.start();
 			}
 			if (started && !current.started && current.groupHeaderId !== null) {
 				suppressGroupToggleRef.current = current.groupHeaderId;
@@ -1797,8 +1747,6 @@ export function useTabStrip(
 								...current,
 								x: event.clientX,
 								y: event.clientY,
-								screenX: event.screenX,
-								screenY: event.screenY,
 								started: true,
 								targetIndex: null,
 								targetGroup: null,
@@ -1818,8 +1766,6 @@ export function useTabStrip(
 									pointerId: latest.pointerId,
 									clientX: latest.x,
 									clientY: latest.y,
-									screenX: latest.screenX,
-									screenY: latest.screenY,
 									forceReorder: true,
 								});
 							});
@@ -1835,9 +1781,6 @@ export function useTabStrip(
 			let horizontalTargetGroup: TabData['group'] = null;
 			let lastReorderCoordinate = current.lastReorderCoordinate;
 			if (started) {
-				current.crossWindowRuntime?.update({ x: event.screenX, y: event.screenY });
-				const externalTargetActive =
-					current.crossWindowRuntime?.getSnapshot?.().targetActive === true;
 				const liveSnapshot = model.getSnapshot();
 				const source =
 					liveSnapshot.tabs.find((candidate) => candidate.id === current.sourceId) ?? null;
@@ -2152,15 +2095,14 @@ export function useTabStrip(
 					current.tabIds,
 				);
 				if (
-					!externalTargetActive &&
-					(event.forceReorder === true ||
-						shouldReorderDraggedTabs({
-							justAttached: initialMove,
-							movementSinceLastReorder: coordinate - current.lastReorderCoordinate,
-							threshold,
-							initialMove,
-							tabsConsecutive,
-						}))
+					event.forceReorder === true ||
+					shouldReorderDraggedTabs({
+						justAttached: initialMove,
+						movementSinceLastReorder: coordinate - current.lastReorderCoordinate,
+						threshold,
+						initialMove,
+						tabsConsecutive,
+					})
 				) {
 					if (source) {
 						const orderBeforeMove = liveSnapshot.tabs.map((tab) => tab.id);
@@ -2200,8 +2142,6 @@ export function useTabStrip(
 				...current,
 				x: event.clientX,
 				y: event.clientY,
-				screenX: event.screenX,
-				screenY: event.screenY,
 				started,
 				targetIndex,
 				targetGroup,
@@ -2219,8 +2159,6 @@ export function useTabStrip(
 				pointerId: current.pointerId,
 				clientX: current.x,
 				clientY: current.y,
-				screenX: current.screenX,
-				screenY: current.screenY,
 				forceReorder: true,
 			});
 		};
@@ -2235,7 +2173,6 @@ export function useTabStrip(
 			touchLongPressTimer.current = null;
 			if (event.type === 'pointercancel') {
 				if (dragSettleTimer.current !== null) window.clearTimeout(dragSettleTimer.current);
-				if (current.started) current.crossWindowRuntime?.end('cancel');
 				if (horizontal && current.horizontalGroupDrag !== null) {
 					const canceled = transitionHorizontalGroupDrag(current.horizontalGroupDrag, {
 						type: 'cancel',
@@ -2260,9 +2197,6 @@ export function useTabStrip(
 				setDrag(null);
 				return;
 			}
-			const externalTargetActive =
-				current.crossWindowRuntime?.getSnapshot?.().targetActive === true;
-			if (current.started) current.crossWindowRuntime?.end('complete');
 			// Both tab-strip orientations update the model live while the
 			// pointer moves. Release accepts that order instead of submitting
 			// the same target a second time.
@@ -2290,7 +2224,7 @@ export function useTabStrip(
 				);
 			}
 			if (current.started) {
-				if (horizontal && !externalTargetActive && current.horizontalGroupDrag !== null) {
+				if (horizontal && current.horizontalGroupDrag !== null) {
 					const committed = transitionHorizontalGroupDrag(current.horizontalGroupDrag, {
 						type: 'commit',
 					});
@@ -2311,7 +2245,7 @@ export function useTabStrip(
 				}
 				if (current.groupHeaderId !== null) {
 					if (
-						(current.horizontalGroupDrag === null || externalTargetActive) &&
+						current.horizontalGroupDrag === null &&
 						!current.groupWasCollapsedBeforeDrag &&
 						model.getGroup(current.groupHeaderId)
 					) {
@@ -2319,7 +2253,7 @@ export function useTabStrip(
 					}
 					const completionActiveId = current.sourceId;
 					if (
-						(!horizontal || externalTargetActive) &&
+						!horizontal &&
 						completionActiveId !== null &&
 						model.getIndexOfTab(completionActiveId) !== null
 					) {
@@ -2328,27 +2262,20 @@ export function useTabStrip(
 						model.setSelection([completionActiveId], completionActiveId, { expandGroups: false });
 					}
 				}
-				if (!externalTargetActive) {
-					const committedArrangement = model.captureDragRestoreState();
-					// Only the Tabs go back. The press moved the selection, and taking it away for a
-					// moment would send navigation after a Tab the person has already left.
-					model.restoreArrangement(current.restoreState);
-					actions.execute(
-						TAB_STRIP_ACTION_IDS.applyArrangement,
-						{ before: current.restoreState, state: committedArrangement, tabIds: current.tabIds },
-						'pointer',
-					);
-				}
+				const committedArrangement = model.captureDragRestoreState();
+				// Only the Tabs go back. The press moved the selection, and taking it away for a
+				// moment would send navigation after a Tab the person has already left.
+				model.restoreArrangement(current.restoreState);
+				actions.execute(
+					TAB_STRIP_ACTION_IDS.applyArrangement,
+					{ before: current.restoreState, state: committedArrangement, tabIds: current.tabIds },
+					'pointer',
+				);
 			}
 			if (current.groupHeaderId !== null) {
 				scheduleSuppressedGroupToggleReset(current.groupHeaderId);
 			}
-			if (
-				current.started &&
-				horizontal &&
-				!externalTargetActive &&
-				current.targetIdealLeft !== null
-			) {
+			if (current.started && horizontal && current.targetIdealLeft !== null) {
 				const settlingDrag = {
 					...current,
 					x: event.clientX,
@@ -2383,7 +2310,6 @@ export function useTabStrip(
 			if (touchLongPressTimer.current !== null) window.clearTimeout(touchLongPressTimer.current);
 			touchLongPressTimer.current = null;
 			if (dragSettleTimer.current !== null) window.clearTimeout(dragSettleTimer.current);
-			if (current.started) current.crossWindowRuntime?.end('cancel');
 			if (horizontal && current.horizontalGroupDrag !== null) {
 				const canceled = transitionHorizontalGroupDrag(current.horizontalGroupDrag, {
 					type: 'cancel',

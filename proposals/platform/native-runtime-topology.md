@@ -971,9 +971,13 @@ were re-checked at `66189cf9e`. Delivery is tracked by ORC-201.
 5. **Desktop first.** The first release has no Browser connection to real Sessions. Browser ingress
    and its authentication are designed together with remote networking (ORC-297); a Browser cannot
    present a peer credential, so loopback admission does not carry over.
-6. **GUI-only capabilities wait.** Terminal Archive, broadcast input, image preview, file drop,
-   Ghostty configuration import, and terminals retained after Stop are absent from the first
-   migrated release and are decided one by one afterward. Terminal Archive leaves this migration.
+6. **GUI-only capabilities are deleted, not deferred.** Decided on 2026-11-04: broadcast input,
+   the terminal image preview card, file drop, Ghostty configuration import, cross-window Tab drag,
+   and the unused workspace Tabs primitive are deleted, so the panel menus keep only the TUI's pane
+   composition. Terminal Archive and terminals retained after Stop are already gone. Child
+   terminals behave as in the TUI: a Panel's Close ends the whole Panel, the last Panel's Close
+   also closes its Tab, and the GUI creates no child terminal. The empty Agent board starts no
+   Agent.
 
 These defaults also apply until the product owner overrules them:
 
@@ -1010,7 +1014,7 @@ These defaults also apply until the product owner overrules them:
 | 4 Switch and delete     | The Server path is the only path. Settings use Server settings requests, Agent integration management invokes Worker through Server, and Desktop keeps only platform effects. Quitting detaches. Recovery covers Desktop restart; Server, Worker, or Host loss; and Session stop.  | `client-session`, `workbench-document`, `host`, `terminal-binding-registry`, `terminal-archive`, `user-preferences`, `terminal-default-settings`, `terminal-launch-profiles`, `agent-integration-management`, `apps/orchbee-settings`; the shared-document parts of `terminal-document-control`; Host-facing `terminal-lifetime`, `terminal-projection-control`, and `broker`; terminal recovery in `recovery`; replaced composition; Desktop-era contracts. The POSIX Host endpoint addon goes when the POSIX Rust connection process replaces it. |
 | 5 Capability completion | Agent observation, Managed Worktree, the GUI design follow-up, and TUI capabilities the GUI lacks: Agent Board, Recents grouping, controller takeover, configured commands, window titles, Workspace Git facts, Worktree removal, and Machines.                                    | `agent-observation`, then `@orchbee/agent` after its audit; `project-worktree`. The Project Folder picker stays.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | 6 Package ownership     | `apps/web` owns the React Workbench. The in-memory preview and the browser-local model are deleted, so the window renders only Server state.                                                                                                                                       | `@orchbee/workbench`, moved into `apps/web`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| 7 POSIX                 | Server persistence and restart, the withheld request classes, and Worker Worktree mutation on macOS and Linux. Runs in parallel from step 3.                                                                                                                                       | Nothing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 7 POSIX                 | Unscheduled while Mac and Linux adaptation is deferred (ORC-328): Server persistence and restart, the withheld request classes, and Worker Worktree mutation on macOS and Linux.                                                                                                   | Nothing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 8 Browser and remote    | Designed with ORC-297 after Desktop ships.                                                                                                                                                                                                                                         | Nothing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ### Step 2 result
@@ -1424,7 +1428,8 @@ guides. These choices stand unless review changes them:
   still carries the terminal theme transaction, transport-committed selection copy, and the local
   file and image-preview capability, and the renderer still handles them, though no current
   transport sends them. The Worktree forms and the Agent observation source in `apps/web` have no
-  provider either. Step 5 decides which return; the rest are pruned.
+  provider either. Step 5 decides which return; the rest are pruned. Decision 6 later deleted image
+  preview and file drop, so their branches are among those to prune.
 - **Settings shapes live with their controls.** The Agent integration, terminal default, and
   launch-profile shapes that only the Settings controls use moved from
   `@orchbee/desktop-client-protocol` into those controls in `apps/web` without the `Desktop`
@@ -1449,8 +1454,8 @@ guides. These choices stand unless review changes them:
   dependency gate ignores it and the full gate still requires the consumer. Tagged now: the
   reference `AgentRuntime` and Agent identity parsers, which the step 5 Agent audit removes or
   replaces; the terminal settings fixture parsers behind the Web Stories; Terminal Protocol
-  constants and decoders that tests check directly; and the file-drop capability, which waits for
-  decision 6 to settle file drop.
+  constants and decoders that tests check directly. The file-drop capability was tagged too until
+  decision 6 deleted file drop.
 - **The Capsule lives with its writer.** Its source moved to
   `crates/agent-integration-writer/agent-observation-adapters`, and its README was rewritten once
   for the native owners: the Server's registry and ingress, the Worker's endpoint and writer, and
@@ -1668,9 +1673,9 @@ choices stand unless review changes them:
 - **Panel menus take the TUI's pane composition.** The terminal's right-click, below its own
   commands such as Copy and Paste, and the panel header's options button and right-click hold Split
   right and Split below, Maximize or Restore only beside another panel, then a red Close; Take
-  control joins the terminal's menu only while another Client holds that terminal. The GUI's New
-  child terminal and Broadcast Input lead in a section of their own, and the rows keep their
-  shortcuts, because opening the menu focuses its panel. A header now offers the menu whenever it
+  control joins the terminal's menu only while another Client holds that terminal. The rows keep
+  their shortcuts, because opening the menu focuses its panel. The GUI's own section, New child
+  terminal and Broadcast Input, left with decision 6. A header now offers the menu whenever it
   shows, as for a lone panel showing a child terminal. New Tab, New Tab in Current Directory,
   Resize, Equalize, and the Split submenu leave the menus; Split left and Split above become Search
   Actions without default shortcuts, beside the others' existing Actions and shortcuts.
@@ -1891,9 +1896,9 @@ beside the Server path. These choices stand unless review changes them:
   equalize, swap, move, and split resolvers went with the local transitions.
 - **Copy for deleted surfaces is deleted.** SSH and Project connection states, local folder
   management, Workspace duplication, and stopped-session copy left both locales.
-- **Browser platform effects and terminal file drop stay dormant.** They are host adapters with no
-  current composition: Browser ingress waits for step 8 (decision 5) and file drop for its own
-  decision (decision 6).
+- **Browser platform effects stay dormant.** They are a host adapter with no current composition,
+  and Browser ingress waits for step 8 (decision 5). Terminal file drop, dormant here too, was
+  deleted under decision 6.
 - **Tests and stories start from Server snapshots.** One shared fixture builds snapshots that the
   protocol parser accepts and projects them with the production projection, so client tests do not
   depend on a model the window no longer has.
@@ -1918,8 +1923,19 @@ beside the Server path. These choices stand unless review changes them:
   position, or with a launch profile waits for a Workspace. `/` is that location's path, and the
   `/terminal` routes are deleted, so an old address shows the route-unavailable state.
 
-Not done yet: two decisions remain open, starting an Agent from the empty board and closing a child
-terminal, which stays disabled under the Server.
+- **Child terminals behave as in the TUI (decision 6).** A Panel's Close ends the whole Panel and
+  asks by the impact of all its terminals, naming the one it shows. The last Panel's Close also
+  closes its Tab and says so; it still sends `panel.close`, which the Server answers by closing the
+  Tab. The GUI no longer creates child terminals, while the child strip and selection stay for
+  those another Client creates.
+- **GUI-only capabilities are deleted (decision 6).** Broadcast input, the image preview card and
+  its tokens, file drop, Ghostty configuration import, the cross-window Tab drag runtime with the
+  Tab model's transfer methods, and the workspace Tabs primitive left with their tests, Stories,
+  copy in both locales, experience records, and dependency retentions. The panel menus hold only
+  the TUI's pane composition.
+- **The empty Agent board starts no Agent (decision 6).** Nothing changed in code.
+
+No step 6 decision remains open.
 
 ### Evidence
 

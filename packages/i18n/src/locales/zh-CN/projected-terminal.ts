@@ -112,20 +112,6 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.scrollback.stale': '准备回滚缓冲区前，终端输出已发生变化。',
 	'terminal.projected.scrollback.title': '回滚缓冲区',
 	'terminal.projected.scrollback.unavailable': '回滚缓冲区暂时不可用。',
-	'terminal.projected.fileDrop.failure.invalid': '无法安全地准备拖入的路径。',
-	'terminal.projected.fileDrop.failure.inputTooLarge':
-		'生成的终端输入超过 {maximum, number} 个字符的上限。',
-	'terminal.projected.fileDrop.failure.terminalUnavailable': '当前终端尚未准备好接收拖入路径。',
-	'terminal.projected.fileDrop.failure.tooMany':
-		'本次拖入 {count, number} 个文件，请不要超过 {maximum, number} 个。',
-	'terminal.projected.fileDrop.failure.unsupported': '当前客户端无法使用文件拖入。',
-	'terminal.projected.fileDrop.review.confirm': '粘贴路径',
-	'terminal.projected.fileDrop.review.description': '请检查由本机路径生成的准确 Shell 输入。',
-	'terminal.projected.fileDrop.review.input': '生成的终端输入',
-	'terminal.projected.fileDrop.review.newline': '至少一个本机路径包含换行，请仔细核对准确输入。',
-	'terminal.projected.fileDrop.review.remote':
-		'这些路径属于当前设备，在 SSH、容器或其他远程 Shell 中可能不存在。',
-	'terminal.projected.fileDrop.review.title': '检查拖入路径',
 	'terminal.projected.input': '终端输入',
 	'terminal.projected.mobile.alt': 'Alt',
 	'terminal.projected.mobile.arrowDown': '向下箭头',
